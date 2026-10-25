@@ -6,6 +6,7 @@ export interface MetatorPaths {
   readonly rules: string;
   /** Host instruction files generated from the rule canon (GitHub Copilot `applyTo` files). */
   readonly instructions: string;
+  readonly memoryMap: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -14,6 +15,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   index: ".metator/index",
   rules: "docs/metator/rules",
   instructions: ".github/instructions",
+  memoryMap: "docs/metator/memory-map.yml",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

@@ -274,11 +274,13 @@ describe("GenerateRuleAdapters", () => {
 
   test("examples containing backticks keep a valid code span", async () => {
     const set = ruleSet("TS", [
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: source code under test, not a template
       rule("MT-TS-001", { do: ["err(`${id} missing`)"], applyTo: ["packages/**"] }),
     ]);
     const w = world({ "docs/metator/rules/ts.yml": set });
     await w.adapters.execute({ check: false });
     expect((await w.fs.read(".github/instructions/mt-ts.instructions.md"))._unsafeUnwrap()).toContain(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: source code under test, not a template
       "- Do: `` err(`${id} missing`) ``",
     );
   });

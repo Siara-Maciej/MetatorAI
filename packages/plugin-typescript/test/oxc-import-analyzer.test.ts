@@ -32,6 +32,7 @@ describe("OxcImportAnalyzer.parse", () => {
         'export { c } from "./c";',
         'const lazy = () => import("./lazy");',
         "const dynamic = (p: string) => import(p);",
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: source code under test, not a template
         "const tpl = (x: string) => import(`./x/${x}`);",
         'const fake = "import(./not-real)";',
       ].join("\n"),

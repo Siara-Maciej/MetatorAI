@@ -187,6 +187,8 @@ metator workspace list                                         # npm, yarn, pnpm
 metator rules pack --paths src/billing/invoice.ts              # only the rules that apply, sized for an agent
 metator rules check --base main                                # E1 rules via ast-grep, mapped to rule ids
 metator rules adapters --check                                 # generated Copilot instructions match the canon
+metator memory check                                           # every knowledge file mapped, budgets kept, citations true
+metator memory validate --fix                                  # [[cite: file:line | "quote"]] claims follow moved code
 ```
 
 Every file MetatorAI writes is a versioned document (`kind` + `schemaVersion`), so it is always clear how to parse it

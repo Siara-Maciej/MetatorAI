@@ -172,6 +172,7 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/rules.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: source code under test, not a template
     from: "d.toolRuleId ? canon.get(`${engine.engine}:${d.toolRuleId}`) : undefined",
     to: "undefined",
     why: "tool findings are mapped back to canon rule ids",
@@ -181,6 +182,42 @@ const MUTANTS: readonly Mutant[] = [
     from: 'r.status === "active" && paths.some(',
     to: "paths.some(",
     why: "draft and deprecated rules never reach agents",
+  },
+  {
+    file: "packages/core/src/application/memory.ts",
+    from: "if (covering.length === 0) {",
+    to: "if (false) {",
+    why: "every knowledge file must be covered by the memory map",
+  },
+  {
+    file: "packages/core/src/application/memory.ts",
+    from: "const exceeded = item.budget ? overBudget(size, item.budget) : [];",
+    to: "const exceeded: string[] = [];",
+    why: "per-file context budgets are enforced",
+  },
+  {
+    file: "packages/core/src/application/memory.ts",
+    from: "over: budget ? overBudget(size, budget) : []",
+    to: "over: []",
+    why: "tier budgets (e.g. everything always loaded) are enforced",
+  },
+  {
+    file: "packages/core/src/application/memory.ts",
+    from: "if (input.fix) updated = updated.replace(",
+    to: "if (false) updated = updated.replace(",
+    why: "validate --fix rewrites the line of a moved quote",
+  },
+  {
+    file: "packages/core/src/domain/memory.ts",
+    from: "const scanned = options.markdown ? maskMarkdownCode(text) : text;",
+    to: "const scanned = text;",
+    why: "example citations in Markdown code are not claims",
+  },
+  {
+    file: "packages/core/src/domain/memory.ts",
+    from: "    from(l).includes(q) &&\n",
+    to: "    true &&\n",
+    why: "a citation is true only if the quote is really there",
   },
   {
     file: "packages/cli/src/commands/run.ts",

@@ -1,5 +1,6 @@
 export * from "./application/compute-affected.ts";
 export * from "./application/import-graph.ts";
+export * from "./application/memory.ts";
 export * from "./application/paths.ts";
 export * from "./application/rules.ts";
 export * from "./application/run-repository.ts";
@@ -12,6 +13,7 @@ export * from "./domain/glob.ts";
 export * from "./domain/graph.ts";
 export * from "./domain/import-index.ts";
 export * from "./domain/markdown.ts";
+export * from "./domain/memory.ts";
 export * from "./domain/result.ts";
 export * from "./domain/rule.ts";
 export * from "./domain/run-machine.ts";

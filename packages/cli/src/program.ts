@@ -3,6 +3,7 @@ import { bootstrap, findRepoRoot } from "@metator/runtime";
 import { Command, type CommanderError } from "commander";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
+import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
@@ -44,6 +45,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerChangedCommand(program, ctx);
   registerGraphCommands(program, ctx);
   registerRulesCommands(program, ctx);
+  registerMemoryCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;

@@ -1,6 +1,7 @@
 import {
   AdvanceRun,
   BuildImportGraph,
+  CheckMemory,
   CheckRules,
   type Clock,
   ComputeAffected,
@@ -12,13 +13,18 @@ import {
   GraphQueries,
   IndexedImportGraphReader,
   InitRun,
+  InventoryMemory,
+  KnowledgeFiles,
   LintRules,
   ListRuns,
+  MemoryBudget,
+  MemoryMapReader,
   type MetatorPaths,
   PackRules,
   RuleCatalog,
   RunRepository,
   SourceFiles,
+  ValidateCitations,
   WorkflowCatalog,
 } from "@metator/core";
 import { BunFileSystem, BunProcessRunner } from "@metator/plugin-bun";
@@ -89,6 +95,24 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     checkRules: asFunction(
       ({ ruleCatalog, ruleEngines, vcs }) => new CheckRules(ruleCatalog, ruleEngines, vcs),
+    ),
+    memoryMapReader: asFunction(
+      ({ fileSystem, paths }) => new MemoryMapReader(fileSystem, paths),
+    ).singleton(),
+    knowledgeFiles: asFunction(({ sourceFiles }) => new KnowledgeFiles(sourceFiles)).singleton(),
+    inventoryMemory: asFunction(
+      ({ memoryMapReader, knowledgeFiles, fileSystem }) =>
+        new InventoryMemory(memoryMapReader, knowledgeFiles, fileSystem),
+    ),
+    memoryBudget: asFunction(
+      ({ memoryMapReader, fileSystem }) => new MemoryBudget(memoryMapReader, fileSystem),
+    ),
+    validateCitations: asFunction(
+      ({ memoryMapReader, fileSystem }) => new ValidateCitations(memoryMapReader, fileSystem),
+    ),
+    checkMemory: asFunction(
+      ({ memoryMapReader, knowledgeFiles, fileSystem, memoryBudget, validateCitations }) =>
+        new CheckMemory(memoryMapReader, knowledgeFiles, fileSystem, memoryBudget, validateCitations),
     ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),

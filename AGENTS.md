@@ -17,7 +17,7 @@ Design docs (Polish): `docs/README.md`. Start with `docs/ARCHITECTURE.md` and `d
 | Typecheck | `bun run typecheck` (TypeScript 7, `noEmit`) |
 | Lint + format | `bun run lint` / `bun run format` (Biome; Markdown is not formatted) |
 | Architecture rules | `bun run arch` (ast-grep rule tests + scan) |
-| Rule canon | `bun run canon` (`rules lint` + `rules adapters --check` on `docs/metator/rules`) |
+| Rule canon + memory map | `bun run canon` (`rules lint`, `rules adapters --check`, `memory check`) |
 | Run the CLI | `bun run metator <command>` |
 
 ## Architecture (enforced, not advisory)
@@ -37,7 +37,7 @@ Clean architecture, ports and adapters. Dependencies point inward:
 ## Every file is a versioned document (ADR-0016)
 
 - Every file MetatorAI writes or reads starts with `kind` + `schemaVersion` (JSON/YAML top-level fields, Markdown front matter).
-- Define documents with `defineDocument(kind, { latest, upgrade?, history? })` (`packages/core/src/domain/versioned.ts`). Write only through `Document.stamp(body)`; read only through `Document.parse(raw, source)`.
+- Define documents with `defineDocument(kind, { latest, upgrade?, history? })` [[cite: packages/core/src/domain/versioned.ts:52 | "export function defineDocument<S extends z.ZodType>("]]. Write only through `Document.stamp(body)`; read only through `Document.parse(raw, source)`.
 - Changing a document's schema means a new version, a migration (`upgrade`) and a migration test. Never change a released version in place.
 - `schemaVersion` is the file format; content versions use separate fields (e.g. a workflow's `revision`).
 - `e2e/helpers/versioned.ts` (`findUnversioned`) fails CI for any unversioned file under `.metator/` or `.github/metator/`.

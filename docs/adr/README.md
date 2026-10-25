@@ -24,3 +24,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0018](0018-workspaces-manypkg.md) | Pakiety workspace: @manypkg/get-packages | Proposed |
 | [0019](0019-git-simple-git.md) | Obsługa gita: simple-git | Proposed |
 | [0020](0020-rule-canon.md) | Kanon reguł jako wersjonowany YAML, adaptery hostów i silniki E1 | Proposed |
+| [0021](0021-memory-map.md) | Mapa pamięci jako wersjonowany dokument i strażnik CI | Proposed |

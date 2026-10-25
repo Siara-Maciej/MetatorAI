@@ -13,12 +13,7 @@ import {
   RuleSetDocument,
   rulesFor,
 } from "../domain/rule.ts";
-import {
-  defineDocument,
-  parseYamlDocument,
-  readFrontMatter,
-  renderFrontMatter,
-} from "../domain/versioned.ts";
+import { parseYamlDocument, readFrontMatter, renderFrontMatter } from "../domain/versioned.ts";
 import type { FileSystem, ReadonlyFileSystem, RuleEngine, Vcs } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { SourceFiles } from "./source-files.ts";

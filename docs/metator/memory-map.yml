@@ -1,0 +1,72 @@
+kind: MemoryMap
+schemaVersion: 1
+# Every knowledge carrier MetatorAI's own agents use (ADR-0021). `bun run canon` runs `metator memory check`.
+knowledge:
+  include:
+    - "**/AGENTS.md"
+    - "**/CLAUDE.md"
+    - ".github/instructions/**"
+    - ".github/metator/**"
+    - "docs/**"
+tierBudgets:
+  T0: { chars: 8000 }
+items:
+  - id: t0.agents
+    tier: T0
+    kind: canon
+    paths: ["AGENTS.md", "CLAUDE.md"]
+    load: always
+    writers: [human]
+    readers: ["*"]
+    budget: { chars: 8000, lines: 120 }
+    description: Always-loaded project instructions (CLAUDE.md imports AGENTS.md).
+  - id: t1.adr
+    tier: T1
+    kind: canon
+    paths: ["docs/adr/*.md"]
+    load: explicit
+    writers: [human, "agents (Proposed only)"]
+    readers: ["*"]
+  - id: t1.design
+    tier: T1
+    kind: canon
+    paths: ["docs/*.md", "docs/design/*.md"]
+    load: explicit
+    writers: [human]
+    readers: ["*"]
+  - id: t1.rules
+    tier: T1
+    kind: canon
+    paths: ["docs/metator/rules/*.yml"]
+    load: "query:metator rules pack --paths <files>"
+    writers: [human]
+    readers: ["*"]
+  - id: t1.memory-map
+    tier: T1
+    kind: canon
+    paths: ["docs/metator/memory-map.yml"]
+    load: explicit
+    writers: [human]
+    readers: ["*"]
+  - id: t1.instructions
+    tier: T1
+    kind: derived
+    paths: [".github/instructions/mt-*.instructions.md"]
+    load: "applyTo:<rule globs>"
+    writers: ["metator rules adapters"]
+    readers: [copilot]
+    budget: { lines: 150 }
+  - id: t2.import-index
+    tier: T2
+    kind: derived
+    paths: [".metator/index/**"]
+    load: "query:metator graph"
+    writers: ["metator index build"]
+    readers: ["*"]
+  - id: t3.runs
+    tier: T3
+    kind: working
+    paths: [".metator/runs/**"]
+    load: explicit
+    writers: ["metator run"]
+    readers: ["*"]

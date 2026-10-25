@@ -76,7 +76,8 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 **Cel:** canon w jednym miejscu, reguły z ID, wzorce z exemplarami, pamięć pod kontrolą.
 
 **Zadania**
-- [ ] `docs/metator/memory-map.yml` v1 wg procedury z [memory-map §4](design/03-memory-map.md#4-jak-zbudować-mapę-pamięci-procedura-krok-po-kroku). Narzędzia: `memory inventory|budget|dupes|validate|check`.
+- [x] Mapa pamięci ([ADR-0021](adr/0021-memory-map.md)): `MemoryMap` w `docs/metator/memory-map.yml`, `memory inventory|budget|validate [--fix]|check|schema`, cytaty `[[cite: …]]` z naprawą przesunięć, strażnik w `bun run canon`. Dogfood: mapa MetatorAI (8 pozycji, 40 plików wiedzy).
+- [ ] `memory dupes`, `memory matrix`.
 - [ ] Odchudzenie T0: `copilot-instructions.md` ≤ 4000 znaków, `AGENTS.md` per pakiet.
 - [ ] **W7 na istniejących ADR i docs** (`mt-docs-curator`): twierdzenia → weryfikacja w kodzie → reguły `MT-*` → HITL → canon.
 - [ ] Sekcja „Implikacje dla kodu” w każdym ADR `Accepted`. `adr lint`.

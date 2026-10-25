@@ -12,7 +12,7 @@
     "format": "biome check --write .",
     "arch": "ast-grep test --skip-snapshot-tests && ast-grep scan",
     "check": "bun run lint && bun run typecheck && bun run arch && bun run canon && bun run test && bun run test:mutation",
-    "canon": "bun packages/cli/src/main.ts rules lint && bun packages/cli/src/main.ts rules adapters --check",
+    "canon": "bun packages/cli/src/main.ts rules lint && bun packages/cli/src/main.ts rules adapters --check && bun packages/cli/src/main.ts memory check",
     "metator": "bun packages/cli/src/main.ts",
     "test:unit": "bun test packages",
     "test:e2e": "bun test e2e",

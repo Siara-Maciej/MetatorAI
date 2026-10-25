@@ -1,6 +1,7 @@
 import {
   type AdvanceRun,
   type BuildImportGraph,
+  type CheckMemory,
   type CheckRules,
   type Clock,
   type ComputeAffected,
@@ -12,9 +13,13 @@ import {
   type ImportAnalyzer,
   type ImportGraphReader,
   type InitRun,
+  type InventoryMemory,
+  type KnowledgeFiles,
   type LintRules,
   type ListRuns,
   type Logger,
+  type MemoryBudget,
+  type MemoryMapReader,
   MetatorError,
   type MetatorPaths,
   ok,
@@ -25,6 +30,7 @@ import {
   type RuleEngine,
   type RunRepository,
   type SourceFiles,
+  type ValidateCitations,
   type Vcs,
   type WorkflowCatalog,
   type WorkspaceReader,
@@ -68,6 +74,12 @@ export interface Cradle {
   packRules: PackRules;
   generateRuleAdapters: GenerateRuleAdapters;
   checkRules: CheckRules;
+  memoryMapReader: MemoryMapReader;
+  knowledgeFiles: KnowledgeFiles;
+  inventoryMemory: InventoryMemory;
+  memoryBudget: MemoryBudget;
+  validateCitations: ValidateCitations;
+  checkMemory: CheckMemory;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;
