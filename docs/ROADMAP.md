@@ -20,7 +20,7 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [ ] Inwentarz: agenci, prompty, skille, instrukcje, ADR (ręcznie albo pierwsza wersja `metator meta audit` + `metator memory inventory`).
 - [ ] Karta zgodności dla każdego orchestratora ([workflows §4](design/02-workflows.md#4-audyt-istniejących-orchestratorów)).
 - [ ] Graf wywołań agent → agent/skill. Szukamy cykli, martwych elementów i zagnieżdżeń > 2.
-- [ ] **Spike platformy** na wersji VS Code i CLI używanej w organizacji, z wynikami zapisanymi w ADR-MT-000:
+- [ ] **Spike platformy** na wersji VS Code i CLI używanej w organizacji, z wynikami zapisanymi w ADR-0009:
   - [ ] frontmatter: `agents`, `user-invocable`, `disable-model-invocation`, `model` (lista), `handoffs`, nazwy tooli,
   - [ ] subagenci: czy idą równolegle, limit, czy dostają `AGENTS.md` i instrukcje `applyTo`,
   - [ ] hooki: nagranie realnych payloadów stdin dla `PreToolUse`, `PostToolUse`, `SubagentStop`, `Stop`, `PreCompact`. Który format decyzji działa (`hookSpecificOutput.permissionDecision` vs inne), zachowanie exit code,
@@ -28,7 +28,7 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
   - [ ] polityki org: hooki (preview), MCP allowlist, dostępne modele (≥ 2 rodziny).
 - [ ] Baseline: 3–5 realnych zadań i 10 PR-ów zrobionych obecnym workflow. Mierzymy czas, liczbę poprawek człowieka, błędy znalezione później i oceny trafności komentarzy review.
 
-**Produkty:** `docs/metator/audit/AUDIT-<data>.md`, `docs/adr/ADR-MT-000-platforma-copilot.md`, nagrane payloady hooków w `metator/fixtures/hooks/`, baseline metryk.
+**Produkty:** `docs/metator/audit/AUDIT-<data>.md`, `docs/adr/0009-host-platform.md`, nagrane payloady hooków w `packages/testing/fixtures/hooks/`, baseline metryk.
 
 **Kryterium wyjścia:** lista luk z priorytetami zaakceptowana. Wiadomo, które mechanizmy platformy są dostępne (jeśli hooki są niedostępne, fallback: bramki przez `mt-gatekeeper` + `metator run advance`).
 
@@ -39,6 +39,13 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 ## F1: Fundament: CLI `metator`, indeks, stan runu (2 tygodnie)
 
 **Cel:** warstwa faktów i maszyna stanów, na których stoją kolejne fazy.
+
+**Postęp (2026-10-25)**
+- [x] Monorepo Bun: `core` (domena, porty, use case `ComputeAffected`), `runtime` (kontener DI, koperta wyjścia, tokeny), `testing` (fakes, contract suite `FileSystem`), `plugin-bun` (`BunFileSystem`), `cli` (`version`, `help`).
+- [x] Reguły architektury ast-grep z testami (`rules/architecture`), egzekwowane w CI.
+- [x] CI (GitHub Actions): Biome, TypeScript 7, ast-grep, `bun test`.
+- [x] ADR 0001–0008 (Proposed). Odkrycie: TS 7 bez klasycznego API kompilatora ([ADR-0008](adr/0008-typescript-7-graph.md)).
+- [ ] Następne: `plugin-git` (`Vcs`), graf importów (ast-grep + resolver), `metator graph affected`, `run init|advance|status`.
 
 **Zadania**
 - [ ] Szkielet `metator` (envelope, workspace, git, cache, budget) + `bun test` na fixture'ze mini-monorepo.

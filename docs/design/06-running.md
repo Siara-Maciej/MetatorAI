@@ -13,7 +13,7 @@
 |------|----|-------|
 | 1 | `bun install` | `metator` korzysta z zależności repo (`typescript`) |
 | 2 | `metator index build` | pierwsze zbudowanie indeksu (graf, symbole, API, wzorce) |
-| 3 | VS Code + Copilot Chat w trybie **Agent** | wersja zgodna z ADR-MT-000 (F0) |
+| 3 | VS Code + Copilot Chat w trybie **Agent** | wersja zgodna z ADR-0009 (F0) |
 | 4 | Włączone: custom agents (`.github/agents`), Agent Skills (`.github/skills`), prompt files (`.github/prompts`), hooki (`.github/hooks`) | dokładne nazwy ustawień i polityk org do potwierdzenia w F0 |
 | 5 | **Nie** włączamy zagnieżdżania subagentów (`chat.subagents.allowInvocationsFromSubagents` zostaje wyłączone) | projektujemy głębokość ≤ 2 |
 | 6 | Narzędzie „Run Subagent” (`agent`) dostępne dla koordynatorów | koordynatorzy mają je we frontmatterze `tools` |
@@ -126,9 +126,9 @@ L1 włączasz przy starcie (`autonomy: L1`) albo opcją „Autopilot” w bramce
 |-------|-----------|-----------|
 | Agent odpowiada sam, nie deleguje | brak narzędzia `agent` albo worker nie jest na liście `agents:` | `metator meta agents-lint`, sprawdź `tools`/`agents` |
 | Worker oddaje markdown zamiast JSON | brak walidacji | `metator findings validate` / `run advance` zwraca błąd, a koordynator ponawia z komunikatem |
-| Hook nie blokuje | hooki wyłączone polityką albo inny format I/O | ADR-MT-000, fallback: bramki w `run advance` + `mt-gatekeeper` |
+| Hook nie blokuje | hooki wyłączone polityką albo inny format I/O | ADR-0009, fallback: bramki w `run advance` + `mt-gatekeeper` |
 | `STALE_INDEX` | zmiany od ostatniego builda | `metator index build` |
-| Subagenci idą sekwencyjnie | zachowanie danej wersji VS Code | działa poprawnie, tylko wolniej. Odnotuj w ADR-MT-000. |
+| Subagenci idą sekwencyjnie | zachowanie danej wersji VS Code | działa poprawnie, tylko wolniej. Odnotuj w ADR-0009. |
 
 ---
 

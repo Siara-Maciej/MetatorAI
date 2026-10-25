@@ -437,7 +437,7 @@ Kod jest potrzebny tylko tam, gdzie logika jest niebanalna: graf importów TS, s
 |--------|--------------|----------|
 | `plugin-node` | `PackageManager` (npm/yarn/pnpm/bun), `WorkspaceReader`, `BinResolver`, `PackageGraphReader` (workspaces), `ScriptClassifier` | `packageManager` w package.json, lockfile, `pnpm-workspace.yaml`, `.yarnrc.yml`, `bunfig.toml` |
 | `plugin-nx`, `plugin-turbo` | `PackageGraphReader`, opcjonalnie `ComputeAffected` strategy | `nx.json`, `turbo.json` |
-| `plugin-typescript` | `ImportGraphReader`, `SymbolIndex`, `ApiSurfaceReader`, `TypeChecker` (tsc) | `tsconfig*.json` |
+| `plugin-typescript` | `ImportGraphReader` (ekstrakcja importów przez ast-grep + własny resolver, patrz [ADR-0008](adr/0008-typescript-7-graph.md)), `SymbolIndex`, `ApiSurfaceReader` i `TypeChecker` (CLI `tsc`) | `tsconfig*.json` |
 | `plugin-biome`, `plugin-eslint`, `plugin-prettier` | presety `lint`/`format`/`rules` + parsery | pliki konfiguracji |
 | `plugin-ast-grep` | `StructuralSearch`, `RuleEngine`, `ImportGraphReader` (generyczny) | `sgconfig.yml` |
 | `plugin-formats` | parsery SARIF, JUnit, LCOV, Cobertura, TAP | – (zawsze włączony) |
@@ -974,7 +974,7 @@ export function packageManagerContract(make: () => PackageManager, fixtureRoot: 
 
 | Faza | `MetatorAI` |
 |------|-----------|
-| **F0** | ADR-MT-001…007 (niżej). Spike: payloady hooków Copilot i Claude → `HookCodec`. Lista narzędzi w repo pilotażowym. |
+| **F0** | ADR 0001–0008 ([docs/adr](adr/README.md)). Spike: payloady hooków Copilot i Claude → `HookCodec`. Lista narzędzi w repo pilotażowym. |
 | **F1** | `core` (domena, porty, use cases: affected, gate, run, findings, plan), `runtime` (container, config zod, plugin loader), `cli` + `metator-guard`. Pluginy: node, typescript, biome, ast-grep, bun-test, formats, git, host-copilot. Contract suites. Fixture'y: bun-workspaces, pnpm, npm. |
 | **F2** | Discovery, klasyfikator skryptów, `stats *`, `doctor`, agenci bootstrapu, `metator init`. Format kanoniczny i `metator generate` (Copilot). |
 | **F3** | Presety ESLint, Prettier, Vitest, Jest. Parser SARIF. `findings *`. Fixture'y: yarn berry, nx, turbo. |
@@ -982,14 +982,7 @@ export function packageManagerContract(make: () => PackageManager, fixtureRoot: 
 | **F5** | Plugin azure-devops i gitlab, generatory CI, binarka `bun build --compile`, obraz `metator-runner`. |
 | **F6** | `metator discover --diff` w nightly, `metator upgrade` z migratorami, opcjonalnie MCP server (driving adapter na tych samych use case'ach), pluginy polyglot na żądanie. |
 
-**ADR do napisania:**
-- ADR-MT-001 Capabilities i providery
-- ADR-MT-002 DI: własny kontener z tokenami, lazy
-- ADR-MT-003 Formaty wymiany SARIF, JUnit i LCOV
-- ADR-MT-004 Konfiguracja: `metator.config.ts`/`.json`, warstwy, zod
-- ADR-MT-005 Format kanoniczny agentów i generatory hostów
-- ADR-MT-006 Dystrybucja: npm, binarka, obraz Docker
-- ADR-MT-007 Model bezpieczeństwa: allowlista komend, pluginy jawne
+**ADR:** spisane w [docs/adr/](adr/README.md) (0001–0008, status Proposed).
 
 ---
 
@@ -1002,5 +995,5 @@ export function packageManagerContract(make: () => PackageManager, fixtureRoot: 
 | Klasyfikator skryptów myli się na niestandardowych repo | średni | pewność + dowody + agent rozstrzyga + **człowiek akceptuje** + doctor weryfikuje uruchomieniem |
 | Wydajność hooków przy dużym repo | średni | osobny entrypoint `metator-guard`, cache, benchmark w CI, automatyczna degradacja przez doctor |
 | Dryf konfiguracji vs repo | średni | `metator discover --diff` nightly + przy `session-start` |
-| Rozjazd wersji `typescript` (MetatorAI vs repo) | niski | plugin TS ładuje wersję z repo jako peer, fallback wbudowany z ostrzeżeniem |
+| Rozjazd wersji `typescript` (MetatorAI vs repo) i brak stabilnego API w TS 7 | średni | graf importów niezależny od API kompilatora (ast-grep + resolver, [ADR-0008](adr/0008-typescript-7-graph.md)). `tsc` używany tylko jako CLI z wersji repo |
 | Utrzymanie wielu pluginów | średni | presety zamiast kodu, contract suites, fixture'y w macierzy CI |

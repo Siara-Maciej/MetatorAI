@@ -56,7 +56,7 @@ Luki, które blokują poziom enterprise:
 
 **Ryzyka platformowe, które plan uwzględnia:**
 
-- Hooki i pamięć są w *preview*. Kształt outputu `PreToolUse` różni się w źródłach (`permissionDecision` top-level vs `hookSpecificOutput`), więc trzeba go zweryfikować na wersji VS Code używanej w organizacji (ADR-MT-000 w fazie 0).
+- Hooki i pamięć są w *preview*. Kształt outputu `PreToolUse` różni się w źródłach (`permissionDecision` top-level vs `hookSpecificOutput`), więc trzeba go zweryfikować na wersji VS Code używanej w organizacji (ADR-0009 w fazie 0).
 - Frontmatter nie zachowuje się identycznie we wszystkich powierzchniach. Według źródeł wtórnych CLI nie respektuje allowlisty `agents`.
 - Otwarty bug: subagenci w niektórych harnessach nie dostają `AGENTS.md` (`include-custom-instructions`). **Krytyczne reguły nie mogą więc polegać na dziedziczeniu instrukcji.** Agent ładuje je jawnie przez skill albo „rule pack” na tablicy.
 - Kolejności i limitu współbieżności subagentów nie opisuje oficjalna dokumentacja. Fan-out ograniczamy sami (np. maks. 6 naraz) i nie zakładamy, że workerzy się widzą.
@@ -472,7 +472,7 @@ Dostajesz ścieżkę do JEDNEGO znaleziska. Nie znasz rozumowania autora. Twoim 
 
 | Faza | Czas | Zakres | Kryterium wyjścia |
 |------|------|--------|-------------------|
-| **0. Fundament** | 1–2 tyg. | Spike na wersji VS Code/CLI organizacji: frontmatter, `agents`, równoległość, hooki (kształt `PreToolUse`), skille ze skryptami w VS Code + CLI + cloud agent. ADR-MT-000 (decyzje platformowe). Szkielet `metator` (graph, rules pack, findings validate). | Udokumentowane, co działa na każdej powierzchni |
+| **0. Fundament** | 1–2 tyg. | Spike na wersji VS Code/CLI organizacji: frontmatter, `agents`, równoległość, hooki (kształt `PreToolUse`), skille ze skryptami w VS Code + CLI + cloud agent. ADR-0009 (decyzje platformowe). Szkielet `metator` (graph, rules pack, findings validate). | Udokumentowane, co działa na każdej powierzchni |
 | **1. Wiedza** | 2–3 tyg. | `mt-docs-curator` na pilotażowej domenie: reguły z ID, 10–15 wzorców z exemplarami, karty modułów pilota, `copilot-instructions` + adaptery. Indeks T2. | Reguły zatwierdzone przez architektów, ≥ 50% E1 (deterministyczne) |
 | **2. Review** | 2–3 tyg. | `mt-pr-review`: Find/Verify/Judge, schemat findings, hooki `SubagentStop`. Złoty zbiór v1 (≥ 50 PR). `mt-eval.yml`. | Precision blocking ≥ 85%, recall na zasianych bugach ≥ 60%, stabilność 3/3 |
 | **3. Build** | 3–4 tyg. | `mt-orchestrator` G0–G9, test-author/implementer/refactorer, `plan lint`, guards `pre-tool`/`post-edit`, tryb refactor z api-diff + charakteryzacją. | 10 realnych zadań na pilocie, ≥ 90% kroków planu z exemplarem, 0 naruszeń granic po G6 |

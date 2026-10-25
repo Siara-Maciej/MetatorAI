@@ -210,9 +210,22 @@ rather than new code.
 
 ---
 
+## Contributing
+
+```bash
+bun install
+bun run check        # Biome · TypeScript 7 · ast-grep architecture rules · bun test
+bun run metator help
+```
+
+The codebase enforces its own architecture: `rules/architecture/*.yml` (ast-grep) fails CI if the domain
+imports I/O or a plugin reaches into the runtime. Design docs (in Polish) live in [`docs/`](docs/README.md),
+decisions in [`docs/adr/`](docs/adr/README.md), and agent instructions for this repo in [`AGENTS.md`](AGENTS.md).
+
 ## Roadmap
 
-- [ ] **Core**: domain, ports, DI container, config, run state machine
+- [x] **Foundation**: monorepo, domain, ports, DI container, envelope, contract tests, architecture rules, CI
+- [ ] **Core**: config, run state machine, git and import-graph adapters
 - [ ] **Survey**: graph, affected, symbols, API surface, pattern index
 - [ ] **Bootstrap**: `metator init`, script classifier, `doctor`
 - [ ] **Review**: Find → Verify → Judge, finding schema, golden-set evals
