@@ -28,7 +28,7 @@ Clean architecture, ports and adapters. Dependencies point inward:
 - `packages/core/src/application`: use cases. Depend on ports via constructor injection, return `Result`.
 - `packages/plugin-*`: adapters implementing ports. May import `@metator/core` only.
 - `packages/runtime`: DI container, envelope, tokens: the only place that knows concrete implementations.
-- `packages/cli`: driving adapter: argv → use case → JSON envelope → exit code.
+- `packages/cli`: driving adapter on commander: `src/commands/*.ts` (one module per command group, `register*(program, ctx)`), `program.ts` (JSON-only commander setup), `run.ts` (envelope + exit code). Validate values with commander (`Option.choices`, `Argument.choices`, `requiredOption`), not by hand.
 - `packages/testing`: fakes and port contract suites.
 
 `rules/architecture/*.yml` (ast-grep) enforces this in CI. Never weaken a rule to make code pass; move the code instead.

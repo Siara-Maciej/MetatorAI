@@ -59,11 +59,15 @@ describe("metator CLI usage errors (fail before touching the repository)", () =>
   });
 
   test("unknown event", async () => {
-    expect(await usage("run", "advance", "skip")).toContain('Unknown event "skip"');
+    const message = await usage("run", "advance", "skip");
+    expect(message).toContain("'skip'");
+    expect(message).toContain("Allowed choices are pass, fail, approve, abort");
   });
 
   test("invalid autonomy level", async () => {
-    expect(await usage("run", "init", "--workflow", "w", "--task", "t", "--autonomy", "L9")).toContain("L9");
+    const message = await usage("run", "init", "--workflow", "w", "--task", "t", "--autonomy", "L9");
+    expect(message).toContain("'L9'");
+    expect(message).toContain("Allowed choices are L0, L1, L2");
   });
 
   test("blank task", async () => {

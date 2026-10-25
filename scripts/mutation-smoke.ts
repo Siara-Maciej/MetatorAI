@@ -111,10 +111,16 @@ const MUTANTS: readonly Mutant[] = [
     why: "untracked files count as changed",
   },
   {
-    file: "packages/cli/src/run.ts",
+    file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",
     why: "approvals must name who decided",
+  },
+  {
+    file: "packages/cli/src/commands/run.ts",
+    from: ".choices(AutonomySchema.options)",
+    to: "",
+    why: "autonomy must be one of the known levels",
   },
   {
     file: "packages/runtime/src/envelope.ts",

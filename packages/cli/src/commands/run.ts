@@ -1,0 +1,98 @@
+import { AutonomySchema, err, MetatorError, ok, type Result, type RunEvent } from "@metator/core";
+import { Argument, type Command, Option } from "commander";
+import type { CommandContext } from "../context.ts";
+
+export const EVENTS = ["pass", "fail", "approve", "abort"] as const;
+type EventName = (typeof EVENTS)[number];
+
+interface AdvanceOptions {
+  readonly run?: string;
+  readonly reason?: string;
+  readonly by?: string;
+  readonly choice?: string;
+}
+
+/** Commander validates the event name (choices); this adds the per-event required fields. */
+export function toEvent(name: EventName, opts: AdvanceOptions): Result<RunEvent, MetatorError> {
+  switch (name) {
+    case "pass":
+      return ok({ type: "PASS" });
+    case "fail":
+      return ok(opts.reason ? { type: "FAIL", reason: opts.reason } : { type: "FAIL" });
+    case "approve":
+      if (!opts.by?.trim()) {
+        return err(MetatorError.usage("approve requires --by <name>", "Gates record who made the decision."));
+      }
+      return ok(
+        opts.choice
+          ? { type: "APPROVE", by: opts.by, choice: opts.choice }
+          : { type: "APPROVE", by: opts.by },
+      );
+    case "abort":
+      if (!opts.reason?.trim()) return err(MetatorError.usage("abort requires --reason <text>"));
+      return ok({ type: "ABORT", reason: opts.reason });
+  }
+}
+
+export function registerRunCommands(program: Command, { action, container }: CommandContext): void {
+  const runs = program.command("run").description("Start and drive workflow runs (state machine)");
+
+  runs
+    .command("init")
+    .description("Start a run of a workflow")
+    .requiredOption("--workflow <id>", "workflow id")
+    .requiredOption("--task <text>", "task description or work item reference")
+    .addOption(
+      new Option("--autonomy <level>", "L0 all gates, L1 skip plan approval, L2 headless")
+        .choices(AutonomySchema.options)
+        .default("L0"),
+    )
+    .action(
+      action(
+        async (opts: {
+          workflow: string;
+          task: string;
+          autonomy: (typeof AutonomySchema.options)[number];
+        }) => {
+          const task = opts.task.trim();
+          if (task === "") return { result: err(MetatorError.usage("--task must not be empty")) };
+          const input = { workflow: opts.workflow, task, autonomy: opts.autonomy };
+          return { result: await container().resolve("initRun").execute(input) };
+        },
+      ),
+    );
+
+  runs
+    .command("advance")
+    .description("Send an event to the current stage")
+    .addArgument(new Argument("<event>", "event to send").choices(EVENTS))
+    .option("--run <id>", "run id (default: latest)")
+    .option("--reason <text>", "why (fail, abort)")
+    .option("--by <name>", "who decided (required for approve)")
+    .option("--choice <value>", "selected option at a gate")
+    .action(
+      action(async (name: EventName, opts: AdvanceOptions) => {
+        const event = toEvent(name, opts);
+        if (event.isErr()) return { result: err(event.error) };
+        const input = opts.run ? { runId: opts.run, event: event.value } : { event: event.value };
+        return { result: await container().resolve("advanceRun").execute(input) };
+      }),
+    );
+
+  runs
+    .command("status")
+    .description("Show the current stage, what it expects and recent history")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (opts: { run?: string }) => ({
+        result: await container()
+          .resolve("getRunStatus")
+          .execute(opts.run ? { runId: opts.run } : {}),
+      })),
+    );
+
+  runs
+    .command("list")
+    .description("List runs, newest first")
+    .action(action(async () => ({ result: await container().resolve("listRuns").execute() })));
+}
