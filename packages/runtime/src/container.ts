@@ -1,70 +1,57 @@
-import { MetatorError } from "@metator/core";
-
-/** Typed DI token. The phantom `__type` keeps `resolve` type-safe without reflection. */
-export type Token<T> = symbol & { readonly __type?: T };
-export const token = <T>(description: string): Token<T> => Symbol(description) as Token<T>;
-
-export type Factory<T> = (container: Container) => T;
+import {
+  type Clock,
+  err,
+  type FileSystem,
+  type ImportGraphReader,
+  type Logger,
+  MetatorError,
+  ok,
+  type ProcessRunner,
+  type Result,
+  type Vcs,
+} from "@metator/core";
+import { type AwilixContainer, AwilixResolutionError, createContainer, InjectionMode } from "awilix";
 
 /**
- * Minimal DI container: constructor injection via factories, lazy singletons,
- * explicit overrides (config > preset > default) and multi-bindings for registries.
- * Lazy by design so that hook entrypoints only construct what they touch.
+ * DI is awilix (ADR-0011): no decorators, lazy resolution, scopes (one per workflow run),
+ * strict lifetime checks, and plain re-registration for config > preset > default overrides.
+ * The cradle lists every port a use case may depend on; plugins register implementations.
  */
-export class Container {
-  private readonly single = new Map<symbol, Factory<unknown>>();
-  private readonly multi = new Map<symbol, Factory<unknown>[]>();
-  private readonly instances = new Map<symbol, unknown>();
-  private readonly resolving: symbol[] = [];
+export interface Cradle {
+  clock: Clock;
+  logger: Logger;
+  fileSystem: FileSystem;
+  processRunner: ProcessRunner;
+  vcs: Vcs;
+  importGraphReader: ImportGraphReader;
+}
 
-  register<T>(t: Token<T>, factory: Factory<T>): this {
-    if (this.single.has(t)) {
-      throw new MetatorError("INTERNAL", `Duplicate binding for ${t.description}`, {
-        hint: "Use override() to replace an existing binding.",
-      });
+export type MetatorContainer = AwilixContainer<Cradle>;
+
+export function createMetatorContainer(): MetatorContainer {
+  return createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true });
+}
+
+/** Resolves a port, translating awilix errors into actionable MetatorErrors (errors as values). */
+export function resolvePort<K extends keyof Cradle>(
+  container: MetatorContainer,
+  name: K,
+): Result<Cradle[K], MetatorError> {
+  try {
+    return ok(container.resolve(name));
+  } catch (e) {
+    if (!(e instanceof AwilixResolutionError)) throw e;
+    if (e.message.includes("Cyclic dependencies")) {
+      return err(
+        new MetatorError("INTERNAL", `Dependency cycle while resolving ${String(name)}`, {
+          details: { message: e.message },
+        }),
+      );
     }
-    this.single.set(t, factory);
-    return this;
-  }
-
-  override<T>(t: Token<T>, factory: Factory<T>): this {
-    this.single.set(t, factory);
-    this.instances.delete(t);
-    return this;
-  }
-
-  registerMany<T>(t: Token<T>, factory: Factory<T>): this {
-    this.multi.set(t, [...(this.multi.get(t) ?? []), factory]);
-    return this;
-  }
-
-  has(t: Token<unknown>): boolean {
-    return this.single.has(t);
-  }
-
-  resolve<T>(t: Token<T>): T {
-    if (this.instances.has(t)) return this.instances.get(t) as T;
-    const factory = this.single.get(t);
-    if (!factory) {
-      throw new MetatorError("BINDING_MISSING", `No binding for ${t.description}`, {
+    return err(
+      new MetatorError("BINDING_MISSING", `No implementation registered for ${String(name)}`, {
         hint: "Enable the plugin that provides it or bind the capability in metator.config.",
-      });
-    }
-    if (this.resolving.includes(t)) {
-      const chain = [...this.resolving, t].map((s) => s.description).join(" -> ");
-      throw new MetatorError("INTERNAL", `Dependency cycle: ${chain}`);
-    }
-    this.resolving.push(t);
-    try {
-      const instance = factory(this);
-      this.instances.set(t, instance);
-      return instance as T;
-    } finally {
-      this.resolving.pop();
-    }
-  }
-
-  resolveAll<T>(t: Token<T>): T[] {
-    return (this.multi.get(t) ?? []).map((factory) => factory(this) as T);
+      }),
+    );
   }
 }

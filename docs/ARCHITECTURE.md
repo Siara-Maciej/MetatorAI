@@ -39,6 +39,23 @@
 5. **Kanon → generacja:** pliki hostów są artefaktami builda, nie źródłem.
 6. **KISS i YAGNI pilnują SOLID:** abstrakcja powstaje dopiero przy drugim realnym użyciu. Pluginy polyglot (Java, .NET, Python) projektujemy w API, implementujemy, gdy pojawi się repo.
 
+### 0.4 Gotowe biblioteki zamiast własnych ([ADR-0010](adr/0010-dependency-policy.md))
+
+Nie wymyślamy koła na nowo. Własny kod piszemy tylko tam, gdzie jest logika specyficzna dla MetatorAI.
+
+| Potrzeba | Biblioteka | Gdzie |
+|----------|-----------|-------|
+| DI | **awilix** | `runtime` |
+| Graf zależności i algorytmy | **@dagrejs/graphlib** | `core/domain` |
+| Maszyna stanów runu | **xstate** (v5, czyste `transition()`) | `core/domain` |
+| Result / errors as values | **neverthrow** | `core` |
+| Glob | **picomatch** | `core/domain` |
+| Wyszukiwanie strukturalne, reguły | **ast-grep** | pluginy, CI |
+| Lint/format | **Biome** | pluginy, CI |
+| Walidacja i schematy (planowane) | **zod** (+ eksport JSON Schema) | `runtime` |
+| Parsowanie argv (planowane) | gotowy parser CLI (wybór w ADR przy pierwszej komendzie z flagami) | `cli` |
+
+
 ---
 
 ## 1. Kluczowa idea: Capability ↔ Provider
@@ -170,30 +187,25 @@ export interface CoverageReport { readonly files: readonly FileCoverage[] }
 ```
 
 ```ts
-// packages/core/src/domain/graph.ts: czyste algorytmy, testowane bez I/O
-export interface Edge { readonly from: string; readonly to: string; readonly kind: "internal" | "cross-package" | "external" }
-
+// packages/core/src/domain/graph.ts: zapytania domenowe nad @dagrejs/graphlib (ADR-0012)
 export class DependencyGraph {
-  private readonly reverse = new Map<string, Set<string>>();
-  constructor(readonly edges: readonly Edge[]) {
-    for (const e of edges) (this.reverse.get(e.to) ?? this.reverse.set(e.to, new Set()).get(e.to)!).add(e.from);
-  }
-  /** Pliki dotknięte zmianą: domknięcie po krawędziach odwrotnych. */
-  affected(changed: Iterable<string>): Set<string> {
-    const out = new Set<string>(), stack = [...changed];
-    while (stack.length) {
-      const f = stack.pop()!;
-      if (out.has(f)) continue;
-      out.add(f);
-      for (const dep of this.reverse.get(f) ?? []) stack.push(dep);
-    }
-    return out;
-  }
+  private readonly graph = new Graph({ directed: true });      // plik → plik
+  private readonly reversed = new Graph({ directed: true });   // plik ← plik
+  affected(changed: Iterable<string>): Set<string>;            // alg.preorder po grafie odwróconym
+  cycles(): string[][];                                        // alg.findCycles (Tarjan)
+  path(from: string, to: string): string[] | undefined;        // alg.dijkstra
 }
 ```
 
+```ts
+// packages/core/src/domain/run-machine.ts: maszyna stanów runu na XState v5 (ADR-0013)
+const machine = RunStateMachine.create(spec)._unsafeUnwrap();  // spec → maszyna XState (etapy, pętle z limitami, bramki HITL)
+let state = machine.start();                                   // czysty JSON → .metator/runs/<id>/state.json
+state = machine.send(state, { type: "PASS" })._unsafeUnwrap(); // czyste transition(); odrzucone zdarzenie = TRANSITION_DENIED
+```
+
 Pozostałe encje: `WorkflowSpec` (parsowana i walidowana spec), `Run` i `RunState` (maszyna stanów z metodą `advance(stage, result): Result<RunState, TransitionError>`), `Finding`, `Plan`, `Rule` (ID, applyTo, enforcement, bindings), `Pattern`, `MemoryItem`, `CapabilityBinding`, `Policy` (autonomia, uprawnienia).
-**Błędy jako wartości:** `Result<T, MetatorError>` w domenie i aplikacji. Wyjątki tylko na granicy adapterów i są tam mapowane na `MetatorError` z kodem. To jedno mapowanie na kopertę CLI (DRY).
+**Błędy jako wartości:** `Result<T, MetatorError>` z **neverthrow** w domenie i aplikacji. Wyjątki tylko na granicy adapterów i są tam mapowane na `MetatorError` z kodem. To jedno mapowanie na kopertę CLI (DRY).
 
 ---
 
@@ -381,7 +393,7 @@ export interface MetatorPlugin {
   /** Opcjonalnie: presety providerów, które plugin oferuje (np. "biome" dla lint/format/rules). */
   presets?(): readonly ProviderPreset[];
   /** Rejestracja implementacji portów w kontenerze. Wywoływane tylko dla pluginów włączonych w konfiguracji. */
-  register(c: ContainerBuilder, ctx: PluginContext): void;
+  register(ctx: { container: MetatorContainer; config: ResolvedConfig }): void;
 }
 
 export interface Detector {
@@ -423,8 +435,8 @@ export default definePlugin({
       command: { invoke: { bin: "biome", args: ["format", "--reporter=json"] }, files: { mode: "append" }, fixArgs: ["--write"] },
       parser: "biome-json" },
   ],
-  register(c) {
-    c.registerMany(Tokens.DiagnosticParser, () => new BiomeJsonParser());
+  register({ container }) {
+    container.register({ biomeJsonParser: asClass(BiomeJsonParser).singleton() });
   },
 });
 ```
@@ -450,57 +462,42 @@ Kod jest potrzebny tylko tam, gdzie logika jest niebanalna: graf importów TS, s
 
 ## 7. DI i composition root
 
-### 7.1 Dlaczego własny, mały kontener (a nie inversify/tsyringe)
+### 7.1 Gotowe rozwiązanie: awilix ([ADR-0011](adr/0011-di-awilix.md))
 
-| Kryterium | Dekoratorowe DI (inversify, tsyringe) | Własny kontener z tokenami |
-|-----------|----------------------------------------|----------------------------|
-| Start CLI / hooka | wolniejszy (`reflect-metadata`, eager) | **lazy**, tylko to, co potrzebne |
-| Zgodność Node/Bun/`bun build --compile` | wymaga konfiguracji dekoratorów | czysty TS |
-| Czytelność grafu zależności | ukryta w metadanych | jawna w jednym pliku |
-| Typowanie | dobre | dobre (`Token<T>`) |
+Zgodnie z polityką zależności ([ADR-0010](adr/0010-dependency-policy.md)) nie piszemy własnego kontenera. Używamy **awilix**:
 
-Decyzja: **ręczne wstrzykiwanie przez konstruktor + mały kontener z typowanymi tokenami** (~100 linii), z leniwymi fabrykami, singletonami i multi-bindingami dla rejestrów.
+| Kryterium | awilix | Dlaczego ważne dla nas |
+|-----------|--------|------------------------|
+| Bez dekoratorów i `reflect-metadata` | tak | czysty TS, działa na Node, Bun i w `bun build --compile` |
+| Leniwe rozwiązywanie, `singleton`/`scoped`/`transient` | tak | hooki budują tylko to, czego dotykają; **scope na run** workflow |
+| Dynamiczna rejestracja i nadpisanie przez ponowne `register` | tak | pluginy z configu, warstwy config > preset > default |
+| Wykrywanie cykli, tryb `strict` (wycieki lifetime) | tak | błędy konfiguracji wychodzą od razu |
+| Typowanie | `AwilixContainer<Cradle>` | porty jako pola typowanego „cradle” |
 
-### 7.2 Kontener
+Odrzucone: inversify i tsyringe (dekoratory, `reflect-metadata`), typed-inject (bardzo dobre typy, ale słabo pasuje do dynamicznych pluginów, brak multi-bindingów).
+
+### 7.2 Cradle i rozwiązywanie portów
 
 ```ts
 // packages/runtime/src/container.ts
-export type Token<T> = symbol & { readonly __type?: T };
-export const token = <T>(description: string): Token<T> => Symbol(description) as Token<T>;
+export interface Cradle {            // każdy port, od którego może zależeć use case
+  clock: Clock; logger: Logger; fileSystem: FileSystem;
+  processRunner: ProcessRunner; vcs: Vcs; importGraphReader: ImportGraphReader;
+}
+export const createMetatorContainer = () =>
+  createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true });
 
-type Factory<T> = (c: Container) => T;
+/** Jedyna nasza warstwa nad awilix: błędy awilix → MetatorError (errors as values). */
+export function resolvePort<K extends keyof Cradle>(c: MetatorContainer, name: K): Result<Cradle[K], MetatorError>;
+```
 
-export class Container {
-  private readonly single = new Map<symbol, Factory<unknown>>();
-  private readonly multi = new Map<symbol, Factory<unknown>[]>();
-  private readonly cache = new Map<symbol, unknown>();
-  private readonly resolving = new Set<symbol>();
+Plugin rejestruje implementacje zwykłym API awilix:
 
-  register<T>(t: Token<T>, f: Factory<T>): this {
-    if (this.single.has(t)) throw new Error(`Duplicate binding: ${t.description}`);
-    this.single.set(t, f);
-    return this;
-  }
-  override<T>(t: Token<T>, f: Factory<T>): this {         // konfiguracja użytkownika > preset > default
-    this.single.set(t, f); this.cache.delete(t);
-    return this;
-  }
-  registerMany<T>(t: Token<T>, f: Factory<T>): this {
-    this.multi.set(t, [...(this.multi.get(t) ?? []), f]);
-    return this;
-  }
-  resolve<T>(t: Token<T>): T {
-    if (this.cache.has(t)) return this.cache.get(t) as T;
-    const f = this.single.get(t);
-    if (!f) throw new Error(`No binding for ${t.description}`);
-    if (this.resolving.has(t)) throw new Error(`Cycle at ${t.description}`);
-    this.resolving.add(t);
-    try { const v = f(this); this.cache.set(t, v); return v as T; }
-    finally { this.resolving.delete(t); }
-  }
-  resolveAll<T>(t: Token<T>): T[] {
-    return (this.multi.get(t) ?? []).map((f) => f(this) as T);
-  }
+```ts
+register({ container, config }) {
+  container.register({
+    linter: asFunction(({ commandExecutor, parsers }) => new CommandLinter(spec, commandExecutor, parsers.get("biome-json"))).singleton(),
+  });
 }
 ```
 
@@ -508,43 +505,24 @@ export class Container {
 
 ```ts
 // packages/runtime/src/bootstrap.ts
-export async function bootstrap(argv: CliArgs): Promise<Container> {
-  const c = new Container();
-  registerCore(c);                                        // FS, ProcessRunner, Clock, Logger, SchemaRegistry, ParserRegistry
-  const config = await loadConfig(c, argv);               // defaults ← discovery cache ← metator.config.* ← env ← flagi
+export async function bootstrap(argv: CliArgs): Promise<MetatorContainer> {
+  const c = createMetatorContainer();
+  registerCore(c);                                        // FS, ProcessRunner, Clock, Logger, schematy, parsery
+  const config = await loadConfig(c, argv);               // defaults ← discovery ← metator.config.* ← env ← flagi
   for (const plugin of await loadPlugins(config.plugins)) // tylko jawnie włączone (bezpieczeństwo)
-    plugin.register(c, { config });
-  bindCapabilities(c, config);                            // capability → preset/provider → port
-  registerUseCases(c);                                    // klasy aplikacji z zależnościami z kontenera
+    plugin.register({ container: c, config });
+  bindCapabilities(c, config);                            // capability → preset/provider → port (ponowne register = override)
   return c;
 }
 ```
 
-```ts
-// packages/runtime/src/bind-capabilities.ts: jedno miejsce, gdzie capability staje się implementacją
-export function bindCapabilities(c: Container, cfg: ResolvedConfig) {
-  const presets = new PresetRegistry(c.resolveAll(Tokens.Presets));
-  const exec = () => c.resolve(Tokens.CommandExecutor);
-  const parser = (id: string) => c.resolve(Tokens.ParserRegistry).get(id);
-
-  for (const [cap, binding] of Object.entries(cfg.capabilities)) {
-    const spec = presets.materialize(cap as CapabilityId, binding);   // preset + nadpisania z configu = CommandSpec + parser
-    switch (cap) {
-      case "lint":      c.override(Tokens.Linter,      () => new CommandLinter(spec.command, exec(), parser(spec.parser))); break;
-      case "format":    c.override(Tokens.Formatter,   () => new CommandFormatter(spec.command, exec(), parser(spec.parser))); break;
-      case "typecheck": c.override(Tokens.TypeChecker, () => new CommandTypeChecker(spec.command, exec(), parser(spec.parser))); break;
-      case "test":      c.override(Tokens.TestRunner,  () => new CommandTestRunner(spec.command, exec(), parser(spec.parser))); break;
-      // rules: multi-binding → CompositeRuleEngine (ast-grep + biome-only + …)
-    }
-  }
-}
-```
+Każdy run workflow dostaje `c.createScope()` z wartościami runu (`runId`, `policy`, `state`). Nic z runu nie przecieka do root containera.
 
 Use case `RunGate` dostaje `GateComposer`, który na podstawie `cfg.gates.quick = ["format","lint","rules"]` składa kroki z portów. **Nowa bramka to zmiana w konfiguracji, nie w kodzie.**
 
 ### 7.4 Leniwość dla hooków (NFR1)
 
-Hook `pre-tool` ma osobny, cienki entrypoint (`metator-guard`). Rejestruje tylko `HookCodec`, `RunRepository` (read) i `Policy`. Nie ładuje pluginu TypeScript, ast-grep ani grafu. Kontener jest leniwy, więc nawet pełny bootstrap nie tworzy niepotrzebnych obiektów. Osobny entrypoint gwarantuje jednak, że moduły się w ogóle nie zaimportują. Test wydajności w CI pilnuje p95.
+Hook `pre-tool` ma osobny, cienki entrypoint (`metator-guard`). Rejestruje tylko `HookCodec`, `RunRepository` (read) i `Policy`. Nie ładuje pluginu TypeScript, ast-grep ani grafu. awilix rozwiązuje leniwie, a osobny entrypoint gwarantuje, że ciężkie moduły się w ogóle nie zaimportują. Test wydajności w CI pilnuje p95.
 
 ---
 
@@ -910,7 +888,7 @@ Wersjonowanie: semver dla `MetatorAI`, `apiVersion` dla pluginów, `schema_versi
 
 - **Pliki wygenerowane dla dwóch hostów są „duplikatem”.** To akceptowalne, bo to artefakty builda, a nie źródło.
 - **Nie robimy uniwersalnego „ToolPort.run(any)”.** Byłby to God-interface łamiący ISP i LSP. Wolimy kilka małych portów.
-- **Nie piszemy własnego parsera YAML/JSON5 ani własnego DI z dekoratorami.** Korzystamy z gotowych, małych bibliotek, a kontener ma ~100 linii.
+- **Nie piszemy własnych odpowiedników dojrzałych bibliotek** (DI, grafy, maszyny stanów, Result, glob, parsery YAML/argv, walidacja). Zasada i kryteria w [ADR-0010](adr/0010-dependency-policy.md).
 - **Polyglot (Gradle, Maven, .NET, Python):** API portów jest gotowe (`WorkspaceReader`, `ImportGraphReader` przez ast-grep wielojęzyczny, `TestRunner` przez JUnit, który jest standardem w JVM i .NET). Implementacja powstaje dopiero przy pierwszym takim repo (YAGNI).
 
 ---

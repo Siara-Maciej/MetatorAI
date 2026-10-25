@@ -16,13 +16,13 @@ interface Mutant {
 const MUTANTS: readonly Mutant[] = [
   {
     file: "packages/core/src/domain/graph.ts",
-    from: "for (const dependent of this.dependentsOf(file)) stack.push(dependent);",
-    to: "",
+    from: "...(known.length > 0 ? alg.preorder(this.reversed, known) : [])",
+    to: "...known",
     why: "affected() must be transitive",
   },
   {
     file: "packages/core/src/domain/glob.ts",
-    from: "if (globToRegExp(pattern.slice(1)).test(p)) return false;",
+    from: "&& !(negatives.length > 0 && matcher(negatives)(p))",
     to: "",
     why: "negated globs must exclude",
   },
@@ -40,15 +40,27 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/runtime/src/container.ts",
-    from: "this.instances.delete(t);",
-    to: "",
-    why: "override must drop cached instances",
+    from: 'e.message.includes("Cyclic dependencies")',
+    to: "false",
+    why: "dependency cycles must be reported as such",
   },
   {
-    file: "packages/runtime/src/container.ts",
-    from: "if (this.resolving.includes(t)) {",
+    file: "packages/core/src/domain/run-machine.ts",
+    from: '(context.loops[(stage.onFail as NonNullable<StageSpec["onFail"]>).loop] ?? 0) <',
+    to: '(context.loops[(stage.onFail as NonNullable<StageSpec["onFail"]>).loop] ?? 0) <=',
+    why: "loop limits must be exact (no extra retry)",
+  },
+  {
+    file: "packages/core/src/domain/run-machine.ts",
+    from: "...(stage.hitl ? { APPROVE: advance } : { PASS: advance }),",
+    to: "PASS: advance, APPROVE: advance,",
+    why: "human gates must not accept PASS",
+  },
+  {
+    file: "packages/core/src/domain/run-machine.ts",
+    from: "if (!snapshot.can(event)) {",
     to: "if (false) {",
-    why: "dependency cycles must be detected",
+    why: "rejected events must be reported, not silently ignored",
   },
   {
     file: "packages/plugin-bun/src/bun-file-system.ts",
@@ -58,7 +70,7 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/run.ts",
-    from: "return result.ok ? 0 : exitCodeFor(result.error);",
+    from: "return result.isOk() ? 0 : exitCodeFor(result.error);",
     to: "return 0;",
     why: "failures must produce a non-zero exit code",
   },

@@ -33,6 +33,22 @@ Clean architecture, ports and adapters. Dependencies point inward:
 
 `rules/architecture/*.yml` (ast-grep) enforces this in CI. Never weaken a rule to make code pass; move the code instead.
 
+## Dependency policy: don't reinvent the wheel
+
+Use a proven package before writing your own (ADR-0010). Write code only for logic specific to MetatorAI.
+
+| Need | Package | Where |
+|------|---------|-------|
+| DI | `awilix` (via `createMetatorContainer`, `resolvePort`) | `packages/runtime` |
+| Dependency graph, graph algorithms | `@dagrejs/graphlib` | `packages/core/src/domain/graph.ts` |
+| State machines (workflow runs) | `xstate` v5, pure `transition()` | `packages/core/src/domain/run-machine.ts` |
+| Result / errors as values | `neverthrow` | everywhere (`@metator/core` re-exports it) |
+| Glob matching | `picomatch` | `packages/core/src/domain/glob.ts` |
+
+- Before adding code that looks generic (parsing, validation, graphs, retries, caching, CLI args, YAML, schemas, diffing), search npm and propose a package with an ADR (criteria in ADR-0010).
+- `@metator/core` may import only the approved pure libraries above; `mt-arch-core-approved-deps` (ast-grep) fails CI otherwise.
+- Wrap libraries thinly so their errors come back as `MetatorError`; do not re-implement their features.
+
 ## Testing policy: prove every piece of work actually works
 
 Nothing is done until it is proven, by tests and by running it yourself.
@@ -46,14 +62,14 @@ Nothing is done until it is proven, by tests and by running it yourself.
 
 ## Conventions
 
-- **Errors are values:** return `Result<T, MetatorError>` from domain and application code; throw only for programmer errors (e.g. DI misconfiguration). Adapters convert exceptions at the edge.
+- **Errors are values:** return neverthrow `Result<T, MetatorError>` from domain and application code (check with `isOk()`/`isErr()`; tests may use `_unsafeUnwrap()`); throw only for programmer errors (e.g. DI misconfiguration). Adapters convert exceptions at the edge.
 - **Every port has a contract suite** in `packages/testing/src/contracts`. A new adapter must call it from its own test.
 - **Small ports (ISP):** split by axis of change (`Linter` ≠ `Formatter`, readers ≠ writers).
 - **CLI output** is always one JSON envelope line (`@metator/runtime` `serialize`), bounded in size.
 - Imports use explicit `.ts` extensions inside a package and `@metator/<pkg>` across packages.
 - Code, comments, commit messages and the public README are in English; design docs in `docs/` are in Polish.
 - Tests sit in `packages/<pkg>/test/*.test.ts` and use `bun:test`. New behavior comes with tests; fix bugs with a failing test first.
-- Do not add dependencies to `@metator/core`.
+- Do not add dependencies to `@metator/core` outside the approved list (ADR-0010).
 
 ## Decisions
 

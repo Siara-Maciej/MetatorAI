@@ -30,8 +30,8 @@ describe("BunFileSystem specifics", () => {
   test("refuses paths that escape the repository root", async () => {
     const fs = await seeded({});
     const result = await fs.read("../../etc/passwd");
-    expect(!result.ok && result.error.code).toBe("USAGE");
+    expect(result._unsafeUnwrapErr().code).toBe("USAGE");
     expect(await fs.exists("../outside.txt")).toBe(false);
-    expect((await fs.write("../outside.txt", "x")).ok).toBe(false);
+    expect((await fs.write("../outside.txt", "x")).isErr()).toBe(true);
   });
 });

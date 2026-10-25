@@ -45,7 +45,9 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [x] Reguły architektury ast-grep z testami (`rules/architecture`), egzekwowane w CI.
 - [x] CI (GitHub Actions): Biome, TypeScript 7, ast-grep, `bun test`.
 - [x] ADR 0001–0008 (Proposed). Odkrycie: TS 7 bez klasycznego API kompilatora ([ADR-0008](adr/0008-typescript-7-graph.md)).
-- [ ] Następne: `plugin-git` (`Vcs`), graf importów (ast-grep + resolver), `metator graph affected`, `run init|advance|status`.
+- [x] Gotowe biblioteki zamiast własnych ([ADR-0010](adr/0010-dependency-policy.md)): awilix (DI), @dagrejs/graphlib (graf: affected, cykle, ścieżki), XState v5 (maszyna stanów runu: etapy, pętle z limitami, bramki HITL, wznawianie z JSON), neverthrow, picomatch.
+- [x] Testy: unit + e2e (proces CLI, grafiki README w Chromium, integralność dokumentacji) + mutacyjne.
+- [ ] Następne: `plugin-git` (`Vcs`), graf importów (ast-grep + resolver), `metator graph affected`, `metator run init|advance|status` na `RunStateMachine`, walidacja specyfikacji przez zod.
 
 **Zadania**
 - [ ] Szkielet `metator` (envelope, workspace, git, cache, budget) + `bun test` na fixture'ze mini-monorepo.

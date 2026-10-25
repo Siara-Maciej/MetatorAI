@@ -36,5 +36,5 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
     result = err(fromUnknown(e));
   }
   io.out(serialize(toEnvelope(result)));
-  return result.ok ? 0 : exitCodeFor(result.error);
+  return result.isOk() ? 0 : exitCodeFor(result.error);
 }

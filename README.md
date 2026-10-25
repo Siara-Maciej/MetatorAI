@@ -186,7 +186,9 @@ Then, in Copilot Chat or Claude Code:
 <img src="assets/architecture.svg" alt="Architecture: domain inside ports inside application inside runtime; CLI and hooks drive it, plugins implement ports" width="100%">
 </div>
 
-Clean architecture with ports and adapters, and a tiny typed DI container (lazy, so hooks start in milliseconds).
+Clean architecture with ports and adapters, built on proven libraries instead of home-grown ones:
+**awilix** (DI, a scope per workflow run), **XState** (run state machine, pure transitions, resumable from JSON),
+**graphlib** (dependency graph: affected files, cycles, paths), **neverthrow** (errors as values) and **picomatch** (globs).
 New tools arrive as **presets** (a command plus a standard-format parser), so adding one is a few lines of declaration
 rather than new code.
 
@@ -201,7 +203,8 @@ rather than new code.
 3. **Bounded loops:** every retry has a limit and an escalation.
 4. **Least privilege:** reviewers read, implementers edit only what the plan allows, nobody pushes alone.
 5. **Data is not instructions:** PR text, issues and docs are inputs, never commands.
-6. **Prove it works:** every change ships unit and e2e tests against the real entrypoint, and every check must have failed once on purpose.
+6. **Don't reinvent the wheel:** proven packages first; custom code only for what is unique to MetatorAI.
+7. **Prove it works:** every change ships unit and e2e tests against the real entrypoint, and every check must have failed once on purpose.
 
 ---
 

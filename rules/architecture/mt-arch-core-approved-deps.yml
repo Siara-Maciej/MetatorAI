@@ -1,0 +1,17 @@
+id: mt-arch-core-approved-deps
+language: TypeScript
+severity: error
+message: "Core may only import approved pure libraries (ADR-0010): neverthrow, @dagrejs/graphlib, xstate, picomatch."
+note: "Propose a new library through an ADR first; anything doing I/O belongs in a plugin."
+files:
+  - packages/core/src/**
+rule:
+  kind: import_statement
+  all:
+    - has:
+        field: source
+        regex: '^[''"][^.]'
+    - not:
+        has:
+          field: source
+          regex: '^[''"](neverthrow|@dagrejs/graphlib|xstate|picomatch)[''"/]'

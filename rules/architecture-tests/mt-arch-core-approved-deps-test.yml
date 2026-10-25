@@ -1,0 +1,12 @@
+id: mt-arch-core-approved-deps
+valid:
+  - import { ok } from "neverthrow";
+  - import { alg, Graph } from "@dagrejs/graphlib";
+  - import { setup } from "xstate";
+  - import picomatch from "picomatch";
+  - import { DependencyGraph } from "./graph.ts";
+  - import type { Vcs } from "../ports/index.ts";
+invalid:
+  - import axios from "axios";
+  - import _ from "lodash";
+  - import { z } from "zod";

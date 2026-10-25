@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { globToRegExp, matchesAny, normalizePath } from "../src/domain/glob.ts";
+import { matchesAny, normalizePath } from "../src/domain/glob.ts";
 
-describe("globToRegExp", () => {
+describe("matchesAny: glob semantics we rely on (picomatch)", () => {
   const cases: [glob: string, path: string, expected: boolean][] = [
     ["packages/*/src/**", "packages/billing/src/a/b.ts", true],
     ["packages/*/src/**", "packages/billing/test/a.ts", false],
@@ -15,10 +15,12 @@ describe("globToRegExp", () => {
     ["file?.md", "file10.md", false],
     ["a.b/c+d.ts", "a.b/c+d.ts", true],
     ["a.b/c+d.ts", "aXb/c+d.ts", false],
+    ["**/*", ".github/workflows/ci.yml", true],
+    [".github/**", ".github/agents/mt-planner.agent.md", true],
   ];
   for (const [glob, path, expected] of cases) {
     test(`${glob} ${expected ? "matches" : "does not match"} ${path}`, () => {
-      expect(globToRegExp(glob).test(path)).toBe(expected);
+      expect(matchesAny(path, [glob])).toBe(expected);
     });
   }
 });

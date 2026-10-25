@@ -1,7 +1,7 @@
 import type { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { DependencyGraph } from "../domain/graph.ts";
-import { ok, type Result } from "../domain/result.ts";
+import { err, ok, type Result } from "../domain/result.ts";
 import type { ImportGraphReader, Vcs } from "../ports/index.ts";
 
 export interface ComputeAffectedInput {
@@ -25,14 +25,14 @@ export class ComputeAffected {
 
   async execute(input: ComputeAffectedInput): Promise<Result<AffectedSet, MetatorError>> {
     const changed = input.changed ? ok(input.changed) : await this.vcs.changedFiles(input.base ?? "HEAD");
-    if (!changed.ok) return changed;
+    if (changed.isErr()) return err(changed.error);
 
     const edges = await this.graphReader.read();
-    if (!edges.ok) return edges;
+    if (edges.isErr()) return err(edges.error);
 
     const files = [...new DependencyGraph(edges.value).affected(changed.value)].sort();
     return ok({
-      changed: [...changed.value].sort(),
+      changed: [...new Set(changed.value)].sort(),
       files,
       tests: files.filter((file) => matchesAny(file, this.testGlobs)),
     });

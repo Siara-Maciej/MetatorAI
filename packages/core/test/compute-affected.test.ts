@@ -33,7 +33,7 @@ describe("ComputeAffected", () => {
     const result = await new ComputeAffected(failingVcs, graphReader, testGlobs).execute({
       changed: ["packages/a/src/ui.ts"],
     });
-    expect(result.ok && result.value.files).toEqual(["packages/a/src/ui.ts"]);
+    expect(result._unsafeUnwrap().files).toEqual(["packages/a/src/ui.ts"]);
   });
 
   test("propagates graph reader errors", async () => {
@@ -41,7 +41,6 @@ describe("ComputeAffected", () => {
       read: async () => err(new MetatorError("STALE_INDEX", "index is stale")),
     };
     const result = await new ComputeAffected(vcs([]), broken, testGlobs).execute({});
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.error.code).toBe("STALE_INDEX");
+    expect(result._unsafeUnwrapErr().code).toBe("STALE_INDEX");
   });
 });

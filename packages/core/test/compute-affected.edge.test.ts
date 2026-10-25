@@ -27,7 +27,7 @@ describe("ComputeAffected edge cases", () => {
     };
     const vcs: Vcs = { changedFiles: async () => ok(["a.ts", "a.ts"]) };
     const result = await new ComputeAffected(vcs, graph, []).execute({});
-    expect(result.ok && result.value.files).toEqual(["a.ts", "m.ts", "z.ts"]);
+    expect(result._unsafeUnwrap().files).toEqual(["a.ts", "m.ts", "z.ts"]);
   });
 
   test("test globs honor negation (e.g. exclude e2e from unit selection)", async () => {
@@ -40,13 +40,13 @@ describe("ComputeAffected edge cases", () => {
     };
     const vcs: Vcs = { changedFiles: async () => ok(["src/a.ts"]) };
     const result = await new ComputeAffected(vcs, graph, ["**/*.test.ts", "!e2e/**"]).execute({});
-    expect(result.ok && result.value.tests).toEqual(["src/a.test.ts"]);
+    expect(result._unsafeUnwrap().tests).toEqual(["src/a.test.ts"]);
   });
 
   test("changes to files outside the graph still surface (new files, configs)", async () => {
     const graph: ImportGraphReader = { read: async () => ok([]) };
     const vcs: Vcs = { changedFiles: async () => ok(["biome.json"]) };
     const result = await new ComputeAffected(vcs, graph, ["**/*.test.ts"]).execute({});
-    expect(result.ok && result.value).toEqual({ changed: ["biome.json"], files: ["biome.json"], tests: [] });
+    expect(result._unsafeUnwrap()).toEqual({ changed: ["biome.json"], files: ["biome.json"], tests: [] });
   });
 });

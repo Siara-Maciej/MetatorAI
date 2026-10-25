@@ -17,8 +17,8 @@ afterAll(async () => {
 describe("BunFileSystem edge cases", () => {
   test("write creates nested directories and overwrites existing files", async () => {
     const { fs, root } = await fresh();
-    expect((await fs.write("a/b/c/report.json", "1")).ok).toBe(true);
-    expect((await fs.write("a/b/c/report.json", "2")).ok).toBe(true);
+    expect((await fs.write("a/b/c/report.json", "1")).isOk()).toBe(true);
+    expect((await fs.write("a/b/c/report.json", "2")).isOk()).toBe(true);
     expect(await Bun.file(join(root, "a/b/c/report.json")).text()).toBe("2");
   });
 
@@ -38,7 +38,7 @@ describe("BunFileSystem edge cases", () => {
   test("accepts Windows-style and ./-prefixed paths", async () => {
     const { fs } = await fresh();
     await fs.write(".\\docs\\x.md", "hi");
-    expect(await fs.read("docs/x.md")).toEqual({ ok: true, value: "hi" });
+    expect((await fs.read("docs/x.md"))._unsafeUnwrap()).toBe("hi");
     expect(await fs.exists("./docs/x.md")).toBe(true);
   });
 
@@ -46,6 +46,6 @@ describe("BunFileSystem edge cases", () => {
     const { fs } = await fresh();
     const content = "zażółć gęślą jaźń · 日本語 · emoji 🚀\n";
     await fs.write("utf8.txt", content);
-    expect(await fs.read("utf8.txt")).toEqual({ ok: true, value: content });
+    expect((await fs.read("utf8.txt"))._unsafeUnwrap()).toBe(content);
   });
 });

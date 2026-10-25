@@ -18,13 +18,13 @@ export function fileSystemContract(name: string, make: FileSystemFactory): void 
 
     test("read returns content of an existing file", async () => {
       const fs = await make(seed);
-      expect(await fs.read("README.md")).toEqual({ ok: true, value: "# root" });
+      expect((await fs.read("README.md"))._unsafeUnwrap()).toBe("# root");
     });
 
     test("read of a missing file is a NOT_FOUND error, not a throw", async () => {
       const result = await (await make(seed)).read("missing.ts");
-      expect(result.ok).toBe(false);
-      expect(!result.ok && result.error.code).toBe("NOT_FOUND");
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe("NOT_FOUND");
     });
 
     test("exists reflects presence", async () => {
@@ -43,8 +43,8 @@ export function fileSystemContract(name: string, make: FileSystemFactory): void 
 
     test("write then read round-trips", async () => {
       const fs = await make(seed);
-      expect((await fs.write("out/report.json", "{}")).ok).toBe(true);
-      expect(await fs.read("out/report.json")).toEqual({ ok: true, value: "{}" });
+      expect((await fs.write("out/report.json", "{}")).isOk()).toBe(true);
+      expect((await fs.read("out/report.json"))._unsafeUnwrap()).toBe("{}");
     });
   });
 }

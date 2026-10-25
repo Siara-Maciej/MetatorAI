@@ -1,6 +1,6 @@
 # ADR-0002: Własny mały kontener DI z typowanymi tokenami
 
-- Status: Proposed
+- Status: Superseded by [ADR-0011](0011-di-awilix.md)
 - Data: 2026-10-25
 - Źródło: [ARCHITECTURE.md §7](../ARCHITECTURE.md)
 

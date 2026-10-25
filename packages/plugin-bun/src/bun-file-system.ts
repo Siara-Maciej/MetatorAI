@@ -18,7 +18,7 @@ export class BunFileSystem implements FileSystem {
 
   async read(path: string): Promise<Result<string, MetatorError>> {
     const target = this.resolve(path);
-    if (!target.ok) return target;
+    if (target.isErr()) return err(target.error);
     const file = Bun.file(target.value);
     if (!(await file.exists())) return err(MetatorError.notFound(`File ${path}`, { path }));
     return ok(await file.text());
@@ -26,7 +26,7 @@ export class BunFileSystem implements FileSystem {
 
   async exists(path: string): Promise<boolean> {
     const target = this.resolve(path);
-    return target.ok && Bun.file(target.value).exists();
+    return target.isOk() && Bun.file(target.value).exists();
   }
 
   async glob(patterns: readonly string[]): Promise<readonly string[]> {
@@ -44,7 +44,7 @@ export class BunFileSystem implements FileSystem {
 
   async write(path: string, content: string): Promise<Result<void, MetatorError>> {
     const target = this.resolve(path);
-    if (!target.ok) return target;
+    if (target.isErr()) return err(target.error);
     try {
       await mkdir(dirname(target.value), { recursive: true });
       await Bun.write(target.value, content);

@@ -1,54 +1,78 @@
 import { describe, expect, test } from "bun:test";
-import { MetatorError } from "@metator/core";
-import { Container, token } from "../src/container.ts";
+import type { Clock, Logger } from "@metator/core";
+import { asFunction, asValue } from "awilix";
+import { createMetatorContainer, resolvePort } from "../src/container.ts";
 
-const A = token<{ id: number }>("A");
-const B = token<{ a: { id: number } }>("B");
-const Plugins = token<string>("Plugins");
+const fixedClock = (iso: string): Clock => ({ now: () => new Date(iso) });
+const silentLogger: Logger = { debug: () => {}, info: () => {}, warn: () => {} };
 
-describe("Container", () => {
+describe("Metator container (awilix)", () => {
   test("resolves lazily and caches singletons", () => {
     let created = 0;
-    const c = new Container().register(A, () => ({ id: ++created }));
+    const c = createMetatorContainer();
+    c.register({
+      clock: asFunction(() => {
+        created++;
+        return fixedClock("2026-01-01T00:00:00Z");
+      }).singleton(),
+    });
     expect(created).toBe(0);
-    expect(c.resolve(A)).toBe(c.resolve(A));
+    expect(c.resolve("clock")).toBe(c.resolve("clock"));
     expect(created).toBe(1);
   });
 
-  test("injects dependencies through factories", () => {
-    const c = new Container().register(A, () => ({ id: 7 })).register(B, (k) => ({ a: k.resolve(A) }));
-    expect(c.resolve(B).a.id).toBe(7);
+  test("injects ports into factories through the typed cradle", () => {
+    const c = createMetatorContainer();
+    c.register({
+      clock: asValue(fixedClock("2026-05-01T10:00:00Z")),
+      logger: asFunction(
+        ({ clock }: { clock: Clock }): Logger => ({
+          ...silentLogger,
+          info: () => void clock.now(),
+        }),
+      ).singleton(),
+    });
+    expect(typeof c.resolve("logger").info).toBe("function");
   });
 
-  test("rejects duplicate registration, allows explicit override", () => {
-    const c = new Container().register(A, () => ({ id: 1 }));
-    expect(() => c.register(A, () => ({ id: 2 }))).toThrow(MetatorError);
-    c.resolve(A);
-    c.override(A, () => ({ id: 3 }));
-    expect(c.resolve(A).id).toBe(3);
+  test("re-registering overrides the default (config > preset > default)", () => {
+    const c = createMetatorContainer();
+    c.register({ clock: asValue(fixedClock("2020-01-01T00:00:00Z")) });
+    c.register({ clock: asValue(fixedClock("2030-01-01T00:00:00Z")) });
+    expect(c.resolve("clock").now().getUTCFullYear()).toBe(2030);
   });
 
-  test("missing binding gives an actionable error", () => {
-    try {
-      new Container().resolve(A);
-      throw new Error("expected to throw");
-    } catch (e) {
-      expect(e).toBeInstanceOf(MetatorError);
-      expect((e as MetatorError).code).toBe("BINDING_MISSING");
-      expect((e as MetatorError).hint).toContain("metator.config");
-    }
+  test("a scope per run sees its own values without leaking into the root", () => {
+    const root = createMetatorContainer();
+    root.register({ clock: asValue(fixedClock("2026-01-01T00:00:00Z")) });
+    const run = root.createScope();
+    run.register({ clock: asValue(fixedClock("2026-12-31T00:00:00Z")) });
+    expect(run.resolve("clock").now().getUTCMonth()).toBe(11);
+    expect(root.resolve("clock").now().getUTCMonth()).toBe(0);
   });
 
-  test("detects dependency cycles with the full chain", () => {
-    const X = token<unknown>("X");
-    const Y = token<unknown>("Y");
-    const c = new Container().register(X, (k) => k.resolve(Y)).register(Y, (k) => k.resolve(X));
-    expect(() => c.resolve(X)).toThrow("Dependency cycle: X -> Y -> X");
+  test("missing port becomes BINDING_MISSING with an actionable hint", () => {
+    const result = resolvePort(createMetatorContainer(), "vcs");
+    const error = result._unsafeUnwrapErr();
+    expect(error.code).toBe("BINDING_MISSING");
+    expect(error.hint).toContain("metator.config");
   });
 
-  test("multi-bindings resolve in registration order", () => {
-    const c = new Container().registerMany(Plugins, () => "biome").registerMany(Plugins, () => "ast-grep");
-    expect(c.resolveAll(Plugins)).toEqual(["biome", "ast-grep"]);
-    expect(new Container().resolveAll(Plugins)).toEqual([]);
+  test("dependency cycles are reported, not stack-overflowed", () => {
+    const c = createMetatorContainer();
+    c.register({
+      clock: asFunction(({ logger }: { logger: Logger }) => logger as unknown as Clock),
+      logger: asFunction(({ clock }: { clock: Clock }) => clock as unknown as Logger),
+    });
+    const error = resolvePort(c, "clock")._unsafeUnwrapErr();
+    expect(error.code).toBe("INTERNAL");
+    expect(error.message).toContain("cycle");
+  });
+
+  test("resolvePort returns the instance on success", () => {
+    const c = createMetatorContainer();
+    const clock = fixedClock("2026-01-01T00:00:00Z");
+    c.register({ clock: asValue(clock) });
+    expect(resolvePort(c, "clock")._unsafeUnwrap()).toBe(clock);
   });
 });

@@ -23,7 +23,7 @@ export function toEnvelope<T>(
   warnings: readonly string[] = [],
 ): Envelope<T> {
   const extra = warnings.length > 0 ? { warnings } : {};
-  if (result.ok) return { ok: true, data: result.value, ...extra };
+  if (result.isOk()) return { ok: true, data: result.value, ...extra };
   const { code, message, hint } = result.error;
   return { ok: false, error: { code, message, ...(hint === undefined ? {} : { hint }) }, ...extra };
 }
