@@ -106,14 +106,14 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-git/src/git-vcs.ts",
-    from: "[...diff, ...untracked]",
+    from: "[...diff, ...status.not_added]",
     to: "[...diff]",
     why: "untracked files count as changed",
   },
   {
     file: "packages/plugin-git/src/git-vcs.ts",
-    from: '"--name-only", "--no-renames", "-z"',
-    to: '"--name-only", "-z"',
+    from: 'diffSummary(["--no-renames", ref])',
+    to: "diffSummary([ref])",
     why: "a rename counts under the old path too (its importers are affected)",
   },
   {

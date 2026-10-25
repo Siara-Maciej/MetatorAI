@@ -154,3 +154,15 @@ describe("GitVcs unrelated history", () => {
     expect(error.code).toBe("USAGE");
   });
 });
+
+describe("GitVcs path parsing", () => {
+  test("a tracked file with spaces, unicode and an arrow-like name is reported verbatim", async () => {
+    const dir = await repo();
+    const names = ["zażółć gęślą.ts", "a => b.ts", "dir with space/x.ts"];
+    for (const n of names) await Bun.write(join(dir, n), "v1");
+    await sh(dir, "add", ".");
+    await sh(dir, "commit", "-q", "-m", "init");
+    for (const n of names) await Bun.write(join(dir, n), "v2");
+    expect((await new GitVcs(dir).changedFiles("HEAD"))._unsafeUnwrap()).toEqual([...names].sort());
+  });
+});

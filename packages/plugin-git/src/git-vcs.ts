@@ -3,8 +3,8 @@ import { err, MetatorError, ok, type Result, type Vcs } from "@metator/core";
 import { type SimpleGit, simpleGit } from "simple-git";
 
 /**
- * Vcs adapter on simple-git (ADR-0019): the library spawns git, parses `status -z` and turns
- * failures into errors; this class only maps them to MetatorError. "Changed" means everything
+ * Vcs adapter on simple-git (ADR-0019): the library spawns git, parses `status` and `diff`
+ * and turns failures into errors; this class only maps them to MetatorError. "Changed" means everything
  * that differs from the merge base with `base`: committed on the branch, staged, unstaged,
  * deleted and untracked (non-ignored) files. Paths are repo-relative.
  */
@@ -17,9 +17,9 @@ export class GitVcs implements Vcs {
     const git = await this.repo();
     if (git.isErr()) return err(git.error);
     return this.attempt(async () => {
-      if (!(await this.hasCommits(git.value))) {
-        return ok(sortedUnique(splitZ(await git.value.raw([...LS_FILES, "--cached", "--others"]))));
-      }
+      const status = await git.value.status();
+      // No commits yet: everything staged or untracked is new.
+      if (!(await this.hasCommits(git.value))) return ok(sortedUnique(status.files.map((f) => f.path)));
       let ref = "HEAD";
       if (base !== "HEAD") {
         const mergeBase = await git.value.raw(["merge-base", base, "HEAD"]).catch(() => undefined);
@@ -34,9 +34,8 @@ export class GitVcs implements Vcs {
         ref = mergeBase.trim();
       }
       // --no-renames: a rename counts under both paths, the old path's importers are affected too.
-      const diff = splitZ(await git.value.diff(["--name-only", "--no-renames", "-z", ref]));
-      const untracked = (await git.value.status()).not_added;
-      return ok(sortedUnique([...diff, ...untracked]));
+      const diff = (await git.value.diffSummary(["--no-renames", ref])).files.map((f) => f.file);
+      return ok(sortedUnique([...diff, ...status.not_added]));
     });
   }
 

@@ -8,8 +8,8 @@ Port `Vcs` (`changedFiles(base)`, `listFiles()`) był zaimplementowany ręcznie:
 
 ## Decyzja
 **simple-git 4** (MIT, typy w pakiecie, aktywnie wydawany) w adapterze `GitVcs` (`packages/plugin-git`). Biblioteka uruchamia git, kolejkuje polecenia, parsuje `status -z` (pliki nieśledzone) i zamienia błędy na wyjątki; adapter mapuje je na `MetatorError` (`NOT_FOUND` poza repo, `USAGE` dla nieznanej bazy, `COMMAND_FAILED` dla pozostałych).
-- Zmiany względem bazy: `merge-base` + `diff --name-only --no-renames -z` + nieśledzone z `status()`. `--no-renames`: zmiana nazwy liczy się pod starą i nową ścieżką, bo importerzy starej ścieżki są dotknięci.
-- Repo bez commitów (`HEAD` nienarodzony): wszystkie nieignorowane pliki przez `ls-files`.
+- Zmiany względem bazy: `merge-base` + `diffSummary(["--no-renames", ref])` + nieśledzone z `status()`; oba wyniki parsuje biblioteka. Własne wywołania (`raw`) zostają tylko tam, gdzie simple-git nie ma API: `merge-base` i `ls-files`. `--no-renames`: zmiana nazwy liczy się pod starą i nową ścieżką, bo importerzy starej ścieżki są dotknięci.
+- Repo bez commitów (`HEAD` nienarodzony): wszystkie pliki z `status()`.
 - simple-git traktuje kod wyjścia ≠ 0 bez stderr jako sukces, więc nie używamy `--quiet` i sprawdzamy puste wyjście (`rev-parse`, `merge-base` bez wspólnego przodka).
 
 ## Konsekwencje
