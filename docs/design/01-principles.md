@@ -222,7 +222,7 @@ Każdy element ma sekcje: *Cel*, *Zasady*, *Co musi zawierać*, *Anty-wzorce*, *
 ## 13. Artefakty i tablica runu (`.metator/runs/<run-id>/`)
 
 **Zasady**
-- MUST: każdy artefakt JSON ma schemat w `metator/schemas/` i pole `schema_version`.
+- MUST: każdy artefakt jest wersjonowanym dokumentem: nagłówek `kind` + `schemaVersion`, odczyt i zapis przez `defineDocument` (migracje starszych wersji, odrzucanie nowszych), [ADR-0016](../adr/0016-versioned-documents.md).
 - MUST: `state.json` jest jedynym źródłem prawdy o etapie, autonomii, zgodach i licznikach pętli. Zmienia go tylko `metator run …`.
 - MUST: `log.md` jest append-only (decyzje, odpowiedzi użytkownika, eskalacje). To podstawa wznowienia i audytu.
 - SHOULD: run archiwizowany po zakończeniu (`metator run close`): podsumowanie do `docs/metator/runs-log/` (opcjonalnie), reszta gitignored.

@@ -1,10 +1,14 @@
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 import { MetatorError } from "./errors.ts";
 import { err, ok, type Result } from "./result.ts";
+import { defineDocument } from "./versioned.ts";
 
 /**
- * The persisted run (`.metator/runs/<id>/state.json`). Validated on every load: a hand-edited
- * or corrupted state file is reported, never trusted.
+ * Run documents (ADR-0016). All carry `kind` + `schemaVersion`; all are validated on read.
+ *   RunRecord  · .metator/runs/<id>/state.json   (JSON)
+ *   RunPointer · .metator/runs/latest.json        (JSON)
+ *   RunLog     · .metator/runs/<id>/log.md        (Markdown with YAML front matter)
  */
 const HistorySchema = z
   .object({
@@ -34,11 +38,12 @@ export type RunStatus = RunState["status"];
 export const AutonomySchema = z.enum(["L0", "L1", "L2"]);
 export type Autonomy = z.infer<typeof AutonomySchema>;
 
+const RUN_ID = /^\d{8}-[a-z0-9-]+$/;
+
 export const RunRecordSchema = z
   .object({
-    schemaVersion: z.literal(1),
-    runId: z.string().regex(/^\d{8}-[a-z0-9-]+$/),
-    workflow: z.object({ id: z.string(), version: z.number().int(), source: z.string() }).strict(),
+    runId: z.string().regex(RUN_ID),
+    workflow: z.object({ id: z.string(), revision: z.number().int(), source: z.string() }).strict(),
     task: z.string().min(1),
     autonomy: AutonomySchema,
     createdAt: z.iso.datetime(),
@@ -49,19 +54,56 @@ export const RunRecordSchema = z
 
 export type RunRecord = z.infer<typeof RunRecordSchema>;
 
-export function parseRunRecord(text: string, source: string): Result<RunRecord, MetatorError> {
-  let raw: unknown;
+export const RunRecordDocument = defineDocument("RunRecord", {
+  latest: RunRecordSchema,
+  hint: "Do not edit state.json by hand; use `metator run advance`.",
+});
+
+export const RunPointerDocument = defineDocument("RunPointer", {
+  latest: z.object({ runId: z.string().regex(RUN_ID) }).strict(),
+});
+
+export const RunLogDocument = defineDocument("RunLog", {
+  latest: z.object({ runId: z.string().regex(RUN_ID) }).strict(),
+});
+
+export function parseJsonDocument(text: string, source: string): Result<unknown, MetatorError> {
   try {
-    raw = JSON.parse(text);
+    return ok(JSON.parse(text) as unknown);
   } catch (e) {
     return err(new MetatorError("INVALID_ARTIFACT", `${source} is not valid JSON: ${(e as Error).message}`));
   }
-  const parsed = RunRecordSchema.safeParse(raw);
-  if (parsed.success) return ok(parsed.data);
-  return err(
-    new MetatorError("INVALID_ARTIFACT", `${source} does not match the run schema`, {
-      hint: "Do not edit state.json by hand; use `metator run advance`.",
-      details: { issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })) },
-    }),
-  );
+}
+
+export function serializeJsonDocument(doc: object): string {
+  return `${JSON.stringify(doc, null, 2)}\n`;
+}
+
+export function parseRunRecord(text: string, source: string): Result<RunRecord, MetatorError> {
+  return parseJsonDocument(text, source).andThen((raw) => RunRecordDocument.parse(raw, source));
+}
+
+const FRONT_MATTER = /^---\n([\s\S]*?)\n---\n/;
+
+/** Markdown documents carry their header as YAML front matter. */
+export function renderFrontMatter(header: object, body: string): string {
+  return `---\n${stringifyYaml(header).trimEnd()}\n---\n${body}`;
+}
+
+export function readFrontMatter(text: string, source: string): Result<unknown, MetatorError> {
+  const match = FRONT_MATTER.exec(text);
+  if (!match) {
+    return err(
+      new MetatorError("INVALID_ARTIFACT", `${source}: missing front matter with kind and schemaVersion`, {
+        details: { source },
+      }),
+    );
+  }
+  try {
+    return ok(parseYaml(match[1] as string) as unknown);
+  } catch (e) {
+    return err(
+      new MetatorError("INVALID_ARTIFACT", `${source}: invalid front matter: ${(e as Error).message}`),
+    );
+  }
 }

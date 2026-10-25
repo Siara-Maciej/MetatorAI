@@ -23,7 +23,8 @@
     "@biomejs/biome": "^2.6.3",
     "@types/bun": "^1.4.4",
     "playwright": "1.63.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "yaml": "^2.9.1"
   },
   "trustedDependencies": [
     "@ast-grep/cli"

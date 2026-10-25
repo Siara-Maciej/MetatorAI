@@ -2,6 +2,7 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { MetatorError } from "./errors.ts";
 import { err, ok, type Result } from "./result.ts";
+import { defineDocument } from "./versioned.ts";
 
 /**
  * Workflow spec: the declarative state machine behind every run (docs/design/02-workflows.md).
@@ -28,7 +29,12 @@ export const StageSpecSchema = z
 export const WorkflowSpecSchema = z
   .object({
     id,
-    version: z.number().int().positive().default(1),
+    revision: z
+      .number()
+      .int()
+      .positive()
+      .default(1)
+      .describe("Revision of this workflow's content (not the file format)"),
     description: z.string().optional(),
     stages: z.array(StageSpecSchema).min(1, "a workflow needs at least one stage"),
     loops: z.record(id, z.number().int().min(0)).default({}),
@@ -70,6 +76,18 @@ export interface SpecIssue {
   readonly message: string;
 }
 
+/**
+ * Workflow files are versioned documents (ADR-0016):
+ *   kind: Workflow
+ *   schemaVersion: 1
+ */
+export const WorkflowDocument = defineDocument("Workflow", {
+  latest: WorkflowSpecSchema,
+  errorCode: "INVALID_CONFIG",
+  hint: "Fix the listed issues; `metator workflow schema` prints the JSON Schema.",
+});
+
+/** Validates a workflow body (no header), e.g. a spec built in code. */
 export function validateWorkflowSpec(raw: unknown, source = "<inline>"): Result<WorkflowSpec, MetatorError> {
   const parsed = WorkflowSpecSchema.safeParse(raw);
   if (parsed.success) return ok(parsed.data);
@@ -89,6 +107,7 @@ export function validateWorkflowSpec(raw: unknown, source = "<inline>"): Result<
   );
 }
 
+/** Parses a workflow file: YAML → header (kind, schemaVersion) → versioned schema → spec. */
 export function parseWorkflowYaml(text: string, source: string): Result<WorkflowSpec, MetatorError> {
   let raw: unknown;
   try {
@@ -100,9 +119,9 @@ export function parseWorkflowYaml(text: string, source: string): Result<Workflow
       }),
     );
   }
-  return validateWorkflowSpec(raw, source);
+  return WorkflowDocument.parse(raw, source);
 }
 
-export function workflowJsonSchema(): unknown {
-  return z.toJSONSchema(WorkflowSpecSchema, { io: "input" });
+export function workflowJsonSchema(): Record<string, unknown> {
+  return WorkflowDocument.jsonSchema("input");
 }

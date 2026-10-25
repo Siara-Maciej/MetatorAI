@@ -6,6 +6,8 @@ import { AdvanceRun, GetRunStatus, InitRun, ListRuns } from "../src/application/
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 
 const FEATURE = `
+kind: Workflow
+schemaVersion: 1
 id: feature
 stages:
   - id: plan
@@ -39,7 +41,7 @@ describe("WorkflowCatalog", () => {
   test("lists valid workflows and reports broken files without hiding the good ones", async () => {
     const { catalog } = world({
       ".github/metator/workflows/feature.yml": FEATURE,
-      ".github/metator/workflows/broken.yml": "id: broken\nstages: []",
+      ".github/metator/workflows/broken.yml": "kind: Workflow\nschemaVersion: 1\nid: broken\nstages: []",
       ".github/metator/workflows/notes.md": "ignored",
     });
     const scan = await catalog.scan();
@@ -79,11 +81,16 @@ describe("run lifecycle", () => {
     });
     const state = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     expect(state).toMatchObject({
+      kind: "RunRecord",
       schemaVersion: 1,
-      workflow: { id: "feature", version: 1 },
+      workflow: { id: "feature", revision: 1 },
       createdAt: "2026-10-25T09:00:00.000Z",
     });
-    expect((await w.fs.read(".metator/runs/latest"))._unsafeUnwrap().trim()).toBe(run.runId);
+    expect(JSON.parse((await w.fs.read(".metator/runs/latest.json"))._unsafeUnwrap())).toEqual({
+      kind: "RunPointer",
+      schemaVersion: 1,
+      runId: run.runId,
+    });
     expect((await w.fs.read(run.files.log))._unsafeUnwrap()).toContain("created · workflow feature@1 · L0");
   });
 
@@ -144,11 +151,43 @@ describe("run lifecycle", () => {
     const run = (await w.init.execute({ workflow: "feature", task: "t" }))._unsafeUnwrap();
     await w.fs.write(
       run.files.state,
-      JSON.stringify({ schemaVersion: 1, runId: run.runId, state: { stage: "build" } }),
+      JSON.stringify({ kind: "RunRecord", schemaVersion: 1, runId: run.runId, state: { stage: "build" } }),
     );
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
     expect(error.code).toBe("INVALID_ARTIFACT");
     expect(error.hint).toContain("Do not edit state.json");
+  });
+
+  test("state.json without a version header is rejected with the expected header", async () => {
+    const w = world();
+    const run = (await w.init.execute({ workflow: "feature", task: "t" }))._unsafeUnwrap();
+    const saved = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
+    const { kind: _kind, schemaVersion: _version, ...headerless } = saved;
+    await w.fs.write(run.files.state, JSON.stringify(headerless));
+    const error = (await w.status.execute({}))._unsafeUnwrapErr();
+    expect(error.code).toBe("INVALID_ARTIFACT");
+    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 1" at the top of the document.');
+  });
+
+  test("state.json from a newer MetatorAI is refused, not misread", async () => {
+    const w = world();
+    const run = (await w.init.execute({ workflow: "feature", task: "t" }))._unsafeUnwrap();
+    const saved = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
+    await w.fs.write(run.files.state, JSON.stringify({ ...saved, schemaVersion: 99 }));
+    const error = (await w.status.execute({}))._unsafeUnwrapErr();
+    expect(error.message).toContain("schemaVersion 99 is newer than supported (1)");
+    expect(error.hint).toContain("Upgrade metator-ai");
+  });
+
+  test("log.md starts with a versioned front matter and is checked before appending", async () => {
+    const w = world();
+    const run = (await w.init.execute({ workflow: "feature", task: "t" }))._unsafeUnwrap();
+    const log = (await w.fs.read(run.files.log))._unsafeUnwrap();
+    expect(log.startsWith(`---\nkind: RunLog\nschemaVersion: 1\nrunId: ${run.runId}\n---\n`)).toBe(true);
+    await w.fs.write(run.files.log, log.replace("schemaVersion: 1", "schemaVersion: 7"));
+    const error = (await w.advance.execute({ event: { type: "PASS" } }))._unsafeUnwrapErr();
+    expect(error.message).toContain("newer than supported");
+    expect(JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap()).state.stage).toBe("plan");
   });
 
   test("status without any run says how to start one", async () => {

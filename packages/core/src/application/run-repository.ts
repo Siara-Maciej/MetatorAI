@@ -1,10 +1,24 @@
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseRunRecord, type RunRecord } from "../domain/run-record.ts";
+import {
+  parseJsonDocument,
+  parseRunRecord,
+  RunLogDocument,
+  RunPointerDocument,
+  type RunRecord,
+  RunRecordDocument,
+  readFrontMatter,
+  renderFrontMatter,
+  serializeJsonDocument,
+} from "../domain/run-record.ts";
 import type { FileSystem } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
 
-/** Stores runs as `<runs>/<id>/state.json` + append-only `log.md`, plus a `latest` pointer. */
+/**
+ * Stores runs as versioned documents (ADR-0016): `<runs>/<id>/state.json` (RunRecord),
+ * an append-only `<runs>/<id>/log.md` (RunLog) and `<runs>/latest.json` (RunPointer).
+ * Writes always stamp the current schemaVersion; reads always validate it.
+ */
 export class RunRepository {
   constructor(
     private readonly fs: FileSystem,
@@ -19,14 +33,24 @@ export class RunRepository {
     return `${this.paths.runs}/${runId}/log.md`;
   }
 
+  pointerFile(): string {
+    return `${this.paths.runs}/latest.json`;
+  }
+
   async exists(runId: string): Promise<boolean> {
     return this.fs.exists(this.stateFile(runId));
   }
 
   async save(record: RunRecord): Promise<Result<void, MetatorError>> {
-    const written = await this.fs.write(this.stateFile(record.runId), `${JSON.stringify(record, null, 2)}\n`);
+    const written = await this.fs.write(
+      this.stateFile(record.runId),
+      serializeJsonDocument(RunRecordDocument.stamp(record)),
+    );
     if (written.isErr()) return written;
-    return this.fs.write(`${this.paths.runs}/latest`, `${record.runId}\n`);
+    return this.fs.write(
+      this.pointerFile(),
+      serializeJsonDocument(RunPointerDocument.stamp({ runId: record.runId })),
+    );
   }
 
   async load(runId: string): Promise<Result<RunRecord, MetatorError>> {
@@ -46,13 +70,16 @@ export class RunRepository {
   /** Resolves "latest" (or undefined) to the most recently written run. */
   async resolveId(runId: string | undefined): Promise<Result<string, MetatorError>> {
     if (runId && runId !== "latest") return ok(runId);
-    const pointer = await this.fs.read(`${this.paths.runs}/latest`);
-    if (pointer.isErr() || pointer.value.trim() === "") {
+    const source = this.pointerFile();
+    const text = await this.fs.read(source);
+    if (text.isErr()) {
       return err(
         new MetatorError("NOT_FOUND", "No runs yet", { hint: "Start one with `metator run init`." }),
       );
     }
-    return ok(pointer.value.trim());
+    return parseJsonDocument(text.value, source)
+      .andThen((raw) => RunPointerDocument.parse(raw, source))
+      .map((pointer) => pointer.runId);
   }
 
   async list(): Promise<readonly string[]> {
@@ -60,10 +87,25 @@ export class RunRepository {
     return files.map((f) => f.slice(this.paths.runs.length + 1, -"/state.json".length)).sort();
   }
 
+  /** Checks the log's version header before a state change, so the audit trail never diverges. */
+  async verifyLog(runId: string): Promise<Result<void, MetatorError>> {
+    const file = this.logFile(runId);
+    const current = await this.fs.read(file);
+    if (current.isErr()) return ok(undefined); // created on first append
+    return readFrontMatter(current.value, file)
+      .andThen((raw) => RunLogDocument.parse(raw, file))
+      .map(() => undefined);
+  }
+
   async appendLog(runId: string, line: string): Promise<Result<void, MetatorError>> {
     const file = this.logFile(runId);
     const current = await this.fs.read(file);
-    const header = `# Run ${runId}\n\n`;
-    return this.fs.write(file, `${current.isOk() ? current.value : header}- ${line}\n`);
+    if (current.isErr()) {
+      const header = renderFrontMatter(RunLogDocument.stamp({ runId }), `# Run ${runId}\n\n`);
+      return this.fs.write(file, `${header}- ${line}\n`);
+    }
+    const valid = readFrontMatter(current.value, file).andThen((raw) => RunLogDocument.parse(raw, file));
+    if (valid.isErr()) return err(valid.error);
+    return this.fs.write(file, `${current.value}- ${line}\n`);
   }
 }

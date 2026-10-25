@@ -88,14 +88,14 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/run-record.ts",
-    from: "if (parsed.success) return ok(parsed.data);",
-    to: "return ok(raw as never);",
+    from: ".andThen((raw) => RunRecordDocument.parse(raw, source))",
+    to: ".map((raw) => raw as RunRecord)",
     why: "state.json must be validated, never trusted",
   },
   {
     file: "packages/core/src/application/run-repository.ts",
-    from: "/latest`, `",
-    to: "/not-latest`, `",
+    from: "RunPointerDocument.stamp({ runId: record.runId })",
+    to: 'RunPointerDocument.stamp({ runId: "19990101-stale" })',
     why: "the latest pointer must follow the last written run",
   },
   {
@@ -127,6 +127,30 @@ const MUTANTS: readonly Mutant[] = [
     from: "...(details === undefined ? {} : { details })",
     to: "",
     why: "error details must reach the agent",
+  },
+  {
+    file: "packages/core/src/domain/versioned.ts",
+    from: "if (schemaVersion > current) {",
+    to: "if (false) {",
+    why: "documents from a newer version must be refused",
+  },
+  {
+    file: "packages/core/src/domain/versioned.ts",
+    from: "kind, schemaVersion: current, ...(body as object)",
+    to: "...(body as object)",
+    why: "writers must stamp kind and schemaVersion",
+  },
+  {
+    file: "packages/core/src/domain/versioned.ts",
+    from: "for (let v = schemaVersion + 1; v <= current; v++)",
+    to: "for (let v = current + 1; v <= current; v++)",
+    why: "older documents must be migrated, not passed through",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: "if (logReady.isErr()) return err(logReady.error);",
+    to: "",
+    why: "a broken audit log must stop the state change",
   },
 ];
 

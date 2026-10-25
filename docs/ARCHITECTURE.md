@@ -858,7 +858,7 @@ docs/adr/ docs/metator/{rules,patterns,modules,lessons,evals}/ docs/metator/memo
 | Binarka `metator` (`bun build --compile`) per OS | repo bez Node, hooki z budżetem czasu, runnery CI | zawiera runtime i wbudowane pluginy. Dla TS używa `typescript` z repo, jeśli istnieje, inaczej wersji wbudowanej. |
 | Obraz Docker `metator-runner` | self-hosted CI ([ci-engines](design/07-ci-engines.md)) | binarka + ast-grep + CLI hostów |
 
-Wersjonowanie: semver dla `MetatorAI`, `apiVersion` dla pluginów, `schema_version` dla artefaktów i configu. `metator upgrade` regeneruje pliki hostów, pokazuje diff i migruje config (migratory per wersja).
+Wersjonowanie: semver dla `MetatorAI`, `apiVersion` dla pluginów, `kind` + `schemaVersion` w każdym pliku (artefakty, specyfikacje, config), z migracjami starszych wersji ([ADR-0016](adr/0016-versioned-documents.md)). `metator upgrade` regeneruje pliki hostów, pokazuje diff i migruje config (migratory per wersja).
 
 ---
 

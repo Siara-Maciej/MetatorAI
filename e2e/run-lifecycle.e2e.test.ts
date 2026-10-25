@@ -6,10 +6,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
+import { findUnversioned } from "./helpers/versioned.ts";
 
 const FEATURE = `
+kind: Workflow
+schemaVersion: 1
 id: feature
-version: 2
+revision: 2
 description: Feature workflow used by the e2e suite
 stages:
   - id: context
@@ -50,7 +53,7 @@ describe("workflow catalog via CLI", () => {
       workflows: [
         {
           id: "feature",
-          version: 2,
+          revision: 2,
           stages: ["context", "plan", "plan-gate", "approval", "build", "review"],
           source: ".github/metator/workflows/feature.yml",
         },
@@ -66,7 +69,7 @@ describe("workflow catalog via CLI", () => {
   test("an invalid spec fails validation with paths, and list still works but warns", async () => {
     await repo.write(
       ".github/metator/workflows/broken.yml",
-      "id: broken\nstages:\n  - id: a\n    onFail: { goto: nope, loop: x }\n",
+      "kind: Workflow\nschemaVersion: 1\nid: broken\nstages:\n  - id: a\n    onFail: { goto: nope, loop: x }\n",
     );
     try {
       const all = await mt("workflow", "validate");
@@ -102,7 +105,11 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
     expect(data.stage).toBe("context");
     expect(data.expects).toEqual(["PASS", "FAIL", "ABORT"]);
     expect(await repo.exists(data.files.state)).toBe(true);
-    expect(await repo.read(".metator/runs/latest")).toBe(`${runId}\n`);
+    expect(JSON.parse(await repo.read(".metator/runs/latest.json"))).toEqual({
+      kind: "RunPointer",
+      schemaVersion: 1,
+      runId,
+    });
   });
 
   test("advance moves through stages and status resumes from disk in a new process", async () => {
@@ -149,7 +156,7 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
     const state = JSON.parse(await repo.read(`.metator/runs/${runId}/state.json`));
     expect(state.workflow).toEqual({
       id: "feature",
-      version: 2,
+      revision: 2,
       source: ".github/metator/workflows/feature.yml",
     });
     expect(
@@ -242,5 +249,43 @@ describe("usage errors via CLI", () => {
   test("running from a subdirectory finds the repository root", async () => {
     const r = await metator(["workflow", "list"], repo.path("src"), NOW);
     expect((r.json.data as { workflows: unknown[] }).workflows).toHaveLength(1);
+  });
+});
+
+describe("every persisted file is a versioned document (ADR-0016)", () => {
+  const DIRS = [".metator", ".github/metator"];
+
+  test("all files under .metator/ and every workflow spec declare kind and schemaVersion", async () => {
+    const { checked, unversioned } = await findUnversioned(repo.root, DIRS);
+    expect(checked).toBeGreaterThan(5);
+    expect(unversioned).toEqual([]);
+  });
+
+  test("the guard itself detects an unversioned artifact (tests the test)", async () => {
+    await repo.write(".metator/runs/rogue.json", JSON.stringify({ runId: "x" }));
+    await repo.write(".metator/runs/rogue.md", "# no front matter\n");
+    try {
+      expect((await findUnversioned(repo.root, DIRS)).unversioned).toEqual([
+        ".metator/runs/rogue.json",
+        ".metator/runs/rogue.md",
+      ]);
+    } finally {
+      await Bun.file(repo.path(".metator/runs/rogue.json")).delete();
+      await Bun.file(repo.path(".metator/runs/rogue.md")).delete();
+    }
+  });
+
+  test("a workflow file without a header is rejected with the expected header", async () => {
+    await repo.write(".github/metator/workflows/legacy.yml", "id: legacy\nstages: [{ id: a }]\n");
+    try {
+      const r = await mt("workflow", "validate", ".github/metator/workflows/legacy.yml");
+      expect(r.code).toBe(1);
+      expect(r.json.error).toMatchObject({
+        code: "INVALID_CONFIG",
+        hint: 'Expected "kind: Workflow" and "schemaVersion: 1" at the top of the document.',
+      });
+    } finally {
+      await Bun.file(repo.path(".github/metator/workflows/legacy.yml")).delete();
+    }
   });
 });

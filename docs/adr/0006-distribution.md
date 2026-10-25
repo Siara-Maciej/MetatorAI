@@ -8,7 +8,7 @@
 Użytkownicy mają repo JS/TS, ale też repo bez Node. Hooki potrzebują szybkiego startu.
 
 ## Decyzja
-Pakiet npm `metator-ai` (devDependency; hooki wołają `node_modules/.bin/metator-guard` bez `npx`), binarka `bun build --compile` per OS, obraz `metator-runner` dla self-hosted CI. Semver dla produktu, `apiVersion` dla pluginów, `schema_version` dla artefaktów i configu.
+Pakiet npm `metator-ai` (devDependency; hooki wołają `node_modules/.bin/metator-guard` bez `npx`), binarka `bun build --compile` per OS, obraz `metator-runner` dla self-hosted CI. Semver dla produktu, `apiVersion` dla pluginów, `kind` + `schemaVersion` w każdym pliku (ADR-0016).
 
 ## Konsekwencje
 ### Pozytywne

@@ -33,6 +33,14 @@ Clean architecture, ports and adapters. Dependencies point inward:
 
 `rules/architecture/*.yml` (ast-grep) enforces this in CI. Never weaken a rule to make code pass; move the code instead.
 
+## Every file is a versioned document (ADR-0016)
+
+- Every file MetatorAI writes or reads starts with `kind` + `schemaVersion` (JSON/YAML top-level fields, Markdown front matter).
+- Define documents with `defineDocument(kind, { latest, upgrade?, history? })` (`packages/core/src/domain/versioned.ts`). Write only through `Document.stamp(body)`; read only through `Document.parse(raw, source)`.
+- Changing a document's schema means a new version, a migration (`upgrade`) and a migration test. Never change a released version in place.
+- `schemaVersion` is the file format; content versions use separate fields (e.g. a workflow's `revision`).
+- `e2e/helpers/versioned.ts` (`findUnversioned`) fails CI for any unversioned file under `.metator/` or `.github/metator/`.
+
 ## Dependency policy: don't reinvent the wheel
 
 Use a proven package before writing your own (ADR-0010). Write code only for logic specific to MetatorAI.

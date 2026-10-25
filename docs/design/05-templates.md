@@ -189,7 +189,7 @@ Patrz pełny przykład w [workflows §2](02-workflows.md#2-workflow-jako-maszyna
 
 ```jsonc
 // state@1
-{ "schema_version": 1, "run_id": "20261024-feature-ab12345", "workflow": "mt-feature@3",
+{ "kind": "RunRecord", "schemaVersion": 1, "runId": "20261024-feature-ab12345", "workflow": "mt-feature@3",
   "stage": "G5-build", "role": "coordinator", "autonomy": "L0",
   "loops": { "plan": 1, "build": 0, "review": 0 },
   "permissions": { "edit_scope": ["packages/billing/src/**", "packages/billing/test/**"] },

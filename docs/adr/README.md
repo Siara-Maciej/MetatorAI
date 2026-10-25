@@ -19,3 +19,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0013](0013-state-machine-xstate.md) | Maszyna stanów runu: XState v5 | Proposed |
 | [0014](0014-cli-commander.md) | Parser CLI: commander | Proposed |
 | [0015](0015-schemas-zod-yaml.md) | Schematy i specyfikacje: zod + yaml | Proposed |
+| [0016](0016-versioned-documents.md) | Każdy plik jest wersjonowanym dokumentem | Proposed |

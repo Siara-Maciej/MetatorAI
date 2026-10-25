@@ -439,6 +439,6 @@ const pack = rules.filter((r) => r.status !== "deprecated" &&
 ## 7. Jakość samych skryptów
 
 - `bun test metator` na fixture'ze mini-monorepo (3 pakiety, celowe naruszenia, wzorce, legacy).
-- Testy snapshotowe wyjść JSON. Zmiana kontraktu = zmiana `schema_version`.
+- Testy snapshotowe wyjść JSON. Zmiana kontraktu = nowa `schemaVersion` + migracja (ADR-0016).
 - Pomiar czasu: `pre-tool` < 300 ms, `post-edit` < 5 s, `graph affected` < 2 s na ciepłym cache. Benchmark w CI.
 - Biome i tsc obowiązują też `metator`, bez wyjątków.

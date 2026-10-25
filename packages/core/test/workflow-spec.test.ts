@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { parseWorkflowYaml, validateWorkflowSpec, workflowJsonSchema } from "../src/domain/workflow-spec.ts";
 
 const yaml = `
+kind: Workflow
+schemaVersion: 1
 id: mt-feature
 description: Feature workflow
 stages:
@@ -19,20 +21,26 @@ describe("workflow spec", () => {
   test("parses YAML and applies defaults", () => {
     const spec = parseWorkflowYaml(yaml, "feature.yml")._unsafeUnwrap();
     expect(spec.id).toBe("mt-feature");
-    expect(spec.version).toBe(1);
+    expect(spec.revision).toBe(1);
     expect(spec.stages.map((s) => s.id)).toEqual(["context", "plan", "plan-gate", "approval"]);
     expect(spec.loops).toEqual({ plan: 2 });
     expect(validateWorkflowSpec({ id: "w", stages: [{ id: "a" }] })._unsafeUnwrap().loops).toEqual({});
   });
 
   test("malformed YAML is an INVALID_CONFIG error naming the file", () => {
-    const error = parseWorkflowYaml("id: [unclosed", "broken.yml")._unsafeUnwrapErr();
+    const error = parseWorkflowYaml(
+      "kind: Workflow\nschemaVersion: 1\nid: [unclosed",
+      "broken.yml",
+    )._unsafeUnwrapErr();
     expect(error.code).toBe("INVALID_CONFIG");
     expect(error.message).toContain("broken.yml");
   });
 
   test("unknown keys are rejected (typos must not be silently ignored)", () => {
-    const error = parseWorkflowYaml("id: w\nstages: [{ id: a, hitll: true }]", "w.yml")._unsafeUnwrapErr();
+    const error = parseWorkflowYaml(
+      "kind: Workflow\nschemaVersion: 1\nid: w\nstages: [{ id: a, hitll: true }]",
+      "w.yml",
+    )._unsafeUnwrapErr();
     expect(JSON.stringify(error.details)).toContain("hitll");
   });
 
@@ -68,7 +76,7 @@ describe("workflow spec", () => {
     expect(schema.type).toBe("object");
     expect(schema.required).toEqual(expect.arrayContaining(["id", "stages"]));
     expect(Object.keys(schema.properties)).toEqual(
-      expect.arrayContaining(["id", "stages", "loops", "version"]),
+      expect.arrayContaining(["kind", "schemaVersion", "id", "stages", "loops", "revision"]),
     );
   });
 });

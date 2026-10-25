@@ -86,7 +86,8 @@ Reguła: **Copilot Memory jest pomocnicze, canon ma pierwszeństwo.** Konflikt p
 ## 3. Plik mapy: `docs/metator/memory-map.yml`
 
 ```yaml
-schema_version: 1
+kind: MemoryMap
+schemaVersion: 1
 budgets:
   t0_chars: 4000
   instructions_file_lines: 150

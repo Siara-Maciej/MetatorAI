@@ -10,6 +10,7 @@
         "@types/bun": "^1.4.4",
         "playwright": "1.63.0",
         "typescript": "^7.0.2",
+        "yaml": "^2.9.1",
       },
     },
     "packages/cli": {

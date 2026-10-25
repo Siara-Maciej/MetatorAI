@@ -81,9 +81,8 @@ export class InitRun {
     const now = this.clock.now().toISOString();
     const runId = await this.uniqueId(now, machine.workflow.id, input.task);
     const record: RunRecord = {
-      schemaVersion: 1,
       runId,
-      workflow: { id: machine.workflow.id, version: machine.workflow.version, source },
+      workflow: { id: machine.workflow.id, revision: machine.workflow.revision, source },
       task: input.task,
       autonomy: input.autonomy ?? "L0",
       createdAt: now,
@@ -92,10 +91,11 @@ export class InitRun {
     };
     const saved = await this.repo.save(record);
     if (saved.isErr()) return err(saved.error);
-    await this.repo.appendLog(
+    const logged = await this.repo.appendLog(
       runId,
-      `${now} · created · workflow ${record.workflow.id}@${record.workflow.version} · ${record.autonomy}`,
+      `${now} · created · workflow ${record.workflow.id}@${record.workflow.revision} · ${record.autonomy}`,
     );
+    if (logged.isErr()) return err(logged.error);
     return ok(view(record, machine, this.repo));
   }
 
@@ -128,6 +128,9 @@ export class AdvanceRun {
     if (resolved.isErr()) return err(resolved.error);
     const { machine } = resolved.value;
 
+    const logReady = await this.repo.verifyLog(record.value.runId);
+    if (logReady.isErr()) return err(logReady.error);
+
     const before = record.value.state.stage;
     const next = machine.send(record.value.state, input.event);
     if (next.isErr()) return err(next.error);
@@ -136,10 +139,11 @@ export class AdvanceRun {
     const updated: RunRecord = { ...record.value, state: next.value, updatedAt: now };
     const saved = await this.repo.save(updated);
     if (saved.isErr()) return err(saved.error);
-    await this.repo.appendLog(
+    const logged = await this.repo.appendLog(
       updated.runId,
       `${now} · ${before} · ${describe(input.event)} → ${next.value.stage}`,
     );
+    if (logged.isErr()) return err(logged.error);
     return ok(view(updated, machine, this.repo));
   }
 }

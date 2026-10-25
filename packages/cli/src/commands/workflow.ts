@@ -15,7 +15,7 @@ export function registerWorkflowCommands(program: Command, { action, container }
           result: ok({
             workflows: scan.workflows.map(({ spec, source }) => ({
               id: spec.id,
-              version: spec.version,
+              revision: spec.revision,
               stages: spec.stages.map((s) => s.id),
               source,
             })),

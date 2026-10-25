@@ -180,7 +180,8 @@ metator run status                                             # stage, what it 
 metator changed --base main                                    # files changed on the branch (git)
 ```
 
-Run state lives in `.metator/runs/<id>/state.json` (validated on every read) with an append-only `log.md`,
+Every file MetatorAI writes is a versioned document (`kind` + `schemaVersion`), so it is always clear how to parse it
+and older files are migrated on read. Run state lives in `.metator/runs/<id>/state.json` with an append-only `log.md`,
 so any session, CI job or AI host can resume exactly where the last one stopped.
 
 ### Planned support

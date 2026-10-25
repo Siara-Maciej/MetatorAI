@@ -51,6 +51,7 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [x] Runy: `metator run init|advance|status|list` na `RunStateMachine` (XState), stan w `.metator/runs/<id>/state.json` walidowany przy każdym odczycie, `log.md` jako ślad audytowy, wskaźnik `latest`.
 - [x] Adaptery: `BunProcessRunner` (kontrakt `ProcessRunner`), `plugin-git` (`GitVcs`), komenda `metator changed`.
 - [x] CLI na commanderze z wyjściem wyłącznie w JSON, composition root na awilix (`bootstrap`).
+- [x] Wersjonowane dokumenty ([ADR-0016](adr/0016-versioned-documents.md)): `kind` + `schemaVersion` w każdym pliku (Workflow, RunRecord, RunLog, RunPointer), migracje i odrzucanie nowszych wersji, strażnik e2e.
 - [ ] Następne: graf importów (ast-grep + resolver, ADR-0008), `metator graph affected|cycles|path`, `metator index build`, rule pack.
 
 **Zadania**

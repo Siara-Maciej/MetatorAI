@@ -1,7 +1,9 @@
 # Reference workflow: implement a feature (docs/design/02-workflows.md, W1).
 # Copy to .github/metator/workflows/ in your repository and adapt stages and limits.
+kind: Workflow
+schemaVersion: 1
 id: feature
-version: 1
+revision: 1
 description: Survey, plan, gate, build, verify, ship
 stages:
   - id: setup
