@@ -1,0 +1,11 @@
+id: mt-arch-plugins-isolated
+language: TypeScript
+severity: error
+message: "Plugins may depend on @metator/core (ports, domain) only, never on runtime, cli or other plugins."
+files:
+  - packages/plugin-*/src/**
+rule:
+  kind: import_statement
+  has:
+    field: source
+    regex: '^[''"]@metator/(runtime|cli|plugin-)'

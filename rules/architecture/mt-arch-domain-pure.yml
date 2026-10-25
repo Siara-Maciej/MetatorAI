@@ -1,0 +1,12 @@
+id: mt-arch-domain-pure
+language: TypeScript
+severity: error
+message: "Domain must stay pure: no I/O, runtime APIs, ports, application or adapter imports."
+note: "See docs/ARCHITECTURE.md §2 (dependency rule). Move I/O behind a port in packages/core/src/ports."
+files:
+  - packages/core/src/domain/**
+rule:
+  kind: import_statement
+  has:
+    field: source
+    regex: "^['\"](node:|bun|fs|path|os|child_process|\\.\\./(ports|application)|@metator/)"

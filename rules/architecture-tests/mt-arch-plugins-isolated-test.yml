@@ -1,0 +1,6 @@
+id: mt-arch-plugins-isolated
+valid:
+  - import { ok, type FileSystem } from "@metator/core";
+invalid:
+  - import { Container } from "@metator/runtime";
+  - import { other } from "@metator/plugin-git";

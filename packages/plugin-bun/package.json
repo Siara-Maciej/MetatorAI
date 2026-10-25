@@ -1,0 +1,15 @@
+{
+  "name": "@metator/plugin-bun",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@metator/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@metator/testing": "workspace:*"
+  }
+}

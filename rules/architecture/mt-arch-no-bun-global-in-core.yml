@@ -1,0 +1,10 @@
+id: mt-arch-no-bun-global-in-core
+language: TypeScript
+severity: error
+message: "Core must not use the Bun global or process: it has to run on any runtime and in tests without I/O."
+files:
+  - packages/core/src/**
+rule:
+  any:
+    - pattern: Bun.$PROP
+    - pattern: process.$PROP

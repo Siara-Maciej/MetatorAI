@@ -1,0 +1,6 @@
+id: mt-arch-no-bun-global-in-core
+valid:
+  - const now = clock.now();
+invalid:
+  - const f = Bun.file("x");
+  - const cwd = process.cwd();

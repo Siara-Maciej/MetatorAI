@@ -1,0 +1,9 @@
+id: mt-arch-domain-pure
+valid:
+  - import { ok } from "./result.ts";
+  - import type { Edge } from "./graph.ts";
+invalid:
+  - import { readFile } from "node:fs/promises";
+  - import { Vcs } from "../ports/index.ts";
+  - import { ComputeAffected } from "../application/compute-affected.ts";
+  - import { Container } from "@metator/runtime";

@@ -1,0 +1,8 @@
+id: mt-arch-core-no-infra
+valid:
+  - import { DependencyGraph } from "../domain/graph.ts";
+  - import type { Vcs } from "../ports/index.ts";
+invalid:
+  - import { $ } from "bun";
+  - import { join } from "node:path";
+  - import { BunFileSystem } from "@metator/plugin-bun";

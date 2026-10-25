@@ -1,0 +1,16 @@
+{
+  "name": "@metator/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@metator/core": "workspace:*",
+    "@metator/runtime": "workspace:*"
+  },
+  "bin": {
+    "metator": "./src/main.ts"
+  }
+}

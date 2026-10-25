@@ -1,0 +1,12 @@
+id: mt-arch-core-no-infra
+language: TypeScript
+severity: error
+message: "Core (ports, application) must not depend on runtime APIs, the DI runtime or plugins."
+note: "Use cases depend on ports only; adapters are bound in the composition root (packages/runtime)."
+files:
+  - packages/core/src/**
+rule:
+  kind: import_statement
+  has:
+    field: source
+    regex: '^[''"](node:|bun|fs|path|os|child_process|@metator/)'

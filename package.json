@@ -1,0 +1,26 @@
+{
+  "name": "metator-ai-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "arch": "ast-grep test --skip-snapshot-tests && ast-grep scan",
+    "check": "bun run lint && bun run typecheck && bun run arch && bun run test",
+    "metator": "bun packages/cli/src/main.ts"
+  },
+  "devDependencies": {
+    "@ast-grep/cli": "^0.51.0",
+    "@biomejs/biome": "^2.6.3",
+    "@types/bun": "^1.4.4",
+    "typescript": "^7.0.2"
+  },
+  "trustedDependencies": [
+    "@ast-grep/cli"
+  ]
+}
