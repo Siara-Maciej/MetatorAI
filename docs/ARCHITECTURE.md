@@ -52,8 +52,10 @@ Nie wymyślamy koła na nowo. Własny kod piszemy tylko tam, gdzie jest logika s
 | Glob | **picomatch** | `core/domain` |
 | Wyszukiwanie strukturalne, reguły | **ast-grep** | pluginy, CI |
 | Lint/format | **Biome** | pluginy, CI |
-| Walidacja i schematy (planowane) | **zod** (+ eksport JSON Schema) | `runtime` |
-| Parsowanie argv (planowane) | gotowy parser CLI (wybór w ADR przy pierwszej komendzie z flagami) | `cli` |
+| Schematy, walidacja, JSON Schema | **zod** | `core` (specyfikacje, stan runu) |
+| YAML | **yaml** | `core` (specyfikacje workflow) |
+| Slug identyfikatorów runów | **@sindresorhus/slugify** | `core` |
+| Parser CLI | **commander** (wyjście tylko JSON) | `cli` |
 
 
 ---

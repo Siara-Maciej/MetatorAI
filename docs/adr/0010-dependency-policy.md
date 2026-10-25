@@ -24,6 +24,10 @@ Bieżące wybory:
 | Maszyna stanów | xstate v5 | 0013 |
 | Result | neverthrow | ten ADR |
 | Glob | picomatch | ten ADR |
+| Schematy, walidacja, JSON Schema | zod | 0015 |
+| YAML | yaml | 0015 |
+| Slug identyfikatorów | @sindresorhus/slugify | 0015 |
+| Parser CLI | commander | 0014 |
 | Wyszukiwanie strukturalne | ast-grep | 0008 |
 | Lint/format | Biome | – |
 

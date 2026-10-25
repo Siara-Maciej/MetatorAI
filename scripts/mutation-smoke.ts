@@ -70,9 +70,57 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/run.ts",
-    from: "return result.isOk() ? 0 : exitCodeFor(result.error);",
+    from: "return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
     to: "return 0;",
     why: "failures must produce a non-zero exit code",
+  },
+  {
+    file: "packages/core/src/domain/workflow-spec.ts",
+    from: "if (ids.indexOf(stage.id) !== i) {",
+    to: "if (false) {",
+    why: "duplicate stage ids must be rejected",
+  },
+  {
+    file: "packages/core/src/domain/workflow-spec.ts",
+    from: "if (stage.onFail && !ids.includes(stage.onFail.goto)) {",
+    to: "if (false) {",
+    why: "loops must target existing stages",
+  },
+  {
+    file: "packages/core/src/domain/run-record.ts",
+    from: "if (parsed.success) return ok(parsed.data);",
+    to: "return ok(raw as never);",
+    why: "state.json must be validated, never trusted",
+  },
+  {
+    file: "packages/core/src/application/run-repository.ts",
+    from: "/latest`, `",
+    to: "/not-latest`, `",
+    why: "the latest pointer must follow the last written run",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: "for (let n = 2; await this.repo.exists(candidate); n++)",
+    to: "for (let n = 2; false; n++)",
+    why: "run ids must be unique (no overwriting an existing run)",
+  },
+  {
+    file: "packages/plugin-git/src/git-vcs.ts",
+    from: "...diff.value, ...untracked.value",
+    to: "...diff.value",
+    why: "untracked files count as changed",
+  },
+  {
+    file: "packages/cli/src/run.ts",
+    from: "if (!opts.by?.trim()) {",
+    to: "if (false) {",
+    why: "approvals must name who decided",
+  },
+  {
+    file: "packages/runtime/src/envelope.ts",
+    from: "...(details === undefined ? {} : { details })",
+    to: "",
+    why: "error details must reach the agent",
   },
 ];
 

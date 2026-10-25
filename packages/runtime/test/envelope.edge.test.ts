@@ -30,4 +30,13 @@ describe("envelope edge cases", () => {
     expect(toEnvelope(ok(1))).toEqual({ ok: true, data: 1 });
     expect(toEnvelope(err(new MetatorError("INTERNAL", "x")), ["degraded"]).warnings).toEqual(["degraded"]);
   });
+
+  test("error details reach the agent (validation issues, paths)", () => {
+    const error = new MetatorError("INVALID_CONFIG", "bad spec", {
+      details: { issues: [{ path: "stages.0.id", message: "x" }] },
+    });
+    expect(toEnvelope(err(error)).error?.details).toEqual({
+      issues: [{ path: "stages.0.id", message: "x" }],
+    });
+  });
 });

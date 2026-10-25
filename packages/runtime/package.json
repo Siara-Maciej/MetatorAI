@@ -8,6 +8,8 @@
   },
   "dependencies": {
     "@metator/core": "workspace:*",
-    "awilix": "^13.0.5"
+    "awilix": "^13.0.5",
+    "@metator/plugin-bun": "workspace:*",
+    "@metator/plugin-git": "workspace:*"
   }
 }

@@ -7,7 +7,13 @@ export interface Envelope<T> {
   readonly warnings?: readonly string[];
   readonly truncated?: boolean;
   readonly next?: string;
-  readonly error?: { readonly code: ErrorCode; readonly message: string; readonly hint?: string };
+  readonly error?: {
+    readonly code: ErrorCode;
+    readonly message: string;
+    readonly hint?: string;
+    /** Machine-readable specifics (validation issues, paths, stderr) agents need to fix the problem. */
+    readonly details?: Readonly<Record<string, unknown>>;
+  };
 }
 
 export const EXIT = { OK: 0, FAIL: 1, USAGE: 64, STALE_INDEX: 65 } as const;
@@ -24,8 +30,17 @@ export function toEnvelope<T>(
 ): Envelope<T> {
   const extra = warnings.length > 0 ? { warnings } : {};
   if (result.isOk()) return { ok: true, data: result.value, ...extra };
-  const { code, message, hint } = result.error;
-  return { ok: false, error: { code, message, ...(hint === undefined ? {} : { hint }) }, ...extra };
+  const { code, message, hint, details } = result.error;
+  return {
+    ok: false,
+    error: {
+      code,
+      message,
+      ...(hint === undefined ? {} : { hint }),
+      ...(details === undefined ? {} : { details }),
+    },
+    ...extra,
+  };
 }
 
 export function fromUnknown(e: unknown): MetatorError {

@@ -4,9 +4,12 @@ valid:
   - import { alg, Graph } from "@dagrejs/graphlib";
   - import { setup } from "xstate";
   - import picomatch from "picomatch";
+  - import { z } from "zod";
+  - import { parse } from "yaml";
+  - import slugify from "@sindresorhus/slugify";
   - import { DependencyGraph } from "./graph.ts";
   - import type { Vcs } from "../ports/index.ts";
 invalid:
   - import axios from "axios";
   - import _ from "lodash";
-  - import { z } from "zod";
+  - import { execa } from "execa";

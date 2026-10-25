@@ -11,9 +11,18 @@ export interface CliRun {
 }
 
 /** Runs the real `metator` entrypoint as a separate process, exactly like an agent or hook would. */
-export async function metator(args: readonly string[], cwd: string): Promise<CliRun> {
+export async function metator(
+  args: readonly string[],
+  cwd: string,
+  env: Readonly<Record<string, string>> = {},
+): Promise<CliRun> {
   const started = performance.now();
-  const proc = Bun.spawn(["bun", CLI_ENTRY, ...args], { cwd, stdout: "pipe", stderr: "pipe" });
+  const proc = Bun.spawn(["bun", CLI_ENTRY, ...args], {
+    cwd,
+    env: { ...process.env, ...env },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
   const [stdout, stderr, code] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),

@@ -1,0 +1,35 @@
+# Reference workflow: implement a feature (docs/design/02-workflows.md, W1).
+# Copy to .github/metator/workflows/ in your repository and adapt stages and limits.
+id: feature
+version: 1
+description: Survey, plan, gate, build, verify, ship
+stages:
+  - id: setup
+    description: Branch and preconditions (clean tree, fresh index)
+  - id: intake
+    description: Task and acceptance criteria; ask when ambiguous
+  - id: context
+    description: Parallel subagents survey the code (graph, patterns, rules)
+  - id: plan
+    description: Steps with files, tests first and an exemplar per step
+  - id: plan-gate
+    description: Deterministic plan lint, then an independent plan critic
+    onFail: { goto: plan, loop: plan }
+  - id: plan-approval
+    description: The human approves the plan
+    hitl: true
+  - id: build
+    description: Tests RED then GREEN, edits only inside the plan scope
+  - id: gates
+    description: Lint, typecheck, rules, affected tests, graph and API diff
+    onFail: { goto: build, loop: build }
+  - id: review
+    description: Find in parallel, verify by refutation, judge
+    onFail: { goto: plan, loop: review }
+  - id: delivery
+    description: The human approves the push and the PR
+    hitl: true
+loops:
+  plan: 2
+  build: 2
+  review: 3

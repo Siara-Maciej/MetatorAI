@@ -165,6 +165,24 @@ Then, in Copilot Chat or Claude Code:
 /mt-resume                      → pick up any run exactly where it stopped
 ```
 
+### Available today (pre-alpha)
+
+The workflow engine already runs end to end from the CLI. Every command prints one JSON line:
+
+```bash
+cp examples/workflows/feature.yml .github/metator/workflows/   # a reference workflow spec
+metator workflow validate                                      # zod-validated, errors with exact paths
+metator run init --workflow feature --task "Add combined discount"
+metator run advance pass                                       # next stage
+metator run advance fail --reason "plan lint: step 3 has no exemplar"   # bounded loop back to plan
+metator run advance approve --by maciej                        # human gates accept only APPROVE
+metator run status                                             # stage, what it expects, recent history
+metator changed --base main                                    # files changed on the branch (git)
+```
+
+Run state lives in `.metator/runs/<id>/state.json` (validated on every read) with an append-only `log.md`,
+so any session, CI job or AI host can resume exactly where the last one stopped.
+
 ### Planned support
 
 | Layer | |

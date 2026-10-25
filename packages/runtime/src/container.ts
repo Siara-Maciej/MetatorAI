@@ -1,29 +1,47 @@
 import {
+  type AdvanceRun,
   type Clock,
   err,
   type FileSystem,
+  type GetRunStatus,
   type ImportGraphReader,
+  type InitRun,
+  type ListRuns,
   type Logger,
   MetatorError,
+  type MetatorPaths,
   ok,
   type ProcessRunner,
   type Result,
+  type RunRepository,
   type Vcs,
+  type WorkflowCatalog,
 } from "@metator/core";
 import { type AwilixContainer, AwilixResolutionError, createContainer, InjectionMode } from "awilix";
 
 /**
  * DI is awilix (ADR-0011): no decorators, lazy resolution, scopes (one per workflow run),
  * strict lifetime checks, and plain re-registration for config > preset > default overrides.
- * The cradle lists every port a use case may depend on; plugins register implementations.
+ * The cradle lists every port and use case; plugins and bootstrap register implementations.
  */
 export interface Cradle {
+  // configuration values
+  root: string;
+  paths: MetatorPaths;
+  // ports
   clock: Clock;
   logger: Logger;
   fileSystem: FileSystem;
   processRunner: ProcessRunner;
   vcs: Vcs;
   importGraphReader: ImportGraphReader;
+  // application services and use cases
+  workflowCatalog: WorkflowCatalog;
+  runRepository: RunRepository;
+  initRun: InitRun;
+  advanceRun: AdvanceRun;
+  getRunStatus: GetRunStatus;
+  listRuns: ListRuns;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

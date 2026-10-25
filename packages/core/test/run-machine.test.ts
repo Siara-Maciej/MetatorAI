@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { type RunState, RunStateMachine, type WorkflowSpec } from "../src/domain/run-machine.ts";
+import { RunStateMachine } from "../src/domain/run-machine.ts";
+import type { RunState } from "../src/domain/run-record.ts";
+import type { WorkflowSpecInput as WorkflowSpec } from "../src/domain/workflow-spec.ts";
 
 const feature: WorkflowSpec = {
   id: "mt-feature",
@@ -163,8 +165,9 @@ describe("RunStateMachine spec validation", () => {
     ).toContain("unknown stage");
   });
 
-  test("onFail with an undefined loop limit carries a fix hint", () => {
+  test("onFail with an undefined loop limit says how to fix it", () => {
     const error = invalid({ id: "w", stages: [{ id: "a", onFail: { goto: "a", loop: "retry" } }] });
-    expect(error.hint).toBe("Add loops.retry to the workflow spec.");
+    expect(error.message).toContain("add loops.retry");
+    expect(error.hint).toContain("metator workflow schema");
   });
 });

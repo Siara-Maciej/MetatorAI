@@ -47,7 +47,11 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [x] ADR 0001–0008 (Proposed). Odkrycie: TS 7 bez klasycznego API kompilatora ([ADR-0008](adr/0008-typescript-7-graph.md)).
 - [x] Gotowe biblioteki zamiast własnych ([ADR-0010](adr/0010-dependency-policy.md)): awilix (DI), @dagrejs/graphlib (graf: affected, cykle, ścieżki), XState v5 (maszyna stanów runu: etapy, pętle z limitami, bramki HITL, wznawianie z JSON), neverthrow, picomatch.
 - [x] Testy: unit + e2e (proces CLI, grafiki README w Chromium, integralność dokumentacji) + mutacyjne.
-- [ ] Następne: `plugin-git` (`Vcs`), graf importów (ast-grep + resolver), `metator graph affected`, `metator run init|advance|status` na `RunStateMachine`, walidacja specyfikacji przez zod.
+- [x] Specyfikacje workflow w YAML walidowane schematem zod (typ, walidacja i JSON Schema z jednego źródła), katalog `.github/metator/workflows/`, przykład `examples/workflows/feature.yml`.
+- [x] Runy: `metator run init|advance|status|list` na `RunStateMachine` (XState), stan w `.metator/runs/<id>/state.json` walidowany przy każdym odczycie, `log.md` jako ślad audytowy, wskaźnik `latest`.
+- [x] Adaptery: `BunProcessRunner` (kontrakt `ProcessRunner`), `plugin-git` (`GitVcs`), komenda `metator changed`.
+- [x] CLI na commanderze z wyjściem wyłącznie w JSON, composition root na awilix (`bootstrap`).
+- [ ] Następne: graf importów (ast-grep + resolver, ADR-0008), `metator graph affected|cycles|path`, `metator index build`, rule pack.
 
 **Zadania**
 - [ ] Szkielet `metator` (envelope, workspace, git, cache, budget) + `bun test` na fixture'ze mini-monorepo.

@@ -1,6 +1,13 @@
 import { assign, initialTransition, setup, transition } from "xstate";
 import { MetatorError } from "./errors.ts";
 import { err, ok, type Result } from "./result.ts";
+import type { RunContext, RunHistoryEntry, RunState, RunStatus } from "./run-record.ts";
+import {
+  type StageSpec,
+  validateWorkflowSpec,
+  type WorkflowSpec,
+  type WorkflowSpecInput,
+} from "./workflow-spec.ts";
 
 /**
  * Workflow run state machine on XState v5 (ADR-0013). A declarative workflow spec is compiled
@@ -8,46 +15,13 @@ import { err, ok, type Result } from "./result.ts";
  * snapshot is plain JSON (`.metator/runs/<id>/state.json`), so a run can resume anywhere.
  */
 
-export interface StageSpec {
-  readonly id: string;
-  /** Human-in-the-loop gate: only APPROVE moves on. */
-  readonly hitl?: boolean;
-  /** On FAIL go back to `goto`, counting against the named loop limit; escalate when exhausted. */
-  readonly onFail?: { readonly goto: string; readonly loop: string };
-}
-
-export interface WorkflowSpec {
-  readonly id: string;
-  readonly stages: readonly StageSpec[];
-  readonly loops?: Readonly<Record<string, number>>;
-}
+export type RunEventType = RunEvent["type"];
 
 export type RunEvent =
   | { readonly type: "PASS" }
   | { readonly type: "FAIL"; readonly reason?: string }
   | { readonly type: "APPROVE"; readonly by: string; readonly choice?: string }
   | { readonly type: "ABORT"; readonly reason: string };
-
-export interface RunHistoryEntry {
-  readonly stage: string;
-  readonly event: RunEvent["type"];
-  readonly detail?: string;
-}
-
-export interface RunContext {
-  readonly loops: Readonly<Record<string, number>>;
-  readonly history: readonly RunHistoryEntry[];
-}
-
-export type RunStatus = "active" | "done" | "escalated" | "aborted";
-
-/** JSON-serializable run state: what gets written to state.json. */
-export interface RunState {
-  readonly workflow: string;
-  readonly stage: string;
-  readonly status: RunStatus;
-  readonly context: RunContext;
-}
 
 const TERMINAL: Record<string, RunStatus> = { done: "done", escalated: "escalated", aborted: "aborted" };
 
@@ -63,36 +37,8 @@ function record(stage: string, event: RunEvent): RunHistoryEntry {
   return detail === undefined ? { stage, event: event.type } : { stage, event: event.type, detail };
 }
 
-function validate(spec: WorkflowSpec): MetatorError | undefined {
-  const ids = spec.stages.map((s) => s.id);
-  if (ids.length === 0) return new MetatorError("INVALID_CONFIG", `Workflow ${spec.id} has no stages`);
-  const reserved = ids.find((id) => id in TERMINAL);
-  if (reserved) return new MetatorError("INVALID_CONFIG", `Stage id "${reserved}" is reserved`);
-  const duplicate = ids.find((id, i) => ids.indexOf(id) !== i);
-  if (duplicate) return new MetatorError("INVALID_CONFIG", `Duplicate stage "${duplicate}" in ${spec.id}`);
-  for (const stage of spec.stages) {
-    if (!stage.onFail) continue;
-    if (!ids.includes(stage.onFail.goto)) {
-      return new MetatorError(
-        "INVALID_CONFIG",
-        `Stage "${stage.id}" loops to unknown stage "${stage.onFail.goto}"`,
-      );
-    }
-    if (spec.loops?.[stage.onFail.loop] === undefined) {
-      return new MetatorError(
-        "INVALID_CONFIG",
-        `Stage "${stage.id}" uses undefined loop limit "${stage.onFail.loop}"`,
-        {
-          hint: `Add loops.${stage.onFail.loop} to the workflow spec.`,
-        },
-      );
-    }
-  }
-  return undefined;
-}
-
 function compile(spec: WorkflowSpec) {
-  const limits = spec.loops ?? {};
+  const limits = spec.loops;
   const machineSetup = setup({
     types: { context: {} as RunContext, events: {} as RunEvent },
   });
@@ -152,9 +98,20 @@ export class RunStateMachine {
     private readonly machine: ReturnType<typeof compile>,
   ) {}
 
-  static create(spec: WorkflowSpec): Result<RunStateMachine, MetatorError> {
-    const invalid = validate(spec);
-    return invalid ? err(invalid) : ok(new RunStateMachine(spec, compile(spec)));
+  /** Validates the spec with its zod schema (single source of truth), then compiles it. */
+  static create(spec: WorkflowSpecInput | WorkflowSpec): Result<RunStateMachine, MetatorError> {
+    return validateWorkflowSpec(spec, spec.id).map((valid) => new RunStateMachine(valid, compile(valid)));
+  }
+
+  get workflow(): WorkflowSpec {
+    return this.spec;
+  }
+
+  /** Events the current stage accepts; empty for terminal states. */
+  expects(state: RunState): RunEventType[] {
+    if (state.status !== "active") return [];
+    const stage = this.spec.stages.find((s) => s.id === state.stage);
+    return stage?.hitl ? ["APPROVE", "FAIL", "ABORT"] : ["PASS", "FAIL", "ABORT"];
   }
 
   start(): RunState {
@@ -191,10 +148,10 @@ export class RunStateMachine {
 
   private expected(state: RunState): string {
     if (state.status !== "active") return `The run is ${state.status}; start a new run.`;
-    const stage = this.spec.stages.find((s) => s.id === state.stage);
-    return stage?.hitl
-      ? "This gate needs APPROVE (human decision), FAIL or ABORT."
-      : "Send PASS, FAIL or ABORT.";
+    const accepted = this.expects(state);
+    return accepted.includes("APPROVE")
+      ? `This gate needs a human decision: ${accepted.join(", ")}.`
+      : `Send ${accepted.join(", ")}.`;
   }
 
   private toState(snapshot: { readonly value: unknown; readonly context: RunContext }): RunState {

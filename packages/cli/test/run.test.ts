@@ -24,14 +24,10 @@ describe("metator CLI", () => {
   test("unknown command is a usage error with a hint and exit code 64", async () => {
     const { code, json } = await invoke("frobnicate");
     expect(code).toBe(64);
-    expect(json).toEqual({
-      ok: false,
-      error: {
-        code: "USAGE",
-        message: "Unknown command: frobnicate",
-        hint: "Run `metator help` to list commands.",
-      },
-    });
+    expect(json).toMatchObject({ ok: false, error: { code: "USAGE" } });
+    const error = json.error as { message: string; hint: string };
+    expect(error.message).toContain("frobnicate");
+    expect(error.hint).toContain("metator help");
   });
 
   test("the binary prints one JSON line and exits with the envelope's code", async () => {
@@ -39,5 +35,46 @@ describe("metator CLI", () => {
     const stdout = await new Response(proc.stdout).text();
     expect(await proc.exited).toBe(0);
     expect(JSON.parse(stdout).data.name).toBe("metator-ai");
+  });
+});
+
+describe("metator CLI usage errors (fail before touching the repository)", () => {
+  const usage = async (...argv: string[]) => {
+    const { code, json } = await invoke(...argv);
+    expect(code).toBe(64);
+    expect(json).toMatchObject({ ok: false, error: { code: "USAGE" } });
+    return (json.error as { message: string }).message;
+  };
+
+  test("approve without --by", async () => {
+    expect(await usage("run", "advance", "approve")).toContain("--by");
+  });
+
+  test("approve with a blank --by", async () => {
+    expect(await usage("run", "advance", "approve", "--by", "  ")).toContain("--by");
+  });
+
+  test("abort without --reason", async () => {
+    expect(await usage("run", "advance", "abort")).toContain("--reason");
+  });
+
+  test("unknown event", async () => {
+    expect(await usage("run", "advance", "skip")).toContain('Unknown event "skip"');
+  });
+
+  test("invalid autonomy level", async () => {
+    expect(await usage("run", "init", "--workflow", "w", "--task", "t", "--autonomy", "L9")).toContain("L9");
+  });
+
+  test("blank task", async () => {
+    expect(await usage("run", "init", "--workflow", "w", "--task", "   ")).toContain("--task");
+  });
+
+  test("missing required option", async () => {
+    expect(await usage("run", "init", "--task", "t")).toContain("--workflow");
+  });
+
+  test("unknown option", async () => {
+    expect(await usage("run", "status", "--bogus")).toContain("--bogus");
   });
 });

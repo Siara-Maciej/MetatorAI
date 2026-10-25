@@ -17,3 +17,5 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0011](0011-di-awilix.md) | DI: awilix | Proposed |
 | [0012](0012-graph-graphlib.md) | Graf zależności: @dagrejs/graphlib | Proposed |
 | [0013](0013-state-machine-xstate.md) | Maszyna stanów runu: XState v5 | Proposed |
+| [0014](0014-cli-commander.md) | Parser CLI: commander | Proposed |
+| [0015](0015-schemas-zod-yaml.md) | Schematy i specyfikacje: zod + yaml | Proposed |

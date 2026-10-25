@@ -31,7 +31,18 @@ describe("metator CLI (process e2e)", () => {
   test("help lists every command with a summary", async () => {
     const run = await metator(["help"], repo);
     const commands = (run.json.data as { commands: { name: string; summary: string }[] }).commands;
-    expect(commands.map((c) => c.name)).toEqual(["version", "help"]);
+    expect(commands.map((c) => c.name)).toEqual([
+      "version",
+      "help",
+      "changed",
+      "workflow list",
+      "workflow validate",
+      "workflow schema",
+      "run init",
+      "run advance",
+      "run status",
+      "run list",
+    ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);
   });
 

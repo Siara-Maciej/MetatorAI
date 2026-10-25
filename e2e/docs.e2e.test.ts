@@ -66,3 +66,16 @@ async function isDirectory(path: string): Promise<boolean> {
     return false;
   }
 }
+
+describe("docs: examples", () => {
+  test("every example workflow is valid according to the real CLI", async () => {
+    const { metator } = await import("./helpers/cli.ts");
+    const examples: string[] = [];
+    for await (const f of new Bun.Glob("examples/workflows/*.yml").scan({ cwd: ROOT })) examples.push(f);
+    expect(examples.length).toBeGreaterThan(0);
+    for (const file of examples) {
+      const r = await metator(["workflow", "validate", file], ROOT);
+      expect(r.code, `${file}: ${JSON.stringify(r.json.error)}`).toBe(0);
+    }
+  });
+});
