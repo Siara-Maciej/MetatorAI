@@ -10,7 +10,10 @@ const edges: Edge[] = [
   { from: "packages/a/test/service.test.ts", to: "packages/a/src/service.ts", kind: "internal" },
 ];
 const graphReader: ImportGraphReader = { read: async () => ok(edges) };
-const vcs = (files: string[]): Vcs => ({ changedFiles: async () => ok(files) });
+const vcs = (files: string[]): Vcs => ({
+  listFiles: async () => ok([]),
+  changedFiles: async () => ok(files),
+});
 const testGlobs = ["**/*.test.ts"];
 
 describe("ComputeAffected", () => {
@@ -28,6 +31,7 @@ describe("ComputeAffected", () => {
 
   test("explicit changed files take precedence over VCS", async () => {
     const failingVcs: Vcs = {
+      listFiles: async () => ok([]),
       changedFiles: async () => err(new MetatorError("INTERNAL", "should not be called")),
     };
     const result = await new ComputeAffected(failingVcs, graphReader, testGlobs).execute({

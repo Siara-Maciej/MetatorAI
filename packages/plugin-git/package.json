@@ -7,7 +7,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@metator/core": "workspace:*"
+    "@metator/core": "workspace:*",
+    "simple-git": "4.0.2"
   },
   "devDependencies": {
     "@metator/plugin-bun": "workspace:*",

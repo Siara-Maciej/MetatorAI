@@ -10,6 +10,8 @@
     "@metator/core": "workspace:*",
     "awilix": "^13.0.5",
     "@metator/plugin-bun": "workspace:*",
-    "@metator/plugin-git": "workspace:*"
+    "@metator/plugin-git": "workspace:*",
+    "@metator/plugin-node": "workspace:*",
+    "@metator/plugin-typescript": "workspace:*"
   }
 }

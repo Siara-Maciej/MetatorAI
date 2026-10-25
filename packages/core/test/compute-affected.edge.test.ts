@@ -7,6 +7,7 @@ describe("ComputeAffected edge cases", () => {
   test("defaults the diff base to HEAD", async () => {
     const bases: string[] = [];
     const vcs: Vcs = {
+      listFiles: async () => ok([]),
       changedFiles: async (base) => {
         bases.push(base);
         return ok([]);
@@ -25,7 +26,7 @@ describe("ComputeAffected edge cases", () => {
           { from: "m.ts", to: "a.ts", kind: "internal" },
         ]),
     };
-    const vcs: Vcs = { changedFiles: async () => ok(["a.ts", "a.ts"]) };
+    const vcs: Vcs = { listFiles: async () => ok([]), changedFiles: async () => ok(["a.ts", "a.ts"]) };
     const result = await new ComputeAffected(vcs, graph, []).execute({});
     expect(result._unsafeUnwrap().files).toEqual(["a.ts", "m.ts", "z.ts"]);
   });
@@ -38,14 +39,14 @@ describe("ComputeAffected edge cases", () => {
           { from: "e2e/a.e2e.test.ts", to: "src/a.ts", kind: "internal" },
         ]),
     };
-    const vcs: Vcs = { changedFiles: async () => ok(["src/a.ts"]) };
+    const vcs: Vcs = { listFiles: async () => ok([]), changedFiles: async () => ok(["src/a.ts"]) };
     const result = await new ComputeAffected(vcs, graph, ["**/*.test.ts", "!e2e/**"]).execute({});
     expect(result._unsafeUnwrap().tests).toEqual(["src/a.test.ts"]);
   });
 
   test("changes to files outside the graph still surface (new files, configs)", async () => {
     const graph: ImportGraphReader = { read: async () => ok([]) };
-    const vcs: Vcs = { changedFiles: async () => ok(["biome.json"]) };
+    const vcs: Vcs = { listFiles: async () => ok([]), changedFiles: async () => ok(["biome.json"]) };
     const result = await new ComputeAffected(vcs, graph, ["**/*.test.ts"]).execute({});
     expect(result._unsafeUnwrap()).toEqual({ changed: ["biome.json"], files: ["biome.json"], tests: [] });
   });

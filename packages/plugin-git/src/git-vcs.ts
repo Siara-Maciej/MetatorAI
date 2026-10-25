@@ -1,70 +1,97 @@
-import { err, MetatorError, ok, type ProcessRunner, type Result, type Vcs } from "@metator/core";
+import { existsSync } from "node:fs";
+import { err, MetatorError, ok, type Result, type Vcs } from "@metator/core";
+import { type SimpleGit, simpleGit } from "simple-git";
 
 /**
- * Vcs adapter on the git CLI (through the ProcessRunner port, so it is testable and swappable).
- * "Changed" means everything that differs from the merge base with `base`: committed on the
- * branch, staged, unstaged, deleted and untracked (non-ignored) files. Paths are repo-relative.
+ * Vcs adapter on simple-git (ADR-0019): the library spawns git, parses `status -z` and turns
+ * failures into errors; this class only maps them to MetatorError. "Changed" means everything
+ * that differs from the merge base with `base`: committed on the branch, staged, unstaged,
+ * deleted and untracked (non-ignored) files. Paths are repo-relative.
  */
 export class GitVcs implements Vcs {
-  constructor(
-    private readonly runner: ProcessRunner,
-    private readonly root: string,
-  ) {}
+  private client: SimpleGit | undefined;
+
+  constructor(private readonly root: string) {}
 
   async changedFiles(base: string): Promise<Result<readonly string[], MetatorError>> {
-    const inside = await this.git(["rev-parse", "--is-inside-work-tree"]);
-    if (inside.isErr()) {
-      return err(
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      if (!(await this.hasCommits(git.value))) {
+        return ok(sortedUnique(splitZ(await git.value.raw([...LS_FILES, "--cached", "--others"]))));
+      }
+      let ref = "HEAD";
+      if (base !== "HEAD") {
+        const mergeBase = await git.value.raw(["merge-base", base, "HEAD"]).catch(() => undefined);
+        if (!mergeBase?.trim()) {
+          return err(
+            MetatorError.usage(
+              `Unknown base ref "${base}"`,
+              "Use a branch, tag or commit that shares history with HEAD.",
+            ),
+          );
+        }
+        ref = mergeBase.trim();
+      }
+      // --no-renames: a rename counts under both paths, the old path's importers are affected too.
+      const diff = splitZ(await git.value.diff(["--name-only", "--no-renames", "-z", ref]));
+      const untracked = (await git.value.status()).not_added;
+      return ok(sortedUnique([...diff, ...untracked]));
+    });
+  }
+
+  async listFiles(): Promise<Result<readonly string[], MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      const files = splitZ(await git.value.raw([...LS_FILES, "--cached", "--others"]));
+      // Tracked files deleted in the working tree are still listed by --cached; drop them.
+      const gone = new Set(splitZ(await git.value.raw([...LS_FILES, "--deleted"])));
+      return ok(sortedUnique(files.filter((f) => !gone.has(f))));
+    });
+  }
+
+  private async repo(): Promise<Result<SimpleGit, MetatorError>> {
+    const notFound = () =>
+      err(
         new MetatorError("NOT_FOUND", `Not a git repository: ${this.root}`, {
           hint: "Run inside a git checkout.",
         }),
       );
-    }
+    // simple-git refuses to start in a missing directory; that is "not a repository" too.
+    if (!existsSync(this.root)) return notFound();
+    this.client ??= simpleGit({
+      baseDir: this.root,
+      config: ["core.quotepath=false"],
+      timeout: { block: 30_000 },
+    });
+    const inside = await this.client.checkIsRepo().catch(() => false);
+    return inside ? ok(this.client) : notFound();
+  }
 
-    const hasCommits = (await this.git(["rev-parse", "--verify", "--quiet", "HEAD"])).isOk();
-    if (!hasCommits) {
-      return (await this.listZ(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])).map(
-        sortedUnique,
+  private async hasCommits(git: SimpleGit): Promise<boolean> {
+    // Not `--quiet`: git would then fail without stderr, which simple-git reports as success.
+    return git
+      .revparse(["--verify", "HEAD"])
+      .then(() => true)
+      .catch(() => false);
+  }
+
+  private async attempt<T>(work: () => Promise<Result<T, MetatorError>>): Promise<Result<T, MetatorError>> {
+    try {
+      return await work();
+    } catch (e) {
+      return err(
+        new MetatorError("COMMAND_FAILED", `git failed: ${(e as Error).message.trim().slice(0, 500)}`),
       );
     }
-
-    let ref = "HEAD";
-    if (base !== "HEAD") {
-      const mergeBase = await this.git(["merge-base", base, "HEAD"]);
-      if (mergeBase.isErr()) {
-        return err(
-          MetatorError.usage(
-            `Unknown base ref "${base}"`,
-            "Use a branch, tag or commit that shares history with HEAD.",
-          ),
-        );
-      }
-      ref = mergeBase.value.trim();
-    }
-
-    const diff = await this.listZ(["diff", "--name-only", "-z", ref]);
-    if (diff.isErr()) return diff;
-    const untracked = await this.listZ(["ls-files", "-z", "--others", "--exclude-standard"]);
-    if (untracked.isErr()) return untracked;
-    return ok(sortedUnique([...diff.value, ...untracked.value]));
   }
+}
 
-  private async listZ(args: string[]): Promise<Result<readonly string[], MetatorError>> {
-    return (await this.git(args)).map((out) => out.split("\0").filter((p) => p !== ""));
-  }
+const LS_FILES = ["ls-files", "-z", "--exclude-standard"];
 
-  private async git(args: string[]): Promise<Result<string, MetatorError>> {
-    const r = await this.runner.run(
-      { argv: ["git", "-c", "core.quotepath=false", ...args], cwd: this.root },
-      { timeoutMs: 30_000 },
-    );
-    if (r.exitCode === 0) return ok(r.stdout);
-    return err(
-      new MetatorError("COMMAND_FAILED", `git ${args[0]} failed (exit ${r.exitCode})`, {
-        details: { args, stderr: r.stderr.trim().slice(0, 500) },
-      }),
-    );
-  }
+function splitZ(out: string): string[] {
+  return out.split("\0").filter((p) => p !== "");
 }
 
 function sortedUnique(paths: readonly string[]): readonly string[] {

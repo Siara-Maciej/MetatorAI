@@ -1,12 +1,19 @@
 import {
   AdvanceRun,
+  BuildImportGraph,
   type Clock,
+  ComputeAffected,
   DEFAULT_PATHS,
+  DEFAULT_SOURCE_IGNORES,
+  DEFAULT_TEST_GLOBS,
   GetRunStatus,
+  GraphQueries,
+  IndexedImportGraphReader,
   InitRun,
   ListRuns,
   type MetatorPaths,
   RunRepository,
+  SourceFiles,
   WorkflowCatalog,
 } from "@metator/core";
 import { BunFileSystem, BunProcessRunner } from "@metator/plugin-bun";
@@ -14,6 +21,8 @@ import { BunFileSystem, BunProcessRunner } from "@metator/plugin-bun";
 export { findRepoRoot } from "@metator/plugin-bun";
 
 import { GitVcs } from "@metator/plugin-git";
+import { ManypkgWorkspaceReader } from "@metator/plugin-node";
+import { OxcImportAnalyzer } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
 
@@ -36,10 +45,33 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
   c.register({
     root: asValue(options.root),
     paths: asValue(options.paths ?? DEFAULT_PATHS),
+    sourceIgnores: asValue(DEFAULT_SOURCE_IGNORES),
+    testGlobs: asValue(DEFAULT_TEST_GLOBS),
     clock: asValue(pinned && !Number.isNaN(pinned.getTime()) ? { now: () => new Date(pinned) } : systemClock),
     fileSystem: asFunction(({ root }: { root: string }) => new BunFileSystem(root)).singleton(),
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
-    vcs: asFunction(({ processRunner, root }) => new GitVcs(processRunner, root)).singleton(),
+    vcs: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    workspaceReader: asFunction(({ root }) => new ManypkgWorkspaceReader(root)).singleton(),
+    importAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
+    sourceFiles: asFunction(
+      ({ vcs, fileSystem, sourceIgnores }) => new SourceFiles(vcs, fileSystem, sourceIgnores),
+    ).singleton(),
+    buildImportGraph: asFunction(
+      ({ sourceFiles, fileSystem, importAnalyzer, workspaceReader, paths }) =>
+        new BuildImportGraph(
+          sourceFiles,
+          fileSystem,
+          importAnalyzer,
+          workspaceReader,
+          paths,
+          OxcImportAnalyzer.id,
+        ),
+    ).singleton(),
+    importGraphReader: asFunction(({ buildImportGraph }) => new IndexedImportGraphReader(buildImportGraph)),
+    graphQueries: asFunction(({ buildImportGraph }) => new GraphQueries(buildImportGraph)),
+    computeAffected: asFunction(
+      ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),
+    ),
     workflowCatalog: asFunction(
       ({ fileSystem, paths }) => new WorkflowCatalog(fileSystem, paths),
     ).singleton(),

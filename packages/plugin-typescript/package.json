@@ -1,0 +1,18 @@
+{
+  "name": "@metator/plugin-typescript",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@metator/core": "workspace:*",
+    "oxc-parser": "^0.155.0",
+    "oxc-resolver": "^11.24.2"
+  },
+  "devDependencies": {
+    "@metator/plugin-bun": "workspace:*",
+    "@metator/testing": "workspace:*"
+  }
+}

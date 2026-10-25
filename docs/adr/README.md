@@ -11,7 +11,7 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0005](0005-canonical-agent-format.md) | Kanoniczny format agentów i generatory hostów | Proposed |
 | [0006](0006-distribution.md) | Dystrybucja: npm, samodzielna binarka, obraz Docker | Proposed |
 | [0007](0007-security-model.md) | Model bezpieczeństwa: allowlista komend i jawne pluginy | Proposed |
-| [0008](0008-typescript-7-graph.md) | Graf importów przy TypeScript 7 (natywny kompilator) | Proposed |
+| [0008](0008-typescript-7-graph.md) | Graf importów przy TypeScript 7 (natywny kompilator) | Proposed, częściowo zastąpiony przez 0017 |
 | 0009 | *zarezerwowany: platforma hostów (spike F0)* | – |
 | [0010](0010-dependency-policy.md) | Polityka zależności: gotowe biblioteki zamiast własnych | Proposed |
 | [0011](0011-di-awilix.md) | DI: awilix | Proposed |
@@ -20,3 +20,6 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0014](0014-cli-commander.md) | Parser CLI: commander | Proposed |
 | [0015](0015-schemas-zod-yaml.md) | Schematy i specyfikacje: zod + yaml | Proposed |
 | [0016](0016-versioned-documents.md) | Każdy plik jest wersjonowanym dokumentem | Proposed |
+| [0017](0017-imports-oxc.md) | Analiza importów JS/TS: oxc-parser + oxc-resolver | Proposed |
+| [0018](0018-workspaces-manypkg.md) | Pakiety workspace: @manypkg/get-packages | Proposed |
+| [0019](0019-git-simple-git.md) | Obsługa gita: simple-git | Proposed |

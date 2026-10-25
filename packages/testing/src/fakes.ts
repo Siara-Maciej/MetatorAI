@@ -10,6 +10,7 @@ import {
   type ProcessRunner,
   type ResolvedCommand,
   type Result,
+  type Vcs,
 } from "@metator/core";
 
 export class InMemoryFileSystem implements FileSystem {
@@ -74,5 +75,21 @@ export class FixedClock implements Clock {
 
   advance(ms: number): void {
     this.current = new Date(this.current.getTime() + ms);
+  }
+}
+
+/** Vcs fake: a fixed file list and change set, or "not a repository". */
+export class FakeVcs implements Vcs {
+  constructor(
+    private readonly files: readonly string[] | "not-a-repo",
+    private readonly changed: readonly string[] = [],
+  ) {}
+
+  async changedFiles(): Promise<Result<readonly string[], MetatorError>> {
+    return this.files === "not-a-repo" ? err(MetatorError.notFound("git repository")) : ok(this.changed);
+  }
+
+  async listFiles(): Promise<Result<readonly string[], MetatorError>> {
+    return this.files === "not-a-repo" ? err(MetatorError.notFound("git repository")) : ok(this.files);
   }
 }

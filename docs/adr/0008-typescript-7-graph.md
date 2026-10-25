@@ -8,6 +8,8 @@
 Bieżąca wersja `typescript` na npm to 7.x (natywny kompilator). Główny eksport pakietu nie udostępnia już klasycznego API (`ts.preProcessFile`, `ts.resolveModuleName`), na którym opierał się szkic grafu importów. Nowe API jest oznaczone jako niestabilne (`typescript/unstable/*`).
 
 ## Decyzja
+> Aktualizacja: ekstrakcję i rozwiązywanie importów przejął oxc ([ADR-0017](0017-imports-oxc.md)). Część o `tsc` CLI pozostaje w mocy.
+
 Graf importów nie zależy od API kompilatora TS. Ekstrakcja importów idzie przez **ast-grep** (już w stacku, wielojęzyczny), a rozwiązywanie ścieżek przez własny resolver na podstawie `tsconfig` (`paths`), `package.json#exports` i mapy pakietów workspace. Typecheck (`tsc --noEmit`) i snapshot API (`--emitDeclarationOnly`) korzystają z CLI `tsc`, nie z jego API.
 
 ## Konsekwencje

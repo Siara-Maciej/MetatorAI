@@ -1,3 +1,4 @@
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 import { type ErrorCode, MetatorError } from "./errors.ts";
 import { err, ok, type Result } from "./result.ts";
@@ -154,4 +155,43 @@ export function defineDocument<S extends z.ZodType>(
       };
     },
   };
+}
+
+// ── Serialization helpers shared by every document kind ──────────────────────────
+
+export function parseJsonDocument(text: string, source: string): Result<unknown, MetatorError> {
+  try {
+    return ok(JSON.parse(text) as unknown);
+  } catch (e) {
+    return err(new MetatorError("INVALID_ARTIFACT", `${source} is not valid JSON: ${(e as Error).message}`));
+  }
+}
+
+export function serializeJsonDocument(doc: object): string {
+  return `${JSON.stringify(doc, null, 2)}\n`;
+}
+
+const FRONT_MATTER = /^---\n([\s\S]*?)\n---\n/;
+
+/** Markdown documents carry their header as YAML front matter. */
+export function renderFrontMatter(header: object, body: string): string {
+  return `---\n${stringifyYaml(header).trimEnd()}\n---\n${body}`;
+}
+
+export function readFrontMatter(text: string, source: string): Result<unknown, MetatorError> {
+  const match = FRONT_MATTER.exec(text);
+  if (!match) {
+    return err(
+      new MetatorError("INVALID_ARTIFACT", `${source}: missing front matter with kind and schemaVersion`, {
+        details: { source },
+      }),
+    );
+  }
+  try {
+    return ok(parseYaml(match[1] as string) as unknown);
+  } catch (e) {
+    return err(
+      new MetatorError("INVALID_ARTIFACT", `${source}: invalid front matter: ${(e as Error).message}`),
+    );
+  }
 }

@@ -1,8 +1,7 @@
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
-import { MetatorError } from "./errors.ts";
-import { err, ok, type Result } from "./result.ts";
-import { defineDocument } from "./versioned.ts";
+import type { MetatorError } from "./errors.ts";
+import type { Result } from "./result.ts";
+import { defineDocument, parseJsonDocument } from "./versioned.ts";
 
 /**
  * Run documents (ADR-0016). All carry `kind` + `schemaVersion`; all are validated on read.
@@ -67,43 +66,6 @@ export const RunLogDocument = defineDocument("RunLog", {
   latest: z.object({ runId: z.string().regex(RUN_ID) }).strict(),
 });
 
-export function parseJsonDocument(text: string, source: string): Result<unknown, MetatorError> {
-  try {
-    return ok(JSON.parse(text) as unknown);
-  } catch (e) {
-    return err(new MetatorError("INVALID_ARTIFACT", `${source} is not valid JSON: ${(e as Error).message}`));
-  }
-}
-
-export function serializeJsonDocument(doc: object): string {
-  return `${JSON.stringify(doc, null, 2)}\n`;
-}
-
 export function parseRunRecord(text: string, source: string): Result<RunRecord, MetatorError> {
   return parseJsonDocument(text, source).andThen((raw) => RunRecordDocument.parse(raw, source));
-}
-
-const FRONT_MATTER = /^---\n([\s\S]*?)\n---\n/;
-
-/** Markdown documents carry their header as YAML front matter. */
-export function renderFrontMatter(header: object, body: string): string {
-  return `---\n${stringifyYaml(header).trimEnd()}\n---\n${body}`;
-}
-
-export function readFrontMatter(text: string, source: string): Result<unknown, MetatorError> {
-  const match = FRONT_MATTER.exec(text);
-  if (!match) {
-    return err(
-      new MetatorError("INVALID_ARTIFACT", `${source}: missing front matter with kind and schemaVersion`, {
-        details: { source },
-      }),
-    );
-  }
-  try {
-    return ok(parseYaml(match[1] as string) as unknown);
-  } catch (e) {
-    return err(
-      new MetatorError("INVALID_ARTIFACT", `${source}: invalid front matter: ${(e as Error).message}`),
-    );
-  }
 }

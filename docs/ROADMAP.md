@@ -52,7 +52,9 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [x] Adaptery: `BunProcessRunner` (kontrakt `ProcessRunner`), `plugin-git` (`GitVcs`), komenda `metator changed`.
 - [x] CLI na commanderze z wyjściem wyłącznie w JSON, composition root na awilix (`bootstrap`).
 - [x] Wersjonowane dokumenty ([ADR-0016](adr/0016-versioned-documents.md)): `kind` + `schemaVersion` w każdym pliku (Workflow, RunRecord, RunLog, RunPointer), migracje i odrzucanie nowszych wersji, strażnik e2e.
-- [ ] Następne: graf importów (ast-grep + resolver, ADR-0008), `metator graph affected|cycles|path`, `metator index build`, rule pack.
+- [x] Graf importów: `OxcImportAnalyzer` (oxc-parser + oxc-resolver, [ADR-0017](adr/0017-imports-oxc.md)), pakiety workspace przez manypkg ([ADR-0018](adr/0018-workspaces-manypkg.md)), przyrostowy indeks `.metator/index/imports.json` (wersjonowany `ImportIndex`). Komendy `metator index build`, `graph affected|deps|dependents|cycles|path|packages`, `workspace list`. E2e na monorepo z prawdziwym `bun install` i dogfood na repo MetatorAI (0 cykli).
+- [x] `GitVcs` na simple-git zamiast ręcznych wywołań git ([ADR-0019](adr/0019-git-simple-git.md)); zmiana nazwy liczy się pod obiema ścieżkami.
+- [ ] Następne: rule pack i reguły z ID, presety narzędzi (biome, ast-grep, tsc, bun test), `metator.config` jako wersjonowany dokument, `gate quick|full`.
 
 **Zadania**
 - [ ] Szkielet `metator` (envelope, workspace, git, cache, budget) + `bun test` na fixture'ze mini-monorepo.

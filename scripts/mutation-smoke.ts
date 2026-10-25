@@ -106,9 +106,39 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-git/src/git-vcs.ts",
-    from: "...diff.value, ...untracked.value",
-    to: "...diff.value",
+    from: "[...diff, ...untracked]",
+    to: "[...diff]",
     why: "untracked files count as changed",
+  },
+  {
+    file: "packages/plugin-git/src/git-vcs.ts",
+    from: '"--name-only", "--no-renames", "-z"',
+    to: '"--name-only", "-z"',
+    why: "a rename counts under the old path too (its importers are affected)",
+  },
+  {
+    file: "packages/plugin-git/src/git-vcs.ts",
+    from: ".then(() => true)\n      .catch(() => false);",
+    to: ".then(() => true)\n      .catch(() => true);",
+    why: "a repository without commits must not be diffed against HEAD",
+  },
+  {
+    file: "packages/core/src/application/import-graph.ts",
+    from: "if (cached && cached.fingerprint === fingerprint) {",
+    to: "if (cached) {",
+    why: "an edited file must be parsed again, not served from the index",
+  },
+  {
+    file: "packages/core/src/domain/import-index.ts",
+    from: 'return a?.dir === b?.dir ? "internal" : "cross-package";',
+    to: 'return a !== undefined && a.dir === b?.dir ? "internal" : "cross-package";',
+    why: "files outside every workspace package belong to the root package",
+  },
+  {
+    file: "packages/plugin-typescript/src/oxc-import-analyzer.ts",
+    from: "for (const dyn of parsed.module.dynamicImports) {",
+    to: "for (const dyn of [] as typeof parsed.module.dynamicImports) {",
+    why: "dynamic imports are graph edges",
   },
   {
     file: "packages/cli/src/commands/run.ts",

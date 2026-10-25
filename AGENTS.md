@@ -52,6 +52,9 @@ Use a proven package before writing your own (ADR-0010). Write code only for log
 | State machines (workflow runs) | `xstate` v5, pure `transition()` | `packages/core/src/domain/run-machine.ts` |
 | Result / errors as values | `neverthrow` | everywhere (`@metator/core` re-exports it) |
 | Glob matching | `picomatch` | `packages/core/src/domain/glob.ts` |
+| JS/TS imports (parse + resolve) | `oxc-parser`, `oxc-resolver` | `packages/plugin-typescript` |
+| Workspace packages | `@manypkg/get-packages` | `packages/plugin-node` |
+| Git | `simple-git` | `packages/plugin-git` |
 
 - Before adding code that looks generic (parsing, validation, graphs, retries, caching, CLI args, YAML, schemas, diffing), search npm and propose a package with an ADR (criteria in ADR-0010).
 - `@metator/core` may import only the approved pure libraries above; `mt-arch-core-approved-deps` (ast-grep) fails CI otherwise.

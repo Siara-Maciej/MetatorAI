@@ -1,9 +1,13 @@
 import {
   type AdvanceRun,
+  type BuildImportGraph,
   type Clock,
+  type ComputeAffected,
   err,
   type FileSystem,
   type GetRunStatus,
+  type GraphQueries,
+  type ImportAnalyzer,
   type ImportGraphReader,
   type InitRun,
   type ListRuns,
@@ -14,8 +18,10 @@ import {
   type ProcessRunner,
   type Result,
   type RunRepository,
+  type SourceFiles,
   type Vcs,
   type WorkflowCatalog,
+  type WorkspaceReader,
 } from "@metator/core";
 import { type AwilixContainer, AwilixResolutionError, createContainer, InjectionMode } from "awilix";
 
@@ -28,12 +34,16 @@ export interface Cradle {
   // configuration values
   root: string;
   paths: MetatorPaths;
+  sourceIgnores: readonly string[];
+  testGlobs: readonly string[];
   // ports
   clock: Clock;
   logger: Logger;
   fileSystem: FileSystem;
   processRunner: ProcessRunner;
   vcs: Vcs;
+  workspaceReader: WorkspaceReader;
+  importAnalyzer: ImportAnalyzer;
   importGraphReader: ImportGraphReader;
   // application services and use cases
   workflowCatalog: WorkflowCatalog;
@@ -42,6 +52,10 @@ export interface Cradle {
   advanceRun: AdvanceRun;
   getRunStatus: GetRunStatus;
   listRuns: ListRuns;
+  sourceFiles: SourceFiles;
+  buildImportGraph: BuildImportGraph;
+  graphQueries: GraphQueries;
+  computeAffected: ComputeAffected;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

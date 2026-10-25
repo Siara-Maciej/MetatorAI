@@ -3,7 +3,6 @@ import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BunProcessRunner } from "@metator/plugin-bun";
-import { ScriptedProcessRunner } from "@metator/testing";
 import { GitVcs } from "../src/git-vcs.ts";
 
 const runner = new BunProcessRunner();
@@ -60,19 +59,19 @@ async function scenario(): Promise<string> {
 describe("GitVcs (real git)", () => {
   test("against a branch: committed, staged, unstaged, deleted and untracked changes", async () => {
     const dir = await scenario();
-    const files = (await new GitVcs(runner, dir).changedFiles("main"))._unsafeUnwrap();
+    const files = (await new GitVcs(dir).changedFiles("main"))._unsafeUnwrap();
     expect(files).toEqual(["a.ts", "b.ts", "c ż.ts", "d.ts", "e.ts"]);
   });
 
   test("against HEAD: only the working tree, not earlier branch commits", async () => {
     const dir = await scenario();
-    const files = (await new GitVcs(runner, dir).changedFiles("HEAD"))._unsafeUnwrap();
+    const files = (await new GitVcs(dir).changedFiles("HEAD"))._unsafeUnwrap();
     expect(files).toEqual(["a.ts", "b.ts", "c ż.ts", "d.ts"]);
   });
 
   test("ignored files never show up", async () => {
     const dir = await scenario();
-    const files = (await new GitVcs(runner, dir).changedFiles("main"))._unsafeUnwrap();
+    const files = (await new GitVcs(dir).changedFiles("main"))._unsafeUnwrap();
     expect(files.some((f) => f.startsWith("dist/"))).toBe(false);
   });
 
@@ -81,7 +80,7 @@ describe("GitVcs (real git)", () => {
     await writeFile(join(dir, "a.ts"), "a");
     await sh(dir, "add", ".");
     await sh(dir, "commit", "-q", "-m", "init");
-    expect((await new GitVcs(runner, dir).changedFiles("HEAD"))._unsafeUnwrap()).toEqual([]);
+    expect((await new GitVcs(dir).changedFiles("HEAD"))._unsafeUnwrap()).toEqual([]);
   });
 
   test("repository without commits: every non-ignored file counts as changed", async () => {
@@ -89,12 +88,12 @@ describe("GitVcs (real git)", () => {
     await writeFile(join(dir, "x.ts"), "x");
     await writeFile(join(dir, "y.ts"), "y");
     await sh(dir, "add", "x.ts");
-    expect((await new GitVcs(runner, dir).changedFiles("HEAD"))._unsafeUnwrap()).toEqual(["x.ts", "y.ts"]);
+    expect((await new GitVcs(dir).changedFiles("HEAD"))._unsafeUnwrap()).toEqual(["x.ts", "y.ts"]);
   });
 
   test("unknown base ref is a usage error with a hint", async () => {
     const dir = await scenario();
-    const error = (await new GitVcs(runner, dir).changedFiles("no-such-branch"))._unsafeUnwrapErr();
+    const error = (await new GitVcs(dir).changedFiles("no-such-branch"))._unsafeUnwrapErr();
     expect(error.code).toBe("USAGE");
     expect(error.message).toContain("no-such-branch");
   });
@@ -102,19 +101,56 @@ describe("GitVcs (real git)", () => {
   test("outside a git repository: NOT_FOUND", async () => {
     const dir = await mkdtemp(join(tmpdir(), "metator-nogit-"));
     dirs.push(dir);
-    const error = (await new GitVcs(runner, dir).changedFiles("HEAD"))._unsafeUnwrapErr();
+    const error = (await new GitVcs(dir).changedFiles("HEAD"))._unsafeUnwrapErr();
     expect(error.code).toBe("NOT_FOUND");
   });
 });
 
-describe("GitVcs (scripted runner)", () => {
-  test("always runs git in the repository root with quoting disabled", async () => {
-    const scripted = new ScriptedProcessRunner([{ argvPrefix: ["git"], result: { stdout: "" } }]);
-    await new GitVcs(scripted, "/repo").changedFiles("HEAD");
-    expect(
-      scripted.calls.every(
-        (c) => c.cwd === "/repo" && c.argv.slice(0, 3).join(" ") === "git -c core.quotepath=false",
-      ),
-    ).toBe(true);
+describe("GitVcs.listFiles (real git)", () => {
+  test("tracked + untracked, minus ignored and minus deleted files", async () => {
+    const dir = await scenario();
+    const files = (await new GitVcs(dir).listFiles())._unsafeUnwrap();
+    expect(files).toEqual([".gitignore", "a.ts", "c ż.ts", "d.ts", "e.ts"]);
+  });
+
+  test("outside a git repository: NOT_FOUND (callers fall back to the file system)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "metator-nogit-ls-"));
+    dirs.push(dir);
+    expect((await new GitVcs(dir).listFiles())._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+});
+
+describe("GitVcs edge cases", () => {
+  test("a directory that does not exist is NOT_FOUND, not a crash", async () => {
+    const vcs = new GitVcs(join(tmpdir(), "metator-missing-dir-xyz"));
+    expect((await vcs.changedFiles("HEAD"))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+    expect((await vcs.listFiles())._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+
+  test("a renamed file counts under both names", async () => {
+    const dir = await repo();
+    await writeFile(join(dir, "old.ts"), "same content");
+    await sh(dir, "add", ".");
+    await sh(dir, "commit", "-q", "-m", "init");
+    await sh(dir, "mv", "old.ts", "new.ts");
+    expect((await new GitVcs(dir).changedFiles("HEAD"))._unsafeUnwrap()).toEqual(["new.ts", "old.ts"]);
+  });
+
+  test("works from a subdirectory of the checkout; paths stay repo-relative", async () => {
+    const dir = await scenario();
+    await Bun.write(join(dir, "sub/keep.txt"), "x");
+    const files = (await new GitVcs(dir).changedFiles("main"))._unsafeUnwrap();
+    expect(files).toContain("sub/keep.txt");
+  });
+});
+
+describe("GitVcs unrelated history", () => {
+  test("a base without a common ancestor is a usage error, not an empty diff", async () => {
+    const dir = await scenario();
+    await sh(dir, "checkout", "-q", "--orphan", "island");
+    await sh(dir, "commit", "-q", "--allow-empty", "-m", "island");
+    await sh(dir, "checkout", "-q", "-f", "feature");
+    const error = (await new GitVcs(dir).changedFiles("island"))._unsafeUnwrapErr();
+    expect(error.code).toBe("USAGE");
   });
 });

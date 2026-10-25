@@ -39,6 +39,12 @@ export class DependencyGraph {
     return new Set([...files, ...(known.length > 0 ? alg.preorder(this.reversed, known) : [])]);
   }
 
+  /** Everything `file` (transitively) depends on, excluding itself. */
+  dependencyClosure(file: string): string[] {
+    if (!this.graph.hasNode(file)) return [];
+    return alg.preorder(this.graph, [file]).filter((f) => f !== file);
+  }
+
   /** Import cycles (strongly connected components with more than one file, or self-imports). */
   cycles(): string[][] {
     return alg.findCycles(this.graph).map((cycle) => [...cycle].sort());

@@ -178,6 +178,12 @@ metator run advance fail --reason "plan lint: step 3 has no exemplar"   # bounde
 metator run advance approve --by maciej                        # human gates accept only APPROVE
 metator run status                                             # stage, what it expects, recent history
 metator changed --base main                                    # files changed on the branch (git)
+metator index build                                            # incremental import index (oxc), cached per file
+metator graph affected --base main                             # files and tests reached by the change
+metator graph dependents src/money.ts --transitive             # who imports this, directly or not
+metator graph cycles                                           # import cycles
+metator graph path apps/web/src/main.ts packages/money/src/currency.ts
+metator workspace list                                         # npm, yarn, pnpm, bun workspaces
 ```
 
 Every file MetatorAI writes is a versioned document (`kind` + `schemaVersion`), so it is always clear how to parse it
@@ -207,7 +213,9 @@ so any session, CI job or AI host can resume exactly where the last one stopped.
 
 Clean architecture with ports and adapters, built on proven libraries instead of home-grown ones:
 **awilix** (DI, a scope per workflow run), **XState** (run state machine, pure transitions, resumable from JSON),
-**graphlib** (dependency graph: affected files, cycles, paths), **neverthrow** (errors as values) and **picomatch** (globs).
+**graphlib** (dependency graph: affected files, cycles, paths), **oxc** (import parsing and resolution:
+tsconfig paths, package exports, workspace links), **manypkg** (workspace packages), **simple-git** (git),
+**neverthrow** (errors as values) and **picomatch** (globs).
 New tools arrive as **presets** (a command plus a standard-format parser), so adding one is a few lines of declaration
 rather than new code.
 

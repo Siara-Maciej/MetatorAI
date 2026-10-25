@@ -1,0 +1,17 @@
+{
+  "name": "@metator/plugin-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@manypkg/get-packages": "^3.1.0",
+    "@metator/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@metator/plugin-bun": "workspace:*",
+    "@metator/testing": "workspace:*"
+  }
+}

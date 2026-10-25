@@ -8,6 +8,7 @@ export type ErrorCode =
   | "STALE_INDEX"
   | "TRANSITION_DENIED"
   | "BINDING_MISSING"
+  | "PARSE_FAILED"
   | "INTERNAL";
 
 export interface MetatorErrorInit {

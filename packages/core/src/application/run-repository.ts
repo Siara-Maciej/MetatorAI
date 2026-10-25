@@ -1,16 +1,18 @@
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
-  parseJsonDocument,
   parseRunRecord,
   RunLogDocument,
   RunPointerDocument,
   type RunRecord,
   RunRecordDocument,
+} from "../domain/run-record.ts";
+import {
+  parseJsonDocument,
   readFrontMatter,
   renderFrontMatter,
   serializeJsonDocument,
-} from "../domain/run-record.ts";
+} from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
 
