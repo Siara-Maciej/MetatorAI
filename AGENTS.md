@@ -9,7 +9,11 @@ Design docs (Polish): `docs/README.md`. Start with `docs/ARCHITECTURE.md` and `d
 |------|---------|
 | Install | `bun install` |
 | Everything CI runs | `bun run check` |
-| Tests | `bun test` (single file: `bun test packages/core/test/graph.test.ts`) |
+| All tests | `bun test` (single file: `bun test packages/core/test/graph.test.ts`) |
+| Unit tests | `bun run test:unit` (`packages/*/test`) |
+| E2E tests | `bun run test:e2e` (`e2e/`: real CLI processes, README visuals in Chromium) |
+| Mutation smoke | `bun run test:mutation` (injected bugs must make unit tests fail) |
+| README visuals | `bun run assets` regenerates `assets/*.svg` from `scripts/assets/generate.ts` |
 | Typecheck | `bun run typecheck` (TypeScript 7, `noEmit`) |
 | Lint + format | `bun run lint` / `bun run format` (Biome; Markdown is not formatted) |
 | Architecture rules | `bun run arch` (ast-grep rule tests + scan) |
@@ -28,6 +32,17 @@ Clean architecture, ports and adapters. Dependencies point inward:
 - `packages/testing`: fakes and port contract suites.
 
 `rules/architecture/*.yml` (ast-grep) enforces this in CI. Never weaken a rule to make code pass; move the code instead.
+
+## Testing policy: prove every piece of work actually works
+
+Nothing is done until it is proven, by tests and by running it yourself.
+
+1. **Unit tests for every behavior** in `packages/<pkg>/test/*.test.ts`: happy path, edge cases, errors as values. Bugs get a failing test first.
+2. **An e2e test for every user-facing change** in `e2e/*.e2e.test.ts`. It exercises the real entrypoint: the `metator` process (`e2e/helpers/cli.ts`), real files in a temp repo, a real browser for visuals. It does not call internals.
+3. **Every port adapter passes its contract suite** (`packages/testing/src/contracts`).
+4. **Test the tests.** When adding a check, make it fail once on purpose (break the code, see red, restore). Add a mutant to `scripts/mutation-smoke.ts` for each critical behavior.
+5. **Self-verify before committing:** run the command or render the asset and look at the output. `bun run check` must be green. Report what you ran and what you saw.
+6. **Visual assets are tested too:** `e2e/assets.e2e.test.ts` renders every SVG in several fonts and fails on overflow, collisions, missing animation or generator drift. Never hand-edit `assets/*.svg`.
 
 ## Conventions
 

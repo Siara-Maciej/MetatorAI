@@ -11,129 +11,93 @@
   </defs>
   <style>@keyframes lz0 { 0%, 11.833% { stroke: #30363d; fill: #161b22 } 13.333%, 28.889% { stroke: #2dd4bf; fill: #2dd4bf22 } 31.889%, 100% { stroke: #30363d; fill: #161b22 } } .lz0 { animation: lz0 9s linear infinite; } @keyframes lz1 { 0%, 12.944% { stroke: #30363d; fill: #161b22 } 14.444%, 28.889% { stroke: #2dd4bf; fill: #2dd4bf22 } 31.889%, 100% { stroke: #30363d; fill: #161b22 } } .lz1 { animation: lz1 9s linear infinite; } @keyframes lz2 { 0%, 14.056% { stroke: #30363d; fill: #161b22 } 15.556%, 28.889% { stroke: #2dd4bf; fill: #2dd4bf22 } 31.889%, 100% { stroke: #30363d; fill: #161b22 } } .lz2 { animation: lz2 9s linear infinite; } @keyframes lz3 { 0%, 11.833% { stroke: #30363d; fill: #161b22 } 13.333%, 28.889% { stroke: #2dd4bf; fill: #2dd4bf22 } 31.889%, 100% { stroke: #30363d; fill: #161b22 } } .lz3 { animation: lz3 9s linear infinite; } @keyframes lz4 { 0%, 12.944% { stroke: #30363d; fill: #161b22 } 14.444%, 28.889% { stroke: #2dd4bf; fill: #2dd4bf22 } 31.889%, 100% { stroke: #30363d; fill: #161b22 } } .lz4 { animation: lz4 9s linear infinite; } @keyframes lz5 { 0%, 14.056% { stroke: #30363d; fill: #161b22 } 15.556%, 28.889% { stroke: #2dd4bf; fill: #2dd4bf22 } 31.889%, 100% { stroke: #30363d; fill: #161b22 } } .lz5 { animation: lz5 9s linear infinite; } @keyframes vlit { 0%, 27.389% { stroke: #30363d } 28.889%, 48.889% { stroke: #f0b429 } 51.889%, 100% { stroke: #30363d } } .vb { animation: vlit 9s linear infinite; } @keyframes jlit { 0%, 49.611% { stroke: #30363d } 51.111%, 93.333% { stroke: #2dd4bf } 96.333%, 100% { stroke: #30363d } } .jb { animation: jlit 9s linear infinite; } @keyframes rlit { 0%, 42.944% { stroke: #30363d } 44.444%, 93.333% { stroke: #f87171 } 96.333%, 100% { stroke: #30363d } } .rb { animation: rlit 9s linear infinite; } @keyframes verdict { 0%, 52.944% { opacity: 0; transform: translateY(6px) } 54.444%, 93.333% { opacity: 1; transform: translateY(0) } 96.333%, 100% { opacity: 0; transform: translateY(6px) } } .verdict { animation: verdict 9s ease-out infinite; }</style>
   <rect width="960" height="340" rx="18" fill="url(#bgGrad)" stroke="#30363d"/>
+  
   <text x="32" y="36" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#f0b429" letter-spacing="2">REVIEW WITH PROOF</text>
-  <text x="928" y="36" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#8b949e">shard → find (parallel) → verify (refute) → judge</text>
-  <path d="M150.0,170.0 C170.0,170.0 170.0,108.0 190.0,108.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M150.0,170.0 C170.0,170.0 170.0,232.0 190.0,232.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306.0,108.0 C328.0,108.0 328.0,75.0 350.0,75.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306.0,108.0 C328.0,108.0 328.0,107.0 350.0,107.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306.0,108.0 C328.0,108.0 328.0,139.0 350.0,139.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306.0,232.0 C328.0,232.0 328.0,199.0 350.0,199.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306.0,232.0 C328.0,232.0 328.0,231.0 350.0,231.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306.0,232.0 C328.0,232.0 328.0,263.0 350.0,263.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M454.0,75.0 C487.0,75.0 487.0,142.0 520.0,142.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M454.0,107.0 C487.0,107.0 487.0,156.0 520.0,156.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M454.0,199.0 C487.0,199.0 487.0,170.0 520.0,170.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M454.0,231.0 C487.0,231.0 487.0,184.0 520.0,184.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M454.0,263.0 C487.0,263.0 487.0,198.0 520.0,198.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M670.0,160.0 C705.0,160.0 705.0,160.0 740.0,160.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M670.0,180.0 C705.0,180.0 705.0,180.0 740.0,180.0" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M550,220 L550,262" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M595,220 L595,262" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M640,220 L640,262" stroke="#30363d" stroke-width="1.2" fill="none"/>
+  <text x="928" y="36" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#8b949e" text-anchor="end">shard → find (parallel) → verify (refute) → judge</text><path d="M150,170 C170,170 170,108 190,108" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M150,170 C170,170 170,232 190,232" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306,108 C328,108 328,75 350,75" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306,108 C328,108 328,107 350,107" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306,108 C328,108 328,139 350,139" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306,232 C328,232 328,199 350,199" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306,232 C328,232 328,231 350,231" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M306,232 C328,232 328,263 350,263" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M454,75 C487,75 487,142 520,142" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M454,107 C487,107 487,156 520,156" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M454,199 C487,199 487,170 520,170" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M454,231 C487,231 487,184 520,184" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M454,263 C487,263 487,198 520,198" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M670,160 C705,160 705,160 740,160" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M670,180 C705,180 705,180 740,180" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M550,220 L550,262" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M595,220 L595,262" stroke="#30363d" stroke-width="1.2" fill="none"/><path d="M640,220 L640,262" stroke="#30363d" stroke-width="1.2" fill="none"/>
   <rect class="blk " x="30" y="130" width="120" height="80" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-  <text x="44" y="156" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#e6edf3">PR #42</text>
-  <text x="44" y="176" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e">diff · 14 files</text><text x="44" y="191" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e">2 packages</text><rect x="190" y="82" width="116" height="52" rx="10" fill="#161b22" stroke="#30363d"/><text x="248.0" y="112.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3">shard · billing</text><rect x="190" y="206" width="116" height="52" rx="10" fill="#161b22" stroke="#30363d"/><text x="248.0" y="236.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3">shard · orders</text><rect class="lz0" x="350" y="62.0" width="104" height="26" rx="13"/><text x="402.0" y="79.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3">logic</text><rect class="lz1" x="350" y="94.0" width="104" height="26" rx="13"/><text x="402.0" y="111.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3">contracts</text><rect class="lz2" x="350" y="126.0" width="104" height="26" rx="13"/><text x="402.0" y="143.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3">tests</text><rect class="lz3" x="350" y="186.0" width="104" height="26" rx="13"/><text x="402.0" y="203.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3">logic</text><rect class="lz4" x="350" y="218.0" width="104" height="26" rx="13"/><text x="402.0" y="235.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3">contracts</text><rect class="lz5" x="350" y="250.0" width="104" height="26" rx="13"/><text x="402.0" y="267.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3">tests</text>
+  <text x="44" y="156" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#e6edf3" font-weight="700">PR #42</text>
+  <text x="44" y="176" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e" >diff · 14 files</text><text x="44" y="191" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e" >2 packages</text><rect x="190" y="82" width="116" height="52" rx="10" fill="#161b22" stroke="#30363d"/><text x="248" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3" text-anchor="middle">shard · billing</text><rect x="190" y="206" width="116" height="52" rx="10" fill="#161b22" stroke="#30363d"/><text x="248" y="236" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3" text-anchor="middle">shard · orders</text><rect class="lz0" x="350" y="62" width="104" height="26" rx="13"/><text x="402" y="79" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3" text-anchor="middle">logic</text><rect class="lz1" x="350" y="94" width="104" height="26" rx="13"/><text x="402" y="111" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3" text-anchor="middle">contracts</text><rect class="lz2" x="350" y="126" width="104" height="26" rx="13"/><text x="402" y="143" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3" text-anchor="middle">tests</text><rect class="lz3" x="350" y="186" width="104" height="26" rx="13"/><text x="402" y="203" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3" text-anchor="middle">logic</text><rect class="lz4" x="350" y="218" width="104" height="26" rx="13"/><text x="402" y="235" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3" text-anchor="middle">contracts</text><rect class="lz5" x="350" y="250" width="104" height="26" rx="13"/><text x="402" y="267" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#e6edf3" text-anchor="middle">tests</text>
   <rect class="blk vb" x="520" y="120" width="150" height="100" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-  <text x="534" y="146" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#f0b429">VERIFY</text>
-  <text x="534" y="166" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e">independent model</text><text x="534" y="181" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e">tries to refute</text><text x="534" y="196" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e">every finding</text>
+  <text x="534" y="146" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#f0b429" font-weight="700">VERIFY</text>
+  <text x="534" y="166" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e" >independent model</text><text x="534" y="181" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e" >tries to refute</text><text x="534" y="196" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e" >every finding</text>
   <rect class="blk jb" x="740" y="120" width="190" height="100" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-  <text x="754" y="146" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#2dd4bf">JUDGE</text>
-  <text x="754" y="166" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e">dedupe · calibrate</text><text x="754" y="181" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e">verified-correct list</text><rect class="rb" x="520" y="262" width="150" height="44" rx="10" fill="#161b22" stroke="#30363d"/><text x="595.0" y="289" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#f87171">refuted ✕ 3</text>
-    <circle r="4.5" fill="#e6edf3" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.0222;0.1;1" path="M150.0,170.0 C170.0,170.0 170.0,108.0 190.0,108.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.0167;0.0222;0.1;0.1167;1"/>
+  <text x="754" y="146" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#2dd4bf" font-weight="700">JUDGE</text>
+  <text x="754" y="166" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e" >dedupe · calibrate</text><text x="754" y="181" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#8b949e" >verified-correct list</text><rect class="rb" x="520" y="262" width="150" height="44" rx="10" fill="#161b22" stroke="#30363d"/><text x="595" y="289" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#f87171" text-anchor="middle">refuted ✕ 3</text>
+    <circle r="4.5" fill="#e6edf3" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.0222;0.1;1" path="M150,170 C170,170 170,108 190,108"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.0167;0.0222;0.1;0.1167;1"/>
     </circle>
-    <circle r="4.5" fill="#e6edf3" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.0222;0.1;1" path="M150.0,170.0 C170.0,170.0 170.0,232.0 190.0,232.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.0167;0.0222;0.1;0.1167;1"/>
+    <circle r="4.5" fill="#e6edf3" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.0222;0.1;1" path="M150,170 C170,170 170,232 190,232"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.0167;0.0222;0.1;0.1167;1"/>
     </circle>
-    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306.0,108.0 C328.0,108.0 328.0,75.0 350.0,75.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
+    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306,108 C328,108 328,75 350,75"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
     </circle>
-    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306.0,108.0 C328.0,108.0 328.0,107.0 350.0,107.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
+    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306,108 C328,108 328,107 350,107"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
     </circle>
-    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306.0,108.0 C328.0,108.0 328.0,139.0 350.0,139.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
+    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306,108 C328,108 328,139 350,139"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
     </circle>
-    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306.0,232.0 C328.0,232.0 328.0,199.0 350.0,199.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
+    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306,232 C328,232 328,199 350,199"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
     </circle>
-    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306.0,232.0 C328.0,232.0 328.0,231.0 350.0,231.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
+    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306,232 C328,232 328,231 350,231"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
     </circle>
-    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306.0,232.0 C328.0,232.0 328.0,263.0 350.0,263.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
+    <circle r="4.5" fill="#2dd4bf" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.1;0.1556;1" path="M306,232 C328,232 328,263 350,263"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.0944;0.1;0.1556;0.1722;1"/>
     </circle>
-    <circle r="4.5" fill="#f0b429" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.2222;0.3222;1" path="M454.0,75.0 C487.0,75.0 487.0,142.0 520.0,142.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.2167;0.2222;0.3222;0.3389;1"/>
+    <circle r="4.5" fill="#f0b429" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.2222;0.3222;1" path="M454,75 C487,75 487,142 520,142"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.2167;0.2222;0.3222;0.3389;1"/>
     </circle>
-    <circle r="4.5" fill="#f0b429" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.2311;0.3311;1" path="M454.0,107.0 C487.0,107.0 487.0,156.0 520.0,156.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.2256;0.2311;0.3311;0.3478;1"/>
+    <circle r="4.5" fill="#f0b429" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.2311;0.3311;1" path="M454,107 C487,107 487,156 520,156"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.2256;0.2311;0.3311;0.3478;1"/>
     </circle>
-    <circle r="4.5" fill="#f0b429" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.24;0.34;1" path="M454.0,199.0 C487.0,199.0 487.0,170.0 520.0,170.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.2344;0.24;0.34;0.3567;1"/>
+    <circle r="4.5" fill="#f0b429" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.24;0.34;1" path="M454,199 C487,199 487,170 520,170"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.2344;0.24;0.34;0.3567;1"/>
     </circle>
-    <circle r="4.5" fill="#f0b429" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.2489;0.3489;1" path="M454.0,231.0 C487.0,231.0 487.0,184.0 520.0,184.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.2433;0.2489;0.3489;0.3656;1"/>
+    <circle r="4.5" fill="#f0b429" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.2489;0.3489;1" path="M454,231 C487,231 487,184 520,184"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.2433;0.2489;0.3489;0.3656;1"/>
     </circle>
-    <circle r="4.5" fill="#f0b429" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.2578;0.3578;1" path="M454.0,263.0 C487.0,263.0 487.0,198.0 520.0,198.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.2522;0.2578;0.3578;0.3744;1"/>
+    <circle r="4.5" fill="#f0b429" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.2578;0.3578;1" path="M454,263 C487,263 487,198 520,198"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.2522;0.2578;0.3578;0.3744;1"/>
     </circle>
-    <circle r="4.5" fill="#4ade80" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.4333;0.5111;1" path="M670.0,160.0 C705.0,160.0 705.0,160.0 740.0,160.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.4278;0.4333;0.5111;0.5278;1"/>
+    <circle r="4.5" fill="#4ade80" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.4333;0.5111;1" path="M670,160 C705,160 705,160 740,160"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.4278;0.4333;0.5111;0.5278;1"/>
     </circle>
-    <circle r="4.5" fill="#4ade80" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.45;0.5278;1" path="M670.0,180.0 C705.0,180.0 705.0,180.0 740.0,180.0"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.4444;0.45;0.5278;0.5444;1"/>
+    <circle r="4.5" fill="#4ade80" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.45;0.5278;1" path="M670,180 C705,180 705,180 740,180"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.4444;0.45;0.5278;0.5444;1"/>
     </circle>
-    <circle r="4.5" fill="#f87171" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.4;0.4556;1" path="M550,220 L550,262"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.3944;0.4;0.4556;0.4722;1"/>
+    <circle r="4.5" fill="#f87171" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.4;0.4556;1" path="M550,220 L550,262"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.3944;0.4;0.4556;0.4722;1"/>
     </circle>
-    <circle r="4.5" fill="#f87171" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.4133;0.4689;1" path="M595,220 L595,262"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.4078;0.4133;0.4689;0.4856;1"/>
+    <circle r="4.5" fill="#f87171" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.4133;0.4689;1" path="M595,220 L595,262"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.4078;0.4133;0.4689;0.4856;1"/>
     </circle>
-    <circle r="4.5" fill="#f87171" filter="url(#glow)" opacity="0">
-      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear"
-        keyPoints="0;0;1;1" keyTimes="0;0.4267;0.4822;1" path="M640,220 L640,262"/>
-      <animate attributeName="opacity" dur="9s" repeatCount="indefinite"
-        values="0;0;1;1;0;0" keyTimes="0;0.4211;0.4267;0.4822;0.4989;1"/>
+    <circle r="4.5" fill="#f87171" filter="url(#glow)" opacity="0" fill-opacity="1">
+      <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.4267;0.4822;1" path="M640,220 L640,262"/>
+      <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.4211;0.4267;0.4822;0.4989;1"/>
     </circle>
   <g class="verdict" opacity="0">
     <rect x="740" y="238" width="190" height="46" rx="10" fill="#4ade80" fill-opacity=".12" stroke="#4ade80"/>
-    <text x="835.0" y="258" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#4ade80">CHANGES REQUIRED</text>
-    <text x="835.0" y="274" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#e6edf3">2 confirmed · with proof</text>
+    <text x="835" y="258" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#4ade80" text-anchor="middle" font-weight="700">CHANGES REQUIRED</text>
+    <text x="835" y="274" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#e6edf3" text-anchor="middle">2 confirmed · with proof</text>
   </g>
 </svg>

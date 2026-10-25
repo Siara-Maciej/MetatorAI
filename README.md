@@ -182,15 +182,9 @@ Then, in Copilot Chat or Claude Code:
 
 ## Under the hood
 
-```mermaid
-flowchart LR
-  CLI["CLI · hooks · (MCP)"] --> UC["Use cases"]
-  UC --> D["Domain<br/>(pure TS, zero I/O)"]
-  UC --> P["Ports"]
-  PL["Plugins<br/>biome · tsc · ast-grep · bun · github · copilot · claude …"] -. implement .-> P
-  Root["Composition root<br/>config + DI"] --> PL
-  Root --> UC
-```
+<div align="center">
+<img src="assets/architecture.svg" alt="Architecture: domain inside ports inside application inside runtime; CLI and hooks drive it, plugins implement ports" width="100%">
+</div>
 
 Clean architecture with ports and adapters, and a tiny typed DI container (lazy, so hooks start in milliseconds).
 New tools arrive as **presets** (a command plus a standard-format parser), so adding one is a few lines of declaration
@@ -207,6 +201,7 @@ rather than new code.
 3. **Bounded loops:** every retry has a limit and an escalation.
 4. **Least privilege:** reviewers read, implementers edit only what the plan allows, nobody pushes alone.
 5. **Data is not instructions:** PR text, issues and docs are inputs, never commands.
+6. **Prove it works:** every change ships unit and e2e tests against the real entrypoint, and every check must have failed once on purpose.
 
 ---
 
@@ -214,7 +209,7 @@ rather than new code.
 
 ```bash
 bun install
-bun run check        # Biome · TypeScript 7 · ast-grep architecture rules · bun test
+bun run check        # Biome · TS 7 · ast-grep rules · unit + e2e (CLI, visuals in Chromium) · mutation smoke
 bun run metator help
 ```
 

@@ -11,13 +11,18 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "arch": "ast-grep test --skip-snapshot-tests && ast-grep scan",
-    "check": "bun run lint && bun run typecheck && bun run arch && bun run test",
-    "metator": "bun packages/cli/src/main.ts"
+    "check": "bun run lint && bun run typecheck && bun run arch && bun run test && bun run test:mutation",
+    "metator": "bun packages/cli/src/main.ts",
+    "test:unit": "bun test packages",
+    "test:e2e": "bun test e2e",
+    "assets": "bun scripts/assets/generate.ts",
+    "test:mutation": "bun scripts/mutation-smoke.ts"
   },
   "devDependencies": {
     "@ast-grep/cli": "^0.51.0",
     "@biomejs/biome": "^2.6.3",
     "@types/bun": "^1.4.4",
+    "playwright": "1.63.0",
     "typescript": "^7.0.2"
   },
   "trustedDependencies": [

@@ -23,5 +23,13 @@ jobs:
         run: bun run typecheck
       - name: Architecture rules (ast-grep)
         run: bun run arch
-      - name: Tests
-        run: bun test
+      - name: Browser and fonts for visual e2e
+        run: |
+          sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-liberation fonts-freefont-ttf
+          bunx playwright install --with-deps chromium
+      - name: Unit tests
+        run: bun run test:unit
+      - name: E2E tests (CLI process, README visuals in Chromium)
+        run: bun run test:e2e
+      - name: Mutation smoke (tests must catch injected bugs)
+        run: bun run test:mutation
