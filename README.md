@@ -184,6 +184,9 @@ metator graph dependents src/money.ts --transitive             # who imports thi
 metator graph cycles                                           # import cycles
 metator graph path apps/web/src/main.ts packages/money/src/currency.ts
 metator workspace list                                         # npm, yarn, pnpm, bun workspaces
+metator rules pack --paths src/billing/invoice.ts              # only the rules that apply, sized for an agent
+metator rules check --base main                                # E1 rules via ast-grep, mapped to rule ids
+metator rules adapters --check                                 # generated Copilot instructions match the canon
 ```
 
 Every file MetatorAI writes is a versioned document (`kind` + `schemaVersion`), so it is always clear how to parse it

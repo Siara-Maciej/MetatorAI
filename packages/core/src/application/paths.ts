@@ -3,12 +3,17 @@ export interface MetatorPaths {
   readonly workflows: string;
   readonly runs: string;
   readonly index: string;
+  readonly rules: string;
+  /** Host instruction files generated from the rule canon (GitHub Copilot `applyTo` files). */
+  readonly instructions: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
   workflows: ".github/metator/workflows",
   runs: ".metator/runs",
   index: ".metator/index",
+  rules: "docs/metator/rules",
+  instructions: ".github/instructions",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

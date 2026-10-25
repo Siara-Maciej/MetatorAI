@@ -167,6 +167,18 @@ export function parseJsonDocument(text: string, source: string): Result<unknown,
   }
 }
 
+export function parseYamlDocument(text: string, source: string): Result<unknown, MetatorError> {
+  try {
+    return ok(parseYaml(text) as unknown);
+  } catch (e) {
+    return err(
+      new MetatorError("INVALID_CONFIG", `Invalid YAML in ${source}: ${(e as Error).message}`, {
+        details: { source },
+      }),
+    );
+  }
+}
+
 export function serializeJsonDocument(doc: object): string {
   return `${JSON.stringify(doc, null, 2)}\n`;
 }
@@ -175,7 +187,7 @@ const FRONT_MATTER = /^---\n([\s\S]*?)\n---\n/;
 
 /** Markdown documents carry their header as YAML front matter. */
 export function renderFrontMatter(header: object, body: string): string {
-  return `---\n${stringifyYaml(header).trimEnd()}\n---\n${body}`;
+  return `---\n${stringifyYaml(header, { lineWidth: 0 }).trimEnd()}\n---\n${body}`;
 }
 
 export function readFrontMatter(text: string, source: string): Result<unknown, MetatorError> {

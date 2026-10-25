@@ -1,8 +1,7 @@
-import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { MetatorError } from "./errors.ts";
 import { err, ok, type Result } from "./result.ts";
-import { defineDocument } from "./versioned.ts";
+import { defineDocument, parseYamlDocument } from "./versioned.ts";
 
 /**
  * Workflow spec: the declarative state machine behind every run (docs/design/02-workflows.md).
@@ -109,17 +108,7 @@ export function validateWorkflowSpec(raw: unknown, source = "<inline>"): Result<
 
 /** Parses a workflow file: YAML → header (kind, schemaVersion) → versioned schema → spec. */
 export function parseWorkflowYaml(text: string, source: string): Result<WorkflowSpec, MetatorError> {
-  let raw: unknown;
-  try {
-    raw = parseYaml(text);
-  } catch (e) {
-    return err(
-      new MetatorError("INVALID_CONFIG", `Invalid YAML in ${source}: ${(e as Error).message}`, {
-        details: { source },
-      }),
-    );
-  }
-  return WorkflowDocument.parse(raw, source);
+  return parseYamlDocument(text, source).andThen((raw) => WorkflowDocument.parse(raw, source));
 }
 
 export function workflowJsonSchema(): Record<string, unknown> {

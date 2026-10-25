@@ -1,0 +1,74 @@
+kind: RuleSet
+schemaVersion: 1
+area: ARCH
+description: Clean architecture boundaries of MetatorAI (ports and adapters, dependencies point inward).
+rules:
+  - id: MT-ARCH-001
+    title: Domain code is pure
+    applyTo: ["packages/core/src/domain/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-domain-pure
+    summary: Domain modules import no I/O, no runtime APIs, no ports, no application code and no adapters.
+    rationale: docs/ARCHITECTURE.md
+    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+  - id: MT-ARCH-002
+    title: Core does not depend on infrastructure
+    applyTo: ["packages/core/src/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-core-no-infra
+    summary: Ports and application code never import the DI runtime, plugins or runtime APIs.
+    rationale: docs/ARCHITECTURE.md
+    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+  - id: MT-ARCH-003
+    title: Core imports only approved pure libraries
+    applyTo: ["packages/core/src/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-core-approved-deps
+    summary: "@metator/core imports only the libraries approved in ADR-0010 (neverthrow, graphlib, xstate, picomatch, zod, yaml, slugify)."
+    rationale: docs/adr/0010-dependency-policy.md
+    source: { ref: AGENTS.md#dependency-policy-dont-reinvent-the-wheel, verified: 2026-10-25 }
+  - id: MT-ARCH-004
+    title: Core never touches the Bun global or process
+    applyTo: ["packages/core/src/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-no-bun-global-in-core
+    summary: Core runs on any runtime and in tests without I/O, so it never reads Bun or process.
+    rationale: docs/ARCHITECTURE.md
+    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+  - id: MT-ARCH-005
+    title: Plugins depend on core only
+    applyTo: ["packages/plugin-*/src/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-plugins-isolated
+    summary: A plugin imports @metator/core and its own libraries, never runtime, cli or another plugin.
+    rationale: docs/ARCHITECTURE.md
+    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+  - id: MT-ARCH-006
+    title: Use cases receive ports through the constructor
+    applyTo: ["packages/core/src/application/**"]
+    enforcement: E2
+    summary: An application service takes every port it needs as a constructor parameter and never constructs an adapter itself.
+    rationale: docs/adr/0011-di-awilix.md
+    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+    do:
+      - "constructor(private readonly vcs: Vcs, private readonly fs: ReadonlyFileSystem) {}"
+    dont:
+      - "const fs = new BunFileSystem(root); // inside a use case"
+  - id: MT-ARCH-007
+    title: Only the runtime knows concrete adapters
+    applyTo: ["packages/runtime/src/**", "packages/cli/src/**"]
+    enforcement: E2
+    summary: Concrete adapters are registered in packages/runtime/src/bootstrap.ts; CLI commands resolve use cases from the container.
+    rationale: docs/adr/0011-di-awilix.md
+    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+    do:
+      - 'await container().resolve("graphQueries").cycles()'
+    dont:
+      - "new GitVcs(root) inside a CLI command"
+  - id: MT-ARCH-008
+    title: Small ports split by axis of change
+    applyTo: ["packages/core/src/ports/**"]
+    enforcement: E3
+    summary: Keep ports small; split readers from writers and one tool capability from another (Linter is not Formatter).
+    rationale: docs/ARCHITECTURE.md
+    source: { ref: AGENTS.md#conventions, verified: 2026-10-25 }

@@ -109,16 +109,27 @@ Planowanie albo implementacja nowego pliku/funkcji. Reuse check przed utworzenie
 
 ## 4. Reguła
 
-```md
-### MT-ARCH-003: Import innego pakietu tylko przez publiczny entry
-- status: active
-- applyTo: packages/*/src/**
-- enforcement: E1 → ast-grep:mt-arch-no-deep-import (test: metator/sg/rule-tests/mt-arch-no-deep-import-test.yml)
-- rationale: [ADR-004](../../adr/ADR-004-...md)
-- source: docs/architecture.md#granice-pakietów (verified 2026-10-20)
-- do: `import { Invoice } from "@acme/billing"` [[cite: packages/orders/src/checkout.ts:3 | "from \"@acme/billing\""]]
-- don't: `import { Invoice } from "@acme/billing/src/invoice"`
-- conflicts_with: none
+Kanon to wersjonowany YAML `RuleSet`, jeden plik na obszar ([ADR-0020](../adr/0020-rule-canon.md)). Wersję Markdown generuje `metator rules adapters`.
+
+```yaml
+# docs/metator/rules/arch.yml
+kind: RuleSet
+schemaVersion: 1
+area: ARCH
+description: Granice pakietów.
+rules:
+  - id: MT-ARCH-003
+    title: Import innego pakietu tylko przez publiczny entry
+    status: active
+    applyTo: ["packages/*/src/**"]
+    enforcement: E1
+    implementation: ast-grep:mt-arch-no-deep-import   # test w sgconfig.yml → testConfigs
+    summary: Importuj pakiet przez jego publiczny entry, nigdy przez src/.
+    rationale: docs/adr/0004-package-boundaries.md
+    source: { ref: "docs/architecture.md#granice-pakietów", verified: 2026-10-20 }
+    do: ['import { Invoice } from "@acme/billing"']
+    dont: ['import { Invoice } from "@acme/billing/src/invoice"']
+    conflictsWith: []
 ```
 
 ## 5. ADR (rozszerzenie istniejącego formatu)

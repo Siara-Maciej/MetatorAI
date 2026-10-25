@@ -1,22 +1,28 @@
 import {
   type AdvanceRun,
   type BuildImportGraph,
+  type CheckRules,
   type Clock,
   type ComputeAffected,
   err,
   type FileSystem,
+  type GenerateRuleAdapters,
   type GetRunStatus,
   type GraphQueries,
   type ImportAnalyzer,
   type ImportGraphReader,
   type InitRun,
+  type LintRules,
   type ListRuns,
   type Logger,
   MetatorError,
   type MetatorPaths,
   ok,
+  type PackRules,
   type ProcessRunner,
   type Result,
+  type RuleCatalog,
+  type RuleEngine,
   type RunRepository,
   type SourceFiles,
   type Vcs,
@@ -45,6 +51,7 @@ export interface Cradle {
   workspaceReader: WorkspaceReader;
   importAnalyzer: ImportAnalyzer;
   importGraphReader: ImportGraphReader;
+  ruleEngines: readonly RuleEngine[];
   // application services and use cases
   workflowCatalog: WorkflowCatalog;
   runRepository: RunRepository;
@@ -56,6 +63,11 @@ export interface Cradle {
   buildImportGraph: BuildImportGraph;
   graphQueries: GraphQueries;
   computeAffected: ComputeAffected;
+  ruleCatalog: RuleCatalog;
+  lintRules: LintRules;
+  packRules: PackRules;
+  generateRuleAdapters: GenerateRuleAdapters;
+  checkRules: CheckRules;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

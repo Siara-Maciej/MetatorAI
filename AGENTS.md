@@ -17,6 +17,7 @@ Design docs (Polish): `docs/README.md`. Start with `docs/ARCHITECTURE.md` and `d
 | Typecheck | `bun run typecheck` (TypeScript 7, `noEmit`) |
 | Lint + format | `bun run lint` / `bun run format` (Biome; Markdown is not formatted) |
 | Architecture rules | `bun run arch` (ast-grep rule tests + scan) |
+| Rule canon | `bun run canon` (`rules lint` + `rules adapters --check` on `docs/metator/rules`) |
 | Run the CLI | `bun run metator <command>` |
 
 ## Architecture (enforced, not advisory)
@@ -55,6 +56,7 @@ Use a proven package before writing your own (ADR-0010). Write code only for log
 | JS/TS imports (parse + resolve) | `oxc-parser`, `oxc-resolver` | `packages/plugin-typescript` |
 | Workspace packages | `@manypkg/get-packages` | `packages/plugin-node` |
 | Git | `simple-git` | `packages/plugin-git` |
+| Markdown heading anchors | `github-slugger` | `packages/core/src/domain/markdown.ts` |
 
 - Before adding code that looks generic (parsing, validation, graphs, retries, caching, CLI args, YAML, schemas, diffing), search npm and propose a package with an ADR (criteria in ADR-0010).
 - `@metator/core` may import only the approved pure libraries above; `mt-arch-core-approved-deps` (ast-grep) fails CI otherwise.
@@ -81,6 +83,10 @@ Nothing is done until it is proven, by tests and by running it yourself.
 - Code, comments, commit messages and the public README are in English; design docs in `docs/` are in Polish.
 - Tests sit in `packages/<pkg>/test/*.test.ts` and use `bun:test`. New behavior comes with tests; fix bugs with a failing test first.
 - Do not add dependencies to `@metator/core` outside the approved list (ADR-0010).
+
+## Rules canon
+
+Project rules live in `docs/metator/rules/*.yml` (`RuleSet`, ADR-0020). `.github/instructions/mt-*.instructions.md` is generated: change the canon and run `bun run metator rules adapters`, never edit the generated files. Before changing code, `bun run metator rules pack --paths <files>` lists the rules that apply.
 
 ## Decisions
 

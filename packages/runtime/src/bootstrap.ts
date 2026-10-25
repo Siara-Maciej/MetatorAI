@@ -1,17 +1,22 @@
 import {
   AdvanceRun,
   BuildImportGraph,
+  CheckRules,
   type Clock,
   ComputeAffected,
   DEFAULT_PATHS,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
+  GenerateRuleAdapters,
   GetRunStatus,
   GraphQueries,
   IndexedImportGraphReader,
   InitRun,
+  LintRules,
   ListRuns,
   type MetatorPaths,
+  PackRules,
+  RuleCatalog,
   RunRepository,
   SourceFiles,
   WorkflowCatalog,
@@ -20,6 +25,7 @@ import { BunFileSystem, BunProcessRunner } from "@metator/plugin-bun";
 
 export { findRepoRoot } from "@metator/plugin-bun";
 
+import { AstGrepEngine } from "@metator/plugin-astgrep";
 import { GitVcs } from "@metator/plugin-git";
 import { ManypkgWorkspaceReader } from "@metator/plugin-node";
 import { OxcImportAnalyzer } from "@metator/plugin-typescript";
@@ -69,6 +75,21 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ).singleton(),
     importGraphReader: asFunction(({ buildImportGraph }) => new IndexedImportGraphReader(buildImportGraph)),
     graphQueries: asFunction(({ buildImportGraph }) => new GraphQueries(buildImportGraph)),
+    ruleEngines: asFunction(({ processRunner, root }) => [
+      new AstGrepEngine(processRunner, root),
+    ]).singleton(),
+    ruleCatalog: asFunction(({ fileSystem, paths }) => new RuleCatalog(fileSystem, paths)).singleton(),
+    lintRules: asFunction(
+      ({ ruleCatalog, fileSystem, sourceFiles, ruleEngines }) =>
+        new LintRules(ruleCatalog, fileSystem, sourceFiles, ruleEngines),
+    ),
+    packRules: asFunction(({ ruleCatalog }) => new PackRules(ruleCatalog)),
+    generateRuleAdapters: asFunction(
+      ({ ruleCatalog, fileSystem, paths }) => new GenerateRuleAdapters(ruleCatalog, fileSystem, paths),
+    ),
+    checkRules: asFunction(
+      ({ ruleCatalog, ruleEngines, vcs }) => new CheckRules(ruleCatalog, ruleEngines, vcs),
+    ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),
     ),

@@ -2,6 +2,7 @@
  * Ports: small interfaces cut along axes of change (ISP). Adapters live in plugins;
  * application code depends only on these.
  */
+import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
 import type { Result } from "../domain/result.ts";
@@ -86,4 +87,22 @@ export interface ImportAnalyzer {
   parse(path: string, content: string): Result<readonly ImportSpecifier[], MetatorError>;
   /** Resolves a specifier from a repo-relative file; files outside the repo or in node_modules are external. */
   resolve(fromPath: string, specifier: string): Resolution;
+}
+
+/** A rule implemented by a tool (an E1 rule's `implementation` points at one). */
+export interface EngineRule {
+  readonly id: string;
+  /** Repo-relative file that defines it. */
+  readonly source: string;
+  /** Whether the tool has a test for it (e.g. an ast-grep rule test). */
+  readonly hasTest: boolean;
+}
+
+/** A deterministic rule engine (ast-grep, Biome, ...) that E1 rules bind to. */
+export interface RuleEngine {
+  /** The `<engine>` part of `<engine>:<rule id>`. */
+  readonly engine: string;
+  rules(): Promise<Result<readonly EngineRule[], MetatorError>>;
+  /** Runs the engine on the given repo-relative files (all files when omitted). */
+  check(files?: readonly string[]): Promise<Result<readonly Diagnostic[], MetatorError>>;
 }

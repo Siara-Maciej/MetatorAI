@@ -12,6 +12,7 @@
     "@metator/plugin-bun": "workspace:*",
     "@metator/plugin-git": "workspace:*",
     "@metator/plugin-node": "workspace:*",
-    "@metator/plugin-typescript": "workspace:*"
+    "@metator/plugin-typescript": "workspace:*",
+    "@metator/plugin-astgrep": "workspace:*"
   }
 }

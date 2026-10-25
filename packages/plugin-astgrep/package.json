@@ -1,0 +1,18 @@
+{
+  "name": "@metator/plugin-astgrep",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@metator/core": "workspace:*",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@ast-grep/cli": "^0.51.0",
+    "@metator/plugin-bun": "workspace:*",
+    "@metator/testing": "workspace:*"
+  }
+}

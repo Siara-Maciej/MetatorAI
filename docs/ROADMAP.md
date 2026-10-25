@@ -54,7 +54,7 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [x] Wersjonowane dokumenty ([ADR-0016](adr/0016-versioned-documents.md)): `kind` + `schemaVersion` w każdym pliku (Workflow, RunRecord, RunLog, RunPointer), migracje i odrzucanie nowszych wersji, strażnik e2e.
 - [x] Graf importów: `OxcImportAnalyzer` (oxc-parser + oxc-resolver, [ADR-0017](adr/0017-imports-oxc.md)), pakiety workspace przez manypkg ([ADR-0018](adr/0018-workspaces-manypkg.md)), przyrostowy indeks `.metator/index/imports.json` (wersjonowany `ImportIndex`). Komendy `metator index build`, `graph affected|deps|dependents|cycles|path|packages`, `workspace list`. E2e na monorepo z prawdziwym `bun install` i dogfood na repo MetatorAI (0 cykli).
 - [x] `GitVcs` na simple-git zamiast ręcznych wywołań git ([ADR-0019](adr/0019-git-simple-git.md)); zmiana nazwy liczy się pod obiema ścieżkami.
-- [ ] Następne: rule pack i reguły z ID, presety narzędzi (biome, ast-grep, tsc, bun test), `metator.config` jako wersjonowany dokument, `gate quick|full`.
+- [ ] Następne: presety narzędzi (biome, tsc, bun test), `metator.config` jako wersjonowany dokument, `gate quick|full`.
 
 **Zadania**
 - [ ] Szkielet `metator` (envelope, workspace, git, cache, budget) + `bun test` na fixture'ze mini-monorepo.
@@ -80,8 +80,9 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [ ] Odchudzenie T0: `copilot-instructions.md` ≤ 4000 znaków, `AGENTS.md` per pakiet.
 - [ ] **W7 na istniejących ADR i docs** (`mt-docs-curator`): twierdzenia → weryfikacja w kodzie → reguły `MT-*` → HITL → canon.
 - [ ] Sekcja „Implikacje dla kodu” w każdym ADR `Accepted`. `adr lint`.
+- [x] Kanon reguł ([ADR-0020](adr/0020-rule-canon.md)): `RuleSet` YAML w `docs/metator/rules`, `rules lint|pack|show|adapters|check|schema`, silnik E1 ast-grep, wygenerowane `.github/instructions/mt-*.instructions.md`, `bun run canon` w CI. Dogfood: 16 reguł MetatorAI (5 × E1).
 - [ ] Reguły E1: każda możliwa reguła jako ast-grep (z testem) lub Biome (`noRestrictedImports`, GritQL z `includes`). Cel ≥ 40% reguł jako E1.
-- [ ] `rules pack|check|lint|adapters`, wygenerowane `.github/instructions/mt-*.instructions.md`.
+- [ ] `rules coverage`, `rules scaffold-sg`, silniki E1 dla Biome i tsc.
 - [ ] Katalog wzorców: 10–15 wzorców z regułami wykrywania (`docs/metator/patterns/sg`), `patterns scan`, `similar`.
 - [ ] Karty modułów: `cards build` (część generowana), uzupełnienie kuratorowanej dla pakietów pilota.
 

@@ -1,5 +1,7 @@
 import {
   type Clock,
+  type Diagnostic,
+  type EngineRule,
   err,
   type FileSystem,
   MetatorError,
@@ -10,6 +12,7 @@ import {
   type ProcessRunner,
   type ResolvedCommand,
   type Result,
+  type RuleEngine,
   type Vcs,
 } from "@metator/core";
 
@@ -91,5 +94,24 @@ export class FakeVcs implements Vcs {
 
   async listFiles(): Promise<Result<readonly string[], MetatorError>> {
     return this.files === "not-a-repo" ? err(MetatorError.notFound("git repository")) : ok(this.files);
+  }
+}
+
+/** Rule engine fake: a fixed rule list and canned diagnostics, recording which files were checked. */
+export class FakeRuleEngine implements RuleEngine {
+  readonly checked: (readonly string[] | undefined)[] = [];
+  constructor(
+    readonly engine: string,
+    private readonly known: readonly EngineRule[],
+    private readonly diagnostics: readonly Diagnostic[] = [],
+  ) {}
+
+  async rules(): Promise<Result<readonly EngineRule[], MetatorError>> {
+    return ok(this.known);
+  }
+
+  async check(files?: readonly string[]): Promise<Result<readonly Diagnostic[], MetatorError>> {
+    this.checked.push(files);
+    return ok(files ? this.diagnostics.filter((d) => files.includes(d.file)) : this.diagnostics);
   }
 }

@@ -9,6 +9,7 @@
   "dependencies": {
     "@dagrejs/graphlib": "^4.0.7",
     "@sindresorhus/slugify": "^3.0.1",
+    "github-slugger": "2.0.0",
     "neverthrow": "^8.2.0",
     "picomatch": "^4.0.7",
     "xstate": "^5.33.3",

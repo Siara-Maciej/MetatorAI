@@ -1,0 +1,52 @@
+kind: RuleSet
+schemaVersion: 1
+area: CODE
+description: Coding conventions of MetatorAI.
+rules:
+  - id: MT-CODE-001
+    title: Errors are values
+    applyTo: ["packages/core/src/**", "packages/plugin-*/src/**"]
+    enforcement: E2
+    summary: Domain, application and adapter code return Result<T, MetatorError>; they throw only for programmer errors such as DI misconfiguration.
+    rationale: docs/ARCHITECTURE.md
+    source: { ref: AGENTS.md#conventions, verified: 2026-10-25 }
+    do:
+      - 'return err(new MetatorError("NOT_FOUND", `Rule ${id} not found`, { hint }))'
+    dont:
+      - 'throw new Error("rule not found")'
+  - id: MT-CODE-002
+    title: Every persisted file is a versioned document
+    applyTo: ["packages/core/src/**"]
+    enforcement: E2
+    summary: Files MetatorAI reads or writes are defined with defineDocument and written only through Document.stamp, read only through Document.parse.
+    rationale: docs/adr/0016-versioned-documents.md
+    source: { ref: AGENTS.md#every-file-is-a-versioned-document-adr-0016, verified: 2026-10-25 }
+    do:
+      - "serializeJsonDocument(ImportIndexDocument.stamp(next))"
+    dont:
+      - "JSON.stringify(index) written without kind and schemaVersion"
+  - id: MT-CODE-003
+    title: Schema changes add a version and a migration
+    applyTo: ["packages/core/src/domain/**"]
+    enforcement: E2
+    summary: Changing a document schema adds a new version with an upgrade function and a migration test; a released version is never changed in place.
+    rationale: docs/adr/0016-versioned-documents.md
+    source: { ref: AGENTS.md#every-file-is-a-versioned-document-adr-0016, verified: 2026-10-25 }
+  - id: MT-CODE-004
+    title: CLI output is one bounded JSON envelope
+    applyTo: ["packages/cli/src/**"]
+    enforcement: E2
+    summary: A command prints exactly one JSON envelope line; values are validated by commander (choices, requiredOption, argParser), not by hand.
+    rationale: docs/adr/0014-cli-commander.md
+    source: { ref: AGENTS.md#conventions, verified: 2026-10-25 }
+    do:
+      - '.option("--budget <tokens>", "token budget", positiveInt)'
+    dont:
+      - "console.log(result) in a command"
+  - id: MT-CODE-005
+    title: Prefer a proven package over home-grown generic code
+    applyTo: ["packages/**/src/**"]
+    enforcement: E3
+    summary: Before writing generic code (parsing, graphs, retries, caching, CLI args, schemas, diffing, git) look for a maintained package and propose it in an ADR.
+    rationale: docs/adr/0010-dependency-policy.md
+    source: { ref: AGENTS.md#dependency-policy-dont-reinvent-the-wheel, verified: 2026-10-25 }

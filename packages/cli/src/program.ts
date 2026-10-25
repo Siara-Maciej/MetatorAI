@@ -4,6 +4,7 @@ import { Command, type CommanderError } from "commander";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
+import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
 import type { CommandContext, Outcome } from "./context.ts";
@@ -42,6 +43,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerMetaCommands(program, ctx);
   registerChangedCommand(program, ctx);
   registerGraphCommands(program, ctx);
+  registerRulesCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;

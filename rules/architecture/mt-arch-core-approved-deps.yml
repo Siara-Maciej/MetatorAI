@@ -1,7 +1,7 @@
 id: mt-arch-core-approved-deps
 language: TypeScript
 severity: error
-message: "Core may only import approved pure libraries (ADR-0010): neverthrow, @dagrejs/graphlib, xstate, picomatch, zod, yaml, @sindresorhus/slugify."
+message: "Core may only import approved pure libraries (ADR-0010): neverthrow, @dagrejs/graphlib, xstate, picomatch, zod, yaml, @sindresorhus/slugify, github-slugger."
 note: "Propose a new library through an ADR first; anything doing I/O belongs in a plugin."
 files:
   - packages/core/src/**
@@ -14,4 +14,4 @@ rule:
     - not:
         has:
           field: source
-          regex: '^[''"](neverthrow|@dagrejs/graphlib|xstate|picomatch|zod|yaml|@sindresorhus/slugify)[''"/]'
+          regex: '^[''"](neverthrow|@dagrejs/graphlib|xstate|picomatch|zod|yaml|@sindresorhus/slugify|github-slugger)[''"/]'

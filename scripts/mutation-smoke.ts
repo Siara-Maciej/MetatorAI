@@ -141,6 +141,48 @@ const MUTANTS: readonly Mutant[] = [
     why: "dynamic imports are graph edges",
   },
   {
+    file: "packages/core/src/application/rules.ts",
+    from: "if (first) error(entry,",
+    to: "if (false) error(entry,",
+    why: "rule ids are unique across the canon",
+  },
+  {
+    file: "packages/core/src/application/rules.ts",
+    from: "else if (!found.hasTest) error(",
+    to: "else if (false) error(",
+    why: "an E1 rule's tool implementation must have a test",
+  },
+  {
+    file: "packages/core/src/application/rules.ts",
+    from: "return markdownAnchors(text.value).has(anchor);",
+    to: "return true;",
+    why: "links to a Markdown section must point at an existing heading",
+  },
+  {
+    file: "packages/core/src/application/rules.ts",
+    from: "if (tokens + cost > budget) {",
+    to: "if (false) {",
+    why: "the rule pack must respect the agent's token budget",
+  },
+  {
+    file: "packages/core/src/application/rules.ts",
+    from: "if (input.check) {",
+    to: "if (false) {",
+    why: "adapters --check compares and never writes",
+  },
+  {
+    file: "packages/core/src/application/rules.ts",
+    from: "d.toolRuleId ? canon.get(`${engine.engine}:${d.toolRuleId}`) : undefined",
+    to: "undefined",
+    why: "tool findings are mapped back to canon rule ids",
+  },
+  {
+    file: "packages/core/src/domain/rule.ts",
+    from: 'r.status === "active" && paths.some(',
+    to: "paths.some(",
+    why: "draft and deprecated rules never reach agents",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",
