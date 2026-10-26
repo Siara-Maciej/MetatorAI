@@ -1,0 +1,5 @@
+id: mt-pattern-versioned-document
+valid:
+  - "const schema = z.object({});"
+invalid:
+  - 'const RuleSetDocument = defineDocument("RuleSet", { latest: RuleSetSchema });'

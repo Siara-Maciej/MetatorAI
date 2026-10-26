@@ -1,0 +1,15 @@
+id: mt-pattern-use-case
+language: TypeScript
+severity: hint
+message: "Pattern use-case: application service with injected ports and execute()."
+files:
+  - packages/core/src/application/**
+rule:
+  kind: class_declaration
+  has:
+    kind: class_body
+    has:
+      kind: method_definition
+      has:
+        field: name
+        regex: ^execute$

@@ -1,14 +1,9 @@
 import { err, MetatorError, normalizePath, ok, RuleSetDocument } from "@metator/core";
-import { type Command, InvalidArgumentError } from "commander";
+import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
+import { positiveInt } from "../options.ts";
 
 const repoPaths = (files: readonly string[]) => files.map((f) => normalizePath(f).replace(/^(\.\/)+/, ""));
-
-function positiveInt(value: string): number {
-  const n = Number(value);
-  if (!Number.isInteger(n) || n <= 0) throw new InvalidArgumentError("expected a positive integer");
-  return n;
-}
 
 export function registerRulesCommands(program: Command, { action, container }: CommandContext): void {
   const rules = program

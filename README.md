@@ -190,6 +190,7 @@ metator rules adapters --check                                 # generated Copil
 metator memory check                                           # every knowledge file mapped, budgets kept, citations true
 metator memory validate --fix                                  # [[cite: file:line | "quote"]] claims follow moved code
 metator cards build                                            # one card per package: generated facts + curated knowledge
+metator similar --file src/orders/customers.queries.ts         # how we already do this: the exemplar to follow, never legacy
 ```
 
 Every file MetatorAI writes is a versioned document (`kind` + `schemaVersion`), so it is always clear how to parse it

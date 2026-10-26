@@ -1,4 +1,6 @@
 ruleDirs:
   - rules/architecture
+  - docs/metator/patterns/sg
 testConfigs:
   - testDir: rules/architecture-tests
+  - testDir: docs/metator/patterns/sg-tests

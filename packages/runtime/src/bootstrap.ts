@@ -9,6 +9,7 @@ import {
   DEFAULT_PATHS,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
+  FindSimilar,
   GenerateRuleAdapters,
   GetRunStatus,
   GraphQueries,
@@ -22,8 +23,10 @@ import {
   MemoryMapReader,
   type MetatorPaths,
   PackRules,
+  PatternCatalog,
   RuleCatalog,
   RunRepository,
+  ScanPatterns,
   SourceFiles,
   ValidateCitations,
   WorkflowCatalog,
@@ -119,6 +122,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ buildImportGraph, fileSystem, paths, testGlobs }) =>
         new BuildModuleCards(buildImportGraph, fileSystem, paths, testGlobs),
     ),
+    patternCatalog: asFunction(({ fileSystem, paths }) => new PatternCatalog(fileSystem, paths)).singleton(),
+    scanPatterns: asFunction(
+      ({ patternCatalog, ruleCatalog, ruleEngines, workspaceReader, fileSystem, paths }) =>
+        new ScanPatterns(patternCatalog, ruleCatalog, ruleEngines, workspaceReader, fileSystem, paths),
+    ),
+    findSimilar: asFunction(({ scanPatterns }) => new FindSimilar(scanPatterns)),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),
     ),

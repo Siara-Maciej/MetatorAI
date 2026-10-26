@@ -1,0 +1,11 @@
+id: mt-pattern-cli-command-group
+language: TypeScript
+severity: hint
+message: "Pattern cli-command-group: register*(program, ctx) module with JSON outcomes."
+files:
+  - packages/cli/src/commands/**
+rule:
+  kind: function_declaration
+  has:
+    field: name
+    regex: ^register[A-Z]\w*Commands?$

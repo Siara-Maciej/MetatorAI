@@ -425,7 +425,8 @@ export class CheckRules {
     for (const engine of this.engines) {
       const diagnostics = await engine.check(files);
       if (diagnostics.isErr()) return err(diagnostics.error);
-      for (const d of diagnostics.value) {
+      // Hints and infos (e.g. pattern detection rules) are not violations.
+      for (const d of diagnostics.value.filter((x) => x.severity !== "info")) {
         const canonRuleId = d.toolRuleId ? canon.get(`${engine.engine}:${d.toolRuleId}`) : undefined;
         violations.push({ ...d, engine: engine.engine, ...(canonRuleId ? { canonRuleId } : {}) });
       }

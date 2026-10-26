@@ -1,0 +1,5 @@
+id: mt-pattern-use-case
+valid:
+  - "class Helper { run() {} }"
+invalid:
+  - "class LintRules { constructor(private readonly fs: FileSystem) {} async execute() { return ok(1); } }"

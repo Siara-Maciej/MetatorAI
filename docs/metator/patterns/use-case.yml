@@ -1,0 +1,10 @@
+kind: Pattern
+schemaVersion: 1
+id: use-case
+title: Application use case
+intent: An application service that takes its ports through the constructor and returns a Result from execute().
+when: new behavior behind a CLI command or another use case
+whenNot: pure calculations without ports (put those in the domain)
+detection: ast-grep:mt-pattern-use-case
+exemplar: packages/core/src/application/cards.ts
+rules: [MT-ARCH-006, MT-CODE-001]

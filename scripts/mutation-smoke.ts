@@ -238,6 +238,30 @@ const MUTANTS: readonly Mutant[] = [
     why: "cards build --check compares and never writes",
   },
   {
+    file: "packages/core/src/application/patterns.ts",
+    from: "const occurrences = all.filter((o) => !legacyPaths.has(o.file));",
+    to: "const occurrences = all;",
+    why: "legacy files are never offered as examples",
+  },
+  {
+    file: "packages/core/src/application/patterns.ts",
+    from: "else if (!occurrences.some((o) => o.file === p.exemplar)) {",
+    to: "else if (false) {",
+    why: "a pattern's exemplar must be a real occurrence",
+  },
+  {
+    file: "packages/core/src/application/patterns.ts",
+    from: "if (occurrences.length < p.minOccurrences) {",
+    to: "if (false) {",
+    why: "a pattern needs enough occurrences to be a pattern",
+  },
+  {
+    file: "packages/core/src/application/rules.ts",
+    from: 'diagnostics.value.filter((x) => x.severity !== "info")',
+    to: "diagnostics.value",
+    why: "pattern hints are not rule violations",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

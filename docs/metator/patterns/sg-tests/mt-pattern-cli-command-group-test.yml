@@ -1,0 +1,5 @@
+id: mt-pattern-cli-command-group
+valid:
+  - "function describeCommands(program: Command) {}"
+invalid:
+  - "function registerCardsCommands(program: Command, ctx: CommandContext): void {}"

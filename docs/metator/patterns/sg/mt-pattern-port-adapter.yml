@@ -1,0 +1,12 @@
+id: mt-pattern-port-adapter
+language: TypeScript
+severity: hint
+message: "Pattern port-adapter: a plugin class implementing a core port."
+files:
+  - packages/plugin-*/src/**
+rule:
+  kind: class_declaration
+  has:
+    kind: class_heritage
+    has:
+      kind: implements_clause

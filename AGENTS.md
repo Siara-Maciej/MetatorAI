@@ -17,7 +17,7 @@ Design docs (Polish): `docs/README.md`. Start with `docs/ARCHITECTURE.md` and `d
 | Typecheck | `bun run typecheck` (TypeScript 7, `noEmit`) |
 | Lint + format | `bun run lint` / `bun run format` (Biome; Markdown is not formatted) |
 | Architecture rules | `bun run arch` (ast-grep rule tests + scan) |
-| Rule canon + memory map | `bun run canon` (`rules lint`, `rules adapters --check`, `memory check`, `cards build --check`) |
+| Rule canon + memory map | `bun run canon` (`rules lint`, `rules adapters --check`, `memory check`, `cards build --check`, `patterns scan --check`) |
 | Run the CLI | `bun run metator <command>` |
 
 ## Architecture (enforced, not advisory)
@@ -85,7 +85,7 @@ Coding rules are canon in `docs/metator/rules/` (errors as values MT-CODE-001, C
 
 Use the product on this repository whenever a command already covers the step:
 
-1. Before editing: `bun run metator rules pack --paths <files>` (rules that apply) and the package card in `docs/metator/modules/`.
+1. Before editing: `bun run metator rules pack --paths <files>` (rules that apply), the package card in `docs/metator/modules/`, and `bun run metator similar --file <new file>` for the exemplar to follow.
 2. While editing: `bun run metator graph dependents <file> --transitive` to see what a change reaches.
 3. After editing: `bun run metator graph affected --base origin/claude/foundation` to pick unit tests (`bun test <tests>`), then the e2e tests for touched commands; `bun run metator rules check --base origin/claude/foundation`.
 4. Before committing: `bun run metator cards build` and `bun run metator rules adapters` if structure or rules changed, then `bun run canon` and `bun run check`.

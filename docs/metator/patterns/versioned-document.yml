@@ -1,0 +1,9 @@
+kind: Pattern
+schemaVersion: 1
+id: versioned-document
+title: Versioned document
+intent: A file format MetatorAI reads or writes, defined once with defineDocument so every file carries kind and schemaVersion.
+when: any new file under .metator/ or docs/metator/, or a new config or spec format
+detection: ast-grep:mt-pattern-versioned-document
+exemplar: packages/core/src/domain/module-card.ts
+rules: [MT-CODE-002, MT-CODE-003]

@@ -1,0 +1,8 @@
+id: mt-pattern-versioned-document
+language: TypeScript
+severity: hint
+message: "Pattern versioned-document: a file format defined with defineDocument."
+files:
+  - packages/core/src/**
+rule:
+  pattern: const $DOC = defineDocument($$$ARGS)

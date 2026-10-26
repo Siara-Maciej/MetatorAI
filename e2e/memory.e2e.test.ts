@@ -160,6 +160,8 @@ describe("dogfood: the MetatorAI memory map", () => {
     expect(r.code).toBe(0);
     expect((data(r).problems as Data[]).filter((p) => p.severity === "error")).toEqual([]);
     const v = await metator(["memory", "validate", "--root", SELF], SELF);
-    expect((data(v).counts as Data).ok).toBeGreaterThanOrEqual(1);
+    const counts = (v.code === 0 ? data(v) : (v.json.error as { details: Data }).details).counts as Data;
+    expect([counts.stale, counts["missing-file"]]).toEqual([0, 0]);
+    expect(counts.ok).toBeGreaterThanOrEqual(1);
   });
 });

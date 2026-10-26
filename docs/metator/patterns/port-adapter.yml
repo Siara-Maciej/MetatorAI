@@ -1,0 +1,9 @@
+kind: Pattern
+schemaVersion: 1
+id: port-adapter
+title: Port adapter in a plugin
+intent: A plugin class that implements one core port on top of a proven library and converts its errors into MetatorError.
+when: connecting a new tool, library or runtime API
+detection: ast-grep:mt-pattern-port-adapter
+exemplar: packages/plugin-git/src/git-vcs.ts
+rules: [MT-ARCH-005, MT-TEST-002, MT-CODE-005]

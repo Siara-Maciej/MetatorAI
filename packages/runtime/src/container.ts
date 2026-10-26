@@ -8,6 +8,7 @@ import {
   type ComputeAffected,
   err,
   type FileSystem,
+  type FindSimilar,
   type GenerateRuleAdapters,
   type GetRunStatus,
   type GraphQueries,
@@ -25,11 +26,13 @@ import {
   type MetatorPaths,
   ok,
   type PackRules,
+  type PatternCatalog,
   type ProcessRunner,
   type Result,
   type RuleCatalog,
   type RuleEngine,
   type RunRepository,
+  type ScanPatterns,
   type SourceFiles,
   type ValidateCitations,
   type Vcs,
@@ -82,6 +85,9 @@ export interface Cradle {
   validateCitations: ValidateCitations;
   checkMemory: CheckMemory;
   buildModuleCards: BuildModuleCards;
+  patternCatalog: PatternCatalog;
+  scanPatterns: ScanPatterns;
+  findSimilar: FindSimilar;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

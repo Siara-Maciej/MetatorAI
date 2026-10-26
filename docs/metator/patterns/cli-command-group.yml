@@ -1,0 +1,9 @@
+kind: Pattern
+schemaVersion: 1
+id: cli-command-group
+title: CLI command group
+intent: One module per command group that registers commander commands and returns one JSON outcome per command.
+when: a new metator command or subcommand
+detection: ast-grep:mt-pattern-cli-command-group
+exemplar: packages/cli/src/commands/cards.ts
+rules: [MT-CODE-004, MT-ARCH-007, MT-TEST-001]

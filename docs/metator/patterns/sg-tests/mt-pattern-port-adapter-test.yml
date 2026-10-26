@@ -1,0 +1,5 @@
+id: mt-pattern-port-adapter
+valid:
+  - "class Helper {}"
+invalid:
+  - "class GitVcs implements Vcs { async listFiles() { return ok([]); } }"

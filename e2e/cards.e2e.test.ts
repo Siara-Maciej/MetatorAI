@@ -105,7 +105,11 @@ describe("metator cards build", () => {
 describe("dogfood: MetatorAI's module cards", () => {
   test("cards are up to date and their curated citations are true", async () => {
     expect((await metator(["cards", "build", "--check", "--root", SELF], SELF)).code).toBe(0);
+    // Moved quotes are a warning (`memory check`); only stale or missing citations are wrong.
     const v = await metator(["memory", "validate", "--root", SELF], SELF);
-    expect([v.code, (data(v).counts as Data).ok]).toEqual([0, 11]);
+    const counts = (v.code === 0 ? data(v) : (v.json.error as { details: Data }).details).counts as Data;
+    expect([counts.stale, counts["missing-file"], (counts.ok as number) + (counts.moved as number)]).toEqual([
+      0, 0, 11,
+    ]);
   });
 });

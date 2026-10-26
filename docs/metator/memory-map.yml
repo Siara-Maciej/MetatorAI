@@ -57,6 +57,14 @@ items:
     readers: ["*"]
     budget: { lines: 60 }
     description: One card per package; facts are generated, responsibility, invariants and pitfalls are curated.
+  - id: t1.patterns
+    tier: T1
+    kind: canon
+    paths: ["docs/metator/patterns/**"]
+    load: "query:metator similar --file <planned file>"
+    writers: [human]
+    readers: ["*"]
+    description: Pattern catalog with ast-grep detection rules (severity hint) and their tests.
   - id: t1.instructions
     tier: T1
     kind: derived

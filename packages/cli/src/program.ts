@@ -6,6 +6,7 @@ import { registerChangedCommand } from "./commands/changed.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
+import { registerPatternsCommands } from "./commands/patterns.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
@@ -48,6 +49,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerRulesCommands(program, ctx);
   registerMemoryCommands(program, ctx);
   registerCardsCommands(program, ctx);
+  registerPatternsCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;
