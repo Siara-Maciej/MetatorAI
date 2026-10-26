@@ -42,8 +42,28 @@ describe("BiomeEngine (real Biome)", () => {
       id: "lint/suspicious/noDebugger",
       source: "@biomejs/biome",
       hasTest: true,
+      enabled: true, // recommended, and the project config is empty
     });
     expect(rules.some((r) => r.id.endsWith("/recommended"))).toBe(false);
+  });
+
+  test("rules say whether the repo's config turns them on", async () => {
+    const config = JSON.stringify({
+      linter: { rules: { suspicious: { noDebugger: "off" }, style: { useConst: "error" } } },
+    });
+    const rules = (
+      await new BiomeEngine(runner, await project({ ...FILES, "biome.json": config })).rules()
+    )._unsafeUnwrap();
+    const of = (id: string) => rules.find((r) => r.id === id)?.enabled;
+    expect([
+      of("lint/suspicious/noDebugger"),
+      of("lint/style/useConst"),
+      of("lint/correctness/noConstAssign"),
+    ]).toEqual([
+      false,
+      true,
+      true, // recommended
+    ]);
   });
 
   test("whole project and selected files; unknown and deleted files are ignored", async () => {

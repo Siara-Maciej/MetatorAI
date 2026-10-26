@@ -23,7 +23,7 @@ dir: packages/plugin-biome
 
 ## Invariants
 
-- A repository without a Biome config is never linted with Biome's defaults [[cite: packages/plugin-biome/src/biome-engine.ts:56 | "if (!CONFIG_FILES.some((f) => existsSync(join(this.root, f)))) return ok([]);"]].
+- A repository without a Biome config is never linted with Biome's defaults [[cite: packages/plugin-biome/src/biome-engine.ts:81 | "if (!CONFIG_FILES.some((f) => existsSync(join(this.root, f)))) return ok([]);"]].
 
 ## Allowed dependencies
 

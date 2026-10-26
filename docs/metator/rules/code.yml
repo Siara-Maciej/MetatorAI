@@ -72,3 +72,19 @@ rules:
     summary: Builtins are imported as `node:fs`, `node:path`, so the import graph classifies them as runtime, not packages.
     rationale: docs/adr/0017-imports-oxc.md
     source: { ref: biome.json, verified: 2026-10-26 }
+  - id: MT-CODE-008
+    title: Indexed access may be undefined
+    applyTo: ["packages/**/*.ts"]
+    enforcement: E1
+    implementation: tsc:noUncheckedIndexedAccess
+    summary: Array and record lookups are typed as possibly undefined; handle the missing case instead of asserting it away.
+    rationale: docs/adr/0010-dependency-policy.md
+    source: { ref: tsconfig.json, verified: 2026-10-26 }
+  - id: MT-CODE-009
+    title: Optional means absent, not undefined
+    applyTo: ["packages/**/*.ts"]
+    enforcement: E1
+    implementation: tsc:exactOptionalPropertyTypes
+    summary: An optional property is either missing or a value; build objects with conditional spreads instead of assigning undefined.
+    rationale: docs/adr/0016-versioned-documents.md
+    source: { ref: tsconfig.json, verified: 2026-10-26 }

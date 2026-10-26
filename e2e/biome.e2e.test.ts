@@ -75,6 +75,6 @@ describe("Biome as an E1 engine", () => {
 
   test("dogfood: MetatorAI's Biome-enforced rules hold on this repository", async () => {
     const r = await metator(["rules", "check", "--root", SELF], SELF);
-    expect([r.code, (r.json.data as Data).engines]).toEqual([0, ["ast-grep", "biome"]]);
+    expect([r.code, (r.json.data as Data).engines]).toEqual([0, ["ast-grep", "biome", "tsc"]]);
   });
 });

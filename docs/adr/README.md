@@ -30,3 +30,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0024](0024-adr-lint.md) | `adr lint`: łańcuch ADR → reguła i spójny dziennik decyzji | Proposed |
 | [0025](0025-biome-engine-sarif.md) | Biome jako silnik E1 przez SARIF | Proposed |
 | [0026](0026-memory-dupes.md) | Duplikaty wiedzy i macierz dostępu do pamięci | Proposed |
+| [0027](0027-tsc-engine.md) | tsc jako silnik E1, włączone reguły narzędzi i wybór silników | Proposed |

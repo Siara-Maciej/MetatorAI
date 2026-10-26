@@ -96,6 +96,8 @@ export interface EngineRule {
   readonly source: string;
   /** Whether the tool has a test for it (e.g. an ast-grep rule test). */
   readonly hasTest: boolean;
+  /** Whether the repo's tool config turns it on; omitted when the engine cannot tell. */
+  readonly enabled?: boolean;
 }
 
 /** A deterministic rule engine (ast-grep, Biome, ...) that E1 rules bind to. */

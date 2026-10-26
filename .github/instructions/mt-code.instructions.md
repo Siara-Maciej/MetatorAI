@@ -44,3 +44,5 @@ CI fails on these; no need to re-check them by hand.
 - MT-CODE-004: CLI output is one bounded JSON envelope (`ast-grep:mt-code-004`)
 - MT-CODE-006: Type-only imports use import type (`biome:lint/style/useImportType`)
 - MT-CODE-007: Node builtins use the node protocol (`biome:lint/style/useNodejsImportProtocol`)
+- MT-CODE-008: Indexed access may be undefined (`tsc:noUncheckedIndexedAccess`)
+- MT-CODE-009: Optional means absent, not undefined (`tsc:exactOptionalPropertyTypes`)

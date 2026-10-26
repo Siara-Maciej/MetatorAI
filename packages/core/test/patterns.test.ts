@@ -168,7 +168,24 @@ describe("pathAffinity", () => {
 
 describe("rules check ignores pattern hints", () => {
   test("info-level findings are not violations", async () => {
-    const fs = new InMemoryFileSystem({});
+    const canon = stringify({
+      kind: "RuleSet",
+      schemaVersion: 1,
+      area: "ARCH",
+      rules: [
+        {
+          id: "MT-ARCH-001",
+          title: "Some architecture rule",
+          applyTo: ["packages/**"],
+          enforcement: "E1",
+          implementation: "ast-grep:mt-arch-x",
+          summary: "A rule that binds the canon to ast-grep.",
+          rationale: "README.md",
+          source: { ref: "README.md", verified: "2026-10-26" },
+        },
+      ],
+    });
+    const fs = new InMemoryFileSystem({ "docs/metator/rules/arch.yml": canon });
     const check = new CheckRules(
       new RuleCatalog(fs, DEFAULT_PATHS),
       [new FakeRuleEngine("ast-grep", [], DIAGNOSTICS)],

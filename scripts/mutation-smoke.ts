@@ -322,6 +322,30 @@ const MUTANTS: readonly Mutant[] = [
     why: "generated copies are not reported as duplicates",
   },
   {
+    file: "packages/core/src/application/rules.ts",
+    from: "else if (found.enabled === false)",
+    to: "else if (false)",
+    why: "an E1 rule bound to a tool rule that is turned off is not enforced",
+  },
+  {
+    file: "packages/core/src/application/rules.ts",
+    from: "const used = this.engines.filter((e) =>\n      [...canon.keys()].some((k) => parseImplementation(k).engine === e.engine),\n    );",
+    to: "const used = this.engines;",
+    why: "rules check runs only the engines the canon binds rules to",
+  },
+  {
+    file: "packages/plugin-typescript/src/tsc-engine.ts",
+    from: "(STRICT_FAMILY.includes(name) && options.strict === true && options[name] !== false)",
+    to: "false",
+    why: "strict turns on its family of checks unless one is set to false",
+  },
+  {
+    file: "packages/plugin-biome/src/biome-engine.ts",
+    from: "const marked = enabled ? rules.map((r) => ({ ...r, enabled: enabled.has(r.id) })) : rules;",
+    to: "const marked = rules;",
+    why: "Biome rules say whether the repo's config turns them on",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

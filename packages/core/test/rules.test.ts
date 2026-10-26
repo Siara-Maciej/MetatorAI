@@ -198,6 +198,18 @@ describe("LintRules", () => {
     ]);
   });
 
+  test("an E1 rule bound to a tool rule that is turned off is an error", async () => {
+    const set = ruleSet("TS", [
+      rule("MT-TS-001", { enforcement: "E1", implementation: "biome:lint/style/noVar" }),
+    ]);
+    const biome = new FakeRuleEngine("biome", [
+      { id: "lint/style/noVar", source: "biome", hasTest: true, enabled: false },
+    ]);
+    expect(await messages({ "docs/metator/rules/ts.yml": set }, [biome])).toEqual([
+      "error: biome:lint/style/noVar is not enabled in the tool's configuration",
+    ]);
+  });
+
   test("an active rule whose applyTo matches nothing is a warning (dead rule)", async () => {
     expect(
       await messages({
@@ -356,6 +368,19 @@ describe("CheckRules", () => {
       ["packages/cli/src/main.ts", undefined],
       ["packages/core/src/domain/a.ts", "MT-ARCH-001"],
     ]);
+  });
+
+  test("engines the canon binds no rule to are not run", async () => {
+    const astGrep = new FakeRuleEngine("ast-grep", ENGINE_RULES, diagnostics);
+    const tsc = new FakeRuleEngine(
+      "tsc",
+      [],
+      [{ source: "tsc", file: "a.ts", severity: "error", message: "type error" }],
+    );
+    const report = (
+      await world({ "docs/metator/rules/arch.yml": ARCH }, [astGrep, tsc]).check.execute({})
+    )._unsafeUnwrap();
+    expect([report.engines, tsc.checked]).toEqual([["ast-grep"], []]);
   });
 
   test("--base checks only changed files; no changes means nothing runs", async () => {

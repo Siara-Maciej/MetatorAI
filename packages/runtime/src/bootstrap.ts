@@ -43,7 +43,7 @@ import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { GitVcs } from "@metator/plugin-git";
 import { ManypkgWorkspaceReader } from "@metator/plugin-node";
-import { OxcImportAnalyzer } from "@metator/plugin-typescript";
+import { OxcImportAnalyzer, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
 
@@ -93,6 +93,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ruleEngines: asFunction(({ processRunner, root }) => [
       new AstGrepEngine(processRunner, root),
       new BiomeEngine(processRunner, root),
+      new TscEngine(processRunner, root),
     ]).singleton(),
     ruleScaffolders: asFunction(({ root }) => [new AstGrepScaffolder(root)]).singleton(),
     ruleCatalog: asFunction(({ fileSystem, paths }) => new RuleCatalog(fileSystem, paths)).singleton(),

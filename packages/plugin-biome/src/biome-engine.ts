@@ -49,7 +49,32 @@ export class BiomeEngine implements RuleEngine {
         rules.push({ id: `lint/${group}/${name}`, source: "@biomejs/biome", hasTest: true });
       }
     }
-    return ok(rules.sort((a, b) => a.id.localeCompare(b.id)));
+    const enabled = await this.enabledRules();
+    const marked = enabled ? rules.map((r) => ({ ...r, enabled: enabled.has(r.id) })) : rules;
+    return ok(marked.sort((a, b) => a.id.localeCompare(b.id)));
+  }
+
+  /**
+   * Rules the repo's config turns on, from `biome rage --linter` ("Enabled rules:" block).
+   * Undefined when the repo has no Biome config or the output cannot be read: then nothing
+   * is claimed either way.
+   */
+  private async enabledRules(): Promise<Set<string> | undefined> {
+    if (!CONFIG_FILES.some((f) => existsSync(join(this.root, f)))) return undefined;
+    const r = await this.runner.run(
+      { argv: [this.binary(), "rage", "--linter"], cwd: this.root },
+      { timeoutMs: 60_000 },
+    );
+    if (r.exitCode !== 0) return undefined;
+    const block = r.stdout.split(/^\s*Enabled rules:\s*$/m)[1];
+    if (block === undefined) return undefined;
+    const enabled = new Set<string>();
+    for (const line of block.split("\n")) {
+      const m = /^\s+([a-zA-Z0-9]+)\/([a-zA-Z0-9]+)\s*$/.exec(line);
+      if (m) enabled.add(`lint/${m[1]}/${m[2]}`);
+      else if (enabled.size > 0 && line.trim() !== "") break;
+    }
+    return enabled.size > 0 ? enabled : undefined;
   }
 
   async check(files?: readonly string[]): Promise<Result<readonly Diagnostic[], MetatorError>> {

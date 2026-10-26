@@ -14,7 +14,14 @@ import {
   rulesFor,
 } from "../domain/rule.ts";
 import { parseYamlDocument, readFrontMatter, renderFrontMatter } from "../domain/versioned.ts";
-import type { FileSystem, ReadonlyFileSystem, RuleEngine, RuleScaffolder, Vcs } from "../ports/index.ts";
+import type {
+  EngineRule,
+  FileSystem,
+  ReadonlyFileSystem,
+  RuleEngine,
+  RuleScaffolder,
+  Vcs,
+} from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { SourceFiles } from "./source-files.ts";
 
@@ -150,6 +157,8 @@ export class LintRules {
           const found = known.find((r) => r.id === ruleId);
           if (!found) error(entry, `${rule.implementation} does not exist (engine rules: ${known.length})`);
           else if (!found.hasTest) error(entry, `${rule.implementation} has no test (${found.source})`);
+          else if (found.enabled === false)
+            error(entry, `${rule.implementation} is not enabled in the tool's configuration`);
         }
       }
       if (rule.status === "active") {
@@ -185,7 +194,7 @@ export class LintRules {
   }
 }
 
-type EngineRuleMap = Map<string, readonly { id: string; source: string; hasTest: boolean }[]>;
+type EngineRuleMap = Map<string, readonly EngineRule[]>;
 
 async function loadEngineRules(engines: readonly RuleEngine[]): Promise<Result<EngineRuleMap, MetatorError>> {
   const byEngine: EngineRuleMap = new Map();
@@ -216,6 +225,8 @@ export interface RulesCoverage {
   readonly e1WithoutTest: readonly string[];
   /** E1 rules bound to an engine MetatorAI has no adapter for. */
   readonly e1Unverified: readonly string[];
+  /** E1 rules whose tool rule exists but is turned off in the tool's config. */
+  readonly e1Disabled: readonly string[];
   /** Active rules whose applyTo matches no file. */
   readonly dead: readonly string[];
   /** E2 rules without a do or don't example (hard to check in review). */
@@ -255,12 +266,15 @@ export class MeasureRuleCoverage {
 
     const e1WithoutTest: string[] = [];
     const e1Unverified: string[] = [];
+    const e1Disabled: string[] = [];
     for (const { rule } of active) {
       if (!rule.implementation) continue;
       const { engine, ruleId } = parseImplementation(rule.implementation);
       const known = engineRules.value.get(engine);
+      const found = known?.find((r) => r.id === ruleId);
       if (!known) e1Unverified.push(rule.id);
-      else if (!known.find((r) => r.id === ruleId)?.hasTest) e1WithoutTest.push(rule.id);
+      else if (found?.enabled === false) e1Disabled.push(rule.id);
+      else if (!found?.hasTest) e1WithoutTest.push(rule.id);
     }
     return ok({
       total: coverage("all", active),
@@ -272,6 +286,7 @@ export class MeasureRuleCoverage {
       ),
       e1WithoutTest,
       e1Unverified,
+      e1Disabled,
       dead: active
         .filter((r) => !files.value.some((f) => rulesFor([r.rule], [f]).length > 0))
         .map((r) => r.rule.id),
@@ -562,8 +577,12 @@ export class CheckRules {
     const canon = new Map(
       scan.rules.flatMap((r) => (r.rule.implementation ? [[r.rule.implementation, r.rule.id]] : [])),
     );
+    // Only engines the canon binds rules to: a repo that has a tsconfig but no tsc rules is not typechecked here.
+    const used = this.engines.filter((e) =>
+      [...canon.keys()].some((k) => parseImplementation(k).engine === e.engine),
+    );
     const violations: RuleViolation[] = [];
-    for (const engine of this.engines) {
+    for (const engine of used) {
       const diagnostics = await engine.check(files);
       if (diagnostics.isErr()) return err(diagnostics.error);
       // Hints and infos (e.g. pattern detection rules) are not violations.
@@ -573,7 +592,7 @@ export class CheckRules {
       }
     }
     violations.sort((a, b) => a.file.localeCompare(b.file) || (a.line ?? 0) - (b.line ?? 0));
-    return ok({ engines: this.engines.map((e) => e.engine), files: files?.length ?? "all", violations });
+    return ok({ engines: used.map((e) => e.engine), files: files?.length ?? "all", violations });
   }
 }
 
