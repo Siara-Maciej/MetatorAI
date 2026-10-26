@@ -1,7 +1,8 @@
 name: docs
 
 # Builds the user documentation (site/, VitePress) on every change and publishes it to GitHub Pages
-# from the branches below. One-time setup: Settings → Pages → Source: GitHub Actions.
+# from the branches below. One-time setup: Settings → Pages → Source: GitHub Actions. Until Pages is
+# enabled, the site is still built and checked; only the publishing is skipped.
 on:
   push:
     branches: [main, claude/foundation]
@@ -18,6 +19,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.pages.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,17 +34,18 @@ jobs:
       - id: pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
+        continue-on-error: true # Pages not enabled yet: build and check only
       - name: Build (fails on dead links)
         run: bun run site:build
         env:
           SITE_BASE: ${{ steps.pages.outputs.base_path && format('{0}/', steps.pages.outputs.base_path) || '/MetatorAI/' }}
-      - if: github.event_name != 'pull_request'
+      - if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site/.vitepress/dist
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: needs.build.outputs.publish == 'true'
     needs: build
     runs-on: ubuntu-latest
     permissions:
