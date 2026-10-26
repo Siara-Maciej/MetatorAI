@@ -42,3 +42,13 @@ describe("CopilotGenerator", () => {
     expect(file).toMatchSnapshot();
   });
 });
+
+describe("CopilotGenerator.hooks (.github/hooks/metator.json)", () => {
+  test("one command hook per event, in the VS Code agent hooks format", () => {
+    const file = new CopilotGenerator().hooks("bun run metator")._unsafeUnwrap();
+    expect(file.path).toBe(".github/hooks/metator.json");
+    const { hooks } = JSON.parse(file.content) as { hooks: Record<string, unknown[]> };
+    expect(hooks.Stop).toEqual([{ type: "command", command: "bun run metator guard stop", timeout: 10 }]);
+    expect(Object.keys(hooks)).toHaveLength(6);
+  });
+});

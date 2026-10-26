@@ -18,7 +18,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 
 **Do zrobienia w kodzie (P0 → P2):**
 - [x] Run v2: `approvals` w `RunRecord` (migracja v1 → v2), `run approve <gate> --by --choice`.
-- [ ] Hooki `guard pre-tool|post-edit|stop|subagent-output|session-start|precompact`, `run checkpoint`, generowanie konfiguracji hooków dla Claude Code i Copilota.
+- [x] Hooki `guard pre-tool|post-edit|stop|subagent-output|session-start|precompact`, `run checkpoint`, generowanie konfiguracji hooków dla Claude Code i Copilota (`generate --hooks`, ADR-0038).
 - [ ] `meta check-all`, `meta skills-lint`, kanoniczne skille i ich generowanie, `meta audit`.
 - [ ] `symbols find`, `graph callers`, `api snapshot|diff`.
 - [ ] `gate all`: kroki `test affected`, `graph diff`, `api diff`, `coverage diff`; `coverage diff`, `flaky check`.
@@ -126,7 +126,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [ ] Skill `mt-review-rubric` (przeniesienie checklist z eq-logic-reviewer w repo pilota).
 - [x] `findings validate [--fix]|merge|schema` ([ADR-0031](adr/0031-findings.md)): `FindingSet`, polityka blocking, cytaty sprawdzane w kodzie, scalanie przyczyn między soczewkami.
 - [x] Subflow review ([ADR-0032](adr/0032-review-core.md)): `review plan`, `findings verdict`, `findings to-github --format natural|labeled`, agenci `mt-pr-review`, `mt-review-{logic,contracts,conventions,tests,security}`, `mt-verifier`, `mt-judge`.
-- [ ] Hook `SubagentStop` → `guard subagent-output` (jeśli dostępny), inaczej walidacja w `run advance`.
+- [x] Hook `SubagentStop` → `guard subagent-output` (ADR-0038).
 - [ ] **Złoty zbiór v1:** ≥ 50 PR-ów: z prawdziwymi bugami (z hotfixów i revertów), z zasianymi bugami (mutacje w kopii PR-a) i czyste (kontrola FP). Format w `docs/metator/evals/golden/`.
 - [x] `eval run|score|compare|schema` ([ADR-0033](adr/0033-review-evals.md)): `EvalCase`, precision/recall, blocking precision, fałszywe blokady, wariancja decyzji, bramka regresji; host jako szablon komendy (np. `copilot -p … --agent mt-pr-review --no-ask-user -s`).
 - [ ] Zachowanie trybów eq: Author/Reviewer flow, format naturalny/etykietowany, autopilot (W4/W5).
@@ -143,7 +143,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [ ] `mt-orchestrator` wg spec W1/W2/W3. Prompt skrócony do zasad delegacji (≤ 200 linii).
 - [ ] Workerzy: `mt-scout`, `mt-pattern-miner`, `mt-rule-curator`, `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-gatekeeper`, `mt-pr-author`.
 - [x] `plan lint|scope` (pattern_source, TDD order, kolejność wg grafu, shardy).
-- [ ] Hooki: `pre-tool` (scope, approvals, sekrety, rola), `post-edit` (biome + ast-grep), `stop`, `precompact`, `session-start`.
+- [x] Hooki: `pre-tool` (scope, approvals, sekrety, rola), `post-edit` (biome + ast-grep), `stop`, `precompact`, `session-start` (ADR-0038).
 - [ ] Gate: `gate quick|all`, `test affected`, `coverage diff`, `graph diff`, `api diff`.
   - [x] `gate quick|full` (ADR-0029), `test affected`, `graph diff` (ADR-0036).
   - [ ] `coverage diff`, `api diff`, kroki `test affected` i `graph diff` w bramce.

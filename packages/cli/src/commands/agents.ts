@@ -40,9 +40,12 @@ export function registerAgentCommands(program: Command, { action, container }: C
     .command("generate")
     .description("Host files (Copilot, Claude Code) from the canonical agents")
     .option("--check", "compare only; fail when generated files are stale or orphaned", false)
+    .option("--hooks", "also install the hook configuration (`metator guard *`) for each host", false)
     .action(
-      action(async (opts: { check: boolean }) => {
-        const report = await container().resolve("generateHosts").execute({ check: opts.check });
+      action(async (opts: { check: boolean; hooks: boolean }) => {
+        const report = await container()
+          .resolve("generateHosts")
+          .execute({ check: opts.check, hooks: opts.hooks });
         if (report.isErr()) return { result: report };
         const warnings = report.value.orphaned.map(
           (f) => `${f}: generated from an agent that no longer exists; delete it`,

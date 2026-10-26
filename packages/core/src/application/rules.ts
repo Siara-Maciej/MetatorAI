@@ -564,6 +564,8 @@ export class CheckRules {
   async execute(input: {
     readonly files?: readonly string[];
     readonly base?: string;
+    /** Only these engines (e.g. the fast per-file ones in a post-edit hook). */
+    readonly engines?: readonly string[];
   }): Promise<Result<RulesCheckReport, MetatorError>> {
     let files = input.files;
     if (!files && input.base) {
@@ -578,8 +580,10 @@ export class CheckRules {
       scan.rules.flatMap((r) => (r.rule.implementation ? [[r.rule.implementation, r.rule.id]] : [])),
     );
     // Only engines the canon binds rules to: a repo that has a tsconfig but no tsc rules is not typechecked here.
-    const used = this.engines.filter((e) =>
-      [...canon.keys()].some((k) => parseImplementation(k).engine === e.engine),
+    const used = this.engines.filter(
+      (e) =>
+        (!input.engines || input.engines.includes(e.engine)) &&
+        [...canon.keys()].some((k) => parseImplementation(k).engine === e.engine),
     );
     const violations: RuleViolation[] = [];
     for (const engine of used) {

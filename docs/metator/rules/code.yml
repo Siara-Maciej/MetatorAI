@@ -44,7 +44,7 @@ rules:
     applyTo: ["packages/cli/src/**"]
     enforcement: E1
     implementation: ast-grep:mt-code-004
-    summary: A command prints exactly one JSON envelope line; values are validated by commander (choices, requiredOption, argParser), not by hand.
+    summary: A command prints exactly one JSON envelope line (hook commands print the host's hook response instead); values are validated by commander (choices, requiredOption, argParser), not by hand.
     rationale: docs/adr/0014-cli-commander.md
     source: { ref: AGENTS.md#conventions, verified: 2026-10-25 }
     do:

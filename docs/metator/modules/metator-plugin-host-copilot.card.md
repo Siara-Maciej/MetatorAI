@@ -23,7 +23,7 @@ dir: packages/plugin-host-copilot
 
 ## Invariants
 
-- Workers stay out of the user's agent picker [[cite: packages/plugin-host-copilot/src/copilot-generator.ts:43 | "\"user-invocable\": userInvocable(agent),"]].
+- Workers stay out of the user's agent picker [[cite: packages/plugin-host-copilot/src/copilot-generator.ts:58 | "\"user-invocable\": userInvocable(agent),"]].
 - Copilot tool names live in one table, pinned by a snapshot test.
 
 ## Allowed dependencies

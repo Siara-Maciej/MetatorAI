@@ -42,3 +42,62 @@ describe("ClaudeGenerator", () => {
     expect(file).toMatchSnapshot();
   });
 });
+
+describe("ClaudeGenerator.hooks (.claude/settings.json)", () => {
+  type Settings = {
+    model?: string;
+    hooks: Record<string, { matcher?: string; hooks: { command: string; timeout?: number }[] }[]>;
+  };
+  const parse = (r: ReturnType<ClaudeGenerator["hooks"]>) =>
+    JSON.parse(r._unsafeUnwrap().content) as Settings;
+
+  test("every guard is bound to its event; post-edit only runs after edit tools", () => {
+    const settings = parse(new ClaudeGenerator().hooks("bun run metator", undefined));
+    expect(Object.keys(settings.hooks)).toEqual([
+      "SessionStart",
+      "PreToolUse",
+      "PostToolUse",
+      "SubagentStop",
+      "PreCompact",
+      "Stop",
+    ]);
+    expect(settings.hooks.PreToolUse).toEqual([
+      { hooks: [{ type: "command", command: "bun run metator guard pre-tool", timeout: 5 }] } as never,
+    ]);
+    expect(settings.hooks.PostToolUse?.[0]?.matcher?.split("|")).toContain("Write");
+  });
+
+  test("the user's settings and own hooks stay; earlier metator hooks are replaced, not duplicated", () => {
+    const existing = JSON.stringify({
+      model: "opus",
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: "Bash",
+            hooks: [
+              { type: "command", command: "./my-check.sh" },
+              { type: "command", command: "npx metator guard pre-tool" },
+            ],
+          },
+        ],
+        Notification: [{ hooks: [{ type: "command", command: "notify-send done" }] }],
+      },
+    });
+    const once = new ClaudeGenerator().hooks("bun run metator", existing)._unsafeUnwrap().content;
+    const twice = new ClaudeGenerator().hooks("bun run metator", once)._unsafeUnwrap().content;
+    expect(twice).toBe(once);
+    const settings = JSON.parse(once) as Settings;
+    expect(settings.model).toBe("opus");
+    expect(settings.hooks.Notification).toEqual([
+      { hooks: [{ type: "command", command: "notify-send done" }] },
+    ] as never);
+    expect(settings.hooks.PreToolUse?.map((g) => g.hooks.map((h) => h.command))).toEqual([
+      ["./my-check.sh"],
+      ["bun run metator guard pre-tool"],
+    ]);
+  });
+
+  test("an unreadable settings file is an error value", () => {
+    expect(new ClaudeGenerator().hooks("metator", "{ nope")._unsafeUnwrapErr().code).toBe("INVALID_CONFIG");
+  });
+});

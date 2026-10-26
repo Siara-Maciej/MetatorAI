@@ -19,11 +19,11 @@ dir: packages/cli
 
 ## Responsibility
 
-Driving adapter on commander: one module per command group, JSON-only output, exit codes.
+Driving adapter on commander: one module per command group, JSON-only output, exit codes. `guard *` commands answer hooks in the host's protocol instead of the envelope (ADR-0038).
 
 ## Invariants
 
-- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:39 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
+- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:41 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
 
 ## Allowed dependencies
 
@@ -33,3 +33,4 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 
 - Validate option values with commander (`choices`, `argParser`), not by hand (MT-CODE-004).
 - A new command must be added to the help list in `e2e/cli.e2e.test.ts`.
+- A hook must not fail the host's tool call: `guard *` always exits 0 and reports its own errors as `systemMessage`.

@@ -41,3 +41,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0035](0035-plan-gate.md) | Bramka planu: `plan lint` i `plan scope` | Proposed |
 | [0036](0036-graph-diff-test-affected.md) | `graph diff` i `test affected` | Proposed |
 | [0037](0037-run-approvals.md) | Zgody w runie: `RunRecord` v2 i `run approve` | Proposed |
+| [0038](0038-guard-hooks.md) | Hooki `guard *` i konfiguracja hooków hostów | Proposed |

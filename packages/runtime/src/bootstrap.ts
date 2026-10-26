@@ -5,6 +5,7 @@ import {
   BuildImportGraph,
   BuildModuleCards,
   CheckMemory,
+  CheckpointRun,
   CheckRules,
   type Clock,
   CompareEvals,
@@ -22,6 +23,11 @@ import {
   GenerateRuleAdapters,
   GetRunStatus,
   GraphQueries,
+  GuardPostEdit,
+  GuardPreTool,
+  GuardSessionStart,
+  GuardStop,
+  GuardSubagentOutput,
   IndexedImportGraphReader,
   InitProject,
   InitRun,
@@ -77,6 +83,8 @@ export interface BootstrapOptions {
   readonly paths?: MetatorPaths;
   /** ISO timestamp pinning the clock (METATOR_NOW): reproducible run ids and logs. */
   readonly now?: string;
+  /** The calling agent's role (METATOR_ROLE), for hooks that cannot tell from the payload. */
+  readonly role?: string;
 }
 
 const systemClock: Clock = { now: () => new Date() };
@@ -91,6 +99,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
   const config = options.config ?? { config: DEFAULT_CONFIG, source: undefined };
   c.register({
     root: asValue(options.root),
+    role: asValue(options.role),
     config: asValue(config),
     paths: asValue(options.paths ?? resolvePaths(config.config)),
     sourceIgnores: asValue(config.config.project.sourceIgnores ?? DEFAULT_SOURCE_IGNORES),
@@ -255,6 +264,25 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     approveRun: asFunction(
       ({ advanceRun, runRepository, clock }) => new ApproveRun(advanceRun, runRepository, clock),
+    ),
+    guardPreTool: asFunction(
+      ({ getRunStatus, runRepository, agentCatalog, fileSystem, root, role }) =>
+        new GuardPreTool(getRunStatus, runRepository, agentCatalog, fileSystem, root, role),
+    ),
+    guardPostEdit: asFunction(
+      ({ checkRules, fileSystem, root }) => new GuardPostEdit(checkRules, fileSystem, root),
+    ),
+    guardStop: asFunction(({ getRunStatus }) => new GuardStop(getRunStatus)),
+    guardSubagentOutput: asFunction(
+      ({ getRunStatus, runRepository, fileSystem }) =>
+        new GuardSubagentOutput(getRunStatus, runRepository, fileSystem),
+    ),
+    guardSessionStart: asFunction(
+      ({ getRunStatus, fileSystem, paths }) => new GuardSessionStart(getRunStatus, fileSystem, paths),
+    ),
+    checkpointRun: asFunction(
+      ({ getRunStatus, runRepository, clock }) =>
+        new CheckpointRun(getRunStatus, runRepository, () => clock.now().toISOString()),
     ),
     getRunStatus: asFunction(
       ({ workflowCatalog, runRepository }) => new GetRunStatus(workflowCatalog, runRepository),

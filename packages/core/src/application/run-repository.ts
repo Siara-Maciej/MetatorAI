@@ -27,12 +27,16 @@ export class RunRepository {
     private readonly paths: MetatorPaths,
   ) {}
 
+  runDir(runId: string): string {
+    return `${this.paths.runs}/${runId}`;
+  }
+
   stateFile(runId: string): string {
-    return `${this.paths.runs}/${runId}/state.json`;
+    return `${this.runDir(runId)}/state.json`;
   }
 
   logFile(runId: string): string {
-    return `${this.paths.runs}/${runId}/log.md`;
+    return `${this.runDir(runId)}/log.md`;
   }
 
   pointerFile(): string {

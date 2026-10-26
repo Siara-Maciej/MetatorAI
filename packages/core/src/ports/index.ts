@@ -175,4 +175,8 @@ export interface HostGenerator {
   /** Globs of the files this generator owns (for orphan detection). */
   readonly owns: readonly string[];
   agent(agent: Agent, body: string, context: HostAgentContext): GeneratedFile;
+  /** The host's hook configuration file (ADR-0038). */
+  readonly hooksFile: string;
+  /** Hook configuration running `metator guard *`, merged into `existing` (the file as it is). */
+  hooks(metatorCommand: string, existing: string | undefined): Result<GeneratedFile, MetatorError>;
 }

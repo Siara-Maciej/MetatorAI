@@ -165,7 +165,11 @@ export class GenerateHosts {
     private readonly config: MetatorConfig,
   ) {}
 
-  async execute(input: { readonly check: boolean }): Promise<Result<GenerateReport, MetatorError>> {
+  /** `hooks`: also write each host's hook configuration (opt-in: it changes what the host runs). */
+  async execute(input: {
+    readonly check: boolean;
+    readonly hooks?: boolean;
+  }): Promise<Result<GenerateReport, MetatorError>> {
     const scan = await this.catalog.scan();
     if (scan.problems.length > 0) {
       return err(
@@ -195,6 +199,13 @@ export class GenerateHosts {
         });
         expected.set(file.path, file.content);
       }
+    }
+
+    for (const g of input.hooks ? hosts : []) {
+      const current = await this.fs.read(g.hooksFile);
+      const hooks = g.hooks(this.config.hosts.metatorCommand, current.isOk() ? current.value : undefined);
+      if (hooks.isErr()) return err(hooks.error);
+      expected.set(hooks.value.path, hooks.value.content);
     }
 
     const written: string[] = [];

@@ -6,6 +6,7 @@ import {
   type BuildImportGraph,
   type BuildModuleCards,
   type CheckMemory,
+  type CheckpointRun,
   type CheckRules,
   type Clock,
   type CompareEvals,
@@ -22,6 +23,11 @@ import {
   type GenerateRuleAdapters,
   type GetRunStatus,
   type GraphQueries,
+  type GuardPostEdit,
+  type GuardPreTool,
+  type GuardSessionStart,
+  type GuardStop,
+  type GuardSubagentOutput,
   type HostGenerator,
   type ImportAnalyzer,
   type ImportGraphReader,
@@ -107,6 +113,13 @@ export interface Cradle {
   advanceRun: AdvanceRun;
   approveRun: ApproveRun;
   getRunStatus: GetRunStatus;
+  role: string | undefined;
+  guardPreTool: GuardPreTool;
+  guardPostEdit: GuardPostEdit;
+  guardStop: GuardStop;
+  guardSubagentOutput: GuardSubagentOutput;
+  guardSessionStart: GuardSessionStart;
+  checkpointRun: CheckpointRun;
   listRuns: ListRuns;
   sourceFiles: SourceFiles;
   buildImportGraph: BuildImportGraph;

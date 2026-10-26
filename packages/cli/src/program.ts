@@ -11,6 +11,7 @@ import { registerEvalCommands } from "./commands/eval.ts";
 import { registerFindingsCommands, registerReviewCommands } from "./commands/findings.ts";
 import { registerGateCommands } from "./commands/gate.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
+import { registerGuardCommands } from "./commands/guard.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
 import { registerPatternsCommands } from "./commands/patterns.ts";
@@ -24,6 +25,7 @@ import type { CommandContext, Outcome } from "./context.ts";
 export interface ProgramOptions {
   readonly cwd?: string;
   readonly env?: Readonly<Record<string, string | undefined>>;
+  readonly stdin?: () => Promise<string>;
 }
 
 /**
@@ -42,12 +44,18 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   const ctx: CommandContext = {
     container: () => {
       const root = (program.opts() as { root?: string }).root ?? findRepoRoot(options.cwd ?? process.cwd());
-      const now = (options.env ?? process.env).METATOR_NOW;
+      const env = options.env ?? process.env;
       // An invalid config stops every command with its exact field (thrown at the composition root).
       const config = loadConfig(root);
       if (config.isErr()) throw config.error;
-      return bootstrap(now ? { root, now, config: config.value } : { root, config: config.value });
+      return bootstrap({
+        root,
+        config: config.value,
+        ...(env.METATOR_NOW ? { now: env.METATOR_NOW } : {}),
+        ...(env.METATOR_ROLE ? { role: env.METATOR_ROLE } : {}),
+      });
     },
+    stdin: options.stdin ?? (async () => ""),
     action:
       (handler) =>
       async (...args) => {
@@ -72,6 +80,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerEvalCommands(program, ctx);
   registerPlanCommands(program, ctx);
   registerTestCommands(program, ctx);
+  registerGuardCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;

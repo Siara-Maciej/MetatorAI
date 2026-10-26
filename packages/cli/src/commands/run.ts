@@ -100,6 +100,18 @@ export function registerRunCommands(program: Command, { action, container }: Com
     );
 
   runs
+    .command("checkpoint")
+    .description("Write the run's state summary to log.md (before a context compaction)")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (opts: { run?: string }) => ({
+        result: await container()
+          .resolve("checkpointRun")
+          .execute(opts.run ? { runId: opts.run } : {}),
+      })),
+    );
+
+  runs
     .command("status")
     .description("Show the current stage, what it expects and recent history")
     .option("--run <id>", "run id (default: latest)")

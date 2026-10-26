@@ -23,7 +23,7 @@ dir: packages/plugin-host-claude
 
 ## Invariants
 
-- Without general Bash, each `metator` group is allowed on its own [[cite: packages/plugin-host-claude/src/claude-generator.ts:44 | "for (const g of metatorGroups(agent)) tools.add(`Bash(${context.metatorCommand} ${g}:*)`);"]].
+- Without general Bash, each `metator` group is allowed on its own [[cite: packages/plugin-host-claude/src/claude-generator.ts:73 | "for (const g of metatorGroups(agent)) tools.add(`Bash(${context.metatorCommand} ${g}:*)`);"]].
 - Claude Code tool names and model aliases live in one table each, pinned by a snapshot test.
 
 ## Allowed dependencies

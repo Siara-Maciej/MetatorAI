@@ -5,12 +5,19 @@ import type { MetatorContainer } from "@metator/runtime";
 export interface Outcome {
   readonly result: Result<unknown, MetatorError>;
   readonly warnings?: readonly string[];
+  /**
+   * Hook commands (`guard *`) answer in the host's hook protocol instead of the envelope:
+   * this object is printed as is (nothing for null) and the exit code is 0 (ADR-0038).
+   */
+  readonly hook?: Record<string, unknown> | null;
 }
 
 /** Shared by all command modules: lazy access to the composition root and action wrapping. */
 export interface CommandContext {
   /** Builds the container for the repository selected by `--root` or the working directory. */
   readonly container: () => MetatorContainer;
+  /** The process's standard input (hook payloads). */
+  readonly stdin: () => Promise<string>;
   /** Wraps a handler so its Outcome becomes the command's single JSON envelope. */
   readonly action: <A extends unknown[]>(
     handler: (...args: A) => Promise<Outcome> | Outcome,

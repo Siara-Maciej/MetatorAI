@@ -3,9 +3,13 @@ import {
   type BasicCapability,
   type GeneratedFile,
   generatedMarker,
+  HOOK_BINDINGS,
   type HostAgentContext,
   type HostGenerator,
+  type MetatorError,
   metatorGroups,
+  ok,
+  type Result,
   userInvocable,
   withMetatorCommand,
 } from "@metator/core";
@@ -26,6 +30,17 @@ export const COPILOT_TOOLS: Readonly<Record<BasicCapability, readonly string[]>>
 export class CopilotGenerator implements HostGenerator {
   readonly host = "copilot";
   readonly owns = [".github/agents/*.agent.md"];
+  /** VS Code agent hooks (preview) read `.github/hooks/*.json`; this file is MetatorAI's alone. */
+  readonly hooksFile = ".github/hooks/metator.json";
+
+  hooks(metatorCommand: string): Result<GeneratedFile, MetatorError> {
+    const hooks: Record<string, { type: string; command: string; timeout: number }[]> = {};
+    for (const b of HOOK_BINDINGS)
+      hooks[b.event] = [
+        { type: "command", command: `${metatorCommand} guard ${b.guard}`, timeout: b.timeout },
+      ];
+    return ok({ path: this.hooksFile, content: `${JSON.stringify({ hooks }, null, 2)}\n` });
+  }
 
   agent(agent: Agent, body: string, context: HostAgentContext): GeneratedFile {
     const groups = metatorGroups(agent);

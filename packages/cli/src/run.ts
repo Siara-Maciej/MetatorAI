@@ -24,6 +24,10 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
     outcome = { result: err(e instanceof CommanderError ? fromCommander(e, program) : fromUnknown(e)) };
   }
   const final = outcome as Outcome;
+  if (final.hook !== undefined) {
+    if (final.hook !== null) io.out(JSON.stringify(final.hook));
+    return 0; // a hook never fails the host's tool call by exit code
+  }
   io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));
   return final.result.isOk() ? 0 : exitCodeFor(final.result.error);
 }
