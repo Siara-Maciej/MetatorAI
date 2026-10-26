@@ -114,6 +114,16 @@ export class RunStateMachine {
     return stage?.hitl ? ["APPROVE", "FAIL", "ABORT"] : ["PASS", "FAIL", "ABORT"];
   }
 
+  /**
+   * True when the run waits at a human gate its autonomy level may skip (`skipAt`, autopilot),
+   * never at a gate marked `neverSkip`.
+   */
+  skippable(state: RunState, autonomy: string): boolean {
+    if (state.status !== "active") return false;
+    const stage = this.spec.stages.find((s) => s.id === state.stage);
+    return !!stage?.hitl && !stage.neverSkip && (stage.skipAt ?? []).some((level) => level === autonomy);
+  }
+
   start(): RunState {
     const [snapshot] = initialTransition(this.machine);
     return this.toState(snapshot);

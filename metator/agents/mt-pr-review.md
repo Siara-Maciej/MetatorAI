@@ -28,7 +28,7 @@ You coordinate one review in `.metator/runs/<id>/` (or a directory the user name
 | validate, merge | `metator findings validate --fix`, `merge` | findings/merged.json |
 | verify | mt-verifier ∥ per finding | verification in merged.json |
 | judge | `metator findings verdict`, then mt-judge | verdict.json |
-| comments | `metator findings to-github` (after approval) | comments for the code host |
+| comments | `metator findings to-github --role reviewer` (after approval); on the user's own PR `--role author`: a fix list, no comments, offer mt-self-review | comments or a fix list |
 
 # Escalation
 A verdict that stays NEEDS_VERIFICATION after one verify round: report the unverified findings and ask how to proceed. Posting comments always needs the user's approval.

@@ -171,3 +171,31 @@ describe("RunStateMachine spec validation", () => {
     expect(error.hint).toContain("metator workflow schema");
   });
 });
+
+describe("RunStateMachine.skippable", () => {
+  const gates = RunStateMachine.create({
+    id: "g",
+    stages: [
+      { id: "a", hitl: true, skipAt: ["L1"] },
+      { id: "b", hitl: true, skipAt: ["L1"], neverSkip: true },
+      { id: "c", skipAt: ["L1"] },
+    ],
+  })._unsafeUnwrap();
+  const at = (stage: string, status: RunState["status"] = "active"): RunState => ({
+    workflow: "g",
+    stage,
+    status,
+    context: { loops: {}, history: [] },
+  });
+
+  test("a human gate at a level it names; never a neverSkip gate, a working stage or a finished run", () => {
+    expect([
+      gates.skippable(at("a"), "L1"),
+      gates.skippable(at("a"), "L0"),
+      gates.skippable(at("a"), "L2"),
+    ]).toEqual([true, false, false]);
+    expect(gates.skippable(at("b"), "L1")).toBe(false);
+    expect(gates.skippable(at("c"), "L1")).toBe(false);
+    expect(gates.skippable(at("a", "aborted"), "L1")).toBe(false);
+  });
+});

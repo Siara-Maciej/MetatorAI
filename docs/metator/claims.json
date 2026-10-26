@@ -4,7 +4,7 @@
   "claims": [
     {
       "id": "agents.define-document",
-      "source": "AGENTS.md",
+      "source": "packages/core/AGENTS.md",
       "statement": "Documents are defined with defineDocument(kind, { latest, upgrade?, history? }).",
       "status": "verified",
       "evidence": {

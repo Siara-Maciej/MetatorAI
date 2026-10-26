@@ -424,8 +424,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/verdict.ts",
-    from: "const comments = verdict.blocking.map(",
-    to: "const comments = [...verdict.blocking, ...verdict.consider].map(",
+    from: "const comments = (author ? [] : verdict.blocking).map(",
+    to: "const comments = (author ? [] : [...verdict.blocking, ...verdict.consider]).map(",
     why: "inline comments only for confirmed blockers, the rest in the summary",
   },
   {
@@ -1093,5 +1093,35 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'else if (line !== "" && !out.has(line)) out.set(line, date);',
     to: 'else if (line !== "") out.set(line, date);',
     why: "the newest commit decides a file's last change",
+  },
+  {
+    file: "packages/core/src/domain/run-machine.ts",
+    from: "return !!stage?.hitl && !stage.neverSkip && (stage.skipAt ?? [])",
+    to: "return !!stage?.hitl && (stage.skipAt ?? [])",
+    why: "a gate marked neverSkip always waits for a human",
+  },
+  {
+    file: "packages/core/src/domain/run-machine.ts",
+    from: ".some((level) => level === autonomy);",
+    to: ".length > 0;",
+    why: "a gate is skipped only at the levels it names",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: 'const autonomy = autopilot && record.value.autonomy === "L0" ? "L1" : record.value.autonomy;',
+    to: "const autonomy = record.value.autonomy;",
+    why: "choosing autopilot switches the run to L1",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: 'if (autopilot && machine.workflow.autonomy && !machine.workflow.autonomy.includes("L1")) {',
+    to: "if (false) {",
+    why: "autopilot only where the workflow supports L1",
+  },
+  {
+    file: "packages/core/src/domain/verdict.ts",
+    from: 'const author = role === "author";',
+    to: "const author = false;",
+    why: "the author gets no comments on their own PR",
   },
 ];

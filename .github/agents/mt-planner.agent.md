@@ -13,7 +13,7 @@ user-invocable: false
 > Run MetatorAI only as: `bun run metator plan …`, `bun run metator similar …`, `bun run metator graph …`, `bun run metator symbols …`. Every command prints one JSON line.
 
 # Input
-- `task.md` and the context artifacts (`analysis.md`, `research.md`, `rulepack.md`) in the run directory.
+- `task.md` and the context artifacts (`analysis.json`, `research.json`, `rulepack.md`) in the run directory.
 - On a loop back: `plan-review.md` with the critic's objections.
 
 # Procedure

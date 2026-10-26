@@ -82,7 +82,7 @@ export class InitRun {
 
     const now = this.clock.now().toISOString();
     const runId = await this.uniqueId(now, machine.workflow.id, input.task);
-    const record: RunRecord = {
+    const created: RunRecord = {
       runId,
       workflow: { id: machine.workflow.id, revision: machine.workflow.revision, source },
       task: input.task,
@@ -92,13 +92,16 @@ export class InitRun {
       state: machine.start(),
       approvals: {},
     };
+    const { record, lines } = skipGates(machine, created, now);
     const saved = await this.repo.save(record);
     if (saved.isErr()) return err(saved.error);
-    const logged = await this.repo.appendLog(
-      runId,
+    for (const line of [
       `${now} · created · workflow ${record.workflow.id}@${record.workflow.revision} · ${record.autonomy}`,
-    );
-    if (logged.isErr()) return err(logged.error);
+      ...lines,
+    ]) {
+      const logged = await this.repo.appendLog(runId, line);
+      if (logged.isErr()) return err(logged.error);
+    }
     return ok(view(record, machine, this.repo));
   }
 
@@ -143,20 +146,66 @@ export class AdvanceRun {
       input.event.type === "APPROVE"
         ? { ...record.value.approvals, [before]: approval(input.event, now) }
         : record.value.approvals;
-    const updated: RunRecord = { ...record.value, state: next.value, approvals, updatedAt: now };
+    const autopilot = input.event.type === "APPROVE" && input.event.choice === AUTOPILOT_CHOICE;
+    if (autopilot && machine.workflow.autonomy && !machine.workflow.autonomy.includes("L1")) {
+      return err(
+        MetatorError.usage(
+          `workflow ${machine.workflow.id} does not support autopilot (L1)`,
+          `Supported autonomy levels: ${machine.workflow.autonomy.join(", ")}.`,
+        ),
+      );
+    }
+    const autonomy = autopilot && record.value.autonomy === "L0" ? "L1" : record.value.autonomy;
+    const { record: updated, lines } = skipGates(
+      machine,
+      { ...record.value, autonomy, state: next.value, approvals, updatedAt: now },
+      now,
+    );
     const saved = await this.repo.save(updated);
     if (saved.isErr()) return err(saved.error);
-    const logged = await this.repo.appendLog(
-      updated.runId,
+    for (const line of [
       `${now} · ${before} · ${describe(input.event)} → ${next.value.stage}`,
-    );
-    if (logged.isErr()) return err(logged.error);
+      ...(autonomy === record.value.autonomy ? [] : [`${now} · autopilot · autonomy ${autonomy}`]),
+      ...lines,
+    ]) {
+      const logged = await this.repo.appendLog(updated.runId, line);
+      if (logged.isErr()) return err(logged.error);
+    }
     return ok(view(updated, machine, this.repo));
   }
 }
 
 function approval(event: { readonly by: string; readonly choice?: string }, at: string): Approval {
   return event.choice === undefined ? { by: event.by, at } : { by: event.by, choice: event.choice, at };
+}
+
+/** Choosing this at a human gate switches the run to L1 for the rest of the run (06-running). */
+export const AUTOPILOT_CHOICE = "autopilot";
+
+/**
+ * Approves every human gate the run's autonomy may skip, one after another, and returns the
+ * log lines. External actions (push, comment) are not stages: they still need `run approve`.
+ */
+function skipGates(
+  machine: RunStateMachine,
+  record: RunRecord,
+  now: string,
+): { record: RunRecord; lines: string[] } {
+  let current = record;
+  const lines: string[] = [];
+  while (machine.skippable(current.state, current.autonomy)) {
+    const stage = current.state.stage;
+    const by = `autonomy ${current.autonomy}`;
+    const next = machine.send(current.state, { type: "APPROVE", by });
+    if (next.isErr()) break;
+    current = {
+      ...current,
+      state: next.value,
+      approvals: { ...current.approvals, [stage]: { by, at: now } },
+    };
+    lines.push(`${now} · ${stage} · skipped at ${current.autonomy} → ${next.value.stage}`);
+  }
+  return { record: current, lines };
 }
 
 /**

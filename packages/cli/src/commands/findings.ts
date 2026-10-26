@@ -115,12 +115,19 @@ export function registerFindingsCommands(program: Command, { action, container }
     .addOption(
       new Option("--format <format>", "comment style").choices(["natural", "labeled"]).default("labeled"),
     )
+    .addOption(
+      new Option("--role <role>", "reviewer: inline comments; author (own PR): a fix list, no comments")
+        .choices(["reviewer", "author"])
+        .default("reviewer"),
+    )
     .action(
-      action(async (verdict: string, opts: { format: "natural" | "labeled" }) => ({
-        result: await container()
-          .resolve("formatReviewComments")
-          .execute({ verdict: normalizePath(verdict), format: opts.format }),
-      })),
+      action(
+        async (verdict: string, opts: { format: "natural" | "labeled"; role: "reviewer" | "author" }) => ({
+          result: await container()
+            .resolve("formatReviewComments")
+            .execute({ verdict: normalizePath(verdict), format: opts.format, role: opts.role }),
+        }),
+      ),
     );
 
   findings

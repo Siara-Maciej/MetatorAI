@@ -283,3 +283,85 @@ describe("run approvals (RunRecord v2)", () => {
     expect(status.approvals).toEqual({ approval: { by: "maciej", at: "2026-10-25T09:00:00.000Z" } });
   });
 });
+
+const GATED = `
+kind: Workflow
+schemaVersion: 2
+id: gated
+autonomy: [L0, L1]
+stages:
+  - id: approval
+    hitl: true
+    skipAt: [L1]
+  - id: plan
+  - id: plan-approval
+    hitl: true
+    skipAt: [L1]
+  - id: build
+  - id: delivery
+    hitl: true
+    neverSkip: true
+`;
+
+describe("autonomy: skipped gates and autopilot", () => {
+  const gated = (spec = GATED) => world({ ".github/metator/workflows/gated.yml": spec });
+
+  test("at L1 every gate with skipAt L1 is approved by the autonomy level and logged", async () => {
+    const w = gated();
+    const run = (await w.init.execute({ workflow: "gated", task: "t", autonomy: "L1" }))._unsafeUnwrap();
+    expect([run.stage, run.approvals.approval?.by]).toEqual(["plan", "autonomy L1"]);
+    const next = (await w.advance.execute({ event: { type: "PASS" } }))._unsafeUnwrap();
+    expect(next.stage).toBe("build");
+    const after = (await w.advance.execute({ event: { type: "PASS" } }))._unsafeUnwrap();
+    // A gate marked neverSkip always waits for a human.
+    expect([after.stage, after.expects]).toEqual(["delivery", ["APPROVE", "FAIL", "ABORT"]]);
+    const log = (await w.repo.readLog(run.runId))._unsafeUnwrap();
+    expect(log.filter((l) => l.includes("skipped at L1"))).toEqual([
+      "2026-10-25T09:00:00.000Z · approval · skipped at L1 → plan",
+      "2026-10-25T09:00:00.000Z · plan-approval · skipped at L1 → build",
+    ]);
+  });
+
+  test("at L0 nothing is skipped; choosing autopilot at a gate switches the run to L1", async () => {
+    const w = gated();
+    const run = (await w.init.execute({ workflow: "gated", task: "t" }))._unsafeUnwrap();
+    expect(run.stage).toBe("approval");
+    const approved = (
+      await w.advance.execute({ event: { type: "APPROVE", by: "maciej", choice: "autopilot" } })
+    )._unsafeUnwrap();
+    expect([approved.autonomy, approved.stage]).toEqual(["L1", "plan"]);
+    expect((await w.advance.execute({ event: { type: "PASS" } }))._unsafeUnwrap().stage).toBe("build");
+    const log = (await w.repo.readLog(run.runId))._unsafeUnwrap();
+    expect(log).toContain("2026-10-25T09:00:00.000Z · autopilot · autonomy L1");
+  });
+
+  test("autopilot is refused when the workflow does not support L1; other choices change nothing", async () => {
+    const w = gated(GATED.replace("autonomy: [L0, L1]", "autonomy: [L0]"));
+    await w.init.execute({ workflow: "gated", task: "t" });
+    const e = (
+      await w.advance.execute({ event: { type: "APPROVE", by: "m", choice: "autopilot" } })
+    )._unsafeUnwrapErr();
+    expect([e.code, e.message]).toEqual(["USAGE", "workflow gated does not support autopilot (L1)"]);
+    const plain = (
+      await w.advance.execute({ event: { type: "APPROVE", by: "m", choice: "1" } })
+    )._unsafeUnwrap();
+    expect([plain.autonomy, plain.stage]).toEqual(["L0", "plan"]);
+  });
+
+  test("a workflow without an autonomy list accepts autopilot", async () => {
+    const w = gated(GATED.replace("autonomy: [L0, L1]\n", ""));
+    await w.init.execute({ workflow: "gated", task: "t" });
+    const r = await w.advance.execute({ event: { type: "APPROVE", by: "m", choice: "autopilot" } });
+    expect(r._unsafeUnwrap().autonomy).toBe("L1");
+  });
+
+  test("an L2 run does not use gates skipped only at L1", async () => {
+    const w = gated();
+    const run = (await w.init.execute({ workflow: "gated", task: "t", autonomy: "L2" }))._unsafeUnwrap();
+    expect([run.stage, run.autonomy]).toEqual(["approval", "L2"]);
+    const approved = (
+      await w.advance.execute({ event: { type: "APPROVE", by: "m", choice: "autopilot" } })
+    )._unsafeUnwrap();
+    expect(approved.autonomy).toBe("L2"); // autopilot only raises L0
+  });
+});

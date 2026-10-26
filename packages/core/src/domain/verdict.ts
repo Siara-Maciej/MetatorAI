@@ -44,9 +44,16 @@ export interface ReviewComment {
  * to the summary, so the PR is not flooded). `labeled` starts each comment with severity and id,
  * `natural` reads like a person wrote it.
  */
+/**
+ * Who reads the review (W4): a reviewer posts confirmed blockers inline; the PR's author gets no
+ * comments on their own PR, only the blockers as a fix list for the self-review loop (W5).
+ */
+export type ReviewRole = "reviewer" | "author";
+
 export function toComments(
   verdict: Verdict,
   format: "natural" | "labeled",
+  role: ReviewRole = "reviewer",
 ): { comments: ReviewComment[]; summary: string } {
   const body = (f: Finding) => {
     const fix = f.fixHint ? `\n\nSuggested fix: ${f.fixHint}` : "";
@@ -61,7 +68,8 @@ export function toComments(
       ? `**[${f.severity}] ${f.id}**${rule}: ${f.claim}${why ? `\n\n${why}` : ""}${fix}`
       : `${f.claim}${rule}.${why ? ` ${why}` : ""}${fix}`;
   };
-  const comments = verdict.blocking.map((f) => ({
+  const author = role === "author";
+  const comments = (author ? [] : verdict.blocking).map((f) => ({
     path: f.location.file,
     line: f.location.line,
     body: body(f),
@@ -70,7 +78,11 @@ export function toComments(
     `- ${format === "labeled" ? `[${f.severity}] ${f.id}: ` : ""}${f.location.file}:${f.location.line} ${f.claim}`;
   const summary = [
     `**${verdict.decision.replace("_", " ")}**`,
-    verdict.blocking.length > 0 ? `\nBlocking (${verdict.blocking.length}), commented inline.` : "",
+    verdict.blocking.length === 0
+      ? ""
+      : author
+        ? `\nBlocking (${verdict.blocking.length}), to fix with the mt-self-review workflow:\n${verdict.blocking.map(line).join("\n")}`
+        : `\nBlocking (${verdict.blocking.length}), commented inline.`,
     verdict.consider.length > 0 ? `\nTo consider:\n${verdict.consider.map(line).join("\n")}` : "",
     verdict.verifiedCorrect.length > 0
       ? `\nVerified correct:\n${verdict.verifiedCorrect.map((v) => `- ${v}`).join("\n")}`

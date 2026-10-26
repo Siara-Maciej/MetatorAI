@@ -11,7 +11,7 @@ user-invocable: false
 > Run MetatorAI only as: `bun run metator rules …`. Every command prints one JSON line.
 
 # Input
-- The files and packages from `analysis.md`.
+- The files and packages from `analysis.json`.
 
 # Procedure
 1. `bun run metator rules pack --paths <files>`.

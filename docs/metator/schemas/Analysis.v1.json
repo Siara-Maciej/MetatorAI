@@ -1,0 +1,152 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "Analysis",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Analysis"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "task": {
+        "type": "string",
+        "minLength": 1
+      },
+      "entryFiles": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "owners": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        }
+      },
+      "packages": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "affected": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["files", "tests"],
+        "additionalProperties": false
+      },
+      "risks": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "task", "entryFiles", "packages", "affected"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Analysis"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "task": {
+        "type": "string",
+        "minLength": 1
+      },
+      "entryFiles": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "owners": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["path", "owners"],
+          "additionalProperties": false
+        }
+      },
+      "packages": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "affected": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["files", "tests"],
+        "additionalProperties": false
+      },
+      "risks": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "task", "entryFiles", "packages", "affected", "risks"],
+    "additionalProperties": false
+  }
+}

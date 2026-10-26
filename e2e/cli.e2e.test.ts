@@ -121,6 +121,7 @@ describe("metator CLI (process e2e)", () => {
       "run handoff",
       "run close",
       "run status",
+      "run schema",
       "run list",
     ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);

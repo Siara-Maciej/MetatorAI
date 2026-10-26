@@ -6,11 +6,11 @@ role: worker
 description: Turns the task and the context artifacts into plan.json, every step with its file, exemplar, rules and tests first. Started by mt-orchestrator at the plan stage. Do not use to write code or to review a plan.
 tier: reasoning
 capabilities: [read, search, edit, "metator:plan", "metator:similar", "metator:graph", "metator:symbols"]
-inputs: [task.md, analysis.md, research.md, rulepack.md]
+inputs: [task.md, analysis.json, research.json, rulepack.md]
 output: { artifact: plan.json, schema: Plan@1, summaryLines: 15 }
 ---
 # Input
-- `task.md` and the context artifacts (`analysis.md`, `research.md`, `rulepack.md`) in the run directory.
+- `task.md` and the context artifacts (`analysis.json`, `research.json`, `rulepack.md`) in the run directory.
 - On a loop back: `plan-review.md` with the critic's objections.
 
 # Procedure

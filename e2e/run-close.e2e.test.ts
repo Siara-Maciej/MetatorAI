@@ -1,6 +1,6 @@
 /** `run handoff` and `run close` end to end: real `metator` processes on a real git repository. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { metator } from "./helpers/cli.ts";
+import { hook, metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 import { findUnversioned } from "./helpers/versioned.ts";
 
@@ -79,5 +79,64 @@ describe("metator run handoff|close (real CLI)", () => {
     expect([r.code, (r.json.data as { status: string }).status]).toEqual([0, "aborted"]);
     const status = await metator(["run", "status"], repo.root);
     expect((status.json.data as { status: string }).status).toBe("aborted");
+  }, 60_000);
+});
+
+describe("metator run schema (real CLI)", () => {
+  test("prints the format of each worker artifact; an unknown artifact is a usage error", async () => {
+    const kinds: [string, string][] = [
+      ["analysis", "Analysis"],
+      ["research", "Research"],
+      ["summary", "RunSummary"],
+    ];
+    for (const [artifact, kind] of kinds) {
+      const r = await metator(["run", "schema", artifact], repo.root);
+      const schema = r.json.data as { properties: { kind: { const: string } } };
+      expect([r.code, schema.properties.kind.const]).toEqual([0, kind]);
+    }
+    expect((await metator(["run", "schema", "notes"], repo.root)).code).toBe(64);
+  });
+});
+
+describe("metator run: autopilot (real CLI)", () => {
+  test("choosing autopilot at the plan gate skips later L1 gates, never the push gate", async () => {
+    await repo.write(
+      ".github/metator/workflows/gated.yml",
+      `kind: Workflow
+schemaVersion: 2
+id: gated
+autonomy: [L0, L1]
+stages:
+  - id: plan-approval
+    hitl: true
+    skipAt: [L1]
+  - id: build
+  - id: review-approval
+    hitl: true
+    skipAt: [L1]
+  - id: delivery
+    hitl: true
+    neverSkip: true
+`,
+    );
+    await metator(["run", "init", "--workflow", "gated", "--task", "Autopilot"], repo.root, AT("12:00"));
+    const approved = await metator(
+      ["run", "approve", "plan-approval", "--by", "maciej", "--choice", "autopilot"],
+      repo.root,
+      AT("12:01"),
+    );
+    expect([approved.code, (approved.json.data as { autonomy: string }).autonomy]).toEqual([0, "L1"]);
+    const built = await metator(["run", "advance", "pass"], repo.root, AT("12:02"));
+    const view = built.json.data as { stage: string; approvals: Record<string, { by: string }> };
+    expect([view.stage, view.approvals["review-approval"]?.by]).toEqual(["delivery", "autonomy L1"]);
+    // Autopilot never covers external actions: a push still needs `run approve push`.
+    const push = await hook(
+      ["guard", "pre-tool"],
+      { tool_name: "Bash", tool_input: { command: "git push" } },
+      repo.root,
+    );
+    expect(
+      (push.json?.hookSpecificOutput as { permissionDecision?: string } | undefined)?.permissionDecision,
+    ).toBe("deny");
   }, 60_000);
 });

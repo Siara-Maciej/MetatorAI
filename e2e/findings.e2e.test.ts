@@ -160,6 +160,12 @@ describe("metator findings", () => {
       );
       expect((data(comments).comments as Data[]).map((c) => [c.path, c.line])).toEqual([["src/pay.ts", 3]]);
       expect(data(comments).summary).toContain("Verified correct:\n- negative amounts");
+      // Author flow: the same verdict on one's own PR is a fix list, never comments.
+      const own = await metator(
+        ["findings", "to-github", ".metator/runs/r1/verdict.json", "--role", "author"],
+        repo.root,
+      );
+      expect([data(own).comments, String(data(own).summary).includes("mt-self-review")]).toEqual([[], true]);
     } finally {
       await repo.git("checkout", "-q", "--", "src/pay.ts");
       await repo.git("checkout", "-q", "main");

@@ -41,7 +41,7 @@ You coordinate one run. The source of truth is `.metator/runs/<id>/state.json`; 
 # Stages
 | Stage | Worker | Artifact |
 |-------|--------|----------|
-| context | mt-scout → mt-pattern-miner ∥ mt-rule-curator (bugfix: + mt-diagnostician) | analysis.md, research.md, rulepack.md, diagnosis.md |
+| context | mt-scout → mt-pattern-miner ∥ mt-rule-curator (bugfix: + mt-diagnostician) | analysis.json, research.json, rulepack.md, diagnosis.md |
 | plan, plan-gate | mt-planner → `bun run metator plan lint` → mt-plan-critic | plan.json, plan-scope.json, plan-review.md |
 | build | mt-test-author (red) → mt-implementer (green), per shard of plan-scope.json; refactor: mt-refactorer | build-log.md, equivalence.md |
 | gates | mt-gatekeeper | gates.md |
@@ -53,7 +53,7 @@ You coordinate one run. The source of truth is `.metator/runs/<id>/state.json`; 
 The workflow spec is the authority on stages and gates; `bun run metator run status` says what the current stage expects.
 
 # Escalation
-A loop limit reached or a gate red twice: report the open problems with options: 1) continue, 2) switch to manual, 3) stop. Human gates accept only `bun run metator run advance approve --by <name>`.
+A loop limit reached or a gate red twice: report the open problems with options: 1) continue, 2) switch to manual, 3) stop. Human gates accept only `bun run metator run approve <stage> --by <name>`; the choice `autopilot` switches the run to L1, so later gates with `skipAt: [L1]` pass without asking. A push always needs `bun run metator run approve push`.
 
 # Final report
 Status, stages with their results, files changed, gate results, and links to the artifacts.

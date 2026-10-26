@@ -10,7 +10,7 @@ rules:
     implementation: test:mt-test-001
     summary: Every leaf command of the CLI program is run by an e2e test of the metator process against real files in a temporary git repository.
     rationale: docs/ARCHITECTURE.md
-    source: { ref: AGENTS.md#testing-policy-prove-every-piece-of-work-actually-works, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#proving-work, verified: 2026-10-26 }
     do:
       - 'const r = await metator(["rules", "lint"], repo.root)'
   - id: MT-TEST-002
@@ -24,7 +24,7 @@ rules:
     dont:
       - "an adapter test that only checks the happy path of its own methods"
     rationale: docs/ARCHITECTURE.md
-    source: { ref: AGENTS.md#testing-policy-prove-every-piece-of-work-actually-works, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#proving-work, verified: 2026-10-26 }
   - id: MT-TEST-003
     title: Every module with behavior is guarded by a killed mutant
     applyTo: ["packages/core/src/**", "packages/plugin-*/src/**", "scripts/mutants.ts"]
@@ -32,4 +32,4 @@ rules:
     implementation: test:mt-test-003
     summary: Every core and plugin module with behavior has a mutant in scripts/mutants.ts, and `bun run test:mutation` fails unless the unit suite kills every mutant.
     rationale: docs/ARCHITECTURE.md
-    source: { ref: AGENTS.md#testing-policy-prove-every-piece-of-work-actually-works, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#proving-work, verified: 2026-10-26 }

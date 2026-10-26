@@ -4,7 +4,14 @@ import { matchesAny } from "../domain/glob.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { DEFAULT_LENSES, type ReviewPlan, ReviewPlanDocument, shardFiles } from "../domain/review-plan.ts";
 import { rulesFor } from "../domain/rule.ts";
-import { judge, type ReviewComment, toComments, type Verdict, VerdictDocument } from "../domain/verdict.ts";
+import {
+  judge,
+  type ReviewComment,
+  type ReviewRole,
+  toComments,
+  type Verdict,
+  VerdictDocument,
+} from "../domain/verdict.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem, Vcs, WorkspaceReader } from "../ports/index.ts";
 import { cardFile } from "./cards.ts";
@@ -103,7 +110,11 @@ export class JudgeFindings {
 export class FormatReviewComments {
   constructor(private readonly fs: FileSystem) {}
 
-  async execute(input: { readonly verdict: string; readonly format: "natural" | "labeled" }): Promise<
+  async execute(input: {
+    readonly verdict: string;
+    readonly format: "natural" | "labeled";
+    readonly role?: ReviewRole;
+  }): Promise<
     Result<
       {
         readonly decision: Verdict["decision"];
@@ -127,6 +138,6 @@ export class FormatReviewComments {
         ),
       );
     }
-    return ok({ decision: verdict.value.decision, ...toComments(verdict.value, input.format) });
+    return ok({ decision: verdict.value.decision, ...toComments(verdict.value, input.format, input.role) });
   }
 }

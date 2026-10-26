@@ -10,7 +10,7 @@ rules:
     implementation: ast-grep:mt-arch-domain-pure
     summary: Domain modules import no I/O, no runtime APIs, no ports, no application code and no adapters.
     rationale: docs/ARCHITECTURE.md
-    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#architecture-enforced, verified: 2026-10-26 }
   - id: MT-ARCH-002
     title: Core does not depend on infrastructure
     applyTo: ["packages/core/src/**"]
@@ -18,7 +18,7 @@ rules:
     implementation: ast-grep:mt-arch-core-no-infra
     summary: Ports and application code never import the DI runtime, plugins or runtime APIs.
     rationale: docs/ARCHITECTURE.md
-    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#architecture-enforced, verified: 2026-10-26 }
   - id: MT-ARCH-003
     title: Core imports only approved pure libraries
     applyTo: ["packages/core/src/**"]
@@ -26,7 +26,7 @@ rules:
     implementation: ast-grep:mt-arch-core-approved-deps
     summary: "@metator/core imports only the libraries approved in ADR-0010 (neverthrow, graphlib, xstate, picomatch, zod, yaml, slugify)."
     rationale: docs/adr/0010-dependency-policy.md
-    source: { ref: AGENTS.md#dependency-policy-dont-reinvent-the-wheel, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#rules-that-hold-everywhere, verified: 2026-10-26 }
   - id: MT-ARCH-004
     title: Core never touches the Bun global or process
     applyTo: ["packages/core/src/**"]
@@ -34,7 +34,7 @@ rules:
     implementation: ast-grep:mt-arch-no-bun-global-in-core
     summary: Core runs on any runtime and in tests without I/O, so it never reads Bun or process.
     rationale: docs/ARCHITECTURE.md
-    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#architecture-enforced, verified: 2026-10-26 }
   - id: MT-ARCH-005
     title: Plugins depend on core only
     applyTo: ["packages/plugin-*/src/**"]
@@ -42,7 +42,7 @@ rules:
     implementation: ast-grep:mt-arch-plugins-isolated
     summary: A plugin imports @metator/core and its own libraries, never runtime, cli or another plugin.
     rationale: docs/ARCHITECTURE.md
-    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#architecture-enforced, verified: 2026-10-26 }
   - id: MT-ARCH-006
     title: Use cases receive ports through the constructor
     applyTo: ["packages/core/src/application/**"]
@@ -50,7 +50,7 @@ rules:
     implementation: ast-grep:mt-arch-006
     summary: An application service takes every collaborator (ports, other use cases) as a constructor parameter; it constructs only domain values and built-ins.
     rationale: docs/adr/0011-di-awilix.md
-    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#architecture-enforced, verified: 2026-10-26 }
     do:
       - "constructor(private readonly vcs: Vcs, private readonly fs: ReadonlyFileSystem) {}"
     dont:
@@ -62,7 +62,7 @@ rules:
     implementation: ast-grep:mt-arch-007
     summary: Concrete adapters are registered in packages/runtime/src/bootstrap.ts; CLI commands resolve use cases from the container.
     rationale: docs/adr/0011-di-awilix.md
-    source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#architecture-enforced, verified: 2026-10-26 }
     do:
       - 'await container().resolve("graphQueries").cycles()'
     dont:
@@ -74,4 +74,4 @@ rules:
     implementation: ast-grep:mt-arch-008
     summary: A port interface has at most five members; a bigger one is split by axis of change (readers from writers, one tool capability from another).
     rationale: docs/ARCHITECTURE.md
-    source: { ref: AGENTS.md#conventions, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#rules-that-hold-everywhere, verified: 2026-10-26 }

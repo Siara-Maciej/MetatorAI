@@ -160,6 +160,39 @@ describe("GuardSubagentOutput", () => {
     expect(out.reason).not.toContain("plan-scope.json");
     expect((await w.subagent.execute({ stop_hook_active: true }))._unsafeUnwrap()).toBeNull();
   });
+
+  test("context artifacts and the run summary are known documents", async () => {
+    const w = world();
+    const run = (await w.init())._unsafeUnwrap();
+    const dir = w.repo.runDir(run.runId);
+    const analysis = {
+      kind: "Analysis",
+      schemaVersion: 1,
+      task: "t",
+      entryFiles: [{ path: "src/a.ts" }],
+      packages: [],
+      affected: { files: ["src/a.ts"], tests: [] },
+    };
+    await w.fs.write(`${dir}/analysis.json`, JSON.stringify(analysis));
+    await w.fs.write(
+      `${dir}/research.json`,
+      JSON.stringify({
+        kind: "Research",
+        schemaVersion: 1,
+        exemplars: [{ need: "a use case", file: "src/a.ts" }],
+      }),
+    );
+    expect((await w.subagent.execute({}))._unsafeUnwrap()).toBeNull();
+    await w.fs.write(`${dir}/analysis.json`, JSON.stringify({ ...analysis, entryFiles: [] }));
+    await w.fs.write(
+      `${dir}/summary.json`,
+      JSON.stringify({ kind: "RunSummary", schemaVersion: 1, runId: run.runId }),
+    );
+    const out = (await w.subagent.execute({}))._unsafeUnwrap() as { reason: string };
+    expect(out.reason).toContain("name at least one entry file");
+    expect(out.reason).toContain("summary.json: does not match RunSummary v1");
+    expect(out.reason).not.toContain("research.json");
+  });
 });
 
 describe("GuardSessionStart and CheckpointRun", () => {

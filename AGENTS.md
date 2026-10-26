@@ -1,7 +1,8 @@
 # AGENTS.md: working on MetatorAI
 
-MetatorAI is a host-agnostic agentic engineering workflow (GitHub Copilot, Claude Code). This repo is the product itself.
-Design docs (Polish): `docs/README.md`. Start with `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`.
+MetatorAI is a host-agnostic agentic engineering workflow (GitHub Copilot, Claude Code). This repo is the product itself. Design docs (Polish): `docs/README.md`, start with `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`.
+
+Before working in a package, read its `packages/<pkg>/AGENTS.md` and its card in `docs/metator/modules/`; keep the card's curated sections true when you change the package.
 
 ## Commands
 
@@ -9,90 +10,48 @@ Design docs (Polish): `docs/README.md`. Start with `docs/ARCHITECTURE.md` and `d
 |------|---------|
 | Install | `bun install` |
 | Everything CI runs | `bun run check` |
-| All tests | `bun test` (single file: `bun test packages/core/test/graph.test.ts`) |
-| Unit tests | `bun run test:unit` (`packages/*/test`) |
-| E2E tests | `bun run test:e2e` (`e2e/`: real CLI processes, README visuals in Chromium) |
-| Mutation smoke | `bun run test:mutation` (mutants in `scripts/mutants.ts` must make unit tests fail) |
-| Freeze schemas | `bun run schemas:freeze` (snapshots new document versions into `docs/metator/schemas/`) |
-| README visuals | `bun run assets` regenerates `assets/*.svg` from `scripts/assets/generate.ts` |
-| Typecheck | `bun run typecheck` (TypeScript 7, `noEmit`) |
-| Lint + format | `bun run lint` / `bun run format` (Biome; Markdown is not formatted) |
-| Architecture rules | `bun run arch` (ast-grep rule tests + scan) |
-| Rule canon + memory map | `bun run canon` (`meta check-all --min-e1 100`: rules, memory, cards, patterns, ADRs, agents, skills, workflows, generated files) |
-| Run the CLI | `bun run metator <command>` |
+| Tests | `bun test` (one file: `bun test <path>`), `bun run test:unit`, `bun run test:e2e` |
+| Mutation smoke | `bun run test:mutation` (`scripts/mutants.ts`) |
+| Typecheck, lint, format | `bun run typecheck`, `bun run lint`, `bun run format` (Biome; Markdown not formatted) |
+| Architecture rules | `bun run arch` |
+| Canon and memory | `bun run canon` (`meta check-all --min-e1 100`) |
+| Freeze schemas | `bun run schemas:freeze` |
+| README visuals | `bun run assets` (never hand-edit `assets/*.svg`) |
+| The CLI | `bun run metator <command>` |
 
-## Architecture (enforced, not advisory)
+## Architecture (enforced)
 
-Clean architecture, ports and adapters. Dependencies point inward:
+Ports and adapters; dependencies point inward: `core` (domain → ports → application) ← `plugin-*` ← `runtime` (the only place that knows adapters) ← `cli`. A plugin implements ports, imports only `@metator/core`, returns tool errors as `MetatorError` values and takes tool findings as SARIF 2.1.0 where the tool emits it (`diagnosticsFromSarif`). `rules/architecture/*.yml` (ast-grep) enforces it in CI. Never weaken a rule to make code pass; move the code.
 
-- `packages/core/src/domain`: pure TypeScript. No I/O, no `node:*`, no `bun`, no ports/application imports.
-- `packages/core/src/ports`: interfaces only, may import `domain`.
-- `packages/core/src/application`: use cases. Depend on ports via constructor injection, return `Result`.
-- `packages/plugin-*`: adapters implementing ports. May import `@metator/core` only.
-- `packages/runtime`: DI container, envelope, tokens: the only place that knows concrete implementations.
-- `packages/cli`: driving adapter on commander: `src/commands/*.ts` (one module per command group, `register*(program, ctx)`), `program.ts` (JSON-only commander setup), `run.ts` (envelope + exit code). Validate values with commander (`Option.choices`, `Argument.choices`, `requiredOption`), not by hand.
-- `packages/testing`: fakes and port contract suites.
+## Rules that hold everywhere
 
-`rules/architecture/*.yml` (ast-grep) enforces this in CI. Never weaken a rule to make code pass; move the code instead.
+- Every file MetatorAI reads or writes is a versioned document: `kind` + `schemaVersion` first (ADR-0016). A schema change is a new version with a migration and a frozen snapshot; a released version never changes (MT-CODE-003).
+- Use a proven package before writing generic code (ADR-0010); every dependency is listed in `docs/metator/dependencies.yml` with its ADR (MT-CODE-005).
+- Imports use `.ts` extensions inside a package and `@metator/<pkg>` across packages.
+- Tests sit in `packages/<pkg>/test/*.test.ts` on `bun:test` (tests may use `_unsafeUnwrap()`).
+- Code, comments, commits and the README are in English; design docs in `docs/` are in Polish.
+- Coding rules are canon in `docs/metator/rules/` (`bun run metator rules show <id>`); every rule is E1, decided by a tool.
 
-## Every file is a versioned document (ADR-0016)
+## Proving work
 
-- Every file MetatorAI writes or reads starts with `kind` + `schemaVersion` (JSON/YAML top-level fields, Markdown front matter).
-- Define documents with `defineDocument(kind, { latest, upgrade?, history? })` [[cite: packages/core/src/domain/versioned.ts:52 | "export function defineDocument<S extends z.ZodType>("]]. Write only through `Document.stamp(body)`; read only through `Document.parse(raw, source)`.
-- Changing a document's schema means a new version, a migration (`upgrade`), `bun run schemas:freeze` and an example of the old version (`<Kind>.v<N>.example.json`). Never change a released version in place (MT-CODE-003 fails).
-- `schemaVersion` is the file format; content versions use separate fields (e.g. a workflow's `revision`).
-- `e2e/helpers/versioned.ts` (`findUnversioned`) fails CI for any unversioned file under `.metator/` or `.github/metator/`.
-
-## Dependency policy: don't reinvent the wheel
-
-Use a proven package before writing your own (ADR-0010). Write code only for logic specific to MetatorAI.
-
-Approved packages, their need and ADR: `docs/metator/dependencies.yml`; a dependency missing there fails CI (MT-CODE-005). Tool findings come in as SARIF 2.1.0 (`diagnosticsFromSarif`).
-
-- Before adding code that looks generic (parsing, validation, graphs, retries, caching, CLI args, YAML, schemas, diffing), search npm and propose a package with an ADR (criteria in ADR-0010).
-- `@metator/core` may import only approved pure libraries; `mt-arch-core-approved-deps` (ast-grep) fails CI otherwise.
-- Wrap libraries thinly so their errors come back as `MetatorError`; do not re-implement their features.
-
-## Testing policy: prove every piece of work actually works
-
-Nothing is done until it is proven, by tests and by running it yourself.
-
-1. **Unit tests for every behavior** in `packages/<pkg>/test/*.test.ts`: happy path, edge cases, errors as values. Bugs get a failing test first.
-2. **An e2e test for every user-facing change** in `e2e/*.e2e.test.ts`. It exercises the real entrypoint: the `metator` process (`e2e/helpers/cli.ts`), real files in a temp repo, a real browser for visuals. It does not call internals.
-3. **Every port adapter passes its contract suite** (`packages/testing/src/contracts`).
-4. **Test the tests.** When adding a check, make it fail once on purpose (break the code, see red, restore). Every core and plugin module with behavior has a mutant in `scripts/mutants.ts` (MT-TEST-003).
-5. **Self-verify before committing:** run the command or render the asset and look at the output. `bun run check` must be green. Report what you ran and what you saw.
-6. **Visual assets are tested too:** `e2e/assets.e2e.test.ts` renders every SVG in several fonts and fails on overflow, collisions, missing animation or generator drift. Never hand-edit `assets/*.svg`.
-
-## Conventions
-
-Coding rules are canon in `docs/metator/rules/` (errors as values MT-CODE-001, CLI envelope MT-CODE-004, contract suites MT-TEST-002, small ports MT-ARCH-008, ...): `bun run metator rules show <id>`. Beyond them:
-
-- Imports use explicit `.ts` extensions inside a package and `@metator/<pkg>` across packages.
-- Code, comments, commit messages and the public README are in English; design docs in `docs/` are in Polish.
-- Tests sit in `packages/<pkg>/test/*.test.ts` and use `bun:test` (tests may use `_unsafeUnwrap()`).
+Nothing is done until it is proven:
+1. Unit tests for every behavior (happy path, edges, errors as values); a bug gets a failing test first.
+2. An e2e test for every user-facing change: the real `metator` process on a real temp repo (`e2e/`).
+3. Every port adapter passes its contract suite (`packages/testing/src/contracts`).
+4. Test the tests: make a new check fail once on purpose; every core and plugin module with behavior has a mutant (MT-TEST-003).
+5. Run the command or render the asset yourself; `bun run check` is green; report what you ran and saw.
 
 ## Develop MetatorAI with MetatorAI
 
-Use the product on this repository whenever a command already covers the step:
+1. Before editing: `bun run metator rules pack --paths <files>`, the package card, `bun run metator similar --file <new file>`.
+2. While editing: `bun run metator graph dependents <file> --transitive`.
+3. After editing: `bun run metator graph affected --base origin/claude/foundation` to pick tests; `bun run metator rules check --base origin/claude/foundation`.
+4. Before committing: `bun run metator cards build`, `bun run metator rules adapters` and `bun run metator generate` when structure, rules or agents changed; then `bun run canon` and `bun run check`.
 
-1. Before editing: `bun run metator rules pack --paths <files>` (rules that apply), the package card in `docs/metator/modules/`, and `bun run metator similar --file <new file>` for the exemplar to follow.
-2. While editing: `bun run metator graph dependents <file> --transitive` to see what a change reaches.
-3. After editing: `bun run metator graph affected --base origin/claude/foundation` to pick unit tests (`bun test <tests>`), then the e2e tests for touched commands; `bun run metator rules check --base origin/claude/foundation`.
-4. Before committing: `bun run metator cards build` and `bun run metator rules adapters` if structure or rules changed, then `bun run canon` and `bun run check`.
+## Generated files
 
-## Rules canon
-
-Project rules live in `docs/metator/rules/*.yml` (`RuleSet`, ADR-0020). `.github/instructions/mt-*.instructions.md` is generated: change the canon and run `bun run metator rules adapters`, never edit the generated files. Before changing code, `bun run metator rules pack --paths <files>` lists the rules that apply. Every rule is E1 (a tool decides): ast-grep, Biome, tsc or a conformance test `rules/conformance/<id>.test.ts` with a `rejects ...` case (engine `test`, ADR-0034).
-
-## Agents
-
-Canonical agents live in `metator/agents/*.md`; `.github/agents/` and `.claude/agents/` are generated by `bun run metator generate`.
-
-## Module cards
-
-Before working in a package, read its card in `docs/metator/modules/`. The generated block is rewritten by `bun run metator cards build`; keep the curated sections (responsibility, invariants with citations, pitfalls) true when you change the package.
+Never edit them: `.github/instructions/mt-*` (from the rule canon), `.github/agents/`, `.claude/agents/`, the host skills (from `metator/agents` and `metator/skills`), the generated block of module cards.
 
 ## Decisions
 
-Architecture decisions live in `docs/adr/`. Agents draft ADRs as `Proposed`; only a human marks them `Accepted`.
+ADRs live in `docs/adr/`. Agents draft them as `Proposed`; only a human marks one `Accepted`.

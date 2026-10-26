@@ -1,0 +1,102 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "Research",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Research"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "exemplars": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "need": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pattern": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "line": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": ["need", "file"],
+          "additionalProperties": false
+        }
+      },
+      "gaps": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "exemplars"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Research"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "exemplars": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "need": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pattern": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "line": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": ["need", "file"],
+          "additionalProperties": false
+        }
+      },
+      "gaps": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "exemplars", "gaps"],
+    "additionalProperties": false
+  }
+}

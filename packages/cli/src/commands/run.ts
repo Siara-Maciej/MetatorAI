@@ -1,9 +1,22 @@
-import { AutonomySchema, err, MetatorError, ok, type Result, type RunEvent } from "@metator/core";
+import {
+  AnalysisDocument,
+  AutonomySchema,
+  err,
+  MetatorError,
+  ok,
+  ResearchDocument,
+  type Result,
+  type RunEvent,
+  RunSummaryDocument,
+} from "@metator/core";
 import { Argument, type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
 
 export const EVENTS = ["pass", "fail", "approve", "abort"] as const;
+
+/** Artifacts whose format `run schema` prints (plans, findings and verdicts have their own group). */
+const RUN_ARTIFACTS = { analysis: AnalysisDocument, research: ResearchDocument, summary: RunSummaryDocument };
 type EventName = (typeof EVENTS)[number];
 
 interface AdvanceOptions {
@@ -159,6 +172,16 @@ export function registerRunCommands(program: Command, { action, container }: Com
         result: await container()
           .resolve("getRunStatus")
           .execute(opts.run ? { runId: opts.run } : {}),
+      })),
+    );
+
+  runs
+    .command("schema")
+    .description("Print the JSON Schema of a run artifact written by a worker")
+    .addArgument(new Argument("<artifact>", "artifact").choices(Object.keys(RUN_ARTIFACTS)))
+    .action(
+      action(async (artifact: keyof typeof RUN_ARTIFACTS) => ({
+        result: ok(RUN_ARTIFACTS[artifact].jsonSchema("input")),
       })),
     );
 

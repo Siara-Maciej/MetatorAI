@@ -7,7 +7,7 @@ description: Maps what a task touches before planning, from the import graph and
 tier: standard
 capabilities: [read, search, "metator:graph", "metator:workspace", "metator:cards", "metator:owners"]
 inputs: [task]
-output: { artifact: analysis.md, summaryLines: 15 }
+output: { artifact: analysis.json, schema: Analysis@1, summaryLines: 15 }
 ---
 # Input
 - The task (issue text or the coordinator's goal) and the paths the coordinator names.
@@ -21,7 +21,7 @@ output: { artifact: analysis.md, summaryLines: 15 }
 6. `metator owners <entry files>`: who to ask or escalate to.
 
 # Output
-- `analysis.md`: entry files with their owners, packages and their cards, affected files and tests, risks (cycles, new cross-package edges, invariants from cards).
+- `analysis.json` (format: `docs/metator/schemas/Analysis.v1.json`): entry files with their owners, packages and their cards, affected files and tests, risks (cycles, new cross-package edges, invariants from cards).
 - A summary of at most 15 lines for the coordinator.
 
 # Stop conditions

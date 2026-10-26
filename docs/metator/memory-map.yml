@@ -15,7 +15,7 @@ knowledge:
     - ".github/skills/**"
     - ".claude/skills/**"
 tierBudgets:
-  T0: { chars: 8000 }
+  T0: { chars: 4000 }
 items:
   - id: t0.agents
     tier: T0
@@ -24,8 +24,17 @@ items:
     load: always
     writers: [human]
     readers: ["*"]
-    budget: { chars: 8000, lines: 120 }
+    budget: { chars: 4000, lines: 80 }
     description: Always-loaded project instructions (CLAUDE.md imports AGENTS.md).
+  - id: t1.package-agents
+    tier: T1
+    kind: canon
+    paths: ["packages/*/AGENTS.md"]
+    load: "applyTo:packages/**"
+    writers: [human]
+    readers: ["*"]
+    budget: { chars: 1500, lines: 25 }
+    description: Package instructions, read before working in that package (root AGENTS.md says so).
   - id: t1.adr
     tier: T1
     kind: canon

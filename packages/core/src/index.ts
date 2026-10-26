@@ -39,6 +39,7 @@ export * from "./domain/agent.ts";
 export * from "./domain/api.ts";
 export * from "./domain/audit.ts";
 export * from "./domain/config.ts";
+export * from "./domain/context.ts";
 export * from "./domain/coverage.ts";
 export * from "./domain/debug-tags.ts";
 export * from "./domain/diagnostic.ts";

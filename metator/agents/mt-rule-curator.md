@@ -6,11 +6,11 @@ role: worker
 description: Collects the canon rules that apply to the files a change touches, sized for the planner and reviewers. Use after scoping, before planning. Do not use to change rules.
 tier: fast
 capabilities: [read, "metator:rules"]
-inputs: [analysis.md]
+inputs: [analysis.json]
 output: { artifact: rulepack.md, summaryLines: 10 }
 ---
 # Input
-- The files and packages from `analysis.md`.
+- The files and packages from `analysis.json`.
 
 # Procedure
 1. `metator rules pack --paths <files>`.

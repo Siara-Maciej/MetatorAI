@@ -29,9 +29,12 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] `docs inventory|drift|links`, `owners` (ADR-0045).
 - [x] Agenci: `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-pr-author`, `mt-review-equivalence`, `mt-diagnostician`, `mt-docs-curator`, `mt-retro`; skille `mt-characterization-tests`, `mt-create-*`, `mt-review-rubric`, `mt-grill`, `mt-diagnose`.
 - [x] Karty: wzorce i właściciele z CODEOWNERS; API na poziomie symboli zostaje w `api snapshot` i `graph callers` (ADR-0045).
-- [ ] T0: `copilot-instructions.md` ≤ 4000 znaków.
+- [x] T0 ≤ 4000 znaków: `AGENTS.md` (Copilot i Claude Code czytają go jako T0; osobny `copilot-instructions.md` niepotrzebny), szczegóły w `packages/*/AGENTS.md`, budżet w mapie pamięci.
+- [x] Autopilot (`--choice autopilot`, bramki `skipAt`), Author/Reviewer flow (`findings to-github --role`), schematy `Analysis` i `Research` (`run schema`, ADR-0046).
 
-**Wymaga repo pilota lub ludzi (nie da się zamknąć w tym repo):** F0 (inwentarz, spike platformy, baseline), złoty zbiór ≥ 50 PR-ów, 10–15 wzorców pilota, W7 na ADR pilota, rename agentów pilota, kryteria wyjścia faz mierzone na zadaniach pilota.
+**Stan:** wszystko, co da się zrobić w kodzie tego repo, jest zrobione.
+
+**Wymaga repo pilota lub ludzi (nie da się zamknąć w tym repo):** lub ludzi (nie da się zamknąć w tym repo):** F0 (inwentarz, spike platformy, baseline), złoty zbiór ≥ 50 PR-ów, 10–15 wzorców pilota, W7 na ADR pilota, rename agentów pilota, kryteria wyjścia faz mierzone na zadaniach pilota. W F6: procesy ciągłe (retro po runach, przegląd kwartalny, rozszerzanie na domeny), polityka Copilot Memory i opcjonalne integracje (MCP, StrykerJS, Semgrep).
 
 **Odłożone decyzją:** F5.
 
@@ -42,9 +45,9 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 **Cel:** wiedzieć, co macie, co działa w Waszej wersji Copilota, i mieć baseline.
 
 **Zadania**
-- [ ] Inwentarz: agenci, prompty, skille, instrukcje, ADR (ręcznie albo pierwsza wersja `metator meta audit` + `metator memory inventory`).
-- [ ] Karta zgodności dla każdego orchestratora ([workflows §4](design/02-workflows.md#4-audyt-istniejących-orchestratorów)).
-- [ ] Graf wywołań agent → agent/skill. Szukamy cykli, martwych elementów i zagnieżdżeń > 2.
+- [ ] Inwentarz: agenci, prompty, skille, instrukcje, ADR (ręcznie albo pierwsza wersja `metator meta audit` + `metator memory inventory`). Narzędzia gotowe (`meta audit`, `memory inventory`, `docs inventory`); uruchomienie w repo pilota.
+- [ ] Karta zgodności dla każdego orchestratora ([workflows §4](design/02-workflows.md#4-audyt-istniejących-orchestratorów)). Narzędzie gotowe (`workflow lint`, 16 sekcji); uruchomienie na orchestratorach pilota.
+- [ ] Graf wywołań agent → agent/skill. Szukamy cykli, martwych elementów i zagnieżdżeń > 2. Narzędzie gotowe (`meta audit`); uruchomienie na agentach pilota.
 - [ ] **Spike platformy** na wersji VS Code i CLI używanej w organizacji, z wynikami zapisanymi w ADR-0009:
   - [ ] frontmatter: `agents`, `user-invocable`, `disable-model-invocation`, `model` (lista), `handoffs`, nazwy tooli,
   - [ ] subagenci: czy idą równolegle, limit, czy dostają `AGENTS.md` i instrukcje `applyTo`,
@@ -86,11 +89,11 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] Szkielet `metator` (envelope, workspace, git, cache, budget) + `bun test` na fixture'ze mini-monorepo.
 - [x] P0 z indeksu: `index build`, `graph deps|affected|callers|diff`, `symbols find`, `api snapshot|diff`.
 - [x] `sgconfig.yml` (jeśli go nie ma) z `ruleDirs` i `testConfigs`. Przeniesienie istniejących skryptów ast-grep do reguł z testami (w repo pilota: przy wdrożeniu).
-- [ ] `run init|advance|status|approve`, schematy `state`, `analysis`, `research`, `plan`, `finding`, `verdict`, `gates`.
+- [x] `run init|advance|status|approve`, schematy `state` (`RunRecord`), `analysis`, `research` (`run schema`, ADR-0046), `plan`, `finding`, `verdict`, `gates`.
 - [x] Agenci kanoniczni, `meta agents-lint`, `generate [--check]` dla Copilota i Claude Code ([ADR-0030](adr/0030-canonical-agents.md)); 5 agentów MetatorAI.
 - [ ] `meta skills-lint|check-all`, generowanie skilli, promptów i hooków. **Rename istniejących agentów i skilli na `mt-*`** w repo pilota.
 - [ ] Spec YAML dla istniejących orchestratorów (wydzielenie z promptów). `workflow lint` w wersji podstawowej.
-- [ ] CI: job `mt-check` (`meta check-all`, `ast-grep test`, `bun test metator`).
+- [x] CI: job `mt-check` (`meta check-all`, `ast-grep test`, `bun test metator`): `.github/workflows/ci.yml` w MetatorAI (`bun run canon`, `bun run arch`, testy, mutanty); w repo pilota ten sam zestaw.
 
 **Produkty:** działające `metator …`, `.github/metator/workflows/*.yml`, zielony job CI.
 
@@ -105,8 +108,8 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 **Zadania**
 - [x] Mapa pamięci ([ADR-0021](adr/0021-memory-map.md)): `MemoryMap` w `docs/metator/memory-map.yml`, `memory inventory|budget|validate [--fix]|check|schema`, cytaty `[[cite: …]]` z naprawą przesunięć, strażnik w `bun run canon`. Dogfood: mapa MetatorAI (8 pozycji, 40 plików wiedzy).
 - [x] `memory dupes [--check]` i `memory matrix` ([ADR-0026](adr/0026-memory-dupes.md)); dogfood: usunięty duplikat ADR-0004 ↔ ARCHITECTURE.md, `memory dupes --check` w `bun run canon`.
-- [ ] Odchudzenie T0: `copilot-instructions.md` ≤ 4000 znaków, `AGENTS.md` per pakiet.
-- [ ] **W7 na istniejących ADR i docs** (`mt-docs-curator`): twierdzenia → weryfikacja w kodzie → reguły `MT-*` → HITL → canon.
+- [x] Odchudzenie T0: `AGENTS.md` 3,9 tys. znaków (budżet T0 4000), `AGENTS.md` per pakiet (`t1.package-agents`).
+- [ ] **W7 na istniejących ADR i docs** (`mt-docs-curator`): twierdzenia → weryfikacja w kodzie → reguły `MT-*` → HITL → canon. Narzędzia gotowe (`docs inventory|links|drift`, `ClaimSet`, dogfood: 3 twierdzenia MetatorAI w `docs/metator/claims.json`); przebieg na ADR pilota.
 - [x] `adr lint` ([ADR-0024](adr/0024-adr-lint.md)): numeracja, status i `Superseded by`, sekcje (PL/EN), ADR `Accepted` z „Implikacjami dla kodu” wskazującymi reguły kanonu, spójny indeks; w `bun run canon`.
 - [x] Kanon reguł ([ADR-0020](adr/0020-rule-canon.md)): `RuleSet` YAML w `docs/metator/rules`, `rules lint|pack|show|adapters|check|schema`, silnik E1 ast-grep, wygenerowane `.github/instructions/mt-*.instructions.md`, `bun run canon` w CI. Dogfood: 16 reguł MetatorAI (5 × E1).
 - [x] Reguły E1: ≥ 40% reguł jako E1 (MetatorAI: 50%, ast-grep z testami).
@@ -133,7 +136,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] Hook `SubagentStop` → `guard subagent-output` (ADR-0038).
 - [ ] **Złoty zbiór v1:** ≥ 50 PR-ów: z prawdziwymi bugami (z hotfixów i revertów), z zasianymi bugami (mutacje w kopii PR-a) i czyste (kontrola FP). Format w `docs/metator/evals/golden/`.
 - [x] `eval run|score|compare|schema` ([ADR-0033](adr/0033-review-evals.md)): `EvalCase`, precision/recall, blocking precision, fałszywe blokady, wariancja decyzji, bramka regresji; host jako szablon komendy (np. `copilot -p … --agent mt-pr-review --no-ask-user -s`).
-- [ ] Zachowanie trybów eq: Author/Reviewer flow, format naturalny/etykietowany, autopilot (W4/W5).
+- [x] Zachowanie trybów eq: Author/Reviewer flow (`findings to-github --role author|reviewer`), format naturalny/etykietowany, autopilot (`--choice autopilot` → L1, bramki `skipAt` zatwierdzane przez poziom autonomii, `neverSkip` i push zawsze przez człowieka; ADR-0046).
 
 **Kryterium wyjścia (na złotym zbiorze, 3 powtórzenia):** precision confirmed-blocking ≥ 85%, recall zasianych bugów ≥ 60%, wariancja decyzji ≤ 10%, koszt/PR w uzgodnionym budżecie. Wynik lepszy niż baseline z F0.
 
@@ -177,11 +180,11 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 ## F6: Uczenie się i skalowanie (ciągle)
 
 **Zadania**
-- [ ] W11 `mt-retro` po każdym większym runie. Lessons z cytatami, awans lekcji do reguł (i do E1).
+- [ ] W11 `mt-retro` po każdym większym runie. Lessons z cytatami, awans lekcji do reguł (i do E1). Narzędzia gotowe (`mt-retro`, `lessons add`, `rules scaffold`, `run close`); proces ciągły.
 - [ ] Polityka Copilot Memory (co wolno, przegląd konfliktów z canon).
 - [ ] Rozszerzenie na kolejne domeny monorepo: karty, wzorce, reguły per domena, złoty zbiór per domena.
 - [ ] Opcjonalnie: MCP `metator-knowledge` (indeks dostępny dla wielu repo i powierzchni), StrykerJS (mutation score jako bramka), Semgrep (soczewka security).
-- [ ] Kwartalny przegląd: evale, progi, budżety, martwe reguły (`rules coverage`), nieużywane lessons.
+- [ ] Kwartalny przegląd: evale, progi, budżety, martwe reguły (`rules coverage`), nieużywane lessons. Narzędzia gotowe (`eval compare`, `memory budget`, `rules coverage`, `docs inventory` z wiekiem plików); proces ciągły.
 
 **KPI programu:** precision i recall review (eval + produkcja), dismissed rate, % reguł E1, naruszenia architektury wykryte po merge (→ 0), lead time zadania, poprawki człowieka na zadanie, koszt tokenów na zadanie/PR, liczba eskalacji na run.
 

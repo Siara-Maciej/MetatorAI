@@ -1,3 +1,4 @@
+import { AnalysisDocument, ResearchDocument } from "../domain/context.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { EvalReportDocument } from "../domain/eval.ts";
 import { FindingSetDocument } from "../domain/finding.ts";
@@ -16,6 +17,7 @@ import { PlanDocument, PlanScopeDocument } from "../domain/plan.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { ReviewPlanDocument } from "../domain/review-plan.ts";
 import { RunPointerDocument, RunRecordDocument } from "../domain/run-record.ts";
+import { RunSummaryDocument } from "../domain/run-report.ts";
 import { VerdictDocument } from "../domain/verdict.ts";
 import { parseJsonDocument, type VersionedDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
@@ -144,6 +146,9 @@ const ARTIFACTS: ReadonlyMap<string, VersionedDocument<unknown>> = new Map(
     EvalReportDocument,
     RunRecordDocument,
     RunPointerDocument,
+    RunSummaryDocument,
+    AnalysisDocument,
+    ResearchDocument,
   ].map((d) => [d.kind, d as VersionedDocument<unknown>]),
 );
 

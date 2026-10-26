@@ -70,6 +70,16 @@ describe("toComments", () => {
     expect(labeled.summary).toContain("Verified correct:\n- rounding");
   });
 
+  test("author flow: no comments on one's own PR, the blockers as a fix list instead", () => {
+    const author = toComments(verdict, "labeled", "author");
+    expect(author.comments).toEqual([]);
+    expect(author.summary).toContain(
+      "Blocking (1), to fix with the mt-self-review workflow:\n- [blocking] LOGIC-001: src/pay.ts:3 claim of LOGIC-001",
+    );
+    expect(author.summary).not.toContain("commented inline");
+    expect(toComments(verdict, "labeled", "reviewer").summary).toContain("Blocking (1), commented inline.");
+  });
+
   test("natural comments read like prose", () => {
     expect(toComments(verdict, "natural").comments[0]?.body).toBe(
       "claim of LOGIC-001 that is long enough (MT-CODE-001). Trigger: t. Reached via r.\n\nSuggested fix: define rate",

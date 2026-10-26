@@ -10,7 +10,7 @@ rules:
     implementation: ast-grep:mt-code-001
     summary: Domain, application and adapter code return Result<T, MetatorError>; they throw only for programmer errors such as DI misconfiguration.
     rationale: docs/ARCHITECTURE.md
-    source: { ref: AGENTS.md#conventions, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#rules-that-hold-everywhere, verified: 2026-10-26 }
     do:
       - 'return err(new MetatorError("NOT_FOUND", `Rule ${id} not found`, { hint }))'
     dont:
@@ -22,7 +22,7 @@ rules:
     implementation: ast-grep:mt-code-002
     summary: Files MetatorAI reads or writes are defined with defineDocument and written only through Document.stamp, read only through Document.parse.
     rationale: docs/adr/0016-versioned-documents.md
-    source: { ref: AGENTS.md#every-file-is-a-versioned-document-adr-0016, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#rules-that-hold-everywhere, verified: 2026-10-26 }
     do:
       - "serializeJsonDocument(ImportIndexDocument.stamp(next))"
     dont:
@@ -34,7 +34,7 @@ rules:
     implementation: test:mt-code-003
     summary: Every document version has a frozen schema snapshot in docs/metator/schemas (`bun run schemas:freeze` adds new ones, never rewrites); every older version has an example that must migrate to the current one.
     rationale: docs/adr/0016-versioned-documents.md
-    source: { ref: AGENTS.md#every-file-is-a-versioned-document-adr-0016, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#rules-that-hold-everywhere, verified: 2026-10-26 }
     do:
       - "defineDocument(kind, { latest: V2, upgrade: (v1) => migrate(v1), history: [{ schema: V1 }] })"
     dont:
@@ -46,7 +46,7 @@ rules:
     implementation: ast-grep:mt-code-004
     summary: A command prints exactly one JSON envelope line (hook commands print the host's hook response instead); values are validated by commander (choices, requiredOption, argParser), not by hand.
     rationale: docs/adr/0014-cli-commander.md
-    source: { ref: AGENTS.md#conventions, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#rules-that-hold-everywhere, verified: 2026-10-26 }
     do:
       - '.option("--budget <tokens>", "token budget", positiveInt)'
     dont:
@@ -58,7 +58,7 @@ rules:
     implementation: test:mt-code-005
     summary: Every third-party package in a package.json is in docs/metator/dependencies.yml with the need it covers and the ADR that approved it; nothing unused stays registered.
     rationale: docs/adr/0010-dependency-policy.md
-    source: { ref: AGENTS.md#dependency-policy-dont-reinvent-the-wheel, verified: 2026-10-25 }
+    source: { ref: AGENTS.md#rules-that-hold-everywhere, verified: 2026-10-26 }
   - id: MT-CODE-006
     title: Type-only imports use import type
     applyTo: ["packages/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"]
