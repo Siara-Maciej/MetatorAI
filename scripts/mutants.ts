@@ -602,4 +602,40 @@ export const MUTANTS: readonly Mutant[] = [
     to: "this.detected = this.run();",
     why: "package manager detection runs once",
   },
+  {
+    file: "packages/core/src/domain/plan.ts",
+    from: "if (!before(a.id).has(b.id))",
+    to: "if (false)",
+    why: "an importer must run after the file it imports",
+  },
+  {
+    file: "packages/core/src/domain/plan.ts",
+    from: "else if (!earlierPaths.has(t))",
+    to: "else if (false)",
+    why: "tests are written by an earlier step",
+  },
+  {
+    file: "packages/core/src/domain/plan.ts",
+    from: "else if (!occurrences.has(exemplar))",
+    to: "else if (false)",
+    why: "the exemplar is an occurrence of its pattern",
+  },
+  {
+    file: "packages/core/src/domain/plan.ts",
+    from: "    if (isTest(from)) continue;\n",
+    to: "",
+    why: "tests may import the code they are written before",
+  },
+  {
+    file: "packages/core/src/domain/plan.ts",
+    from: "for (const list of owners.values()) for (const other of list.slice(1))",
+    to: "for (const list of [] as string[][]) for (const other of list.slice(1))",
+    why: "steps on one file share a shard",
+  },
+  {
+    file: "packages/core/src/application/plans.ts",
+    from: "if (await this.fs.exists(s.path)) files.add(s.path);",
+    to: "files.add(s.path);",
+    why: "a step's file exists only when the file system has it",
+  },
 ];

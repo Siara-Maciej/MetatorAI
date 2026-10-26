@@ -28,6 +28,7 @@ import {
   KnowledgeFiles,
   LintAdrs,
   LintAgents,
+  LintPlan,
   LintRules,
   ListRuns,
   MeasureRuleCoverage,
@@ -44,6 +45,7 @@ import {
   RunRepository,
   ScaffoldRule,
   ScanPatterns,
+  ScopePlan,
   ScoreEvals,
   SourceFiles,
   ValidateCitations,
@@ -163,6 +165,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ScanPatterns(patternCatalog, ruleCatalog, ruleEngines, workspaceReader, fileSystem, paths),
     ),
     findSimilar: asFunction(({ scanPatterns }) => new FindSimilar(scanPatterns)),
+    lintPlan: asFunction(
+      ({ fileSystem, scanPatterns, ruleCatalog, buildImportGraph, testGlobs }) =>
+        new LintPlan(fileSystem, scanPatterns, ruleCatalog, buildImportGraph, testGlobs),
+    ),
+    scopePlan: asFunction(({ fileSystem, buildImportGraph }) => new ScopePlan(fileSystem, buildImportGraph)),
     lintAdrs: asFunction(
       ({ fileSystem, paths, ruleCatalog }) => new LintAdrs(fileSystem, paths, ruleCatalog),
     ),

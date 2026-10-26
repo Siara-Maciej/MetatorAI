@@ -1,0 +1,102 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "PlanScope",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "PlanScope"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "plan": {
+        "type": "string"
+      },
+      "edit": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "shards": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["id", "steps", "files"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "plan", "edit", "shards"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "PlanScope"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "plan": {
+        "type": "string"
+      },
+      "edit": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "shards": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["id", "steps", "files"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "plan", "edit", "shards"],
+    "additionalProperties": false
+  }
+}

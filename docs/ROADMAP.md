@@ -121,7 +121,7 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 **Zadania**
 - [ ] `mt-orchestrator` wg spec W1/W2/W3. Prompt skrócony do zasad delegacji (≤ 200 linii).
 - [ ] Workerzy: `mt-scout`, `mt-pattern-miner`, `mt-rule-curator`, `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-gatekeeper`, `mt-pr-author`.
-- [ ] `plan lint|scope` (pattern_source, TDD order, kolejność wg grafu, shardy).
+- [x] `plan lint|scope` (pattern_source, TDD order, kolejność wg grafu, shardy).
 - [ ] Hooki: `pre-tool` (scope, approvals, sekrety, rola), `post-edit` (biome + ast-grep), `stop`, `precompact`, `session-start`.
 - [ ] Gate: `gate quick|all`, `test affected`, `coverage diff`, `graph diff`, `api diff`.
 - [ ] Refactor: skill `mt-characterization-tests`, `equivalence.md`, soczewka `mt-review-equivalence`.

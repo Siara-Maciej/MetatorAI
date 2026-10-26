@@ -19,7 +19,7 @@ dir: packages/core
 
 ## Responsibility
 
-The product's inside: domain model (versioned documents, rules, memory map, import index, run state machine), ports, and use cases. No I/O of its own; adapters arrive through ports.
+The product's inside: domain model (versioned documents, rules, memory map, import index, run state machine, plans), ports, and use cases. No I/O of its own; adapters arrive through ports.
 
 ## Invariants
 

@@ -16,4 +16,11 @@ for (const doc of documents().values()) {
     written.push(file);
   }
 }
+// Formatted like every other file, so `bun run lint` stays green after a freeze.
+if (written.length > 0) {
+  const biome = Bun.spawn([join(root, "node_modules/.bin/biome"), "format", "--write", ...written], {
+    cwd: root,
+  });
+  if ((await biome.exited) !== 0) process.exit(1);
+}
 console.log(written.length === 0 ? "every version is frozen" : `froze ${written.join(", ")}`);

@@ -14,6 +14,7 @@ import { registerGraphCommands } from "./commands/graph.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
 import { registerPatternsCommands } from "./commands/patterns.ts";
+import { registerPlanCommands } from "./commands/plan.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
@@ -68,6 +69,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerFindingsCommands(program, ctx);
   registerReviewCommands(program, ctx);
   registerEvalCommands(program, ctx);
+  registerPlanCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;

@@ -30,6 +30,7 @@ import {
   type KnowledgeFiles,
   type LintAdrs,
   type LintAgents,
+  type LintPlan,
   type LintRules,
   type ListRuns,
   type Logger,
@@ -55,6 +56,7 @@ import {
   type RunRepository,
   type ScaffoldRule,
   type ScanPatterns,
+  type ScopePlan,
   type ScoreEvals,
   type SourceFiles,
   type ValidateCitations,
@@ -120,6 +122,8 @@ export interface Cradle {
   patternCatalog: PatternCatalog;
   scanPatterns: ScanPatterns;
   findSimilar: FindSimilar;
+  lintPlan: LintPlan;
+  scopePlan: ScopePlan;
   lintAdrs: LintAdrs;
   measureRuleCoverage: MeasureRuleCoverage;
   scaffoldRule: ScaffoldRule;
