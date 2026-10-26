@@ -22,6 +22,8 @@ export interface MetatorPaths {
   readonly api: string;
   /** Lessons learned from runs (T4, `lessons add`). */
   readonly lessons: string;
+  /** Claims about the code a docs analysis verified (`docs drift`). */
+  readonly claims: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -41,6 +43,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   skills: "metator/skills",
   api: ".metator/api",
   lessons: "docs/metator/lessons",
+  claims: "docs/metator/claims.json",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

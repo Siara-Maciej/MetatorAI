@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { InMemoryFileSystem } from "@metator/testing";
 import { BuildModuleCards, cardFile } from "../src/application/cards.ts";
 import type { ImportGraphReport } from "../src/application/import-graph.ts";
+import { FindOwners } from "../src/application/owners.ts";
 import { DEFAULT_PATHS, DEFAULT_TEST_GLOBS } from "../src/application/paths.ts";
+import { PatternCatalog } from "../src/application/patterns.ts";
 import { GENERATED_END, GENERATED_START, splitCard } from "../src/domain/module-card.ts";
 import { ok } from "../src/domain/result.ts";
 
@@ -51,6 +53,8 @@ function world(files: Record<string, string> = {}, report = REPORT) {
     fs,
     DEFAULT_PATHS,
     DEFAULT_TEST_GLOBS,
+    new FindOwners(fs),
+    new PatternCatalog(fs, DEFAULT_PATHS),
   );
   return { fs, cards };
 }
@@ -88,6 +92,31 @@ describe("BuildModuleCards", () => {
     expect(web).toContain("- Third-party: `lodash`\n"); // builtins and test-only packages are not listed
     expect(web).toContain("- Test-only dependencies: none"); // already production dependencies
     expect(text).not.toContain("`packages/money/src/money.ts`"); // a test import is not public surface
+  });
+
+  test("owners from CODEOWNERS and the patterns whose exemplar lives in the package", async () => {
+    const pattern = (id: string, exemplar: string) =>
+      `kind: Pattern\nschemaVersion: 1\nid: ${id}\ntitle: Title\nintent: An intent sentence.\nwhen: when needed\ndetection: ast-grep:x\nexemplar: ${exemplar}\n`;
+    const w = world({
+      ".github/CODEOWNERS": "* @all\npackages/money/ @money-team @finance\n",
+      "docs/metator/patterns/money.yml": pattern("money-value", "packages/money/src/money.ts"),
+      "docs/metator/patterns/page.yml": pattern("page", "apps/web/src/main.ts"),
+    });
+    await w.cards.execute({ check: false });
+    const money = (await w.fs.read(MONEY))._unsafeUnwrap();
+    expect(money).toContain("- Owners: `@finance`, `@money-team`\n");
+    expect(money).toContain("- Patterns with their exemplar here: `money-value`\n");
+    const web = (await w.fs.read("docs/metator/modules/acme-web.card.md"))._unsafeUnwrap();
+    expect(web).toContain("- Owners: `@all`\n");
+    expect(web).toContain("- Patterns with their exemplar here: `page`\n");
+  });
+
+  test("without CODEOWNERS the card says so", async () => {
+    const w = world();
+    await w.cards.execute({ check: false });
+    const money = (await w.fs.read(MONEY))._unsafeUnwrap();
+    expect(money).toContain("- Owners: none (no CODEOWNERS)\n");
+    expect(money).toContain("- Patterns with their exemplar here: none\n");
   });
 
   test("curated text survives regeneration; only the generated block changes", async () => {

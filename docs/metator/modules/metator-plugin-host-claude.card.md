@@ -15,6 +15,8 @@ dir: packages/plugin-host-claude
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-host-claude/src/index.ts`
 - Third-party: `yaml`
+- Owners: `@Siara-Maciej`
+- Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility

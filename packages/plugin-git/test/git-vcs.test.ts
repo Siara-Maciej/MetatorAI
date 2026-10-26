@@ -12,6 +12,10 @@ afterAll(async () => {
 });
 
 async function sh(cwd: string, ...argv: string[]): Promise<void> {
+  return shEnv(cwd, {}, ...argv);
+}
+
+async function shEnv(cwd: string, env: Record<string, string>, ...argv: string[]): Promise<void> {
   const r = await runner.run({
     argv: [
       "git",
@@ -24,6 +28,7 @@ async function sh(cwd: string, ...argv: string[]): Promise<void> {
       ...argv,
     ],
     cwd,
+    env,
   });
   if (r.exitCode !== 0) throw new Error(`git ${argv.join(" ")}: ${r.stderr}`);
 }
@@ -229,5 +234,32 @@ describe("GitVcs.addedLines (real git)", () => {
     const added = (await new GitVcs(dir).addedLines("main"))._unsafeUnwrap();
     expect(added.has("b.ts")).toBe(false);
     expect((await new GitVcs(dir).addedLines("nope"))._unsafeUnwrapErr().code).toBe("USAGE");
+  });
+});
+
+describe("GitVcs.lastChanged (real git)", () => {
+  test("each committed file with the date of the last commit that touched it", async () => {
+    const dir = await repo();
+    const at = (date: string) => ({ GIT_COMMITTER_DATE: date, GIT_AUTHOR_DATE: date });
+    await writeFile(join(dir, "a.md"), "a\n");
+    await writeFile(join(dir, "b.md"), "b\n");
+    await sh(dir, "add", ".");
+    await shEnv(dir, at("2026-01-01T10:00:00Z"), "commit", "-q", "-m", "init");
+    await writeFile(join(dir, "b.md"), "b2\n");
+    await shEnv(dir, at("2026-02-01T10:00:00Z"), "commit", "-q", "-am", "b");
+    await writeFile(join(dir, "c.md"), "untracked\n");
+    const changed = (await new GitVcs(dir).lastChanged())._unsafeUnwrap();
+    expect([...changed].map(([f, d]) => [f, d.slice(0, 10)])).toEqual([
+      ["b.md", "2026-02-01"],
+      ["a.md", "2026-01-01"],
+    ]);
+  });
+
+  test("no commits yet: nothing; not a repository: an error value", async () => {
+    const empty = await repo();
+    expect((await new GitVcs(empty).lastChanged())._unsafeUnwrap().size).toBe(0);
+    expect((await new GitVcs(join(empty, "missing")).lastChanged())._unsafeUnwrapErr().code).toBe(
+      "NOT_FOUND",
+    );
   });
 });

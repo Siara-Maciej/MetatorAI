@@ -15,6 +15,8 @@ dir: packages/testing
 - Used by: none
 - Imported by other packages: none
 - Third-party: none
+- Owners: `@Siara-Maciej`
+- Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility

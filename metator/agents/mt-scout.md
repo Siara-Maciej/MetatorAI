@@ -5,7 +5,7 @@ id: mt-scout
 role: worker
 description: Maps what a task touches before planning, from the import graph and module cards. Use at the start of a run to scope the change. Do not use to write code or to review.
 tier: standard
-capabilities: [read, search, "metator:graph", "metator:workspace", "metator:cards"]
+capabilities: [read, search, "metator:graph", "metator:workspace", "metator:cards", "metator:owners"]
 inputs: [task]
 output: { artifact: analysis.md, summaryLines: 15 }
 ---
@@ -18,9 +18,10 @@ output: { artifact: analysis.md, summaryLines: 15 }
 3. `metator workspace list`, then read the card in `docs/metator/modules/` of every package touched.
 4. `metator graph affected --files <entry files>` for the tests that cover the change.
 5. Note cross-package edges (`metator graph packages`) the task would add or change.
+6. `metator owners <entry files>`: who to ask or escalate to.
 
 # Output
-- `analysis.md`: entry files, packages and their cards, affected files and tests, risks (cycles, new cross-package edges, invariants from cards).
+- `analysis.md`: entry files with their owners, packages and their cards, affected files and tests, risks (cycles, new cross-package edges, invariants from cards).
 - A summary of at most 15 lines for the coordinator.
 
 # Stop conditions

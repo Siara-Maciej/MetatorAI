@@ -17,6 +17,8 @@ export const CHECK_ALL: readonly (readonly string[])[] = [
   ["workflow", "validate"],
   ["workflow", "lint"],
   ["generate", "--check"],
+  ["docs", "links"],
+  ["docs", "drift"],
 ];
 
 export function registerAgentCommands(program: Command, { action, container, invoke }: CommandContext): void {

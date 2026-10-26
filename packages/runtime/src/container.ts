@@ -21,10 +21,14 @@ import {
   type DiffCoverage,
   type DiffImportGraph,
   type Discover,
+  type DocsDrift,
+  type DocsInventory,
+  type DocsLinks,
   type EvalCatalog,
   err,
   type FileSystem,
   type FindMemoryDupes,
+  type FindOwners,
   type FindSimilar,
   type FormatReviewComments,
   type GateChecks,
@@ -165,6 +169,10 @@ export interface Cradle {
   checkFlaky: CheckFlaky;
   checkDebugTags: CheckDebugTags;
   checkQuote: CheckQuote;
+  findOwners: FindOwners;
+  docsLinks: DocsLinks;
+  docsInventory: DocsInventory;
+  docsDrift: DocsDrift;
   addLesson: AddLesson;
   diffCoverage: DiffCoverage;
   apiSnapshots: ApiSnapshots;

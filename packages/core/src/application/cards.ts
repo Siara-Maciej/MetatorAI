@@ -7,7 +7,9 @@ import { err, ok, type Result } from "../domain/result.ts";
 import { readFrontMatter } from "../domain/versioned.ts";
 import type { FileSystem, WorkspacePackage } from "../ports/index.ts";
 import type { BuildImportGraph, ImportGraphReport } from "./import-graph.ts";
+import type { FindOwners } from "./owners.ts";
 import type { MetatorPaths } from "./paths.ts";
+import type { PatternCatalog } from "./patterns.ts";
 
 export interface CardsReport {
   readonly written: readonly string[];
@@ -27,7 +29,8 @@ export function cardFile(dir: string, pkg: string): string {
 
 /**
  * Generated part of module cards from the import graph: dependencies, dependents, files other
- * packages import (the effective public surface), third-party packages. Curated text is kept.
+ * packages import (the effective public surface), third-party packages; owners from CODEOWNERS
+ * and the cataloged patterns whose exemplar lives in the package (ADR-0045). Curated text is kept.
  */
 export class BuildModuleCards {
   constructor(
@@ -35,12 +38,22 @@ export class BuildModuleCards {
     private readonly fs: FileSystem,
     private readonly paths: MetatorPaths,
     private readonly testGlobs: readonly string[],
+    private readonly owners: Pick<FindOwners, "execute">,
+    private readonly patterns: Pick<PatternCatalog, "scan">,
   ) {}
 
   async execute(input: { readonly check: boolean }): Promise<Result<CardsReport, MetatorError>> {
     const report = await this.graph.execute();
     if (report.isErr()) return err(report.error);
     const r = report.value;
+    // A file at the package root stands for the package: CODEOWNERS decides per path.
+    const probe = (dir: string) => (dir === "" || dir === "." ? "package.json" : `${dir}/package.json`);
+    const owned = await this.owners.execute({ paths: r.packages.map((p) => probe(p.dir)) });
+    if (owned.isErr()) return err(owned.error);
+    const exemplars = (await this.patterns.scan()).patterns.map((p) => ({
+      id: p.pattern.id,
+      file: p.pattern.exemplar,
+    }));
 
     const written: string[] = [];
     const unchanged: string[] = [];
@@ -48,10 +61,15 @@ export class BuildModuleCards {
     const invalid: { file: string; message: string }[] = [];
     const expected = new Set<string>();
 
-    for (const pkg of r.packages) {
+    for (const [i, pkg] of r.packages.entries()) {
       const file = cardFile(this.paths.cards, pkg.name);
       expected.add(file);
-      const generated = renderGenerated(pkg, r, this.testGlobs);
+      const extra = {
+        owners: owned.value.owners[i]?.owners ?? [],
+        codeowners: owned.value.source !== undefined,
+        patterns: exemplars.filter((e) => packageOf(e.file, r.packages)?.dir === pkg.dir).map((e) => e.id),
+      };
+      const generated = renderGenerated(pkg, r, this.testGlobs, extra);
       const current = await this.fs.read(file);
       let next: string;
       if (current.isErr()) {
@@ -89,7 +107,16 @@ export class BuildModuleCards {
   }
 }
 
-function renderGenerated(pkg: WorkspacePackage, r: ImportGraphReport, testGlobs: readonly string[]): string {
+function renderGenerated(
+  pkg: WorkspacePackage,
+  r: ImportGraphReport,
+  testGlobs: readonly string[],
+  extra: {
+    readonly owners: readonly string[];
+    readonly codeowners: boolean;
+    readonly patterns: readonly string[];
+  },
+): string {
   const owner = (file: string) => packageOf(file, r.packages);
   const mine = (file: string) => owner(file)?.dir === pkg.dir;
 
@@ -132,6 +159,8 @@ function renderGenerated(pkg: WorkspacePackage, r: ImportGraphReport, testGlobs:
     `- Used by: ${names(usedBy)}`,
     `- Imported by other packages: ${names(surface)}`,
     `- Third-party: ${names(thirdParty)}`,
+    `- Owners: ${extra.codeowners ? names(extra.owners) : "none (no CODEOWNERS)"}`,
+    `- Patterns with their exemplar here: ${names(extra.patterns)}`,
     "",
   ];
   return lines.join("\n");

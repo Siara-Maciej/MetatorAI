@@ -15,6 +15,8 @@ dir: packages/cli
 - Used by: none
 - Imported by other packages: none
 - Third-party: `commander`
+- Owners: `@Siara-Maciej`
+- Patterns with their exemplar here: `cli-command-group`
 <!-- metator:generated:end -->
 
 ## Responsibility

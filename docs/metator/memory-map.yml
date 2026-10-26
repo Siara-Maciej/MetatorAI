@@ -156,3 +156,11 @@ items:
     writers: ["mt-retro (after human approval, via metator lessons add)"]
     readers: [mt-planner, mt-implementer, mt-review-logic]
     description: Lessons learned from runs; each cites code that `memory validate` keeps true.
+  - id: t1.claims
+    tier: T1
+    kind: canon
+    paths: ["docs/metator/claims.json"]
+    load: "query:metator docs drift"
+    writers: ["mt-docs-curator (after human approval)"]
+    readers: [mt-docs-curator, "metator docs drift"]
+    description: Claims from docs and ADRs verified against the code; `docs drift` re-checks their evidence.

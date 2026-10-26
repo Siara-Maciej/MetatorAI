@@ -15,6 +15,8 @@ dir: packages/runtime
 - Used by: `@metator/cli`
 - Imported by other packages: `packages/runtime/src/index.ts`
 - Third-party: `awilix`
+- Owners: `@Siara-Maciej`
+- Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility

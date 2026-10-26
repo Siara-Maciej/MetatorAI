@@ -15,6 +15,8 @@ dir: packages/plugin-biome
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-biome/src/index.ts`
 - Third-party: none
+- Owners: `@Siara-Maciej`
+- Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility

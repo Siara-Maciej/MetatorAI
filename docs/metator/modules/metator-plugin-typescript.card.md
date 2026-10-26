@@ -15,6 +15,8 @@ dir: packages/plugin-typescript
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-typescript/src/index.ts`
 - Third-party: `oxc-parser`, `oxc-resolver`
+- Owners: `@Siara-Maciej`
+- Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility

@@ -15,6 +15,8 @@ dir: packages/plugin-git
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-git/src/index.ts`
 - Third-party: `parse-diff`, `simple-git`
+- Owners: `@Siara-Maciej`
+- Patterns with their exemplar here: `port-adapter`
 <!-- metator:generated:end -->
 
 ## Responsibility

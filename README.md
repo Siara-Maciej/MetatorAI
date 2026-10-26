@@ -202,6 +202,9 @@ metator findings validate <dir> --fix                          # invented quotes
 metator findings check-quote src/a.ts --line 41 --quote "..."  # one claimed quote against the code
 metator lessons add --title ... --file ... --line ... --quote ...  # a lesson only with true evidence
 metator debug-tags check --base main                           # no instrumentation left after a diagnosis
+metator owners packages/billing/src/invoice.ts                 # owners from CODEOWNERS (last matching line wins)
+metator docs links                                             # dead relative links and headings in Markdown
+metator docs drift                                             # verified claims about the code, checked again
 metator eval run --command "scripts/review.sh {case} {out}"    # precision and recall of the review on a golden set
 ```
 

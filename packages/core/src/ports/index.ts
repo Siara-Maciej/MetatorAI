@@ -63,6 +63,8 @@ export interface RevisionReader {
   readAt(base: string, path: string): Promise<Result<string | undefined, MetatorError>>;
   /** Lines added since the merge base, per file (1-based, working tree; untracked files whole). */
   addedLines(base: string): Promise<Result<ReadonlyMap<string, readonly number[]>, MetatorError>>;
+  /** ISO date of the last commit that touched each committed file (none before the first commit). */
+  lastChanged(): Promise<Result<ReadonlyMap<string, string>, MetatorError>>;
 }
 
 /** Line coverage from a report the repository's test runner wrote (e.g. LCOV). */

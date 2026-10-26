@@ -1,0 +1,39 @@
+{
+  "kind": "ClaimSet",
+  "schemaVersion": 1,
+  "claims": [
+    {
+      "id": "agents.define-document",
+      "source": "AGENTS.md",
+      "statement": "Documents are defined with defineDocument(kind, { latest, upgrade?, history? }).",
+      "status": "verified",
+      "evidence": {
+        "path": "packages/core/src/domain/versioned.ts",
+        "line": 52,
+        "quote": "export function defineDocument<S extends z.ZodType>("
+      }
+    },
+    {
+      "id": "core-card.one-error-type",
+      "source": "docs/metator/modules/metator-core.card.md",
+      "statement": "Errors cross layers as one type, MetatorError.",
+      "status": "verified",
+      "evidence": {
+        "path": "packages/core/src/domain/errors.ts",
+        "line": 21,
+        "quote": "export class MetatorError extends Error {"
+      }
+    },
+    {
+      "id": "memory-map.citation-window",
+      "source": "docs/design/03-memory-map.md",
+      "statement": "memory validate finds a cited quote within ten lines of the cited line.",
+      "status": "verified",
+      "evidence": {
+        "path": "packages/core/src/domain/memory.ts",
+        "line": 172,
+        "quote": "export const CITATION_WINDOW = 10;"
+      }
+    }
+  ]
+}

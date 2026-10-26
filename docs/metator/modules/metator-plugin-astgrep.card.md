@@ -15,6 +15,8 @@ dir: packages/plugin-astgrep
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-astgrep/src/index.ts`
 - Third-party: `yaml`
+- Owners: `@Siara-Maciej`
+- Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility

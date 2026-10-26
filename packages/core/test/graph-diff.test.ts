@@ -75,6 +75,7 @@ const analyzer: ImportAnalyzer = {
 const history = (files: Record<string, string>): RevisionReader => ({
   readAt: async (_b, p) => ok(files[p]),
   addedLines: async () => ok(new Map()),
+  lastChanged: async () => ok(new Map()),
 });
 const graph = (edges: Edge[]) => ({
   execute: async () =>
@@ -125,6 +126,7 @@ describe("DiffImportGraph", () => {
     const failing: RevisionReader = {
       readAt: async () => err(MetatorError.usage("Unknown base ref")),
       addedLines: async () => ok(new Map()),
+      lastChanged: async () => ok(new Map()),
     };
     const viaHistory = new DiffImportGraph(new FakeVcs([], files), failing, graph([]), analyzer);
     expect((await viaHistory.execute({ base: "x" }))._unsafeUnwrapErr().code).toBe("USAGE");

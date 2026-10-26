@@ -26,9 +26,10 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] `workflow lint` (anatomia, 16 sekcji, ADR-0042).
 - [x] Specyfikacje W1–W5 jako `Workflow` v2 w `.github/metator/workflows/`, `workflow lint` w `meta check-all` (ADR-0043).
 - [x] `run handoff|close`, `lessons add`, `findings check-quote`, `debug-tags check` (ADR-0044).
-- [ ] `docs inventory|drift|links`, `owners`.
+- [x] `docs inventory|drift|links`, `owners` (ADR-0045).
 - [x] Agenci: `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-pr-author`, `mt-review-equivalence`, `mt-diagnostician`, `mt-docs-curator`, `mt-retro`; skille `mt-characterization-tests`, `mt-create-*`, `mt-review-rubric`, `mt-grill`, `mt-diagnose`.
-- [ ] Karty: API na poziomie symboli, wzorce, właściciele z CODEOWNERS. T0: `copilot-instructions.md` ≤ 4000 znaków.
+- [x] Karty: wzorce i właściciele z CODEOWNERS; API na poziomie symboli zostaje w `api snapshot` i `graph callers` (ADR-0045).
+- [ ] T0: `copilot-instructions.md` ≤ 4000 znaków.
 
 **Wymaga repo pilota lub ludzi (nie da się zamknąć w tym repo):** F0 (inwentarz, spike platformy, baseline), złoty zbiór ≥ 50 PR-ów, 10–15 wzorców pilota, W7 na ADR pilota, rename agentów pilota, kryteria wyjścia faz mierzone na zadaniach pilota.
 
@@ -115,7 +116,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] Katalog wzorców ([ADR-0023](adr/0023-pattern-catalog.md)): `Pattern` YAML, wykrywanie regułami ast-grep (`severity: hint`, z testami), `patterns scan [--check]`, `similar`, indeks `.metator/index/patterns.json`. Dogfood: 4 wzorce MetatorAI (use-case, versioned-document, cli-command-group, port-adapter).
 - [ ] Kolejne wzorce do 10–15 w repo pilota.
 - [x] Karty modułów ([ADR-0022](adr/0022-module-cards.md)): `cards build [--check]`, blok generowany z grafu (zależności, testowe osobno, użytkownicy, powierzchnia publiczna, biblioteki), sekcje kuratorowane z cytatami. Dogfood: 9 kart MetatorAI z 11 prawdziwymi cytatami.
-- [ ] Karty: publiczne API na poziomie symboli (`api snapshot`), wzorce, właściciele z CODEOWNERS.
+- [x] Karty: publiczne API na poziomie symboli (`api snapshot`), wzorce, właściciele z CODEOWNERS (ADR-0045).
 
 **Kryterium wyjścia:** `memory check` zielony, 0 duplikatów reguł poza canon, 100% reguł z ID i źródłem, ≥ 40% E1, każdy wzorzec ma exemplar i ≥ 2 wystąpienia, karty dla 100% pakietów pilota.
 

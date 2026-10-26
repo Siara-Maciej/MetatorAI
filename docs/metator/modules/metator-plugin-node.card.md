@@ -15,6 +15,8 @@ dir: packages/plugin-node
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-node/src/index.ts`
 - Third-party: `@friedemannsommer/lcov-parser`, `@manypkg/get-packages`, `package-manager-detector`
+- Owners: `@Siara-Maciej`
+- Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility

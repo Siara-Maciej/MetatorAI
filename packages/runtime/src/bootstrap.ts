@@ -23,8 +23,12 @@ import {
   DiffCoverage,
   DiffImportGraph,
   Discover,
+  DocsDrift,
+  DocsInventory,
+  DocsLinks,
   EvalCatalog,
   FindMemoryDupes,
+  FindOwners,
   FindSimilar,
   FormatReviewComments,
   GateChecks,
@@ -185,8 +189,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new CheckMemory(memoryMapReader, knowledgeFiles, fileSystem, memoryBudget, validateCitations),
     ),
     buildModuleCards: asFunction(
-      ({ buildImportGraph, fileSystem, paths, testGlobs }) =>
-        new BuildModuleCards(buildImportGraph, fileSystem, paths, testGlobs),
+      ({ buildImportGraph, fileSystem, paths, testGlobs, findOwners, patternCatalog }) =>
+        new BuildModuleCards(buildImportGraph, fileSystem, paths, testGlobs, findOwners, patternCatalog),
     ),
     patternCatalog: asFunction(({ fileSystem, paths }) => new PatternCatalog(fileSystem, paths)).singleton(),
     scanPatterns: asFunction(
@@ -209,6 +213,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ vcs, fileSystem, sourceIgnores }) => new CheckDebugTags(vcs, fileSystem, sourceIgnores),
     ),
     checkQuote: asFunction(({ fileSystem }) => new CheckQuote(fileSystem)),
+    findOwners: asFunction(({ fileSystem }) => new FindOwners(fileSystem)),
+    docsLinks: asFunction(({ sourceFiles, fileSystem }) => new DocsLinks(sourceFiles, fileSystem)),
+    docsInventory: asFunction(
+      ({ sourceFiles, fileSystem, revisionReader, findOwners, docsLinks, clock }) =>
+        new DocsInventory(sourceFiles, fileSystem, revisionReader, findOwners, docsLinks, clock),
+    ),
+    docsDrift: asFunction(({ fileSystem, paths }) => new DocsDrift(fileSystem, paths.claims)),
     addLesson: asFunction(({ fileSystem, clock, paths }) => new AddLesson(fileSystem, clock, paths.lessons)),
     symbolQueries: asFunction(
       ({ sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer }) =>

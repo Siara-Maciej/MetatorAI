@@ -88,6 +88,24 @@ export class GitVcs implements Vcs, RevisionReader {
     });
   }
 
+  async lastChanged(): Promise<Result<ReadonlyMap<string, string>, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      const out = new Map<string, string>();
+      if (!(await this.hasCommits(git.value))) return ok(out);
+      // Newest commit first: the first date seen for a path is its last change.
+      let date = "";
+      for (const line of (
+        await git.value.raw(["log", "--no-renames", "--format=%x01%cI", "--name-only"])
+      ).split("\n")) {
+        if (line.startsWith("\u0001")) date = line.slice(1);
+        else if (line !== "" && !out.has(line)) out.set(line, date);
+      }
+      return ok(out);
+    });
+  }
+
   async remoteUrl(): Promise<Result<string | undefined, MetatorError>> {
     const git = await this.repo();
     if (git.isErr()) return err(git.error);
