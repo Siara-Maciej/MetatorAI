@@ -24,6 +24,8 @@ export interface MetatorPaths {
   readonly lessons: string;
   /** Claims about the code a docs analysis verified (`docs drift`). */
   readonly claims: string;
+  /** The system map: applications, contracts and policies (ADR-0047). */
+  readonly system: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -44,6 +46,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   api: ".metator/api",
   lessons: "docs/metator/lessons",
   claims: "docs/metator/claims.json",
+  system: "docs/metator/system.yml",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

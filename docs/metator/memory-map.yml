@@ -173,3 +173,11 @@ items:
     writers: ["mt-docs-curator (after human approval)"]
     readers: [mt-docs-curator, "metator docs drift"]
     description: Claims from docs and ADRs verified against the code; `docs drift` re-checks their evidence.
+  - id: t1.system
+    tier: T1
+    kind: canon
+    paths: ["docs/metator/system.yml"]
+    load: "query:metator system show"
+    writers: [human, "metator system discover (proposal, after approval)"]
+    readers: [mt-system-scout, mt-system-planner, "metator system"]
+    description: The system map (applications, contracts, policies); `system lint` keeps it true.

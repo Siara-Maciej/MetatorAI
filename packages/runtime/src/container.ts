@@ -56,6 +56,7 @@ import {
   type LintPlan,
   type LintRules,
   type LintSkills,
+  type LintSystem,
   type LintWorkflows,
   type ListRuns,
   type Logger,
@@ -85,11 +86,13 @@ import {
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
+  type ShowSystem,
   type SkillCatalog,
   type SkillGenerator,
   type SourceFiles,
   type SymbolAnalyzer,
   type SymbolQueries,
+  type SystemCatalog,
   type ValidateCitations,
   type ValidateFindings,
   type Vcs,
@@ -170,6 +173,10 @@ export interface Cradle {
   checkDebugTags: CheckDebugTags;
   checkQuote: CheckQuote;
   findOwners: FindOwners;
+  contractKinds: readonly string[];
+  systemCatalog: SystemCatalog;
+  lintSystem: LintSystem;
+  showSystem: ShowSystem;
   docsLinks: DocsLinks;
   docsInventory: DocsInventory;
   docsDrift: DocsDrift;

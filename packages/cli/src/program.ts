@@ -25,6 +25,7 @@ import { registerPatternsCommands } from "./commands/patterns.ts";
 import { registerPlanCommands } from "./commands/plan.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
+import { registerSystemCommands } from "./commands/system.ts";
 import { registerTestCommands } from "./commands/test.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
 import type { CommandContext, Outcome } from "./context.ts";
@@ -82,6 +83,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerGraphCommands(program, ctx);
   registerApiCommands(program, ctx);
   registerOwnersCommand(program, ctx);
+  registerSystemCommands(program, ctx);
   registerRulesCommands(program, ctx);
   registerMemoryCommands(program, ctx);
   registerLessonsCommands(program, ctx);

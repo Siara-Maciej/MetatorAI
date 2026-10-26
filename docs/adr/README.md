@@ -50,3 +50,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0044](0044-run-close-lessons-quotes.md) | `run handoff\|close`, `lessons add`, `findings check-quote`, `debug-tags check` | Proposed |
 | [0045](0045-owners-docs-checks.md) | `owners`, `docs inventory\|links\|drift`, właściciele i wzorce w kartach | Proposed |
 | [0046](0046-autopilot-author-flow-t0.md) | Autopilot, Author/Reviewer flow i T0 ≤ 4000 znaków | Proposed |
+| [0047](0047-system-map.md) | `SystemMap`: aplikacje, kontrakty i kolejność wdrożeń | Proposed |

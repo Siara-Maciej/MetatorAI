@@ -1124,4 +1124,40 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const author = false;",
     why: "the author gets no comments on their own PR",
   },
+  {
+    file: "packages/core/src/domain/system-map.ts",
+    from: "if (!kinds.includes(c.kind))",
+    to: "if (false)",
+    why: "a contract kind needs a plugin",
+  },
+  {
+    file: "packages/core/src/domain/system-map.ts",
+    from: 'if (map.policies.deployOrder === "providers-first")',
+    to: "if (false)",
+    why: "providers-first rejects deploy cycles",
+  },
+  {
+    file: "packages/core/src/domain/system-map.ts",
+    from: "if (provider && provider !== a.id && g.hasNode(provider)) g.setEdge(provider, a.id);",
+    to: "if (provider && provider !== a.id && g.hasNode(provider)) g.setEdge(a.id, provider);",
+    why: "providers deploy before their consumers",
+  },
+  {
+    file: "packages/core/src/domain/system-map.ts",
+    from: ".every((p) => done.has(p))",
+    to: ".length >= 0",
+    why: "a wave waits for every provider",
+  },
+  {
+    file: "packages/core/src/application/system.ts",
+    from: "if (!(await this.fs.exists(spec)))",
+    to: "if (false)",
+    why: "a local specification must exist",
+  },
+  {
+    file: "packages/core/src/application/system.ts",
+    from: 'if (dir === undefined || dir === ".") continue;',
+    to: "continue;",
+    why: "a local application directory must exist",
+  },
 ];

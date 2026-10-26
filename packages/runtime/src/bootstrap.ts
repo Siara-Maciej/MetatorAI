@@ -54,6 +54,7 @@ import {
   LintPlan,
   LintRules,
   LintSkills,
+  LintSystem,
   LintWorkflows,
   ListRuns,
   MeasureRuleCoverage,
@@ -73,9 +74,11 @@ import {
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  ShowSystem,
   SkillCatalog,
   SourceFiles,
   SymbolQueries,
+  SystemCatalog,
   ValidateCitations,
   ValidateFindings,
   WorkflowCatalog,
@@ -214,6 +217,14 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     checkQuote: asFunction(({ fileSystem }) => new CheckQuote(fileSystem)),
     findOwners: asFunction(({ fileSystem }) => new FindOwners(fileSystem)),
+    // Contract kinds the installed plugins provide (ADR-0047). MVP: OpenAPI only.
+    contractKinds: asValue(["openapi"]),
+    systemCatalog: asFunction(({ fileSystem, paths }) => new SystemCatalog(fileSystem, paths.system)),
+    lintSystem: asFunction(
+      ({ systemCatalog, fileSystem, contractKinds }) =>
+        new LintSystem(systemCatalog, fileSystem, contractKinds),
+    ),
+    showSystem: asFunction(({ systemCatalog }) => new ShowSystem(systemCatalog)),
     docsLinks: asFunction(({ sourceFiles, fileSystem }) => new DocsLinks(sourceFiles, fileSystem)),
     docsInventory: asFunction(
       ({ sourceFiles, fileSystem, revisionReader, findOwners, docsLinks, clock }) =>

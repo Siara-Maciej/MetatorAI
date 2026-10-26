@@ -205,6 +205,8 @@ metator debug-tags check --base main                           # no instrumentat
 metator owners packages/billing/src/invoice.ts                 # owners from CODEOWNERS (last matching line wins)
 metator docs links                                             # dead relative links and headings in Markdown
 metator docs drift                                             # verified claims about the code, checked again
+metator system show                                            # applications, contracts, consumers and deploy waves
+metator system lint                                            # the system map holds: owners, contracts, kinds, specs
 metator eval run --command "scripts/review.sh {case} {out}"    # precision and recall of the review on a golden set
 ```
 

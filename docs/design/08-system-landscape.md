@@ -63,8 +63,6 @@ applications:
     kind: service
     source: { repo: github.com/acme/billing }
     owners: ["@acme/billing-team"]
-    provides: [billing-api, invoice-issued]
-    consumes: [billing-db]
   - id: notifications
     kind: service
     source: { repo: github.com/acme/notifications }
@@ -73,16 +71,16 @@ contracts:
   - id: billing-api
     kind: openapi                 # openapi | asyncapi | graphql | proto | npm | db-schema | config
     owner: billing
-    spec: { app: billing, path: openapi/billing.yaml }
+    spec: { path: openapi/billing.yaml }   # względem źródła właściciela
     compatibility: backward       # backward | forward | full | none
   - id: invoice-issued
     kind: asyncapi
     owner: billing
-    spec: { app: billing, path: asyncapi/invoice.yaml }
+    spec: { path: asyncapi/invoice.yaml }
   - id: billing-db
     kind: db-schema
     owner: billing
-    spec: { app: billing, path: migrations/ }
+    spec: { path: migrations/ }
   - id: ui-kit
     kind: npm
     package: "@acme/ui-kit"
@@ -95,7 +93,7 @@ Przykład pokazuje model docelowy. W MVP rejestr pluginów zna tylko `kind: open
 
 Zasady:
 - **Aplikacja** to jednostka wdrożenia (repo albo katalog w monorepo), nie pakiet. Pakiety zostają w kartach modułów.
-- **Kontrakt** to krawędź systemu: ma właściciela, specyfikację (plik u dostawcy), klasę zgodności i wersję oczekiwaną przez konsumenta.
+- **Kontrakt** to krawędź systemu: ma właściciela (aplikację-dostawcę), specyfikację (plik u dostawcy), klasę zgodności i wersję oczekiwaną przez konsumenta. Lista „dostarcza” wynika z właściciela kontraktu, więc mapa jej nie powtarza.
 - Mapa jest **deklaracją**: `system discover` proponuje szkic z kodu, człowiek go zatwierdza, a `system lint` pilnuje, żeby mapa zgadzała się z kodem (sekcja 3.3).
 
 ### 3.2 Jak agent analizuje zadanie (nowy etap „system impact”)
