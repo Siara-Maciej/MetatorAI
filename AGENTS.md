@@ -75,14 +75,20 @@ Nothing is done until it is proven, by tests and by running it yourself.
 
 ## Conventions
 
-- **Errors are values:** return neverthrow `Result<T, MetatorError>` from domain and application code (check with `isOk()`/`isErr()`; tests may use `_unsafeUnwrap()`); throw only for programmer errors (e.g. DI misconfiguration). Adapters convert exceptions at the edge.
-- **Every port has a contract suite** in `packages/testing/src/contracts`. A new adapter must call it from its own test.
-- **Small ports (ISP):** split by axis of change (`Linter` ≠ `Formatter`, readers ≠ writers).
-- **CLI output** is always one JSON envelope line (`@metator/runtime` `serialize`), bounded in size.
+Coding rules are canon in `docs/metator/rules/` (errors as values MT-CODE-001, CLI envelope MT-CODE-004, contract suites MT-TEST-002, small ports MT-ARCH-008, ...): `bun run metator rules show <id>`. Beyond them:
+
 - Imports use explicit `.ts` extensions inside a package and `@metator/<pkg>` across packages.
 - Code, comments, commit messages and the public README are in English; design docs in `docs/` are in Polish.
-- Tests sit in `packages/<pkg>/test/*.test.ts` and use `bun:test`. New behavior comes with tests; fix bugs with a failing test first.
-- Do not add dependencies to `@metator/core` outside the approved list (ADR-0010).
+- Tests sit in `packages/<pkg>/test/*.test.ts` and use `bun:test` (tests may use `_unsafeUnwrap()`).
+
+## Develop MetatorAI with MetatorAI
+
+Use the product on this repository whenever a command already covers the step:
+
+1. Before editing: `bun run metator rules pack --paths <files>` (rules that apply) and the package card in `docs/metator/modules/`.
+2. While editing: `bun run metator graph dependents <file> --transitive` to see what a change reaches.
+3. After editing: `bun run metator graph affected --base origin/claude/foundation` to pick unit tests (`bun test <tests>`), then the e2e tests for touched commands; `bun run metator rules check --base origin/claude/foundation`.
+4. Before committing: `bun run metator cards build` and `bun run metator rules adapters` if structure or rules changed, then `bun run canon` and `bun run check`.
 
 ## Rules canon
 
