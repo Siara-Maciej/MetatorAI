@@ -17,6 +17,7 @@ import {
   InitRun,
   InventoryMemory,
   KnowledgeFiles,
+  LintAdrs,
   LintRules,
   ListRuns,
   MemoryBudget,
@@ -128,6 +129,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ScanPatterns(patternCatalog, ruleCatalog, ruleEngines, workspaceReader, fileSystem, paths),
     ),
     findSimilar: asFunction(({ scanPatterns }) => new FindSimilar(scanPatterns)),
+    lintAdrs: asFunction(
+      ({ fileSystem, paths, ruleCatalog }) => new LintAdrs(fileSystem, paths, ruleCatalog),
+    ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),
     ),

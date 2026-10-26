@@ -9,6 +9,7 @@ export interface MetatorPaths {
   readonly memoryMap: string;
   readonly cards: string;
   readonly patterns: string;
+  readonly adr: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -20,6 +21,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   memoryMap: "docs/metator/memory-map.yml",
   cards: "docs/metator/modules",
   patterns: "docs/metator/patterns",
+  adr: "docs/adr",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

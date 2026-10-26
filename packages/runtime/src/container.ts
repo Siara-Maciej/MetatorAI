@@ -17,6 +17,7 @@ import {
   type InitRun,
   type InventoryMemory,
   type KnowledgeFiles,
+  type LintAdrs,
   type LintRules,
   type ListRuns,
   type Logger,
@@ -88,6 +89,7 @@ export interface Cradle {
   patternCatalog: PatternCatalog;
   scanPatterns: ScanPatterns;
   findSimilar: FindSimilar;
+  lintAdrs: LintAdrs;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

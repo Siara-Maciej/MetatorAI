@@ -262,6 +262,24 @@ const MUTANTS: readonly Mutant[] = [
     why: "pattern hints are not rule violations",
   },
   {
+    file: "packages/core/src/application/adrs.ts",
+    from: 'if (adr.status === "Accepted") {',
+    to: "if (false) {",
+    why: "an Accepted ADR names the canon rules it implies",
+  },
+  {
+    file: "packages/core/src/application/adrs.ts",
+    from: "for (const id of adr.ruleRefs) if (!canon.has(id))",
+    to: "for (const id of adr.ruleRefs) if (false)",
+    why: "ADRs reference only rules that exist",
+  },
+  {
+    file: "packages/core/src/application/adrs.ts",
+    from: "else if (adr.status && !row.toLowerCase().includes(adr.status.toLowerCase())) {",
+    to: "else if (false) {",
+    why: "the ADR index shows each ADR's current status",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

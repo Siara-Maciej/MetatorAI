@@ -80,7 +80,7 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [ ] `memory dupes`, `memory matrix`.
 - [ ] Odchudzenie T0: `copilot-instructions.md` ≤ 4000 znaków, `AGENTS.md` per pakiet.
 - [ ] **W7 na istniejących ADR i docs** (`mt-docs-curator`): twierdzenia → weryfikacja w kodzie → reguły `MT-*` → HITL → canon.
-- [ ] Sekcja „Implikacje dla kodu” w każdym ADR `Accepted`. `adr lint`.
+- [x] `adr lint` ([ADR-0024](adr/0024-adr-lint.md)): numeracja, status i `Superseded by`, sekcje (PL/EN), ADR `Accepted` z „Implikacjami dla kodu” wskazującymi reguły kanonu, spójny indeks; w `bun run canon`.
 - [x] Kanon reguł ([ADR-0020](adr/0020-rule-canon.md)): `RuleSet` YAML w `docs/metator/rules`, `rules lint|pack|show|adapters|check|schema`, silnik E1 ast-grep, wygenerowane `.github/instructions/mt-*.instructions.md`, `bun run canon` w CI. Dogfood: 16 reguł MetatorAI (5 × E1).
 - [ ] Reguły E1: każda możliwa reguła jako ast-grep (z testem) lub Biome (`noRestrictedImports`, GritQL z `includes`). Cel ≥ 40% reguł jako E1.
 - [ ] `rules coverage`, `rules scaffold-sg`, silniki E1 dla Biome i tsc.

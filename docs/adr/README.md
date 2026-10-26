@@ -27,3 +27,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0021](0021-memory-map.md) | Mapa pamięci jako wersjonowany dokument i strażnik CI | Proposed |
 | [0022](0022-module-cards.md) | Karty modułów: generowany blok z grafu, sekcje kuratorowane | Proposed |
 | [0023](0023-pattern-catalog.md) | Katalog wzorców z wykrywaniem w ast-grep i `similar` | Proposed |
+| [0024](0024-adr-lint.md) | `adr lint`: łańcuch ADR → reguła i spójny dziennik decyzji | Proposed |

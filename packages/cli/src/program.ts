@@ -1,6 +1,7 @@
 import { MetatorError } from "@metator/core";
 import { bootstrap, findRepoRoot } from "@metator/runtime";
 import { Command, type CommanderError } from "commander";
+import { registerAdrCommands } from "./commands/adr.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
@@ -50,6 +51,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerMemoryCommands(program, ctx);
   registerCardsCommands(program, ctx);
   registerPatternsCommands(program, ctx);
+  registerAdrCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;
