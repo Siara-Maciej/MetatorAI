@@ -1,0 +1,6 @@
+id: mt-code-004
+valid:
+  - "return { result: ok({ files }) };"
+invalid:
+  - "console.log(JSON.stringify(result));"
+  - 'process.stdout.write("done\n");'

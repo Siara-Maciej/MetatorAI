@@ -14,7 +14,7 @@ import {
   rulesFor,
 } from "../domain/rule.ts";
 import { parseYamlDocument, readFrontMatter, renderFrontMatter } from "../domain/versioned.ts";
-import type { FileSystem, ReadonlyFileSystem, RuleEngine, Vcs } from "../ports/index.ts";
+import type { FileSystem, ReadonlyFileSystem, RuleEngine, RuleScaffolder, Vcs } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { SourceFiles } from "./source-files.ts";
 
@@ -131,7 +131,7 @@ export class LintRules {
 
     const files = await this.sources.list();
     if (files.isErr()) return err(files.error);
-    const engineRules = await this.loadEngines();
+    const engineRules = await loadEngineRules(this.engines);
     if (engineRules.isErr()) return err(engineRules.error);
 
     for (const entry of scan.rules) {
@@ -183,17 +183,158 @@ export class LintRules {
     if (!anchor || !/\.md$/i.test(path)) return true;
     return markdownAnchors(text.value).has(anchor);
   }
+}
 
-  private async loadEngines(): Promise<
-    Result<Map<string, readonly { id: string; source: string; hasTest: boolean }[]>, MetatorError>
-  > {
-    const byEngine = new Map<string, readonly { id: string; source: string; hasTest: boolean }[]>();
-    for (const engine of this.engines) {
-      const rules = await engine.rules();
-      if (rules.isErr()) return err(rules.error);
-      byEngine.set(engine.engine, rules.value);
+type EngineRuleMap = Map<string, readonly { id: string; source: string; hasTest: boolean }[]>;
+
+async function loadEngineRules(engines: readonly RuleEngine[]): Promise<Result<EngineRuleMap, MetatorError>> {
+  const byEngine: EngineRuleMap = new Map();
+  for (const engine of engines) {
+    const rules = await engine.rules();
+    if (rules.isErr()) return err(rules.error);
+    byEngine.set(engine.engine, rules.value);
+  }
+  return ok(byEngine);
+}
+
+// ── rules coverage ──────────────────────────────────────────────────────────────
+
+export interface AreaCoverage {
+  readonly area: string;
+  readonly active: number;
+  readonly E1: number;
+  readonly E2: number;
+  readonly E3: number;
+  /** Share of active rules a tool enforces, 0–100. */
+  readonly e1Percent: number;
+}
+
+export interface RulesCoverage {
+  readonly total: AreaCoverage;
+  readonly byArea: readonly AreaCoverage[];
+  /** E1 rules whose tool rule has no test. */
+  readonly e1WithoutTest: readonly string[];
+  /** E1 rules bound to an engine MetatorAI has no adapter for. */
+  readonly e1Unverified: readonly string[];
+  /** Active rules whose applyTo matches no file. */
+  readonly dead: readonly string[];
+  /** E2 rules without a do or don't example (hard to check in review). */
+  readonly e2WithoutExamples: readonly string[];
+}
+
+/** How much of the canon tools enforce, and where enforcement or examples are missing. */
+export class MeasureRuleCoverage {
+  constructor(
+    private readonly catalog: RuleCatalog,
+    private readonly sources: SourceFiles,
+    private readonly engines: readonly RuleEngine[],
+  ) {}
+
+  async execute(): Promise<Result<RulesCoverage, MetatorError>> {
+    const scan = await this.catalog.scan();
+    if (scan.problems.length > 0) return err(invalidCanon(scan));
+    const files = await this.sources.list();
+    if (files.isErr()) return err(files.error);
+    const engineRules = await loadEngineRules(this.engines);
+    if (engineRules.isErr()) return err(engineRules.error);
+
+    const active = scan.rules.filter((r) => r.rule.status === "active");
+    const coverage = (area: string, rules: readonly RuleEntry[]): AreaCoverage => {
+      const count = (level: Rule["enforcement"]) => rules.filter((r) => r.rule.enforcement === level).length;
+      const E1 = count("E1");
+      return {
+        area,
+        active: rules.length,
+        E1,
+        E2: count("E2"),
+        E3: count("E3"),
+        e1Percent: rules.length === 0 ? 0 : Math.round((E1 / rules.length) * 100),
+      };
+    };
+    const areas = [...new Set(active.map((r) => r.area))].sort();
+
+    const e1WithoutTest: string[] = [];
+    const e1Unverified: string[] = [];
+    for (const { rule } of active) {
+      if (!rule.implementation) continue;
+      const { engine, ruleId } = parseImplementation(rule.implementation);
+      const known = engineRules.value.get(engine);
+      if (!known) e1Unverified.push(rule.id);
+      else if (!known.find((r) => r.id === ruleId)?.hasTest) e1WithoutTest.push(rule.id);
     }
-    return ok(byEngine);
+    return ok({
+      total: coverage("all", active),
+      byArea: areas.map((a) =>
+        coverage(
+          a,
+          active.filter((r) => r.area === a),
+        ),
+      ),
+      e1WithoutTest,
+      e1Unverified,
+      dead: active
+        .filter((r) => !files.value.some((f) => rulesFor([r.rule], [f]).length > 0))
+        .map((r) => r.rule.id),
+      e2WithoutExamples: active
+        .filter((r) => r.rule.enforcement === "E2" && r.rule.do.length + r.rule.dont.length === 0)
+        .map((r) => r.rule.id),
+    });
+  }
+}
+
+// ── rules scaffold ──────────────────────────────────────────────────────────────
+
+export interface ScaffoldReport {
+  readonly rule: string;
+  readonly implementation: string;
+  readonly files: readonly string[];
+  readonly next: readonly string[];
+}
+
+/** First step from E2/E3 to E1: the tool rule skeleton and its (failing) test for a canon rule. */
+export class ScaffoldRule {
+  constructor(
+    private readonly catalog: RuleCatalog,
+    private readonly scaffolders: readonly RuleScaffolder[],
+  ) {}
+
+  async execute(input: {
+    readonly id: string;
+    readonly engine: string;
+  }): Promise<Result<ScaffoldReport, MetatorError>> {
+    const entry = await this.catalog.get(input.id);
+    if (entry.isErr()) return err(entry.error);
+    const { rule, source } = entry.value;
+    if (rule.implementation) {
+      return err(MetatorError.usage(`${rule.id} is already enforced by ${rule.implementation}`));
+    }
+    const scaffolder = this.scaffolders.find((s) => s.engine === input.engine);
+    if (!scaffolder) {
+      return err(
+        MetatorError.usage(
+          `No scaffolder for engine "${input.engine}"`,
+          `Available: ${this.scaffolders.map((s) => s.engine).join(", ") || "none"}.`,
+        ),
+      );
+    }
+    const ruleId = rule.id.toLowerCase();
+    const written = await scaffolder.scaffold({
+      ruleId,
+      message: `${rule.id}: ${rule.title}`,
+      files: rule.applyTo.filter((g) => !g.startsWith("!")),
+    });
+    if (written.isErr()) return err(written.error);
+    const implementation = `${input.engine}:${ruleId}`;
+    return ok({
+      rule: rule.id,
+      implementation,
+      files: written.value.files,
+      next: [
+        `Write the rule and real valid/invalid cases in ${written.value.files.join(" and ")} (the test fails until you do).`,
+        `In ${source}, set ${rule.id} to enforcement: E1 and implementation: ${implementation}.`,
+        "Run `bun run arch` (or your ast-grep test command) and `metator rules lint`.",
+      ],
+    });
   }
 }
 

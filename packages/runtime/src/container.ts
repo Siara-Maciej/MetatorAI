@@ -21,6 +21,7 @@ import {
   type LintRules,
   type ListRuns,
   type Logger,
+  type MeasureRuleCoverage,
   type MemoryBudget,
   type MemoryMapReader,
   MetatorError,
@@ -32,7 +33,9 @@ import {
   type Result,
   type RuleCatalog,
   type RuleEngine,
+  type RuleScaffolder,
   type RunRepository,
+  type ScaffoldRule,
   type ScanPatterns,
   type SourceFiles,
   type ValidateCitations,
@@ -63,6 +66,7 @@ export interface Cradle {
   importAnalyzer: ImportAnalyzer;
   importGraphReader: ImportGraphReader;
   ruleEngines: readonly RuleEngine[];
+  ruleScaffolders: readonly RuleScaffolder[];
   // application services and use cases
   workflowCatalog: WorkflowCatalog;
   runRepository: RunRepository;
@@ -90,6 +94,8 @@ export interface Cradle {
   scanPatterns: ScanPatterns;
   findSimilar: FindSimilar;
   lintAdrs: LintAdrs;
+  measureRuleCoverage: MeasureRuleCoverage;
+  scaffoldRule: ScaffoldRule;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

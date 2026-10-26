@@ -57,7 +57,8 @@ rules:
   - id: MT-ARCH-007
     title: Only the runtime knows concrete adapters
     applyTo: ["packages/runtime/src/**", "packages/cli/src/**"]
-    enforcement: E2
+    enforcement: E1
+    implementation: ast-grep:mt-arch-007
     summary: Concrete adapters are registered in packages/runtime/src/bootstrap.ts; CLI commands resolve use cases from the container.
     rationale: docs/adr/0011-di-awilix.md
     source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }

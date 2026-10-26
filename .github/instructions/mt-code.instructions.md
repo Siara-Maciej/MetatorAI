@@ -12,15 +12,6 @@ generatedFrom: docs/metator/rules/code.yml
 
 Coding conventions of MetatorAI.
 
-## MT-CODE-001: Errors are values
-
-Domain, application and adapter code return Result<T, MetatorError>; they throw only for programmer errors such as DI misconfiguration.
-
-Applies to: `packages/core/src/**`, `packages/plugin-*/src/**`
-
-- Do: `` return err(new MetatorError("NOT_FOUND", `Rule ${id} not found`, { hint })) ``
-- Don't: `throw new Error("rule not found")`
-
 ## MT-CODE-002: Every persisted file is a versioned document
 
 Files MetatorAI reads or writes are defined with defineDocument and written only through Document.stamp, read only through Document.parse.
@@ -36,17 +27,18 @@ Changing a document schema adds a new version with an upgrade function and a mig
 
 Applies to: `packages/core/src/domain/**`
 
-## MT-CODE-004: CLI output is one bounded JSON envelope
-
-A command prints exactly one JSON envelope line; values are validated by commander (choices, requiredOption, argParser), not by hand.
-
-Applies to: `packages/cli/src/**`
-
-- Do: `.option("--budget <tokens>", "token budget", positiveInt)`
-- Don't: `console.log(result) in a command`
+- Do: `defineDocument(kind, { latest: V2, upgrade: (v1) => migrate(v1), history: [{ schema: V1 }] })`
+- Don't: `adding a required field to the schema of a version that already shipped`
 
 ## MT-CODE-005: Prefer a proven package over home-grown generic code
 
 Before writing generic code (parsing, graphs, retries, caching, CLI args, schemas, diffing, git) look for a maintained package and propose it in an ADR.
 
 Applies to: `packages/**/src/**`
+
+## Enforced by tools
+
+CI fails on these; no need to re-check them by hand.
+
+- MT-CODE-001: Errors are values (`ast-grep:mt-code-001`)
+- MT-CODE-004: CLI output is one bounded JSON envelope (`ast-grep:mt-code-004`)

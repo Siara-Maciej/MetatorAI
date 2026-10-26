@@ -21,15 +21,6 @@ Applies to: `packages/core/src/application/**`
 - Do: `constructor(private readonly vcs: Vcs, private readonly fs: ReadonlyFileSystem) {}`
 - Don't: `const fs = new BunFileSystem(root); // inside a use case`
 
-## MT-ARCH-007: Only the runtime knows concrete adapters
-
-Concrete adapters are registered in packages/runtime/src/bootstrap.ts; CLI commands resolve use cases from the container.
-
-Applies to: `packages/runtime/src/**`, `packages/cli/src/**`
-
-- Do: `await container().resolve("graphQueries").cycles()`
-- Don't: `new GitVcs(root) inside a CLI command`
-
 ## MT-ARCH-008: Small ports split by axis of change
 
 Keep ports small; split readers from writers and one tool capability from another (Linter is not Formatter).
@@ -45,3 +36,4 @@ CI fails on these; no need to re-check them by hand.
 - MT-ARCH-003: Core imports only approved pure libraries (`ast-grep:mt-arch-core-approved-deps`)
 - MT-ARCH-004: Core never touches the Bun global or process (`ast-grep:mt-arch-no-bun-global-in-core`)
 - MT-ARCH-005: Plugins depend on core only (`ast-grep:mt-arch-plugins-isolated`)
+- MT-ARCH-007: Only the runtime knows concrete adapters (`ast-grep:mt-arch-007`)

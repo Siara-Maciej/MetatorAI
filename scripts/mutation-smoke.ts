@@ -280,6 +280,24 @@ const MUTANTS: readonly Mutant[] = [
     why: "the ADR index shows each ADR's current status",
   },
   {
+    file: "packages/core/src/application/rules.ts",
+    from: "e1Percent: rules.length === 0 ? 0 : Math.round((E1 / rules.length) * 100),",
+    to: "e1Percent: 100,",
+    why: "rules coverage measures the real E1 share",
+  },
+  {
+    file: "packages/core/src/application/rules.ts",
+    from: "if (rule.implementation) {\n      return err(MetatorError.usage(`${rule.id} is already enforced by",
+    to: "if (false) {\n      return err(MetatorError.usage(`${rule.id} is already enforced by",
+    why: "scaffold never replaces an existing E1 implementation",
+  },
+  {
+    file: "packages/plugin-astgrep/src/ast-grep-scaffolder.ts",
+    from: "if (existsSync(join(this.root, f)))",
+    to: "if (false)",
+    why: "scaffold never overwrites an existing tool rule",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

@@ -48,6 +48,8 @@ describe("metator CLI (process e2e)", () => {
       "rules show",
       "rules adapters",
       "rules check",
+      "rules coverage",
+      "rules scaffold",
       "rules schema",
       "memory inventory",
       "memory budget",

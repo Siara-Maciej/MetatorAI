@@ -20,6 +20,7 @@ import {
   LintAdrs,
   LintRules,
   ListRuns,
+  MeasureRuleCoverage,
   MemoryBudget,
   MemoryMapReader,
   type MetatorPaths,
@@ -27,6 +28,7 @@ import {
   PatternCatalog,
   RuleCatalog,
   RunRepository,
+  ScaffoldRule,
   ScanPatterns,
   SourceFiles,
   ValidateCitations,
@@ -36,7 +38,7 @@ import { BunFileSystem, BunProcessRunner } from "@metator/plugin-bun";
 
 export { findRepoRoot } from "@metator/plugin-bun";
 
-import { AstGrepEngine } from "@metator/plugin-astgrep";
+import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { GitVcs } from "@metator/plugin-git";
 import { ManypkgWorkspaceReader } from "@metator/plugin-node";
 import { OxcImportAnalyzer } from "@metator/plugin-typescript";
@@ -89,6 +91,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ruleEngines: asFunction(({ processRunner, root }) => [
       new AstGrepEngine(processRunner, root),
     ]).singleton(),
+    ruleScaffolders: asFunction(({ root }) => [new AstGrepScaffolder(root)]).singleton(),
     ruleCatalog: asFunction(({ fileSystem, paths }) => new RuleCatalog(fileSystem, paths)).singleton(),
     lintRules: asFunction(
       ({ ruleCatalog, fileSystem, sourceFiles, ruleEngines }) =>
@@ -131,6 +134,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     findSimilar: asFunction(({ scanPatterns }) => new FindSimilar(scanPatterns)),
     lintAdrs: asFunction(
       ({ fileSystem, paths, ruleCatalog }) => new LintAdrs(fileSystem, paths, ruleCatalog),
+    ),
+    measureRuleCoverage: asFunction(
+      ({ ruleCatalog, sourceFiles, ruleEngines }) =>
+        new MeasureRuleCoverage(ruleCatalog, sourceFiles, ruleEngines),
+    ),
+    scaffoldRule: asFunction(
+      ({ ruleCatalog, ruleScaffolders }) => new ScaffoldRule(ruleCatalog, ruleScaffolders),
     ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),

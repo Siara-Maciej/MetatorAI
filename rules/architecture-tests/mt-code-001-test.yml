@@ -1,0 +1,7 @@
+id: mt-code-001
+valid:
+  - 'return err(new MetatorError("NOT_FOUND", "missing"));'
+  - 'throw new MetatorError("INTERNAL", "v2 needs a migration");'
+invalid:
+  - 'throw new Error("not found");'
+  - "throw e;"

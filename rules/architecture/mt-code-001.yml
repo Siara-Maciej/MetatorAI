@@ -1,0 +1,15 @@
+id: mt-code-001
+language: TypeScript
+severity: error
+message: "MT-CODE-001: return err(new MetatorError(...)) instead of throwing; throw only MetatorError for programmer errors."
+files:
+  - packages/core/src/**
+  - packages/plugin-*/src/**
+rule:
+  kind: throw_statement
+  not:
+    has:
+      kind: new_expression
+      has:
+        field: constructor
+        regex: ^MetatorError$

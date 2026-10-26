@@ -1,0 +1,11 @@
+id: mt-arch-007
+language: TypeScript
+severity: error
+message: "MT-ARCH-007: the CLI resolves use cases from the runtime container; it never imports an adapter."
+files:
+  - packages/cli/src/**
+rule:
+  kind: import_statement
+  has:
+    field: source
+    regex: '^[''"]@metator/plugin-'

@@ -1,0 +1,5 @@
+id: mt-arch-007
+valid:
+  - 'import { bootstrap } from "@metator/runtime";'
+invalid:
+  - 'import { GitVcs } from "@metator/plugin-git";'

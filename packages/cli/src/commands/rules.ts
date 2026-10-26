@@ -1,5 +1,5 @@
 import { err, MetatorError, normalizePath, ok, RuleSetDocument } from "@metator/core";
-import type { Command } from "commander";
+import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
 
@@ -123,6 +123,43 @@ export function registerRulesCommands(program: Command, { action, container }: C
         }
         return { result: ok(report.value) };
       }),
+    );
+
+  rules
+    .command("coverage")
+    .description("Share of rules enforced by tools (E1), and rules missing tests, files or examples")
+    .option("--min-e1 <percent>", "fail when fewer active rules than this are E1", positiveInt)
+    .action(
+      action(async (opts: { minE1?: number }) => {
+        const report = await container().resolve("measureRuleCoverage").execute();
+        if (report.isErr()) return { result: report };
+        if (opts.minE1 !== undefined && report.value.total.e1Percent < opts.minE1) {
+          return {
+            result: err(
+              new MetatorError(
+                "CHECK_FAILED",
+                `E1 coverage ${report.value.total.e1Percent}% < ${opts.minE1}%`,
+                {
+                  hint: "Turn checkable E2 rules into tool rules: `metator rules scaffold <id>`.",
+                  details: { ...report.value },
+                },
+              ),
+            ),
+          };
+        }
+        return { result: ok(report.value) };
+      }),
+    );
+
+  rules
+    .command("scaffold")
+    .description("Skeleton of a tool rule and its failing test for a canon rule (first step to E1)")
+    .argument("<id>", "canon rule id, e.g. MT-ARCH-006")
+    .addOption(new Option("--engine <engine>", "rule engine").choices(["ast-grep"]).default("ast-grep"))
+    .action(
+      action(async (id: string, opts: { engine: string }) => ({
+        result: await container().resolve("scaffoldRule").execute({ id, engine: opts.engine }),
+      })),
     );
 
   rules

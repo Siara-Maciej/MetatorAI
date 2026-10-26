@@ -13,6 +13,8 @@ Reguły muszą mieć niezmienne ID, poziom egzekucji (E1/E2/E3), zakres (`applyT
   - `rules lint`: schemat, unikalne ID, jeden prefiks, obszar w ID, linki do plików i kotwic Markdown, referencje między regułami, implementacja E1 z testem w silniku, martwe `applyTo` (ostrzeżenie).
   - `rules pack`: reguły aktywne dla ścieżek, najpierw E2, potem E3; E1 jako jedna linia; budżet tokenów, a pominięte reguły są wymienione z ID.
   - `rules show`, `rules check` (silniki E1, mapowanie `toolRuleId → canonRuleId`).
+  - `rules coverage [--min-e1 N]`: udział E1 per obszar, reguły E1 bez testu lub bez adaptera, martwe `applyTo`, reguły E2 bez przykładów.
+  - `rules scaffold <id>`: szkielet reguły narzędzia i testu, który nie przechodzi, dopóki nie zostanie wypełniony (port `RuleScaffolder`, osobny od `RuleEngine`).
   - `rules adapters [--check]`: jeden plik `.github/instructions/<prefix>-<area>.instructions.md` na obszar (wersjonowany `InstructionsAdapter`); `--check` w CI wykrywa ręczne edycje i dryf.
 - **Silnik ast-grep** (`plugin-astgrep`, port `RuleEngine`): reguły z `sgconfig.yml` (`ruleDirs`, testy z `testConfigs`), wyniki z `ast-grep scan --json=stream` przez port `ProcessRunner`. Pierwszeństwo ma binarka repozytorium (`node_modules/.bin/ast-grep`). Wyniki są sortowane, bo ast-grep skanuje równolegle.
 - **Kotwice Markdown:** `github-slugger`, ten sam algorytm co GitHub. Dodany do listy dozwolonych zależności `@metator/core` (czysty, bez I/O).

@@ -245,7 +245,39 @@ describe("metator rules check (real ast-grep)", () => {
   });
 });
 
+describe("metator rules coverage / scaffold", () => {
+  test("coverage reports the E1 share and --min-e1 gates it", async () => {
+    const r = await metator(["rules", "coverage"], repo.root);
+    expect((data(r).total as Data).e1Percent).toBe(33);
+    const gate = await metator(["rules", "coverage", "--min-e1", "50"], repo.root);
+    expect([gate.code, error(gate).code]).toEqual([1, "CHECK_FAILED"]);
+  });
+
+  test("scaffold writes a rule and a failing test next to the existing ones; never twice", async () => {
+    const r = await metator(["rules", "scaffold", "ACME-TS-002"], repo.root);
+    expect(r.code).toBe(0);
+    expect(data(r).files).toEqual(["sg/rules/acme-ts-002.yml", "sg/tests/acme-ts-002-test.yml"]);
+    expect(await repo.read("sg/rules/acme-ts-002.yml")).toContain(
+      'message: "ACME-TS-002: Money is integer cents"',
+    );
+    try {
+      expect((await metator(["rules", "scaffold", "ACME-TS-002"], repo.root)).code).toBe(64);
+      expect((await metator(["rules", "scaffold", "ACME-TS-001"], repo.root)).code).toBe(64); // already E1
+      expect(
+        (await metator(["rules", "scaffold", "ACME-TS-002", "--engine", "eslint"], repo.root)).code,
+      ).toBe(64);
+    } finally {
+      await Bun.file(repo.path("sg/rules/acme-ts-002.yml")).delete();
+      await Bun.file(repo.path("sg/tests/acme-ts-002-test.yml")).delete();
+    }
+  });
+});
+
 describe("dogfood: the MetatorAI rule canon", () => {
+  test("at least 40% of the rules are enforced by tools", async () => {
+    expect((await metator(["rules", "coverage", "--min-e1", "40", "--root", SELF], SELF)).code).toBe(0);
+  });
+
   test("lints clean and its generated instructions are up to date", async () => {
     const lint = await metator(["rules", "lint", "--root", SELF], SELF);
     expect([lint.code, data(lint).problems]).toEqual([0, []]);

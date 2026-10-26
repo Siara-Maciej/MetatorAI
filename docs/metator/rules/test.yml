@@ -17,6 +17,10 @@ rules:
     applyTo: ["packages/plugin-*/src/**"]
     enforcement: E2
     summary: An adapter for a port that has a contract suite in packages/testing/src/contracts calls that suite from its own test.
+    do:
+      - 'fileSystemContract("BunFileSystem", (files) => makeBunFileSystem(files));'
+    dont:
+      - "an adapter test that only checks the happy path of its own methods"
     rationale: docs/ARCHITECTURE.md
     source: { ref: AGENTS.md#testing-policy-prove-every-piece-of-work-actually-works, verified: 2026-10-25 }
   - id: MT-TEST-003

@@ -106,3 +106,17 @@ export interface RuleEngine {
   /** Runs the engine on the given repo-relative files (all files when omitted). */
   check(files?: readonly string[]): Promise<Result<readonly Diagnostic[], MetatorError>>;
 }
+
+export interface RuleScaffoldSpec {
+  /** Tool rule id, e.g. "mt-arch-009". */
+  readonly ruleId: string;
+  readonly message: string;
+  /** Globs the tool rule is limited to (the canon rule's applyTo). */
+  readonly files: readonly string[];
+}
+
+/** Writes the skeleton of a new tool rule and its test (ISP: separate from checking). */
+export interface RuleScaffolder {
+  readonly engine: string;
+  scaffold(spec: RuleScaffoldSpec): Promise<Result<{ readonly files: readonly string[] }, MetatorError>>;
+}

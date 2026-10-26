@@ -26,6 +26,9 @@ An adapter for a port that has a contract suite in packages/testing/src/contract
 
 Applies to: `packages/plugin-*/src/**`
 
+- Do: `fileSystemContract("BunFileSystem", (files) => makeBunFileSystem(files));`
+- Don't: `an adapter test that only checks the happy path of its own methods`
+
 ## MT-TEST-003: Bugs get a failing test first
 
 Reproduce a bug with a failing test, then fix it; add a mutant to scripts/mutation-smoke.ts for critical behavior.

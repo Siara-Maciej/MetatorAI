@@ -187,6 +187,7 @@ metator workspace list                                         # npm, yarn, pnpm
 metator rules pack --paths src/billing/invoice.ts              # only the rules that apply, sized for an agent
 metator rules check --base main                                # E1 rules via ast-grep, mapped to rule ids
 metator rules adapters --check                                 # generated Copilot instructions match the canon
+metator rules scaffold MT-CODE-004                             # turn a reviewed rule into a tool rule with a failing test
 metator memory check                                           # every knowledge file mapped, budgets kept, citations true
 metator memory validate --fix                                  # [[cite: file:line | "quote"]] claims follow moved code
 metator cards build                                            # one card per package: generated facts + curated knowledge

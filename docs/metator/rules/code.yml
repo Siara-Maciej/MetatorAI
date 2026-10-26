@@ -6,7 +6,8 @@ rules:
   - id: MT-CODE-001
     title: Errors are values
     applyTo: ["packages/core/src/**", "packages/plugin-*/src/**"]
-    enforcement: E2
+    enforcement: E1
+    implementation: ast-grep:mt-code-001
     summary: Domain, application and adapter code return Result<T, MetatorError>; they throw only for programmer errors such as DI misconfiguration.
     rationale: docs/ARCHITECTURE.md
     source: { ref: AGENTS.md#conventions, verified: 2026-10-25 }
@@ -32,10 +33,15 @@ rules:
     summary: Changing a document schema adds a new version with an upgrade function and a migration test; a released version is never changed in place.
     rationale: docs/adr/0016-versioned-documents.md
     source: { ref: AGENTS.md#every-file-is-a-versioned-document-adr-0016, verified: 2026-10-25 }
+    do:
+      - "defineDocument(kind, { latest: V2, upgrade: (v1) => migrate(v1), history: [{ schema: V1 }] })"
+    dont:
+      - "adding a required field to the schema of a version that already shipped"
   - id: MT-CODE-004
     title: CLI output is one bounded JSON envelope
     applyTo: ["packages/cli/src/**"]
-    enforcement: E2
+    enforcement: E1
+    implementation: ast-grep:mt-code-004
     summary: A command prints exactly one JSON envelope line; values are validated by commander (choices, requiredOption, argParser), not by hand.
     rationale: docs/adr/0014-cli-commander.md
     source: { ref: AGENTS.md#conventions, verified: 2026-10-25 }

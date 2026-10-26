@@ -1,0 +1,11 @@
+id: mt-code-004
+language: TypeScript
+severity: error
+message: "MT-CODE-004: commands return an Outcome; only run.ts prints the one JSON envelope."
+files:
+  - packages/cli/src/commands/**
+rule:
+  any:
+    - pattern: console.$METHOD($$$ARGS)
+    - pattern: process.stdout.write($$$ARGS)
+    - pattern: process.stderr.write($$$ARGS)
