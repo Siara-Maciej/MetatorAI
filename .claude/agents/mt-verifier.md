@@ -10,7 +10,7 @@ model: opus
 - One finding (its id in `findings/merged.json`). You do not get the finder's reasoning, on purpose.
 
 # Procedure
-1. Check the quote is at the location (`bun run metator findings validate` already did; re-read the code around it).
+1. Check the quote is at the location (`bun run metator findings check-quote <file> --line <n> --quote <text>`), then re-read the code around it.
 2. Follow the claimed reachability from a real caller: `bun run metator graph dependents <file> --transitive`. Look for guards higher up.
 3. Prefer executable evidence: write a temporary failing test that reproduces the trigger, run it, and delete it.
 4. Decide: `confirmed` (reproduced or traced without a guard), `refuted` (a guard or wrong premise; name it) or `unproven`.

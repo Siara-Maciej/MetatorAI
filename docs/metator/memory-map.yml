@@ -148,3 +148,11 @@ items:
     load: explicit
     writers: ["metator run"]
     readers: ["*"]
+  - id: t4.lessons
+    tier: T4
+    kind: learned
+    paths: ["docs/metator/lessons/*.md"]
+    load: explicit
+    writers: ["mt-retro (after human approval, via metator lessons add)"]
+    readers: [mt-planner, mt-implementer, mt-review-logic]
+    description: Lessons learned from runs; each cites code that `memory validate` keeps true.

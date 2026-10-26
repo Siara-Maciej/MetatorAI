@@ -1,4 +1,5 @@
 import {
+  type AddLesson,
   type AdvanceRun,
   type AgentCatalog,
   type ApiSnapshots,
@@ -7,11 +8,14 @@ import {
   type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
+  type CheckDebugTags,
   type CheckFlaky,
   type CheckMemory,
   type CheckpointRun,
+  type CheckQuote,
   type CheckRules,
   type Clock,
+  type CloseRun,
   type CompareEvals,
   type ComputeAffected,
   type DiffCoverage,
@@ -34,6 +38,7 @@ import {
   type GuardSessionStart,
   type GuardStop,
   type GuardSubagentOutput,
+  type HandoffRun,
   type HostGenerator,
   type ImportAnalyzer,
   type ImportGraphReader,
@@ -133,6 +138,8 @@ export interface Cradle {
   guardSubagentOutput: GuardSubagentOutput;
   guardSessionStart: GuardSessionStart;
   checkpointRun: CheckpointRun;
+  handoffRun: HandoffRun;
+  closeRun: CloseRun;
   listRuns: ListRuns;
   sourceFiles: SourceFiles;
   buildImportGraph: BuildImportGraph;
@@ -156,6 +163,9 @@ export interface Cradle {
   findSimilar: FindSimilar;
   symbolQueries: SymbolQueries;
   checkFlaky: CheckFlaky;
+  checkDebugTags: CheckDebugTags;
+  checkQuote: CheckQuote;
+  addLesson: AddLesson;
   diffCoverage: DiffCoverage;
   apiSnapshots: ApiSnapshots;
   diffImportGraph: DiffImportGraph;

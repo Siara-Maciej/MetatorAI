@@ -177,6 +177,8 @@ metator run advance pass                                       # next stage
 metator run advance fail --reason "plan lint: step 3 has no exemplar"   # bounded loop back to plan
 metator run advance approve --by maciej                        # human gates accept only APPROVE
 metator run status                                             # stage, what it expects, recent history
+metator run handoff                                            # handoff.md from the run directory, not the chat
+metator run close                                              # summary.json with the run's final telemetry
 metator changed --base main                                    # files changed on the branch (git)
 metator index build                                            # incremental import index (oxc), cached per file
 metator graph affected --base main                             # files and tests reached by the change
@@ -197,6 +199,9 @@ metator gate quick --base main                                 # the repo's own 
 metator generate                                               # Copilot and Claude Code agents from one canonical source
 metator review plan --base main                                # shards per package with card and rules, lenses per shard
 metator findings validate <dir> --fix                          # invented quotes and unproven blockers never reach a human
+metator findings check-quote src/a.ts --line 41 --quote "..."  # one claimed quote against the code
+metator lessons add --title ... --file ... --line ... --quote ...  # a lesson only with true evidence
+metator debug-tags check --base main                           # no instrumentation left after a diagnosis
 metator eval run --command "scripts/review.sh {case} {out}"    # precision and recall of the review on a golden set
 ```
 

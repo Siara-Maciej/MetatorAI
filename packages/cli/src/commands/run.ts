@@ -1,6 +1,7 @@
 import { AutonomySchema, err, MetatorError, ok, type Result, type RunEvent } from "@metator/core";
 import { Argument, type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
+import { positiveInt } from "../options.ts";
 
 export const EVENTS = ["pass", "fail", "approve", "abort"] as const;
 type EventName = (typeof EVENTS)[number];
@@ -109,6 +110,44 @@ export function registerRunCommands(program: Command, { action, container }: Com
           .resolve("checkpointRun")
           .execute(opts.run ? { runId: opts.run } : {}),
       })),
+    );
+
+  runs
+    .command("handoff")
+    .description(
+      "Write handoff.md from the run directory: stage, approvals, artifacts, recent log, how to resume",
+    )
+    .option("--run <id>", "run id (default: latest)")
+    .option("--log-lines <n>", "recent log entries to include", positiveInt, 10)
+    .action(
+      action(async (opts: { run?: string; logLines: number }) => ({
+        result: await container()
+          .resolve("handoffRun")
+          .execute({ logLines: opts.logLines, ...(opts.run ? { runId: opts.run } : {}) }),
+      })),
+    );
+
+  runs
+    .command("close")
+    .description(
+      "Write summary.json (final telemetry) for a finished run; --aborted --reason aborts an active one",
+    )
+    .option("--run <id>", "run id (default: latest)")
+    .option("--aborted", "abort an active run first (needs --reason)", false)
+    .option("--reason <text>", "why the run is aborted")
+    .action(
+      action(async (opts: { run?: string; aborted: boolean; reason?: string }) => {
+        if (opts.aborted && !opts.reason)
+          return { result: err(MetatorError.usage("--aborted needs --reason <text>")) };
+        return {
+          result: await container()
+            .resolve("closeRun")
+            .execute({
+              ...(opts.run ? { runId: opts.run } : {}),
+              ...(opts.aborted && opts.reason ? { abortReason: opts.reason } : {}),
+            }),
+        };
+      }),
     );
 
   runs

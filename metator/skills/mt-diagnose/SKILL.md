@@ -11,7 +11,7 @@ A red gate with an unclear cause, a bug report (W2), or a test that fails only s
 1. Reproduce: the smallest command that fails, run twice; `metator flaky check <test>` if results differ.
 2. Read the failing output whole; write the exact symptom.
 3. Hypotheses: at most three, each with one experiment that could refute it.
-4. Run the cheapest experiment first; record the result; drop refuted hypotheses.
+4. Run the cheapest experiment first; record the result; drop refuted hypotheses. Temporary log lines carry one tag, `[DEBUG-` plus four hex digits and `]`.
 5. Narrow with the graph: `metator graph callers <symbol>`, `metator graph path <a> <b>`.
 6. Stop when one hypothesis survives with a direct observation at `file:line`.
 
@@ -22,6 +22,7 @@ A red gate with an unclear cause, a bug report (W2), or a test that fails only s
 - [ ] the failure reproduces before any hypothesis
 - [ ] each conclusion rests on an observation, not on reading code alone
 - [ ] the repro command becomes the regression test
+- [ ] `metator debug-tags check --base <base>` passes: every instrumentation line is gone
 
 # Errors
 It stops reproducing: record the last state and treat it as flaky until shown otherwise.

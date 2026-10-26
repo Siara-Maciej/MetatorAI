@@ -47,3 +47,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0041](0041-gate-checks-coverage.md) | Kroki MetatorAI w bramkach, `MetatorConfig` v2 i `coverage diff` | Proposed |
 | [0042](0042-workflow-anatomy.md) | `Workflow` v2 z anatomią i `workflow lint` | Proposed |
 | [0043](0043-workers-skills-w1-w5.md) | Workerzy, skille i specyfikacje W1–W5 | Proposed |
+| [0044](0044-run-close-lessons-quotes.md) | `run handoff\|close`, `lessons add`, `findings check-quote`, `debug-tags check` | Proposed |

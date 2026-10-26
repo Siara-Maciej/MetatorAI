@@ -103,6 +103,21 @@ export class RunRepository {
       .map(() => undefined);
   }
 
+  /** The log's entries, oldest first (empty before the first append). */
+  async readLog(runId: string): Promise<Result<string[], MetatorError>> {
+    const file = this.logFile(runId);
+    const current = await this.fs.read(file);
+    if (current.isErr()) return ok([]);
+    return readFrontMatter(current.value, file)
+      .andThen((raw) => RunLogDocument.parse(raw, file))
+      .map(() =>
+        current.value
+          .split("\n")
+          .filter((l) => l.startsWith("- "))
+          .map((l) => l.slice(2)),
+      );
+  }
+
   async appendLog(runId: string, line: string): Promise<Result<void, MetatorError>> {
     const file = this.logFile(runId);
     const current = await this.fs.read(file);

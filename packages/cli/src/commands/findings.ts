@@ -50,6 +50,36 @@ export function registerFindingsCommands(program: Command, { action, container }
     );
 
   findings
+    .command("check-quote")
+    .description("One quote against one file near a line (normalized whitespace); moved or missing fails")
+    .argument("<file>", "file the quote is claimed to be in")
+    .requiredOption("--line <n>", "line the quote is claimed to be on", positiveInt)
+    .requiredOption("--quote <text>", "the quoted code")
+    .action(
+      action(async (file: string, opts: { line: number; quote: string }) => {
+        const match = await container()
+          .resolve("checkQuote")
+          .execute({ file: normalizePath(file), line: opts.line, quote: opts.quote });
+        if (match.isErr() || match.value.status === "ok") return { result: match };
+        const m = match.value;
+        return {
+          result: err(
+            new MetatorError(
+              "CHECK_FAILED",
+              m.status === "moved"
+                ? `quote is on line ${m.line} of ${m.file}, not ${opts.line}`
+                : `quote not found in ${m.file}`,
+              {
+                hint: "A finding must quote the code it is about; fix the line or the quote.",
+                details: { ...m },
+              },
+            ),
+          ),
+        };
+      }),
+    );
+
+  findings
     .command("merge")
     .description("Drop invalid findings and merge duplicates across lenses into <dir>/merged.json")
     .argument("<dir>", "directory of FindingSet JSON files")

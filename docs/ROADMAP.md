@@ -25,7 +25,8 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] `flaky check` (ADR-0041).
 - [x] `workflow lint` (anatomia, 16 sekcji, ADR-0042).
 - [x] Specyfikacje W1–W5 jako `Workflow` v2 w `.github/metator/workflows/`, `workflow lint` w `meta check-all` (ADR-0043).
-- [ ] `run handoff|close`, `lessons add`, `findings check-quote`, `docs inventory|drift|links`, `owners`, `debug-tags check`.
+- [x] `run handoff|close`, `lessons add`, `findings check-quote`, `debug-tags check` (ADR-0044).
+- [ ] `docs inventory|drift|links`, `owners`.
 - [x] Agenci: `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-pr-author`, `mt-review-equivalence`, `mt-diagnostician`, `mt-docs-curator`, `mt-retro`; skille `mt-characterization-tests`, `mt-create-*`, `mt-review-rubric`, `mt-grill`, `mt-diagnose`.
 - [ ] Karty: API na poziomie symboli, wzorce, właściciele z CODEOWNERS. T0: `copilot-instructions.md` ≤ 4000 znaków.
 

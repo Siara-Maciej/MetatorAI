@@ -1,4 +1,5 @@
 import {
+  AddLesson,
   AdvanceRun,
   AgentCatalog,
   ApiSnapshots,
@@ -6,11 +7,14 @@ import {
   AuditAgents,
   BuildImportGraph,
   BuildModuleCards,
+  CheckDebugTags,
   CheckFlaky,
   CheckMemory,
   CheckpointRun,
+  CheckQuote,
   CheckRules,
   type Clock,
+  CloseRun,
   CompareEvals,
   ComputeAffected,
   DEFAULT_CONFIG,
@@ -34,6 +38,7 @@ import {
   GuardSessionStart,
   GuardStop,
   GuardSubagentOutput,
+  HandoffRun,
   IndexedImportGraphReader,
   InitProject,
   InitRun,
@@ -200,6 +205,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     checkFlaky: asFunction(
       ({ packageManager, processRunner }) => new CheckFlaky(packageManager, processRunner),
     ),
+    checkDebugTags: asFunction(
+      ({ vcs, fileSystem, sourceIgnores }) => new CheckDebugTags(vcs, fileSystem, sourceIgnores),
+    ),
+    checkQuote: asFunction(({ fileSystem }) => new CheckQuote(fileSystem)),
+    addLesson: asFunction(({ fileSystem, clock, paths }) => new AddLesson(fileSystem, clock, paths.lessons)),
     symbolQueries: asFunction(
       ({ sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer }) =>
         new SymbolQueries(sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer),
@@ -327,6 +337,14 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     checkpointRun: asFunction(
       ({ getRunStatus, runRepository, clock }) =>
         new CheckpointRun(getRunStatus, runRepository, () => clock.now().toISOString()),
+    ),
+    handoffRun: asFunction(
+      ({ getRunStatus, runRepository, fileSystem, clock }) =>
+        new HandoffRun(getRunStatus, runRepository, fileSystem, clock),
+    ),
+    closeRun: asFunction(
+      ({ advanceRun, runRepository, fileSystem, clock }) =>
+        new CloseRun(advanceRun, runRepository, fileSystem, clock),
     ),
     getRunStatus: asFunction(
       ({ workflowCatalog, runRepository }) => new GetRunStatus(workflowCatalog, runRepository),
