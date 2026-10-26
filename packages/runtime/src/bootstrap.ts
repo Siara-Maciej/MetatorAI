@@ -13,6 +13,7 @@ import {
   Discover,
   FindMemoryDupes,
   FindSimilar,
+  FormatReviewComments,
   GenerateHosts,
   GenerateRuleAdapters,
   GetRunStatus,
@@ -21,6 +22,7 @@ import {
   InitProject,
   InitRun,
   InventoryMemory,
+  JudgeFindings,
   KnowledgeFiles,
   LintAdrs,
   LintAgents,
@@ -33,6 +35,7 @@ import {
   type MetatorPaths,
   PackRules,
   PatternCatalog,
+  PlanReview,
   RuleCatalog,
   RunGate,
   RunRepository,
@@ -201,6 +204,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     mergeFindings: asFunction(
       ({ fileSystem, validateFindings }) => new MergeFindingSets(fileSystem, validateFindings),
     ),
+    planReview: asFunction(
+      ({ vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores }) =>
+        new PlanReview(vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores),
+    ),
+    judgeFindings: asFunction(({ fileSystem }) => new JudgeFindings(fileSystem)),
+    formatReviewComments: asFunction(({ fileSystem }) => new FormatReviewComments(fileSystem)),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),
     ),

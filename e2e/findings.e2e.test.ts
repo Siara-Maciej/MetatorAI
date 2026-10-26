@@ -103,6 +103,69 @@ describe("metator findings", () => {
     expect((await findUnversioned(repo.root, [".metator"])).unversioned).toEqual([]);
   });
 
+  test("review plan shards the branch; verdict and comments follow verification", async () => {
+    await repo.git("checkout", "-q", "-b", "review");
+    await repo.write("src/pay.ts", `${CODE}export const fee = 1;\n`);
+    try {
+      const plan = await metator(
+        [
+          "review",
+          "plan",
+          "--base",
+          "main",
+          "--lenses",
+          "logic",
+          "tests",
+          "--out",
+          ".metator/runs/r1/review-plan.json",
+        ],
+        repo.root,
+      );
+      expect(data(plan)).toMatchObject({ files: ["src/pay.ts"], lenses: ["logic", "tests"], tasks: 2 });
+      expect((await metator(["review", "plan", "--lenses", "style"], repo.root)).code).toBe(64);
+
+      const blocker = finding("LOGIC-001", "logic", {
+        severity: "blocking",
+        trigger: "any positive amount",
+        reachability: "checkout → pay",
+        evidence: { type: "test", ref: "pay(10) throws" },
+      });
+      await repo.write(`${DIR}/logic.json`, set("logic", [blocker]));
+      await Bun.file(repo.path(`${DIR}/contracts.json`)).delete();
+      await metator(["findings", "merge", DIR], repo.root);
+      const undecided = await metator(["findings", "verdict", DIR], repo.root);
+      expect([data(undecided).decision, data(undecided).output]).toEqual([
+        "NEEDS_VERIFICATION",
+        ".metator/runs/r1/verdict.json",
+      ]);
+      expect(
+        (await metator(["findings", "to-github", ".metator/runs/r1/verdict.json"], repo.root)).code,
+      ).toBe(64);
+
+      const merged = JSON.parse(await repo.read(`${DIR}/merged.json`));
+      merged.findings[0].verification = {
+        status: "confirmed",
+        by: "mt-verifier",
+        evidence: "pay(10) throws in a temporary test",
+      };
+      await repo.write(`${DIR}/merged.json`, JSON.stringify(merged));
+      const decided = await metator(
+        ["findings", "verdict", DIR, "--verified-correct", "negative amounts"],
+        repo.root,
+      );
+      expect(data(decided).decision).toBe("CHANGES_REQUIRED");
+      const comments = await metator(
+        ["findings", "to-github", ".metator/runs/r1/verdict.json", "--format", "natural"],
+        repo.root,
+      );
+      expect((data(comments).comments as Data[]).map((c) => [c.path, c.line])).toEqual([["src/pay.ts", 3]]);
+      expect(data(comments).summary).toContain("Verified correct:\n- negative amounts");
+    } finally {
+      await repo.git("checkout", "-q", "--", "src/pay.ts");
+      await repo.git("checkout", "-q", "main");
+    }
+  });
+
   test("schema prints the FindingSet JSON Schema; a missing dir argument is a usage error", async () => {
     expect(
       ((data(await metator(["findings", "schema"], repo.root)).properties as Data).kind as Data).const,

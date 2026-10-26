@@ -71,7 +71,7 @@ items:
   - id: t1.agents
     tier: T1
     kind: canon
-    paths: ["metator/agents/*.md"]
+    paths: ["metator/agents/*.md", "metator/agents/partials/*.md"]
     load: explicit
     writers: [human]
     readers: ["*"]

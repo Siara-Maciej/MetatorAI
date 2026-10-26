@@ -13,6 +13,7 @@ import {
   type FileSystem,
   type FindMemoryDupes,
   type FindSimilar,
+  type FormatReviewComments,
   type GenerateHosts,
   type GenerateRuleAdapters,
   type GetRunStatus,
@@ -23,6 +24,7 @@ import {
   type InitProject,
   type InitRun,
   type InventoryMemory,
+  type JudgeFindings,
   type KnowledgeFiles,
   type LintAdrs,
   type LintAgents,
@@ -40,6 +42,7 @@ import {
   type PackageManagerDetector,
   type PackRules,
   type PatternCatalog,
+  type PlanReview,
   type ProcessRunner,
   type Result,
   type RuleCatalog,
@@ -125,6 +128,9 @@ export interface Cradle {
   generateHosts: GenerateHosts;
   validateFindings: ValidateFindings;
   mergeFindings: MergeFindingSets;
+  planReview: PlanReview;
+  judgeFindings: JudgeFindings;
+  formatReviewComments: FormatReviewComments;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

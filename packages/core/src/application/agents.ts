@@ -2,7 +2,9 @@ import {
   type Agent,
   AgentDocument,
   BODY_LINES,
+  expandPartials,
   GENERATED_MARKER,
+  partialsOf,
   REQUIRED_SECTIONS,
 } from "../domain/agent.ts";
 import type { MetatorConfig } from "../domain/config.ts";
@@ -15,8 +17,11 @@ import type { MetatorPaths } from "./paths.ts";
 
 export interface AgentEntry {
   readonly agent: Agent;
+  /** The body with partials expanded (what hosts get). */
   readonly body: string;
   readonly source: string;
+  /** Partials the body includes that do not exist. */
+  readonly missingPartials: readonly string[];
 }
 
 /** Canonical agents: every `Agent` Markdown document under `paths.agents`. */
@@ -32,12 +37,25 @@ export class AgentCatalog {
   }> {
     const agents: AgentEntry[] = [];
     const problems: { source: string; error: MetatorError }[] = [];
+    const partials = new Map<string, string>();
+    for (const file of await this.fs.glob([`${this.paths.agents}/partials/*.md`])) {
+      const text = await this.fs.read(file);
+      if (text.isOk()) partials.set(file.slice(file.lastIndexOf("/") + 1, -".md".length), text.value);
+    }
     for (const source of [...(await this.fs.glob([`${this.paths.agents}/*.md`]))].sort()) {
       const text = await this.fs.read(source);
       if (text.isErr()) continue;
       const agent = readFrontMatter(text.value, source).andThen((raw) => AgentDocument.parse(raw, source));
       if (agent.isErr()) problems.push({ source, error: agent.error });
-      else agents.push({ agent: agent.value, body: text.value.replace(/^---\n[\s\S]*?\n---\n/, ""), source });
+      else {
+        const raw = text.value.replace(/^---\n[\s\S]*?\n---\n/, "");
+        agents.push({
+          agent: agent.value,
+          body: expandPartials(raw, partials),
+          source,
+          missingPartials: partialsOf(raw).filter((p) => !partials.has(p)),
+        });
+      }
     }
     return { agents, problems };
   }
@@ -72,6 +90,13 @@ export class LintAgents {
     const byId = new Map<string, AgentEntry>();
     for (const entry of scan.agents) {
       const { agent, source, body } = entry;
+      for (const p of entry.missingPartials)
+        problems.push({
+          source,
+          agent: agent.id,
+          severity: "error",
+          message: `includes unknown partial ${p}`,
+        });
       const error = (message: string) =>
         problems.push({ source, agent: agent.id, severity: "error", message });
       const warning = (message: string) =>
@@ -147,6 +172,14 @@ export class GenerateHosts {
         new MetatorError("INVALID_CONFIG", `${scan.problems.length} invalid agent(s)`, {
           hint: "Run `metator meta agents-lint` for details.",
           details: { problems: scan.problems.map((p) => ({ source: p.source, ...p.error.toJSON() })) },
+        }),
+      );
+    }
+    const missing = scan.agents.flatMap((a) => a.missingPartials.map((p) => `${a.source}: ${p}`));
+    if (missing.length > 0) {
+      return err(
+        new MetatorError("INVALID_CONFIG", `unknown partial(s): ${missing.join(", ")}`, {
+          hint: "Partials live in metator/agents/partials/<name>.md.",
         }),
       );
     }

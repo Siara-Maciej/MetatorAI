@@ -1,6 +1,15 @@
-import { err, FindingSetDocument, MetatorError, normalizePath, ok } from "@metator/core";
-import type { Command } from "commander";
+import {
+  DEFAULT_LENSES,
+  err,
+  FindingSetDocument,
+  LENSES,
+  MetatorError,
+  normalizePath,
+  ok,
+} from "@metator/core";
+import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
+import { positiveInt } from "../options.ts";
 
 export function registerFindingsCommands(program: Command, { action, container }: CommandContext): void {
   const findings = program
@@ -53,7 +62,74 @@ export function registerFindingsCommands(program: Command, { action, container }
     );
 
   findings
+    .command("verdict")
+    .description(
+      "Decision from merged findings: only confirmed blockers block; unverified blockers mean not decided",
+    )
+    .argument("<dir>", "directory with merged.json")
+    .option("--verified-correct <areas...>", "areas the reviewers checked and found correct")
+    .action(
+      action(async (dir: string, opts: { verifiedCorrect?: string[] }) => ({
+        result: await container()
+          .resolve("judgeFindings")
+          .execute({ dir: normalizePath(dir), verifiedCorrect: opts.verifiedCorrect ?? [] }),
+      })),
+    );
+
+  findings
+    .command("to-github")
+    .description(
+      "Inline comments (confirmed blockers only) and a summary from verdict.json, for posting after approval",
+    )
+    .argument("<verdict>", "path to verdict.json")
+    .addOption(
+      new Option("--format <format>", "comment style").choices(["natural", "labeled"]).default("labeled"),
+    )
+    .action(
+      action(async (verdict: string, opts: { format: "natural" | "labeled" }) => ({
+        result: await container()
+          .resolve("formatReviewComments")
+          .execute({ verdict: normalizePath(verdict), format: opts.format }),
+      })),
+    );
+
+  findings
     .command("schema")
     .description("Print the JSON Schema of a findings file")
     .action(action(() => ({ result: ok(FindingSetDocument.jsonSchema("input")) })));
+}
+
+export function registerReviewCommands(program: Command, { action, container }: CommandContext): void {
+  program
+    .command("review")
+    .description("Plan a review of the change")
+    .command("plan")
+    .description("Shards per package with card and rules; lenses run per shard")
+    .option("--base <ref>", "review files changed against this ref", "HEAD")
+    .option("--files <files...>", "review these files instead")
+    .addOption(
+      new Option("--lenses <lenses...>", "lenses to run").choices([...LENSES]).default([...DEFAULT_LENSES]),
+    )
+    .option("--max-files <n>", "files per shard", positiveInt, 15)
+    .option("--out <path>", "also write the plan as a ReviewPlan document")
+    .action(
+      action(
+        async (opts: {
+          base: string;
+          files?: string[];
+          lenses: (typeof LENSES)[number][];
+          maxFiles: number;
+          out?: string;
+        }) => ({
+          result: await container()
+            .resolve("planReview")
+            .execute({
+              ...(opts.files ? { files: opts.files.map((f) => normalizePath(f)) } : { base: opts.base }),
+              lenses: opts.lenses,
+              maxFiles: opts.maxFiles,
+              ...(opts.out ? { out: normalizePath(opts.out) } : {}),
+            }),
+        }),
+      ),
+    );
 }

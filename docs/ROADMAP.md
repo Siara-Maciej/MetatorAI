@@ -102,9 +102,9 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 **Cel:** review, któremu można ufać, z mierzoną trafnością.
 
 **Zadania**
-- [ ] Agenci: `mt-pr-review`, `mt-review-{logic,contracts,conventions,tests,security}`, `mt-verifier`, `mt-judge` (przeniesienie checklist z eq-logic-reviewer do skilla `mt-review-rubric`).
+- [ ] Skill `mt-review-rubric` (przeniesienie checklist z eq-logic-reviewer w repo pilota).
 - [x] `findings validate [--fix]|merge|schema` ([ADR-0031](adr/0031-findings.md)): `FindingSet`, polityka blocking, cytaty sprawdzane w kodzie, scalanie przyczyn między soczewkami.
-- [ ] Subflow `mt-review-core` + `review shard`, `findings to-github`, `verdict` (Judge).
+- [x] Subflow review ([ADR-0032](adr/0032-review-core.md)): `review plan`, `findings verdict`, `findings to-github --format natural|labeled`, agenci `mt-pr-review`, `mt-review-{logic,contracts,conventions,tests,security}`, `mt-verifier`, `mt-judge`.
 - [ ] Hook `SubagentStop` → `guard subagent-output` (jeśli dostępny), inaczej walidacja w `run advance`.
 - [ ] **Złoty zbiór v1:** ≥ 50 PR-ów: z prawdziwymi bugami (z hotfixów i revertów), z zasianymi bugami (mutacje w kopii PR-a) i czyste (kontrola FP). Format w `docs/metator/evals/golden/`.
 - [ ] `eval run|score|compare` (headless: `copilot -p … --agent mt-pr-review --no-ask-user -s`).

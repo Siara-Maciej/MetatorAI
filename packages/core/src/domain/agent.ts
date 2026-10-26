@@ -79,3 +79,15 @@ export function generatedMarker(source: string): string {
 export function withMetatorCommand(body: string, command: string): string {
   return command === "metator" ? body : body.replace(/`metator(?=[ `])/g, `\`${command}`);
 }
+
+const PARTIAL = /\{\{>\s*([a-z0-9-]+)\s*\}\}/g;
+
+/** Partial names a body includes (`{{> review-lens}}`), in order. */
+export function partialsOf(body: string): string[] {
+  return [...body.matchAll(PARTIAL)].map((m) => m[1] as string);
+}
+
+/** Replaces `{{> name}}` with the partial's text (ARCHITECTURE §11.3); unknown names stay visible. */
+export function expandPartials(body: string, partials: ReadonlyMap<string, string>): string {
+  return body.replace(PARTIAL, (whole, name: string) => partials.get(name)?.trimEnd() ?? whole);
+}

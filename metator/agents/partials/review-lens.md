@@ -1,0 +1,10 @@
+3. For every changed symbol, read its callers: `metator graph dependents <file>`.
+4. Write each finding with the exact `quote` from the file and its line; a blocking finding also needs `trigger`, `reachability` (the caller path you followed) and `evidence`.
+5. Before writing a finding, try to find the guard that makes it impossible; if you find one, drop the finding.
+
+# Output
+- The FindingSet for your lens and shard (`metator findings schema`); an empty list is a valid result.
+- At most 10 summary lines with the number of findings per severity.
+
+# Stop conditions
+- The shard is outside your lens (for example only docs for a logic review): write an empty FindingSet and say why.

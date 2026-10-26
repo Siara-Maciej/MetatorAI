@@ -35,3 +35,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0029](0029-config-gates.md) | `metator.config`, `init` i bramki `gate quick\|full` | Proposed |
 | [0030](0030-canonical-agents.md) | Agenci kanoniczni i generatory hostów (Copilot, Claude Code) | Proposed |
 | [0031](0031-findings.md) | Znaleziska review: schemat, polityka dowodów i walidacja cytatów | Proposed |
+| [0032](0032-review-core.md) | Subflow review: plan shardów, werdykt i komentarze | Proposed |

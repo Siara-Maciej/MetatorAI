@@ -32,7 +32,11 @@ const PROSE_KEYS =
 /** Statements of a knowledge file: prose only (no code, headings, tables or YAML structure). */
 export function sentencesOf(file: string, text: string, minWords: number): Sentence[] {
   const yaml = /\.ya?ml$/i.test(file);
-  const source = /\.md$/i.test(file) ? maskMarkdownCode(text) : text;
+  // Markdown front matter is metadata (ids, routing descriptions), not statements; keep its lines empty.
+  const body = /\.md$/i.test(file)
+    ? text.replace(/^---\n[\s\S]*?\n---\n/, (fm) => fm.replace(/[^\n]/g, ""))
+    : text;
+  const source = /\.md$/i.test(file) ? maskMarkdownCode(body) : body;
   const out: Sentence[] = [];
   source.split("\n").forEach((raw, i) => {
     let line: string;

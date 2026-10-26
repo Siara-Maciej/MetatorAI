@@ -23,6 +23,11 @@ describe("sentencesOf", () => {
     expect(sentencesOf("docs/a.md", md, 8).map((s) => [s.line, s.text])).toEqual([[2, STATEMENT]]);
   });
 
+  test("Markdown front matter is metadata, not statements; line numbers stay true", () => {
+    const md = `---\ndescription: ${STATEMENT}\n---\n# Title\n${STATEMENT}\n`;
+    expect(sentencesOf("a.md", md, 8).map((s) => s.line)).toEqual([5]);
+  });
+
   test("YAML: only prose fields count, structure is ignored", () => {
     const yaml = `summary: "${STATEMENT}"\nsource: { ref: AGENTS.md#conventions-and-many-more-words-here, verified: 2026-10-26 }\n`;
     expect(sentencesOf("rules/a.yml", yaml, 8).map((s) => s.line)).toEqual([1]);

@@ -424,6 +424,24 @@ const MUTANTS: readonly Mutant[] = [
     why: "the same root cause from two lenses is merged",
   },
   {
+    file: "packages/core/src/domain/verdict.ts",
+    from: 'const blocking = live.filter((f) => f.severity === "blocking" && f.verification?.status === "confirmed");',
+    to: 'const blocking = live.filter((f) => f.severity === "blocking");',
+    why: "only confirmed blockers block a change",
+  },
+  {
+    file: "packages/core/src/domain/verdict.ts",
+    from: "const comments = verdict.blocking.map(",
+    to: "const comments = [...verdict.blocking, ...verdict.consider].map(",
+    why: "inline comments only for confirmed blockers, the rest in the summary",
+  },
+  {
+    file: "packages/core/src/domain/agent.ts",
+    from: "return body.replace(PARTIAL, (whole, name: string) => partials.get(name)?.trimEnd() ?? whole);",
+    to: "return body;",
+    why: "partials are expanded into the agents hosts receive",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

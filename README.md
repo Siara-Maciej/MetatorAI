@@ -195,6 +195,8 @@ metator similar --file src/orders/customers.queries.ts         # how we already 
 metator init                                                   # discover the repo, propose metator.config.yml with evidence
 metator gate quick --base main                                 # the repo's own checks on the branch's files, one report
 metator generate                                               # Copilot and Claude Code agents from one canonical source
+metator review plan --base main                                # shards per package with card and rules, lenses per shard
+metator findings validate <dir> --fix                          # invented quotes and unproven blockers never reach a human
 ```
 
 Every file MetatorAI writes is a versioned document (`kind` + `schemaVersion`), so it is always clear how to parse it

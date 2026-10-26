@@ -139,6 +139,42 @@ describe("GenerateHosts", () => {
   });
 });
 
+describe("partials", () => {
+  const withPartial = agentFile("mt-a", {}, "{{> worker-sections}}\n");
+  const PARTIAL = WORKER_BODY;
+
+  test("partials are expanded before sections and budgets are checked, and before hosts get the body", async () => {
+    const files = {
+      "metator/agents/mt-a.md": withPartial,
+      "metator/agents/partials/worker-sections.md": PARTIAL,
+    };
+    expect(await lint(files)).toEqual([]);
+    const fs = new InMemoryFileSystem(files);
+    const gen = new GenerateHosts(
+      new AgentCatalog(fs, DEFAULT_PATHS),
+      [new FakeGenerator("claude")],
+      fs,
+      MetatorConfigSchema.parse({ hosts: { targets: ["claude"] } }),
+    );
+    await gen.execute({ check: false });
+    expect((await fs.read("host/claude-mt-a.md"))._unsafeUnwrap()).toContain("# Stop conditions");
+  });
+
+  test("an unknown partial fails lint and stops generation", async () => {
+    expect(await lint({ "metator/agents/mt-a.md": withPartial })).toContain(
+      "mt-a: error: includes unknown partial worker-sections",
+    );
+    const fs = new InMemoryFileSystem({ "metator/agents/mt-a.md": withPartial });
+    const gen = new GenerateHosts(
+      new AgentCatalog(fs, DEFAULT_PATHS),
+      [new FakeGenerator("claude")],
+      fs,
+      MetatorConfigSchema.parse({}),
+    );
+    expect((await gen.execute({ check: false }))._unsafeUnwrapErr().code).toBe("INVALID_CONFIG");
+  });
+});
+
 describe("withMetatorCommand", () => {
   test("rewrites command spans only", () => {
     expect(
