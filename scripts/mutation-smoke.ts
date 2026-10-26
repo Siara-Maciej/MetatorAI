@@ -287,8 +287,8 @@ const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/rules.ts",
-    from: "if (rule.implementation) {\n      return err(MetatorError.usage(`${rule.id} is already enforced by",
-    to: "if (false) {\n      return err(MetatorError.usage(`${rule.id} is already enforced by",
+    from: "if (rule.implementation) {\n      return err(MetatorError.usage(",
+    to: "if (false) {\n      return err(MetatorError.usage(",
     why: "scaffold never replaces an existing E1 implementation",
   },
   {
@@ -296,6 +296,18 @@ const MUTANTS: readonly Mutant[] = [
     from: "if (existsSync(join(this.root, f)))",
     to: "if (false)",
     why: "scaffold never overwrites an existing tool rule",
+  },
+  {
+    file: "packages/core/src/domain/sarif.ts",
+    from: "return path.startsWith(base) ? path.slice(base.length) : path;",
+    to: "return path;",
+    why: "SARIF paths become repo-relative so findings map to files and rules",
+  },
+  {
+    file: "packages/plugin-biome/src/biome-engine.ts",
+    from: "if (!CONFIG_FILES.some((f) => existsSync(join(this.root, f)))) return ok([]);",
+    to: "",
+    why: "Biome never runs its defaults in a repo that does not use Biome",
   },
   {
     file: "packages/cli/src/commands/run.ts",

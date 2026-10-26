@@ -39,6 +39,7 @@ import { BunFileSystem, BunProcessRunner } from "@metator/plugin-bun";
 export { findRepoRoot } from "@metator/plugin-bun";
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
+import { BiomeEngine } from "@metator/plugin-biome";
 import { GitVcs } from "@metator/plugin-git";
 import { ManypkgWorkspaceReader } from "@metator/plugin-node";
 import { OxcImportAnalyzer } from "@metator/plugin-typescript";
@@ -90,6 +91,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     graphQueries: asFunction(({ buildImportGraph }) => new GraphQueries(buildImportGraph)),
     ruleEngines: asFunction(({ processRunner, root }) => [
       new AstGrepEngine(processRunner, root),
+      new BiomeEngine(processRunner, root),
     ]).singleton(),
     ruleScaffolders: asFunction(({ root }) => [new AstGrepScaffolder(root)]).singleton(),
     ruleCatalog: asFunction(({ fileSystem, paths }) => new RuleCatalog(fileSystem, paths)).singleton(),

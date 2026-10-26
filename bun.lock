@@ -57,6 +57,18 @@
         "@metator/testing": "workspace:*",
       },
     },
+    "packages/plugin-biome": {
+      "name": "@metator/plugin-biome",
+      "version": "0.0.0",
+      "dependencies": {
+        "@metator/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@biomejs/biome": "^2.6.3",
+        "@metator/plugin-bun": "workspace:*",
+        "@metator/testing": "workspace:*",
+      },
+    },
     "packages/plugin-bun": {
       "name": "@metator/plugin-bun",
       "version": "0.0.0",
@@ -110,6 +122,7 @@
       "dependencies": {
         "@metator/core": "workspace:*",
         "@metator/plugin-astgrep": "workspace:*",
+        "@metator/plugin-biome": "workspace:*",
         "@metator/plugin-bun": "workspace:*",
         "@metator/plugin-git": "workspace:*",
         "@metator/plugin-node": "workspace:*",
@@ -190,6 +203,8 @@
     "@metator/core": ["@metator/core@workspace:packages/core"],
 
     "@metator/plugin-astgrep": ["@metator/plugin-astgrep@workspace:packages/plugin-astgrep"],
+
+    "@metator/plugin-biome": ["@metator/plugin-biome@workspace:packages/plugin-biome"],
 
     "@metator/plugin-bun": ["@metator/plugin-bun@workspace:packages/plugin-bun"],
 

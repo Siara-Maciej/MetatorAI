@@ -57,6 +57,7 @@ Use a proven package before writing your own (ADR-0010). Write code only for log
 | Workspace packages | `@manypkg/get-packages` | `packages/plugin-node` |
 | Git | `simple-git` | `packages/plugin-git` |
 | Markdown heading anchors | `github-slugger` | `packages/core/src/domain/markdown.ts` |
+| Tool findings | SARIF 2.1.0 from the tool (`diagnosticsFromSarif`) | `packages/core/src/domain/sarif.ts` |
 
 - Before adding code that looks generic (parsing, validation, graphs, retries, caching, CLI args, YAML, schemas, diffing), search npm and propose a package with an ADR (criteria in ADR-0010).
 - `@metator/core` may import only the approved pure libraries above; `mt-arch-core-approved-deps` (ast-grep) fails CI otherwise.

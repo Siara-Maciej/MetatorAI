@@ -84,7 +84,8 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [x] Kanon reguł ([ADR-0020](adr/0020-rule-canon.md)): `RuleSet` YAML w `docs/metator/rules`, `rules lint|pack|show|adapters|check|schema`, silnik E1 ast-grep, wygenerowane `.github/instructions/mt-*.instructions.md`, `bun run canon` w CI. Dogfood: 16 reguł MetatorAI (5 × E1).
 - [x] Reguły E1: ≥ 40% reguł jako E1 (MetatorAI: 50%, ast-grep z testami).
 - [x] `rules coverage [--min-e1]` i `rules scaffold <id>` (port `RuleScaffolder`, adapter ast-grep: reguła + test, który nie przechodzi, dopóki nie wpiszesz prawdziwych przypadków). Dogfood: 3 reguły MetatorAI awansowane z E2 do E1 (MT-CODE-001, MT-CODE-004, MT-ARCH-007), E1 = 50%, bramka `--min-e1 40` w `bun run canon`.
-- [ ] Silniki E1 dla Biome i tsc.
+- [x] Silnik E1 Biome przez SARIF ([ADR-0025](adr/0025-biome-engine-sarif.md)); dogfood: MT-CODE-006/007, E1 = 56%.
+- [ ] Silnik E1 dla tsc (flagi kompilatora jako reguły) i sprawdzanie, że reguła Biome jest włączona.
 - [x] Katalog wzorców ([ADR-0023](adr/0023-pattern-catalog.md)): `Pattern` YAML, wykrywanie regułami ast-grep (`severity: hint`, z testami), `patterns scan [--check]`, `similar`, indeks `.metator/index/patterns.json`. Dogfood: 4 wzorce MetatorAI (use-case, versioned-document, cli-command-group, port-adapter).
 - [ ] Kolejne wzorce do 10–15 w repo pilota.
 - [x] Karty modułów ([ADR-0022](adr/0022-module-cards.md)): `cards build [--check]`, blok generowany z grafu (zależności, testowe osobno, użytkownicy, powierzchnia publiczna, biblioteki), sekcje kuratorowane z cytatami. Dogfood: 9 kart MetatorAI z 11 prawdziwymi cytatami.

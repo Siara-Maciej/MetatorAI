@@ -56,3 +56,19 @@ rules:
     summary: Before writing generic code (parsing, graphs, retries, caching, CLI args, schemas, diffing, git) look for a maintained package and propose it in an ADR.
     rationale: docs/adr/0010-dependency-policy.md
     source: { ref: AGENTS.md#dependency-policy-dont-reinvent-the-wheel, verified: 2026-10-25 }
+  - id: MT-CODE-006
+    title: Type-only imports use import type
+    applyTo: ["packages/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"]
+    enforcement: E1
+    implementation: biome:lint/style/useImportType
+    summary: Imports used only as types are written as `import type`, so they vanish at runtime and never create import cycles.
+    rationale: docs/adr/0010-dependency-policy.md
+    source: { ref: biome.json, verified: 2026-10-26 }
+  - id: MT-CODE-007
+    title: Node builtins use the node protocol
+    applyTo: ["packages/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"]
+    enforcement: E1
+    implementation: biome:lint/style/useNodejsImportProtocol
+    summary: Builtins are imported as `node:fs`, `node:path`, so the import graph classifies them as runtime, not packages.
+    rationale: docs/adr/0017-imports-oxc.md
+    source: { ref: biome.json, verified: 2026-10-26 }

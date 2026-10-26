@@ -12,7 +12,7 @@ dir: packages/core
 - Directory: `packages/core`
 - Depends on: none
 - Test-only dependencies: `@metator/testing`
-- Used by: `@metator/cli`, `@metator/plugin-astgrep`, `@metator/plugin-bun`, `@metator/plugin-git`, `@metator/plugin-node`, `@metator/plugin-typescript`, `@metator/runtime`, `@metator/testing`
+- Used by: `@metator/cli`, `@metator/plugin-astgrep`, `@metator/plugin-biome`, `@metator/plugin-bun`, `@metator/plugin-git`, `@metator/plugin-node`, `@metator/plugin-typescript`, `@metator/runtime`, `@metator/testing`
 - Imported by other packages: `packages/core/src/index.ts`
 - Third-party: `@dagrejs/graphlib`, `@sindresorhus/slugify`, `github-slugger`, `neverthrow`, `picomatch`, `xstate`, `yaml`, `zod`
 <!-- metator:generated:end -->

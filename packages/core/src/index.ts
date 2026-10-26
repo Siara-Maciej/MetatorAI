@@ -24,6 +24,7 @@ export * from "./domain/result.ts";
 export * from "./domain/rule.ts";
 export * from "./domain/run-machine.ts";
 export * from "./domain/run-record.ts";
+export * from "./domain/sarif.ts";
 export * from "./domain/versioned.ts";
 export * from "./domain/workflow-spec.ts";
 export type * from "./ports/index.ts";

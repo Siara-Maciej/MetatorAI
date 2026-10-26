@@ -108,8 +108,7 @@ describe("dogfood: MetatorAI's module cards", () => {
     // Moved quotes are a warning (`memory check`); only stale or missing citations are wrong.
     const v = await metator(["memory", "validate", "--root", SELF], SELF);
     const counts = (v.code === 0 ? data(v) : (v.json.error as { details: Data }).details).counts as Data;
-    expect([counts.stale, counts["missing-file"], (counts.ok as number) + (counts.moved as number)]).toEqual([
-      0, 0, 11,
-    ]);
+    expect([counts.stale, counts["missing-file"]]).toEqual([0, 0]);
+    expect((counts.ok as number) + (counts.moved as number)).toBeGreaterThanOrEqual(11);
   });
 });

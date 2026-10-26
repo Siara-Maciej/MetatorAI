@@ -1,7 +1,7 @@
 ---
 kind: InstructionsAdapter
 schemaVersion: 1
-applyTo: packages/**/src/**,packages/cli/src/**,packages/core/src/**,packages/core/src/domain/**,packages/plugin-*/src/**
+applyTo: e2e/**/*.ts,packages/**/*.ts,packages/**/src/**,packages/cli/src/**,packages/core/src/**,packages/core/src/domain/**,packages/plugin-*/src/**,scripts/**/*.ts
 description: Coding conventions of MetatorAI.
 generatedFrom: docs/metator/rules/code.yml
 ---
@@ -42,3 +42,5 @@ CI fails on these; no need to re-check them by hand.
 
 - MT-CODE-001: Errors are values (`ast-grep:mt-code-001`)
 - MT-CODE-004: CLI output is one bounded JSON envelope (`ast-grep:mt-code-004`)
+- MT-CODE-006: Type-only imports use import type (`biome:lint/style/useImportType`)
+- MT-CODE-007: Node builtins use the node protocol (`biome:lint/style/useNodejsImportProtocol`)
