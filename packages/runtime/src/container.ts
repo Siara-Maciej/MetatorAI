@@ -2,6 +2,7 @@ import {
   type AdvanceRun,
   type AgentCatalog,
   type ApproveRun,
+  type AuditAgents,
   type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
@@ -21,6 +22,7 @@ import {
   type FormatReviewComments,
   type GenerateHosts,
   type GenerateRuleAdapters,
+  type GenerateSkills,
   type GetRunStatus,
   type GraphQueries,
   type GuardPostEdit,
@@ -40,6 +42,7 @@ import {
   type LintAgents,
   type LintPlan,
   type LintRules,
+  type LintSkills,
   type ListRuns,
   type Logger,
   type MeasureRuleCoverage,
@@ -68,6 +71,8 @@ import {
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
+  type SkillCatalog,
+  type SkillGenerator,
   type SourceFiles,
   type ValidateCitations,
   type ValidateFindings,
@@ -155,6 +160,11 @@ export interface Cradle {
   agentCatalog: AgentCatalog;
   lintAgents: LintAgents;
   generateHosts: GenerateHosts;
+  skillGenerators: readonly SkillGenerator[];
+  skillCatalog: SkillCatalog;
+  auditAgents: AuditAgents;
+  lintSkills: LintSkills;
+  generateSkills: GenerateSkills;
   validateFindings: ValidateFindings;
   mergeFindings: MergeFindingSets;
   planReview: PlanReview;

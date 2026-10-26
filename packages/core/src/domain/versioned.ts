@@ -184,6 +184,11 @@ export function serializeJsonDocument(doc: object): string {
   return `${JSON.stringify(doc, null, 2)}\n`;
 }
 
+/** YAML text of plain fields, for host formats that are not MetatorAI documents (skill front matter). */
+export function renderYamlFields(fields: Record<string, unknown>): string {
+  return stringifyYaml(fields, { lineWidth: 0 }).trimEnd();
+}
+
 /** A YAML document (header first), optionally under a leading comment. */
 export function renderYamlDocument(doc: DocumentHeader & Record<string, unknown>, comment?: string): string {
   const text = stringifyYaml(doc, { lineWidth: 0 });

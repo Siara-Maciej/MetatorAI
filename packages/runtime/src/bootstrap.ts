@@ -2,6 +2,7 @@ import {
   AdvanceRun,
   AgentCatalog,
   ApproveRun,
+  AuditAgents,
   BuildImportGraph,
   BuildModuleCards,
   CheckMemory,
@@ -21,6 +22,7 @@ import {
   FormatReviewComments,
   GenerateHosts,
   GenerateRuleAdapters,
+  GenerateSkills,
   GetRunStatus,
   GraphQueries,
   GuardPostEdit,
@@ -38,6 +40,7 @@ import {
   LintAgents,
   LintPlan,
   LintRules,
+  LintSkills,
   ListRuns,
   MeasureRuleCoverage,
   MemoryBudget,
@@ -56,6 +59,7 @@ import {
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  SkillCatalog,
   SourceFiles,
   ValidateCitations,
   ValidateFindings,
@@ -68,8 +72,8 @@ export { findRepoRoot } from "@metator/plugin-bun";
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { GitVcs } from "@metator/plugin-git";
-import { ClaudeGenerator } from "@metator/plugin-host-claude";
-import { CopilotGenerator } from "@metator/plugin-host-copilot";
+import { ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
+import { CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
 import { ManypkgWorkspaceReader, NodePackageManager } from "@metator/plugin-node";
 import { OxcImportAnalyzer, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
@@ -223,6 +227,16 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ discover, fileSystem, paths }) => new InitProject(discover, fileSystem, paths),
     ),
     hostGenerators: asValue([new CopilotGenerator(), new ClaudeGenerator()]),
+    skillGenerators: asValue([new CopilotSkillGenerator(), new ClaudeSkillGenerator()]),
+    auditAgents: asFunction(
+      ({ agentCatalog, skillCatalog, fileSystem }) => new AuditAgents(agentCatalog, skillCatalog, fileSystem),
+    ),
+    skillCatalog: asFunction(({ fileSystem, paths }) => new SkillCatalog(fileSystem, paths)).singleton(),
+    lintSkills: asFunction(({ skillCatalog, fileSystem }) => new LintSkills(skillCatalog, fileSystem, "mt-")),
+    generateSkills: asFunction(
+      ({ skillCatalog, skillGenerators, fileSystem, config }) =>
+        new GenerateSkills(skillCatalog, skillGenerators, fileSystem, config.config),
+    ),
     agentCatalog: asFunction(({ fileSystem, paths }) => new AgentCatalog(fileSystem, paths)).singleton(),
     lintAgents: asFunction(({ agentCatalog }) => new LintAgents(agentCatalog, "mt-")),
     generateHosts: asFunction(

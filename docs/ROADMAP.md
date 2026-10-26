@@ -19,7 +19,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 **Do zrobienia w kodzie (P0 → P2):**
 - [x] Run v2: `approvals` w `RunRecord` (migracja v1 → v2), `run approve <gate> --by --choice`.
 - [x] Hooki `guard pre-tool|post-edit|stop|subagent-output|session-start|precompact`, `run checkpoint`, generowanie konfiguracji hooków dla Claude Code i Copilota (`generate --hooks`, ADR-0038).
-- [ ] `meta check-all`, `meta skills-lint`, kanoniczne skille i ich generowanie, `meta audit`.
+- [x] `meta check-all`, `meta skills-lint`, kanoniczne skille i ich generowanie, `meta audit` (ADR-0039).
 - [ ] `symbols find`, `graph callers`, `api snapshot|diff`.
 - [ ] `gate all`: kroki `test affected`, `graph diff`, `api diff`, `coverage diff`; `coverage diff`, `flaky check`.
 - [ ] `workflow lint` (anatomia, 16 sekcji), specyfikacje W1–W5 jako `Workflow`.

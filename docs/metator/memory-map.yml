@@ -11,6 +11,9 @@ knowledge:
     - "metator/agents/**"
     - ".github/agents/**"
     - ".claude/agents/**"
+    - "metator/skills/**"
+    - ".github/skills/**"
+    - ".claude/skills/**"
 tierBudgets:
   T0: { chars: 8000 }
 items:
@@ -93,6 +96,21 @@ items:
     readers: ["*"]
     budget: { lines: 220 }
     description: Canonical, host-neutral agents; `metator generate` writes the host files.
+  - id: t1.skills
+    tier: T1
+    kind: canon
+    paths: ["metator/skills/**"]
+    load: "skill:mt-*"
+    writers: [human]
+    readers: [copilot, claude]
+    description: Canonical skills (SKILL.md with its scripts); hosts load one when its description matches the task.
+  - id: t1.host-skills
+    tier: T1
+    kind: derived
+    paths: [".github/skills/**", ".claude/skills/**"]
+    load: "skill:mt-*"
+    writers: ["metator generate"]
+    readers: [copilot, claude]
   - id: t1.host-agents
     tier: T1
     kind: derived

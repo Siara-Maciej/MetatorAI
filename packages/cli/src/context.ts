@@ -18,6 +18,10 @@ export interface CommandContext {
   readonly container: () => MetatorContainer;
   /** The process's standard input (hook payloads). */
   readonly stdin: () => Promise<string>;
+  /** Runs another command in this process and returns its envelope (`meta check-all`). */
+  readonly invoke: (
+    argv: readonly string[],
+  ) => Promise<{ readonly code: number; readonly envelope: Record<string, unknown> }>;
   /** Wraps a handler so its Outcome becomes the command's single JSON envelope. */
   readonly action: <A extends unknown[]>(
     handler: (...args: A) => Promise<Outcome> | Outcome,

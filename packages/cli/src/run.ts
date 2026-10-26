@@ -14,9 +14,19 @@ export type RunOptions = ProgramOptions;
 /** Driving adapter: argv → commander → use case → one JSON envelope line → exit code. */
 export async function run(argv: readonly string[], io: Io, options: RunOptions = {}): Promise<number> {
   let outcome: Outcome | undefined;
-  const program = buildProgram((o) => {
-    outcome = o;
-  }, options);
+  const program = buildProgram(
+    (o) => {
+      outcome = o;
+    },
+    {
+      ...options,
+      invoke: async (inner) => {
+        let text = "{}";
+        const code = await run(inner, { out: (t) => (text = t) }, options);
+        return { code, envelope: JSON.parse(text) as Record<string, unknown> };
+      },
+    },
+  );
   try {
     await program.parseAsync(argv.length === 0 ? ["help"] : [...argv], { from: "user" });
     outcome ??= { result: ok(describeCommands(program)) }; // a command group without subcommand → help

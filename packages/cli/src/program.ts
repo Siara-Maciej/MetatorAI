@@ -26,6 +26,8 @@ export interface ProgramOptions {
   readonly cwd?: string;
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly stdin?: () => Promise<string>;
+  /** How commands run other commands (set by run.ts, so the program does not import it). */
+  readonly invoke?: CommandContext["invoke"];
 }
 
 /**
@@ -56,6 +58,11 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
       });
     },
     stdin: options.stdin ?? (async () => ""),
+    invoke:
+      options.invoke ??
+      (async () => {
+        throw new Error("invoke is not available outside run()");
+      }),
     action:
       (handler) =>
       async (...args) => {

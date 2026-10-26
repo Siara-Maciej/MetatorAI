@@ -18,7 +18,7 @@ Design docs (Polish): `docs/README.md`. Start with `docs/ARCHITECTURE.md` and `d
 | Typecheck | `bun run typecheck` (TypeScript 7, `noEmit`) |
 | Lint + format | `bun run lint` / `bun run format` (Biome; Markdown is not formatted) |
 | Architecture rules | `bun run arch` (ast-grep rule tests + scan) |
-| Rule canon + memory map | `bun run canon` (`rules lint`, `rules adapters --check`, `memory check`, `cards build --check`, `patterns scan --check`, `adr lint`, `rules coverage --min-e1 100`, `memory dupes --check`, `meta agents-lint`, `generate --check`) |
+| Rule canon + memory map | `bun run canon` (`meta check-all --min-e1 100`: rules, memory, cards, patterns, ADRs, agents, skills, workflows, generated files) |
 | Run the CLI | `bun run metator <command>` |
 
 ## Architecture (enforced, not advisory)

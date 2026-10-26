@@ -1,0 +1,68 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "Skill",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Skill"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "name": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "description": {
+        "type": "string",
+        "minLength": 20,
+        "maxLength": 1024
+      },
+      "files": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "name", "description"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Skill"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "name": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "description": {
+        "type": "string",
+        "minLength": 20,
+        "maxLength": 1024
+      },
+      "files": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "name", "description", "files"],
+    "additionalProperties": false
+  }
+}

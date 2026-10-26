@@ -16,6 +16,8 @@ export interface MetatorPaths {
   readonly agents: string;
   /** The golden set of review evals. */
   readonly evals: string;
+  /** Canonical skills (`<name>/SKILL.md` each). */
+  readonly skills: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -32,6 +34,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   gates: ".metator/gates",
   agents: "metator/agents",
   evals: "docs/metator/evals/golden",
+  skills: "metator/skills",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

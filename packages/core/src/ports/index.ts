@@ -7,6 +7,7 @@ import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
 import type { Result } from "../domain/result.ts";
+import type { Skill } from "../domain/skill.ts";
 
 export interface ReadonlyFileSystem {
   read(path: string): Promise<Result<string, MetatorError>>;
@@ -167,6 +168,20 @@ export interface HostAgentContext {
   readonly metatorCommand: string;
   /** Model for the agent's tier on this host, when the config sets one. */
   readonly model?: string;
+}
+
+/** Writes one host's skill directories from canonical skills (ADR-0039). */
+export interface SkillGenerator {
+  readonly host: "copilot" | "claude";
+  /** Glob of the SKILL.md files this generator owns (for orphan detection). */
+  readonly owns: string;
+  /** SKILL.md and its supporting files for the host; `files` are the canonical supporting files. */
+  skill(
+    skill: Skill,
+    body: string,
+    files: readonly GeneratedFile[],
+    context: { readonly source: string; readonly metatorCommand: string },
+  ): readonly GeneratedFile[];
 }
 
 /** Writes one host's files from canonical sources; its tool-name table lives here (ADR-0030). */

@@ -322,8 +322,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/rules.ts",
-    from: "const used = this.engines.filter((e) =>\n      [...canon.keys()].some((k) => parseImplementation(k).engine === e.engine),\n    );",
-    to: "const used = this.engines;",
+    from: "        [...canon.keys()].some((k) => parseImplementation(k).engine === e.engine),",
+    to: "        true,",
     why: "rules check runs only the engines the canon binds rules to",
   },
   {
@@ -745,5 +745,65 @@ export const MUTANTS: readonly Mutant[] = [
     from: "for (const g of input.hooks ? hosts : []) {",
     to: "for (const g of hosts) {",
     why: "hooks are installed only when asked",
+  },
+  {
+    file: "packages/core/src/application/skills.ts",
+    from: "if (!ANTI_TRIGGER.test(skill.description))",
+    to: "if (false)",
+    why: "a skill must say when not to use it",
+  },
+  {
+    file: "packages/core/src/application/skills.ts",
+    from: "if (!skill.files.includes(f)) error(",
+    to: "if (false) error(",
+    why: "files a skill uses must ship with it",
+  },
+  {
+    file: "packages/core/src/application/skills.ts",
+    from: "if (!expected.has(path)) orphaned.push(path);",
+    to: "",
+    why: "leftover generated skill files are orphans",
+  },
+  {
+    file: "packages/core/src/domain/audit.ts",
+    from: "if (path.length - 1 > maxDepth) chains.push(path);",
+    to: "",
+    why: "delegation deeper than two levels is reported",
+  },
+  {
+    file: "packages/core/src/domain/audit.ts",
+    from: "const dead = [...byId.keys()].filter((id) => !reached.has(id)).sort();",
+    to: "const dead: string[] = [];",
+    why: "unreachable agents are dead",
+  },
+  {
+    file: "packages/core/src/application/audit.ts",
+    from: 'origin: f.body.includes(GENERATED_MARKER) ? ("generated" as const) : ("host" as const),',
+    to: 'origin: "host" as const,',
+    why: "generated host copies are not hand-written agents",
+  },
+  {
+    file: "packages/core/src/domain/skill.ts",
+    from: "...files.map((f) => ({",
+    to: "...[].map((f: { path: string; content: string }) => ({",
+    why: "a skill's supporting files are generated with it",
+  },
+  {
+    file: "packages/plugin-host-claude/src/skill-generator.ts",
+    from: 'readonly root = ".claude/skills";',
+    to: 'readonly root = ".claude/skills-x";',
+    why: "claude skills live in .claude/skills",
+  },
+  {
+    file: "packages/plugin-host-copilot/src/skill-generator.ts",
+    from: 'readonly root = ".github/skills";',
+    to: 'readonly root = ".github/skills-x";',
+    why: "copilot skills live in .github/skills",
+  },
+  {
+    file: "packages/core/src/application/rules.ts",
+    from: "(!input.engines || input.engines.includes(e.engine)) &&",
+    to: "",
+    why: "rules check can be limited to the per-file engines (post-edit hook)",
   },
 ];

@@ -370,6 +370,15 @@ describe("CheckRules", () => {
     ]);
   });
 
+  test("an engine filter limits the run to the named engines (post-edit hook)", async () => {
+    const astGrep = new FakeRuleEngine("ast-grep", ENGINE_RULES, diagnostics);
+    const w = world({ "docs/metator/rules/arch.yml": ARCH }, [astGrep]);
+    const skipped = (await w.check.execute({ engines: ["biome"] }))._unsafeUnwrap();
+    expect([skipped.engines, skipped.violations, astGrep.checked]).toEqual([[], [], []]);
+    const ran = (await w.check.execute({ engines: ["ast-grep"] }))._unsafeUnwrap();
+    expect([ran.engines, ran.violations.length]).toEqual([["ast-grep"], 2]);
+  });
+
   test("engines the canon binds no rule to are not run", async () => {
     const astGrep = new FakeRuleEngine("ast-grep", ENGINE_RULES, diagnostics);
     const tsc = new FakeRuleEngine(
