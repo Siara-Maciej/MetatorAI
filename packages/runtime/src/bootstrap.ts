@@ -1,6 +1,7 @@
 import {
   AdvanceRun,
   AgentCatalog,
+  ApiSnapshots,
   ApproveRun,
   AuditAgents,
   BuildImportGraph,
@@ -61,6 +62,7 @@ import {
   ScoreEvals,
   SkillCatalog,
   SourceFiles,
+  SymbolQueries,
   ValidateCitations,
   ValidateFindings,
   WorkflowCatalog,
@@ -75,7 +77,7 @@ import { GitVcs } from "@metator/plugin-git";
 import { ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
 import { CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
 import { ManypkgWorkspaceReader, NodePackageManager } from "@metator/plugin-node";
-import { OxcImportAnalyzer, TscEngine } from "@metator/plugin-typescript";
+import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
 import { type LoadedConfig, resolvePaths } from "./config.ts";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
@@ -119,6 +121,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     binResolver: asFunction(({ root }) => new NodeBinResolver(root)).singleton(),
     workspaceReader: asFunction(({ root }) => new ManypkgWorkspaceReader(root)).singleton(),
     importAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
+    symbolAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
     sourceFiles: asFunction(
       ({ vcs, fileSystem, sourceIgnores }) => new SourceFiles(vcs, fileSystem, sourceIgnores),
     ).singleton(),
@@ -182,6 +185,14 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ScanPatterns(patternCatalog, ruleCatalog, ruleEngines, workspaceReader, fileSystem, paths),
     ),
     findSimilar: asFunction(({ scanPatterns }) => new FindSimilar(scanPatterns)),
+    apiSnapshots: asFunction(
+      ({ processRunner, root, workspaceReader, fileSystem, paths }) =>
+        new ApiSnapshots(new TscDeclarationEmitter(processRunner, root), workspaceReader, fileSystem, paths),
+    ),
+    symbolQueries: asFunction(
+      ({ sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer }) =>
+        new SymbolQueries(sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer),
+    ),
     diffImportGraph: asFunction(
       ({ vcs, revisionReader, buildImportGraph, importAnalyzer }) =>
         new DiffImportGraph(vcs, revisionReader, buildImportGraph, importAnalyzer),

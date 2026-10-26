@@ -43,3 +43,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0037](0037-run-approvals.md) | Zgody w runie: `RunRecord` v2 i `run approve` | Proposed |
 | [0038](0038-guard-hooks.md) | Hooki `guard *` i konfiguracja hooków hostów | Proposed |
 | [0039](0039-skills-audit-check-all.md) | Skille kanoniczne, `meta skills-lint`, `meta audit` i `meta check-all` | Proposed |
+| [0040](0040-symbols-api.md) | Symbole i API: `symbols find`, `graph callers`, `api snapshot\|diff` | Proposed |

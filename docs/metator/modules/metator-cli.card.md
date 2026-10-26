@@ -23,7 +23,7 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 
 ## Invariants
 
-- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:43 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
+- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:44 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
 
 ## Allowed dependencies
 

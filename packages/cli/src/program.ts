@@ -3,6 +3,7 @@ import { bootstrap, findRepoRoot, loadConfig } from "@metator/runtime";
 import { Command, type CommanderError } from "commander";
 import { registerAdrCommands } from "./commands/adr.ts";
 import { registerAgentCommands } from "./commands/agents.ts";
+import { registerApiCommands } from "./commands/api.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerConfigCommands } from "./commands/config.ts";
@@ -73,6 +74,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerMetaCommands(program, ctx);
   registerChangedCommand(program, ctx);
   registerGraphCommands(program, ctx);
+  registerApiCommands(program, ctx);
   registerRulesCommands(program, ctx);
   registerMemoryCommands(program, ctx);
   registerCardsCommands(program, ctx);

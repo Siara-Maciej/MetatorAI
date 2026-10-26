@@ -8,6 +8,7 @@ import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
 import type { Result } from "../domain/result.ts";
 import type { Skill } from "../domain/skill.ts";
+import type { ModuleSymbols } from "../domain/symbols.ts";
 
 export interface ReadonlyFileSystem {
   read(path: string): Promise<Result<string, MetatorError>>;
@@ -97,6 +98,16 @@ export interface ImportAnalyzer {
   parse(path: string, content: string): Result<readonly ImportSpecifier[], MetatorError>;
   /** Resolves a specifier from a repo-relative file; files outside the repo or in node_modules are external. */
   resolve(fromPath: string, specifier: string): Resolution;
+}
+
+/** Exported and imported names of one module (split from ImportAnalyzer: a different axis). */
+export interface SymbolAnalyzer {
+  symbols(path: string, content: string): Result<ModuleSymbols, MetatorError>;
+}
+
+/** Declaration files (`.d.ts`) of the project, by repo-relative path (ADR-0040). */
+export interface DeclarationEmitter {
+  emit(): Promise<Result<ReadonlyMap<string, string>, MetatorError>>;
 }
 
 /** A rule implemented by a tool (an E1 rule's `implementation` points at one). */

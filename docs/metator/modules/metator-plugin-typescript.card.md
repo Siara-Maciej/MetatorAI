@@ -19,11 +19,11 @@ dir: packages/plugin-typescript
 
 ## Responsibility
 
-`ImportAnalyzer` port on oxc: import extraction with oxc-parser, resolution with oxc-resolver (tsconfig paths, package exports, workspace links). `RuleEngine` port on the TypeScript compiler: canon rules bound to compiler checks (`tsc:noUncheckedIndexedAccess`), enabled per `tsc --showConfig`, findings from `tsc --noEmit` (ADR-0027).
+`ImportAnalyzer` port on oxc: import extraction with oxc-parser, resolution with oxc-resolver (tsconfig paths, package exports, workspace links). `RuleEngine` port on the TypeScript compiler: canon rules bound to compiler checks (`tsc:noUncheckedIndexedAccess`), enabled per `tsc --showConfig`, findings from `tsc --noEmit` (ADR-0027). `SymbolAnalyzer` (exports, re-exports, imports by name) on the same oxc module record and `DeclarationEmitter` on `tsc --emitDeclarationOnly` (ADR-0040).
 
 ## Invariants
 
-- Node builtins are external, never files [[cite: packages/plugin-typescript/src/oxc-import-analyzer.ts:77 | "if (specifier.startsWith(\"node:\")) return { type: \"external\", name: specifier };"]].
+- Node builtins are external, never files [[cite: packages/plugin-typescript/src/oxc-import-analyzer.ts:135 | "if (specifier.startsWith(\"node:\")) return { type: \"external\", name: specifier };"]].
 
 ## Allowed dependencies
 

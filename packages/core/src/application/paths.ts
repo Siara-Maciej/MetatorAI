@@ -18,6 +18,8 @@ export interface MetatorPaths {
   readonly evals: string;
   /** Canonical skills (`<name>/SKILL.md` each). */
   readonly skills: string;
+  /** API snapshots (`api snapshot`). */
+  readonly api: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -35,6 +37,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   agents: "metator/agents",
   evals: "docs/metator/evals/golden",
   skills: "metator/skills",
+  api: ".metator/api",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

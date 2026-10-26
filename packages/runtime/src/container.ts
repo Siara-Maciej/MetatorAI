@@ -1,6 +1,7 @@
 import {
   type AdvanceRun,
   type AgentCatalog,
+  type ApiSnapshots,
   type ApproveRun,
   type AuditAgents,
   type BinResolver,
@@ -74,6 +75,8 @@ import {
   type SkillCatalog,
   type SkillGenerator,
   type SourceFiles,
+  type SymbolAnalyzer,
+  type SymbolQueries,
   type ValidateCitations,
   type ValidateFindings,
   type Vcs,
@@ -108,6 +111,7 @@ export interface Cradle {
   binResolver: BinResolver;
   workspaceReader: WorkspaceReader;
   importAnalyzer: ImportAnalyzer;
+  symbolAnalyzer: SymbolAnalyzer;
   importGraphReader: ImportGraphReader;
   ruleEngines: readonly RuleEngine[];
   ruleScaffolders: readonly RuleScaffolder[];
@@ -146,6 +150,8 @@ export interface Cradle {
   patternCatalog: PatternCatalog;
   scanPatterns: ScanPatterns;
   findSimilar: FindSimilar;
+  symbolQueries: SymbolQueries;
+  apiSnapshots: ApiSnapshots;
   diffImportGraph: DiffImportGraph;
   lintPlan: LintPlan;
   scopePlan: ScopePlan;

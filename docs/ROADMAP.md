@@ -20,7 +20,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] Run v2: `approvals` w `RunRecord` (migracja v1 → v2), `run approve <gate> --by --choice`.
 - [x] Hooki `guard pre-tool|post-edit|stop|subagent-output|session-start|precompact`, `run checkpoint`, generowanie konfiguracji hooków dla Claude Code i Copilota (`generate --hooks`, ADR-0038).
 - [x] `meta check-all`, `meta skills-lint`, kanoniczne skille i ich generowanie, `meta audit` (ADR-0039).
-- [ ] `symbols find`, `graph callers`, `api snapshot|diff`.
+- [x] `symbols find`, `graph callers`, `api snapshot|diff` (ADR-0040).
 - [ ] `gate all`: kroki `test affected`, `graph diff`, `api diff`, `coverage diff`; `coverage diff`, `flaky check`.
 - [ ] `workflow lint` (anatomia, 16 sekcji), specyfikacje W1–W5 jako `Workflow`.
 - [ ] `run handoff|close`, `lessons add`, `findings check-quote`, `docs inventory|drift|links`, `owners`, `debug-tags check`.
@@ -80,7 +80,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 
 **Zadania**
 - [x] Szkielet `metator` (envelope, workspace, git, cache, budget) + `bun test` na fixture'ze mini-monorepo.
-- [ ] P0 z indeksu: `index build`, `graph deps|affected|callers|diff`, `symbols find`, `api snapshot|diff`.
+- [x] P0 z indeksu: `index build`, `graph deps|affected|callers|diff`, `symbols find`, `api snapshot|diff`.
 - [x] `sgconfig.yml` (jeśli go nie ma) z `ruleDirs` i `testConfigs`. Przeniesienie istniejących skryptów ast-grep do reguł z testami (w repo pilota: przy wdrożeniu).
 - [ ] `run init|advance|status|approve`, schematy `state`, `analysis`, `research`, `plan`, `finding`, `verdict`, `gates`.
 - [x] Agenci kanoniczni, `meta agents-lint`, `generate [--check]` dla Copilota i Claude Code ([ADR-0030](adr/0030-canonical-agents.md)); 5 agentów MetatorAI.

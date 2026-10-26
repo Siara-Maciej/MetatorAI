@@ -119,3 +119,50 @@ describe("packageName", () => {
     expect(packageName("react")).toBe("react");
   });
 });
+
+describe("OxcImportAnalyzer.symbols (real oxc)", () => {
+  const SOURCE = `import { a, b as c } from "./x";
+import * as ns from "./y";
+import def from "./z";
+import type { T0 } from "./t";
+export function f() {}
+export const g = 1, h = 2;
+export interface I {}
+export default function () {}
+export { a as aa } from "./x";
+export * from "./w";
+export * as nsx from "./v";
+const local = 1;
+export { local };
+`;
+
+  test("exports with lines and type-ness, re-exports with renames and stars, imports with local names", () => {
+    const s = new OxcImportAnalyzer("/repo").symbols("a.ts", SOURCE)._unsafeUnwrap();
+    expect(s.exports.map((e) => `${e.name}:${e.line}:${e.typeOnly}`)).toEqual([
+      "f:5:false",
+      "g:6:false",
+      "h:6:false",
+      "I:7:true",
+      "default:8:false",
+      "local:13:false",
+    ]);
+    expect(s.reexports.map((r) => `${r.specifier}:${r.imported}->${r.exported}:${r.line}`)).toEqual([
+      "./x:a->aa:9",
+      "./w:*->*:10",
+      "./v:*->nsx:11",
+    ]);
+    expect(s.imports.map((i) => `${i.specifier}:${i.imported}->${i.local}:${i.line}:${i.typeOnly}`)).toEqual([
+      "./x:a->a:1:false",
+      "./x:b->c:1:false",
+      "./y:*->ns:2:false",
+      "./z:default->def:3:false",
+      "./t:T0->T0:4:true",
+    ]);
+  });
+
+  test("a syntax error is a PARSE_FAILED value", () => {
+    expect(new OxcImportAnalyzer("/repo").symbols("a.ts", "export const = ;")._unsafeUnwrapErr().code).toBe(
+      "PARSE_FAILED",
+    );
+  });
+});

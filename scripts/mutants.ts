@@ -806,4 +806,58 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "rules check can be limited to the per-file engines (post-edit hook)",
   },
+  {
+    file: "packages/core/src/domain/symbols.ts",
+    from: 'const passes = r.imported === "*" ? n !== "default" : r.imported === n;',
+    to: "const passes = true;",
+    why: "re-exports pass on only the names they name (star skips default)",
+  },
+  {
+    file: "packages/core/src/domain/symbols.ts",
+    from: '      if (i.imported === "*")\n',
+    to: "      if (false)\n",
+    why: "namespace imports of a provider are callers",
+  },
+  {
+    file: "packages/core/src/application/symbols.ts",
+    from: "if (files.length > 1)",
+    to: "if (false)",
+    why: "a name exported twice needs --file",
+  },
+  {
+    file: "packages/plugin-typescript/src/oxc-import-analyzer.ts",
+    from: "if ((starts[mid] as number) <= (offset ?? 0)) lo = mid;",
+    to: "if ((starts[mid] as number) < (offset ?? 0)) lo = mid;",
+    why: "symbol lines are exact",
+  },
+  {
+    file: "packages/core/src/domain/api.ts",
+    from: "if (/^(private|#)/.test(line)) continue;",
+    to: "",
+    why: "private members are not API",
+  },
+  {
+    file: "packages/core/src/domain/api.ts",
+    from: "if (!/^\\s*export\\b/.test(line)) continue;",
+    to: "",
+    why: "plain imports do not widen the API surface",
+  },
+  {
+    file: "packages/core/src/domain/api.ts",
+    from: "if (n > 0) left.set(l, n - 1);",
+    to: "",
+    why: "duplicate lines count as many times as they appear",
+  },
+  {
+    file: "packages/core/src/application/api.ts",
+    from: "target = t.import ?? t.default ?? t.module ?? t.require ?? t.types;",
+    to: "target = t.types;",
+    why: "conditional exports resolve to the runtime entry",
+  },
+  {
+    file: "packages/plugin-typescript/src/tsc-declaration-emitter.ts",
+    from: "if (files.size === 0)",
+    to: "if (false)",
+    why: "a tsc run that emitted nothing is an error",
+  },
 ];

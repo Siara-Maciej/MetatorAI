@@ -5,10 +5,12 @@ import {
   type ImportAnalyzer,
   type ImportSpecifier,
   MetatorError,
+  type ModuleSymbols,
   normalizePath,
   ok,
   type Resolution,
   type Result,
+  type SymbolAnalyzer,
 } from "@metator/core";
 import { parseSync } from "oxc-parser";
 import { ResolverFactory } from "oxc-resolver";
@@ -21,7 +23,7 @@ const EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"
  * tsconfig paths, package exports, workspace symlinks, `.js` → `.ts` extension aliasing).
  * CommonJS `require()` calls are not analyzed.
  */
-export class OxcImportAnalyzer implements ImportAnalyzer {
+export class OxcImportAnalyzer implements ImportAnalyzer, SymbolAnalyzer {
   /** Cache key of the import index: bump when what `parse` extracts changes. */
   static readonly id = "oxc/1";
   readonly extensions = EXTENSIONS;
@@ -42,7 +44,56 @@ export class OxcImportAnalyzer implements ImportAnalyzer {
     return Bun.hash(content).toString(16);
   }
 
-  parse(path: string, content: string): Result<readonly ImportSpecifier[], MetatorError> {
+  /** Names a module exports and imports (oxc module record), with 1-based lines. */
+  symbols(path: string, content: string): Result<ModuleSymbols, MetatorError> {
+    const parsed = this.moduleRecord(path, content);
+    if (parsed.isErr()) return err(parsed.error);
+    const starts: number[] = [0];
+    for (let i = 0; i < content.length; i++) if (content[i] === "\n") starts.push(i + 1);
+    const lineAt = (offset: number | null | undefined) => {
+      let lo = 0;
+      let hi = starts.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if ((starts[mid] as number) <= (offset ?? 0)) lo = mid;
+        else hi = mid - 1;
+      }
+      return lo + 1;
+    };
+    const exports: { name: string; line: number; typeOnly: boolean }[] = [];
+    const reexports: ModuleSymbols["reexports"][number][] = [];
+    for (const exp of parsed.value.staticExports) {
+      for (const e of exp.entries) {
+        const exported = e.exportName.kind === "Default" ? "default" : (e.exportName.name ?? "*");
+        if (e.moduleRequest) {
+          const imported = e.importName.kind === "Name" ? (e.importName.name as string) : "*";
+          reexports.push({ specifier: e.moduleRequest.value, imported, exported, line: lineAt(exp.start) });
+        } else
+          exports.push({ name: exported, line: lineAt(e.exportName.start ?? exp.start), typeOnly: e.isType });
+      }
+    }
+    const imports: ModuleSymbols["imports"][number][] = [];
+    for (const imp of parsed.value.staticImports) {
+      for (const e of imp.entries) {
+        const imported =
+          e.importName.kind === "Name"
+            ? (e.importName.name as string)
+            : e.importName.kind === "Default"
+              ? "default"
+              : "*";
+        imports.push({
+          specifier: imp.moduleRequest.value,
+          imported,
+          local: e.localName.value,
+          line: lineAt(imp.start),
+          typeOnly: e.isType,
+        });
+      }
+    }
+    return ok({ exports, reexports, imports });
+  }
+
+  private moduleRecord(path: string, content: string) {
     const parsed = parseSync(path, content);
     const fatal = parsed.errors.filter((e) => e.severity === "Error");
     if (fatal.length > 0) {
@@ -52,6 +103,13 @@ export class OxcImportAnalyzer implements ImportAnalyzer {
         }),
       );
     }
+    return ok(parsed.module);
+  }
+
+  parse(path: string, content: string): Result<readonly ImportSpecifier[], MetatorError> {
+    const record = this.moduleRecord(path, content);
+    if (record.isErr()) return err(record.error);
+    const parsed = { module: record.value };
     const imports: ImportSpecifier[] = [];
     for (const imp of parsed.module.staticImports) {
       const typeOnly = imp.entries.length > 0 && imp.entries.every((e) => e.isType);

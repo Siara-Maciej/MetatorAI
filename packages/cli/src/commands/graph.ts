@@ -46,6 +46,19 @@ export function registerGraphCommands(program: Command, { action, container }: C
     );
 
   graph
+    .command("callers")
+    .description("Files that import an exported symbol, also through re-exports and barrels")
+    .argument("<symbol>", "exported name")
+    .option("--file <path>", "the file that defines it (when several files export the name)")
+    .action(
+      action(async (symbol: string, opts: { file?: string }) => ({
+        result: await container()
+          .resolve("symbolQueries")
+          .callers(opts.file ? { name: symbol, file: repoPath(opts.file) } : { name: symbol }),
+      })),
+    );
+
+  graph
     .command("diff")
     .description("Import edges added and removed since a base, new package dependencies and new cycles")
     .option("--base <ref>", "git ref to compare against (its merge base with HEAD)", "HEAD")
@@ -119,5 +132,15 @@ export function registerGraphCommands(program: Command, { action, container }: C
       action(async () => ({
         result: (await container().resolve("workspaceReader").packages()).map((packages) => ({ packages })),
       })),
+    );
+
+  program
+    .command("symbols")
+    .description("Exported symbols")
+    .command("find")
+    .description("Where an exported name is defined, and which modules re-export it")
+    .argument("<name>", "exported name")
+    .action(
+      action(async (name: string) => ({ result: await container().resolve("symbolQueries").find(name) })),
     );
 }
