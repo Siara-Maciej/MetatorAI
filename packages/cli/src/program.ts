@@ -2,6 +2,7 @@ import { MetatorError } from "@metator/core";
 import { bootstrap, findRepoRoot, loadConfig } from "@metator/runtime";
 import { Command, type CommanderError } from "commander";
 import { registerAdrCommands } from "./commands/adr.ts";
+import { registerAgentCommands } from "./commands/agents.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerConfigCommands } from "./commands/config.ts";
@@ -61,6 +62,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerDiscoverCommands(program, ctx);
   registerConfigCommands(program, ctx);
   registerGateCommands(program, ctx);
+  registerAgentCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;

@@ -8,6 +8,9 @@ knowledge:
     - ".github/instructions/**"
     - ".github/metator/**"
     - "docs/**"
+    - "metator/agents/**"
+    - ".github/agents/**"
+    - ".claude/agents/**"
 tierBudgets:
   T0: { chars: 8000 }
 items:
@@ -65,6 +68,22 @@ items:
     writers: [human]
     readers: ["*"]
     description: Pattern catalog with ast-grep detection rules (severity hint) and their tests.
+  - id: t1.agents
+    tier: T1
+    kind: canon
+    paths: ["metator/agents/*.md"]
+    load: explicit
+    writers: [human]
+    readers: ["*"]
+    budget: { lines: 220 }
+    description: Canonical, host-neutral agents; `metator generate` writes the host files.
+  - id: t1.host-agents
+    tier: T1
+    kind: derived
+    paths: [".github/agents/*.agent.md", ".claude/agents/*.md"]
+    load: explicit
+    writers: ["metator generate"]
+    readers: [copilot, claude]
   - id: t1.instructions
     tier: T1
     kind: derived

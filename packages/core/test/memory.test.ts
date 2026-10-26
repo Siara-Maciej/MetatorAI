@@ -46,6 +46,12 @@ describe("citations", () => {
     expect(parseCitations(md).length).toBe(5); // other formats are scanned verbatim
   });
 
+  test("a quote that contains backticks is kept whole in Markdown (code spans inside citations are not masked)", () => {
+    const quote = "tools.add(`Bash(" + "$" + "{cmd} " + "$" + "{g}:*)`);";
+    const md = `Invariant [[cite: src/a.ts:4 | "${quote}"]] holds.`;
+    expect(parseCitations(md, { markdown: true }).map((c) => c.quote)).toEqual([quote]);
+  });
+
   test("render is the inverse of parse", () => {
     const c = { path: "src/a.ts", line: 7, quote: 'x = "y"' };
     const [parsed] = parseCitations(renderCitation(c));

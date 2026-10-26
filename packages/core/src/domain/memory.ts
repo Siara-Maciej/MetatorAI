@@ -149,7 +149,16 @@ export function maskMarkdownCode(text: string): string {
       fence = f;
       return blank(line);
     }
-    return line.replace(/(`+)[^`]*?\1/g, blank);
+    // A code span inside a citation's quote is part of the claim; any other code span is an example.
+    const claims = [...line.matchAll(new RegExp(CITATION.source, "g"))].map((c) => [
+      c.index ?? 0,
+      (c.index ?? 0) + c[0].length,
+    ]);
+    return line.replace(/(`+)[^`]*?\1/g, (span: string, _ticks: string, at: number) =>
+      claims.some(([from, to]) => at > (from as number) && at + span.length <= (to as number))
+        ? span
+        : blank(span),
+    );
   });
   return lines.join("\n");
 }

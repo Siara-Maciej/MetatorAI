@@ -2,6 +2,7 @@
  * Ports: small interfaces cut along axes of change (ISP). Adapters live in plugins;
  * application code depends only on these.
  */
+import type { Agent } from "../domain/agent.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
@@ -145,4 +146,27 @@ export interface PackageManager {
 /** Commands for project binaries: `node_modules/.bin/<bin>` of the repository first, PATH otherwise. */
 export interface BinResolver {
   command(bin: string, args: readonly string[]): Promise<ResolvedCommand>;
+}
+
+export interface GeneratedFile {
+  /** Repo-relative path the host reads. */
+  readonly path: string;
+  readonly content: string;
+}
+
+export interface HostAgentContext {
+  /** Canonical source file, named in the generated file's marker. */
+  readonly source: string;
+  /** How the agent runs MetatorAI in this repository, e.g. "bun run metator". */
+  readonly metatorCommand: string;
+  /** Model for the agent's tier on this host, when the config sets one. */
+  readonly model?: string;
+}
+
+/** Writes one host's files from canonical sources; its tool-name table lives here (ADR-0030). */
+export interface HostGenerator {
+  readonly host: "copilot" | "claude";
+  /** Globs of the files this generator owns (for orphan detection). */
+  readonly owns: readonly string[];
+  agent(agent: Agent, body: string, context: HostAgentContext): GeneratedFile;
 }

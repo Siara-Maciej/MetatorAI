@@ -382,6 +382,30 @@ const MUTANTS: readonly Mutant[] = [
     why: "init never overwrites an existing config",
   },
   {
+    file: "packages/plugin-host-claude/src/claude-generator.ts",
+    from: 'read: ["Read", "Glob"],',
+    to: 'read: ["ReadFile"],',
+    why: "Claude Code tool names are pinned by a snapshot",
+  },
+  {
+    file: "packages/plugin-host-copilot/src/copilot-generator.ts",
+    from: '"user-invocable": userInvocable(agent),',
+    to: '"user-invocable": true,',
+    why: "Copilot workers stay out of the user's agent picker",
+  },
+  {
+    file: "packages/core/src/application/agents.ts",
+    from: "for (const cycle of graph.cycles()) {",
+    to: "for (const cycle of [] as string[][]) {",
+    why: "delegation cycles are errors",
+  },
+  {
+    file: "packages/core/src/application/agents.ts",
+    from: "else if (input.check) stale.push(path);",
+    to: "else if (false) stale.push(path);",
+    why: "generate --check compares and never writes",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

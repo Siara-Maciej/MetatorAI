@@ -12,6 +12,8 @@ export interface MetatorPaths {
   readonly adr: string;
   readonly discovery: string;
   readonly gates: string;
+  /** Canonical agents (host-neutral sources of generated host agents). */
+  readonly agents: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -26,6 +28,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   adr: "docs/adr",
   discovery: ".metator/discovery.json",
   gates: ".metator/gates",
+  agents: "metator/agents",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

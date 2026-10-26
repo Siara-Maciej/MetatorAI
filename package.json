@@ -12,7 +12,7 @@
     "format": "biome check --write .",
     "arch": "ast-grep test --skip-snapshot-tests && ast-grep scan --filter '^mt-(arch|code|test)-'",
     "check": "bun run lint && bun run typecheck && bun run arch && bun run canon && bun run test && bun run test:mutation",
-    "canon": "bun packages/cli/src/main.ts rules lint && bun packages/cli/src/main.ts rules adapters --check && bun packages/cli/src/main.ts memory check && bun packages/cli/src/main.ts cards build --check && bun packages/cli/src/main.ts patterns scan --check && bun packages/cli/src/main.ts adr lint && bun packages/cli/src/main.ts rules coverage --min-e1 40 && bun packages/cli/src/main.ts memory dupes --check",
+    "canon": "bun packages/cli/src/main.ts rules lint && bun packages/cli/src/main.ts rules adapters --check && bun packages/cli/src/main.ts memory check && bun packages/cli/src/main.ts cards build --check && bun packages/cli/src/main.ts patterns scan --check && bun packages/cli/src/main.ts adr lint && bun packages/cli/src/main.ts rules coverage --min-e1 40 && bun packages/cli/src/main.ts memory dupes --check && bun packages/cli/src/main.ts meta agents-lint && bun packages/cli/src/main.ts generate --check",
     "metator": "bun packages/cli/src/main.ts",
     "test:unit": "bun test packages",
     "test:e2e": "bun test e2e",

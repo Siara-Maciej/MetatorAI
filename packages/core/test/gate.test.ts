@@ -80,7 +80,7 @@ describe("RunGate", () => {
     const runner = new ScriptedProcessRunner([
       {
         argvPrefix: ["/repo/node_modules/.bin/biome"],
-        result: { exitCode: 1, stdout: "line\n".repeat(30) + "src/a.ts: bad format" },
+        result: { exitCode: 1, stdout: `${"line\n".repeat(30)}src/a.ts: bad format` },
       },
       { argvPrefix: ["bun"], result: { exitCode: 127 } },
     ]);

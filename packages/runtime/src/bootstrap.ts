@@ -1,5 +1,6 @@
 import {
   AdvanceRun,
+  AgentCatalog,
   BuildImportGraph,
   BuildModuleCards,
   CheckMemory,
@@ -12,6 +13,7 @@ import {
   Discover,
   FindMemoryDupes,
   FindSimilar,
+  GenerateHosts,
   GenerateRuleAdapters,
   GetRunStatus,
   GraphQueries,
@@ -21,6 +23,7 @@ import {
   InventoryMemory,
   KnowledgeFiles,
   LintAdrs,
+  LintAgents,
   LintRules,
   ListRuns,
   MeasureRuleCoverage,
@@ -45,6 +48,8 @@ export { findRepoRoot } from "@metator/plugin-bun";
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { GitVcs } from "@metator/plugin-git";
+import { ClaudeGenerator } from "@metator/plugin-host-claude";
+import { CopilotGenerator } from "@metator/plugin-host-copilot";
 import { ManypkgWorkspaceReader, NodePackageManager } from "@metator/plugin-node";
 import { OxcImportAnalyzer, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
@@ -182,6 +187,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     initProject: asFunction(
       ({ discover, fileSystem, paths }) => new InitProject(discover, fileSystem, paths),
+    ),
+    hostGenerators: asValue([new CopilotGenerator(), new ClaudeGenerator()]),
+    agentCatalog: asFunction(({ fileSystem, paths }) => new AgentCatalog(fileSystem, paths)).singleton(),
+    lintAgents: asFunction(({ agentCatalog }) => new LintAgents(agentCatalog, "mt-")),
+    generateHosts: asFunction(
+      ({ agentCatalog, hostGenerators, fileSystem, config }) =>
+        new GenerateHosts(agentCatalog, hostGenerators, fileSystem, config.config),
     ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),

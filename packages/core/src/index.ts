@@ -1,4 +1,5 @@
 export * from "./application/adrs.ts";
+export * from "./application/agents.ts";
 export * from "./application/cards.ts";
 export * from "./application/compute-affected.ts";
 export * from "./application/discover.ts";
@@ -14,6 +15,7 @@ export * from "./application/runs.ts";
 export * from "./application/source-files.ts";
 export * from "./application/workflow-catalog.ts";
 export * from "./domain/adr.ts";
+export * from "./domain/agent.ts";
 export * from "./domain/config.ts";
 export * from "./domain/diagnostic.ts";
 export * from "./domain/discovery.ts";

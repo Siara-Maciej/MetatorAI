@@ -62,7 +62,8 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [ ] P0 z indeksu: `index build`, `graph deps|affected|callers|diff`, `symbols find`, `api snapshot|diff`.
 - [ ] `sgconfig.yml` (jeśli go nie ma) z `ruleDirs` i `testConfigs`. Przeniesienie istniejących skryptów ast-grep do reguł z testami.
 - [ ] `run init|advance|status|approve`, schematy `state`, `analysis`, `research`, `plan`, `finding`, `verdict`, `gates`.
-- [ ] `meta agents-lint|skills-lint|check-all`. **Rename istniejących agentów i skilli na `mt-*`** (z aliasami w opisie na okres przejściowy).
+- [x] Agenci kanoniczni, `meta agents-lint`, `generate [--check]` dla Copilota i Claude Code ([ADR-0030](adr/0030-canonical-agents.md)); 5 agentów MetatorAI.
+- [ ] `meta skills-lint|check-all`, generowanie skilli, promptów i hooków. **Rename istniejących agentów i skilli na `mt-*`** w repo pilota.
 - [ ] Spec YAML dla istniejących orchestratorów (wydzielenie z promptów). `workflow lint` w wersji podstawowej.
 - [ ] CI: job `mt-check` (`meta check-all`, `ast-grep test`, `bun test metator`).
 

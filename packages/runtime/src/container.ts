@@ -1,5 +1,6 @@
 import {
   type AdvanceRun,
+  type AgentCatalog,
   type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
@@ -12,9 +13,11 @@ import {
   type FileSystem,
   type FindMemoryDupes,
   type FindSimilar,
+  type GenerateHosts,
   type GenerateRuleAdapters,
   type GetRunStatus,
   type GraphQueries,
+  type HostGenerator,
   type ImportAnalyzer,
   type ImportGraphReader,
   type InitProject,
@@ -22,6 +25,7 @@ import {
   type InventoryMemory,
   type KnowledgeFiles,
   type LintAdrs,
+  type LintAgents,
   type LintRules,
   type ListRuns,
   type Logger,
@@ -113,6 +117,10 @@ export interface Cradle {
   discover: Discover;
   runGate: RunGate;
   initProject: InitProject;
+  hostGenerators: readonly HostGenerator[];
+  agentCatalog: AgentCatalog;
+  lintAgents: LintAgents;
+  generateHosts: GenerateHosts;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

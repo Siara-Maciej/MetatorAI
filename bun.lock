@@ -93,6 +93,28 @@
         "@metator/testing": "workspace:*",
       },
     },
+    "packages/plugin-host-claude": {
+      "name": "@metator/plugin-host-claude",
+      "version": "0.0.0",
+      "dependencies": {
+        "@metator/core": "workspace:*",
+        "yaml": "^2.9.1",
+      },
+      "devDependencies": {
+        "@metator/testing": "workspace:*",
+      },
+    },
+    "packages/plugin-host-copilot": {
+      "name": "@metator/plugin-host-copilot",
+      "version": "0.0.0",
+      "dependencies": {
+        "@metator/core": "workspace:*",
+        "yaml": "^2.9.1",
+      },
+      "devDependencies": {
+        "@metator/testing": "workspace:*",
+      },
+    },
     "packages/plugin-node": {
       "name": "@metator/plugin-node",
       "version": "0.0.0",
@@ -129,6 +151,8 @@
         "@metator/plugin-biome": "workspace:*",
         "@metator/plugin-bun": "workspace:*",
         "@metator/plugin-git": "workspace:*",
+        "@metator/plugin-host-claude": "workspace:*",
+        "@metator/plugin-host-copilot": "workspace:*",
         "@metator/plugin-node": "workspace:*",
         "@metator/plugin-typescript": "workspace:*",
         "awilix": "^13.0.5",
@@ -213,6 +237,10 @@
     "@metator/plugin-bun": ["@metator/plugin-bun@workspace:packages/plugin-bun"],
 
     "@metator/plugin-git": ["@metator/plugin-git@workspace:packages/plugin-git"],
+
+    "@metator/plugin-host-claude": ["@metator/plugin-host-claude@workspace:packages/plugin-host-claude"],
+
+    "@metator/plugin-host-copilot": ["@metator/plugin-host-copilot@workspace:packages/plugin-host-copilot"],
 
     "@metator/plugin-node": ["@metator/plugin-node@workspace:packages/plugin-node"],
 

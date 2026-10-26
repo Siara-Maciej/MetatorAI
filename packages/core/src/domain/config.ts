@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ModelTierSchema } from "./agent.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -39,6 +40,7 @@ const PathOverrides = z
     adr: z.string(),
     discovery: z.string(),
     gates: z.string(),
+    agents: z.string(),
   })
   .partial();
 
@@ -54,6 +56,21 @@ export const MetatorConfigSchema = z.strictObject({
   gates: z
     .strictObject({ quick: z.array(GateStepSchema).default([]), full: z.array(GateStepSchema).default([]) })
     .default({ quick: [], full: [] }),
+  /** Generated host files (ADR-0030). Optional, so every v1 file stays valid. */
+  hosts: z
+    .strictObject({
+      targets: z.array(z.enum(["copilot", "claude"])).default(["copilot", "claude"]),
+      /** How agents call MetatorAI in this repo, e.g. "npx metator" or "bun run metator". */
+      metatorCommand: z.string().default("metator"),
+      /** Model per tier and host; a host without an entry uses its default for the tier (or none). */
+      models: z
+        .partialRecord(
+          ModelTierSchema,
+          z.strictObject({ copilot: z.string().optional(), claude: z.string().optional() }),
+        )
+        .default({}),
+    })
+    .default({ targets: ["copilot", "claude"], metatorCommand: "metator", models: {} }),
 });
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
