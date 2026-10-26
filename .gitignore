@@ -2,3 +2,5 @@ node_modules/
 .metator/
 .DS_Store
 __pycache__/
+site/.vitepress/cache/
+site/.vitepress/dist/

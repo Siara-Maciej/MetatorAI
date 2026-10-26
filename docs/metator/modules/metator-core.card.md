@@ -25,7 +25,7 @@ The product's inside: domain model (versioned documents, rules, memory map, impo
 
 ## Invariants
 
-- Every persisted file is stamped with its header [[cite: packages/core/src/domain/versioned.ts:137 | "stamp(body: z.output<S>): DocumentHeader & z.output<S> {"]].
+- Every persisted file is stamped with its header [[cite: packages/core/src/domain/versioned.ts:144 | "stamp(body: z.output<S>): DocumentHeader & z.output<S> {"]].
 - Errors cross layers as one type [[cite: packages/core/src/domain/errors.ts:21 | "export class MetatorError extends Error {"]].
 
 ## Allowed dependencies

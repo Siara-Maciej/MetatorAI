@@ -126,8 +126,12 @@ describe("debug tags", () => {
       "src/a.ts": `log("${TAG}")`,
       "src/b.ts": "clean",
       "dist/out.js": `log("${TAG}")`,
+      "docs/debugging.md": `Tag every line, e.g. ${TAG}.`,
     });
-    const vcs = new FakeVcs(["src/a.ts", "src/b.ts", "dist/out.js"], ["src/b.ts", "src/deleted.ts"]);
+    const vcs = new FakeVcs(
+      ["src/a.ts", "src/b.ts", "dist/out.js", "docs/debugging.md"],
+      ["src/b.ts", "src/deleted.ts"],
+    );
     const checker = new CheckDebugTags(vcs, fs, ["dist/**"]);
     expect((await checker.execute({}))._unsafeUnwrap()).toEqual({
       scanned: 2,

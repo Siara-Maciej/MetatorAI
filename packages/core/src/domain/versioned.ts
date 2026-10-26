@@ -49,6 +49,13 @@ export interface DocumentDefinition<S extends z.ZodType> {
   readonly hint?: string;
 }
 
+/** `rules.0.rationale: Invalid input…`: the first issue with the field it is about. */
+function describeIssue(issue: z.core.$ZodIssue | undefined): string {
+  if (!issue) return "unknown error";
+  const path = issue.path.map(String).join(".");
+  return path === "" ? issue.message : `${path}: ${issue.message}`;
+}
+
 export function defineDocument<S extends z.ZodType>(
   kind: string,
   definition: DocumentDefinition<S>,
@@ -106,7 +113,7 @@ export function defineDocument<S extends z.ZodType>(
       if (!first.success) {
         return invalid(
           source,
-          `does not match ${kind} v${schemaVersion}: ${first.error.issues[0]?.message}`,
+          `does not match ${kind} v${schemaVersion}: ${describeIssue(first.error.issues[0])}`,
           definition.hint,
           {
             schemaVersion,

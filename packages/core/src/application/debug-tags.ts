@@ -6,8 +6,10 @@ import type { ReadonlyFileSystem, Vcs } from "../ports/index.ts";
 
 /**
  * `debug-tags check` (ADR-0044): no `[DEBUG-xxxx]` marker is left in the files changed against
- * a base, or in every tracked file with `all`.
+ * a base, or in every tracked file with `all`. Markdown is skipped: instrumentation lives in code,
+ * and documentation shows the tags as examples.
  */
+const DOCS = ["**/*.md", "**/*.mdx"];
 export class CheckDebugTags {
   constructor(
     private readonly vcs: Vcs,
@@ -24,7 +26,7 @@ export class CheckDebugTags {
     const tags: DebugTag[] = [];
     let scanned = 0;
     for (const file of files.value) {
-      if (matchesAny(file, this.ignore)) continue;
+      if (matchesAny(file, this.ignore) || matchesAny(file, DOCS)) continue;
       const text = await this.fs.read(file);
       if (text.isErr()) continue; // deleted on the branch
       scanned++;

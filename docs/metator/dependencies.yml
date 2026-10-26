@@ -37,6 +37,7 @@ packages:
   - { package: shell-quote, need: "shell script parsing", adr: 0028-discovery.md }
   - { package: simple-git, need: "git", adr: 0019-git-simple-git.md }
   - { package: typescript, need: "typecheck (tsc 7); E1 engine", adr: 0008-typescript-7-graph.md }
+  - { package: vitepress, need: "user documentation site (GitHub Pages)", adr: 0048-user-docs-site.md }
   - { package: xstate, need: "run state machine", adr: 0013-state-machine-xstate.md }
   - { package: yaml, need: "YAML documents", adr: 0015-schemas-zod-yaml.md }
   - { package: zod, need: "schemas", adr: 0015-schemas-zod-yaml.md }

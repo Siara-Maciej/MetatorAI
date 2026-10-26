@@ -9,7 +9,7 @@
       "status": "verified",
       "evidence": {
         "path": "packages/core/src/domain/versioned.ts",
-        "line": 52,
+        "line": 59,
         "quote": "export function defineDocument<S extends z.ZodType>("
       }
     },

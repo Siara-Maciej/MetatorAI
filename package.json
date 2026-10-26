@@ -18,7 +18,10 @@
     "test:e2e": "bun test e2e",
     "assets": "bun scripts/assets/generate.ts",
     "test:mutation": "bun scripts/mutation-smoke.ts",
-    "schemas:freeze": "bun scripts/freeze-schemas.ts"
+    "schemas:freeze": "bun scripts/freeze-schemas.ts",
+    "site:reference": "bun scripts/site/cli-reference.ts",
+    "site:dev": "vitepress dev site",
+    "site:build": "vitepress build site"
   },
   "devDependencies": {
     "@ast-grep/cli": "^0.51.0",
@@ -27,6 +30,7 @@
     "@types/bun": "^1.4.4",
     "playwright": "1.63.0",
     "typescript": "^7.0.2",
+    "vitepress": "1.6.4",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },

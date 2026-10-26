@@ -123,59 +123,54 @@ for GitHub Copilot and Claude Code. Interactive in your editor, headless in CI.
 
 ---
 
-## Drops into any repo
+## Documentation
+
+**📖 [User documentation](https://siara-maciej.github.io/MetatorAI/)**: installation, a 15-minute quick start, every workflow, how-to guides and the full CLI reference. Its source is in [`site/`](site/).
+
+| I want to | Read |
+|---|---|
+| Install it and try it on my repository | [Installation](https://siara-maciej.github.io/MetatorAI/guide/installation) · [Quick start](https://siara-maciej.github.io/MetatorAI/guide/quick-start) |
+| Understand the moving parts | [Concepts](https://siara-maciej.github.io/MetatorAI/guide/concepts) |
+| Run a feature, bug fix, refactor or review | [Workflows](https://siara-maciej.github.io/MetatorAI/workflows/) |
+| Turn conventions into checked rules | [Write and enforce rules](https://siara-maciej.github.io/MetatorAI/how-to/rules) |
+| Put it into CI | [Quality gates and CI](https://siara-maciej.github.io/MetatorAI/how-to/gates-ci) |
+| Look up a command | [CLI reference](https://siara-maciej.github.io/MetatorAI/reference/cli) |
+
+## Quick start
+
+MetatorAI is pre-alpha and runs from a checkout (it is not on npm yet):
 
 ```bash
-npm i -D metator-ai          # or: pnpm add -D · yarn add -D · bun add -d
-npx metator init             # survey → propose config → you approve → generate agents
-npx metator doctor           # proves every capability actually works in *this* repo
+git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
+cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)   # `metator` on your PATH
+
+cd ~/code/your-repo
+metator init                                   # survey the repo, write metator.config.yml with evidence
+cp -r ~/tools/metatorai/metator ./metator      # canonical agents and skills
+mkdir -p .github/metator && cp -r ~/tools/metatorai/.github/metator/workflows .github/metator/
+metator generate --hooks                       # Copilot and Claude Code agents, skills and hooks
+metator index build && metator gate full       # measured facts, then your own checks in one report
 ```
 
-`metator init` detects your package manager, workspaces, scripts, linters, test runners,
-CI and code host. It measures your import directions and naming conventions, and an agent
-proposes a config backed by those numbers. You approve it and you're done.
-
-```ts
-// metator.config.ts (proposed by `metator init`, approved by you)
-import { defineConfig } from "metator-ai";
-
-export default defineConfig({
-  plugins: ["node", "typescript", "biome", "ast-grep", "bun-test", "github", "host-copilot", "host-claude"],
-  capabilities: {
-    lint:      { files: { preset: "biome" }, full: { script: "lint" } },
-    typecheck: { preset: "tsc", scope: "package" },
-    rules:     [{ preset: "ast-grep" }],
-    test:      { preset: "bun-test" },
-  },
-  gates: {
-    quick: ["format", "lint.files", "rules"],
-    full:  ["lint.full", "typecheck", "rules", "test:affected", "graph:diff", "api:diff"],
-  },
-  naming: { agentPrefix: "mt" },   // → mt-orchestrator, mt-pr-review, …
-});
-```
-
-Then, in Copilot Chat or Claude Code:
+`metator init` detects your package manager, workspaces, scripts, linters, test runners and CI, and proposes gates with the evidence for each. It never overwrites a config. Then, in Copilot Chat or Claude Code:
 
 ```text
-/mt-feature  AB#1234            → full loop, you approve the plan and the push
-/mt-review   <PR url>           → review with proof
-/mt-refactor packages/billing   → behavior-preserving refactor
-/mt-docs                        → turn your docs and ADRs into enforceable rules
-/mt-resume                      → pick up any run exactly where it stopped
+@mt-orchestrator run mt-feature for AB#1234     → full loop; you approve the plan and the push
+@mt-orchestrator run mt-bugfix for <bug report>  → regression test first, then the fix
+@mt-orchestrator run mt-refactor for packages/billing → behavior-preserving refactor
+@mt-pr-review review PR #482                      → review with proof
 ```
 
-### Available today (pre-alpha)
+### What the CLI does today
 
-The workflow engine already runs end to end from the CLI. Every command prints one JSON line:
+Every command prints one JSON line:
 
 ```bash
-cp examples/workflows/feature.yml .github/metator/workflows/   # a reference workflow spec
-metator workflow validate                                      # zod-validated, errors with exact paths
-metator run init --workflow feature --task "Add combined discount"
+metator workflow lint                                          # every workflow against the 16-section anatomy
+metator run init --workflow mt-feature --task "Add combined discount"
 metator run advance pass                                       # next stage
 metator run advance fail --reason "plan lint: step 3 has no exemplar"   # bounded loop back to plan
-metator run advance approve --by maciej                        # human gates accept only APPROVE
+metator run approve plan-approval --by maciej                  # human gates accept only an approval
 metator run status                                             # stage, what it expects, recent history
 metator run handoff                                            # handoff.md from the run directory, not the chat
 metator run close                                              # summary.json with the run's final telemetry
@@ -194,7 +189,6 @@ metator memory check                                           # every knowledge
 metator memory validate --fix                                  # [[cite: file:line | "quote"]] claims follow moved code
 metator cards build                                            # one card per package: generated facts + curated knowledge
 metator similar --file src/orders/customers.queries.ts         # how we already do this: the exemplar to follow, never legacy
-metator init                                                   # discover the repo, propose metator.config.yml with evidence
 metator gate quick --base main                                 # the repo's own checks on the branch's files, one report
 metator generate                                               # Copilot and Claude Code agents from one canonical source
 metator review plan --base main                                # shards per package with card and rules, lenses per shard
@@ -265,22 +259,16 @@ rather than new code.
 bun install
 bun run check        # Biome · TS 7 · ast-grep rules · unit + e2e (CLI, visuals in Chromium) · mutation smoke
 bun run metator help
+bun run site:dev     # the user documentation at http://localhost:5173/MetatorAI/
 ```
 
 The codebase enforces its own architecture: `rules/architecture/*.yml` (ast-grep) fails CI if the domain
 imports I/O or a plugin reaches into the runtime. Design docs (in Polish) live in [`docs/`](docs/README.md),
 decisions in [`docs/adr/`](docs/adr/README.md), and agent instructions for this repo in [`AGENTS.md`](AGENTS.md).
 
-## Roadmap
+## Status
 
-- [x] **Foundation**: monorepo, domain, ports, DI container, envelope, contract tests, architecture rules, CI
-- [ ] **Core**: config, run state machine, git and import-graph adapters
-- [ ] **Survey**: graph, affected, symbols, API surface, pattern index
-- [ ] **Bootstrap**: `metator init`, script classifier, `doctor`
-- [ ] **Review**: Find → Verify → Judge, finding schema, golden-set evals
-- [ ] **Build loop**: orchestrator, plan lint, scope guards, TDD, refactor contract
-- [ ] **Hosts**: Copilot and Claude Code generators, hook codecs, headless `drive`
-- [ ] **CI**: generators for GitHub Actions, Azure Pipelines, GitLab CI · self-hosted runner image
+Pre-alpha. The CLI, the workflow engine, the hooks, the review core and the knowledge tools are implemented and tested; the systems-of-many-applications phase (F7) is in progress. The detailed roadmap is in [`docs/ROADMAP.md`](docs/ROADMAP.md) (Polish).
 
 ---
 

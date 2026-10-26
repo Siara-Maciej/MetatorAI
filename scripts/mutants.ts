@@ -1018,8 +1018,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/debug-tags.ts",
-    from: "if (matchesAny(file, this.ignore)) continue;",
-    to: "",
+    from: "if (matchesAny(file, this.ignore) || matchesAny(file, DOCS)) continue;",
+    to: "if (matchesAny(file, this.ignore)) continue;",
+    why: "Markdown shows tags as examples; it is not scanned",
+  },
+  {
+    file: "packages/core/src/application/debug-tags.ts",
+    from: "matchesAny(file, this.ignore) ||",
+    to: "false ||",
     why: "ignored files are not scanned",
   },
   {
@@ -1159,5 +1165,11 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'if (dir === undefined || dir === ".") continue;',
     to: "continue;",
     why: "a local application directory must exist",
+  },
+  {
+    file: "packages/core/src/domain/versioned.ts",
+    from: 'return path === "" ? issue.message :',
+    to: "return true ? issue.message :",
+    why: "a validation error names the field it is about",
   },
 ];

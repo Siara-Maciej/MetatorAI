@@ -134,3 +134,19 @@ describe("renderYamlDocument", () => {
     expect(text).toBe("# generated\nkind: Note\nschemaVersion: 3\n");
   });
 });
+
+describe("validation messages name the field", () => {
+  test("the first issue is reported with its path; a root issue without one", () => {
+    const Doc = defineDocument("Probe", {
+      latest: z.strictObject({ items: z.array(z.strictObject({ name: z.string() })) }),
+    });
+    const nested = Doc.parse({ kind: "Probe", schemaVersion: 1, items: [{}] }, "p.json")._unsafeUnwrapErr();
+    expect(nested.message).toBe(
+      "p.json: does not match Probe v1: items.0.name: Invalid input: expected string, received undefined",
+    );
+    const Root = defineDocument("Root", { latest: z.strictObject({}).refine(() => false, "always wrong") });
+    expect(Root.parse({ kind: "Root", schemaVersion: 1 }, "r.json")._unsafeUnwrapErr().message).toBe(
+      "r.json: does not match Root v1: always wrong",
+    );
+  });
+});

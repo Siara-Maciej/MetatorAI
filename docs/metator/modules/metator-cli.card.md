@@ -12,8 +12,8 @@ dir: packages/cli
 - Directory: `packages/cli`
 - Depends on: `@metator/core`, `@metator/runtime`
 - Test-only dependencies: none
-- Used by: none
-- Imported by other packages: none
+- Used by: `(root)`
+- Imported by other packages: `packages/cli/src/program.ts`
 - Third-party: `commander`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: `cli-command-group`
@@ -25,7 +25,7 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 
 ## Invariants
 
-- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:50 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
+- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:51 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
 
 ## Allowed dependencies
 
