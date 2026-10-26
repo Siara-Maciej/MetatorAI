@@ -80,6 +80,26 @@ export function registerRunCommands(program: Command, { action, container }: Com
     );
 
   runs
+    .command("approve")
+    .description("Record a human approval: the HITL stage the run waits at, or an action (push, comment)")
+    .argument("<gate>", "current HITL stage id, or push / comment")
+    .requiredOption("--by <name>", "who approved")
+    .option("--choice <value>", "selected option")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (gate: string, opts: { by: string; choice?: string; run?: string }) => ({
+        result: await container()
+          .resolve("approveRun")
+          .execute({
+            gate,
+            by: opts.by,
+            ...(opts.choice ? { choice: opts.choice } : {}),
+            ...(opts.run ? { runId: opts.run } : {}),
+          }),
+      })),
+    );
+
+  runs
     .command("status")
     .description("Show the current stage, what it expects and recent history")
     .option("--run <id>", "run id (default: latest)")

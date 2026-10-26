@@ -40,3 +40,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0034](0034-conformance-tests.md) | Testy zgodności jako silnik E1 i kanon w 100% egzekwowany narzędziami | Proposed |
 | [0035](0035-plan-gate.md) | Bramka planu: `plan lint` i `plan scope` | Proposed |
 | [0036](0036-graph-diff-test-affected.md) | `graph diff` i `test affected` | Proposed |
+| [0037](0037-run-approvals.md) | Zgody w runie: `RunRecord` v2 i `run approve` | Proposed |

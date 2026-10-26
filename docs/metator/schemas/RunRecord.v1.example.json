@@ -1,0 +1,22 @@
+{
+  "kind": "RunRecord",
+  "schemaVersion": 1,
+  "runId": "20261025-feature-discounts",
+  "workflow": { "id": "feature", "revision": 1, "source": ".github/metator/workflows/feature.yml" },
+  "task": "Combined discounts on invoices",
+  "autonomy": "L0",
+  "createdAt": "2026-10-25T09:00:00.000Z",
+  "updatedAt": "2026-10-25T10:00:00.000Z",
+  "state": {
+    "workflow": "feature",
+    "stage": "build",
+    "status": "active",
+    "context": {
+      "loops": {},
+      "history": [
+        { "stage": "plan", "event": "PASS" },
+        { "stage": "approval", "event": "APPROVE", "detail": "maciej" }
+      ]
+    }
+  }
+}

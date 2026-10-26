@@ -39,7 +39,8 @@ export type Autonomy = z.infer<typeof AutonomySchema>;
 
 const RUN_ID = /^\d{8}-[a-z0-9-]+$/;
 
-export const RunRecordSchema = z
+/** v1: released before approvals were recorded. Never change it (MT-CODE-003). */
+const RunRecordV1Schema = z
   .object({
     runId: z.string().regex(RUN_ID),
     workflow: z.object({ id: z.string(), revision: z.number().int(), source: z.string() }).strict(),
@@ -50,12 +51,35 @@ export const RunRecordSchema = z
     state: RunStateSchema,
   })
   .strict();
+type RunRecordV1 = z.infer<typeof RunRecordV1Schema>;
+
+/** Actions outside the workflow's stages that need a human's approval (checked by `guard pre-tool`). */
+export const APPROVAL_ACTIONS = ["push", "comment"] as const;
+
+export const ApprovalSchema = z
+  .object({ by: z.string().min(1), choice: z.string().optional(), at: z.iso.datetime() })
+  .strict();
+export type Approval = z.infer<typeof ApprovalSchema>;
+
+/** v2 adds `approvals`: HITL gates and external actions, keyed by stage id or action. */
+export const RunRecordSchema = RunRecordV1Schema.extend({
+  approvals: z.record(z.string(), ApprovalSchema),
+}).strict();
 
 export type RunRecord = z.infer<typeof RunRecordSchema>;
 
 export const RunRecordDocument = defineDocument("RunRecord", {
+  history: [{ schema: RunRecordV1Schema }],
   latest: RunRecordSchema,
-  hint: "Do not edit state.json by hand; use `metator run advance`.",
+  // Earlier approvals live only in the history: keep who approved which stage.
+  upgrade: (previous) => {
+    const v1 = previous as RunRecordV1;
+    const approvals: Record<string, Approval> = {};
+    for (const h of v1.state.context.history)
+      if (h.event === "APPROVE") approvals[h.stage] = { by: h.detail ?? "unknown", at: v1.updatedAt };
+    return { ...v1, approvals };
+  },
+  hint: "Do not edit state.json by hand; use `metator run advance` or `metator run approve`.",
 });
 
 export const RunPointerDocument = defineDocument("RunPointer", {

@@ -668,4 +668,22 @@ export const MUTANTS: readonly Mutant[] = [
     to: "return ok(await git.value.show([object]));",
     why: "files missing at the base read as undefined, not as errors",
   },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: "if (record.value.state.stage === input.gate)",
+    to: "if (false)",
+    why: "approving the current HITL stage advances the run",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: 'if (record.value.state.status !== "active")',
+    to: "if (false)",
+    why: "a finished run records no approvals",
+  },
+  {
+    file: "packages/core/src/domain/run-record.ts",
+    from: 'if (h.event === "APPROVE") approvals[h.stage]',
+    to: 'if (h.event !== "PASS") approvals[h.stage]',
+    why: "only APPROVE events migrate as approvals",
+  },
 ];

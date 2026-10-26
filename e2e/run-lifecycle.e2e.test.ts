@@ -142,9 +142,23 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
     expect(status.json.data).toMatchObject({ stage: "approval", expects: ["APPROVE", "FAIL", "ABORT"] });
   });
 
-  test("APPROVE with a name continues; finishing the last stage completes the run", async () => {
-    const approved = await mt("run", "advance", "approve", "--by", "maciej", "--choice", "1");
-    expect(approved.json.data).toMatchObject({ stage: "build" });
+  test("run approve: an action is recorded in place; the current HITL stage is approved and advances", async () => {
+    const push = await mt("run", "approve", "push", "--by", "maciej");
+    expect(push.json.data).toMatchObject({ runId, approvals: { push: { by: "maciej" } } });
+    const wrong = await mt("run", "approve", "build", "--by", "maciej");
+    expect([wrong.code, (wrong.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+    expect((await mt("run", "approve", "push")).code).toBe(64); // --by is required
+
+    const approved = await mt("run", "approve", "approval", "--by", "maciej", "--choice", "1");
+    expect(approved.json.data).toMatchObject({
+      stage: "build",
+      approvals: { approval: { by: "maciej", choice: "1" }, push: { by: "maciej" } },
+    });
+    const state = JSON.parse(await repo.read(`.metator/runs/${runId}/state.json`));
+    expect([state.schemaVersion, Object.keys(state.approvals).sort()]).toEqual([2, ["approval", "push"]]);
+  });
+
+  test("finishing the last stage completes the run", async () => {
     await mt("run", "advance", "pass");
     const done = await mt("run", "advance", "pass", "--run", runId);
     expect(done.json.data).toMatchObject({ stage: "done", status: "done", expects: [] });
@@ -174,12 +188,13 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
     const log = await repo.read(`.metator/runs/${runId}/log.md`);
     expect(log).toContain("plan-gate · FAIL · plan lint: step 3 has no exemplar → plan");
     expect(log).toContain("approval · APPROVE · by maciej · choice 1 → build");
+    expect(log).toContain("approved push · by maciej");
     expect(
       log
         .trim()
         .split("\n")
         .filter((l) => l.startsWith("- ")),
-    ).toHaveLength(9);
+    ).toHaveLength(10);
   });
 
   test("an exhausted loop escalates instead of looping forever", async () => {

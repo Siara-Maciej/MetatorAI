@@ -1,8 +1,8 @@
 import slugify from "@sindresorhus/slugify";
-import type { MetatorError } from "../domain/errors.ts";
+import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run-machine.ts";
-import type { Autonomy, RunRecord } from "../domain/run-record.ts";
+import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "../domain/run-record.ts";
 import type { Clock } from "../ports/index.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
@@ -18,6 +18,7 @@ export interface RunView {
   readonly expects: readonly RunEventType[];
   readonly loops: Readonly<Record<string, number>>;
   readonly recent: RunRecord["state"]["context"]["history"];
+  readonly approvals: RunRecord["approvals"];
   readonly files: { readonly state: string; readonly log: string };
   readonly updatedAt: string;
 }
@@ -33,6 +34,7 @@ function view(record: RunRecord, machine: RunStateMachine, repo: RunRepository):
     expects: machine.expects(record.state),
     loops: record.state.context.loops,
     recent: record.state.context.history.slice(-5),
+    approvals: record.approvals,
     files: { state: repo.stateFile(record.runId), log: repo.logFile(record.runId) },
     updatedAt: record.updatedAt,
   };
@@ -88,6 +90,7 @@ export class InitRun {
       createdAt: now,
       updatedAt: now,
       state: machine.start(),
+      approvals: {},
     };
     const saved = await this.repo.save(record);
     if (saved.isErr()) return err(saved.error);
@@ -136,7 +139,11 @@ export class AdvanceRun {
     if (next.isErr()) return err(next.error);
 
     const now = this.clock.now().toISOString();
-    const updated: RunRecord = { ...record.value, state: next.value, updatedAt: now };
+    const approvals =
+      input.event.type === "APPROVE"
+        ? { ...record.value.approvals, [before]: approval(input.event, now) }
+        : record.value.approvals;
+    const updated: RunRecord = { ...record.value, state: next.value, approvals, updatedAt: now };
     const saved = await this.repo.save(updated);
     if (saved.isErr()) return err(saved.error);
     const logged = await this.repo.appendLog(
@@ -145,6 +152,58 @@ export class AdvanceRun {
     );
     if (logged.isErr()) return err(logged.error);
     return ok(view(updated, machine, this.repo));
+  }
+}
+
+function approval(event: { readonly by: string; readonly choice?: string }, at: string): Approval {
+  return event.choice === undefined ? { by: event.by, at } : { by: event.by, choice: event.choice, at };
+}
+
+/**
+ * `run approve <gate> --by <who>` (ADR-0037): a HITL stage that is current is approved through
+ * the state machine; an external action (push, comment) is recorded for `guard pre-tool`.
+ */
+export class ApproveRun {
+  constructor(
+    private readonly advance: Pick<AdvanceRun, "execute">,
+    private readonly repo: RunRepository,
+    private readonly clock: Clock,
+  ) {}
+
+  async execute(input: {
+    readonly runId?: string;
+    readonly gate: string;
+    readonly by: string;
+    readonly choice?: string;
+  }): Promise<
+    Result<RunView | { readonly runId: string; readonly approvals: RunRecord["approvals"] }, MetatorError>
+  > {
+    const id = await this.repo.resolveId(input.runId);
+    if (id.isErr()) return err(id.error);
+    const record = await this.repo.load(id.value);
+    if (record.isErr()) return err(record.error);
+    const decision = { by: input.by, ...(input.choice === undefined ? {} : { choice: input.choice }) };
+
+    if (record.value.state.stage === input.gate)
+      return this.advance.execute({ runId: id.value, event: { type: "APPROVE", ...decision } });
+    if (!(APPROVAL_ACTIONS as readonly string[]).includes(input.gate)) {
+      return err(
+        MetatorError.usage(
+          `"${input.gate}" is neither the current stage (${record.value.state.stage}) nor an action (${APPROVAL_ACTIONS.join(", ")})`,
+          "Approve the stage the run is waiting at, or an external action.",
+        ),
+      );
+    }
+    if (record.value.state.status !== "active")
+      return err(MetatorError.usage(`run ${id.value} is ${record.value.state.status}; nothing to approve`));
+
+    const now = this.clock.now().toISOString();
+    const approvals = { ...record.value.approvals, [input.gate]: approval(decision, now) };
+    const saved = await this.repo.save({ ...record.value, approvals, updatedAt: now });
+    if (saved.isErr()) return err(saved.error);
+    const logged = await this.repo.appendLog(id.value, `${now} · approved ${input.gate} · by ${input.by}`);
+    if (logged.isErr()) return err(logged.error);
+    return ok({ runId: id.value, approvals });
   }
 }
 

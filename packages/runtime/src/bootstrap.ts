@@ -1,6 +1,7 @@
 import {
   AdvanceRun,
   AgentCatalog,
+  ApproveRun,
   BuildImportGraph,
   BuildModuleCards,
   CheckMemory,
@@ -251,6 +252,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     advanceRun: asFunction(
       ({ workflowCatalog, runRepository, clock }) => new AdvanceRun(workflowCatalog, runRepository, clock),
+    ),
+    approveRun: asFunction(
+      ({ advanceRun, runRepository, clock }) => new ApproveRun(advanceRun, runRepository, clock),
     ),
     getRunStatus: asFunction(
       ({ workflowCatalog, runRepository }) => new GetRunStatus(workflowCatalog, runRepository),

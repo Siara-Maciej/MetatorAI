@@ -12,6 +12,27 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 
 ---
 
+## Audyt roadmapy (2026-10-26)
+
+Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#4-katalog-skryptów)) z kodem. Kolejność realizacji: od góry.
+
+**Do zrobienia w kodzie (P0 → P2):**
+- [x] Run v2: `approvals` w `RunRecord` (migracja v1 → v2), `run approve <gate> --by --choice`.
+- [ ] Hooki `guard pre-tool|post-edit|stop|subagent-output|session-start|precompact`, `run checkpoint`, generowanie konfiguracji hooków dla Claude Code i Copilota.
+- [ ] `meta check-all`, `meta skills-lint`, kanoniczne skille i ich generowanie, `meta audit`.
+- [ ] `symbols find`, `graph callers`, `api snapshot|diff`.
+- [ ] `gate all`: kroki `test affected`, `graph diff`, `api diff`, `coverage diff`; `coverage diff`, `flaky check`.
+- [ ] `workflow lint` (anatomia, 16 sekcji), specyfikacje W1–W5 jako `Workflow`.
+- [ ] `run handoff|close`, `lessons add`, `findings check-quote`, `docs inventory|drift|links`, `owners`, `debug-tags check`.
+- [ ] Agenci: `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-pr-author`, `mt-review-equivalence`, `mt-diagnostician`, `mt-docs-curator`, `mt-retro`; skille `mt-characterization-tests`, `mt-create-*`, `mt-review-rubric`, `mt-grill`, `mt-diagnose`.
+- [ ] Karty: API na poziomie symboli, wzorce, właściciele z CODEOWNERS. T0: `copilot-instructions.md` ≤ 4000 znaków.
+
+**Wymaga repo pilota lub ludzi (nie da się zamknąć w tym repo):** F0 (inwentarz, spike platformy, baseline), złoty zbiór ≥ 50 PR-ów, 10–15 wzorców pilota, W7 na ADR pilota, rename agentów pilota, kryteria wyjścia faz mierzone na zadaniach pilota.
+
+**Odłożone decyzją:** F5.
+
+---
+
 ## F0: Audyt istniejącego workflow i spike platformy (1 tydzień)
 
 **Cel:** wiedzieć, co macie, co działa w Waszej wersji Copilota, i mieć baseline.
@@ -58,9 +79,9 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [x] `metator.config` (wersjonowany `MetatorConfig`), `metator init [--dry-run]` z decyzjami i dowodami, `gate quick|full [--files|--base]` z raportem `.metator/gates/<gate>.json` ([ADR-0029](adr/0029-config-gates.md)). Dogfood: `metator.config.yml` MetatorAI.
 
 **Zadania**
-- [ ] Szkielet `metator` (envelope, workspace, git, cache, budget) + `bun test` na fixture'ze mini-monorepo.
+- [x] Szkielet `metator` (envelope, workspace, git, cache, budget) + `bun test` na fixture'ze mini-monorepo.
 - [ ] P0 z indeksu: `index build`, `graph deps|affected|callers|diff`, `symbols find`, `api snapshot|diff`.
-- [ ] `sgconfig.yml` (jeśli go nie ma) z `ruleDirs` i `testConfigs`. Przeniesienie istniejących skryptów ast-grep do reguł z testami.
+- [x] `sgconfig.yml` (jeśli go nie ma) z `ruleDirs` i `testConfigs`. Przeniesienie istniejących skryptów ast-grep do reguł z testami (w repo pilota: przy wdrożeniu).
 - [ ] `run init|advance|status|approve`, schematy `state`, `analysis`, `research`, `plan`, `finding`, `verdict`, `gates`.
 - [x] Agenci kanoniczni, `meta agents-lint`, `generate [--check]` dla Copilota i Claude Code ([ADR-0030](adr/0030-canonical-agents.md)); 5 agentów MetatorAI.
 - [ ] `meta skills-lint|check-all`, generowanie skilli, promptów i hooków. **Rename istniejących agentów i skilli na `mt-*`** w repo pilota.

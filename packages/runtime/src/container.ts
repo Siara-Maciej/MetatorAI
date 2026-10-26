@@ -1,6 +1,7 @@
 import {
   type AdvanceRun,
   type AgentCatalog,
+  type ApproveRun,
   type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
@@ -104,6 +105,7 @@ export interface Cradle {
   runRepository: RunRepository;
   initRun: InitRun;
   advanceRun: AdvanceRun;
+  approveRun: ApproveRun;
   getRunStatus: GetRunStatus;
   listRuns: ListRuns;
   sourceFiles: SourceFiles;

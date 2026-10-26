@@ -91,6 +91,7 @@ describe("metator CLI (process e2e)", () => {
       "workflow schema",
       "run init",
       "run advance",
+      "run approve",
       "run status",
       "run list",
     ]);

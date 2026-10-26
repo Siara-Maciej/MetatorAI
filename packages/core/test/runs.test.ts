@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
-import { AdvanceRun, GetRunStatus, InitRun, ListRuns } from "../src/application/runs.ts";
+import { AdvanceRun, ApproveRun, GetRunStatus, InitRun, ListRuns } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 
 const FEATURE = `
@@ -32,6 +32,7 @@ function world(files: Record<string, string> = { ".github/metator/workflows/feat
     repo,
     init: new InitRun(catalog, repo, clock),
     advance: new AdvanceRun(catalog, repo, clock),
+    approve: new ApproveRun(new AdvanceRun(catalog, repo, clock), repo, clock),
     status: new GetRunStatus(catalog, repo),
     list: new ListRuns(repo),
   };
@@ -82,8 +83,9 @@ describe("run lifecycle", () => {
     const state = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     expect(state).toMatchObject({
       kind: "RunRecord",
-      schemaVersion: 1,
+      schemaVersion: 2,
       workflow: { id: "feature", revision: 1 },
+      approvals: {},
       createdAt: "2026-10-25T09:00:00.000Z",
     });
     expect(JSON.parse((await w.fs.read(".metator/runs/latest.json"))._unsafeUnwrap())).toEqual({
@@ -166,7 +168,7 @@ describe("run lifecycle", () => {
     await w.fs.write(run.files.state, JSON.stringify(headerless));
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
     expect(error.code).toBe("INVALID_ARTIFACT");
-    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 1" at the top of the document.');
+    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 2" at the top of the document.');
   });
 
   test("state.json from a newer MetatorAI is refused, not misread", async () => {
@@ -175,7 +177,7 @@ describe("run lifecycle", () => {
     const saved = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     await w.fs.write(run.files.state, JSON.stringify({ ...saved, schemaVersion: 99 }));
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
-    expect(error.message).toContain("schemaVersion 99 is newer than supported (1)");
+    expect(error.message).toContain("schemaVersion 99 is newer than supported (2)");
     expect(error.hint).toContain("Upgrade metator-ai");
   });
 
@@ -215,5 +217,69 @@ describe("run lifecycle", () => {
   test("task text that slugifies to nothing still gets a valid id", async () => {
     const run = (await world().init.execute({ workflow: "feature", task: "!!!" }))._unsafeUnwrap();
     expect(run.runId).toBe("20261025-feature-run");
+  });
+});
+
+describe("run approvals (RunRecord v2)", () => {
+  test("approving the HITL stage advances the run and records who chose what", async () => {
+    const w = world();
+    await w.init.execute({ workflow: "feature", task: "t" });
+    await w.advance.execute({ event: { type: "PASS" } });
+    await w.advance.execute({ event: { type: "PASS" } });
+    const run = (await w.approve.execute({ gate: "approval", by: "maciej", choice: "1" }))._unsafeUnwrap();
+    expect(run).toMatchObject({
+      stage: "build",
+      approvals: { approval: { by: "maciej", choice: "1", at: "2026-10-25T09:00:00.000Z" } },
+    });
+  });
+
+  test("an external action is recorded without moving the run; other gates are refused", async () => {
+    const w = world();
+    const run = (await w.init.execute({ workflow: "feature", task: "t" }))._unsafeUnwrap();
+    w.clock.advance(1000);
+    expect((await w.approve.execute({ gate: "push", by: "maciej" }))._unsafeUnwrap()).toEqual({
+      runId: run.runId,
+      approvals: { push: { by: "maciej", at: "2026-10-25T09:00:01.000Z" } },
+    });
+    const status = (await w.status.execute({}))._unsafeUnwrap();
+    expect([status.stage, status.approvals.push?.by]).toEqual(["plan", "maciej"]);
+    expect((await w.fs.read(run.files.log))._unsafeUnwrap()).toContain("approved push · by maciej");
+
+    const wrong = (await w.approve.execute({ gate: "approval", by: "maciej" }))._unsafeUnwrapErr();
+    expect([wrong.code, wrong.message]).toEqual([
+      "USAGE",
+      '"approval" is neither the current stage (plan) nor an action (push, comment)',
+    ]);
+    // The state machine still decides at a stage: PASS-only stages refuse an approval.
+    expect((await w.approve.execute({ gate: "plan", by: "maciej" }))._unsafeUnwrapErr().code).toBe(
+      "TRANSITION_DENIED",
+    );
+  });
+
+  test("a finished run approves nothing; an unknown run is NOT_FOUND", async () => {
+    const w = world();
+    await w.init.execute({ workflow: "feature", task: "t" });
+    await w.advance.execute({ event: { type: "ABORT", reason: "stop" } });
+    expect((await w.approve.execute({ gate: "push", by: "m" }))._unsafeUnwrapErr().message).toContain(
+      "is aborted",
+    );
+    expect(
+      (await w.approve.execute({ runId: "20990101-x-y", gate: "push", by: "m" }))._unsafeUnwrapErr().code,
+    ).toBe("NOT_FOUND");
+  });
+
+  test("a v1 state.json migrates: earlier stage approvals come from the history", async () => {
+    const w = world();
+    const run = (await w.init.execute({ workflow: "feature", task: "t" }))._unsafeUnwrap();
+    const saved = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
+    const { approvals: _a, ...v1 } = saved;
+    v1.schemaVersion = 1;
+    v1.state.context.history = [
+      { stage: "plan-gate", event: "FAIL", detail: "no exemplar" },
+      { stage: "approval", event: "APPROVE", detail: "maciej" },
+    ];
+    await w.fs.write(run.files.state, JSON.stringify(v1));
+    const status = (await w.status.execute({}))._unsafeUnwrap();
+    expect(status.approvals).toEqual({ approval: { by: "maciej", at: "2026-10-25T09:00:00.000Z" } });
   });
 });
