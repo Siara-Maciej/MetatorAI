@@ -8,6 +8,7 @@ import {
   type ComputeAffected,
   err,
   type FileSystem,
+  type FindMemoryDupes,
   type FindSimilar,
   type GenerateRuleAdapters,
   type GetRunStatus,
@@ -89,6 +90,7 @@ export interface Cradle {
   memoryBudget: MemoryBudget;
   validateCitations: ValidateCitations;
   checkMemory: CheckMemory;
+  findMemoryDupes: FindMemoryDupes;
   buildModuleCards: BuildModuleCards;
   patternCatalog: PatternCatalog;
   scanPatterns: ScanPatterns;

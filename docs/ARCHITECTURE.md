@@ -592,7 +592,7 @@ export default defineConfig({
 flagi CLI  >  zmienne env (METATOR_*)  >  metator.config.*  >  wynik discovery (.metator/discovery.json)  >  presety pluginów  >  defaulty MetatorAI
 ```
 
-Konfiguracja jest **walidowana jednym schematem** (zod → typ TS dla `defineConfig` + JSON Schema dla `.json` i dla agenta bootstrappera). To jedno źródło prawdy dla typu, walidacji i dokumentacji (DRY).
+Konfiguracja jest **walidowana jednym schematem** (zod → typ TS dla `defineConfig` + JSON Schema dla `.json` i dla agenta bootstrappera); uzasadnienie w [ADR-0004](adr/0004-configuration.md).
 
 ---
 

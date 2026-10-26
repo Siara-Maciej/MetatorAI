@@ -29,3 +29,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0023](0023-pattern-catalog.md) | Katalog wzorców z wykrywaniem w ast-grep i `similar` | Proposed |
 | [0024](0024-adr-lint.md) | `adr lint`: łańcuch ADR → reguła i spójny dziennik decyzji | Proposed |
 | [0025](0025-biome-engine-sarif.md) | Biome jako silnik E1 przez SARIF | Proposed |
+| [0026](0026-memory-dupes.md) | Duplikaty wiedzy i macierz dostępu do pamięci | Proposed |

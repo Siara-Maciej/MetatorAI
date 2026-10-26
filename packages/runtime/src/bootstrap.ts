@@ -9,6 +9,7 @@ import {
   DEFAULT_PATHS,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
+  FindMemoryDupes,
   FindSimilar,
   GenerateRuleAdapters,
   GetRunStatus,
@@ -143,6 +144,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     scaffoldRule: asFunction(
       ({ ruleCatalog, ruleScaffolders }) => new ScaffoldRule(ruleCatalog, ruleScaffolders),
+    ),
+    findMemoryDupes: asFunction(
+      ({ memoryMapReader, knowledgeFiles, fileSystem }) =>
+        new FindMemoryDupes(memoryMapReader, knowledgeFiles, fileSystem),
     ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),

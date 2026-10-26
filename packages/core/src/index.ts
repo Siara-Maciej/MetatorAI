@@ -12,6 +12,7 @@ export * from "./application/source-files.ts";
 export * from "./application/workflow-catalog.ts";
 export * from "./domain/adr.ts";
 export * from "./domain/diagnostic.ts";
+export * from "./domain/dupes.ts";
 export * from "./domain/errors.ts";
 export * from "./domain/glob.ts";
 export * from "./domain/graph.ts";

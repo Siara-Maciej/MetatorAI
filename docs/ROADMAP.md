@@ -77,7 +77,7 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 
 **Zadania**
 - [x] Mapa pamięci ([ADR-0021](adr/0021-memory-map.md)): `MemoryMap` w `docs/metator/memory-map.yml`, `memory inventory|budget|validate [--fix]|check|schema`, cytaty `[[cite: …]]` z naprawą przesunięć, strażnik w `bun run canon`. Dogfood: mapa MetatorAI (8 pozycji, 40 plików wiedzy).
-- [ ] `memory dupes`, `memory matrix`.
+- [x] `memory dupes [--check]` i `memory matrix` ([ADR-0026](adr/0026-memory-dupes.md)); dogfood: usunięty duplikat ADR-0004 ↔ ARCHITECTURE.md, `memory dupes --check` w `bun run canon`.
 - [ ] Odchudzenie T0: `copilot-instructions.md` ≤ 4000 znaków, `AGENTS.md` per pakiet.
 - [ ] **W7 na istniejących ADR i docs** (`mt-docs-curator`): twierdzenia → weryfikacja w kodzie → reguły `MT-*` → HITL → canon.
 - [x] `adr lint` ([ADR-0024](adr/0024-adr-lint.md)): numeracja, status i `Superseded by`, sekcje (PL/EN), ADR `Accepted` z „Implikacjami dla kodu” wskazującymi reguły kanonu, spójny indeks; w `bun run canon`.

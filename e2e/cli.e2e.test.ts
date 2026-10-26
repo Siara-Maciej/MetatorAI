@@ -55,6 +55,8 @@ describe("metator CLI (process e2e)", () => {
       "memory budget",
       "memory validate",
       "memory check",
+      "memory dupes",
+      "memory matrix",
       "memory schema",
       "cards build",
       "patterns scan",

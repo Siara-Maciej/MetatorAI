@@ -148,6 +148,32 @@ describe("with a memory map", () => {
     }
   });
 
+  test("dupes: the same statement in two docs is found, --check fails, a link instead of a copy passes", async () => {
+    const statement = "Negative amounts are rejected before an invoice is created or corrected.";
+    await repo.write("docs/modules/orders.md", `# orders\n\n${statement}\n`);
+    await repo.write("docs/modules/billing.md", `${CARD}\n${statement}\n`);
+    try {
+      const r = await metator(["memory", "dupes"], repo.root);
+      const groups = data(r).groups as { occurrences: { file: string }[] }[];
+      expect(groups.map((g) => g.occurrences.map((o) => o.file))).toEqual([
+        ["docs/modules/billing.md", "docs/modules/orders.md"],
+      ]);
+      expect((await metator(["memory", "dupes", "--check"], repo.root)).code).toBe(1);
+      await repo.write("docs/modules/orders.md", "# orders\n\nSee [billing](billing.md) for amount rules.\n");
+      expect((await metator(["memory", "dupes", "--check"], repo.root)).code).toBe(0);
+      expect((await metator(["memory", "dupes", "--threshold", "2"], repo.root)).code).toBe(64);
+    } finally {
+      await repo.write("docs/modules/billing.md", CARD);
+      await Bun.file(repo.path("docs/modules/orders.md")).delete();
+    }
+  });
+
+  test("matrix: who reads and writes which memory", async () => {
+    const r = await metator(["memory", "matrix"], repo.root);
+    expect((data(r).access as Data).human).toEqual({ "t0.agents": "RW", "t1.docs": "RW", "t1.map": "RW" });
+    expect(data(r).markdown).toStartWith("| Agent | t0.agents | t1.docs | t1.map |");
+  });
+
   test("schema prints the MemoryMap JSON Schema", async () => {
     const r = await metator(["memory", "schema"], repo.root);
     expect((data(r).properties as Data).kind).toEqual({ const: "MemoryMap" });
@@ -155,6 +181,10 @@ describe("with a memory map", () => {
 });
 
 describe("dogfood: the MetatorAI memory map", () => {
+  test("no statement is duplicated across MetatorAI's knowledge files", async () => {
+    expect((await metator(["memory", "dupes", "--check", "--root", SELF], SELF)).code).toBe(0);
+  });
+
   test("every knowledge file is mapped, budgets hold and citations are true", async () => {
     const r = await metator(["memory", "check", "--root", SELF], SELF);
     expect(r.code).toBe(0);

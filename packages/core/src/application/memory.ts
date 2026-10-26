@@ -1,3 +1,4 @@
+import { type DuplicateGroup, findDuplicates, type Sentence, sentencesOf } from "../domain/dupes.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import {
@@ -384,5 +385,66 @@ export class CheckMemory {
       }
     }
     return ok({ items: map.items.length, knowledgeFiles: files.value.length, problems });
+  }
+}
+
+// ── memory dupes ────────────────────────────────────────────────────────────────
+
+export interface DupesReport {
+  readonly files: number;
+  readonly sentences: number;
+  readonly groups: readonly (Omit<DuplicateGroup, "occurrences"> & {
+    /** Where the statement should live: the canon occurrence, when there is one. */
+    readonly keep?: string;
+    readonly occurrences: readonly {
+      readonly file: string;
+      readonly line: number;
+      readonly text: string;
+      readonly tier?: Tier;
+    }[];
+  })[];
+}
+
+/**
+ * The same statement in several knowledge files (memory map step 3). Generated (derived)
+ * copies are skipped: they are duplicates by design and kept in sync by their generator.
+ */
+export class FindMemoryDupes {
+  constructor(
+    private readonly reader: MemoryMapReader,
+    private readonly knowledge: KnowledgeFiles,
+    private readonly fs: ReadonlyFileSystem,
+  ) {}
+
+  async execute(input: {
+    readonly minWords: number;
+    readonly threshold: number;
+  }): Promise<Result<DupesReport, MetatorError>> {
+    const loaded = await this.reader.optional();
+    if (loaded.isErr()) return err(loaded.error);
+    const map = loaded.value?.map;
+    const files = await this.knowledge.list(map);
+    if (files.isErr()) return err(files.error);
+
+    const sentences: Sentence[] = [];
+    let scanned = 0;
+    for (const file of files.value) {
+      if (itemFor(map, file)?.kind === "derived") continue;
+      const text = await this.fs.read(file);
+      if (text.isErr()) continue;
+      scanned++;
+      sentences.push(...sentencesOf(file, text.value, input.minWords));
+    }
+    const groups = findDuplicates(sentences, input.threshold).map((g) => {
+      const occurrences = g.occurrences.map(
+        (o): { file: string; line: number; text: string; tier?: Tier } => {
+          const tier = itemFor(map, o.file)?.tier;
+          return tier ? { ...o, tier } : { ...o };
+        },
+      );
+      const canon = occurrences.find((o) => itemFor(map, o.file)?.kind === "canon" && o.tier === "T1");
+      return { ...g, occurrences, ...(canon ? { keep: canon.file } : {}) };
+    });
+    return ok({ files: scanned, sentences: sentences.length, groups });
   }
 }

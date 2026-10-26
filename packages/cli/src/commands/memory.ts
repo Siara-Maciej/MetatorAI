@@ -1,6 +1,7 @@
-import { err, MemoryMapDocument, MetatorError, ok } from "@metator/core";
+import { accessMatrix, err, MemoryMapDocument, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
+import { positiveInt, ratio } from "../options.ts";
 
 export function registerMemoryCommands(program: Command, { action, container }: CommandContext): void {
   const memory = program
@@ -83,6 +84,40 @@ export function registerMemoryCommands(program: Command, { action, container }: 
         }
         return { result: ok(report.value), warnings };
       }),
+    );
+
+  memory
+    .command("dupes")
+    .description("The same statement in several knowledge files (generated copies excluded)")
+    .option("--min-words <n>", "shortest sentence that counts", positiveInt, 8)
+    .option("--threshold <ratio>", "similarity for near duplicates (Jaccard on word 3-grams)", ratio, 0.8)
+    .option("--check", "fail when duplicates exist", false)
+    .action(
+      action(async (opts: { minWords: number; threshold: number; check: boolean }) => {
+        const report = await container()
+          .resolve("findMemoryDupes")
+          .execute({ minWords: opts.minWords, threshold: opts.threshold });
+        if (report.isOk() && opts.check && report.value.groups.length > 0) {
+          return {
+            result: err(
+              new MetatorError("CHECK_FAILED", `${report.value.groups.length} duplicated statement(s)`, {
+                hint: "Keep each statement in one canon file (`keep`) and link to it from the others.",
+                details: { ...report.value },
+              }),
+            ),
+          };
+        }
+        return { result: report };
+      }),
+    );
+
+  memory
+    .command("matrix")
+    .description("Who reads and writes which memory, from the map's readers and writers")
+    .action(
+      action(async () => ({
+        result: (await container().resolve("memoryMapReader").load()).map(({ map }) => accessMatrix(map)),
+      })),
     );
 
   memory

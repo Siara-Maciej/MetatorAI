@@ -310,6 +310,18 @@ const MUTANTS: readonly Mutant[] = [
     why: "Biome never runs its defaults in a repo that does not use Biome",
   },
   {
+    file: "packages/core/src/domain/dupes.ts",
+    from: "if (similarity < threshold) continue;",
+    to: "",
+    why: "near duplicates respect the similarity threshold",
+  },
+  {
+    file: "packages/core/src/application/memory.ts",
+    from: 'if (itemFor(map, file)?.kind === "derived") continue;',
+    to: "",
+    why: "generated copies are not reported as duplicates",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

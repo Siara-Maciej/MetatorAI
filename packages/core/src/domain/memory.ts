@@ -191,3 +191,41 @@ export function locateQuote(content: string, line: number, quote: string): Quote
   const anywhere = lines.map((_, i) => i + 1).filter(startsAt);
   return anywhere.length === 1 ? { status: "moved", line: anywhere[0] as number } : { status: "stale" };
 }
+
+// ── access matrix ───────────────────────────────────────────────────────────────
+
+export type Access = "R" | "W" | "RW";
+
+export interface AccessMatrix {
+  readonly agents: readonly string[];
+  readonly items: readonly string[];
+  /** agent → item id → access; missing means none. `*` readers grant every agent read access. */
+  readonly access: Readonly<Record<string, Readonly<Record<string, Access>>>>;
+  readonly markdown: string;
+}
+
+/** Writer and reader names without annotations: "mt-retro(HITL)" → "mt-retro". */
+const actor = (name: string) => name.replace(/\s*\(.*\)\s*$/, "").trim();
+
+/** Who reads and writes which memory (memory map step 8), as data for hooks and as a table. */
+export function accessMatrix(map: MemoryMap): AccessMatrix {
+  const agents = new Set<string>();
+  for (const item of map.items)
+    for (const n of [...item.readers, ...item.writers]) if (n !== "*") agents.add(actor(n));
+  const sortedAgents = [...agents].sort();
+  const access: Record<string, Record<string, Access>> = {};
+  for (const agent of sortedAgents) {
+    access[agent] = {};
+    for (const item of map.items) {
+      const reads = item.readers.includes("*") || item.readers.map(actor).includes(agent);
+      const writes = item.writers.map(actor).includes(agent);
+      if (reads || writes)
+        (access[agent] as Record<string, Access>)[item.id] = reads && writes ? "RW" : writes ? "W" : "R";
+    }
+  }
+  const items = map.items.map((i) => i.id);
+  const header = `| Agent | ${items.join(" | ")} |`;
+  const rule = `|${"---|".repeat(items.length + 1)}`;
+  const rows = sortedAgents.map((a) => `| ${a} | ${items.map((i) => access[a]?.[i] ?? "–").join(" | ")} |`);
+  return { agents: sortedAgents, items, access, markdown: [header, rule, ...rows].join("\n") };
+}
