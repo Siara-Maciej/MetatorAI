@@ -1,6 +1,6 @@
 # Krajobraz systemu: zmiany w wielu aplikacjach (analiza i plan)
 
-Status: **propozycja do akceptacji** (nic z tego nie jest jeszcze zaimplementowane).
+Status: **zaakceptowany kierunek, decyzje w sekcji 7** (2026-10-26). MVP: tylko OpenAPI; reszta w sekcji 9 (post-MVP).
 
 ## 1. Problem
 
@@ -91,6 +91,8 @@ policies:
   breaking: expand-contract       # zmiana łamiąca: najpierw rozszerz, migruj konsumentów, potem usuń
 ```
 
+Przykład pokazuje model docelowy. W MVP rejestr pluginów zna tylko `kind: openapi`; inne rodzaje (sekcja 9) `system lint` odrzuca z podpowiedzią.
+
 Zasady:
 - **Aplikacja** to jednostka wdrożenia (repo albo katalog w monorepo), nie pakiet. Pakiety zostają w kartach modułów.
 - **Kontrakt** to krawędź systemu: ma właściciela, specyfikację (plik u dostawcy), klasę zgodności i wersję oczekiwaną przez konsumenta.
@@ -134,7 +136,7 @@ Dokładnie to, co dziś `RevisionReader` robi dla bazy brancha, tylko dla innego
 
 | Potrzeba | Kandydat | Uwagi |
 |----------|----------|-------|
-| Diff OpenAPI z klasą breaking | **oasdiff** (CLI, JSON) | dojrzały, setki reguł breaking |
+| Diff OpenAPI z klasą breaking | **openapi-diff** (JS, MVP); **oasdiff** (binarka Go, post-MVP) | breaking / non-breaking / unclassified; oasdiff ma więcej reguł, ale wymaga binarki |
 | Diff AsyncAPI | **@asyncapi/diff** | klasyfikuje breaking / non-breaking / unclassified |
 | Diff GraphQL | **@graphql-inspector/core** | breaking / dangerous / safe |
 | Diff protobuf | **buf breaking** | reguły FILE / PACKAGE / WIRE |
@@ -165,19 +167,19 @@ Każde narzędzie dostaje adapter portu `ContractDiffer` (jeden port, wiele prov
 
 ## 5. Roadmapa (faza F7: system wielu aplikacji)
 
-Fazy są ułożone tak, żeby każda dawała wartość sama w sobie. Wcześniejsze fazy są tylko do odczytu, ryzykowne wykonanie przychodzi na końcu.
+MVP obejmuje jeden rodzaj kontraktu (**OpenAPI**) i automatyczne wykrywanie topologii. Wszystkie rodzaje kontraktów idą przez jeden mechanizm pluginów, więc kolejne (sekcja 9) to nowe adaptery, a nie zmiany w rdzeniu.
 
 | Etap | Cel | Produkty | Kryterium wyjścia |
 |------|-----|----------|-------------------|
-| **F7.1 Mapa systemu** | agent wie, jakie są aplikacje i kontrakty | `SystemMap` v1, `system schema|show|lint`, karty aplikacji, ADR | mapa pilota przechodzi `system lint`; karty pokazują kontrakty |
-| **F7.2 Discovery** | szkic mapy bez ręcznego pisania | `system discover` (OpenAPI, AsyncAPI, proto, GraphQL, npm wewnętrzne, compose/k8s) | ≥ 80% kontraktów pilota wykrytych automatycznie; reszta dopisana ręcznie |
-| **F7.3 Wpływ zmiany** | „gdzie i przez co” | port `SystemSourceReader`, `system impact` | na 10 historycznych zmianach wieloaplikacyjnych pilota impact wskazuje ≥ 95% dotkniętych aplikacji |
-| **F7.4 Zgodność kontraktów** | „jak”: breaking czy nie | port `ContractDiffer` + adaptery, `contract diff`, bramka kontraktowa | każda zmiana łamiąca w historii pilota wykryta; 0 fałszywych FAIL na 20 zgodnych zmianach |
-| **F7.5 Plan systemowy** | „w jakiej kolejności i kto” | `SystemAnalysis`, `SystemPlan`, `system plan lint`, agenci `mt-system-scout`, `mt-system-planner` | plan dla 5 zadań pilota zatwierdzony przez architekta bez zmian kolejności |
-| **F7.6 Wykonanie powiązane** | realizacja w wielu repo | `RunRecord` v3 (rodzic/dzieci), `system status`, handoff do dziecka, W13 | 3 zadania pilota dowiezione przez runy-dzieci, wdrożenia w kolejności z planu |
-| **F7.7 Evale i CI** | zaufanie i automatyzacja | złote przypadki wieloaplikacyjne, bramka kontraktowa w CI, opcjonalnie Pact | precyzja impact ≥ 90%, recall konsumentów ≥ 95% |
+| **F7.1 Mapa systemu** | agent wie, jakie są aplikacje i kontrakty | `SystemMap` v1, `system schema|show|lint`, rejestr rodzajów kontraktów (plugin OpenAPI), ADR | mapa przykładowego systemu przechodzi `system lint`; nieznany rodzaj kontraktu to błąd z podpowiedzią |
+| **F7.2 Topologia i discovery** | MetatorAI sam rozpoznaje monorepo albo osobne repo, aplikacje i specyfikacje OpenAPI | `system discover` (propozycja mapy z dowodami i pewnością), port `ContractDetector` | e2e: monorepo z 3 aplikacjami i 3 osobne repo dają poprawną propozycję |
+| **F7.3 Źródła i wpływ zmiany** | „gdzie i przez co” | port `SystemSourceReader` (lokalny checkout, klon do cache), mapa w repo platformy przypięta w aplikacjach, `system impact` | e2e na kilku prawdziwych repo: impact wskazuje dostawcę, konsumentów i właścicieli |
+| **F7.4 Zgodność OpenAPI** | „jak”: zmiana łamiąca czy nie | port `ContractDiffer`, provider OpenAPI (`openapi-diff`), `contract diff`, krok bramki w `gate full` | łamiąca zmiana wykryta, zgodna przechodzi; brak providera = `unknown`, nie FAIL |
+| **F7.5 Plan systemowy** | „w jakiej kolejności i kto” | `SystemAnalysis`, `SystemPlan`, `system plan lint`, agenci `mt-system-scout`, `mt-system-planner`, karty aplikacji | lint wymusza: dostawca przed konsumentem, strategia dla zmiany łamiącej, krok dla każdego konsumenta |
+| **F7.6 Wykonanie powiązane** | realizacja w wielu repo | `RunRecord` v3 (rodzic i dzieci), `system status`, handoff do runu-dziecka, W13 `mt-system-change` | e2e: run systemowy z dwoma runami-dziećmi w dwóch repo |
+| **F7.7 Evale** | mierzona trafność | przypadki wieloaplikacyjne w złotym zbiorze, score impact i planu | na pilocie: impact ≥ 95% aplikacji, plan bez zmian kolejności dla 5 zadań |
 
-Zależności: F7.1 → F7.2 i F7.3 (równolegle) → F7.4 → F7.5 → F7.6 → F7.7. F7.1–F7.4 da się w pełni zrobić i przetestować w tym repo na fikcyjnym systemie z kilku repo w e2e. F7.5–F7.7 wymagają kalibracji na pilocie.
+Zależności: F7.1 → F7.2 → F7.3 → F7.4 → F7.5 → F7.6 → F7.7. F7.1–F7.6 da się zrobić i przetestować w tym repo (e2e na prawdziwych repo git w katalogu tymczasowym). F7.7 wymaga danych z pilota.
 
 ## 6. Plan realizacji (etapy implementacji w tym repo)
 
@@ -188,25 +190,44 @@ Każdy etap kończy się tak jak dotąd:
 - ADR jako Proposed;
 - `bun run check`, commit i push.
 
-1. **S1: `SystemMap` i lint.** Domena: schemat zod z walidacją referencji (konsument → kontrakt, właściciel → aplikacja) i grafem wdrożeń na graphlib (cykle, kolejność topologiczna). Use case `SystemCatalog`, CLI `system schema|show|lint`, pozycja w mapie pamięci, `system lint` w `meta check-all`, gdy mapa istnieje. E2e: system z 3 aplikacji (monorepo `path:`).
-2. **S2: karty aplikacji.** Blok generowany kart rozszerzony o kontrakty dostarczane i konsumowane oraz konsumentów (dla pakietów, które są aplikacjami w mapie).
-3. **S3: `SystemSourceReader`.** Port i dwa adaptery: lokalny katalog (`workspaceRoots`) i cache klonu git (simple-git, przypięty sha, tylko odczyt). Kontrakt portu w `packages/testing`. E2e: trzy prawdziwe repo git w katalogu tymczasowym.
-4. **S4: `system impact`.** Domena: zmienione pliki → kontrakty, których spec lub implementacja się zmieniły (ścieżki spec + mapowanie modułów implementujących) → konsumenci → właściciele. Wejście `--files`, `--base`, `--contracts`. Wynik `SystemImpact`.
-5. **S5: `ContractDiffer` i `contract diff`.** Najpierw OpenAPI (oasdiff), potem AsyncAPI i GraphQL. Każdy adapter z testem na prawdziwym narzędziu (zgodna i łamiąca zmiana), rejestracja w `dependencies.yml`, ADR. Krok `contract diff` w `gate full`.
-6. **S6: `system discover`.** Detektory specyfikacji i zależności między aplikacjami. Wynik jako propozycja (`SystemMap` z `confidence` i dowodami), nigdy nadpisanie zatwierdzonej mapy.
-7. **S7: `SystemAnalysis`, `SystemPlan`, `system plan lint`.** Reguły lintu z sekcji 3.2. Agenci `mt-system-scout`, `mt-system-planner` (canon, generowani na hosty).
-8. **S8: runy powiązane i W13.** `RunRecord` v3 z migracją (`parent`, `children`), `run init --parent <run> --app <id>`, `system status`, handoff do runu-dziecka z podplanem. Spec W13 z pełną anatomią (`workflow lint`).
-9. **S9: evale.** Format `EvalCase` dla zadań wieloaplikacyjnych (oczekiwane aplikacje, kontrakty, kolejność) i score `system impact`/`system plan`.
+1. **S1: `SystemMap` i rejestr kontraktów.**
+   - Domena: schemat zod; walidacja referencji (konsument → kontrakt, właściciel → aplikacja, źródło: `path` w tym repo albo `repo` + opcjonalny `ref`); graf wdrożeń na graphlib (cykle, kolejność topologiczna).
+   - Rodzaj kontraktu to id providera z rejestru pluginów; MVP rejestruje `openapi`.
+   - Use case `SystemCatalog`; CLI `system schema|show|lint`; pozycja w mapie pamięci.
+   - `system lint` w `meta check-all`, gdy mapa istnieje.
+2. **S2: topologia i `system discover`.**
+   - Port `ContractDetector` (provider OpenAPI: plik YAML/JSON z kluczem `openapi: 3.x` albo `swagger: 2.0`, parsowanie przez `@apidevtools/swagger-parser`).
+   - Detekcja topologii:
+     - repo z workspace'ami i kilkoma aplikacjami to **monorepo**;
+     - repo-aplikacja z sąsiednimi checkoutami (`system.roots`) albo źródłami w mapie to **osobne repo**;
+     - aplikacja to pakiet albo repo z sygnałem wdrożenia (`Dockerfile`, skrypt `start`, chart, specyfikacja API).
+   - Konsumenci: zależność od pakietu klienta wygenerowanego ze specyfikacji, referencja do pliku specyfikacji, host z `servers[].url` w kodzie albo konfiguracji (pewność `low`, do zatwierdzenia).
+   - Wynik to propozycja `SystemMap` z `evidence` i `confidence`; zatwierdzonej mapy nigdy nie nadpisuje.
+3. **S3: `SystemSourceReader` i mapa z repo platformy.**
+   - Adaptery: lokalny katalog (`system.roots` w `metator.config.yml`) i klon do `.metator/system/<app>@<sha>` (simple-git, tylko odczyt, przypięty commit).
+   - Wybór adaptera zależy od użycia: lokalny checkout, gdy istnieje; klon, gdy go nie ma albo gdy wymagany jest przypięty `ref` (CI, review).
+   - `metator.config.yml` wskazuje mapę: `system.map: { path }` albo `{ repo, ref, path }`.
+   - Kontrakt portu w `packages/testing`.
+4. **S4: `system impact`.** Zmienione pliki (`--base`/`--files`) albo `--contracts` → kontrakty, których specyfikacja lub implementacja się zmieniła → konsumenci → właściciele i źródła. Wynik `SystemImpact`.
+5. **S5: `ContractDiffer` i `contract diff`.**
+   - Provider OpenAPI na `openapi-diff` (JS, klasy breaking / non-breaking / unclassified). ADR z porównaniem z `oasdiff` (binarka Go; opcjonalny provider później).
+   - Spec z bazy brancha vs working tree; wynik `ContractChange`.
+   - Krok `contract diff` w `gate full`: zmiana łamiąca bez wpisu w planie to FAIL.
+6. **S6: plan systemowy.**
+   - Dokumenty `SystemAnalysis` i `SystemPlan`, `system plan lint`.
+   - Agenci `mt-system-scout`, `mt-system-planner`; karty aplikacji z kontraktami.
+7. **S7: runy powiązane i W13.**
+   - `RunRecord` v3 z migracją (`parent`, `children`); `run init --parent <run> --app <id>`; `system status`; handoff do runu-dziecka z podplanem.
+   - Spec W13 z pełną anatomią.
+8. **S8: evale.** Format przypadków wieloaplikacyjnych (oczekiwane aplikacje, kontrakty, kolejność) i score.
 
-Kolejność S1 → S3 → S4 daje najszybciej wartość: agent już po S4 odpowiada „gdzie i przez co”, nawet bez planu systemowego.
+## 7. Decyzje (2026-10-26)
 
-## 7. Pytania otwarte (do decyzji przed S1)
-
-1. **Topologia:** czy aplikacje są w jednym monorepo, w osobnych repo, czy mieszanie? To zmienia kolejność S3 (przy samym monorepo port może poczekać).
-2. **Kontrakty:** które rodzaje faktycznie występują (OpenAPI, zdarzenia: Kafka/Service Bus z AsyncAPI albo bez specyfikacji, GraphQL, gRPC, wspólna baza, pakiety npm)? To ustala kolejność adapterów w S5.
-3. **Gdzie żyje mapa:** w każdym repo osobno, w jednym repo „platformy” (rekomendacja: jedno źródło, przypinane w repo aplikacji) czy generowana z istniejącego katalogu (Backstage `catalog-info.yaml`)? Jeśli organizacja ma Backstage, `SystemMap` powinien go czytać, a nie dublować.
-4. **Wdrożenia:** skąd brać wiedzę o kolejności i środowiskach (Azure Pipelines, GitHub Actions, Helm, Argo CD, Terraform)? Na start deklaracja w mapie; odczyt z pipeline'ów później.
-5. **Dostęp do innych repo:** lokalne checkouty, klonowanie przez agenta (sieć, uprawnienia) czy API hosta przez MCP?
+1. **Topologia:** MetatorAI wykrywa ją sam (monorepo czy osobne repo); konfiguracja tylko nadpisuje wynik detekcji.
+2. **Rodzaje kontraktów:** przez pluginy. Provider jest wybierany w konfiguracji albo wykrywany automatycznie (preferowane). **MVP: tylko OpenAPI**; pozostałe rodzaje w sekcji 9.
+3. **Miejsce mapy:** jedno repo „platformy”, a repo aplikacji wskazują je w przypiętej wersji (`repo` + `ref`).
+4. **Wdrożenia:** na start deklaracja w mapie (`deploy`, `policies.deployOrder`); odczyt z pipeline'ów w sekcji 9.
+5. **Dostęp do innych repo:** lokalne checkouty i klonowanie, zależnie od użycia (lokalna praca: checkout; CI i przypięta wersja: klon).
 
 ## 8. Ryzyka
 
@@ -217,3 +238,17 @@ Kolejność S1 → S3 → S4 daje najszybciej wartość: agent już po S4 odpowi
 | Za duży kontekst przy wielu repo | koszt, halucynacje | do agenta trafia tylko wynik `system impact` (top-k), nie kod innych repo |
 | Uprawnienia między repo | agent zmienia cudze repo | wykonanie tylko przez runy-dzieci w repo właściciela, z jego bramkami i zgodami |
 | Narzędzia diffu w innych językach (Go, buf) | instalacja w CI | adaptery wywołują binarkę przez `BinResolver`; brak binarki = `unknown`, nie FAIL |
+
+## 9. Post-MVP (do zrobienia później)
+
+- [ ] Kontrakty zdarzeń: AsyncAPI (`@asyncapi/parser`, `@asyncapi/diff`), w tym zdarzenia bez specyfikacji (heurystyki topiców).
+- [ ] GraphQL (`@graphql-inspector/core`).
+- [ ] gRPC/protobuf (`buf breaking`).
+- [ ] Pakiety npm jako kontrakt (wersja semver, `api diff` dostawcy).
+- [ ] Schemat bazy jako kontrakt (migracje, wspólna baza).
+- [ ] Konfiguracja i flagi funkcji jako kontrakt.
+- [ ] `oasdiff` jako alternatywny provider OpenAPI.
+- [ ] Odczyt katalogu Backstage (`catalog-info.yaml`) jako źródło mapy.
+- [ ] Kolejność i środowiska wdrożeń z pipeline'ów (Azure Pipelines, GitHub Actions, Helm, Argo CD).
+- [ ] Źródło innych repo przez API hosta (GitHub/ADO przez MCP), bez klonu.
+- [ ] Testy kontraktowe Pact i bramka „can-i-deploy”.
