@@ -41,6 +41,7 @@ const PathOverrides = z
     discovery: z.string(),
     gates: z.string(),
     agents: z.string(),
+    evals: z.string(),
   })
   .partial();
 

@@ -107,7 +107,7 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [x] Subflow review ([ADR-0032](adr/0032-review-core.md)): `review plan`, `findings verdict`, `findings to-github --format natural|labeled`, agenci `mt-pr-review`, `mt-review-{logic,contracts,conventions,tests,security}`, `mt-verifier`, `mt-judge`.
 - [ ] Hook `SubagentStop` → `guard subagent-output` (jeśli dostępny), inaczej walidacja w `run advance`.
 - [ ] **Złoty zbiór v1:** ≥ 50 PR-ów: z prawdziwymi bugami (z hotfixów i revertów), z zasianymi bugami (mutacje w kopii PR-a) i czyste (kontrola FP). Format w `docs/metator/evals/golden/`.
-- [ ] `eval run|score|compare` (headless: `copilot -p … --agent mt-pr-review --no-ask-user -s`).
+- [x] `eval run|score|compare|schema` ([ADR-0033](adr/0033-review-evals.md)): `EvalCase`, precision/recall, blocking precision, fałszywe blokady, wariancja decyzji, bramka regresji; host jako szablon komendy (np. `copilot -p … --agent mt-pr-review --no-ask-user -s`).
 - [ ] Zachowanie trybów eq: Author/Reviewer flow, format naturalny/etykietowany, autopilot (W4/W5).
 
 **Kryterium wyjścia (na złotym zbiorze, 3 powtórzenia):** precision confirmed-blocking ≥ 85%, recall zasianych bugów ≥ 60%, wariancja decyzji ≤ 10%, koszt/PR w uzgodnionym budżecie. Wynik lepszy niż baseline z F0.

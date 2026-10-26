@@ -442,6 +442,18 @@ const MUTANTS: readonly Mutant[] = [
     why: "partials are expanded into the agents hosts receive",
   },
   {
+    file: "packages/core/src/domain/eval.ts",
+    from: "Math.abs(e.line - f.location.line) <= e.tolerance &&",
+    to: "true &&",
+    why: "a reported finding matches an expected one only near its line",
+  },
+  {
+    file: "packages/core/src/domain/eval.ts",
+    from: 'falseBlocks: scores.filter((s) => s.type === "clean" && s.decision === "CHANGES_REQUIRED").length,',
+    to: "falseBlocks: 0,",
+    why: "blocking a clean change is counted as a false block",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

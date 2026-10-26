@@ -7,8 +7,10 @@ import {
   type CheckMemory,
   type CheckRules,
   type Clock,
+  type CompareEvals,
   type ComputeAffected,
   type Discover,
+  type EvalCatalog,
   err,
   type FileSystem,
   type FindMemoryDupes,
@@ -48,10 +50,12 @@ import {
   type RuleCatalog,
   type RuleEngine,
   type RuleScaffolder,
+  type RunEvals,
   type RunGate,
   type RunRepository,
   type ScaffoldRule,
   type ScanPatterns,
+  type ScoreEvals,
   type SourceFiles,
   type ValidateCitations,
   type ValidateFindings,
@@ -131,6 +135,10 @@ export interface Cradle {
   planReview: PlanReview;
   judgeFindings: JudgeFindings;
   formatReviewComments: FormatReviewComments;
+  evalCatalog: EvalCatalog;
+  scoreEvals: ScoreEvals;
+  compareEvals: CompareEvals;
+  runEvals: RunEvals;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

@@ -14,6 +14,8 @@ export interface MetatorPaths {
   readonly gates: string;
   /** Canonical agents (host-neutral sources of generated host agents). */
   readonly agents: string;
+  /** The golden set of review evals. */
+  readonly evals: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -29,6 +31,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   discovery: ".metator/discovery.json",
   gates: ".metator/gates",
   agents: "metator/agents",
+  evals: "docs/metator/evals/golden",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

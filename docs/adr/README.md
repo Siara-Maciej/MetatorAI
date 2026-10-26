@@ -36,3 +36,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0030](0030-canonical-agents.md) | Agenci kanoniczni i generatory hostów (Copilot, Claude Code) | Proposed |
 | [0031](0031-findings.md) | Znaleziska review: schemat, polityka dowodów i walidacja cytatów | Proposed |
 | [0032](0032-review-core.md) | Subflow review: plan shardów, werdykt i komentarze | Proposed |
+| [0033](0033-review-evals.md) | Evale review: złoty zbiór, punktacja i bramka regresji | Proposed |

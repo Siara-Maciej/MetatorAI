@@ -197,6 +197,7 @@ metator gate quick --base main                                 # the repo's own 
 metator generate                                               # Copilot and Claude Code agents from one canonical source
 metator review plan --base main                                # shards per package with card and rules, lenses per shard
 metator findings validate <dir> --fix                          # invented quotes and unproven blockers never reach a human
+metator eval run --command "scripts/review.sh {case} {out}"    # precision and recall of the review on a golden set
 ```
 
 Every file MetatorAI writes is a versioned document (`kind` + `schemaVersion`), so it is always clear how to parse it
