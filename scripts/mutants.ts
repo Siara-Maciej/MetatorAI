@@ -920,4 +920,28 @@ export const MUTANTS: readonly Mutant[] = [
     to: "flaky: failed > 0,",
     why: "always-red tests are not flaky",
   },
+  {
+    file: "packages/core/src/domain/workflow-lint.ts",
+    from: 'if (o.startsWith("script:")) continue;',
+    to: "",
+    why: "script owners are not looked up in the canon",
+  },
+  {
+    file: "packages/core/src/domain/workflow-lint.ts",
+    from: "if (owners(s.owner).length === 0 && !s.parallel)",
+    to: "if (false)",
+    why: "every working stage has an owner",
+  },
+  {
+    file: "packages/core/src/domain/workflow-lint.ts",
+    from: "if (s.skipAt && s.neverSkip)",
+    to: "if (false)",
+    why: "a never-skip gate cannot be skipped",
+  },
+  {
+    file: "packages/core/src/application/workflow-catalog.ts",
+    from: "skills: new Set((await this.skills.scan()).skills.map((s) => s.skill.name)),",
+    to: "skills: new Set<string>(),",
+    why: "skill owners are checked against the canonical skills",
+  },
 ];

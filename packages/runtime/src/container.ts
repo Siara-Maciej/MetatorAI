@@ -47,6 +47,7 @@ import {
   type LintPlan,
   type LintRules,
   type LintSkills,
+  type LintWorkflows,
   type ListRuns,
   type Logger,
   type MeasureRuleCoverage,
@@ -176,6 +177,7 @@ export interface Cradle {
   skillCatalog: SkillCatalog;
   auditAgents: AuditAgents;
   lintSkills: LintSkills;
+  lintWorkflows: LintWorkflows;
   generateSkills: GenerateSkills;
   validateFindings: ValidateFindings;
   mergeFindings: MergeFindingSets;

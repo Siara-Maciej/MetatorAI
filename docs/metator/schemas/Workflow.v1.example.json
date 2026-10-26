@@ -1,0 +1,12 @@
+{
+  "kind": "Workflow",
+  "schemaVersion": 1,
+  "id": "feature",
+  "revision": 1,
+  "stages": [
+    { "id": "plan" },
+    { "id": "plan-gate", "onFail": { "goto": "plan", "loop": "plan" } },
+    { "id": "approval", "hitl": true }
+  ],
+  "loops": { "plan": 2 }
+}

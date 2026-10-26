@@ -45,6 +45,7 @@ import {
   LintPlan,
   LintRules,
   LintSkills,
+  LintWorkflows,
   ListRuns,
   MeasureRuleCoverage,
   MemoryBudget,
@@ -290,6 +291,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),
+    ),
+    lintWorkflows: asFunction(
+      ({ workflowCatalog, agentCatalog, skillCatalog }) =>
+        new LintWorkflows(workflowCatalog, agentCatalog, skillCatalog),
     ),
     workflowCatalog: asFunction(
       ({ fileSystem, paths }) => new WorkflowCatalog(fileSystem, paths),

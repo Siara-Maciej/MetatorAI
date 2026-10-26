@@ -62,5 +62,6 @@ export * from "./domain/skill.ts";
 export * from "./domain/symbols.ts";
 export * from "./domain/verdict.ts";
 export * from "./domain/versioned.ts";
+export * from "./domain/workflow-lint.ts";
 export * from "./domain/workflow-spec.ts";
 export type * from "./ports/index.ts";

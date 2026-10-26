@@ -1,8 +1,11 @@
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { lintWorkflow, type WorkflowProblem } from "../domain/workflow-lint.ts";
 import { parseWorkflowYaml, type WorkflowSpec } from "../domain/workflow-spec.ts";
 import type { ReadonlyFileSystem } from "../ports/index.ts";
+import type { AgentCatalog } from "./agents.ts";
 import type { MetatorPaths } from "./paths.ts";
+import type { SkillCatalog } from "./skills.ts";
 
 export interface CatalogEntry {
   readonly spec: WorkflowSpec;
@@ -68,5 +71,45 @@ export class WorkflowCatalog {
     const text = await this.fs.read(source);
     if (text.isErr()) return err(text.error);
     return parseWorkflowYaml(text.value, source).map((spec) => ({ spec, source }));
+  }
+}
+
+/** `workflow lint`: every workflow spec against the anatomy and the canonical agents and skills. */
+export class LintWorkflows {
+  constructor(
+    private readonly catalog: Pick<WorkflowCatalog, "scan">,
+    private readonly agents: Pick<AgentCatalog, "scan">,
+    private readonly skills: Pick<SkillCatalog, "scan">,
+  ) {}
+
+  async execute(): Promise<
+    Result<
+      {
+        readonly workflows: number;
+        readonly problems: readonly (WorkflowProblem & {
+          readonly source: string;
+          readonly workflow?: string;
+        })[];
+      },
+      MetatorError
+    >
+  > {
+    const scan = await this.catalog.scan();
+    const ctx = {
+      agents: new Set((await this.agents.scan()).agents.map((a) => a.agent.id)),
+      skills: new Set((await this.skills.scan()).skills.map((s) => s.skill.name)),
+      maxParallel: 6,
+    };
+    const problems = [
+      ...scan.problems.map((p) => ({
+        source: p.source,
+        severity: "error" as const,
+        message: p.error.message,
+      })),
+      ...scan.workflows.flatMap((w) =>
+        lintWorkflow(w.spec, ctx).map((p) => ({ ...p, source: w.source, workflow: w.spec.id })),
+      ),
+    ];
+    return ok({ workflows: scan.workflows.length, problems });
   }
 }

@@ -103,6 +103,7 @@ describe("metator CLI (process e2e)", () => {
       "guard session-start",
       "guard precompact",
       "workflow list",
+      "workflow lint",
       "workflow validate",
       "workflow schema",
       "run init",

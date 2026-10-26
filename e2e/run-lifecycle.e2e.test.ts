@@ -297,7 +297,7 @@ describe("every persisted file is a versioned document (ADR-0016)", () => {
       expect(r.code).toBe(1);
       expect(r.json.error).toMatchObject({
         code: "INVALID_CONFIG",
-        hint: 'Expected "kind: Workflow" and "schemaVersion: 1" at the top of the document.',
+        hint: 'Expected "kind: Workflow" and "schemaVersion: 2" at the top of the document.',
       });
     } finally {
       await Bun.file(repo.path(".github/metator/workflows/legacy.yml")).delete();
