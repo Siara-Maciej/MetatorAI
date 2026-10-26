@@ -17,7 +17,7 @@ Design docs (Polish): `docs/README.md`. Start with `docs/ARCHITECTURE.md` and `d
 | Typecheck | `bun run typecheck` (TypeScript 7, `noEmit`) |
 | Lint + format | `bun run lint` / `bun run format` (Biome; Markdown is not formatted) |
 | Architecture rules | `bun run arch` (ast-grep rule tests + scan) |
-| Rule canon + memory map | `bun run canon` (`rules lint`, `rules adapters --check`, `memory check`) |
+| Rule canon + memory map | `bun run canon` (`rules lint`, `rules adapters --check`, `memory check`, `cards build --check`) |
 | Run the CLI | `bun run metator <command>` |
 
 ## Architecture (enforced, not advisory)
@@ -87,6 +87,10 @@ Nothing is done until it is proven, by tests and by running it yourself.
 ## Rules canon
 
 Project rules live in `docs/metator/rules/*.yml` (`RuleSet`, ADR-0020). `.github/instructions/mt-*.instructions.md` is generated: change the canon and run `bun run metator rules adapters`, never edit the generated files. Before changing code, `bun run metator rules pack --paths <files>` lists the rules that apply.
+
+## Module cards
+
+Before working in a package, read its card in `docs/metator/modules/`. The generated block is rewritten by `bun run metator cards build`; keep the curated sections (responsibility, invariants with citations, pitfalls) true when you change the package.
 
 ## Decisions
 

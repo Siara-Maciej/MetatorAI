@@ -54,6 +54,7 @@ describe("metator CLI (process e2e)", () => {
       "memory validate",
       "memory check",
       "memory schema",
+      "cards build",
       "workflow list",
       "workflow validate",
       "workflow schema",

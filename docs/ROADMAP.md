@@ -85,7 +85,8 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [ ] Reguły E1: każda możliwa reguła jako ast-grep (z testem) lub Biome (`noRestrictedImports`, GritQL z `includes`). Cel ≥ 40% reguł jako E1.
 - [ ] `rules coverage`, `rules scaffold-sg`, silniki E1 dla Biome i tsc.
 - [ ] Katalog wzorców: 10–15 wzorców z regułami wykrywania (`docs/metator/patterns/sg`), `patterns scan`, `similar`.
-- [ ] Karty modułów: `cards build` (część generowana), uzupełnienie kuratorowanej dla pakietów pilota.
+- [x] Karty modułów ([ADR-0022](adr/0022-module-cards.md)): `cards build [--check]`, blok generowany z grafu (zależności, testowe osobno, użytkownicy, powierzchnia publiczna, biblioteki), sekcje kuratorowane z cytatami. Dogfood: 9 kart MetatorAI z 11 prawdziwymi cytatami.
+- [ ] Karty: publiczne API na poziomie symboli (`api snapshot`), wzorce, właściciele z CODEOWNERS.
 
 **Kryterium wyjścia:** `memory check` zielony, 0 duplikatów reguł poza canon, 100% reguł z ID i źródłem, ≥ 40% E1, każdy wzorzec ma exemplar i ≥ 2 wystąpienia, karty dla 100% pakietów pilota.
 

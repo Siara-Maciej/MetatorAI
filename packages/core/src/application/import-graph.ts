@@ -23,6 +23,8 @@ export interface ImportGraphReport {
   readonly edges: readonly Edge[];
   readonly packages: readonly WorkspacePackage[];
   readonly externals: readonly string[];
+  /** Which file imports which external package or builtin (for per-package summaries). */
+  readonly externalUses: readonly { readonly from: string; readonly name: string }[];
   readonly unresolved: readonly UnresolvedImport[];
   readonly stats: { readonly parsed: number; readonly reused: number; readonly failed: number };
   readonly parseErrors: readonly { readonly file: string; readonly message: string }[];
@@ -79,6 +81,7 @@ export class BuildImportGraph {
 
     const edges: Edge[] = [];
     const externals = new Set<string>();
+    const externalUses = new Map<string, { from: string; name: string }>();
     const unresolved: UnresolvedImport[] = [];
     for (const [from, entry] of Object.entries(next.files)) {
       for (const imp of entry.imports) {
@@ -87,6 +90,7 @@ export class BuildImportGraph {
           edges.push({ from, to: target.path, kind: classifyEdge(from, target.path, packages.value) });
         } else if (target.type === "external") {
           externals.add(target.name);
+          externalUses.set(`${from}\u0000${target.name}`, { from, name: target.name });
         } else if (!unresolved.some((u) => u.from === from && u.specifier === imp.specifier)) {
           unresolved.push({ from, specifier: imp.specifier });
         }
@@ -104,6 +108,7 @@ export class BuildImportGraph {
       edges: dedupe(edges),
       packages: packages.value,
       externals: [...externals].sort(),
+      externalUses: [...externalUses.values()],
       unresolved,
       stats: { parsed, reused, failed: parseErrors.length },
       parseErrors,

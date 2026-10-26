@@ -189,6 +189,7 @@ metator rules check --base main                                # E1 rules via as
 metator rules adapters --check                                 # generated Copilot instructions match the canon
 metator memory check                                           # every knowledge file mapped, budgets kept, citations true
 metator memory validate --fix                                  # [[cite: file:line | "quote"]] claims follow moved code
+metator cards build                                            # one card per package: generated facts + curated knowledge
 ```
 
 Every file MetatorAI writes is a versioned document (`kind` + `schemaVersion`), so it is always clear how to parse it

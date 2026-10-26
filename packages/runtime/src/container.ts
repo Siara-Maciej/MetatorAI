@@ -1,6 +1,7 @@
 import {
   type AdvanceRun,
   type BuildImportGraph,
+  type BuildModuleCards,
   type CheckMemory,
   type CheckRules,
   type Clock,
@@ -80,6 +81,7 @@ export interface Cradle {
   memoryBudget: MemoryBudget;
   validateCitations: ValidateCitations;
   checkMemory: CheckMemory;
+  buildModuleCards: BuildModuleCards;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

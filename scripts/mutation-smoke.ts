@@ -220,6 +220,24 @@ const MUTANTS: readonly Mutant[] = [
     why: "a citation is true only if the quote is really there",
   },
   {
+    file: "packages/core/src/application/cards.ts",
+    from: "next = renderCard({ ...parts.value, package: pkg.name, dir: pkg.dir, generated });",
+    to: "next = renderCard({ package: pkg.name, dir: pkg.dir, generated, ...cardSkeleton(pkg.name) });",
+    why: "cards build never overwrites curated sections",
+  },
+  {
+    file: "packages/core/src/application/cards.ts",
+    from: "(isTest(e.from) ? testDependsOn : dependsOn).add(to)",
+    to: "dependsOn.add(to)",
+    why: "test-only imports are not package dependencies",
+  },
+  {
+    file: "packages/core/src/application/cards.ts",
+    from: "if (input.check) {",
+    to: "if (false) {",
+    why: "cards build --check compares and never writes",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

@@ -1,6 +1,7 @@
 import {
   AdvanceRun,
   BuildImportGraph,
+  BuildModuleCards,
   CheckMemory,
   CheckRules,
   type Clock,
@@ -113,6 +114,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     checkMemory: asFunction(
       ({ memoryMapReader, knowledgeFiles, fileSystem, memoryBudget, validateCitations }) =>
         new CheckMemory(memoryMapReader, knowledgeFiles, fileSystem, memoryBudget, validateCitations),
+    ),
+    buildModuleCards: asFunction(
+      ({ buildImportGraph, fileSystem, paths, testGlobs }) =>
+        new BuildModuleCards(buildImportGraph, fileSystem, paths, testGlobs),
     ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),

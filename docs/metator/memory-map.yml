@@ -48,6 +48,15 @@ items:
     load: explicit
     writers: [human]
     readers: ["*"]
+  - id: t1.module-cards
+    tier: T1
+    kind: canon
+    paths: ["docs/metator/modules/*.card.md"]
+    load: explicit
+    writers: ["metator cards build (generated block)", human]
+    readers: ["*"]
+    budget: { lines: 60 }
+    description: One card per package; facts are generated, responsibility, invariants and pitfalls are curated.
   - id: t1.instructions
     tier: T1
     kind: derived
