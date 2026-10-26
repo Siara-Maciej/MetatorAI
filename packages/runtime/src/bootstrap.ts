@@ -29,6 +29,7 @@ import {
   MeasureRuleCoverage,
   MemoryBudget,
   MemoryMapReader,
+  MergeFindingSets,
   type MetatorPaths,
   PackRules,
   PatternCatalog,
@@ -39,6 +40,7 @@ import {
   ScanPatterns,
   SourceFiles,
   ValidateCitations,
+  ValidateFindings,
   WorkflowCatalog,
 } from "@metator/core";
 import { BunFileSystem, BunProcessRunner, NodeBinResolver } from "@metator/plugin-bun";
@@ -194,6 +196,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     generateHosts: asFunction(
       ({ agentCatalog, hostGenerators, fileSystem, config }) =>
         new GenerateHosts(agentCatalog, hostGenerators, fileSystem, config.config),
+    ),
+    validateFindings: asFunction(({ fileSystem }) => new ValidateFindings(fileSystem)),
+    mergeFindings: asFunction(
+      ({ fileSystem, validateFindings }) => new MergeFindingSets(fileSystem, validateFindings),
     ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),

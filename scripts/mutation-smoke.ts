@@ -406,6 +406,24 @@ const MUTANTS: readonly Mutant[] = [
     why: "generate --check compares and never writes",
   },
   {
+    file: "packages/core/src/application/findings.ts",
+    from: 'if (match.status === "stale") reasons.push(',
+    to: "if (false) reasons.push(",
+    why: "a finding whose quote is not in the code never reaches Verify",
+  },
+  {
+    file: "packages/core/src/domain/finding.ts",
+    from: 'if (f.severity === "blocking") {',
+    to: "if (false) {",
+    why: "a blocking finding must carry trigger, reachability and evidence",
+  },
+  {
+    file: "packages/core/src/domain/finding.ts",
+    from: "return common / (wa.size + wb.size - common || 1) >= 0.5;",
+    to: "return false;",
+    why: "the same root cause from two lenses is merged",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

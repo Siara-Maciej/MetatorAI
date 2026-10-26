@@ -32,6 +32,7 @@ import {
   type MeasureRuleCoverage,
   type MemoryBudget,
   type MemoryMapReader,
+  type MergeFindingSets,
   MetatorError,
   type MetatorPaths,
   ok,
@@ -50,6 +51,7 @@ import {
   type ScanPatterns,
   type SourceFiles,
   type ValidateCitations,
+  type ValidateFindings,
   type Vcs,
   type WorkflowCatalog,
   type WorkspaceReader,
@@ -121,6 +123,8 @@ export interface Cradle {
   agentCatalog: AgentCatalog;
   lintAgents: LintAgents;
   generateHosts: GenerateHosts;
+  validateFindings: ValidateFindings;
+  mergeFindings: MergeFindingSets;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

@@ -7,6 +7,7 @@ import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerConfigCommands } from "./commands/config.ts";
 import { registerDiscoverCommands } from "./commands/discover.ts";
+import { registerFindingsCommands } from "./commands/findings.ts";
 import { registerGateCommands } from "./commands/gate.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
@@ -63,6 +64,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerConfigCommands(program, ctx);
   registerGateCommands(program, ctx);
   registerAgentCommands(program, ctx);
+  registerFindingsCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;
