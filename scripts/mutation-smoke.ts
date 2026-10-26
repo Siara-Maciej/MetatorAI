@@ -364,6 +364,24 @@ const MUTANTS: readonly Mutant[] = [
     why: "several lockfiles are reported",
   },
   {
+    file: "packages/core/src/application/gate.ts",
+    from: "if (step.okExitCodes.includes(r.exitCode))",
+    to: "if (true)",
+    why: "a failing gate step fails the gate",
+  },
+  {
+    file: "packages/core/src/application/gate.ts",
+    from: "const matched = files && step.match ? files.filter((f) => matchesAny(f, step.match ?? [])) : files;",
+    to: "const matched = files;",
+    why: "a step only receives the files it checks",
+  },
+  {
+    file: "packages/core/src/application/init.ts",
+    from: "if (!input.dryRun && (await this.fs.exists(file)))",
+    to: "if (false)",
+    why: "init never overwrites an existing config",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

@@ -1,0 +1,23 @@
+kind: MetatorConfig
+schemaVersion: 1
+# MetatorAI on itself (ADR-0029). `bun run metator config show` prints the resolved values.
+gates:
+  quick:
+    - id: lint
+      run: { bin: biome, args: [check, --files-ignore-unknown=true, --no-errors-on-unmatched] }
+      files: append
+    - id: rules
+      run: { metator: rules check }
+    - id: typecheck
+      run: { script: typecheck }
+  full:
+    - id: lint
+      run: { script: lint }
+    - id: typecheck
+      run: { script: typecheck }
+    - id: arch
+      run: { script: arch }
+    - id: canon
+      run: { script: canon }
+    - id: test
+      run: { script: test }

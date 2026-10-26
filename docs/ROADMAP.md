@@ -55,7 +55,7 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [x] Graf importów: `OxcImportAnalyzer` (oxc-parser + oxc-resolver, [ADR-0017](adr/0017-imports-oxc.md)), pakiety workspace przez manypkg ([ADR-0018](adr/0018-workspaces-manypkg.md)), przyrostowy indeks `.metator/index/imports.json` (wersjonowany `ImportIndex`). Komendy `metator index build`, `graph affected|deps|dependents|cycles|path|packages`, `workspace list`. E2e na monorepo z prawdziwym `bun install` i dogfood na repo MetatorAI (0 cykli).
 - [x] `GitVcs` na simple-git zamiast ręcznych wywołań git ([ADR-0019](adr/0019-git-simple-git.md)); zmiana nazwy liczy się pod obiema ścieżkami.
 - [x] `metator discover` ([ADR-0028](adr/0028-discovery.md)): package manager (package-manager-detector), workspace'y, klasyfikacja skryptów z `fileScopable` (shell-quote), narzędzia, CI, code host, pliki AI → `.metator/discovery.json`.
-- [ ] Następne: `metator.config` jako wersjonowany dokument, `metator init`, `gate quick|full`.
+- [x] `metator.config` (wersjonowany `MetatorConfig`), `metator init [--dry-run]` z decyzjami i dowodami, `gate quick|full [--files|--base]` z raportem `.metator/gates/<gate>.json` ([ADR-0029](adr/0029-config-gates.md)). Dogfood: `metator.config.yml` MetatorAI.
 
 **Zadania**
 - [ ] Szkielet `metator` (envelope, workspace, git, cache, budget) + `bun test` na fixture'ze mini-monorepo.

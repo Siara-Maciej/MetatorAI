@@ -11,6 +11,7 @@ export interface MetatorPaths {
   readonly patterns: string;
   readonly adr: string;
   readonly discovery: string;
+  readonly gates: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -24,6 +25,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   patterns: "docs/metator/patterns",
   adr: "docs/adr",
   discovery: ".metator/discovery.json",
+  gates: ".metator/gates",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

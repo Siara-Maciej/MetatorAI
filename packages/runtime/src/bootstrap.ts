@@ -6,7 +6,7 @@ import {
   CheckRules,
   type Clock,
   ComputeAffected,
-  DEFAULT_PATHS,
+  DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
   Discover,
@@ -16,6 +16,7 @@ import {
   GetRunStatus,
   GraphQueries,
   IndexedImportGraphReader,
+  InitProject,
   InitRun,
   InventoryMemory,
   KnowledgeFiles,
@@ -29,6 +30,7 @@ import {
   PackRules,
   PatternCatalog,
   RuleCatalog,
+  RunGate,
   RunRepository,
   ScaffoldRule,
   ScanPatterns,
@@ -36,7 +38,7 @@ import {
   ValidateCitations,
   WorkflowCatalog,
 } from "@metator/core";
-import { BunFileSystem, BunProcessRunner } from "@metator/plugin-bun";
+import { BunFileSystem, BunProcessRunner, NodeBinResolver } from "@metator/plugin-bun";
 
 export { findRepoRoot } from "@metator/plugin-bun";
 
@@ -46,10 +48,13 @@ import { GitVcs } from "@metator/plugin-git";
 import { ManypkgWorkspaceReader, NodePackageManager } from "@metator/plugin-node";
 import { OxcImportAnalyzer, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
+import { type LoadedConfig, resolvePaths } from "./config.ts";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
 
 export interface BootstrapOptions {
   readonly root: string;
+  /** The repository's config (`loadConfig`); defaults when omitted. */
+  readonly config?: LoadedConfig;
   readonly paths?: MetatorPaths;
   /** ISO timestamp pinning the clock (METATOR_NOW): reproducible run ids and logs. */
   readonly now?: string;
@@ -64,11 +69,13 @@ const systemClock: Clock = { now: () => new Date() };
 export function bootstrap(options: BootstrapOptions): MetatorContainer {
   const c = createMetatorContainer();
   const pinned = options.now ? new Date(options.now) : undefined;
+  const config = options.config ?? { config: DEFAULT_CONFIG, source: undefined };
   c.register({
     root: asValue(options.root),
-    paths: asValue(options.paths ?? DEFAULT_PATHS),
-    sourceIgnores: asValue(DEFAULT_SOURCE_IGNORES),
-    testGlobs: asValue(DEFAULT_TEST_GLOBS),
+    config: asValue(config),
+    paths: asValue(options.paths ?? resolvePaths(config.config)),
+    sourceIgnores: asValue(config.config.project.sourceIgnores ?? DEFAULT_SOURCE_IGNORES),
+    testGlobs: asValue(config.config.project.testGlobs ?? DEFAULT_TEST_GLOBS),
     clock: asValue(pinned && !Number.isNaN(pinned.getTime()) ? { now: () => new Date(pinned) } : systemClock),
     fileSystem: asFunction(({ root }: { root: string }) => new BunFileSystem(root)).singleton(),
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
@@ -76,6 +83,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     packageManager: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
+    binResolver: asFunction(({ root }) => new NodeBinResolver(root)).singleton(),
     workspaceReader: asFunction(({ root }) => new ManypkgWorkspaceReader(root)).singleton(),
     importAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
     sourceFiles: asFunction(
@@ -157,6 +165,23 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     discover: asFunction(
       ({ fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths }) =>
         new Discover(fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths),
+    ),
+    runGate: asFunction(
+      ({ config, packageManager, binResolver, processRunner, checkRules, vcs, fileSystem, paths, clock }) =>
+        new RunGate(
+          config.config,
+          packageManager,
+          binResolver,
+          processRunner,
+          checkRules,
+          vcs,
+          fileSystem,
+          paths,
+          clock,
+        ),
+    ),
+    initProject: asFunction(
+      ({ discover, fileSystem, paths }) => new InitProject(discover, fileSystem, paths),
     ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),

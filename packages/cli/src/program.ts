@@ -1,10 +1,12 @@
 import { MetatorError } from "@metator/core";
-import { bootstrap, findRepoRoot } from "@metator/runtime";
+import { bootstrap, findRepoRoot, loadConfig } from "@metator/runtime";
 import { Command, type CommanderError } from "commander";
 import { registerAdrCommands } from "./commands/adr.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
+import { registerConfigCommands } from "./commands/config.ts";
 import { registerDiscoverCommands } from "./commands/discover.ts";
+import { registerGateCommands } from "./commands/gate.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
@@ -36,7 +38,10 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
     container: () => {
       const root = (program.opts() as { root?: string }).root ?? findRepoRoot(options.cwd ?? process.cwd());
       const now = (options.env ?? process.env).METATOR_NOW;
-      return bootstrap(now ? { root, now } : { root });
+      // An invalid config stops every command with its exact field (thrown at the composition root).
+      const config = loadConfig(root);
+      if (config.isErr()) throw config.error;
+      return bootstrap(now ? { root, now, config: config.value } : { root, config: config.value });
     },
     action:
       (handler) =>
@@ -54,6 +59,8 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerPatternsCommands(program, ctx);
   registerAdrCommands(program, ctx);
   registerDiscoverCommands(program, ctx);
+  registerConfigCommands(program, ctx);
+  registerGateCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;

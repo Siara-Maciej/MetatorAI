@@ -141,3 +141,8 @@ export interface PackageManagerDetector {
 export interface PackageManager {
   scriptCommand(script: string, args: readonly string[]): Promise<Result<ResolvedCommand, MetatorError>>;
 }
+
+/** Commands for project binaries: `node_modules/.bin/<bin>` of the repository first, PATH otherwise. */
+export interface BinResolver {
+  command(bin: string, args: readonly string[]): Promise<ResolvedCommand>;
+}

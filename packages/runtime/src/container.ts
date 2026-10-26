@@ -1,5 +1,6 @@
 import {
   type AdvanceRun,
+  type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
   type CheckMemory,
@@ -16,6 +17,7 @@ import {
   type GraphQueries,
   type ImportAnalyzer,
   type ImportGraphReader,
+  type InitProject,
   type InitRun,
   type InventoryMemory,
   type KnowledgeFiles,
@@ -38,6 +40,7 @@ import {
   type RuleCatalog,
   type RuleEngine,
   type RuleScaffolder,
+  type RunGate,
   type RunRepository,
   type ScaffoldRule,
   type ScanPatterns,
@@ -48,6 +51,7 @@ import {
   type WorkspaceReader,
 } from "@metator/core";
 import { type AwilixContainer, AwilixResolutionError, createContainer, InjectionMode } from "awilix";
+import type { LoadedConfig } from "./config.ts";
 
 /**
  * DI is awilix (ADR-0011): no decorators, lazy resolution, scopes (one per workflow run),
@@ -57,6 +61,7 @@ import { type AwilixContainer, AwilixResolutionError, createContainer, Injection
 export interface Cradle {
   // configuration values
   root: string;
+  config: LoadedConfig;
   paths: MetatorPaths;
   sourceIgnores: readonly string[];
   testGlobs: readonly string[];
@@ -69,6 +74,7 @@ export interface Cradle {
   nodePackageManager: PackageManagerDetector & PackageManager;
   packageManagerDetector: PackageManagerDetector;
   packageManager: PackageManager;
+  binResolver: BinResolver;
   workspaceReader: WorkspaceReader;
   importAnalyzer: ImportAnalyzer;
   importGraphReader: ImportGraphReader;
@@ -105,6 +111,8 @@ export interface Cradle {
   measureRuleCoverage: MeasureRuleCoverage;
   scaffoldRule: ScaffoldRule;
   discover: Discover;
+  runGate: RunGate;
+  initProject: InitProject;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;
