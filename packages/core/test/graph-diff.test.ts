@@ -74,6 +74,7 @@ const analyzer: ImportAnalyzer = {
 };
 const history = (files: Record<string, string>): RevisionReader => ({
   readAt: async (_b, p) => ok(files[p]),
+  addedLines: async () => ok(new Map()),
 });
 const graph = (edges: Edge[]) => ({
   execute: async () =>
@@ -121,7 +122,10 @@ describe("DiffImportGraph", () => {
       analyzer,
     );
     expect((await unparsable.execute({ base: "main" }))._unsafeUnwrap().removed).toEqual([]);
-    const failing: RevisionReader = { readAt: async () => err(MetatorError.usage("Unknown base ref")) };
+    const failing: RevisionReader = {
+      readAt: async () => err(MetatorError.usage("Unknown base ref")),
+      addedLines: async () => ok(new Map()),
+    };
     const viaHistory = new DiffImportGraph(new FakeVcs([], files), failing, graph([]), analyzer);
     expect((await viaHistory.execute({ base: "x" }))._unsafeUnwrapErr().code).toBe("USAGE");
     const notRepo = new DiffImportGraph(new FakeVcs("not-a-repo"), history({}), graph([]), analyzer);

@@ -14,7 +14,7 @@ dir: packages/plugin-git
 - Test-only dependencies: `@metator/plugin-bun`
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-git/src/index.ts`
-- Third-party: `simple-git`
+- Third-party: `parse-diff`, `simple-git`
 <!-- metator:generated:end -->
 
 ## Responsibility
@@ -23,7 +23,7 @@ dir: packages/plugin-git
 
 ## Invariants
 
-- Renames count under both paths, so importers of the old path are affected [[cite: packages/plugin-git/src/git-vcs.ts:26 | "diffSummary([\"--no-renames\", ref.value])"]].
+- Renames count under both paths, so importers of the old path are affected [[cite: packages/plugin-git/src/git-vcs.ts:28 | "diffSummary([\"--no-renames\", ref.value])"]].
 
 ## Allowed dependencies
 

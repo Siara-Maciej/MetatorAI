@@ -7,12 +7,14 @@ import {
   type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
+  type CheckFlaky,
   type CheckMemory,
   type CheckpointRun,
   type CheckRules,
   type Clock,
   type CompareEvals,
   type ComputeAffected,
+  type DiffCoverage,
   type DiffImportGraph,
   type Discover,
   type EvalCatalog,
@@ -21,6 +23,7 @@ import {
   type FindMemoryDupes,
   type FindSimilar,
   type FormatReviewComments,
+  type GateChecks,
   type GenerateHosts,
   type GenerateRuleAdapters,
   type GenerateSkills,
@@ -151,6 +154,8 @@ export interface Cradle {
   scanPatterns: ScanPatterns;
   findSimilar: FindSimilar;
   symbolQueries: SymbolQueries;
+  checkFlaky: CheckFlaky;
+  diffCoverage: DiffCoverage;
   apiSnapshots: ApiSnapshots;
   diffImportGraph: DiffImportGraph;
   lintPlan: LintPlan;
@@ -160,6 +165,7 @@ export interface Cradle {
   scaffoldRule: ScaffoldRule;
   discover: Discover;
   runGate: RunGate;
+  gateChecks: GateChecks;
   runAffectedTests: RunAffectedTests;
   initProject: InitProject;
   hostGenerators: readonly HostGenerator[];

@@ -1,4 +1,4 @@
-import type { GateStep, MetatorConfig } from "../domain/config.ts";
+import { type GateStep, type MetatorConfig, parseMetatorStep } from "../domain/config.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { type GateReport, GateReportDocument, type GateStepResult, outputTail } from "../domain/gate.ts";
 import { matchesAny } from "../domain/glob.ts";
@@ -13,8 +13,8 @@ import type {
   ResolvedCommand,
   Vcs,
 } from "../ports/index.ts";
+import type { GateChecks } from "./gate-checks.ts";
 import type { MetatorPaths } from "./paths.ts";
-import type { CheckRules } from "./rules.ts";
 
 export type GateName = "quick" | "full";
 
@@ -29,7 +29,7 @@ export class RunGate {
     private readonly packageManager: PackageManager,
     private readonly bins: BinResolver,
     private readonly runner: ProcessRunner,
-    private readonly checkRules: Pick<CheckRules, "execute">,
+    private readonly checks: Pick<GateChecks, "run">,
     private readonly vcs: Vcs,
     private readonly fs: FileSystem,
     private readonly paths: MetatorPaths,
@@ -48,10 +48,11 @@ export class RunGate {
       files = changed.value;
     }
     const existing = files ? await this.existing(files) : undefined;
+    const scope = { ...(existing ? { files: existing } : {}), ...(input.base ? { base: input.base } : {}) };
     const startedAt = this.clock.now().toISOString();
 
     const steps: GateStepResult[] = [];
-    for (const step of this.config.gates[input.gate]) steps.push(await this.step(step, existing));
+    for (const step of this.config.gates[input.gate]) steps.push(await this.step(step, scope));
     const report: GateReport = {
       gate: input.gate,
       files: existing ? [...existing] : null,
@@ -67,30 +68,33 @@ export class RunGate {
     return ok(report);
   }
 
-  private async step(step: GateStep, files: readonly string[] | undefined): Promise<GateStepResult> {
+  private async step(
+    step: GateStep,
+    scope: { readonly files?: readonly string[]; readonly base?: string },
+  ): Promise<GateStepResult> {
+    const files = scope.files;
     const started = this.clock.now().getTime();
     const elapsed = () => Math.max(0, Math.round(this.clock.now().getTime() - started));
     if (files && files.length === 0)
       return { id: step.id, status: "skipped", durationMs: 0, detail: "no files to check" };
 
     if ("metator" in step.run) {
-      const report = await this.checkRules.execute(files ? { files } : {});
-      if (report.isErr())
-        return { id: step.id, status: "error", durationMs: elapsed(), detail: report.error.message };
-      const errors = report.value.violations.filter((v) => v.severity === "error");
-      return errors.length === 0
-        ? { id: step.id, status: "pass", durationMs: elapsed() }
-        : {
-            id: step.id,
-            status: "fail",
-            durationMs: elapsed(),
-            detail: errors
-              .slice(0, 20)
-              .map(
-                (v) => `${v.file}:${v.line ?? 1} ${v.canonRuleId ?? v.toolRuleId ?? v.engine}: ${v.message}`,
-              )
-              .join("\n"),
-          };
+      const parsed = parseMetatorStep(step.run.metator);
+      if (!parsed)
+        return {
+          id: step.id,
+          status: "error",
+          durationMs: 0,
+          detail: `unknown MetatorAI step ${step.run.metator}`,
+        };
+      const r = await this.checks.run(parsed, scope);
+      if (r.isErr()) return { id: step.id, status: "error", durationMs: elapsed(), detail: r.error.message };
+      return {
+        id: step.id,
+        status: r.value.passed ? "pass" : "fail",
+        durationMs: elapsed(),
+        ...(r.value.detail ? { detail: r.value.detail } : {}),
+      };
     }
 
     const matched = files && step.match ? files.filter((f) => matchesAny(f, step.match ?? [])) : files;

@@ -9,6 +9,11 @@ packages:
       adr: 0025-biome-engine-sarif.md,
     }
   - { package: "@dagrejs/graphlib", need: "graphs (import graph, delegation)", adr: 0012-graph-graphlib.md }
+  - {
+      package: "@friedemannsommer/lcov-parser",
+      need: "LCOV coverage reports (coverage diff)",
+      adr: 0041-gate-checks-coverage.md,
+    }
   - { package: "@manypkg/get-packages", need: "workspace packages", adr: 0018-workspaces-manypkg.md }
   - { package: "@sindresorhus/slugify", need: "ids from titles", adr: 0015-schemas-zod-yaml.md }
   - { package: awilix, need: "dependency injection", adr: 0011-di-awilix.md }
@@ -18,6 +23,11 @@ packages:
   - { package: oxc-parser, need: "JS/TS imports", adr: 0017-imports-oxc.md }
   - { package: oxc-resolver, need: "import resolution", adr: 0017-imports-oxc.md }
   - { package: package-manager-detector, need: "package manager of a repo", adr: 0028-discovery.md }
+  - {
+      package: parse-diff,
+      need: "unified diffs: lines added since a base (coverage diff)",
+      adr: 0041-gate-checks-coverage.md,
+    }
   - { package: picomatch, need: "globs", adr: 0010-dependency-policy.md }
   - {
       package: playwright,

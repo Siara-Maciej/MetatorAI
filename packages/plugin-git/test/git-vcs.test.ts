@@ -205,3 +205,29 @@ describe("GitVcs.readAt (real git)", () => {
     );
   });
 });
+
+describe("GitVcs.addedLines (real git)", () => {
+  test("lines added since the merge base: committed, unstaged and whole untracked files", async () => {
+    const dir = await repo();
+    await writeFile(join(dir, "a.ts"), "1\n2\n3\n");
+    await sh(dir, "add", ".");
+    await sh(dir, "commit", "-q", "-m", "init");
+    await sh(dir, "checkout", "-q", "-b", "feature");
+    await writeFile(join(dir, "a.ts"), "1\nnew\n2\n3\n");
+    await sh(dir, "commit", "-q", "-am", "insert");
+    await writeFile(join(dir, "a.ts"), "1\nnew\n2\n3\nend\n"); // unstaged
+    await writeFile(join(dir, "b.ts"), "x\ny\n"); // untracked
+    const added = (await new GitVcs(dir).addedLines("main"))._unsafeUnwrap();
+    expect([...added]).toEqual([
+      ["a.ts", [2, 5]],
+      ["b.ts", [1, 2]],
+    ]);
+  });
+
+  test("deleted files add nothing; an unknown base is a usage error", async () => {
+    const dir = await scenario();
+    const added = (await new GitVcs(dir).addedLines("main"))._unsafeUnwrap();
+    expect(added.has("b.ts")).toBe(false);
+    expect((await new GitVcs(dir).addedLines("nope"))._unsafeUnwrapErr().code).toBe("USAGE");
+  });
+});

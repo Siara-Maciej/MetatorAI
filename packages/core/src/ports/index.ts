@@ -61,6 +61,14 @@ export interface Vcs {
 export interface RevisionReader {
   /** `path` at the merge base of `base` and HEAD; undefined when the file did not exist there. */
   readAt(base: string, path: string): Promise<Result<string | undefined, MetatorError>>;
+  /** Lines added since the merge base, per file (1-based, working tree; untracked files whole). */
+  addedLines(base: string): Promise<Result<ReadonlyMap<string, readonly number[]>, MetatorError>>;
+}
+
+/** Line coverage from a report the repository's test runner wrote (e.g. LCOV). */
+export interface CoverageReader {
+  /** Repo-relative file → line → hit count, for instrumented lines only. */
+  read(report: string): Promise<Result<ReadonlyMap<string, ReadonlyMap<number, number>>, MetatorError>>;
 }
 
 export interface ImportGraphReader {

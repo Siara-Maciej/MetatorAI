@@ -6,6 +6,7 @@ import {
   AuditAgents,
   BuildImportGraph,
   BuildModuleCards,
+  CheckFlaky,
   CheckMemory,
   CheckpointRun,
   CheckRules,
@@ -15,12 +16,14 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
+  DiffCoverage,
   DiffImportGraph,
   Discover,
   EvalCatalog,
   FindMemoryDupes,
   FindSimilar,
   FormatReviewComments,
+  GateChecks,
   GenerateHosts,
   GenerateRuleAdapters,
   GenerateSkills,
@@ -76,7 +79,7 @@ import { BiomeEngine } from "@metator/plugin-biome";
 import { GitVcs } from "@metator/plugin-git";
 import { ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
 import { CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
-import { ManypkgWorkspaceReader, NodePackageManager } from "@metator/plugin-node";
+import { LcovCoverageReader, ManypkgWorkspaceReader, NodePackageManager } from "@metator/plugin-node";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
 import { type LoadedConfig, resolvePaths } from "./config.ts";
@@ -189,6 +192,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ processRunner, root, workspaceReader, fileSystem, paths }) =>
         new ApiSnapshots(new TscDeclarationEmitter(processRunner, root), workspaceReader, fileSystem, paths),
     ),
+    diffCoverage: asFunction(
+      ({ revisionReader, root, testGlobs }) =>
+        new DiffCoverage(revisionReader, new LcovCoverageReader(root), testGlobs),
+    ),
+    checkFlaky: asFunction(
+      ({ packageManager, processRunner }) => new CheckFlaky(packageManager, processRunner),
+    ),
     symbolQueries: asFunction(
       ({ sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer }) =>
         new SymbolQueries(sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer),
@@ -220,14 +230,18 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths }) =>
         new Discover(fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths),
     ),
+    gateChecks: asFunction(
+      ({ checkRules, runAffectedTests, diffImportGraph, apiSnapshots, diffCoverage }) =>
+        new GateChecks(checkRules, runAffectedTests, diffImportGraph, apiSnapshots, diffCoverage),
+    ),
     runGate: asFunction(
-      ({ config, packageManager, binResolver, processRunner, checkRules, vcs, fileSystem, paths, clock }) =>
+      ({ config, packageManager, binResolver, processRunner, gateChecks, vcs, fileSystem, paths, clock }) =>
         new RunGate(
           config.config,
           packageManager,
           binResolver,
           processRunner,
-          checkRules,
+          gateChecks,
           vcs,
           fileSystem,
           paths,

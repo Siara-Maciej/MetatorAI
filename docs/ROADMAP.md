@@ -21,7 +21,8 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] Hooki `guard pre-tool|post-edit|stop|subagent-output|session-start|precompact`, `run checkpoint`, generowanie konfiguracji hooków dla Claude Code i Copilota (`generate --hooks`, ADR-0038).
 - [x] `meta check-all`, `meta skills-lint`, kanoniczne skille i ich generowanie, `meta audit` (ADR-0039).
 - [x] `symbols find`, `graph callers`, `api snapshot|diff` (ADR-0040).
-- [ ] `gate all`: kroki `test affected`, `graph diff`, `api diff`, `coverage diff`; `coverage diff`, `flaky check`.
+- [x] `gate all`: kroki `test affected`, `graph diff`, `api diff`, `coverage diff`; `coverage diff` (ADR-0041).
+- [x] `flaky check` (ADR-0041).
 - [ ] `workflow lint` (anatomia, 16 sekcji), specyfikacje W1–W5 jako `Workflow`.
 - [ ] `run handoff|close`, `lessons add`, `findings check-quote`, `docs inventory|drift|links`, `owners`, `debug-tags check`.
 - [ ] Agenci: `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-pr-author`, `mt-review-equivalence`, `mt-diagnostician`, `mt-docs-curator`, `mt-retro`; skille `mt-characterization-tests`, `mt-create-*`, `mt-review-rubric`, `mt-grill`, `mt-diagnose`.
@@ -144,9 +145,9 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [ ] Workerzy: `mt-scout`, `mt-pattern-miner`, `mt-rule-curator`, `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-gatekeeper`, `mt-pr-author`.
 - [x] `plan lint|scope` (pattern_source, TDD order, kolejność wg grafu, shardy).
 - [x] Hooki: `pre-tool` (scope, approvals, sekrety, rola), `post-edit` (biome + ast-grep), `stop`, `precompact`, `session-start` (ADR-0038).
-- [ ] Gate: `gate quick|all`, `test affected`, `coverage diff`, `graph diff`, `api diff`.
+- [x] Gate: `gate quick|all`, `test affected`, `coverage diff`, `graph diff`, `api diff`.
   - [x] `gate quick|full` (ADR-0029), `test affected`, `graph diff` (ADR-0036).
-  - [ ] `coverage diff`, `api diff`, kroki `test affected` i `graph diff` w bramce.
+  - [x] `coverage diff`, `api diff`, kroki `test affected` i `graph diff` w bramce (ADR-0040, ADR-0041).
 - [ ] Refactor: skill `mt-characterization-tests`, `equivalence.md`, soczewka `mt-review-equivalence`.
 - [ ] Skille `mt-create-*` (z eq-create-*) z exemplarami z indeksu zamiast szablonów na sztywno.
 

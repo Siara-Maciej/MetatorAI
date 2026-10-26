@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { err, MetatorError, ok, type Result, type RevisionReader, type Vcs } from "@metator/core";
+import parseDiff from "parse-diff";
 import { type SimpleGit, simpleGit } from "simple-git";
 
 /**
@@ -41,6 +43,37 @@ export class GitVcs implements Vcs, RevisionReader {
         .then(() => true)
         .catch(() => false);
       return ok(exists ? await git.value.show([object]) : undefined);
+    });
+  }
+
+  async addedLines(base: string): Promise<Result<ReadonlyMap<string, readonly number[]>, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      const out = new Map<string, number[]>();
+      const status = await git.value.status();
+      if (await this.hasCommits(git.value)) {
+        const ref = await this.mergeBase(git.value, base);
+        if (ref.isErr()) return err(ref.error);
+        for (const file of parseDiff(await git.value.raw(["diff", "--no-renames", "-U0", ref.value]))) {
+          if (!file.to || file.to === "/dev/null") continue;
+          const lines = file.chunks.flatMap((c) =>
+            c.changes.flatMap((ch) => (ch.type === "add" ? [ch.ln] : [])),
+          );
+          if (lines.length > 0) out.set(file.to, lines);
+        }
+      }
+      // Untracked files are new in full; git diff does not list them.
+      for (const path of status.not_added) {
+        if (!existsSync(join(this.root, path))) continue;
+        const text = await Bun.file(join(this.root, path)).text();
+        const count = text.endsWith("\n") ? text.split("\n").length - 1 : text.split("\n").length;
+        out.set(
+          path,
+          Array.from({ length: count }, (_, i) => i + 1),
+        );
+      }
+      return ok(new Map([...out].sort(([a], [b]) => a.localeCompare(b))));
     });
   }
 

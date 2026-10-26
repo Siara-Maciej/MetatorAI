@@ -44,3 +44,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0038](0038-guard-hooks.md) | Hooki `guard *` i konfiguracja hooków hostów | Proposed |
 | [0039](0039-skills-audit-check-all.md) | Skille kanoniczne, `meta skills-lint`, `meta audit` i `meta check-all` | Proposed |
 | [0040](0040-symbols-api.md) | Symbole i API: `symbols find`, `graph callers`, `api snapshot\|diff` | Proposed |
+| [0041](0041-gate-checks-coverage.md) | Kroki MetatorAI w bramkach, `MetatorConfig` v2 i `coverage diff` | Proposed |

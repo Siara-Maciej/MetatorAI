@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { FakeVcs, FixedClock, InMemoryFileSystem, ScriptedProcessRunner } from "@metator/testing";
 import { RunGate } from "../src/application/gate.ts";
+import { GateChecks } from "../src/application/gate-checks.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { MetatorConfigSchema } from "../src/domain/config.ts";
+import { MetatorError } from "../src/domain/errors.ts";
 import { outputTail } from "../src/domain/gate.ts";
-import { ok } from "../src/domain/result.ts";
+import { err, ok } from "../src/domain/result.ts";
 import type { ResolvedCommand } from "../src/ports/index.ts";
 
 const config = (gates: unknown) => MetatorConfigSchema.parse({ gates });
@@ -33,6 +35,13 @@ const violations = (list: { severity: "error" | "warning"; file: string }[]) => 
     }),
 });
 
+const unused = {
+  execute: async () => err(new MetatorError("INTERNAL", "not used here")),
+  diff: async () => err(new MetatorError("INTERNAL", "not used here")),
+};
+const checksWith = (rules: ReturnType<typeof violations>) =>
+  new GateChecks(rules, unused, unused, unused, unused);
+
 function gate(
   gates: unknown,
   runner: ScriptedProcessRunner,
@@ -47,7 +56,7 @@ function gate(
       pm,
       bins,
       runner,
-      opts.rules ?? violations([]),
+      checksWith(opts.rules ?? violations([])),
       vcs,
       fs,
       DEFAULT_PATHS,

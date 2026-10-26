@@ -1,0 +1,9 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 1,
+  "gates": {
+    "quick": [{ "id": "rules", "run": { "metator": "rules check" } }],
+    "full": [{ "id": "test", "run": { "script": "test" } }]
+  },
+  "hosts": { "metatorCommand": "npx metator" }
+}

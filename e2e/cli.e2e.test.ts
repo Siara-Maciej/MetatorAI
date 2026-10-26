@@ -94,6 +94,8 @@ describe("metator CLI (process e2e)", () => {
       "plan scope",
       "plan schema",
       "test affected",
+      "coverage diff",
+      "flaky check",
       "guard pre-tool",
       "guard post-edit",
       "guard stop",

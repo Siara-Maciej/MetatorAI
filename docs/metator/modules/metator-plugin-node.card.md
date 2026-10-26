@@ -14,7 +14,7 @@ dir: packages/plugin-node
 - Test-only dependencies: `@metator/testing`
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-node/src/index.ts`
-- Third-party: `@manypkg/get-packages`, `package-manager-detector`
+- Third-party: `@friedemannsommer/lcov-parser`, `@manypkg/get-packages`, `package-manager-detector`
 <!-- metator:generated:end -->
 
 ## Responsibility
