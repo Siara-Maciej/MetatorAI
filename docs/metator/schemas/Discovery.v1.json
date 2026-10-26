@@ -1,0 +1,436 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "Discovery",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Discovery"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "packageManager": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "lockfiles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["name", "lockfiles"],
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "workspaces": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "dir": {
+              "type": "string"
+            }
+          },
+          "required": ["name", "dir"],
+          "additionalProperties": false
+        }
+      },
+      "scripts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "package": {
+              "type": "string"
+            },
+            "dir": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string"
+            },
+            "candidates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "capability": {
+                    "type": "string",
+                    "enum": ["lint", "format", "typecheck", "test", "e2e", "build"]
+                  },
+                  "confidence": {
+                    "type": "number"
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "fileScopable": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["capability", "confidence", "evidence", "fileScopable", "reason"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["package", "dir", "name", "command", "candidates"],
+          "additionalProperties": false
+        }
+      },
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["id", "evidence"],
+          "additionalProperties": false
+        }
+      },
+      "ci": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["kind", "files"],
+          "additionalProperties": false
+        }
+      },
+      "codeHost": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "remote": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "remote"],
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "docs": {
+        "type": "object",
+        "properties": {
+          "adr": {
+            "type": ["string", "null"]
+          },
+          "codeowners": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["adr", "codeowners"],
+        "additionalProperties": false
+      },
+      "ai": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["host", "files"],
+          "additionalProperties": false
+        }
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "packageManager",
+      "workspaces",
+      "scripts",
+      "tools",
+      "ci",
+      "codeHost",
+      "docs",
+      "ai",
+      "warnings"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Discovery"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "packageManager": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "lockfiles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["name", "lockfiles"],
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "workspaces": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "dir": {
+              "type": "string"
+            }
+          },
+          "required": ["name", "dir"],
+          "additionalProperties": false
+        }
+      },
+      "scripts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "package": {
+              "type": "string"
+            },
+            "dir": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string"
+            },
+            "candidates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "capability": {
+                    "type": "string",
+                    "enum": ["lint", "format", "typecheck", "test", "e2e", "build"]
+                  },
+                  "confidence": {
+                    "type": "number"
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "fileScopable": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["capability", "confidence", "evidence", "fileScopable", "reason"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["package", "dir", "name", "command", "candidates"],
+          "additionalProperties": false
+        }
+      },
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["id", "evidence"],
+          "additionalProperties": false
+        }
+      },
+      "ci": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["kind", "files"],
+          "additionalProperties": false
+        }
+      },
+      "codeHost": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "remote": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "remote"],
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "docs": {
+        "type": "object",
+        "properties": {
+          "adr": {
+            "type": ["string", "null"]
+          },
+          "codeowners": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["adr", "codeowners"],
+        "additionalProperties": false
+      },
+      "ai": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["host", "files"],
+          "additionalProperties": false
+        }
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "packageManager",
+      "workspaces",
+      "scripts",
+      "tools",
+      "ci",
+      "codeHost",
+      "docs",
+      "ai",
+      "warnings"
+    ],
+    "additionalProperties": false
+  }
+}

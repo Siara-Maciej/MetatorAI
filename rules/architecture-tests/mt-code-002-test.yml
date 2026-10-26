@@ -1,0 +1,11 @@
+id: mt-code-002
+valid:
+  - "serializeJsonDocument(ImportIndexDocument.stamp(next));"
+  - "parseJsonDocument(text, source).andThen((raw) => GateReportDocument.parse(raw, source));"
+  - "const tokens = estimateTokens(JSON.stringify(packed));"
+  - 'import { z } from "zod";'
+invalid:
+  - "await fs.write(file, JSON.stringify(index));"
+  - "const manifest = JSON.parse(text);"
+  - 'import { stringify } from "yaml";'
+  - "import YAML from 'yaml';"

@@ -1,7 +1,7 @@
 ---
 kind: InstructionsAdapter
 schemaVersion: 1
-applyTo: packages/**,packages/cli/src/**,packages/plugin-*/src/**,packages/runtime/src/**
+applyTo: e2e/**,packages/cli/src/**,packages/core/src/**,packages/plugin-*/src/**,packages/plugin-*/test/**,packages/runtime/src/**,packages/testing/src/contracts/**,scripts/mutants.ts
 description: How MetatorAI proves that work actually works.
 generatedFrom: docs/metator/rules/test.yml
 ---
@@ -12,25 +12,10 @@ generatedFrom: docs/metator/rules/test.yml
 
 How MetatorAI proves that work actually works.
 
-## MT-TEST-001: Every user-facing change has an e2e test on the real CLI
+## Enforced by tools
 
-A new or changed command comes with an e2e test that runs the metator process against real files in a temporary git repository.
+CI fails on these; no need to re-check them by hand.
 
-Applies to: `packages/cli/src/**`, `packages/runtime/src/**`
-
-- Do: `const r = await metator(["rules", "lint"], repo.root)`
-
-## MT-TEST-002: Every port adapter passes its contract suite
-
-An adapter for a port that has a contract suite in packages/testing/src/contracts calls that suite from its own test.
-
-Applies to: `packages/plugin-*/src/**`
-
-- Do: `fileSystemContract("BunFileSystem", (files) => makeBunFileSystem(files));`
-- Don't: `an adapter test that only checks the happy path of its own methods`
-
-## MT-TEST-003: Bugs get a failing test first
-
-Reproduce a bug with a failing test, then fix it; add a mutant to scripts/mutation-smoke.ts for critical behavior.
-
-Applies to: `packages/**`
+- MT-TEST-001: Every user-facing change has an e2e test on the real CLI (`test:mt-test-001`)
+- MT-TEST-002: Every port adapter passes its contract suite (`test:mt-test-002`)
+- MT-TEST-003: Every module with behavior is guarded by a killed mutant (`test:mt-test-003`)

@@ -195,3 +195,10 @@ describe("rules check ignores pattern hints", () => {
     expect(report.violations.map((v) => v.toolRuleId)).toEqual(["mt-arch-x"]);
   });
 });
+
+describe("pathAffinity file kinds", () => {
+  test("a compound suffix counts only when the target has the same one", () => {
+    expect(pathAffinity("a/x.queries.ts", "b/y.commands.ts")).toEqual({ score: 0, reasons: [] });
+    expect(pathAffinity("a/x.queries.ts", "b/y.queries.ts").score).toBe(3);
+  });
+});

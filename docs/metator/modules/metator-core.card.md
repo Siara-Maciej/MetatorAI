@@ -12,7 +12,7 @@ dir: packages/core
 - Directory: `packages/core`
 - Depends on: none
 - Test-only dependencies: `@metator/testing`
-- Used by: `@metator/cli`, `@metator/plugin-astgrep`, `@metator/plugin-biome`, `@metator/plugin-bun`, `@metator/plugin-git`, `@metator/plugin-host-claude`, `@metator/plugin-host-copilot`, `@metator/plugin-node`, `@metator/plugin-typescript`, `@metator/runtime`, `@metator/testing`
+- Used by: `(root)`, `@metator/cli`, `@metator/plugin-astgrep`, `@metator/plugin-biome`, `@metator/plugin-bun`, `@metator/plugin-git`, `@metator/plugin-host-claude`, `@metator/plugin-host-copilot`, `@metator/plugin-node`, `@metator/plugin-typescript`, `@metator/runtime`, `@metator/testing`
 - Imported by other packages: `packages/core/src/index.ts`
 - Third-party: `@dagrejs/graphlib`, `@sindresorhus/slugify`, `github-slugger`, `neverthrow`, `picomatch`, `shell-quote`, `xstate`, `yaml`, `zod`
 <!-- metator:generated:end -->
@@ -23,7 +23,7 @@ The product's inside: domain model (versioned documents, rules, memory map, impo
 
 ## Invariants
 
-- Every persisted file is stamped with its header [[cite: packages/core/src/domain/versioned.ts:138 | "stamp(body: z.output<S>): DocumentHeader & z.output<S> {"]].
+- Every persisted file is stamped with its header [[cite: packages/core/src/domain/versioned.ts:137 | "stamp(body: z.output<S>): DocumentHeader & z.output<S> {"]].
 - Errors cross layers as one type [[cite: packages/core/src/domain/errors.ts:21 | "export class MetatorError extends Error {"]].
 
 ## Allowed dependencies

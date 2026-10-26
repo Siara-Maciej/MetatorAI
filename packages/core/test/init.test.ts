@@ -104,3 +104,10 @@ describe("InitProject", () => {
     expect(report.warnings).toEqual(["no file-scoped checks found for the quick gate; add one by hand"]);
   });
 });
+
+describe("proposeConfig picks the strongest signal", () => {
+  test("of two lint scripts, the one that also runs a linter wins over a name-only match", () => {
+    const p = proposeConfig(discovery({ "lint:fix": "node fix.js", lint: "eslint" }), { ruleCanon: false });
+    expect(p.gates.full.map((s) => JSON.stringify(s.run))).toEqual(['{"script":"lint"}']);
+  });
+});

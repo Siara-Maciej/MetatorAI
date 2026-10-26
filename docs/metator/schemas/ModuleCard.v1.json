@@ -1,0 +1,49 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "ModuleCard",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ModuleCard"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "package": {
+        "type": "string",
+        "minLength": 1
+      },
+      "dir": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["kind", "schemaVersion", "package", "dir"]
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ModuleCard"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "package": {
+        "type": "string",
+        "minLength": 1
+      },
+      "dir": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["kind", "schemaVersion", "package", "dir"],
+    "additionalProperties": false
+  }
+}

@@ -59,3 +59,16 @@ describe("ManypkgWorkspaceReader", () => {
     expect((await new ManypkgWorkspaceReader(root).packages())._unsafeUnwrap()).toEqual([]);
   });
 });
+
+describe("ManypkgWorkspaceReader declared globs", () => {
+  test("a deep workspace glob skips packages inside node_modules", async () => {
+    const root = await fixture({
+      "package.json": JSON.stringify({ name: "root", private: true, workspaces: ["packages/**"] }),
+      "packages/a/package.json": JSON.stringify({ name: "a" }),
+      "packages/a/node_modules/dep/package.json": JSON.stringify({ name: "dep" }),
+    });
+    expect((await new ManypkgWorkspaceReader(root).packages())._unsafeUnwrap()).toEqual([
+      { name: "a", dir: "packages/a" },
+    ]);
+  });
+});

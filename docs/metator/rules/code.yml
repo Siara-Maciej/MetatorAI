@@ -18,7 +18,8 @@ rules:
   - id: MT-CODE-002
     title: Every persisted file is a versioned document
     applyTo: ["packages/core/src/**"]
-    enforcement: E2
+    enforcement: E1
+    implementation: ast-grep:mt-code-002
     summary: Files MetatorAI reads or writes are defined with defineDocument and written only through Document.stamp, read only through Document.parse.
     rationale: docs/adr/0016-versioned-documents.md
     source: { ref: AGENTS.md#every-file-is-a-versioned-document-adr-0016, verified: 2026-10-25 }
@@ -28,9 +29,10 @@ rules:
       - "JSON.stringify(index) written without kind and schemaVersion"
   - id: MT-CODE-003
     title: Schema changes add a version and a migration
-    applyTo: ["packages/core/src/domain/**"]
-    enforcement: E2
-    summary: Changing a document schema adds a new version with an upgrade function and a migration test; a released version is never changed in place.
+    applyTo: ["packages/core/src/domain/**", "docs/metator/schemas/**"]
+    enforcement: E1
+    implementation: test:mt-code-003
+    summary: Every document version has a frozen schema snapshot in docs/metator/schemas (`bun run schemas:freeze` adds new ones, never rewrites); every older version has an example that must migrate to the current one.
     rationale: docs/adr/0016-versioned-documents.md
     source: { ref: AGENTS.md#every-file-is-a-versioned-document-adr-0016, verified: 2026-10-25 }
     do:
@@ -50,10 +52,11 @@ rules:
     dont:
       - "console.log(result) in a command"
   - id: MT-CODE-005
-    title: Prefer a proven package over home-grown generic code
-    applyTo: ["packages/**/src/**"]
-    enforcement: E3
-    summary: Before writing generic code (parsing, graphs, retries, caching, CLI args, schemas, diffing, git) look for a maintained package and propose it in an ADR.
+    title: Every dependency is approved by an ADR
+    applyTo: ["package.json", "packages/*/package.json", "docs/metator/dependencies.yml"]
+    enforcement: E1
+    implementation: test:mt-code-005
+    summary: Every third-party package in a package.json is in docs/metator/dependencies.yml with the need it covers and the ADR that approved it; nothing unused stays registered.
     rationale: docs/adr/0010-dependency-policy.md
     source: { ref: AGENTS.md#dependency-policy-dont-reinvent-the-wheel, verified: 2026-10-25 }
   - id: MT-CODE-006

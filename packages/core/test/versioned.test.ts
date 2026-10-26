@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
-import { defineDocument } from "../src/domain/versioned.ts";
+import { defineDocument, parseYamlDocument, renderYamlDocument } from "../src/domain/versioned.ts";
 
 // A synthetic document with real history: v1 {name}, v2 {name, tags}, v3 {title, tags}.
 const V1 = z.object({ name: z.string() }).strict();
@@ -109,5 +109,28 @@ describe("versioned documents", () => {
     expect(schema.properties.kind).toEqual({ const: "Note" });
     expect(schema.properties.schemaVersion).toEqual({ const: 3 });
     expect(schema.required.slice(0, 2)).toEqual(["kind", "schemaVersion"]);
+  });
+
+  test("JSON Schema of an older version describes that version", () => {
+    const schema = Note.jsonSchema("input", 1) as { properties: Record<string, unknown> };
+    expect(schema.properties.schemaVersion).toEqual({ const: 1 });
+    expect(Object.keys(schema.properties)).toEqual(["kind", "schemaVersion", "name"]);
+    expect(() => Note.jsonSchema("input", 4)).toThrow("Note has no schemaVersion 4");
+  });
+});
+
+describe("renderYamlDocument", () => {
+  test("writes the header first and round-trips", () => {
+    const text = renderYamlDocument({ kind: "Note", schemaVersion: 3, title: "a", tags: [] });
+    expect(text.split("\n")[0]).toBe("kind: Note");
+    expect(Note.parse(parseYamlDocument(text, "n.yml")._unsafeUnwrap(), "n.yml")._unsafeUnwrap()).toEqual({
+      title: "a",
+      tags: [],
+    });
+  });
+
+  test("puts a comment above the document", () => {
+    const text = renderYamlDocument({ kind: "Note", schemaVersion: 3 }, "generated");
+    expect(text).toBe("# generated\nkind: Note\nschemaVersion: 3\n");
   });
 });

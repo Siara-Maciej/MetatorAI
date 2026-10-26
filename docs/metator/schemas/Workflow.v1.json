@@ -1,0 +1,164 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "Workflow",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Workflow"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "revision": {
+        "default": 1,
+        "description": "Revision of this workflow's content (not the file format)",
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991
+      },
+      "description": {
+        "type": "string"
+      },
+      "stages": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "description": {
+              "type": "string"
+            },
+            "hitl": {
+              "description": "Human-in-the-loop gate: only APPROVE moves on",
+              "type": "boolean"
+            },
+            "onFail": {
+              "description": "On FAIL go back to `goto`, counting against loops[loop]; escalate when exhausted",
+              "type": "object",
+              "properties": {
+                "goto": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "loop": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                }
+              },
+              "required": ["goto", "loop"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        }
+      },
+      "loops": {
+        "default": {},
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "additionalProperties": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "id", "stages"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Workflow"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "revision": {
+        "default": 1,
+        "description": "Revision of this workflow's content (not the file format)",
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991
+      },
+      "description": {
+        "type": "string"
+      },
+      "stages": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "description": {
+              "type": "string"
+            },
+            "hitl": {
+              "description": "Human-in-the-loop gate: only APPROVE moves on",
+              "type": "boolean"
+            },
+            "onFail": {
+              "description": "On FAIL go back to `goto`, counting against loops[loop]; escalate when exhausted",
+              "type": "object",
+              "properties": {
+                "goto": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "loop": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                }
+              },
+              "required": ["goto", "loop"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        }
+      },
+      "loops": {
+        "default": {},
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "additionalProperties": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "id", "revision", "stages", "loops"],
+    "additionalProperties": false
+  }
+}

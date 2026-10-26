@@ -1,0 +1,15 @@
+id: mt-arch-008
+valid:
+  - "export interface Vcs { changedFiles(base: string): R; listFiles(): R; remoteUrl(): R }"
+  - |
+    export interface Five {
+      // comments are not members
+      a(): void;
+      b(): void;
+      readonly c: string;
+      d(): void;
+      e(): void;
+    }
+invalid:
+  - "export interface Six { a(): void; b(): void; c(): void; d(): void; e(): void; f(): void }"
+  - "interface Mixed { readonly a: string; b(): void; readonly c: number; d(): void; e(): void; readonly f: boolean }"

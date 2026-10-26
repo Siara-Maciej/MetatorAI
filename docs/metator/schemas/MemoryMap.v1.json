@@ -1,0 +1,337 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "MemoryMap",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "MemoryMap"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "knowledge": {
+        "default": {
+          "include": [
+            "**/AGENTS.md",
+            "**/CLAUDE.md",
+            ".github/copilot-instructions.md",
+            ".github/instructions/**",
+            ".github/agents/**",
+            ".github/prompts/**",
+            ".github/skills/**",
+            ".github/metator/**",
+            ".claude/**/*.md",
+            "docs/**"
+          ],
+          "exclude": []
+        },
+        "type": "object",
+        "properties": {
+          "include": {
+            "default": [
+              "**/AGENTS.md",
+              "**/CLAUDE.md",
+              ".github/copilot-instructions.md",
+              ".github/instructions/**",
+              ".github/agents/**",
+              ".github/prompts/**",
+              ".github/skills/**",
+              ".github/metator/**",
+              ".claude/**/*.md",
+              "docs/**"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclude": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "tierBudgets": {
+        "default": {},
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "enum": ["T0", "T1", "T2", "T3", "T4", "T5"]
+        },
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "chars": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "lines": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "tokens": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "items": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9.-]*$"
+            },
+            "tier": {
+              "type": "string",
+              "enum": ["T0", "T1", "T2", "T3", "T4", "T5"]
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["canon", "derived", "working", "learned", "external"]
+            },
+            "paths": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "load": {
+              "type": "string",
+              "pattern": "^(always|explicit|applyTo:.+|skill:.+|query:.+)$"
+            },
+            "writers": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "readers": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "budget": {
+              "type": "object",
+              "properties": {
+                "chars": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "lines": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "tokens": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "additionalProperties": false
+            },
+            "citations": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "tier", "kind", "load", "writers", "readers"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "items"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "MemoryMap"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "knowledge": {
+        "default": {
+          "include": [
+            "**/AGENTS.md",
+            "**/CLAUDE.md",
+            ".github/copilot-instructions.md",
+            ".github/instructions/**",
+            ".github/agents/**",
+            ".github/prompts/**",
+            ".github/skills/**",
+            ".github/metator/**",
+            ".claude/**/*.md",
+            "docs/**"
+          ],
+          "exclude": []
+        },
+        "type": "object",
+        "properties": {
+          "include": {
+            "default": [
+              "**/AGENTS.md",
+              "**/CLAUDE.md",
+              ".github/copilot-instructions.md",
+              ".github/instructions/**",
+              ".github/agents/**",
+              ".github/prompts/**",
+              ".github/skills/**",
+              ".github/metator/**",
+              ".claude/**/*.md",
+              "docs/**"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclude": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["include", "exclude"],
+        "additionalProperties": false
+      },
+      "tierBudgets": {
+        "default": {},
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "enum": ["T0", "T1", "T2", "T3", "T4", "T5"]
+        },
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "chars": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "lines": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "tokens": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "items": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9.-]*$"
+            },
+            "tier": {
+              "type": "string",
+              "enum": ["T0", "T1", "T2", "T3", "T4", "T5"]
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["canon", "derived", "working", "learned", "external"]
+            },
+            "paths": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "load": {
+              "type": "string",
+              "pattern": "^(always|explicit|applyTo:.+|skill:.+|query:.+)$"
+            },
+            "writers": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "readers": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "budget": {
+              "type": "object",
+              "properties": {
+                "chars": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "lines": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "tokens": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "additionalProperties": false
+            },
+            "citations": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "tier", "kind", "paths", "load", "writers", "readers"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "knowledge", "tierBudgets", "items"],
+    "additionalProperties": false
+  }
+}

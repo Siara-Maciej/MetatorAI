@@ -17,5 +17,5 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true
   },
-  "include": ["packages/*/src", "packages/*/test", "e2e", "scripts"]
+  "include": ["packages/*/src", "packages/*/test", "e2e", "scripts", "rules/conformance"]
 }

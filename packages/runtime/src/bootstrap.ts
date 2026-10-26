@@ -50,7 +50,7 @@ import {
   ValidateFindings,
   WorkflowCatalog,
 } from "@metator/core";
-import { BunFileSystem, BunProcessRunner, NodeBinResolver } from "@metator/plugin-bun";
+import { BunFileSystem, BunProcessRunner, BunTestEngine, NodeBinResolver } from "@metator/plugin-bun";
 
 export { findRepoRoot } from "@metator/plugin-bun";
 
@@ -120,6 +120,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       new AstGrepEngine(processRunner, root),
       new BiomeEngine(processRunner, root),
       new TscEngine(processRunner, root),
+      new BunTestEngine(processRunner, root),
     ]).singleton(),
     ruleScaffolders: asFunction(({ root }) => [new AstGrepScaffolder(root)]).singleton(),
     ruleCatalog: asFunction(({ fileSystem, paths }) => new RuleCatalog(fileSystem, paths)).singleton(),

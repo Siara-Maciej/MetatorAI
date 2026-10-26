@@ -1,0 +1,22 @@
+id: mt-arch-006
+language: TypeScript
+severity: error
+message: "MT-ARCH-006: a use case receives collaborators through its constructor; it may construct only domain values and built-ins."
+files:
+  - packages/core/src/application/**
+rule:
+  pattern: new $C($$$)
+  not:
+    any:
+      - has:
+          field: constructor
+          regex: ^(Map|Set|WeakMap|WeakSet|Date|RegExp|URL|MetatorError|Intl\..+)$
+      # Classes imported from the domain layer are values, not collaborators.
+      - inside:
+          kind: program
+          stopBy: end
+          has:
+            kind: import_statement
+            all:
+              - has: { kind: string, regex: "/domain/" }
+              - has: { stopBy: end, kind: import_specifier, has: { kind: identifier, pattern: $C } }

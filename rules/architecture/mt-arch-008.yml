@@ -1,0 +1,14 @@
+id: mt-arch-008
+language: TypeScript
+severity: error
+message: "MT-ARCH-008: a port has at most five members; split it by axis of change (reader/writer, one tool capability each)."
+files:
+  - packages/core/src/ports/**
+rule:
+  kind: interface_declaration
+  has:
+    field: body
+    has:
+      nthChild:
+        position: 6
+        ofRule: { any: [{ kind: property_signature }, { kind: method_signature }] }

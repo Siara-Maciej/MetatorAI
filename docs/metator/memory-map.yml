@@ -44,6 +44,22 @@ items:
     load: "query:metator rules pack --paths <files>"
     writers: [human]
     readers: ["*"]
+  - id: t1.dependencies
+    tier: T1
+    kind: canon
+    paths: ["docs/metator/dependencies.yml"]
+    load: explicit
+    writers: [human]
+    readers: ["*"]
+    description: Approved third-party packages with their need and ADR (MT-CODE-005).
+  - id: t1.schemas
+    tier: T1
+    kind: derived
+    paths: ["docs/metator/schemas/*.json"]
+    load: explicit
+    writers: ["bun run schemas:freeze"]
+    readers: ["*"]
+    description: Frozen JSON Schema of every released document version, with migration examples (MT-CODE-003).
   - id: t1.memory-map
     tier: T1
     kind: canon

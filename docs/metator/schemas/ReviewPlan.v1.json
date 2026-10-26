@@ -1,0 +1,132 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "ReviewPlan",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ReviewPlan"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "files": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "lenses": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["logic", "contracts", "conventions", "tests", "security", "equivalence"]
+        }
+      },
+      "shards": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "package": {
+              "type": "string"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "card": {
+              "type": ["string", "null"]
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["id", "package", "files", "card", "rules"],
+          "additionalProperties": false
+        }
+      },
+      "tasks": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      }
+    },
+    "required": ["kind", "schemaVersion", "files", "lenses", "shards", "tasks"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ReviewPlan"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "files": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "lenses": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["logic", "contracts", "conventions", "tests", "security", "equivalence"]
+        }
+      },
+      "shards": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "package": {
+              "type": "string"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "card": {
+              "type": ["string", "null"]
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["id", "package", "files", "card", "rules"],
+          "additionalProperties": false
+        }
+      },
+      "tasks": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      }
+    },
+    "required": ["kind", "schemaVersion", "files", "lenses", "shards", "tasks"],
+    "additionalProperties": false
+  }
+}

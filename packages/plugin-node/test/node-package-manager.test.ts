@@ -57,3 +57,15 @@ describe("NodePackageManager (real files)", () => {
     expect((await pm.scriptCommand("lint", ["a.ts"]))._unsafeUnwrap().argv).toEqual(argv);
   });
 });
+
+describe("NodePackageManager detection", () => {
+  test("detects once per instance; later lockfile changes do not flip the answer mid-run", async () => {
+    const root = await repo({ "package.json": "{}", "yarn.lock": "" });
+    const pm = new NodePackageManager(root);
+    expect((await pm.detect())._unsafeUnwrap()?.name).toBe("yarn");
+    await rm(join(root, "yarn.lock"));
+    await Bun.write(join(root, "pnpm-lock.yaml"), "");
+    expect((await pm.detect())._unsafeUnwrap()?.name).toBe("yarn");
+    expect((await new NodePackageManager(root).detect())._unsafeUnwrap()?.name).toBe("pnpm");
+  });
+});

@@ -3,6 +3,7 @@ import { FakeVcs, FixedClock, InMemoryFileSystem, ScriptedProcessRunner } from "
 import { RunGate } from "../src/application/gate.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { MetatorConfigSchema } from "../src/domain/config.ts";
+import { outputTail } from "../src/domain/gate.ts";
 import { ok } from "../src/domain/result.ts";
 import type { ResolvedCommand } from "../src/ports/index.ts";
 
@@ -153,5 +154,12 @@ describe("RunGate", () => {
       "full",
       null,
     ]);
+  });
+});
+
+describe("outputTail", () => {
+  test("keeps the last lines, then caps the characters from the end", () => {
+    expect(outputTail("a\nb\nc\n", 2)).toBe("b\nc");
+    expect(outputTail(`${"x".repeat(50)}END`, 20, 10)).toBe("xxxxxxxEND");
   });
 });

@@ -19,11 +19,12 @@ dir: packages/plugin-bun
 
 ## Responsibility
 
-File system and process adapters on the Bun runtime.
+File system and process adapters on the Bun runtime, and the `test` rule engine: conformance tests in `rules/conformance/` run under `bun test` (ADR-0034).
 
 ## Invariants
 
 - Process failures are values, not exceptions: a missing binary is exit 127, a timeout 124 [[cite: packages/plugin-bun/src/bun-process-runner.ts:5 | "code 127 and a timeout is 124 (coreutils convention), both with a message on stderr."]].
+- A conformance test counts as tested only with a case that proves it rejects bad input [[cite: packages/plugin-bun/src/bun-test-engine.ts:15 | "A conformance test proves its own check with at least one `test(\"rejects ...\")` case."]].
 
 ## Allowed dependencies
 

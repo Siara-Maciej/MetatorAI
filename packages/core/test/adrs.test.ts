@@ -4,7 +4,7 @@ import { stringify } from "yaml";
 import { LintAdrs } from "../src/application/adrs.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RuleCatalog } from "../src/application/rules.ts";
-import { parseAdr } from "../src/domain/adr.ts";
+import { hasSection, parseAdr, sameHeading } from "../src/domain/adr.ts";
 
 const adr = (n: string, status: string, extra = "", lang: "pl" | "en" = "pl") =>
   [
@@ -145,5 +145,15 @@ describe("LintAdrs", () => {
       "README.md: error: does not link 0002-b.md",
       "README.md: error: links 0009-gone.md, which does not exist",
     ]);
+  });
+});
+
+describe("sameHeading", () => {
+  test("ignores case and surrounding space", () => {
+    expect(sameHeading("Implications for code", "  implications FOR code ")).toBe(true);
+    expect(sameHeading("Decision", "Decisions")).toBe(false);
+    expect(
+      hasSection(parseAdr(adr("0003", "Proposed", "## KONTEKST DODATKOWY\n")), ["kontekst dodatkowy"]),
+    ).toBe(true);
   });
 });

@@ -1,0 +1,16 @@
+id: mt-code-002
+language: TypeScript
+severity: error
+message: "MT-CODE-002: read and write files through versioned documents (Document.parse/stamp with the helpers in domain/versioned.ts), not raw JSON or YAML."
+files:
+  - packages/core/src/**
+ignores:
+  - packages/core/src/domain/versioned.ts
+rule:
+  any:
+    - all:
+        - any: [{ pattern: JSON.parse($$$) }, { pattern: JSON.stringify($$$) }]
+        # Measuring a value is not persisting it.
+        - not: { inside: { pattern: estimateTokens($$$), stopBy: end } }
+    - kind: import_statement
+      has: { kind: string, regex: '^["'']yaml["'']$' }

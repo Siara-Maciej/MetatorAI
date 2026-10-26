@@ -12,21 +12,6 @@ generatedFrom: docs/metator/rules/arch.yml
 
 Clean architecture boundaries of MetatorAI (ports and adapters, dependencies point inward).
 
-## MT-ARCH-006: Use cases receive ports through the constructor
-
-An application service takes every port it needs as a constructor parameter and never constructs an adapter itself.
-
-Applies to: `packages/core/src/application/**`
-
-- Do: `constructor(private readonly vcs: Vcs, private readonly fs: ReadonlyFileSystem) {}`
-- Don't: `const fs = new BunFileSystem(root); // inside a use case`
-
-## MT-ARCH-008: Small ports split by axis of change
-
-Keep ports small; split readers from writers and one tool capability from another (Linter is not Formatter).
-
-Applies to: `packages/core/src/ports/**`
-
 ## Enforced by tools
 
 CI fails on these; no need to re-check them by hand.
@@ -36,4 +21,6 @@ CI fails on these; no need to re-check them by hand.
 - MT-ARCH-003: Core imports only approved pure libraries (`ast-grep:mt-arch-core-approved-deps`)
 - MT-ARCH-004: Core never touches the Bun global or process (`ast-grep:mt-arch-no-bun-global-in-core`)
 - MT-ARCH-005: Plugins depend on core only (`ast-grep:mt-arch-plugins-isolated`)
+- MT-ARCH-006: Use cases receive ports through the constructor (`ast-grep:mt-arch-006`)
 - MT-ARCH-007: Only the runtime knows concrete adapters (`ast-grep:mt-arch-007`)
+- MT-ARCH-008: Small ports split by axis of change (`ast-grep:mt-arch-008`)

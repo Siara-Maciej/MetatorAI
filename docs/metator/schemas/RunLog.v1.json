@@ -1,0 +1,42 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "RunLog",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "RunLog"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "runId": {
+        "type": "string",
+        "pattern": "^\\d{8}-[a-z0-9-]+$"
+      }
+    },
+    "required": ["kind", "schemaVersion", "runId"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "RunLog"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "runId": {
+        "type": "string",
+        "pattern": "^\\d{8}-[a-z0-9-]+$"
+      }
+    },
+    "required": ["kind", "schemaVersion", "runId"],
+    "additionalProperties": false
+  }
+}

@@ -1,8 +1,8 @@
-import { stringify } from "yaml";
 import { CONFIG_FILES, DEFAULT_CONFIG, type GateStep, MetatorConfigDocument } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { type Decision, proposeConfig } from "../domain/proposal.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { renderYamlDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
 import type { Discover } from "./discover.ts";
 import type { MetatorPaths } from "./paths.ts";
@@ -52,7 +52,10 @@ export class InitProject {
       schemaVersion: header.schemaVersion,
       gates: { quick: minimal(proposal.gates.quick), full: minimal(proposal.gates.full) },
     };
-    const text = `# Proposed by \`metator init\` from .metator/discovery.json; every choice is in its report.\n${stringify(body, { lineWidth: 0 })}`;
+    const text = renderYamlDocument(
+      body,
+      "Proposed by `metator init` from .metator/discovery.json; every choice is in its report.",
+    );
     const file = "metator.config.yml";
     if (!input.dryRun) {
       const saved = await this.fs.write(file, text);

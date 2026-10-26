@@ -1,0 +1,236 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "RuleSet",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "RuleSet"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "area": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9]*$"
+      },
+      "description": {
+        "type": "string"
+      },
+      "rules": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9]*-([A-Z][A-Z0-9]*)-\\d{3}$"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 5
+            },
+            "status": {
+              "default": "active",
+              "type": "string",
+              "enum": ["active", "draft", "deprecated"]
+            },
+            "applyTo": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "enforcement": {
+              "type": "string",
+              "enum": ["E1", "E2", "E3"]
+            },
+            "implementation": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*:\\S+$"
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 10
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "verified": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                }
+              },
+              "required": ["ref", "verified"],
+              "additionalProperties": false
+            },
+            "do": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "dont": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "conflictsWith": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "supersededBy": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "title", "applyTo", "enforcement", "summary", "rationale", "source"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "area", "rules"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "RuleSet"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "area": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9]*$"
+      },
+      "description": {
+        "type": "string"
+      },
+      "rules": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9]*-([A-Z][A-Z0-9]*)-\\d{3}$"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 5
+            },
+            "status": {
+              "default": "active",
+              "type": "string",
+              "enum": ["active", "draft", "deprecated"]
+            },
+            "applyTo": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "enforcement": {
+              "type": "string",
+              "enum": ["E1", "E2", "E3"]
+            },
+            "implementation": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*:\\S+$"
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 10
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "verified": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                }
+              },
+              "required": ["ref", "verified"],
+              "additionalProperties": false
+            },
+            "do": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "dont": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "conflictsWith": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "supersededBy": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "status",
+            "applyTo",
+            "enforcement",
+            "summary",
+            "rationale",
+            "source",
+            "do",
+            "dont",
+            "conflictsWith"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "area", "rules"],
+    "additionalProperties": false
+  }
+}

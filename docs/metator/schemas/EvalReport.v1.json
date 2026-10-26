@@ -1,0 +1,214 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "EvalReport",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "EvalReport"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "cases": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      },
+      "runs": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      },
+      "totals": {
+        "type": "object",
+        "properties": {
+          "precision": {
+            "type": "number"
+          },
+          "recall": {
+            "type": "number"
+          },
+          "blockingPrecision": {
+            "type": "number"
+          },
+          "falseBlocks": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "decisionVariance": {
+            "type": "number"
+          }
+        },
+        "required": ["precision", "recall", "blockingPrecision", "falseBlocks", "decisionVariance"],
+        "additionalProperties": false
+      },
+      "scores": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": ["bug", "seeded", "clean"]
+            },
+            "run": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "tp": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "fp": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "fn": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "blocking": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "blockingTrue": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "decision": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "type", "run", "tp", "fp", "fn", "blocking", "blockingTrue", "decision"],
+          "additionalProperties": false
+        }
+      },
+      "missing": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "cases", "runs", "totals", "scores", "missing"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "EvalReport"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "cases": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      },
+      "runs": {
+        "type": "integer",
+        "minimum": -9007199254740991,
+        "maximum": 9007199254740991
+      },
+      "totals": {
+        "type": "object",
+        "properties": {
+          "precision": {
+            "type": "number"
+          },
+          "recall": {
+            "type": "number"
+          },
+          "blockingPrecision": {
+            "type": "number"
+          },
+          "falseBlocks": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "decisionVariance": {
+            "type": "number"
+          }
+        },
+        "required": ["precision", "recall", "blockingPrecision", "falseBlocks", "decisionVariance"],
+        "additionalProperties": false
+      },
+      "scores": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": ["bug", "seeded", "clean"]
+            },
+            "run": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "tp": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "fp": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "fn": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "blocking": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "blockingTrue": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "decision": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "type", "run", "tp", "fp", "fn", "blocking", "blockingTrue", "decision"],
+          "additionalProperties": false
+        }
+      },
+      "missing": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "cases", "runs", "totals", "scores", "missing"],
+    "additionalProperties": false
+  }
+}

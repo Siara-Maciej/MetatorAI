@@ -5,17 +5,19 @@ description: How MetatorAI proves that work actually works.
 rules:
   - id: MT-TEST-001
     title: Every user-facing change has an e2e test on the real CLI
-    applyTo: ["packages/cli/src/**", "packages/runtime/src/**"]
-    enforcement: E2
-    summary: A new or changed command comes with an e2e test that runs the metator process against real files in a temporary git repository.
+    applyTo: ["packages/cli/src/**", "packages/runtime/src/**", "e2e/**"]
+    enforcement: E1
+    implementation: test:mt-test-001
+    summary: Every leaf command of the CLI program is run by an e2e test of the metator process against real files in a temporary git repository.
     rationale: docs/ARCHITECTURE.md
     source: { ref: AGENTS.md#testing-policy-prove-every-piece-of-work-actually-works, verified: 2026-10-25 }
     do:
       - 'const r = await metator(["rules", "lint"], repo.root)'
   - id: MT-TEST-002
     title: Every port adapter passes its contract suite
-    applyTo: ["packages/plugin-*/src/**"]
-    enforcement: E2
+    applyTo: ["packages/plugin-*/src/**", "packages/plugin-*/test/**", "packages/testing/src/contracts/**"]
+    enforcement: E1
+    implementation: test:mt-test-002
     summary: An adapter for a port that has a contract suite in packages/testing/src/contracts calls that suite from its own test.
     do:
       - 'fileSystemContract("BunFileSystem", (files) => makeBunFileSystem(files));'
@@ -24,9 +26,10 @@ rules:
     rationale: docs/ARCHITECTURE.md
     source: { ref: AGENTS.md#testing-policy-prove-every-piece-of-work-actually-works, verified: 2026-10-25 }
   - id: MT-TEST-003
-    title: Bugs get a failing test first
-    applyTo: ["packages/**"]
-    enforcement: E3
-    summary: Reproduce a bug with a failing test, then fix it; add a mutant to scripts/mutation-smoke.ts for critical behavior.
+    title: Every module with behavior is guarded by a killed mutant
+    applyTo: ["packages/core/src/**", "packages/plugin-*/src/**", "scripts/mutants.ts"]
+    enforcement: E1
+    implementation: test:mt-test-003
+    summary: Every core and plugin module with behavior has a mutant in scripts/mutants.ts, and `bun run test:mutation` fails unless the unit suite kills every mutant.
     rationale: docs/ARCHITECTURE.md
     source: { ref: AGENTS.md#testing-policy-prove-every-piece-of-work-actually-works, verified: 2026-10-25 }

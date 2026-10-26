@@ -1,0 +1,112 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "ImportIndex",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ImportIndex"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "analyzer": {
+        "type": "string"
+      },
+      "files": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "fingerprint": {
+              "type": "string"
+            },
+            "imports": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "specifier": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": ["static", "reexport", "dynamic"]
+                  },
+                  "typeOnly": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["specifier", "kind", "typeOnly"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["fingerprint", "imports"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "analyzer", "files"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ImportIndex"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "analyzer": {
+        "type": "string"
+      },
+      "files": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "fingerprint": {
+              "type": "string"
+            },
+            "imports": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "specifier": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": ["static", "reexport", "dynamic"]
+                  },
+                  "typeOnly": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["specifier", "kind", "typeOnly"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["fingerprint", "imports"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "analyzer", "files"],
+    "additionalProperties": false
+  }
+}

@@ -46,8 +46,9 @@ rules:
   - id: MT-ARCH-006
     title: Use cases receive ports through the constructor
     applyTo: ["packages/core/src/application/**"]
-    enforcement: E2
-    summary: An application service takes every port it needs as a constructor parameter and never constructs an adapter itself.
+    enforcement: E1
+    implementation: ast-grep:mt-arch-006
+    summary: An application service takes every collaborator (ports, other use cases) as a constructor parameter; it constructs only domain values and built-ins.
     rationale: docs/adr/0011-di-awilix.md
     source: { ref: AGENTS.md#architecture-enforced-not-advisory, verified: 2026-10-25 }
     do:
@@ -69,7 +70,8 @@ rules:
   - id: MT-ARCH-008
     title: Small ports split by axis of change
     applyTo: ["packages/core/src/ports/**"]
-    enforcement: E3
-    summary: Keep ports small; split readers from writers and one tool capability from another (Linter is not Formatter).
+    enforcement: E1
+    implementation: ast-grep:mt-arch-008
+    summary: A port interface has at most five members; a bigger one is split by axis of change (readers from writers, one tool capability from another).
     rationale: docs/ARCHITECTURE.md
     source: { ref: AGENTS.md#conventions, verified: 2026-10-25 }

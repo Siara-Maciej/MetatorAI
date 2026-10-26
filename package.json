@@ -12,12 +12,13 @@
     "format": "biome check --write .",
     "arch": "ast-grep test --skip-snapshot-tests && ast-grep scan --filter '^mt-(arch|code|test)-'",
     "check": "bun run lint && bun run typecheck && bun run arch && bun run canon && bun run test && bun run test:mutation",
-    "canon": "bun packages/cli/src/main.ts rules lint && bun packages/cli/src/main.ts rules adapters --check && bun packages/cli/src/main.ts memory check && bun packages/cli/src/main.ts cards build --check && bun packages/cli/src/main.ts patterns scan --check && bun packages/cli/src/main.ts adr lint && bun packages/cli/src/main.ts rules coverage --min-e1 40 && bun packages/cli/src/main.ts memory dupes --check && bun packages/cli/src/main.ts meta agents-lint && bun packages/cli/src/main.ts generate --check",
+    "canon": "bun packages/cli/src/main.ts rules lint && bun packages/cli/src/main.ts rules adapters --check && bun packages/cli/src/main.ts memory check && bun packages/cli/src/main.ts cards build --check && bun packages/cli/src/main.ts patterns scan --check && bun packages/cli/src/main.ts adr lint && bun packages/cli/src/main.ts rules coverage --min-e1 100 && bun packages/cli/src/main.ts memory dupes --check && bun packages/cli/src/main.ts meta agents-lint && bun packages/cli/src/main.ts generate --check",
     "metator": "bun packages/cli/src/main.ts",
     "test:unit": "bun test packages",
     "test:e2e": "bun test e2e",
     "assets": "bun scripts/assets/generate.ts",
-    "test:mutation": "bun scripts/mutation-smoke.ts"
+    "test:mutation": "bun scripts/mutation-smoke.ts",
+    "schemas:freeze": "bun scripts/freeze-schemas.ts"
   },
   "devDependencies": {
     "@ast-grep/cli": "^0.51.0",
@@ -26,7 +27,8 @@
     "@types/bun": "^1.4.4",
     "playwright": "1.63.0",
     "typescript": "^7.0.2",
-    "yaml": "^2.9.1"
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
   },
   "trustedDependencies": [
     "@ast-grep/cli"

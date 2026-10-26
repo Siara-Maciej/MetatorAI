@@ -1,7 +1,7 @@
 ---
 kind: InstructionsAdapter
 schemaVersion: 1
-applyTo: e2e/**/*.ts,packages/**/*.ts,packages/**/src/**,packages/cli/src/**,packages/core/src/**,packages/core/src/domain/**,packages/plugin-*/src/**,scripts/**/*.ts
+applyTo: docs/metator/dependencies.yml,docs/metator/schemas/**,e2e/**/*.ts,package.json,packages/**/*.ts,packages/*/package.json,packages/cli/src/**,packages/core/src/**,packages/core/src/domain/**,packages/plugin-*/src/**,scripts/**/*.ts
 description: Coding conventions of MetatorAI.
 generatedFrom: docs/metator/rules/code.yml
 ---
@@ -12,36 +12,15 @@ generatedFrom: docs/metator/rules/code.yml
 
 Coding conventions of MetatorAI.
 
-## MT-CODE-002: Every persisted file is a versioned document
-
-Files MetatorAI reads or writes are defined with defineDocument and written only through Document.stamp, read only through Document.parse.
-
-Applies to: `packages/core/src/**`
-
-- Do: `serializeJsonDocument(ImportIndexDocument.stamp(next))`
-- Don't: `JSON.stringify(index) written without kind and schemaVersion`
-
-## MT-CODE-003: Schema changes add a version and a migration
-
-Changing a document schema adds a new version with an upgrade function and a migration test; a released version is never changed in place.
-
-Applies to: `packages/core/src/domain/**`
-
-- Do: `defineDocument(kind, { latest: V2, upgrade: (v1) => migrate(v1), history: [{ schema: V1 }] })`
-- Don't: `adding a required field to the schema of a version that already shipped`
-
-## MT-CODE-005: Prefer a proven package over home-grown generic code
-
-Before writing generic code (parsing, graphs, retries, caching, CLI args, schemas, diffing, git) look for a maintained package and propose it in an ADR.
-
-Applies to: `packages/**/src/**`
-
 ## Enforced by tools
 
 CI fails on these; no need to re-check them by hand.
 
 - MT-CODE-001: Errors are values (`ast-grep:mt-code-001`)
+- MT-CODE-002: Every persisted file is a versioned document (`ast-grep:mt-code-002`)
+- MT-CODE-003: Schema changes add a version and a migration (`test:mt-code-003`)
 - MT-CODE-004: CLI output is one bounded JSON envelope (`ast-grep:mt-code-004`)
+- MT-CODE-005: Every dependency is approved by an ADR (`test:mt-code-005`)
 - MT-CODE-006: Type-only imports use import type (`biome:lint/style/useImportType`)
 - MT-CODE-007: Node builtins use the node protocol (`biome:lint/style/useNodejsImportProtocol`)
 - MT-CODE-008: Indexed access may be undefined (`tsc:noUncheckedIndexedAccess`)

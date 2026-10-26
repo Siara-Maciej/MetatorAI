@@ -30,8 +30,8 @@ export interface VersionedDocument<Body> {
   parse(raw: unknown, source: string): Result<Body, MetatorError>;
   /** Adds the current header to a body; the only way documents get written. */
   stamp(body: Body): DocumentHeader & Body;
-  /** JSON Schema of the current version, header included (for agents and editors). */
-  jsonSchema(io?: "input" | "output"): Record<string, unknown>;
+  /** JSON Schema of a version (the current one by default), header included (for agents and editors). */
+  jsonSchema(io?: "input" | "output", version?: number): Record<string, unknown>;
 }
 
 const HeaderSchema = z.object({ kind: z.string(), schemaVersion: z.number().int() });
@@ -58,7 +58,6 @@ export function defineDocument<S extends z.ZodType>(
     ? { schema: definition.latest, fromPrevious: definition.upgrade }
     : { schema: definition.latest };
   const versions: readonly DocumentVersion[] = [...history, latestVersion];
-  const latest = definition.latest;
   const current = versions.length;
   for (let v = 2; v <= current; v++) {
     if (!versions[v - 1]?.fromPrevious) {
@@ -139,8 +138,10 @@ export function defineDocument<S extends z.ZodType>(
       return { kind, schemaVersion: current, ...(body as object) } as DocumentHeader & z.output<S>;
     },
 
-    jsonSchema(io: "input" | "output" = "input"): Record<string, unknown> {
-      const bodySchema = z.toJSONSchema(latest, { io }) as Record<string, unknown> & {
+    jsonSchema(io: "input" | "output" = "input", version = current): Record<string, unknown> {
+      const schema = versions[version - 1]?.schema;
+      if (!schema) throw new MetatorError("INTERNAL", `${kind} has no schemaVersion ${version}`);
+      const bodySchema = z.toJSONSchema(schema, { io }) as Record<string, unknown> & {
         properties?: Record<string, unknown>;
         required?: string[];
       };
@@ -148,7 +149,7 @@ export function defineDocument<S extends z.ZodType>(
         ...bodySchema,
         properties: {
           kind: { const: kind },
-          schemaVersion: { const: current },
+          schemaVersion: { const: version },
           ...bodySchema.properties,
         },
         required: ["kind", "schemaVersion", ...(bodySchema.required ?? [])],
@@ -181,6 +182,12 @@ export function parseYamlDocument(text: string, source: string): Result<unknown,
 
 export function serializeJsonDocument(doc: object): string {
   return `${JSON.stringify(doc, null, 2)}\n`;
+}
+
+/** A YAML document (header first), optionally under a leading comment. */
+export function renderYamlDocument(doc: DocumentHeader & Record<string, unknown>, comment?: string): string {
+  const text = stringifyYaml(doc, { lineWidth: 0 });
+  return comment === undefined ? text : `# ${comment}\n${text}`;
 }
 
 const FRONT_MATTER = /^---\n([\s\S]*?)\n---\n/;

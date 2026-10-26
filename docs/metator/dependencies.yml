@@ -1,0 +1,32 @@
+kind: DependencyRegister
+schemaVersion: 1
+description: Every third-party package MetatorAI depends on, the need it covers and the ADR that approved it (MT-CODE-005, ADR-0010).
+packages:
+  - { package: "@ast-grep/cli", need: "structural rules (E1 engine)", adr: 0020-rule-canon.md }
+  - {
+      package: "@biomejs/biome",
+      need: "lint and format; E1 engine through SARIF",
+      adr: 0025-biome-engine-sarif.md,
+    }
+  - { package: "@dagrejs/graphlib", need: "graphs (import graph, delegation)", adr: 0012-graph-graphlib.md }
+  - { package: "@manypkg/get-packages", need: "workspace packages", adr: 0018-workspaces-manypkg.md }
+  - { package: "@sindresorhus/slugify", need: "ids from titles", adr: 0015-schemas-zod-yaml.md }
+  - { package: awilix, need: "dependency injection", adr: 0011-di-awilix.md }
+  - { package: commander, need: "CLI arguments", adr: 0014-cli-commander.md }
+  - { package: github-slugger, need: "Markdown heading anchors", adr: 0020-rule-canon.md }
+  - { package: neverthrow, need: "errors as values", adr: 0010-dependency-policy.md }
+  - { package: oxc-parser, need: "JS/TS imports", adr: 0017-imports-oxc.md }
+  - { package: oxc-resolver, need: "import resolution", adr: 0017-imports-oxc.md }
+  - { package: package-manager-detector, need: "package manager of a repo", adr: 0028-discovery.md }
+  - { package: picomatch, need: "globs", adr: 0010-dependency-policy.md }
+  - {
+      package: playwright,
+      need: "README visuals rendered in a real browser (e2e)",
+      adr: 0034-conformance-tests.md,
+    }
+  - { package: shell-quote, need: "shell script parsing", adr: 0028-discovery.md }
+  - { package: simple-git, need: "git", adr: 0019-git-simple-git.md }
+  - { package: typescript, need: "typecheck (tsc 7); E1 engine", adr: 0008-typescript-7-graph.md }
+  - { package: xstate, need: "run state machine", adr: 0013-state-machine-xstate.md }
+  - { package: yaml, need: "YAML documents", adr: 0015-schemas-zod-yaml.md }
+  - { package: zod, need: "schemas", adr: 0015-schemas-zod-yaml.md }

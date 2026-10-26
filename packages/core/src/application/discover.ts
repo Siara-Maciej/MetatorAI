@@ -10,7 +10,7 @@ import {
 import type { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { serializeJsonDocument } from "../domain/versioned.ts";
+import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem, PackageManagerDetector, Vcs, WorkspaceReader } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { SourceFiles } from "./source-files.ts";
@@ -128,10 +128,7 @@ export class Discover {
   private async manifest(file: string): Promise<Manifest | undefined> {
     const text = await this.fs.read(file);
     if (text.isErr()) return undefined;
-    try {
-      return JSON.parse(text.value) as Manifest;
-    } catch {
-      return undefined;
-    }
+    const raw = parseJsonDocument(text.value, file);
+    return raw.isOk() ? (raw.value as Manifest) : undefined;
   }
 }

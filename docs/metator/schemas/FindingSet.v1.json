@@ -1,0 +1,290 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "FindingSet",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "FindingSet"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "lens": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": ["logic", "contracts", "conventions", "tests", "security", "equivalence"]
+          },
+          {
+            "type": "string",
+            "const": "merged"
+          }
+        ]
+      },
+      "shard": {
+        "type": "string"
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Z]+-\\d{3}$"
+            },
+            "lens": {
+              "type": "string",
+              "enum": ["logic", "contracts", "conventions", "tests", "security", "equivalence"]
+            },
+            "severity": {
+              "type": "string",
+              "enum": ["blocking", "major", "minor", "nit"]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "ruleId": {
+              "type": "string"
+            },
+            "location": {
+              "type": "object",
+              "properties": {
+                "file": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "line": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "symbol": {
+                  "type": "string"
+                }
+              },
+              "required": ["file", "line"],
+              "additionalProperties": false
+            },
+            "quote": {
+              "type": "string",
+              "minLength": 1
+            },
+            "claim": {
+              "type": "string",
+              "minLength": 10
+            },
+            "trigger": {
+              "type": "string"
+            },
+            "expected": {
+              "type": "string"
+            },
+            "actual": {
+              "type": "string"
+            },
+            "reachability": {
+              "type": "string"
+            },
+            "evidence": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["test", "trace", "rule", "doc"]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["type", "ref"],
+              "additionalProperties": false
+            },
+            "fixHint": {
+              "type": "string"
+            },
+            "verification": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["confirmed", "refuted", "unproven"]
+                },
+                "by": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidence": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["status", "by", "evidence"],
+              "additionalProperties": false
+            },
+            "alsoFrom": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["logic", "contracts", "conventions", "tests", "security", "equivalence"]
+              }
+            }
+          },
+          "required": ["id", "lens", "severity", "confidence", "location", "quote", "claim"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "lens", "findings"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "FindingSet"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "lens": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": ["logic", "contracts", "conventions", "tests", "security", "equivalence"]
+          },
+          {
+            "type": "string",
+            "const": "merged"
+          }
+        ]
+      },
+      "shard": {
+        "type": "string"
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Z]+-\\d{3}$"
+            },
+            "lens": {
+              "type": "string",
+              "enum": ["logic", "contracts", "conventions", "tests", "security", "equivalence"]
+            },
+            "severity": {
+              "type": "string",
+              "enum": ["blocking", "major", "minor", "nit"]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "ruleId": {
+              "type": "string"
+            },
+            "location": {
+              "type": "object",
+              "properties": {
+                "file": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "line": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "symbol": {
+                  "type": "string"
+                }
+              },
+              "required": ["file", "line"],
+              "additionalProperties": false
+            },
+            "quote": {
+              "type": "string",
+              "minLength": 1
+            },
+            "claim": {
+              "type": "string",
+              "minLength": 10
+            },
+            "trigger": {
+              "type": "string"
+            },
+            "expected": {
+              "type": "string"
+            },
+            "actual": {
+              "type": "string"
+            },
+            "reachability": {
+              "type": "string"
+            },
+            "evidence": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["test", "trace", "rule", "doc"]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["type", "ref"],
+              "additionalProperties": false
+            },
+            "fixHint": {
+              "type": "string"
+            },
+            "verification": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["confirmed", "refuted", "unproven"]
+                },
+                "by": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidence": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["status", "by", "evidence"],
+              "additionalProperties": false
+            },
+            "alsoFrom": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["logic", "contracts", "conventions", "tests", "security", "equivalence"]
+              }
+            }
+          },
+          "required": ["id", "lens", "severity", "confidence", "location", "quote", "claim"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "lens", "findings"],
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,10 @@
+id: mt-arch-006
+valid:
+  - "constructor(private readonly vcs: Vcs) {}"
+  - 'import { DependencyGraph } from "../domain/graph.ts"; const g = new DependencyGraph(edges);'
+  - "const seen = new Set<string>();"
+  - 'return err(new MetatorError("NOT_FOUND", "missing"));'
+invalid:
+  - 'import { LintRules } from "./rules.ts"; const lint = new LintRules(catalog);'
+  - "const fs = new BunFileSystem(root);"
+  - 'import { DependencyGraph } from "./graph.ts"; const g = new DependencyGraph(edges);'
