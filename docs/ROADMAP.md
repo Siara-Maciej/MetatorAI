@@ -188,6 +188,23 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 
 **KPI programu:** precision i recall review (eval + produkcja), dismissed rate, % reguł E1, naruszenia architektury wykryte po merge (→ 0), lead time zadania, poprawki człowieka na zadanie, koszt tokenów na zadanie/PR, liczba eskalacji na run.
 
+
+---
+
+## F7: System wielu aplikacji (propozycja, czeka na akceptację)
+
+**Cel:** agent analizuje zadanie w kontekście całego systemu: które aplikacje i kontrakty dotyka zmiana, czy jest łamiąca, w jakiej kolejności ją wdrożyć i kto jest właścicielem. Analiza i plan: [design/08-system-landscape.md](design/08-system-landscape.md).
+
+**Zadania**
+- [ ] F7.1 `SystemMap` v1 (aplikacje, kontrakty, polityki), `system schema|show|lint`, karty aplikacji.
+- [ ] F7.2 `system discover`: szkic mapy z kodu (OpenAPI, AsyncAPI, proto, GraphQL, pakiety wewnętrzne, compose/k8s).
+- [ ] F7.3 Port `SystemSourceReader` (lokalne checkouty, cache klonu), `system impact`.
+- [ ] F7.4 Port `ContractDiffer` (oasdiff, @asyncapi/diff, graphql-inspector, buf), `contract diff`, bramka kontraktowa w `gate full`.
+- [ ] F7.5 `SystemAnalysis`, `SystemPlan`, `system plan lint`, agenci `mt-system-scout`, `mt-system-planner`.
+- [ ] F7.6 Runy powiązane (`RunRecord` v3: rodzic i dzieci), `system status`, workflow W13 `mt-system-change`.
+- [ ] F7.7 Złote przypadki wieloaplikacyjne, bramka kontraktowa w CI, opcjonalnie Pact.
+
+**Kryterium wyjścia (pilot):** `system impact` wskazuje ≥ 95% dotkniętych aplikacji na 10 historycznych zmianach; każda zmiana łamiąca kontraktu wykryta; plan systemowy dla 5 zadań zatwierdzony bez zmian kolejności.
 ---
 
 ## Role i odpowiedzialności

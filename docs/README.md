@@ -20,6 +20,7 @@
 | [design/05-templates.md](design/05-templates.md) | Szablony: agent, skill, reguła, ADR, wzorzec, karta modułu, schematy JSON, hooki, prompt, lekcja |
 | [design/06-running.md](design/06-running.md) | Uruchamianie: tryb interaktywny (VS Code) i demo trybu auto (`metator run drive`) |
 | [design/07-ci-engines.md](design/07-ci-engines.md) | Copilot i Claude Code jako silniki, CI, self-hosted runner w Dockerze |
+| [design/08-system-landscape.md](design/08-system-landscape.md) | Krajobraz systemu: zmiany w wielu aplikacjach (analiza, roadmapa F7, plan; propozycja) |
 | [design/00-research-v1.md](design/00-research-v1.md) | Archiwum: pierwotny research i plan v1 |
 
 ## Decyzje architektoniczne
