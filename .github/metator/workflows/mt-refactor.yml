@@ -1,0 +1,75 @@
+# W3: refactor that keeps behavior (02-workflows §3).
+kind: Workflow
+schemaVersion: 2
+id: mt-refactor
+revision: 1
+description: Snapshot the API, pin behavior, small steps, prove equivalence
+entry: { prompt: mt-refactor }
+input:
+  oneOf: [task_ref, task_text]
+  required: [scope]
+  optional: [autonomy]
+preconditions: [clean-tree, index-fresh, branch-ok, tests-green]
+limits: { parallel: 6 }
+stages:
+  - id: setup
+    owner: "script:metator index build"
+  - id: baseline
+    description: API snapshot before the change
+    owner: "script:metator api snapshot"
+    produces: [api-baseline.json]
+  - id: characterize
+    description: Characterization tests that pass on the old code, behavior inventory
+    owner: [mt-test-author, skill:mt-characterization-tests]
+    produces: [equivalence.md]
+  - id: plan
+    description: Small steps, each citing an MT-* rule or a pattern
+    owner: [mt-planner, mt-refactorer]
+    produces: [plan.json, plan-scope.json]
+  - id: plan-gate
+    owner: "script:metator plan lint"
+    gate: { script: metator plan lint, llm: mt-plan-critic }
+    onFail: { goto: plan, loop: plan }
+  - id: plan-approval
+    hitl: true
+    skipAt: [L1]
+  - id: build
+    description: One step at a time, gate quick plus api diff and graph diff after each
+    owner: mt-refactorer
+    produces: [build-log.md]
+    gate: { script: metator gate quick }
+    onFail: { goto: build, loop: build }
+  - id: gates
+    description: API unchanged (or only planned), coverage at least the baseline
+    owner: mt-gatekeeper
+    produces: [gates.json]
+    gate: { script: metator gate full }
+    onFail: { goto: build, loop: build }
+  - id: review
+    description: Review core with the equivalence lens
+    owner: mt-pr-review
+    parallel: [mt-review-equivalence]
+    produces: [verdict.json]
+    gate: { llm: mt-judge }
+    onFail: { goto: plan, loop: review }
+  - id: delivery
+    hitl: true
+    neverSkip: true
+  - id: publish
+    owner: mt-pr-author
+    produces: [pr.md]
+loops: { plan: 2, build: 3, review: 3 }
+escalation:
+  onLoopExhausted: report the steps that changed behavior and options
+  onAmbiguity: stop and ask (skill mt-grill)
+autonomy: [L0, L1]
+permissions: { edit: plan-scope, external: [push, comment] }
+done:
+  - api diff empty or planned
+  - coverage at least the baseline
+  - no confirmed equivalence blockers
+  - push approved
+recovery: [revert the last step and replan it, skill mt-diagnose on a failed gate, then escalate]
+resume: metator run status, then continue at the last approved stage
+telemetry: [stage_duration, tokens, loops, escalations, outcome]
+report: steps with the rule or pattern each cites, api diff and equivalence.md

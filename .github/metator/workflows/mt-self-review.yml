@@ -1,0 +1,47 @@
+# W5: own PR, fix loop without push or comments (02-workflows §3).
+kind: Workflow
+schemaVersion: 2
+id: mt-self-review
+revision: 1
+description: Review core, plan the blocking fixes, implement, review again
+entry: { prompt: mt-self-review }
+input:
+  oneOf: [base]
+preconditions: [index-fresh]
+limits: { parallel: 6 }
+stages:
+  - id: first-review
+    description: Review core on the branch; with zero confirmed blockers the run reports done here
+    owner: mt-pr-review
+    produces: [verdict.json]
+    gate: { llm: mt-judge }
+  - id: plan
+    description: Plan only the confirmed blocking findings of the latest verdict
+    owner: mt-planner
+    produces: [plan.json, plan-scope.json]
+    gate: { script: metator plan lint }
+  - id: build
+    owner: mt-implementer
+    produces: [build-log.md]
+  - id: gates
+    owner: mt-gatekeeper
+    produces: [gates.json]
+    gate: { script: metator gate quick }
+    onFail: { goto: build, loop: build }
+  - id: review
+    description: Review core again; confirmed blockers send the run back to plan
+    owner: mt-pr-review
+    produces: [verdict.json]
+    gate: { llm: mt-judge }
+    onFail: { goto: plan, loop: review }
+loops: { review: 5, build: 2 }
+escalation:
+  onLoopExhausted: report the remaining blockers
+  onAmbiguity: stop and ask
+autonomy: [L0, L1]
+permissions: { edit: plan-scope, external: [] }
+done: [zero confirmed blockers, or an escalation with the list]
+recovery: [skill mt-diagnose on a failed gate, then escalate]
+resume: metator run status, then continue at the last approved stage
+telemetry: [stage_duration, tokens, loops, outcome]
+report: rounds, fixed findings and what is left

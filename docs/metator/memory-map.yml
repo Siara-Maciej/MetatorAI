@@ -104,6 +104,14 @@ items:
     writers: [human]
     readers: [copilot, claude]
     description: Canonical skills (SKILL.md with its scripts); hosts load one when its description matches the task.
+  - id: t1.workflows
+    tier: T1
+    kind: canon
+    paths: [".github/metator/workflows/*.yml"]
+    load: "query:metator run status"
+    writers: [human]
+    readers: [mt-orchestrator, mt-pr-review, "metator run"]
+    description: Workflow specs (W1-W5) that `metator run` executes as state machines and `workflow lint` checks against the anatomy.
   - id: t1.host-skills
     tier: T1
     kind: derived

@@ -1,0 +1,61 @@
+# W4: review a PR, interactive or in CI (02-workflows §3, review core §3.1).
+kind: Workflow
+schemaVersion: 2
+id: mt-pr-review
+revision: 1
+description: Shard, find with lenses, verify, judge, publish after approval
+entry: { prompt: mt-review, ci: true }
+input:
+  oneOf: [pr, base]
+  optional: [autonomy, lenses]
+preconditions: [index-fresh]
+limits: { parallel: 6 }
+stages:
+  - id: metadata
+    description: PR metadata and authorship
+    owner: mt-pr-review
+    produces: [pr.json]
+  - id: shard
+    description: Affected files and shards per package
+    owner: "script:metator review plan"
+    produces: [review-plan.json]
+  - id: rules
+    description: Rule pack per shard
+    owner: mt-rule-curator
+    produces: [rulepack.md]
+  - id: find
+    description: Lens × shard, at most 6 at once
+    parallel:
+      - mt-review-logic
+      - mt-review-contracts
+      - mt-review-conventions
+      - mt-review-tests
+      - mt-review-security
+    produces: [findings]
+    gate: { script: metator findings validate }
+  - id: verify
+    description: Merge, then refute each blocking finding with fresh eyes
+    owner: [mt-verifier, "script:metator findings merge"]
+    produces: [merged.json]
+  - id: judge
+    owner: [mt-judge, skill:mt-review-rubric]
+    produces: [verdict.json]
+    gate: { script: metator findings verdict }
+  - id: approval
+    description: Comment format and scope (blocking or all)
+    hitl: true
+    skipAt: [L2]
+  - id: publish
+    owner: "script:metator findings to-github"
+    produces: [comments.json]
+loops: {}
+escalation:
+  onLoopExhausted: not used (no loops); an unverified blocker is reported as not decided
+  onAmbiguity: ask the author in the report
+autonomy: [L0, L1, L2]
+permissions: { edit: none, external: [comment] }
+done: [verdict.json written, comments published after approval (L2 only confirmed blockers)]
+recovery: [an invalid findings file is dropped and named, a lens that fails is rerun once]
+resume: metator run status, then continue at the last approved stage
+telemetry: [stage_duration, tokens, findings, refuted, outcome]
+report: verdict with confirmed blockers, verified-correct list and links to comments

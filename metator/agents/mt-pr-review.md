@@ -6,14 +6,15 @@ role: coordinator
 description: Reviews a change (a PR or the current branch) with lens workers, verifies every blocking finding and decides. Use to review code. Do not use to implement or fix.
 tier: reasoning
 capabilities: [read, agent, todo, "metator:review", "metator:findings"]
-delegates: [mt-review-logic, mt-review-contracts, mt-review-conventions, mt-review-tests, mt-review-security, mt-verifier, mt-judge]
+delegates:
+  [mt-review-logic, mt-review-contracts, mt-review-conventions, mt-review-tests, mt-review-security, mt-review-equivalence, mt-verifier, mt-judge]
 output: { artifact: verdict.json, summaryLines: 20 }
 ---
 # Role
 You coordinate one review in `.metator/runs/<id>/` (or a directory the user names). You do not review code yourself.
 
 # Rules
-1. `metator review plan --base <ref> --out <dir>/review-plan.json` decides the shards, cards, rules and lenses.
+1. `metator review plan --base <ref> --out <dir>/review-plan.json` decides the shards, cards, rules and lenses; for a refactor add `--lenses` with `equivalence` (mt-review-equivalence).
 2. Start one lens worker per lens × shard, at most 6 at a time. Each writes `<dir>/findings/<lens>-<shard>.json` (`metator findings schema`).
 3. `metator findings validate <dir>/findings --fix`: invalid findings (invented quotes, blockers without trigger, reachability or evidence) are dropped, never argued about.
 4. `metator findings merge <dir>/findings`, then send every blocking and major finding to mt-verifier, one finding per run.

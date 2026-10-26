@@ -24,9 +24,9 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] `gate all`: kroki `test affected`, `graph diff`, `api diff`, `coverage diff`; `coverage diff` (ADR-0041).
 - [x] `flaky check` (ADR-0041).
 - [x] `workflow lint` (anatomia, 16 sekcji, ADR-0042).
-- [ ] Specyfikacje W1–W5 jako `Workflow` v2 (po agentach).
+- [x] Specyfikacje W1–W5 jako `Workflow` v2 w `.github/metator/workflows/`, `workflow lint` w `meta check-all` (ADR-0043).
 - [ ] `run handoff|close`, `lessons add`, `findings check-quote`, `docs inventory|drift|links`, `owners`, `debug-tags check`.
-- [ ] Agenci: `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-pr-author`, `mt-review-equivalence`, `mt-diagnostician`, `mt-docs-curator`, `mt-retro`; skille `mt-characterization-tests`, `mt-create-*`, `mt-review-rubric`, `mt-grill`, `mt-diagnose`.
+- [x] Agenci: `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-pr-author`, `mt-review-equivalence`, `mt-diagnostician`, `mt-docs-curator`, `mt-retro`; skille `mt-characterization-tests`, `mt-create-*`, `mt-review-rubric`, `mt-grill`, `mt-diagnose`.
 - [ ] Karty: API na poziomie symboli, wzorce, właściciele z CODEOWNERS. T0: `copilot-instructions.md` ≤ 4000 znaków.
 
 **Wymaga repo pilota lub ludzi (nie da się zamknąć w tym repo):** F0 (inwentarz, spike platformy, baseline), złoty zbiór ≥ 50 PR-ów, 10–15 wzorców pilota, W7 na ADR pilota, rename agentów pilota, kryteria wyjścia faz mierzone na zadaniach pilota.
@@ -125,7 +125,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 **Cel:** review, któremu można ufać, z mierzoną trafnością.
 
 **Zadania**
-- [ ] Skill `mt-review-rubric` (przeniesienie checklist z eq-logic-reviewer w repo pilota).
+- [x] Skill `mt-review-rubric` (przeniesienie checklist z eq-logic-reviewer w repo pilota).
 - [x] `findings validate [--fix]|merge|schema` ([ADR-0031](adr/0031-findings.md)): `FindingSet`, polityka blocking, cytaty sprawdzane w kodzie, scalanie przyczyn między soczewkami.
 - [x] Subflow review ([ADR-0032](adr/0032-review-core.md)): `review plan`, `findings verdict`, `findings to-github --format natural|labeled`, agenci `mt-pr-review`, `mt-review-{logic,contracts,conventions,tests,security}`, `mt-verifier`, `mt-judge`.
 - [x] Hook `SubagentStop` → `guard subagent-output` (ADR-0038).
@@ -142,15 +142,15 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 **Cel:** doszlifowany orchestrator jako maszyna stanów z twardymi bramkami.
 
 **Zadania**
-- [ ] `mt-orchestrator` wg spec W1/W2/W3. Prompt skrócony do zasad delegacji (≤ 200 linii).
-- [ ] Workerzy: `mt-scout`, `mt-pattern-miner`, `mt-rule-curator`, `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-gatekeeper`, `mt-pr-author`.
+- [x] `mt-orchestrator` wg spec W1/W2/W3. Prompt skrócony do zasad delegacji (≤ 200 linii).
+- [x] Workerzy: `mt-scout`, `mt-pattern-miner`, `mt-rule-curator`, `mt-planner`, `mt-plan-critic`, `mt-test-author`, `mt-implementer`, `mt-refactorer`, `mt-gatekeeper`, `mt-pr-author`.
 - [x] `plan lint|scope` (pattern_source, TDD order, kolejność wg grafu, shardy).
 - [x] Hooki: `pre-tool` (scope, approvals, sekrety, rola), `post-edit` (biome + ast-grep), `stop`, `precompact`, `session-start` (ADR-0038).
 - [x] Gate: `gate quick|all`, `test affected`, `coverage diff`, `graph diff`, `api diff`.
   - [x] `gate quick|full` (ADR-0029), `test affected`, `graph diff` (ADR-0036).
   - [x] `coverage diff`, `api diff`, kroki `test affected` i `graph diff` w bramce (ADR-0040, ADR-0041).
-- [ ] Refactor: skill `mt-characterization-tests`, `equivalence.md`, soczewka `mt-review-equivalence`.
-- [ ] Skille `mt-create-*` (z eq-create-*) z exemplarami z indeksu zamiast szablonów na sztywno.
+- [x] Refactor: skill `mt-characterization-tests`, `equivalence.md`, soczewka `mt-review-equivalence`.
+- [x] Skille `mt-create-*` (z eq-create-*) z exemplarami z indeksu zamiast szablonów na sztywno.
 
 **Kryterium wyjścia (10 realnych zadań pilota):** ≥ 90% kroków `create` z `pattern_source`, 0 naruszeń granic po G6, 0 edycji poza scope (log hooka), ≥ 1 refactor z zerowym api diff i coverage ≥ baseline, czas zadania ≤ baseline albo mniej poprawek człowieka.
 

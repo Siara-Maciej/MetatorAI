@@ -1,0 +1,70 @@
+# W2: fix a bug with a regression test that reproduces it first (02-workflows §3).
+kind: Workflow
+schemaVersion: 2
+id: mt-bugfix
+revision: 1
+description: Reproduce, diagnose, fix behind a regression test, verify
+entry: { prompt: mt-bugfix }
+input:
+  oneOf: [task_ref, task_text]
+  optional: [autonomy]
+preconditions: [clean-tree, index-fresh, branch-ok]
+limits: { parallel: 6 }
+stages:
+  - id: setup
+    owner: "script:metator index build"
+  - id: intake
+    description: Symptom, expected behavior, how to reproduce
+    owner: [mt-orchestrator, skill:mt-grill]
+    produces: [task.md]
+  - id: context
+    description: Survey plus a feedback loop that reproduces the bug
+    parallel: [mt-scout, mt-rule-curator, mt-diagnostician]
+    produces: [analysis.json, rulepack.md, repro.json]
+  - id: plan
+    description: First step is the regression test that fails before the fix
+    owner: mt-planner
+    produces: [plan.json, plan-scope.json]
+  - id: plan-gate
+    owner: "script:metator plan lint"
+    gate: { script: metator plan lint, llm: mt-plan-critic }
+    onFail: { goto: plan, loop: plan }
+  - id: plan-approval
+    hitl: true
+    skipAt: [L1]
+  - id: build
+    description: Regression test RED, fix, GREEN
+    owner: [mt-test-author, mt-implementer]
+    produces: [build-log.md]
+  - id: gates
+    description: Gates plus no new import edges (graph diff)
+    owner: mt-gatekeeper
+    produces: [gates.json]
+    gate: { script: metator gate full }
+    onFail: { goto: build, loop: build }
+  - id: review
+    owner: mt-pr-review
+    produces: [verdict.json]
+    gate: { llm: mt-judge }
+    onFail: { goto: plan, loop: review }
+  - id: delivery
+    hitl: true
+    neverSkip: true
+  - id: publish
+    owner: mt-pr-author
+    produces: [pr.md]
+loops: { plan: 2, build: 2, review: 3 }
+escalation:
+  onLoopExhausted: report the hypotheses tried and options
+  onAmbiguity: stop and ask (skill mt-grill)
+autonomy: [L0, L1]
+permissions: { edit: plan-scope, external: [push, comment] }
+done:
+  - repro.json fails before and passes after
+  - gates.json passes
+  - no blocking findings
+  - push approved
+recovery: [skill mt-diagnose on a failed gate, retry a tool once, then escalate]
+resume: metator run status, then continue at the last approved stage
+telemetry: [stage_duration, tokens, loops, escalations, outcome]
+report: root cause, the regression test, links to repro.json, gates.json and verdict.json

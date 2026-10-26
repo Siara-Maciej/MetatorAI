@@ -164,7 +164,7 @@ describe("metator meta check-all (real CLI)", () => {
     const checks = (
       r.json.error as { details: { checks: { command: string; passed: boolean; error?: string }[] } }
     ).details.checks;
-    expect(checks).toHaveLength(12);
+    expect(checks).toHaveLength(13);
     expect(checks.find((c) => c.command === "memory check")?.error).toBe(
       "NOT_FOUND: No memory map at docs/metator/memory-map.yml",
     );
@@ -174,6 +174,6 @@ describe("metator meta check-all (real CLI)", () => {
 
   test("dogfood: MetatorAI passes its own check-all at 100% E1", async () => {
     const r = await metator(["meta", "check-all", "--min-e1", "100", "--root", SELF], SELF);
-    expect([r.code, (r.json.data as { checks: unknown[] }).checks.length]).toEqual([0, 12]);
+    expect([r.code, (r.json.data as { checks: unknown[] }).checks.length]).toEqual([0, 13]);
   }, 60_000);
 });

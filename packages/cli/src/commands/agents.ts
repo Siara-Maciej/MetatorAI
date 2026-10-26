@@ -15,6 +15,7 @@ export const CHECK_ALL: readonly (readonly string[])[] = [
   ["meta", "agents-lint"],
   ["meta", "skills-lint"],
   ["workflow", "validate"],
+  ["workflow", "lint"],
   ["generate", "--check"],
 ];
 
