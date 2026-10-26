@@ -14,12 +14,12 @@ dir: packages/plugin-node
 - Test-only dependencies: `@metator/testing`
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-node/src/index.ts`
-- Third-party: `@manypkg/get-packages`
+- Third-party: `@manypkg/get-packages`, `package-manager-detector`
 <!-- metator:generated:end -->
 
 ## Responsibility
 
-`WorkspaceReader` port on @manypkg/get-packages: workspace packages of npm, yarn, pnpm, bun, lerna and rush repositories.
+`WorkspaceReader` port on @manypkg/get-packages: workspace packages of npm, yarn, pnpm, bun, lerna and rush repositories. `PackageManagerDetector` and `PackageManager` ports on package-manager-detector: which package manager the repo uses and how to run its scripts (ADR-0028).
 
 ## Invariants
 
@@ -27,8 +27,9 @@ dir: packages/plugin-node
 
 ## Allowed dependencies
 
-`@metator/core` and `@manypkg/get-packages` (ADR-0018).
+`@metator/core`, `@manypkg/get-packages` (ADR-0018) and `package-manager-detector` (ADR-0028).
 
 ## Pitfalls
 
 - manypkg detects the tool from the lockfile; without one, declared `workspaces` globs are expanded by hand.
+- Detection stops at the repository root (`stopDir`), so a lockfile in a parent directory never leaks in.

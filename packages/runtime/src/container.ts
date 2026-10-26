@@ -6,6 +6,7 @@ import {
   type CheckRules,
   type Clock,
   type ComputeAffected,
+  type Discover,
   err,
   type FileSystem,
   type FindMemoryDupes,
@@ -28,6 +29,8 @@ import {
   MetatorError,
   type MetatorPaths,
   ok,
+  type PackageManager,
+  type PackageManagerDetector,
   type PackRules,
   type PatternCatalog,
   type ProcessRunner,
@@ -63,6 +66,9 @@ export interface Cradle {
   fileSystem: FileSystem;
   processRunner: ProcessRunner;
   vcs: Vcs;
+  nodePackageManager: PackageManagerDetector & PackageManager;
+  packageManagerDetector: PackageManagerDetector;
+  packageManager: PackageManager;
   workspaceReader: WorkspaceReader;
   importAnalyzer: ImportAnalyzer;
   importGraphReader: ImportGraphReader;
@@ -98,6 +104,7 @@ export interface Cradle {
   lintAdrs: LintAdrs;
   measureRuleCoverage: MeasureRuleCoverage;
   scaffoldRule: ScaffoldRule;
+  discover: Discover;
 }
 
 export type MetatorContainer = AwilixContainer<Cradle>;

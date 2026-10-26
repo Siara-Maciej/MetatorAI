@@ -1,6 +1,7 @@
 export * from "./application/adrs.ts";
 export * from "./application/cards.ts";
 export * from "./application/compute-affected.ts";
+export * from "./application/discover.ts";
 export * from "./application/import-graph.ts";
 export * from "./application/memory.ts";
 export * from "./application/paths.ts";
@@ -12,6 +13,7 @@ export * from "./application/source-files.ts";
 export * from "./application/workflow-catalog.ts";
 export * from "./domain/adr.ts";
 export * from "./domain/diagnostic.ts";
+export * from "./domain/discovery.ts";
 export * from "./domain/dupes.ts";
 export * from "./domain/errors.ts";
 export * from "./domain/glob.ts";

@@ -10,6 +10,7 @@ export interface MetatorPaths {
   readonly cards: string;
   readonly patterns: string;
   readonly adr: string;
+  readonly discovery: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -22,6 +23,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   cards: "docs/metator/modules",
   patterns: "docs/metator/patterns",
   adr: "docs/adr",
+  discovery: ".metator/discovery.json",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

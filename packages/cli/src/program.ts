@@ -4,6 +4,7 @@ import { Command, type CommanderError } from "commander";
 import { registerAdrCommands } from "./commands/adr.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
+import { registerDiscoverCommands } from "./commands/discover.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
@@ -52,6 +53,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerCardsCommands(program, ctx);
   registerPatternsCommands(program, ctx);
   registerAdrCommands(program, ctx);
+  registerDiscoverCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;

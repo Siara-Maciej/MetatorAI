@@ -8,6 +8,7 @@ valid:
   - import { parse } from "yaml";
   - import slugify from "@sindresorhus/slugify";
   - import GithubSlugger from "github-slugger";
+  - import { parse } from "shell-quote";
   - import { DependencyGraph } from "./graph.ts";
   - import type { Vcs } from "../ports/index.ts";
 invalid:

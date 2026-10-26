@@ -166,3 +166,16 @@ describe("GitVcs path parsing", () => {
     expect((await new GitVcs(dir).changedFiles("HEAD"))._unsafeUnwrap()).toEqual([...names].sort());
   });
 });
+
+describe("GitVcs.remoteUrl (real git)", () => {
+  test("origin wins; no remote is undefined; outside git is NOT_FOUND", async () => {
+    const dir = await repo();
+    expect((await new GitVcs(dir).remoteUrl())._unsafeUnwrap()).toBeUndefined();
+    await sh(dir, "remote", "add", "upstream", "https://example.com/up.git");
+    await sh(dir, "remote", "add", "origin", "git@github.com:acme/shop.git");
+    expect((await new GitVcs(dir).remoteUrl())._unsafeUnwrap()).toBe("git@github.com:acme/shop.git");
+    const none = await mkdtemp(join(tmpdir(), "metator-nogit-remote-"));
+    dirs.push(none);
+    expect((await new GitVcs(none).remoteUrl())._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+});

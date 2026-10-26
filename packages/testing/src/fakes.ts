@@ -86,7 +86,12 @@ export class FakeVcs implements Vcs {
   constructor(
     private readonly files: readonly string[] | "not-a-repo",
     private readonly changed: readonly string[] = [],
+    private readonly remote?: string,
   ) {}
+
+  async remoteUrl(): Promise<Result<string | undefined, MetatorError>> {
+    return this.files === "not-a-repo" ? err(MetatorError.notFound("git repository")) : ok(this.remote);
+  }
 
   async changedFiles(): Promise<Result<readonly string[], MetatorError>> {
     return this.files === "not-a-repo" ? err(MetatorError.notFound("git repository")) : ok(this.changed);

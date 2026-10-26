@@ -50,6 +50,16 @@ export class GitVcs implements Vcs {
     });
   }
 
+  async remoteUrl(): Promise<Result<string | undefined, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      const remotes = await git.value.getRemotes(true);
+      const remote = remotes.find((r) => r.name === "origin") ?? remotes[0];
+      return ok(remote?.refs.fetch || undefined);
+    });
+  }
+
   private async repo(): Promise<Result<SimpleGit, MetatorError>> {
     const notFound = () =>
       err(

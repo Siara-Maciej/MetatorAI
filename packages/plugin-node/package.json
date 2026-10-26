@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "@manypkg/get-packages": "^3.1.0",
-    "@metator/core": "workspace:*"
+    "@metator/core": "workspace:*",
+    "package-manager-detector": "1.9.0"
   },
   "devDependencies": {
     "@metator/plugin-bun": "workspace:*",

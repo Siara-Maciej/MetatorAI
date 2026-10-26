@@ -63,6 +63,7 @@ describe("metator CLI (process e2e)", () => {
       "patterns schema",
       "similar",
       "adr lint",
+      "discover",
       "workflow list",
       "workflow validate",
       "workflow schema",

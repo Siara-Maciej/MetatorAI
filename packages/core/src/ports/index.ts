@@ -50,6 +50,8 @@ export interface Vcs {
   changedFiles(base: string): Promise<Result<readonly string[], MetatorError>>;
   /** Tracked and untracked, non-ignored files (repo-relative): the repository as git sees it. */
   listFiles(): Promise<Result<readonly string[], MetatorError>>;
+  /** URL of the `origin` remote (or the first one); undefined when there is none. */
+  remoteUrl(): Promise<Result<string | undefined, MetatorError>>;
 }
 
 export interface ImportGraphReader {
@@ -121,4 +123,21 @@ export interface RuleScaffoldSpec {
 export interface RuleScaffolder {
   readonly engine: string;
   scaffold(spec: RuleScaffoldSpec): Promise<Result<{ readonly files: readonly string[] }, MetatorError>>;
+}
+
+export interface DetectedPackageManager {
+  readonly name: string;
+  readonly version?: string;
+  /** Lockfiles at the repository root; more than one is a warning. */
+  readonly lockfiles: readonly string[];
+}
+
+/** Which package manager the repository uses (packageManager field, lockfiles). */
+export interface PackageManagerDetector {
+  detect(): Promise<Result<DetectedPackageManager | undefined, MetatorError>>;
+}
+
+/** Runs package.json scripts the way the repository's package manager does (npm needs `--`). */
+export interface PackageManager {
+  scriptCommand(script: string, args: readonly string[]): Promise<Result<ResolvedCommand, MetatorError>>;
 }

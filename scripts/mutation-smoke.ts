@@ -346,6 +346,24 @@ const MUTANTS: readonly Mutant[] = [
     why: "Biome rules say whether the repo's config turns them on",
   },
   {
+    file: "packages/core/src/domain/discovery.ts",
+    from: 'const target = rest.find((a) => !a.startsWith("-"));',
+    to: "const target = undefined as string | undefined;",
+    why: "a script that already names a target is not file-scopable",
+  },
+  {
+    file: "packages/core/src/domain/discovery.ts",
+    from: "if (!byName && !GENERIC_NAMES.test(name) && SIGNALS.some((o) => o !== s && o.name.test(name))) continue;",
+    to: "",
+    why: "a specific script name wins over another capability's command signal",
+  },
+  {
+    file: "packages/core/src/application/discover.ts",
+    from: "if ((pm.value?.lockfiles.length ?? 0) > 1) {",
+    to: "if (false) {",
+    why: "several lockfiles are reported",
+  },
+  {
     file: "packages/cli/src/commands/run.ts",
     from: "if (!opts.by?.trim()) {",
     to: "if (false) {",

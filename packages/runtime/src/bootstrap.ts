@@ -9,6 +9,7 @@ import {
   DEFAULT_PATHS,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
+  Discover,
   FindMemoryDupes,
   FindSimilar,
   GenerateRuleAdapters,
@@ -42,7 +43,7 @@ export { findRepoRoot } from "@metator/plugin-bun";
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { GitVcs } from "@metator/plugin-git";
-import { ManypkgWorkspaceReader } from "@metator/plugin-node";
+import { ManypkgWorkspaceReader, NodePackageManager } from "@metator/plugin-node";
 import { OxcImportAnalyzer, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
@@ -72,6 +73,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     fileSystem: asFunction(({ root }: { root: string }) => new BunFileSystem(root)).singleton(),
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
     vcs: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
+    packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
+    packageManager: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     workspaceReader: asFunction(({ root }) => new ManypkgWorkspaceReader(root)).singleton(),
     importAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
     sourceFiles: asFunction(
@@ -149,6 +153,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     findMemoryDupes: asFunction(
       ({ memoryMapReader, knowledgeFiles, fileSystem }) =>
         new FindMemoryDupes(memoryMapReader, knowledgeFiles, fileSystem),
+    ),
+    discover: asFunction(
+      ({ fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths }) =>
+        new Discover(fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths),
     ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),
