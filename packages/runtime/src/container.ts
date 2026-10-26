@@ -9,6 +9,7 @@ import {
   type Clock,
   type CompareEvals,
   type ComputeAffected,
+  type DiffImportGraph,
   type Discover,
   type EvalCatalog,
   err,
@@ -48,9 +49,11 @@ import {
   type PlanReview,
   type ProcessRunner,
   type Result,
+  type RevisionReader,
   type RuleCatalog,
   type RuleEngine,
   type RuleScaffolder,
+  type RunAffectedTests,
   type RunEvals,
   type RunGate,
   type RunRepository,
@@ -86,6 +89,7 @@ export interface Cradle {
   fileSystem: FileSystem;
   processRunner: ProcessRunner;
   vcs: Vcs;
+  revisionReader: RevisionReader;
   nodePackageManager: PackageManagerDetector & PackageManager;
   packageManagerDetector: PackageManagerDetector;
   packageManager: PackageManager;
@@ -122,6 +126,7 @@ export interface Cradle {
   patternCatalog: PatternCatalog;
   scanPatterns: ScanPatterns;
   findSimilar: FindSimilar;
+  diffImportGraph: DiffImportGraph;
   lintPlan: LintPlan;
   scopePlan: ScopePlan;
   lintAdrs: LintAdrs;
@@ -129,6 +134,7 @@ export interface Cradle {
   scaffoldRule: ScaffoldRule;
   discover: Discover;
   runGate: RunGate;
+  runAffectedTests: RunAffectedTests;
   initProject: InitProject;
   hostGenerators: readonly HostGenerator[];
   agentCatalog: AgentCatalog;

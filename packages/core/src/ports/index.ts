@@ -55,6 +55,12 @@ export interface Vcs {
   remoteUrl(): Promise<Result<string | undefined, MetatorError>>;
 }
 
+/** File contents at an earlier revision (split from Vcs: history is read by few use cases). */
+export interface RevisionReader {
+  /** `path` at the merge base of `base` and HEAD; undefined when the file did not exist there. */
+  readAt(base: string, path: string): Promise<Result<string | undefined, MetatorError>>;
+}
+
 export interface ImportGraphReader {
   read(): Promise<Result<readonly Edge[], MetatorError>>;
 }

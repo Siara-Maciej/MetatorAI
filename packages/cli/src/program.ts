@@ -17,6 +17,7 @@ import { registerPatternsCommands } from "./commands/patterns.ts";
 import { registerPlanCommands } from "./commands/plan.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
+import { registerTestCommands } from "./commands/test.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
 import type { CommandContext, Outcome } from "./context.ts";
 
@@ -70,6 +71,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerReviewCommands(program, ctx);
   registerEvalCommands(program, ctx);
   registerPlanCommands(program, ctx);
+  registerTestCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   return program;

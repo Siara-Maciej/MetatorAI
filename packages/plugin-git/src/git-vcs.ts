@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { err, MetatorError, ok, type Result, type Vcs } from "@metator/core";
+import { err, MetatorError, ok, type Result, type RevisionReader, type Vcs } from "@metator/core";
 import { type SimpleGit, simpleGit } from "simple-git";
 
 /**
@@ -8,7 +8,7 @@ import { type SimpleGit, simpleGit } from "simple-git";
  * that differs from the merge base with `base`: committed on the branch, staged, unstaged,
  * deleted and untracked (non-ignored) files. Paths are repo-relative.
  */
-export class GitVcs implements Vcs {
+export class GitVcs implements Vcs, RevisionReader {
   private client: SimpleGit | undefined;
 
   constructor(private readonly root: string) {}
@@ -20,22 +20,27 @@ export class GitVcs implements Vcs {
       const status = await git.value.status();
       // No commits yet: everything staged or untracked is new.
       if (!(await this.hasCommits(git.value))) return ok(sortedUnique(status.files.map((f) => f.path)));
-      let ref = "HEAD";
-      if (base !== "HEAD") {
-        const mergeBase = await git.value.raw(["merge-base", base, "HEAD"]).catch(() => undefined);
-        if (!mergeBase?.trim()) {
-          return err(
-            MetatorError.usage(
-              `Unknown base ref "${base}"`,
-              "Use a branch, tag or commit that shares history with HEAD.",
-            ),
-          );
-        }
-        ref = mergeBase.trim();
-      }
+      const ref = await this.mergeBase(git.value, base);
+      if (ref.isErr()) return err(ref.error);
       // --no-renames: a rename counts under both paths, the old path's importers are affected too.
-      const diff = (await git.value.diffSummary(["--no-renames", ref])).files.map((f) => f.file);
+      const diff = (await git.value.diffSummary(["--no-renames", ref.value])).files.map((f) => f.file);
       return ok(sortedUnique([...diff, ...status.not_added]));
+    });
+  }
+
+  async readAt(base: string, path: string): Promise<Result<string | undefined, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      if (!(await this.hasCommits(git.value))) return ok(undefined);
+      const ref = await this.mergeBase(git.value, base);
+      if (ref.isErr()) return err(ref.error);
+      const object = `${ref.value}:${path}`;
+      const exists = await git.value
+        .raw(["cat-file", "-e", object])
+        .then(() => true)
+        .catch(() => false);
+      return ok(exists ? await git.value.show([object]) : undefined);
     });
   }
 
@@ -76,6 +81,21 @@ export class GitVcs implements Vcs {
     });
     const inside = await this.client.checkIsRepo().catch(() => false);
     return inside ? ok(this.client) : notFound();
+  }
+
+  /** The commit `base` and HEAD share: what "changed since base" is measured against. */
+  private async mergeBase(git: SimpleGit, base: string): Promise<Result<string, MetatorError>> {
+    if (base === "HEAD") return ok("HEAD");
+    const mergeBase = await git.raw(["merge-base", base, "HEAD"]).catch(() => undefined);
+    if (!mergeBase?.trim()) {
+      return err(
+        MetatorError.usage(
+          `Unknown base ref "${base}"`,
+          "Use a branch, tag or commit that shares history with HEAD.",
+        ),
+      );
+    }
+    return ok(mergeBase.trim());
   }
 
   private async hasCommits(git: SimpleGit): Promise<boolean> {

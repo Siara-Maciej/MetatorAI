@@ -179,3 +179,29 @@ describe("GitVcs.remoteUrl (real git)", () => {
     expect((await new GitVcs(none).remoteUrl())._unsafeUnwrapErr().code).toBe("NOT_FOUND");
   });
 });
+
+describe("GitVcs.readAt (real git)", () => {
+  test("reads a file at the merge base: changed, deleted, branch-only and missing files", async () => {
+    const dir = await scenario();
+    await sh(dir, "checkout", "-q", "main");
+    await writeFile(join(dir, "a.ts"), "a on main later"); // after the merge base: not seen
+    await sh(dir, "commit", "-q", "-am", "main moves on");
+    await sh(dir, "checkout", "-q", "feature");
+    const vcs = new GitVcs(dir);
+    expect((await vcs.readAt("main", "a.ts"))._unsafeUnwrap()).toBe("a");
+    expect((await vcs.readAt("main", "b.ts"))._unsafeUnwrap()).toBe("b");
+    expect((await vcs.readAt("main", "e.ts"))._unsafeUnwrap()).toBeUndefined();
+    expect((await vcs.readAt("HEAD", "e.ts"))._unsafeUnwrap()).toBe("e");
+    expect((await vcs.readAt("main", "nope/x.ts"))._unsafeUnwrap()).toBeUndefined();
+  });
+
+  test("an unknown base is a usage error; a repo without commits has no history", async () => {
+    const dir = await scenario();
+    expect((await new GitVcs(dir).readAt("no-such-ref", "a.ts"))._unsafeUnwrapErr().code).toBe("USAGE");
+    const empty = await repo();
+    expect((await new GitVcs(empty).readAt("HEAD", "a.ts"))._unsafeUnwrap()).toBeUndefined();
+    expect((await new GitVcs(join(empty, "missing")).readAt("HEAD", "a.ts"))._unsafeUnwrapErr().code).toBe(
+      "NOT_FOUND",
+    );
+  });
+});

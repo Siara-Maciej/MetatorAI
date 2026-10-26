@@ -11,6 +11,7 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
+  DiffImportGraph,
   Discover,
   EvalCatalog,
   FindMemoryDupes,
@@ -40,6 +41,7 @@ import {
   PatternCatalog,
   PlanReview,
   RuleCatalog,
+  RunAffectedTests,
   RunEvals,
   RunGate,
   RunRepository,
@@ -96,6 +98,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     fileSystem: asFunction(({ root }: { root: string }) => new BunFileSystem(root)).singleton(),
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
     vcs: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     packageManager: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
@@ -165,6 +168,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ScanPatterns(patternCatalog, ruleCatalog, ruleEngines, workspaceReader, fileSystem, paths),
     ),
     findSimilar: asFunction(({ scanPatterns }) => new FindSimilar(scanPatterns)),
+    diffImportGraph: asFunction(
+      ({ vcs, revisionReader, buildImportGraph, importAnalyzer }) =>
+        new DiffImportGraph(vcs, revisionReader, buildImportGraph, importAnalyzer),
+    ),
     lintPlan: asFunction(
       ({ fileSystem, scanPatterns, ruleCatalog, buildImportGraph, testGlobs }) =>
         new LintPlan(fileSystem, scanPatterns, ruleCatalog, buildImportGraph, testGlobs),
@@ -227,6 +234,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     compareEvals: asFunction(({ fileSystem }) => new CompareEvals(fileSystem)),
     runEvals: asFunction(
       ({ evalCatalog, binResolver, processRunner }) => new RunEvals(evalCatalog, binResolver, processRunner),
+    ),
+    runAffectedTests: asFunction(
+      ({ computeAffected, packageManager, processRunner }) =>
+        new RunAffectedTests(computeAffected, packageManager, processRunner),
     ),
     computeAffected: asFunction(
       ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),

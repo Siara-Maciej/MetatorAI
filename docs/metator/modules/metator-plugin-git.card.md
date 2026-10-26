@@ -19,11 +19,11 @@ dir: packages/plugin-git
 
 ## Responsibility
 
-`Vcs` port on simple-git: changed files against a base, and the repository's file list as git sees it.
+`Vcs` and `RevisionReader` ports on simple-git: changed files against a base, the repository's file list as git sees it, and file contents at the merge base.
 
 ## Invariants
 
-- Renames count under both paths, so importers of the old path are affected [[cite: packages/plugin-git/src/git-vcs.ts:37 | "diffSummary([\"--no-renames\", ref])"]].
+- Renames count under both paths, so importers of the old path are affected [[cite: packages/plugin-git/src/git-vcs.ts:26 | "diffSummary([\"--no-renames\", ref.value])"]].
 
 ## Allowed dependencies
 

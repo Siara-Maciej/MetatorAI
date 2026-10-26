@@ -124,6 +124,8 @@ Orientacyjnie: F0 1 tydz., F1 2 tyg., F2 2–3 tyg., F3 2–3 tyg., F4 3 tyg., F
 - [x] `plan lint|scope` (pattern_source, TDD order, kolejność wg grafu, shardy).
 - [ ] Hooki: `pre-tool` (scope, approvals, sekrety, rola), `post-edit` (biome + ast-grep), `stop`, `precompact`, `session-start`.
 - [ ] Gate: `gate quick|all`, `test affected`, `coverage diff`, `graph diff`, `api diff`.
+  - [x] `gate quick|full` (ADR-0029), `test affected`, `graph diff` (ADR-0036).
+  - [ ] `coverage diff`, `api diff`, kroki `test affected` i `graph diff` w bramce.
 - [ ] Refactor: skill `mt-characterization-tests`, `equivalence.md`, soczewka `mt-review-equivalence`.
 - [ ] Skille `mt-create-*` (z eq-create-*) z exemplarami z indeksu zamiast szablonów na sztywno.
 

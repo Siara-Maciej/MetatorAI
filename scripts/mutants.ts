@@ -105,8 +105,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-git/src/git-vcs.ts",
-    from: 'diffSummary(["--no-renames", ref])',
-    to: "diffSummary([ref])",
+    from: 'diffSummary(["--no-renames", ref.value])',
+    to: "diffSummary([ref.value])",
     why: "a rename counts under the old path too (its importers are affected)",
   },
   {
@@ -637,5 +637,35 @@ export const MUTANTS: readonly Mutant[] = [
     from: "if (await this.fs.exists(s.path)) files.add(s.path);",
     to: "files.add(s.path);",
     why: "a step's file exists only when the file system has it",
+  },
+  {
+    file: "packages/core/src/domain/graph-diff.ts",
+    from: ".filter(([k]) => !basePackages.has(k))",
+    to: "",
+    why: "a package dependency that existed at the base is not new",
+  },
+  {
+    file: "packages/core/src/domain/graph-diff.ts",
+    from: '.filter((c) => !baseCycles.has(c.join("\\u0000")))',
+    to: "",
+    why: "cycles that existed at the base are not new",
+  },
+  {
+    file: "packages/core/src/application/graph-diff.ts",
+    from: "current.value.edges.filter((e) => !touched.has(e.from))",
+    to: "[...current.value.edges]",
+    why: "changed files lose their current edges in the base graph",
+  },
+  {
+    file: "packages/core/src/application/test-affected.ts",
+    from: "passed: r.exitCode === 0,",
+    to: "passed: true,",
+    why: "a failing test run does not pass",
+  },
+  {
+    file: "packages/plugin-git/src/git-vcs.ts",
+    from: "return ok(exists ? await git.value.show([object]) : undefined);",
+    to: "return ok(await git.value.show([object]));",
+    why: "files missing at the base read as undefined, not as errors",
   },
 ];

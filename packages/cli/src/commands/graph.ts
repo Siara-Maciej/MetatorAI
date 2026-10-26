@@ -45,6 +45,16 @@ export function registerGraphCommands(program: Command, { action, container }: C
       }),
     );
 
+  graph
+    .command("diff")
+    .description("Import edges added and removed since a base, new package dependencies and new cycles")
+    .option("--base <ref>", "git ref to compare against (its merge base with HEAD)", "HEAD")
+    .action(
+      action(async (opts: { base: string }) => ({
+        result: await container().resolve("diffImportGraph").execute({ base: opts.base }),
+      })),
+    );
+
   for (const [name, description] of [
     ["deps", "Files the given file imports"],
     ["dependents", "Files that import the given file"],
