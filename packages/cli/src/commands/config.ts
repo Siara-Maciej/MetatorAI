@@ -1,5 +1,5 @@
-import { MetatorConfigDocument, ok } from "@metator/core";
-import type { Command } from "commander";
+import { HOST_TARGETS, type HostTarget, MetatorConfigDocument, ok } from "@metator/core";
+import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 
 export function registerConfigCommands(program: Command, { action, container }: CommandContext): void {
@@ -7,9 +7,14 @@ export function registerConfigCommands(program: Command, { action, container }: 
     .command("init")
     .description("Discover the repository and write a proposed metator.config.yml (never overwrites)")
     .option("--dry-run", "print the proposal without writing it", false)
+    .addOption(
+      new Option("--host <hosts...>", "AI hosts to generate for (default: all)").choices(HOST_TARGETS),
+    )
     .action(
-      action(async (opts: { dryRun: boolean }) => {
-        const report = await container().resolve("initProject").execute({ dryRun: opts.dryRun });
+      action(async (opts: { dryRun: boolean; host?: HostTarget[] }) => {
+        const report = await container()
+          .resolve("initProject")
+          .execute({ dryRun: opts.dryRun, ...(opts.host ? { hosts: opts.host } : {}) });
         return { result: report, warnings: report.isOk() ? report.value.warnings : [] };
       }),
     );

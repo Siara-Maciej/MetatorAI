@@ -1,6 +1,6 @@
 # Configuration
 
-MetatorAI reads `metator.config.yml` (or `.yaml`, `.json`) from the repository root. Every field is optional: an empty file, or no file at all, means every default. `metator init` proposes a first version from evidence.
+MetatorAI reads `metator.config.yml` (or `.yaml`, `.json`) from the repository root. Every field is optional: an empty file, or no file at all, means every default. `metator setup` (or `metator init` on its own) proposes a first version from evidence.
 
 ```bash
 metator config show      # the resolved configuration, defaults included

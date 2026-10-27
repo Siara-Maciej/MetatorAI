@@ -1172,4 +1172,46 @@ export const MUTANTS: readonly Mutant[] = [
     to: "return true ? issue.message :",
     why: "a validation error names the field it is about",
   },
+  {
+    file: "packages/core/src/domain/install.ts",
+    from: 'else if (wrote !== undefined && have === wrote) action = "update";',
+    to: "",
+    why: "an untouched file takes the newer canon",
+  },
+  {
+    file: "packages/core/src/domain/install.ts",
+    from: 'else if (wrote !== undefined && wanted === wrote) action = "kept";',
+    to: "",
+    why: "a local edit of an unchanged canon file is kept, even with --theirs",
+  },
+  {
+    file: "packages/core/src/domain/install.ts",
+    from: 'else action = input.theirs ? "overwrite" : "conflict";',
+    to: 'else action = "overwrite";',
+    why: "a conflict never overwrites without --theirs",
+  },
+  {
+    file: "packages/core/src/domain/install.ts",
+    from: 'return action !== "conflict" && action !== "kept";',
+    to: "return true;",
+    why: "the lock keeps the old hash of a file it did not write",
+  },
+  {
+    file: "packages/core/src/application/install.ts",
+    from: "if (!writesFile(step.action)) continue;",
+    to: "",
+    why: "an install writes only created, updated and overwritten files",
+  },
+  {
+    file: "packages/core/src/application/install.ts",
+    from: "if (chosen.includes(workflowId(file)))",
+    to: "if (true)",
+    why: "only the chosen workflows are installed",
+  },
+  {
+    file: "packages/core/src/application/install.ts",
+    from: "if (input.dryRun) return ok({ ...report, lock: null });",
+    to: "",
+    why: "a dry run writes nothing",
+  },
 ];

@@ -26,6 +26,8 @@ export interface MetatorPaths {
   readonly claims: string;
   /** The system map: applications, contracts and policies (ADR-0047). */
   readonly system: string;
+  /** What `agents install|update` wrote, with content hashes (ADR-0049). */
+  readonly installLock: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -47,6 +49,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   lessons: "docs/metator/lessons",
   claims: "docs/metator/claims.json",
   system: "docs/metator/system.yml",
+  installLock: "metator/install.lock.json",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

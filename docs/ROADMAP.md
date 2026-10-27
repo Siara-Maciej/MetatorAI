@@ -207,12 +207,12 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 **Post-MVP:** AsyncAPI, GraphQL, gRPC, pakiety npm, schemat bazy i konfiguracja jako kontrakty; `oasdiff`; katalog Backstage; kolejność wdrożeń z pipeline'ów; źródło przez API hosta; Pact (lista w [design §9](design/08-system-landscape.md#9-post-mvp-do-zrobienia-później)).
 
 **Kryterium wyjścia (pilot):** `system impact` wskazuje ≥ 95% dotkniętych aplikacji na 10 historycznych zmianach; każda zmiana łamiąca kontraktu wykryta; plan systemowy dla 5 zadań zatwierdzony bez zmian kolejności.
-## F8: Sesje, worktree i środowiska aplikacji (propozycja)
+## F8: Sesje, worktree i środowiska aplikacji
 
-**Cel:** jedna komenda instaluje MetatorAI z wybranym hostem agentów; run działa w swoim worktree, prowadzony na żywo w CLI, z pytaniami w miejscu i `run continue`; `metator ui` przełącza sesje i uruchamia ich aplikacje; MetatorAI sam wie, jak wystartować aplikację, i skraca zimny start przez współdzielenie i częściowy start. Analiza, plan i pytania do decyzji: [design/09-workspaces-sessions.md](design/09-workspaces-sessions.md).
+**Cel:** jedna komenda instaluje MetatorAI z wybranym hostem agentów; run działa w swoim worktree, prowadzony na żywo w CLI, z pytaniami w miejscu i `run continue`; `metator ui` przełącza sesje i uruchamia ich aplikacje; MetatorAI sam wie, jak wystartować aplikację, i skraca zimny start przez współdzielenie i częściowy start. Analiza, plan i decyzje: [design/09-workspaces-sessions.md](design/09-workspaces-sessions.md).
 
 **Zadania**
-- [ ] F8.1 `setup`, `agents install|update` (kanon z pakietu, wybór hostów, `InstallLock` v1).
+- [x] F8.1 `setup`, `agents install|update` (kanon z pakietu, wybór hostów, `InstallLock` v1, kreator w terminalu; ADR-0049).
 - [ ] F8.2 `worktree new|list|rm|prune`, dzierżawy portów, `run init --worktree`, `RunRecord` v3.
 - [ ] F8.3 Port `AgentHost` (Claude Agent SDK, Copilot CLI, adapter testowy), `run drive|stop`, `RunEvent` v1, `Question` v1 (sedno odłożonego F5).
 - [ ] F8.4 Interaktywny `metator run` i `run continue` (widok na żywo, pytania i bramki w miejscu).
@@ -220,7 +220,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [ ] F8.6 `metator ui`: sesje, skrzynka pytań, aplikacje sesji, edytor, powłoka, diff.
 - [ ] F8.7 `env analyze`, izolacja danych (Postgres template, prefiksy), częściowy start z `affected`/`impact`, reuse buildu, pula ciepłych worktree.
 
-**Kryterium wyjścia:** puste repo do zielonego `meta check-all` jedną komendą; dwie równoległe sesje w osobnych worktree z rozłącznymi portami; drugi worktree aplikacji z wolnym seedem startuje ≥ 10× szybciej niż zimny start (zmierzone).
+**Kryterium wyjścia:** puste repo do zielonych sprawdzeń kanonu i plików hosta jedną komendą; dwie równoległe sesje w osobnych worktree z rozłącznymi portami; drugi worktree aplikacji z wolnym seedem startuje ≥ 10× szybciej niż zimny start (zmierzone).
 
 ---
 

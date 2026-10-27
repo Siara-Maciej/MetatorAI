@@ -145,14 +145,11 @@ git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
 cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)   # `metator` on your PATH
 
 cd ~/code/your-repo
-metator init                                   # survey the repo, write metator.config.yml with evidence
-cp -r ~/tools/metatorai/metator ./metator      # canonical agents and skills
-mkdir -p .github/metator && cp -r ~/tools/metatorai/.github/metator/workflows .github/metator/
-metator generate --hooks                       # Copilot and Claude Code agents, skills and hooks
+metator setup                                  # asks: Claude Code, Copilot or both; workflows; hooks
 metator index build && metator gate full       # measured facts, then your own checks in one report
 ```
 
-`metator init` detects your package manager, workspaces, scripts, linters, test runners and CI, and proposes gates with the evidence for each. It never overwrites a config. Then, in Copilot Chat or Claude Code:
+`metator setup` surveys the repository (package manager, workspaces, scripts, linters, test runners, CI) and writes `metator.config.yml` with the evidence for each gate. It then installs the shipped agents, skills and workflows, generates the host files and checks the result. `metator agents update` later takes a newer canon without undoing your edits. Then, in Copilot Chat or Claude Code:
 
 ```text
 @mt-orchestrator run mt-feature for AB#1234     → full loop; you approve the plan and the push

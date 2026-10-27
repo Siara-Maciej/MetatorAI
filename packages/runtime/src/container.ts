@@ -48,6 +48,7 @@ import {
   type ImportGraphReader,
   type InitProject,
   type InitRun,
+  type InstallCanon,
   type InventoryMemory,
   type JudgeFindings,
   type KnowledgeFiles,
@@ -194,6 +195,7 @@ export interface Cradle {
   gateChecks: GateChecks;
   runAffectedTests: RunAffectedTests;
   initProject: InitProject;
+  installCanon: InstallCanon;
   hostGenerators: readonly HostGenerator[];
   agentCatalog: AgentCatalog;
   lintAgents: LintAgents;

@@ -6,7 +6,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 
 | Kind | File | Written by |
 |---|---|---|
-| `MetatorConfig` | `metator.config.yml` | you (`metator init` proposes it) |
+| `MetatorConfig` | `metator.config.yml` | you (`metator setup` and `metator init` propose it) |
 | `RuleSet` | `docs/metator/rules/*.yml` | you |
 | `Pattern` | `docs/metator/patterns/*.yml` | you |
 | `ModuleCard` | `docs/metator/modules/*.card.md` | `metator cards build` (generated block) and you (curated sections) |
@@ -17,6 +17,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `Workflow` | `.github/metator/workflows/*.yml` | you (five are shipped) |
 | `Agent` | `metator/agents/*.md` | you (23 are shipped) |
 | `Skill` | `metator/skills/*/SKILL.md` | you (six are shipped) |
+| `InstallLock` | `metator/install.lock.json` | `metator setup`, `metator agents install\|update` (never by hand) |
 | `EvalCase` | `docs/metator/evals/golden/*.yml` | you |
 | `InstructionsAdapter` | `.github/instructions/*.instructions.md` | `metator rules adapters` |
 

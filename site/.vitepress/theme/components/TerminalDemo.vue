@@ -118,9 +118,19 @@ onBeforeUnmount(() => {
 .mx-term-bar span {
   margin-left: 8px;
 }
+/* Fixed height, so typing never changes the page layout; older lines scroll out at the top. */
 .mx-term-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 320px;
   padding: 14px 16px;
-  min-height: 290px;
+  overflow: hidden;
+}
+@media (max-width: 640px) {
+  .mx-term-body {
+    height: 380px;
+  }
 }
 .mx-term-line {
   margin-bottom: 10px;

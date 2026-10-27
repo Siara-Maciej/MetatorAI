@@ -22,7 +22,8 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
       ...options,
       invoke: async (inner) => {
         let text = "{}";
-        const code = await run(inner, { out: (t) => (text = t) }, options);
+        // Inner commands never ask: only the command the person typed talks to them.
+        const code = await run(inner, { out: (t) => (text = t) }, { ...options, prompter: null });
         return { code, envelope: JSON.parse(text) as Record<string, unknown> };
       },
     },

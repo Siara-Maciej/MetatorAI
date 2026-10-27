@@ -1,0 +1,78 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "InstallLock",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "InstallLock"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "version": {
+        "type": "string",
+        "minLength": 1
+      },
+      "workflows": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "files": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "minLength": 1
+        },
+        "additionalProperties": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "version", "workflows", "files"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "InstallLock"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "version": {
+        "type": "string",
+        "minLength": 1
+      },
+      "workflows": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "files": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "minLength": 1
+        },
+        "additionalProperties": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "version", "workflows", "files"],
+    "additionalProperties": false
+  }
+}

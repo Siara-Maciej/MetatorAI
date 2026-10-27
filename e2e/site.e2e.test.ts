@@ -149,4 +149,23 @@ describe("documentation site", () => {
     expect(errors).toEqual([]);
     await page.close();
   }, 90_000);
+
+  test("animations never change the page height, so scrolling does not jump (desktop and phone)", async () => {
+    const base = `http://localhost:${server.port}`;
+    const pages = ["/", "/multi-repo/", "/workflows/feature", "/agents/"];
+    // One full terminal cycle (~20 s), every page and width at once.
+    const sample = async (width: number, path: string) => {
+      const page = await (await browser()).newPage({ viewport: { width, height: 900 } });
+      await page.goto(`${base}${path}`);
+      const heights = new Set<number>();
+      for (let i = 0; i < 44; i++) {
+        heights.add(await page.evaluate(() => document.documentElement.scrollHeight));
+        await page.waitForTimeout(500);
+      }
+      await page.close();
+      return [width, path, heights.size];
+    };
+    const runs = await Promise.all([1280, 390].flatMap((w) => pages.map((p) => sample(w, p))));
+    expect(runs).toEqual([1280, 390].flatMap((w) => pages.map((p) => [w, p, 1])));
+  }, 90_000);
 });
