@@ -46,5 +46,12 @@ export function fileSystemContract(name: string, make: FileSystemFactory): void 
       expect((await fs.write("out/report.json", "{}")).isOk()).toBe(true);
       expect((await fs.read("out/report.json"))._unsafeUnwrap()).toBe("{}");
     });
+
+    test("remove deletes a file; removing a missing file is not an error", async () => {
+      const fs = await make(seed);
+      expect((await fs.remove("README.md")).isOk()).toBe(true);
+      expect(await fs.exists("README.md")).toBe(false);
+      expect((await fs.remove("README.md")).isOk()).toBe(true);
+    });
   });
 }

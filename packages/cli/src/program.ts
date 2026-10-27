@@ -29,6 +29,7 @@ import { registerSetupCommands } from "./commands/setup.ts";
 import { registerSystemCommands } from "./commands/system.ts";
 import { registerTestCommands } from "./commands/test.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
+import { registerWorktreeCommands } from "./commands/worktree.ts";
 import type { CommandContext, Outcome } from "./context.ts";
 
 export interface ProgramOptions {
@@ -112,6 +113,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerGuardCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
+  registerWorktreeCommands(program, ctx);
   return program;
 }
 

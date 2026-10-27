@@ -10,6 +10,7 @@
     "@friedemannsommer/lcov-parser": "8.0.0",
     "@manypkg/get-packages": "^3.1.0",
     "@metator/core": "workspace:*",
+    "get-port": "7.2.0",
     "package-manager-detector": "1.9.0"
   },
   "devDependencies": {

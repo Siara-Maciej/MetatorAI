@@ -61,7 +61,7 @@ metator worktree rm <id>           # env down, git worktree remove, zwolnienie p
 ```
 
 - `run init --worktree` (domyślne w trybie interaktywnym) tworzy worktree i zapisuje go w runie (`RunRecord` v3: `worktree`, `host`, `hostSession`, `apps`; razem z `parent` i `children` z F7.6, w jednej migracji).
-- **Porty:** każdy worktree dostaje blok portów z rejestru `.metator/ports.json` (dokument `PortLeases` v1) i nakładkę `.metator/wt/<id>/.env`. Do sprawdzenia, czy port jest wolny, używamy gotowego pakietu (`get-port`).
+- **Porty:** każdy worktree dostaje blok portów zapisany w rejestrze `.metator/worktrees.json` (dokument `WorktreeRegistry` v1). `env up` przekazuje go procesom jako zmienne `METATOR_PORT_BASE` i `METATOR_PORT_COUNT`, bez plików `.env` w worktree. Do sprawdzenia, czy port jest wolny, używamy gotowego pakietu (`get-port`).
 - Sprzątanie: `worktree prune` usuwa worktree zamkniętych runów starszych niż N dni. Nigdy nie usuwa worktree z niezapisanymi zmianami.
 
 ### 3.3 Środowisko aplikacji: wykrycie, konfiguracja, start
@@ -221,7 +221,7 @@ Każda zależność trafia do `docs/metator/dependencies.yml` z ADR, a wybór je
 | Element | Rodzaj | Opis |
 |---------|--------|------|
 | `setup`, `agents install|update` | CLI + use case | instalacja kanonu z pakietu, wybór hostów, `InstallLock` v1 |
-| `worktree new|list|rm|prune` | CLI + port `WorktreeManager` | worktree runu, `PortLeases` v1 |
+| `worktree new|list|rm|prune` | CLI + porty `WorktreeManager`, `PortProbe` | worktree runu, `WorktreeRegistry` v1 z blokami portów |
 | `Environment` v1, `EnvState` v1, `EnvProfile` v1 | dokumenty | konfiguracja, stan i profil startu |
 | `env discover|init|up|down|status|logs|analyze|pool` | CLI + port `EnvironmentRunner` | adaptery `compose`, `process`; post-MVP `devcontainer`, `tilt`, `k8s` |
 | port `ServiceDetector` | port + pluginy | compose, devcontainer, skrypty, Procfile, Makefile |
@@ -240,7 +240,7 @@ Architektura zostaje nienaruszona:
 | Etap | Cel | Produkty | Kryterium wyjścia |
 |------|-----|----------|-------------------|
 | **F8.1 Instalacja** | jedna komenda zamiast kopiowania | kanon jako zasób pakietu, `setup`, `agents install|update`, `InstallLock` v1, `hosts` w configu | e2e: puste repo → `setup --host claude --yes` → lint agentów, skilli, workflowów i `generate --check` zielone; update nie nadpisuje lokalnej zmiany |
-| **F8.2 Worktree** | run nie dotyka mojego working tree | `WorktreeManager`, `worktree *`, `PortLeases` v1, `run init --worktree`, `RunRecord` v3 | e2e: dwa runy w dwóch worktree z rozłącznymi portami; `rm` odmawia przy niezapisanych zmianach |
+| **F8.2 Worktree** | run nie dotyka mojego working tree | `WorktreeManager`, `PortProbe`, `worktree *`, `WorktreeRegistry` v1, `run init --worktree`, `RunRecord` v3 | e2e: dwa runy w dwóch worktree z rozłącznymi portami; `rm` odmawia przy niezapisanych zmianach |
 | **F8.3 `AgentHost` i `run drive`** | CLI prowadzi etapy | port + kontrakt, adapter testowy, `plugin-claude-code`, `plugin-copilot-cli`, `RunEvent` v1, `Question` v1, `run stop` | e2e z adapterem testowym: W1 od intake do HITL planu; spike na prawdziwym hoście |
 | **F8.4 Interaktywny run** | widzę proces i odpowiadam w miejscu | `metator run` (TTY), `run continue`, wznowienie sesji hosta | e2e w pseudo-terminalu: start → pytanie → odpowiedź → następny etap; `continue` po zabiciu procesu |
 | **F8.5 Środowisko: wykrycie i start** | MetatorAI wie, jak uruchomić aplikację | `Environment` v1, `ServiceDetector` (compose, skrypty, devcontainer, Procfile, Makefile), `env discover|init|up|down|status|logs` | e2e: repo z compose (postgres + api) i repo ze skryptami wykryte i uruchomione; nieznane → `env init` |

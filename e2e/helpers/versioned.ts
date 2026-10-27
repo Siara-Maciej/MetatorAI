@@ -7,10 +7,14 @@ const FRONT_MATTER = /^---\n([\s\S]*?)\n---\n/;
 export async function findUnversioned(
   root: string,
   dirs: readonly string[],
+  /** Globs of files that are not MetatorAI's, e.g. the person's code in run worktrees. */
+  ignore: readonly string[] = [],
 ): Promise<{ checked: number; unversioned: string[] }> {
+  const skip = ignore.map((g) => new Bun.Glob(g));
   const files: string[] = [];
   for (const dir of dirs) {
-    for await (const f of new Bun.Glob(`${dir}/**/*`).scan({ cwd: root, dot: true })) files.push(f);
+    for await (const f of new Bun.Glob(`${dir}/**/*`).scan({ cwd: root, dot: true }))
+      if (!skip.some((g) => g.match(f))) files.push(f);
   }
   const unversioned: string[] = [];
   for (const file of files.sort()) {

@@ -61,24 +61,43 @@ export const ApprovalSchema = z
   .strict();
 export type Approval = z.infer<typeof ApprovalSchema>;
 
-/** v2 adds `approvals`: HITL gates and external actions, keyed by stage id or action. */
-export const RunRecordSchema = RunRecordV1Schema.extend({
+/** v2 adds `approvals`: HITL gates and external actions, keyed by stage id or action. Never change it. */
+const RunRecordV2Schema = RunRecordV1Schema.extend({
   approvals: z.record(z.string(), ApprovalSchema),
+}).strict();
+
+/**
+ * v3 (F8, ADR-0050) adds where and by whom a run is carried out, all optional: the worktree it
+ * works in, the AI host and its session (to resume), and the parent and children of linked runs.
+ */
+export const RunRecordSchema = RunRecordV2Schema.extend({
+  worktree: z.strictObject({ id: z.string(), path: z.string(), branch: z.string() }).optional(),
+  host: z.string().optional(),
+  hostSession: z.string().optional(),
+  parent: z.string().regex(RUN_ID).optional(),
+  children: z.array(z.string().regex(RUN_ID)).optional(),
 }).strict();
 
 export type RunRecord = z.infer<typeof RunRecordSchema>;
 
 export const RunRecordDocument = defineDocument("RunRecord", {
-  history: [{ schema: RunRecordV1Schema }],
+  history: [
+    { schema: RunRecordV1Schema },
+    {
+      schema: RunRecordV2Schema,
+      // Earlier approvals live only in the history: keep who approved which stage.
+      fromPrevious: (previous) => {
+        const v1 = previous as RunRecordV1;
+        const approvals: Record<string, Approval> = {};
+        for (const h of v1.state.context.history)
+          if (h.event === "APPROVE") approvals[h.stage] = { by: h.detail ?? "unknown", at: v1.updatedAt };
+        return { ...v1, approvals };
+      },
+    },
+  ],
   latest: RunRecordSchema,
-  // Earlier approvals live only in the history: keep who approved which stage.
-  upgrade: (previous) => {
-    const v1 = previous as RunRecordV1;
-    const approvals: Record<string, Approval> = {};
-    for (const h of v1.state.context.history)
-      if (h.event === "APPROVE") approvals[h.stage] = { by: h.detail ?? "unknown", at: v1.updatedAt };
-    return { ...v1, approvals };
-  },
+  // Every v3 field is optional: a v2 record is a v3 record that ran in place.
+  upgrade: (previous) => previous,
   hint: "Do not edit state.json by hand; use `metator run advance` or `metator run approve`.",
 });
 

@@ -28,6 +28,10 @@ export interface MetatorPaths {
   readonly system: string;
   /** What `agents install|update` wrote, with content hashes (ADR-0049). */
   readonly installLock: string;
+  /** Run worktrees (`<id>/`, F8.2): the person's code on a run's branch, not MetatorAI documents. */
+  readonly worktrees: string;
+  /** The registry of worktrees and their port blocks. */
+  readonly worktreeRegistry: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -50,6 +54,8 @@ export const DEFAULT_PATHS: MetatorPaths = {
   claims: "docs/metator/claims.json",
   system: "docs/metator/system.yml",
   installLock: "metator/install.lock.json",
+  worktrees: ".metator/wt",
+  worktreeRegistry: ".metator/worktrees.json",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

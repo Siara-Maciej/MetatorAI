@@ -61,16 +61,25 @@ export function registerRunCommands(program: Command, { action, container }: Com
         .choices(AutonomySchema.options)
         .default("L0"),
     )
+    .option("--worktree", "work in a new git worktree with its own ports (.metator/wt/<run>)", false)
+    .option("--base <ref>", "with --worktree: the ref to branch from", "HEAD")
     .action(
       action(
         async (opts: {
           workflow: string;
           task: string;
           autonomy: (typeof AutonomySchema.options)[number];
+          worktree: boolean;
+          base: string;
         }) => {
           const task = opts.task.trim();
           if (task === "") return { result: err(MetatorError.usage("--task must not be empty")) };
-          const input = { workflow: opts.workflow, task, autonomy: opts.autonomy };
+          const input = {
+            workflow: opts.workflow,
+            task,
+            autonomy: opts.autonomy,
+            ...(opts.worktree ? { worktree: { base: opts.base } } : {}),
+          };
           return { result: await container().resolve("initRun").execute(input) };
         },
       ),

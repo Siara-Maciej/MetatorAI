@@ -17,6 +17,7 @@ import {
   CloseRun,
   CompareEvals,
   ComputeAffected,
+  CreateWorktree,
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
@@ -58,6 +59,7 @@ import {
   LintSystem,
   LintWorkflows,
   ListRuns,
+  ListWorktrees,
   MeasureRuleCoverage,
   MemoryBudget,
   MemoryMapReader,
@@ -66,6 +68,8 @@ import {
   PackRules,
   PatternCatalog,
   PlanReview,
+  PruneWorktrees,
+  RemoveWorktree,
   RuleCatalog,
   RunAffectedTests,
   RunEvals,
@@ -83,6 +87,7 @@ import {
   ValidateCitations,
   ValidateFindings,
   WorkflowCatalog,
+  WorktreeRegistry,
 } from "@metator/core";
 import { BunFileSystem, BunProcessRunner, BunTestEngine, NodeBinResolver } from "@metator/plugin-bun";
 
@@ -90,10 +95,15 @@ export { findRepoRoot } from "@metator/plugin-bun";
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
-import { GitVcs } from "@metator/plugin-git";
+import { GitVcs, GitWorktreeManager } from "@metator/plugin-git";
 import { ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
 import { CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
-import { LcovCoverageReader, ManypkgWorkspaceReader, NodePackageManager } from "@metator/plugin-node";
+import {
+  GetPortProbe,
+  LcovCoverageReader,
+  ManypkgWorkspaceReader,
+  NodePackageManager,
+} from "@metator/plugin-node";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
 import { resolveCanon } from "./canon.ts";
@@ -340,7 +350,28 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ).singleton(),
     runRepository: asFunction(({ fileSystem, paths }) => new RunRepository(fileSystem, paths)).singleton(),
     initRun: asFunction(
-      ({ workflowCatalog, runRepository, clock }) => new InitRun(workflowCatalog, runRepository, clock),
+      ({ workflowCatalog, runRepository, clock, createWorktree }) =>
+        new InitRun(workflowCatalog, runRepository, clock, createWorktree),
+    ),
+    worktreeManager: asFunction(({ root }) => new GitWorktreeManager(root)).singleton(),
+    portProbe: asFunction(() => new GetPortProbe()).singleton(),
+    worktreeRegistry: asFunction(
+      ({ fileSystem, paths }) => new WorktreeRegistry(fileSystem, paths),
+    ).singleton(),
+    createWorktree: asFunction(
+      ({ worktreeRegistry, worktreeManager, portProbe, clock, paths }) =>
+        new CreateWorktree(worktreeRegistry, worktreeManager, portProbe, clock, paths),
+    ),
+    listWorktrees: asFunction(
+      ({ worktreeRegistry, worktreeManager, runRepository }) =>
+        new ListWorktrees(worktreeRegistry, worktreeManager, runRepository),
+    ),
+    removeWorktree: asFunction(
+      ({ worktreeRegistry, worktreeManager }) => new RemoveWorktree(worktreeRegistry, worktreeManager),
+    ),
+    pruneWorktrees: asFunction(
+      ({ worktreeRegistry, removeWorktree, worktreeManager, runRepository, clock }) =>
+        new PruneWorktrees(worktreeRegistry, removeWorktree, worktreeManager, runRepository, clock),
     ),
     advanceRun: asFunction(
       ({ workflowCatalog, runRepository, clock }) => new AdvanceRun(workflowCatalog, runRepository, clock),

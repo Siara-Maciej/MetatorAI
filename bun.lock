@@ -23,7 +23,7 @@
         "metator": "./src/main.ts",
       },
       "dependencies": {
-        "@clack/prompts": "1.8.1",
+        "@clack/prompts": "^1.8.1",
         "@metator/core": "workspace:*",
         "@metator/runtime": "workspace:*",
         "commander": "^15.0.0",
@@ -126,6 +126,7 @@
         "@friedemannsommer/lcov-parser": "8.0.0",
         "@manypkg/get-packages": "^3.1.0",
         "@metator/core": "workspace:*",
+        "get-port": "7.2.0",
         "package-manager-detector": "1.9.0",
       },
       "devDependencies": {
@@ -686,6 +687,8 @@
     "focus-trap": ["focus-trap@7.8.0", "", { "dependencies": { "tabbable": "^6.4.0" } }, "sha512-/yNdlIkpWbM0ptxno3ONTuf+2g318kh2ez3KSeZN5dZ8YC6AAmgeWz+GasYYiBJPFaYcSAPeu4GfhUaChzIJXA=="],
 
     "fsevents": ["fsevents@2.3.3", "", { "os": "darwin", "hasInstallScript": true }, "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="],
+
+    "get-port": ["get-port@7.2.0", "", {}, "sha512-afP4W205ONCuMoPBqcR6PSXnzX35KTcJygfJfcp+QY+uwm3p20p1YczWXhlICIzGMCxYBQcySEcOgsJcrkyobg=="],
 
     "github-slugger": ["github-slugger@2.0.0", "", {}, "sha512-IaOQ9puYtjrkq7Y0Ygl9KDZnrf/aiUJYUpVf89y8kyaxbRG7Y1SrX/jaumrv81vc61+kiMempujsM3Yw7w5qcw=="],
 

@@ -1214,4 +1214,52 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "a dry run writes nothing",
   },
+  {
+    file: "packages/core/src/domain/worktree.ts",
+    from: "if (!leased.some((l) => overlaps(l, block))) yield block;",
+    to: "yield block;",
+    why: "a leased port block is never handed out again",
+  },
+  {
+    file: "packages/core/src/domain/worktree.ts",
+    from: 'const finished = status === undefined || status !== "active";',
+    to: "const finished = true;",
+    why: "prune never takes the worktree of an active run",
+  },
+  {
+    file: "packages/core/src/domain/worktree.ts",
+    from: "return finished && new Date(e.createdAt).getTime() <= cutoff;",
+    to: "return finished;",
+    why: "prune keeps worktrees younger than the limit",
+  },
+  {
+    file: "packages/core/src/application/worktrees.ts",
+    from: "free = await this.probe.isFree(p);",
+    to: "free = true;",
+    why: "a block with a busy port is skipped",
+  },
+  {
+    file: "packages/core/src/application/worktrees.ts",
+    from: "if (dirty.value && !input.force) {",
+    to: "if (false) {",
+    why: "rm refuses uncommitted work without --force",
+  },
+  {
+    file: "packages/core/src/application/worktrees.ts",
+    from: "      if (dirty.value) {\n        keptDirty.push(e.id);",
+    to: "      if (false) {\n        keptDirty.push(e.id);",
+    why: "prune never removes a worktree with uncommitted work",
+  },
+  {
+    file: "packages/plugin-git/src/git-worktree-manager.ts",
+    from: "return ok(!(await simpleGit(dir).status()).isClean());",
+    to: "return ok(false);",
+    why: "uncommitted work in a worktree is reported as dirty",
+  },
+  {
+    file: "packages/plugin-node/src/get-port-probe.ts",
+    from: "return (await getPort({ port })) === port;",
+    to: "return true;",
+    why: "a port something listens on is busy",
+  },
 ];

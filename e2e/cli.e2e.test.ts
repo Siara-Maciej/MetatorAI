@@ -129,6 +129,10 @@ describe("metator CLI (process e2e)", () => {
       "run status",
       "run schema",
       "run list",
+      "worktree new",
+      "worktree list",
+      "worktree rm",
+      "worktree prune",
     ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);
   });
