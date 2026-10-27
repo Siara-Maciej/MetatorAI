@@ -47,6 +47,7 @@ Nothing is done until it is proven:
 2. While editing: `bun run metator graph dependents <file> --transitive`.
 3. After editing: `bun run metator graph affected --base origin/claude/foundation` to pick tests; `bun run metator rules check --base origin/claude/foundation`.
 4. Before committing: `bun run metator cards build`, `bun run metator rules adapters` and `bun run metator generate` when structure, rules or agents changed; then `bun run canon` and `bun run check`.
+5. Every finished feature ends with the user docs: update `site/` (guides, the command reference via `bun run site:reference`, the documents table) so the site describes what was built.
 
 ## Generated files
 
