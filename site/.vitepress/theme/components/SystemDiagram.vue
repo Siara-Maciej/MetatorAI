@@ -225,8 +225,10 @@ svg {
   font-size: 11.5px;
   fill: var(--mx-muted);
 }
+/* Room for the longest caption wrapped on a phone, so the steps never move the page. */
 .mx-sys-caption {
-  min-height: 1.6em;
+  min-height: 4.5em; /* three lines of 1.5 */
+  line-height: 1.5;
   margin: 10px 0 0 !important;
   font-family: var(--vp-font-family-mono);
   font-size: 13px;
