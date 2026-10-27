@@ -24,6 +24,14 @@ export function worktreeManagerContract(name: string, make: () => Promise<Worktr
       expect(again._unsafeUnwrapErr().code).toBe("COMMAND_FAILED");
     });
 
+    test("switchBranch moves a worktree to a new branch; an unknown worktree is an error value", async () => {
+      const { manager } = await make();
+      await manager.add(".metator/wt/pool-1", "metator/pool-1", "HEAD");
+      expect((await manager.switchBranch(".metator/wt/pool-1", "metator/run-1", "HEAD")).isOk()).toBe(true);
+      expect((await manager.isDirty(".metator/wt/pool-1"))._unsafeUnwrap()).toBe(false);
+      expect((await manager.switchBranch(".metator/wt/none", "metator/x", "HEAD")).isErr()).toBe(true);
+    });
+
     test("uncommitted work is dirty; removing it needs force", async () => {
       const w = await make();
       await w.manager.add(".metator/wt/a", "metator/a", "HEAD");

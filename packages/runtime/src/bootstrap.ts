@@ -1,9 +1,11 @@
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   AddLesson,
   AdvanceRun,
   AgentCatalog,
   type AgentHost,
+  AnalyzeEnvironment,
   ApiSnapshots,
   ApproveRun,
   AuditAgents,
@@ -75,6 +77,7 @@ import {
   PackRules,
   PatternCatalog,
   PlanReview,
+  ProvideWorktree,
   PruneWorktrees,
   RemoveWorktree,
   RuleCatalog,
@@ -96,6 +99,7 @@ import {
   SystemCatalog,
   ValidateCitations,
   ValidateFindings,
+  WarmPool,
   WorkflowCatalog,
   WorktreeRegistry,
 } from "@metator/core";
@@ -104,9 +108,11 @@ import {
   BunFileSystem,
   BunLauncher,
   BunProcessRunner,
+  BunSqlDataIsolator,
   BunTestEngine,
   BunTimer,
   NodeBinResolver,
+  NodeTreeCopier,
 } from "@metator/plugin-bun";
 
 export { findRepoRoot } from "@metator/plugin-bun";
@@ -191,6 +197,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         backgroundProcess,
         containerRuntime,
         healthProbe,
+        processRunner,
+        dataIsolator,
+        treeCopier,
         fileSystem,
         clock,
         paths,
@@ -199,15 +208,23 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new EnvironmentServices(
           environmentCatalog,
           worktreeRegistry,
-          backgroundProcess,
-          containerRuntime,
-          healthProbe,
+          {
+            processes: backgroundProcess,
+            containers: containerRuntime,
+            health: healthProbe,
+            steps: processRunner,
+            isolator: dataIsolator,
+            copier: treeCopier,
+          },
           fileSystem,
           clock,
           paths,
-          { root, logDir: tmpdir() },
+          // Logs live outside the repository, one directory per repository.
+          { root, logDir: join(tmpdir(), `metator-${Bun.hash(root).toString(36)}`) },
         ),
     ),
+    dataIsolator: asFunction(() => new BunSqlDataIsolator()).singleton(),
+    treeCopier: asFunction(() => new NodeTreeCopier()).singleton(),
     backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
     agentHosts: asFunction(() => {
       const hosts = new Map<string, AgentHost>([
@@ -461,8 +478,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ).singleton(),
     runRepository: asFunction(({ fileSystem, paths }) => new RunRepository(fileSystem, paths)).singleton(),
     initRun: asFunction(
-      ({ workflowCatalog, runRepository, clock, createWorktree }) =>
-        new InitRun(workflowCatalog, runRepository, clock, createWorktree),
+      ({ workflowCatalog, runRepository, clock, provideWorktree }) =>
+        new InitRun(workflowCatalog, runRepository, clock, provideWorktree),
     ),
     worktreeManager: asFunction(({ root }) => new GitWorktreeManager(root)).singleton(),
     portProbe: asFunction(() => new GetPortProbe()).singleton(),
@@ -472,6 +489,36 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     createWorktree: asFunction(
       ({ worktreeRegistry, worktreeManager, portProbe, clock, paths }) =>
         new CreateWorktree(worktreeRegistry, worktreeManager, portProbe, clock, paths),
+    ),
+    provideWorktree: asFunction(
+      ({ worktreeRegistry, worktreeManager, createWorktree }) =>
+        new ProvideWorktree(worktreeRegistry, worktreeManager, createWorktree),
+    ),
+    warmPool: asFunction(
+      ({ worktreeRegistry, createWorktree, removeWorktree, environmentServices }) =>
+        new WarmPool(worktreeRegistry, createWorktree, removeWorktree, environmentServices),
+    ),
+    analyzeEnvironment: asFunction(
+      ({
+        environmentCatalog,
+        worktreeRegistry,
+        createWorktree,
+        removeWorktree,
+        environmentServices,
+        fileSystem,
+        clock,
+        paths,
+      }) =>
+        new AnalyzeEnvironment(
+          environmentCatalog,
+          worktreeRegistry,
+          createWorktree,
+          removeWorktree,
+          environmentServices,
+          fileSystem,
+          clock,
+          paths,
+        ),
     ),
     listWorktrees: asFunction(
       ({ worktreeRegistry, worktreeManager, runRepository }) =>

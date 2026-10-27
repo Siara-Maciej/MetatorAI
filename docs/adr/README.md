@@ -58,3 +58,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0052](0052-interactive-run.md) | Interaktywny `metator run` i `run continue` | Proposed |
 | [0053](0053-environments.md) | Środowisko aplikacji (`Environment`, `env *`) | Proposed |
 | [0054](0054-terminal-sessions-ui.md) | `metator ui`, edytor w konfiguracji i port `Launcher` | Proposed |
+| [0055](0055-fast-start.md) | Szybki start środowiska (`env analyze`, izolacja danych, pula, częściowy start) | Proposed |

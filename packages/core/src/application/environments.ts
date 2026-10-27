@@ -1,4 +1,5 @@
 import {
+  affectedServices,
   assignPorts,
   type Environment,
   EnvironmentDocument,
@@ -6,11 +7,17 @@ import {
   EnvStateDocument,
   healthTarget,
   lintEnvironment,
+  type PortMap,
+  placeData,
+  postgresTarget,
   type RunningService,
+  type Service,
+  type Step,
   serviceEnv,
   startOrder,
 } from "../domain/environment.ts";
 import { type EnvironmentProposal, proposeEnvironment } from "../domain/environment-discovery.ts";
+import type { Phase } from "../domain/environment-profile.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
@@ -25,9 +32,12 @@ import type {
   Clock,
   ComposeService,
   ContainerRuntime,
+  DataIsolator,
   FileSystem,
   HealthProbe,
   PackageManagerDetector,
+  ProcessRunner,
+  TreeCopier,
   WorkspaceReader,
 } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
@@ -169,6 +179,8 @@ export interface ServiceReport {
   readonly ports: Readonly<Record<string, number>>;
   readonly pid?: number;
   readonly ms?: number;
+  /** What the start took, phase by phase: isolate, reuse, prepare steps, start, template, init steps. */
+  readonly phases?: readonly Phase[];
 }
 
 export interface EnvTarget {
@@ -176,14 +188,26 @@ export interface EnvTarget {
   readonly worktree?: string;
 }
 
+/** The adapters that start services and get them ready (F8.5, F8.7). */
+export interface StartTools {
+  readonly processes: BackgroundProcess;
+  readonly containers: ContainerRuntime;
+  readonly health: HealthProbe;
+  /** Runs `prepare` and `init` steps. */
+  readonly steps: ProcessRunner;
+  readonly isolator: DataIsolator;
+  readonly copier: TreeCopier;
+}
+
+const STEP_TIMEOUT_MS = 30 * 60_000;
+const LOCKFILES = ["bun.lock", "bun.lockb", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"];
+
 /** `env up|down|status|logs`: start, stop and inspect the services of a place. */
 export class EnvironmentServices {
   constructor(
     private readonly catalog: EnvironmentCatalog,
     private readonly registry: WorktreeRegistry,
-    private readonly processes: BackgroundProcess,
-    private readonly containers: ContainerRuntime,
-    private readonly health: HealthProbe,
+    private readonly tools: StartTools,
     private readonly fs: FileSystem,
     private readonly clock: Clock,
     private readonly paths: MetatorPaths,
@@ -192,7 +216,12 @@ export class EnvironmentServices {
   ) {}
 
   async up(
-    input: EnvTarget & { readonly services?: readonly string[]; readonly profile?: string },
+    input: EnvTarget & {
+      readonly services?: readonly string[];
+      readonly profile?: string;
+      /** Changed files: start only the services they touch (`env up --affected`) and what those need. */
+      readonly affected?: readonly string[];
+    },
   ): Promise<Result<readonly ServiceReport[], MetatorError>> {
     const ctx = await this.context(input.worktree);
     if (ctx.isErr()) return err(ctx.error);
@@ -209,11 +238,13 @@ export class EnvironmentServices {
         );
       wanted = profile;
     }
+    if (input.affected) wanted = affectedServices(env, input.affected);
     const unknown = (wanted ?? []).filter((s) => !env.services[s]);
     if (unknown.length > 0) return err(MetatorError.usage(`unknown service(s): ${unknown.join(", ")}`));
 
     const reports: ServiceReport[] = [];
-    for (const id of startOrder(env, wanted)) {
+    const order = wanted && wanted.length === 0 ? [] : startOrder(env, wanted);
+    for (const id of order) {
       const s = env.services[id];
       if (!s) continue;
       const place = s.scope === "shared" ? "shared" : (wt?.id ?? "main");
@@ -232,13 +263,39 @@ export class EnvironmentServices {
         continue;
       }
       const started = this.clock.now().getTime();
+      const phases: Phase[] = [];
+      const timed = async <T>(name: string, run: () => Promise<Result<T, MetatorError>>) => {
+        const t = this.clock.now().getTime();
+        const r = await run();
+        phases.push({ name, ms: this.clock.now().getTime() - t });
+        return r;
+      };
       const cwd = s.scope === "shared" || !wt ? this.where.root : `${this.where.root}/${wt.path}`;
-      const vars = { ...serviceEnv(env, ports, id), ...(wt ? portVariables(wt) : {}) };
+      const dir = "script" in s.source && s.source.cwd ? `${cwd}/${s.source.cwd}` : cwd;
+      const userPlace = wt?.id ?? "main";
+      const vars = { ...serviceEnv(env, ports, id, userPlace), ...(wt ? portVariables(wt) : {}) };
+      const fail = (e: MetatorError) => err(withStarted(e, reports));
+
+      if (s.scope !== "shared") {
+        const isolated = await timed("isolate", () => this.isolate(env, ports, s.needs, userPlace));
+        if (isolated.isErr()) return fail(isolated.error);
+        if (isolated.value === 0) phases.pop();
+      }
+      if (s.warm && wt) {
+        const reused = await timed("reuse", () => this.reuse(s.warm as NonNullable<Service["warm"]>, cwd));
+        if (reused.isErr()) return fail(reused.error);
+      }
+      for (const step of s.prepare) {
+        const r = await timed(step.name, () => this.step(id, step, dir, vars));
+        if (r.isErr()) return fail(r.error);
+      }
+
+      const t0 = this.clock.now().getTime();
       let entry: RunningService;
       if ("compose" in s.source) {
         const svc = this.compose(id, env, place, cwd, vars);
-        const up = await this.containers.up(svc);
-        if (up.isErr()) return err(up.error);
+        const up = await this.tools.containers.up(svc);
+        if (up.isErr()) return fail(up.error);
         entry = {
           kind: "compose",
           project: svc.project,
@@ -247,9 +304,8 @@ export class EnvironmentServices {
         };
       } else {
         const log = `${this.where.logDir}/metator-env-${place}-${id}.log`;
-        const dir = s.source.cwd ? `${cwd}/${s.source.cwd}` : cwd;
-        const pid = await this.processes.start(["sh", "-c", s.source.script], dir, log, vars);
-        if (pid.isErr()) return err(pid.error);
+        const pid = await this.tools.processes.start(["sh", "-c", s.source.script], dir, log, vars);
+        if (pid.isErr()) return fail(pid.error);
         entry = {
           kind: "process",
           pid: pid.value,
@@ -262,9 +318,9 @@ export class EnvironmentServices {
       if (saved.isErr()) return err(saved.error);
       const target = healthTarget(env, ports, id);
       if (target) {
-        const ready = await this.health.waitFor(target, s.readyTimeoutMs);
+        const ready = await this.tools.health.waitFor(target, s.readyTimeoutMs);
         if (ready.isErr()) {
-          const tail = entry.log ? await this.processes.readLog(entry.log, 20) : "";
+          const tail = entry.log ? await this.tools.processes.readLog(entry.log, 20) : "";
           return err(
             new MetatorError("COMMAND_FAILED", `${id} did not become ready within ${s.readyTimeoutMs} ms`, {
               hint: `See \`metator env logs ${id}${wt ? ` --worktree ${wt.id}` : ""}\`; it keeps running for that.`,
@@ -272,6 +328,21 @@ export class EnvironmentServices {
             }),
           );
         }
+      }
+      phases.push({ name: "start", ms: this.clock.now().getTime() - t0 });
+
+      let initVars = vars;
+      const pg = postgresTarget(env, ports, id);
+      if (pg && s.isolate && "postgres" in s.isolate) {
+        // The template is what init fills; every place is cloned from it later.
+        const template = s.isolate.postgres.template;
+        const created = await timed("template", () => this.tools.isolator.createDatabase(pg, template));
+        if (created.isErr()) return fail(created.error);
+        initVars = { ...vars, METATOR_DATABASE: template };
+      }
+      for (const step of s.init) {
+        const r = await timed(step.name, () => this.step(id, step, dir, initVars));
+        if (r.isErr()) return fail(r.error);
       }
       reports.push({
         service: id,
@@ -281,9 +352,97 @@ export class EnvironmentServices {
         ports: entry.ports,
         ...(entry.pid ? { pid: entry.pid } : {}),
         ms: this.clock.now().getTime() - started,
+        phases,
       });
     }
     return ok(reports);
+  }
+
+  /**
+   * Drops the isolated databases of a worktree (after `worktree rm`, which already forgot it: shared
+   * services keep their ports in every place); the names it dropped.
+   */
+  async dropData(input: Required<EnvTarget>): Promise<Result<readonly string[], MetatorError>> {
+    const ctx = await this.context(undefined);
+    if (ctx.isErr()) return err(ctx.error);
+    const { env, ports } = ctx.value;
+    const dropped: string[] = [];
+    const shared = await this.state("shared");
+    if (shared.isErr()) return err(shared.error);
+    for (const [id, s] of Object.entries(env.services)) {
+      const pg = postgresTarget(env, ports, id);
+      const running = shared.value.services[id];
+      const name = placeData(s, input.worktree).database;
+      if (!pg || !name || !running || !this.alive(running)) continue;
+      const r = await this.tools.isolator.dropDatabase(pg, name);
+      if (r.isErr()) return err(r.error);
+      if (r.value) dropped.push(name);
+    }
+    return ok(dropped);
+  }
+
+  /** Creates the place's databases on the isolated shared services it needs; how many it created. */
+  private async isolate(
+    env: Environment,
+    ports: PortMap,
+    needs: readonly string[],
+    place: string,
+  ): Promise<Result<number, MetatorError>> {
+    let created = 0;
+    for (const n of needs) {
+      const s = env.services[n];
+      const pg = postgresTarget(env, ports, n);
+      if (!s?.isolate || !("postgres" in s.isolate) || !pg) continue;
+      const name = placeData(s, place).database as string;
+      const r = await this.tools.isolator.createDatabase(pg, name, s.isolate.postgres.template);
+      if (r.isErr()) return err(r.error);
+      if (r.value) created++;
+    }
+    return ok(created);
+  }
+
+  /** Copies build output from the main checkout when the key files are equal in both. */
+  private async reuse(
+    warm: NonNullable<Service["warm"]>,
+    cwd: string,
+  ): Promise<Result<readonly string[], MetatorError>> {
+    const rel = cwd.slice(this.where.root.length + 1);
+    const keys = warm.key ?? LOCKFILES;
+    for (const k of keys) {
+      const [main, here] = await Promise.all([this.readOr(k), this.readOr(`${rel}/${k}`)]);
+      if (main !== here) return ok([]);
+    }
+    const copied: string[] = [];
+    for (const path of warm.reuse) {
+      const r = await this.tools.copier.copy(`${this.where.root}/${path}`, `${cwd}/${path}`);
+      if (r.isErr()) return err(r.error);
+      if (r.value) copied.push(path);
+    }
+    return ok(copied);
+  }
+
+  private async readOr(path: string): Promise<string | undefined> {
+    if (!(await this.fs.exists(path))) return undefined;
+    return (await this.fs.read(path)).unwrapOr(undefined);
+  }
+
+  private async step(
+    id: string,
+    step: Step,
+    dir: string,
+    vars: Readonly<Record<string, string>>,
+  ): Promise<Result<void, MetatorError>> {
+    const r = await this.tools.steps.run(
+      { argv: ["sh", "-c", step.run], cwd: step.cwd ? `${dir}/${step.cwd}` : dir, env: vars },
+      { timeoutMs: STEP_TIMEOUT_MS },
+    );
+    if (r.exitCode === 0) return ok(undefined);
+    return err(
+      new MetatorError("COMMAND_FAILED", `${id}: step ${step.name} exited with ${r.exitCode}`, {
+        hint: `Run it yourself: ${step.run}`,
+        details: { output: `${r.stdout}${r.stderr}`.split("\n").slice(-20).join("\n") },
+      }),
+    );
   }
 
   /** Stops the place's services; shared ones only with `shared`, since other worktrees use them. */
@@ -309,11 +468,11 @@ export class EnvironmentServices {
           continue;
         }
         if (running.kind === "process" && running.pid) {
-          const r = await this.processes.stop(running.pid);
+          const r = await this.tools.processes.stop(running.pid);
           if (r.isErr()) return err(r.error);
         } else if (running.kind === "compose") {
           const cwd = place === "shared" || !wt ? this.where.root : `${this.where.root}/${wt.path}`;
-          const r = await this.containers.stop(this.compose(id, env, place, cwd, {}));
+          const r = await this.tools.containers.stop(this.compose(id, env, place, cwd, {}));
           if (r.isErr()) return err(r.error);
         }
         stopped.push(id);
@@ -360,9 +519,10 @@ export class EnvironmentServices {
     if (state.isErr()) return err(state.error);
     const running = state.value.services[input.service];
     if (!running) return err(MetatorError.notFound(`a started ${input.service} in ${place}`));
-    if (running.kind === "process") return ok(await this.processes.readLog(running.log ?? "", input.lines));
+    if (running.kind === "process")
+      return ok(await this.tools.processes.readLog(running.log ?? "", input.lines));
     const cwd = place === "shared" || !wt ? this.where.root : `${this.where.root}/${wt.path}`;
-    return this.containers.logs(this.compose(input.service, env, place, cwd, {}), input.lines);
+    return this.tools.containers.logs(this.compose(input.service, env, place, cwd, {}), input.lines);
   }
 
   private compose(
@@ -383,7 +543,7 @@ export class EnvironmentServices {
   }
 
   private alive(s: RunningService): boolean {
-    return s.kind === "compose" || (s.pid !== undefined && this.processes.isAlive(s.pid));
+    return s.kind === "compose" || (s.pid !== undefined && this.tools.processes.isAlive(s.pid));
   }
 
   private async context(
@@ -429,4 +589,12 @@ export class EnvironmentServices {
   private save(place: string, state: EnvState): Promise<Result<void, MetatorError>> {
     return this.fs.write(this.stateFile(place), serializeJsonDocument(EnvStateDocument.stamp(state)));
   }
+}
+
+/** A failed start still says what it started before, so the person knows what is running. */
+function withStarted(e: MetatorError, started: readonly ServiceReport[]): MetatorError {
+  return new MetatorError(e.code, e.message, {
+    ...(e.hint ? { hint: e.hint } : {}),
+    details: { ...(typeof e.details === "object" && e.details ? e.details : {}), started },
+  });
 }

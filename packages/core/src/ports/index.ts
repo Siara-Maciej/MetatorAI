@@ -5,7 +5,7 @@
 import type { Agent } from "../domain/agent.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
-import type { HealthTarget } from "../domain/environment.ts";
+import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
 import type { Result } from "../domain/result.ts";
@@ -48,6 +48,11 @@ export interface WorktreeManager {
   remove(path: string, force: boolean): Promise<Result<void, MetatorError>>;
   /** Uncommitted or untracked changes in the worktree. */
   isDirty(path: string): Promise<Result<boolean, MetatorError>>;
+  /**
+   * Puts the worktree on a new branch from `base` (resolved in the main checkout) and deletes the
+   * branch it was on: a warm pool worktree taken by a run (F8.7).
+   */
+  switchBranch(path: string, branch: string, base: string): Promise<Result<void, MetatorError>>;
 }
 
 /** Whether a TCP port on this machine can be bound right now. */
@@ -108,6 +113,24 @@ export interface Launcher {
   detached(argv: readonly string[], cwd: string): Promise<Result<void, MetatorError>>;
   /** Which of these commands are on PATH, in the given order. */
   available(commands: readonly string[]): readonly string[];
+}
+
+/** One database per place on a shared Postgres (F8.7): cloned from a template, dropped with its worktree. */
+export interface DataIsolator {
+  /** Creates the database, from `template` when given; false when it already existed. */
+  createDatabase(
+    target: PostgresTarget,
+    name: string,
+    template?: string,
+  ): Promise<Result<boolean, MetatorError>>;
+  /** Drops the database; false when there was none. */
+  dropDatabase(target: PostgresTarget, name: string): Promise<Result<boolean, MetatorError>>;
+}
+
+/** Copies a directory tree, copy-on-write where the file system can (build reuse, F8.7). */
+export interface TreeCopier {
+  /** Absolute paths. False, and nothing copied, when `from` is missing or `to` already exists. */
+  copy(from: string, to: string): Promise<Result<boolean, MetatorError>>;
 }
 
 /** Waits until a service accepts TCP connections or answers HTTP. */

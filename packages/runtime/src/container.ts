@@ -3,6 +3,7 @@ import {
   type AdvanceRun,
   type AgentCatalog,
   type AgentHost,
+  type AnalyzeEnvironment,
   type ApiSnapshots,
   type ApproveRun,
   type AuditAgents,
@@ -22,6 +23,7 @@ import {
   type ComputeAffected,
   type ContainerRuntime,
   type CreateWorktree,
+  type DataIsolator,
   type DiffCoverage,
   type DiffImportGraph,
   type Discover,
@@ -87,6 +89,7 @@ import {
   type PlanReview,
   type PortProbe,
   type ProcessRunner,
+  type ProvideWorktree,
   type PruneWorktrees,
   type RemoveWorktree,
   type Result,
@@ -113,9 +116,11 @@ import {
   type SymbolQueries,
   type SystemCatalog,
   type Timer,
+  type TreeCopier,
   type ValidateCitations,
   type ValidateFindings,
   type Vcs,
+  type WarmPool,
   type WorkflowCatalog,
   type WorkspaceReader,
   type WorktreeManager,
@@ -159,6 +164,8 @@ export interface Cradle {
   initRun: InitRun;
   timer: Timer;
   launcher: Launcher;
+  dataIsolator: DataIsolator;
+  treeCopier: TreeCopier;
   setEditor: SetEditor;
   containerRuntime: ContainerRuntime;
   healthProbe: HealthProbe;
@@ -175,6 +182,9 @@ export interface Cradle {
   portProbe: PortProbe;
   worktreeRegistry: WorktreeRegistry;
   createWorktree: CreateWorktree;
+  provideWorktree: ProvideWorktree;
+  warmPool: WarmPool;
+  analyzeEnvironment: AnalyzeEnvironment;
   listWorktrees: ListWorktrees;
   removeWorktree: RemoveWorktree;
   pruneWorktrees: PruneWorktrees;

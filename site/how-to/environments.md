@@ -86,3 +86,77 @@ metator env down --shared                # also stop the shared services
 - **Ready means ready.** `env up` waits for each service's health check (a TCP port or an HTTP answer), never for a fixed time. A service that never gets ready fails with the end of its log.
 - **Shared once.** The second worktree finds the database running and starts only its own code.
 - **Cleanup.** `metator worktree rm` stops the worktree's services first.
+
+## 4. Start fast
+
+A cold start installs dependencies, builds, migrates and seeds. Do it once, not in every worktree.
+
+### Measure first
+
+```bash
+metator env analyze          # a cold and a warm start in throwaway worktrees, measured phase by phase
+metator env analyze --cold   # restart running shared services first, so their start counts too
+```
+
+```json
+{"cold":{"ms":8650},"warm":{"ms":410},"speedup":21.1,"criticalPath":["db","api"],
+ "recommendations":[{"id":"reuse-build","service":"api","gainMs":4000,
+   "evidence":"api: install took 4.0 s in a new worktree",
+   "apply":"services.api.warm: { reuse: [node_modules] }"}]}
+```
+
+The profile is saved in `.metator/env-profile.json` (`EnvProfile`). Every recommendation carries the measurement it rests on and the time it saves. MetatorAI never edits `environment.yml` for you; you take a recommendation over yourself and measure again. The analysis removes its worktrees and stops what it started.
+
+### Steps, data per worktree, reuse
+
+```yaml
+kind: Environment
+schemaVersion: 2
+services:
+  db:
+    source: { compose: { file: docker-compose.yml, service: db } }
+    scope: shared
+    ports: { pg: 5432 }
+    health: { tcp: pg }
+    init: [{ name: seed, run: "pnpm run db:seed" }]   # once, into the template ($METATOR_DATABASE)
+    isolate: { postgres: { template: shop_seed, database: shop } }
+  api:
+    source: { script: "pnpm run dev", cwd: apps/api }
+    needs: [db]
+    paths: [apps/api, packages/shared]               # the code that is this service
+    prepare: [{ name: install, run: "pnpm install --frozen-lockfile" }]
+    init: [{ name: migrate, run: "pnpm run db:migrate" }]  # the run's own migrations, on its own database
+    warm: { reuse: [node_modules] }                  # copied from your checkout while the lockfile matches
+    env: { DATABASE_URL: "postgres://localhost:{port:db.pg}/{db:db}" }
+```
+
+| Field | What it does |
+|---|---|
+| `prepare` | steps before the service starts (install, build), each timed |
+| `init` | steps after it is ready (migrations, seed). A shared service runs them once |
+| `isolate.postgres` | `init` fills the `template` database once. Each worktree gets `wt_<id>`, cloned from it in seconds; your checkout gets `database`. `worktree rm` drops the worktree's database |
+| `isolate: { prefix: true }` | `{prefix:<service>}` is `wt_<id>_` in a worktree and empty in your checkout: for keys, topics and queues |
+| `warm.reuse` | directories copied from your checkout (copy-on-write where the disk can) when the `warm.key` files, by default the lockfiles, are equal. Never over what is there |
+| `paths` | what `env up --affected` matches changed files against |
+
+`{db:<service>}` is the place's database name. A Postgres password goes in `PGPASSWORD`.
+
+### Only what the change touches
+
+```bash
+metator env up --worktree <id> --affected            # changes since the worktree left your HEAD
+metator env up --affected --base main                # in your checkout, against a ref
+```
+
+Changed files, and every file that imports them, are matched against each service's `paths`. What matches starts, along with what it needs. A worktree service without `paths` always counts.
+
+### A warm pool
+
+```bash
+metator env pool --size 2    # two worktrees on HEAD with everything already up
+metator run init --workflow mt-feature --task "…" --worktree   # takes one: it moves to the run's branch
+metator env pool             # free and taken pool worktrees
+metator env pool --drain     # stop and remove the free ones
+```
+
+A run that takes a pool worktree skips the seed, the install and the start; `env pool --size 2` tops the pool up again.

@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { agentHostContract } from "../src/contracts/agent-host.contract.ts";
+import { dataIsolatorContract } from "../src/contracts/data-isolator.contract.ts";
 import { fileSystemContract } from "../src/contracts/file-system.contract.ts";
 import { worktreeManagerContract } from "../src/contracts/worktree-manager.contract.ts";
 import {
   FakeAgentHost,
+  FakeDataIsolator,
   FakeWorktreeManager,
   FixedClock,
   InMemoryFileSystem,
@@ -48,3 +50,16 @@ agentHostContract("FakeAgentHost", async () => ({
   host: new FakeAgentHost({ "mt-x": [{ text: "hello\nSTATUS: done" }] }),
   task: { agent: "mt-x", prompt: "p", cwd: "/w", projectRoot: "/w", runDir: "/w/.metator/runs/r" },
 }));
+
+dataIsolatorContract("FakeDataIsolator", async () => {
+  const isolator = new FakeDataIsolator();
+  const target = { host: "127.0.0.1", port: 5432, user: "postgres" };
+  return {
+    isolator,
+    target,
+    insert: async (db, value) => {
+      isolator.server(target).get(db)?.push(value);
+    },
+    rows: async (db) => isolator.server(target).get(db) ?? [],
+  };
+});

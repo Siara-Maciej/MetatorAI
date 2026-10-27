@@ -122,6 +122,37 @@ export class CreateWorktree {
   }
 }
 
+/** Worktrees of the warm pool (`env pool`, F8.7) are named pool-<n>; a free one has no run. */
+export const POOL_PREFIX = "pool-";
+export const isFreePoolEntry = (e: WorktreeEntry) => e.id.startsWith(POOL_PREFIX) && e.run === undefined;
+
+/**
+ * The worktree for a new run: a free warm pool worktree when there is one (its services already
+ * run; it moves to the run's branch), else a new one (F8.7, ADR-0055).
+ */
+export class ProvideWorktree {
+  constructor(
+    private readonly registry: WorktreeRegistry,
+    private readonly git: WorktreeManager,
+    private readonly create: Pick<CreateWorktree, "execute">,
+  ) {}
+
+  async execute(input: CreateWorktreeInput): Promise<Result<WorktreeEntry, MetatorError>> {
+    const all = await this.registry.all();
+    if (all.isErr()) return err(all.error);
+    const free = all.value.find(isFreePoolEntry);
+    if (!free || !input.run) return this.create.execute(input);
+    const branch = `metator/${input.id}`;
+    const base = input.base ?? "HEAD";
+    const switched = await this.git.switchBranch(free.path, branch, base);
+    if (switched.isErr()) return err(switched.error);
+    const taken: WorktreeEntry = { ...free, branch, base, run: input.run };
+    const saved = await this.registry.save(all.value.map((e) => (e.id === free.id ? taken : e)));
+    if (saved.isErr()) return err(saved.error);
+    return ok(taken);
+  }
+}
+
 export interface WorktreeView extends WorktreeEntry {
   readonly dirty: boolean;
   /** The run's status when the worktree belongs to a run that still exists. */

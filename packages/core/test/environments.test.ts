@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   FakeBackgroundProcess,
   FakeContainerRuntime,
+  FakeDataIsolator,
   FakeHealthProbe,
+  FakeTreeCopier,
   FixedClock,
   InMemoryFileSystem,
 } from "@metator/testing";
@@ -26,6 +28,7 @@ import {
 import { proposeEnvironment } from "../src/domain/environment-discovery.ts";
 import { ok } from "../src/domain/result.ts";
 import { parseYamlDocument } from "../src/domain/versioned.ts";
+import type { ProcessResult, ResolvedCommand } from "../src/ports/index.ts";
 
 const env = (services: Record<string, unknown>, profiles: Record<string, string[]> = {}): Environment =>
   EnvironmentDocument.parse(
@@ -220,8 +223,33 @@ profiles:
   backend: [api]
 `;
 
-async function world(opts: { down?: (t: unknown) => boolean } = {}) {
-  const fs = new InMemoryFileSystem({ "metator/environment.yml": ENV_YAML });
+/** Steps run instantly; `slow` maps a step command to the time it takes on the clock. */
+class StepRunner {
+  readonly calls: ResolvedCommand[] = [];
+  constructor(
+    private readonly clock: FixedClock,
+    private readonly slow: Readonly<Record<string, number>> = {},
+    private readonly failing: ReadonlySet<string> = new Set(),
+  ) {}
+  async run(command: ResolvedCommand): Promise<ProcessResult> {
+    this.calls.push(command);
+    const script = command.argv[2] ?? "";
+    this.clock.advance(this.slow[script] ?? 0);
+    const exitCode = this.failing.has(script) ? 1 : 0;
+    return { exitCode, stdout: "", stderr: exitCode ? "boom\n" : "", durationMs: 0 };
+  }
+}
+
+async function world(
+  opts: {
+    down?: (t: unknown) => boolean;
+    yaml?: string;
+    files?: Record<string, string>;
+    slow?: Record<string, number>;
+    failing?: string[];
+  } = {},
+) {
+  const fs = new InMemoryFileSystem({ "metator/environment.yml": opts.yaml ?? ENV_YAML, ...opts.files });
   const registry = new WorktreeRegistry(fs, DEFAULT_PATHS);
   await registry.save([
     {
@@ -233,21 +261,23 @@ async function world(opts: { down?: (t: unknown) => boolean } = {}) {
       createdAt: "2026-10-27T10:00:00.000Z",
     },
   ]);
+  const clock = new FixedClock(new Date("2026-10-27T10:00:00.000Z"));
   const processes = new FakeBackgroundProcess();
   const containers = new FakeContainerRuntime();
   const health = new FakeHealthProbe(opts.down as never);
+  const steps = new StepRunner(clock, opts.slow, new Set(opts.failing));
+  const isolator = new FakeDataIsolator();
+  const copier = new FakeTreeCopier();
   const services = new EnvironmentServices(
     new EnvironmentCatalog(fs, DEFAULT_PATHS),
     registry,
-    processes,
-    containers,
-    health,
+    { processes, containers, health, steps, isolator, copier },
     fs,
-    new FixedClock(new Date("2026-10-27T10:00:00.000Z")),
+    clock,
     DEFAULT_PATHS,
     { root: "/repo", logDir: "/tmp" },
   );
-  return { fs, processes, containers, health, services };
+  return { fs, processes, containers, health, steps, isolator, copier, clock, services };
 }
 
 describe("EnvironmentServices", () => {
@@ -335,9 +365,14 @@ describe("EnvironmentServices", () => {
     const s = new EnvironmentServices(
       new EnvironmentCatalog(fs, DEFAULT_PATHS),
       new WorktreeRegistry(fs, DEFAULT_PATHS),
-      new FakeBackgroundProcess(),
-      new FakeContainerRuntime(),
-      new FakeHealthProbe(),
+      {
+        processes: new FakeBackgroundProcess(),
+        containers: new FakeContainerRuntime(),
+        health: new FakeHealthProbe(),
+        steps: new StepRunner(new FixedClock()),
+        isolator: new FakeDataIsolator(),
+        copier: new FakeTreeCopier(),
+      },
       fs,
       new FixedClock(),
       DEFAULT_PATHS,

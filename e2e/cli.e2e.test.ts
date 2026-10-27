@@ -142,6 +142,8 @@ describe("metator CLI (process e2e)", () => {
       "env discover",
       "env init",
       "env up",
+      "env analyze",
+      "env pool",
       "env down",
       "env status",
       "env logs",

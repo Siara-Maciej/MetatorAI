@@ -1,0 +1,20 @@
+{
+  "kind": "Environment",
+  "schemaVersion": 1,
+  "services": {
+    "db": {
+      "source": { "compose": { "file": "compose.yml", "service": "db" } },
+      "scope": "shared",
+      "ports": { "pg": 5432 },
+      "health": { "tcp": "pg" }
+    },
+    "api": {
+      "source": { "script": "bun run dev", "cwd": "apps/api" },
+      "needs": ["db"],
+      "ports": { "http": 3000 },
+      "health": { "http": "/health" },
+      "env": { "DATABASE_URL": "postgres://127.0.0.1:{port:db.pg}/app" }
+    }
+  },
+  "profiles": { "backend": ["api"] }
+}

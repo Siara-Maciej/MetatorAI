@@ -145,6 +145,15 @@ Strategie, od największego zysku przy typowym backendzie:
 
 Rekomendacja zawsze ma dowód: zmierzone czasy i powód, np. „`db` startuje 6 min, z czego 5 min to seed; template DB skraca to do ~3 s”. Szacunki sprawdza ponowny pomiar, nie obietnica.
 
+> **Zrealizowane w F8.7 (ADR-0055):**
+> - `Environment` v2: `paths`, `prepare`, `init`, `isolate`, `warm`;
+> - `env analyze` z `EnvProfile` v1;
+> - izolacja w Postgres przez szablon (port `DataIsolator`, klient wbudowany w Bun) i prefiksy;
+> - `env up --affected`, `warm.reuse` (port `TreeCopier`, FICLONE);
+> - `env pool`, z którego `run init --worktree` bierze wolny worktree.
+>
+> Snapshot danych, MySQL i obrazy na hash lockfile'a zostają na później.
+
 ### 3.5 Prowadzenie runu przez CLI: port `AgentHost` i `run drive`
 
 - Port **`AgentHost`** w `core`: start agenta z promptem etapu i uprawnieniami workera, strumień zdarzeń (tekst, wywołanie narzędzia, pytanie, wynik), wznowienie sesji, przerwanie. Adaptery w pluginach:

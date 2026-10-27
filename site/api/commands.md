@@ -1311,6 +1311,33 @@ metator env up [options] [services...]
 | `[services]` | services to start (default: every service that is not on-demand) | |
 | `--profile <name>` | start the services of a profile |  |
 | `--worktree <id>` | start in this worktree, on its ports (default: this checkout) |  |
+| `--affected` | start only the services the changes touch (their `paths`), and what they need |  |
+| `--base <ref>` | with --affected: compare against this ref (default: where the worktree branched off) |  |
+
+### `metator env analyze`
+
+Measure a cold and a warm start in throwaway worktrees and recommend how to start faster
+
+```bash
+metator env analyze [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--cold` | restart running shared services first, so their start is measured too |  |
+
+### `metator env pool`
+
+Worktrees with their services already up; `run init --worktree` takes a free one
+
+```bash
+metator env pool [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--size <n>` | keep this many free worktrees started |  |
+| `--drain` | stop and remove the free ones |  |
 
 ### `metator env down`
 

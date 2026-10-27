@@ -8,6 +8,7 @@ import {
   type Clock,
   type ComposeService,
   type ContainerRuntime,
+  type DataIsolator,
   type Diagnostic,
   type EngineRule,
   err,
@@ -19,12 +20,14 @@ import {
   normalizePath,
   ok,
   type PortProbe,
+  type PostgresTarget,
   type ProcessResult,
   type ProcessRunner,
   type ResolvedCommand,
   type Result,
   type RuleEngine,
   type Timer,
+  type TreeCopier,
   type Vcs,
   type WorktreeManager,
 } from "@metator/core";
@@ -160,6 +163,12 @@ export class FakeWorktreeManager implements WorktreeManager {
   async isDirty(path: string): Promise<Result<boolean, MetatorError>> {
     return ok(this.dirty.has(path));
   }
+
+  async switchBranch(path: string, branch: string, base: string): Promise<Result<void, MetatorError>> {
+    if (!this.worktrees.has(path)) return err(new MetatorError("COMMAND_FAILED", `no worktree ${path}`));
+    this.worktrees.set(path, { branch, base });
+    return ok(undefined);
+  }
 }
 
 /** PortProbe with a fixed set of busy ports. */
@@ -282,6 +291,50 @@ export class FakeContainerRuntime implements ContainerRuntime {
   async logs(service: ComposeService): Promise<Result<string, MetatorError>> {
     this.calls.push({ op: "logs", service });
     return ok(`logs of ${service.service}`);
+  }
+}
+
+/** DataIsolator in memory: databases per server port; a template copies its rows. */
+export class FakeDataIsolator implements DataIsolator {
+  readonly databases = new Map<number, Map<string, number[]>>();
+  readonly calls: string[] = [];
+
+  async createDatabase(
+    target: PostgresTarget,
+    name: string,
+    template?: string,
+  ): Promise<Result<boolean, MetatorError>> {
+    this.calls.push(`create ${name}${template ? ` from ${template}` : ""}`);
+    const server = this.server(target);
+    if (server.has(name)) return ok(false);
+    if (template && !server.has(template))
+      return err(new MetatorError("COMMAND_FAILED", `template database "${template}" does not exist`));
+    server.set(name, [...(template ? (server.get(template) ?? []) : [])]);
+    return ok(true);
+  }
+
+  async dropDatabase(target: PostgresTarget, name: string): Promise<Result<boolean, MetatorError>> {
+    this.calls.push(`drop ${name}`);
+    return ok(this.server(target).delete(name));
+  }
+
+  server(target: PostgresTarget): Map<string, number[]> {
+    const s = this.databases.get(target.port) ?? new Map<string, number[]>();
+    this.databases.set(target.port, s);
+    return s;
+  }
+}
+
+/** TreeCopier on a set of existing directories (absolute paths); records what it copied. */
+export class FakeTreeCopier implements TreeCopier {
+  readonly copies: { from: string; to: string }[] = [];
+  constructor(readonly dirs: Set<string> = new Set()) {}
+
+  async copy(from: string, to: string): Promise<Result<boolean, MetatorError>> {
+    if (!this.dirs.has(from) || this.dirs.has(to)) return ok(false);
+    this.copies.push({ from, to });
+    this.dirs.add(to);
+    return ok(true);
   }
 }
 

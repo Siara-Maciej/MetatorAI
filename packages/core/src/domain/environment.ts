@@ -22,7 +22,7 @@ const HealthSchema = z.union([
   z.strictObject({ http: z.string().min(1) }),
 ]);
 
-export const ServiceSchema = z.strictObject({
+const ServiceV1Schema = z.strictObject({
   source: SourceSchema,
   scope: z.enum(["shared", "worktree", "on-demand"]).default("worktree"),
   needs: z.array(Id).default([]),
@@ -33,18 +33,67 @@ export const ServiceSchema = z.strictObject({
   /** How long the service may take to become ready. */
   readyTimeoutMs: z.number().int().positive().default(120_000),
 });
-export type Service = z.output<typeof ServiceSchema>;
 
-export const EnvironmentSchema = z.strictObject({
-  services: z
-    .record(Id, ServiceSchema)
-    .refine((s) => Object.keys(s).length > 0, "declare at least one service"),
-  profiles: z.record(Id, z.array(Id).min(1)).default({}),
+/** A command run in the service's directory with its environment, timed as one phase. */
+const StepSchema = z.strictObject({ name: Id, run: z.string().min(1), cwd: z.string().optional() });
+
+/** A Postgres database name MetatorAI creates and drops; no quoting is ever needed. */
+export const DB_NAME = /^[a-z_][a-z0-9_]{0,62}$/;
+const DbName = z.string().regex(DB_NAME, "use lowercase letters, digits and underscores (at most 63)");
+
+const IsolateSchema = z.union([
+  /**
+   * One database per place, cloned from a seeded template (`CREATE DATABASE … TEMPLATE`): the
+   * service's `init` steps fill the template once; the checkout uses `database`.
+   */
+  z.strictObject({
+    postgres: z.strictObject({
+      template: DbName,
+      database: DbName,
+      user: z.string().min(1).default("postgres"),
+      /** The port name to connect to (default: the service's first port). */
+      port: Id.optional(),
+    }),
+  }),
+  /** A prefix per place for keys, topics or queues: `{prefix:<service>}`. */
+  z.strictObject({ prefix: z.literal(true) }),
+]);
+
+const WarmSchema = z.strictObject({
+  /** Directories copied from the main checkout (copy-on-write where the disk can) before `prepare`. */
+  reuse: z.array(z.string().min(1)).min(1),
+  /** Files that must be equal in both checkouts for the copy to be valid (default: the lockfiles). */
+  key: z.array(z.string().min(1)).optional(),
 });
+
+/** v2 (F8.7, ADR-0055): what code a service is, steps before and after it starts, data isolation, reuse. */
+export const ServiceSchema = ServiceV1Schema.extend({
+  /** Repository directories that are this service's code (`env up --affected`); none means all of it. */
+  paths: z.array(z.string().min(1)).default([]),
+  /** Before it starts, in order: install, build. */
+  prepare: z.array(StepSchema).default([]),
+  /** After it is ready, in order: migrations, seed. Shared services run them once. */
+  init: z.array(StepSchema).default([]),
+  isolate: IsolateSchema.optional(),
+  warm: WarmSchema.optional(),
+});
+export type Service = z.output<typeof ServiceSchema>;
+export type Step = z.output<typeof StepSchema>;
+
+const environmentSchema = <S extends z.ZodType>(service: S) =>
+  z.strictObject({
+    services: z.record(Id, service).refine((s) => Object.keys(s).length > 0, "declare at least one service"),
+    profiles: z.record(Id, z.array(Id).min(1)).default({}),
+  });
+
+export const EnvironmentSchema = environmentSchema(ServiceSchema);
 export type Environment = z.output<typeof EnvironmentSchema>;
 
 export const EnvironmentDocument = defineDocument("Environment", {
+  history: [{ schema: environmentSchema(ServiceV1Schema) }],
   latest: EnvironmentSchema,
+  // Every v1 service is a v2 service without paths, steps, isolation or reuse.
+  upgrade: (v1) => v1,
   errorCode: "INVALID_CONFIG",
   hint: "`metator env discover` proposes one from your compose files and scripts; `metator env schema` prints the format.",
 });
@@ -97,6 +146,21 @@ export function lintEnvironment(env: Environment): readonly EnvironmentProblem[]
       problems.push({ service: id, message: "an HTTP health path needs a port" });
     if (s.scope === "shared" && s.needs.some((n) => env.services[n]?.scope !== "shared"))
       problems.push({ service: id, message: "a shared service can need only shared services" });
+    if (s.isolate && s.scope !== "shared")
+      problems.push({ service: id, message: "only a shared service isolates data per worktree" });
+    if (s.isolate && "postgres" in s.isolate) {
+      const port = s.isolate.postgres.port;
+      if (port ? !(port in s.ports) : Object.keys(s.ports).length === 0)
+        problems.push({ service: id, message: "Postgres isolation needs a declared port to connect to" });
+      if (s.isolate.postgres.template === s.isolate.postgres.database)
+        problems.push({ service: id, message: "the template and the checkout's database must differ" });
+    }
+    if (s.warm && s.scope === "shared")
+      problems.push({ service: id, message: "a shared service runs once; it has nothing to reuse" });
+    const steps = [...s.prepare, ...s.init].map((x) => x.name);
+    const twice = steps.filter((n, i) => steps.indexOf(n) !== i);
+    if (twice.length > 0)
+      problems.push({ service: id, message: `step names repeat: ${[...new Set(twice)].join(", ")}` });
   }
   for (const [p, list] of Object.entries(env.profiles))
     for (const s of list)
@@ -164,22 +228,102 @@ export function assignPorts(env: Environment, block?: PortBlock): PortMap | unde
 
 const varName = (s: string) => s.toUpperCase().replaceAll("-", "_");
 
+/** Where services run: a worktree id, "main" (this checkout) or "shared". */
+export type Place = string;
+
+/** The isolated data of a place: its own database or prefix; the checkout keeps `database` and no prefix. */
+export function placeData(service: Service, place: Place): { database?: string; prefix?: string } {
+  if (!service.isolate) return {};
+  const tag = `wt_${place.replaceAll("-", "_")}`;
+  if ("postgres" in service.isolate)
+    return { database: place === "main" ? service.isolate.postgres.database : tag.slice(0, 63) };
+  return { prefix: place === "main" ? "" : `${tag}_` };
+}
+
+export interface PostgresTarget {
+  readonly host: string;
+  readonly port: number;
+  readonly user: string;
+}
+
+/** How to reach a service's Postgres for isolation; undefined when it is not isolated that way. */
+export function postgresTarget(env: Environment, ports: PortMap, id: string): PostgresTarget | undefined {
+  const s = env.services[id];
+  if (!s?.isolate || !("postgres" in s.isolate)) return undefined;
+  const named = ports[id] ?? {};
+  const port = s.isolate.postgres.port ? named[s.isolate.postgres.port] : Object.values(named)[0];
+  return port === undefined ? undefined : { host: "127.0.0.1", port, user: s.isolate.postgres.user };
+}
+
 /**
- * The environment of one service: every service's ports as `METATOR_PORT_<SERVICE>_<NAME>`, its
- * own first port as `PORT`, and its `env` with `{port:<service>.<name>}` filled in.
+ * The environment of one service in a place: every service's ports as
+ * `METATOR_PORT_<SERVICE>_<NAME>`, its own first port as `PORT`, and its `env` with
+ * `{port:<service>.<name>}`, `{db:<service>}` and `{prefix:<service>}` filled in.
  */
-export function serviceEnv(env: Environment, ports: PortMap, id: string): Record<string, string> {
+export function serviceEnv(
+  env: Environment,
+  ports: PortMap,
+  id: string,
+  place: Place = "main",
+): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const [svc, named] of Object.entries(ports))
     for (const [name, port] of Object.entries(named))
       vars[`METATOR_PORT_${varName(svc)}_${varName(name)}`] = String(port);
   const own = Object.values(ports[id] ?? {});
   if (own.length > 0) vars.PORT = String(own[0]);
+  const data = (svc: string) => {
+    const s = env.services[svc];
+    return s ? placeData(s, place) : {};
+  };
   for (const [key, value] of Object.entries(env.services[id]?.env ?? {}))
-    vars[key] = value.replace(/\{port:([a-z0-9-]+)\.([a-z0-9-]+)\}/g, (m, svc: string, name: string) =>
-      String(ports[svc]?.[name] ?? m),
-    );
+    vars[key] = value
+      .replace(/\{port:([a-z0-9-]+)\.([a-z0-9-]+)\}/g, (m, svc: string, name: string) =>
+        String(ports[svc]?.[name] ?? m),
+      )
+      .replace(/\{db:([a-z0-9-]+)\}/g, (m, svc: string) => data(svc).database ?? m)
+      .replace(/\{prefix:([a-z0-9-]+)\}/g, (m, svc: string) => data(svc).prefix ?? m);
   return vars;
+}
+
+/**
+ * The services a change touches (`env up --affected`): those whose `paths` hold a changed file,
+ * and those without `paths` (all of the repository is theirs) unless they are shared or on-demand.
+ */
+export function affectedServices(env: Environment, files: readonly string[]): string[] {
+  if (files.length === 0) return [];
+  const under = (file: string, dir: string) => {
+    const d = dir.replace(/^\.\//, "").replace(/\/+$/, "");
+    return d === "" || d === "." || file === d || file.startsWith(`${d}/`);
+  };
+  return Object.entries(env.services)
+    .filter(([, s]) =>
+      s.paths.length > 0 ? files.some((f) => s.paths.some((d) => under(f, d))) : s.scope === "worktree",
+    )
+    .map(([id]) => id);
+}
+
+/** The chain of needs that takes longest to start, by each service's measured time. */
+export function criticalPath(env: Environment, ms: Readonly<Record<string, number>>): string[] {
+  const best = new Map<string, { total: number; path: string[] }>();
+  const visit = (id: string): { total: number; path: string[] } => {
+    const known = best.get(id);
+    if (known) return known;
+    let longest = { total: 0, path: [] as string[] };
+    for (const n of env.services[id]?.needs ?? []) {
+      const sub = visit(n);
+      if (sub.total > longest.total) longest = sub;
+    }
+    const mine = { total: longest.total + (ms[id] ?? 0), path: [...longest.path, id] };
+    best.set(id, mine);
+    return mine;
+  };
+  let top = { total: -1, path: [] as string[] };
+  for (const id of Object.keys(env.services).filter((i) => i in ms)) {
+    const c = visit(id);
+    if (c.total > top.total) top = c;
+  }
+  return top.path.filter((id) => id in ms);
 }
 
 export type HealthTarget =

@@ -93,6 +93,9 @@ export function proposeEnvironment(facts: EnvironmentFacts): EnvironmentProposal
           env: {},
           ...(first ? { health: { tcp: first } } : {}),
           readyTimeoutMs: 120_000,
+          paths: [],
+          prepare: [],
+          init: [],
         },
         {
           from: `${file}#services.${name}`,
@@ -130,6 +133,9 @@ export function proposeEnvironment(facts: EnvironmentFacts): EnvironmentProposal
         env: {},
         ...(port ? { health: { http: "/" } } : {}),
         readyTimeoutMs: 120_000,
+        paths: [],
+        prepare: [],
+        init: [],
       },
       {
         from: `${s.dir === "." ? "" : `${s.dir}/`}package.json#scripts.${s.script}`,
@@ -153,6 +159,9 @@ export function proposeEnvironment(facts: EnvironmentFacts): EnvironmentProposal
         ports: {},
         env: {},
         readyTimeoutMs: 120_000,
+        paths: [],
+        prepare: [],
+        init: [],
       },
       { from: `Procfile#${m[1]}`, reason: "Procfile process", confidence: 0.6 },
     );
@@ -170,6 +179,9 @@ export function proposeEnvironment(facts: EnvironmentFacts): EnvironmentProposal
           ports: {},
           env: {},
           readyTimeoutMs: 120_000,
+          paths: [],
+          prepare: [],
+          init: [],
         },
         { from: `Makefile#${target}`, reason: "Makefile target; check what it starts", confidence: 0.4 },
       );

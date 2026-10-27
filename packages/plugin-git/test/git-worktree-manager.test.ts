@@ -51,3 +51,22 @@ test("an unknown base ref is an error value with a hint", async () => {
   const r = await new GitWorktreeManager(await repo()).add(".metator/wt/a", "metator/a", "no-such-ref");
   expect(r._unsafeUnwrapErr().hint).toContain("base ref");
 });
+
+test("switchBranch starts the new branch at this checkout's HEAD and deletes the pool branch", async () => {
+  const dir = await repo();
+  const manager = new GitWorktreeManager(dir);
+  await manager.add(".metator/wt/pool-1", "metator/pool-1", "HEAD");
+  // The checkout moves on after the pool worktree was made.
+  await writeFile(join(dir, "later.txt"), "later\n");
+  git(dir, "add", ".");
+  git(dir, "commit", "-m", "later");
+  expect((await manager.switchBranch(".metator/wt/pool-1", "metator/run-1", "HEAD")).isOk()).toBe(true);
+  const out = (cwd: string, ...argv: string[]) =>
+    Bun.spawnSync(["git", ...argv], { cwd })
+      .stdout.toString()
+      .trim();
+  const wt = join(dir, ".metator/wt/pool-1");
+  expect(out(wt, "branch", "--show-current")).toBe("metator/run-1");
+  expect(out(wt, "rev-parse", "HEAD")).toBe(out(dir, "rev-parse", "HEAD"));
+  expect(out(dir, "branch", "--list", "metator/pool-1")).toBe("");
+});
