@@ -7,6 +7,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parse } from "yaml";
 import { browser, closeBrowser } from "./helpers/browser.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -63,16 +64,20 @@ describe("documentation site", () => {
       stderr: "pipe",
     });
     expect(await check.exited).toBe(0);
-    const reference = await read("site/reference/cli.md");
+    const reference = await read("site/api/commands.md");
     for (const command of ["metator run approve", "metator system lint", "metator findings to-github"])
       expect(reference).toContain(`### \`${command}\``);
   });
 
-  test("every shipped agent and every document kind is documented", async () => {
-    const agents = await read("site/how-to/agents.md");
+  test("every shipped agent, skill and document kind is on the site", async () => {
+    // The gallery is rendered from metator/agents at build time: every agent must be in the HTML.
+    const gallery = await Bun.file(join(out, "agents/index.html")).text();
     for await (const file of new Bun.Glob("metator/agents/*.md").scan({ cwd: ROOT }))
-      expect(agents).toContain(`\`${file.slice("metator/agents/".length, -3)}\``);
-    const documents = await read("site/reference/documents.md");
+      expect(gallery).toContain(`data-agent="${file.slice("metator/agents/".length, -3)}"`);
+    const skills = await read("site/agents/skills.md");
+    for await (const file of new Bun.Glob("metator/skills/*/SKILL.md").scan({ cwd: ROOT }))
+      expect(skills).toContain(`\`${file.split("/")[2]}\``);
+    const documents = await read("site/api/documents.md");
     for await (const file of new Bun.Glob("docs/metator/schemas/*.v*.json").scan({ cwd: ROOT })) {
       if (file.endsWith(".example.json")) continue;
       const kind = file.slice("docs/metator/schemas/".length).split(".")[0] as string;
@@ -80,7 +85,26 @@ describe("documentation site", () => {
     }
   });
 
-  test("the built site renders every section in a real browser without errors", async () => {
+  test("workflow diagrams show exactly the stages of the shipped specs", async () => {
+    const pages: Record<string, string> = {
+      "mt-feature": "workflows/feature.html",
+      "mt-bugfix": "workflows/bugfix.html",
+      "mt-refactor": "workflows/refactor.html",
+      "mt-pr-review": "workflows/review.html",
+      "mt-self-review": "workflows/review.html",
+    };
+    for (const [id, page] of Object.entries(pages)) {
+      const spec = parse(await read(`.github/metator/workflows/${id}.yml`)) as { stages: { id: string }[] };
+      const html = await Bun.file(join(out, page)).text();
+      const section = html.slice(html.indexOf(`aria-label="Workflow ${id}"`));
+      const drawn = [
+        ...section.slice(0, section.indexOf("</section>")).matchAll(/data-stage="([^"]+)"/g),
+      ].map((m) => m[1]);
+      expect([id, drawn]).toEqual([id, spec.stages.map((s) => s.id)]);
+    }
+  });
+
+  test("the built site renders every section in a real browser, animated and without errors", async () => {
     const page = await (await browser()).newPage();
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
@@ -90,22 +114,39 @@ describe("documentation site", () => {
     const base = `http://localhost:${server.port}`;
     await page.goto(`${base}/`);
     expect(await page.locator(".VPHero .name").textContent()).toBe("MetatorAI");
+    // The numbers on the landing page come from the canon.
+    const agents = [...new Bun.Glob("metator/agents/*.md").scanSync({ cwd: ROOT })].length;
+    expect(await page.locator(".mx-stats strong").first().textContent()).toBe(String(agents));
     for (const [path, title] of [
+      ["/product/idea", "The idea"],
+      ["/product/how-it-works", "How it works"],
+      ["/product/enterprise", "Security and governance"],
       ["/guide/quick-start", "Quick start"],
       ["/workflows/feature", "Feature (W1 mt-feature)"],
+      ["/agents/", "Agents and delegation"],
+      ["/multi-repo/", "Systems of many applications"],
       ["/how-to/rules", "Write and enforce rules"],
-      ["/reference/cli", "CLI reference"],
+      ["/api/", "API overview"],
+      ["/api/hooks", "Hooks protocol"],
+      ["/api/extending", "Extending: ports and plugins"],
+      ["/api/commands", "Command reference"],
     ]) {
       const response = await page.goto(`${base}${path}`);
       expect(response?.status()).toBe(200);
       // VitePress adds a heading anchor with a zero-width space.
       const heading = (await page.locator("main h1").first().textContent()) ?? "";
-      expect(heading.replace(/[\s​]+/g, " ").trim()).toBe(title as string);
+      expect(heading.replace(/[\s\u200b]+/g, " ").trim()).toBe(title as string);
     }
-    // The sidebar links the whole how-to section.
-    await page.goto(`${base}/how-to/rules`);
-    expect(await page.locator(".VPSidebar a").count()).toBeGreaterThanOrEqual(6);
+    // The run token moves: the active stage of the workflow diagram changes over time.
+    await page.goto(`${base}/workflows/feature`);
+    const active = () => page.locator(".mx-wf-stage.active").getAttribute("data-stage");
+    const first = await active();
+    await page.waitForTimeout(1700);
+    expect(await active()).not.toBe(first);
+    // The API overview lists every command group, linked into the reference.
+    await page.goto(`${base}/api/`);
+    expect(await page.locator(".mx-cmd").count()).toBeGreaterThanOrEqual(30);
     expect(errors).toEqual([]);
     await page.close();
-  }, 60_000);
+  }, 90_000);
 });

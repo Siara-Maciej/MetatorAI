@@ -13,6 +13,8 @@ Acceptance: discounts apply in that order; the total never goes below zero.
 
 The orchestrator creates the run (`metator run init --workflow mt-feature --task "..."`) and delegates each stage. It never edits code itself; the `guard pre-tool` hook denies edits from coordinators.
 
+<WorkflowDiagram id="mt-feature" />
+
 ## Stages and why each exists
 
 | Stage | Who | Artifact | Why |

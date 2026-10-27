@@ -8,6 +8,8 @@
 @mt-orchestrator run mt-bugfix for: Invoices with a 100% discount show a negative total (ticket AB#981).
 ```
 
+<WorkflowDiagram id="mt-bugfix" />
+
 ## How it differs from a feature
 
 | Stage | Difference | Why |

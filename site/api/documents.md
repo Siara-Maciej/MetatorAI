@@ -1,4 +1,4 @@
-# Files and documents
+# Documents and schemas
 
 Every file MetatorAI reads or writes is a versioned document: it starts with `kind` and `schemaVersion`. JSON and YAML files use top-level fields; Markdown files use front matter. A file from an older version is migrated when read. A file from a newer version is rejected and you are asked to update MetatorAI.
 

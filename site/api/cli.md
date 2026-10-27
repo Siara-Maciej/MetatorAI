@@ -1,4 +1,6 @@
-# Output and exit codes
+# CLI and envelope
+
+The `metator` CLI is the API agents and scripts call. This page is its contract: what every command prints, how it fails and how to read it. Every command with its options is in the [Command reference](./commands.md).
 
 ## The envelope
 
@@ -51,6 +53,14 @@ Hook commands (`metator guard ...`) are the exception: they print the answer the
 | `BINDING_MISSING` | a capability has no provider configured |
 | `PARSE_FAILED` | a tool's output could not be parsed |
 | `INTERNAL` | a bug in MetatorAI; please report it |
+
+## Global options
+
+| Option or variable | Effect |
+|---|---|
+| `-C, --root <dir>` | run against another repository (default: the nearest ancestor with `.git`) |
+| `METATOR_NOW` | pin the clock (ISO time) for reproducible ids and logs |
+| `METATOR_ROLE=coordinator` | `guard pre-tool` treats the caller as a coordinator |
 
 ## Reading the output in scripts
 
