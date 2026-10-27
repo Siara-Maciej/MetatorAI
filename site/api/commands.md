@@ -1143,6 +1143,19 @@ List runs, newest first
 metator run list [options]
 ```
 
+### `metator run continue`
+
+Continue a run: pick one that waits for you or stopped, drive it again and watch it
+
+```bash
+metator run continue [options] [run]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[run]` | run id (default: pick in a terminal, else the latest active run) | |
+| `--host <host>` | AI host (default: the one the run used) (one of: claude, copilot, scenario) |  |
+
 ### `metator run drive`
 
 Carry the run stage by stage: scripts, agents through an AI host, questions to people

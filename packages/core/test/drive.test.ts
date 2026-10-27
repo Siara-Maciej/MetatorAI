@@ -377,6 +377,24 @@ describe("RunJournal answers", () => {
     );
   });
 
+  test("an answer given after the run last changed still stands; an older one was acted on", async () => {
+    const fs = new InMemoryFileSystem();
+    const clock = new FixedClock(new Date("2026-10-27T10:00:00.000Z"));
+    const j = new RunJournal(fs, new RunRepository(fs, DEFAULT_PATHS), clock);
+    const q = {
+      stage: "approval",
+      source: "gate" as const,
+      prompt: "Approve?",
+      options: [{ label: "Approve" }],
+      multiSelect: false,
+    };
+    const first = (await j.ask("r1", q))._unsafeUnwrap();
+    clock.advance(1000);
+    await j.answer("r1", first.id, { choices: ["Approve"], by: "m" }); // answered at 10:00:01
+    expect((await j.ask("r1", q, "2026-10-27T10:00:00.500Z"))._unsafeUnwrap().id).toBe(first.id);
+    expect((await j.ask("r1", q, "2026-10-27T10:00:02.000Z"))._unsafeUnwrap().id).toBe("q002");
+  });
+
   test("asking the same open question again (a restarted drive) returns the one already asked", async () => {
     const fs = new InMemoryFileSystem();
     const j = new RunJournal(fs, new RunRepository(fs, DEFAULT_PATHS), new FixedClock());

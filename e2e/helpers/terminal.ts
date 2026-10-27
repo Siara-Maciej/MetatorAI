@@ -25,12 +25,13 @@ export async function inTerminal(
   cwd: string,
   steps: readonly TerminalStep[],
   timeoutMs = 20_000,
+  env: Readonly<Record<string, string>> = {},
 ): Promise<TerminalRun> {
   let raw = "";
   const decoder = new TextDecoder();
   const proc = Bun.spawn(["bun", CLI_ENTRY, ...args], {
     cwd,
-    env: { ...process.env, FORCE_COLOR: "0" },
+    env: { ...process.env, FORCE_COLOR: "0", ...env },
     terminal: {
       cols: 120,
       rows: 40,

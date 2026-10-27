@@ -38,8 +38,8 @@ export interface ProgramOptions {
   readonly stdin?: () => Promise<string>;
   /** How commands run other commands (set by run.ts, so the program does not import it). */
   readonly invoke?: CommandContext["invoke"];
-  /** Asks a person in a terminal (main.ts sets it when stdin and stderr are TTYs). */
-  readonly prompter?: CommandContext["prompter"];
+  /** The person at a terminal (main.ts sets it when stdin and stderr are TTYs). */
+  readonly terminal?: CommandContext["terminal"];
 }
 
 /**
@@ -73,7 +73,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
       });
     },
     stdin: options.stdin ?? (async () => ""),
-    prompter: options.prompter ?? null,
+    terminal: options.terminal ?? null,
     invoke:
       options.invoke ??
       (async () => {

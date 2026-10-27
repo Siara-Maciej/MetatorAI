@@ -4,6 +4,39 @@
 
 Both modes use the same workflow spec, the same agents and hooks, and the same run state. A run started in one mode can finish in the other.
 
+## In a terminal: one command
+
+```bash
+metator run
+```
+
+```text
+┌  New MetatorAI run
+◇  Which workflow?            mt-feature
+◇  What is the task?          Add combined discount
+◇  Autonomy                   L0 (you approve every gate)
+◇  Which AI host?             Claude Code
+◇  Work in its own git worktree? Yes
+│  run 20261027-mt-feature-add-combined-discount · claude · Ctrl+C leaves; the run goes on
+│  ▸ context · Parallel subagents survey the code (graph, patterns, rules)
+│    mt-scout started
+│      Bash metator graph dependents packages/billing/src/invoice.ts --transitive
+│    ✓ PASS
+│  ▸ plan-approval · The human approves the plan
+◆  plan-approval · gate
+│  The human approves the plan: approve to continue
+│  ● Approve   ○ Reject   ○ Other
+```
+
+The run is driven in the background and shown live; every question is asked right there. **Ctrl+C leaves the view, not the run**: it goes on and waits for you.
+
+```bash
+metator run continue          # pick a run: "waits for you (1)", "driving" or "stopped", and watch it again
+metator run continue <run>    # that run; a stopped one is driven again with the host it used
+```
+
+Everything below works the same without a terminal, for scripts and CI.
+
 ## Start, drive, answer
 
 ```bash

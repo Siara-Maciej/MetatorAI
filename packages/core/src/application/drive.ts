@@ -87,19 +87,28 @@ export class RunJournal {
     return ok(out.sort((a, b) => a.id.localeCompare(b.id)));
   }
 
+  /**
+   * Asks a person. A drive that restarts (`run continue`) asks again: the question it asked before
+   * stands, and so does an answer given after `pendingSince` (the run's last change), which no
+   * drive has acted on yet.
+   */
   async ask(
     runId: string,
     q: Pick<Question, "stage" | "source" | "prompt" | "options" | "multiSelect"> & {
       readonly agent?: string;
     },
+    pendingSince?: string,
   ): Promise<Result<Question, MetatorError>> {
     const existing = await this.questions(runId);
     if (existing.isErr()) return err(existing.error);
-    // A drive that restarts (`run continue`) asks again; the open question it asked before stands.
-    const open = existing.value.find(
-      (e) => !e.answer && e.stage === q.stage && e.source === q.source && e.prompt === q.prompt,
+    const standing = existing.value.find(
+      (e) =>
+        e.stage === q.stage &&
+        e.source === q.source &&
+        e.prompt === q.prompt &&
+        (!e.answer || (pendingSince !== undefined && e.answer.at > pendingSince)),
     );
-    if (open) return ok(open);
+    if (standing) return ok(standing);
     const options = q.options.some((o) => o.label === OTHER)
       ? q.options
       : [...q.options, { label: OTHER, description: "Answer in your own words" }];
@@ -276,6 +285,7 @@ export class DriveRun {
         runDir: `${this.d.root}/${this.d.repo.runDir(runId)}`,
         ...(retry ? { retry } : {}),
         ...(record.value.hostSession ? { resume: record.value.hostSession } : {}),
+        since: record.value.updatedAt,
         pollMs: input.pollMs ?? 500,
       };
       const outcome = stage.hitl ? await this.humanGate(ctx) : await this.work(ctx);
@@ -321,16 +331,20 @@ export class DriveRun {
 
   /** A HITL stage: the person approves, or rejects with a reason (FAIL). */
   private async humanGate(ctx: StageContext): Promise<Result<Outcome, MetatorError>> {
-    const q = await this.d.journal.ask(ctx.runId, {
-      stage: ctx.stage.id,
-      source: "gate",
-      prompt: `${ctx.stage.description ?? ctx.stage.id}: approve to continue`,
-      options: [
-        { label: "Approve", description: "Continue with the next stage" },
-        { label: "Reject", description: "Send the run back, with your reason" },
-      ],
-      multiSelect: false,
-    });
+    const q = await this.d.journal.ask(
+      ctx.runId,
+      {
+        stage: ctx.stage.id,
+        source: "gate",
+        prompt: `${ctx.stage.description ?? ctx.stage.id}: approve to continue`,
+        options: [
+          { label: "Approve", description: "Continue with the next stage" },
+          { label: "Reject", description: "Send the run back, with your reason" },
+        ],
+        multiSelect: false,
+      },
+      ctx.since,
+    );
     if (q.isErr()) return err(q.error);
     const answer = await this.d.journal.waitFor(ctx.runId, q.value.id, this.d.timer, ctx.pollMs);
     if (answer.isErr()) return err(answer.error);
@@ -431,14 +445,18 @@ export class DriveRun {
         return ok({ type: "FAIL", reason: `${agent} failed: ${result.value.text.slice(-300)}` });
       const status = parseStatus(result.value.text);
       if (status?.kind !== "blocked") return ok({ type: "PASS" });
-      const q = await this.d.journal.ask(ctx.runId, {
-        stage: ctx.stage.id,
-        source: "agent",
-        agent,
-        prompt: status.question,
-        options: [{ label: OTHER, description: "Your answer goes back to the agent" }],
-        multiSelect: false,
-      });
+      const q = await this.d.journal.ask(
+        ctx.runId,
+        {
+          stage: ctx.stage.id,
+          source: "agent",
+          agent,
+          prompt: status.question,
+          options: [{ label: OTHER, description: "Your answer goes back to the agent" }],
+          multiSelect: false,
+        },
+        ctx.since,
+      );
       if (q.isErr()) return err(q.error);
       const a = await this.d.journal.waitFor(ctx.runId, q.value.id, this.d.timer, ctx.pollMs);
       if (a.isErr()) return err(a.error);
@@ -476,17 +494,21 @@ export class DriveRun {
     const say = (entry: ActivityInput) => this.d.journal.record(ctx.runId, entry);
     await say({ type: "agent", stage: ctx.stage.id, agent, text: `${agent} started` });
     const ask = async (q: AgentQuestion): Promise<AgentAnswer> => {
-      const asked = await this.d.journal.ask(ctx.runId, {
-        stage: ctx.stage.id,
-        source: q.source,
-        agent,
-        prompt: q.prompt,
-        options: q.options.map((o) => ({
-          label: o.label,
-          ...(o.description ? { description: o.description } : {}),
-        })),
-        multiSelect: q.multiSelect,
-      });
+      const asked = await this.d.journal.ask(
+        ctx.runId,
+        {
+          stage: ctx.stage.id,
+          source: q.source,
+          agent,
+          prompt: q.prompt,
+          options: q.options.map((o) => ({
+            label: o.label,
+            ...(o.description ? { description: o.description } : {}),
+          })),
+          multiSelect: q.multiSelect,
+        },
+        ctx.since,
+      );
       if (asked.isErr()) return { choices: [], text: asked.error.message };
       const a = await this.d.journal.waitFor(ctx.runId, asked.value.id, this.d.timer, ctx.pollMs);
       return a.isOk()
@@ -556,5 +578,7 @@ interface StageContext {
   readonly runDir: string;
   readonly retry?: string;
   readonly resume?: string;
+  /** When the run last changed: answers given after it are still to be acted on. */
+  readonly since: string;
   readonly pollMs: number;
 }

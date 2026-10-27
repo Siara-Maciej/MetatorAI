@@ -34,7 +34,7 @@ const upstreamWarnings = (removed: readonly string[]) =>
 
 export function registerSetupCommands(
   program: Command,
-  { action, container, invoke, prompter }: CommandContext,
+  { action, container, invoke, terminal }: CommandContext,
 ): void {
   const agents = program
     .command("agents")
@@ -100,9 +100,9 @@ export function registerSetupCommands(
           workflows: opts.workflows ?? preview.value.workflows,
           hooks: opts.hooks,
         };
-        const ask = !opts.yes && opts.host === undefined && opts.workflows === undefined ? prompter : null;
+        const ask = !opts.yes && opts.host === undefined && opts.workflows === undefined ? terminal : null;
         if (ask) {
-          const given = await ask({ available: preview.value.available, defaults: answers });
+          const given = await ask.setup({ available: preview.value.available, defaults: answers });
           if (!given) return { result: err(MetatorError.usage("setup cancelled", "Nothing was written.")) };
           answers = { hosts: [...given.hosts], workflows: [...given.workflows], hooks: given.hooks };
         }

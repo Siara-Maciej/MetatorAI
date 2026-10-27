@@ -1,6 +1,6 @@
 import type { MetatorError, Result } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
-import type { SetupPrompter } from "./prompts.ts";
+import type { Terminal } from "./terminal.ts";
 
 /** What a command produces: a result for the envelope plus optional warnings. */
 export interface Outcome {
@@ -23,8 +23,8 @@ export interface CommandContext {
   readonly invoke: (
     argv: readonly string[],
   ) => Promise<{ readonly code: number; readonly envelope: Record<string, unknown> }>;
-  /** Asks a person (`setup`); null when there is no terminal to ask in. */
-  readonly prompter: SetupPrompter | null;
+  /** The person at a terminal (setup, interactive runs); null when there is none. */
+  readonly terminal: Terminal | null;
   /** Wraps a handler so its Outcome becomes the command's single JSON envelope. */
   readonly action: <A extends unknown[]>(
     handler: (...args: A) => Promise<Outcome> | Outcome,

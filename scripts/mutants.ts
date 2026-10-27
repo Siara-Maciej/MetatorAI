@@ -1294,7 +1294,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
-    from: "if (open) return ok(open);",
+    from: "if (standing) return ok(standing);",
     to: "",
     why: "a restarted drive does not ask the same question twice",
   },
