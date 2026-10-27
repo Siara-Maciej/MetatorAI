@@ -8,12 +8,14 @@ import {
   matchesAny,
   normalizePath,
   ok,
+  type PortProbe,
   type ProcessResult,
   type ProcessRunner,
   type ResolvedCommand,
   type Result,
   type RuleEngine,
   type Vcs,
+  type WorktreeManager,
 } from "@metator/core";
 
 export class InMemoryFileSystem implements FileSystem {
@@ -38,6 +40,11 @@ export class InMemoryFileSystem implements FileSystem {
 
   async write(path: string, content: string): Promise<Result<void, MetatorError>> {
     this.files.set(normalizePath(path), content);
+    return ok(undefined);
+  }
+
+  async remove(path: string): Promise<Result<void, MetatorError>> {
+    this.files.delete(normalizePath(path));
     return ok(undefined);
   }
 }
@@ -118,5 +125,37 @@ export class FakeRuleEngine implements RuleEngine {
   async check(files?: readonly string[]): Promise<Result<readonly Diagnostic[], MetatorError>> {
     this.checked.push(files);
     return ok(files ? this.diagnostics.filter((d) => files.includes(d.file)) : this.diagnostics);
+  }
+}
+
+/** WorktreeManager in memory: records worktrees; `dirty` marks paths with uncommitted work. */
+export class FakeWorktreeManager implements WorktreeManager {
+  readonly worktrees = new Map<string, { branch: string; base: string }>();
+  readonly dirty = new Set<string>();
+
+  async add(path: string, branch: string, base: string): Promise<Result<void, MetatorError>> {
+    if (this.worktrees.has(path)) return err(new MetatorError("COMMAND_FAILED", `${path} already exists`));
+    this.worktrees.set(path, { branch, base });
+    return ok(undefined);
+  }
+
+  async remove(path: string, force: boolean): Promise<Result<void, MetatorError>> {
+    if (this.dirty.has(path) && !force) return err(new MetatorError("COMMAND_FAILED", `${path} is dirty`));
+    this.worktrees.delete(path);
+    this.dirty.delete(path);
+    return ok(undefined);
+  }
+
+  async isDirty(path: string): Promise<Result<boolean, MetatorError>> {
+    return ok(this.dirty.has(path));
+  }
+}
+
+/** PortProbe with a fixed set of busy ports. */
+export class FakePortProbe implements PortProbe {
+  constructor(readonly busy: ReadonlySet<number> = new Set()) {}
+
+  async isFree(port: number): Promise<boolean> {
+    return !this.busy.has(port);
   }
 }

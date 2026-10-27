@@ -1038,6 +1038,8 @@ metator run init [options]
 | `--workflow <id>` | workflow id **Required.** |  |
 | `--task <text>` | task description or work item reference **Required.** |  |
 | `--autonomy <level>` | L0 all gates, L1 skip plan approval, L2 headless (one of: L0, L1, L2) | `"L0"` |
+| `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
+| `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
 
 ### `metator run advance`
 
@@ -1140,3 +1142,54 @@ List runs, newest first
 ```bash
 metator run list [options]
 ```
+
+## worktree
+
+### `metator worktree new`
+
+Create .metator/wt/&lt;id&gt; on branch metator/&lt;id&gt; with a free block of ports
+
+```bash
+metator worktree new [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | worktree id (lowercase letters, digits, -) | |
+| `--base <ref>` | ref to branch from | `"HEAD"` |
+| `--run <id>` | the run that works in it |  |
+| `--ports <count>` | how many ports to lease | `20` |
+
+### `metator worktree list`
+
+Worktrees with their branch, ports, run status and whether they hold uncommitted work
+
+```bash
+metator worktree list [options]
+```
+
+### `metator worktree rm`
+
+Remove a worktree and free its ports; uncommitted work needs --force
+
+```bash
+metator worktree rm [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | worktree id | |
+| `--force` | remove even with uncommitted changes (they are lost) |  |
+
+### `metator worktree prune`
+
+Remove worktrees of finished runs older than N days; never one with uncommitted work
+
+```bash
+metator worktree prune [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--older-than <days>` | minimum age in days | `7` |
+| `--dry-run` | report only |  |

@@ -6,17 +6,31 @@ Every error carries a `code`, a `message` and usually a `hint` with the next ste
 
 The rule engine runs the binary installed in **your** repository.
 
-```bash
-bun add -d @ast-grep/cli
+::: code-group
+
+```bash [npm]
+npm install --save-dev @ast-grep/cli
+npm rebuild @ast-grep/cli          # if it was installed with ignore-scripts
 ```
 
-With Bun, also allow its install script, which downloads the binary:
-
-```json
-{ "trustedDependencies": ["@ast-grep/cli"] }
+```bash [pnpm]
+pnpm add --save-dev @ast-grep/cli
+pnpm approve-builds                # pnpm 10: allow its install script, which downloads the binary
 ```
 
-Then `bun install --force`. The same applies to other tools with install scripts.
+```bash [yarn]
+yarn add --dev @ast-grep/cli
+```
+
+```bash [bun]
+bun add --dev @ast-grep/cli
+# add {"trustedDependencies": ["@ast-grep/cli"]} to package.json, then:
+bun install --force
+```
+
+:::
+
+The same applies to other tools with install scripts.
 
 ## `does not match RuleSet v1: rules.0.rationale: ...`
 

@@ -168,4 +168,102 @@ describe("documentation site", () => {
     const runs = await Promise.all([1280, 390].flatMap((w) => pages.map((p) => sample(w, p))));
     expect(runs).toEqual([1280, 390].flatMap((w) => pages.map((p) => [w, p, 1])));
   }, 90_000);
+
+  test("every package-manager code group offers npm, pnpm, yarn and bun, in that order", async () => {
+    const groups: string[][] = [];
+    for (const file of new Bun.Glob("**/*.html").scanSync({ cwd: out })) {
+      const html = await Bun.file(join(out, file)).text();
+      for (const g of html.split('class="vp-code-group').slice(1)) {
+        const tabs = g.slice(0, g.indexOf('class="blocks"'));
+        const labels = [...tabs.matchAll(/<label[^>]*>([^<]+)<\/label>/g)].map((m) =>
+          (m[1] as string).trim(),
+        );
+        if (labels.some((l) => ["npm", "pnpm", "yarn", "bun"].includes(l))) groups.push(labels);
+      }
+    }
+    expect(groups.length).toBeGreaterThanOrEqual(6);
+    for (const labels of groups) expect(labels).toEqual(["npm", "pnpm", "yarn", "bun"]);
+  });
+
+  test("one package-manager switch changes every command on every page, without scrolling", async () => {
+    const base = `http://localhost:${server.port}`;
+    const page = await (await browser()).newPage({ viewport: { width: 1280, height: 900 } });
+    const shown = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll(".vp-code-group")]
+          .map((g) => {
+            const input = [...g.querySelectorAll(":scope > .tabs > input")].find(
+              (i) => (i as HTMLInputElement).checked,
+            );
+            const label = input && g.querySelector(`label[for="${input.id}"]`)?.textContent?.trim();
+            const active = [...(g.querySelector(":scope > .blocks")?.children ?? [])].findIndex((b) =>
+              b.classList.contains("active"),
+            );
+            const labels = [...g.querySelectorAll(":scope > .tabs > label")].map((l) =>
+              l.textContent?.trim(),
+            );
+            return { label, matches: labels[active] === label };
+          })
+          .filter((g) => ["npm", "pnpm", "yarn", "bun"].includes(g.label as string)),
+      );
+    await page.goto(`${base}/guide/installation`);
+    expect((await shown()).every((g) => g.label === "npm" && g.matches)).toBe(true);
+    // A tab in one block switches all of them, and the tab stays where the reader clicked it.
+    const tab = page.locator(".vp-code-group label", { hasText: /^pnpm$/ }).first();
+    await tab.scrollIntoViewIfNeeded();
+    const before = (await tab.boundingBox())?.y ?? 0;
+    await tab.click();
+    const afterTab = await shown();
+    expect([afterTab.length >= 3, afterTab.every((g) => g.label === "pnpm" && g.matches)]).toEqual([
+      true,
+      true,
+    ]);
+    expect(Math.abs(((await tab.boundingBox())?.y ?? 0) - before)).toBeLessThan(2);
+    // The choice holds on the next page; the switch in the navigation bar changes it again.
+    await page.goto(`${base}/how-to/gates-ci`);
+    expect((await shown()).every((g) => g.label === "pnpm" && g.matches)).toBe(true);
+    await page.locator(".VPNavBar .mx-pm-select select").selectOption("bun");
+    expect((await shown()).every((g) => g.label === "bun" && g.matches)).toBe(true);
+    // The switch fits in the navigation bar.
+    const box = await page.locator(".VPNavBar .mx-pm-select").boundingBox();
+    expect(box !== null && box.x + box.width <= 1280).toBe(true);
+    // The buttons on the installation page show the same choice.
+    await page.goto(`${base}/guide/installation`);
+    expect(await page.locator('.vp-doc .mx-pm button[aria-checked="true"]').textContent()).toContain("bun");
+    await page.close();
+  }, 60_000);
+
+  test("the sidebar is the whole table of contents, and Next chapter leads through every page", async () => {
+    const config = (await import("../site/.vitepress/config.ts")).default as {
+      themeConfig: { nav: unknown[]; sidebar: { text: string; items: { link: string }[] }[] };
+    };
+    const order = config.themeConfig.sidebar.flatMap((g) => g.items.map((i) => i.link));
+    const pages = [...new Bun.Glob("**/*.md").scanSync({ cwd: join(ROOT, "site") })]
+      .filter((f) => f !== "index.md")
+      .map((f) => `/${f.replace(/(^|\/)index\.md$/, "$1").replace(/\.md$/, "")}`);
+    expect([config.themeConfig.nav, [...order].sort()]).toEqual([[], pages.sort()]);
+
+    const base = `http://localhost:${server.port}`;
+    const page = await (await browser()).newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(`${base}/`);
+    await page.locator(".VPHero a", { hasText: "Get started" }).click();
+    await page.waitForURL((u) => u.pathname === order[0]);
+    const visited: string[] = [];
+    for (let i = 0; i <= order.length; i++) {
+      visited.push(new URL(page.url()).pathname);
+      // Each page has one pager: the next chapter, until the last page.
+      const next = page.locator(".VPDocFooter .pager-link.next");
+      if ((await next.count()) === 0) break;
+      const href = (await next.getAttribute("href")) as string;
+      await next.click();
+      await page.waitForURL((u) => u.pathname === href);
+      await page.locator(`.VPDocFooter .pager-link.prev[href="${visited.at(-1)}"]`).waitFor();
+    }
+    expect(visited).toEqual(order);
+    // The chapter of the open page is expanded; the others stay collapsed.
+    await page.goto(`${base}/how-to/worktrees`);
+    const open = await page.locator(".VPSidebarItem.level-0:not(.collapsed) > .item .text").allTextContents();
+    expect(open.map((t) => t.trim())).toEqual(["Get started", "Guides"]);
+    await page.close();
+  }, 90_000);
 });

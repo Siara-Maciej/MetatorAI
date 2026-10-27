@@ -18,6 +18,7 @@ import {
   type CloseRun,
   type CompareEvals,
   type ComputeAffected,
+  type CreateWorktree,
   type DiffCoverage,
   type DiffImportGraph,
   type Discover,
@@ -60,6 +61,7 @@ import {
   type LintSystem,
   type LintWorkflows,
   type ListRuns,
+  type ListWorktrees,
   type Logger,
   type MeasureRuleCoverage,
   type MemoryBudget,
@@ -73,7 +75,10 @@ import {
   type PackRules,
   type PatternCatalog,
   type PlanReview,
+  type PortProbe,
   type ProcessRunner,
+  type PruneWorktrees,
+  type RemoveWorktree,
   type Result,
   type RevisionReader,
   type RuleCatalog,
@@ -99,6 +104,8 @@ import {
   type Vcs,
   type WorkflowCatalog,
   type WorkspaceReader,
+  type WorktreeManager,
+  type WorktreeRegistry,
 } from "@metator/core";
 import { type AwilixContainer, AwilixResolutionError, createContainer, InjectionMode } from "awilix";
 import type { LoadedConfig } from "./config.ts";
@@ -136,6 +143,13 @@ export interface Cradle {
   workflowCatalog: WorkflowCatalog;
   runRepository: RunRepository;
   initRun: InitRun;
+  worktreeManager: WorktreeManager;
+  portProbe: PortProbe;
+  worktreeRegistry: WorktreeRegistry;
+  createWorktree: CreateWorktree;
+  listWorktrees: ListWorktrees;
+  removeWorktree: RemoveWorktree;
+  pruneWorktrees: PruneWorktrees;
   advanceRun: AdvanceRun;
   approveRun: ApproveRun;
   getRunStatus: GetRunStatus;

@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import {
   err,
@@ -52,6 +52,19 @@ export class BunFileSystem implements FileSystem {
     } catch (e) {
       return err(
         new MetatorError("INTERNAL", `Cannot write ${path}: ${(e as Error).message}`, { details: { path } }),
+      );
+    }
+  }
+
+  async remove(path: string): Promise<Result<void, MetatorError>> {
+    const target = this.resolve(path);
+    if (target.isErr()) return err(target.error);
+    try {
+      await rm(target.value, { force: true });
+      return ok(undefined);
+    } catch (e) {
+      return err(
+        new MetatorError("INTERNAL", `Cannot remove ${path}: ${(e as Error).message}`, { details: { path } }),
       );
     }
   }

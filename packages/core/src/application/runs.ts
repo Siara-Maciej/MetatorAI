@@ -6,6 +6,7 @@ import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "
 import type { Clock } from "../ports/index.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
+import type { CreateWorktree } from "./worktrees.ts";
 
 /** What commands return about a run: enough for an agent to decide its next step. */
 export interface RunView {
@@ -20,6 +21,7 @@ export interface RunView {
   readonly recent: RunRecord["state"]["context"]["history"];
   readonly approvals: RunRecord["approvals"];
   readonly files: { readonly state: string; readonly log: string };
+  readonly worktree?: RunRecord["worktree"];
   readonly updatedAt: string;
 }
 
@@ -36,6 +38,7 @@ function view(record: RunRecord, machine: RunStateMachine, repo: RunRepository):
     recent: record.state.context.history.slice(-5),
     approvals: record.approvals,
     files: { state: repo.stateFile(record.runId), log: repo.logFile(record.runId) },
+    ...(record.worktree ? { worktree: record.worktree } : {}),
     updatedAt: record.updatedAt,
   };
 }
@@ -66,6 +69,8 @@ export interface InitRunInput {
   readonly workflow: string;
   readonly task: string;
   readonly autonomy?: Autonomy;
+  /** Work in a new git worktree with its own ports (F8.2), branched from `base`. */
+  readonly worktree?: { readonly base?: string };
 }
 
 export class InitRun {
@@ -73,6 +78,7 @@ export class InitRun {
     private readonly catalog: WorkflowCatalog,
     private readonly repo: RunRepository,
     private readonly clock: Clock,
+    private readonly worktrees?: Pick<CreateWorktree, "execute">,
   ) {}
 
   async execute(input: InitRunInput): Promise<Result<RunView, MetatorError>> {
@@ -82,6 +88,17 @@ export class InitRun {
 
     const now = this.clock.now().toISOString();
     const runId = await this.uniqueId(now, machine.workflow.id, input.task);
+    let worktree: RunRecord["worktree"];
+    if (input.worktree) {
+      if (!this.worktrees) return err(new MetatorError("INTERNAL", "InitRun has no worktree support wired"));
+      const wt = await this.worktrees.execute({
+        id: runId,
+        run: runId,
+        ...(input.worktree.base ? { base: input.worktree.base } : {}),
+      });
+      if (wt.isErr()) return err(wt.error);
+      worktree = { id: wt.value.id, path: wt.value.path, branch: wt.value.branch };
+    }
     const created: RunRecord = {
       runId,
       workflow: { id: machine.workflow.id, revision: machine.workflow.revision, source },
@@ -91,12 +108,14 @@ export class InitRun {
       updatedAt: now,
       state: machine.start(),
       approvals: {},
+      ...(worktree ? { worktree } : {}),
     };
     const { record, lines } = skipGates(machine, created, now);
     const saved = await this.repo.save(record);
     if (saved.isErr()) return err(saved.error);
     for (const line of [
       `${now} · created · workflow ${record.workflow.id}@${record.workflow.revision} · ${record.autonomy}`,
+      ...(worktree ? [`${now} · worktree · ${worktree.path} on ${worktree.branch}`] : []),
       ...lines,
     ]) {
       const logged = await this.repo.appendLog(runId, line);

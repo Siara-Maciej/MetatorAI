@@ -35,6 +35,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `RunPointer` | `.metator/runs/latest.json` | `metator run *` |
 | `RunHandoff` | `.metator/runs/<id>/handoff.md` | `metator run handoff` |
 | `RunSummary` | `.metator/runs/<id>/summary.json` | `metator run close` |
+| `WorktreeRegistry` | `.metator/worktrees.json` | `metator worktree *`, `metator run init --worktree` |
 | `EvalReport` | `<runs-dir>/report.json` | `metator eval run` |
 
 ## Run artifacts (written by agents, validated by hooks)

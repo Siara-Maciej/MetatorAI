@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { fileSystemContract } from "../src/contracts/file-system.contract.ts";
-import { FixedClock, InMemoryFileSystem, ScriptedProcessRunner } from "../src/fakes.ts";
+import { worktreeManagerContract } from "../src/contracts/worktree-manager.contract.ts";
+import { FakeWorktreeManager, FixedClock, InMemoryFileSystem, ScriptedProcessRunner } from "../src/fakes.ts";
 
 fileSystemContract("InMemoryFileSystem", async (files) => new InMemoryFileSystem(files));
 
@@ -29,4 +30,9 @@ describe("FixedClock", () => {
     clock.advance(1500);
     expect(clock.now().toISOString()).toBe("2026-05-01T10:00:01.500Z");
   });
+});
+
+worktreeManagerContract("FakeWorktreeManager", async () => {
+  const manager = new FakeWorktreeManager();
+  return { manager, makeDirty: async (path) => void manager.dirty.add(path) };
 });

@@ -138,7 +138,7 @@ for GitHub Copilot and Claude Code. Interactive in your editor, headless in CI.
 
 ## Quick start
 
-MetatorAI is pre-alpha and runs from a checkout (it is not on npm yet):
+MetatorAI works in npm, pnpm, Yarn and Bun projects (it detects yours and runs your scripts with it). It is pre-alpha, runs from a checkout (it is not on npm yet) and needs the [Bun](https://bun.sh) runtime. Per-package-manager steps: [Installation](https://siara-maciej.github.io/MetatorAI/guide/installation).
 
 ```bash
 git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai

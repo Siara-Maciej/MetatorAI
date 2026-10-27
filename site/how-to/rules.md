@@ -93,8 +93,27 @@ Then point the canon at it:
     implementation: ast-grep:shop-code-001
 ```
 
-```bash
+::: code-group
+
+```bash [npm]
 npx ast-grep test            # the rule's own tests
+```
+
+```bash [pnpm]
+pnpm exec ast-grep test      # the rule's own tests
+```
+
+```bash [yarn]
+yarn ast-grep test           # the rule's own tests
+```
+
+```bash [bun]
+bunx ast-grep test           # the rule's own tests
+```
+
+:::
+
+```bash
 metator rules lint           # the E1 rule has an implementation and a test
 ```
 

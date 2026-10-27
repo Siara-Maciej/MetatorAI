@@ -19,6 +19,8 @@ export interface ReadonlyFileSystem {
 
 export interface FileSystem extends ReadonlyFileSystem {
   write(path: string, content: string): Promise<Result<void, MetatorError>>;
+  /** Deletes a file; a missing file is not an error. */
+  remove(path: string): Promise<Result<void, MetatorError>>;
 }
 
 export interface ResolvedCommand {
@@ -36,6 +38,19 @@ export interface ProcessResult {
 
 export interface ProcessRunner {
   run(command: ResolvedCommand, options?: { readonly timeoutMs?: number }): Promise<ProcessResult>;
+}
+
+/** Git worktrees (F8.2). Paths are repo-relative. */
+export interface WorktreeManager {
+  add(path: string, branch: string, base: string): Promise<Result<void, MetatorError>>;
+  remove(path: string, force: boolean): Promise<Result<void, MetatorError>>;
+  /** Uncommitted or untracked changes in the worktree. */
+  isDirty(path: string): Promise<Result<boolean, MetatorError>>;
+}
+
+/** Whether a TCP port on this machine can be bound right now. */
+export interface PortProbe {
+  isFree(port: number): Promise<boolean>;
 }
 
 export interface Clock {
