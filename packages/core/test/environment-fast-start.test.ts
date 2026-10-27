@@ -454,3 +454,16 @@ describe("EnvironmentServices: fast start (F8.7)", () => {
     expect((await s.up({ worktree: "feat" }))._unsafeUnwrapErr().message).toBe("too many connections");
   });
 });
+
+describe("compose project per repository (G1)", () => {
+  test("two repositories never share a project; names stay valid for Compose", async () => {
+    const { composeProject } = await import("../src/domain/environment.ts");
+    const a = composeProject("/home/me/shop", "shared");
+    const b = composeProject("/home/me/work/shop", "shared");
+    expect(a).toMatch(/^metator-shop-[0-9a-f]{6}-shared$/);
+    expect(a).not.toBe(b);
+    expect(composeProject("/home/me/shop", "fix-1")).toBe(a.replace(/shared$/, "fix-1"));
+    expect(composeProject("C:\\Work\\My Shop!", "main")).toMatch(/^metator-my-shop-[0-9a-f]{6}-main$/);
+    expect(composeProject("/", "main")).toMatch(/^metator-repo-[0-9a-f]{6}-main$/);
+  });
+});

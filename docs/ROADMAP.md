@@ -225,6 +225,16 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 
 ---
 
+## G: Wiele repozytoriów, pytania do kodu i pełny interfejs terminala
+
+Plan: [design/10](design/10-repos-ask-tui.md), zaakceptowany przez użytkownika.
+
+- [x] G1 Niezależne repozytoria na jednej maszynie: `PortLeases` v1 dla całej maszyny (port `MachineState`), projekt Compose per repozytorium (ADR-0056).
+- [ ] G2 Folder repozytoriów: `RepoSet` v1, `repos init|list|status`, komendy świadome folderu.
+- [ ] G3 `metator ask`: agent `mt-guide`, `Conversation` v1, dopytania.
+- [ ] G4 `metator status`: przegląd pracy (`WorkOverview`).
+- [ ] G5 `metator ui` na Ink: panele, paleta komend, ustawienia.
+
 ## Role i odpowiedzialności
 
 | Rola | Odpowiada za |

@@ -9,6 +9,7 @@ import {
   FakeWorktreeManager,
   FixedClock,
   InMemoryFileSystem,
+  InMemoryMachineState,
 } from "@metator/testing";
 import { AnalyzeEnvironment } from "../src/application/environment-analysis.ts";
 import { EnvironmentCatalog, EnvironmentServices } from "../src/application/environments.ts";
@@ -16,6 +17,7 @@ import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { WarmPool } from "../src/application/pool.ts";
 import {
   CreateWorktree,
+  MachineLeases,
   ProvideWorktree,
   RemoveWorktree,
   WorktreeRegistry,
@@ -56,8 +58,12 @@ function world(slow: Record<string, number> = { "seed.sh": 6000, "install.sh": 4
   const clock = new FixedClock(new Date("2026-10-27T10:00:00.000Z"));
   const registry = new WorktreeRegistry(fs, DEFAULT_PATHS);
   const git = new FakeWorktreeManager();
-  const create = new CreateWorktree(registry, git, new FakePortProbe(), clock, DEFAULT_PATHS);
-  const remove = new RemoveWorktree(registry, git);
+  const leases = new MachineLeases(new InMemoryMachineState(), "/repo");
+  const create = new CreateWorktree(registry, git, new FakePortProbe(), clock, DEFAULT_PATHS, {
+    leases,
+    root: "/repo",
+  });
+  const remove = new RemoveWorktree(registry, git, leases);
   const processes = new FakeBackgroundProcess();
   const isolator = new FakeDataIsolator();
   const catalog = new EnvironmentCatalog(fs, DEFAULT_PATHS);
@@ -89,7 +95,7 @@ function world(slow: Record<string, number> = { "seed.sh": 6000, "install.sh": 4
     clock,
     DEFAULT_PATHS,
   );
-  return { fs, registry, git, processes, isolator, services, pool, provide, analyze };
+  return { fs, registry, git, leases, processes, isolator, services, pool, provide, analyze };
 }
 
 describe("warm pool", () => {
@@ -184,11 +190,10 @@ describe("env analyze", () => {
 
   test("leftovers of an interrupted analysis are removed first; a failing start still cleans up", async () => {
     const w = world();
-    await new CreateWorktree(w.registry, w.git, new FakePortProbe(), new FixedClock(), DEFAULT_PATHS).execute(
-      {
-        id: "analyze-cold",
-      },
-    );
+    await new CreateWorktree(w.registry, w.git, new FakePortProbe(), new FixedClock(), DEFAULT_PATHS, {
+      leases: w.leases,
+      root: "/repo",
+    }).execute({ id: "analyze-cold" });
     expect((await w.analyze.execute({ cold: false })).isOk()).toBe(true);
     const broken = world();
     await broken.fs.write(
@@ -207,7 +212,7 @@ describe("env analyze", () => {
             ),
           ),
       },
-      new RemoveWorktree(broken.registry, broken.git),
+      new RemoveWorktree(broken.registry, broken.git, broken.leases),
       broken.services,
       broken.fs,
       new FixedClock(),

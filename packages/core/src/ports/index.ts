@@ -92,7 +92,7 @@ export interface BackgroundProcess {
 export interface ComposeService {
   readonly file: string;
   readonly service: string;
-  /** The Compose project: `metator-shared`, or `metator-<worktree>` per worktree. */
+  /** The Compose project: `metator-<repo>-<tag>-<place>`, one per repository and place. */
   readonly project: string;
   readonly cwd: string;
   readonly env: Readonly<Record<string, string>>;
@@ -125,6 +125,18 @@ export interface DataIsolator {
   ): Promise<Result<boolean, MetatorError>>;
   /** Drops the database; false when there was none. */
   dropDatabase(target: PostgresTarget, name: string): Promise<Result<boolean, MetatorError>>;
+}
+
+/**
+ * State shared by every repository on this machine (G1): small named JSON documents in the user's
+ * state directory, written atomically.
+ */
+export interface MachineState {
+  /** The document's text; undefined when it was never written. */
+  read(name: string): Promise<Result<string | undefined, MetatorError>>;
+  write(name: string, content: string): Promise<Result<void, MetatorError>>;
+  /** Whether an absolute directory still exists (a repository or a worktree holding state). */
+  dirExists(path: string): Promise<boolean>;
 }
 
 /** Copies a directory tree, copy-on-write where the file system can (build reuse, F8.7). */

@@ -15,6 +15,7 @@ import {
   type FileSystem,
   type HealthProbe,
   type HealthTarget,
+  type MachineState,
   MetatorError,
   matchesAny,
   normalizePath,
@@ -291,6 +292,25 @@ export class FakeContainerRuntime implements ContainerRuntime {
   async logs(service: ComposeService): Promise<Result<string, MetatorError>> {
     this.calls.push({ op: "logs", service });
     return ok(`logs of ${service.service}`);
+  }
+}
+
+/** MachineState in memory; `dirs` are the absolute directories that exist ("every": all of them). */
+export class InMemoryMachineState implements MachineState {
+  readonly files = new Map<string, string>();
+  constructor(readonly dirs: Set<string> | "every" = "every") {}
+
+  async read(name: string): Promise<Result<string | undefined, MetatorError>> {
+    return ok(this.files.get(name));
+  }
+
+  async write(name: string, content: string): Promise<Result<void, MetatorError>> {
+    this.files.set(name, content);
+    return ok(undefined);
+  }
+
+  async dirExists(path: string): Promise<boolean> {
+    return this.dirs === "every" || this.dirs.has(path);
   }
 }
 

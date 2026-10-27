@@ -75,6 +75,8 @@ import {
   type ListRuns,
   type ListWorktrees,
   type Logger,
+  type MachineLeases,
+  type MachineState,
   type MeasureRuleCoverage,
   type MemoryBudget,
   type MemoryMapReader,
@@ -181,6 +183,8 @@ export interface Cradle {
   worktreeManager: WorktreeManager;
   portProbe: PortProbe;
   worktreeRegistry: WorktreeRegistry;
+  machineState: MachineState;
+  machineLeases: MachineLeases;
   createWorktree: CreateWorktree;
   provideWorktree: ProvideWorktree;
   warmPool: WarmPool;

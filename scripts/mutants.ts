@@ -1550,4 +1550,28 @@ export const MUTANTS: readonly Mutant[] = [
     to: "{}",
     why: "a taken pool worktree leaves no pool branch behind",
   },
+  {
+    file: "packages/core/src/application/worktrees.ts",
+    from: "for (const l of doc.value.leases) if (await this.state.dirExists(l.path)) live.push(l);",
+    to: "for (const l of doc.value.leases) live.push(l);",
+    why: "a lease whose worktree is gone holds nothing",
+  },
+  {
+    file: "packages/core/src/application/worktrees.ts",
+    from: "...others.value.map((l) => l.ports)",
+    to: "",
+    why: "a block another repository holds is never leased again",
+  },
+  {
+    file: "packages/core/src/domain/environment.ts",
+    from: "fnv1a(root).slice(0, 6)",
+    to: '"000000"',
+    why: "two repositories of the same name get different Compose projects",
+  },
+  {
+    file: "packages/plugin-bun/src/bun-machine-state.ts",
+    from: "await rename(tmp, target);",
+    to: "",
+    why: "machine state is written into place",
+  },
 ];

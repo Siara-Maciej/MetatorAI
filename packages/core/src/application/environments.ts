@@ -1,6 +1,7 @@
 import {
   affectedServices,
   assignPorts,
+  composeProject,
   type Environment,
   EnvironmentDocument,
   type EnvState,
@@ -536,7 +537,7 @@ export class EnvironmentServices {
     return {
       file: source.compose.file,
       service: source.compose.service,
-      project: `metator-${place}`,
+      project: composeProject(this.where.root, place),
       cwd,
       env: vars,
     };

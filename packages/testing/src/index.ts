@@ -1,6 +1,7 @@
 export * from "./contracts/agent-host.contract.ts";
 export * from "./contracts/data-isolator.contract.ts";
 export * from "./contracts/file-system.contract.ts";
+export * from "./contracts/machine-state.contract.ts";
 export * from "./contracts/process-runner.contract.ts";
 export * from "./contracts/tree-copier.contract.ts";
 export * from "./contracts/worktree-manager.contract.ts";

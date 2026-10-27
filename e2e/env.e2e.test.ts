@@ -161,10 +161,14 @@ describe("metator env (real CLI, real processes)", () => {
       "Ready to accept",
     );
     await mt("env", "down", "cache");
-    expect((await repo.read("docker-calls.txt")).trim().split("\n")).toEqual([
-      "compose -p metator-main -f compose.yml up -d cache",
-      "compose -p metator-main -f compose.yml logs --no-color --tail 50 cache",
-      "compose -p metator-main -f compose.yml stop cache",
+    const calls = (await repo.read("docker-calls.txt")).trim().split("\n");
+    const project = calls[0]?.split(" ")[2] ?? "";
+    // One Compose project per repository and place: two repositories never share containers.
+    expect(project).toMatch(/^metator-metator-e2e-[a-z0-9-]+-[0-9a-f]{6}-main$/);
+    expect(calls).toEqual([
+      `compose -p ${project} -f compose.yml up -d cache`,
+      `compose -p ${project} -f compose.yml logs --no-color --tail 50 cache`,
+      `compose -p ${project} -f compose.yml stop cache`,
     ]);
   }, 60_000);
 });

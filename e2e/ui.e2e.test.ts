@@ -85,7 +85,8 @@ describe("metator ui (real CLI in a terminal)", () => {
         { waitFor: "Which editor?", keys: KEY.enter }, // the stand-in `code`
         { waitFor: "Opened ", keys: `${KEY.down}${KEY.enter}` }, // Applications
         { waitFor: "Applications of", keys: `${KEY.down}${KEY.enter}` }, // Start all
-        { waitFor: "Started.", keys: `${KEY.up}${KEY.enter}` }, // Back (the list wraps)
+        { waitFor: "Started.", keys: "" },
+        { waitFor: "Applications of", keys: `${KEY.up}${KEY.enter}` }, // Back (the list wraps)
         { waitFor: "Continue the run", keys: KEY.up + KEY.enter }, // Back
         { waitFor: "Sessions", keys: KEY.up + KEY.enter }, // Quit
       ],

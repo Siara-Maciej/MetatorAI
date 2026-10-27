@@ -1,4 +1,4 @@
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   AddLesson,
@@ -69,6 +69,7 @@ import {
   LintWorkflows,
   ListRuns,
   ListWorktrees,
+  MachineLeases,
   MeasureRuleCoverage,
   MemoryBudget,
   MemoryMapReader,
@@ -107,6 +108,7 @@ import {
   BunBackgroundProcess,
   BunFileSystem,
   BunLauncher,
+  BunMachineState,
   BunProcessRunner,
   BunSqlDataIsolator,
   BunTestEngine,
@@ -154,6 +156,18 @@ export interface BootstrapOptions {
   readonly copilotBin?: string;
   /** The Docker CLI (METATOR_DOCKER_BIN); default `docker` on PATH. */
   readonly dockerBin?: string;
+  /** Machine-wide state shared by every repository (`machineStateDir`); default from the process env. */
+  readonly stateDir?: string;
+}
+
+/**
+ * Where state shared by every repository on this machine lives (G1): `$METATOR_STATE_DIR`, else
+ * `$XDG_STATE_HOME/metator`, else `~/.local/state/metator`.
+ */
+export function machineStateDir(env: Readonly<Record<string, string | undefined>>): string {
+  if (env.METATOR_STATE_DIR) return env.METATOR_STATE_DIR;
+  if (env.XDG_STATE_HOME) return join(env.XDG_STATE_HOME, "metator");
+  return join(env.HOME ?? homedir(), ".local", "state", "metator");
 }
 
 const systemClock: Clock = { now: () => new Date() };
@@ -486,9 +500,16 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     worktreeRegistry: asFunction(
       ({ fileSystem, paths }) => new WorktreeRegistry(fileSystem, paths),
     ).singleton(),
+    machineState: asFunction(
+      () => new BunMachineState(options.stateDir ?? machineStateDir(process.env)),
+    ).singleton(),
+    machineLeases: asFunction(({ machineState, root }) => new MachineLeases(machineState, root)),
     createWorktree: asFunction(
-      ({ worktreeRegistry, worktreeManager, portProbe, clock, paths }) =>
-        new CreateWorktree(worktreeRegistry, worktreeManager, portProbe, clock, paths),
+      ({ worktreeRegistry, worktreeManager, portProbe, clock, paths, machineLeases, root }) =>
+        new CreateWorktree(worktreeRegistry, worktreeManager, portProbe, clock, paths, {
+          leases: machineLeases,
+          root,
+        }),
     ),
     provideWorktree: asFunction(
       ({ worktreeRegistry, worktreeManager, createWorktree }) =>
@@ -525,7 +546,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ListWorktrees(worktreeRegistry, worktreeManager, runRepository),
     ),
     removeWorktree: asFunction(
-      ({ worktreeRegistry, worktreeManager }) => new RemoveWorktree(worktreeRegistry, worktreeManager),
+      ({ worktreeRegistry, worktreeManager, machineLeases }) =>
+        new RemoveWorktree(worktreeRegistry, worktreeManager, machineLeases),
     ),
     pruneWorktrees: asFunction(
       ({ worktreeRegistry, removeWorktree, worktreeManager, runRepository, clock }) =>

@@ -1,5 +1,5 @@
 import { MetatorError } from "@metator/core";
-import { bootstrap, findRepoRoot, loadConfig } from "@metator/runtime";
+import { bootstrap, findRepoRoot, loadConfig, machineStateDir } from "@metator/runtime";
 import { Command, type CommanderError } from "commander";
 import { registerAdrCommands } from "./commands/adr.ts";
 import { registerAgentCommands } from "./commands/agents.ts";
@@ -73,6 +73,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
         ...(env.METATOR_AGENT_SCENARIO ? { agentScenario: env.METATOR_AGENT_SCENARIO } : {}),
         ...(env.METATOR_COPILOT_BIN ? { copilotBin: env.METATOR_COPILOT_BIN } : {}),
         ...(env.METATOR_DOCKER_BIN ? { dockerBin: env.METATOR_DOCKER_BIN } : {}),
+        stateDir: machineStateDir(env),
       });
     },
     stdin: options.stdin ?? (async () => ""),

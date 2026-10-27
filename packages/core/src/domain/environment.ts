@@ -348,3 +348,27 @@ export function healthTarget(env: Environment, ports: PortMap, id: string): Heal
 /** Images that are infrastructure: one instance is shared by every worktree (decision 3). */
 export const SHARED_IMAGES =
   /(^|\/)(postgres|postgis|mysql|mariadb|redis|valkey|mongo|kafka|redpanda|rabbitmq|elasticsearch|opensearch|minio|zookeeper|memcached|localstack|mailhog|mailpit)([:@]|$)/;
+
+/**
+ * The Docker Compose project of a place: one per repository and place, so two repositories on one
+ * machine never share containers (G1). Compose allows lowercase letters, digits, `-` and `_`.
+ */
+export function composeProject(root: string, place: Place): string {
+  const base = (root.split(/[\\/]/).filter(Boolean).pop() ?? "repo").toLowerCase();
+  const slug =
+    base
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 24) || "repo";
+  return `metator-${slug}-${fnv1a(root).slice(0, 6)}-${place}`;
+}
+
+/** FNV-1a, 32 bits, as hex: a short stable tag for a path (not for security). */
+function fnv1a(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}

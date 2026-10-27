@@ -5,12 +5,14 @@ import {
   candidateBlocks,
   DEFAULT_PORT_COUNT,
   type PortBlock,
+  type PortLease,
+  PortLeasesDocument,
   pruneCandidates,
   WORKTREE_ID,
   type WorktreeEntry,
   WorktreeRegistryDocument,
 } from "../domain/worktree.ts";
-import type { Clock, FileSystem, PortProbe, WorktreeManager } from "../ports/index.ts";
+import type { Clock, FileSystem, MachineState, PortProbe, WorktreeManager } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -53,6 +55,61 @@ export class WorktreeRegistry {
   }
 }
 
+const LEASES = "port-leases.json";
+
+/**
+ * The port blocks every repository on this machine holds (G1, ADR-0056). Leases whose worktree
+ * directory is gone hold nothing, so a deleted repository never blocks ports for long.
+ */
+export class MachineLeases {
+  constructor(
+    private readonly state: MachineState,
+    /** Absolute path of this repository. */
+    private readonly repo: string,
+  ) {}
+
+  /** Live leases of every repository. */
+  async all(): Promise<Result<readonly PortLease[], MetatorError>> {
+    const text = await this.state.read(LEASES);
+    if (text.isErr()) return err(text.error);
+    if (text.value === undefined) return ok([]);
+    const doc = parseJsonDocument(text.value, LEASES).andThen((raw) => PortLeasesDocument.parse(raw, LEASES));
+    if (doc.isErr()) return err(doc.error);
+    const live: PortLease[] = [];
+    for (const l of doc.value.leases) if (await this.state.dirExists(l.path)) live.push(l);
+    return ok(live);
+  }
+
+  async add(entry: WorktreeEntry, root: string): Promise<Result<void, MetatorError>> {
+    return this.update((leases) => [
+      ...leases.filter((l) => !(l.repo === this.repo && l.worktree === entry.id)),
+      {
+        repo: this.repo,
+        worktree: entry.id,
+        path: `${root}/${entry.path}`,
+        ports: entry.ports,
+        at: entry.createdAt,
+      },
+    ]);
+  }
+
+  async remove(worktree: string): Promise<Result<void, MetatorError>> {
+    return this.update((leases) => leases.filter((l) => !(l.repo === this.repo && l.worktree === worktree)));
+  }
+
+  /** Rewrites the file with live leases only, so stale ones are dropped as a side effect. */
+  private async update(
+    change: (leases: readonly PortLease[]) => readonly PortLease[],
+  ): Promise<Result<void, MetatorError>> {
+    const live = await this.all();
+    if (live.isErr()) return err(live.error);
+    return this.state.write(
+      LEASES,
+      serializeJsonDocument(PortLeasesDocument.stamp({ leases: [...change(live.value)] })),
+    );
+  }
+}
+
 export interface CreateWorktreeInput {
   readonly id: string;
   /** The ref to branch from (default HEAD). */
@@ -70,6 +127,8 @@ export class CreateWorktree {
     private readonly probe: PortProbe,
     private readonly clock: Clock,
     private readonly paths: MetatorPaths,
+    /** Blocks other repositories on this machine hold, and the absolute root of this one. */
+    private readonly machine: { readonly leases: MachineLeases; readonly root: string },
   ) {}
 
   async execute(input: CreateWorktreeInput): Promise<Result<WorktreeEntry, MetatorError>> {
@@ -85,8 +144,10 @@ export class CreateWorktree {
         MetatorError.usage(`worktree ${input.id} already exists`, "Pick another id or remove it first."),
       );
     }
+    const others = await this.machine.leases.all();
+    if (others.isErr()) return err(others.error);
     const ports = await this.lease(
-      all.value.map((e) => e.ports),
+      [...all.value.map((e) => e.ports), ...others.value.map((l) => l.ports)],
       input.ports ?? DEFAULT_PORT_COUNT,
     );
     if (ports.isErr()) return err(ports.error);
@@ -104,6 +165,8 @@ export class CreateWorktree {
     if (added.isErr()) return err(added.error);
     const saved = await this.registry.save([...all.value, entry]);
     if (saved.isErr()) return err(saved.error);
+    const leased = await this.machine.leases.add(entry, this.machine.root);
+    if (leased.isErr()) return err(leased.error);
     return ok(entry);
   }
 
@@ -192,6 +255,7 @@ export class RemoveWorktree {
   constructor(
     private readonly registry: WorktreeRegistry,
     private readonly git: WorktreeManager,
+    private readonly leases: MachineLeases,
   ) {}
 
   async execute(input: {
@@ -216,6 +280,8 @@ export class RemoveWorktree {
     if (all.isErr()) return err(all.error);
     const saved = await this.registry.save(all.value.filter((e) => e.id !== input.id));
     if (saved.isErr()) return err(saved.error);
+    const released = await this.leases.remove(input.id);
+    if (released.isErr()) return err(released.error);
     return ok(entry.value);
   }
 }

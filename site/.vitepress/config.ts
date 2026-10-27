@@ -75,7 +75,10 @@ export default defineConfig({
       {
         text: "Many applications",
         collapsed: true,
-        items: [{ text: "Systems of many applications", link: "/multi-repo/" }],
+        items: [
+          { text: "Several repositories", link: "/multi-repo/repositories" },
+          { text: "Systems of many applications", link: "/multi-repo/" },
+        ],
       },
       {
         text: "Enterprise",

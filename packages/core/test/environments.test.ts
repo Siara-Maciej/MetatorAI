@@ -281,7 +281,7 @@ async function world(
 }
 
 describe("EnvironmentServices", () => {
-  test("up in a worktree: shared db once (compose project metator-shared), api on the block in the worktree", async () => {
+  test("up in a worktree: shared db once (one compose project per repository and place), api on the block in the worktree", async () => {
     const w = await world();
     const r = (await w.services.up({ worktree: "feat" }))._unsafeUnwrap();
     expect(r.map((s) => [s.service, s.place, s.status, s.ports])).toEqual([
@@ -290,7 +290,7 @@ describe("EnvironmentServices", () => {
     ]);
     expect(w.containers.calls[0]).toMatchObject({
       op: "up",
-      service: { project: "metator-shared", cwd: "/repo", service: "db" },
+      service: { project: "metator-repo-81f9fa-shared", cwd: "/repo", service: "db" },
     });
     expect(w.processes.started[0]).toMatchObject({
       argv: ["sh", "-c", "bun run dev"],
@@ -347,7 +347,10 @@ describe("EnvironmentServices", () => {
       ["docs", "not running"],
     ]);
     expect((await w.services.down({ worktree: "feat", shared: true }))._unsafeUnwrap()).toEqual(["db"]);
-    expect(w.containers.calls.at(-1)).toMatchObject({ op: "stop", service: { project: "metator-shared" } });
+    expect(w.containers.calls.at(-1)).toMatchObject({
+      op: "stop",
+      service: { project: "metator-repo-81f9fa-shared" },
+    });
   });
 
   test("logs of a process and of a container; an unknown service or a stopped one", async () => {
