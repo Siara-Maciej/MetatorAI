@@ -540,6 +540,7 @@ metator init [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--dry-run` | print the proposal without writing it |  |
+| `--host <hosts...>` | AI hosts to generate for (default: all) (one of: copilot, claude) |  |
 
 ## config
 
@@ -558,6 +559,53 @@ Print the JSON Schema of metator.config
 ```bash
 metator config schema [options]
 ```
+
+## agents
+
+### `metator agents install`
+
+Copy the shipped agents, skills and workflows here and record them in metator/install.lock.json
+
+```bash
+metator agents install [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--workflows <ids...>` | workflows to install (default: all, or the installed ones on update) |  |
+| `--theirs` | resolve conflicts with the canon's version |  |
+| `--dry-run` | report what would change without writing |  |
+
+### `metator agents update`
+
+Take the canon of this MetatorAI version; files changed here are kept unless --theirs
+
+```bash
+metator agents update [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--workflows <ids...>` | workflows to install (default: all, or the installed ones on update) |  |
+| `--theirs` | resolve conflicts with the canon's version |  |
+| `--dry-run` | report what would change without writing |  |
+
+## setup
+
+### `metator setup`
+
+Set MetatorAI up here in one step: config, hosts, agents, skills, workflows, host files, checks
+
+```bash
+metator setup [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--host <hosts...>` | AI hosts to generate for (default: all) (one of: copilot, claude) |  |
+| `--workflows <ids...>` | workflows to install (default: all) |  |
+| `--hooks` | also install the hooks (`metator guard`) for each host |  |
+| `--yes` | do not ask; take the options and the defaults |  |
 
 ## gate
 

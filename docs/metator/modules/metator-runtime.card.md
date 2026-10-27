@@ -34,3 +34,4 @@ Composition root: the awilix container, the typed Cradle and the JSON envelope. 
 ## Pitfalls
 
 - A new use case needs both a Cradle entry (`container.ts`) and a registration (`bootstrap.ts`); missing either surfaces as `Could not resolve`.
+- The shipped canon is found relative to this package (`src/canon.ts`, three levels up); a packaged release must keep `metator/` and `.github/metator/workflows` at that place, or set `METATOR_CANON` (ADR-0049).

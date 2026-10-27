@@ -23,7 +23,7 @@ user-invocable: false
 6. `bun run metator owners <entry files>`: who to ask or escalate to.
 
 # Output
-- `analysis.json` (format: `docs/metator/schemas/Analysis.v1.json`): entry files with their owners, packages and their cards, affected files and tests, risks (cycles, new cross-package edges, invariants from cards).
+- `analysis.json` (an `Analysis` v1 document; `bun run metator run schema analysis` prints its format): entry files with their owners, packages and their cards, affected files and tests, risks (cycles, new cross-package edges, invariants from cards).
 - A summary of at most 15 lines for the coordinator.
 
 # Stop conditions

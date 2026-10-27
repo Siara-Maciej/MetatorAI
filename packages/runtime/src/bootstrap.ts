@@ -46,6 +46,7 @@ import {
   IndexedImportGraphReader,
   InitProject,
   InitRun,
+  InstallCanon,
   InventoryMemory,
   JudgeFindings,
   KnowledgeFiles,
@@ -95,6 +96,7 @@ import { CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-co
 import { LcovCoverageReader, ManypkgWorkspaceReader, NodePackageManager } from "@metator/plugin-node";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
+import { resolveCanon } from "./canon.ts";
 import { type LoadedConfig, resolvePaths } from "./config.ts";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
 
@@ -107,6 +109,8 @@ export interface BootstrapOptions {
   readonly now?: string;
   /** The calling agent's role (METATOR_ROLE), for hooks that cannot tell from the payload. */
   readonly role?: string;
+  /** Where the shipped agent canon is read from (METATOR_CANON); default: this installation. */
+  readonly canon?: string;
 }
 
 const systemClock: Clock = { now: () => new Date() };
@@ -280,6 +284,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           paths,
           clock,
         ),
+    ),
+    installCanon: asFunction(
+      ({ fileSystem, paths }) => new InstallCanon(resolveCanon(options.canon), fileSystem, paths),
     ),
     initProject: asFunction(
       ({ discover, fileSystem, paths }) => new InitProject(discover, fileSystem, paths),

@@ -88,6 +88,20 @@ describe("InitProject", () => {
     expect(config.gates.full.map((s) => s.id)).toEqual(["lint", "test"]);
   });
 
+  test("chosen hosts are written; without a choice the file keeps the default (every host)", async () => {
+    const targets = async (hosts?: ("claude" | "copilot")[]) => {
+      const fs = new InMemoryFileSystem({});
+      await new InitProject(disc, fs, DEFAULT_PATHS).execute({ dryRun: false, ...(hosts ? { hosts } : {}) });
+      const text = (await fs.read("metator.config.yml"))._unsafeUnwrap();
+      return [
+        text.includes("hosts:"),
+        MetatorConfigDocument.parse(parse(text), "c")._unsafeUnwrap().hosts.targets,
+      ];
+    };
+    expect(await targets(["claude"])).toEqual([true, ["claude"]]);
+    expect(await targets()).toEqual([false, ["copilot", "claude"]]);
+  });
+
   test("never overwrites; a dry run always works and writes nothing", async () => {
     const fs = new InMemoryFileSystem({ "metator.config.json": "{}" });
     const init = new InitProject(disc, fs, DEFAULT_PATHS);

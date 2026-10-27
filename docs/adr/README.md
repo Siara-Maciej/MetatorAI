@@ -52,3 +52,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0046](0046-autopilot-author-flow-t0.md) | Autopilot, Author/Reviewer flow i T0 ≤ 4000 znaków | Proposed |
 | [0047](0047-system-map.md) | `SystemMap`: aplikacje, kontrakty i kolejność wdrożeń | Proposed |
 | [0048](0048-user-docs-site.md) | Dokumentacja użytkownika jako strona VitePress na GitHub Pages | Proposed |
+| [0049](0049-setup-install-canon.md) | `metator setup` i instalacja kanonu z pakietu (`InstallLock`) | Proposed |

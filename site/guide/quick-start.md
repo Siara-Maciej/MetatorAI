@@ -2,43 +2,45 @@
 
 A 15-minute tour on your own repository. Every command prints one JSON object; the examples below show the interesting part of it. All commands come from a real session on a small Bun workspace with two packages, `@shop/money` and `@shop/billing`.
 
-## 1. Survey the repository and write the config
+## 1. Set MetatorAI up in one command
 
 ```bash
-metator init --dry-run      # show the proposal, write nothing
-metator init                # write metator.config.yml
+metator setup                                   # in a terminal: asks for hosts, workflows and hooks
+metator setup --host claude --hooks --yes       # the same without questions (scripts, CI)
 ```
-
-**What it does:** detects the package manager, workspaces, scripts, linters, test runners and CI. It then proposes quality gates, each with the evidence behind it:
 
 ```json
-{"capability":"test","gate":"full","step":"script test",
- "evidence":["package.json#scripts.test"],"reason":"the project's own test script (confidence 0.95)"}
+{"config":"metator.config.yml","hosts":["claude"],
+ "workflows":["mt-bugfix","mt-feature","mt-pr-review","mt-refactor","mt-self-review"],
+ "canon":{"mode":"install","version":"0.0.0","lock":"metator/install.lock.json","steps":{"create":38}},
+ "generated":31,
+ "checks":[{"command":"meta agents-lint","passed":true},{"command":"meta skills-lint","passed":true},
+           {"command":"workflow lint","passed":true},{"command":"generate --check","passed":true}]}
 ```
 
-**Why:** MetatorAI never assumes your tools. It runs **your** `lint`, `typecheck` and `test` scripts, chosen from evidence you can check. `init` never overwrites an existing config.
+**What it does, in order:**
+1. **Survey and config.** It detects the package manager, workspaces, scripts, linters, test runners and CI. Then it writes `metator.config.yml` with the chosen hosts and quality gates, each with the evidence behind it (`metator init --dry-run` shows the proposal alone). An existing config is never overwritten.
+2. **The canon.** It copies the agents, skills and the chosen W1–W5 workflow specs shipped with MetatorAI into `metator/` and `.github/metator/workflows`. Every copied file is recorded in `metator/install.lock.json` with its content hash.
+3. **Host files.** It generates `.claude/agents`, `.github/agents` and the skills for the hosts you chose, and the hooks with `--hooks`.
+4. **Checks.** It lints the agents, skills and workflows and confirms the generated files are fresh, as proof the repository is ready.
 
-## 2. Install the agents, skills and workflows
+**Why:** you edit one canonical source, and GitHub Copilot and Claude Code get the same agents. `metator generate --check` in CI fails when someone edits a generated file by hand. MetatorAI never assumes your tools: it runs **your** `lint`, `typecheck` and `test` scripts, chosen from evidence you can check.
 
-The canonical agents, skills and workflow specs ship with MetatorAI. Copy them into your repository once, then generate the host files:
+## 2. Take a newer canon later
 
 ```bash
-cp -r ~/tools/metatorai/metator ./metator                         # agents and skills
-mkdir -p .github/metator
-cp -r ~/tools/metatorai/.github/metator/workflows .github/metator/  # W1-W5 workflow specs
-metator generate
+metator agents update --dry-run      # what would change
+metator agents update                # take it; files you changed are kept
+metator agents update --theirs       # take the canon's version where both sides changed
 ```
 
-**What it does:** `generate` writes `.claude/agents/*.md`, `.github/agents/*.agent.md` and the host skills from `metator/agents` and `metator/skills`.
+Each file gets one of these outcomes:
+- `create`: the file is missing, so it is written.
+- `update`: nobody here touched it, so the newer version replaces it.
+- `kept`: you changed it and the canon did not, so it is left alone.
+- `conflict`: both sides changed it. Your version is kept and a warning names the file; `--theirs` takes the canon's version.
 
-**Why:** you edit one canonical source and both GitHub Copilot and Claude Code get the same agents. `metator generate --check` in CI fails when someone edits a generated file by hand.
-
-Check that what you copied is consistent:
-
-```bash
-metator meta agents-lint     # {"agents":23,"problems":[]}
-metator workflow lint        # {"workflows":5,"problems":[]}
-```
+**Why:** your team adapts agents to its repository; an update must not undo that silently. The lock is how MetatorAI tells "untouched" from "changed here".
 
 ## 3. Ask the codebase questions
 

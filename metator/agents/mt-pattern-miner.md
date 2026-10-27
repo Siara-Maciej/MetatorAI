@@ -19,7 +19,7 @@ output: { artifact: research.json, schema: Research@1, summaryLines: 15 }
 4. Open the chosen exemplar and write down what to copy (structure, names, tests) in one sentence each.
 
 # Output
-- `research.json` (format: `docs/metator/schemas/Research.v1.json`): for each planned file the pattern and the exemplar path; needs without an exemplar under `gaps` (a new abstraction needs an ADR).
+- `research.json` (a `Research` v1 document; `metator run schema research` prints its format): for each planned file the pattern and the exemplar path; needs without an exemplar under `gaps` (a new abstraction needs an ADR).
 - Gaps: behavior with no pattern, marked as an ADR candidate.
 - A summary of at most 15 lines.
 

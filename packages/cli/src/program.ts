@@ -25,6 +25,7 @@ import { registerPatternsCommands } from "./commands/patterns.ts";
 import { registerPlanCommands } from "./commands/plan.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
+import { registerSetupCommands } from "./commands/setup.ts";
 import { registerSystemCommands } from "./commands/system.ts";
 import { registerTestCommands } from "./commands/test.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
@@ -36,6 +37,8 @@ export interface ProgramOptions {
   readonly stdin?: () => Promise<string>;
   /** How commands run other commands (set by run.ts, so the program does not import it). */
   readonly invoke?: CommandContext["invoke"];
+  /** Asks a person in a terminal (main.ts sets it when stdin and stderr are TTYs). */
+  readonly prompter?: CommandContext["prompter"];
 }
 
 /**
@@ -63,9 +66,11 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
         config: config.value,
         ...(env.METATOR_NOW ? { now: env.METATOR_NOW } : {}),
         ...(env.METATOR_ROLE ? { role: env.METATOR_ROLE } : {}),
+        ...(env.METATOR_CANON ? { canon: env.METATOR_CANON } : {}),
       });
     },
     stdin: options.stdin ?? (async () => ""),
+    prompter: options.prompter ?? null,
     invoke:
       options.invoke ??
       (async () => {
@@ -93,6 +98,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerAdrCommands(program, ctx);
   registerDiscoverCommands(program, ctx);
   registerConfigCommands(program, ctx);
+  registerSetupCommands(program, ctx);
   registerGateCommands(program, ctx);
   registerAgentCommands(program, ctx);
   registerFindingsCommands(program, ctx);

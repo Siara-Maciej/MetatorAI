@@ -60,6 +60,10 @@ export const GateStepSchema = gateStepSchema(
 );
 export type GateStep = z.output<typeof GateStepSchema>;
 
+/** The AI hosts MetatorAI generates agents, skills and hooks for. */
+export const HOST_TARGETS = ["copilot", "claude"] as const;
+export type HostTarget = (typeof HOST_TARGETS)[number];
+
 const PathOverrides = z
   .strictObject({
     workflows: z.string(),
@@ -94,7 +98,7 @@ function configSchema(step: typeof GateStepSchema | typeof GateStepV1Schema) {
     /** Generated host files (ADR-0030). Optional, so every v1 file stays valid. */
     hosts: z
       .strictObject({
-        targets: z.array(z.enum(["copilot", "claude"])).default(["copilot", "claude"]),
+        targets: z.array(z.enum(HOST_TARGETS)).default([...HOST_TARGETS]),
         /** How agents call MetatorAI in this repo, e.g. "npx metator" or "bun run metator". */
         metatorCommand: z.string().default("metator"),
         /** Model per tier and host; a host without an entry uses its default for the tier (or none). */

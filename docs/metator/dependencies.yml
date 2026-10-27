@@ -8,6 +8,11 @@ packages:
       need: "lint and format; E1 engine through SARIF",
       adr: 0025-biome-engine-sarif.md,
     }
+  - {
+      package: "@clack/prompts",
+      need: "interactive setup questions in a terminal",
+      adr: 0049-setup-install-canon.md,
+    }
   - { package: "@dagrejs/graphlib", need: "graphs (import graph, delegation)", adr: 0012-graph-graphlib.md }
   - {
       package: "@friedemannsommer/lcov-parser",

@@ -1,6 +1,6 @@
 # Worktree, środowiska aplikacji i sesje w CLI (analiza i plan)
 
-Status: **propozycja do decyzji, pytania w sekcji 8** (2026-10-27). Nic z tego dokumentu nie jest jeszcze zaimplementowane.
+Status: **zaakceptowany kierunek, decyzje w sekcji 8** (2026-10-27). Realizacja od F8.1.
 
 ## 1. Problem
 
@@ -48,8 +48,8 @@ metator agents update              # nowa wersja kanonu z pakietu, bez nadpisywa
   3. wybór workflowów (W1–W5);
   4. kopia kanonu;
   5. `generate` (opcjonalnie z `--hooks`);
-  6. `meta check-all` jako dowód, że instalacja jest spójna.
-- **`metator/.install.json`** (dokument `InstallLock` v1) zapisuje wersję pakietu i hash każdego skopiowanego pliku. `agents update` nadpisuje tylko pliki niezmienione lokalnie. Zmienione pokazuje jako konflikt z diffem i proponuje `--theirs` albo `--keep`.
+  6. lint agentów, skilli i workflowów oraz `generate --check` jako dowód, że instalacja jest spójna (pełne `meta check-all` wymaga warstwy wiedzy, której świeże repo nie ma).
+- **`metator/install.lock.json`** (dokument `InstallLock` v1) zapisuje wersję pakietu i hash każdego skopiowanego pliku. `agents update` nadpisuje tylko pliki niezmienione lokalnie. Zmienione pokazuje jako konflikt z diffem i proponuje `--theirs` albo `--keep`.
 - Nazwa: zamiast `metator agents --gen` proponuję `setup` (całość) i `agents install|update` (sam kanon). `--gen` dubluje istniejące `generate`.
 
 ### 3.2 Worktree jako miejsce pracy runu
@@ -209,7 +209,7 @@ metator run continue <id>
 | Procesy usług | `execa` | sygnały, drzewo procesów, strumienie |
 | Gotowość usług | `wait-on` (tcp, http) | zamiast własnych pętli |
 | Porty | `get-port` | wolny port z bloku |
-| Compose | CLI `docker compose` / `podman compose` | `config --format json`, `up --wait`, projekty per worktree |
+| Compose | CLI `docker compose` (MVP: tylko Docker) | `config --format json`, `up --wait`, projekty per worktree |
 | Agenci | Claude Agent SDK, Copilot CLI | adaptery `AgentHost` |
 | Worktree | `git worktree` przez istniejący adapter git (simple-git) | bez własnej logiki git |
 | Test e2e TUI | `node-pty` / `Bun.Terminal` + `@xterm/headless` | prawdziwy proces w pseudo-terminalu, asercje na ekranie |
@@ -239,7 +239,7 @@ Architektura zostaje nienaruszona:
 
 | Etap | Cel | Produkty | Kryterium wyjścia |
 |------|-----|----------|-------------------|
-| **F8.1 Instalacja** | jedna komenda zamiast kopiowania | kanon jako zasób pakietu, `setup`, `agents install|update`, `InstallLock` v1, `hosts` w configu | e2e: puste repo → `setup --host claude --yes` → `meta check-all` zielone; update nie nadpisuje lokalnej zmiany |
+| **F8.1 Instalacja** | jedna komenda zamiast kopiowania | kanon jako zasób pakietu, `setup`, `agents install|update`, `InstallLock` v1, `hosts` w configu | e2e: puste repo → `setup --host claude --yes` → lint agentów, skilli, workflowów i `generate --check` zielone; update nie nadpisuje lokalnej zmiany |
 | **F8.2 Worktree** | run nie dotyka mojego working tree | `WorktreeManager`, `worktree *`, `PortLeases` v1, `run init --worktree`, `RunRecord` v3 | e2e: dwa runy w dwóch worktree z rozłącznymi portami; `rm` odmawia przy niezapisanych zmianach |
 | **F8.3 `AgentHost` i `run drive`** | CLI prowadzi etapy | port + kontrakt, adapter testowy, `plugin-claude-code`, `plugin-copilot-cli`, `RunEvent` v1, `Question` v1, `run stop` | e2e z adapterem testowym: W1 od intake do HITL planu; spike na prawdziwym hoście |
 | **F8.4 Interaktywny run** | widzę proces i odpowiadam w miejscu | `metator run` (TTY), `run continue`, wznowienie sesji hosta | e2e w pseudo-terminalu: start → pytanie → odpowiedź → następny etap; `continue` po zabiciu procesu |
@@ -300,14 +300,14 @@ metator ui                           # n → mt-feature "Add combined discount" 
 metator run continue                 # następnego dnia: wybór "auth-fix (czeka na review gate)"
 ```
 
-## 8. Pytania do decyzji
+## 8. Decyzje (2026-10-27)
 
-1. **Hosty w MVP:** Claude Code (Agent SDK) i Copilot CLI w F8.3 razem, czy najpierw jeden? Moja propozycja: Claude Code najpierw, bo SDK daje pytania, zgody i wznowienie jako API; Copilot CLI drugi.
-2. **Runy w tle:** czy run ma działać dalej po zamknięciu terminala? Propozycja: tak (proces odłączony, komunikacja przez pliki, bez daemona).
-3. **Współdzielona infrastruktura** jako domyślna dla baz i brokerów, z izolacją danych (MVP: Postgres template, prefiksy dla Redis i Kafka)? Inne bazy przez osobny kontener per worktree do czasu adaptera.
-4. **Kontenery:** w MVP tylko `docker compose` i `podman compose`? devcontainer, Tilt i Kubernetes post-MVP.
-5. **Nazwy komend:** `metator setup` + `agents install|update` zamiast `agents --gen`?
-6. **Edytor:** domyślnie `$VISUAL`/`$EDITOR`, a w configu `editor`. Czy jest ulubiony, który ma być domyślny w kreatorze?
+1. **Hosty:** Claude Code (Agent SDK) i Copilot CLI **razem** w F8.3, oba za portem `AgentHost` z tym samym kontraktem. Wybór hosta w `setup` i per run (`--host`).
+2. **Runy w tle:** run działa dalej po zamknięciu terminala. Proces jest odłączony, komunikacja idzie przez pliki runu, bez daemona.
+3. **Współdzielona infrastruktura** jest domyślna dla baz i brokerów, z obowiązkową izolacją danych (MVP: Postgres template, prefiksy dla Redis i Kafka). Usługa bez izolatora idzie jako `worktree`.
+4. **Kontenery:** w MVP **tylko Docker** (`docker compose`). Podman, devcontainer, Tilt i Kubernetes są post-MVP.
+5. **Nazwy komend:** `metator setup` oraz `agents install|update`.
+6. **Edytor:** kreator wykrywa zainstalowane edytory (VS Code, Cursor, JetBrains, Zed, nvim i inne z `PATH`) i daje wybór z listy; wynik trafia do configu jako `editor`. Bez wyboru działa `$VISUAL`, potem `$EDITOR`, potem pierwszy wykryty edytor.
 
 ## 9. Ryzyka
 

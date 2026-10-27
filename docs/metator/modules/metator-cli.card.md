@@ -14,7 +14,7 @@ dir: packages/cli
 - Test-only dependencies: none
 - Used by: `(root)`
 - Imported by other packages: `packages/cli/src/program.ts`
-- Third-party: `commander`
+- Third-party: `@clack/prompts`, `commander`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: `cli-command-group`
 <!-- metator:generated:end -->
@@ -36,3 +36,4 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 - Validate option values with commander (`choices`, `argParser`), not by hand (MT-CODE-004).
 - A new command must be added to the help list in `e2e/cli.e2e.test.ts`.
 - A hook must not fail the host's tool call: `guard *` always exits 0 and reports its own errors as `systemMessage`.
+- Only the command a person typed may ask questions (`ctx.prompter`, set by `main.ts` for a TTY); questions go to stderr so stdout stays one envelope, and commands run through `invoke` never ask (ADR-0049).

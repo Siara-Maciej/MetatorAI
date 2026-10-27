@@ -1,4 +1,10 @@
-import { CONFIG_FILES, DEFAULT_CONFIG, type GateStep, MetatorConfigDocument } from "../domain/config.ts";
+import {
+  CONFIG_FILES,
+  DEFAULT_CONFIG,
+  type GateStep,
+  type HostTarget,
+  MetatorConfigDocument,
+} from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { type Decision, proposeConfig } from "../domain/proposal.ts";
 import { err, ok, type Result } from "../domain/result.ts";
@@ -23,7 +29,11 @@ export class InitProject {
     private readonly paths: MetatorPaths,
   ) {}
 
-  async execute(input: { readonly dryRun: boolean }): Promise<Result<InitReport, MetatorError>> {
+  async execute(input: {
+    readonly dryRun: boolean;
+    /** Hosts to generate for (`setup`); omitted keeps the default, every host. */
+    readonly hosts?: readonly HostTarget[];
+  }): Promise<Result<InitReport, MetatorError>> {
     for (const file of CONFIG_FILES) {
       if (!input.dryRun && (await this.fs.exists(file))) {
         return err(
@@ -51,6 +61,7 @@ export class InitProject {
       kind: header.kind,
       schemaVersion: header.schemaVersion,
       gates: { quick: minimal(proposal.gates.quick), full: minimal(proposal.gates.full) },
+      ...(input.hosts ? { hosts: { targets: [...input.hosts] } } : {}),
     };
     const text = renderYamlDocument(
       body,
