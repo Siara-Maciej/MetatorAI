@@ -157,7 +157,7 @@ Rekomendacja zawsze ma dowód: zmierzone czasy i powód, np. „`db` startuje 6 
   - etap HITL: pytanie do człowieka.
 
   Walidacja artefaktów i `run advance` zostają bez zmian, więc pętle, limity i eskalacje pilnuje ta sama maszyna stanów.
-- **Zdarzenia runu** (`events.jsonl`, dokument `RunEvent` v1, jedna linia na zdarzenie) i **pytania** (`questions/<id>.json`, dokument `Question` v1, odpowiedź w tym samym pliku). Komunikacja przez pliki w `.metator/runs/<id>/`: proces drive i UI mogą się niezależnie zamknąć i wrócić. Daemon nie jest potrzebny w MVP.
+- **Aktywność runu** (`activity.jsonl`, dokument `RunActivity` v1, jedna linia na zdarzenie; nazwa `RunEvent` jest już zajęta przez zdarzenia maszyny stanów) i **pytania** (`questions/<id>.json`, dokument `Question` v1, odpowiedź w tym samym pliku). Komunikacja przez pliki w `.metator/runs/<id>/`: proces drive i UI mogą się niezależnie zamknąć i wrócić. Daemon nie jest potrzebny w MVP.
 - Proces drive działa **odłączony** (`detached`, pid w runie). Zamknięcie terminala nie zatrzymuje runu; stop jest jawny (`run stop`).
 
 ### 3.6 Interaktywny `metator run` i `run continue`

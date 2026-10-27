@@ -19,6 +19,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `Skill` | `metator/skills/*/SKILL.md` | you (six are shipped) |
 | `InstallLock` | `metator/install.lock.json` | `metator setup`, `metator agents install\|update` (never by hand) |
 | `EvalCase` | `docs/metator/evals/golden/*.yml` | you |
+| `AgentScenario` | any `*.yml` you point `METATOR_AGENT_SCENARIO` at | you (the scenario host plays it) |
 | `InstructionsAdapter` | `.github/instructions/*.instructions.md` | `metator rules adapters` |
 
 ## Working state (`.metator/`, git-ignored)
@@ -35,6 +36,9 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `RunPointer` | `.metator/runs/latest.json` | `metator run *` |
 | `RunHandoff` | `.metator/runs/<id>/handoff.md` | `metator run handoff` |
 | `RunSummary` | `.metator/runs/<id>/summary.json` | `metator run close` |
+| `RunActivity` | `.metator/runs/<id>/activity.jsonl` (one per line) | `metator run drive` |
+| `Question` | `.metator/runs/<id>/questions/qNNN.json` | `metator run drive` asks, `metator run answer` answers |
+| `RunDriver` | `.metator/runs/<id>/driver.json` | `metator run drive` |
 | `WorktreeRegistry` | `.metator/worktrees.json` | `metator worktree *`, `metator run init --worktree` |
 | `EvalReport` | `<runs-dir>/report.json` | `metator eval run` |
 

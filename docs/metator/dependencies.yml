@@ -2,6 +2,11 @@ kind: DependencyRegister
 schemaVersion: 1
 description: Every third-party package MetatorAI depends on, the need it covers and the ADR that approved it (MT-CODE-005, ADR-0010).
 packages:
+  - {
+      package: "@anthropic-ai/claude-agent-sdk",
+      need: "Claude Code as an AI host for run drive",
+      adr: 0051-cli-drives-runs.md,
+    }
   - { package: "@ast-grep/cli", need: "structural rules (E1 engine)", adr: 0020-rule-canon.md }
   - {
       package: "@biomejs/biome",

@@ -2,7 +2,7 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-feature
-revision: 1
+revision: 2
 description: Survey, plan, gate, build, verify, ship
 entry: { prompt: mt-feature }
 input:
@@ -28,8 +28,8 @@ stages:
     produces: [plan.json, plan-scope.json]
   - id: plan-gate
     description: Deterministic plan lint, then an independent plan critic
-    owner: "script:metator plan lint"
-    gate: { script: metator plan lint, llm: mt-plan-critic }
+    owner: "script:metator plan lint {runDir}/plan.json"
+    gate: { script: "metator plan lint {runDir}/plan.json", llm: mt-plan-critic }
     onFail: { goto: plan, loop: plan }
   - id: plan-approval
     description: The human approves the plan

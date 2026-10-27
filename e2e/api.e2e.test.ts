@@ -102,6 +102,12 @@ describe("metator api snapshot / diff (real tsc)", () => {
     await repo.git("checkout", "--", "packages/money/src/money.ts");
   }, 60_000);
 
+  test("without a package it snapshots every workspace package (a refactor's snapshot stage)", async () => {
+    const r = await metator(["api", "snapshot"], repo.root);
+    const names = (r.json.data as { snapshots: { package: string }[] }).snapshots.map((x) => x.package);
+    expect([r.code, names]).toEqual([0, ["@acme/money"]]);
+  }, 60_000);
+
   test("an unknown package is NOT_FOUND with the known ones; diff without a snapshot says how to take one", async () => {
     const unknown = await metator(["api", "snapshot", "@acme/nope"], repo.root);
     expect((unknown.json.error as { details: { known: string[] } }).details.known).toContain("@acme/money");

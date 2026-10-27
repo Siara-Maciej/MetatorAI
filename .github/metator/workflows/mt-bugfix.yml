@@ -2,7 +2,7 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-bugfix
-revision: 1
+revision: 2
 description: Reproduce, diagnose, fix behind a regression test, verify
 entry: { prompt: mt-bugfix }
 input:
@@ -26,8 +26,8 @@ stages:
     owner: mt-planner
     produces: [plan.json, plan-scope.json]
   - id: plan-gate
-    owner: "script:metator plan lint"
-    gate: { script: metator plan lint, llm: mt-plan-critic }
+    owner: "script:metator plan lint {runDir}/plan.json"
+    gate: { script: "metator plan lint {runDir}/plan.json", llm: mt-plan-critic }
     onFail: { goto: plan, loop: plan }
   - id: plan-approval
     hitl: true

@@ -2,6 +2,7 @@ import {
   AddLesson,
   AdvanceRun,
   AgentCatalog,
+  type AgentHost,
   ApiSnapshots,
   ApproveRun,
   AuditAgents,
@@ -27,6 +28,7 @@ import {
   DocsDrift,
   DocsInventory,
   DocsLinks,
+  DriveRun,
   EvalCatalog,
   FindMemoryDupes,
   FindOwners,
@@ -72,8 +74,10 @@ import {
   RemoveWorktree,
   RuleCatalog,
   RunAffectedTests,
+  RunDrivers,
   RunEvals,
   RunGate,
+  RunJournal,
   RunRepository,
   ScaffoldRule,
   ScanPatterns,
@@ -89,15 +93,23 @@ import {
   WorkflowCatalog,
   WorktreeRegistry,
 } from "@metator/core";
-import { BunFileSystem, BunProcessRunner, BunTestEngine, NodeBinResolver } from "@metator/plugin-bun";
+import {
+  BunBackgroundProcess,
+  BunFileSystem,
+  BunProcessRunner,
+  BunTestEngine,
+  BunTimer,
+  NodeBinResolver,
+} from "@metator/plugin-bun";
 
 export { findRepoRoot } from "@metator/plugin-bun";
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { GitVcs, GitWorktreeManager } from "@metator/plugin-git";
-import { ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
-import { CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
+import { ClaudeAgentHost, ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
+import { CopilotAgentHost, CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
+import { ScenarioAgentHost } from "@metator/plugin-host-scenario";
 import {
   GetPortProbe,
   LcovCoverageReader,
@@ -121,6 +133,10 @@ export interface BootstrapOptions {
   readonly role?: string;
   /** Where the shipped agent canon is read from (METATOR_CANON); default: this installation. */
   readonly canon?: string;
+  /** The AgentScenario file the scenario host plays (METATOR_AGENT_SCENARIO). */
+  readonly agentScenario?: string;
+  /** The Copilot CLI binary (METATOR_COPILOT_BIN); default `copilot` on PATH. */
+  readonly copilotBin?: string;
 }
 
 const systemClock: Clock = { now: () => new Date() };
@@ -143,6 +159,53 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     clock: asValue(pinned && !Number.isNaN(pinned.getTime()) ? { now: () => new Date(pinned) } : systemClock),
     fileSystem: asFunction(({ root }: { root: string }) => new BunFileSystem(root)).singleton(),
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
+    timer: asFunction(() => new BunTimer()).singleton(),
+    backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
+    agentHosts: asFunction(() => {
+      const hosts = new Map<string, AgentHost>([
+        ["claude", new ClaudeAgentHost()],
+        ["copilot", new CopilotAgentHost(options.copilotBin)],
+      ]);
+      if (options.agentScenario) hosts.set("scenario", new ScenarioAgentHost(options.agentScenario));
+      return hosts;
+    }).singleton(),
+    runDrivers: asFunction(
+      ({ fileSystem, runRepository, backgroundProcess, runJournal, clock }) =>
+        new RunDrivers(fileSystem, runRepository, backgroundProcess, runJournal, clock),
+    ),
+    runJournal: asFunction(
+      ({ fileSystem, runRepository, clock }) => new RunJournal(fileSystem, runRepository, clock),
+    ).singleton(),
+    driveRun: asFunction(
+      ({
+        workflowCatalog,
+        runRepository,
+        runJournal,
+        advanceRun,
+        approveRun,
+        closeRun,
+        agentHosts,
+        processRunner,
+        fileSystem,
+        timer,
+        root,
+        config,
+      }) =>
+        new DriveRun({
+          catalog: workflowCatalog,
+          repo: runRepository,
+          journal: runJournal,
+          advance: advanceRun,
+          approve: approveRun,
+          close: closeRun,
+          hosts: agentHosts,
+          process: processRunner,
+          fs: fileSystem,
+          timer,
+          root,
+          metatorCommand: config.config.hosts.metatorCommand,
+        }),
+    ),
     vcs: asFunction(({ root }) => new GitVcs(root)).singleton(),
     revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),

@@ -176,12 +176,12 @@ metator symbols find [options] <name>
 Save the package's API: declarations its entry reaches, normalized (.metator/api/&lt;package&gt;.json)
 
 ```bash
-metator api snapshot [options] <package>
+metator api snapshot [options] [package]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `<package>` | workspace package name, e.g. @metator/core | |
+| `[package]` | workspace package name, e.g. @metator/core (default: every package) | |
 
 ### `metator api diff`
 
@@ -1142,6 +1142,75 @@ List runs, newest first
 ```bash
 metator run list [options]
 ```
+
+### `metator run drive`
+
+Carry the run stage by stage: scripts, agents through an AI host, questions to people
+
+```bash
+metator run drive [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--host <host>` | AI host for the agents (default: first of hosts.targets) (one of: claude, copilot, scenario) |  |
+| `--detach` | keep driving in the background after this command returns |  |
+| `--max-steps <n>` | stop after this many stage transitions | `200` |
+
+### `metator run stop`
+
+Stop the process driving the run; the run stays where it is and can continue
+
+```bash
+metator run stop [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run questions`
+
+Questions waiting for a person: HITL gates, agents asking, tool permissions
+
+```bash
+metator run questions [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | only this run (default: every run) |  |
+| `--all` | include answered questions |  |
+
+### `metator run answer`
+
+Answer a question; the drive waiting for it continues
+
+```bash
+metator run answer [options] <question>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<question>` | question id, e.g. q001 | |
+| `--run <id>` | run id (default: latest) |  |
+| `--choice <labels...>` | the option label(s) chosen |  |
+| `--text <text>` | your own words (with Other, or a reason with Reject) |  |
+| `--by <name>` | who answers **Required.** |  |
+
+### `metator run activity`
+
+What the drive did: stages, agents, tools, questions, answers, transitions
+
+```bash
+metator run activity [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--tail <n>` | only the last n entries |  |
 
 ## worktree
 

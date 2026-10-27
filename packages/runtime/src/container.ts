@@ -2,9 +2,11 @@ import {
   type AddLesson,
   type AdvanceRun,
   type AgentCatalog,
+  type AgentHost,
   type ApiSnapshots,
   type ApproveRun,
   type AuditAgents,
+  type BackgroundProcess,
   type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
@@ -25,6 +27,7 @@ import {
   type DocsDrift,
   type DocsInventory,
   type DocsLinks,
+  type DriveRun,
   type EvalCatalog,
   err,
   type FileSystem,
@@ -85,8 +88,10 @@ import {
   type RuleEngine,
   type RuleScaffolder,
   type RunAffectedTests,
+  type RunDrivers,
   type RunEvals,
   type RunGate,
+  type RunJournal,
   type RunRepository,
   type ScaffoldRule,
   type ScanPatterns,
@@ -99,6 +104,7 @@ import {
   type SymbolAnalyzer,
   type SymbolQueries,
   type SystemCatalog,
+  type Timer,
   type ValidateCitations,
   type ValidateFindings,
   type Vcs,
@@ -143,6 +149,12 @@ export interface Cradle {
   workflowCatalog: WorkflowCatalog;
   runRepository: RunRepository;
   initRun: InitRun;
+  timer: Timer;
+  backgroundProcess: BackgroundProcess;
+  agentHosts: ReadonlyMap<string, AgentHost>;
+  runJournal: RunJournal;
+  runDrivers: RunDrivers;
+  driveRun: DriveRun;
   worktreeManager: WorktreeManager;
   portProbe: PortProbe;
   worktreeRegistry: WorktreeRegistry;

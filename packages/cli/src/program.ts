@@ -68,6 +68,8 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
         ...(env.METATOR_NOW ? { now: env.METATOR_NOW } : {}),
         ...(env.METATOR_ROLE ? { role: env.METATOR_ROLE } : {}),
         ...(env.METATOR_CANON ? { canon: env.METATOR_CANON } : {}),
+        ...(env.METATOR_AGENT_SCENARIO ? { agentScenario: env.METATOR_AGENT_SCENARIO } : {}),
+        ...(env.METATOR_COPILOT_BIN ? { copilotBin: env.METATOR_COPILOT_BIN } : {}),
       });
     },
     stdin: options.stdin ?? (async () => ""),

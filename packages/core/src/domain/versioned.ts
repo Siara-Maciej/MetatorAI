@@ -191,6 +191,11 @@ export function serializeJsonDocument(doc: object): string {
   return `${JSON.stringify(doc, null, 2)}\n`;
 }
 
+/** One document as one line of a JSON Lines file (`activity.jsonl`). */
+export function serializeJsonLine(doc: object): string {
+  return `${JSON.stringify(doc)}\n`;
+}
+
 /** YAML text of plain fields, for host formats that are not MetatorAI documents (skill front matter). */
 export function renderYamlFields(fields: Record<string, unknown>): string {
   return stringifyYaml(fields, { lineWidth: 0 }).trimEnd();

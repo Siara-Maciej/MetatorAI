@@ -214,7 +214,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 **Zadania**
 - [x] F8.1 `setup`, `agents install|update` (kanon z pakietu, wybór hostów, `InstallLock` v1, kreator w terminalu; ADR-0049).
 - [x] F8.2 `worktree new|list|rm|prune`, dzierżawy portów, `run init --worktree`, `RunRecord` v3 (ADR-0050).
-- [ ] F8.3 Port `AgentHost` (Claude Agent SDK, Copilot CLI, adapter testowy), `run drive|stop`, `RunEvent` v1, `Question` v1 (sedno odłożonego F5).
+- [x] F8.3 Port `AgentHost` (Claude Agent SDK, Copilot CLI, scenariusz), `run drive|stop|questions|answer|activity`, `RunActivity` v1, `Question` v1, `RunDriver` v1 (sedno odłożonego F5; ADR-0051).
 - [ ] F8.4 Interaktywny `metator run` i `run continue` (widok na żywo, pytania i bramki w miejscu).
 - [ ] F8.5 `Environment` v1, `env discover|init|up|down|status|logs` (Docker Compose, skrypty, Procfile, Makefile; devcontainer post-MVP).
 - [ ] F8.6 `metator ui`: sesje, skrzynka pytań, aplikacje sesji, edytor, powłoka, diff.

@@ -54,3 +54,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0048](0048-user-docs-site.md) | Dokumentacja użytkownika jako strona VitePress na GitHub Pages | Proposed |
 | [0049](0049-setup-install-canon.md) | `metator setup` i instalacja kanonu z pakietu (`InstallLock`) | Proposed |
 | [0050](0050-run-worktrees.md) | Worktree runu i bloki portów (`WorktreeRegistry`, `RunRecord` v3) | Proposed |
+| [0051](0051-cli-drives-runs.md) | CLI prowadzi run (`AgentHost`, `run drive`, `RunActivity`, `Question`) | Proposed |

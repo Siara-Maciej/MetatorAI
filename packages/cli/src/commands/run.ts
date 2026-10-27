@@ -12,6 +12,7 @@ import {
 import { Argument, type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
+import { registerDriveCommands } from "./drive.ts";
 
 export const EVENTS = ["pass", "fail", "approve", "abort"] as const;
 
@@ -48,7 +49,8 @@ export function toEvent(name: EventName, opts: AdvanceOptions): Result<RunEvent,
   }
 }
 
-export function registerRunCommands(program: Command, { action, container }: CommandContext): void {
+export function registerRunCommands(program: Command, ctx: CommandContext): void {
+  const { action, container } = ctx;
   const runs = program.command("run").description("Start and drive workflow runs (state machine)");
 
   runs
@@ -198,4 +200,5 @@ export function registerRunCommands(program: Command, { action, container }: Com
     .command("list")
     .description("List runs, newest first")
     .action(action(async () => ({ result: await container().resolve("listRuns").execute() })));
+  registerDriveCommands(program, runs, ctx);
 }

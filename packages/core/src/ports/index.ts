@@ -4,6 +4,7 @@
  */
 import type { Agent } from "../domain/agent.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
+import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
 import type { Result } from "../domain/result.ts";
@@ -51,6 +52,27 @@ export interface WorktreeManager {
 /** Whether a TCP port on this machine can be bound right now. */
 export interface PortProbe {
   isFree(port: number): Promise<boolean>;
+}
+
+/**
+ * An AI host that runs one agent on one task (F8.3): Claude Code through its Agent SDK, Copilot
+ * CLI, or a scenario for tests. Questions and permission requests go to `ask`.
+ */
+export interface AgentHost {
+  readonly id: string;
+  run(task: AgentTask, ask: (q: AgentQuestion) => Promise<AgentAnswer>): AsyncIterable<AgentEvent>;
+}
+
+/** Waiting without blocking (polling for answers); instant in tests. */
+export interface Timer {
+  sleep(ms: number): Promise<void>;
+}
+
+/** A process that outlives the command that started it (`run drive --detach`). */
+export interface BackgroundProcess {
+  start(argv: readonly string[], cwd: string, logFile: string): Promise<Result<number, MetatorError>>;
+  isAlive(pid: number): boolean;
+  stop(pid: number): Promise<Result<void, MetatorError>>;
 }
 
 export interface Clock {
