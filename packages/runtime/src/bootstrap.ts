@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import {
   AddLesson,
   AdvanceRun,
@@ -25,10 +26,13 @@ import {
   DiffCoverage,
   DiffImportGraph,
   Discover,
+  DiscoverEnvironment,
   DocsDrift,
   DocsInventory,
   DocsLinks,
   DriveRun,
+  EnvironmentCatalog,
+  EnvironmentServices,
   EvalCatalog,
   FindMemoryDupes,
   FindOwners,
@@ -47,6 +51,7 @@ import {
   GuardSubagentOutput,
   HandoffRun,
   IndexedImportGraphReader,
+  InitEnvironment,
   InitProject,
   InitRun,
   InstallCanon,
@@ -106,6 +111,7 @@ export { findRepoRoot } from "@metator/plugin-bun";
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
+import { DockerComposeRuntime } from "@metator/plugin-docker";
 import { GitVcs, GitWorktreeManager } from "@metator/plugin-git";
 import { ClaudeAgentHost, ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
 import { CopilotAgentHost, CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
@@ -115,6 +121,7 @@ import {
   LcovCoverageReader,
   ManypkgWorkspaceReader,
   NodePackageManager,
+  WaitOnHealthProbe,
 } from "@metator/plugin-node";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
@@ -137,6 +144,8 @@ export interface BootstrapOptions {
   readonly agentScenario?: string;
   /** The Copilot CLI binary (METATOR_COPILOT_BIN); default `copilot` on PATH. */
   readonly copilotBin?: string;
+  /** The Docker CLI (METATOR_DOCKER_BIN); default `docker` on PATH. */
+  readonly dockerBin?: string;
 }
 
 const systemClock: Clock = { now: () => new Date() };
@@ -160,6 +169,41 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     fileSystem: asFunction(({ root }: { root: string }) => new BunFileSystem(root)).singleton(),
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
     timer: asFunction(() => new BunTimer()).singleton(),
+    containerRuntime: asFunction(() => new DockerComposeRuntime(options.dockerBin)).singleton(),
+    healthProbe: asFunction(() => new WaitOnHealthProbe()).singleton(),
+    environmentCatalog: asFunction(({ fileSystem, paths }) => new EnvironmentCatalog(fileSystem, paths)),
+    discoverEnvironment: asFunction(
+      ({ fileSystem, packageManagerDetector, workspaceReader }) =>
+        new DiscoverEnvironment(fileSystem, packageManagerDetector, workspaceReader),
+    ),
+    initEnvironment: asFunction(
+      ({ discoverEnvironment, fileSystem, paths }) =>
+        new InitEnvironment(discoverEnvironment, fileSystem, paths),
+    ),
+    environmentServices: asFunction(
+      ({
+        environmentCatalog,
+        worktreeRegistry,
+        backgroundProcess,
+        containerRuntime,
+        healthProbe,
+        fileSystem,
+        clock,
+        paths,
+        root,
+      }) =>
+        new EnvironmentServices(
+          environmentCatalog,
+          worktreeRegistry,
+          backgroundProcess,
+          containerRuntime,
+          healthProbe,
+          fileSystem,
+          clock,
+          paths,
+          { root, logDir: tmpdir() },
+        ),
+    ),
     backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
     agentHosts: asFunction(() => {
       const hosts = new Map<string, AgentHost>([

@@ -68,6 +68,7 @@ export default defineConfig({
           { text: "Quality gates and CI", link: "/how-to/gates-ci" },
           { text: "Hooks and guardrails", link: "/how-to/hooks" },
           { text: "Runs in worktrees", link: "/how-to/worktrees" },
+          { text: "Start the application", link: "/how-to/environments" },
         ],
       },
       {

@@ -4,11 +4,23 @@ import { type BackgroundProcess, err, MetatorError, ok, type Result, type Timer 
 
 /** BackgroundProcess on Bun.spawn: detached, output appended to a log file, outlives its parent. */
 export class BunBackgroundProcess implements BackgroundProcess {
-  async start(argv: readonly string[], cwd: string, logFile: string): Promise<Result<number, MetatorError>> {
+  async start(
+    argv: readonly string[],
+    cwd: string,
+    logFile: string,
+    env: Readonly<Record<string, string>> = {},
+  ): Promise<Result<number, MetatorError>> {
     try {
       await mkdir(dirname(logFile), { recursive: true });
       const log = Bun.file(logFile);
-      const proc = Bun.spawn([...argv], { cwd, stdout: log, stderr: log, stdin: "ignore", detached: true });
+      const proc = Bun.spawn([...argv], {
+        cwd,
+        env: { ...process.env, ...env },
+        stdout: log,
+        stderr: log,
+        stdin: "ignore",
+        detached: true,
+      });
       proc.unref();
       return ok(proc.pid);
     } catch (e) {
@@ -23,6 +35,16 @@ export class BunBackgroundProcess implements BackgroundProcess {
     } catch {
       return false;
     }
+  }
+
+  async readLog(logFile: string, lines: number): Promise<string> {
+    const file = Bun.file(logFile);
+    if (!(await file.exists())) return "";
+    return (await file.text())
+      .split("\n")
+      .slice(-lines - 1)
+      .join("\n")
+      .trimEnd();
   }
 
   async stop(pid: number): Promise<Result<void, MetatorError>> {

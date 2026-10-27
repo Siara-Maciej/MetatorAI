@@ -32,3 +32,17 @@ test("a binary that cannot start is an error value", async () => {
   );
   expect(r._unsafeUnwrapErr().code).toBe("COMMAND_FAILED");
 });
+
+test("a background process gets its environment; its log can be read back", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "metator-bg-"));
+  dirs.push(dir);
+  const bg = new BunBackgroundProcess();
+  const log = join(dir, "svc.log");
+  const pid = (
+    await bg.start(["sh", "-c", 'echo "port=$PORT"; echo second'], dir, log, { PORT: "41000" })
+  )._unsafeUnwrap();
+  for (let i = 0; i < 50 && bg.isAlive(pid); i++) await new BunTimer().sleep(20);
+  expect(await bg.readLog(log, 1)).toBe("second");
+  expect(await bg.readLog(log, 5)).toBe("port=41000\nsecond");
+  expect(await bg.readLog(join(dir, "none.log"), 5)).toBe("");
+});

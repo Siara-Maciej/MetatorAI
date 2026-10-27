@@ -1275,3 +1275,87 @@ metator worktree prune [options]
 |---|---|---|
 | `--older-than <days>` | minimum age in days | `7` |
 | `--dry-run` | report only |  |
+
+## env
+
+### `metator env discover`
+
+How this repository starts (compose files, start scripts, Procfile, Makefile), with evidence
+
+```bash
+metator env discover [options]
+```
+
+### `metator env init`
+
+Write the discovered environment to metator/environment.yml (never overwrites)
+
+```bash
+metator env init [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--dry-run` | print the proposal without writing it |  |
+
+### `metator env up`
+
+Start services in order of what they need, and wait until each is ready
+
+```bash
+metator env up [options] [services...]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[services]` | services to start (default: every service that is not on-demand) | |
+| `--profile <name>` | start the services of a profile |  |
+| `--worktree <id>` | start in this worktree, on its ports (default: this checkout) |  |
+
+### `metator env down`
+
+Stop the services of this checkout or a worktree (shared ones only with --shared)
+
+```bash
+metator env down [options] [services...]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[services]` | services to stop (default: all) | |
+| `--worktree <id>` | stop in this worktree |  |
+| `--shared` | also stop shared services, which other worktrees may use |  |
+
+### `metator env status`
+
+Each service: where it runs, whether it is up, its ports
+
+```bash
+metator env status [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--worktree <id>` | the services of this worktree |  |
+
+### `metator env logs`
+
+The last lines a started service wrote
+
+```bash
+metator env logs [options] <service>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<service>` | service id | |
+| `--worktree <id>` | the service of this worktree |  |
+| `--lines <n>` | how many lines | `50` |
+
+### `metator env schema`
+
+Print the JSON Schema of metator/environment.yml
+
+```bash
+metator env schema [options]
+```

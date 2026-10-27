@@ -14,6 +14,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `Lesson` | `docs/metator/lessons/*.md` | `metator lessons add` after your approval |
 | `ClaimSet` | `docs/metator/claims.json` | the docs analysis after your approval |
 | `SystemMap` | `docs/metator/system.yml` | you |
+| `Environment` | `metator/environment.yml` | you (`metator env init` proposes it) |
 | `Workflow` | `.github/metator/workflows/*.yml` | you (five are shipped) |
 | `Agent` | `metator/agents/*.md` | you (23 are shipped) |
 | `Skill` | `metator/skills/*/SKILL.md` | you (six are shipped) |
@@ -39,6 +40,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `RunActivity` | `.metator/runs/<id>/activity.jsonl` (one per line) | `metator run drive` |
 | `Question` | `.metator/runs/<id>/questions/qNNN.json` | `metator run drive` asks, `metator run answer` answers |
 | `RunDriver` | `.metator/runs/<id>/driver.json` | `metator run drive` |
+| `EnvState` | `.metator/env/<worktree, main or shared>.json` | `metator env up\|down` |
 | `WorktreeRegistry` | `.metator/worktrees.json` | `metator worktree *`, `metator run init --worktree` |
 | `EvalReport` | `<runs-dir>/report.json` | `metator eval run` |
 

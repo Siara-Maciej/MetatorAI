@@ -56,3 +56,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0050](0050-run-worktrees.md) | Worktree runu i bloki portów (`WorktreeRegistry`, `RunRecord` v3) | Proposed |
 | [0051](0051-cli-drives-runs.md) | CLI prowadzi run (`AgentHost`, `run drive`, `RunActivity`, `Question`) | Proposed |
 | [0052](0052-interactive-run.md) | Interaktywny `metator run` i `run continue` | Proposed |
+| [0053](0053-environments.md) | Środowisko aplikacji (`Environment`, `env *`) | Proposed |

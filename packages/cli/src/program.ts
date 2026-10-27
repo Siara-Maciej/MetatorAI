@@ -11,6 +11,7 @@ import { registerCoverageCommands } from "./commands/coverage.ts";
 import { registerDebugTagsCommands } from "./commands/debug-tags.ts";
 import { registerDiscoverCommands } from "./commands/discover.ts";
 import { registerDocsCommands } from "./commands/docs.ts";
+import { registerEnvCommands } from "./commands/env.ts";
 import { registerEvalCommands } from "./commands/eval.ts";
 import { registerFindingsCommands, registerReviewCommands } from "./commands/findings.ts";
 import { registerFlakyCommands } from "./commands/flaky.ts";
@@ -70,6 +71,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
         ...(env.METATOR_CANON ? { canon: env.METATOR_CANON } : {}),
         ...(env.METATOR_AGENT_SCENARIO ? { agentScenario: env.METATOR_AGENT_SCENARIO } : {}),
         ...(env.METATOR_COPILOT_BIN ? { copilotBin: env.METATOR_COPILOT_BIN } : {}),
+        ...(env.METATOR_DOCKER_BIN ? { dockerBin: env.METATOR_DOCKER_BIN } : {}),
       });
     },
     stdin: options.stdin ?? (async () => ""),
@@ -116,6 +118,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   registerWorktreeCommands(program, ctx);
+  registerEnvCommands(program, ctx);
   return program;
 }
 

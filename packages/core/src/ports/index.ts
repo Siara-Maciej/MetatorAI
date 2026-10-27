@@ -5,6 +5,7 @@
 import type { Agent } from "../domain/agent.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
+import type { HealthTarget } from "../domain/environment.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
 import type { Result } from "../domain/result.ts";
@@ -68,11 +69,40 @@ export interface Timer {
   sleep(ms: number): Promise<void>;
 }
 
-/** A process that outlives the command that started it (`run drive --detach`). */
+/** A process that outlives the command that started it (`run drive --detach`, `env up`). */
 export interface BackgroundProcess {
-  start(argv: readonly string[], cwd: string, logFile: string): Promise<Result<number, MetatorError>>;
+  start(
+    argv: readonly string[],
+    cwd: string,
+    logFile: string,
+    env?: Readonly<Record<string, string>>,
+  ): Promise<Result<number, MetatorError>>;
   isAlive(pid: number): boolean;
   stop(pid: number): Promise<Result<void, MetatorError>>;
+  /** The last lines of a log file it wrote (empty when there is none). */
+  readLog(logFile: string, lines: number): Promise<string>;
+}
+
+/** One Compose service of one project (F8.5). */
+export interface ComposeService {
+  readonly file: string;
+  readonly service: string;
+  /** The Compose project: `metator-shared`, or `metator-<worktree>` per worktree. */
+  readonly project: string;
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
+}
+
+/** Containers through Docker Compose (MVP: Docker only, decision 4). */
+export interface ContainerRuntime {
+  up(service: ComposeService): Promise<Result<void, MetatorError>>;
+  stop(service: ComposeService): Promise<Result<void, MetatorError>>;
+  logs(service: ComposeService, lines: number): Promise<Result<string, MetatorError>>;
+}
+
+/** Waits until a service accepts TCP connections or answers HTTP. */
+export interface HealthProbe {
+  waitFor(target: HealthTarget, timeoutMs: number): Promise<Result<void, MetatorError>>;
 }
 
 export interface Clock {

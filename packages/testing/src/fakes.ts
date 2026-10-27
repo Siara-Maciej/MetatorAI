@@ -6,10 +6,14 @@ import {
   type AgentTask,
   type BackgroundProcess,
   type Clock,
+  type ComposeService,
+  type ContainerRuntime,
   type Diagnostic,
   type EngineRule,
   err,
   type FileSystem,
+  type HealthProbe,
+  type HealthTarget,
   MetatorError,
   matchesAny,
   normalizePath,
@@ -222,12 +226,23 @@ export class InstantTimer implements Timer {
 
 /** BackgroundProcess that records starts and stops; processes stay alive until stopped. */
 export class FakeBackgroundProcess implements BackgroundProcess {
-  readonly started: { argv: readonly string[]; cwd: string; logFile: string }[] = [];
+  readonly started: {
+    argv: readonly string[];
+    cwd: string;
+    logFile: string;
+    env: Readonly<Record<string, string>>;
+  }[] = [];
+  readonly logs = new Map<string, string>();
   readonly alive = new Set<number>();
   private next = 4000;
 
-  async start(argv: readonly string[], cwd: string, logFile: string): Promise<Result<number, MetatorError>> {
-    this.started.push({ argv, cwd, logFile });
+  async start(
+    argv: readonly string[],
+    cwd: string,
+    logFile: string,
+    env: Readonly<Record<string, string>> = {},
+  ): Promise<Result<number, MetatorError>> {
+    this.started.push({ argv, cwd, logFile, env });
     const pid = this.next++;
     this.alive.add(pid);
     return ok(pid);
@@ -240,5 +255,43 @@ export class FakeBackgroundProcess implements BackgroundProcess {
   async stop(pid: number): Promise<Result<void, MetatorError>> {
     this.alive.delete(pid);
     return ok(undefined);
+  }
+
+  async readLog(logFile: string, lines: number): Promise<string> {
+    return (this.logs.get(logFile) ?? "").split("\n").slice(-lines).join("\n");
+  }
+}
+
+/** ContainerRuntime in memory: records ups and stops; a service named in `failing` fails to start. */
+export class FakeContainerRuntime implements ContainerRuntime {
+  readonly calls: { op: "up" | "stop" | "logs"; service: ComposeService }[] = [];
+  constructor(private readonly failing: ReadonlySet<string> = new Set()) {}
+
+  async up(service: ComposeService): Promise<Result<void, MetatorError>> {
+    this.calls.push({ op: "up", service });
+    return this.failing.has(service.service)
+      ? err(new MetatorError("COMMAND_FAILED", `docker compose up ${service.service} failed`))
+      : ok(undefined);
+  }
+
+  async stop(service: ComposeService): Promise<Result<void, MetatorError>> {
+    this.calls.push({ op: "stop", service });
+    return ok(undefined);
+  }
+
+  async logs(service: ComposeService): Promise<Result<string, MetatorError>> {
+    this.calls.push({ op: "logs", service });
+    return ok(`logs of ${service.service}`);
+  }
+}
+
+/** HealthProbe that answers at once; targets in `down` never become ready. */
+export class FakeHealthProbe implements HealthProbe {
+  readonly checked: HealthTarget[] = [];
+  constructor(private readonly down: (t: HealthTarget) => boolean = () => false) {}
+
+  async waitFor(target: HealthTarget): Promise<Result<void, MetatorError>> {
+    this.checked.push(target);
+    return this.down(target) ? err(new MetatorError("COMMAND_FAILED", "not ready in time")) : ok(undefined);
   }
 }

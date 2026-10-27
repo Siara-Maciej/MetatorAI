@@ -17,6 +17,7 @@
     "@metator/plugin-biome": "workspace:*",
     "@metator/plugin-host-copilot": "workspace:*",
     "@metator/plugin-host-claude": "workspace:*",
-    "@metator/plugin-host-scenario": "workspace:*"
+    "@metator/plugin-host-scenario": "workspace:*",
+    "@metator/plugin-docker": "workspace:*"
   }
 }

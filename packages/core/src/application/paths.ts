@@ -32,6 +32,10 @@ export interface MetatorPaths {
   readonly worktrees: string;
   /** The registry of worktrees and their port blocks. */
   readonly worktreeRegistry: string;
+  /** How to start the application (`Environment`, F8.5). */
+  readonly environment: string;
+  /** What runs now, per place (`EnvState`). */
+  readonly envState: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -56,6 +60,8 @@ export const DEFAULT_PATHS: MetatorPaths = {
   installLock: "metator/install.lock.json",
   worktrees: ".metator/wt",
   worktreeRegistry: ".metator/worktrees.json",
+  environment: "metator/environment.yml",
+  envState: ".metator/env",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

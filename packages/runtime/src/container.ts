@@ -20,14 +20,18 @@ import {
   type CloseRun,
   type CompareEvals,
   type ComputeAffected,
+  type ContainerRuntime,
   type CreateWorktree,
   type DiffCoverage,
   type DiffImportGraph,
   type Discover,
+  type DiscoverEnvironment,
   type DocsDrift,
   type DocsInventory,
   type DocsLinks,
   type DriveRun,
+  type EnvironmentCatalog,
+  type EnvironmentServices,
   type EvalCatalog,
   err,
   type FileSystem,
@@ -47,9 +51,11 @@ import {
   type GuardStop,
   type GuardSubagentOutput,
   type HandoffRun,
+  type HealthProbe,
   type HostGenerator,
   type ImportAnalyzer,
   type ImportGraphReader,
+  type InitEnvironment,
   type InitProject,
   type InitRun,
   type InstallCanon,
@@ -150,6 +156,12 @@ export interface Cradle {
   runRepository: RunRepository;
   initRun: InitRun;
   timer: Timer;
+  containerRuntime: ContainerRuntime;
+  healthProbe: HealthProbe;
+  environmentCatalog: EnvironmentCatalog;
+  discoverEnvironment: DiscoverEnvironment;
+  initEnvironment: InitEnvironment;
+  environmentServices: EnvironmentServices;
   backgroundProcess: BackgroundProcess;
   agentHosts: ReadonlyMap<string, AgentHost>;
   runJournal: RunJournal;
