@@ -1,4 +1,4 @@
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { parseDocument, parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 import { type ErrorCode, MetatorError } from "./errors.ts";
 import { err, ok, type Result } from "./result.ts";
@@ -205,6 +205,13 @@ export function renderYamlFields(fields: Record<string, unknown>): string {
 export function renderYamlDocument(doc: DocumentHeader & Record<string, unknown>, comment?: string): string {
   const text = stringifyYaml(doc, { lineWidth: 0 });
   return comment === undefined ? text : `# ${comment}\n${text}`;
+}
+
+/** Sets top-level fields of a YAML document and keeps everything else, comments included. */
+export function updateYamlFields(text: string, fields: Record<string, unknown>): string {
+  const doc = parseDocument(text);
+  for (const [key, value] of Object.entries(fields)) doc.set(key, value);
+  return doc.toString({ lineWidth: 0 });
 }
 
 const FRONT_MATTER = /^---\n([\s\S]*?)\n---\n/;

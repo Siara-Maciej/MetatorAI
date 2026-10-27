@@ -62,6 +62,7 @@ import {
   type InventoryMemory,
   type JudgeFindings,
   type KnowledgeFiles,
+  type Launcher,
   type LintAdrs,
   type LintAgents,
   type LintPlan,
@@ -103,6 +104,7 @@ import {
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
+  type SetEditor,
   type ShowSystem,
   type SkillCatalog,
   type SkillGenerator,
@@ -156,6 +158,8 @@ export interface Cradle {
   runRepository: RunRepository;
   initRun: InitRun;
   timer: Timer;
+  launcher: Launcher;
+  setEditor: SetEditor;
   containerRuntime: ContainerRuntime;
   healthProbe: HealthProbe;
   environmentCatalog: EnvironmentCatalog;

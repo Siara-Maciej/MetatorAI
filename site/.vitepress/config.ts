@@ -44,6 +44,7 @@ export default defineConfig({
         items: [
           { text: "Overview and runs", link: "/workflows/" },
           { text: "Drive a run from the CLI", link: "/workflows/drive" },
+          { text: "Sessions in the terminal", link: "/workflows/sessions" },
           { text: "Feature (W1)", link: "/workflows/feature" },
           { text: "Bug fix (W2)", link: "/workflows/bugfix" },
           { text: "Refactor (W3)", link: "/workflows/refactor" },

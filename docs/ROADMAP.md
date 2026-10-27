@@ -217,7 +217,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] F8.3 Port `AgentHost` (Claude Agent SDK, Copilot CLI, scenariusz), `run drive|stop|questions|answer|activity`, `RunActivity` v1, `Question` v1, `RunDriver` v1 (sedno odłożonego F5; ADR-0051).
 - [x] F8.4 Interaktywny `metator run` i `run continue` (widok na żywo, pytania i bramki w miejscu; ADR-0052).
 - [x] F8.5 `Environment` v1, `env discover|init|up|down|status|logs` (Docker Compose, skrypty, Procfile, Makefile; devcontainer post-MVP; ADR-0053).
-- [ ] F8.6 `metator ui`: sesje, skrzynka pytań, aplikacje sesji, edytor, powłoka, diff.
+- [x] F8.6 `metator ui`: sesje, skrzynka pytań, aplikacje sesji, edytor (`editor` w `MetatorConfig` v3), powłoka, diff (ADR-0054).
 - [ ] F8.7 `env analyze`, izolacja danych (Postgres template, prefiksy), częściowy start z `affected`/`impact`, reuse buildu, pula ciepłych worktree.
 - [ ] F8.8 Dystrybucja: pakiet npm `metator-ai` (CLI zbudowane `bun build`, kanon w paczce), żeby działały `npx|pnpm dlx|yarn dlx|bunx metator` i instalacja jako dev dependency; wymaga konta npm właściciela.
 

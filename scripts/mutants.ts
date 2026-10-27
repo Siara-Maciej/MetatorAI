@@ -1436,4 +1436,28 @@ export const MUTANTS: readonly Mutant[] = [
     to: "env: { ...process.env },",
     why: "a started service gets its environment",
   },
+  {
+    file: "packages/core/src/domain/editors.ts",
+    from: "attached: known?.terminal ?? false",
+    to: "attached: false",
+    why: "a terminal editor takes over the terminal",
+  },
+  {
+    file: "packages/core/src/domain/editors.ts",
+    from: "configured || env.VISUAL || env.EDITOR",
+    to: "env.VISUAL || env.EDITOR || configured",
+    why: "the configured editor wins over the environment",
+  },
+  {
+    file: "packages/core/src/application/config-edit.ts",
+    from: "updateYamlFields(text.value, { schemaVersion: MetatorConfigDocument.current, editor: input.editor })",
+    to: "updateYamlFields(text.value, { editor: input.editor })",
+    why: "a config with an editor is written as v3",
+  },
+  {
+    file: "packages/plugin-bun/src/bun-launcher.ts",
+    from: "Bun.which(c) !== null",
+    to: "true",
+    why: "only editors on PATH are offered",
+  },
 ];

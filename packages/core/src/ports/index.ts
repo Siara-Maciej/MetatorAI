@@ -100,6 +100,16 @@ export interface ContainerRuntime {
   logs(service: ComposeService, lines: number): Promise<Result<string, MetatorError>>;
 }
 
+/** Programs a person uses from `metator ui`: an editor, a shell, a pager, a browser (F8.6). */
+export interface Launcher {
+  /** Runs a program on this terminal and waits until it exits (shell, terminal editor, diff). */
+  attached(argv: readonly string[], cwd: string): Promise<Result<number, MetatorError>>;
+  /** Starts a program in its own window and returns at once (GUI editor, browser). */
+  detached(argv: readonly string[], cwd: string): Promise<Result<void, MetatorError>>;
+  /** Which of these commands are on PATH, in the given order. */
+  available(commands: readonly string[]): readonly string[];
+}
+
 /** Waits until a service accepts TCP connections or answers HTTP. */
 export interface HealthProbe {
   waitFor(target: HealthTarget, timeoutMs: number): Promise<Result<void, MetatorError>>;

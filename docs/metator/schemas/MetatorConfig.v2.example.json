@@ -1,0 +1,12 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 2,
+  "gates": {
+    "quick": [{ "id": "rules", "run": { "metator": "rules check" } }],
+    "full": [
+      { "id": "test", "run": { "script": "test" } },
+      { "id": "graph", "run": { "metator": "graph diff" } }
+    ]
+  },
+  "hosts": { "targets": ["claude"], "metatorCommand": "bun run metator" }
+}

@@ -14,7 +14,7 @@ export interface TerminalRun {
   readonly json: Record<string, unknown>;
 }
 
-export const KEY = { enter: "\r", space: " ", down: "\x1b[B", ctrlC: "\x03" } as const;
+export const KEY = { enter: "\r", space: " ", down: "\x1b[B", up: "\x1b[A", ctrlC: "\x03" } as const;
 
 /**
  * Runs the real `metator` in a pseudo-terminal (Bun.Terminal), as a person would: each step

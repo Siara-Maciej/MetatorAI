@@ -46,7 +46,17 @@ export interface Terminal {
   newRun(q: NewRunQuestions): Promise<NewRunAnswers | null>;
   pickRun(runs: readonly RunChoice[]): Promise<string | null>;
   answer(q: Question): Promise<PersonAnswer | null>;
+  /** One choice from a list (`metator ui` menus). */
+  choose<T extends string>(message: string, options: readonly Choice<T>[]): Promise<T | null>;
   show(line: string): void;
+  /** Gets the person's attention (terminal bell): a question is waiting. */
+  bell(): void;
+}
+
+export interface Choice<T extends string> {
+  readonly value: T;
+  readonly label: string;
+  readonly hint?: string;
 }
 
 const io = { output: process.stderr };
@@ -177,8 +187,25 @@ export const clackTerminal: Terminal = {
     return { choices, ...(words.trim() ? { text: words.trim() } : {}) };
   },
 
+  async choose<T extends string>(message: string, options: readonly Choice<T>[]): Promise<T | null> {
+    const picked = await select<string>({
+      ...io,
+      message,
+      options: options.map((o) => ({
+        value: o.value as string,
+        label: o.label,
+        ...(o.hint ? { hint: o.hint } : {}),
+      })),
+    });
+    return isCancel(picked) ? null : (picked as T);
+  },
+
   show(line) {
     log.message(line, { ...io, symbol: "│" });
+  },
+
+  bell() {
+    process.stderr.write("\x07");
   },
 };
 

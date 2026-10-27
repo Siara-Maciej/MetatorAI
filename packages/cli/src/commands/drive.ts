@@ -1,42 +1,9 @@
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { err, MetatorError, ok } from "@metator/core";
-import type { MetatorContainer } from "@metator/runtime";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { follow, person } from "../live.ts";
 import { positiveInt } from "../options.ts";
-
-const HOSTS = ["claude", "copilot", "scenario"] as const;
-const HOST_OF: Record<string, (typeof HOSTS)[number]> = { claude: "claude", copilot: "copilot" };
-
-/** Starts `run drive` for the run in its own process (the same entry point as this command). */
-function startDetached(program: Command, c: MetatorContainer, runId: string, host: string, maxSteps: number) {
-  const root = (program.opts() as { root?: string }).root;
-  const argv = [
-    process.argv[0] as string,
-    process.argv[1] as string,
-    ...(root ? ["--root", root] : []),
-    "run",
-    "drive",
-    "--run",
-    runId,
-    "--host",
-    host,
-    "--max-steps",
-    String(maxSteps),
-  ];
-  return c.resolve("runDrivers").start({
-    runId,
-    host,
-    argv,
-    cwd: c.resolve("root"),
-    logFile: join(tmpdir(), `metator-drive-${runId}.log`),
-  });
-}
-
-const defaultHost = (c: MetatorContainer) =>
-  HOST_OF[c.resolve("config").config.hosts.targets[0] ?? "claude"] ?? "claude";
+import { defaultHost, HOSTS, newRun, resume, sessionRows, startDetached } from "../sessions.ts";
 
 /** `run drive|stop|questions|answer|activity|continue` (F8.3, F8.4): the CLI carries a run, people answer. */
 export function registerDriveCommands(
@@ -44,6 +11,8 @@ export function registerDriveCommands(
   runs: Command,
   { action, container, terminal }: CommandContext,
 ): void {
+  const root = () => (program.opts() as { root?: string }).root;
+
   // `metator run` in a terminal: a new run, driven in the background, watched and answered here.
   runs.action(
     action(async () => {
@@ -57,33 +26,7 @@ export function registerDriveCommands(
           ),
         };
       }
-      const c = container();
-      const scan = await c.resolve("workflowCatalog").scan();
-      if (scan.workflows.length === 0) {
-        return {
-          result: err(MetatorError.usage("no workflows here", "Run `metator setup` to install them.")),
-        };
-      }
-      const answers = await terminal.newRun({
-        workflows: scan.workflows.map((w) => ({
-          id: w.spec.id,
-          ...(w.spec.description ? { description: w.spec.description } : {}),
-        })),
-        hosts: [...c.resolve("agentHosts").keys()],
-        defaultHost: defaultHost(c),
-      });
-      if (!answers) return { result: err(MetatorError.usage("no run started")) };
-      const run = await c.resolve("initRun").execute({
-        workflow: answers.workflow,
-        task: answers.task,
-        autonomy: answers.autonomy,
-        ...(answers.worktree ? { worktree: {} } : {}),
-      });
-      if (run.isErr()) return { result: run };
-      const started = await startDetached(program, c, run.value.runId, answers.host, 200);
-      if (started.isErr()) return { result: started };
-      terminal.show(`run ${run.value.runId} · ${answers.host} · Ctrl+C leaves; the run goes on`);
-      return { result: ok(await follow(c, run.value.runId, terminal, person())) };
+      return { result: await newRun(container(), terminal, root()) };
     }),
   );
 
@@ -95,59 +38,27 @@ export function registerDriveCommands(
     .action(
       action(async (given: string | undefined, opts: { host?: string }) => {
         const c = container();
-        const listed = await c.resolve("listRuns").execute();
-        if (listed.isErr()) return { result: listed };
-        const active = listed.value.filter((r) => r.status === "active");
         let runId = given;
         if (!runId) {
+          const rows = await sessionRows(c);
+          if (rows.isErr()) return { result: rows };
+          const active = rows.value.filter((r) => r.status === "active");
           if (active.length === 0) return { result: err(MetatorError.usage("no active run to continue")) };
           if (terminal) {
-            const choices = [];
-            for (const r of active) {
-              const open = (await c.resolve("runJournal").questions(r.runId)).map(
-                (qs) => qs.filter((q) => !q.answer).length,
-              );
-              const driver = await c.resolve("runDrivers").status(r.runId);
-              const waiting = open.isOk() ? open.value : 0;
-              const hint =
-                waiting > 0
-                  ? `waits for you (${waiting})`
-                  : driver.isOk() && driver.value?.alive
-                    ? "driving"
-                    : "stopped";
-              choices.push({ runId: r.runId, label: `${r.runId} · ${r.stage}`, hint });
-            }
-            const picked = await terminal.pickRun(choices);
+            const picked = await terminal.pickRun(
+              active.map((r) => ({ runId: r.runId, label: `${r.runId} · ${r.stage}`, hint: r.state })),
+            );
             if (!picked) return { result: err(MetatorError.usage("nothing continued")) };
             runId = picked;
           } else runId = (active[0] as { runId: string }).runId;
         }
-        const record = await c.resolve("runRepository").load(runId);
-        if (record.isErr()) return { result: record };
-        if (record.value.state.status !== "active") {
-          return {
-            result: err(
-              MetatorError.usage(
-                `run ${runId} is ${record.value.state.status}; there is nothing to continue`,
-              ),
-            ),
-          };
-        }
-        const driver = await c.resolve("runDrivers").status(runId);
-        if (driver.isErr()) return { result: driver };
-        const hosts = c.resolve("agentHosts");
-        const host =
-          opts.host ??
-          (record.value.host && hosts.has(record.value.host) ? record.value.host : defaultHost(c));
-        if (!driver.value?.alive) {
-          const started = await startDetached(program, c, runId, host, 200);
-          if (started.isErr()) return { result: started };
-        }
+        const resumed = await resume(c, root(), runId, opts.host);
+        if (resumed.isErr()) return { result: resumed };
         if (!terminal) {
           const now = await c.resolve("runDrivers").status(runId);
-          return { result: now.map((d) => ({ runId, stage: record.value.state.stage, driver: d })) };
+          return { result: now.map((d) => ({ runId, stage: resumed.value.stage, driver: d })) };
         }
-        terminal.show(`run ${runId} · ${record.value.state.stage} · Ctrl+C leaves; the run goes on`);
+        terminal.show(`run ${runId} · ${resumed.value.stage} · Ctrl+C leaves; the run goes on`);
         return { result: ok(await follow(c, runId, terminal, person())) };
       }),
     );
@@ -166,11 +77,10 @@ export function registerDriveCommands(
         const c = container();
         const id = await c.resolve("runRepository").resolveId(opts.run);
         if (id.isErr()) return { result: id };
-        const host =
-          opts.host ?? HOST_OF[c.resolve("config").config.hosts.targets[0] ?? "claude"] ?? "claude";
+        const host = opts.host ?? defaultHost(c);
         const drivers = c.resolve("runDrivers");
         if (opts.detach) {
-          const started = await startDetached(program, c, id.value, host, opts.maxSteps);
+          const started = await startDetached(c, root(), id.value, host, opts.maxSteps);
           return { result: started.map((d) => ({ runId: id.value, detached: true, ...d })) };
         }
         const claimed = await drivers.claim(id.value, process.pid, host);

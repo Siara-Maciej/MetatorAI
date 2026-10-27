@@ -29,6 +29,7 @@ import { registerRunCommands } from "./commands/run.ts";
 import { registerSetupCommands } from "./commands/setup.ts";
 import { registerSystemCommands } from "./commands/system.ts";
 import { registerTestCommands } from "./commands/test.ts";
+import { registerUiCommands } from "./commands/ui.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
 import { registerWorktreeCommands } from "./commands/worktree.ts";
 import type { CommandContext, Outcome } from "./context.ts";
@@ -119,6 +120,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerRunCommands(program, ctx);
   registerWorktreeCommands(program, ctx);
   registerEnvCommands(program, ctx);
+  registerUiCommands(program, ctx);
   return program;
 }
 

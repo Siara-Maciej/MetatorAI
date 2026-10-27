@@ -146,6 +146,7 @@ describe("metator CLI (process e2e)", () => {
       "env status",
       "env logs",
       "env schema",
+      "ui",
     ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);
   });

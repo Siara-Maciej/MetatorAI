@@ -1359,3 +1359,13 @@ Print the JSON Schema of metator/environment.yml
 ```bash
 metator env schema [options]
 ```
+
+## ui
+
+### `metator ui`
+
+Sessions in the terminal: switch runs, answer questions, run apps, open the code
+
+```bash
+metator ui [options]
+```

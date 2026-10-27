@@ -125,7 +125,7 @@ describe("metator guard (real hook processes)", () => {
     expect(stop.json).toMatchObject({ decision: "block" });
     expect(String(stop.json?.reason)).toContain("stage build");
     expect((await hook(["guard", "stop"], { stop_hook_active: true }, repo.root)).json).toBeNull();
-  });
+  }, 30_000); // ten hook processes
 
   test("post-edit reports the edited file's rule violations as context; clean files say nothing", async () => {
     const payload = { tool_name: "Edit", tool_input: { file_path: repo.path("src/a.ts") } };
