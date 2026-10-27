@@ -134,7 +134,7 @@ for GitHub Copilot and Claude Code. Interactive in your editor, headless in CI.
 | Run a feature, bug fix, refactor or review | [Workflows](https://siara-maciej.github.io/MetatorAI/workflows/) |
 | Turn conventions into checked rules | [Write and enforce rules](https://siara-maciej.github.io/MetatorAI/how-to/rules) |
 | Put it into CI | [Quality gates and CI](https://siara-maciej.github.io/MetatorAI/how-to/gates-ci) |
-| Look up a command | [CLI reference](https://siara-maciej.github.io/MetatorAI/reference/cli) |
+| Look up a command | [Command reference](https://siara-maciej.github.io/MetatorAI/api/commands) |
 
 ## Quick start
 

@@ -9,6 +9,8 @@
 @mt-pr-review self-review my branch against main
 ```
 
+<WorkflowDiagram id="mt-pr-review" />
+
 ## The review core
 
 ```text
@@ -74,6 +76,8 @@ Before you open a PR, let the loop fix what it finds:
 ```text
 first-review → plan (confirmed blockers only) → build → gates → review → ... (max 5 rounds)
 ```
+
+<WorkflowDiagram id="mt-self-review" />
 
 There is no push and no comment in this loop. Done means zero confirmed blockers, or an escalation with the list of what is left.
 

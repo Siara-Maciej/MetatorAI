@@ -12,28 +12,45 @@ export default defineConfig({
   lang: "en-US",
   cleanUrls: true,
   lastUpdated: true,
+  appearance: "dark",
   head: [["link", { rel: "icon", href: `${process.env.SITE_BASE ?? "/MetatorAI/"}logo.svg` }]],
   themeConfig: {
     logo: "/logo.svg",
     nav: [
-      { text: "Guide", link: "/guide/introduction", activeMatch: "/guide/" },
+      {
+        text: "Product",
+        activeMatch: "/product/",
+        items: [
+          { text: "The idea", link: "/product/idea" },
+          { text: "How it works", link: "/product/how-it-works" },
+          { text: "Security and governance", link: "/product/enterprise" },
+        ],
+      },
+      { text: "First steps", link: "/guide/installation", activeMatch: "/guide/" },
       { text: "Workflows", link: "/workflows/", activeMatch: "/workflows/" },
+      { text: "Agents", link: "/agents/", activeMatch: "/agents/" },
+      { text: "Multi-repo", link: "/multi-repo/", activeMatch: "/multi-repo/" },
       { text: "How-to", link: "/how-to/rules", activeMatch: "/how-to/" },
-      { text: "Reference", link: "/reference/cli", activeMatch: "/reference/" },
+      { text: "API", link: "/api/", activeMatch: "/api/" },
     ],
     sidebar: {
-      "/guide/": [
+      "/product/": [
         {
-          text: "Getting started",
+          text: "Product",
           items: [
-            { text: "Introduction", link: "/guide/introduction" },
-            { text: "Installation", link: "/guide/installation" },
-            { text: "Quick start", link: "/guide/quick-start" },
+            { text: "The idea", link: "/product/idea" },
+            { text: "How it works", link: "/product/how-it-works" },
+            { text: "Security and governance", link: "/product/enterprise" },
           ],
         },
+        { text: "Next", items: [{ text: "First steps →", link: "/guide/installation" }] },
+      ],
+      "/guide/": [
         {
-          text: "Understand",
+          text: "First steps",
           items: [
+            { text: "Installation", link: "/guide/installation" },
+            { text: "Quick start", link: "/guide/quick-start" },
             { text: "Concepts", link: "/guide/concepts" },
             { text: "Configuration", link: "/guide/configuration" },
             { text: "Troubleshooting", link: "/guide/troubleshooting" },
@@ -52,6 +69,22 @@ export default defineConfig({
           ],
         },
       ],
+      "/agents/": [
+        {
+          text: "Agents",
+          items: [
+            { text: "Agents and delegation", link: "/agents/" },
+            { text: "Skills", link: "/agents/skills" },
+            { text: "Customize and add agents", link: "/agents/customize" },
+          ],
+        },
+      ],
+      "/multi-repo/": [
+        {
+          text: "Multi-repo",
+          items: [{ text: "Systems of many applications", link: "/multi-repo/" }],
+        },
+      ],
       "/how-to/": [
         {
           text: "How-to guides",
@@ -60,18 +93,19 @@ export default defineConfig({
             { text: "Keep knowledge true", link: "/how-to/knowledge" },
             { text: "Quality gates and CI", link: "/how-to/gates-ci" },
             { text: "Hooks and guardrails", link: "/how-to/hooks" },
-            { text: "Agents and skills", link: "/how-to/agents" },
-            { text: "Systems of many applications", link: "/how-to/system" },
           ],
         },
       ],
-      "/reference/": [
+      "/api/": [
         {
-          text: "Reference",
+          text: "API",
           items: [
-            { text: "CLI", link: "/reference/cli" },
-            { text: "Output and exit codes", link: "/reference/output" },
-            { text: "Files and documents", link: "/reference/documents" },
+            { text: "Overview", link: "/api/" },
+            { text: "CLI and envelope", link: "/api/cli" },
+            { text: "Hooks protocol", link: "/api/hooks" },
+            { text: "Documents and schemas", link: "/api/documents" },
+            { text: "Extending: ports and plugins", link: "/api/extending" },
+            { text: "Command reference", link: "/api/commands" },
           ],
         },
       ],

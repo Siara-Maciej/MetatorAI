@@ -8,6 +8,8 @@
 @mt-orchestrator run mt-refactor for packages/billing: split invoice.ts into calculation and formatting.
 ```
 
+<WorkflowDiagram id="mt-refactor" />
+
 ## How behavior is proven unchanged
 
 | Step | Command or skill | What it proves |

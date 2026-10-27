@@ -27,13 +27,22 @@ Dokumenty projektowe w `docs/` są po polsku i są dla zespołu, nie dla użytko
   - ścieżka bazowa z `actions/configure-pages`.
 
   Jednorazowo trzeba włączyć Pages w ustawieniach repo (źródło: GitHub Actions) i dopuścić gałąź do środowiska `github-pages`.
+- **Struktura jak dokumentacja produktu enterprise:** Product (idea, zasada działania, enterprise), First steps, Workflows, Agents, Multi-repo, How-to, API (CLI i koperta JSON, dokumenty i schematy, hooki, rozszerzanie, generowana referencja komend).
+- **Diagramy i animacje jako komponenty Vue czytające kanon** przez data loadery VitePress (`site/.vitepress/data/*.data.ts`):
+  - workflowy z `.github/metator/workflows/*.yml` (etapy, właściciele, bramki, pętle, HITL; żeton przechodzi etapy jak `run advance`);
+  - agenci i skille z front matter w `metator/agents` i `metator/skills`;
+  - mapa komend z wygenerowanej referencji.
+
+  Test e2e porównuje etapy na zbudowanych diagramach z YAML-em, więc diagram nie może się rozjechać z workflowem. Animacje respektują `prefers-reduced-motion`.
+- **Biome dla `site/**/*.vue`**: wyłączone `noUnusedVariables` i `noUnusedImports` (Biome nie analizuje szablonów Vue, więc zgłasza zmienne używane w szablonie), a dla CSS i Vue motywu `noImportantStyles` (nadpisywanie stylów VitePress).
 - README to wizytówka z linkami do strony i krótkim, prawdziwym szybkim startem.
 
 ## Konsekwencje
 ### Pozytywne
 - Jedno miejsce z instrukcjami dla użytkownika; referencja i lista agentów nie mogą się zestarzeć niezauważone.
 ### Negatywne
-- Strony pisane ręcznie (poradniki) mogą się zestarzeć; testy łapią tylko referencję, agentów i rodzaje dokumentów.
+- Strony pisane ręcznie (poradniki) mogą się zestarzeć; testy łapią referencję, agentów, skille, rodzaje dokumentów i etapy workflowów.
+- Komponenty Vue nie są w pełni lintowane przez Biome (szablony).
 
 ## Alternatywy odrzucone
 | Alternatywa | Dlaczego odrzucona |

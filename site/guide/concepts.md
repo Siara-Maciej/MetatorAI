@@ -9,11 +9,11 @@ Every `metator` command prints exactly one JSON object on stdout:
 {"ok":false,"error":{"code":"CHECK_FAILED","message":"...","hint":"...","details":{ ... }}}
 ```
 
-**Why:** agents parse it without guessing, and the `hint` tells them the next step. Exit codes are stable: `0` ok, `1` a check failed or something was not found, `64` usage error, `65` stale index. See [Output and exit codes](../reference/output.md).
+**Why:** agents parse it without guessing, and the `hint` tells them the next step. Exit codes are stable: `0` ok, `1` a check failed or something was not found, `64` usage error, `65` stale index. See [Output and exit codes](../api/cli.md).
 
 ## Versioned documents
 
-Every file MetatorAI reads or writes starts with `kind` and `schemaVersion` (JSON and YAML fields, Markdown front matter). Older files are migrated when read; a file from a newer version is rejected with a clear message. The full list is in [Files and documents](../reference/documents.md).
+Every file MetatorAI reads or writes starts with `kind` and `schemaVersion` (JSON and YAML fields, Markdown front matter). Older files are migrated when read; a file from a newer version is rejected with a clear message. The full list is in [Files and documents](../api/documents.md).
 
 ## The canon
 
