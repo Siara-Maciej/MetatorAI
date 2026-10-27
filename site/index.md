@@ -11,7 +11,7 @@ hero:
   actions:
     - theme: brand
       text: Get started
-      link: /guide/installation
+      link: /product/idea
     - theme: alt
       text: How it works
       link: /product/how-it-works

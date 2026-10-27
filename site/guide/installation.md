@@ -1,17 +1,45 @@
 # Installation
 
-MetatorAI is pre-alpha and not published to npm yet. You run it from a checkout of its repository; `bun link` puts the `metator` command on your `PATH`.
+MetatorAI works in repositories that use **npm, pnpm, Yarn or Bun**. It detects your package manager (`metator discover`) and runs your own `lint`, `typecheck` and `test` scripts with it. Pick yours here, in the navigation bar, or on any tab below: every command in the documentation follows it.
+
+<PmSwitch />
+
+MetatorAI itself is pre-alpha and not published to npm yet. You run it from a checkout of its repository, and it needs the [Bun](https://bun.sh) runtime whatever package manager your project uses.
 
 ## Requirements
 
 | Tool | Why |
 |---|---|
-| [Bun](https://bun.sh) 1.4 or newer | MetatorAI runs on Bun |
-| git | changed files, merge bases, history |
-| Your project's own tools | MetatorAI runs your lint, typecheck and test scripts; it does not replace them |
+| [Bun](https://bun.sh) 1.4 or newer | the MetatorAI CLI runs on Bun (your project does not have to) |
+| git | changed files, merge bases, history, worktrees |
+| Your project's package manager: npm, pnpm, Yarn or Bun | MetatorAI runs your scripts with it |
 | Optional: `@ast-grep/cli`, `@biomejs/biome`, `typescript` in your project | rule engines for tool-enforced (E1) rules |
 
-## Install
+## 1. Install Bun
+
+::: code-group
+
+```bash [npm]
+npm install --global bun
+```
+
+```bash [pnpm]
+pnpm add --global bun
+```
+
+```bash [yarn]
+npm install --global bun     # Yarn 2+ has no global installs; Yarn 1: yarn global add bun
+```
+
+```bash [bun]
+curl -fsSL https://bun.sh/install | bash     # Bun's own installer; skip if `bun --version` works
+```
+
+:::
+
+Check it with `bun --version` (1.4 or newer).
+
+## 2. Install MetatorAI
 
 ```bash
 git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
@@ -20,7 +48,7 @@ bun install
 cd packages/cli && bun link        # puts `metator` into ~/.bun/bin
 ```
 
-Make sure `~/.bun/bin` is on your `PATH`, then check from any repository:
+These steps are the same for every package manager: they build MetatorAI itself, which runs on Bun. Make sure `~/.bun/bin` is on your `PATH`, then check from any repository:
 
 ```bash
 cd ~/code/your-repo
@@ -28,7 +56,7 @@ metator version
 # {"ok":true,"data":{"name":"metator-ai","version":"0.0.0"}}
 ```
 
-**Why `bun link`:** hooks and generated agents call plain `metator ...`. With the command on your `PATH` they work in every repository without per-repo setup.
+**Why `bun link`:** hooks and generated agents call plain `metator ...`. With the command on your `PATH` they work in every repository, whatever its package manager, without per-repo setup. That is also why `metator` commands in these docs have no package-manager tabs: they are the same everywhere.
 
 ### Without `bun link`
 
@@ -44,24 +72,59 @@ hosts:
   metatorCommand: bun ~/tools/metatorai/packages/cli/src/main.ts
 ```
 
-## Rule engines in your project
+## 3. Rule engines in your project
 
-Tool-enforced rules run the engines installed in **your** repository:
+Tool-enforced rules run the engines installed in **your** repository, as dev dependencies:
 
-```bash
-bun add -d @ast-grep/cli          # structural rules
-bun add -d @biomejs/biome         # lint rules through SARIF
+::: code-group
+
+```bash [npm]
+npm install --save-dev @ast-grep/cli @biomejs/biome
 ```
 
-::: warning Bun and ast-grep
-Bun blocks package install scripts by default, and `@ast-grep/cli` needs its install script to download the binary. Add it to `trustedDependencies` in your `package.json`, then reinstall:
+```bash [pnpm]
+pnpm add --save-dev @ast-grep/cli @biomejs/biome
+```
 
-```json
+```bash [yarn]
+yarn add --dev @ast-grep/cli @biomejs/biome
+```
+
+```bash [bun]
+bun add --dev @ast-grep/cli @biomejs/biome
+```
+
+:::
+
+`@ast-grep/cli` downloads its binary in an install script. Make sure your package manager runs it:
+
+::: code-group
+
+```text [npm]
+Nothing to do: npm runs install scripts of dependencies by default
+(unless you set ignore-scripts=true in .npmrc).
+```
+
+```jsonc [pnpm]
+// package.json: pnpm 10 runs no dependency install scripts unless listed
+// (or approve them with `pnpm approve-builds`), then run `pnpm install`
+{ "pnpm": { "onlyBuiltDependencies": ["@ast-grep/cli"] } }
+```
+
+```text [yarn]
+Nothing to do: Yarn runs install scripts by default
+(unless enableScripts: false is set in .yarnrc.yml).
+```
+
+```jsonc [bun]
+// package.json: Bun runs no dependency install scripts unless trusted,
+// then run `bun install`
 { "trustedDependencies": ["@ast-grep/cli"] }
 ```
 
-Without it, `metator rules check` answers `BIN_NOT_FOUND`.
 :::
+
+Without the binary, `metator rules check` answers `BIN_NOT_FOUND`.
 
 ## Update
 

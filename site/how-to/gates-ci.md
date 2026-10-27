@@ -33,7 +33,11 @@ metator debug-tags check --base main         # no instrumentation left
 
 ## GitHub Actions
 
-```yaml
+The gate runs your scripts with the package manager MetatorAI detected, so the job installs your dependencies the way you do locally:
+
+::: code-group
+
+```yaml [npm]
 # .github/workflows/metator.yml
 name: metator
 on: [pull_request]
@@ -43,9 +47,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }             # merge bases need history
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - name: Install MetatorAI
+      - uses: oven-sh/setup-bun@v2           # MetatorAI runs on Bun
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Install MetatorAI                  # runs on Bun, whatever your project uses
         run: |
           git clone --depth 1 https://github.com/Siara-Maciej/MetatorAI.git "$RUNNER_TEMP/metatorai"
           (cd "$RUNNER_TEMP/metatorai" && bun install && cd packages/cli && bun link)
@@ -54,6 +60,79 @@ jobs:
       - run: metator gate full
       - run: metator meta check-all --min-e1 60   # canon, memory, cards, agents, workflows, generated files
 ```
+
+```yaml [pnpm]
+# .github/workflows/metator.yml
+name: metator
+on: [pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }             # merge bases need history
+      - uses: oven-sh/setup-bun@v2           # MetatorAI runs on Bun
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Install MetatorAI                  # runs on Bun, whatever your project uses
+        run: |
+          git clone --depth 1 https://github.com/Siara-Maciej/MetatorAI.git "$RUNNER_TEMP/metatorai"
+          (cd "$RUNNER_TEMP/metatorai" && bun install && cd packages/cli && bun link)
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - run: metator index build
+      - run: metator gate full
+      - run: metator meta check-all --min-e1 60   # canon, memory, cards, agents, workflows, generated files
+```
+
+```yaml [yarn]
+# .github/workflows/metator.yml
+name: metator
+on: [pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }             # merge bases need history
+      - uses: oven-sh/setup-bun@v2           # MetatorAI runs on Bun
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: corepack enable && yarn install --immutable   # Yarn 1: yarn install --frozen-lockfile
+      - name: Install MetatorAI                  # runs on Bun, whatever your project uses
+        run: |
+          git clone --depth 1 https://github.com/Siara-Maciej/MetatorAI.git "$RUNNER_TEMP/metatorai"
+          (cd "$RUNNER_TEMP/metatorai" && bun install && cd packages/cli && bun link)
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - run: metator index build
+      - run: metator gate full
+      - run: metator meta check-all --min-e1 60   # canon, memory, cards, agents, workflows, generated files
+```
+
+```yaml [bun]
+# .github/workflows/metator.yml
+name: metator
+on: [pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }             # merge bases need history
+      - uses: oven-sh/setup-bun@v2           # MetatorAI runs on Bun
+      - run: bun install --frozen-lockfile
+      - name: Install MetatorAI                  # runs on Bun, whatever your project uses
+        run: |
+          git clone --depth 1 https://github.com/Siara-Maciej/MetatorAI.git "$RUNNER_TEMP/metatorai"
+          (cd "$RUNNER_TEMP/metatorai" && bun install && cd packages/cli && bun link)
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      - run: metator index build
+      - run: metator gate full
+      - run: metator meta check-all --min-e1 60   # canon, memory, cards, agents, workflows, generated files
+```
+
+:::
 
 ## One command for the whole canon
 

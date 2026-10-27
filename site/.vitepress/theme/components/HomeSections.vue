@@ -185,7 +185,7 @@ const enterprise = [
       <h2>Lay out the ground. Then build.</h2>
       <p>Install from a checkout, survey your repository and run your first workflow.</p>
       <div>
-        <a class="primary" :href="withBase('/guide/installation')">Get started</a>
+        <a class="primary" :href="withBase('/product/idea')">Get started</a>
         <a :href="withBase('/api/')">Explore the API</a>
       </div>
     </section>
