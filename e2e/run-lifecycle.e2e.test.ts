@@ -206,7 +206,7 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
     await mt("run", "advance", "pass");
     const escalated = await mt("run", "advance", "fail", "--reason", "still broken");
     expect(escalated.json.data).toMatchObject({ runId: id, status: "escalated", expects: [] });
-  });
+  }, 30_000); // many CLI processes in a row
 
   test("abort needs a reason and ends the run", async () => {
     await mt("run", "init", "--workflow", "feature", "--task", "to abort");

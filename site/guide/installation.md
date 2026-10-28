@@ -126,6 +126,10 @@ Nothing to do: Yarn runs install scripts by default
 
 Without the binary, `metator rules check` answers `BIN_NOT_FOUND`.
 
+::: tip Several repositories
+Run `metator setup` inside each repository you want MetatorAI in; each one is independent. To see the work of all of them from the folder that holds them, see [Several repositories](../multi-repo/repositories.md).
+:::
+
 ## Update
 
 ```bash

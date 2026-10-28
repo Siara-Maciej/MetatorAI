@@ -117,7 +117,7 @@ import {
   NodeTreeCopier,
 } from "@metator/plugin-bun";
 
-export { findRepoRoot } from "@metator/plugin-bun";
+export { findChildRepos, findFolderRoot, findRepoRoot } from "@metator/plugin-bun";
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";

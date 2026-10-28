@@ -60,3 +60,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0054](0054-terminal-sessions-ui.md) | `metator ui`, edytor w konfiguracji i port `Launcher` | Proposed |
 | [0055](0055-fast-start.md) | Szybki start środowiska (`env analyze`, izolacja danych, pula, częściowy start) | Proposed |
 | [0056](0056-independent-repositories.md) | Niezależne repozytoria na jednej maszynie | Proposed |
+| [0057](0057-folder-of-repositories.md) | Folder repozytoriów (`metator.repos.yml`, `repos *`) | Proposed |

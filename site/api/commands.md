@@ -1396,3 +1396,33 @@ Sessions in the terminal: switch runs, answer questions, run apps, open the code
 ```bash
 metator ui [options]
 ```
+
+## repos
+
+### `metator repos init`
+
+Write metator.repos.yml in this folder from the repositories below it (never overwrites)
+
+```bash
+metator repos init [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--dry-run` | print the proposal without writing it |  |
+
+### `metator repos list`
+
+The folder's repositories and whether MetatorAI is set up in each
+
+```bash
+metator repos list [options]
+```
+
+### `metator repos status`
+
+Each repository's work: active runs, questions waiting for you, running services
+
+```bash
+metator repos status [options]
+```

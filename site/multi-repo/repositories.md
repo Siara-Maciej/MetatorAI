@@ -51,4 +51,61 @@ The machine-wide state directory is `$METATOR_STATE_DIR`, else `$XDG_STATE_HOME/
 
 ## A folder of repositories
 
-Working inside each repository is all you need. A folder file is optional; it adds one view over several repositories, for `metator ui`, `metator ask` and `metator repos`. It is described in the next release step (G2) and this page will show it as soon as it ships.
+Each repository keeps its own MetatorAI, as above. The folder that holds them can also be a place to run `metator`: there it covers all of its repositories at once.
+
+```text
+~/work/
+├── metator.repos.yml    ← optional: which repositories the folder holds
+├── shop/
+├── billing/
+└── services/mailer/
+```
+
+```bash
+cd ~/work
+metator repos init       # writes metator.repos.yml from the repositories below (two levels deep)
+metator repos list       # each repository and whether MetatorAI is set up in it
+metator repos status     # each repository's active runs, questions waiting for you, running services
+metator ui               # pick a repository, work in its sessions, come back for the next one
+```
+
+```yaml
+# ~/work/metator.repos.yml
+kind: RepoSet
+schemaVersion: 1
+repos:
+  - path: shop
+  - path: billing
+  - path: services/mailer
+    name: mailer          # optional: how it is shown (default: the last part of the path)
+```
+
+Without `metator.repos.yml`, a folder that is not a repository itself but holds repositories works the same way; the file only fixes the list and the names.
+
+### Where to run what
+
+| Where you are | What `metator` acts on | What runs there |
+|---|---|---|
+| inside a repository, at any depth (`~/work/shop/src`) | that repository: the nearest `.git` wins, even inside a folder of repositories | every command |
+| the folder (`~/work`), or a folder below it that is not a repository | all repositories of the folder | `ui`, `repos init\|list\|status` (and `ask` and `status` as they ship) |
+| anywhere, with `-C <path>` | the repository or folder at `<path>` | as above, for that place |
+
+Any other command in the folder stops with a pointer instead of guessing:
+
+```bash
+cd ~/work && metator run init --workflow mt-feature --task "Add discount"
+```
+
+```json
+{"ok":false,"error":{"code":"USAGE",
+ "message":"`metator run init` works on one repository, and /home/me/work is a folder of 3",
+ "hint":"Run it inside a repository (billing, mailer, shop) or pass `-C <repository>`; here, `metator ui`, `repos`, `ask` and `status` cover them all."}}
+```
+
+```bash
+metator -C shop run init --workflow mt-feature --task "Add discount"    # from the folder
+```
+
+### The folder shares nothing
+
+The folder is a list, not a configuration: it holds no agents, rules or state of its own, and changing it never touches a repository. A [system map](./index.md) is the other way round: it describes what the applications are and how their contracts connect them, while the folder only says where their checkouts are on your disk.

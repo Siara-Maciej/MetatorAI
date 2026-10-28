@@ -1574,4 +1574,22 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "machine state is written into place",
   },
+  {
+    file: "packages/plugin-bun/src/repo-root.ts",
+    from: "    if (isRepo(dir)) return undefined;\n",
+    to: "",
+    why: "inside a repository the repository wins over its folder",
+  },
+  {
+    file: "packages/plugin-bun/src/repo-root.ts",
+    from: 'if (SKIP.has(name) || name.startsWith(".")) continue;',
+    to: 'if (name.startsWith(".")) continue;',
+    why: "repositories inside node_modules are not the folder's",
+  },
+  {
+    file: "packages/core/src/domain/repo-set.ts",
+    from: 'return clash ? { path, name: path.replaceAll("/", "-") } : { path };',
+    to: "return { path };",
+    why: "clashing repository names get the whole path",
+  },
 ];
