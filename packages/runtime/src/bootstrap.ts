@@ -105,6 +105,7 @@ import {
   ValidateFindings,
   WarmPool,
   WorkflowCatalog,
+  WorkOverview,
   WorktreeRegistry,
 } from "@metator/core";
 import {
@@ -243,6 +244,28 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     dataIsolator: asFunction(() => new BunSqlDataIsolator()).singleton(),
     treeCopier: asFunction(() => new NodeTreeCopier()).singleton(),
     backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
+    workOverview: asFunction(
+      ({
+        runRepository,
+        workflowCatalog,
+        runJournal,
+        runDrivers,
+        worktreeRegistry,
+        environmentServices,
+        conversationRepository,
+        clock,
+      }) =>
+        new WorkOverview(
+          runRepository,
+          workflowCatalog,
+          runJournal,
+          runDrivers,
+          worktreeRegistry,
+          environmentServices,
+          conversationRepository,
+          clock,
+        ),
+    ),
     conversationRepository: asFunction(
       ({ fileSystem, paths }) => new ConversationRepository(fileSystem, paths),
     ).singleton(),

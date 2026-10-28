@@ -44,6 +44,33 @@ editor: code --new-window
 
 The file keeps its comments. Window editors open on their own and the menu comes back at once; terminal editors (Neovim, Vim, Helix, nano, Emacs) take over the terminal until you quit them.
 
+## The work at a glance
+
+```bash
+metator status
+```
+
+```json
+{"runs":[
+  {"runId":"20261028-mt-feature-add-discount","task":"Add discount","attention":"you","stage":"plan-approval",
+   "stages":[{"id":"intake","state":"done"},{"id":"plan","state":"done"},{"id":"plan-approval","state":"waiting","hitl":true},{"id":"build","state":"next"}],
+   "questions":[{"id":"q001","source":"gate","prompt":"The human approves the plan: approve to continue"}],
+   "host":"claude","driving":false,"elapsedMs":420000,
+   "worktree":{"id":"20261028-mt-feature-add-discount","branch":"metator/20261028-mt-feature-add-discount","ports":{"from":41000,"count":20}},
+   "services":[{"service":"api","status":"running","ports":{"http":41000}}]}],
+ "conversations":[{"id":"20261028-how-is-vat-computed","title":"How is VAT computed?","turns":2}],
+ "counts":{"you":1,"driving":0,"stopped":0,"finished":3,"questions":1,"services":1}}
+```
+
+| `attention` | Meaning |
+|---|---|
+| `you` | a question waits for you, or a human gate nobody drives: answer, approve, or continue the run |
+| `driving` | the drive is working; watch it live |
+| `stopped` | nobody drives it; continue it any time |
+| `done`, `escalated`, `aborted` | finished, and how |
+
+Runs come sorted the same way: what waits for you first. In a [folder of repositories](../multi-repo/repositories.md#a-folder-of-repositories), `metator status` gives this for every repository, with the sums.
+
 ## Without a terminal
 
-`metator ui` needs one; in a script it fails with `USAGE`. Use the commands it is made of: `run continue`, `run questions`, `run answer`, `env up|down|status|logs`, `worktree list`.
+`metator ui` needs one; in a script it fails with `USAGE`. Use `metator status` for the overview, and the commands `ui` is made of: `run continue`, `run questions`, `run answer`, `env up|down|status|logs`, `worktree list`.

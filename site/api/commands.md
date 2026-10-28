@@ -1436,3 +1436,13 @@ Conversations of `metator ask`, newest first
 ```bash
 metator ask list [options]
 ```
+
+## status
+
+### `metator status`
+
+The work at a glance: each run's stages, who must act, questions, services; conversations
+
+```bash
+metator status [options]
+```

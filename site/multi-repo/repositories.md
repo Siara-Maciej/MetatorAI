@@ -87,7 +87,7 @@ Without `metator.repos.yml`, a folder that is not a repository itself but holds 
 | Where you are | What `metator` acts on | What runs there |
 |---|---|---|
 | inside a repository, at any depth (`~/work/shop/src`) | that repository: the nearest `.git` wins, even inside a folder of repositories | every command |
-| the folder (`~/work`), or a folder below it that is not a repository | all repositories of the folder | `ui`, `repos init\|list\|status`, [`ask`](../workflows/ask.md) (and `status` as it ships) |
+| the folder (`~/work`), or a folder below it that is not a repository | all repositories of the folder | `ui`, `repos init\|list\|status`, [`ask`](../workflows/ask.md), [`status`](../workflows/sessions.md#the-work-at-a-glance) |
 | anywhere, with `-C <path>` | the repository or folder at `<path>` | as above, for that place |
 
 Any other command in the folder stops with a pointer instead of guessing:

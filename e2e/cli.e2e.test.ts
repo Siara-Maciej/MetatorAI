@@ -155,6 +155,7 @@ describe("metator CLI (process e2e)", () => {
       "repos status",
       "ask",
       "ask list",
+      "status",
     ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);
   });

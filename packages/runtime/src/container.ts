@@ -126,6 +126,7 @@ import {
   type Vcs,
   type WarmPool,
   type WorkflowCatalog,
+  type WorkOverview,
   type WorkspaceReader,
   type WorktreeManager,
   type WorktreeRegistry,
@@ -181,6 +182,7 @@ export interface Cradle {
   agentHosts: ReadonlyMap<string, AgentHost>;
   conversationRepository: ConversationRepository;
   askQuestion: AskQuestion;
+  workOverview: WorkOverview;
   runJournal: RunJournal;
   runDrivers: RunDrivers;
   driveRun: DriveRun;

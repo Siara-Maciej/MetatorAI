@@ -38,6 +38,7 @@ import { registerReposCommands } from "./commands/repos.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
 import { registerSetupCommands } from "./commands/setup.ts";
+import { registerStatusCommand } from "./commands/status.ts";
 import { registerSystemCommands } from "./commands/system.ts";
 import { registerTestCommands } from "./commands/test.ts";
 import { registerUiCommands } from "./commands/ui.ts";
@@ -144,6 +145,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerUiCommands(program, ctx);
   registerReposCommands(program, ctx);
   registerAskCommands(program, ctx);
+  registerStatusCommand(program, ctx);
 
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).
   program.hook("preAction", (_root, action) => {

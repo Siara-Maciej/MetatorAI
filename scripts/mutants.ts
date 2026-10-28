@@ -1628,4 +1628,28 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const n = this.starts.get(task.agent) ?? 0;",
     why: "a resumed scenario session plays the next entry",
   },
+  {
+    file: "packages/core/src/domain/overview.ts",
+    from: 'if (status === "done" || (at >= 0 && i < at)) state = "done";',
+    to: 'if (status === "done" || (at >= 0 && i <= at)) state = "done";',
+    why: "the current stage is not done yet",
+  },
+  {
+    file: "packages/core/src/domain/overview.ts",
+    from: '  if (atHumanGate && !driving) return "you";\n',
+    to: "",
+    why: "an undriven human gate waits for you",
+  },
+  {
+    file: "packages/core/src/domain/overview.ts",
+    from: '      (b.runId ?? "").localeCompare(a.runId ?? ""),\n',
+    to: "",
+    why: "runs that tie keep a stable order",
+  },
+  {
+    file: "packages/core/src/application/overview.ts",
+    from: "const open = questions.isOk() ? questions.value.filter((q) => !q.answer) : [];",
+    to: "const open = questions.isOk() ? questions.value : [];",
+    why: "answered questions are not waiting",
+  },
 ];
