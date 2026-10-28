@@ -145,6 +145,15 @@ Strategie, od największego zysku przy typowym backendzie:
 
 Rekomendacja zawsze ma dowód: zmierzone czasy i powód, np. „`db` startuje 6 min, z czego 5 min to seed; template DB skraca to do ~3 s”. Szacunki sprawdza ponowny pomiar, nie obietnica.
 
+> **Zrealizowane w F8.7 (ADR-0055):**
+> - `Environment` v2: `paths`, `prepare`, `init`, `isolate`, `warm`;
+> - `env analyze` z `EnvProfile` v1;
+> - izolacja w Postgres przez szablon (port `DataIsolator`, klient wbudowany w Bun) i prefiksy;
+> - `env up --affected`, `warm.reuse` (port `TreeCopier`, FICLONE);
+> - `env pool`, z którego `run init --worktree` bierze wolny worktree.
+>
+> Snapshot danych, MySQL i obrazy na hash lockfile'a zostają na później.
+
 ### 3.5 Prowadzenie runu przez CLI: port `AgentHost` i `run drive`
 
 - Port **`AgentHost`** w `core`: start agenta z promptem etapu i uprawnieniami workera, strumień zdarzeń (tekst, wywołanie narzędzia, pytanie, wynik), wznowienie sesji, przerwanie. Adaptery w pluginach:
@@ -157,7 +166,7 @@ Rekomendacja zawsze ma dowód: zmierzone czasy i powód, np. „`db` startuje 6 
   - etap HITL: pytanie do człowieka.
 
   Walidacja artefaktów i `run advance` zostają bez zmian, więc pętle, limity i eskalacje pilnuje ta sama maszyna stanów.
-- **Zdarzenia runu** (`events.jsonl`, dokument `RunEvent` v1, jedna linia na zdarzenie) i **pytania** (`questions/<id>.json`, dokument `Question` v1, odpowiedź w tym samym pliku). Komunikacja przez pliki w `.metator/runs/<id>/`: proces drive i UI mogą się niezależnie zamknąć i wrócić. Daemon nie jest potrzebny w MVP.
+- **Aktywność runu** (`activity.jsonl`, dokument `RunActivity` v1, jedna linia na zdarzenie; nazwa `RunEvent` jest już zajęta przez zdarzenia maszyny stanów) i **pytania** (`questions/<id>.json`, dokument `Question` v1, odpowiedź w tym samym pliku). Komunikacja przez pliki w `.metator/runs/<id>/`: proces drive i UI mogą się niezależnie zamknąć i wrócić. Daemon nie jest potrzebny w MVP.
 - Proces drive działa **odłączony** (`detached`, pid w runie). Zamknięcie terminala nie zatrzymuje runu; stop jest jawny (`run stop`).
 
 ### 3.6 Interaktywny `metator run` i `run continue`
@@ -199,6 +208,8 @@ metator run continue <id>
   - `d` pokazuje diff runu w CLI (`git diff` przez `delta`, gdy jest zainstalowany);
   - `f` przegląda pliki (`fzf` + `bat`, gdy są; bez nich prosta lista).
 - `n` uruchamia kreator z §3.6 w nowym worktree. Wiele sesji działa równolegle, każda w swoim worktree i ze swoimi portami.
+
+> **Zrealizowane w F8.6 (ADR-0054)** jako hub z menu na `@clack/prompts` w `packages/cli`, bez osobnego `packages/tui` i bez układu paneli: lista sesji, menu sesji, skrzynka pytań i dzwonek. Przeglądarka plików (`f`) i `delta` zostały poza zakresem; diff to `git diff`.
 
 ### 3.8 Gotowe narzędzia zamiast własnego kodu (ADR-0010)
 

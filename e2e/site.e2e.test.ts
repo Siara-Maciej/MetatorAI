@@ -249,11 +249,17 @@ describe("documentation site", () => {
     await page.locator(".VPHero a", { hasText: "Get started" }).click();
     await page.waitForURL((u) => u.pathname === order[0]);
     const visited: string[] = [];
-    for (let i = 0; i <= order.length; i++) {
+    for (let i = 0; i < order.length; i++) {
       visited.push(new URL(page.url()).pathname);
-      // Each page has one pager: the next chapter, until the last page.
+      // Each page has one pager: the next chapter, until the last page. After a client-side
+      // navigation the footer renders a moment later, so wait for it instead of counting.
       const next = page.locator(".VPDocFooter .pager-link.next");
-      if ((await next.count()) === 0) break;
+      if (i === order.length - 1) {
+        await page.locator(".VPDocFooter .pager-link.prev").waitFor();
+        expect(await next.count()).toBe(0);
+        break;
+      }
+      await next.waitFor({ timeout: 10_000 });
       const href = (await next.getAttribute("href")) as string;
       await next.click();
       await page.waitForURL((u) => u.pathname === href);

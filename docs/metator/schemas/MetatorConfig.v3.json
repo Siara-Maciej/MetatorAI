@@ -1,0 +1,628 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "MetatorConfig",
+  "version": 3,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "MetatorConfig"
+      },
+      "schemaVersion": {
+        "const": 3
+      },
+      "paths": {
+        "default": {},
+        "type": "object",
+        "properties": {
+          "workflows": {
+            "type": "string"
+          },
+          "runs": {
+            "type": "string"
+          },
+          "index": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "memoryMap": {
+            "type": "string"
+          },
+          "cards": {
+            "type": "string"
+          },
+          "patterns": {
+            "type": "string"
+          },
+          "adr": {
+            "type": "string"
+          },
+          "discovery": {
+            "type": "string"
+          },
+          "gates": {
+            "type": "string"
+          },
+          "agents": {
+            "type": "string"
+          },
+          "evals": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "project": {
+        "default": {},
+        "type": "object",
+        "properties": {
+          "sourceIgnores": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "testGlobs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "gates": {
+        "default": {
+          "quick": [],
+          "full": []
+        },
+        "type": "object",
+        "properties": {
+          "quick": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9:-]*$"
+                },
+                "run": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "script": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": ["script"],
+                      "additionalProperties": false,
+                      "description": "package.json script, run by the repo's package manager"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "bin": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "args": {
+                          "default": [],
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["bin"],
+                      "additionalProperties": false,
+                      "description": "binary from node_modules/.bin"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "metator": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["metator"],
+                      "additionalProperties": false,
+                      "description": "a MetatorAI check, run in process"
+                    }
+                  ]
+                },
+                "files": {
+                  "default": "none",
+                  "type": "string",
+                  "enum": ["append", "none"]
+                },
+                "match": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "okExitCodes": {
+                  "default": [0],
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "timeoutMs": {
+                  "default": 600000,
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["id", "run"],
+              "additionalProperties": false
+            }
+          },
+          "full": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9:-]*$"
+                },
+                "run": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "script": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": ["script"],
+                      "additionalProperties": false,
+                      "description": "package.json script, run by the repo's package manager"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "bin": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "args": {
+                          "default": [],
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["bin"],
+                      "additionalProperties": false,
+                      "description": "binary from node_modules/.bin"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "metator": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["metator"],
+                      "additionalProperties": false,
+                      "description": "a MetatorAI check, run in process"
+                    }
+                  ]
+                },
+                "files": {
+                  "default": "none",
+                  "type": "string",
+                  "enum": ["append", "none"]
+                },
+                "match": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "okExitCodes": {
+                  "default": [0],
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "timeoutMs": {
+                  "default": 600000,
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["id", "run"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "hosts": {
+        "default": {
+          "targets": ["copilot", "claude"],
+          "metatorCommand": "metator",
+          "models": {}
+        },
+        "type": "object",
+        "properties": {
+          "targets": {
+            "default": ["copilot", "claude"],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["copilot", "claude"]
+            }
+          },
+          "metatorCommand": {
+            "default": "metator",
+            "type": "string"
+          },
+          "models": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": ["reasoning", "standard", "fast"]
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "copilot": {
+                  "type": "string"
+                },
+                "claude": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "editor": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "additionalProperties": false,
+    "required": ["kind", "schemaVersion"]
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "MetatorConfig"
+      },
+      "schemaVersion": {
+        "const": 3
+      },
+      "paths": {
+        "default": {},
+        "type": "object",
+        "properties": {
+          "workflows": {
+            "type": "string"
+          },
+          "runs": {
+            "type": "string"
+          },
+          "index": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "memoryMap": {
+            "type": "string"
+          },
+          "cards": {
+            "type": "string"
+          },
+          "patterns": {
+            "type": "string"
+          },
+          "adr": {
+            "type": "string"
+          },
+          "discovery": {
+            "type": "string"
+          },
+          "gates": {
+            "type": "string"
+          },
+          "agents": {
+            "type": "string"
+          },
+          "evals": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "project": {
+        "default": {},
+        "type": "object",
+        "properties": {
+          "sourceIgnores": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "testGlobs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "gates": {
+        "default": {
+          "quick": [],
+          "full": []
+        },
+        "type": "object",
+        "properties": {
+          "quick": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9:-]*$"
+                },
+                "run": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "script": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": ["script"],
+                      "additionalProperties": false,
+                      "description": "package.json script, run by the repo's package manager"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "bin": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "args": {
+                          "default": [],
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["bin", "args"],
+                      "additionalProperties": false,
+                      "description": "binary from node_modules/.bin"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "metator": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["metator"],
+                      "additionalProperties": false,
+                      "description": "a MetatorAI check, run in process"
+                    }
+                  ]
+                },
+                "files": {
+                  "default": "none",
+                  "type": "string",
+                  "enum": ["append", "none"]
+                },
+                "match": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "okExitCodes": {
+                  "default": [0],
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "timeoutMs": {
+                  "default": 600000,
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["id", "run", "files", "okExitCodes", "timeoutMs"],
+              "additionalProperties": false
+            }
+          },
+          "full": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9:-]*$"
+                },
+                "run": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "script": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": ["script"],
+                      "additionalProperties": false,
+                      "description": "package.json script, run by the repo's package manager"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "bin": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "args": {
+                          "default": [],
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["bin", "args"],
+                      "additionalProperties": false,
+                      "description": "binary from node_modules/.bin"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "metator": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["metator"],
+                      "additionalProperties": false,
+                      "description": "a MetatorAI check, run in process"
+                    }
+                  ]
+                },
+                "files": {
+                  "default": "none",
+                  "type": "string",
+                  "enum": ["append", "none"]
+                },
+                "match": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "okExitCodes": {
+                  "default": [0],
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "timeoutMs": {
+                  "default": 600000,
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["id", "run", "files", "okExitCodes", "timeoutMs"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["quick", "full"],
+        "additionalProperties": false
+      },
+      "hosts": {
+        "default": {
+          "targets": ["copilot", "claude"],
+          "metatorCommand": "metator",
+          "models": {}
+        },
+        "type": "object",
+        "properties": {
+          "targets": {
+            "default": ["copilot", "claude"],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["copilot", "claude"]
+            }
+          },
+          "metatorCommand": {
+            "default": "metator",
+            "type": "string"
+          },
+          "models": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": ["reasoning", "standard", "fast"]
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "copilot": {
+                  "type": "string"
+                },
+                "claude": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["targets", "metatorCommand", "models"],
+        "additionalProperties": false
+      },
+      "editor": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["kind", "schemaVersion", "paths", "project", "gates", "hosts"],
+    "additionalProperties": false
+  }
+}

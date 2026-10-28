@@ -32,6 +32,26 @@ export const WorktreeRegistryDocument = defineDocument("WorktreeRegistry", {
   hint: "Written by `metator worktree *` and `metator run init --worktree`; do not edit it by hand.",
 });
 
+/**
+ * Port blocks held by every repository on this machine (G1, ADR-0056): a repository's own
+ * registry knows only its worktrees, so independent repositories would lease the same block.
+ */
+export const PortLeaseSchema = z.strictObject({
+  /** Absolute path of the repository that holds the block. */
+  repo: z.string().min(1),
+  worktree: z.string().regex(WORKTREE_ID),
+  /** Absolute path of the worktree: a lease whose worktree is gone holds nothing. */
+  path: z.string().min(1),
+  ports: PortBlockSchema,
+  at: z.iso.datetime(),
+});
+export type PortLease = z.output<typeof PortLeaseSchema>;
+
+export const PortLeasesDocument = defineDocument("PortLeases", {
+  latest: z.strictObject({ leases: z.array(PortLeaseSchema) }),
+  hint: "Machine-wide state written by `metator worktree new|rm`; delete the file to forget every lease.",
+});
+
 /** Where port blocks come from: above the usual dev ports, below the ephemeral range. */
 export const PORT_RANGE = { from: 41000, to: 48999 } as const;
 export const DEFAULT_PORT_COUNT = 20;

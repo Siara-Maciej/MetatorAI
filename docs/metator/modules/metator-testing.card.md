@@ -21,7 +21,7 @@ dir: packages/testing
 
 ## Responsibility
 
-Fakes for every port, port contract suites and shared fixtures (the Bun-workspaces monorepo) used by unit and e2e tests.
+Fakes for every port, port contract suites, shared fixtures (the Bun-workspaces monorepo) and a throwaway real Postgres (`startPostgres`, `postgresScript`) used by unit and e2e tests.
 
 ## Invariants
 

@@ -30,6 +30,18 @@ export class GitWorktreeManager implements WorktreeManager {
     }
   }
 
+  async switchBranch(path: string, branch: string, base: string): Promise<Result<void, MetatorError>> {
+    return this.attempt(`git switch -c ${branch} in ${path}`, async () => {
+      // The base is resolved in this checkout: "HEAD" means its HEAD, not the worktree's.
+      const sha = (await simpleGit(this.root).revparse([base])).trim();
+      const wt = simpleGit(join(this.root, path));
+      const previous = (await wt.revparse(["--abbrev-ref", "HEAD"])).trim();
+      await wt.raw(["switch", "-c", branch, sha]);
+      if (previous !== "HEAD" && previous !== branch)
+        await simpleGit(this.root).raw(["branch", "-D", previous]);
+    });
+  }
+
   private async attempt(what: string, run: () => Promise<void>): Promise<Result<void, MetatorError>> {
     try {
       await run();

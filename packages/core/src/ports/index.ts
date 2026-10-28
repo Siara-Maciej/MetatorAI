@@ -4,6 +4,8 @@
  */
 import type { Agent } from "../domain/agent.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
+import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
+import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
 import type { Result } from "../domain/result.ts";
@@ -46,11 +48,106 @@ export interface WorktreeManager {
   remove(path: string, force: boolean): Promise<Result<void, MetatorError>>;
   /** Uncommitted or untracked changes in the worktree. */
   isDirty(path: string): Promise<Result<boolean, MetatorError>>;
+  /**
+   * Puts the worktree on a new branch from `base` (resolved in the main checkout) and deletes the
+   * branch it was on: a warm pool worktree taken by a run (F8.7).
+   */
+  switchBranch(path: string, branch: string, base: string): Promise<Result<void, MetatorError>>;
 }
 
 /** Whether a TCP port on this machine can be bound right now. */
 export interface PortProbe {
   isFree(port: number): Promise<boolean>;
+}
+
+/**
+ * An AI host that runs one agent on one task (F8.3): Claude Code through its Agent SDK, Copilot
+ * CLI, or a scenario for tests. Questions and permission requests go to `ask`.
+ */
+export interface AgentHost {
+  readonly id: string;
+  run(task: AgentTask, ask: (q: AgentQuestion) => Promise<AgentAnswer>): AsyncIterable<AgentEvent>;
+}
+
+/** Waiting without blocking (polling for answers); instant in tests. */
+export interface Timer {
+  sleep(ms: number): Promise<void>;
+}
+
+/** A process that outlives the command that started it (`run drive --detach`, `env up`). */
+export interface BackgroundProcess {
+  start(
+    argv: readonly string[],
+    cwd: string,
+    logFile: string,
+    env?: Readonly<Record<string, string>>,
+  ): Promise<Result<number, MetatorError>>;
+  isAlive(pid: number): boolean;
+  stop(pid: number): Promise<Result<void, MetatorError>>;
+  /** The last lines of a log file it wrote (empty when there is none). */
+  readLog(logFile: string, lines: number): Promise<string>;
+}
+
+/** One Compose service of one project (F8.5). */
+export interface ComposeService {
+  readonly file: string;
+  readonly service: string;
+  /** The Compose project: `metator-<repo>-<tag>-<place>`, one per repository and place. */
+  readonly project: string;
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
+}
+
+/** Containers through Docker Compose (MVP: Docker only, decision 4). */
+export interface ContainerRuntime {
+  up(service: ComposeService): Promise<Result<void, MetatorError>>;
+  stop(service: ComposeService): Promise<Result<void, MetatorError>>;
+  logs(service: ComposeService, lines: number): Promise<Result<string, MetatorError>>;
+}
+
+/** Programs a person uses from `metator ui`: an editor, a shell, a pager, a browser (F8.6). */
+export interface Launcher {
+  /** Runs a program on this terminal and waits until it exits (shell, terminal editor, diff). */
+  attached(argv: readonly string[], cwd: string): Promise<Result<number, MetatorError>>;
+  /** Starts a program in its own window and returns at once (GUI editor, browser). */
+  detached(argv: readonly string[], cwd: string): Promise<Result<void, MetatorError>>;
+  /** Which of these commands are on PATH, in the given order. */
+  available(commands: readonly string[]): readonly string[];
+}
+
+/** One database per place on a shared Postgres (F8.7): cloned from a template, dropped with its worktree. */
+export interface DataIsolator {
+  /** Creates the database, from `template` when given; false when it already existed. */
+  createDatabase(
+    target: PostgresTarget,
+    name: string,
+    template?: string,
+  ): Promise<Result<boolean, MetatorError>>;
+  /** Drops the database; false when there was none. */
+  dropDatabase(target: PostgresTarget, name: string): Promise<Result<boolean, MetatorError>>;
+}
+
+/**
+ * State shared by every repository on this machine (G1): small named JSON documents in the user's
+ * state directory, written atomically.
+ */
+export interface MachineState {
+  /** The document's text; undefined when it was never written. */
+  read(name: string): Promise<Result<string | undefined, MetatorError>>;
+  write(name: string, content: string): Promise<Result<void, MetatorError>>;
+  /** Whether an absolute directory still exists (a repository or a worktree holding state). */
+  dirExists(path: string): Promise<boolean>;
+}
+
+/** Copies a directory tree, copy-on-write where the file system can (build reuse, F8.7). */
+export interface TreeCopier {
+  /** Absolute paths. False, and nothing copied, when `from` is missing or `to` already exists. */
+  copy(from: string, to: string): Promise<Result<boolean, MetatorError>>;
+}
+
+/** Waits until a service accepts TCP connections or answers HTTP. */
+export interface HealthProbe {
+  waitFor(target: HealthTarget, timeoutMs: number): Promise<Result<void, MetatorError>>;
 }
 
 export interface Clock {

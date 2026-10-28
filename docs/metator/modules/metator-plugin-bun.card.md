@@ -14,19 +14,22 @@ dir: packages/plugin-bun
 - Test-only dependencies: `@metator/testing`
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-bun/src/index.ts`
-- Third-party: none
+- Third-party: `bun`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility
 
-File system and process adapters on the Bun runtime, and the `test` rule engine: conformance tests in `rules/conformance/` run under `bun test` (ADR-0034).
+File system, process, background process, launcher, Postgres data isolation and tree copy adapters on the Bun runtime, and the `test` rule engine: conformance tests in `rules/conformance/` run under `bun test` (ADR-0034).
 
 ## Invariants
 
 - Process failures are values, not exceptions: a missing binary is exit 127, a timeout 124 [[cite: packages/plugin-bun/src/bun-process-runner.ts:5 | "code 127 and a timeout is 124 (coreutils convention), both with a message on stderr."]].
 - A conformance test counts as tested only with a case that proves it rejects bad input [[cite: packages/plugin-bun/src/bun-test-engine.ts:15 | "A conformance test proves its own check with at least one `test(\"rejects ...\")` case."]].
+
+- Stopping a background service signals its whole process group, so nothing it started outlives it [[cite: packages/plugin-bun/src/bun-background-process.ts:55 | "// The whole group: the shell and every process it started."]].
+- Database names are validated before they reach SQL, so quoting them is safe [[cite: packages/plugin-bun/src/bun-sql-data-isolator.ts:14 | "Names match DB_NAME, so they"]].
 
 ## Allowed dependencies
 
@@ -34,4 +37,5 @@ File system and process adapters on the Bun runtime, and the `test` rule engine:
 
 ## Pitfalls
 
+- Postgres refuses to run as root: tests start it through `runuser -u postgres` (`@metator/testing` `postgresScript`).
 - Bun's glob does not expand `{a,b}` braces the way picomatch does; pass several patterns instead.

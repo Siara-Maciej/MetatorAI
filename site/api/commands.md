@@ -176,12 +176,12 @@ metator symbols find [options] <name>
 Save the package's API: declarations its entry reaches, normalized (.metator/api/&lt;package&gt;.json)
 
 ```bash
-metator api snapshot [options] <package>
+metator api snapshot [options] [package]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `<package>` | workspace package name, e.g. @metator/core | |
+| `[package]` | workspace package name, e.g. @metator/core (default: every package) | |
 
 ### `metator api diff`
 
@@ -1143,6 +1143,88 @@ List runs, newest first
 metator run list [options]
 ```
 
+### `metator run continue`
+
+Continue a run: pick one that waits for you or stopped, drive it again and watch it
+
+```bash
+metator run continue [options] [run]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[run]` | run id (default: pick in a terminal, else the latest active run) | |
+| `--host <host>` | AI host (default: the one the run used) (one of: claude, copilot, scenario) |  |
+
+### `metator run drive`
+
+Carry the run stage by stage: scripts, agents through an AI host, questions to people
+
+```bash
+metator run drive [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--host <host>` | AI host for the agents (default: first of hosts.targets) (one of: claude, copilot, scenario) |  |
+| `--detach` | keep driving in the background after this command returns |  |
+| `--max-steps <n>` | stop after this many stage transitions | `200` |
+
+### `metator run stop`
+
+Stop the process driving the run; the run stays where it is and can continue
+
+```bash
+metator run stop [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run questions`
+
+Questions waiting for a person: HITL gates, agents asking, tool permissions
+
+```bash
+metator run questions [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | only this run (default: every run) |  |
+| `--all` | include answered questions |  |
+
+### `metator run answer`
+
+Answer a question; the drive waiting for it continues
+
+```bash
+metator run answer [options] <question>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<question>` | question id, e.g. q001 | |
+| `--run <id>` | run id (default: latest) |  |
+| `--choice <labels...>` | the option label(s) chosen |  |
+| `--text <text>` | your own words (with Other, or a reason with Reject) |  |
+| `--by <name>` | who answers **Required.** |  |
+
+### `metator run activity`
+
+What the drive did: stages, agents, tools, questions, answers, transitions
+
+```bash
+metator run activity [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--tail <n>` | only the last n entries |  |
+
 ## worktree
 
 ### `metator worktree new`
@@ -1193,3 +1275,154 @@ metator worktree prune [options]
 |---|---|---|
 | `--older-than <days>` | minimum age in days | `7` |
 | `--dry-run` | report only |  |
+
+## env
+
+### `metator env discover`
+
+How this repository starts (compose files, start scripts, Procfile, Makefile), with evidence
+
+```bash
+metator env discover [options]
+```
+
+### `metator env init`
+
+Write the discovered environment to metator/environment.yml (never overwrites)
+
+```bash
+metator env init [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--dry-run` | print the proposal without writing it |  |
+
+### `metator env up`
+
+Start services in order of what they need, and wait until each is ready
+
+```bash
+metator env up [options] [services...]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[services]` | services to start (default: every service that is not on-demand) | |
+| `--profile <name>` | start the services of a profile |  |
+| `--worktree <id>` | start in this worktree, on its ports (default: this checkout) |  |
+| `--affected` | start only the services the changes touch (their `paths`), and what they need |  |
+| `--base <ref>` | with --affected: compare against this ref (default: where the worktree branched off) |  |
+
+### `metator env analyze`
+
+Measure a cold and a warm start in throwaway worktrees and recommend how to start faster
+
+```bash
+metator env analyze [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--cold` | restart running shared services first, so their start is measured too |  |
+
+### `metator env pool`
+
+Worktrees with their services already up; `run init --worktree` takes a free one
+
+```bash
+metator env pool [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--size <n>` | keep this many free worktrees started |  |
+| `--drain` | stop and remove the free ones |  |
+
+### `metator env down`
+
+Stop the services of this checkout or a worktree (shared ones only with --shared)
+
+```bash
+metator env down [options] [services...]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[services]` | services to stop (default: all) | |
+| `--worktree <id>` | stop in this worktree |  |
+| `--shared` | also stop shared services, which other worktrees may use |  |
+
+### `metator env status`
+
+Each service: where it runs, whether it is up, its ports
+
+```bash
+metator env status [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--worktree <id>` | the services of this worktree |  |
+
+### `metator env logs`
+
+The last lines a started service wrote
+
+```bash
+metator env logs [options] <service>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<service>` | service id | |
+| `--worktree <id>` | the service of this worktree |  |
+| `--lines <n>` | how many lines | `50` |
+
+### `metator env schema`
+
+Print the JSON Schema of metator/environment.yml
+
+```bash
+metator env schema [options]
+```
+
+## ui
+
+### `metator ui`
+
+Sessions in the terminal: switch runs, answer questions, run apps, open the code
+
+```bash
+metator ui [options]
+```
+
+## repos
+
+### `metator repos init`
+
+Write metator.repos.yml in this folder from the repositories below it (never overwrites)
+
+```bash
+metator repos init [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--dry-run` | print the proposal without writing it |  |
+
+### `metator repos list`
+
+The folder's repositories and whether MetatorAI is set up in each
+
+```bash
+metator repos list [options]
+```
+
+### `metator repos status`
+
+Each repository's work: active runs, questions waiting for you, running services
+
+```bash
+metator repos status [options]
+```

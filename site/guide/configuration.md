@@ -49,6 +49,9 @@ hosts:
   models:                                  # optional: a model per tier and host
     reasoning: { claude: your-reasoning-model }
     fast: { copilot: your-fast-model }
+
+# The editor `metator ui` opens a run's worktree in; set the first time you pick one.
+editor: code                               # or "code --new-window", cursor, zed, nvim, ...
 ```
 
 ## Gates

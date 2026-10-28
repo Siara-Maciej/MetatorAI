@@ -1,0 +1,410 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "EnvProfile",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "EnvProfile"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "measuredAt": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+      },
+      "cold": {
+        "type": "object",
+        "properties": {
+          "worktree": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "services": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "string",
+                  "enum": ["shared", "worktree", "on-demand"]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["measured", "running"]
+                },
+                "phases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["name", "ms"],
+                    "additionalProperties": false
+                  }
+                },
+                "ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["scope", "status", "phases", "ms"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["worktree", "ms", "services"],
+        "additionalProperties": false
+      },
+      "warm": {
+        "type": "object",
+        "properties": {
+          "worktree": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "services": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "string",
+                  "enum": ["shared", "worktree", "on-demand"]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["measured", "running"]
+                },
+                "phases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["name", "ms"],
+                    "additionalProperties": false
+                  }
+                },
+                "ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["scope", "status", "phases", "ms"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["worktree", "ms", "services"],
+        "additionalProperties": false
+      },
+      "speedup": {
+        "type": "number",
+        "minimum": 0
+      },
+      "sharedWarm": {
+        "type": "boolean"
+      },
+      "criticalPath": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        }
+      },
+      "recommendations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "enum": ["reuse-build", "template-database", "warm-pool", "partial-start", "cold-measure"]
+            },
+            "service": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 1
+            },
+            "gainMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "apply": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["id", "message", "evidence", "gainMs", "apply"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "measuredAt",
+      "cold",
+      "warm",
+      "speedup",
+      "sharedWarm",
+      "criticalPath",
+      "recommendations"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "EnvProfile"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "measuredAt": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+      },
+      "cold": {
+        "type": "object",
+        "properties": {
+          "worktree": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "services": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "string",
+                  "enum": ["shared", "worktree", "on-demand"]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["measured", "running"]
+                },
+                "phases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["name", "ms"],
+                    "additionalProperties": false
+                  }
+                },
+                "ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["scope", "status", "phases", "ms"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["worktree", "ms", "services"],
+        "additionalProperties": false
+      },
+      "warm": {
+        "type": "object",
+        "properties": {
+          "worktree": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "services": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "string",
+                  "enum": ["shared", "worktree", "on-demand"]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["measured", "running"]
+                },
+                "phases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["name", "ms"],
+                    "additionalProperties": false
+                  }
+                },
+                "ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["scope", "status", "phases", "ms"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["worktree", "ms", "services"],
+        "additionalProperties": false
+      },
+      "speedup": {
+        "type": "number",
+        "minimum": 0
+      },
+      "sharedWarm": {
+        "type": "boolean"
+      },
+      "criticalPath": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        }
+      },
+      "recommendations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "enum": ["reuse-build", "template-database", "warm-pool", "partial-start", "cold-measure"]
+            },
+            "service": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 1
+            },
+            "gainMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "apply": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["id", "message", "evidence", "gainMs", "apply"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "measuredAt",
+      "cold",
+      "warm",
+      "speedup",
+      "sharedWarm",
+      "criticalPath",
+      "recommendations"
+    ],
+    "additionalProperties": false
+  }
+}

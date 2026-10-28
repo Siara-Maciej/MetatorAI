@@ -43,6 +43,8 @@ export default defineConfig({
         collapsed: true,
         items: [
           { text: "Overview and runs", link: "/workflows/" },
+          { text: "Drive a run from the CLI", link: "/workflows/drive" },
+          { text: "Sessions in the terminal", link: "/workflows/sessions" },
           { text: "Feature (W1)", link: "/workflows/feature" },
           { text: "Bug fix (W2)", link: "/workflows/bugfix" },
           { text: "Refactor (W3)", link: "/workflows/refactor" },
@@ -67,12 +69,16 @@ export default defineConfig({
           { text: "Quality gates and CI", link: "/how-to/gates-ci" },
           { text: "Hooks and guardrails", link: "/how-to/hooks" },
           { text: "Runs in worktrees", link: "/how-to/worktrees" },
+          { text: "Start the application", link: "/how-to/environments" },
         ],
       },
       {
         text: "Many applications",
         collapsed: true,
-        items: [{ text: "Systems of many applications", link: "/multi-repo/" }],
+        items: [
+          { text: "Several repositories", link: "/multi-repo/repositories" },
+          { text: "Systems of many applications", link: "/multi-repo/" },
+        ],
       },
       {
         text: "Enterprise",

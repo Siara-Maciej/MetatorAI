@@ -288,5 +288,5 @@ describe("dogfood: the MetatorAI rule canon", () => {
   test("the architecture rules are enforced: no violations in this repository", async () => {
     const r = await metator(["rules", "check", "--root", SELF], SELF);
     expect([r.code, data(r).violations]).toEqual([0, []]);
-  });
+  }, 30_000); // several real processes
 });

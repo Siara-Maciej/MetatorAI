@@ -2,7 +2,7 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-pr-review
-revision: 1
+revision: 2
 description: Shard, find with lenses, verify, judge, publish after approval
 entry: { prompt: mt-review, ci: true }
 input:
@@ -17,7 +17,7 @@ stages:
     produces: [pr.json]
   - id: shard
     description: Affected files and shards per package
-    owner: "script:metator review plan"
+    owner: "script:metator review plan --out {runDir}/review-plan.json"
     produces: [review-plan.json]
   - id: rules
     description: Rule pack per shard
@@ -32,21 +32,21 @@ stages:
       - mt-review-tests
       - mt-review-security
     produces: [findings]
-    gate: { script: metator findings validate }
+    gate: { script: "metator findings validate {runDir}/findings" }
   - id: verify
     description: Merge, then refute each blocking finding with fresh eyes
-    owner: [mt-verifier, "script:metator findings merge"]
+    owner: [mt-verifier, "script:metator findings merge {runDir}/findings"]
     produces: [merged.json]
   - id: judge
     owner: [mt-judge, skill:mt-review-rubric]
     produces: [verdict.json]
-    gate: { script: metator findings verdict }
+    gate: { script: "metator findings verdict {runDir}/findings" }
   - id: approval
     description: Comment format and scope (blocking or all)
     hitl: true
     skipAt: [L2]
   - id: publish
-    owner: "script:metator findings to-github"
+    owner: "script:metator findings to-github {runDir}/verdict.json"
     produces: [comments.json]
 loops: {}
 escalation:

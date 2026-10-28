@@ -170,7 +170,7 @@ describe("metator findings", () => {
       await repo.git("checkout", "-q", "--", "src/pay.ts");
       await repo.git("checkout", "-q", "main");
     }
-  });
+  }, 30_000); // several real processes
 
   test("schema prints the FindingSet JSON Schema; a missing dir argument is a usage error", async () => {
     expect(

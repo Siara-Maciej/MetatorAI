@@ -83,7 +83,18 @@ const PathOverrides = z
   .partial();
 
 function configSchema(step: typeof GateStepSchema | typeof GateStepV1Schema) {
-  return z.strictObject({
+  return z.strictObject(configFields(step));
+}
+
+/** v3 adds the person's editor for `metator ui` (ADR-0054); every v2 file is a valid v3 file. */
+const ConfigV3Schema = z.strictObject({
+  ...configFields(GateStepSchema),
+  /** The command that opens a directory in the person's editor, e.g. "code" or "nvim". */
+  editor: z.string().min(1).optional(),
+});
+
+function configFields(step: typeof GateStepSchema | typeof GateStepV1Schema) {
+  return {
     paths: PathOverrides.default({}),
     project: z
       .strictObject({
@@ -110,17 +121,23 @@ function configSchema(step: typeof GateStepSchema | typeof GateStepV1Schema) {
           .default({}),
       })
       .default({ targets: ["copilot", "claude"], metatorCommand: "metator", models: {} }),
-  });
+  };
 }
 
-export const MetatorConfigSchema = configSchema(GateStepSchema);
+export const MetatorConfigSchema = ConfigV3Schema;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
-/** v2 widens gate steps to every MetatorAI check; every v1 file is a valid v2 file. */
+/**
+ * v2 widens gate steps to every MetatorAI check; every v1 file is a valid v2 file.
+ * v3 adds `editor`; every v2 file is a valid v3 file.
+ */
 export const MetatorConfigDocument = defineDocument("MetatorConfig", {
-  history: [{ schema: configSchema(GateStepV1Schema) }],
+  history: [
+    { schema: configSchema(GateStepV1Schema) },
+    { schema: configSchema(GateStepSchema), fromPrevious: (v1) => v1 },
+  ],
   latest: MetatorConfigSchema,
-  upgrade: (v1) => v1,
+  upgrade: (v2) => v2,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

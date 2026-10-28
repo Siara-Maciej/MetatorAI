@@ -1,6 +1,10 @@
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export const CLI_ENTRY = join(import.meta.dir, "../../packages/cli/src/main.ts");
+
+/** Machine-wide state of the e2e runs (port leases), kept out of the user's own state directory. */
+export const E2E_STATE_DIR = join(tmpdir(), "metator-e2e-state");
 
 export interface CliRun {
   readonly code: number;
@@ -19,7 +23,7 @@ export async function metator(
   const started = performance.now();
   const proc = Bun.spawn(["bun", CLI_ENTRY, ...args], {
     cwd,
-    env: { ...process.env, ...env },
+    env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -46,7 +50,7 @@ export async function hook(
 }> {
   const proc = Bun.spawn(["bun", CLI_ENTRY, ...args], {
     cwd,
-    env: { ...process.env, ...env },
+    env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
     stdin: new Blob([JSON.stringify(payload)]),
     stdout: "pipe",
     stderr: "pipe",

@@ -1,7 +1,11 @@
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   AddLesson,
   AdvanceRun,
   AgentCatalog,
+  type AgentHost,
+  AnalyzeEnvironment,
   ApiSnapshots,
   ApproveRun,
   AuditAgents,
@@ -24,9 +28,13 @@ import {
   DiffCoverage,
   DiffImportGraph,
   Discover,
+  DiscoverEnvironment,
   DocsDrift,
   DocsInventory,
   DocsLinks,
+  DriveRun,
+  EnvironmentCatalog,
+  EnvironmentServices,
   EvalCatalog,
   FindMemoryDupes,
   FindOwners,
@@ -45,6 +53,7 @@ import {
   GuardSubagentOutput,
   HandoffRun,
   IndexedImportGraphReader,
+  InitEnvironment,
   InitProject,
   InitRun,
   InstallCanon,
@@ -60,6 +69,7 @@ import {
   LintWorkflows,
   ListRuns,
   ListWorktrees,
+  MachineLeases,
   MeasureRuleCoverage,
   MemoryBudget,
   MemoryMapReader,
@@ -68,17 +78,21 @@ import {
   PackRules,
   PatternCatalog,
   PlanReview,
+  ProvideWorktree,
   PruneWorktrees,
   RemoveWorktree,
   RuleCatalog,
   RunAffectedTests,
+  RunDrivers,
   RunEvals,
   RunGate,
+  RunJournal,
   RunRepository,
   ScaffoldRule,
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  SetEditor,
   ShowSystem,
   SkillCatalog,
   SourceFiles,
@@ -86,23 +100,38 @@ import {
   SystemCatalog,
   ValidateCitations,
   ValidateFindings,
+  WarmPool,
   WorkflowCatalog,
   WorktreeRegistry,
 } from "@metator/core";
-import { BunFileSystem, BunProcessRunner, BunTestEngine, NodeBinResolver } from "@metator/plugin-bun";
+import {
+  BunBackgroundProcess,
+  BunFileSystem,
+  BunLauncher,
+  BunMachineState,
+  BunProcessRunner,
+  BunSqlDataIsolator,
+  BunTestEngine,
+  BunTimer,
+  NodeBinResolver,
+  NodeTreeCopier,
+} from "@metator/plugin-bun";
 
-export { findRepoRoot } from "@metator/plugin-bun";
+export { findChildRepos, findFolderRoot, findRepoRoot } from "@metator/plugin-bun";
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
+import { DockerComposeRuntime } from "@metator/plugin-docker";
 import { GitVcs, GitWorktreeManager } from "@metator/plugin-git";
-import { ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
-import { CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
+import { ClaudeAgentHost, ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
+import { CopilotAgentHost, CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
+import { ScenarioAgentHost } from "@metator/plugin-host-scenario";
 import {
   GetPortProbe,
   LcovCoverageReader,
   ManypkgWorkspaceReader,
   NodePackageManager,
+  WaitOnHealthProbe,
 } from "@metator/plugin-node";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
@@ -121,6 +150,24 @@ export interface BootstrapOptions {
   readonly role?: string;
   /** Where the shipped agent canon is read from (METATOR_CANON); default: this installation. */
   readonly canon?: string;
+  /** The AgentScenario file the scenario host plays (METATOR_AGENT_SCENARIO). */
+  readonly agentScenario?: string;
+  /** The Copilot CLI binary (METATOR_COPILOT_BIN); default `copilot` on PATH. */
+  readonly copilotBin?: string;
+  /** The Docker CLI (METATOR_DOCKER_BIN); default `docker` on PATH. */
+  readonly dockerBin?: string;
+  /** Machine-wide state shared by every repository (`machineStateDir`); default from the process env. */
+  readonly stateDir?: string;
+}
+
+/**
+ * Where state shared by every repository on this machine lives (G1): `$METATOR_STATE_DIR`, else
+ * `$XDG_STATE_HOME/metator`, else `~/.local/state/metator`.
+ */
+export function machineStateDir(env: Readonly<Record<string, string | undefined>>): string {
+  if (env.METATOR_STATE_DIR) return env.METATOR_STATE_DIR;
+  if (env.XDG_STATE_HOME) return join(env.XDG_STATE_HOME, "metator");
+  return join(env.HOME ?? homedir(), ".local", "state", "metator");
 }
 
 const systemClock: Clock = { now: () => new Date() };
@@ -143,6 +190,101 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     clock: asValue(pinned && !Number.isNaN(pinned.getTime()) ? { now: () => new Date(pinned) } : systemClock),
     fileSystem: asFunction(({ root }: { root: string }) => new BunFileSystem(root)).singleton(),
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
+    timer: asFunction(() => new BunTimer()).singleton(),
+    launcher: asFunction(() => new BunLauncher()).singleton(),
+    setEditor: asFunction(({ fileSystem }) => new SetEditor(fileSystem)),
+    containerRuntime: asFunction(() => new DockerComposeRuntime(options.dockerBin)).singleton(),
+    healthProbe: asFunction(() => new WaitOnHealthProbe()).singleton(),
+    environmentCatalog: asFunction(({ fileSystem, paths }) => new EnvironmentCatalog(fileSystem, paths)),
+    discoverEnvironment: asFunction(
+      ({ fileSystem, packageManagerDetector, workspaceReader }) =>
+        new DiscoverEnvironment(fileSystem, packageManagerDetector, workspaceReader),
+    ),
+    initEnvironment: asFunction(
+      ({ discoverEnvironment, fileSystem, paths }) =>
+        new InitEnvironment(discoverEnvironment, fileSystem, paths),
+    ),
+    environmentServices: asFunction(
+      ({
+        environmentCatalog,
+        worktreeRegistry,
+        backgroundProcess,
+        containerRuntime,
+        healthProbe,
+        processRunner,
+        dataIsolator,
+        treeCopier,
+        fileSystem,
+        clock,
+        paths,
+        root,
+      }) =>
+        new EnvironmentServices(
+          environmentCatalog,
+          worktreeRegistry,
+          {
+            processes: backgroundProcess,
+            containers: containerRuntime,
+            health: healthProbe,
+            steps: processRunner,
+            isolator: dataIsolator,
+            copier: treeCopier,
+          },
+          fileSystem,
+          clock,
+          paths,
+          // Logs live outside the repository, one directory per repository.
+          { root, logDir: join(tmpdir(), `metator-${Bun.hash(root).toString(36)}`) },
+        ),
+    ),
+    dataIsolator: asFunction(() => new BunSqlDataIsolator()).singleton(),
+    treeCopier: asFunction(() => new NodeTreeCopier()).singleton(),
+    backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
+    agentHosts: asFunction(() => {
+      const hosts = new Map<string, AgentHost>([
+        ["claude", new ClaudeAgentHost()],
+        ["copilot", new CopilotAgentHost(options.copilotBin)],
+      ]);
+      if (options.agentScenario) hosts.set("scenario", new ScenarioAgentHost(options.agentScenario));
+      return hosts;
+    }).singleton(),
+    runDrivers: asFunction(
+      ({ fileSystem, runRepository, backgroundProcess, runJournal, clock }) =>
+        new RunDrivers(fileSystem, runRepository, backgroundProcess, runJournal, clock),
+    ),
+    runJournal: asFunction(
+      ({ fileSystem, runRepository, clock }) => new RunJournal(fileSystem, runRepository, clock),
+    ).singleton(),
+    driveRun: asFunction(
+      ({
+        workflowCatalog,
+        runRepository,
+        runJournal,
+        advanceRun,
+        approveRun,
+        closeRun,
+        agentHosts,
+        processRunner,
+        fileSystem,
+        timer,
+        root,
+        config,
+      }) =>
+        new DriveRun({
+          catalog: workflowCatalog,
+          repo: runRepository,
+          journal: runJournal,
+          advance: advanceRun,
+          approve: approveRun,
+          close: closeRun,
+          hosts: agentHosts,
+          process: processRunner,
+          fs: fileSystem,
+          timer,
+          root,
+          metatorCommand: config.config.hosts.metatorCommand,
+        }),
+    ),
     vcs: asFunction(({ root }) => new GitVcs(root)).singleton(),
     revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
@@ -350,24 +492,62 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ).singleton(),
     runRepository: asFunction(({ fileSystem, paths }) => new RunRepository(fileSystem, paths)).singleton(),
     initRun: asFunction(
-      ({ workflowCatalog, runRepository, clock, createWorktree }) =>
-        new InitRun(workflowCatalog, runRepository, clock, createWorktree),
+      ({ workflowCatalog, runRepository, clock, provideWorktree }) =>
+        new InitRun(workflowCatalog, runRepository, clock, provideWorktree),
     ),
     worktreeManager: asFunction(({ root }) => new GitWorktreeManager(root)).singleton(),
     portProbe: asFunction(() => new GetPortProbe()).singleton(),
     worktreeRegistry: asFunction(
       ({ fileSystem, paths }) => new WorktreeRegistry(fileSystem, paths),
     ).singleton(),
+    machineState: asFunction(
+      () => new BunMachineState(options.stateDir ?? machineStateDir(process.env)),
+    ).singleton(),
+    machineLeases: asFunction(({ machineState, root }) => new MachineLeases(machineState, root)),
     createWorktree: asFunction(
-      ({ worktreeRegistry, worktreeManager, portProbe, clock, paths }) =>
-        new CreateWorktree(worktreeRegistry, worktreeManager, portProbe, clock, paths),
+      ({ worktreeRegistry, worktreeManager, portProbe, clock, paths, machineLeases, root }) =>
+        new CreateWorktree(worktreeRegistry, worktreeManager, portProbe, clock, paths, {
+          leases: machineLeases,
+          root,
+        }),
+    ),
+    provideWorktree: asFunction(
+      ({ worktreeRegistry, worktreeManager, createWorktree }) =>
+        new ProvideWorktree(worktreeRegistry, worktreeManager, createWorktree),
+    ),
+    warmPool: asFunction(
+      ({ worktreeRegistry, createWorktree, removeWorktree, environmentServices }) =>
+        new WarmPool(worktreeRegistry, createWorktree, removeWorktree, environmentServices),
+    ),
+    analyzeEnvironment: asFunction(
+      ({
+        environmentCatalog,
+        worktreeRegistry,
+        createWorktree,
+        removeWorktree,
+        environmentServices,
+        fileSystem,
+        clock,
+        paths,
+      }) =>
+        new AnalyzeEnvironment(
+          environmentCatalog,
+          worktreeRegistry,
+          createWorktree,
+          removeWorktree,
+          environmentServices,
+          fileSystem,
+          clock,
+          paths,
+        ),
     ),
     listWorktrees: asFunction(
       ({ worktreeRegistry, worktreeManager, runRepository }) =>
         new ListWorktrees(worktreeRegistry, worktreeManager, runRepository),
     ),
     removeWorktree: asFunction(
-      ({ worktreeRegistry, worktreeManager }) => new RemoveWorktree(worktreeRegistry, worktreeManager),
+      ({ worktreeRegistry, worktreeManager, machineLeases }) =>
+        new RemoveWorktree(worktreeRegistry, worktreeManager, machineLeases),
     ),
     pruneWorktrees: asFunction(
       ({ worktreeRegistry, removeWorktree, worktreeManager, runRepository, clock }) =>

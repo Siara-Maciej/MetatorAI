@@ -2,9 +2,12 @@ import {
   type AddLesson,
   type AdvanceRun,
   type AgentCatalog,
+  type AgentHost,
+  type AnalyzeEnvironment,
   type ApiSnapshots,
   type ApproveRun,
   type AuditAgents,
+  type BackgroundProcess,
   type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
@@ -18,13 +21,19 @@ import {
   type CloseRun,
   type CompareEvals,
   type ComputeAffected,
+  type ContainerRuntime,
   type CreateWorktree,
+  type DataIsolator,
   type DiffCoverage,
   type DiffImportGraph,
   type Discover,
+  type DiscoverEnvironment,
   type DocsDrift,
   type DocsInventory,
   type DocsLinks,
+  type DriveRun,
+  type EnvironmentCatalog,
+  type EnvironmentServices,
   type EvalCatalog,
   err,
   type FileSystem,
@@ -44,15 +53,18 @@ import {
   type GuardStop,
   type GuardSubagentOutput,
   type HandoffRun,
+  type HealthProbe,
   type HostGenerator,
   type ImportAnalyzer,
   type ImportGraphReader,
+  type InitEnvironment,
   type InitProject,
   type InitRun,
   type InstallCanon,
   type InventoryMemory,
   type JudgeFindings,
   type KnowledgeFiles,
+  type Launcher,
   type LintAdrs,
   type LintAgents,
   type LintPlan,
@@ -63,6 +75,8 @@ import {
   type ListRuns,
   type ListWorktrees,
   type Logger,
+  type MachineLeases,
+  type MachineState,
   type MeasureRuleCoverage,
   type MemoryBudget,
   type MemoryMapReader,
@@ -77,6 +91,7 @@ import {
   type PlanReview,
   type PortProbe,
   type ProcessRunner,
+  type ProvideWorktree,
   type PruneWorktrees,
   type RemoveWorktree,
   type Result,
@@ -85,13 +100,16 @@ import {
   type RuleEngine,
   type RuleScaffolder,
   type RunAffectedTests,
+  type RunDrivers,
   type RunEvals,
   type RunGate,
+  type RunJournal,
   type RunRepository,
   type ScaffoldRule,
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
+  type SetEditor,
   type ShowSystem,
   type SkillCatalog,
   type SkillGenerator,
@@ -99,9 +117,12 @@ import {
   type SymbolAnalyzer,
   type SymbolQueries,
   type SystemCatalog,
+  type Timer,
+  type TreeCopier,
   type ValidateCitations,
   type ValidateFindings,
   type Vcs,
+  type WarmPool,
   type WorkflowCatalog,
   type WorkspaceReader,
   type WorktreeManager,
@@ -143,10 +164,31 @@ export interface Cradle {
   workflowCatalog: WorkflowCatalog;
   runRepository: RunRepository;
   initRun: InitRun;
+  timer: Timer;
+  launcher: Launcher;
+  dataIsolator: DataIsolator;
+  treeCopier: TreeCopier;
+  setEditor: SetEditor;
+  containerRuntime: ContainerRuntime;
+  healthProbe: HealthProbe;
+  environmentCatalog: EnvironmentCatalog;
+  discoverEnvironment: DiscoverEnvironment;
+  initEnvironment: InitEnvironment;
+  environmentServices: EnvironmentServices;
+  backgroundProcess: BackgroundProcess;
+  agentHosts: ReadonlyMap<string, AgentHost>;
+  runJournal: RunJournal;
+  runDrivers: RunDrivers;
+  driveRun: DriveRun;
   worktreeManager: WorktreeManager;
   portProbe: PortProbe;
   worktreeRegistry: WorktreeRegistry;
+  machineState: MachineState;
+  machineLeases: MachineLeases;
   createWorktree: CreateWorktree;
+  provideWorktree: ProvideWorktree;
+  warmPool: WarmPool;
+  analyzeEnvironment: AnalyzeEnvironment;
   listWorktrees: ListWorktrees;
   removeWorktree: RemoveWorktree;
   pruneWorktrees: PruneWorktrees;

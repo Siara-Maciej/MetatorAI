@@ -214,16 +214,26 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 **Zadania**
 - [x] F8.1 `setup`, `agents install|update` (kanon z pakietu, wybór hostów, `InstallLock` v1, kreator w terminalu; ADR-0049).
 - [x] F8.2 `worktree new|list|rm|prune`, dzierżawy portów, `run init --worktree`, `RunRecord` v3 (ADR-0050).
-- [ ] F8.3 Port `AgentHost` (Claude Agent SDK, Copilot CLI, adapter testowy), `run drive|stop`, `RunEvent` v1, `Question` v1 (sedno odłożonego F5).
-- [ ] F8.4 Interaktywny `metator run` i `run continue` (widok na żywo, pytania i bramki w miejscu).
-- [ ] F8.5 `Environment` v1, `env discover|init|up|down|status|logs` (Docker Compose, skrypty, Procfile, Makefile; devcontainer post-MVP).
-- [ ] F8.6 `metator ui`: sesje, skrzynka pytań, aplikacje sesji, edytor, powłoka, diff.
-- [ ] F8.7 `env analyze`, izolacja danych (Postgres template, prefiksy), częściowy start z `affected`/`impact`, reuse buildu, pula ciepłych worktree.
+- [x] F8.3 Port `AgentHost` (Claude Agent SDK, Copilot CLI, scenariusz), `run drive|stop|questions|answer|activity`, `RunActivity` v1, `Question` v1, `RunDriver` v1 (sedno odłożonego F5; ADR-0051).
+- [x] F8.4 Interaktywny `metator run` i `run continue` (widok na żywo, pytania i bramki w miejscu; ADR-0052).
+- [x] F8.5 `Environment` v1, `env discover|init|up|down|status|logs` (Docker Compose, skrypty, Procfile, Makefile; devcontainer post-MVP; ADR-0053).
+- [x] F8.6 `metator ui`: sesje, skrzynka pytań, aplikacje sesji, edytor (`editor` w `MetatorConfig` v3), powłoka, diff (ADR-0054).
+- [x] F8.7 `env analyze` (`EnvProfile` v1), `Environment` v2, izolacja danych (Postgres template, prefiksy), częściowy start z `affected` (`impact` dojdzie z F7.3), reuse buildu, pula ciepłych worktree (ADR-0055).
 - [ ] F8.8 Dystrybucja: pakiet npm `metator-ai` (CLI zbudowane `bun build`, kanon w paczce), żeby działały `npx|pnpm dlx|yarn dlx|bunx metator` i instalacja jako dev dependency; wymaga konta npm właściciela.
 
 **Kryterium wyjścia:** puste repo do zielonych sprawdzeń kanonu i plików hosta jedną komendą; dwie równoległe sesje w osobnych worktree z rozłącznymi portami; drugi worktree aplikacji z wolnym seedem startuje ≥ 10× szybciej niż zimny start (zmierzone).
 
 ---
+
+## G: Wiele repozytoriów, pytania do kodu i pełny interfejs terminala
+
+Plan: [design/10](design/10-repos-ask-tui.md), zaakceptowany przez użytkownika.
+
+- [x] G1 Niezależne repozytoria na jednej maszynie: `PortLeases` v1 dla całej maszyny (port `MachineState`), projekt Compose per repozytorium (ADR-0056).
+- [x] G2 Folder repozytoriów: `RepoSet` v1, `repos init|list|status`, komendy świadome folderu, `ui` z wyborem repozytorium (ADR-0057).
+- [ ] G3 `metator ask`: agent `mt-guide`, `Conversation` v1, dopytania.
+- [ ] G4 `metator status`: przegląd pracy (`WorkOverview`).
+- [ ] G5 `metator ui` na Ink: panele, paleta komend, ustawienia.
 
 ## Role i odpowiedzialności
 

@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { FakePortProbe, FakeWorktreeManager, FixedClock, InMemoryFileSystem } from "@metator/testing";
+import {
+  FakePortProbe,
+  FakeWorktreeManager,
+  FixedClock,
+  InMemoryFileSystem,
+  InMemoryMachineState,
+} from "@metator/testing";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
 import { InitRun } from "../src/application/runs.ts";
@@ -7,6 +13,7 @@ import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import {
   CreateWorktree,
   ListWorktrees,
+  MachineLeases,
   PruneWorktrees,
   RemoveWorktree,
   WorktreeRegistry,
@@ -91,11 +98,15 @@ function world(busy: number[] = []) {
       "kind: Workflow\nschemaVersion: 1\nid: mt-tiny\nstages:\n  - id: build\n",
   });
   const git = new FakeWorktreeManager();
+  const leases = new MachineLeases(new InMemoryMachineState(), "/repo");
   const clock = new FixedClock(new Date("2026-10-27T10:00:00.000Z"));
   const registry = new WorktreeRegistry(fs, DEFAULT_PATHS);
   const runs = new RunRepository(fs, DEFAULT_PATHS);
-  const create = new CreateWorktree(registry, git, new FakePortProbe(new Set(busy)), clock, DEFAULT_PATHS);
-  const remove = new RemoveWorktree(registry, git);
+  const create = new CreateWorktree(registry, git, new FakePortProbe(new Set(busy)), clock, DEFAULT_PATHS, {
+    leases,
+    root: "/repo",
+  });
+  const remove = new RemoveWorktree(registry, git, leases);
   return { fs, git, clock, registry, runs, create, remove };
 }
 
@@ -199,5 +210,65 @@ describe("RunRecord v3", () => {
     expect([v2._unsafeUnwrap().worktree, RunRecordDocument.current]).toEqual([undefined, 3]);
     const v1 = RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 1, ...base }, "s")._unsafeUnwrap();
     expect(v1.approvals.plan?.by).toBe("alice");
+  });
+});
+
+describe("port leases across repositories (G1)", () => {
+  const entry = (id: string) => ({
+    id,
+    path: `.metator/wt/${id}`,
+    branch: `metator/${id}`,
+    base: "HEAD",
+    ports: { from: 41000, count: 20 },
+    createdAt: "2026-10-27T10:00:00.000Z",
+  });
+
+  test("a second repository on the machine never gets a block the first one holds", async () => {
+    const state = new InMemoryMachineState();
+    const repo = (root: string) => {
+      const fs = new InMemoryFileSystem();
+      const registry = new WorktreeRegistry(fs, DEFAULT_PATHS);
+      const git = new FakeWorktreeManager();
+      const leases = new MachineLeases(state, root);
+      return {
+        create: new CreateWorktree(registry, git, new FakePortProbe(), new FixedClock(), DEFAULT_PATHS, {
+          leases,
+          root,
+        }),
+        remove: new RemoveWorktree(registry, git, leases),
+      };
+    };
+    const a = repo("/work/shop");
+    const b = repo("/work/billing");
+    const wa = (await a.create.execute({ id: "feat" }))._unsafeUnwrap();
+    const wb = (await b.create.execute({ id: "feat" }))._unsafeUnwrap();
+    expect([wa.ports.from, wb.ports.from]).toEqual([41000, 41020]);
+    const saved = JSON.parse(state.files.get("port-leases.json") as string);
+    expect(saved.leases.map((l: { repo: string; path: string }) => [l.repo, l.path])).toEqual([
+      ["/work/shop", "/work/shop/.metator/wt/feat"],
+      ["/work/billing", "/work/billing/.metator/wt/feat"],
+    ]);
+    // Removing frees the block for any repository.
+    await a.remove.execute({ id: "feat", force: false });
+    const wc = (await repo("/work/web").create.execute({ id: "x" }))._unsafeUnwrap();
+    expect(wc.ports.from).toBe(41000);
+  });
+
+  test("a lease whose worktree is gone holds nothing and is dropped on the next write", async () => {
+    const state = new InMemoryMachineState(new Set(["/a/.metator/wt/live"]));
+    const leases = new MachineLeases(state, "/a");
+    await leases.add(entry("live"), "/a");
+    await leases.add({ ...entry("gone"), ports: { from: 41020, count: 20 } }, "/a");
+    expect((await leases.all())._unsafeUnwrap().map((l) => l.worktree)).toEqual(["live"]);
+    const other = new MachineLeases(state, "/b");
+    await other.remove("live"); // another repository's worktree of the same name stays
+    expect((await leases.all())._unsafeUnwrap().map((l) => l.worktree)).toEqual(["live"]);
+    expect(JSON.parse(state.files.get("port-leases.json") as string).leases).toHaveLength(1);
+  });
+
+  test("an unreadable lease file is an error value", async () => {
+    const state = new InMemoryMachineState();
+    state.files.set("port-leases.json", "{not json");
+    expect((await new MachineLeases(state, "/a").all()).isErr()).toBe(true);
   });
 });

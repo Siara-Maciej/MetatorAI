@@ -2,7 +2,7 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-self-review
-revision: 1
+revision: 2
 description: Review core, plan the blocking fixes, implement, review again
 entry: { prompt: mt-self-review }
 input:
@@ -19,7 +19,7 @@ stages:
     description: Plan only the confirmed blocking findings of the latest verdict
     owner: mt-planner
     produces: [plan.json, plan-scope.json]
-    gate: { script: metator plan lint }
+    gate: { script: "metator plan lint {runDir}/plan.json" }
   - id: build
     owner: mt-implementer
     produces: [build-log.md]

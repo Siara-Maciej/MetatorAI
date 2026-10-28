@@ -1,4 +1,4 @@
-import { CLI_ENTRY } from "./cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR } from "./cli.ts";
 
 export interface TerminalStep {
   /** Text that must be on the screen (ANSI stripped) before the keys are sent. */
@@ -14,7 +14,7 @@ export interface TerminalRun {
   readonly json: Record<string, unknown>;
 }
 
-export const KEY = { enter: "\r", space: " ", down: "\x1b[B", ctrlC: "\x03" } as const;
+export const KEY = { enter: "\r", space: " ", down: "\x1b[B", up: "\x1b[A", ctrlC: "\x03" } as const;
 
 /**
  * Runs the real `metator` in a pseudo-terminal (Bun.Terminal), as a person would: each step
@@ -25,12 +25,13 @@ export async function inTerminal(
   cwd: string,
   steps: readonly TerminalStep[],
   timeoutMs = 20_000,
+  env: Readonly<Record<string, string>> = {},
 ): Promise<TerminalRun> {
   let raw = "";
   const decoder = new TextDecoder();
   const proc = Bun.spawn(["bun", CLI_ENTRY, ...args], {
     cwd,
-    env: { ...process.env, FORCE_COLOR: "0" },
+    env: { ...process.env, FORCE_COLOR: "0", METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
     terminal: {
       cols: 120,
       rows: 40,
@@ -48,7 +49,15 @@ export async function inTerminal(
         throw new Error(`never saw "${step.waitFor}" on the screen:\n${Bun.stripANSI(raw)}`);
       await Bun.sleep(25);
     }
-    from = Bun.stripANSI(raw).length;
+    // The next step looks after this match (what follows may already be on the screen).
+    const screen = Bun.stripANSI(raw);
+    from = screen.indexOf(step.waitFor, from) + step.waitFor.length;
+    // Keys typed while the program is still drawing (before a prompt listens) are echoed and lost:
+    // send them once the screen has been quiet for a moment.
+    for (let before = -1; before !== raw.length && Date.now() < deadline; ) {
+      before = raw.length;
+      await Bun.sleep(100);
+    }
     proc.terminal?.write(step.keys);
   }
   const code = await Promise.race([

@@ -12,11 +12,22 @@ export function registerApiCommands(program: Command, { action, container }: Com
     .description(
       "Save the package's API: declarations its entry reaches, normalized (.metator/api/<package>.json)",
     )
-    .argument("<package>", "workspace package name, e.g. @metator/core")
+    .argument("[package]", "workspace package name, e.g. @metator/core (default: every package)")
     .action(
-      action(async (pkg: string) => ({
-        result: await container().resolve("apiSnapshots").snapshot({ package: pkg }),
-      })),
+      action(async (pkg: string | undefined) => {
+        const c = container();
+        if (pkg) return { result: await c.resolve("apiSnapshots").snapshot({ package: pkg }) };
+        // Without a package (a refactor's snapshot stage): every package of the workspace.
+        const packages = await c.resolve("workspaceReader").packages();
+        if (packages.isErr()) return { result: packages };
+        const snapshots = [];
+        for (const p of packages.value) {
+          const snap = await c.resolve("apiSnapshots").snapshot({ package: p.name });
+          if (snap.isErr()) return { result: snap };
+          snapshots.push(snap.value);
+        }
+        return { result: ok({ snapshots }) };
+      }),
     );
 
   api

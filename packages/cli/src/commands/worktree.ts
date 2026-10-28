@@ -45,9 +45,30 @@ export function registerWorktreeCommands(program: Command, { action, container }
     .argument("<id>", "worktree id")
     .option("--force", "remove even with uncommitted changes (they are lost)", false)
     .action(
-      action(async (id: string, opts: { force: boolean }) => ({
-        result: await container().resolve("removeWorktree").execute({ id, force: opts.force }),
-      })),
+      action(async (id: string, opts: { force: boolean }) => {
+        const c = container();
+        // Its services go first: nothing keeps running in a directory that is gone.
+        const stopped = await c.resolve("environmentServices").down({ worktree: id });
+        const warnings: string[] =
+          stopped.isErr() && stopped.error.code !== "NOT_FOUND"
+            ? [`services not stopped: ${stopped.error.message}`]
+            : [];
+        const removed = await c.resolve("removeWorktree").execute({ id, force: opts.force });
+        // Its own databases go with it, never before: a refused removal keeps its data.
+        const dropped = removed.isOk()
+          ? await c.resolve("environmentServices").dropData({ worktree: id })
+          : null;
+        if (dropped?.isErr() && dropped.error.code !== "NOT_FOUND")
+          warnings.push(`data not dropped: ${dropped.error.message}`);
+        return {
+          result: removed.map((w) => ({
+            ...w,
+            stoppedServices: stopped.isOk() ? stopped.value : [],
+            droppedData: dropped?.isOk() ? dropped.value : [],
+          })),
+          warnings,
+        };
+      }),
     );
 
   worktree
