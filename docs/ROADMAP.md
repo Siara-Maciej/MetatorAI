@@ -233,7 +233,7 @@ Plan: [design/10](design/10-repos-ask-tui.md), zaakceptowany przez użytkownika.
 - [x] G2 Folder repozytoriów: `RepoSet` v1, `repos init|list|status`, komendy świadome folderu, `ui` z wyborem repozytorium (ADR-0057).
 - [x] G3 `metator ask`: agent `mt-guide`, `Conversation` v1, dopytania (`--continue`, `--conversation`), sprawdzanie cytatów, folder repozytoriów (ADR-0058).
 - [x] G4 `metator status`: przegląd pracy (`WorkOverview`), także w folderze repozytoriów (ADR-0059).
-- [ ] G5 `metator ui` na Ink: panele, paleta komend, ustawienia.
+- [x] G5 `metator ui` na Ink: panele sesji i szczegółów, pasek etapów, odpowiedzi w miejscu, aplikacje, rozmowy, paleta komend, ustawienia, folder repozytoriów na jednym ekranie (ADR-0060).
 
 ## Role i odpowiedzialności
 

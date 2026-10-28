@@ -210,7 +210,8 @@ export function renderYamlDocument(doc: DocumentHeader & Record<string, unknown>
 /** Sets top-level fields of a YAML document and keeps everything else, comments included. */
 export function updateYamlFields(text: string, fields: Record<string, unknown>): string {
   const doc = parseDocument(text);
-  for (const [key, value] of Object.entries(fields)) doc.set(key, value);
+  // A dotted key sets a nested field (`hosts.targets`), creating the maps on the way.
+  for (const [key, value] of Object.entries(fields)) doc.setIn(key.split("."), value);
   return doc.toString({ lineWidth: 0 });
 }
 

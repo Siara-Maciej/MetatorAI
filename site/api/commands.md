@@ -1391,7 +1391,7 @@ metator env schema [options]
 
 ### `metator ui`
 
-Sessions in the terminal: switch runs, answer questions, run apps, open the code
+The full-screen view: every session, its progress and questions, apps, conversations, settings
 
 ```bash
 metator ui [options]

@@ -14,14 +14,14 @@ dir: packages/cli
 - Test-only dependencies: none
 - Used by: `(root)`
 - Imported by other packages: `packages/cli/src/program.ts`
-- Third-party: `@clack/prompts`, `commander`
+- Third-party: `@clack/prompts`, `@inkjs/ui`, `commander`, `ink`, `react`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: `cli-command-group`
 <!-- metator:generated:end -->
 
 ## Responsibility
 
-Driving adapter on commander: one module per command group, JSON-only output, exit codes. `guard *` commands answer hooks in the host's protocol instead of the envelope (ADR-0038).
+Driving adapter on commander: one module per command group, JSON-only output, exit codes. `guard *` commands answer hooks in the host's protocol instead of the envelope (ADR-0038). `src/tui/` is the full-screen `metator ui` on Ink (ADR-0060): the view knows only `TuiService`, which works on the repositories' containers; the screen goes to stderr.
 
 ## Invariants
 

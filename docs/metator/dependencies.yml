@@ -53,3 +53,24 @@ packages:
   - { package: wait-on, need: "readiness of started services (TCP, HTTP)", adr: 0053-environments.md }
   - { package: yaml, need: "YAML documents", adr: 0015-schemas-zod-yaml.md }
   - { package: zod, need: "schemas", adr: 0015-schemas-zod-yaml.md }
+  - {
+      package: "@inkjs/ui",
+      need: "text input, select and spinner for the full-screen terminal view",
+      adr: 0060-terminal-ui-ink.md,
+    }
+  - {
+      package: "@types/react",
+      need: "types for the terminal view's React components",
+      adr: 0060-terminal-ui-ink.md,
+    }
+  - {
+      package: ink,
+      need: "full-screen terminal view (`metator ui`) as React components",
+      adr: 0060-terminal-ui-ink.md,
+    }
+  - {
+      package: ink-testing-library,
+      need: "component tests of the terminal view",
+      adr: 0060-terminal-ui-ink.md,
+    }
+  - { package: react, need: "the component model under Ink", adr: 0060-terminal-ui-ink.md }

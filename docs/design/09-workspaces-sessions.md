@@ -209,7 +209,7 @@ metator run continue <id>
   - `f` przegląda pliki (`fzf` + `bat`, gdy są; bez nich prosta lista).
 - `n` uruchamia kreator z §3.6 w nowym worktree. Wiele sesji działa równolegle, każda w swoim worktree i ze swoimi portami.
 
-> **Zrealizowane w F8.6 (ADR-0054)** jako hub z menu na `@clack/prompts` w `packages/cli`, bez osobnego `packages/tui` i bez układu paneli: lista sesji, menu sesji, skrzynka pytań i dzwonek. Przeglądarka plików (`f`) i `delta` zostały poza zakresem; diff to `git diff`.
+> **Zrealizowane w F8.6 (ADR-0054)**, a w G5 zastąpione pełnoekranowym widokiem na Ink (ADR-0060, [design/10](10-repos-ask-tui.md)); pierwotnie był to hub z menu na `@clack/prompts` w `packages/cli`, bez osobnego `packages/tui` i bez układu paneli: lista sesji, menu sesji, skrzynka pytań i dzwonek. Przeglądarka plików (`f`) i `delta` zostały poza zakresem; diff to `git diff`.
 
 ### 3.8 Gotowe narzędzia zamiast własnego kodu (ADR-0010)
 

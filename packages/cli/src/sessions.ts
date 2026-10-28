@@ -9,8 +9,15 @@ export const HOSTS = ["claude", "copilot", "scenario"] as const;
 const HOST_OF: Record<string, (typeof HOSTS)[number]> = { claude: "claude", copilot: "copilot" };
 
 /** The host a new run uses: the first of hosts.targets. */
-export const defaultHost = (c: MetatorContainer): string =>
-  HOST_OF[c.resolve("config").config.hosts.targets[0] ?? "claude"] ?? "claude";
+/** The host a new run or question uses: `$METATOR_HOST` when it names a host, else the first of hosts.targets. */
+export const defaultHost = (
+  c: MetatorContainer,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string => {
+  const chosen = env.METATOR_HOST;
+  if (chosen && c.resolve("agentHosts").has(chosen)) return chosen;
+  return HOST_OF[c.resolve("config").config.hosts.targets[0] ?? "claude"] ?? "claude";
+};
 
 /** Starts `run drive` for the run in its own process (the same entry point as this command). */
 export function startDetached(

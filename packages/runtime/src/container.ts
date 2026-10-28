@@ -111,7 +111,6 @@ import {
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
-  type SetEditor,
   type ShowSystem,
   type SkillCatalog,
   type SkillGenerator,
@@ -121,6 +120,7 @@ import {
   type SystemCatalog,
   type Timer,
   type TreeCopier,
+  type UpdateConfig,
   type ValidateCitations,
   type ValidateFindings,
   type Vcs,
@@ -171,7 +171,7 @@ export interface Cradle {
   launcher: Launcher;
   dataIsolator: DataIsolator;
   treeCopier: TreeCopier;
-  setEditor: SetEditor;
+  updateConfig: UpdateConfig;
   containerRuntime: ContainerRuntime;
   healthProbe: HealthProbe;
   environmentCatalog: EnvironmentCatalog;

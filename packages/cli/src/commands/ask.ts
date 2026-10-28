@@ -1,7 +1,6 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
+import { askPlace } from "../ask-place.ts";
 import type { CommandContext } from "../context.ts";
 import { person } from "../live.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
@@ -18,7 +17,7 @@ export function registerAskCommands(program: Command, ctx: CommandContext): void
     .action(
       ctx.action(
         async (words: string[], opts: { continue: boolean; conversation?: string; host?: string }) => {
-          const place = where(ctx);
+          const place = askPlace(ctx);
           const c = place.container;
           const conversations = c.resolve("conversationRepository");
           let conversation = opts.conversation;
@@ -85,7 +84,7 @@ export function registerAskCommands(program: Command, ctx: CommandContext): void
     .description("Conversations of `metator ask`, newest first")
     .action(
       ctx.action(async () => {
-        const all = await where(ctx).container.resolve("conversationRepository").list();
+        const all = await askPlace(ctx).container.resolve("conversationRepository").list();
         return {
           result: all.map((list) => ({
             conversations: list.map((x) => ({
@@ -99,28 +98,4 @@ export function registerAskCommands(program: Command, ctx: CommandContext): void
         };
       }),
     );
-}
-
-/**
- * Where a question is asked: in a repository, the repository; in a folder of repositories, the
- * folder (its conversations live there), with the host files of its first set-up repository.
- */
-function where(ctx: CommandContext) {
-  const f = ctx.folder();
-  if (!f) {
-    const container = ctx.container();
-    const root = container.resolve("root");
-    return { container, cwd: root, projectRoot: root, where: "this repository" };
-  }
-  const withAgents = f.repos.find(
-    (r) =>
-      existsSync(join(r.root, ".claude/agents/mt-guide.md")) ||
-      existsSync(join(r.root, ".github/agents/mt-guide.agent.md")),
-  );
-  return {
-    container: ctx.containerAt(f.root),
-    cwd: f.root,
-    projectRoot: withAgents?.root ?? f.root,
-    where: `the folder ${f.root}, which holds the repositories ${f.repos.map((r) => `${r.name} (${r.path})`).join(", ")}`,
-  };
 }

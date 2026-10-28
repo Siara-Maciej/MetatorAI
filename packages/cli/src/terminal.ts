@@ -51,6 +51,8 @@ export interface Terminal {
   show(line: string): void;
   /** Gets the person's attention (terminal bell): a question is waiting. */
   bell(): void;
+  /** Writes control text as is (the full-screen view's screen switch). */
+  raw(text: string): void;
 }
 
 export interface Choice<T extends string> {
@@ -206,6 +208,10 @@ export const clackTerminal: Terminal = {
 
   bell() {
     process.stderr.write("\x07");
+  },
+
+  raw(text) {
+    process.stderr.write(text);
   },
 };
 

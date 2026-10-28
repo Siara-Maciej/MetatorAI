@@ -8,11 +8,18 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
+    "@inkjs/ui": "2.0.0",
     "@metator/core": "workspace:*",
     "@metator/runtime": "workspace:*",
-    "commander": "^15.0.0"
+    "commander": "^15.0.0",
+    "ink": "8.0.0",
+    "react": "19.3.0"
   },
   "bin": {
     "metator": "./src/main.ts"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "ink-testing-library": "4.0.0"
   }
 }

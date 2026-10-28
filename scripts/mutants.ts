@@ -1444,8 +1444,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/config-edit.ts",
-    from: "updateYamlFields(text.value, { schemaVersion: MetatorConfigDocument.current, editor: input.editor })",
-    to: "updateYamlFields(text.value, { editor: input.editor })",
+    from: "      schemaVersion: MetatorConfigDocument.current,\n",
+    to: "",
     why: "a config with an editor is written as v3",
   },
   {
@@ -1651,5 +1651,23 @@ export const MUTANTS: readonly Mutant[] = [
     from: "const open = questions.isOk() ? questions.value.filter((q) => !q.answer) : [];",
     to: "const open = questions.isOk() ? questions.value : [];",
     why: "answered questions are not waiting",
+  },
+  {
+    file: "packages/cli/src/tui/model.ts",
+    from: 'return s.state === "current" || s.state === "waiting" || s.state === "stopped" ? `[',
+    to: 'return s.state === "current" || s.state === "stopped" ? `[',
+    why: "the stage that waits for you is marked as the current one",
+  },
+  {
+    file: "packages/cli/src/tui/model.ts",
+    from: "  if (q) return `waits for you: ",
+    to: "  if (!q) return `waits for you: ",
+    why: "a waiting question comes first in the next step",
+  },
+  {
+    file: "packages/core/src/domain/versioned.ts",
+    from: 'doc.setIn(key.split("."), value);',
+    to: "doc.set(key, value);",
+    why: "dotted settings are set nested",
   },
 ];

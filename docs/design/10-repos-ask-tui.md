@@ -1,6 +1,6 @@
 # Wiele repozytoriów, pytania do kodu i pełny interfejs terminala (analiza i plan)
 
-Status: **zaakceptowany przez użytkownika** (2026-10-27). Realizacja etapami G1–G5.
+Status: **zaakceptowany przez użytkownika** (2026-10-27), **zrealizowany** (G1–G5, ADR-0056…0060).
 
 ## 1. Problem
 
