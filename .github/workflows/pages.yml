@@ -45,7 +45,8 @@ jobs:
           path: site/.vitepress/dist
 
   deploy:
-    if: needs.build.outputs.publish == 'true'
+    # The github-pages environment deploys from the default branch only; other branches build and check.
+    if: needs.build.outputs.publish == 'true' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
