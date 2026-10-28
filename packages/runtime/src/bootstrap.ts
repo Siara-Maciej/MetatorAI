@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -8,6 +9,7 @@ import {
   AnalyzeEnvironment,
   ApiSnapshots,
   ApproveRun,
+  AskQuestion,
   AuditAgents,
   BuildImportGraph,
   BuildModuleCards,
@@ -21,6 +23,7 @@ import {
   CloseRun,
   CompareEvals,
   ComputeAffected,
+  ConversationRepository,
   CreateWorktree,
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
@@ -240,6 +243,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     dataIsolator: asFunction(() => new BunSqlDataIsolator()).singleton(),
     treeCopier: asFunction(() => new NodeTreeCopier()).singleton(),
     backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
+    conversationRepository: asFunction(
+      ({ fileSystem, paths }) => new ConversationRepository(fileSystem, paths),
+    ).singleton(),
+    askQuestion: asFunction(
+      ({ agentHosts, conversationRepository, clock }) =>
+        new AskQuestion(agentHosts, conversationRepository, clock, async (cwd: string, path: string) =>
+          existsSync(join(cwd, path)),
+        ),
+    ),
     agentHosts: asFunction(() => {
       const hosts = new Map<string, AgentHost>([
         ["claude", new ClaudeAgentHost()],

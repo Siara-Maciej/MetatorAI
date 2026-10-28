@@ -6,6 +6,7 @@ import {
   type AnalyzeEnvironment,
   type ApiSnapshots,
   type ApproveRun,
+  type AskQuestion,
   type AuditAgents,
   type BackgroundProcess,
   type BinResolver,
@@ -22,6 +23,7 @@ import {
   type CompareEvals,
   type ComputeAffected,
   type ContainerRuntime,
+  type ConversationRepository,
   type CreateWorktree,
   type DataIsolator,
   type DiffCoverage,
@@ -177,6 +179,8 @@ export interface Cradle {
   environmentServices: EnvironmentServices;
   backgroundProcess: BackgroundProcess;
   agentHosts: ReadonlyMap<string, AgentHost>;
+  conversationRepository: ConversationRepository;
+  askQuestion: AskQuestion;
   runJournal: RunJournal;
   runDrivers: RunDrivers;
   driveRun: DriveRun;

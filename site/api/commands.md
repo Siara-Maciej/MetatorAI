@@ -1426,3 +1426,13 @@ Each repository's work: active runs, questions waiting for you, running services
 ```bash
 metator repos status [options]
 ```
+
+## ask
+
+### `metator ask list`
+
+Conversations of `metator ask`, newest first
+
+```bash
+metator ask list [options]
+```

@@ -61,3 +61,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0055](0055-fast-start.md) | Szybki start środowiska (`env analyze`, izolacja danych, pula, częściowy start) | Proposed |
 | [0056](0056-independent-repositories.md) | Niezależne repozytoria na jednej maszynie | Proposed |
 | [0057](0057-folder-of-repositories.md) | Folder repozytoriów (`metator.repos.yml`, `repos *`) | Proposed |
+| [0058](0058-ask.md) | Pytania do kodu: `metator ask`, agent `mt-guide`, `Conversation` | Proposed |

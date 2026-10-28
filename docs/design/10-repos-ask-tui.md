@@ -63,7 +63,7 @@ Relacja z `SystemMap`: mapa systemu opisuje **co** wdrażamy i jakie kontrakty �
   - uruchamia agenta **`mt-guide`** przez port `AgentHost` (ten sam co w runach, więc działa z Claude Code, Copilot i hostem scenariuszowym);
   - agent tylko czyta: `Read`, `Glob`, `Grep` i komendy `metator graph|symbols|similar|cards|rules show`;
   - odpowiada z cytatami `plik:linia`.
-- `--continue [id]` dopytuje w tej samej rozmowie i wznawia sesję hosta.
+- `--continue` (ostatnia rozmowa) albo `--conversation <id>` dopytuje w tej samej rozmowie i wznawia sesję hosta. Zgodnie z planem miało to być `--continue [id]`, ale opcjonalna wartość połykałaby pytanie (`ask --continue "A limit?"`), stąd dwie opcje.
 - **`Conversation` v1** (`.metator/conversations/<id>.json`): pytania i odpowiedzi z czasem, host i sesja hosta. Rozmowa to sesja: widać ją w `metator ui` i można ją kontynuować.
 - W folderze repozytoriów agent dostaje folder jako katalog pracy, więc może czytać wszystkie repozytoria.
 - Bez terminala zwraca kopertę z odpowiedzią. W terminalu tekst płynie na żywo.
@@ -135,7 +135,7 @@ Decyzja: **Ink 8 + React 19.3**. `@clack/prompts` zostaje dla `metator setup` i 
 |------|---------|-------------------|
 | **G1** niezależne repozytoria | `PortLeases` v1 (cała maszyna), projekt Compose per repozytorium | e2e: dwa repozytoria na jednej maszynie dostają rozłączne bloki portów i różne projekty Compose |
 | **G2** folder repozytoriów | `RepoSet` v1, `repos init|list|status`, komendy świadome folderu, podpowiedź `-C` | e2e: folder z trzema repozytoriami: `repos list` pokazuje wszystkie, `run init` w folderze daje podpowiedź, w repozytorium działa |
-| **G3** `metator ask` | `mt-guide`, `Conversation` v1, `ask`, `ask --continue`, `ask list` | e2e na hoście scenariuszowym: pytanie, odpowiedź z cytatem, dopytanie w tej samej sesji hosta |
+| **G3** `metator ask` | `mt-guide`, `Conversation` v1, `ask`, `ask --continue|--conversation`, `ask list` | e2e na hoście scenariuszowym: pytanie, odpowiedź z cytatem, dopytanie w tej samej sesji hosta |
 | **G4** `metator status` | `WorkOverview` | e2e: dwa runy (czekający i zatrzymany), rozmowa, usługi; w folderze dla każdego repozytorium |
 | **G5** TUI | `metator ui` na Ink: panele, paleta komend, ustawienia | testy komponentów (`ink-testing-library`) i e2e w pseudo-terminalu: wybór sesji, odpowiedź, pytanie do kodu, start aplikacji, zmiana ustawień |
 

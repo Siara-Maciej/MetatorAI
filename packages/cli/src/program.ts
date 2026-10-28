@@ -13,6 +13,7 @@ import { Command, type CommanderError } from "commander";
 import { registerAdrCommands } from "./commands/adr.ts";
 import { registerAgentCommands } from "./commands/agents.ts";
 import { registerApiCommands } from "./commands/api.ts";
+import { registerAskCommands } from "./commands/ask.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerConfigCommands } from "./commands/config.ts";
@@ -142,6 +143,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerEnvCommands(program, ctx);
   registerUiCommands(program, ctx);
   registerReposCommands(program, ctx);
+  registerAskCommands(program, ctx);
 
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).
   program.hook("preAction", (_root, action) => {

@@ -1,6 +1,7 @@
 export * from "./application/adrs.ts";
 export * from "./application/agents.ts";
 export * from "./application/api.ts";
+export * from "./application/ask.ts";
 export * from "./application/audit.ts";
 export * from "./application/cards.ts";
 export * from "./application/compute-affected.ts";
@@ -50,6 +51,7 @@ export * from "./domain/api.ts";
 export * from "./domain/audit.ts";
 export * from "./domain/config.ts";
 export * from "./domain/context.ts";
+export * from "./domain/conversation.ts";
 export * from "./domain/coverage.ts";
 export * from "./domain/debug-tags.ts";
 export * from "./domain/diagnostic.ts";

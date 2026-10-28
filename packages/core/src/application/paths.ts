@@ -38,6 +38,8 @@ export interface MetatorPaths {
   readonly envState: string;
   /** What a start costs, measured by `env analyze` (`EnvProfile`, F8.7). */
   readonly envProfile: string;
+  /** Conversations of `metator ask` (`Conversation`, G3). */
+  readonly conversations: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -65,6 +67,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   environment: "metator/environment.yml",
   envState: ".metator/env",
   envProfile: ".metator/env-profile.json",
+  conversations: ".metator/conversations",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

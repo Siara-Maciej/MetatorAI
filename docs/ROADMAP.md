@@ -231,7 +231,7 @@ Plan: [design/10](design/10-repos-ask-tui.md), zaakceptowany przez użytkownika.
 
 - [x] G1 Niezależne repozytoria na jednej maszynie: `PortLeases` v1 dla całej maszyny (port `MachineState`), projekt Compose per repozytorium (ADR-0056).
 - [x] G2 Folder repozytoriów: `RepoSet` v1, `repos init|list|status`, komendy świadome folderu, `ui` z wyborem repozytorium (ADR-0057).
-- [ ] G3 `metator ask`: agent `mt-guide`, `Conversation` v1, dopytania.
+- [x] G3 `metator ask`: agent `mt-guide`, `Conversation` v1, dopytania (`--continue`, `--conversation`), sprawdzanie cytatów, folder repozytoriów (ADR-0058).
 - [ ] G4 `metator status`: przegląd pracy (`WorkOverview`).
 - [ ] G5 `metator ui` na Ink: panele, paleta komend, ustawienia.
 

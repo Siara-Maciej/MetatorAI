@@ -63,6 +63,23 @@ describe("ScenarioAgentHost", () => {
     expect((await collect(host, task(cwd, "zzz"))).at(-1)).toMatchObject({ ok: false });
   });
 
+  test("resuming the session of a start (a new process) plays the entry after it", async () => {
+    const scenario = { agents: { "mt-guide": [[{ say: "one" }], [{ say: "two" }], [{ say: "three" }]] } };
+    const cwd = await dir();
+    const fresh = new ScenarioAgentHost(scenario);
+    const resumed = await collect(fresh, { ...task(cwd, "mt-guide"), resume: "scenario-mt-guide-2" });
+    expect([resumed[0], resumed.at(-1)]).toEqual([
+      { type: "session", id: "scenario-mt-guide-3" },
+      { type: "result", ok: true, text: "three" },
+    ]);
+    // Another agent's session does not count.
+    const other = await collect(new ScenarioAgentHost(scenario), {
+      ...task(cwd, "mt-guide"),
+      resume: "scenario-mt-planner-2",
+    });
+    expect(other.at(-1)).toEqual({ type: "result", ok: true, text: "one" });
+  });
+
   test("a scenario file is read at the first start; a missing or invalid one is a failed result", async () => {
     const d = await dir();
     await Bun.write(

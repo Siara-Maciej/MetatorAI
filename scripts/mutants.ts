@@ -1592,4 +1592,40 @@ export const MUTANTS: readonly Mutant[] = [
     to: "return { path };",
     why: "clashing repository names get the whole path",
   },
+  {
+    file: "packages/core/src/domain/conversation.ts",
+    from: "if (line > 0 && !seen.has(key) && !/^https?:/.test(path)) {",
+    to: "if (line > 0 && !/^https?:/.test(path)) {",
+    why: "a citation is reported once",
+  },
+  {
+    file: "packages/core/src/domain/conversation.ts",
+    from: "if (resumed) return ",
+    to: "if (false) return ",
+    why: "a continued host session is not sent the history again",
+  },
+  {
+    file: "packages/core/src/domain/conversation.ts",
+    from: "if (!taken(base)) return base;",
+    to: "return base;",
+    why: "two conversations never share an id",
+  },
+  {
+    file: "packages/core/src/application/ask.ts",
+    from: "const resume = previous?.host === hostId ? previous.hostSession : undefined;",
+    to: "const resume = previous?.hostSession;",
+    why: "another host never resumes a session it did not make",
+  },
+  {
+    file: "packages/core/src/application/ask.ts",
+    from: "citations.push({ ...c, exists: await this.cited(input.cwd, c.path) });",
+    to: "citations.push({ ...c, exists: true });",
+    why: "a cited file that does not exist is flagged",
+  },
+  {
+    file: "packages/plugin-host-scenario/src/scenario-agent-host.ts",
+    from: "const n = Math.max(this.starts.get(task.agent) ?? 0, resumed ? Number(resumed) : 0);",
+    to: "const n = this.starts.get(task.agent) ?? 0;",
+    why: "a resumed scenario session plays the next entry",
+  },
 ];

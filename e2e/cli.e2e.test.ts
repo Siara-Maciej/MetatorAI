@@ -120,6 +120,7 @@ describe("metator CLI (process e2e)", () => {
       "workflow lint",
       "workflow validate",
       "workflow schema",
+      "run",
       "run init",
       "run advance",
       "run approve",
@@ -152,6 +153,8 @@ describe("metator CLI (process e2e)", () => {
       "repos init",
       "repos list",
       "repos status",
+      "ask",
+      "ask list",
     ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);
   });
