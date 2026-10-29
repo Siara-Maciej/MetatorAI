@@ -235,6 +235,40 @@ Print the JSON Schema of the system map
 metator system schema [options]
 ```
 
+## arch
+
+### `metator arch analyze`
+
+Analyze the package graph; writes .metator/arch/report.json and report.md
+
+```bash
+metator arch analyze [options]
+```
+
+### `metator arch cycles`
+
+Cycles between packages, with the imports that close them
+
+```bash
+metator arch cycles [options]
+```
+
+### `metator arch declared`
+
+Dependencies imported but not declared, declared but not imported, and version drift
+
+```bash
+metator arch declared [options]
+```
+
+### `metator arch schema`
+
+Print the JSON Schema of metator/architecture.yml
+
+```bash
+metator arch schema [options]
+```
+
 ## rules
 
 ### `metator rules lint`

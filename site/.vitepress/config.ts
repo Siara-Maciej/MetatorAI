@@ -71,6 +71,7 @@ export default defineConfig({
           { text: "Hooks and guardrails", link: "/how-to/hooks" },
           { text: "Runs in worktrees", link: "/how-to/worktrees" },
           { text: "Start the application", link: "/how-to/environments" },
+          { text: "Package architecture", link: "/how-to/architecture" },
         ],
       },
       {

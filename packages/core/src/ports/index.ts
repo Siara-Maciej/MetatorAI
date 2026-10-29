@@ -2,7 +2,9 @@
  * Ports: small interfaces cut along axes of change (ISP). Adapters live in plugins;
  * application code depends only on these.
  */
+
 import type { Agent } from "../domain/agent.ts";
+import type { ManifestSet } from "../domain/architecture.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
@@ -197,6 +199,14 @@ export interface WorkspacePackage {
 
 export interface WorkspaceReader {
   packages(): Promise<Result<readonly WorkspacePackage[], MetatorError>>;
+}
+
+/**
+ * What each workspace package declares (H1): `package.json` dependencies and entry points, plus
+ * the tags and project type of Nx `project.json` and Turborepo `turbo.json`.
+ */
+export interface ManifestReader {
+  manifests(): Promise<Result<ManifestSet, MetatorError>>;
 }
 
 export interface ImportSpecifier {

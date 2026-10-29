@@ -1,6 +1,6 @@
 # Architektura pakietów dużego monorepo: graf, diagnoza i plan refaktoru (analiza i propozycja)
 
-Status: **propozycja do decyzji użytkownika** (2026-10-29). Nic z tego nie jest jeszcze zaimplementowane.
+Status: **zlecony do realizacji** (2026-10-29: użytkownik zlecił całość, H1–H7, potem F7.2–F7.7). Postęp w [ROADMAP](../ROADMAP.md), faza H.
 
 ## 1. Pomysł
 
@@ -92,8 +92,7 @@ package.json, git, CODEOWNERS    kandydaci split/merge, zapadka
 | Dokument | Plik | Kto pisze | Zawartość |
 |----------|------|-----------|-----------|
 | `ArchitecturePolicy` v1 | `metator/architecture.yml` (w repo, przegląd w PR) | człowiek, `arch init` proponuje | warstwy (`apps → features → domain → shared`); tagi (`scope:`, `type:`) przypisane globami albo z Nx; dozwolone kierunki; progi metryk; wyjątki z **właścicielem i datą wygaśnięcia** |
-| `PackageGraph` v1 | `.metator/arch/graph.json` (generowany) | `arch analyze` | węzły: pakiet, rodzaj (`app`, `lib`, `tooling`), właściciel, rozmiar, tagi; krawędzie: waga (importy, symbole), `runtime` czy `typeOnly`, deklarowana czy nie, pliki źródłowe krawędzi |
-| `ArchitectureReport` v1 | `.metator/arch/report.json` + render `report.md` / `report.html`, SARIF dla naruszeń | `arch analyze` | patrz 5.3 |
+| `ArchitectureReport` v1 | `.metator/arch/report.json` + render `report.md` / `report.html`, SARIF dla naruszeń | `arch analyze` | graf pakietów (węzły: rodzaj `app`/`lib`/`root`, właściciele, rozmiar, tagi; krawędzie: importy, importy w runtime, tylko z testów, pole deklaracji, przykładowe pliki) i patrz 5.3; osobny `PackageGraph` okazał się zbędny (ADR-0061) |
 | `ArchitectureBaseline` v1 | `metator/arch-baseline.json` (w repo) | `arch baseline` | zaakceptowane dziś naruszenia; bramka liczy tylko nowe |
 | `RefactorPlan` v1 | `metator/arch/plans/<id>.yml` (w repo) | agent `mt-arch-planner`, `arch plan lint` sprawdza | ruchy, ich dowody, symulowany efekt, fale, status każdego ruchu |
 
@@ -132,7 +131,7 @@ Ruch to dane, nie prosta zmiana kodu:
 - `invert { edge, port }` (interfejs w pakiecie niższym, implementacja w wyższym);
 - `declare { package, dependency }`.
 
-`arch simulate` stosuje ruch do `PackageGraph` w pamięci (plikowe krawędzie są przepisywane) i liczy różnicę raportu: cykle, naruszenia, metryki i liczbę plików do przepisania u konsumentów. Ruch, który nic nie poprawia albo psuje coś innego, nie wchodzi do planu. To E1: model proponuje, liczby rozstrzygają.
+`arch simulate` stosuje ruch do faktów w pamięci (przypisanie plików do pakietów się zmienia) i liczy różnicę raportu: cykle, naruszenia, metryki i liczbę plików do przepisania u konsumentów. Ruch, który nic nie poprawia albo psuje coś innego, nie wchodzi do planu. To E1: model proponuje, liczby rozstrzygają.
 
 ### 5.5 Plan i wykonanie
 
@@ -196,13 +195,13 @@ W folderze repozytoriów (G2) `arch analyze` daje raport każdego repozytorium o
 
 ### 5.9 Multi-repo i systemy
 
-Ta sama metoda działa poziom wyżej. Węzłami są aplikacje i repozytoria z `SystemMap`, a krawędziami kontrakty (OpenAPI, eventy, wspólne pakiety npm z wersjami). To dokładnie otwarte F7.2–F7.5 (`system discover`, `SystemSourceReader`, `ContractDiffer`, `SystemAnalysis`/`SystemPlan`). Proponuję wspólny rdzeń: `PackageGraph` i `SystemGraph` korzystają z tych samych algorytmów (SCC, warstwy, symulacja, plan falami). Analiza pakietów jest pierwsza, bo daje wartość w jednym repozytorium i weryfikuje algorytmy na tańszym przypadku.
+Ta sama metoda działa poziom wyżej. Węzłami są aplikacje i repozytoria z `SystemMap`, a krawędziami kontrakty (OpenAPI, eventy, wspólne pakiety npm z wersjami). To dokładnie otwarte F7.2–F7.5 (`system discover`, `SystemSourceReader`, `ContractDiffer`, `SystemAnalysis`/`SystemPlan`). Proponuję wspólny rdzeń: graf pakietów i graf systemu korzystają z tych samych algorytmów (SCC, warstwy, symulacja, plan falami). Analiza pakietów jest pierwsza, bo daje wartość w jednym repozytorium i weryfikuje algorytmy na tańszym przypadku.
 
 ## 6. Etapy realizacji
 
 | Etap | Zakres | Wartość od razu |
 |------|--------|-----------------|
-| **H1 Fakty** | `PackageGraph` v1, SCC pakietów z krawędziami i plikami, `ManifestReader` (deklarowane a używane), `arch analyze --format json|md`, `arch cycles`, `arch declared` | widać cykle pakietów i dziury w `package.json` |
+| **H1 Fakty** | graf pakietów w `ArchitectureReport` v1, SCC pakietów z krawędziami i plikami, `ManifestReader` (deklarowane a używane), `arch analyze` (JSON i Markdown), `arch cycles`, `arch declared` | widać cykle pakietów i dziury w `package.json` |
 | **H2 Polityka i zapadka** | `ArchitecturePolicy` v1 (warstwy, tagi, import z Nx), naruszenia, `ArchitectureBaseline` v1, `arch check --base`, SARIF, krok w `gate` | CI blokuje pogorszenie od pierwszego dnia |
 | **H3 Metryki i granice** | Martin (`Ca`/`Ce`/`I`/`A`/`D`), głębokość, Louvain (split), merge, martwe eksporty (knip), `ChangeHistory`, zespoły, promień rażenia aplikacji, raport HTML | diagnoza „co jest nie tak z podziałem” |
 | **H4 Symulacja** | ruchy jako dane, `arch simulate`, diff raportów, feedback arc set z propozycją cięcia | „co jeśli” bez ruszania kodu |

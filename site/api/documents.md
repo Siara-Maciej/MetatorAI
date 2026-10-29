@@ -14,6 +14,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `Lesson` | `docs/metator/lessons/*.md` | `metator lessons add` after your approval |
 | `ClaimSet` | `docs/metator/claims.json` | the docs analysis after your approval |
 | `SystemMap` | `docs/metator/system.yml` | you |
+| `ArchitecturePolicy` | `metator/architecture.yml` | you |
 | `Environment` | `metator/environment.yml` | you (`metator env init` proposes it) |
 | `Workflow` | `.github/metator/workflows/*.yml` | you (five are shipped) |
 | `Agent` | `metator/agents/*.md` | you (23 are shipped) |
@@ -42,6 +43,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `RunDriver` | `.metator/runs/<id>/driver.json` | `metator run drive` |
 | `EnvState` | `.metator/env/<worktree, main or shared>.json` | `metator env up\|down` |
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |
+| `ArchitectureReport` | `.metator/arch/report.json` (and `report.md`) | `metator arch analyze` |
 | `PortLeases` | `~/.local/state/metator/port-leases.json` (machine-wide) | `metator worktree new\|rm` |
 | `RepoSet` | `metator.repos.yml` in a folder of repositories | you (`metator repos init` proposes it) |
 | `Conversation` | `.metator/conversations/<id>.json` | `metator ask` |

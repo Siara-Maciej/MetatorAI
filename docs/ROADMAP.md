@@ -235,6 +235,20 @@ Plan: [design/10](design/10-repos-ask-tui.md), zaakceptowany przez użytkownika.
 - [x] G4 `metator status`: przegląd pracy (`WorkOverview`), także w folderze repozytoriów (ADR-0059).
 - [x] G5 `metator ui` na Ink: panele sesji i szczegółów, pasek etapów, odpowiedzi w miejscu, aplikacje, rozmowy, paleta komend, ustawienia, folder repozytoriów na jednym ekranie (ADR-0060).
 
+---
+
+## H: Architektura pakietów dużego monorepo
+
+Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realizację całości (H1–H7), potem F7.2–F7.7.
+
+- [x] H1 Graf pakietów z grafu plików, cykle pakietów, `package.json` kontra importy, `ArchitectureReport` v1, `ArchitecturePolicy` v1, port `ManifestReader`, `arch analyze|cycles|declared|schema` (ADR-0061).
+- [ ] H2 Polityka w CI: `ArchitectureBaseline` v1, `arch check --base` (tylko nowe naruszenia), SARIF, krok bramki, `arch init` (także z tagów Nx i `boundaries` Turborepo).
+- [ ] H3 Metryki (Martin, głębokość), granice (podział, scalenie, huby, martwe eksporty i pakiety), wspólne zmiany z historii git, zespoły, aplikacje, raport HTML.
+- [ ] H4 Ruchy jako dane, `arch simulate`, różnica raportów, najtańsze cięcie cykli.
+- [ ] H5 Agent `mt-arch-planner`, `RefactorPlan` v1, `arch plan lint|show`, HITL.
+- [ ] H6 `arch plan run`: fale runów W3, stan planu.
+- [ ] H7 Ewaluacja: przypadki architektury w złotym zbiorze.
+
 ## Role i odpowiedzialności
 
 | Rola | Odpowiada za |

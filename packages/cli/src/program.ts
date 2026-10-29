@@ -13,6 +13,7 @@ import { Command, type CommanderError } from "commander";
 import { registerAdrCommands } from "./commands/adr.ts";
 import { registerAgentCommands } from "./commands/agents.ts";
 import { registerApiCommands } from "./commands/api.ts";
+import { registerArchCommands } from "./commands/arch.ts";
 import { registerAskCommands } from "./commands/ask.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
@@ -117,6 +118,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerApiCommands(program, ctx);
   registerOwnersCommand(program, ctx);
   registerSystemCommands(program, ctx);
+  registerArchCommands(program, ctx);
   registerRulesCommands(program, ctx);
   registerMemoryCommands(program, ctx);
   registerLessonsCommands(program, ctx);

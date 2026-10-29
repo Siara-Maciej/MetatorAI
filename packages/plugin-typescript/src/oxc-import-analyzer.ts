@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { isBuiltin } from "node:module";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import {
   err,
@@ -133,6 +134,8 @@ export class OxcImportAnalyzer implements ImportAnalyzer, SymbolAnalyzer {
   resolve(fromPath: string, specifier: string): Resolution {
     const bare = !specifier.startsWith(".") && !isAbsolute(specifier);
     if (specifier.startsWith("node:")) return { type: "external", name: specifier };
+    // `fs`, `path/posix`: builtins read as `node:` ones, never as packages to declare.
+    if (bare && isBuiltin(specifier)) return { type: "external", name: `node:${specifier}` };
     const result = this.resolver.sync(dirname(join(this.root, fromPath)), specifier);
     if (!result.path)
       return bare ? { type: "external", name: packageName(specifier) } : { type: "unresolved" };

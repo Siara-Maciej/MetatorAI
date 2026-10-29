@@ -85,6 +85,7 @@ const graph = (edges: Edge[]) => ({
       packages: PACKAGES,
       externals: [],
       externalUses: [],
+      imports: [],
       unresolved: [],
       stats: { parsed: 0, reused: 0, failed: 0 },
       parseErrors: [],

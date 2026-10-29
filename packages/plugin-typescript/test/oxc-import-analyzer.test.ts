@@ -105,6 +105,14 @@ describe("OxcImportAnalyzer.resolve (real monorepo, real bun install)", () => {
     expect(analyzer.resolve("apps/web/src/main.ts", "lodash")).toEqual({ type: "external", name: "lodash" });
   });
 
+  test("a builtin without the node: prefix reads as the node: builtin, not as a package", () => {
+    expect(analyzer.resolve("apps/web/src/main.ts", "fs")).toEqual({ type: "external", name: "node:fs" });
+    expect(analyzer.resolve("apps/web/src/main.ts", "path/posix")).toEqual({
+      type: "external",
+      name: "node:path/posix",
+    });
+  });
+
   test("a broken relative import is unresolved", () => {
     expect(analyzer.resolve("packages/billing/src/broken.ts", "./does-not-exist")).toEqual({
       type: "unresolved",

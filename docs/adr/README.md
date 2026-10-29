@@ -64,3 +64,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0058](0058-ask.md) | Pytania do kodu: `metator ask`, agent `mt-guide`, `Conversation` | Proposed |
 | [0059](0059-work-overview.md) | Przegląd pracy: `metator status` (`WorkOverview`) | Proposed |
 | [0060](0060-terminal-ui-ink.md) | Pełnoekranowy `metator ui` na Ink | Proposed |
+| [0061](0061-package-architecture.md) | Architektura pakietów (`arch analyze`, `ArchitectureReport`, `ArchitecturePolicy`) | Proposed |

@@ -3,9 +3,12 @@ import {
   type AdvanceRun,
   type AgentCatalog,
   type AgentHost,
+  type AnalyzeArchitecture,
   type AnalyzeEnvironment,
   type ApiSnapshots,
   type ApproveRun,
+  type ArchitectureFacts,
+  type ArchitecturePolicyCatalog,
   type AskQuestion,
   type AuditAgents,
   type BackgroundProcess,
@@ -79,6 +82,7 @@ import {
   type Logger,
   type MachineLeases,
   type MachineState,
+  type ManifestReader,
   type MeasureRuleCoverage,
   type MemoryBudget,
   type MemoryMapReader,
@@ -158,6 +162,7 @@ export interface Cradle {
   packageManager: PackageManager;
   binResolver: BinResolver;
   workspaceReader: WorkspaceReader;
+  manifestReader: ManifestReader;
   importAnalyzer: ImportAnalyzer;
   symbolAnalyzer: SymbolAnalyzer;
   importGraphReader: ImportGraphReader;
@@ -238,6 +243,9 @@ export interface Cradle {
   findOwners: FindOwners;
   contractKinds: readonly string[];
   systemCatalog: SystemCatalog;
+  architecturePolicyCatalog: ArchitecturePolicyCatalog;
+  architectureFacts: ArchitectureFacts;
+  analyzeArchitecture: AnalyzeArchitecture;
   lintSystem: LintSystem;
   showSystem: ShowSystem;
   docsLinks: DocsLinks;

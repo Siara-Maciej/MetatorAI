@@ -6,9 +6,12 @@ import {
   AdvanceRun,
   AgentCatalog,
   type AgentHost,
+  AnalyzeArchitecture,
   AnalyzeEnvironment,
   ApiSnapshots,
   ApproveRun,
+  ArchitectureFacts,
+  ArchitecturePolicyCatalog,
   AskQuestion,
   AuditAgents,
   BuildImportGraph,
@@ -133,6 +136,7 @@ import { ScenarioAgentHost } from "@metator/plugin-host-scenario";
 import {
   GetPortProbe,
   LcovCoverageReader,
+  ManypkgManifestReader,
   ManypkgWorkspaceReader,
   NodePackageManager,
   WaitOnHealthProbe,
@@ -327,6 +331,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     packageManager: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     binResolver: asFunction(({ root }) => new NodeBinResolver(root)).singleton(),
     workspaceReader: asFunction(({ root }) => new ManypkgWorkspaceReader(root)).singleton(),
+    manifestReader: asFunction(
+      ({ root, workspaceReader }) => new ManypkgManifestReader(root, workspaceReader),
+    ).singleton(),
     importAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
     symbolAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
     sourceFiles: asFunction(
@@ -416,6 +423,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new LintSystem(systemCatalog, fileSystem, contractKinds),
     ),
     showSystem: asFunction(({ systemCatalog }) => new ShowSystem(systemCatalog)),
+    architecturePolicyCatalog: asFunction(
+      ({ fileSystem, paths }) => new ArchitecturePolicyCatalog(fileSystem, paths.architecture),
+    ),
+    architectureFacts: asFunction(
+      ({ buildImportGraph, manifestReader, architecturePolicyCatalog, clock }) =>
+        new ArchitectureFacts(buildImportGraph, manifestReader, architecturePolicyCatalog, clock),
+    ),
+    analyzeArchitecture: asFunction(
+      ({ architectureFacts, fileSystem, paths }) =>
+        new AnalyzeArchitecture(architectureFacts, fileSystem, paths),
+    ),
     docsLinks: asFunction(({ sourceFiles, fileSystem }) => new DocsLinks(sourceFiles, fileSystem)),
     docsInventory: asFunction(
       ({ sourceFiles, fileSystem, revisionReader, findOwners, docsLinks, clock }) =>

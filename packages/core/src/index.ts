@@ -1,6 +1,7 @@
 export * from "./application/adrs.ts";
 export * from "./application/agents.ts";
 export * from "./application/api.ts";
+export * from "./application/architecture.ts";
 export * from "./application/ask.ts";
 export * from "./application/audit.ts";
 export * from "./application/cards.ts";
@@ -49,6 +50,9 @@ export * from "./domain/adr.ts";
 export * from "./domain/agent.ts";
 export * from "./domain/agent-scenario.ts";
 export * from "./domain/api.ts";
+export * from "./domain/architecture.ts";
+export * from "./domain/architecture-policy.ts";
+export * from "./domain/architecture-render.ts";
 export * from "./domain/audit.ts";
 export * from "./domain/config.ts";
 export * from "./domain/context.ts";

@@ -40,6 +40,14 @@ export interface MetatorPaths {
   readonly envProfile: string;
   /** Conversations of `metator ask` (`Conversation`, G3). */
   readonly conversations: string;
+  /** How packages may depend on each other (`ArchitecturePolicy`, H2). */
+  readonly architecture: string;
+  /** Architecture violations accepted for now (`ArchitectureBaseline`, H2). */
+  readonly archBaseline: string;
+  /** Generated architecture reports (`arch analyze`, H1). */
+  readonly arch: string;
+  /** Refactor plans (`RefactorPlan`, H5). */
+  readonly archPlans: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -68,6 +76,10 @@ export const DEFAULT_PATHS: MetatorPaths = {
   envState: ".metator/env",
   envProfile: ".metator/env-profile.json",
   conversations: ".metator/conversations",
+  architecture: "metator/architecture.yml",
+  archBaseline: "metator/arch-baseline.json",
+  arch: ".metator/arch",
+  archPlans: "metator/arch/plans",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */
