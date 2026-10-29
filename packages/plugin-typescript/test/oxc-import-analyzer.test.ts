@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createMonorepo } from "@metator/testing";
-import { OxcImportAnalyzer, packageName } from "../src/oxc-import-analyzer.ts";
+import { OxcImportAnalyzer, packageName, pathAliases } from "../src/oxc-import-analyzer.ts";
 
 let root: string;
 let analyzer: OxcImportAnalyzer;
@@ -117,6 +117,75 @@ describe("OxcImportAnalyzer.resolve (real monorepo, real bun install)", () => {
     expect(analyzer.resolve("packages/billing/src/broken.ts", "./does-not-exist")).toEqual({
       type: "unresolved",
     });
+  });
+});
+
+describe("OxcImportAnalyzer.resolve (not installed: configs extend missing packages)", () => {
+  let bare: string;
+  beforeAll(async () => {
+    bare = await mkdtemp(join(tmpdir(), "metator-oxc-bare-"));
+    const files: Record<string, string> = {
+      "tsconfig.json": '{ "extends": "./node_modules/@x/config/base.json" }',
+      // JSONC: comments and trailing commas, as tsconfig allows.
+      "apps/web/tsconfig.json": `{
+        // the app's own aliases
+        "extends": "@x/config/next.json",
+        "compilerOptions": {
+          "baseUrl": ".",
+          "paths": { "@/*": ["./*"], "@ui/*": ["../../packages/ui/src/*"], "theme": ["./theme.ts"], "a*b": ["x"], },
+        },
+      }`,
+      "apps/web/app/page.ts": "",
+      "apps/web/components/button.ts": "",
+      "apps/web/theme.ts": "",
+      "packages/ui/src/card.ts": "",
+      "packages/utils/src/index.ts": "",
+      "packages/utils/src/date.ts": "",
+    };
+    for (const [file, text] of Object.entries(files)) await Bun.write(join(bare, file), text);
+  });
+  afterAll(async () => {
+    await rm(bare, { recursive: true, force: true });
+  });
+
+  test("relative imports and each app's own paths still resolve; notes say why it is approximate", () => {
+    const a = new OxcImportAnalyzer(bare);
+    expect(a.resolve("packages/utils/src/index.ts", "./date")).toEqual({
+      type: "file",
+      path: "packages/utils/src/date.ts",
+    });
+    expect(a.resolve("apps/web/app/page.ts", "@/components/button")).toEqual({
+      type: "file",
+      path: "apps/web/components/button.ts",
+    });
+    expect(a.resolve("apps/web/app/page.ts", "@ui/card")).toEqual({
+      type: "file",
+      path: "packages/ui/src/card.ts",
+    });
+    expect(a.resolve("apps/web/app/page.ts", "theme")).toEqual({ type: "file", path: "apps/web/theme.ts" });
+    // The root tsconfig has no paths: an app alias does not resolve outside the app.
+    expect(a.resolve("packages/utils/src/index.ts", "@/components/button")).toEqual({
+      type: "external",
+      name: "@/components",
+    });
+    expect([...a.notes()].sort()).toEqual([
+      "apps/web/tsconfig.json extends a config that is not installed; its own paths are used as aliases. Install dependencies for exact resolution.",
+      "tsconfig.json extends a config that is not installed; its own paths are used as aliases. Install dependencies for exact resolution.",
+    ]);
+  });
+
+  test("an installed config gives no notes", () => {
+    expect(analyzer.notes()).toEqual([]);
+  });
+});
+
+describe("pathAliases", () => {
+  test("a broken or path-less tsconfig gives no aliases", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "metator-paths-"));
+    await Bun.write(join(dir, "broken.json"), "{ not json");
+    await Bun.write(join(dir, "plain.json"), "{}");
+    expect([pathAliases(join(dir, "broken.json")), pathAliases(join(dir, "plain.json"))]).toEqual([{}, {}]);
+    await rm(dir, { recursive: true, force: true });
   });
 });
 

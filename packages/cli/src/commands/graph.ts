@@ -24,7 +24,9 @@ export function registerGraphCommands(program: Command, { action, container }: C
             unresolved: r.unresolved,
             stats: r.stats,
           })),
-          warnings: report.isOk() ? report.value.parseErrors.map((e) => e.message) : [],
+          warnings: report.isOk()
+            ? [...(report.value.notes ?? []), ...report.value.parseErrors.map((e) => e.message)]
+            : [],
         };
       }),
     );

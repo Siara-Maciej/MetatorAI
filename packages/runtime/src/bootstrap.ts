@@ -131,6 +131,7 @@ import {
   SimulateRefactorPlan,
   SkillCatalog,
   SourceFiles,
+  StyleImports,
   SymbolQueries,
   SyncRefactorPlan,
   SystemCatalog,
@@ -603,11 +604,14 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         symbolQueries,
         changeHistory,
         findOwners,
+        sourceFiles,
+        fileSystem,
       }) =>
         new ArchitectureFacts(buildImportGraph, manifestReader, architecturePolicyCatalog, clock, {
           symbols: symbolQueries,
           history: changeHistory,
           owners: findOwners,
+          styles: new StyleImports(sourceFiles, fileSystem),
         }),
     ),
     architectureBaselineStore: asFunction(

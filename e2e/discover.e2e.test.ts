@@ -72,7 +72,8 @@ describe("metator discover", () => {
       (data(r).scripts as { name: string; candidates: Data[] }[]).map((s) => [s.name, s.candidates[0]]),
     );
     expect(scripts.lint).toMatchObject({ capability: "lint", fileScopable: false });
-    expect(scripts["lint:fix"]).toMatchObject({ capability: "lint", fileScopable: true });
+    // A fixer is never a check: it rewrites the files it is given.
+    expect(scripts["lint:fix"]).toMatchObject({ capability: "lint", confidence: 0.3, fileScopable: false });
     expect(scripts.test).toMatchObject({ capability: "test", fileScopable: true });
     expect(scripts.ci).toBeUndefined(); // composite of script calls: nothing to classify
     expect((data(r).tools as Data[]).map((t) => t.id)).toEqual(["eslint", "jest"]);

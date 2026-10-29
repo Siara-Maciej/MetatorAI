@@ -29,6 +29,7 @@ import {
 import { renderArchitectureHtml, renderArchitectureMarkdown } from "../domain/architecture-render.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { stylePackages } from "../domain/style-imports.ts";
 import {
   parseJsonDocument,
   parseYamlDocument,
@@ -49,6 +50,7 @@ import type {
 import type { BuildImportGraph } from "./import-graph.ts";
 import type { FindOwners } from "./owners.ts";
 import type { MetatorPaths } from "./paths.ts";
+import type { SourceFiles } from "./source-files.ts";
 import type { SymbolQueries } from "./symbols.ts";
 
 export interface LoadedPolicy {
@@ -98,6 +100,7 @@ export class ArchitectureFacts {
       readonly symbols?: Pick<SymbolQueries, "resolvedModules">;
       readonly history?: ChangeHistory;
       readonly owners?: Pick<FindOwners, "execute">;
+      readonly styles?: Pick<StyleImports, "uses">;
     } = {},
   ) {}
 
@@ -128,10 +131,12 @@ export class ArchitectureFacts {
       if (found.value.source !== undefined)
         owners = new Map(pkgs.map((m, i) => [m.name, found.value.owners[i]?.owners ?? []]));
     }
+    const styles = this.extra.styles ? await this.extra.styles.uses() : ok([]);
+    if (styles.isErr()) return err(styles.error);
     return ok({
       files: graph.value.files,
       imports: graph.value.imports,
-      externals: graph.value.externalUses,
+      externals: [...graph.value.externalUses, ...styles.value],
       unresolved: graph.value.unresolved,
       manifests: manifests.value,
       policy: policy.value.policy,
@@ -141,6 +146,31 @@ export class ArchitectureFacts {
       ...(history?.isOk() ? { history: history.value } : {}),
       ...(owners ? { owners } : {}),
     });
+  }
+}
+
+/** Packages the repository's stylesheets import, as build-time uses of their files (`stylePackages`). */
+export class StyleImports {
+  static readonly EXTENSIONS = [".css", ".scss", ".sass", ".less", ".pcss"];
+
+  constructor(
+    private readonly sources: Pick<SourceFiles, "list">,
+    private readonly fs: Pick<ReadonlyFileSystem, "read">,
+  ) {}
+
+  async uses(): Promise<
+    Result<{ readonly from: string; readonly name: string; readonly typeOnly: boolean }[], MetatorError>
+  > {
+    const files = await this.sources.list(StyleImports.EXTENSIONS);
+    if (files.isErr()) return err(files.error);
+    const out: { from: string; name: string; typeOnly: boolean }[] = [];
+    for (const from of files.value) {
+      const text = await this.fs.read(from);
+      if (text.isErr()) continue; // deleted between listing and reading
+      // Stylesheets are compiled at build time: a use, never a runtime import.
+      for (const name of stylePackages(text.value)) out.push({ from, name, typeOnly: true });
+    }
+    return ok(out);
   }
 }
 

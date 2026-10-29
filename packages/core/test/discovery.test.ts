@@ -27,6 +27,17 @@ describe("classifyScript", () => {
     ["postinstall", "husky", []],
     ["lint", "eslint --cache", ["lint:0.95:files"]],
     ["lint", "biome lint", ["lint:0.95:files"]],
+    // Task runners: the task names what the script does.
+    ["lint", "turbo lint", ["lint:0.95:whole"]],
+    ["test", "turbo run test:ui test:utils --parallel", ["test:0.95:whole"]],
+    ["test", "nx run-many -t test lint", ["test:0.95:whole"]],
+    ["verify", "nx affected --targets=lint,test", ["lint:0.75:whole", "test:0.75:whole"]],
+    ["test", "lerna run test", ["test:0.95:whole"]],
+    // A fixer is the last choice for a check.
+    ["lint-staged:eslint", "eslint --fix", ["lint:0.3:whole"]],
+    ["lint", "biome check --write .", ["lint:0.3:whole"]],
+    // Environment assignments are not the command.
+    ["test:utils", "TS_JEST_DEBUG=true jest --coverage", ["test:0.75:files"]],
   ])("%s: %s", (name, command, expected) => {
     expect(caps(name, command)).toEqual(expected);
   });
@@ -38,6 +49,7 @@ describe("classifyScript", () => {
       ["run-p", "lint:*"],
       ["tee", "x"],
     ]);
+    expect(commandsOf("CI=1 NODE_ENV=test jest && A=b")).toEqual([["jest"]]);
     const [lint] = classifyScript("lint", "eslint --cache && stylelint", "p");
     expect([lint?.fileScopable, lint?.reason]).toEqual([false, "composite script (2 commands)"]);
   });
@@ -60,7 +72,7 @@ describe("Discover", () => {
   const FILES: Record<string, string> = {
     "package.json": JSON.stringify({
       name: "acme",
-      scripts: { lint: "eslint .", test: "vitest run" },
+      scripts: { "//": "comments are not scripts", "// lint": "x", lint: "eslint .", test: "vitest run" },
       devDependencies: { eslint: "9", vitest: "3" },
     }),
     "packages/a/package.json": JSON.stringify({ name: "@acme/a", scripts: { build: "tsup" } }),

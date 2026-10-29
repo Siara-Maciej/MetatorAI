@@ -66,6 +66,8 @@ export class Discover {
       if (!manifest) continue;
       manifests.push({ dir, manifest });
       for (const [script, command] of Object.entries(manifest.scripts ?? {})) {
+        // `"//": "…"` and `"// name": "…"` are comments by npm convention, not scripts.
+        if (script.startsWith("//")) continue;
         scripts.push({
           package: manifest.name ?? name,
           dir,

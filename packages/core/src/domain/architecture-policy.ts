@@ -66,6 +66,16 @@ export const ARCH_TEST_GLOBS: readonly string[] = [
   "**/*.stories.*",
 ];
 
+/**
+ * Tool configuration (`eslint.config.js`, `next.config.ts`, `jest.setup.ts`): it runs at build or
+ * check time, so like tests it may use devDependencies and is not production code.
+ */
+export const ARCH_TOOLING_GLOBS: readonly string[] = [
+  "**/*.config.{js,cjs,mjs,ts,cts,mts}",
+  "**/.eslintrc.{js,cjs}",
+  "**/{jest,vitest}.setup.{js,ts,mjs,tsx}",
+];
+
 /** A package name (`@shop/ui-*`) or directory (`apps/*`) glob. */
 const PackagePattern = z.string().min(1);
 const Tag = z.string().regex(/^[^\s,]+$/, "a tag without spaces or commas");

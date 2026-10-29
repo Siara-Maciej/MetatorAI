@@ -32,6 +32,10 @@ bun install --force
 
 The same applies to other tools with install scripts.
 
+## `tsconfig.json extends a config that is not installed`
+
+`index build`, `graph` and `arch` read imports through your tsconfigs. A tsconfig that extends a package (`"extends": "@shop/typescript-config/base.json"`) needs that package in `node_modules`. Until then, MetatorAI resolves relative imports and the tsconfig's own `paths`, and warns that the graph is approximate: aliases defined only in the extended config are missing. Run your install (`pnpm install`) and build the index again.
+
 ## `does not match RuleSet v1: rules.0.rationale: ...`
 
 A file does not match its schema. The message names the field (`rules.0.rationale` is the `rationale` of the first rule). Print the schema to see every field:

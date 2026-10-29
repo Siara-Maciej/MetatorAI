@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { isBuiltin } from "node:module";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import {
@@ -18,27 +18,97 @@ import { ResolverFactory } from "oxc-resolver";
 
 const EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"] as const;
 
+const RESOLVE = {
+  extensions: [...EXTENSIONS, ".json"],
+  extensionAlias: { ".js": [".ts", ".tsx", ".js"], ".mjs": [".mts", ".mjs"], ".cjs": [".cts", ".cjs"] },
+  conditionNames: ["import", "module", "default", "require", "node"],
+  mainFields: ["module", "main"],
+};
+
+/**
+ * A tsconfig's own `compilerOptions.paths` as resolver aliases (`@/*` → `<baseUrl>/*`, an exact
+ * key as `key$`). What it extends is not read; patterns with `*` elsewhere than the end are skipped.
+ */
+export function pathAliases(tsconfig: string): Record<string, string[]> {
+  let options: { baseUrl?: unknown; paths?: unknown };
+  try {
+    const parsed = Bun.JSONC.parse(readFileSync(tsconfig, "utf8")) as { compilerOptions?: typeof options };
+    options = parsed?.compilerOptions ?? {};
+  } catch {
+    return {};
+  }
+  const base = join(dirname(tsconfig), typeof options.baseUrl === "string" ? options.baseUrl : ".");
+  const aliases: Record<string, string[]> = {};
+  const paths = options.paths && typeof options.paths === "object" ? options.paths : {};
+  for (const [key, targets] of Object.entries(paths as Record<string, unknown>)) {
+    if (!Array.isArray(targets)) continue;
+    const wild = key.endsWith("/*");
+    if (key.slice(0, wild ? -2 : undefined).includes("*")) continue;
+    const to = targets
+      .filter((t): t is string => typeof t === "string" && (wild ? t.endsWith("/*") : !t.includes("*")))
+      .map((t) => join(base, wild ? t.slice(0, -2) : t));
+    if (to.length > 0) aliases[wild ? key.slice(0, -2) : `${key}$`] = to;
+  }
+  return aliases;
+}
+
 /**
  * JS/TS import analysis on oxc (ADR-0017): oxc-parser for the module record (static imports,
  * re-exports, dynamic imports, `import type`), oxc-resolver for resolution (relative paths,
  * tsconfig paths, package exports, workspace symlinks, `.js` → `.ts` extension aliasing).
+ * Each file resolves through its nearest `tsconfig.json` (apps of a monorepo keep their own
+ * `paths`). A tsconfig oxc cannot load (it extends a package that is not installed) would fail
+ * every import, so its own `paths` become aliases instead, and `notes()` says so.
  * CommonJS `require()` calls are not analyzed.
  */
 export class OxcImportAnalyzer implements ImportAnalyzer, SymbolAnalyzer {
   /** Cache key of the import index: bump when what `parse` extracts changes. */
   static readonly id = "oxc/1";
   readonly extensions = EXTENSIONS;
-  private readonly resolver: ResolverFactory;
+  /** By tsconfig file ("" for none). */
+  private readonly resolvers = new Map<string, ResolverFactory>();
+  /** By directory: the nearest tsconfig.json up to the root, or "". */
+  private readonly nearest = new Map<string, string>();
+  private readonly degraded: string[] = [];
 
-  constructor(private readonly root: string) {
-    const tsconfig = join(root, "tsconfig.json");
-    this.resolver = new ResolverFactory({
-      extensions: [...EXTENSIONS, ".json"],
-      extensionAlias: { ".js": [".ts", ".tsx", ".js"], ".mjs": [".mts", ".mjs"], ".cjs": [".cts", ".cjs"] },
-      conditionNames: ["import", "module", "default", "require", "node"],
-      mainFields: ["module", "main"],
-      ...(existsSync(tsconfig) ? { tsconfig: { configFile: tsconfig, references: "auto" as const } } : {}),
+  constructor(private readonly root: string) {}
+
+  /** Tsconfigs read without what they extend (not installed): resolution is approximate there. */
+  notes(): readonly string[] {
+    return this.degraded.map(
+      (t) =>
+        `${normalizePath(relative(this.root, t))} extends a config that is not installed; its own paths are used as aliases. Install dependencies for exact resolution.`,
+    );
+  }
+
+  private tsconfigFor(dir: string): string {
+    const known = this.nearest.get(dir);
+    if (known !== undefined) return known;
+    const here = join(dir, "tsconfig.json");
+    const parent = dirname(dir);
+    const found = existsSync(here)
+      ? here
+      : dir === this.root || parent === dir || relative(this.root, dir).startsWith("..")
+        ? ""
+        : this.tsconfigFor(parent);
+    this.nearest.set(dir, found);
+    return found;
+  }
+
+  private resolverFor(tsconfig: string): ResolverFactory {
+    const known = this.resolvers.get(tsconfig);
+    if (known) return known;
+    let resolver = new ResolverFactory({
+      ...RESOLVE,
+      ...(tsconfig ? { tsconfig: { configFile: tsconfig, references: "auto" as const } } : {}),
     });
+    // The tsconfig itself always resolves; when it does not, oxc could not load the config.
+    if (tsconfig && !resolver.sync(dirname(tsconfig), "./tsconfig.json").path) {
+      resolver = new ResolverFactory({ ...RESOLVE, alias: pathAliases(tsconfig) });
+      this.degraded.push(tsconfig);
+    }
+    this.resolvers.set(tsconfig, resolver);
+    return resolver;
   }
 
   fingerprint(content: string): string {
@@ -136,7 +206,8 @@ export class OxcImportAnalyzer implements ImportAnalyzer, SymbolAnalyzer {
     if (specifier.startsWith("node:")) return { type: "external", name: specifier };
     // `fs`, `path/posix`: builtins read as `node:` ones, never as packages to declare.
     if (bare && isBuiltin(specifier)) return { type: "external", name: `node:${specifier}` };
-    const result = this.resolver.sync(dirname(join(this.root, fromPath)), specifier);
+    const dir = dirname(join(this.root, fromPath));
+    const result = this.resolverFor(this.tsconfigFor(dir)).sync(dir, specifier);
     if (!result.path)
       return bare ? { type: "external", name: packageName(specifier) } : { type: "unresolved" };
     const rel = normalizePath(relative(this.root, result.path));

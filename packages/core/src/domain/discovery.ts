@@ -57,16 +57,50 @@ export interface ScriptCandidate {
   readonly reason: string;
 }
 
-/** Splits a composite script (`a && b; c | d`) into its commands; runners like run-p stay one command. */
+/**
+ * Splits a composite script (`a && b; c | d`) into its commands; runners like run-p stay one
+ * command. Leading environment assignments (`CI=1 jest`) are not part of a command.
+ */
 export function commandsOf(script: string): string[][] {
   const out: string[][] = [[]];
   for (const token of parse(script)) {
-    if (typeof token === "string") (out[out.length - 1] as string[]).push(token);
-    else if ("op" in token && token.op === "glob") (out[out.length - 1] as string[]).push(token.pattern);
+    const current = out[out.length - 1] as string[];
+    if (typeof token === "string") {
+      if (!(current.length === 0 && /^[A-Za-z_][A-Za-z0-9_]*=/.test(token))) current.push(token);
+    } else if ("op" in token && token.op === "glob") current.push(token.pattern);
     else if ("op" in token) out.push([]);
   }
   return out.filter((c) => c.length > 0);
 }
+
+/**
+ * The tasks a workspace task runner runs (`turbo lint`, `turbo run test:ui build`,
+ * `nx run-many -t test lint`, `lerna run test`), or undefined for any other command.
+ */
+export function runnerTasks(command: readonly string[]): string[] | undefined {
+  const tool = (command[0] ?? "").split("/").pop() ?? "";
+  const words = (from: number) => {
+    const out: string[] = [];
+    for (const w of command.slice(from)) {
+      if (w.startsWith("-")) break;
+      out.push(w);
+    }
+    return out;
+  };
+  if (tool === "turbo") return words(command[1] === "run" ? 2 : 1);
+  if (tool === "lerna" && command[1] === "run") return words(2);
+  if (tool === "nx") {
+    const flag = command.findIndex((w) => w === "-t" || w === "--target" || w === "--targets");
+    if (flag >= 0) return words(flag + 1).flatMap((w) => w.split(","));
+    const inline = command.find((w) => /^--targets?=/.test(w));
+    if (inline) return inline.slice(inline.indexOf("=") + 1).split(",");
+    return command[1] === "run" || command[1] === "run-many" ? [] : words(1).slice(0, 1);
+  }
+  return undefined;
+}
+
+/** A command that rewrites files (`eslint --fix`, `prettier --write`): a gate must only check. */
+const fixes = (command: readonly string[]) => command.some((w) => /^--(fix|write)(=|$)/.test(w));
 
 /** Words that select a tool's mode rather than naming what it checks. */
 const SUBCOMMANDS: Readonly<Record<string, readonly string[]>> = {
@@ -105,20 +139,31 @@ export function classifyScript(name: string, script: string, evidence: string): 
   const out: ScriptCandidate[] = [];
   for (const s of SIGNALS) {
     const byName = s.name.test(name);
-    const matching = commands.find((c) => s.command.test(c.join(" ")));
+    // A task runner's task counts like the tool it runs: `turbo lint` lints, `turbo run test:ui` tests.
+    const runs = (c: readonly string[]) =>
+      runnerTasks(c)?.some((t) => s.name.test(t) || s.name.test(t.split(":")[0] as string)) ?? false;
+    const matching = commands.find((c) => s.command.test(c.join(" ")) || runs(c));
     if (!byName && !matching) continue;
     // A specific name ("test:e2e") wins over another capability's command signal ("bun test e2e");
     // generic names ("check", "ci") do not decide anything on their own.
     if (!byName && !GENERIC_NAMES.test(name) && SIGNALS.some((o) => o !== s && o.name.test(name))) continue;
-    const scope = matching
-      ? fileScopability(matching)
-      : { fileScopable: false, reason: "no known tool in the command" };
+    const scope = !matching
+      ? { fileScopable: false, reason: "no known tool in the command" }
+      : runnerTasks(matching)
+        ? { fileScopable: false, reason: "a task runner runs it across the workspace" }
+        : fileScopability(matching);
+    // A script that fixes what it finds is the last choice for a check (format is a fixer by nature).
+    const fixer = s.capability !== "format" && matching !== undefined && fixes(matching);
     out.push({
       capability: s.capability,
-      confidence: byName && matching ? 0.95 : byName ? 0.6 : 0.75,
+      confidence: fixer ? 0.3 : byName && matching ? 0.95 : byName ? 0.6 : 0.75,
       evidence: [evidence],
-      fileScopable: commands.length === 1 && scope.fileScopable,
-      reason: commands.length > 1 ? `composite script (${commands.length} commands)` : scope.reason,
+      fileScopable: !fixer && commands.length === 1 && scope.fileScopable,
+      reason: fixer
+        ? "it rewrites files (--fix/--write); a gate only checks"
+        : commands.length > 1
+          ? `composite script (${commands.length} commands)`
+          : scope.reason,
     });
   }
   return out.sort((a, b) => b.confidence - a.confidence);

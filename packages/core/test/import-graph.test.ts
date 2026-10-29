@@ -115,6 +115,20 @@ describe("BuildImportGraph", () => {
     }
   });
 
+  test("the analyzer's notes on approximate resolution come with the report", async () => {
+    const plain = (await world(FILES, TABLE).build.execute())._unsafeUnwrap();
+    expect(plain.notes).toEqual([]);
+    const fs = new InMemoryFileSystem(FILES);
+    const noted = Object.assign(new FakeAnalyzer(TABLE), {
+      notes: () => ["tsconfig.json extends a missing config"],
+    });
+    const sources = new SourceFiles(new FakeVcs(Object.keys(FILES)), fs, []);
+    const report = (
+      await new BuildImportGraph(sources, fs, noted, workspace, DEFAULT_PATHS, "fake@1").execute()
+    )._unsafeUnwrap();
+    expect(report.notes).toEqual(["tsconfig.json extends a missing config"]);
+  });
+
   test("the same unresolved import used twice in a file is reported once", async () => {
     const files = { "a.ts": "// import ./gone\n// import ./gone" };
     const report = (await world(files, {}).build.execute())._unsafeUnwrap();

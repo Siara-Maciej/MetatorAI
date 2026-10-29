@@ -27,6 +27,8 @@ metator arch analyze
 3. Adds up the imports between packages into edges: how many imports, how many of them are not `import type`, whether only tests import, and which `package.json` field declares the dependency.
 4. Finds what is wrong (below) and writes `report.json` for tools and `report.md` for people.
 
+Each file resolves through its nearest `tsconfig.json`, so an app's own `paths` (`@/*`) work. Before `install`, a tsconfig that extends a package (`@shop/typescript-config/nextjs.json`) cannot be loaded. MetatorAI then uses that tsconfig's own `paths` and warns that the result is approximate. Install dependencies for the exact graph.
+
 The **score** is 100 minus 5 per error and 1 per warning. Use it as a trend, not as a grade.
 
 ## What it finds
@@ -36,10 +38,10 @@ The **score** is 100 minus 5 per error and 1 per warning. Use it as a trend, not
 | `cycle` | error | Packages depend on each other (test-only imports never make a cycle). A cycle closed only by `import type` is a warning. |
 | `undeclared` | error | A file imports a package (workspace or npm) that its `package.json` does not declare. |
 | `root-only` | warning | Only the repository root declares it, so it works through hoisting and breaks when the package is used alone. |
-| `dev-in-prod` | error | Non-test code imports something declared only in `devDependencies`. |
+| `dev-in-prod` | error | Production code imports something declared only in `devDependencies`. Tests, tool configuration (`*.config.*`, `jest.setup.*`) and tool packages (a shared lint or TypeScript config that every package declares only in `devDependencies`) are not production code. |
 | `relative-import` | error | `../../other-package/src/x` instead of the package name. |
 | `app-import` | error | A package depends on an application. |
-| `unused-dependency` | warning | Declared in `dependencies`, imported by no file, not used in a script. |
+| `unused-dependency` | warning | Declared in `dependencies`, imported by no file (stylesheets count: `@import "tw-animate-css"`), not used in a script. |
 | `version-drift` | warning | One dependency declared with several version ranges across packages. |
 | `layer`, `unlayered`, `tag` | error, warning, error | Your policy's layers and tag rules (below). |
 | `expired-exception`, `unused-exception` | error, warning | Your policy's exceptions. |

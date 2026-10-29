@@ -292,6 +292,8 @@ export interface ImportAnalyzer {
   parse(path: string, content: string): Result<readonly ImportSpecifier[], MetatorError>;
   /** Resolves a specifier from a repo-relative file; files outside the repo or in node_modules are external. */
   resolve(fromPath: string, specifier: string): Resolution;
+  /** What made resolution approximate (e.g. a config that extends a package not installed). */
+  notes?(): readonly string[];
 }
 
 /** Exported and imported names of one module (split from ImportAnalyzer: a different axis). */

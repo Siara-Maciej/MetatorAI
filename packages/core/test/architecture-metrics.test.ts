@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { InMemoryFileSystem } from "@metator/testing";
-import { ArchitectureFacts, ArchitecturePolicyCatalog } from "../src/application/architecture.ts";
+import {
+  ArchitectureFacts,
+  ArchitecturePolicyCatalog,
+  StyleImports,
+} from "../src/application/architecture.ts";
 import {
   type ArchitectureInput,
   analyzeArchitecture,
@@ -26,6 +30,7 @@ import {
 } from "../src/domain/architecture-render.ts";
 import { MetatorError } from "../src/domain/errors.ts";
 import { err, ok } from "../src/domain/result.ts";
+import { stylePackages } from "../src/domain/style-imports.ts";
 import type { ResolvedModule } from "../src/domain/symbols.ts";
 
 type Mod = {
@@ -651,6 +656,70 @@ describe("ArchitectureFacts: modules, history and owners", () => {
       symbols: { resolvedModules: async () => err(new MetatorError("INTERNAL", "no symbols")) },
     });
     expect((await badSymbols.gather())._unsafeUnwrapErr().message).toBe("no symbols");
+  });
+});
+
+describe("stylesheets", () => {
+  test("packages a stylesheet pulls in, not paths, URLs or comments", () => {
+    expect(
+      stylePackages(`
+        @import "tailwindcss";
+        @import 'tw-animate-css';
+        @import url("@fontsource/inter/400.css");
+        @import "@scope/theme/dist/vars.css" layer(base);
+        @use "~bootstrap/scss/grid";
+        @plugin "@tailwindcss/typography";
+        @reference "../../ui/globals.css";
+        @import "./local.css";
+        @import "/abs.css";
+        @import url("https://fonts.example.com/x.css");
+        @source "../**/*.tsx";
+        /* @import "commented-out"; */
+        @import "@";
+      `),
+    ).toEqual([
+      "@fontsource/inter",
+      "@scope/theme",
+      "@tailwindcss/typography",
+      "bootstrap",
+      "tailwindcss",
+      "tw-animate-css",
+    ]);
+  });
+
+  test("ArchitectureFacts counts them as build-time uses of the stylesheet's package", async () => {
+    const fs = new InMemoryFileSystem({ "packages/a/src/app.css": '@import "tw-animate-css";', "x.css": "" });
+    const sources = { list: async () => ok(["packages/a/src/app.css", "x.css", "gone.css"]) };
+    const graph = {
+      execute: async () =>
+        ok({
+          files: [],
+          edges: [],
+          packages: [],
+          externals: [],
+          externalUses: [{ from: "packages/a/src/i.ts", name: "zod", typeOnly: false }],
+          imports: [],
+          unresolved: [],
+          stats: { parsed: 0, reused: 0, failed: 0 },
+          parseErrors: [],
+        }),
+    };
+    const facts = new ArchitectureFacts(
+      graph,
+      { manifests: async () => ok({ packages: [m("packages/a", "@x/a")] }) },
+      new ArchitecturePolicyCatalog(new InMemoryFileSystem(), "p.yml"),
+      { now: () => new Date("2026-10-29T10:00:00Z") },
+      { styles: new StyleImports(sources, fs) },
+    );
+    expect((await facts.gather())._unsafeUnwrap().externals).toEqual([
+      { from: "packages/a/src/i.ts", name: "zod", typeOnly: false },
+      { from: "packages/a/src/app.css", name: "tw-animate-css", typeOnly: true },
+    ]);
+    const failing = new StyleImports(
+      { list: async () => err(new MetatorError("COMMAND_FAILED", "no git")) },
+      fs,
+    );
+    expect((await failing.uses())._unsafeUnwrapErr().message).toBe("no git");
   });
 });
 

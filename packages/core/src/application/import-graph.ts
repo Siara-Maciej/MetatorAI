@@ -34,6 +34,8 @@ export interface ImportGraphReport {
   readonly imports: readonly ResolvedImport[];
   readonly unresolved: readonly UnresolvedImport[];
   readonly stats: { readonly parsed: number; readonly reused: number; readonly failed: number };
+  /** What made resolution approximate, from the analyzer. */
+  readonly notes?: readonly string[];
   readonly parseErrors: readonly { readonly file: string; readonly message: string }[];
 }
 
@@ -124,6 +126,7 @@ export class BuildImportGraph {
       unresolved,
       stats: { parsed, reused, failed: parseErrors.length },
       parseErrors,
+      notes: this.analyzer.notes?.() ?? [],
     });
   }
 

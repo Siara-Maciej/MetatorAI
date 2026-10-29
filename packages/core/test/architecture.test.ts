@@ -330,6 +330,38 @@ describe("analyzeArchitecture: declarations", () => {
     expect(ids(testOnly)).toEqual([]);
   });
 
+  test("tool configuration may use devDependencies: it runs at build or check time", () => {
+    const dev = m("packages/ui", "@x/ui", { main: "x", devDependencies: { "@x/core": "*", eslint: "9" } });
+    const config = input({
+      files: [...input().files, "packages/ui/eslint.config.js", "packages/ui/jest.setup.ts"],
+      manifests: { packages: [WEB, dev, CORE] },
+      imports: [imp("packages/ui/eslint.config.js", "packages/core/src/money.ts", "@x/core")],
+      externals: [ext("packages/ui/eslint.config.js", "eslint"), ext("packages/ui/jest.setup.ts", "eslint")],
+    });
+    expect(ids(config)).toEqual([]);
+  });
+
+  test("a workspace package everyone declares only in devDependencies is a tool: its imports are dev-time", () => {
+    const LINT = m("packages/lint", "@x/lint", {
+      main: "index.js",
+      devDependencies: { "eslint-plugin-x": "1" },
+    });
+    const web = m("apps/web", "@x/web", { devDependencies: { "@x/lint": "*" } });
+    const tool = input({
+      files: ["apps/web/src/main.ts", "packages/lint/index.js"],
+      imports: [],
+      externals: [ext("packages/lint/index.js", "eslint-plugin-x")],
+      manifests: { packages: [web, LINT] },
+    });
+    expect(ids(tool)).toEqual([]);
+    // Once a package declares it as a dependency, it ships: its devDependencies are in production.
+    const shipped = {
+      ...tool,
+      manifests: { packages: [m("apps/web", "@x/web", { dependencies: { "@x/lint": "*" } }), LINT] },
+    };
+    expect(ids(shipped)).toEqual(["dev-in-prod:@x/lint→eslint-plugin-x"]);
+  });
+
   test("a relative import into another package", () => {
     const report = analyzeArchitecture(
       input({

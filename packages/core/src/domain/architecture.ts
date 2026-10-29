@@ -13,6 +13,7 @@ import {
 } from "./architecture-metrics.ts";
 import {
   ARCH_TEST_GLOBS,
+  ARCH_TOOLING_GLOBS,
   type ArchitecturePolicy,
   type ArchSeverity,
   brokenTagRules,
@@ -350,6 +351,20 @@ export function analyzeArchitecture(input: ArchitectureInput): ArchitectureRepor
   const ignored = (file: string) => policy.ignore.length > 0 && matchesAny(file, policy.ignore);
   const isTest = (file: string) => matchesAny(file, tests);
   const pkgOf = (file: string) => input.placement?.get(file) ?? packageOf(file, refs)?.name ?? ROOT_PACKAGE;
+  // A workspace package every declaring package lists in devDependencies only (a shared lint or
+  // TypeScript config) is a tool: its files run at check time, never in production.
+  const declarers = [input.manifests.root, ...manifests].filter((m) => m !== undefined);
+  const devTools = new Set(
+    manifests
+      .map((m) => m.name)
+      .filter((name) => {
+        const fields = declarers.flatMap((m) => DEPENDENCY_FIELDS.filter((f) => m[f][name] !== undefined));
+        return fields.length > 0 && fields.every((f) => f === "devDependencies");
+      }),
+  );
+  /** Files that may use devDependencies: tests, tool configuration and tool packages. */
+  const devOnly = (file: string) =>
+    isTest(file) || matchesAny(file, ARCH_TOOLING_GLOBS) || devTools.has(pkgOf(file));
 
   // Files per package.
   const files = new Map<string, { files: number; tests: number }>();
@@ -388,7 +403,7 @@ export function analyzeArchitecture(input: ArchitectureInput): ArchitectureRepor
     acc.set(key, e);
     e.imports++;
     if (!imp.typeOnly) e.runtime++;
-    if (!isTest(imp.from)) e.testOnly = false;
+    if (!devOnly(imp.from)) e.testOnly = false;
     if (e.samples.length < 5 && !e.samples.some((s) => s.from === imp.from && s.to === imp.to))
       e.samples.push({ from: imp.from, to: imp.to });
     if (imp.specifier.startsWith(".") && e.relative.length < 5)
@@ -521,7 +536,7 @@ export function analyzeArchitecture(input: ArchitectureInput): ArchitectureRepor
     const key = pairKey(p, x.name);
     const entry = externals.get(key) ?? { files: [], prod: false, runtimeProd: false };
     if (entry.files.length < 5) entry.files.push(x.from);
-    if (!isTest(x.from)) {
+    if (!devOnly(x.from)) {
       entry.prod = true;
       if (!x.typeOnly) entry.runtimeProd = true;
     }
@@ -639,7 +654,7 @@ export function analyzeArchitecture(input: ArchitectureInput): ArchitectureRepor
   const workspace = packages.filter((p) => p.kind !== "root");
   const wsEdges = production.filter((e) => e.from !== ROOT_PACKAGE && e.to !== ROOT_PACKAGE);
   const modules = input.modules ?? new Map<string, ResolvedModule>();
-  const counted = (file: string) => !ignored(file) && !isTest(file);
+  const counted = (file: string) => !ignored(file) && !devOnly(file);
   const barrel = (file: string) =>
     /(^|\/)index\.[cm]?[jt]sx?$/.test(file) || (byPackage.get(pkgOf(file))?.entries.includes(file) ?? false);
   // Imports of a workspace package by name that is not linked (no install): its entry files,
