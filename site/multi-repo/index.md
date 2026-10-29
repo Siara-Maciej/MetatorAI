@@ -81,6 +81,8 @@ metator system discover --write    # write the proposal to docs/metator/system.y
 metator system discover --check    # in CI: fail when the map lacks what the code shows
 ```
 
+`--write` and `--check` need a map, so they run in the repository that holds it. In a folder of repositories, discovery only proposes.
+
 ```json
 {"topology":"monorepo",
  "proposal":{"system":"shop","applications":[
@@ -233,6 +235,8 @@ metator system plan lint rename-refunds
 metator system plan approve rename-refunds                      # you, never an agent
 ```
 
+The analysis is saved next to the plan. `system plan new` and `propose` analyze again when you name what the task touches (`--contracts`, `--breaking` or `--files`); otherwise they reuse the saved analysis. Once the plan is approved or running, its analysis stays as approved: `system analyze` refuses and asks for a new task. `propose` keeps whatever the agents wrote as a draft, and drops an approval an agent wrote itself.
+
 Under `expand-contract` the draft is:
 
 | Wave | Step | In repository of | What it does |
@@ -254,6 +258,8 @@ Under `versioned` it is `bump` (a new major version) and then a `migrate` step f
 | Analysis | the plan has no analysis: nothing says what breaks |
 | Approval | anything a child run is told changed after you approved it: a step, its summary, deploy flag or rollback, the task |
 
+Warnings do not block: an application with no owners, a contract that changes in a way not classified yet (`unknown`) while it has consumers, a strategy for a contract the analysis does not call breaking, an application the analysis says changes but no step runs in, and no step yet that removes the old shape. Approving again replaces an approval the plan outgrew.
+
 **The gate respects the plan.** Once you approve it, `contract diff --check` lets the breaking change through in the provider's repository, but only for the step that breaks it, and only after the steps before it are done:
 
 ```json
@@ -272,7 +278,7 @@ metator system plan run rename-refunds        # the steps that can start, each a
 metator system status rename-refunds          # the child runs read back; the plan is done when every step is
 ```
 
-Set `system.roots` for the repositories you have checked out. A step whose application has only a clone cannot start.
+Set `system.roots` for the repositories you have checked out. A step whose application has only a clone cannot start, and every ready step is located before any starts, so a wave starts whole or not at all.
 
 ## Measure it
 
@@ -308,6 +314,8 @@ expect:
 | lint clean | `system plan lint` has no error |
 | steps | the expected steps are in the plan |
 | order | the plan keeps every expected order pair, also through other steps |
+
+A case passes only when every score is 1.
 
 ## Roadmap of the multi-repo phase (F7)
 

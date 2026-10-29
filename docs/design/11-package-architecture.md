@@ -141,11 +141,12 @@ Ruch to dane, nie prosta zmiana kodu:
    - wynik symulacji, który do planu wpisuje narzędzie, nie agent.
 2. **`arch plan lint`** (E1) sprawdza, że:
    - każdy ruch ma dowód i symulację;
-   - fale są w porządku topologicznym, bez ruchu zależnego od ruchu z późniejszej fali;
-   - suma fal osiąga cel (np. zero cykli).
-3. **HITL:** człowiek zatwierdza plan, w razie potrzeby ruch po ruchu.
+   - fale są w porządku topologicznym: ruch jest możliwy na stanie po wcześniejszych falach, a nie po ruchu z tej samej fali (ruchy jednej fali idą równolegle), i żaden plik nie jest w dwóch ruchach jednej fali;
+   - suma fal osiąga cel (np. zero cykli);
+   - po wykonanych ruchach (`done`) sprawdzane są tylko pozostałe, a cel liczy się od `result.before`, od którego plan startował.
+3. **HITL:** człowiek zatwierdza cały plan; zgoda obejmuje skrót celu i ruchów. Zgodę wpisaną przez agenta narzędzie usuwa.
 4. **`arch plan run`** uruchamia każdą falę jako runy W3 (`mt-refactorer`). Każdy ruch to osobny run z testami charakteryzującymi, `api diff` i `graph diff`, a przepisanie importów robi codemod. Ruchy niezależne idą równolegle w osobnych worktree (F8.2).
-5. Po każdym runie `arch analyze` aktualizuje stan ruchu w planie (`done`, `blocked` z powodem). Plan jest żywym dokumentem pokazywanym w `metator ui` i `metator status`.
+5. `arch plan status` czyta runy ruchów z powrotem do planu (`done`, `blocked` z powodem). Zablokowany ruch zatrzymuje falę: `arch plan run` zwraca błąd z podpowiedzią, a człowiek ustawia ruch na `pending` albo `done`. Runy ruchów widać w `metator ui` i `metator status` jak każdy inny run.
 
 ### 5.6 Bramki CI i zapadka
 
