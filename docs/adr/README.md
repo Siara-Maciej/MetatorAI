@@ -68,3 +68,5 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0062](0062-architecture-ratchet.md) | Architektura w CI: zapadka, baseline, SARIF i pierwsza polityka | Proposed |
 | [0063](0063-architecture-metrics.md) | Metryki i granice pakietów, historia zmian, raport HTML | Proposed |
 | [0064](0064-architecture-moves.md) | Ruchy refaktoru jako dane, symulacja i najtańsze cięcie cykli | Proposed |
+| [0065](0065-refactor-plans.md) | Plany refaktoru (`RefactorPlan`, `mt-arch-planner`, wykonanie runami W3) | Proposed |
+| [0066](0066-architecture-evals.md) | Ewaluacja planowania refaktoru (`ArchEvalCase`, `arch eval`, `Sandbox`) | Proposed |

@@ -8,3 +8,4 @@ export * from "./bun-test-engine.ts";
 export * from "./node-bin-resolver.ts";
 export * from "./node-tree-copier.ts";
 export * from "./repo-root.ts";
+export * from "./temp-git-sandbox.ts";

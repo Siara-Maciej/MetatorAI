@@ -245,9 +245,9 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 - [x] H2 Polityka w CI: `ArchitectureBaseline` v1, `arch check --base` (tylko nowe naruszenia), SARIF, krok bramki `arch check`, `arch init` (także z `boundaries` Turborepo i `depConstraints` Nx) (ADR-0062).
 - [x] H3 Metryki (Martin, głębokość), progi, granice (podział, scalenie, huby, martwe eksporty i pakiety), wspólne zmiany z historii git (port `ChangeHistory`), zespoły z `CODEOWNERS`, zasięg aplikacji, raport HTML (ADR-0063).
 - [x] H4 Ruchy jako dane (`Move`: move, merge, extract, invert, declare), `arch simulate move|merge|extract|invert`, różnica raportów, najtańsze cięcie cykli (ADR-0064).
-- [ ] H5 Agent `mt-arch-planner`, `RefactorPlan` v1, `arch plan lint|show`, HITL.
-- [ ] H6 `arch plan run`: fale runów W3, stan planu.
-- [ ] H7 Ewaluacja: przypadki architektury w złotym zbiorze.
+- [x] H5 Agent `mt-arch-planner`, `RefactorPlan` v1, `arch plan new|propose|list|show|simulate|lint|approve|schema`, zatwierdzenie z digestem, hook blokuje zatwierdzenie przez agenta (ADR-0065).
+- [x] H6 `arch plan run` (fala jako runy W3 w osobnych worktree) i `arch plan status` (stan ruchów z runów) (ADR-0065).
+- [x] H7 Ewaluacja: `ArchEvalCase` v1, dwa przypadki w `docs/metator/evals/arch/`, port `Sandbox`, `arch eval list|run|schema` (ADR-0066).
 
 ## Role i odpowiedzialności
 

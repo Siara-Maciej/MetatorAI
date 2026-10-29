@@ -332,6 +332,153 @@ metator arch simulate invert [options] <from> <to>
 | `<from>` | the package that depends today | |
 | `<to>` | the package it depends on today | |
 
+### `metator arch plan new`
+
+Start an empty draft plan in metator/arch/plans/
+
+```bash
+metator arch plan new [options] <title...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<title>` | what the refactor is for | |
+| `--goal <goal>` | what the plan must reach (one of: no-cycles, no-errors, fewer-violations) | `"no-cycles"` |
+
+### `metator arch plan propose`
+
+Let mt-arch-planner fill a plan on your AI host, then simulate and lint it
+
+```bash
+metator arch plan propose [options] <title...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<title>` | what the refactor is for | |
+| `--goal <goal>` | what the plan must reach (one of: no-cycles, no-errors, fewer-violations) | `"no-cycles"` |
+| `--host <host>` | the AI host that plans: claude, copilot, scenario |  |
+
+### `metator arch plan list`
+
+Every refactor plan with its goal, status and moves
+
+```bash
+metator arch plan list [options]
+```
+
+### `metator arch plan show`
+
+One refactor plan
+
+```bash
+metator arch plan show [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator arch plan simulate`
+
+Write each move's effect and the whole result into the plan
+
+```bash
+metator arch plan simulate [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator arch plan lint`
+
+Check the plan: moves possible, citations real, effects current, no new errors, goal reached
+
+```bash
+metator arch plan lint [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator arch plan approve`
+
+Approve the plan's moves as they are now (a person, never an agent)
+
+```bash
+metator arch plan approve [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+| `--by <name>` | who approves (default METATOR_USER or the login) |  |
+
+### `metator arch plan run`
+
+Start the next wave: one W3 refactor run per move, each in its own worktree
+
+```bash
+metator arch plan run [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+| `--base <ref>` | branch the worktrees from this ref |  |
+
+### `metator arch plan status`
+
+Read the moves' runs back into the plan: done, blocked, the plan done when all are
+
+```bash
+metator arch plan status [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator arch plan schema`
+
+Print the JSON Schema of a refactor plan
+
+```bash
+metator arch plan schema [options]
+```
+
+### `metator arch eval list`
+
+The golden cases (docs/metator/evals/arch)
+
+```bash
+metator arch eval list [options]
+```
+
+### `metator arch eval run`
+
+Plan every case on your AI host in a fresh repository and score the plans
+
+```bash
+metator arch eval run [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--case <id>` | only this case |  |
+| `--host <host>` | the AI host that plans: claude, copilot, scenario |  |
+| `--min <score>` | fail below this mean score (0 to 1) |  |
+
+### `metator arch eval schema`
+
+Print the JSON Schema of a golden case
+
+```bash
+metator arch eval schema [options]
+```
+
 ### `metator arch cycles`
 
 Cycles between packages, with the imports that close them

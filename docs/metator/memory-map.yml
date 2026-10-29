@@ -181,3 +181,11 @@ items:
     writers: [human, "metator system discover (proposal, after approval)"]
     readers: [mt-system-scout, mt-system-planner, "metator system"]
     description: The system map (applications, contracts, policies); `system lint` keeps it true.
+  - id: t1.arch-evals
+    tier: T1
+    kind: canon
+    paths: ["docs/metator/evals/arch/*.yml"]
+    load: "query:metator arch eval list"
+    writers: [human]
+    readers: ["metator arch eval run"]
+    description: The golden set of refactor planning (ArchEvalCase); `arch eval run` scores mt-arch-planner on it.

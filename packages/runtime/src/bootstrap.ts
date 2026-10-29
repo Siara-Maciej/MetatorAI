@@ -9,6 +9,7 @@ import {
   AnalyzeArchitecture,
   AnalyzeEnvironment,
   ApiSnapshots,
+  ApproveRefactorPlan,
   ApproveRun,
   ArchitectureBaselineStore,
   ArchitectureFacts,
@@ -30,6 +31,7 @@ import {
   CompareEvals,
   ComputeAffected,
   ConversationRepository,
+  CreateRefactorPlan,
   CreateWorktree,
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
@@ -73,6 +75,7 @@ import {
   LintAdrs,
   LintAgents,
   LintPlan,
+  LintRefactorPlan,
   LintRules,
   LintSkills,
   LintSystem,
@@ -88,9 +91,11 @@ import {
   PackRules,
   PatternCatalog,
   PlanReview,
+  ProposeRefactorPlan,
   ProvideWorktree,
   PruneWorktrees,
   RecordArchitectureBaseline,
+  RefactorPlanStore,
   RemoveWorktree,
   RuleCatalog,
   RunAffectedTests,
@@ -98,6 +103,7 @@ import {
   RunEvals,
   RunGate,
   RunJournal,
+  RunRefactorPlan,
   RunRepository,
   ScaffoldRule,
   ScanPatterns,
@@ -105,9 +111,11 @@ import {
   ScoreEvals,
   ShowSystem,
   SimulateArchitecture,
+  SimulateRefactorPlan,
   SkillCatalog,
   SourceFiles,
   SymbolQueries,
+  SyncRefactorPlan,
   SystemCatalog,
   UpdateConfig,
   ValidateCitations,
@@ -128,6 +136,7 @@ import {
   BunTimer,
   NodeBinResolver,
   NodeTreeCopier,
+  TempGitSandbox,
 } from "@metator/plugin-bun";
 
 export { findChildRepos, findFolderRoot, findRepoRoot } from "@metator/plugin-bun";
@@ -334,6 +343,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     vcs: asFunction(({ root }) => new GitVcs(root)).singleton(),
     revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
     changeHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    sandbox: asFunction(() => new TempGitSandbox()).singleton(),
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     packageManager: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
@@ -476,6 +486,46 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new InitArchitecturePolicy(architectureFacts, toolBoundariesReader, fileSystem, paths.architecture),
     ),
     simulateArchitecture: asFunction(({ architectureFacts }) => new SimulateArchitecture(architectureFacts)),
+    refactorPlanStore: asFunction(
+      ({ fileSystem, paths }) => new RefactorPlanStore(fileSystem, paths.archPlans),
+    ),
+    createRefactorPlan: asFunction(({ refactorPlanStore }) => new CreateRefactorPlan(refactorPlanStore)),
+    simulateRefactorPlan: asFunction(
+      ({ architectureFacts, refactorPlanStore }) =>
+        new SimulateRefactorPlan(architectureFacts, refactorPlanStore),
+    ),
+    lintRefactorPlan: asFunction(
+      ({ architectureFacts, refactorPlanStore, fileSystem }) =>
+        new LintRefactorPlan(architectureFacts, refactorPlanStore, fileSystem),
+    ),
+    approveRefactorPlan: asFunction(
+      ({ lintRefactorPlan, refactorPlanStore, clock }) =>
+        new ApproveRefactorPlan(lintRefactorPlan, refactorPlanStore, clock),
+    ),
+    proposeRefactorPlan: asFunction(
+      ({
+        agentHosts,
+        analyzeArchitecture,
+        refactorPlanStore,
+        createRefactorPlan,
+        simulateRefactorPlan,
+        lintRefactorPlan,
+      }) =>
+        new ProposeRefactorPlan(
+          agentHosts,
+          analyzeArchitecture,
+          refactorPlanStore,
+          createRefactorPlan,
+          simulateRefactorPlan,
+          lintRefactorPlan,
+        ),
+    ),
+    runRefactorPlan: asFunction(
+      ({ refactorPlanStore, initRun }) => new RunRefactorPlan(refactorPlanStore, initRun),
+    ),
+    syncRefactorPlan: asFunction(
+      ({ refactorPlanStore, runRepository }) => new SyncRefactorPlan(refactorPlanStore, runRepository),
+    ),
     analyzeArchitecture: asFunction(
       ({ architectureFacts, fileSystem, paths }) =>
         new AnalyzeArchitecture(architectureFacts, fileSystem, paths),

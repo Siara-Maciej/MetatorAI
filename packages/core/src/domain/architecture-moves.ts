@@ -79,7 +79,7 @@ const describe = (m: Move): string => {
 
 /** Problems that make moves impossible (unknown packages, files matching nothing), or none. */
 export function checkMoves(input: ArchitectureInput, moves: readonly Move[]): string[] {
-  const known = new Set(input.manifests.packages.map((p) => p.name));
+  const known = new Set([...input.manifests.packages, ...(input.extraPackages ?? [])].map((p) => p.name));
   const problems: string[] = [];
   for (const m of moves) {
     const need = (name: string) => {

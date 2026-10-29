@@ -210,6 +210,13 @@ export interface ManifestReader {
   manifests(): Promise<Result<ManifestSet, MetatorError>>;
 }
 
+/** A throwaway git repository made of given files (H7: architecture evals), removed by `dispose`. */
+export interface Sandbox {
+  create(
+    files: Readonly<Record<string, string>>,
+  ): Promise<Result<{ readonly root: string; dispose(): Promise<void> }, MetatorError>>;
+}
+
 /** Recent history of the repository (H3: packages that change together). */
 export interface ChangeHistory {
   /** Files each of the last `limit` commits changed, newest first; none before the first commit. */

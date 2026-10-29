@@ -100,6 +100,87 @@ metator arch simulate invert @shop/pricing @shop/cart                          #
 
 Nothing is written, and the simulation runs the same analysis as `arch analyze`, so a proposal by a person or an agent is judged by numbers, not by opinion.
 
+## Plan the refactor
+
+A refactor plan is a file of moves, each with the reason it exists. Moves of one wave run in parallel, and a wave starts when the one before it is done. Let the planner write one:
+
+```bash
+metator arch plan propose "Break the pricing cycle" --goal no-cycles     # --host claude|copilot
+```
+
+1. MetatorAI writes a fresh report and an empty draft `metator/arch/plans/break-the-pricing-cycle.yml`.
+2. `mt-arch-planner` runs on your AI host. It reads the report, the module cards and the code, tries each move with `arch simulate`, and writes the moves with their reasons and citations.
+3. MetatorAI writes each move's effect into the plan (`arch plan simulate`) and lints it.
+
+```yaml
+kind: RefactorPlan
+schemaVersion: 1
+id: break-the-pricing-cycle
+title: Break the pricing cycle
+goal: no-cycles                      # or no-errors, fewer-violations
+status: draft
+moves:
+  - id: rules-to-cart
+    move: { type: move, files: [packages/pricing/src/rules.ts], to: "@shop/cart" }
+    why: The rules read the cart; they are cart behavior, so pricing no longer needs cart.
+    citations: ["packages/pricing/src/rules.ts:1", "docs/metator/modules/shop-cart.card.md"]
+    wave: 1
+    effect:                          # written by `arch plan simulate`, never by hand
+      scoreBefore: 95
+      scoreAfter: 99
+      fixed: ["cycle:@shop/cart,@shop/pricing"]
+      added: ["unused-dependency:@shop/pricing→@shop/cart"]
+      rewrites: 1
+      declared: []
+result:
+  before: { cycles: 1, errors: 1, warnings: 0, score: 95 }
+  after: { cycles: 0, errors: 0, warnings: 1, score: 99 }
+```
+
+You can also write a plan by hand: `metator arch plan new <title> --goal …`, then add moves (`metator arch plan schema` prints the format).
+
+**Lint** (`metator arch plan lint <id>`) refuses a plan when:
+- a move cannot run where it stands (unknown package, files that match nothing);
+- a citation does not exist;
+- an effect is out of date;
+- the plan adds an error, or does not reach its goal;
+- the moves changed after the approval.
+
+A move that fixes nothing on its own is a warning.
+
+## Approve and execute
+
+```bash
+metator arch plan approve break-the-pricing-cycle        # you; never an agent (the hook refuses it)
+metator arch plan run break-the-pricing-cycle            # the next wave: one W3 refactor run per move
+metator arch plan status break-the-pricing-cycle         # read the runs back: done, blocked
+```
+
+- The approval records who approved and a digest of the moves. Editing a move afterwards (not its reason) needs a new approval, and `arch plan run` refuses until then.
+- `run` starts each move of the next wave as an `mt-refactor` run in its own worktree. The task names the move, its reason and its evidence. Drive the runs as usual (`metator run drive`, `metator ui`).
+- `status` marks a move done when its run is done, and blocked (with the run) when it was aborted or escalated. The plan is done when every move is.
+
+## Measure the planner
+
+A planner is only as good as its plans. `docs/metator/evals/arch/` holds small monorepos with a known problem and what a good plan must fix:
+
+```bash
+metator arch eval list
+metator arch eval run --host claude --min 0.8
+```
+
+```json
+{"summary":{"cases":2,"passed":2,"score":1},
+ "cases":[{"id":"banner-imports-app","moves":1,"lintClean":true,"goalMet":true,"recall":1,"forbidden":[],"withinMoves":true,"passed":true,"score":1}, "…"]}
+```
+
+How it runs:
+- Each case runs in a fresh, linked git repository, so nothing touches yours.
+- The planner proposes a plan there.
+- The plan is scored on five checks, the score being their mean: lint clean, goal reached, share of the expected fixes made, no forbidden violation left, at most the allowed number of moves.
+
+Run it when you change the planner's prompt or model, the same way the review evals guard the reviewers.
+
 ## Write a policy
 
 Without a policy you get the checks above. A policy adds your intended structure. Start from a proposal:

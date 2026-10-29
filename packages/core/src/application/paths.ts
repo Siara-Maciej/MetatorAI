@@ -48,6 +48,8 @@ export interface MetatorPaths {
   readonly arch: string;
   /** Refactor plans (`RefactorPlan`, H5). */
   readonly archPlans: string;
+  /** The golden set of refactor planning (`ArchEvalCase`, H7). */
+  readonly archEvals: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -80,6 +82,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   archBaseline: "metator/arch-baseline.json",
   arch: ".metator/arch",
   archPlans: "metator/arch/plans",
+  archEvals: "docs/metator/evals/arch",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

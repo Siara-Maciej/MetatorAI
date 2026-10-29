@@ -1,6 +1,7 @@
 import { ArchitecturePolicyDocument, err, MetatorError, type Move, ok } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
+import { registerArchEvalCommands, registerArchPlanCommands } from "./arch-plan.ts";
 
 const DECLARATION_KINDS = new Set([
   "undeclared",
@@ -10,7 +11,8 @@ const DECLARATION_KINDS = new Set([
   "version-drift",
 ]);
 
-export function registerArchCommands(program: Command, { action, container }: CommandContext): void {
+export function registerArchCommands(program: Command, ctx: CommandContext): void {
+  const { action, container } = ctx;
   const arch = program
     .command("arch")
     .description(
@@ -133,6 +135,9 @@ export function registerArchCommands(program: Command, { action, container }: Co
     .action(
       action(async (from: string, to: string) => ({ result: await run({ type: "invert", from, to }) })),
     );
+
+  registerArchPlanCommands(arch, ctx);
+  registerArchEvalCommands(arch, ctx);
 
   arch
     .command("cycles")

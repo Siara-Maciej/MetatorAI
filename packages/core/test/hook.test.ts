@@ -83,6 +83,21 @@ describe("preToolPolicy", () => {
     expect(decide(hook("Read", { file_path: "/repo/src/env.ts" }), free)).toBe("allow");
   });
 
+  test("an agent never approves a refactor plan; run approvals keep their relay", () => {
+    for (const command of [
+      "bun run metator arch plan approve split-kit --by maciej",
+      "metator -C ../shop arch plan approve split-kit",
+      "cd x && bun packages/cli/src/main.ts arch plan approve p",
+    ])
+      expect([command, decide(hook("Bash", { command }), free)]).toEqual([command, "deny"]);
+    for (const command of [
+      "bun run metator arch plan lint split-kit",
+      "bun run metator run approve push --by maciej",
+      "echo approve",
+    ])
+      expect([command, decide(hook("Bash", { command }), free)]).toEqual([command, "allow"]);
+  });
+
   test("destructive commands are denied, also inside a composite command", () => {
     for (const command of [
       "git push --force origin main",

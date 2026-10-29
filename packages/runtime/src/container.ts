@@ -6,6 +6,7 @@ import {
   type AnalyzeArchitecture,
   type AnalyzeEnvironment,
   type ApiSnapshots,
+  type ApproveRefactorPlan,
   type ApproveRun,
   type ArchitectureBaselineStore,
   type ArchitectureFacts,
@@ -31,6 +32,7 @@ import {
   type ComputeAffected,
   type ContainerRuntime,
   type ConversationRepository,
+  type CreateRefactorPlan,
   type CreateWorktree,
   type DataIsolator,
   type DiffCoverage,
@@ -78,6 +80,7 @@ import {
   type LintAdrs,
   type LintAgents,
   type LintPlan,
+  type LintRefactorPlan,
   type LintRules,
   type LintSkills,
   type LintSystem,
@@ -102,9 +105,11 @@ import {
   type PlanReview,
   type PortProbe,
   type ProcessRunner,
+  type ProposeRefactorPlan,
   type ProvideWorktree,
   type PruneWorktrees,
   type RecordArchitectureBaseline,
+  type RefactorPlanStore,
   type RemoveWorktree,
   type Result,
   type RevisionReader,
@@ -116,18 +121,22 @@ import {
   type RunEvals,
   type RunGate,
   type RunJournal,
+  type RunRefactorPlan,
   type RunRepository,
+  type Sandbox,
   type ScaffoldRule,
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
   type ShowSystem,
   type SimulateArchitecture,
+  type SimulateRefactorPlan,
   type SkillCatalog,
   type SkillGenerator,
   type SourceFiles,
   type SymbolAnalyzer,
   type SymbolQueries,
+  type SyncRefactorPlan,
   type SystemCatalog,
   type Timer,
   type ToolBoundariesReader,
@@ -166,6 +175,7 @@ export interface Cradle {
   vcs: Vcs;
   revisionReader: RevisionReader;
   changeHistory: ChangeHistory;
+  sandbox: Sandbox;
   nodePackageManager: PackageManagerDetector & PackageManager;
   packageManagerDetector: PackageManagerDetector;
   packageManager: PackageManager;
@@ -262,6 +272,14 @@ export interface Cradle {
   recordArchitectureBaseline: RecordArchitectureBaseline;
   initArchitecturePolicy: InitArchitecturePolicy;
   simulateArchitecture: SimulateArchitecture;
+  refactorPlanStore: RefactorPlanStore;
+  createRefactorPlan: CreateRefactorPlan;
+  simulateRefactorPlan: SimulateRefactorPlan;
+  lintRefactorPlan: LintRefactorPlan;
+  approveRefactorPlan: ApproveRefactorPlan;
+  proposeRefactorPlan: ProposeRefactorPlan;
+  runRefactorPlan: RunRefactorPlan;
+  syncRefactorPlan: SyncRefactorPlan;
   lintSystem: LintSystem;
   showSystem: ShowSystem;
   docsLinks: DocsLinks;
