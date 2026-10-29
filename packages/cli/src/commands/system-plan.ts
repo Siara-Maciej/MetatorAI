@@ -5,8 +5,10 @@ import {
   ok,
   planId,
   type Result,
+  RunSystemEvals,
   RunSystemPlan,
   SystemAnalysisDocument,
+  SystemEvalCaseDocument,
   SystemPlanDocument,
   SystemPlanStatus,
   systemPlanWaves,
@@ -283,4 +285,88 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
         };
       }),
     );
+
+  const evals = () => {
+    const c = container();
+    const fs = c.resolve("fileSystem");
+    return new RunSystemEvals(
+      fs,
+      c.resolve("paths").systemEvals,
+      c.resolve("sandbox"),
+      (root) => {
+        const there = ctx.containerAt(root);
+        return {
+          create: there.resolve("createSystemPlan"),
+          propose: there.resolve("proposeSystemPlan"),
+          lint: there.resolve("lintSystemPlan"),
+          store: there.resolve("systemPlanStore"),
+        };
+      },
+      // The system agents' definitions for the hosts, as `agents install` writes them here.
+      async () => {
+        const out: Record<string, string> = {};
+        for (const file of SYSTEM_AGENT_FILES) {
+          const text = await fs.read(file);
+          if (text.isOk()) out[file] = text.value;
+        }
+        return out;
+      },
+    );
+  };
+  const evalCmd = system.command("eval").description("Score system analysis and planning on the golden set");
+  evalCmd
+    .command("list")
+    .description("The golden cases (docs/metator/evals/system)")
+    .action(
+      action(async () => ({
+        result: (await evals().cases()).map((cases) => ({
+          cases: cases.map((c) => ({
+            id: c.id,
+            task: c.task,
+            files: Object.keys(c.files).length,
+            expect: c.expect,
+          })),
+        })),
+      })),
+    );
+  evalCmd
+    .command("run")
+    .description(
+      "Analyze and plan every case in a fresh repository (with --host, the system agents too) and score it",
+    )
+    .option("--case <id>", "only this case")
+    .option(
+      "--host <host>",
+      `refine with mt-system-scout and mt-system-planner on this AI host: ${HOSTS.join(", ")}`,
+    )
+    .option("--min <score>", "fail below this mean score (0 to 1)")
+    .action(
+      action(async (opts: { case?: string; host?: string; min?: string }) => {
+        const r = await evals().execute({
+          by: person(process.env),
+          ...(opts.host ? { host: opts.host } : {}),
+          ...(opts.case ? { only: opts.case } : {}),
+        });
+        if (r.isErr() || opts.min === undefined || r.value.summary.score >= Number(opts.min))
+          return { result: r };
+        return {
+          result: err(
+            new MetatorError("CHECK_FAILED", `mean score ${r.value.summary.score} is below ${opts.min}`, {
+              details: { ...r.value },
+            }),
+          ),
+        };
+      }),
+    );
+  evalCmd
+    .command("schema")
+    .description("Print the JSON Schema of a golden case")
+    .action(action(async () => ({ result: ok(SystemEvalCaseDocument.jsonSchema("input")) })));
 }
+
+const SYSTEM_AGENT_FILES = [
+  ".claude/agents/mt-system-scout.md",
+  ".claude/agents/mt-system-planner.md",
+  ".github/agents/mt-system-scout.agent.md",
+  ".github/agents/mt-system-planner.agent.md",
+];

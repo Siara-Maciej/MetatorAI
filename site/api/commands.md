@@ -406,6 +406,36 @@ metator system status [options] [id]
 | `--run <run>` | the plan of this system run (an id or its run directory) |  |
 | `--check` | fail until every step is done (a W13 gate) |  |
 
+### `metator system eval list`
+
+The golden cases (docs/metator/evals/system)
+
+```bash
+metator system eval list [options]
+```
+
+### `metator system eval run`
+
+Analyze and plan every case in a fresh repository (with --host, the system agents too) and score it
+
+```bash
+metator system eval run [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--case <id>` | only this case |  |
+| `--host <host>` | refine with mt-system-scout and mt-system-planner on this AI host: claude, copilot, scenario |  |
+| `--min <score>` | fail below this mean score (0 to 1) |  |
+
+### `metator system eval schema`
+
+Print the JSON Schema of a golden case
+
+```bash
+metator system eval schema [options]
+```
+
 ### `metator system schema`
 
 Print the JSON Schema of the system map

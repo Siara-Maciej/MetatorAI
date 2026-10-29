@@ -75,3 +75,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0069](0069-contract-diff.md) | `contract diff`: zmiana kontraktu oceniana różnicą specyfikacji i polityką mapy | Proposed |
 | [0070](0070-system-plan.md) | Plan systemowy: `SystemAnalysis`, `SystemPlan`, lint kolejności i strategii, agenci systemowi | Proposed |
 | [0071](0071-linked-runs.md) | Runy powiązane: run systemowy W13 i runy-dzieci w repozytoriach aplikacji | Proposed |
+| [0072](0072-system-evals.md) | Złoty zbiór zmian systemowych i score analizy oraz planu | Proposed |

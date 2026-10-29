@@ -189,3 +189,11 @@ items:
     writers: [human]
     readers: ["metator arch eval run"]
     description: The golden set of refactor planning (ArchEvalCase); `arch eval run` scores mt-arch-planner on it.
+  - id: t1.system-evals
+    tier: T1
+    kind: canon
+    paths: ["docs/metator/evals/system/*.yml"]
+    load: "query:metator system eval list"
+    writers: [human]
+    readers: ["metator system eval run"]
+    description: The golden set of system changes (SystemEvalCase); `system eval run` scores system analysis and planning on it.

@@ -264,6 +264,41 @@ metator system status rename-refunds          # the child runs read back; the pl
 
 Set `system.roots` for the repositories you have checked out. A step whose application has only a clone cannot start.
 
+## Measure it
+
+A change to the planner, its prompts or the system agents is measured on a golden set of system changes in `docs/metator/evals/system/`:
+
+```bash
+metator system eval list
+metator system eval run                     # the tool alone: the baseline
+metator system eval run --host claude       # with mt-system-scout and mt-system-planner
+metator system eval run --min 0.95          # in CI: fail below the score
+```
+
+Each case is a small repository (the map, specifications, code), a task and what a good result has:
+
+```yaml
+kind: SystemEvalCase
+schemaVersion: 1
+id: rename-refunds
+task: Rename refunds to credit notes
+input: { breaking: [billing-api] }
+files: { docs/metator/system.yml: "…", apps/billing/openapi.yaml: "…" }
+expect:
+  applications: [billing, web, mail]          # all the change reaches, and no other
+  contracts: { billing-api: breaking }
+  steps: [billing-expand, web-migrate, mail-migrate, billing-contract]
+  order: [[billing-expand, web-migrate], [web-migrate, billing-contract]]
+```
+
+| Score | Measures |
+|---|---|
+| impact recall, precision | the applications the analysis found against the expected ones |
+| contracts | each contract's change right (breaking, compatible) |
+| lint clean | `system plan lint` has no error |
+| steps | the expected steps are in the plan |
+| order | the plan keeps every expected order pair, also through other steps |
+
 ## Roadmap of the multi-repo phase (F7)
 
 | Step | What it adds | Status |
@@ -274,5 +309,6 @@ Set `system.roots` for the repositories you have checked out. A step whose appli
 | F7.4 Compatibility | `contract diff` for OpenAPI (breaking or not) and a contract gate | ✅ available |
 | F7.5 System plan | a plan per application, in deploy order, with a strategy for breaking changes; `mt-system-scout`, `mt-system-planner` | ✅ available |
 | F7.6 Linked runs | one system run with child runs in each repository, a combined status | ✅ available |
+| F7.7 Evals | a golden set of system changes, impact and plan scores | ✅ available |
 
 Contract kinds come from plugins. The MVP supports **OpenAPI**; AsyncAPI, GraphQL, gRPC, npm packages and database schemas follow.

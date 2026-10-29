@@ -2290,7 +2290,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/system-plan.ts",
-    from: "consumedBy(map, s.app).has(c.id) &&\n            !dependsOn(plan, s.id, p.id)",
+    from: "consumedBy(map, s.app).has(c.id) &&\n            !stepDependsOn(plan, s.id, p.id)",
     to: "consumedBy(map, s.app).has(c.id) &&\n            false",
     why: "providers deploy before their consumers",
   },
@@ -2371,5 +2371,29 @@ export const MUTANTS: readonly Mutant[] = [
     from: "...(input.parent ? { parent: input.parent } : {}),\n      ...(input.system",
     to: "...(input.system",
     why: "a child run records its parent",
+  },
+  {
+    file: "packages/core/src/domain/system-eval.ts",
+    from: "const impactPrecision = share([...found].filter((a) => expected.has(a)).length, found.size);",
+    to: "const impactPrecision = 1;",
+    why: "an application the change does not reach costs precision",
+  },
+  {
+    file: "packages/core/src/domain/system-eval.ts",
+    from: "ids.has(first) && ids.has(then) && stepDependsOn(input.plan, then, first)",
+    to: "ids.has(first) && ids.has(then)",
+    why: "an order pair counts only when the plan keeps it",
+  },
+  {
+    file: "packages/core/src/domain/system-eval.ts",
+    from: "passed: score === 1,",
+    to: "passed: score >= 0.3,",
+    why: "a case passes only with every check met",
+  },
+  {
+    file: "packages/core/src/application/system-evals.ts",
+    from: "const linted = input.host",
+    to: "const linted = false",
+    why: "with a host the system agents plan the case",
   },
 ];

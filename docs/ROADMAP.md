@@ -202,7 +202,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] F7.4 Port `ContractDiffer`, provider OpenAPI (`openapi-diff`), `contract diff [--base] [--check]` z werdyktem wg `compatibility` i `policies.breaking` oraz zakresów konsumentów (`semver`), krok bramki `metator: contract diff` (ADR-0069).
 - [x] F7.5 `SystemAnalysis` v1 (`system analyze`), `SystemPlan` v1 (szkic wg polityki: expand → migrate → contract albo bump → migrate), `system plan new|propose|list|show|lint|approve|schema`, agenci `mt-system-scout` i `mt-system-planner`, zgoda tylko człowieka (hook), bramka `contract diff` przepuszcza zmianę łamiącą zaplanowaną i zatwierdzoną, karty aplikacji (ADR-0070).
 - [x] F7.6 Runy powiązane: `RunRecord` v4 (`system: { plan, step, app }`; `parent`/`children` z v3), `run init --parent`, `system plan run` (run-dziecko W1 w repozytorium aplikacji, tylko w checkoucie), `system status [--check]`, workflow W13 `mt-system-change` (ADR-0071).
-- [ ] F7.7 Przypadki wieloaplikacyjne w złotym zbiorze, score impact i planu.
+- [x] F7.7 `SystemEvalCase` v1 (aplikacje, zmiany kontraktów, kroki, kolejność), score impact i planu, `system eval list|run [--host] [--min]|schema`, trzy przypadki na start (ADR-0072). Kryterium pilota (≥ 95% na prawdziwych zadaniach) czeka na dane z pilota.
 
 **Post-MVP:** AsyncAPI, GraphQL, gRPC, pakiety npm, schemat bazy i konfiguracja jako kontrakty; `oasdiff`; katalog Backstage; kolejność wdrożeń z pipeline'ów; źródło przez API hosta; Pact (lista w [design §9](design/08-system-landscape.md#9-post-mvp-do-zrobienia-później)).
 

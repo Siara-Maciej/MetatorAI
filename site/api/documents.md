@@ -15,6 +15,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `ClaimSet` | `docs/metator/claims.json` | the docs analysis after your approval |
 | `SystemMap` | `docs/metator/system.yml` | you |
 | `SystemAnalysis` | `metator/system/plans/<id>.analysis.yml` | `metator system analyze`, then you or mt-system-scout |
+| `SystemEvalCase` | `docs/metator/evals/system/*.yml` | you (three are shipped) |
 | `SystemPlan` | `metator/system/plans/<id>.yml` | `metator system plan new` (draft), you or mt-system-planner (steps), `approve` (you), `system plan run` and `system status` (progress) |
 | `ArchitecturePolicy` | `metator/architecture.yml` | you (`metator arch init` proposes it) |
 | `ArchitectureBaseline` | `metator/arch-baseline.json` | `metator arch baseline` |

@@ -286,7 +286,7 @@ export function stepTask(plan: SystemPlan, step: SystemStep, dir: string): strin
 }
 
 /** Whether `from` depends on `on`, directly or through other steps. */
-function dependsOn(plan: Pick<SystemPlan, "steps">, from: string, on: string): boolean {
+export function stepDependsOn(plan: Pick<SystemPlan, "steps">, from: string, on: string): boolean {
   const byId = new Map(plan.steps.map((s) => [s.id, s]));
   const seen = new Set<string>();
   const stack = [...(byId.get(from)?.dependsOn ?? [])];
@@ -358,7 +358,7 @@ export function lintSystemPlan(
         continue;
       }
       for (const m of migrations)
-        if (first.length > 0 && !first.some((f) => dependsOn(plan, m.id, f.id)))
+        if (first.length > 0 && !first.some((f) => stepDependsOn(plan, m.id, f.id)))
           error(`${m.id} must run after ${first.map((f) => f.id).join(" or ")}`, m.id);
     }
     if (strategy.strategy === "expand-contract") {
@@ -366,7 +366,7 @@ export function lintSystemPlan(
       if (last.length === 0) warn(`${c.id}: no contract step removes the old shape yet`);
       for (const l of last)
         for (const m of stepsOf(c.id, "migrate"))
-          if (!dependsOn(plan, l.id, m.id))
+          if (!stepDependsOn(plan, l.id, m.id))
             error(`${l.id} must run after ${m.id}: consumers move first`, l.id);
     }
   }
@@ -383,7 +383,7 @@ export function lintSystemPlan(
             c.role === "change" &&
             p.app !== s.app &&
             consumedBy(map, s.app).has(c.id) &&
-            !dependsOn(plan, s.id, p.id)
+            !stepDependsOn(plan, s.id, p.id)
           )
             error(`${s.id} consumes ${c.id} and must run after ${p.id} (providers first)`, s.id);
   for (const a of analysis?.applications ?? [])
