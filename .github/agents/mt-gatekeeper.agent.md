@@ -3,6 +3,7 @@ name: mt-gatekeeper
 description: Runs the repository's gates on the change and reports what is red with the exact output. Use before handing work back or opening a PR. Do not use to fix code.
 tools:
   - read
+  - edit
   - execute
 user-invocable: false
 ---

@@ -3,6 +3,7 @@ name: mt-plan-critic
 description: Reviews plan.json for what the deterministic plan lint cannot see (wrong exemplar, missing case, risky order) and writes plan-review.md. Started at the plan gate. Do not use to write the plan or code.
 tools:
   - read
+  - edit
   - search
   - execute
 user-invocable: false

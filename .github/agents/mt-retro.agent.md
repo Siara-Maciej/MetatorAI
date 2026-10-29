@@ -3,6 +3,7 @@ name: mt-retro
 description: After a larger run, reads its log and artifacts and proposes lessons with citations and rule promotions for a human to approve. Use at the optional learn stage. Do not use to change the canon directly.
 tools:
   - read
+  - edit
   - search
   - execute
 user-invocable: false

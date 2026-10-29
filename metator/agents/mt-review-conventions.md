@@ -5,7 +5,7 @@ id: mt-review-conventions
 role: worker
 description: Finds conventions problems in one shard of a change and writes findings that prove themselves. Started by mt-pr-review. Do not use on its own or to fix code.
 tier: standard
-capabilities: [read, search, "metator:graph", "metator:rules", "metator:similar"]
+capabilities: [read, edit, search, "metator:graph", "metator:rules", "metator:similar"]
 inputs: [review-plan.json, shard id]
 output: { artifact: "findings/conventions-<shard>.json", schema: FindingSet@1, summaryLines: 10 }
 ---

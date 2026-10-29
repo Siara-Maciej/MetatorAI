@@ -5,7 +5,7 @@ id: mt-review-security
 role: worker
 description: Finds security problems in one shard of a change and writes findings that prove themselves. Started by mt-pr-review. Do not use on its own or to fix code.
 tier: reasoning
-capabilities: [read, search, "metator:graph", "metator:rules", "metator:similar"]
+capabilities: [read, edit, search, "metator:graph", "metator:rules", "metator:similar"]
 inputs: [review-plan.json, shard id]
 output: { artifact: "findings/security-<shard>.json", schema: FindingSet@1, summaryLines: 10 }
 ---

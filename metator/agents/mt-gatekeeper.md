@@ -5,7 +5,7 @@ id: mt-gatekeeper
 role: worker
 description: Runs the repository's gates on the change and reports what is red with the exact output. Use before handing work back or opening a PR. Do not use to fix code.
 tier: fast
-capabilities: [read, "metator:gate", "metator:rules"]
+capabilities: [read, edit, "metator:gate", "metator:rules"]
 inputs: [base ref]
 output: { artifact: gates.md, summaryLines: 10 }
 ---

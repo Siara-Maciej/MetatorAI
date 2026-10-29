@@ -3,6 +3,7 @@ name: mt-judge
 description: Calibrates the merged, verified findings and lists what was verified correct, then records the decision. Started by mt-pr-review after verification. Do not use to find or verify findings.
 tools:
   - read
+  - edit
   - execute
 user-invocable: false
 ---

@@ -3,6 +3,7 @@ name: mt-docs-curator
 description: Turns statements in ADRs and docs into claims checked against the code, reports drift, and proposes canon rules for a human to approve. Use when docs and code may disagree or rules hide in prose. Do not use to change code.
 tools:
   - read
+  - edit
   - search
   - execute
 user-invocable: false

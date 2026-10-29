@@ -5,7 +5,7 @@ id: mt-retro
 role: worker
 description: After a larger run, reads its log and artifacts and proposes lessons with citations and rule promotions for a human to approve. Use at the optional learn stage. Do not use to change the canon directly.
 tier: standard
-capabilities: [read, search, "metator:run", "metator:rules", "metator:memory", "metator:lessons"]
+capabilities: [read, edit, search, "metator:run", "metator:rules", "metator:memory", "metator:lessons"]
 inputs: [run id]
 output: { artifact: retro.md, summaryLines: 10 }
 ---

@@ -3,6 +3,7 @@ name: mt-review-equivalence
 description: Finds behavior changes in one shard of a refactor (semantics before versus after) and writes findings that prove themselves. Started by mt-pr-review for refactors. Do not use on its own or to fix code.
 tools:
   - read
+  - edit
   - search
   - execute
 user-invocable: false

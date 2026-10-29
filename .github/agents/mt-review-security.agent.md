@@ -3,6 +3,7 @@ name: mt-review-security
 description: Finds security problems in one shard of a change and writes findings that prove themselves. Started by mt-pr-review. Do not use on its own or to fix code.
 tools:
   - read
+  - edit
   - search
   - execute
 user-invocable: false
