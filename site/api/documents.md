@@ -15,13 +15,13 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `ClaimSet` | `docs/metator/claims.json` | the docs analysis after your approval |
 | `SystemMap` | `docs/metator/system.yml` | you |
 | `SystemAnalysis` | `metator/system/plans/<id>.analysis.yml` | `metator system analyze`, then you or mt-system-scout |
-| `SystemPlan` | `metator/system/plans/<id>.yml` | `metator system plan new` (draft), you or mt-system-planner (steps), `approve` (you) |
+| `SystemPlan` | `metator/system/plans/<id>.yml` | `metator system plan new` (draft), you or mt-system-planner (steps), `approve` (you), `system plan run` and `system status` (progress) |
 | `ArchitecturePolicy` | `metator/architecture.yml` | you (`metator arch init` proposes it) |
 | `ArchitectureBaseline` | `metator/arch-baseline.json` | `metator arch baseline` |
 | `RefactorPlan` | `metator/arch/plans/<id>.yml` | you or mt-arch-planner (moves); `metator arch plan simulate` (effects), `approve` (you), `run` and `status` |
 | `ArchEvalCase` | `docs/metator/evals/arch/*.yml` | you (two are shipped) |
 | `Environment` | `metator/environment.yml` | you (`metator env init` proposes it) |
-| `Workflow` | `.github/metator/workflows/*.yml` | you (five are shipped) |
+| `Workflow` | `.github/metator/workflows/*.yml` | you (six are shipped) |
 | `Agent` | `metator/agents/*.md` | you (27 are shipped) |
 | `Skill` | `metator/skills/*/SKILL.md` | you (six are shipped) |
 | `InstallLock` | `metator/install.lock.json` | `metator setup`, `metator agents install\|update` (never by hand) |

@@ -2336,4 +2336,40 @@ export const MUTANTS: readonly Mutant[] = [
     to: "a.source.path === dir",
     why: "another repository's application is never this package",
   },
+  {
+    file: "packages/core/src/domain/system-plan.ts",
+    from: 'return plan.steps.filter((s) => s.status === "pending" && s.dependsOn.every((d) => done.has(d)));',
+    to: 'return plan.steps.filter((s) => s.status === "pending");',
+    why: "a step starts only after the steps it depends on are done",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: "children: [...(record.children ?? []), run.value.runId]",
+    to: "children: record.children ?? []",
+    why: "the system run lists its child runs",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: 'runStatus === "aborted" || runStatus === "escalated"',
+    to: "false",
+    why: "an escalated or aborted child run blocks its step",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: 'const done = next.length > 0 && next.every((s) => s.status === "done");',
+    to: 'const done = next.some((s) => s.status === "done");',
+    why: "the plan is done only when every step is",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: "if (plan.approval.digest !== systemPlanDigest(plan))",
+    to: "if (false)",
+    why: "a plan changed after its approval does not run",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: "...(input.parent ? { parent: input.parent } : {}),\n      ...(input.system",
+    to: "...(input.system",
+    why: "a child run records its parent",
+  },
 ];

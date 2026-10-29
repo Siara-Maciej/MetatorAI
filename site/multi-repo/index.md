@@ -253,6 +253,17 @@ Under `versioned` it is `bump` (a new major version) and then a `migrate` step f
 
 A package that is an application of the map gets a `System application` line in its [module card](../how-to/knowledge.md), with the contracts it provides and their consumers.
 
+## Carry it out: linked runs
+
+An approved plan runs as a **system run** ([W13 `mt-system-change`](../workflows/system.md)) with a **child run** in each application's repository. The agent never edits several repositories in one session: each step runs where its code is, with that repository's gates and approvals.
+
+```bash
+metator system plan run rename-refunds        # the steps that can start, each a child run (W1) in its repository
+metator system status rename-refunds          # the child runs read back; the plan is done when every step is
+```
+
+Set `system.roots` for the repositories you have checked out. A step whose application has only a clone cannot start.
+
 ## Roadmap of the multi-repo phase (F7)
 
 | Step | What it adds | Status |
@@ -262,6 +273,6 @@ A package that is an application of the map gets a `System application` line in 
 | F7.3 Impact | read other repositories (checkout or pinned clone); `system impact`: changed files → contracts → consumers → owners | ✅ available |
 | F7.4 Compatibility | `contract diff` for OpenAPI (breaking or not) and a contract gate | ✅ available |
 | F7.5 System plan | a plan per application, in deploy order, with a strategy for breaking changes; `mt-system-scout`, `mt-system-planner` | ✅ available |
-| F7.6 Linked runs | one system run with child runs in each repository, a combined status | next |
+| F7.6 Linked runs | one system run with child runs in each repository, a combined status | ✅ available |
 
 Contract kinds come from plugins. The MVP supports **OpenAPI**; AsyncAPI, GraphQL, gRPC, npm packages and database schemas follow.

@@ -50,6 +50,7 @@ export default defineConfig({
           { text: "Bug fix (W2)", link: "/workflows/bugfix" },
           { text: "Refactor (W3)", link: "/workflows/refactor" },
           { text: "Review (W4, W5)", link: "/workflows/review" },
+          { text: "System change (W13)", link: "/workflows/system" },
         ],
       },
       {

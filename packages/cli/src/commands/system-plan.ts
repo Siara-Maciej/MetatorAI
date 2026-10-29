@@ -1,9 +1,14 @@
+import { basename } from "node:path";
 import {
   err,
   MetatorError,
   ok,
+  planId,
+  type Result,
+  RunSystemPlan,
   SystemAnalysisDocument,
   SystemPlanDocument,
+  SystemPlanStatus,
   systemPlanWaves,
 } from "@metator/core";
 import type { Command } from "commander";
@@ -35,6 +40,26 @@ const withAnalyzeOptions = (c: Command) =>
 /** `system analyze` and `system plan` (F7.5): a change across the system, planned and approved. */
 export function registerSystemPlanCommands(system: Command, ctx: CommandContext): void {
   const { action, container, terminal } = ctx;
+
+  /**
+   * The plan a command works on: named, or the plan of a system run (`--run <id or run dir>`,
+   * as a W13 gate passes `{runDir}`), whose id comes from the run's task.
+   */
+  const planOf = async (
+    id: string | undefined,
+    run: string | undefined,
+  ): Promise<Result<{ id: string; parent?: string }, MetatorError>> => {
+    if (id) return ok({ id });
+    if (!run) return err(MetatorError.usage("name the plan, or pass --run <system run>"));
+    const runId = basename(run.replace(/\/+$/, ""));
+    const record = await container().resolve("runRepository").load(runId);
+    return record.map((r) => ({ id: planId(r.task), parent: r.runId }));
+  };
+  /** Run tools of the repository at `root` (this one, or an application's checkout). */
+  const runsAt = (root: string) => {
+    const c = root === container().resolve("root") ? container() : ctx.containerAt(root);
+    return { init: c.resolve("initRun"), runs: c.resolve("runRepository") };
+  };
 
   withAnalyzeOptions(
     system
@@ -140,9 +165,13 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
     .description(
       "Check the plan: every consumer of a breaking change migrates, providers first, a strategy per policy",
     )
-    .argument("<id>", "the plan id")
+    .argument("[id]", "the plan id")
+    .option("--run <run>", "the plan of this system run (an id or its run directory)")
     .action(
-      action(async (id: string) => {
+      action(async (named: string | undefined, opts: { run?: string }) => {
+        const which = await planOf(named, opts.run);
+        if (which.isErr()) return { result: which };
+        const id = which.value.id;
         const r = await container().resolve("lintSystemPlan").execute(id);
         if (r.isErr()) return { result: r };
         const errors = r.value.problems.filter((p) => p.severity === "error");
@@ -179,6 +208,41 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
     );
 
   plan
+    .command("run")
+    .description("Start the steps that can start: a child run (W1) in each application's repository")
+    .argument("[id]", "the plan id")
+    .option("--run <run>", "the system run (W13) the child runs belong to; its plan when no id is given")
+    .option("--base <ref>", "start each child run in a new worktree branched from this ref")
+    .option("--workflow <id>", "the workflow of the child runs", "mt-feature")
+    .action(
+      action(async (named: string | undefined, opts: { run?: string; base?: string; workflow: string }) => {
+        const which = await planOf(named, opts.run);
+        if (which.isErr()) return { result: which };
+        const c = container();
+        const r = await new RunSystemPlan(
+          c.resolve("systemPlanStore"),
+          c.resolve("systemLocation"),
+          c.resolve("systemSources"),
+          runsAt,
+          c.resolve("clock"),
+          c.resolve("runRepository"),
+        ).execute({
+          id: which.value.id,
+          ...(which.value.parent ? { parent: which.value.parent } : {}),
+          ...(opts.base ? { base: opts.base } : {}),
+          workflow: opts.workflow,
+        });
+        return {
+          result: r,
+          warnings:
+            r.isOk() && r.value.started.length === 0 && r.value.plan.status !== "done"
+              ? ["no step can start yet: the steps before them are not done (`metator system status`)"]
+              : [],
+        };
+      }),
+    );
+
+  plan
     .command("schema")
     .description("Print the JSON Schema of a system plan (or, with --analysis, of its analysis)")
     .option("--analysis", "the analysis instead", false)
@@ -186,5 +250,37 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       action(async (opts: { analysis: boolean }) => ({
         result: ok((opts.analysis ? SystemAnalysisDocument : SystemPlanDocument).jsonSchema("input")),
       })),
+    );
+
+  system
+    .command("status")
+    .description("Each step's child run read back from its repository; the plan done when every step is")
+    .argument("[id]", "the plan id")
+    .option("--run <run>", "the plan of this system run (an id or its run directory)")
+    .option("--check", "fail until every step is done (a W13 gate)", false)
+    .action(
+      action(async (named: string | undefined, opts: { run?: string; check: boolean }) => {
+        const which = await planOf(named, opts.run);
+        if (which.isErr()) return { result: which };
+        const c = container();
+        const r = await new SystemPlanStatus(
+          c.resolve("systemPlanStore"),
+          c.resolve("systemLocation"),
+          c.resolve("systemSources"),
+          runsAt,
+        ).execute(which.value.id);
+        if (r.isErr() || !opts.check || r.value.plan.status === "done") return { result: r };
+        const open = r.value.steps.filter((s) => s.status !== "done");
+        return {
+          result: err(
+            new MetatorError("CHECK_FAILED", `${open.length} step(s) of ${which.value.id} are not done`, {
+              hint: open.some((s) => s.status === "blocked")
+                ? "A child run escalated or was aborted: resolve it in its repository."
+                : "Start the next steps with `metator system plan run`, then check again.",
+              details: { steps: r.value.steps },
+            }),
+          ),
+        };
+      }),
     );
 }

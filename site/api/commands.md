@@ -344,12 +344,13 @@ metator system plan show [options] <id>
 Check the plan: every consumer of a breaking change migrates, providers first, a strategy per policy
 
 ```bash
-metator system plan lint [options] <id>
+metator system plan lint [options] [id]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `<id>` | the plan id | |
+| `[id]` | the plan id | |
+| `--run <run>` | the plan of this system run (an id or its run directory) |  |
 
 ### `metator system plan approve`
 
@@ -364,6 +365,21 @@ metator system plan approve [options] <id>
 | `<id>` | the plan id | |
 | `--by <name>` | who approves (default METATOR_USER or the login) |  |
 
+### `metator system plan run`
+
+Start the steps that can start: a child run (W1) in each application's repository
+
+```bash
+metator system plan run [options] [id]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[id]` | the plan id | |
+| `--run <run>` | the system run (W13) the child runs belong to; its plan when no id is given |  |
+| `--base <ref>` | start each child run in a new worktree branched from this ref |  |
+| `--workflow <id>` | the workflow of the child runs | `"mt-feature"` |
+
 ### `metator system plan schema`
 
 Print the JSON Schema of a system plan (or, with --analysis, of its analysis)
@@ -375,6 +391,20 @@ metator system plan schema [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--analysis` | the analysis instead |  |
+
+### `metator system status`
+
+Each step's child run read back from its repository; the plan done when every step is
+
+```bash
+metator system status [options] [id]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[id]` | the plan id | |
+| `--run <run>` | the plan of this system run (an id or its run directory) |  |
+| `--check` | fail until every step is done (a W13 gate) |  |
 
 ### `metator system schema`
 
@@ -1473,6 +1503,7 @@ metator run init [options]
 | `--autonomy <level>` | L0 all gates, L1 skip plan approval, L2 headless (one of: L0, L1, L2) | `"L0"` |
 | `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
 | `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
+| `--parent <run>` | the run this one is a child of (a system run, possibly in another repository) |  |
 
 ### `metator run advance`
 

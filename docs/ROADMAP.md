@@ -201,7 +201,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] F7.3 Porty `RepositoryCloner` i `CheckoutReader` (lokalny checkout, `system.roots`, klon przypiętego commita w `.metator/system/` tylko z `--fetch`), mapa w repo platformy przypięta w aplikacjach (`system.map`, `MetatorConfig` v4), `system impact|sources`, `system lint --fetch` (ADR-0068).
 - [x] F7.4 Port `ContractDiffer`, provider OpenAPI (`openapi-diff`), `contract diff [--base] [--check]` z werdyktem wg `compatibility` i `policies.breaking` oraz zakresów konsumentów (`semver`), krok bramki `metator: contract diff` (ADR-0069).
 - [x] F7.5 `SystemAnalysis` v1 (`system analyze`), `SystemPlan` v1 (szkic wg polityki: expand → migrate → contract albo bump → migrate), `system plan new|propose|list|show|lint|approve|schema`, agenci `mt-system-scout` i `mt-system-planner`, zgoda tylko człowieka (hook), bramka `contract diff` przepuszcza zmianę łamiącą zaplanowaną i zatwierdzoną, karty aplikacji (ADR-0070).
-- [ ] F7.6 Runy powiązane (`RunRecord` v3: rodzic i dzieci), `system status`, workflow W13 `mt-system-change`.
+- [x] F7.6 Runy powiązane: `RunRecord` v4 (`system: { plan, step, app }`; `parent`/`children` z v3), `run init --parent`, `system plan run` (run-dziecko W1 w repozytorium aplikacji, tylko w checkoucie), `system status [--check]`, workflow W13 `mt-system-change` (ADR-0071).
 - [ ] F7.7 Przypadki wieloaplikacyjne w złotym zbiorze, score impact i planu.
 
 **Post-MVP:** AsyncAPI, GraphQL, gRPC, pakiety npm, schemat bazy i konfiguracja jako kontrakty; `oasdiff`; katalog Backstage; kolejność wdrożeń z pipeline'ów; źródło przez API hosta; Pact (lista w [design §9](design/08-system-landscape.md#9-post-mvp-do-zrobienia-później)).

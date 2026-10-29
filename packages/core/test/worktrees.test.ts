@@ -190,8 +190,8 @@ describe("worktree use cases", () => {
   });
 });
 
-describe("RunRecord v3", () => {
-  test("a v2 record reads as v3 unchanged; v1 still migrates through v2", () => {
+describe("RunRecord v3 and v4", () => {
+  test("a v2 record reads as v4 unchanged; v1 still migrates through v2", () => {
     const base = {
       runId: "20261001-mt-tiny-a",
       workflow: { id: "mt-tiny", revision: 1, source: "x.yml" },
@@ -207,7 +207,12 @@ describe("RunRecord v3", () => {
       },
     };
     const v2 = RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 2, ...base, approvals: {} }, "s");
-    expect([v2._unsafeUnwrap().worktree, RunRecordDocument.current]).toEqual([undefined, 3]);
+    expect([v2._unsafeUnwrap().worktree, RunRecordDocument.current]).toEqual([undefined, 4]);
+    const v3 = RunRecordDocument.parse(
+      { kind: "RunRecord", schemaVersion: 3, ...base, approvals: {}, parent: "20261001-mt-system-change-x" },
+      "s",
+    )._unsafeUnwrap();
+    expect([v3.parent, v3.system]).toEqual(["20261001-mt-system-change-x", undefined]);
     const v1 = RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 1, ...base }, "s")._unsafeUnwrap();
     expect(v1.approvals.plan?.by).toBe("alice");
   });

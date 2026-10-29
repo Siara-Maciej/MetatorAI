@@ -265,6 +265,26 @@ export function systemPlanWaves(plan: Pick<SystemPlan, "steps">): string[][] | u
   return waves;
 }
 
+/** The steps that can start now: pending, with every step they depend on done. */
+export function readySteps(plan: Pick<SystemPlan, "steps">): SystemStep[] {
+  const done = new Set(plan.steps.filter((s) => s.status === "done").map((s) => s.id));
+  return plan.steps.filter((s) => s.status === "pending" && s.dependsOn.every((d) => done.has(d)));
+}
+
+/** The task a step's child run gets: what to do, where, and how it fits the plan. */
+export function stepTask(plan: SystemPlan, step: SystemStep, dir: string): string {
+  const contracts = step.contracts.map((c) => `${c.role} ${c.id}`).join(", ");
+  return [
+    step.summary,
+    ` (system plan ${plan.id}, step ${step.id} in ${step.app}${dir === "." ? "" : ` at ${dir}`}`,
+    contracts ? `; contracts: ${contracts}` : "",
+    step.dependsOn.length > 0 ? `; after ${step.dependsOn.join(", ")}` : "",
+    step.deploy?.flag ? `; behind flag ${step.deploy.flag}` : "",
+    step.deploy?.rollback ? `; rollback: ${step.deploy.rollback}` : "",
+    `. Task: ${plan.task})`,
+  ].join("");
+}
+
 /** Whether `from` depends on `on`, directly or through other steps. */
 function dependsOn(plan: Pick<SystemPlan, "steps">, from: string, on: string): boolean {
   const byId = new Map(plan.steps.map((s) => [s.id, s]));
