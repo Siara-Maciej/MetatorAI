@@ -29,7 +29,9 @@ export async function runTui(
         }}
       />,
       // The screen goes to stderr: stdout carries only the one JSON envelope (MT-CODE-004).
-      { exitOnCtrlC: true, stdout: process.stderr },
+      // `metator ui` starts only in a terminal, so it is interactive even where CI is set (Ink would
+      // otherwise draw only the last frame).
+      { exitOnCtrlC: true, stdout: process.stderr, interactive: Boolean(process.stderr.isTTY) },
     );
     await app.waitUntilExit();
     io.write(ALT_SCREEN_OFF);

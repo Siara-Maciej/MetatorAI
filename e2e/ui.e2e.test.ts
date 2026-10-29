@@ -147,7 +147,8 @@ describe("metator ui (real CLI, full screen)", () => {
         { waitFor: "Work in shop", keys: "q" },
       ],
       60_000,
-      env,
+      // A terminal where CI is set (CI runners, some dev containers) still gets the full screen.
+      { ...env, CI: "true" },
     );
     expect(r.code).toBe(0);
     expect(r.screen).toContain("billing");
