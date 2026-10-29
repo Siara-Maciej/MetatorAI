@@ -72,6 +72,34 @@ Set `thresholds` in the policy to turn a metric into a warning, e.g. `fanOut: 8`
 
 Open `.metator/arch/report.html` in a browser for the same report as a page. It has the package graph (applications on top, cycle edges red, broken rules orange) and works offline.
 
+## Try a move before you make it
+
+Every cycle in the report comes with its **cheapest cut**: the edges whose removal leaves no cycle, with the fewest imports to move. The cut is exact for cycles of up to seven packages and comes from an ordering heuristic above that.
+
+To see what a refactor would do before anyone edits code, simulate it:
+
+```bash
+metator arch simulate move packages/pricing/src/rules.ts --to @shop/cart      # files or globs to another package
+metator arch simulate merge @shop/pricing --into @shop/cart                   # one package into another
+metator arch simulate extract "packages/kit/src/charts/**" --name @shop/charts --dir packages/charts
+metator arch simulate invert @shop/pricing @shop/cart                          # pricing keeps a port, cart implements it
+```
+
+```json
+{"moves":[{"type":"invert","from":"@shop/pricing","to":"@shop/cart"}],
+ "effect":{"before":{"cycles":1,"errors":5,"warnings":2,"score":73},"after":{"cycles":0,"errors":5,"warnings":2,"score":73},
+           "fixed":["cycle:@shop/cart,@shop/pricing"],
+           "added":[{"id":"unused-dependency:@shop/pricing→@shop/cart","severity":"warning"}],
+           "rewrites":1,"declared":[]},
+ "cycles":[]}
+```
+
+- `fixed` and `added` are violation ids before and after the move.
+- `rewrites` counts the import statements that change package (what a codemod rewrites).
+- `declared` lists the dependencies the moved code needs in its new home. Declarations that were already missing move with the files and stay visible.
+
+Nothing is written, and the simulation runs the same analysis as `arch analyze`, so a proposal by a person or an agent is judged by numbers, not by opinion.
+
 ## Write a policy
 
 Without a policy you get the checks above. A policy adds your intended structure. Start from a proposal:

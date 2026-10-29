@@ -279,6 +279,59 @@ metator arch baseline [options]
 |---|---|---|
 | `--tighten` | keep only baseline entries that still occur; never accept new ones |  |
 
+### `metator arch simulate move`
+
+Move files (paths or globs) to another package
+
+```bash
+metator arch simulate move [options] <files...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<files>` | repo-relative files or globs | |
+| `--to <package>` | the package that receives them **Required.** |  |
+
+### `metator arch simulate merge`
+
+Merge one package into another
+
+```bash
+metator arch simulate merge [options] <package>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<package>` | the package that disappears | |
+| `--into <package>` | the package that receives its files **Required.** |  |
+
+### `metator arch simulate extract`
+
+Extract files into a new package
+
+```bash
+metator arch simulate extract [options] <files...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<files>` | repo-relative files or globs | |
+| `--name <name>` | the new package's name **Required.** |  |
+| `--dir <dir>` | the new package's directory **Required.** |  |
+
+### `metator arch simulate invert`
+
+Invert a dependency: &lt;from&gt; keeps a port, &lt;to&gt; implements it
+
+```bash
+metator arch simulate invert [options] <from> <to>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<from>` | the package that depends today | |
+| `<to>` | the package it depends on today | |
+
 ### `metator arch cycles`
 
 Cycles between packages, with the imports that close them

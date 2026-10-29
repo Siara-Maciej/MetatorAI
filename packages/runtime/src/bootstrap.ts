@@ -104,6 +104,7 @@ import {
   ScopePlan,
   ScoreEvals,
   ShowSystem,
+  SimulateArchitecture,
   SkillCatalog,
   SourceFiles,
   SymbolQueries,
@@ -474,6 +475,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ architectureFacts, toolBoundariesReader, fileSystem, paths }) =>
         new InitArchitecturePolicy(architectureFacts, toolBoundariesReader, fileSystem, paths.architecture),
     ),
+    simulateArchitecture: asFunction(({ architectureFacts }) => new SimulateArchitecture(architectureFacts)),
     analyzeArchitecture: asFunction(
       ({ architectureFacts, fileSystem, paths }) =>
         new AnalyzeArchitecture(architectureFacts, fileSystem, paths),

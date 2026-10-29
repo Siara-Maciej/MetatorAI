@@ -18,6 +18,7 @@ import {
   proposePolicy,
   tightenBaseline,
 } from "../domain/architecture-check.ts";
+import { checkMoves, type Move, type MoveEffect, simulateMoves } from "../domain/architecture-moves.ts";
 import {
   type ArchitecturePolicy,
   ArchitecturePolicyDocument,
@@ -400,5 +401,34 @@ export class InitArchitecturePolicy {
     const saved = await this.fs.write(this.file, text);
     if (saved.isErr()) return err(saved.error);
     return ok({ file: this.file, policy: proposal.body, notes: proposal.notes });
+  }
+}
+
+export interface SimulatedArchitecture {
+  readonly moves: readonly Move[];
+  readonly effect: MoveEffect;
+  /** Cycles left after the moves. */
+  readonly cycles: ArchitectureReport["cycles"];
+}
+
+/** `arch simulate` (H4): what moves would fix and break, computed on the facts, no file touched. */
+export class SimulateArchitecture {
+  constructor(private readonly facts: Pick<ArchitectureFacts, "gather">) {}
+
+  async execute(input: {
+    readonly moves: readonly Move[];
+  }): Promise<Result<SimulatedArchitecture, MetatorError>> {
+    const facts = await this.facts.gather();
+    if (facts.isErr()) return err(facts.error);
+    const problems = checkMoves(facts.value, input.moves);
+    if (problems.length > 0)
+      return err(
+        MetatorError.usage(
+          problems[0] as string,
+          "Name packages as `arch analyze` lists them; files are repo paths or globs.",
+        ),
+      );
+    const simulated = simulateMoves(facts.value, input.moves);
+    return ok({ moves: input.moves, effect: simulated.effect, cycles: simulated.report.cycles });
   }
 }

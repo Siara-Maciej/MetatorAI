@@ -134,6 +134,63 @@ describe("metator arch (real CLI, real monorepo)", () => {
     ]);
   }, 60_000);
 
+  test("simulate: what each kind of move would fix and break, without touching a file", async () => {
+    type Effect = {
+      effect: { before: { cycles: number }; after: { cycles: number }; fixed: string[]; rewrites: number };
+    };
+    const invert = (await mt("arch", "simulate", "invert", "@shop/pricing", "@shop/cart")).json
+      .data as Effect;
+    expect([invert.effect.before.cycles, invert.effect.after.cycles]).toEqual([1, 0]);
+    expect(invert.effect.fixed).toContain("cycle:@shop/cart,@shop/pricing");
+    // The example on the architecture guide page.
+    expect(invert.effect).toMatchObject({
+      before: { cycles: 1, errors: 5, warnings: 2, score: 73 },
+      after: { cycles: 0, errors: 5, warnings: 2, score: 73 },
+      fixed: ["cycle:@shop/cart,@shop/pricing"],
+      added: [{ id: "unused-dependency:@shop/pricing→@shop/cart", severity: "warning" }],
+      rewrites: 1,
+      declared: [],
+    });
+
+    const move = (await mt("arch", "simulate", "move", "packages/format/src/index.ts", "--to", "@shop/cart"))
+      .json.data as Effect;
+    expect(move.effect.fixed).toEqual([
+      "relative-import:@shop/cart→@shop/format",
+      "undeclared:@shop/cart→@shop/format",
+    ]);
+    expect(move.effect.rewrites).toBe(1);
+
+    const merge = (await mt("arch", "simulate", "merge", "@shop/pricing", "--into", "@shop/cart")).json
+      .data as Effect;
+    expect(merge.effect.after.cycles).toBe(0);
+
+    const extract = (
+      await mt(
+        "arch",
+        "simulate",
+        "extract",
+        "packages/banner/src/*.ts",
+        "--name",
+        "@shop/promo",
+        "--dir",
+        "packages/promo",
+      )
+    ).json.data as Effect & {
+      effect: { declared: { package: string; dependency: string }[]; added: { id: string }[] };
+    };
+    // banner's test still imports the code, so banner declares the new package; the undeclared
+    // import of the application moves with the files instead of being declared for them.
+    expect(extract.effect.declared).toEqual([{ package: "@shop/banner", dependency: "@shop/promo" }]);
+    expect(extract.effect.added.map((v) => v.id)).toContain("undeclared:@shop/promo→@shop/web");
+
+    const bad = await mt("arch", "simulate", "merge", "@shop/nope", "--into", "@shop/cart");
+    expect([bad.code, (bad.json.error as { message: string }).message]).toEqual([
+      64,
+      "merge @shop/nope into @shop/cart: there is no package @shop/nope",
+    ]);
+    expect(await repo.git("status", "--porcelain")).toBe("");
+  }, 90_000);
+
   test("a policy with layers: a dependency upwards is an error", async () => {
     await repo.write(
       "metator/architecture.yml",

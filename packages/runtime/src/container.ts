@@ -122,6 +122,7 @@ import {
   type ScopePlan,
   type ScoreEvals,
   type ShowSystem,
+  type SimulateArchitecture,
   type SkillCatalog,
   type SkillGenerator,
   type SourceFiles,
@@ -260,6 +261,7 @@ export interface Cradle {
   checkArchitecture: CheckArchitecture;
   recordArchitectureBaseline: RecordArchitectureBaseline;
   initArchitecturePolicy: InitArchitecturePolicy;
+  simulateArchitecture: SimulateArchitecture;
   lintSystem: LintSystem;
   showSystem: ShowSystem;
   docsLinks: DocsLinks;

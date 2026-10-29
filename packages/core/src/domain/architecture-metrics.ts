@@ -241,3 +241,79 @@ export function appReach(
     .sort((a, b) => b.apps.length - a.apps.length || a.package.localeCompare(b.package));
   return { closure, blastRadius };
 }
+
+// ---------------------------------------------------------------------------------------------
+// The cheapest cut of a cycle
+
+/**
+ * The edges to remove so that a strongly connected set of packages has no cycle, with the
+ * fewest imports to move (minimum feedback arc set). Exact for up to seven packages; above that
+ * the Eades–Lin–Smyth ordering heuristic.
+ */
+export function cheapestCut(cycle: {
+  readonly packages: readonly string[];
+  readonly edges: readonly { readonly from: string; readonly to: string; readonly imports: number }[];
+}): { from: string; to: string; imports: number }[] {
+  const nodes = [...cycle.packages];
+  const weight = (order: readonly string[]) => {
+    const at = new Map(order.map((n, i) => [n, i]));
+    return cycle.edges.filter((e) => (at.get(e.from) ?? 0) > (at.get(e.to) ?? 0));
+  };
+  const cost = (order: readonly string[]) => weight(order).reduce((s, e) => s + e.imports, 0);
+  let best: string[];
+  if (nodes.length <= 7) {
+    best = nodes;
+    let bestCost = cost(nodes);
+    const permute = (prefix: string[], rest: string[]) => {
+      if (rest.length === 0) {
+        const c = cost(prefix);
+        if (c < bestCost) {
+          bestCost = c;
+          best = prefix;
+        }
+        return;
+      }
+      for (let i = 0; i < rest.length; i++)
+        permute([...prefix, rest[i] as string], [...rest.slice(0, i), ...rest.slice(i + 1)]);
+    };
+    permute([], [...nodes].sort());
+  } else best = eadesOrder(nodes, cycle.edges);
+  return weight(best)
+    .map((e) => ({ from: e.from, to: e.to, imports: e.imports }))
+    .sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to));
+}
+
+function eadesOrder(
+  nodes: readonly string[],
+  edges: readonly { readonly from: string; readonly to: string; readonly imports: number }[],
+): string[] {
+  const left = new Set(nodes);
+  const start: string[] = [];
+  const end: string[] = [];
+  const inW = (n: string) =>
+    edges.filter((e) => e.to === n && left.has(e.from) && e.from !== n).reduce((s, e) => s + e.imports, 0);
+  const outW = (n: string) =>
+    edges.filter((e) => e.from === n && left.has(e.to) && e.to !== n).reduce((s, e) => s + e.imports, 0);
+  while (left.size > 0) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const n of [...left].sort()) {
+        if (outW(n) === 0) {
+          end.unshift(n);
+          left.delete(n);
+          changed = true;
+        } else if (inW(n) === 0) {
+          start.push(n);
+          left.delete(n);
+          changed = true;
+        }
+      }
+    }
+    if (left.size === 0) break;
+    const pick = [...left].sort().reduce((a, b) => (outW(b) - inW(b) > outW(a) - inW(a) ? b : a));
+    start.push(pick);
+    left.delete(pick);
+  }
+  return [...start, ...end];
+}

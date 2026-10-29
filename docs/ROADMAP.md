@@ -244,7 +244,7 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 - [x] H1 Graf pakietów z grafu plików, cykle pakietów, `package.json` kontra importy, `ArchitectureReport` v1, `ArchitecturePolicy` v1, port `ManifestReader`, `arch analyze|cycles|declared|schema` (ADR-0061).
 - [x] H2 Polityka w CI: `ArchitectureBaseline` v1, `arch check --base` (tylko nowe naruszenia), SARIF, krok bramki `arch check`, `arch init` (także z `boundaries` Turborepo i `depConstraints` Nx) (ADR-0062).
 - [x] H3 Metryki (Martin, głębokość), progi, granice (podział, scalenie, huby, martwe eksporty i pakiety), wspólne zmiany z historii git (port `ChangeHistory`), zespoły z `CODEOWNERS`, zasięg aplikacji, raport HTML (ADR-0063).
-- [ ] H4 Ruchy jako dane, `arch simulate`, różnica raportów, najtańsze cięcie cykli.
+- [x] H4 Ruchy jako dane (`Move`: move, merge, extract, invert, declare), `arch simulate move|merge|extract|invert`, różnica raportów, najtańsze cięcie cykli (ADR-0064).
 - [ ] H5 Agent `mt-arch-planner`, `RefactorPlan` v1, `arch plan lint|show`, HITL.
 - [ ] H6 `arch plan run`: fale runów W3, stan planu.
 - [ ] H7 Ewaluacja: przypadki architektury w złotym zbiorze.

@@ -1,4 +1,4 @@
-import { ArchitecturePolicyDocument, err, MetatorError, ok } from "@metator/core";
+import { ArchitecturePolicyDocument, err, MetatorError, type Move, ok } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 
@@ -85,6 +85,53 @@ export function registerArchCommands(program: Command, { action, container }: Co
           .resolve("recordArchitectureBaseline")
           .execute(opts.tighten ? { tighten: true } : {}),
       })),
+    );
+
+  const simulate = arch
+    .command("simulate")
+    .description("What a move would fix and break, computed on the graph; no file is touched");
+  const run = (move: Move) =>
+    container()
+      .resolve("simulateArchitecture")
+      .execute({ moves: [move] });
+  simulate
+    .command("move")
+    .description("Move files (paths or globs) to another package")
+    .argument("<files...>", "repo-relative files or globs")
+    .requiredOption("--to <package>", "the package that receives them")
+    .action(
+      action(async (files: string[], opts: { to: string }) => ({
+        result: await run({ type: "move", files, to: opts.to }),
+      })),
+    );
+  simulate
+    .command("merge")
+    .description("Merge one package into another")
+    .argument("<package>", "the package that disappears")
+    .requiredOption("--into <package>", "the package that receives its files")
+    .action(
+      action(async (from: string, opts: { into: string }) => ({
+        result: await run({ type: "merge", from, into: opts.into }),
+      })),
+    );
+  simulate
+    .command("extract")
+    .description("Extract files into a new package")
+    .argument("<files...>", "repo-relative files or globs")
+    .requiredOption("--name <name>", "the new package's name")
+    .requiredOption("--dir <dir>", "the new package's directory")
+    .action(
+      action(async (files: string[], opts: { name: string; dir: string }) => ({
+        result: await run({ type: "extract", files, package: { name: opts.name, dir: opts.dir } }),
+      })),
+    );
+  simulate
+    .command("invert")
+    .description("Invert a dependency: <from> keeps a port, <to> implements it")
+    .argument("<from>", "the package that depends today")
+    .argument("<to>", "the package it depends on today")
+    .action(
+      action(async (from: string, to: string) => ({ result: await run({ type: "invert", from, to }) })),
     );
 
   arch

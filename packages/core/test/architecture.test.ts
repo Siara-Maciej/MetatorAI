@@ -269,6 +269,7 @@ describe("analyzeArchitecture: cycles", () => {
           { from: "@x/ui", to: "@x/core", imports: 1, runtime: 1 },
         ],
         typeOnly: false,
+        cut: [{ from: "@x/ui", to: "@x/core", imports: 1 }],
       },
     ]);
     expect(report.violations[0]).toMatchObject({ id: "cycle:@x/core,@x/ui", severity: "error" });

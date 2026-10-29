@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   appReach,
   changeCoupling,
+  cheapestCut,
   definitionOf,
   depths,
   fileClusters,
@@ -892,7 +893,8 @@ export function packageCycles(edges: readonly ArchEdge[]): ArchCycle[] {
         .filter((e) => members.has(e.from) && members.has(e.to))
         .map((e) => ({ from: e.from, to: e.to, imports: e.imports, runtime: e.runtime }));
       const typeOnly = !runtimeSets.some((r) => c.every((p) => r.has(p)));
-      return { packages: [...c].sort(byName), edges: inner, typeOnly };
+      const packages = [...c].sort(byName);
+      return { packages, edges: inner, typeOnly, cut: cheapestCut({ packages, edges: inner }) };
     })
     .sort((a, b) => (a.packages[0] ?? "").localeCompare(b.packages[0] ?? ""));
 }
