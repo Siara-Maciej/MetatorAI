@@ -51,6 +51,7 @@ export * from "./domain/agent.ts";
 export * from "./domain/agent-scenario.ts";
 export * from "./domain/api.ts";
 export * from "./domain/architecture.ts";
+export * from "./domain/architecture-check.ts";
 export * from "./domain/architecture-policy.ts";
 export * from "./domain/architecture-render.ts";
 export * from "./domain/audit.ts";

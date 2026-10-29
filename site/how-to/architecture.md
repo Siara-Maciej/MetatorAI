@@ -55,7 +55,13 @@ What the analyzer cannot resolve (dynamic paths, bundler aliases outside `tsconf
 
 ## Write a policy
 
-Without a policy you get the checks above. A policy adds your intended structure. Put it in `metator/architecture.yml` and review it like code:
+Without a policy you get the checks above. A policy adds your intended structure. Start from a proposal:
+
+```bash
+metator arch init
+```
+
+It writes `metator/architecture.yml` (never over an existing one): applications in a layer above every library, and the rules your tools already enforce, Turborepo `boundaries` from `turbo.json` and Nx `depConstraints` from `.eslintrc.json`. Then split the libraries into the layers you intend. Review the file like code:
 
 ```yaml
 kind: ArchitecturePolicy
@@ -90,3 +96,43 @@ exceptions:
 - An exception covers a violation until it expires. After that the violation counts again and the expired exception is an error. An exception that matches nothing is a warning, so stale ones get removed.
 - `tests` (globs) decides which files may use `devDependencies` and never make cycles. `ignore` leaves generated or vendored files out.
 - `metator arch schema` prints the JSON Schema of the file for your editor.
+
+## In CI: fail only on what a change adds
+
+A large monorepo has violations today. Failing every pull request on all of them helps nobody. `arch check` is a ratchet: a violation fails the check only when the change adds it.
+
+```bash
+metator arch check --base main                         # not at the merge base with main → new
+metator arch check --base main --sarif arch.sarif      # also a SARIF 2.1.0 log for code scanning
+metator arch check --strict                            # new warnings fail too
+```
+
+A violation is not new when:
+- the merge base already has it (`--base`);
+- the baseline accepted it;
+- a policy exception covers it.
+
+```bash
+metator arch baseline             # accept what is there now: metator/arch-baseline.json
+metator arch baseline --tighten   # drop what was fixed; never accepts anything new
+```
+
+Commit the baseline. `arch check` lists baseline entries that no longer occur under `fixed`, so you can tighten it in the same pull request that fixes them.
+
+In a gate, add the step `{ metator: arch check }`. The gate passes its `--base`:
+
+```yaml
+gates:
+  full:
+    - id: packages
+      run: { metator: arch check }
+```
+
+Upload the SARIF log to GitHub code scanning, so new violations show up on the pull request:
+
+```yaml
+      - run: metator arch check --base origin/main --sarif arch.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with: { sarif_file: arch.sarif, category: metator-arch }
+```

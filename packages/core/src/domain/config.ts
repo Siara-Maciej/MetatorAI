@@ -11,11 +11,13 @@ export type MetatorStep =
   | { readonly command: "rules check" }
   | { readonly command: "test affected" }
   | { readonly command: "graph diff" }
+  | { readonly command: "arch check" }
   | { readonly command: "api diff"; readonly package: string }
   | { readonly command: "coverage diff"; readonly min?: number; readonly lcov?: string };
 
 export function parseMetatorStep(text: string): MetatorStep | undefined {
-  if (text === "rules check" || text === "test affected" || text === "graph diff") return { command: text };
+  if (text === "rules check" || text === "test affected" || text === "graph diff" || text === "arch check")
+    return { command: text };
   const api = /^api diff (\S+)$/.exec(text);
   if (api) return { command: "api diff", package: api[1] as string };
   const cov = /^coverage diff(?: --min (\d{1,3}))?(?: --lcov (\S+))?$/.exec(text);
@@ -29,7 +31,7 @@ export function parseMetatorStep(text: string): MetatorStep | undefined {
 }
 
 const METATOR_STEPS =
-  "rules check, test affected, graph diff, api diff <package>, coverage diff [--min <percent>] [--lcov <file>]";
+  "rules check, test affected, graph diff, arch check, api diff <package>, coverage diff [--min <percent>] [--lcov <file>]";
 
 function gateStepSchema<M extends z.ZodType<string>>(metator: M) {
   return z.strictObject({

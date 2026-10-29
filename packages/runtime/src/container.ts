@@ -7,14 +7,17 @@ import {
   type AnalyzeEnvironment,
   type ApiSnapshots,
   type ApproveRun,
+  type ArchitectureBaselineStore,
   type ArchitectureFacts,
   type ArchitecturePolicyCatalog,
   type AskQuestion,
   type AuditAgents,
   type BackgroundProcess,
+  type BaseArchitectureFacts,
   type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
+  type CheckArchitecture,
   type CheckDebugTags,
   type CheckFlaky,
   type CheckMemory,
@@ -62,6 +65,7 @@ import {
   type HostGenerator,
   type ImportAnalyzer,
   type ImportGraphReader,
+  type InitArchitecturePolicy,
   type InitEnvironment,
   type InitProject,
   type InitRun,
@@ -99,6 +103,7 @@ import {
   type ProcessRunner,
   type ProvideWorktree,
   type PruneWorktrees,
+  type RecordArchitectureBaseline,
   type RemoveWorktree,
   type Result,
   type RevisionReader,
@@ -123,6 +128,7 @@ import {
   type SymbolQueries,
   type SystemCatalog,
   type Timer,
+  type ToolBoundariesReader,
   type TreeCopier,
   type UpdateConfig,
   type ValidateCitations,
@@ -163,6 +169,7 @@ export interface Cradle {
   binResolver: BinResolver;
   workspaceReader: WorkspaceReader;
   manifestReader: ManifestReader;
+  toolBoundariesReader: ToolBoundariesReader;
   importAnalyzer: ImportAnalyzer;
   symbolAnalyzer: SymbolAnalyzer;
   importGraphReader: ImportGraphReader;
@@ -246,6 +253,11 @@ export interface Cradle {
   architecturePolicyCatalog: ArchitecturePolicyCatalog;
   architectureFacts: ArchitectureFacts;
   analyzeArchitecture: AnalyzeArchitecture;
+  architectureBaselineStore: ArchitectureBaselineStore;
+  baseArchitectureFacts: BaseArchitectureFacts;
+  checkArchitecture: CheckArchitecture;
+  recordArchitectureBaseline: RecordArchitectureBaseline;
+  initArchitecturePolicy: InitArchitecturePolicy;
   lintSystem: LintSystem;
   showSystem: ShowSystem;
   docsLinks: DocsLinks;

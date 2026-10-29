@@ -23,5 +23,7 @@ gates:
       run: { script: test }
     - id: graph
       run: { metator: graph diff }
+    - id: packages
+      run: { metator: arch check }
 hosts:
   metatorCommand: bun run metator

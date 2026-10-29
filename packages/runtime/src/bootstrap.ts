@@ -10,12 +10,15 @@ import {
   AnalyzeEnvironment,
   ApiSnapshots,
   ApproveRun,
+  ArchitectureBaselineStore,
   ArchitectureFacts,
   ArchitecturePolicyCatalog,
   AskQuestion,
   AuditAgents,
+  BaseArchitectureFacts,
   BuildImportGraph,
   BuildModuleCards,
+  CheckArchitecture,
   CheckDebugTags,
   CheckFlaky,
   CheckMemory,
@@ -59,6 +62,7 @@ import {
   GuardSubagentOutput,
   HandoffRun,
   IndexedImportGraphReader,
+  InitArchitecturePolicy,
   InitEnvironment,
   InitProject,
   InitRun,
@@ -86,6 +90,7 @@ import {
   PlanReview,
   ProvideWorktree,
   PruneWorktrees,
+  RecordArchitectureBaseline,
   RemoveWorktree,
   RuleCatalog,
   RunAffectedTests,
@@ -135,6 +140,7 @@ import { CopilotAgentHost, CopilotGenerator, CopilotSkillGenerator } from "@meta
 import { ScenarioAgentHost } from "@metator/plugin-host-scenario";
 import {
   GetPortProbe,
+  JsonToolBoundariesReader,
   LcovCoverageReader,
   ManypkgManifestReader,
   ManypkgWorkspaceReader,
@@ -331,6 +337,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     packageManager: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     binResolver: asFunction(({ root }) => new NodeBinResolver(root)).singleton(),
     workspaceReader: asFunction(({ root }) => new ManypkgWorkspaceReader(root)).singleton(),
+    toolBoundariesReader: asFunction(({ root }) => new JsonToolBoundariesReader(root)).singleton(),
     manifestReader: asFunction(
       ({ root, workspaceReader }) => new ManypkgManifestReader(root, workspaceReader),
     ).singleton(),
@@ -430,6 +437,30 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ buildImportGraph, manifestReader, architecturePolicyCatalog, clock }) =>
         new ArchitectureFacts(buildImportGraph, manifestReader, architecturePolicyCatalog, clock),
     ),
+    architectureBaselineStore: asFunction(
+      ({ fileSystem, paths }) => new ArchitectureBaselineStore(fileSystem, paths.archBaseline),
+    ),
+    baseArchitectureFacts: asFunction(
+      ({ vcs, revisionReader, importAnalyzer }) =>
+        new BaseArchitectureFacts(vcs, revisionReader, importAnalyzer),
+    ),
+    checkArchitecture: asFunction(
+      ({ architectureFacts, baseArchitectureFacts, architectureBaselineStore, fileSystem }) =>
+        new CheckArchitecture(
+          architectureFacts,
+          baseArchitectureFacts,
+          architectureBaselineStore,
+          fileSystem,
+        ),
+    ),
+    recordArchitectureBaseline: asFunction(
+      ({ architectureFacts, architectureBaselineStore }) =>
+        new RecordArchitectureBaseline(architectureFacts, architectureBaselineStore),
+    ),
+    initArchitecturePolicy: asFunction(
+      ({ architectureFacts, toolBoundariesReader, fileSystem, paths }) =>
+        new InitArchitecturePolicy(architectureFacts, toolBoundariesReader, fileSystem, paths.architecture),
+    ),
     analyzeArchitecture: asFunction(
       ({ architectureFacts, fileSystem, paths }) =>
         new AnalyzeArchitecture(architectureFacts, fileSystem, paths),
@@ -473,8 +504,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new Discover(fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths),
     ),
     gateChecks: asFunction(
-      ({ checkRules, runAffectedTests, diffImportGraph, apiSnapshots, diffCoverage }) =>
-        new GateChecks(checkRules, runAffectedTests, diffImportGraph, apiSnapshots, diffCoverage),
+      ({ checkRules, runAffectedTests, diffImportGraph, apiSnapshots, diffCoverage, checkArchitecture }) =>
+        new GateChecks(
+          checkRules,
+          runAffectedTests,
+          diffImportGraph,
+          apiSnapshots,
+          diffCoverage,
+          checkArchitecture,
+        ),
     ),
     runGate: asFunction(
       ({ config, packageManager, binResolver, processRunner, gateChecks, vcs, fileSystem, paths, clock }) =>

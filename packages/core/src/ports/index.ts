@@ -5,6 +5,7 @@
 
 import type { Agent } from "../domain/agent.ts";
 import type { ManifestSet } from "../domain/architecture.ts";
+import type { ToolBoundaries } from "../domain/architecture-check.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
@@ -207,6 +208,11 @@ export interface WorkspaceReader {
  */
 export interface ManifestReader {
   manifests(): Promise<Result<ManifestSet, MetatorError>>;
+}
+
+/** Boundary rules other tools enforce (Turborepo `boundaries`, Nx `depConstraints`), for `arch init`. */
+export interface ToolBoundariesReader {
+  read(): Promise<Result<readonly ToolBoundaries[], MetatorError>>;
 }
 
 export interface ImportSpecifier {

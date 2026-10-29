@@ -237,6 +237,14 @@ metator system schema [options]
 
 ## arch
 
+### `metator arch init`
+
+Propose metator/architecture.yml from the packages, Nx and Turborepo boundaries; never overwrites
+
+```bash
+metator arch init [options]
+```
+
 ### `metator arch analyze`
 
 Analyze the package graph; writes .metator/arch/report.json and report.md
@@ -244,6 +252,32 @@ Analyze the package graph; writes .metator/arch/report.json and report.md
 ```bash
 metator arch analyze [options]
 ```
+
+### `metator arch check`
+
+Fail on violations the change adds: not at the base, not in the baseline, not excepted
+
+```bash
+metator arch check [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--base <ref>` | compare against the merge base with this ref |  |
+| `--strict` | new warnings fail too |  |
+| `--sarif <file>` | also write the new violations as SARIF 2.1.0 (code scanning) |  |
+
+### `metator arch baseline`
+
+Accept the current violations in metator/arch-baseline.json (--tighten only drops fixed ones)
+
+```bash
+metator arch baseline [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--tighten` | keep only baseline entries that still occur; never accept new ones |  |
 
 ### `metator arch cycles`
 
