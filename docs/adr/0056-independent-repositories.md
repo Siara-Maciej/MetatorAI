@@ -1,6 +1,6 @@
 # ADR-0056: Niezależne repozytoria na jednej maszynie
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-27
 
 ## Kontekst
@@ -34,3 +34,6 @@ Użytkownik chce mieć kilka repozytoriów, każde z własnym, niezależnym Meta
 | Stałe zakresy portów per repozytorium (hash ścieżki) | kolizje hashy i marnowanie zakresu; rejestr jest dokładny |
 | Demon trzymający dzierżawy | nowy proces do utrzymania, a plik wystarcza |
 | Nazwa projektu Compose z nazwy katalogu | dwa repozytoria o tej samej nazwie w różnych miejscach i tak by się zderzyły |
+
+## Implikacje dla kodu
+ADR-0056 egzekwują reguły kanonu MT-ARCH-007, MT-TEST-001 (`metator rules show <id>`).

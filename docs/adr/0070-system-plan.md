@@ -1,6 +1,6 @@
 # ADR-0070: Plan systemowy: `SystemAnalysis`, `SystemPlan`, lint kolejności i strategii, agenci systemowi
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -73,3 +73,6 @@
 | Plan wyłącznie od agenta | kolejność i pokrycie konsumentów to reguły; szkic deterministyczny jest zawsze poprawny, a agent go tylko uszczegóławia |
 | Jeden plan refaktoru (ADR-0065) także dla systemu | inne kroki (aplikacje i kontrakty zamiast ruchów pakietów) i inna walidacja |
 | Bramka przepuszczająca każdą zmianę łamiącą z zatwierdzonym planem | usunięcie starego kształtu przed migracją konsumentów to dokładnie awaria, której plan ma zapobiec |
+
+## Implikacje dla kodu
+ADR-0070 egzekwują reguły kanonu MT-CODE-002, MT-TEST-003 (`metator rules show <id>`).

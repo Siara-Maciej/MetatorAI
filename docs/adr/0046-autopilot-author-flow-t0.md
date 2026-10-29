@@ -1,6 +1,6 @@
 # ADR-0046: autopilot, Author/Reviewer flow i T0 ≤ 4000 znaków
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -26,3 +26,6 @@
 |-------------|--------------------|
 | Pomijanie bramek w hooku zamiast w `run advance` | hook nie zapisuje stanu; run czekałby na bramce, której nikt nie zatwierdzi |
 | Osobny `copilot-instructions.md` | drugi plik T0 o tej samej treści; Copilot czyta `AGENTS.md` |
+
+## Implikacje dla kodu
+ADR-0046 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

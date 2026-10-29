@@ -1,6 +1,6 @@
 # ADR-0041: Kroki MetatorAI w bramkach, `MetatorConfig` v2 i `coverage diff`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -36,3 +36,6 @@
 | Nowy enum w v1 | zmiana wydanej wersji w miejscu (MT-CODE-003) |
 | Własny parser LCOV i diffu | dwa gotowe, utrzymywane pakiety (ADR-0010) |
 | `coverage diff` uruchamiający testy sam | musiałby znać flagi pokrycia każdego runnera |
+
+## Implikacje dla kodu
+ADR-0041 egzekwują reguły kanonu MT-CODE-003, MT-CODE-002 (`metator rules show <id>`).

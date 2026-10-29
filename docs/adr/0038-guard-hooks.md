@@ -1,6 +1,6 @@
 # ADR-0038: Hooki `guard *` i konfiguracja hooków hostów
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -34,3 +34,6 @@ Bramki runu działały tylko wtedy, gdy agent sam wywołał `metator`. Model mó
 | Decyzja kodem wyjścia 2 | zachowanie różni się między hostami (spike F0); JSON jest jednoznaczny |
 | Hooki zawsze generowane przez `generate` | instalowałyby się bez zgody użytkownika, także w `generate --check` |
 | Odmowa przy błędzie guarda | uszkodzony `state.json` zablokowałby każde narzędzie, łącznie z jego naprawą |
+
+## Implikacje dla kodu
+ADR-0038 egzekwują reguły kanonu MT-ARCH-001, MT-CODE-004 (`metator rules show <id>`).

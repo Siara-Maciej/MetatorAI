@@ -1,6 +1,6 @@
 # ADR-0062: Architektura w CI: zapadka, baseline, SARIF i pierwsza polityka
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -43,3 +43,6 @@ Duże monorepo ma dziś dziesiątki naruszeń architektury (ADR-0061). Bramka, k
 | Bramka na wszystkie naruszenia | w dużym repo zawsze czerwona, więc zostanie wyłączona |
 | Tylko baseline bez porównania z bazą | każda gałąź musiałaby aktualizować baseline o naruszenia dodane w międzyczasie na main |
 | Uruchamianie ESLint Nx jako silnika | wymaga Nx w repo; polityka MetatorAI działa w każdym workspace i obejmuje cykle oraz `package.json` |
+
+## Implikacje dla kodu
+ADR-0062 egzekwują reguły kanonu MT-CODE-002, MT-CODE-001 (`metator rules show <id>`).

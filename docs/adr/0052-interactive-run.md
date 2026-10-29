@@ -1,6 +1,6 @@
 # ADR-0052: Interaktywny `metator run` i `run continue`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-27
 
 ## Kontekst
@@ -37,3 +37,6 @@ Po `run init` człowiek wpisywał kolejne komendy. Po F8.3 CLI prowadzi run samo
 |-------------|--------------------|
 | Drive w tym samym procesie co widok | Ctrl+C zabijałby run; proces w tle przeżywa zamknięcie terminala (decyzja 2) |
 | Nowe pole „wykonana” w `Question` v1 | wydana wersja się nie zmienia; czas odpowiedzi względem `updatedAt` wystarcza |
+
+## Implikacje dla kodu
+ADR-0052 egzekwują reguły kanonu MT-CODE-004, MT-TEST-001 (`metator rules show <id>`).

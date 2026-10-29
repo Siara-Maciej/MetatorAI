@@ -1,6 +1,6 @@
 # ADR-0059: Przegląd pracy: `metator status` (`WorkOverview`)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-28
 
 ## Kontekst
@@ -36,3 +36,6 @@ Do zarządzania kilkoma runami człowiek potrzebuje w jednym miejscu kilku rzecz
 |-------------|--------------------|
 | Liczenie stanu w TUI | to samo trzeba by liczyć drugi raz dla skryptów i testów |
 | Nowy dokument z zapisanym przeglądem | przegląd wynika ze stanu runów; zapis by się rozjeżdżał |
+
+## Implikacje dla kodu
+ADR-0059 egzekwują reguły kanonu MT-ARCH-001, MT-TEST-001 (`metator rules show <id>`).

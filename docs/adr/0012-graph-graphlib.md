@@ -1,6 +1,6 @@
 # ADR-0012: Graf zależności: @dagrejs/graphlib
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -21,3 +21,6 @@ Komendy `graph affected|callers|path|cycles|diff` potrzebują grafu z algorytmam
 |-------------|--------------------|
 | graphology | bogatszy ekosystem, ale podpakiety algorytmów rzadziej wydawane, więcej zależności |
 | Własna implementacja | duplikuje dojrzałą bibliotekę, ryzyko błędów w algorytmach |
+
+## Implikacje dla kodu
+ADR-0012 egzekwują reguły kanonu MT-ARCH-003, MT-CODE-005 (`metator rules show <id>`).

@@ -1,6 +1,6 @@
 # ADR-0032: Subflow review: plan shardów, werdykt i komentarze
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -28,3 +28,6 @@ Subflow `mt-review-core` ([workflows §3.1](../design/02-workflows.md)) to FIND 
 |-------------|--------------------|
 | Decyzja wyłącznie przez agenta Judge | niedeterministyczna; łatwo „przepuścić” niezweryfikowany blocker |
 | Komentarz inline dla każdego znaleziska | zalewa PR, obniża zaufanie do review |
+
+## Implikacje dla kodu
+ADR-0032 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

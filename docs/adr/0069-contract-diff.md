@@ -1,6 +1,6 @@
 # ADR-0069: `contract diff`: zmiana kontraktu oceniana różnicą specyfikacji i polityką mapy
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -50,3 +50,6 @@
 | Własny differ OpenAPI | dużo przypadków (`$ref`, schematy JSON), a gotowy pakiet istnieje (ADR-0010) |
 | Ocena zgodności tylko po `info.version` | wersja to deklaracja autora; liczy się, co naprawdę zmieniło się w specyfikacji |
 | `Bun.semver` w core | core nie używa API Bun (reguła `mt-arch-no-bun-global-in-core`) |
+
+## Implikacje dla kodu
+ADR-0069 egzekwują reguły kanonu MT-CODE-005, MT-TEST-002 (`metator rules show <id>`).

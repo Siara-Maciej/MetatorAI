@@ -1,6 +1,6 @@
 # ADR-0006: Dystrybucja: npm, samodzielna binarka, obraz Docker
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 - Źródło: [ARCHITECTURE.md §12](../ARCHITECTURE.md)
 
@@ -22,3 +22,6 @@ Pakiet npm `metator-ai` (devDependency; hooki wołają `node_modules/.bin/metato
 | Alternatywa | Dlaczego odrzucona |
 |-------------|--------------------|
 | Tylko npm | wyklucza repo bez Node |
+
+## Implikacje dla kodu
+ADR-0006 egzekwują reguły kanonu MT-CODE-005 (`metator rules show <id>`).

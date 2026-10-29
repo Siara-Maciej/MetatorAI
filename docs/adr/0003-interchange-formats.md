@@ -1,6 +1,6 @@
 # ADR-0003: Formaty wymiany: SARIF, JUnit XML, LCOV
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 - Źródło: [ARCHITECTURE.md §9.4](../ARCHITECTURE.md)
 
@@ -22,3 +22,6 @@ Domena zna trzy typy: `Diagnostic`/`DiagnosticReport`, `TestReport`, `CoverageRe
 | Alternatywa | Dlaczego odrzucona |
 |-------------|--------------------|
 | Parser per narzędzie | nie skaluje się, duplikacja |
+
+## Implikacje dla kodu
+ADR-0003 egzekwują reguły kanonu MT-CODE-001, MT-ARCH-005 (`metator rules show <id>`).

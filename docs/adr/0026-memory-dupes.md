@@ -1,6 +1,6 @@
 # ADR-0026: Duplikaty wiedzy i macierz dostępu do pamięci
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -29,3 +29,6 @@ Ta sama reguła albo to samo twierdzenie zapisane w kilku plikach (instrukcja, p
 | Embeddingi i podobieństwo semantyczne | zależność od modelu, niedeterministyczne wyniki w CI |
 | Porównywanie każdej pary zdań | kwadratowy koszt; indeks odwrotny daje tylko kandydatów |
 | Biblioteki MinHash/LSH | przy tysiącach zdań dokładny Jaccard z indeksem jest szybszy i prostszy |
+
+## Implikacje dla kodu
+ADR-0026 egzekwują reguły kanonu MT-CODE-002 (`metator rules show <id>`).

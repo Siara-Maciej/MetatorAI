@@ -1,6 +1,6 @@
 # ADR-0065: Plany refaktoru (`RefactorPlan`, `mt-arch-planner`, wykonanie runami W3)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -59,3 +59,6 @@ Ruchy i ich symulacja (ADR-0064) mówią, co pojedynczy ruch zrobi. Refaktor du�
 | Nowy workflow „W14” z etapem planowania | wykonanie i tak jest W3 per ruch; planowanie to jedno wywołanie agenta jak `ask` |
 | Efekty pisane przez agenta | agent mógłby napisać liczby, które chce; wpisuje je tylko narzędzie, a lint sprawdza aktualność |
 | Jeden run W3 na cały plan | nie do zrecenzowania przy 30 pakietach; fale i jeden run na ruch dają małe PR-y |
+
+## Implikacje dla kodu
+ADR-0065 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

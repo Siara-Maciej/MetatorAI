@@ -1,6 +1,6 @@
 # ADR-0040: Symbole i API: `symbols find`, `graph callers`, `api snapshot|diff`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -31,3 +31,6 @@ Graf importów działa na poziomie plików. Plan, review i refactor pytają o sy
 | API Extractor (`@microsoft/api-extractor`) | ciężki, wymaga własnej konfiguracji i build-u `.d.ts`; TS 7 bez klasycznego API (ADR-0008) |
 | Diff tekstowy plików `.d.ts` | zmiana komentarza lub kolejności to fałszywy alarm |
 | Wołający przez wyszukiwanie tekstowe | nie widzi beczek i zmian nazw, łapie przypadkowe zbieżności |
+
+## Implikacje dla kodu
+ADR-0040 egzekwują reguły kanonu MT-ARCH-008, MT-TEST-001 (`metator rules show <id>`).

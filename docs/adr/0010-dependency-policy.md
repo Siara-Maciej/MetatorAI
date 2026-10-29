@@ -1,6 +1,6 @@
 # ADR-0010: Polityka zależności: gotowe biblioteki zamiast własnych
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -45,3 +45,6 @@ Bieżące wybory:
 |-------------|--------------------|
 | Pisanie własnych implementacji | koszt i ryzyko bez wartości dla produktu |
 | Dowolne pakiety bez listy dozwolonych w core | erozja czystości domeny, I/O w rdzeniu |
+
+## Implikacje dla kodu
+ADR-0010 egzekwują reguły kanonu MT-CODE-005, MT-ARCH-003 (`metator rules show <id>`).

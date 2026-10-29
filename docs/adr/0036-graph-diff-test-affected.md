@@ -1,6 +1,6 @@
 # ADR-0036: `graph diff` i `test affected`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -28,3 +28,6 @@ Bramka `gate all` (04-commands §E) potrzebuje dwóch faktów o zmianie: jak zmi
 | `git worktree` bazy i drugi pełny indeks | worktree nie ma `node_modules`, więc pakiety workspace nie rozwiązują się bez kopiowania instalacji |
 | Snapshot grafu zapisywany na gałęzi bazowej | wymaga CI na bazie; lokalnie go nie ma |
 | Własny runner testów | MetatorAI nie powinien znać runnera; skrypt repo już go zna |
+
+## Implikacje dla kodu
+ADR-0036 egzekwują reguły kanonu MT-TEST-001, MT-ARCH-008 (`metator rules show <id>`).

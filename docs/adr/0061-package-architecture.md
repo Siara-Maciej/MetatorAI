@@ -1,6 +1,6 @@
 # ADR-0061: Architektura pakietów (`arch analyze`, `ArchitectureReport`, `ArchitecturePolicy`)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -63,3 +63,6 @@ Bez tych faktów nie da się zaplanować refaktoru ([design/11](../design/11-pac
 | dependency-cruiser / madge jako silnik | drugi parser i drugi resolver obok oxc, którego używa cały graf; brak symulacji na tych samych danych |
 | Osobny dokument `PackageGraph` | graf jest częścią raportu; drugi plik z tymi samymi danymi tylko by się rozjeżdżał |
 | Reguły warstw tylko w ast-grep | reguła per import nie widzi pakietów, cykli ani `package.json` |
+
+## Implikacje dla kodu
+ADR-0061 egzekwują reguły kanonu MT-CODE-002, MT-ARCH-008, MT-TEST-001 (`metator rules show <id>`).

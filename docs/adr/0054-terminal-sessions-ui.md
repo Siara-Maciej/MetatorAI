@@ -1,6 +1,6 @@
 # ADR-0054: `metator ui`, edytor w konfiguracji i port `Launcher`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-27
 
 ## Kontekst
@@ -30,3 +30,6 @@ Po F8.2–F8.5 człowiek może mieć kilka runów naraz, każdy w swoim worktree
 | Pełnoekranowy TUI na Ink | nowa zależność i inny model testów; menu na clack daje te same akcje |
 | Edytor tylko z `$EDITOR` | `$EDITOR` to zwykle edytor terminalowy; ludzie chcą otwierać worktree w VS Code lub Cursor |
 | Uruchamianie edytora przez `ProcessRunner` | runner zbiera wyjście i czeka; edytor musi dziedziczyć terminal albo żyć osobno |
+
+## Implikacje dla kodu
+ADR-0054 egzekwują reguły kanonu MT-ARCH-008, MT-TEST-002 (`metator rules show <id>`).

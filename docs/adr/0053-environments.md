@@ -1,6 +1,6 @@
 # ADR-0053: Środowisko aplikacji (`Environment`, `env discover|init|up|down|status|logs`)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-27
 
 ## Kontekst
@@ -48,3 +48,6 @@ Run w osobnym worktree (ADR-0050) potrzebuje działającej aplikacji: testów in
 | `docker compose config --format json` przy wykrywaniu | wymaga Dockera nawet do propozycji; odczyt YAML wystarcza do usług, portów i zależności |
 | Własna pętla TCP/HTTP | ADR-0010: `wait-on` to sprawdzony pakiet |
 | Osobny kontener bazy per worktree domyślnie | koszt zimnego startu, którego ta faza ma uniknąć (decyzja 3) |
+
+## Implikacje dla kodu
+ADR-0053 egzekwują reguły kanonu MT-CODE-002, MT-ARCH-007 (`metator rules show <id>`).

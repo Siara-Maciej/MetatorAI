@@ -1,6 +1,6 @@
 # ADR-0028: Discovery: package-manager-detector i shell-quote
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -30,3 +30,6 @@
 | Własna detekcja lockfile'i i reguł argumentów | duplikuje utrzymywaną bibliotekę (ADR-0010) |
 | Podział skryptów po `&&` wyrażeniem regularnym | psuje cudzysłowy i escapowanie |
 | `@pnpm/which-pm`, `preferred-pm` | pojedyncze narzędzia, bez budowania komend |
+
+## Implikacje dla kodu
+ADR-0028 egzekwują reguły kanonu MT-CODE-005, MT-ARCH-005 (`metator rules show <id>`).

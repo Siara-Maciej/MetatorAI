@@ -1,6 +1,6 @@
 # ADR-0033: Evale review: złoty zbiór, punktacja i bramka regresji
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -34,3 +34,6 @@ Bez pomiaru review agentowe nie jest „enterprise” ([research §8.5](../desig
 |-------------|--------------------|
 | Ocena przez model (LLM-as-judge) | niedeterministyczna; bramka regresji musi być powtarzalna |
 | Uruchamianie szablonu przez `sh -c` | wstrzyknięcie przez nazwy przypadków i refy; skrypt opakowujący wystarcza |
+
+## Implikacje dla kodu
+ADR-0033 egzekwują reguły kanonu MT-CODE-002, MT-TEST-003 (`metator rules show <id>`).

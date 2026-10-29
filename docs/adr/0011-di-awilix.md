@@ -1,6 +1,6 @@
 # ADR-0011: DI: awilix
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -23,3 +23,6 @@ Potrzebujemy DI dla czystej architektury: dynamiczne pluginy włączane z konfig
 | inversify, tsyringe | dekoratory i `reflect-metadata`, wolniejszy start |
 | typed-inject | świetne typy w czasie kompilacji, ale trudne przy dynamicznych pluginach, brak multi-bindingów |
 | Własny kontener (ADR-0002) | duplikuje dojrzałą bibliotekę |
+
+## Implikacje dla kodu
+ADR-0011 egzekwują reguły kanonu MT-ARCH-006, MT-ARCH-007, MT-CODE-005 (`metator rules show <id>`).

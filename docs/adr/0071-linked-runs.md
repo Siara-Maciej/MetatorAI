@@ -1,6 +1,6 @@
 # ADR-0071: Runy powiązane: run systemowy W13 i runy-dzieci w repozytoriach aplikacji
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -47,3 +47,6 @@ Plan systemowy (ADR-0070) dzieli zmianę na kroki per aplikacja. Design/08 §3.2
 | Jeden run edytujący wiele repozytoriów | omija bramki i zgody per repozytorium, a hosty pracują w jednym repozytorium (design/08 §3.2) |
 | Runy-dzieci w klonach z cache | zmiana w klonie nie trafia do nikogo; klony są tylko do odczytu |
 | Krok systemowy jako nowy `children` z obiektami w v3 | wersja wydana się nie zmienia (MT-CODE-003); dziecko zna swój krok, rodzic zna id dzieci |
+
+## Implikacje dla kodu
+ADR-0071 egzekwują reguły kanonu MT-CODE-003, MT-TEST-001 (`metator rules show <id>`).

@@ -1,6 +1,6 @@
 # ADR-0064: Ruchy refaktoru jako dane, symulacja i najtańsze cięcie cykli
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -51,3 +51,6 @@ Plan refaktoru proponuje ruchy: przenieść pliki, scalić pakiety, wydzielić p
 | Symulacja na kopii repozytorium (git worktree + prawdziwy codemod) | wolna i zmienia pliki; to robi dopiero wykonanie planu (H6) |
 | Solver ILP dla cięcia | nowa zależność dla grafów, które są małe; dokładne permutacje wystarczają do 7 pakietów |
 | Tylko heurystyka | potrafi wskazać droższe cięcie (test), a cykle w praktyce są małe |
+
+## Implikacje dla kodu
+ADR-0064 egzekwują reguły kanonu MT-ARCH-001, MT-TEST-003 (`metator rules show <id>`).

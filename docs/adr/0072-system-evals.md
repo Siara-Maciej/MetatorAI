@@ -1,6 +1,6 @@
 # ADR-0072: Złoty zbiór zmian systemowych i score analizy oraz planu
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -48,3 +48,6 @@ F7.7 ([design/08 §5, §6 S8](../design/08-system-landscape.md)) wymaga mierzaln
 | Ocena planu przez LLM | niedeterministyczna; reguły kolejności i pokrycia da się sprawdzić narzędziem |
 | Porównanie planu z oczekiwanym planem 1:1 | dobry plan może mieć inne opisy i dodatkowe kroki; liczą się aplikacje, zmiany, kroki i kolejność |
 | Ewaluacja tylko z agentami | bez linii bazowej narzędzia nie wiadomo, czy agenci coś dodają, czy psują |
+
+## Implikacje dla kodu
+ADR-0072 egzekwują reguły kanonu MT-CODE-002, MT-TEST-003 (`metator rules show <id>`).

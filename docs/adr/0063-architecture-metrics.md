@@ -1,6 +1,6 @@
 # ADR-0063: Metryki i granice pakietów, historia zmian, raport HTML
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -55,3 +55,6 @@ Do rozstrzygnięcia były też dwie rzeczy: knip czy własna analiza martwego ko
 | knip jako adapter | drugi parser i resolver, własna konfiguracja; mamy te same fakty w indeksie |
 | Louvain (`graphology-communities-louvain`) | niedeterministyczny bez ziarna, trudny do wytłumaczenia, nowa zależność; spójne składowe wystarczają, bo kandydat i tak trafia do człowieka |
 | Abstrakcyjność z klas abstrakcyjnych | w TypeScript typy i interfejsy pełnią rolę abstrakcji |
+
+## Implikacje dla kodu
+ADR-0063 egzekwują reguły kanonu MT-ARCH-001, MT-TEST-003 (`metator rules show <id>`).

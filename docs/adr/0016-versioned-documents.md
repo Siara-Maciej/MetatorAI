@@ -1,6 +1,6 @@
 # ADR-0016: Każdy plik jest wersjonowanym dokumentem
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -56,3 +56,6 @@ Zmiana schematu dokumentu = nowa wersja + funkcja migracji + test migracji. Test
 | Wersja tylko w nazwie pliku (`state.v1.json`) | łatwo ją zgubić przy kopiowaniu, nie działa dla plików pisanych przez ludzi |
 | `$schema` z URL | wymaga hostowania schematów, nie mówi wprost, którą wersję migrować |
 | Wersja tylko dla wybranych plików | dokładnie problem, który ten ADR rozwiązuje |
+
+## Implikacje dla kodu
+ADR-0016 egzekwują reguły kanonu MT-CODE-002, MT-CODE-003 (`metator rules show <id>`).

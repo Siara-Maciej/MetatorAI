@@ -1,6 +1,6 @@
 # ADR-0067: `system discover`: topologia, aplikacje, kontrakty i konsumenci z dowodami
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -51,3 +51,6 @@ Mapa systemu (ADR-0047) to deklaracja zatwierdzana przez człowieka. Pisana od z
 | `@apidevtools/swagger-parser` do rozpoznania | waliduje i rozwiązuje `$ref`, czego rozpoznanie nie potrzebuje; nowa zależność bez zysku |
 | Konsumenci z niskiej pewności w mapie | mapa to deklaracja; zgadywanie trafiałoby do niej bez przeglądu |
 | Nadpisywanie mapy przy `--write` | zatwierdzona mapa jest kanonem; dryf pokazuje `--check` |
+
+## Implikacje dla kodu
+ADR-0067 egzekwują reguły kanonu MT-ARCH-008, MT-TEST-002 (`metator rules show <id>`).

@@ -1,6 +1,6 @@
 # ADR-0025: Biome jako silnik E1 przez SARIF
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -29,3 +29,6 @@ Wiele reguł projektu da się wyrazić regułą Biome (np. `useImportType`, `noR
 | Reporter `json` Biome | eksperymentalny, może się zmienić w wersji patch |
 | `@biomejs/js-api` | API do formatowania/lintowania treści, bez konfiguracji projektu i ignorów VCS |
 | Uruchamianie Biome zawsze | w repo bez Biome raportuje reguły, których nikt nie wybrał |
+
+## Implikacje dla kodu
+ADR-0025 egzekwują reguły kanonu MT-CODE-001, MT-CODE-005 (`metator rules show <id>`).

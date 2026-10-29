@@ -1,6 +1,6 @@
 # ADR-0066: Ewaluacja planowania refaktoru (`ArchEvalCase`, `arch eval`, `Sandbox`)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -39,3 +39,6 @@ Jakość planów `mt-arch-planner` zależy od promptu i modelu. Bez pomiaru zmia
 | Fixture jako katalogi w repozytorium | ich importy i `package.json` mieszałyby się z grafem i workspace MetatorAI |
 | Ocena planu przez model (LLM judge) | wynik musi być deterministyczny; lint, symulacja i oczekiwane id wystarczają |
 | Rozszerzenie `EvalCase` z review | inne dane (pliki, cel) i inna miara; osobny dokument jest prostszy |
+
+## Implikacje dla kodu
+ADR-0066 egzekwują reguły kanonu MT-CODE-002, MT-TEST-003 (`metator rules show <id>`).

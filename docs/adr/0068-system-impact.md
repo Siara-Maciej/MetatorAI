@@ -1,6 +1,6 @@
 # ADR-0068: `system impact`: mapa przypięta w repozytorium platformy, źródła innych repozytoriów i zasięg zmiany
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-29
 
 ## Kontekst
@@ -56,3 +56,6 @@ Mapa systemu (ADR-0047) opisuje aplikacje w wielu repozytoriach, ale do tej pory
 | Klonowanie zawsze, bez `--fetch` | komendy bez sieci muszą działać lokalnie i szybko; sieć tylko na żądanie |
 | `git archive --remote` zamiast klonu | GitHub i wiele serwerów go nie obsługuje |
 | Sparse checkout tylko mapy | oszczędza miejsce, ale klon i tak jest potrzebny do specyfikacji aplikacji `path`; prostota wygrywa |
+
+## Implikacje dla kodu
+ADR-0068 egzekwują reguły kanonu MT-CODE-003, MT-ARCH-008 (`metator rules show <id>`).

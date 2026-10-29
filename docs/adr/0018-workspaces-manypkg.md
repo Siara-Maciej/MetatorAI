@@ -1,6 +1,6 @@
 # ADR-0018: Pakiety workspace: @manypkg/get-packages
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -20,3 +20,6 @@ Graf musi klasyfikować krawędzie jako wewnątrz pakietu albo między pakietami
 |-------------|--------------------|
 | Własne czytanie `workspaces` | nie obsługuje pnpm, lerna, rush; duplikuje bibliotekę |
 | @pnpm/find-workspace-packages | tylko pnpm |
+
+## Implikacje dla kodu
+ADR-0018 egzekwują reguły kanonu MT-CODE-005, MT-ARCH-005 (`metator rules show <id>`).

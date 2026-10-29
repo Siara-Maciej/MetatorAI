@@ -1,6 +1,6 @@
 # ADR-0047: `SystemMap`: aplikacje, kontrakty i kolejność wdrożeń
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -37,3 +37,6 @@ Zadanie w organizacji często dotyka kilku aplikacji, w jednym monorepo albo w o
 | Rodzaje kontraktów jako enum w schemacie | każdy nowy rodzaj wymagałby nowej wersji dokumentu |
 | Lista `provides` w aplikacji obok właściciela kontraktu | dwa źródła tej samej informacji |
 | Katalog Backstage jako jedyne źródło | nie każda organizacja go ma; adapter Backstage jest na liście post-MVP |
+
+## Implikacje dla kodu
+ADR-0047 egzekwują reguły kanonu MT-CODE-002, MT-ARCH-001 (`metator rules show <id>`).

@@ -1,6 +1,6 @@
 # ADR-0048: Dokumentacja użytkownika jako strona VitePress na GitHub Pages
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -67,3 +67,6 @@ Dokumenty projektowe w `docs/` są po polsku i są dla zespołu, nie dla użytko
 | Docusaurus | cięższy (React, więcej zależności) przy tych samych potrzebach |
 | MkDocs Material | wymaga Pythona w repo opartym na Bun |
 | Ręczny HTML | brak wyszukiwania i nawigacji, wszystko trzeba by utrzymywać ręcznie |
+
+## Implikacje dla kodu
+ADR-0048 egzekwują reguły kanonu MT-CODE-005, MT-TEST-001 (`metator rules show <id>`).

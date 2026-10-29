@@ -1,6 +1,6 @@
 # ADR-0021: Mapa pamięci jako wersjonowany dokument i strażnik CI
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -29,3 +29,6 @@ Pamięć agentów (instrukcje, ADR, reguły, karty, indeksy, artefakty runów) r
 |-------------|--------------------|
 | Mapa w Markdown | brak walidacji schematem i ścieżek błędów |
 | Cytaty jako zwykłe linki `file#L41` | brak treści do weryfikacji: link wskazuje linię, ale nie mówi, co tam powinno być |
+
+## Implikacje dla kodu
+ADR-0021 egzekwują reguły kanonu MT-CODE-002 (`metator rules show <id>`).

@@ -1,6 +1,6 @@
 # ADR-0060: Pełnoekranowy `metator ui` na Ink
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-28
 
 ## Kontekst
@@ -71,3 +71,6 @@ Użytkownik chciał interfejsu „enterprise”, jak w Claude Code czy Copilot C
 | blessed / neo-blessed | nierozwijane |
 | Rozbudowa menu na `@clack/prompts` | brak układu paneli, odświeżania na żywo i palety |
 | Własny renderer | ADR-0010: gotowy pakiet przed własnym kodem |
+
+## Implikacje dla kodu
+ADR-0060 egzekwują reguły kanonu MT-CODE-005, MT-ARCH-007 (`metator rules show <id>`).

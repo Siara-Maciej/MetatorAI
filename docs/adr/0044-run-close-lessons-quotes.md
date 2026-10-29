@@ -1,6 +1,6 @@
 # ADR-0044: `run handoff|close`, `lessons add`, `findings check-quote`, `debug-tags check`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -34,3 +34,6 @@ Katalog komend (04-commands §4) ma kilka małych narzędzi, bez których workfl
 |-------------|--------------------|
 | Status `closed` w `RunRecord` (v3) | migracja dla jednej flagi, którą wyraża istnienie `summary.json` |
 | Lekcje bez cytatu, walidowane później | lekcja bez dowodu trafiałaby do kontekstu agentów do nocnego przebiegu |
+
+## Implikacje dla kodu
+ADR-0044 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

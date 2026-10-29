@@ -1,6 +1,6 @@
 # ADR-0043: Workerzy, skille i specyfikacje W1–W5
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -31,3 +31,6 @@
 |-------------|--------------------|
 | Jeden agent „builder” na plan, testy i implementację | brak niezależnego krytyka planu; testy pisane pod implementację |
 | Szablony plików w skillach `mt-create-*` | rozjeżdżają się z kodem; indeks wzorców wskazuje żywy exemplar |
+
+## Implikacje dla kodu
+ADR-0043 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

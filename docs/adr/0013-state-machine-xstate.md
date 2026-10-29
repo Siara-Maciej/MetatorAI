@@ -1,6 +1,6 @@
 # ADR-0013: Maszyna stanów runu: XState v5
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -22,3 +22,6 @@ Workflow to maszyna stanów: etapy, bramki HITL, pętle z limitami, eskalacja, p
 |-------------|--------------------|
 | robot3 | mniejszy, ale słabszy ekosystem i typowanie |
 | Własna maszyna stanów | duplikuje dojrzałą bibliotekę |
+
+## Implikacje dla kodu
+ADR-0013 egzekwują reguły kanonu MT-ARCH-003, MT-CODE-005 (`metator rules show <id>`).

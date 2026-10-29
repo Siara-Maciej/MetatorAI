@@ -1,6 +1,6 @@
 # ADR-0015: Schematy i specyfikacje: zod + yaml
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -23,3 +23,6 @@ Specyfikacje workflow (YAML), stan runu (`state.json`) i przyszła konfiguracja 
 | JSON Schema + ajv | osobne typy TS, ryzyko rozjazdu |
 | valibot | mniejszy, ale słabszy ekosystem i eksport JSON Schema |
 | js-yaml | yaml (eemeli) lepiej obsługuje YAML 1.2 i błędy z pozycjami |
+
+## Implikacje dla kodu
+ADR-0015 egzekwują reguły kanonu MT-CODE-002, MT-ARCH-003 (`metator rules show <id>`).

@@ -1,6 +1,6 @@
 # ADR-0037: Zgody w runie: `RunRecord` v2 i `run approve`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -27,3 +27,6 @@ Hook `pre-tool` ma blokować push i komentarze bez zgody człowieka (04-commands
 |-------------|--------------------|
 | Zgoda na push jako etap workflow | push nie jest etapem; workflow bez etapu „delivery” nie mógłby go zatwierdzić |
 | Odczyt zgód z historii w hooku | każdy konsument musiałby znać kształt historii |
+
+## Implikacje dla kodu
+ADR-0037 egzekwują reguły kanonu MT-CODE-002, MT-CODE-003 (`metator rules show <id>`).

@@ -1,6 +1,6 @@
 # ADR-0057: Folder repozytoriów (`metator.repos.yml`, `repos *`)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-27
 
 ## Kontekst
@@ -37,3 +37,6 @@ Użytkownik pyta, czy `metator` uruchamiać w folderze, w którym leżą wszystk
 | Jeden Metator dla całego folderu (wspólna konfiguracja i stan) | łamie niezależność repozytoriów; każde ma inne reguły, workflowy i hosty |
 | Zgadywanie repozytorium w folderze (np. ostatnio używane) | komenda zmieniająca kod nie może trafić do niewłaściwego repozytorium |
 | Nazwa `workspace` | `workspace list` już opisuje pakiety monorepo; `repos` mówi wprost, o co chodzi |
+
+## Implikacje dla kodu
+ADR-0057 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

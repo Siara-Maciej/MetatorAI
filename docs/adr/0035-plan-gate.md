@@ -1,6 +1,6 @@
 # ADR-0035: Bramka planu: `plan lint` i `plan scope`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -33,3 +33,6 @@ Bramka G4 (workflows, 04-commands §C) ma odrzucać plany, zanim powstanie kod. 
 | Plan w Markdown | nie da się go sprawdzić bez parsowania prozy |
 | Globy jako zakres edycji | szeroki glob otwiera pliki, których plan nie wymienia |
 | Exemplar bez indeksu wzorców | plan mógłby wskazać dowolny plik jako „wzorzec” |
+
+## Implikacje dla kodu
+ADR-0035 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

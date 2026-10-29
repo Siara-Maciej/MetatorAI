@@ -1,6 +1,6 @@
 # ADR-0014: Parser CLI: commander
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -23,3 +23,6 @@ CLI `metator` ma podkomendy (`run init|advance|status|list`, `workflow list|vali
 | citty | przyjemne API, ale wersja 0.x |
 | cac | mniej popularny, podobne możliwości |
 | Własny parser argv | duplikuje dojrzałą bibliotekę |
+
+## Implikacje dla kodu
+ADR-0014 egzekwują reguły kanonu MT-CODE-004, MT-CODE-005 (`metator rules show <id>`).
