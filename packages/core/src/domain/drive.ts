@@ -171,6 +171,7 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
     `You are ${input.agent}, the critic of stage "${input.stage.id}" of run ${input.runId}.`,
     `Task: ${input.task}`,
     `Review the artifacts in ${input.runDir}: ${(input.stage.produces ?? []).join(", ") || "(none listed)"}.`,
+    "Read files with Read, Glob and Grep; run no shell commands besides a single `metator` command per call.",
     "Finish with exactly one last line:",
     "VERDICT: PASS",
     "or",

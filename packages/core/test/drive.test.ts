@@ -98,6 +98,9 @@ describe("drive domain", () => {
     expect(gatePrompt({ runId: "r", task: "t", stage, agent: "mt-plan-critic", runDir: "/d" })).toContain(
       "VERDICT: FAIL: <the reason>",
     );
+    expect(gatePrompt({ runId: "r", task: "t", stage, agent: "mt-plan-critic", runDir: "/d" })).toContain(
+      "Read files with Read, Glob and Grep",
+    );
     // Workers of one stage in parallel: each writes only its own artifact.
     const parallel = { id: "context", produces: ["a.json", "b.json"], parallel: ["x", "y"] } as StageSpec;
     const mine = stagePrompt({
