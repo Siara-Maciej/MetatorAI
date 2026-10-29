@@ -8,7 +8,7 @@ import {
   InstantTimer,
   ScriptedProcessRunner,
 } from "@metator/testing";
-import { DriveRun, OTHER, RunJournal } from "../src/application/drive.ts";
+import { DriveRun, failedSteps, OTHER, RunJournal } from "../src/application/drive.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { CloseRun } from "../src/application/run-close.ts";
 import { RunDrivers } from "../src/application/run-drivers.ts";
@@ -202,6 +202,32 @@ const writesPlan: FakeAgentTurn = {
   },
 };
 let w0: ReturnType<typeof world> | undefined;
+
+describe("failedSteps", () => {
+  test("a failed gate is each failing step and the first line of its output", () => {
+    const out = JSON.stringify({
+      ok: false,
+      error: {
+        message: "gate quick failed: lint",
+        details: {
+          steps: [
+            {
+              id: "lint",
+              status: "fail",
+              detail: "\n[ERR_PNPM_FETCH_401] GET https://x: Unauthorized\n    at a (b.mjs:1)",
+            },
+            { id: "types", status: "pass", detail: "ok" },
+          ],
+        },
+      },
+    });
+    expect(failedSteps(`noise\n${out}\n`)).toBe(
+      "gate quick failed: lint; lint: [ERR_PNPM_FETCH_401] GET https://x: Unauthorized",
+    );
+    expect(failedSteps("plain text")).toBeUndefined();
+    expect(failedSteps(JSON.stringify({ ok: true, data: {} }))).toBeUndefined();
+  });
+});
 
 describe("DriveRun", () => {
   test("a whole run: script, agent, human gate, agent with a question, gate script and critic", async () => {

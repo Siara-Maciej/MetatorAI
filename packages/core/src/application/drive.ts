@@ -28,6 +28,29 @@ import type { WorkflowCatalog } from "./workflow-catalog.ts";
 
 /** The free-text option every question has, so a person is never forced into a listed choice. */
 export const OTHER = "Other";
+/**
+ * A failed `metator gate` read for a person: each failing step and the first line of its output
+ * (a stack trace's tail says nothing). Undefined when the output is no gate result.
+ */
+export function failedSteps(stdout: string): string | undefined {
+  let envelope: unknown;
+  try {
+    envelope = JSON.parse(stdout.trim().split("\n").at(-1) ?? "");
+  } catch {
+    return undefined;
+  }
+  const error = (envelope as { error?: { message?: unknown; details?: { steps?: unknown } } } | null)?.error;
+  const steps = error?.details?.steps;
+  if (!Array.isArray(steps)) return undefined;
+  const failed = steps
+    .filter((s): s is { id: string; detail?: string } => (s as { status?: unknown }).status === "fail")
+    .map((s) => {
+      const first = (s.detail ?? "").split("\n").find((l) => l.trim() !== "") ?? "";
+      return `${s.id}: ${first.trim().slice(0, 300)}`;
+    });
+  return [typeof error?.message === "string" ? error.message : "gate failed", ...failed].join("; ");
+}
+
 /** How many times one worker may ask a person in a stage before the stage fails. */
 const MAX_ANSWERS = 3;
 
@@ -421,7 +444,8 @@ export class DriveRun {
       { argv: words, cwd: ctx.cwd, env: { METATOR_RUN: ctx.runId, METATOR_RUN_DIR: ctx.runDir } },
       { timeoutMs: 30 * 60_000 },
     );
-    const tail = `${r.stdout}\n${r.stderr}`.trim().split("\n").slice(-5).join("\n").slice(-800);
+    const tail =
+      failedSteps(r.stdout) ?? `${r.stdout}\n${r.stderr}`.trim().split("\n").slice(-5).join("\n").slice(-800);
     return ok({ ok: r.exitCode === 0, tail });
   }
 

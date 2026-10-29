@@ -2841,6 +2841,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the quick gate is never left empty when a lint script exists",
   },
   {
+    file: "packages/core/src/application/drive.ts",
+    from: '.filter((s): s is { id: string; detail?: string } => (s as { status?: unknown }).status === "fail")',
+    to: ".filter((s): s is { id: string; detail?: string } => true)",
+    why: "a failed gate names only the steps that failed",
+  },
+  {
     file: "packages/core/src/domain/errors.ts",
     from: '...(typeof hint === "string" ? { hint } : {}),',
     to: "",
