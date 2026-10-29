@@ -60,10 +60,24 @@ describe("proposeConfig", () => {
     ]);
   });
 
-  test("no per-file tool means no quick lint; a rule canon adds the rules step to both gates", () => {
+  test("no per-file tool: the quick gate runs the whole lint script; a rule canon adds the rules step", () => {
     const p = proposeConfig(discovery({ lint: "stylelint ." }), { ruleCanon: true });
-    expect(ids(p.gates.quick)).toEqual(['rules:{"metator":"rules check"}:none']);
-    expect(p.gates.full.map((s) => s.id)).toEqual(["lint", "rules"]); // the script still runs in full
+    expect(ids(p.gates.quick)).toEqual([
+      'lint:{"script":"lint"}:none',
+      'rules:{"metator":"rules check"}:none',
+    ]);
+    expect(p.gates.full.map((s) => s.id)).toEqual(["lint", "rules"]);
+    // A tool configured per package only (no root config) does not run on files from the root either.
+    const perPackage = proposeConfig(
+      {
+        ...discovery({ lint: "turbo lint" }),
+        tools: [
+          { id: "eslint", evidence: ["packages/ui/eslint.config.js", "package.json#devDependencies.eslint"] },
+        ],
+      },
+      { ruleCanon: false },
+    );
+    expect(ids(perPackage.gates.quick)).toEqual(['lint:{"script":"lint"}:none']);
   });
 
   test("the same discovery always gives the same proposal", () => {

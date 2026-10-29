@@ -75,7 +75,10 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   const env = options.env ?? process.env;
   const containerAt = (root: string, extra: { readonly run?: string } = {}) => {
     // An invalid config stops every command with its exact field (thrown at the composition root).
-    const config = loadConfig(root);
+    // A run's worktree without a config of its own (one not committed yet) takes the checkout's.
+    const own = loadConfig(root);
+    const main = runsRootOf(root);
+    const config = own.isOk() && own.value.source === undefined && main !== root ? loadConfig(main) : own;
     if (config.isErr()) throw config.error;
     return bootstrap({
       root,

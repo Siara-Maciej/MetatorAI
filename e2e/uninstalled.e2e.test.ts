@@ -119,7 +119,8 @@ describe("a monorepo before install", () => {
     const decisions = (data(r).decisions as { gate: string; step: string }[]).map(
       (d) => `${d.gate}: ${d.step}`,
     );
-    expect(decisions).toEqual(["full: script lint", "quick: eslint on files", "full: script test"]);
+    // ESLint is configured per package only: a root `eslint <files>` would find no config.
+    expect(decisions).toEqual(["full: script lint", "quick: script lint", "full: script test"]);
     const discovery = JSON.parse(await repo.read(".metator/discovery.json")) as {
       scripts: { name: string }[];
     };

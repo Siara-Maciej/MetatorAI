@@ -2829,6 +2829,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a stage script finds the run directory from a run's worktree too",
   },
   {
+    file: "packages/core/src/domain/proposal.ts",
+    from: "find((t) => tools.has(t.tool) && configuredAtRoot(t.tool));",
+    to: "find((t) => tools.has(t.tool));",
+    why: "a linter configured per package only does not run on files from the root",
+  },
+  {
+    file: "packages/core/src/domain/proposal.ts",
+    from: "      quick.push(step(capability, { script: found.script }));\n",
+    to: "",
+    why: "the quick gate is never left empty when a lint script exists",
+  },
+  {
     file: "packages/core/src/domain/errors.ts",
     from: '...(typeof hint === "string" ? { hint } : {}),',
     to: "",

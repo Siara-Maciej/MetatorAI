@@ -84,7 +84,11 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
       });
       continue;
     }
-    const tool = FILE_TOOLS[capability]?.find((t) => tools.has(t.tool));
+    // Run on the changed files from the root only when the root configures the tool: with one
+    // config per package (no root config), a root `eslint <files>` finds no configuration.
+    const configuredAtRoot = (id: string) =>
+      (tools.get(id) ?? []).some((e) => !e.includes("/") && !e.includes("#"));
+    const tool = FILE_TOOLS[capability]?.find((t) => tools.has(t.tool) && configuredAtRoot(t.tool));
     if (tool) {
       quick.push(step(capability, { bin: tool.bin, args: [...tool.args] }, "append"));
       decisions.push({
@@ -93,6 +97,16 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
         step: `${tool.bin} on files`,
         evidence: [...(tools.get(tool.tool) ?? []), ...found.c.evidence],
         reason: `${found.c.reason}; ${tool.tool} runs on the changed files directly`,
+      });
+    } else {
+      // Nothing runs on the changed files alone: the whole lint script, slower but never empty.
+      quick.push(step(capability, { script: found.script }));
+      decisions.push({
+        capability,
+        gate: "quick",
+        step: `script ${found.script}`,
+        evidence: found.c.evidence,
+        reason: `${found.c.reason}; no linter configured at the root runs on the changed files alone`,
       });
     }
   }

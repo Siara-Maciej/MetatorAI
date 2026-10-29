@@ -59,7 +59,20 @@ describe("a run's worktree", () => {
     expect(await Bun.file(join(wt, `.metator/runs/${id}/task.md`)).text()).toBe("# Task\n\nfirst\n");
     const status = Bun.spawnSync(["git", "status", "--porcelain", "--", ".metator/runs"], { cwd: wt });
     expect(status.stdout.toString()).toBe("");
-  });
+  }, 60_000);
+
+  test("a worktree without a config of its own reads the checkout's (one not committed yet)", async () => {
+    await repo.write(
+      "metator.config.yml",
+      "kind: MetatorConfig\nschemaVersion: 4\nhosts:\n  targets: [claude]\n",
+    );
+    const first = data(
+      await metator(["run", "init", "--workflow", "feature", "--task", "config", "--worktree"], repo.root),
+    );
+    const wt = join(repo.root, (first.worktree as { path: string }).path);
+    const shown = data(await metator(["config", "show"], wt));
+    expect(shown.source).toBe("metator.config.yml");
+  }, 60_000);
 
   test("an escalated run resumes where it stopped, once a person says so", async () => {
     const id = data(await metator(["run", "init", "--workflow", "feature", "--task", "resume"], repo.root))
@@ -70,5 +83,5 @@ describe("a run's worktree", () => {
     expect([back.code, data(back).stage, data(back).status]).toEqual([0, "intake", "active"]);
     const again = await metator(["run", "resume", "--run", id, "--by", "ala"], repo.root);
     expect([again.code, (again.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
-  });
+  }, 60_000);
 });
