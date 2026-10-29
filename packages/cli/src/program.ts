@@ -18,6 +18,7 @@ import { registerAskCommands } from "./commands/ask.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerConfigCommands } from "./commands/config.ts";
+import { registerContractCommands } from "./commands/contract.ts";
 import { registerCoverageCommands } from "./commands/coverage.ts";
 import { registerDebugTagsCommands } from "./commands/debug-tags.ts";
 import { registerDiscoverCommands } from "./commands/discover.ts";
@@ -118,6 +119,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerApiCommands(program, ctx);
   registerOwnersCommand(program, ctx);
   registerSystemCommands(program, ctx);
+  registerContractCommands(program, ctx);
   registerArchCommands(program, ctx);
   registerRulesCommands(program, ctx);
   registerMemoryCommands(program, ctx);

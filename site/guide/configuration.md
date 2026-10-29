@@ -70,7 +70,7 @@ A gate is a named list of steps. A step runs one of:
 |---|---|---|
 | `{ script: <name> }` | a `package.json` script through your package manager | `{ script: lint }` |
 | `{ bin: <name>, args: [...] }` | a binary from `node_modules/.bin` | `{ bin: tsc, args: [--noEmit] }` |
-| `{ metator: <check> }` | a MetatorAI check in process | `rules check`, `test affected`, `graph diff`, `api diff <package>`, `coverage diff [--min N] [--lcov file]` |
+| `{ metator: <check> }` | a MetatorAI check in process | `rules check`, `test affected`, `graph diff`, `arch check`, `contract diff`, `api diff <package>`, `coverage diff [--min N] [--lcov file]` |
 
 Other step fields:
 

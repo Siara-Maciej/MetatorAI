@@ -164,6 +164,28 @@ export class SystemSources {
   }
 }
 
+/** The applications of the map whose code is this repository (`system.self`, its remote or its path). */
+export async function selfOf(
+  map: SystemMap,
+  location: Pick<SystemLocation, "local" | "repoBase">,
+  vcs: Pick<Vcs, "remoteUrl">,
+  settings: SystemSettings | undefined,
+  here: string,
+): Promise<Result<Application[], MetatorError>> {
+  const remote = await vcs.remoteUrl();
+  const base = await location.repoBase();
+  if (base.isErr()) return err(base.error);
+  return ok(
+    selfApplications(map, {
+      ...(settings?.self ? { configured: settings.self } : {}),
+      ...(remote.isOk() && remote.value ? { remote: remote.value } : {}),
+      root: here,
+      mapIsLocal: location.local,
+      resolve: (repo) => (isPath(repo) ? absolute(base.value, repo) : repo),
+    }),
+  );
+}
+
 export interface SystemImpactReport extends SystemImpact {
   readonly map: string;
   /** The applications this repository is. */
@@ -210,24 +232,16 @@ export class SystemImpactQuery {
       if (changed.isErr()) return err(changed.error);
       files = changed.value;
     }
-    const remote = await this.vcs.remoteUrl();
-    const mapRoot = await this.location.repoBase();
-    if (mapRoot.isErr()) return err(mapRoot.error);
-    const self = selfApplications(map.value, {
-      ...(this.settings?.self ? { configured: this.settings.self } : {}),
-      ...(remote.isOk() && remote.value ? { remote: remote.value } : {}),
-      root: this.here,
-      mapIsLocal: this.location.local,
-      resolve: (repo) => (isPath(repo) ? absolute(mapRoot.value, repo) : repo),
-    });
+    const self = await selfOf(map.value, this.location, this.vcs, this.settings, this.here);
+    if (self.isErr()) return err(self.error);
     const impact = impactOf(map.value, {
-      self,
+      self: self.value,
       files,
       ...(input.contracts ? { contracts: input.contracts } : {}),
     });
     return ok({
       map: this.location.source,
-      self: self.map((a) => a.id),
+      self: self.value.map((a) => a.id),
       base: input.files ? null : (input.base ?? null),
       ...impact,
     });

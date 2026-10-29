@@ -2234,4 +2234,46 @@ export const MUTANTS: readonly Mutant[] = [
     to: "if (false)\n          problems.push({",
     why: "a specification missing from another repository's checkout is a problem",
   },
+  {
+    file: "packages/core/src/domain/contract-diff.ts",
+    from: 'if (changes.some((c) => c.severity === "breaking")) return "breaking";',
+    to: "",
+    why: "one breaking change makes the contract breaking",
+  },
+  {
+    file: "packages/core/src/domain/contract-diff.ts",
+    from: "after !== undefined && after > before)",
+    to: "after !== undefined && after >= before)",
+    why: "the versioned policy needs a new major version",
+  },
+  {
+    file: "packages/core/src/domain/contract-diff.ts",
+    from: 'if (contract.compatibility === "none")',
+    to: "if (false)",
+    why: "a contract without compatibility may break",
+  },
+  {
+    file: "packages/core/src/domain/contract-diff.ts",
+    from: "if (!v || !range || semver.validRange(range) === null) return undefined;",
+    to: "if (!v || !range) return undefined;",
+    why: "an invalid range is unknown, not unsatisfied",
+  },
+  {
+    file: "packages/core/src/application/contract-diff.ts",
+    from: "if (!named) return ok(map.contracts.filter((c) => mine.has(c.owner)));",
+    to: "if (!named) return ok(map.contracts.filter((c) => mine.has(c.owner) || true));",
+    why: "only the contracts this repository provides are compared",
+  },
+  {
+    file: "packages/core/src/application/gate-checks.ts",
+    from: "const failing = r.value.contracts.filter((c) => !c.allowed);",
+    to: "const failing = r.value.contracts.filter((c) => false);",
+    why: "a contract the policy does not allow fails the gate",
+  },
+  {
+    file: "packages/plugin-openapi/src/openapi-contract-differ.ts",
+    from: 'format: String(doc.swagger ?? "").startsWith("2") ? "swagger2" : "openapi3",',
+    to: 'format: "openapi3",',
+    why: "Swagger 2 is compared as Swagger 2",
+  },
 ];

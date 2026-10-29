@@ -55,6 +55,7 @@ describe("metator CLI (process e2e)", () => {
       "system sources",
       "system discover",
       "system schema",
+      "contract diff",
       "arch init",
       "arch analyze",
       "arch check",

@@ -41,6 +41,13 @@ packages:
     }
   - { package: picomatch, need: "globs", adr: 0010-dependency-policy.md }
   - {
+      package: openapi-diff,
+      need: "OpenAPI and Swagger specifications compared, breaking or not (contract diff)",
+      adr: 0069-contract-diff.md,
+    }
+  - { package: semver, need: "consumers' version ranges of a contract", adr: 0069-contract-diff.md }
+  - { package: "@types/semver", need: "types for semver", adr: 0069-contract-diff.md }
+  - {
       package: playwright,
       need: "README visuals rendered in a real browser (e2e)",
       adr: 0034-conformance-tests.md,

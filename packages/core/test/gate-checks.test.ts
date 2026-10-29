@@ -89,6 +89,7 @@ describe("parseMetatorStep", () => {
     });
     expect(parseMetatorStep("coverage diff")).toEqual({ command: "coverage diff" });
     expect(parseMetatorStep("arch check")).toEqual({ command: "arch check" });
+    expect(parseMetatorStep("contract diff")).toEqual({ command: "contract diff" });
     for (const bad of ["rm -rf", "api diff", "coverage diff --min x", "graph diff --base main"])
       expect(parseMetatorStep(bad)).toBeUndefined();
   });
@@ -210,6 +211,48 @@ describe("GateChecks", () => {
       detail: "score 97, no new architecture violation",
     });
     expect(calls).toEqual([{ base: "main" }, { base: "HEAD" }]);
+  });
+
+  test("contract diff fails on a contract the policy does not allow, with the reason", async () => {
+    const entry = (id: string, status: string, allowed: boolean, reason?: string) => ({
+      id,
+      status,
+      allowed,
+      ...(reason ? { reason } : {}),
+    });
+    const contracts = (entries: ReturnType<typeof entry>[]) => ({
+      execute: async (input: { base: string }) => {
+        calls.length = 0;
+        calls.push(input);
+        return ok({ map: "m", base: input.base, contracts: entries as never, failing: [] });
+      },
+    });
+    const red = await new GateChecks(
+      none,
+      none,
+      none,
+      none,
+      none,
+      none,
+      contracts([entry("a", "breaking", false, "no"), entry("b", "compatible", true)]),
+    ).run(step("contract diff"), { base: "main" });
+    expect(red._unsafeUnwrap()).toEqual({ passed: false, detail: "a (breaking): no" });
+    expect(calls).toEqual([{ base: "main" }]);
+    const green = await new GateChecks(
+      none,
+      none,
+      none,
+      none,
+      none,
+      none,
+      contracts([entry("a", "unchanged", true), entry("b", "compatible", true)]),
+    ).run(step("contract diff"), {});
+    expect(green._unsafeUnwrap()).toEqual({
+      passed: true,
+      detail: "1 of 2 contract(s) changed, none breaking",
+    });
+    const missing = await new GateChecks(none, none, none, none, none, none).run(step("contract diff"), {});
+    expect(missing._unsafeUnwrap().passed).toBe(false);
   });
 
   test("a failing check is an error value", async () => {

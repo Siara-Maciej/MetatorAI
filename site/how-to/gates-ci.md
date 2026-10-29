@@ -7,7 +7,7 @@
 | Gate | When | Typical steps |
 |---|---|---|
 | `quick` | after every edit, on the changed files | linter on the files, `rules check`, typecheck |
-| `full` | before review and in CI | lint, typecheck, `test affected`, `graph diff`, `arch check`, `coverage diff` |
+| `full` | before review and in CI | lint, typecheck, `test affected`, `graph diff`, `arch check`, `contract diff`, `coverage diff` |
 
 ```bash
 metator gate quick --base main
@@ -22,6 +22,7 @@ The report is written to `.metator/gates/<gate>.json`, and the review stage cite
 metator test affected --base main            # only the tests the import graph says the change reaches
 metator graph diff --base main               # added/removed import edges, new package dependencies, new cycles
 metator arch check --base main               # package cycles, layers, undeclared dependencies the branch adds
+metator contract diff --base main            # breaking changes to the API contracts this repository provides
 metator coverage diff --base main --min 80   # coverage of the lines added on the branch (LCOV)
 metator api diff @shop/money                 # public API changed since the snapshot
 metator flaky check src/a.test.ts --runs 5   # the test decides the same way every time
@@ -33,6 +34,8 @@ metator debug-tags check --base main         # no instrumentation left
 **Why `graph diff`:** a new dependency from `billing` to `web`, or a new import cycle, is an architecture decision. It shows up in the gate instead of three months later.
 
 **Why `arch check`:** the same idea at the level of packages and your [architecture policy](./architecture.md): a branch fails only for what it adds, so a monorepo with years of history can turn it on today.
+
+**Why `contract diff`:** a removed endpoint breaks consumers in other repositories that this repository's tests never run. The step fails a breaking change the [system map](../multi-repo/index.md#is-the-change-safe-for-consumers)'s policy does not allow, and names the consumers.
 
 ## GitHub Actions
 

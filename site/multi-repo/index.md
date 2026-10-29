@@ -175,6 +175,43 @@ metator system lint --fetch       # check specifications in other repositories t
 
 Clones never run code and never change your checkouts. Without `--fetch`, MetatorAI does not touch the network, and `system lint` lists the specifications it could not check.
 
+## Is the change safe for consumers?
+
+In the provider's repository, `contract diff` compares each contract's specification at the merge base with the working tree:
+
+```bash
+metator contract diff --base main            # every contract this repository provides
+metator contract diff --contracts billing-api
+metator contract diff --base main --check    # in CI: fail when the map's policy does not allow a change
+```
+
+```json
+{"base":"main","failing":["billing-api"],
+ "contracts":[{"id":"billing-api","spec":"apps/billing/openapi.yaml","status":"breaking","allowed":false,
+   "versions":{"before":"1.4.0","after":"1.4.0"},
+   "changes":[{"code":"path.remove","severity":"breaking","location":"paths./refunds","message":"removed path at paths./refunds"}],
+   "consumers":[{"app":"web","range":"^1","satisfied":true}],
+   "reason":"a breaking change (consumed by web): expand first (the new shape beside the old), migrate the consumers, then remove the old (policy: expand-contract)."}]}
+```
+
+| Status | Meaning |
+|---|---|
+| `unchanged`, `compatible` | nothing a consumer relies on changed (added paths, optional fields) |
+| `breaking` | something a consumer may use was removed or narrowed |
+| `removed`, `added` | the specification itself is gone or new |
+| `unclassified` | a change the differ cannot classify: review it by hand |
+
+Whether a breaking change passes depends on the map:
+
+| Map | A breaking change |
+|---|---|
+| `compatibility: none` on the contract | passes |
+| `policies.breaking: expand-contract` (default) | fails: add the new shape beside the old, migrate consumers, then remove the old one |
+| `policies.breaking: versioned` | passes with a new major version in the specification; consumers outside the new range are named |
+| `policies.breaking: forbidden` | fails |
+
+Add it to the full gate with `{ metator: contract diff }`. OpenAPI 3.0 and Swagger 2 are compared on [openapi-diff](https://github.com/atlassian/openapi-diff): paths, methods, status codes, headers and request and response bodies. Parameter changes and OpenAPI 3.1 are not classified yet.
+
 ## Roadmap of the multi-repo phase (F7)
 
 | Step | What it adds | Status |
@@ -182,8 +219,8 @@ Clones never run code and never change your checkouts. Without `--fetch`, Metato
 | F7.1 System map | `SystemMap`, `system lint`, `system show`, deploy waves | ✅ available |
 | F7.2 Discovery | detect monorepo or separate repositories, applications and OpenAPI specs; propose the map with evidence (`system discover`) | ✅ available |
 | F7.3 Impact | read other repositories (checkout or pinned clone); `system impact`: changed files → contracts → consumers → owners | ✅ available |
-| F7.4 Compatibility | `contract diff` for OpenAPI (breaking or not) and a contract gate | next |
-| F7.5 System plan | a plan per application, in deploy order, with a strategy for breaking changes; `mt-system-scout`, `mt-system-planner` | planned |
+| F7.4 Compatibility | `contract diff` for OpenAPI (breaking or not) and a contract gate | ✅ available |
+| F7.5 System plan | a plan per application, in deploy order, with a strategy for breaking changes; `mt-system-scout`, `mt-system-planner` | next |
 | F7.6 Linked runs | one system run with child runs in each repository, a combined status | planned |
 
 Contract kinds come from plugins. The MVP supports **OpenAPI**; AsyncAPI, GraphQL, gRPC, npm packages and database schemas follow.

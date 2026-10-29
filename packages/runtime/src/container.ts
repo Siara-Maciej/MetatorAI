@@ -33,10 +33,12 @@ import {
   type ComputeAffected,
   type ContainerRuntime,
   type ContractDetector,
+  type ContractDiffer,
   type ConversationRepository,
   type CreateRefactorPlan,
   type CreateWorktree,
   type DataIsolator,
+  type DiffContracts,
   type DiffCoverage,
   type DiffImportGraph,
   type Discover,
@@ -272,6 +274,8 @@ export interface Cradle {
   contractKinds: readonly string[];
   systemCatalog: SystemCatalog;
   contractDetectors: readonly ContractDetector[];
+  contractDiffers: readonly ContractDiffer[];
+  diffContracts: DiffContracts;
   discoverySource: RepositoryDiscoverySource;
   discoverSystem: DiscoverSystem;
   repositoryCloner: RepositoryCloner;

@@ -6,6 +6,7 @@
 import type { Agent } from "../domain/agent.ts";
 import type { ManifestSet } from "../domain/architecture.ts";
 import type { ToolBoundaries } from "../domain/architecture-check.ts";
+import type { ContractComparison } from "../domain/contract-diff.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
@@ -241,6 +242,15 @@ export interface ContractDetector {
   /** Files worth reading, as globs. */
   readonly globs: readonly string[];
   detect(path: string, text: string): Result<DetectedContract | undefined, MetatorError>;
+}
+
+/** Two versions of one contract kind's specification compared (`contract diff`, F7.4). */
+export interface ContractDiffer {
+  readonly kind: string;
+  compare(
+    before: { readonly path: string; readonly text: string },
+    after: { readonly path: string; readonly text: string },
+  ): Promise<Result<ContractComparison, MetatorError>>;
 }
 
 /** A throwaway git repository made of given files (H7: architecture evals), removed by `dispose`. */

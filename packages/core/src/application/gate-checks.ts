@@ -3,6 +3,7 @@ import type { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { ApiSnapshots } from "./api.ts";
 import type { CheckArchitecture } from "./architecture.ts";
+import type { DiffContracts } from "./contract-diff.ts";
 import type { DiffCoverage } from "./coverage.ts";
 import type { DiffImportGraph } from "./graph-diff.ts";
 import type { CheckRules } from "./rules.ts";
@@ -27,6 +28,7 @@ export class GateChecks {
     private readonly api: Pick<ApiSnapshots, "diff">,
     private readonly coverage: Pick<DiffCoverage, "execute">,
     private readonly arch: Pick<CheckArchitecture, "execute">,
+    private readonly contracts?: Pick<DiffContracts, "execute">,
   ) {}
 
   async run(
@@ -86,6 +88,21 @@ export class GateChecks {
           added.length > 0
             ? { passed: false, detail: lines(added) }
             : { passed: true, detail: `score ${r.value.summary.score}, no new architecture violation` },
+        );
+      }
+      case "contract diff": {
+        if (!this.contracts) return ok({ passed: false, detail: "contract diff is not available here" });
+        const r = await this.contracts.execute({ base });
+        if (r.isErr()) return err(r.error);
+        const failing = r.value.contracts.filter((c) => !c.allowed);
+        const changed = r.value.contracts.filter((c) => c.status !== "unchanged").length;
+        return ok(
+          failing.length > 0
+            ? { passed: false, detail: lines(failing.map((c) => `${c.id} (${c.status}): ${c.reason ?? ""}`)) }
+            : {
+                passed: true,
+                detail: `${changed} of ${r.value.contracts.length} contract(s) changed, none breaking`,
+              },
         );
       }
       case "api diff": {

@@ -72,3 +72,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0066](0066-architecture-evals.md) | Ewaluacja planowania refaktoru (`ArchEvalCase`, `arch eval`, `Sandbox`) | Proposed |
 | [0067](0067-system-discover.md) | `system discover`: topologia, aplikacje, kontrakty i konsumenci z dowodami | Proposed |
 | [0068](0068-system-impact.md) | `system impact`: mapa przypięta w repozytorium platformy, źródła innych repozytoriów i zasięg zmiany | Proposed |
+| [0069](0069-contract-diff.md) | `contract diff`: zmiana kontraktu oceniana różnicą specyfikacji i polityką mapy | Proposed |

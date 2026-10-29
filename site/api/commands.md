@@ -278,6 +278,22 @@ Print the JSON Schema of the system map
 metator system schema [options]
 ```
 
+## contract
+
+### `metator contract diff`
+
+Each provided contract's specification since a base: breaking or not, judged by the map's policy
+
+```bash
+metator contract diff [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--base <ref>` | compare with the merge base of this ref | `"HEAD"` |
+| `--contracts <ids...>` | only these contracts |  |
+| `--check` | fail when a change breaks a contract the map's policy protects |  |
+
 ## arch
 
 ### `metator arch init`

@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@metator/core": "workspace:*",
+    "openapi-diff": "^0.24.1",
     "yaml": "^2.9.1"
   },
   "devDependencies": {

@@ -36,6 +36,7 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
+  DiffContracts,
   DiffCoverage,
   DiffImportGraph,
   Discover,
@@ -164,7 +165,7 @@ import {
   NodePackageManager,
   WaitOnHealthProbe,
 } from "@metator/plugin-node";
-import { OpenApiContractDetector } from "@metator/plugin-openapi";
+import { OpenApiContractDetector, OpenApiContractDiffer } from "@metator/plugin-openapi";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
 import { resolveCanon } from "./canon.ts";
@@ -483,6 +484,19 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     showSystem: asFunction(({ systemLocation }) => new ShowSystem(systemLocation)),
     contractDetectors: asFunction(() => [new OpenApiContractDetector()]).singleton(),
+    contractDiffers: asFunction(() => [new OpenApiContractDiffer()]).singleton(),
+    diffContracts: asFunction(
+      ({ systemLocation, vcs, revisionReader, fileSystem, contractDiffers, config, root }) =>
+        new DiffContracts(
+          systemLocation,
+          vcs,
+          revisionReader,
+          fileSystem,
+          contractDiffers,
+          config.config.system,
+          root,
+        ),
+    ),
     discoverySource: asFunction(
       ({ root, vcs, fileSystem, manifestReader, analyzeArchitecture, findOwners }) =>
         new RepositoryDiscoverySource(
@@ -622,7 +636,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new Discover(fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths),
     ),
     gateChecks: asFunction(
-      ({ checkRules, runAffectedTests, diffImportGraph, apiSnapshots, diffCoverage, checkArchitecture }) =>
+      ({
+        checkRules,
+        runAffectedTests,
+        diffImportGraph,
+        apiSnapshots,
+        diffCoverage,
+        checkArchitecture,
+        diffContracts,
+      }) =>
         new GateChecks(
           checkRules,
           runAffectedTests,
@@ -630,6 +652,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           apiSnapshots,
           diffCoverage,
           checkArchitecture,
+          diffContracts,
         ),
     ),
     runGate: asFunction(
