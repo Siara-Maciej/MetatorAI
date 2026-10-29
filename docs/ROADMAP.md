@@ -197,7 +197,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 
 **Zadania (MVP)**
 - [x] F7.1 `SystemMap` v1 (aplikacje, kontrakty, polityki), rejestr rodzajów kontraktów (MVP: `openapi`), `system schema|show|lint`, `system lint` w `meta check-all` (ADR-0047). Karty aplikacji w F7.5.
-- [ ] F7.2 Automatyczna topologia (monorepo albo osobne repo) i `system discover` (aplikacje, specyfikacje OpenAPI, konsumenci z dowodami).
+- [x] F7.2 Automatyczna topologia (pojedyncza aplikacja, monorepo, folder repozytoriów) i `system discover [--write|--check]` (aplikacje, specyfikacje OpenAPI, konsumenci z dowodami i pewnością); port `ContractDetector`, `plugin-openapi` (ADR-0067).
 - [ ] F7.3 Port `SystemSourceReader` (lokalny checkout, klon do cache zależnie od użycia), mapa w repo platformy przypięta w aplikacjach, `system impact`.
 - [ ] F7.4 Port `ContractDiffer`, provider OpenAPI (`openapi-diff`), `contract diff`, krok bramki w `gate full`.
 - [ ] F7.5 `SystemAnalysis`, `SystemPlan`, `system plan lint`, agenci `mt-system-scout`, `mt-system-planner`, karty aplikacji.

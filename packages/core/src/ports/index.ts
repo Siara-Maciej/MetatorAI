@@ -210,6 +210,24 @@ export interface ManifestReader {
   manifests(): Promise<Result<ManifestSet, MetatorError>>;
 }
 
+/** A specification a contract plugin recognized (F7.2). */
+export interface DetectedContract {
+  /** Repo-relative file. */
+  readonly path: string;
+  readonly title: string;
+  readonly version?: string;
+  /** Where the provider says it is served (`servers[].url`). */
+  readonly servers: readonly string[];
+}
+
+/** One contract kind's specifications (`openapi`, later `asyncapi`, …): what `system discover` finds. */
+export interface ContractDetector {
+  readonly kind: string;
+  /** Files worth reading, as globs. */
+  readonly globs: readonly string[];
+  detect(path: string, text: string): Result<DetectedContract | undefined, MetatorError>;
+}
+
 /** A throwaway git repository made of given files (H7: architecture evals), removed by `dispose`. */
 export interface Sandbox {
   create(

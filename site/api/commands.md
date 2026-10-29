@@ -227,6 +227,19 @@ Owners, consumed contracts, contract kinds, deploy cycles and the files in this 
 metator system lint [options]
 ```
 
+### `metator system discover`
+
+Propose a system map from the code: applications, contracts and consumers, with evidence
+
+```bash
+metator system discover [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--write` | write the proposal to the map file when there is none (never overwrites) |  |
+| `--check` | fail when the map lacks what the code shows |  |
+
 ### `metator system schema`
 
 Print the JSON Schema of the system map

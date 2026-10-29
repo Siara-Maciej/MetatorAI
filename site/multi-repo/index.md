@@ -71,6 +71,40 @@ policies:
 | `consumes: orders-api@^1` | the contract and the version range a consumer expects | a breaking change outside the range needs a migration plan |
 | `deployOrder: providers-first` | deploy order from the contract graph | the plan ships in waves, providers first |
 
+## Let MetatorAI propose it
+
+You do not have to write the map from scratch:
+
+```bash
+metator system discover            # in a repository (one application or a monorepo), or in a folder of repositories
+metator system discover --write    # write the proposal to docs/metator/system.yml when there is no map yet
+metator system discover --check    # in CI: fail when the map lacks what the code shows
+```
+
+```json
+{"topology":"monorepo",
+ "proposal":{"system":"shop","applications":[
+    {"id":"billing","kind":"service","source":{"path":"apps/billing"},"owners":["@billing-team"],"deploy":{"unit":"billing"},"consumes":[]},
+    {"id":"web","kind":"frontend","source":{"path":"apps/web"},"owners":["@web-team"],"consumes":["billing-api"]}],
+  "contracts":[{"id":"billing-api","kind":"openapi","owner":"billing","spec":{"path":"openapi.yaml"}}]},
+ "evidence":[
+    {"subject":"consumes:web→billing-api","reason":"refers to the specification openapi.yaml","file":"apps/web/package.json","confidence":"medium","proposed":true},
+    {"subject":"consumes:notify-worker→billing-api","reason":"calls billing.shop.internal, where the specification says it is served","confidence":"low","proposed":false}]}
+```
+
+**What it looks at:**
+
+| Finding | From |
+|---|---|
+| Topology | a folder of repositories (`repos`), a repository with several applications (`monorepo`), or one application (`single`) |
+| Applications | workspace packages nothing depends on that run on their own, and packages with a `Dockerfile` (a deploy unit); in a folder, each repository |
+| Kind | `service` (an API specification or a server framework), `frontend` (React, Vue, Svelte, …), `worker` or `gateway` (by name), `other` (a command-line tool, anything else) |
+| Contracts | OpenAPI 3 and Swagger 2 specifications inside an application (contract kinds are plugins) |
+| Consumers | another application's files that refer to the specification (`../billing/openapi.yaml`, medium confidence), or call the host its `servers` name (low confidence: shown, not proposed) |
+| Owners | `CODEOWNERS` |
+
+Discovery never overwrites an approved map. Review the proposal like any other change.
+
 ## Check and read it
 
 ```bash
@@ -91,8 +125,8 @@ metator system schema    # the JSON Schema of the map
 | Step | What it adds | Status |
 |---|---|---|
 | F7.1 System map | `SystemMap`, `system lint`, `system show`, deploy waves | ✅ available |
-| F7.2 Discovery | detect monorepo or separate repositories, applications and OpenAPI specs; propose the map with evidence | next |
-| F7.3 Impact | read other repositories (checkout or pinned clone); `system impact`: changed files → contracts → consumers → owners | planned |
+| F7.2 Discovery | detect monorepo or separate repositories, applications and OpenAPI specs; propose the map with evidence (`system discover`) | ✅ available |
+| F7.3 Impact | read other repositories (checkout or pinned clone); `system impact`: changed files → contracts → consumers → owners | next |
 | F7.4 Compatibility | `contract diff` for OpenAPI (breaking or not) and a contract gate | planned |
 | F7.5 System plan | a plan per application, in deploy order, with a strategy for breaking changes; `mt-system-scout`, `mt-system-planner` | planned |
 | F7.6 Linked runs | one system run with child runs in each repository, a combined status | planned |

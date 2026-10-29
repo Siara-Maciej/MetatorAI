@@ -8,16 +8,17 @@
   },
   "dependencies": {
     "@metator/core": "workspace:*",
-    "awilix": "^13.0.5",
-    "@metator/plugin-bun": "workspace:*",
-    "@metator/plugin-git": "workspace:*",
-    "@metator/plugin-node": "workspace:*",
-    "@metator/plugin-typescript": "workspace:*",
     "@metator/plugin-astgrep": "workspace:*",
     "@metator/plugin-biome": "workspace:*",
-    "@metator/plugin-host-copilot": "workspace:*",
+    "@metator/plugin-bun": "workspace:*",
+    "@metator/plugin-docker": "workspace:*",
+    "@metator/plugin-git": "workspace:*",
     "@metator/plugin-host-claude": "workspace:*",
+    "@metator/plugin-host-copilot": "workspace:*",
     "@metator/plugin-host-scenario": "workspace:*",
-    "@metator/plugin-docker": "workspace:*"
+    "@metator/plugin-node": "workspace:*",
+    "@metator/plugin-openapi": "workspace:*",
+    "@metator/plugin-typescript": "workspace:*",
+    "awilix": "^13.0.5"
   }
 }

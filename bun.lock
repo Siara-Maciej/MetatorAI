@@ -164,6 +164,17 @@
         "@metator/testing": "workspace:*",
       },
     },
+    "packages/plugin-openapi": {
+      "name": "@metator/plugin-openapi",
+      "version": "0.0.0",
+      "dependencies": {
+        "@metator/core": "workspace:*",
+        "yaml": "^2.9.1",
+      },
+      "devDependencies": {
+        "@metator/testing": "workspace:*",
+      },
+    },
     "packages/plugin-typescript": {
       "name": "@metator/plugin-typescript",
       "version": "0.0.0",
@@ -192,6 +203,7 @@
         "@metator/plugin-host-copilot": "workspace:*",
         "@metator/plugin-host-scenario": "workspace:*",
         "@metator/plugin-node": "workspace:*",
+        "@metator/plugin-openapi": "workspace:*",
         "@metator/plugin-typescript": "workspace:*",
         "awilix": "^13.0.5",
       },
@@ -433,6 +445,8 @@
     "@metator/plugin-host-scenario": ["@metator/plugin-host-scenario@workspace:packages/plugin-host-scenario"],
 
     "@metator/plugin-node": ["@metator/plugin-node@workspace:packages/plugin-node"],
+
+    "@metator/plugin-openapi": ["@metator/plugin-openapi@workspace:packages/plugin-openapi"],
 
     "@metator/plugin-typescript": ["@metator/plugin-typescript@workspace:packages/plugin-typescript"],
 

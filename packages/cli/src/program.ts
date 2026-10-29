@@ -169,6 +169,7 @@ export const FOLDER_COMMANDS: ReadonlySet<string> = new Set([
   "repos init",
   "repos list",
   "repos status",
+  "system discover",
   "ui",
   "ask",
   "ask list",

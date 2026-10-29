@@ -31,6 +31,7 @@ import {
   type CompareEvals,
   type ComputeAffected,
   type ContainerRuntime,
+  type ContractDetector,
   type ConversationRepository,
   type CreateRefactorPlan,
   type CreateWorktree,
@@ -39,6 +40,7 @@ import {
   type DiffImportGraph,
   type Discover,
   type DiscoverEnvironment,
+  type DiscoverSystem,
   type DocsDrift,
   type DocsInventory,
   type DocsLinks,
@@ -111,6 +113,7 @@ import {
   type RecordArchitectureBaseline,
   type RefactorPlanStore,
   type RemoveWorktree,
+  type RepositoryDiscoverySource,
   type Result,
   type RevisionReader,
   type RuleCatalog,
@@ -263,6 +266,9 @@ export interface Cradle {
   findOwners: FindOwners;
   contractKinds: readonly string[];
   systemCatalog: SystemCatalog;
+  contractDetectors: readonly ContractDetector[];
+  discoverySource: RepositoryDiscoverySource;
+  discoverSystem: DiscoverSystem;
   architecturePolicyCatalog: ArchitecturePolicyCatalog;
   architectureFacts: ArchitectureFacts;
   analyzeArchitecture: AnalyzeArchitecture;

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   AddLesson,
   AdvanceRun,
@@ -40,6 +40,7 @@ import {
   DiffImportGraph,
   Discover,
   DiscoverEnvironment,
+  DiscoverSystem,
   DocsDrift,
   DocsInventory,
   DocsLinks,
@@ -97,6 +98,7 @@ import {
   RecordArchitectureBaseline,
   RefactorPlanStore,
   RemoveWorktree,
+  RepositoryDiscoverySource,
   RuleCatalog,
   RunAffectedTests,
   RunDrivers,
@@ -157,6 +159,7 @@ import {
   NodePackageManager,
   WaitOnHealthProbe,
 } from "@metator/plugin-node";
+import { OpenApiContractDetector } from "@metator/plugin-openapi";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
 import { resolveCanon } from "./canon.ts";
@@ -442,6 +445,19 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new LintSystem(systemCatalog, fileSystem, contractKinds),
     ),
     showSystem: asFunction(({ systemCatalog }) => new ShowSystem(systemCatalog)),
+    contractDetectors: asFunction(() => [new OpenApiContractDetector()]).singleton(),
+    discoverySource: asFunction(
+      ({ root, vcs, fileSystem, manifestReader, analyzeArchitecture, findOwners }) =>
+        new RepositoryDiscoverySource(
+          basename(root),
+          vcs,
+          fileSystem,
+          manifestReader,
+          analyzeArchitecture,
+          findOwners,
+        ),
+    ),
+    discoverSystem: asFunction(({ contractDetectors }) => new DiscoverSystem(contractDetectors)),
     architecturePolicyCatalog: asFunction(
       ({ fileSystem, paths }) => new ArchitecturePolicyCatalog(fileSystem, paths.architecture),
     ),

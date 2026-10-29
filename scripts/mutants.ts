@@ -2138,4 +2138,52 @@ export const MUTANTS: readonly Mutant[] = [
     to: "    if (false)\n",
     why: "agents never approve a refactor plan",
   },
+  {
+    file: "packages/core/src/domain/system-discovery.ts",
+    from: 'if (bin) return "other";',
+    to: "",
+    why: "a command-line tool is not a frontend",
+  },
+  {
+    file: "packages/core/src/domain/system-discovery.ts",
+    from: 'host && (host.includes(".") || host.includes(":"))',
+    to: "host",
+    why: "a bare host word matches too much",
+  },
+  {
+    file: "packages/core/src/domain/system-discovery.ts",
+    from: 'const proposed = r.confidence !== "low";',
+    to: "const proposed = true;",
+    why: "low-confidence consumers are shown, not proposed",
+  },
+  {
+    file: "packages/core/src/domain/system-discovery.ts",
+    from: "if (!consumed.has(c)) drift.push(",
+    to: "if (false) drift.push(",
+    why: "a consumer the map lacks is drift",
+  },
+  {
+    file: "packages/core/src/application/system-discovery.ts",
+    from: "if (taken.has(id)) id = ",
+    to: "if (false) id = ",
+    why: "clashing application ids are prefixed",
+  },
+  {
+    file: "packages/core/src/application/system-discovery.ts",
+    from: "if (c.app === from) continue;",
+    to: "",
+    why: "a provider does not consume its own contract",
+  },
+  {
+    file: "packages/core/src/application/system-discovery.ts",
+    from: 'const topology: Topology = folder ? "repos" : apps.length > 1 ? "monorepo" : "single";',
+    to: 'const topology: Topology = folder ? "repos" : "single";',
+    why: "several applications are a monorepo",
+  },
+  {
+    file: "packages/plugin-openapi/src/openapi-contract-detector.ts",
+    from: "if (!/^(3\\.|2\\.0)/.test(String(version))) return ok(undefined);",
+    to: "",
+    why: "only OpenAPI 3 and Swagger 2 are specifications",
+  },
 ];
