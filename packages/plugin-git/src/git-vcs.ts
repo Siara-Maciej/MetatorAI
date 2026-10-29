@@ -1,6 +1,14 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { err, MetatorError, ok, type Result, type RevisionReader, type Vcs } from "@metator/core";
+import {
+  type ChangeHistory,
+  err,
+  MetatorError,
+  ok,
+  type Result,
+  type RevisionReader,
+  type Vcs,
+} from "@metator/core";
 import parseDiff from "parse-diff";
 import { type SimpleGit, simpleGit } from "simple-git";
 
@@ -10,7 +18,7 @@ import { type SimpleGit, simpleGit } from "simple-git";
  * that differs from the merge base with `base`: committed on the branch, staged, unstaged,
  * deleted and untracked (non-ignored) files. Paths are repo-relative.
  */
-export class GitVcs implements Vcs, RevisionReader {
+export class GitVcs implements Vcs, RevisionReader, ChangeHistory {
   private client: SimpleGit | undefined;
 
   constructor(private readonly root: string) {}
@@ -101,6 +109,28 @@ export class GitVcs implements Vcs, RevisionReader {
       ).split("\n")) {
         if (line.startsWith("\u0001")) date = line.slice(1);
         else if (line !== "" && !out.has(line)) out.set(line, date);
+      }
+      return ok(out);
+    });
+  }
+
+  async commits(limit: number): Promise<Result<readonly (readonly string[])[], MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      if (!(await this.hasCommits(git.value))) return ok([]);
+      const out: string[][] = [];
+      for (const line of (
+        await git.value.raw([
+          "log",
+          `-n${Math.max(1, Math.floor(limit))}`,
+          "--no-renames",
+          "--format=%x01",
+          "--name-only",
+        ])
+      ).split("\n")) {
+        if (line.startsWith("\u0001")) out.push([]);
+        else if (line !== "") out.at(-1)?.push(line);
       }
       return ok(out);
     });

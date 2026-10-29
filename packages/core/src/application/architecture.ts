@@ -25,7 +25,7 @@ import {
   EMPTY_POLICY,
   lintPolicy,
 } from "../domain/architecture-policy.ts";
-import { renderArchitectureMarkdown } from "../domain/architecture-render.ts";
+import { renderArchitectureHtml, renderArchitectureMarkdown } from "../domain/architecture-render.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
@@ -35,6 +35,7 @@ import {
   serializeJsonDocument,
 } from "../domain/versioned.ts";
 import type {
+  ChangeHistory,
   Clock,
   FileSystem,
   ImportAnalyzer,
@@ -45,7 +46,9 @@ import type {
   Vcs,
 } from "../ports/index.ts";
 import type { BuildImportGraph } from "./import-graph.ts";
+import type { FindOwners } from "./owners.ts";
 import type { MetatorPaths } from "./paths.ts";
+import type { SymbolQueries } from "./symbols.ts";
 
 export interface LoadedPolicy {
   readonly policy: ArchitecturePolicy;
@@ -90,7 +93,15 @@ export class ArchitectureFacts {
     private readonly manifests: ManifestReader,
     private readonly policies: ArchitecturePolicyCatalog,
     private readonly clock: Clock,
+    private readonly extra: {
+      readonly symbols?: Pick<SymbolQueries, "resolvedModules">;
+      readonly history?: ChangeHistory;
+      readonly owners?: Pick<FindOwners, "execute">;
+    } = {},
   ) {}
+
+  /** How many commits `arch analyze` reads for what changes together. */
+  static readonly HISTORY = 500;
 
   async gather(): Promise<Result<ArchitectureInput, MetatorError>> {
     const graph = await this.graph.execute();
@@ -99,6 +110,23 @@ export class ArchitectureFacts {
     if (manifests.isErr()) return err(manifests.error);
     const policy = await this.policies.load();
     if (policy.isErr()) return err(policy.error);
+    const modules = this.extra.symbols ? await this.extra.symbols.resolvedModules() : undefined;
+    if (modules?.isErr()) return err(modules.error);
+    const history = this.extra.history
+      ? await this.extra.history.commits(ArchitectureFacts.HISTORY)
+      : undefined;
+    if (history?.isErr()) return err(history.error);
+    let owners: Map<string, readonly string[]> | undefined;
+    if (this.extra.owners) {
+      const pkgs = manifests.value.packages;
+      const found = await this.extra.owners.execute({
+        paths: pkgs.map((m) => (m.dir === "." ? "package.json" : `${m.dir}/package.json`)),
+      });
+      if (found.isErr()) return err(found.error);
+      // No CODEOWNERS file: nothing to say about teams.
+      if (found.value.source !== undefined)
+        owners = new Map(pkgs.map((m, i) => [m.name, found.value.owners[i]?.owners ?? []]));
+    }
     return ok({
       files: graph.value.files,
       imports: graph.value.imports,
@@ -108,14 +136,17 @@ export class ArchitectureFacts {
       policy: policy.value.policy,
       policySource: policy.value.source,
       today: this.clock.now().toISOString().slice(0, 10),
+      ...(modules?.isOk() ? { modules: modules.value } : {}),
+      ...(history?.isOk() ? { history: history.value } : {}),
+      ...(owners ? { owners } : {}),
     });
   }
 }
 
 export interface AnalyzedArchitecture {
   readonly report: ArchitectureReport;
-  /** Where the report was written: `report.json` and `report.md`. */
-  readonly files: { readonly json: string; readonly markdown: string };
+  /** Where the report was written: `report.json`, `report.md` and `report.html`. */
+  readonly files: { readonly json: string; readonly markdown: string; readonly html: string };
 }
 
 /** `arch analyze` (H1): the report, written as JSON for tools and Markdown for people. */
@@ -130,7 +161,11 @@ export class AnalyzeArchitecture {
     const input = await this.facts.gather();
     if (input.isErr()) return err(input.error);
     const report = analyzeArchitecture(input.value);
-    const files = { json: `${this.paths.arch}/report.json`, markdown: `${this.paths.arch}/report.md` };
+    const files = {
+      json: `${this.paths.arch}/report.json`,
+      markdown: `${this.paths.arch}/report.md`,
+      html: `${this.paths.arch}/report.html`,
+    };
     const json = await this.fs.write(
       files.json,
       serializeJsonDocument(ArchitectureReportDocument.stamp(report)),
@@ -138,6 +173,8 @@ export class AnalyzeArchitecture {
     if (json.isErr()) return err(json.error);
     const markdown = await this.fs.write(files.markdown, renderArchitectureMarkdown(report));
     if (markdown.isErr()) return err(markdown.error);
+    const html = await this.fs.write(files.html, renderArchitectureHtml(report));
+    if (html.isErr()) return err(html.error);
     return ok({ report, files });
   }
 }

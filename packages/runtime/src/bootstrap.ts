@@ -332,6 +332,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     vcs: asFunction(({ root }) => new GitVcs(root)).singleton(),
     revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    changeHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     packageManager: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
@@ -434,8 +435,20 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ fileSystem, paths }) => new ArchitecturePolicyCatalog(fileSystem, paths.architecture),
     ),
     architectureFacts: asFunction(
-      ({ buildImportGraph, manifestReader, architecturePolicyCatalog, clock }) =>
-        new ArchitectureFacts(buildImportGraph, manifestReader, architecturePolicyCatalog, clock),
+      ({
+        buildImportGraph,
+        manifestReader,
+        architecturePolicyCatalog,
+        clock,
+        symbolQueries,
+        changeHistory,
+        findOwners,
+      }) =>
+        new ArchitectureFacts(buildImportGraph, manifestReader, architecturePolicyCatalog, clock, {
+          symbols: symbolQueries,
+          history: changeHistory,
+          owners: findOwners,
+        }),
     ),
     architectureBaselineStore: asFunction(
       ({ fileSystem, paths }) => new ArchitectureBaselineStore(fileSystem, paths.archBaseline),

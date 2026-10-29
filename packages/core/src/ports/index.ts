@@ -210,6 +210,12 @@ export interface ManifestReader {
   manifests(): Promise<Result<ManifestSet, MetatorError>>;
 }
 
+/** Recent history of the repository (H3: packages that change together). */
+export interface ChangeHistory {
+  /** Files each of the last `limit` commits changed, newest first; none before the first commit. */
+  commits(limit: number): Promise<Result<readonly (readonly string[])[], MetatorError>>;
+}
+
 /** Boundary rules other tools enforce (Turborepo `boundaries`, Nx `depConstraints`), for `arch init`. */
 export interface ToolBoundariesReader {
   read(): Promise<Result<readonly ToolBoundaries[], MetatorError>>;

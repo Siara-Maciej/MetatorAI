@@ -112,7 +112,7 @@ package.json, git, CODEOWNERS    kandydaci split/merge, zapadka
    - `Ca`, `Ce`, `I`, `A`, `D`, głębokość, rozmiar, procent publicznego API używanego z zewnątrz;
    - wykres `I`/`A` z „strefą bólu” i „strefą bezużyteczności”.
 6. **Odpowiedzialność i granice:**
-   - kandydaci do podziału: skupiska plików (Louvain na grafie wewnątrz pakietu) z rozłącznymi konsumentami;
+   - kandydaci do podziału: skupiska plików (spójne składowe grafu wewnątrz pakietu bez barreli, ADR-0063) z różnymi konsumentami;
    - kandydaci do scalenia: jeden konsument, mały rozmiar, wspólna zmiana;
    - pakiety „god” i „hub”;
    - martwe eksporty i martwe pakiety.
@@ -183,11 +183,10 @@ W folderze repozytoriów (G2) `arch analyze` daje raport każdego repozytorium o
   - `ChangeHistory`: co-change z `git log --name-only`, adapter w `plugin-git`;
   - `ExportUsage`: używane i martwe eksporty.
   
-  `ExportUsage` ma dwie opcje: adapter na **knip** (ADR-0010: gotowe narzędzie zamiast własnego) albo wykorzystanie `symbols` i istniejącego indeksu importów.
+  `ExportUsage` miał dwie opcje: adapter na **knip** albo wykorzystanie `symbols` i istniejącego indeksu importów. Wybrana druga (ADR-0063): te same fakty są już w indeksie oxc.
 - **Gotowe pakiety (ADR-0010):**
   - `@dagrejs/graphlib` (jest) do SCC;
   - `graphology` + `graphology-communities-louvain` do skupisk;
-  - knip do martwego kodu i deklaracji (ma reporter JSON);
   - render HTML: samowystarczalny plik z `cytoscape` (osadzonym) albo Mermaid dla małych grafów.
   
   Własny kod tylko tam, gdzie nie ma gotowca (symulacja, plan, polityka).
@@ -203,7 +202,7 @@ Ta sama metoda działa poziom wyżej. Węzłami są aplikacje i repozytoria z `S
 |------|--------|-----------------|
 | **H1 Fakty** | graf pakietów w `ArchitectureReport` v1, SCC pakietów z krawędziami i plikami, `ManifestReader` (deklarowane a używane), `arch analyze` (JSON i Markdown), `arch cycles`, `arch declared` | widać cykle pakietów i dziury w `package.json` |
 | **H2 Polityka i zapadka** | `ArchitecturePolicy` v1 (warstwy, tagi, import z Nx), naruszenia, `ArchitectureBaseline` v1, `arch check --base`, SARIF, krok w `gate` | CI blokuje pogorszenie od pierwszego dnia |
-| **H3 Metryki i granice** | Martin (`Ca`/`Ce`/`I`/`A`/`D`), głębokość, Louvain (split), merge, martwe eksporty (knip), `ChangeHistory`, zespoły, promień rażenia aplikacji, raport HTML | diagnoza „co jest nie tak z podziałem” |
+| **H3 Metryki i granice** | Martin (`Ca`/`Ce`/`I`/`A`/`D`), głębokość, podział (spójne składowe), scalenie, martwe eksporty (własna analiza), `ChangeHistory`, zespoły, promień rażenia aplikacji, raport HTML | diagnoza „co jest nie tak z podziałem” |
 | **H4 Symulacja** | ruchy jako dane, `arch simulate`, diff raportów, feedback arc set z propozycją cięcia | „co jeśli” bez ruszania kodu |
 | **H5 Plan** | agent `mt-arch-planner`, `RefactorPlan` v1, `arch plan lint`, HITL, widok w `ui` i `status` | plan refaktoru z dowodem |
 | **H6 Wykonanie** | `arch plan run` → fale runów W3 z codemodem importów, równolegle w worktree, aktualizacja stanu planu, runy powiązane (wspólne z F7.6) | refaktor monorepo wykonany i udowodniony |
@@ -232,7 +231,7 @@ H1 i H2 są w pełni deterministyczne, więc można je dostarczyć szybko i bez 
 
 ## 8. Decyzje do podjęcia przez użytkownika
 
-1. Czy zaczynamy od H1+H2 (deterministyczne, szybka wartość), czy od razu planujemy całość H1–H7?
-2. Czy analizę pakietów robimy przed F7.2–F7.7, czy razem, ze wspólnym rdzeniem grafu systemu?
-3. Czy repozytoria docelowe używają Nx albo Turborepo (import tagów) i czy są poliglotyczne (potrzebny drugi `ImportAnalyzer`)?
-4. Martwy kod i deklaracje: adapter na knip (nowa zależność, ADR) czy własna analiza na istniejącym indeksie?
+1. Czy zaczynamy od H1+H2 (deterministyczne, szybka wartość), czy od razu planujemy całość H1–H7? **Rozstrzygnięte:** całość, po kolei.
+2. Czy analizę pakietów robimy przed F7.2–F7.7, czy razem, ze wspólnym rdzeniem grafu systemu? **Rozstrzygnięte:** najpierw H, potem F7.
+3. Czy repozytoria docelowe używają Nx albo Turborepo (import tagów) i czy są poliglotyczne (potrzebny drugi `ImportAnalyzer`)? **Rozstrzygnięte:** tagi i reguły Nx oraz Turborepo są czytane (ADR-0061, ADR-0062).
+4. Martwy kod i deklaracje: adapter na knip (nowa zależność, ADR) czy własna analiza na istniejącym indeksie? **Rozstrzygnięte:** własna analiza (ADR-0063).

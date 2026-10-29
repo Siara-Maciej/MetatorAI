@@ -66,3 +66,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0060](0060-terminal-ui-ink.md) | Pełnoekranowy `metator ui` na Ink | Proposed |
 | [0061](0061-package-architecture.md) | Architektura pakietów (`arch analyze`, `ArchitectureReport`, `ArchitecturePolicy`) | Proposed |
 | [0062](0062-architecture-ratchet.md) | Architektura w CI: zapadka, baseline, SARIF i pierwsza polityka | Proposed |
+| [0063](0063-architecture-metrics.md) | Metryki i granice pakietów, historia zmian, raport HTML | Proposed |

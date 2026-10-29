@@ -53,6 +53,25 @@ metator arch declared   # just the package.json findings
 
 What the analyzer cannot resolve (dynamic paths, bundler aliases outside `tsconfig`) is counted under **Limits** in the report. Those imports are not in the graph.
 
+## Read the structure
+
+Besides violations, the report describes the packages. These are **signals for a person or an agent to judge**, not errors:
+
+| Section | What it says |
+|---------|--------------|
+| **Metrics** per package | `Ca` (packages that depend on it), `Ce` (packages it depends on), instability `I = Ce/(Ca+Ce)`, abstractness `A` (share of exports that are types), distance from the main sequence `D = |A+I−1|`, depth (longest chain below it) and the share of its exports other packages import. |
+| **Split?** | A library whose files form separate groups, tied together only by its barrel, each used by different packages. |
+| **Merge?** | A private library with exactly one dependent. Not proposed for a family of three or more packages with the same dependent and dependencies (adapters of one port), or across layers or tags. |
+| **Hubs** | Packages with at least 3 dependents and 3 dependencies. |
+| **Dead exports and packages** | Exports nothing imports (tests count as users; an application's entry points and a published package's API do not count as dead), and private libraries nothing depends on. |
+| **Changed together** | Package pairs that git history changes in the same commits (at least 3 times and half of the time), with whether one imports the other. Coupling without an import is a boundary in the wrong place. Commits that touch more than 10 packages are ignored. |
+| **Teams** | Imports between packages of different owners (from `CODEOWNERS`) and packages without an owner. |
+| **Applications** | Every package each application pulls in, and for each package the applications a change to it reaches (blast radius). |
+
+Set `thresholds` in the policy to turn a metric into a warning, e.g. `fanOut: 8`, `files: 400`, `distance: 0.7`, `depth: 6`.
+
+Open `.metator/arch/report.html` in a browser for the same report as a page. It has the package graph (applications on top, cycle edges red, broken rules orange) and works offline.
+
 ## Write a policy
 
 Without a policy you get the checks above. A policy adds your intended structure. Start from a proposal:

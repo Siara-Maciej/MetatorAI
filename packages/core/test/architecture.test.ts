@@ -688,13 +688,15 @@ describe("renderArchitectureMarkdown: exceptions", () => {
 describe("AnalyzeArchitecture", () => {
   const facts = (raw: Partial<ArchitectureInput> = {}) => ({ gather: async () => ok(input(raw)) });
 
-  test("writes the report as a versioned JSON document and as Markdown", async () => {
+  test("writes the report as a versioned JSON document, as Markdown and as HTML", async () => {
     const fs = new InMemoryFileSystem();
     const analyzed = (await new AnalyzeArchitecture(facts(), fs, DEFAULT_PATHS).execute())._unsafeUnwrap();
     expect(analyzed.files).toEqual({
       json: ".metator/arch/report.json",
       markdown: ".metator/arch/report.md",
+      html: ".metator/arch/report.html",
     });
+    expect((await fs.read(".metator/arch/report.html"))._unsafeUnwrap()).toStartWith("<!doctype html>");
     const json = JSON.parse((await fs.read(".metator/arch/report.json"))._unsafeUnwrap());
     expect([json.kind, json.schemaVersion, json.summary.score]).toEqual(["ArchitectureReport", 1, 100]);
     expect((await fs.read(".metator/arch/report.md"))._unsafeUnwrap()).toStartWith("# Architecture report");

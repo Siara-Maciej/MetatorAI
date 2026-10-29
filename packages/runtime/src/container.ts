@@ -17,6 +17,7 @@ import {
   type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
+  type ChangeHistory,
   type CheckArchitecture,
   type CheckDebugTags,
   type CheckFlaky,
@@ -163,6 +164,7 @@ export interface Cradle {
   processRunner: ProcessRunner;
   vcs: Vcs;
   revisionReader: RevisionReader;
+  changeHistory: ChangeHistory;
   nodePackageManager: PackageManagerDetector & PackageManager;
   packageManagerDetector: PackageManagerDetector;
   packageManager: PackageManager;

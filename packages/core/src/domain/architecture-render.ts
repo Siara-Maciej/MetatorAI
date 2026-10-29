@@ -145,3 +145,172 @@ export function renderArchitectureMarkdown(report: ArchitectureReport): string {
   );
   return out.join("\n");
 }
+
+const esc = (text: string) =>
+  text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+
+/** The package graph as SVG: one row per depth (applications on top), cycles and broken rules in color. */
+export function renderPackageSvg(report: ArchitectureReport): string {
+  const nodes = report.packages.filter((p) => p.kind !== "root");
+  const depth = (name: string) => nodes.find((p) => p.name === name)?.metrics?.depth ?? 0;
+  const max = Math.max(0, ...nodes.map((p) => depth(p.name)));
+  // One band per depth, applications on top; a band wider than PER_ROW wraps onto more lines.
+  const PER_ROW = 6;
+  const bands = new Map<number, string[]>();
+  for (const p of nodes) bands.set(depth(p.name), [...(bands.get(depth(p.name)) ?? []), p.name]);
+  const lines_: string[][] = [];
+  for (let d = max; d >= 0; d--) {
+    const names = (bands.get(d) ?? []).sort();
+    for (let i = 0; i < names.length; i += PER_ROW) lines_.push(names.slice(i, i + PER_ROW));
+  }
+  const W = 180;
+  const H = 36;
+  const GAP_X = 24;
+  const GAP_Y = 56;
+  const widest = Math.max(1, ...lines_.map((r) => r.length));
+  const width = widest * (W + GAP_X) + GAP_X;
+  const height = Math.max(1, lines_.length) * (H + GAP_Y) + GAP_Y / 2;
+  const at = new Map<string, { x: number; y: number }>();
+  lines_.forEach((names, row) => {
+    const offset = (width - names.length * (W + GAP_X) + GAP_X) / 2;
+    names.forEach((n, i) => {
+      at.set(n, { x: offset + i * (W + GAP_X), y: GAP_Y / 2 + row * (H + GAP_Y) });
+    });
+  });
+  const inCycle = new Set(report.cycles.flatMap((c) => c.edges.map((e) => `${e.from}\u0000${e.to}`)));
+  const broken = new Set(
+    report.violations
+      .filter((v) => !v.exception && ["layer", "tag", "app-import"].includes(v.kind))
+      .map((v) => `${v.packages[0]}\u0000${v.packages[1]}`),
+  );
+  const lines = report.edges
+    .filter((e) => !e.testOnly && at.has(e.from) && at.has(e.to))
+    .map((e) => {
+      const a = at.get(e.from) as { x: number; y: number };
+      const b = at.get(e.to) as { x: number; y: number };
+      const key = `${e.from}\u0000${e.to}`;
+      const cls = inCycle.has(key) ? "cycle" : broken.has(key) ? "broken" : "edge";
+      const down = b.y >= a.y;
+      return `<line class="${cls}" x1="${a.x + W / 2}" y1="${down ? a.y + H : a.y}" x2="${b.x + W / 2}" y2="${down ? b.y : b.y + H}" marker-end="url(#arrow-${cls})"><title>${esc(`${e.from} → ${e.to}: ${e.imports} imports`)}</title></line>`;
+    });
+  const boxes = nodes.map((p) => {
+    const { x, y } = at.get(p.name) as { x: number; y: number };
+    const label = p.name.length > 24 ? `${p.name.slice(0, 23)}…` : p.name;
+    return `<g class="node ${p.kind}"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6"/><text x="${x + W / 2}" y="${y + H / 2 + 4}">${esc(label)}</text><title>${esc(`${p.name} (${p.kind}${p.layer ? `, layer ${p.layer}` : ""}): ${p.files} files`)}</title></g>`;
+  });
+  const marker = (id: string) =>
+    `<marker id="arrow-${id}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="${id}" d="M0,0 L10,5 L0,10 z"/></marker>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="100%" style="max-width:${width}px;min-width:${Math.min(width, 720)}px" role="img" aria-label="Package graph"><defs>${["edge", "cycle", "broken"].map(marker).join("")}</defs>${lines.join("")}${boxes.join("")}</svg>`;
+}
+
+/** `report.html`: one self-contained page (no scripts, no network) to read and share. */
+export function renderArchitectureHtml(report: ArchitectureReport): string {
+  const s = report.summary;
+  const active = report.violations.filter((v) => !v.exception);
+  const table = (head: readonly string[], rows: readonly (readonly string[])[]) =>
+    rows.length === 0
+      ? '<p class="muted">None.</p>'
+      : `<table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows
+          .map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`)
+          .join("")}</tbody></table>`;
+  const tile = (label: string, value: string | number, cls = "") =>
+    `<div class="tile ${cls}"><div class="value">${esc(String(value))}</div><div class="label">${esc(label)}</div></div>`;
+  const b = report.boundaries;
+  const sections = [
+    `<h2>Package graph</h2><div class="graph">${renderPackageSvg(report)}</div><p class="muted">Rows by depth, applications on top. <span class="key cycle">cycle</span> <span class="key broken">layer, tag or application rule</span></p>`,
+    `<h2>Violations</h2>${table(
+      ["Severity", "Kind", "Message", "Where", "Id"],
+      active.map((v) => [v.severity, v.kind, v.message, v.evidence[0]?.file ?? "", v.id]),
+    )}`,
+    `<h2>Cycles</h2>${table(
+      ["Packages", "Type-only", "Cheapest cut"],
+      report.cycles.map((c) => [
+        c.packages.join(" ⇄ "),
+        c.typeOnly ? "yes" : "no",
+        (c.cut ?? []).map((e) => `${e.from} → ${e.to} (${e.imports})`).join(", "),
+      ]),
+    )}`,
+    `<h2>Packages</h2>${table(
+      ["Package", "Kind", "Layer", "Files", "Ca", "Ce", "I", "A", "D", "Depth", "Exports used outside"],
+      report.packages
+        .filter((p) => p.kind !== "root")
+        .map((p) => [
+          p.name,
+          p.kind,
+          p.layer ?? "",
+          String(p.files),
+          String(p.metrics?.ca ?? ""),
+          String(p.metrics?.ce ?? ""),
+          p.metrics ? p.metrics.instability.toFixed(2) : "",
+          p.metrics ? p.metrics.abstractness.toFixed(2) : "",
+          p.metrics ? p.metrics.distance.toFixed(2) : "",
+          String(p.metrics?.depth ?? ""),
+          p.metrics?.exportsUsed == null ? "" : `${Math.round(p.metrics.exportsUsed * 100)}%`,
+        ]),
+    )}`,
+    ...(b
+      ? [
+          `<h2>Boundaries</h2>${table(
+            ["Candidate", "Package", "Why"],
+            [
+              ...b.split.map((x) => [
+                "split",
+                x.package,
+                x.clusters.map((c) => `${c.files} files used by ${c.consumers.join(", ")}`).join("; "),
+              ]),
+              ...b.merge.map((x) => ["merge", x.package, `into ${x.into}: ${x.reason}`]),
+              ...b.hubs.map((x) => ["hub", x.package, `${x.fanIn} dependents, ${x.fanOut} dependencies`]),
+              ...b.deadPackages.map((x) => ["unused package", x, "nothing depends on it"]),
+            ],
+          )}<p class="muted">${b.deadExports.length} exported symbol(s) nothing imports.</p>`,
+        ]
+      : []),
+    ...(report.coupling
+      ? [
+          `<h2>Changed together</h2>${table(
+            ["A", "B", "Commits", "Ratio", "Dependency"],
+            report.coupling.map((c) => [c.a, c.b, String(c.together), c.ratio.toFixed(2), c.dependency]),
+          )}`,
+        ]
+      : []),
+    ...(report.teams
+      ? [
+          `<h2>Teams</h2>${table(
+            ["From", "To", "Imports"],
+            report.teams.edges.map((e) => [e.from, e.to, String(e.imports)]),
+          )}`,
+        ]
+      : []),
+    ...(report.apps
+      ? [
+          `<h2>Applications</h2>${table(
+            ["Package", "Applications it reaches"],
+            report.apps.blastRadius.map((r) => [r.package, r.apps.join(", ")]),
+          )}`,
+        ]
+      : []),
+  ];
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture report</title>
+<style>
+:root{--bg:#fff;--fg:#1c1e21;--muted:#65676b;--line:#d0d4da;--card:#f5f6f8;--accent:#3b6fd4;--bad:#d4443b;--warn:#d48a1e}
+@media (prefers-color-scheme:dark){:root{--bg:#16181c;--fg:#e4e6eb;--muted:#a0a4ab;--line:#3a3d43;--card:#202329;--accent:#7aa2ff;--bad:#ff6b61;--warn:#f0a83a}}
+body{margin:0;padding:24px 16px;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,sans-serif}
+main{max-width:1100px;margin:0 auto}h1{margin:0 0 4px}h2{margin:32px 0 8px}.muted{color:var(--muted)}
+.tiles{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}.tile{background:var(--card);border-radius:8px;padding:12px 16px;min-width:110px}
+.tile .value{font-size:24px;font-weight:600}.tile .label{color:var(--muted)}.tile.bad .value{color:var(--bad)}.tile.warn .value{color:var(--warn)}
+table{border-collapse:collapse;width:100%;display:block;overflow-x:auto}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.graph{background:var(--card);border-radius:8px;padding:8px;overflow-x:auto}
+svg .node rect{fill:var(--bg);stroke:var(--accent);stroke-width:1.5}svg .node.app rect{stroke-width:3}
+svg text{fill:var(--fg);font-size:12px;text-anchor:middle}svg line{stroke-width:1.5}
+svg .edge{stroke:var(--line);fill:var(--line)}svg .cycle{stroke:var(--bad);fill:var(--bad)}svg .broken{stroke:var(--warn);fill:var(--warn)}
+.key{padding:0 6px;border-radius:4px;color:var(--bg)}.key.cycle{background:var(--bad)}.key.broken{background:var(--warn)}
+</style></head><body><main>
+<h1>Architecture report</h1><p class="muted">Policy: ${esc(report.policy ?? "defaults (no metator/architecture.yml)")}</p>
+<div class="tiles">${tile("score", s.score)}${tile("packages", s.packages)}${tile("applications", s.apps)}${tile("cycles", s.cycles, s.cycles > 0 ? "bad" : "")}${tile("errors", s.errors, s.errors > 0 ? "bad" : "")}${tile("warnings", s.warnings, s.warnings > 0 ? "warn" : "")}${tile("excepted", s.excepted)}</div>
+${sections.join("\n")}
+<p class="muted">${report.unresolved.count} unresolved import(s) are not in this report.</p>
+</main></body></html>
+`;
+}

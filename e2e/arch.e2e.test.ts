@@ -15,7 +15,7 @@ let repo: ScratchRepo;
 const mt = (...args: string[]) => metator(args, repo.root);
 
 interface Report {
-  files: { json: string; markdown: string };
+  files: { json: string; markdown: string; html: string };
   summary: {
     packages: number;
     apps: number;
@@ -82,11 +82,15 @@ afterAll(async () => {
 });
 
 describe("metator arch (real CLI, real monorepo)", () => {
-  test("analyze: the package graph, its cycle and what is wrong, written as JSON and Markdown", async () => {
+  test("analyze: the package graph, its cycle and what is wrong, written as JSON, Markdown and HTML", async () => {
     const run = await mt("arch", "analyze");
     expect(run.code).toBe(0);
     const report = run.json.data as Report;
-    expect(report.files).toEqual({ json: ".metator/arch/report.json", markdown: ".metator/arch/report.md" });
+    expect(report.files).toEqual({
+      json: ".metator/arch/report.json",
+      markdown: ".metator/arch/report.md",
+      html: ".metator/arch/report.html",
+    });
     expect(report.summary).toMatchObject({ packages: 5, apps: 1, cycles: 1 });
     expect(report.packages.map((p) => [p.name, p.kind, p.dependsOn])).toEqual([
       ["@shop/banner", "lib", ["@shop/web"]],
