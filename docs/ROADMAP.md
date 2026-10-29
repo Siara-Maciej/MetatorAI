@@ -200,7 +200,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] F7.2 Automatyczna topologia (pojedyncza aplikacja, monorepo, folder repozytoriów) i `system discover [--write|--check]` (aplikacje, specyfikacje OpenAPI, konsumenci z dowodami i pewnością); port `ContractDetector`, `plugin-openapi` (ADR-0067).
 - [x] F7.3 Porty `RepositoryCloner` i `CheckoutReader` (lokalny checkout, `system.roots`, klon przypiętego commita w `.metator/system/` tylko z `--fetch`), mapa w repo platformy przypięta w aplikacjach (`system.map`, `MetatorConfig` v4), `system impact|sources`, `system lint --fetch` (ADR-0068).
 - [x] F7.4 Port `ContractDiffer`, provider OpenAPI (`openapi-diff`), `contract diff [--base] [--check]` z werdyktem wg `compatibility` i `policies.breaking` oraz zakresów konsumentów (`semver`), krok bramki `metator: contract diff` (ADR-0069).
-- [ ] F7.5 `SystemAnalysis`, `SystemPlan`, `system plan lint`, agenci `mt-system-scout`, `mt-system-planner`, karty aplikacji.
+- [x] F7.5 `SystemAnalysis` v1 (`system analyze`), `SystemPlan` v1 (szkic wg polityki: expand → migrate → contract albo bump → migrate), `system plan new|propose|list|show|lint|approve|schema`, agenci `mt-system-scout` i `mt-system-planner`, zgoda tylko człowieka (hook), bramka `contract diff` przepuszcza zmianę łamiącą zaplanowaną i zatwierdzoną, karty aplikacji (ADR-0070).
 - [ ] F7.6 Runy powiązane (`RunRecord` v3: rodzic i dzieci), `system status`, workflow W13 `mt-system-change`.
 - [ ] F7.7 Przypadki wieloaplikacyjne w złotym zbiorze, score impact i planu.
 

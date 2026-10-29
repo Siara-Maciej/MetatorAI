@@ -270,6 +270,112 @@ metator system discover [options]
 | `--write` | write the proposal to the map file when there is none (never overwrites) |  |
 | `--check` | fail when the map lacks what the code shows |  |
 
+### `metator system analyze`
+
+What a task touches across the system: contracts, breaking or not, consumers, owners
+
+```bash
+metator system analyze [options] <task...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<task>` | the task | |
+| `--base <ref>` | the files changed since the merge base with this ref | `"HEAD"` |
+| `--files <files...>` | these files instead of git |  |
+| `--contracts <ids...>` | contracts the task changes |  |
+| `--breaking <ids...>` | contracts the task changes in a breaking way |  |
+
+### `metator system plan new`
+
+Draft a plan from the task's analysis, by the map's breaking and deploy policies
+
+```bash
+metator system plan new [options] <task...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<task>` | the task | |
+| `--base <ref>` | the files changed since the merge base with this ref | `"HEAD"` |
+| `--files <files...>` | these files instead of git |  |
+| `--contracts <ids...>` | contracts the task changes |  |
+| `--breaking <ids...>` | contracts the task changes in a breaking way |  |
+
+### `metator system plan propose`
+
+mt-system-scout checks the analysis and mt-system-planner refines the plan; then lint
+
+```bash
+metator system plan propose [options] <task...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<task>` | the task | |
+| `--host <host>` | the AI host that plans: claude, copilot, scenario |  |
+| `--base <ref>` | the files changed since the merge base with this ref | `"HEAD"` |
+| `--files <files...>` | these files instead of git |  |
+| `--contracts <ids...>` | contracts the task changes |  |
+| `--breaking <ids...>` | contracts the task changes in a breaking way |  |
+
+### `metator system plan list`
+
+Every system plan with its status and steps
+
+```bash
+metator system plan list [options]
+```
+
+### `metator system plan show`
+
+One system plan with its waves and its analysis
+
+```bash
+metator system plan show [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator system plan lint`
+
+Check the plan: every consumer of a breaking change migrates, providers first, a strategy per policy
+
+```bash
+metator system plan lint [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator system plan approve`
+
+Approve the plan's steps as they are now (a person, never an agent)
+
+```bash
+metator system plan approve [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+| `--by <name>` | who approves (default METATOR_USER or the login) |  |
+
+### `metator system plan schema`
+
+Print the JSON Schema of a system plan (or, with --analysis, of its analysis)
+
+```bash
+metator system plan schema [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--analysis` | the analysis instead |  |
+
 ### `metator system schema`
 
 Print the JSON Schema of the system map

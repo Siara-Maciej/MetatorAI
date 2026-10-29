@@ -50,6 +50,8 @@ export interface MetatorPaths {
   readonly archPlans: string;
   /** The golden set of refactor planning (`ArchEvalCase`, H7). */
   readonly archEvals: string;
+  /** System plans and their analyses (`SystemPlan`, `SystemAnalysis`, F7.5). */
+  readonly systemPlans: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -83,6 +85,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   arch: ".metator/arch",
   archPlans: "metator/arch/plans",
   archEvals: "docs/metator/evals/arch",
+  systemPlans: "metator/system/plans",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

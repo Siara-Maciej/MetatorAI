@@ -180,6 +180,44 @@ describe("DiffContracts", () => {
     expect(same.differ.seen).toEqual([]);
   });
 
+  test("a breaking change an approved system plan covers passes, with the plan's reason", async () => {
+    const fs = new InMemoryFileSystem({
+      "docs/metator/system.yml": MAP,
+      "apps/billing/openapi.yaml": "v2",
+    });
+    const location = new LocalSystemLocation(
+      new SystemCatalog(fs, "docs/metator/system.yml"),
+      "/src/platform",
+    );
+    const asked: string[] = [];
+    const planned = {
+      allows: async (id: string) => {
+        asked.push(id);
+        return ok(id === "billing-api" ? "planned in system plan p" : undefined);
+      },
+    };
+    const diff = new DiffContracts(
+      location,
+      { remoteUrl: async () => ok(undefined) },
+      {
+        readAt: async (_: string, path: string) =>
+          ok(path === "apps/billing/openapi.yaml" ? "v1" : undefined),
+      },
+      fs,
+      [new FakeDiffer()],
+      undefined,
+      "/src/platform",
+      planned,
+    );
+    const r = (await diff.execute({ base: "main" }))._unsafeUnwrap();
+    expect(r.contracts.map((c) => [c.id, c.allowed])).toEqual([
+      ["billing-api", true],
+      ["events", true],
+    ]);
+    expect(r.contracts[0]?.reason).toStartWith("planned in system plan p; a breaking change");
+    expect(asked).toEqual(["billing-api"]); // only what the policy refuses is asked about
+  });
+
   test("a kind without a differ is unclassified, not a failure", async () => {
     const { diff } = setup({ "apps/billing/events.yaml": "e2" }, { "apps/billing/events.yaml": "e1" });
     const r = (await diff.execute({ base: "main", contracts: ["events"] }))._unsafeUnwrap();

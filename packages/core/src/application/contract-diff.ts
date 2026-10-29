@@ -23,6 +23,11 @@ export interface ContractDiffEntry extends ContractVerdict {
   readonly changes: readonly ContractChange[];
 }
 
+/** A breaking change someone planned and approved (a system plan): why it may pass. */
+export interface BreakingAllowance {
+  allows(contract: string): Promise<Result<string | undefined, MetatorError>>;
+}
+
 export interface ContractDiffReport {
   readonly map: string;
   readonly base: string;
@@ -47,6 +52,7 @@ export class DiffContracts {
     private readonly differs: readonly ContractDiffer[],
     private readonly settings: SystemSettings | undefined,
     private readonly here: string,
+    private readonly planned?: BreakingAllowance,
   ) {}
 
   async execute(input: {
@@ -157,7 +163,13 @@ export class DiffContracts {
         .filter((p) => p.contract === contract.id)
         .map((p) => ({ app: a.id, ...(p.version ? { range: p.version } : {}) })),
     );
-    const verdict = judgeContract({ contract, policies: map.policies, status, versions, consumers });
+    let verdict = judgeContract({ contract, policies: map.policies, status, versions, consumers });
+    if (!verdict.allowed && this.planned) {
+      const why = await this.planned.allows(contract.id);
+      if (why.isErr()) return err(why.error);
+      if (why.value)
+        verdict = { ...verdict, allowed: true, reason: `${why.value}; ${verdict.reason ?? ""}`.trim() };
+    }
     return ok({
       id: contract.id,
       kind: contract.kind,

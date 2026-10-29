@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { InMemoryFileSystem } from "@metator/testing";
-import { BuildModuleCards, cardFile } from "../src/application/cards.ts";
+import { applicationLine, BuildModuleCards, cardFile } from "../src/application/cards.ts";
 import type { ImportGraphReport } from "../src/application/import-graph.ts";
 import { FindOwners } from "../src/application/owners.ts";
 import { DEFAULT_PATHS, DEFAULT_TEST_GLOBS } from "../src/application/paths.ts";
 import { PatternCatalog } from "../src/application/patterns.ts";
 import { GENERATED_END, GENERATED_START, splitCard } from "../src/domain/module-card.ts";
 import { ok } from "../src/domain/result.ts";
+import { SystemMapSchema } from "../src/domain/system-map.ts";
 
 const REPORT: ImportGraphReport = {
   files: [
@@ -166,6 +167,43 @@ describe("BuildModuleCards", () => {
     expect((await w.cards.execute({ check: false }))._unsafeUnwrap().orphaned).toEqual([
       "docs/metator/modules/acme-gone.card.md",
     ]);
+  });
+});
+
+describe("application cards", () => {
+  test("a package that is an application of the map lists its contracts and consumers", async () => {
+    const map = SystemMapSchema.parse({
+      system: "acme",
+      applications: [
+        { id: "billing", kind: "service", source: { path: "packages/billing" } },
+        { id: "web", kind: "frontend", source: { path: "apps/web" }, consumes: ["billing-api@^1"] },
+        { id: "mail", source: { repo: "../mail", path: "packages/money" }, consumes: ["billing-api"] },
+      ],
+      contracts: [{ id: "billing-api", kind: "openapi", owner: "billing", spec: { path: "openapi.yaml" } }],
+    });
+    expect(applicationLine(map, "packages/billing")).toBe(
+      "- System application: `billing` (service); provides `billing-api` (consumed by `web`, `mail`); consumes none",
+    );
+    expect(applicationLine(map, "apps/web")).toBe(
+      "- System application: `web` (frontend); provides none; consumes `billing-api@^1`",
+    );
+    // Another repository's application is not this package, whatever its path.
+    expect(applicationLine(map, "packages/money")).toBeUndefined();
+    const fs = new InMemoryFileSystem();
+    const cards = new BuildModuleCards(
+      { execute: async () => ok(REPORT) },
+      fs,
+      DEFAULT_PATHS,
+      DEFAULT_TEST_GLOBS,
+      new FindOwners(fs),
+      new PatternCatalog(fs, DEFAULT_PATHS),
+      { load: async () => ok(map) },
+    );
+    await cards.execute({ check: false });
+    expect((await fs.read("docs/metator/modules/acme-billing.card.md"))._unsafeUnwrap()).toContain(
+      "- System application: `billing` (service)",
+    );
+    expect((await fs.read(MONEY))._unsafeUnwrap()).not.toContain("System application");
   });
 });
 

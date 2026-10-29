@@ -212,6 +212,47 @@ Whether a breaking change passes depends on the map:
 
 Add it to the full gate with `{ metator: contract diff }`. OpenAPI 3.0 and Swagger 2 are compared on [openapi-diff](https://github.com/atlassian/openapi-diff): paths, methods, status codes, headers and request and response bodies. Parameter changes and OpenAPI 3.1 are not classified yet.
 
+## Plan a change across the system
+
+A task that changes a contract others consume becomes a **system plan**: one step per application, in that application's repository, in an order that never breaks a consumer.
+
+```bash
+metator system analyze Rename refunds --breaking billing-api   # what the task touches, saved for the plan
+metator system plan new Rename refunds                          # a draft by the map's policies
+metator system plan propose Rename refunds --host claude        # or let mt-system-scout and mt-system-planner refine it
+metator system plan lint rename-refunds
+metator system plan approve rename-refunds                      # you, never an agent
+```
+
+Under `expand-contract` the draft is:
+
+| Wave | Step | In repository of | What it does |
+|---|---|---|---|
+| 1 | `billing-expand` | billing | add the new shape of `billing-api` beside the old one |
+| 2 | `web-migrate`, `mail-migrate` | web, mail | move each consumer to the new shape |
+| 3 | `billing-contract` | billing | remove the old shape |
+
+Under `versioned` it is `bump` (a new major version) and then a `migrate` step for each consumer.
+
+**What lint checks**, so that you review the plan's substance, not its bookkeeping:
+
+| Check | Error when |
+|---|---|
+| Coverage | a consumer of a breaking change has no `migrate` step |
+| Order | a consumer migrates before the provider expands, the old shape goes before every consumer migrated, or a consumer runs before its provider (`providers-first`) |
+| Strategy | a breaking change has no strategy, a strategy other than the map's policy, or the map forbids breaking changes |
+| Map | a step names an application or contract the map does not have, or steps depend on each other in a cycle |
+| Approval | the steps changed after you approved them |
+
+**The gate respects the plan.** Once you approve it, `contract diff --check` lets the breaking change through in the provider's repository, but only for the step that breaks it, and only after the steps before it are done:
+
+```json
+{"id":"billing-api","status":"breaking","allowed":true,
+ "reason":"planned in system plan rename-refunds (step billing-contract, approved by ana); a breaking change (consumed by web, mail): …"}
+```
+
+A package that is an application of the map gets a `System application` line in its [module card](../how-to/knowledge.md), with the contracts it provides and their consumers.
+
 ## Roadmap of the multi-repo phase (F7)
 
 | Step | What it adds | Status |
@@ -220,7 +261,7 @@ Add it to the full gate with `{ metator: contract diff }`. OpenAPI 3.0 and Swagg
 | F7.2 Discovery | detect monorepo or separate repositories, applications and OpenAPI specs; propose the map with evidence (`system discover`) | ✅ available |
 | F7.3 Impact | read other repositories (checkout or pinned clone); `system impact`: changed files → contracts → consumers → owners | ✅ available |
 | F7.4 Compatibility | `contract diff` for OpenAPI (breaking or not) and a contract gate | ✅ available |
-| F7.5 System plan | a plan per application, in deploy order, with a strategy for breaking changes; `mt-system-scout`, `mt-system-planner` | next |
-| F7.6 Linked runs | one system run with child runs in each repository, a combined status | planned |
+| F7.5 System plan | a plan per application, in deploy order, with a strategy for breaking changes; `mt-system-scout`, `mt-system-planner` | ✅ available |
+| F7.6 Linked runs | one system run with child runs in each repository, a combined status | next |
 
 Contract kinds come from plugins. The MVP supports **OpenAPI**; AsyncAPI, GraphQL, gRPC, npm packages and database schemas follow.

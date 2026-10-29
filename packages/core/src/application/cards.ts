@@ -4,12 +4,14 @@ import { matchesAny } from "../domain/glob.ts";
 import { packageOf } from "../domain/import-index.ts";
 import { cardSkeleton, renderCard, splitCard } from "../domain/module-card.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { parseConsumes, type SystemMap } from "../domain/system-map.ts";
 import { readFrontMatter } from "../domain/versioned.ts";
 import type { FileSystem, WorkspacePackage } from "../ports/index.ts";
 import type { BuildImportGraph, ImportGraphReport } from "./import-graph.ts";
 import type { FindOwners } from "./owners.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { PatternCatalog } from "./patterns.ts";
+import type { MapFile } from "./system-sources.ts";
 
 export interface CardsReport {
   readonly written: readonly string[];
@@ -30,7 +32,8 @@ export function cardFile(dir: string, pkg: string): string {
 /**
  * Generated part of module cards from the import graph: dependencies, dependents, files other
  * packages import (the effective public surface), third-party packages; owners from CODEOWNERS
- * and the cataloged patterns whose exemplar lives in the package (ADR-0045). Curated text is kept.
+ * and the cataloged patterns whose exemplar lives in the package (ADR-0045). A package that is an
+ * application of this repository's system map gets its contracts too (F7.5). Curated text is kept.
  */
 export class BuildModuleCards {
   constructor(
@@ -40,6 +43,7 @@ export class BuildModuleCards {
     private readonly testGlobs: readonly string[],
     private readonly owners: Pick<FindOwners, "execute">,
     private readonly patterns: Pick<PatternCatalog, "scan">,
+    private readonly system?: Pick<MapFile, "load">,
   ) {}
 
   async execute(input: { readonly check: boolean }): Promise<Result<CardsReport, MetatorError>> {
@@ -55,6 +59,9 @@ export class BuildModuleCards {
       file: p.pattern.exemplar,
     }));
 
+    const map = this.system ? await this.system.load() : ok(undefined);
+    if (map.isErr()) return err(map.error);
+
     const written: string[] = [];
     const unchanged: string[] = [];
     const stale: string[] = [];
@@ -68,6 +75,7 @@ export class BuildModuleCards {
         owners: owned.value.owners[i]?.owners ?? [],
         codeowners: owned.value.source !== undefined,
         patterns: exemplars.filter((e) => packageOf(e.file, r.packages)?.dir === pkg.dir).map((e) => e.id),
+        ...(map.value ? { application: applicationLine(map.value, pkg.dir) } : {}),
       };
       const generated = renderGenerated(pkg, r, this.testGlobs, extra);
       const current = await this.fs.read(file);
@@ -115,6 +123,7 @@ function renderGenerated(
     readonly owners: readonly string[];
     readonly codeowners: boolean;
     readonly patterns: readonly string[];
+    readonly application?: string | undefined;
   },
 ): string {
   const owner = (file: string) => packageOf(file, r.packages);
@@ -161,7 +170,25 @@ function renderGenerated(
     `- Third-party: ${names(thirdParty)}`,
     `- Owners: ${extra.codeowners ? names(extra.owners) : "none (no CODEOWNERS)"}`,
     `- Patterns with their exemplar here: ${names(extra.patterns)}`,
+    ...(extra.application ? [extra.application] : []),
     "",
   ];
   return lines.join("\n");
+}
+
+/** The application of the map whose code is this package's directory, as a card line. */
+export function applicationLine(map: SystemMap, dir: string): string | undefined {
+  const app = map.applications.find((a) => !("repo" in a.source) && a.source.path === dir);
+  if (!app) return undefined;
+  const tick = (values: readonly string[]) =>
+    values.length === 0 ? "none" : values.map((v) => `\`${v}\``).join(", ");
+  const provides = map.contracts
+    .filter((c) => c.owner === app.id)
+    .map((c) => {
+      const users = map.applications.filter((a) =>
+        a.consumes.some((x) => parseConsumes(x).contract === c.id),
+      );
+      return `\`${c.id}\`${users.length > 0 ? ` (consumed by ${tick(users.map((u) => u.id))})` : ""}`;
+    });
+  return `- System application: \`${app.id}\` (${app.kind}); provides ${provides.length > 0 ? provides.join(", ") : "none"}; consumes ${tick(app.consumes)}`;
 }

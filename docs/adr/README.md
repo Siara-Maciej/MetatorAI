@@ -73,3 +73,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0067](0067-system-discover.md) | `system discover`: topologia, aplikacje, kontrakty i konsumenci z dowodami | Proposed |
 | [0068](0068-system-impact.md) | `system impact`: mapa przypięta w repozytorium platformy, źródła innych repozytoriów i zasięg zmiany | Proposed |
 | [0069](0069-contract-diff.md) | `contract diff`: zmiana kontraktu oceniana różnicą specyfikacji i polityką mapy | Proposed |
+| [0070](0070-system-plan.md) | Plan systemowy: `SystemAnalysis`, `SystemPlan`, lint kolejności i strategii, agenci systemowi | Proposed |

@@ -134,8 +134,9 @@ function destructive(argv: readonly string[]): string | undefined {
 }
 
 /**
- * A refactor plan's approval is the person's: no agent runs `metator arch plan approve` (the
- * plan's author is an agent; run gates keep their own relay through `metator run approve`).
+ * A plan's approval is the person's: no agent runs `metator arch plan approve` or `metator system
+ * plan approve` (the plan's author is an agent; run gates keep their own relay through
+ * `metator run approve`).
  */
 function planApproval(argv: readonly string[]): string | undefined {
   const at = argv.findIndex(
@@ -144,10 +145,12 @@ function planApproval(argv: readonly string[]): string | undefined {
   if (at < 0) return undefined;
   // Options and their values (`-C ../shop`) may come first: look for the three words in a row.
   const words = argv.slice(at + 1);
-  const i = words.indexOf("arch");
-  return i >= 0 && words[i + 1] === "plan" && words[i + 2] === "approve"
-    ? "metator arch plan approve"
-    : undefined;
+  for (const group of ["arch", "system"]) {
+    const i = words.indexOf(group);
+    if (i >= 0 && words[i + 1] === "plan" && words[i + 2] === "approve")
+      return `metator ${group} plan approve`;
+  }
+  return undefined;
 }
 
 export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecision {

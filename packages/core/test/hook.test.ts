@@ -83,15 +83,18 @@ describe("preToolPolicy", () => {
     expect(decide(hook("Read", { file_path: "/repo/src/env.ts" }), free)).toBe("allow");
   });
 
-  test("an agent never approves a refactor plan; run approvals keep their relay", () => {
+  test("an agent never approves a refactor or system plan; run approvals keep their relay", () => {
     for (const command of [
       "bun run metator arch plan approve split-kit --by maciej",
+      "bun run metator system plan approve rename-refunds",
+      "metator -C ../platform system plan approve x --by ana",
       "metator -C ../shop arch plan approve split-kit",
       "cd x && bun packages/cli/src/main.ts arch plan approve p",
     ])
       expect([command, decide(hook("Bash", { command }), free)]).toEqual([command, "deny"]);
     for (const command of [
       "bun run metator arch plan lint split-kit",
+      "bun run metator system plan lint rename-refunds",
       "bun run metator run approve push --by maciej",
       "echo approve",
     ])

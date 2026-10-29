@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import { err, MetatorError, ok, SystemMapDocument } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
+import { registerSystemPlanCommands } from "./system-plan.ts";
 
 export function registerSystemCommands(program: Command, ctx: CommandContext): void {
   const { action, container } = ctx;
@@ -130,6 +131,8 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
         };
       }),
     );
+
+  registerSystemPlanCommands(system, ctx);
 
   system
     .command("schema")

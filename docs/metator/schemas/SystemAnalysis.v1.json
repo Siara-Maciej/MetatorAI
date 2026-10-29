@@ -1,0 +1,224 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "SystemAnalysis",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "SystemAnalysis"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "task": {
+        "type": "string",
+        "minLength": 1
+      },
+      "map": {
+        "type": "string"
+      },
+      "base": {
+        "default": null,
+        "type": ["string", "null"]
+      },
+      "contracts": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "owner": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "change": {
+              "type": "string",
+              "enum": ["breaking", "compatible", "unknown"]
+            },
+            "consumers": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]*$"
+                  },
+                  "version": {
+                    "type": "string"
+                  }
+                },
+                "required": ["app"],
+                "additionalProperties": false
+              }
+            },
+            "why": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "owner", "change"],
+          "additionalProperties": false
+        }
+      },
+      "applications": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "roles": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["changed", "provider", "consumer"]
+              }
+            },
+            "owners": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "files": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "roles"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "task", "map"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "SystemAnalysis"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "task": {
+        "type": "string",
+        "minLength": 1
+      },
+      "map": {
+        "type": "string"
+      },
+      "base": {
+        "default": null,
+        "type": ["string", "null"]
+      },
+      "contracts": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "owner": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "change": {
+              "type": "string",
+              "enum": ["breaking", "compatible", "unknown"]
+            },
+            "consumers": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]*$"
+                  },
+                  "version": {
+                    "type": "string"
+                  }
+                },
+                "required": ["app"],
+                "additionalProperties": false
+              }
+            },
+            "why": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "owner", "change", "consumers"],
+          "additionalProperties": false
+        }
+      },
+      "applications": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "roles": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["changed", "provider", "consumer"]
+              }
+            },
+            "owners": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "files": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "roles", "owners", "files"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "task", "map", "base", "contracts", "applications"],
+    "additionalProperties": false
+  }
+}

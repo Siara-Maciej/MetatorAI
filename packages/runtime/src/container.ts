@@ -5,9 +5,11 @@ import {
   type AgentHost,
   type AnalyzeArchitecture,
   type AnalyzeEnvironment,
+  type AnalyzeSystem,
   type ApiSnapshots,
   type ApproveRefactorPlan,
   type ApproveRun,
+  type ApproveSystemPlan,
   type ArchitectureBaselineStore,
   type ArchitectureFacts,
   type ArchitecturePolicyCatalog,
@@ -36,6 +38,7 @@ import {
   type ContractDiffer,
   type ConversationRepository,
   type CreateRefactorPlan,
+  type CreateSystemPlan,
   type CreateWorktree,
   type DataIsolator,
   type DiffContracts,
@@ -89,6 +92,7 @@ import {
   type LintRules,
   type LintSkills,
   type LintSystem,
+  type LintSystemPlan,
   type LintWorkflows,
   type ListRuns,
   type ListWorktrees,
@@ -111,6 +115,7 @@ import {
   type PortProbe,
   type ProcessRunner,
   type ProposeRefactorPlan,
+  type ProposeSystemPlan,
   type ProvideWorktree,
   type PruneWorktrees,
   type RecordArchitectureBaseline,
@@ -147,6 +152,7 @@ import {
   type SystemCatalog,
   type SystemImpactQuery,
   type SystemLocation,
+  type SystemPlanStore,
   type SystemSources,
   type Timer,
   type ToolBoundariesReader,
@@ -276,6 +282,12 @@ export interface Cradle {
   contractDetectors: readonly ContractDetector[];
   contractDiffers: readonly ContractDiffer[];
   diffContracts: DiffContracts;
+  systemPlanStore: SystemPlanStore;
+  analyzeSystem: AnalyzeSystem;
+  createSystemPlan: CreateSystemPlan;
+  lintSystemPlan: LintSystemPlan;
+  approveSystemPlan: ApproveSystemPlan;
+  proposeSystemPlan: ProposeSystemPlan;
   discoverySource: RepositoryDiscoverySource;
   discoverSystem: DiscoverSystem;
   repositoryCloner: RepositoryCloner;

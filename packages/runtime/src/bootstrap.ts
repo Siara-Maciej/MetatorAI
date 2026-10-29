@@ -8,9 +8,11 @@ import {
   type AgentHost,
   AnalyzeArchitecture,
   AnalyzeEnvironment,
+  AnalyzeSystem,
   ApiSnapshots,
   ApproveRefactorPlan,
   ApproveRun,
+  ApproveSystemPlan,
   ArchitectureBaselineStore,
   ArchitectureFacts,
   ArchitecturePolicyCatalog,
@@ -32,6 +34,7 @@ import {
   ComputeAffected,
   ConversationRepository,
   CreateRefactorPlan,
+  CreateSystemPlan,
   CreateWorktree,
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
@@ -81,6 +84,7 @@ import {
   LintRules,
   LintSkills,
   LintSystem,
+  LintSystemPlan,
   LintWorkflows,
   ListRuns,
   ListWorktrees,
@@ -94,8 +98,10 @@ import {
   PackRules,
   PatternCatalog,
   PinnedSystemLocation,
+  PlannedBreakingChanges,
   PlanReview,
   ProposeRefactorPlan,
+  ProposeSystemPlan,
   ProvideWorktree,
   PruneWorktrees,
   RecordArchitectureBaseline,
@@ -123,6 +129,7 @@ import {
   SyncRefactorPlan,
   SystemCatalog,
   SystemImpactQuery,
+  SystemPlanStore,
   SystemSources,
   UpdateConfig,
   ValidateCitations,
@@ -418,8 +425,16 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new CheckMemory(memoryMapReader, knowledgeFiles, fileSystem, memoryBudget, validateCitations),
     ),
     buildModuleCards: asFunction(
-      ({ buildImportGraph, fileSystem, paths, testGlobs, findOwners, patternCatalog }) =>
-        new BuildModuleCards(buildImportGraph, fileSystem, paths, testGlobs, findOwners, patternCatalog),
+      ({ buildImportGraph, fileSystem, paths, testGlobs, findOwners, patternCatalog, systemCatalog }) =>
+        new BuildModuleCards(
+          buildImportGraph,
+          fileSystem,
+          paths,
+          testGlobs,
+          findOwners,
+          patternCatalog,
+          systemCatalog,
+        ),
     ),
     patternCatalog: asFunction(({ fileSystem, paths }) => new PatternCatalog(fileSystem, paths)).singleton(),
     scanPatterns: asFunction(
@@ -486,7 +501,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     contractDetectors: asFunction(() => [new OpenApiContractDetector()]).singleton(),
     contractDiffers: asFunction(() => [new OpenApiContractDiffer()]).singleton(),
     diffContracts: asFunction(
-      ({ systemLocation, vcs, revisionReader, fileSystem, contractDiffers, config, root }) =>
+      ({ systemLocation, vcs, revisionReader, fileSystem, contractDiffers, config, root, systemPlanStore }) =>
         new DiffContracts(
           systemLocation,
           vcs,
@@ -495,7 +510,30 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           contractDiffers,
           config.config.system,
           root,
+          new PlannedBreakingChanges(systemPlanStore),
         ),
+    ),
+    systemPlanStore: asFunction(
+      ({ fileSystem, paths }) => new SystemPlanStore(fileSystem, paths.systemPlans),
+    ),
+    analyzeSystem: asFunction(
+      ({ systemImpactQuery, diffContracts, systemPlanStore }) =>
+        new AnalyzeSystem(systemImpactQuery, diffContracts, systemPlanStore),
+    ),
+    createSystemPlan: asFunction(
+      ({ analyzeSystem, systemLocation, systemPlanStore }) =>
+        new CreateSystemPlan(analyzeSystem, systemLocation, systemPlanStore),
+    ),
+    lintSystemPlan: asFunction(
+      ({ systemLocation, systemPlanStore }) => new LintSystemPlan(systemLocation, systemPlanStore),
+    ),
+    approveSystemPlan: asFunction(
+      ({ lintSystemPlan, systemPlanStore, clock }) =>
+        new ApproveSystemPlan(lintSystemPlan, systemPlanStore, clock),
+    ),
+    proposeSystemPlan: asFunction(
+      ({ agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore }) =>
+        new ProposeSystemPlan(agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore),
     ),
     discoverySource: asFunction(
       ({ root, vcs, fileSystem, manifestReader, analyzeArchitecture, findOwners }) =>
