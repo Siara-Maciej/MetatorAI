@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { metator } from "./helpers/cli.ts";
-import { inTerminal, KEY } from "./helpers/terminal.ts";
+import { inTerminal } from "./helpers/terminal.ts";
 
 let folder: string;
 const WORKFLOW = "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: approval\n    hitl: true\n";
@@ -90,17 +90,17 @@ describe("a folder of repositories (real CLI)", () => {
     );
   }, 60_000);
 
-  test("metator ui in the folder: pick a repository, see its sessions, come back, quit", async () => {
+  test("metator ui in the folder: every repository's sessions on one screen, by repository", async () => {
     const r = await inTerminal(
       ["ui"],
       folder,
       [
-        { waitFor: "3 repositories", keys: KEY.down + KEY.down + KEY.enter }, // billing · mailer · shop
-        { waitFor: "demo-add-discount", keys: KEY.up + KEY.enter }, // Quit the repository's sessions
-        { waitFor: "3 repositories", keys: KEY.up + KEY.enter }, // Quit
+        { waitFor: "3 repositories", keys: "" },
+        { waitFor: "Fix VAT", keys: "q" },
       ],
       60_000,
     );
     expect(r.code).toBe(0);
+    for (const text of ["billing", "shop", "Add discount", "Fix VAT"]) expect(r.screen).toContain(text);
   }, 90_000);
 });

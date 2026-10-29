@@ -66,7 +66,7 @@ cd ~/work
 metator repos init       # writes metator.repos.yml from the repositories below (two levels deep)
 metator repos list       # each repository and whether MetatorAI is set up in it
 metator repos status     # each repository's active runs, questions waiting for you, running services
-metator ui               # pick a repository, work in its sessions, come back for the next one
+metator ui               # every repository's sessions on one screen, grouped by repository
 ```
 
 ```yaml
