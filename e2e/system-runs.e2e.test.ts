@@ -150,7 +150,18 @@ describe("linked runs (real CLI, three repositories)", () => {
       ["billing-bump", "done", "done"],
       ["web-migrate", "pending", undefined],
     ]);
-    const next = await mt("platform", "system", "plan", "run", "--run", parent, "--workflow", "mt-tiny");
+    // The plan named and its system run given: the child is still linked to the run.
+    const next = await mt(
+      "platform",
+      "system",
+      "plan",
+      "run",
+      "rename-refunds",
+      "--run",
+      parent,
+      "--workflow",
+      "mt-tiny",
+    );
     const web = (next.json.data as { started: { step: string; root: string; run: string }[] }).started;
     expect(web.map((s) => [s.step, s.root])).toEqual([["web-migrate", at("web")]]);
     expect((await mt("web", "run", "advance", "pass", "--run", web[0]?.run as string)).code).toBe(0);

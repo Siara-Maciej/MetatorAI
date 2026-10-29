@@ -5,6 +5,7 @@ import {
   type AgentQuestion,
   type AgentTask,
   type BackgroundProcess,
+  type CheckoutReader,
   type Clock,
   type ComposeService,
   type ContainerRuntime,
@@ -366,5 +367,21 @@ export class FakeHealthProbe implements HealthProbe {
   async waitFor(target: HealthTarget): Promise<Result<void, MetatorError>> {
     this.checked.push(target);
     return this.down(target) ? err(new MetatorError("COMMAND_FAILED", "not ready in time")) : ok(undefined);
+  }
+}
+
+/** Checkouts on this "machine": an in-memory file system per absolute root (CheckoutReader). */
+export class InMemoryCheckouts implements CheckoutReader {
+  constructor(private readonly roots: Readonly<Record<string, InMemoryFileSystem>>) {}
+
+  async read(root: string, path: string): Promise<Result<string | undefined, MetatorError>> {
+    const fs = this.roots[root];
+    if (!fs || !(await fs.exists(path))) return ok(undefined);
+    const text = await fs.read(path);
+    return text.isErr() ? err(text.error) : ok(text.value);
+  }
+
+  async isDirectory(path: string): Promise<boolean> {
+    return path in this.roots;
   }
 }

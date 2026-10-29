@@ -1,5 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GitRepositoryCloner } from "../src/git-repository-cloner.ts";
@@ -62,4 +63,6 @@ test("a checkout holds exactly the pinned commit and is reused once it exists", 
   expect(await readFile(join(target, "m.yml"), "utf8")).toBe("kept\n");
   const bad = (await cloner.checkout(dir, "0".repeat(40), join(cache, "bad")))._unsafeUnwrapErr();
   expect(bad.message).toStartWith(`Cannot clone ${dir} at 000000000000`);
+  // A failed checkout leaves nothing behind that a later run would take for a good clone.
+  expect([existsSync(join(cache, "bad")), (await readdir(cache)).sort()]).toEqual([false, ["nested"]]);
 });

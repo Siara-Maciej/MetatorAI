@@ -105,7 +105,7 @@ export function scoreSystemCase(input: {
     lintClean,
     stepsRecall: round(stepsRecall),
     order: round(order),
-    passed: score === 1,
+    passed: checks.every((c) => c === 1),
     score,
   };
 }

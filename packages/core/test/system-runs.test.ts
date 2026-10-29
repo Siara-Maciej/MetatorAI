@@ -6,7 +6,7 @@ import { AdvanceRun, InitRun } from "../src/application/runs.ts";
 import { SystemCatalog } from "../src/application/system.ts";
 import { SystemPlanStore } from "../src/application/system-plans.ts";
 import { type RepositoryRuns, RunSystemPlan, SystemPlanStatus } from "../src/application/system-runs.ts";
-import { LocalSystemLocation, SystemSources } from "../src/application/system-sources.ts";
+import { CloneCache, LocalSystemLocation, SystemSources } from "../src/application/system-sources.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import { ok } from "../src/domain/result.ts";
 import { readySteps, type SystemPlan, stepTask, systemPlanDigest } from "../src/domain/system-plan.ts";
@@ -93,12 +93,10 @@ function world(steps: SystemPlan["steps"], roots: Record<string, string> = { web
   const sources = new SystemSources(
     { roots },
     "/src/platform",
-    "/c",
-    { resolve: async () => ok("a"), checkout: async () => ok(undefined) },
-    {
-      read: async () => ok(undefined),
-      isDirectory: async (p: string) => dirs.includes(p),
-    },
+    location,
+    new CloneCache({ resolve: async () => ok("a"), checkout: async () => ok(undefined) }, "/c"),
+    { isDirectory: async (p: string) => dirs.includes(p) },
+    { remoteUrl: async () => ok(undefined) },
   );
   const repos = new Map([
     ["/src/platform", repository("platform", fs)],
@@ -111,8 +109,8 @@ function world(steps: SystemPlan["steps"], roots: Record<string, string> = { web
     store,
     repos,
     platform,
-    run: new RunSystemPlan(store, location, sources, at, platform.clock, platform.runs),
-    status: new SystemPlanStatus(store, location, sources, at),
+    run: new RunSystemPlan(store, sources, at, platform.clock, platform.runs),
+    status: new SystemPlanStatus(store, sources, at),
     save: () => store.save(plan(steps)),
   };
 }
@@ -185,5 +183,18 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     expect((await ghost.run.execute({ id: "rename" }))._unsafeUnwrapErr().message).toBe(
       "step ghost-x: application ghost is not in the map",
     );
+  });
+
+  test("a wave starts whole or not at all: a step without a checkout stops it before anything starts", async () => {
+    const w = world([step("billing-bump", "billing"), step("mail-migrate", "mail")]);
+    await w.save();
+    expect((await w.run.execute({ id: "rename" }))._unsafeUnwrapErr().message).toBe(
+      "no checkout of mail to run step mail-migrate in",
+    );
+    expect((await w.store.load("rename"))._unsafeUnwrap().steps.map((s) => s.status)).toEqual([
+      "pending",
+      "pending",
+    ]);
+    expect(await w.platform.runs.list()).toEqual([]);
   });
 });

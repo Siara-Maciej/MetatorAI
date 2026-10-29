@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { InMemoryFileSystem } from "@metator/testing";
 import { DiffContracts } from "../src/application/contract-diff.ts";
 import { SystemCatalog } from "../src/application/system.ts";
-import { LocalSystemLocation } from "../src/application/system-sources.ts";
+import { CloneCache, LocalSystemLocation, SystemSources } from "../src/application/system-sources.ts";
 import { type ContractChange, inRange, judgeContract, statusOf } from "../src/domain/contract-diff.ts";
 import { MetatorError } from "../src/domain/errors.ts";
 import { err, ok } from "../src/domain/result.ts";
@@ -142,17 +142,24 @@ class FakeDiffer implements ContractDiffer {
   }
 }
 
+const NOTHING_PLANNED = { allows: async () => ok(undefined) };
+const sourcesOf = (location: LocalSystemLocation) =>
+  new SystemSources(
+    undefined,
+    "/src/platform",
+    location,
+    new CloneCache({ resolve: async () => ok("a".repeat(40)), checkout: async () => ok(undefined) }, "/c"),
+    { isDirectory: async () => false },
+    { remoteUrl: async () => ok(undefined) },
+  );
+
 function setup(files: Record<string, string>, base: Record<string, string>, differ = new FakeDiffer()) {
   const fs = new InMemoryFileSystem({ "docs/metator/system.yml": MAP, ...files });
   const location = new LocalSystemLocation(new SystemCatalog(fs, "docs/metator/system.yml"), "/src/platform");
   const revisions = {
     readAt: async (ref: string, path: string) => ok(ref === "main" ? base[path] : undefined),
   };
-  const vcs = { remoteUrl: async () => ok(undefined) };
-  return {
-    differ,
-    diff: new DiffContracts(location, vcs, revisions, fs, [differ], undefined, "/src/platform"),
-  };
+  return { differ, diff: new DiffContracts(sourcesOf(location), revisions, fs, [differ], NOTHING_PLANNED) };
 }
 
 describe("DiffContracts", () => {
@@ -191,22 +198,19 @@ describe("DiffContracts", () => {
     );
     const asked: string[] = [];
     const planned = {
-      allows: async (id: string) => {
-        asked.push(id);
+      allows: async (id: string, owner: string) => {
+        asked.push(`${id} of ${owner}`);
         return ok(id === "billing-api" ? "planned in system plan p" : undefined);
       },
     };
     const diff = new DiffContracts(
-      location,
-      { remoteUrl: async () => ok(undefined) },
+      sourcesOf(location),
       {
         readAt: async (_: string, path: string) =>
           ok(path === "apps/billing/openapi.yaml" ? "v1" : undefined),
       },
       fs,
       [new FakeDiffer()],
-      undefined,
-      "/src/platform",
       planned,
     );
     const r = (await diff.execute({ base: "main" }))._unsafeUnwrap();
@@ -215,7 +219,7 @@ describe("DiffContracts", () => {
       ["events", true],
     ]);
     expect(r.contracts[0]?.reason).toStartWith("planned in system plan p; a breaking change");
-    expect(asked).toEqual(["billing-api"]); // only what the policy refuses is asked about
+    expect(asked).toEqual(["billing-api of billing"]); // only what the policy refuses is asked about
   });
 
   test("a kind without a differ is unclassified, not a failure", async () => {
@@ -241,13 +245,11 @@ describe("DiffContracts", () => {
     );
     expect((await broken.diff.execute({ base: "main" }))._unsafeUnwrapErr().message).toBe("bad spec");
     const empty = new DiffContracts(
-      new LocalSystemLocation(new SystemCatalog(new InMemoryFileSystem(), "x.yml"), "/r"),
-      { remoteUrl: async () => ok(undefined) },
+      sourcesOf(new LocalSystemLocation(new SystemCatalog(new InMemoryFileSystem(), "x.yml"), "/r")),
       { readAt: async () => ok(undefined) },
       new InMemoryFileSystem(),
       [],
-      undefined,
-      "/r",
+      NOTHING_PLANNED,
     );
     expect((await empty.execute({ base: "main" }))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
   });

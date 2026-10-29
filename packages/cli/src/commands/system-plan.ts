@@ -5,18 +5,25 @@ import {
   ok,
   planId,
   type Result,
-  RunSystemEvals,
-  RunSystemPlan,
+  STEP_WORKFLOW,
   SystemAnalysisDocument,
   SystemEvalCaseDocument,
   SystemPlanDocument,
-  SystemPlanStatus,
   systemPlanWaves,
 } from "@metator/core";
-import type { Command } from "commander";
+import { type Command, InvalidArgumentError, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { person } from "../live.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
+
+/** `--min <score>`: a number from 0 to 1, or a usage error. */
+export const minScore = () =>
+  new Option("--min <score>", "fail below this mean score (0 to 1)").argParser((v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0 || n > 1)
+      throw new InvalidArgumentError("expected a number from 0 to 1");
+    return n;
+  });
 
 interface AnalyzeOptions {
   base: string;
@@ -51,16 +58,19 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
     id: string | undefined,
     run: string | undefined,
   ): Promise<Result<{ id: string; parent?: string }, MetatorError>> => {
-    if (id) return ok({ id });
-    if (!run) return err(MetatorError.usage("name the plan, or pass --run <system run>"));
+    if (!run) return id ? ok({ id }) : err(MetatorError.usage("name the plan, or pass --run <system run>"));
     const runId = basename(run.replace(/\/+$/, ""));
     const record = await container().resolve("runRepository").load(runId);
-    return record.map((r) => ({ id: planId(r.task), parent: r.runId }));
-  };
-  /** Run tools of the repository at `root` (this one, or an application's checkout). */
-  const runsAt = (root: string) => {
-    const c = root === container().resolve("root") ? container() : ctx.containerAt(root);
-    return { init: c.resolve("initRun"), runs: c.resolve("runRepository") };
+    if (record.isErr()) return err(record.error);
+    const own = planId(record.value.task);
+    if (id && id !== own)
+      return err(
+        MetatorError.usage(
+          `system run ${runId} carries plan ${own}, not ${id}`,
+          "Drop the id, or pass the plan's own run.",
+        ),
+      );
+    return ok({ id: own, parent: record.value.runId });
   };
 
   withAnalyzeOptions(
@@ -215,25 +225,19 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
     .argument("[id]", "the plan id")
     .option("--run <run>", "the system run (W13) the child runs belong to; its plan when no id is given")
     .option("--base <ref>", "start each child run in a new worktree branched from this ref")
-    .option("--workflow <id>", "the workflow of the child runs", "mt-feature")
+    .option("--workflow <id>", "the workflow of the child runs", STEP_WORKFLOW)
     .action(
       action(async (named: string | undefined, opts: { run?: string; base?: string; workflow: string }) => {
         const which = await planOf(named, opts.run);
         if (which.isErr()) return { result: which };
-        const c = container();
-        const r = await new RunSystemPlan(
-          c.resolve("systemPlanStore"),
-          c.resolve("systemLocation"),
-          c.resolve("systemSources"),
-          runsAt,
-          c.resolve("clock"),
-          c.resolve("runRepository"),
-        ).execute({
-          id: which.value.id,
-          ...(which.value.parent ? { parent: which.value.parent } : {}),
-          ...(opts.base ? { base: opts.base } : {}),
-          workflow: opts.workflow,
-        });
+        const r = await container()
+          .resolve("runSystemPlan")
+          .execute({
+            id: which.value.id,
+            ...(which.value.parent ? { parent: which.value.parent } : {}),
+            ...(opts.base ? { base: opts.base } : {}),
+            workflow: opts.workflow,
+          });
         return {
           result: r,
           warnings:
@@ -264,13 +268,7 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       action(async (named: string | undefined, opts: { run?: string; check: boolean }) => {
         const which = await planOf(named, opts.run);
         if (which.isErr()) return { result: which };
-        const c = container();
-        const r = await new SystemPlanStatus(
-          c.resolve("systemPlanStore"),
-          c.resolve("systemLocation"),
-          c.resolve("systemSources"),
-          runsAt,
-        ).execute(which.value.id);
+        const r = await container().resolve("systemPlanStatus").execute(which.value.id);
         if (r.isErr() || !opts.check || r.value.plan.status === "done") return { result: r };
         const open = r.value.steps.filter((s) => s.status !== "done");
         return {
@@ -286,33 +284,7 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       }),
     );
 
-  const evals = () => {
-    const c = container();
-    const fs = c.resolve("fileSystem");
-    return new RunSystemEvals(
-      fs,
-      c.resolve("paths").systemEvals,
-      c.resolve("sandbox"),
-      (root) => {
-        const there = ctx.containerAt(root);
-        return {
-          create: there.resolve("createSystemPlan"),
-          propose: there.resolve("proposeSystemPlan"),
-          lint: there.resolve("lintSystemPlan"),
-          store: there.resolve("systemPlanStore"),
-        };
-      },
-      // The system agents' definitions for the hosts, as `agents install` writes them here.
-      async () => {
-        const out: Record<string, string> = {};
-        for (const file of SYSTEM_AGENT_FILES) {
-          const text = await fs.read(file);
-          if (text.isOk()) out[file] = text.value;
-        }
-        return out;
-      },
-    );
-  };
+  const evals = () => container().resolve("runSystemEvals");
   const evalCmd = system.command("eval").description("Score system analysis and planning on the golden set");
   evalCmd
     .command("list")
@@ -339,9 +311,9 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       "--host <host>",
       `refine with mt-system-scout and mt-system-planner on this AI host: ${HOSTS.join(", ")}`,
     )
-    .option("--min <score>", "fail below this mean score (0 to 1)")
+    .addOption(minScore())
     .action(
-      action(async (opts: { case?: string; host?: string; min?: string }) => {
+      action(async (opts: { case?: string; host?: string; min?: number }) => {
         const r = await evals().execute({
           by: person(process.env),
           ...(opts.host ? { host: opts.host } : {}),
@@ -363,10 +335,3 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
     .description("Print the JSON Schema of a golden case")
     .action(action(async () => ({ result: ok(SystemEvalCaseDocument.jsonSchema("input")) })));
 }
-
-const SYSTEM_AGENT_FILES = [
-  ".claude/agents/mt-system-scout.md",
-  ".claude/agents/mt-system-planner.md",
-  ".github/agents/mt-system-scout.agent.md",
-  ".github/agents/mt-system-planner.agent.md",
-];

@@ -89,6 +89,7 @@ export * from "./domain/glob.ts";
 export * from "./domain/graph.ts";
 export * from "./domain/graph-diff.ts";
 export * from "./domain/hook.ts";
+export * from "./domain/ids.ts";
 export * from "./domain/import-index.ts";
 export * from "./domain/install.ts";
 export * from "./domain/lesson.ts";

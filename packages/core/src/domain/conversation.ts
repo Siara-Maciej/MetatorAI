@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { slug } from "./ids.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -43,22 +44,10 @@ export const ConversationDocument = defineDocument("Conversation", {
   hint: "Written by `metator ask`; continue it with `metator ask --conversation <id> …`.",
 });
 
-/** Letters that do not decompose into a base letter and a mark. */
-const LETTERS: Readonly<Record<string, string>> = { ł: "l", đ: "d", ø: "o", ß: "ss", æ: "ae", œ: "oe" };
-
 /** The id of a new conversation: the day and the question's first words. */
 export function conversationId(question: string, at: Date, taken: (id: string) => boolean): string {
   const day = at.toISOString().slice(0, 10).replaceAll("-", "");
-  const words = question
-    .toLowerCase()
-    .replace(/[łđøßæœ]/g, (c) => LETTERS[c] ?? c)
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40)
-    .replace(/-+$/, "");
-  const base = `${day}-${words || "question"}`;
+  const base = `${day}-${slug(question, 40, "question")}`;
   if (!taken(base)) return base;
   for (let n = 2; ; n++) if (!taken(`${base}-${n}`)) return `${base}-${n}`;
 }

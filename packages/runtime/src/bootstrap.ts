@@ -29,6 +29,7 @@ import {
   CheckQuote,
   CheckRules,
   type Clock,
+  CloneCache,
   CloseRun,
   CompareEvals,
   ComputeAffected,
@@ -52,6 +53,7 @@ import {
   EnvironmentCatalog,
   EnvironmentServices,
   EvalCatalog,
+  type FileSystem,
   FindMemoryDupes,
   FindOwners,
   FindSimilar,
@@ -108,6 +110,7 @@ import {
   RefactorPlanStore,
   RemoveWorktree,
   RepositoryDiscoverySource,
+  type RepositoryRuns,
   RuleCatalog,
   RunAffectedTests,
   RunDrivers,
@@ -116,6 +119,8 @@ import {
   RunJournal,
   RunRefactorPlan,
   RunRepository,
+  RunSystemEvals,
+  RunSystemPlan,
   ScaffoldRule,
   ScanPatterns,
   ScopePlan,
@@ -129,6 +134,7 @@ import {
   SyncRefactorPlan,
   SystemCatalog,
   SystemImpactQuery,
+  SystemPlanStatus,
   SystemPlanStore,
   SystemSources,
   UpdateConfig,
@@ -176,7 +182,7 @@ import { OpenApiContractDetector, OpenApiContractDiffer } from "@metator/plugin-
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
 import { resolveCanon } from "./canon.ts";
-import { type LoadedConfig, resolvePaths } from "./config.ts";
+import { type LoadedConfig, loadConfig, resolvePaths } from "./config.ts";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
 
 export interface BootstrapOptions {
@@ -212,12 +218,30 @@ export function machineStateDir(env: Readonly<Record<string, string | undefined>
 
 const systemClock: Clock = { now: () => new Date() };
 
+/** The host files of shipped agents in this repository (as `agents install` writes them), for sandboxes. */
+async function agentDefinitionFiles(fs: FileSystem, ids: readonly string[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const id of ids)
+    for (const file of [`.claude/agents/${id}.md`, `.github/agents/${id}.agent.md`]) {
+      const text = await fs.read(file);
+      if (text.isOk()) out[file] = text.value;
+    }
+  return out;
+}
+
 /**
  * Composition root: the only place that knows concrete adapters. Use cases keep plain
  * constructors (framework-agnostic); awilix wires them through factories.
  */
 export function bootstrap(options: BootstrapOptions): MetatorContainer {
   const c = createMetatorContainer();
+  /** The container of another repository root, with that repository's own config. */
+  const elsewhere = (root: string): MetatorContainer => {
+    const config = loadConfig(root);
+    if (config.isErr()) throw config.error;
+    const { paths: _here, ...shared } = options;
+    return bootstrap({ ...shared, root, config: config.value });
+  };
   const pinned = options.now ? new Date(options.now) : undefined;
   const config = options.config ?? { config: DEFAULT_CONFIG, source: undefined };
   c.register({
@@ -469,47 +493,35 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     }),
     repositoryCloner: asFunction(() => new GitRepositoryCloner()).singleton(),
     checkoutReader: asFunction(() => new BunCheckoutReader()).singleton(),
-    systemLocation: asFunction(({ systemCatalog, config, root, repositoryCloner, checkoutReader }) => {
+    // One clone cache per process: a pinned ref resolves to one commit for the whole command.
+    cloneCache: asFunction(
+      ({ repositoryCloner, root, paths }) => new CloneCache(repositoryCloner, join(root, paths.systemCache)),
+    ).singleton(),
+    systemLocation: asFunction(({ systemCatalog, config, root, cloneCache, checkoutReader }) => {
       const map = config.config.system?.map;
       return map && "repo" in map
-        ? new PinnedSystemLocation(map, root, join(root, ".metator/system"), repositoryCloner, checkoutReader)
+        ? new PinnedSystemLocation(map, root, cloneCache, checkoutReader)
         : new LocalSystemLocation(systemCatalog, root);
     }),
     systemSources: asFunction(
-      ({ config, root, repositoryCloner, checkoutReader }) =>
-        new SystemSources(
-          config.config.system,
-          root,
-          join(root, ".metator/system"),
-          repositoryCloner,
-          checkoutReader,
-        ),
+      ({ config, root, systemLocation, cloneCache, checkoutReader, vcs }) =>
+        new SystemSources(config.config.system, root, systemLocation, cloneCache, checkoutReader, vcs),
     ),
-    systemImpactQuery: asFunction(
-      ({ systemLocation, vcs, config, root }) =>
-        new SystemImpactQuery(systemLocation, vcs, config.config.system, root),
-    ),
+    systemImpactQuery: asFunction(({ systemSources, vcs }) => new SystemImpactQuery(systemSources, vcs)),
     lintSystem: asFunction(
-      ({ systemLocation, fileSystem, contractKinds, systemSources, checkoutReader }) =>
-        new LintSystem(systemLocation, fileSystem, contractKinds, {
-          location: systemLocation,
-          sources: systemSources,
-          reader: checkoutReader,
-        }),
+      ({ systemSources, fileSystem, contractKinds, checkoutReader }) =>
+        new LintSystem(systemSources, fileSystem, contractKinds, checkoutReader),
     ),
     showSystem: asFunction(({ systemLocation }) => new ShowSystem(systemLocation)),
     contractDetectors: asFunction(() => [new OpenApiContractDetector()]).singleton(),
     contractDiffers: asFunction(() => [new OpenApiContractDiffer()]).singleton(),
     diffContracts: asFunction(
-      ({ systemLocation, vcs, revisionReader, fileSystem, contractDiffers, config, root, systemPlanStore }) =>
+      ({ systemSources, revisionReader, fileSystem, contractDiffers, systemPlanStore }) =>
         new DiffContracts(
-          systemLocation,
-          vcs,
+          systemSources,
           revisionReader,
           fileSystem,
           contractDiffers,
-          config.config.system,
-          root,
           new PlannedBreakingChanges(systemPlanStore),
         ),
     ),
@@ -535,14 +547,45 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore }) =>
         new ProposeSystemPlan(agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore),
     ),
+    // Run tools of another repository on this machine: its own container, with its own config.
+    repositoryRuns: asValue((root: string): RepositoryRuns => {
+      const there = root === options.root ? c : elsewhere(root);
+      return { init: there.resolve("initRun"), runs: there.resolve("runRepository") };
+    }),
+    runSystemPlan: asFunction(
+      ({ systemPlanStore, systemSources, repositoryRuns, clock, runRepository }) =>
+        new RunSystemPlan(systemPlanStore, systemSources, repositoryRuns, clock, runRepository),
+    ),
+    systemPlanStatus: asFunction(
+      ({ systemPlanStore, systemSources, repositoryRuns }) =>
+        new SystemPlanStatus(systemPlanStore, systemSources, repositoryRuns),
+    ),
+    runSystemEvals: asFunction(
+      ({ fileSystem, paths, sandbox }) =>
+        new RunSystemEvals(
+          fileSystem,
+          paths.systemEvals,
+          sandbox,
+          (root) => {
+            const there = elsewhere(root);
+            return {
+              create: there.resolve("createSystemPlan"),
+              propose: there.resolve("proposeSystemPlan"),
+              lint: there.resolve("lintSystemPlan"),
+              store: there.resolve("systemPlanStore"),
+            };
+          },
+          () => agentDefinitionFiles(fileSystem, ["mt-system-scout", "mt-system-planner"]),
+        ),
+    ),
     discoverySource: asFunction(
-      ({ root, vcs, fileSystem, manifestReader, analyzeArchitecture, findOwners }) =>
+      ({ root, vcs, fileSystem, manifestReader, architectureFacts, findOwners }) =>
         new RepositoryDiscoverySource(
           basename(root),
           vcs,
           fileSystem,
           manifestReader,
-          analyzeArchitecture,
+          architectureFacts,
           findOwners,
         ),
     ),

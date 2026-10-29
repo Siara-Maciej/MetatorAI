@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { type ArchitectureInput, type ArchitectureReport, analyzeArchitecture } from "./architecture.ts";
 import { applyMoves, checkMoves, type Move, MoveSchema, simulateMoves } from "./architecture-moves.ts";
+import { canonical, digestOf } from "./ids.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -67,43 +68,12 @@ export const RefactorPlanDocument = defineDocument("RefactorPlan", {
   hint: "`metator arch plan schema` prints the format; `metator arch plan new` starts one.",
 });
 
-/** A plan id from its title: lower case, words joined by dashes, at most 48 characters. */
-export function planId(title: string): string {
-  const slug = title
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/ł/g, "l")
-    .replace(/Ł/g, "L")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48)
-    .replace(/-+$/, "");
-  return slug || "plan";
-}
-
-/** A canonical text of plain data (keys sorted): for digests and equality, not a file format. */
-export function canonical(value: unknown): string {
-  if (value === undefined) return "~";
-  if (value === null || typeof value !== "object")
-    return typeof value === "string" ? `"${value.replace(/["\\]/g, "\\$&")}"` : String(value);
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  const entries = Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== undefined);
-  return `{${entries
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([k, v]) => `${canonical(k)}:${canonical(v)}`)
-    .join(",")}}`;
-}
-
-/** FNV-1a over the moves as data: what an approval covers. */
-export function planDigest(plan: Pick<RefactorPlan, "moves">): string {
-  const text = canonical(plan.moves.map((m) => ({ id: m.id, move: m.move, wave: m.wave })));
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h.toString(16).padStart(8, "0");
+/** What an approval covers: the goal and the moves as data, not their progress or effects. */
+export function planDigest(plan: Pick<RefactorPlan, "moves" | "goal">): string {
+  return digestOf({
+    goal: plan.goal,
+    moves: plan.moves.map((m) => ({ id: m.id, move: m.move, wave: m.wave })),
+  });
 }
 
 /** Moves in the order they run: wave by wave, in file order within a wave. */

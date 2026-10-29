@@ -1,4 +1,4 @@
-import type { ArchitectureReport } from "../domain/architecture.ts";
+import { analyzeArchitecture } from "../domain/architecture.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { packageOf } from "../domain/import-index.ts";
@@ -20,7 +20,7 @@ import type { SystemMap } from "../domain/system-map.ts";
 import { SystemMapDocument } from "../domain/system-map.ts";
 import { renderYamlDocument } from "../domain/versioned.ts";
 import type { ContractDetector, DetectedContract, FileSystem, ManifestReader, Vcs } from "../ports/index.ts";
-import type { AnalyzeArchitecture } from "./architecture.ts";
+import type { ArchitectureFacts } from "./architecture.ts";
 import type { FindOwners } from "./owners.ts";
 
 const SEARCHED = ["**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,json,yaml,yml,toml,env}", "**/.env*"];
@@ -67,7 +67,8 @@ export class RepositoryDiscoverySource implements DiscoverySource {
     private readonly vcs: Pick<Vcs, "listFiles" | "remoteUrl">,
     private readonly fs: FileSystem,
     private readonly manifests: ManifestReader,
-    private readonly analyze: Pick<AnalyzeArchitecture, "execute">,
+    /** The architecture's facts: discovery reads package kinds and writes no report. */
+    private readonly facts: Pick<ArchitectureFacts, "gather">,
     private readonly findOwners: Pick<FindOwners, "execute">,
   ) {}
 
@@ -106,9 +107,9 @@ export class RepositoryDiscoverySource implements DiscoverySource {
         },
       ]);
     }
-    const analyzed = await this.analyze.execute();
-    if (analyzed.isErr()) return err(analyzed.error);
-    const report: ArchitectureReport = analyzed.value.report;
+    const facts = await this.facts.gather();
+    if (facts.isErr()) return err(facts.error);
+    const report = analyzeArchitecture(facts.value);
     const kinds = new Map(report.packages.map((p) => [p.name, p.kind]));
     return ok(
       packages.flatMap((m) => {

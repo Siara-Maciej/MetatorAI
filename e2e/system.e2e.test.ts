@@ -94,7 +94,7 @@ describe("metator system (real CLI)", () => {
       const show = await metator(["system", "show"], empty.root);
       expect([show.code, (show.json.error as { message: string }).message]).toEqual([
         1,
-        "No system map at docs/metator/system.yml",
+        "a system map at docs/metator/system.yml not found",
       ]);
     } finally {
       await empty.dispose();

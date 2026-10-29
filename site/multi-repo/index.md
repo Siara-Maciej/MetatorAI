@@ -132,7 +132,7 @@ system:
   map: { repo: ../platform, ref: main, path: docs/metator/system.yml }   # a URL works too
 ```
 
-MetatorAI resolves `ref` to a commit and reads the map from a clone of exactly that commit, cached in `.metator/system/`. A map written as a path (`system.map: { path: ... }`) is a file of this repository.
+MetatorAI resolves `ref` to a commit once per command and reads the map, and every specification, from a clone of exactly that commit, cached in `.metator/system/`. A map written as a path (`system.map: { path: ... }`) is a file of this repository. In a map pinned by URL, a relative repository (`repo: ../billing`) is a sibling on the same host (`https://github.com/acme/billing`).
 
 ```bash
 metator system impact                      # the files changed since HEAD
@@ -243,7 +243,7 @@ Under `expand-contract` the draft is:
 
 Under `versioned` it is `bump` (a new major version) and then a `migrate` step for each consumer.
 
-**What lint checks**, so that you review the plan's substance, not its bookkeeping:
+**What lint checks**, so that you review the plan's substance, not its bookkeeping. Consumers come from the map, not from the analysis, and a strategy makes its contract breaking whatever the analysis says; only the provider expands, bumps or contracts its contract.
 
 | Check | Error when |
 |---|---|
@@ -251,7 +251,8 @@ Under `versioned` it is `bump` (a new major version) and then a `migrate` step f
 | Order | a consumer migrates before the provider expands, the old shape goes before every consumer migrated, or a consumer runs before its provider (`providers-first`) |
 | Strategy | a breaking change has no strategy, a strategy other than the map's policy, or the map forbids breaking changes |
 | Map | a step names an application or contract the map does not have, or steps depend on each other in a cycle |
-| Approval | the steps changed after you approved them |
+| Analysis | the plan has no analysis: nothing says what breaks |
+| Approval | anything a child run is told changed after you approved it: a step, its summary, deploy flag or rollback, the task |
 
 **The gate respects the plan.** Once you approve it, `contract diff --check` lets the breaking change through in the provider's repository, but only for the step that breaks it, and only after the steps before it are done:
 

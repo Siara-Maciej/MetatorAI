@@ -139,8 +139,17 @@ describe("discovery helpers", () => {
         { id: "orders", kind: "openapi", owner: "billing", spec: { path: "orders.yaml" } },
       ],
     });
+    // The map names the contract billing; the proposal calls the same specification billing-api.
     expect(systemDrift(map, proposal)).toEqual([
-      "web consumes billing-api, but the map does not say so",
+      "web consumes billing, but the map does not say so",
+      "application admin is not in the map",
+      "contract orders (orders.yaml of billing) is not in the map",
+    ]);
+    const consumed = SystemMapSchema.parse({
+      ...map,
+      applications: map.applications.map((a) => (a.id === "web" ? { ...a, consumes: ["billing@^1"] } : a)),
+    });
+    expect(systemDrift(consumed, proposal)).toEqual([
       "application admin is not in the map",
       "contract orders (orders.yaml of billing) is not in the map",
     ]);

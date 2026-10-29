@@ -1,5 +1,5 @@
-import { planId } from "../domain/architecture-plan.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { planId } from "../domain/ids.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   failedSystemCase,

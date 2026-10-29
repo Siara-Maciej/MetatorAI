@@ -54,6 +54,8 @@ export interface MetatorPaths {
   readonly systemPlans: string;
   /** The golden set of system changes (`SystemEvalCase`, F7.7). */
   readonly systemEvals: string;
+  /** Clones of other repositories at pinned commits (F7.3). */
+  readonly systemCache: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -89,6 +91,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   archEvals: "docs/metator/evals/arch",
   systemPlans: "metator/system/plans",
   systemEvals: "docs/metator/evals/system",
+  systemCache: ".metator/system",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

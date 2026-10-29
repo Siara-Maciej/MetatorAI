@@ -208,7 +208,10 @@ describe("metator system discover in a folder of three repositories (real CLI)",
     expect(d.evidence).toContainEqual(
       expect.objectContaining({ subject: "consumes:web→billing-api", file: "web/package.json" }),
     );
-    const write = await metator(["system", "discover", "--write"], folder);
-    expect((write.json.data as Discovery).written).toBeUndefined();
+    // A folder has no map of its own: --write and --check say so instead of doing nothing.
+    for (const flag of ["--write", "--check"]) {
+      const r2 = await metator(["system", "discover", flag], folder);
+      expect([r2.code, (r2.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+    }
   }, 120_000);
 });

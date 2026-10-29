@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { InMemoryFileSystem } from "@metator/testing";
+import { InMemoryCheckouts, InMemoryFileSystem } from "@metator/testing";
 import { LintSystem, ShowSystem, SystemCatalog } from "../src/application/system.ts";
+import { CloneCache, LocalSystemLocation, SystemSources } from "../src/application/system-sources.ts";
+import { ok } from "../src/domain/result.ts";
 import {
   contractUsers,
   deployWaves,
@@ -146,8 +148,13 @@ describe("deploy order and contract users", () => {
 describe("LintSystem and ShowSystem", () => {
   const world = (files: Record<string, string> = FILES) => {
     const fs = new InMemoryFileSystem(files);
-    const catalog = new SystemCatalog(fs, "docs/metator/system.yml");
-    return { fs, lint: new LintSystem(catalog, fs, ["openapi"]), show: new ShowSystem(catalog) };
+    const location = new LocalSystemLocation(new SystemCatalog(fs, "docs/metator/system.yml"), "/r");
+    const checkouts = new InMemoryCheckouts({ "/r": fs });
+    const cloner = { resolve: async () => ok("a".repeat(40)), checkout: async () => ok(undefined) };
+    const sources = new SystemSources(undefined, "/r", location, new CloneCache(cloner, "/c"), checkouts, {
+      remoteUrl: async () => ok(undefined),
+    });
+    return { fs, lint: new LintSystem(sources, fs, ["openapi"], checkouts), show: new ShowSystem(location) };
   };
 
   test("a valid map: local directories and specifications exist; other repositories are listed as unchecked", async () => {

@@ -79,6 +79,38 @@ export function parseConsumes(entry: string): { readonly contract: string; reado
   return at === -1 ? { contract: entry } : { contract: entry.slice(0, at), version: entry.slice(at + 1) };
 }
 
+/** A path as the map writes it, without `./` and trailing slashes (`.` is the repository root). */
+export function cleanPath(path: string): string {
+  const clean = path.replace(/^(\.\/)+/, "").replace(/\/+$/, "");
+  return clean === "" ? "." : clean;
+}
+
+/** `path` inside the directory `dir` (`.` is the repository root). */
+export function inDir(dir: string, path: string): string {
+  const d = cleanPath(dir);
+  return d === "." ? cleanPath(path) : `${d}/${cleanPath(path)}`;
+}
+
+/** The directory of an application inside its own repository (`.` for the whole repository). */
+export const appDir = (app: Application): string => cleanPath(app.source.path ?? ".");
+
+/** A contract's specification, relative to its provider's repository. */
+export const specPath = (owner: Application, contract: Contract): string =>
+  inDir(appDir(owner), contract.spec.path);
+
+/** The applications that consume a contract, with the version range each expects. */
+export function consumersOf(
+  map: SystemMap,
+  contract: string,
+): { readonly app: string; readonly range?: string }[] {
+  return map.applications.flatMap((a) =>
+    a.consumes
+      .map(parseConsumes)
+      .filter((p) => p.contract === contract)
+      .map((p) => ({ app: a.id, ...(p.version ? { range: p.version } : {}) })),
+  );
+}
+
 export interface SystemProblem {
   readonly severity: "error" | "warning";
   readonly path: string;
@@ -172,9 +204,8 @@ export function contractUsers(map: SystemMap): {
     contract: c.id,
     kind: c.kind,
     owner: c.owner,
-    consumers: map.applications
-      .filter((a) => a.consumes.some((e) => parseConsumes(e).contract === c.id))
-      .map((a) => a.id)
+    consumers: consumersOf(map, c.id)
+      .map((k) => k.app)
       .sort(),
   }));
 }

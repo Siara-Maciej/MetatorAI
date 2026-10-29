@@ -1,10 +1,11 @@
-import { planId } from "../domain/architecture-plan.ts";
 import type { ContractStatus } from "../domain/contract-diff.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { planId } from "../domain/ids.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   analysisFrom,
+  breakingAllowance,
   draftSystemPlan,
   lintSystemPlan,
   type SystemAnalysis,
@@ -19,80 +20,43 @@ import {
 import { type DocumentHeader, parseYamlDocument, renderYamlDocument } from "../domain/versioned.ts";
 import type { AgentHost, Clock, FileSystem } from "../ports/index.ts";
 import type { BreakingAllowance, DiffContracts } from "./contract-diff.ts";
+import { DocumentStore, runAgent } from "./document-store.ts";
 import type { SystemImpactQuery, SystemLocation } from "./system-sources.ts";
 
-export const SYSTEM_SCOUT_AGENT = "mt-system-scout";
-export const SYSTEM_PLANNER_AGENT = "mt-system-planner";
+const SYSTEM_SCOUT_AGENT = "mt-system-scout";
+const SYSTEM_PLANNER_AGENT = "mt-system-planner";
 
-/** System plans and their analyses as versioned YAML documents in `metator/system/plans/`. */
-export class SystemPlanStore {
+/** System plans (`<id>.yml`) and their analyses (`<id>.analysis.yml`) in `metator/system/plans/`. */
+export class SystemPlanStore extends DocumentStore<SystemPlan> {
   constructor(
-    private readonly fs: FileSystem,
-    readonly dir: string,
-  ) {}
-
-  file(id: string): string {
-    return `${this.dir}/${id}.yml`;
+    private readonly files: FileSystem,
+    dir: string,
+  ) {
+    super(files, dir, SystemPlanDocument, {
+      noun: "system plan",
+      listHint: "`metator system plan list` shows the plans.",
+      comment: "A system plan (metator system plan): steps per application, approved by a person.",
+    });
   }
 
   analysisFile(id: string): string {
     return `${this.dir}/${id}.analysis.yml`;
   }
 
-  async exists(id: string): Promise<boolean> {
-    return this.fs.exists(this.file(id));
-  }
-
-  async load(id: string): Promise<Result<SystemPlan, MetatorError>> {
-    const file = this.file(id);
-    if (!(await this.fs.exists(file)))
-      return err(
-        MetatorError.notFound(`system plan ${id}`, { hint: "`metator system plan list` shows the plans." }),
-      );
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const plan = parseYamlDocument(text.value, file).andThen((raw) => SystemPlanDocument.parse(raw, file));
-    if (plan.isOk() && plan.value.id !== id)
-      return err(new MetatorError("INVALID_CONFIG", `${file}: its id is ${plan.value.id}, not ${id}`));
-    return plan;
-  }
-
   async loadAnalysis(id: string): Promise<Result<SystemAnalysis | undefined, MetatorError>> {
     const file = this.analysisFile(id);
-    if (!(await this.fs.exists(file))) return ok(undefined);
-    const text = await this.fs.read(file);
+    if (!(await this.files.exists(file))) return ok(undefined);
+    const text = await this.files.read(file);
     if (text.isErr()) return err(text.error);
     return parseYamlDocument(text.value, file).andThen((raw) => SystemAnalysisDocument.parse(raw, file));
   }
 
-  async save(plan: SystemPlan): Promise<Result<void, MetatorError>> {
-    const doc: DocumentHeader & Record<string, unknown> = { ...SystemPlanDocument.stamp(plan) };
-    return this.fs.write(
-      this.file(plan.id),
-      renderYamlDocument(
-        doc,
-        "A system plan (metator system plan): steps per application, approved by a person.",
-      ),
-    );
-  }
-
   async saveAnalysis(id: string, analysis: SystemAnalysis): Promise<Result<void, MetatorError>> {
     const doc: DocumentHeader & Record<string, unknown> = { ...SystemAnalysisDocument.stamp(analysis) };
-    return this.fs.write(
+    return this.files.write(
       this.analysisFile(id),
       renderYamlDocument(doc, "What a task touches across the system (metator system analyze)."),
     );
-  }
-
-  async list(): Promise<Result<readonly SystemPlan[], MetatorError>> {
-    const out: SystemPlan[] = [];
-    for (const f of await this.fs.glob([`${this.dir}/*.yml`])) {
-      if (f.endsWith(".analysis.yml")) continue;
-      const plan = await this.load(f.slice(f.lastIndexOf("/") + 1, -".yml".length));
-      if (plan.isErr()) return err(plan.error);
-      out.push(plan.value);
-    }
-    return ok(out.sort((a, b) => a.id.localeCompare(b.id)));
   }
 }
 
@@ -105,6 +69,10 @@ export interface AnalyzeInput {
   readonly breaking?: readonly string[];
 }
 
+/** The task names what it touches: then the saved analysis is made again from it. */
+const namesContracts = (input: AnalyzeInput) =>
+  (input.contracts?.length ?? 0) > 0 || (input.breaking?.length ?? 0) > 0 || input.files !== undefined;
+
 /** `system analyze` (F7.5): the impact of a task and each contract's change, saved for the plan. */
 export class AnalyzeSystem {
   constructor(
@@ -116,6 +84,19 @@ export class AnalyzeSystem {
   async execute(
     input: AnalyzeInput,
   ): Promise<Result<{ id: string; file: string; analysis: SystemAnalysis }, MetatorError>> {
+    const id = planId(input.task);
+    // An approved plan was approved against this analysis: changing it under the plan is a new task.
+    if (await this.store.exists(id)) {
+      const plan = await this.store.load(id);
+      if (plan.isErr()) return err(plan.error);
+      if (plan.value.status !== "draft")
+        return err(
+          MetatorError.usage(
+            `system plan ${id} is ${plan.value.status}; its analysis stays as approved`,
+            "Analyze a new task, or remove the plan first.",
+          ),
+        );
+    }
     const breaking = input.breaking ?? [];
     const named = [...new Set([...(input.contracts ?? []), ...breaking])];
     const impact = await this.impact.execute({
@@ -138,17 +119,16 @@ export class AnalyzeSystem {
       diffs,
       breaking: new Set(breaking),
     });
-    const id = planId(input.task);
     const saved = await this.store.saveAnalysis(id, analysis);
     return saved.isErr() ? err(saved.error) : ok({ id, file: this.store.analysisFile(id), analysis });
   }
 }
 
-/** `system plan new`: the analysis (kept when one exists) and a first draft by the map's policy. */
+/** `system plan new`: the analysis (kept, unless the task names what it touches) and a first draft. */
 export class CreateSystemPlan {
   constructor(
     private readonly analyze: Pick<AnalyzeSystem, "execute">,
-    private readonly location: Pick<SystemLocation, "load">,
+    private readonly location: Pick<SystemLocation, "require">,
     private readonly store: SystemPlanStore,
   ) {}
 
@@ -161,24 +141,26 @@ export class CreateSystemPlan {
           `Edit ${this.store.file(id)}, or pick another task.`,
         ),
       );
-    const map = await this.location.load();
+    const map = await this.location.require();
     if (map.isErr()) return err(map.error);
-    if (!map.value) return err(MetatorError.notFound("a system map"));
-    let analysis = await this.store.loadAnalysis(id);
+    const analysis = await this.analysisFor(id, input);
     if (analysis.isErr()) return err(analysis.error);
-    if (!analysis.value) {
-      const made = await this.analyze.execute(input);
-      if (made.isErr()) return err(made.error);
-      analysis = ok(made.value.analysis);
-    }
     const plan = draftSystemPlan({
       id,
-      analysis: analysis.value as SystemAnalysis,
+      analysis: analysis.value,
       map: map.value,
       ...(input.by ? { by: input.by } : {}),
     });
     const saved = await this.store.save(plan);
     return saved.isErr() ? err(saved.error) : ok(plan);
+  }
+
+  private async analysisFor(id: string, input: AnalyzeInput): Promise<Result<SystemAnalysis, MetatorError>> {
+    if (!namesContracts(input)) {
+      const saved = await this.store.loadAnalysis(id);
+      if (saved.isErr() || saved.value) return saved as Result<SystemAnalysis, MetatorError>;
+    }
+    return (await this.analyze.execute(input)).map((made) => made.analysis);
   }
 }
 
@@ -190,23 +172,23 @@ export interface LintedSystemPlan {
 /** `system plan lint`: the plan against the map and its saved analysis (E1). */
 export class LintSystemPlan {
   constructor(
-    private readonly location: Pick<SystemLocation, "load">,
+    private readonly location: Pick<SystemLocation, "require">,
     private readonly store: SystemPlanStore,
   ) {}
 
   async execute(id: string): Promise<Result<LintedSystemPlan, MetatorError>> {
     const plan = await this.store.load(id);
     if (plan.isErr()) return err(plan.error);
-    const map = await this.location.load();
+    const map = await this.location.require();
     if (map.isErr()) return err(map.error);
-    if (!map.value) return err(MetatorError.notFound("a system map"));
     const analysis = await this.store.loadAnalysis(id);
     if (analysis.isErr()) return err(analysis.error);
     const problems = lintSystemPlan(plan.value, map.value, analysis.value);
+    // Without an analysis nobody said what breaks: nothing to approve against.
     if (!analysis.value)
       problems.push({
-        severity: "warning",
-        message: `no analysis (${this.store.analysisFile(id)}): breaking changes are not checked`,
+        severity: "error",
+        message: `no analysis (${this.store.analysisFile(id)}): run \`metator system analyze\` for the task`,
       });
     return ok({ plan: plan.value, problems });
   }
@@ -226,8 +208,9 @@ export class ApproveSystemPlan {
   }): Promise<Result<SystemPlan, MetatorError>> {
     const linted = await this.lint.execute(input.id);
     if (linted.isErr()) return err(linted.error);
+    // A stale approval is exactly what approving again fixes; every other error blocks it.
     const blocking = linted.value.problems.filter(
-      (p) => p.severity === "error" && !p.message.includes("approve the plan again"),
+      (p) => p.severity === "error" && p.code !== "stale-approval",
     );
     if (blocking.length > 0)
       return err(
@@ -257,7 +240,8 @@ const DENY: AgentAnswer = { choices: ["Deny"], text: "System agents write the an
 
 /**
  * `system plan propose` (F7.5): the analysis and a draft, mt-system-scout checking the analysis
- * and mt-system-planner refining the plan on the person's AI host; then the tool lints it.
+ * and mt-system-planner refining the plan on the person's AI host; then the tool lints it. What
+ * an agent writes is a draft: an approval it wrote itself is dropped.
  */
 export class ProposeSystemPlan {
   constructor(
@@ -284,42 +268,35 @@ export class ProposeSystemPlan {
         MetatorError.usage(`unknown host ${input.host}`, `Hosts: ${[...this.hosts.keys()].join(", ")}.`),
       );
     const id = planId(input.task);
-    const analysis = await this.store.loadAnalysis(id);
-    if (analysis.isErr()) return err(analysis.error);
-    if (!analysis.value) {
+    const saved = await this.store.loadAnalysis(id);
+    if (saved.isErr()) return err(saved.error);
+    if (!saved.value || namesContracts(input)) {
       const made = await this.analyze.execute(input);
       if (made.isErr()) return err(made.error);
     }
-    const agent = async (name: string, prompt: string): Promise<Result<void, MetatorError>> => {
-      let failure: string | undefined;
-      for await (const e of host.run(
-        {
+    const agent = (name: string, prompt: string) =>
+      runAgent({
+        host,
+        hostName: input.host,
+        task: {
           agent: name,
           prompt,
           cwd: input.cwd,
           projectRoot: input.projectRoot,
           runDir: `${input.projectRoot}/${this.store.dir}`,
         },
-        input.ask ?? (async () => DENY),
-      )) {
-        input.onEvent?.(e);
-        if (e.type === "result" && !e.ok) failure = e.text || `${name} stopped without a result`;
-      }
-      return failure === undefined
-        ? ok(undefined)
-        : err(
-            new MetatorError("COMMAND_FAILED", `${input.host}: ${failure}`, {
-              hint: `What was written is kept in ${this.store.dir}; run \`metator system plan propose\` again or edit it.`,
-            }),
-          );
-    };
+        deny: DENY,
+        hint: `What was written is kept in ${this.store.dir}; run \`metator system plan propose\` again or edit it.`,
+        ...(input.onEvent ? { onEvent: input.onEvent } : {}),
+        ...(input.ask ? { ask: input.ask } : {}),
+      });
     const scouted = await agent(
       SYSTEM_SCOUT_AGENT,
       systemScoutPrompt({ analysis: this.store.analysisFile(id) }),
     );
     if (scouted.isErr()) return err(scouted.error);
     if (!(await this.store.exists(id))) {
-      const created = await this.create.execute({ ...input, by: input.by });
+      const created = await this.create.execute(input);
       if (created.isErr()) return err(created.error);
     }
     const planned = await agent(
@@ -327,33 +304,27 @@ export class ProposeSystemPlan {
       systemPlannerPrompt({ plan: this.store.file(id), analysis: this.store.analysisFile(id) }),
     );
     if (planned.isErr()) return err(planned.error);
+    const written = await this.store.load(id);
+    if (written.isErr()) return err(written.error);
+    if (written.value.approval || written.value.status !== "draft") {
+      const { approval: _, ...draft } = written.value;
+      const kept = await this.store.save({ ...draft, status: "draft" });
+      if (kept.isErr()) return err(kept.error);
+    }
     return this.lint.execute(id);
   }
 }
 
-/**
- * The gate's exception (ADR-0070): a breaking change is allowed when an approved system plan
- * has a strategy for the contract and the step that breaks it (`bump`, or `contract` once its
- * migrations are done) is next.
- */
+/** The gate's exception (ADR-0070): a breaking change an approved system plan covers, when its step is next. */
 export class PlannedBreakingChanges implements BreakingAllowance {
-  constructor(private readonly store: SystemPlanStore) {}
+  constructor(private readonly store: Pick<SystemPlanStore, "list">) {}
 
-  async allows(contract: string): Promise<Result<string | undefined, MetatorError>> {
+  async allows(contract: string, owner: string): Promise<Result<string | undefined, MetatorError>> {
     const plans = await this.store.list();
     if (plans.isErr()) return err(plans.error);
     for (const plan of plans.value) {
-      if (plan.status !== "approved" && plan.status !== "running") continue;
-      if (!plan.approval || plan.approval.digest !== systemPlanDigest(plan)) continue;
-      if (!plan.strategies.some((s) => s.contract === contract)) continue;
-      const done = new Set(plan.steps.filter((s) => s.status === "done").map((s) => s.id));
-      const step = plan.steps.find(
-        (s) =>
-          s.contracts.some((c) => c.id === contract && (c.role === "bump" || c.role === "contract")) &&
-          s.dependsOn.every((d) => done.has(d)),
-      );
-      if (step)
-        return ok(`planned in system plan ${plan.id} (step ${step.id}, approved by ${plan.approval.by})`);
+      const why = breakingAllowance(plan, contract, owner);
+      if (why) return ok(why);
     }
     return ok(undefined);
   }

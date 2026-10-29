@@ -18,7 +18,6 @@ import {
   nextWave,
   orderedMoves,
   planDigest,
-  planId,
   plannerPrompt,
   type RefactorPlan,
   RefactorPlanSchema,
@@ -26,6 +25,7 @@ import {
 } from "../src/domain/architecture-plan.ts";
 import { EMPTY_POLICY } from "../src/domain/architecture-policy.ts";
 import { MetatorError } from "../src/domain/errors.ts";
+import { planId } from "../src/domain/ids.ts";
 import { err, ok } from "../src/domain/result.ts";
 
 const imp = (from: string, to: string): ResolvedImport => ({ from, to, specifier: "@x/p", typeOnly: false });
@@ -94,9 +94,11 @@ describe("plan basics", () => {
     const p = plan();
     expect(planDigest(p)).toMatch(/^[0-9a-f]{8}$/);
     expect(planDigest({ ...p, title: "other", status: "approved" } as RefactorPlan)).toBe(planDigest(p));
-    expect(planDigest({ moves: [{ ...(p.moves[0] as RefactorPlan["moves"][number]), wave: 2 }] })).not.toBe(
-      planDigest(p),
-    );
+    expect(
+      planDigest({ ...p, moves: [{ ...(p.moves[0] as RefactorPlan["moves"][number]), wave: 2 }] }),
+    ).not.toBe(planDigest(p));
+    // The goal is approved too: a plan approved for no-cycles is not approved for fewer-violations.
+    expect(planDigest({ ...p, goal: "fewer-violations" })).not.toBe(planDigest(p));
   });
 
   test("moves run wave by wave, in file order within a wave; next wave skips done waves", () => {

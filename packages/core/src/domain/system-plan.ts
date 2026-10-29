@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { canonical } from "./architecture-plan.ts";
 import type { ContractStatus } from "./contract-diff.ts";
+import { digestOf } from "./ids.ts";
 import type { SystemImpact } from "./system-impact.ts";
-import { parseConsumes, type SystemMap } from "./system-map.ts";
+import { consumersOf, parseConsumes, type SystemMap } from "./system-map.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -102,20 +102,51 @@ export interface SystemPlanProblem {
   readonly severity: "error" | "warning";
   readonly message: string;
   readonly step?: string;
+  /** `stale-approval`: the only error that approving again fixes. */
+  readonly code?: "stale-approval";
 }
 
-/** FNV-1a over what an approval covers: the strategies and the steps without their progress. */
-export function systemPlanDigest(plan: Pick<SystemPlan, "steps" | "strategies">): string {
-  const text = canonical({
+/**
+ * What an approval covers: the task, the strategies and everything a child run is told (each
+ * step's application, summary, contracts, order and deploy), not the steps' progress.
+ */
+export function systemPlanDigest(plan: Pick<SystemPlan, "task" | "steps" | "strategies">): string {
+  return digestOf({
+    task: plan.task,
     strategies: plan.strategies.map((s) => ({ contract: s.contract, strategy: s.strategy })),
-    steps: plan.steps.map((s) => ({ id: s.id, app: s.app, contracts: s.contracts, dependsOn: s.dependsOn })),
+    steps: plan.steps.map((s) => ({
+      id: s.id,
+      app: s.app,
+      summary: s.summary,
+      contracts: s.contracts,
+      dependsOn: s.dependsOn,
+      deploy: s.deploy,
+    })),
   });
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h.toString(16).padStart(8, "0");
+}
+
+/** Whether a plan's approval still covers it: approved by someone, and unchanged since. */
+export const approvalHolds = (plan: SystemPlan): boolean =>
+  plan.approval !== undefined && plan.approval.digest === systemPlanDigest(plan);
+
+/**
+ * Why an approved plan lets a breaking change to `contract` through, or undefined: the plan is
+ * approved or running, unchanged since, has a strategy for the contract, and the provider's step
+ * that breaks it (`bump`, or `contract` after the migrations) has every step before it done.
+ */
+export function breakingAllowance(plan: SystemPlan, contract: string, owner: string): string | undefined {
+  if ((plan.status !== "approved" && plan.status !== "running") || !approvalHolds(plan)) return undefined;
+  if (!plan.strategies.some((s) => s.contract === contract)) return undefined;
+  const done = new Set(plan.steps.filter((s) => s.status === "done").map((s) => s.id));
+  const step = plan.steps.find(
+    (s) =>
+      s.app === owner &&
+      s.contracts.some((c) => c.id === contract && (c.role === "bump" || c.role === "contract")) &&
+      s.dependsOn.every((d) => done.has(d)),
+  );
+  return step
+    ? `planned in system plan ${plan.id} (step ${step.id}, approved by ${plan.approval?.by})`
+    : undefined;
 }
 
 /**
@@ -143,8 +174,7 @@ export function analysisFrom(input: {
   const roles = new Map<string, Set<"changed" | "provider" | "consumer">>();
   const add = (app: string, role: "changed" | "provider" | "consumer") =>
     roles.set(app, (roles.get(app) ?? new Set()).add(role));
-  for (const a of impact.applications)
-    if (a.reasons.some((r) => r.startsWith("its files changed"))) add(a.id, "changed");
+  for (const a of impact.applications) if (a.changed) add(a.id, "changed");
   for (const c of impact.contracts) {
     add(c.owner, "provider");
     for (const k of c.consumers) add(k.app, "consumer");
@@ -312,8 +342,12 @@ export function lintSystemPlan(
   const warn = (message: string, step?: string) =>
     problems.push({ severity: "warning", message, ...(step ? { step } : {}) });
 
-  if (plan.approval && plan.approval.digest !== systemPlanDigest(plan))
-    error(`the steps changed after ${plan.approval.by} approved them; approve the plan again`);
+  if (plan.approval && !approvalHolds(plan))
+    problems.push({
+      severity: "error",
+      code: "stale-approval",
+      message: `the steps changed after ${plan.approval.by} approved them; approve the plan again`,
+    });
   if (plan.steps.length === 0) error("the plan has no steps");
   const ids = plan.steps.map((s) => s.id);
   for (const dup of new Set(ids.filter((s, i) => ids.indexOf(s) !== i)))
@@ -331,9 +365,20 @@ export function lintSystemPlan(
   if (!systemPlanWaves(plan)) error("the steps depend on each other in a cycle");
   if (problems.some((p) => p.severity === "error")) return problems;
 
-  const stepsOf = (contract: string, role: StepRole) =>
-    plan.steps.filter((s) => s.contracts.some((c) => c.id === contract && c.role === role));
-  const breaking = (analysis?.contracts ?? []).filter((c) => c.change === "breaking");
+  const stepsOf = (contract: string, role: StepRole, app?: string) =>
+    plan.steps.filter(
+      (s) =>
+        (app === undefined || s.app === app) && s.contracts.some((c) => c.id === contract && c.role === role),
+    );
+  // What breaks: what the analysis says, and whatever the plan has a strategy for. Consumers come
+  // from the map, not from the analysis an agent may edit.
+  const breakingIds = new Set([
+    ...(analysis?.contracts ?? []).filter((c) => c.change === "breaking").map((c) => c.id),
+    ...plan.strategies.map((s) => s.contract),
+  ]);
+  const breaking = map.contracts
+    .filter((c) => breakingIds.has(c.id))
+    .map((c) => ({ id: c.id, owner: c.owner, consumers: consumersOf(map, c.id) }));
   for (const c of breaking) {
     const contract = map.contracts.find((x) => x.id === c.id);
     if (contract?.compatibility === "none") continue;
@@ -348,7 +393,8 @@ export function lintSystemPlan(
     }
     if (strategy.strategy !== map.policies.breaking)
       error(`${c.id}: strategy ${strategy.strategy}, but the map's policy is ${map.policies.breaking}`);
-    const first = stepsOf(c.id, strategy.strategy === "versioned" ? "bump" : "expand");
+    // The provider's step: a `bump` or `expand` in a consumer would let the provider break the contract.
+    const first = stepsOf(c.id, strategy.strategy === "versioned" ? "bump" : "expand", c.owner);
     if (first.length === 0)
       error(`${c.id} needs a ${strategy.strategy === "versioned" ? "bump" : "expand"} step in ${c.owner}`);
     for (const k of c.consumers) {
@@ -362,7 +408,7 @@ export function lintSystemPlan(
           error(`${m.id} must run after ${first.map((f) => f.id).join(" or ")}`, m.id);
     }
     if (strategy.strategy === "expand-contract") {
-      const last = stepsOf(c.id, "contract");
+      const last = stepsOf(c.id, "contract", c.owner);
       if (last.length === 0) warn(`${c.id}: no contract step removes the old shape yet`);
       for (const l of last)
         for (const m of stepsOf(c.id, "migrate"))
@@ -370,9 +416,19 @@ export function lintSystemPlan(
             error(`${l.id} must run after ${m.id}: consumers move first`, l.id);
     }
   }
-  for (const s of analysis ? plan.strategies : [])
-    if (!breaking.some((c) => c.id === s.contract))
-      warn(`a strategy for ${s.contract}, which has no breaking change`);
+  for (const s of plan.strategies)
+    if (analysis && !analysis.contracts.some((c) => c.id === s.contract && c.change === "breaking"))
+      warn(`a strategy for ${s.contract}, which the analysis does not call breaking`);
+  for (const c of analysis?.contracts ?? [])
+    if (c.change === "unknown" && consumersOf(map, c.id).length > 0)
+      warn(`${c.id} changes in a way not classified yet (unknown); its consumers may need steps`);
+  for (const s of plan.steps)
+    for (const c of s.contracts)
+      if (
+        (c.role === "bump" || c.role === "contract" || c.role === "expand") &&
+        map.contracts.find((x) => x.id === c.id)?.owner !== s.app
+      )
+        error(`${s.id}: only ${map.contracts.find((x) => x.id === c.id)?.owner} can ${c.role} ${c.id}`, s.id);
 
   // providers-first: a consumer's step runs after the provider's change to what it consumes.
   if (map.policies.deployOrder === "providers-first")

@@ -1,5 +1,5 @@
 import type { Application, SystemMap } from "./system-map.ts";
-import { parseConsumes } from "./system-map.ts";
+import { cleanPath, parseConsumes } from "./system-map.ts";
 
 /**
  * `system discover` (F7.2, ADR-0067): a proposed system map from what the code shows, every
@@ -187,22 +187,26 @@ export function proposeSystem(input: {
 /** What the map lacks that the code shows (applications, contracts, consumers), as messages. */
 export function systemDrift(map: SystemMap, proposal: SystemMap): string[] {
   const drift: string[] = [];
+  // A proposed contract is the map's when its id matches, or its owner and specification do.
+  const contracts = new Map(map.contracts.map((c) => [c.id, c]));
+  const known = (c: SystemMap["contracts"][number]) =>
+    contracts.get(c.id) ??
+    map.contracts.find((x) => x.owner === c.owner && cleanPath(x.spec.path) === cleanPath(c.spec.path));
+  const inMap = new Map(proposal.contracts.map((c) => [c.id, known(c)?.id ?? c.id]));
   const apps = new Map(map.applications.map((a) => [a.id, a]));
   for (const a of proposal.applications) {
-    const known = apps.get(a.id);
-    if (!known) {
+    const app = apps.get(a.id);
+    if (!app) {
       drift.push(`application ${a.id} is not in the map`);
       continue;
     }
-    const consumed = new Set(known.consumes.map((c) => parseConsumes(c).contract));
-    for (const c of a.consumes)
-      if (!consumed.has(c)) drift.push(`${a.id} consumes ${c}, but the map does not say so`);
+    const consumed = new Set(app.consumes.map((c) => parseConsumes(c).contract));
+    for (const c of a.consumes) {
+      const id = inMap.get(c) ?? c;
+      if (!consumed.has(id)) drift.push(`${a.id} consumes ${id}, but the map does not say so`);
+    }
   }
-  const contracts = new Map(map.contracts.map((c) => [c.id, c]));
-  for (const c of proposal.contracts) {
-    const known =
-      contracts.get(c.id) ?? map.contracts.find((x) => x.owner === c.owner && x.spec.path === c.spec.path);
-    if (!known) drift.push(`contract ${c.id} (${c.spec.path} of ${c.owner}) is not in the map`);
-  }
+  for (const c of proposal.contracts)
+    if (!known(c)) drift.push(`contract ${c.id} (${c.spec.path} of ${c.owner}) is not in the map`);
   return drift;
 }

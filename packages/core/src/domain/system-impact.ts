@@ -1,4 +1,11 @@
-import { type Application, type Contract, parseConsumes, type SystemMap } from "./system-map.ts";
+import {
+  type Application,
+  appDir,
+  type Contract,
+  consumersOf,
+  type SystemMap,
+  specPath,
+} from "./system-map.ts";
 
 /**
  * Where a change lands across the system (F7.3, ADR-0068): from the files a change touches (or the
@@ -9,6 +16,8 @@ import { type Application, type Contract, parseConsumes, type SystemMap } from "
 export interface SystemImpact {
   readonly applications: readonly {
     readonly id: string;
+    /** Its own files changed (not only through a contract). */
+    readonly changed: boolean;
     /** Why it is affected: its files changed, or it consumes a changed contract. */
     readonly reasons: readonly string[];
     readonly owners: readonly string[];
@@ -25,24 +34,23 @@ export interface SystemImpact {
   readonly unmapped: readonly string[];
 }
 
-/** `git@github.com:acme/web.git`, `https://github.com/acme/web` and `github.com/acme/web` are one repository. */
+/**
+ * One repository however it is written: `git@github.com:acme/web.git`, `ssh://git@github.com/acme/web`,
+ * `https://bot@github.com/acme/web.git/` and `github.com/acme/web` are the same.
+ */
 export function sameRepository(a: string, b: string): boolean {
   const norm = (s: string) =>
     s
       .trim()
+      .replace(/\/+$/, "")
       .replace(/\.git$/, "")
       .replace(/^[a-z+]+:\/\//, "")
-      .replace(/^[^@/]+@([^:]+):/, "$1/")
+      .replace(/^[^@/]+@([^:/]+):/, "$1/")
+      .replace(/^[^@/]+@/, "")
       .replace(/\/+$/, "")
       .toLowerCase();
   return norm(a) === norm(b);
 }
-
-const join = (dir: string | undefined, path: string) =>
-  !dir || dir === "." ? path : `${dir.replace(/\/+$/, "")}/${path}`;
-
-/** The directory of an application inside its own repository ("." for the whole repository). */
-export const appDir = (app: Application): string => app.source.path ?? ".";
 
 /**
  * The applications whose code is in this repository: the configured ones, those whose `repo` is
@@ -53,9 +61,10 @@ export function selfApplications(
   here: {
     readonly configured?: readonly string[];
     readonly remote?: string;
-    /** This repository's absolute path, and the path the map's relative repos start from. */
+    /** This repository's absolute path. */
     readonly root: string;
     readonly mapIsLocal: boolean;
+    /** Where a repository written in the map is: an absolute path or a URL. */
     readonly resolve: (repo: string) => string;
   },
 ): Application[] {
@@ -63,8 +72,11 @@ export function selfApplications(
   return map.applications.filter((a) => {
     if (!("repo" in a.source)) return here.mapIsLocal;
     const repo = a.source.repo;
+    const where = here.resolve(repo);
+    const remote = here.remote;
     return (
-      (here.remote !== undefined && sameRepository(repo, here.remote)) || here.resolve(repo) === here.root
+      where === here.root ||
+      (remote !== undefined && (sameRepository(repo, remote) || sameRepository(where, remote)))
     );
   });
 }
@@ -79,6 +91,7 @@ export function impactOf(
   },
 ): SystemImpact {
   const reasons = new Map<string, Set<string>>();
+  const changed = new Set<string>();
   const note = (app: string, why: string) => {
     const set = reasons.get(app) ?? new Set<string>();
     set.add(why);
@@ -101,9 +114,9 @@ export function impactOf(
       unmapped.push(file);
       continue;
     }
+    changed.add(app.id);
     note(app.id, `its files changed (${file})`);
-    for (const c of owned(app.id))
-      mark(c, join(appDir(app), c.spec.path) === file ? "spec" : "implementation");
+    for (const c of owned(app.id)) mark(c, specPath(app, c) === file ? "spec" : "implementation");
   }
   for (const id of input.contracts ?? []) {
     const c = map.contracts.find((x) => x.id === id);
@@ -112,12 +125,10 @@ export function impactOf(
   const ordered = [...changes.entries()].sort(([a], [b]) => a.localeCompare(b));
   const contracts = ordered.map(([id, change]) => {
     const c = map.contracts.find((x) => x.id === id) as Contract;
-    const consumers = map.applications.flatMap((a) =>
-      a.consumes
-        .map(parseConsumes)
-        .filter((p) => p.contract === id)
-        .map((p) => ({ app: a.id, ...(p.version ? { version: p.version } : {}) })),
-    );
+    const consumers = consumersOf(map, id).map((k) => ({
+      app: k.app,
+      ...(k.range ? { version: k.range } : {}),
+    }));
     for (const k of consumers) note(k.app, `consumes ${id}${k.version ? `@${k.version}` : ""} (${change})`);
     note(c.owner, `provides ${id}`);
     return { id, owner: c.owner, change, consumers };
@@ -127,6 +138,7 @@ export function impactOf(
       .filter((a) => reasons.has(a.id))
       .map((a) => ({
         id: a.id,
+        changed: changed.has(a.id),
         reasons: [...(reasons.get(a.id) ?? [])],
         owners: [...a.owners],
         source: a.source,
@@ -134,6 +146,29 @@ export function impactOf(
     contracts,
     unmapped: unmapped.sort(),
   };
+}
+
+/**
+ * A repository written relative to another one's URL: `../billing` next to
+ * `https://github.com/acme/platform` is `https://github.com/acme/billing` (also for `git@host:` and
+ * `host/path` forms). Undefined when it climbs above the host.
+ */
+export function relativeRepository(base: string, relative: string): string | undefined {
+  const m = /^([a-z+]+:\/\/[^/]+\/|[^@/]+@[^:/]+:|[^/:]+\/)(.*)$/.exec(base.trim());
+  if (!m) return undefined;
+  const parts = (m[2] ?? "")
+    .replace(/\/+$/, "")
+    .replace(/\.git$/, "")
+    .split("/")
+    .filter(Boolean);
+  for (const segment of relative.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") {
+      if (parts.length === 0) return undefined;
+      parts.pop();
+    } else parts.push(segment);
+  }
+  return `${m[1]}${parts.join("/")}`;
 }
 
 /** The cache directory of a clone: one per repository and commit. */

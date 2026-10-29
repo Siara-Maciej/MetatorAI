@@ -15,7 +15,6 @@ import {
   orderedMoves,
   type PlanGoal,
   planDigest,
-  planId,
   plannerPrompt,
   type RefactorPlan,
   RefactorPlanDocument,
@@ -24,6 +23,7 @@ import {
 } from "../domain/architecture-plan.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { planId } from "../domain/ids.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type DocumentHeader, parseYamlDocument, renderYamlDocument } from "../domain/versioned.ts";
 import type { AgentHost, Clock, FileSystem, Sandbox } from "../ports/index.ts";

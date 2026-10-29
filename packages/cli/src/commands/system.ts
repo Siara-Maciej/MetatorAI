@@ -68,27 +68,16 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
     .option("--fetch", "clone what has no local checkout", false)
     .action(
       action(async (opts: { fetch: boolean }) => {
-        const c = container();
-        const location = c.resolve("systemLocation");
-        const map = await location.load();
-        if (map.isErr()) return { result: map };
-        if (!map.value) return { result: err(MetatorError.notFound(`a system map at ${location.source}`)) };
-        const sources = [];
-        for (const app of map.value.applications) {
-          const at = await c
-            .resolve("systemSources")
-            .locate(app, location, opts.fetch ? { fetch: true } : {});
-          if (at.isErr()) return { result: at };
-          sources.push({
-            app: app.id,
-            ...(at.value ? { root: at.value.root, dir: at.value.dir, via: at.value.via } : { via: "none" }),
-          });
-        }
+        const r = await container()
+          .resolve("systemSources")
+          .locateAll(opts.fetch ? { fetch: true } : {});
         return {
-          result: ok({ map: location.source, sources }),
-          warnings: sources
-            .filter((x) => x.via === "none")
-            .map((x) => `${x.app} has no checkout here: set system.roots.${x.app} or pass --fetch`),
+          result: r,
+          warnings: r.isOk()
+            ? r.value.sources
+                .filter((x) => x.via === "none")
+                .map((x) => `${x.app} has no checkout here: set system.roots.${x.app} or pass --fetch`)
+            : [],
         };
       }),
     );
@@ -101,6 +90,16 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
     .action(
       action(async (opts: { write: boolean; check: boolean }) => {
         const f = ctx.folder();
+        // A folder has no map of its own: the map lives in one repository (the platform's).
+        if (f && (opts.write || opts.check))
+          return {
+            result: err(
+              MetatorError.usage(
+                `--${opts.write ? "write" : "check"} needs a map, and a folder of repositories has none`,
+                "Run it in the repository that holds the map, or copy the proposal there.",
+              ),
+            ),
+          };
         const c = f ? ctx.containerAt(f.root) : container();
         const sources = f
           ? f.repos.map((r) => ctx.containerAt(r.root).resolve("discoverySource"))
@@ -109,7 +108,6 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
         const r = await c.resolve("discoverSystem").execute({
           sources,
           system: basename(f ? f.root : c.resolve("root")),
-          // A folder has no map of its own: the map lives in one repository (the platform's).
           ...(f
             ? {}
             : { map: { file: catalog.source, load: () => catalog.load(), fs: c.resolve("fileSystem") } }),

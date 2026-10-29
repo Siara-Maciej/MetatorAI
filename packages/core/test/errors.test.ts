@@ -7,6 +7,9 @@ describe("MetatorError", () => {
     expect(e).toBeInstanceOf(Error);
     expect([e.code, e.message, e.hint]).toEqual(["USAGE", "Unknown flag --x", "See `metator help`."]);
     expect(MetatorError.notFound("File a.ts", { path: "a.ts" }).details).toEqual({ path: "a.ts" });
+    const hinted = MetatorError.notFound("plan p", { hint: "list them", id: "p" });
+    expect([hinted.hint, hinted.details]).toEqual(["list them", { id: "p" }]);
+    expect(MetatorError.notFound("x", { hint: "h" }).details).toBeUndefined();
   });
 
   test("toJSON omits absent optional fields and never leaks the stack", () => {

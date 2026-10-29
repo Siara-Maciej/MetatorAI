@@ -30,6 +30,7 @@ import {
   type CheckQuote,
   type CheckRules,
   type Clock,
+  type CloneCache,
   type CloseRun,
   type CompareEvals,
   type ComputeAffected,
@@ -123,6 +124,7 @@ import {
   type RemoveWorktree,
   type RepositoryCloner,
   type RepositoryDiscoverySource,
+  type RepositoryRuns,
   type Result,
   type RevisionReader,
   type RuleCatalog,
@@ -135,6 +137,8 @@ import {
   type RunJournal,
   type RunRefactorPlan,
   type RunRepository,
+  type RunSystemEvals,
+  type RunSystemPlan,
   type Sandbox,
   type ScaffoldRule,
   type ScanPatterns,
@@ -152,6 +156,7 @@ import {
   type SystemCatalog,
   type SystemImpactQuery,
   type SystemLocation,
+  type SystemPlanStatus,
   type SystemPlanStore,
   type SystemSources,
   type Timer,
@@ -282,6 +287,11 @@ export interface Cradle {
   contractDetectors: readonly ContractDetector[];
   contractDiffers: readonly ContractDiffer[];
   diffContracts: DiffContracts;
+  cloneCache: CloneCache;
+  repositoryRuns: (root: string) => RepositoryRuns;
+  runSystemPlan: RunSystemPlan;
+  systemPlanStatus: SystemPlanStatus;
+  runSystemEvals: RunSystemEvals;
   systemPlanStore: SystemPlanStore;
   analyzeSystem: AnalyzeSystem;
   createSystemPlan: CreateSystemPlan;

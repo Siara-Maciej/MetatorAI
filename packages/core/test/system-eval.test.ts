@@ -103,6 +103,14 @@ describe("system eval scoring", () => {
       problems: [{ severity: "warning", message: "w" }],
     });
     expect(warnings.passed).toBe(true);
+    // One application too many: almost perfect is not passed (no rounding to 1).
+    const extra = scoreSystemCase({
+      case: CASE,
+      analysis: analysis(["billing", "web", "mail", "search"]),
+      plan: PLAN,
+      problems: [],
+    });
+    expect([extra.impactPrecision, extra.passed]).toEqual([0.75, false]);
   });
 
   test("nothing expected counts as kept; a failed case scores 0; the summary averages", () => {

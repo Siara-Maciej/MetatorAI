@@ -1,22 +1,17 @@
 import type { SystemSettings } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { appDir, cloneDir, impactOf, type SystemImpact, selfApplications } from "../domain/system-impact.ts";
-import { type Application, type SystemMap, SystemMapDocument } from "../domain/system-map.ts";
+import {
+  cloneDir,
+  impactOf,
+  relativeRepository,
+  type SystemImpact,
+  sameRepository,
+  selfApplications,
+} from "../domain/system-impact.ts";
+import { type Application, appDir, type SystemMap, SystemMapDocument } from "../domain/system-map.ts";
 import { parseYamlDocument } from "../domain/versioned.ts";
 import type { CheckoutReader, RepositoryCloner, Vcs } from "../ports/index.ts";
-
-/** Where the system map is: this repository, or a platform repository at a pinned commit. */
-export interface SystemLocation {
-  readonly source: string;
-  /** True when the map is a file of this repository. */
-  readonly local: boolean;
-  load(): Promise<Result<SystemMap | undefined, MetatorError>>;
-  /** The checkout the map is read from: its `path` applications live there. */
-  root(): Promise<Result<string, MetatorError>>;
-  /** Where the map's relative repositories (`../billing`) start: the map repository's own place. */
-  repoBase(): Promise<Result<string, MetatorError>>;
-}
 
 /** `path` resolved against an absolute `base`, with `.` and `..` taken out. */
 export function absolute(base: string, path: string): string {
@@ -32,10 +27,62 @@ export function absolute(base: string, path: string): string {
 /** A path written as a repository (`../billing`, `/src/billing`) rather than a URL. */
 const isPath = (repo: string) => repo.startsWith(".") || repo.startsWith("/");
 
+const NO_MAP_HINT =
+  "`metator system discover --write` proposes one; `system.map` in metator.config points to another repository's.";
+
+/** Where the system map is: this repository, or a platform repository at a pinned commit. */
+export interface SystemLocation {
+  readonly source: string;
+  /** True when the map is a file of this repository. */
+  readonly local: boolean;
+  load(): Promise<Result<SystemMap | undefined, MetatorError>>;
+  /** The map, or NOT_FOUND with how to make one. */
+  require(): Promise<Result<SystemMap, MetatorError>>;
+  /** The checkout the map is read from: its `path` applications live there. */
+  root(): Promise<Result<string, MetatorError>>;
+  /** Where a repository the map names is: an absolute path, or a URL to clone. */
+  resolveRepo(repo: string): Result<string, MetatorError>;
+}
+
 /** A map file of this repository, as `SystemCatalog` reads it. */
 export interface MapFile {
   readonly source: string;
   load(): Promise<Result<SystemMap | undefined, MetatorError>>;
+}
+
+async function required(location: Pick<SystemLocation, "load" | "source">) {
+  const map = await location.load();
+  if (map.isErr()) return err(map.error);
+  return map.value
+    ? ok(map.value)
+    : err(MetatorError.notFound(`a system map at ${location.source}`, { hint: NO_MAP_HINT }));
+}
+
+/**
+ * Clones in `.metator/system/<repo>@<sha>`: a ref is resolved once per command (so the map and
+ * every specification are read at one commit), and each commit is cloned once.
+ */
+export class CloneCache {
+  private readonly shas = new Map<string, Promise<Result<string, MetatorError>>>();
+
+  constructor(
+    private readonly cloner: RepositoryCloner,
+    private readonly dir: string,
+  ) {}
+
+  async at(repo: string, ref?: string): Promise<Result<string, MetatorError>> {
+    const key = `${repo}\u0000${ref ?? ""}`;
+    let sha = this.shas.get(key);
+    if (!sha) {
+      sha = this.cloner.resolve(repo, ref);
+      this.shas.set(key, sha);
+    }
+    const resolved = await sha;
+    if (resolved.isErr()) return err(resolved.error);
+    const target = `${this.dir}/${cloneDir(repo, resolved.value)}`;
+    const done = await this.cloner.checkout(repo, resolved.value, target);
+    return done.isErr() ? err(done.error) : ok(target);
+  }
 }
 
 /** The map in this repository (`docs/metator/system.yml` or `system.map.path`). */
@@ -54,12 +101,16 @@ export class LocalSystemLocation implements SystemLocation {
     return this.catalog.load();
   }
 
+  require() {
+    return required(this);
+  }
+
   async root() {
     return ok(this.here);
   }
 
-  async repoBase() {
-    return ok(this.here);
+  resolveRepo(repo: string): Result<string, MetatorError> {
+    return ok(isPath(repo) ? absolute(this.here, repo) : repo);
   }
 }
 
@@ -69,29 +120,38 @@ export class PinnedSystemLocation implements SystemLocation {
   constructor(
     private readonly map: { readonly repo: string; readonly ref?: string; readonly path: string },
     private readonly here: string,
-    private readonly cache: string,
-    private readonly cloner: RepositoryCloner,
-    private readonly reader: CheckoutReader,
+    private readonly clones: Pick<CloneCache, "at">,
+    private readonly reader: Pick<CheckoutReader, "read">,
   ) {}
 
   get source(): string {
     return `${this.map.repo}@${this.map.ref ?? "HEAD"}:${this.map.path}`;
   }
 
-  private repo(): string {
+  /** The platform repository itself: a path from here, or its URL. */
+  private platform(): string {
     return isPath(this.map.repo) ? absolute(this.here, this.map.repo) : this.map.repo;
   }
 
-  async root(): Promise<Result<string, MetatorError>> {
-    const sha = await this.cloner.resolve(this.repo(), this.map.ref);
-    if (sha.isErr()) return err(sha.error);
-    const dir = `${this.cache}/${cloneDir(this.map.repo, sha.value)}`;
-    const done = await this.cloner.checkout(this.repo(), sha.value, dir);
-    return done.isErr() ? err(done.error) : ok(dir);
+  root(): Promise<Result<string, MetatorError>> {
+    return this.clones.at(this.platform(), this.map.ref);
   }
 
-  async repoBase(): Promise<Result<string, MetatorError>> {
-    return isPath(this.map.repo) ? ok(this.repo()) : this.root();
+  /** Relative repositories (`../billing`) start where the platform repository really is, not in its clone. */
+  resolveRepo(repo: string): Result<string, MetatorError> {
+    if (!isPath(repo)) return ok(repo);
+    const platform = this.platform();
+    if (isPath(this.map.repo)) return ok(absolute(platform, repo));
+    const url = relativeRepository(platform, repo);
+    return url
+      ? ok(url)
+      : err(
+          MetatorError.usage(`${repo} climbs above ${platform}`, "Write the repository as a URL in the map."),
+        );
+  }
+
+  require() {
+    return required(this);
   }
 
   async load(): Promise<Result<SystemMap | undefined, MetatorError>> {
@@ -114,22 +174,54 @@ export interface LocatedSource {
   /** Where its code is on this machine. */
   readonly root: string;
   readonly dir: string;
+  /** here: this repository; map: the map's checkout; local: a checkout set or found; clone: the cache. */
   readonly via: "here" | "map" | "local" | "clone";
 }
 
-/** Where each application's code is on this machine: a configured checkout, a path, or a clone. */
+/**
+ * Where each application's code is on this machine, and which applications this repository is:
+ * a configured checkout (`system.roots`), this repository, a path checkout, or a clone with `fetch`.
+ */
 export class SystemSources {
+  private remote?: Promise<string | undefined>;
+
   constructor(
     private readonly settings: SystemSettings | undefined,
     private readonly here: string,
-    private readonly cache: string,
-    private readonly cloner: RepositoryCloner,
-    private readonly reader: CheckoutReader,
+    readonly location: SystemLocation,
+    private readonly clones: Pick<CloneCache, "at">,
+    private readonly reader: Pick<CheckoutReader, "isDirectory">,
+    private readonly vcs: Pick<Vcs, "remoteUrl">,
   ) {}
+
+  private origin(): Promise<string | undefined> {
+    this.remote ??= this.vcs.remoteUrl().then((r) => (r.isOk() ? r.value : undefined));
+    return this.remote;
+  }
+
+  /** The applications of the map whose code is this repository (`system.self`, its remote or its path). */
+  async self(map: SystemMap): Promise<Result<Application[], MetatorError>> {
+    const resolved = new Map<string, string>();
+    for (const a of map.applications)
+      if ("repo" in a.source) {
+        const where = this.location.resolveRepo(a.source.repo);
+        if (where.isErr()) return err(where.error);
+        resolved.set(a.source.repo, where.value);
+      }
+    const remote = await this.origin();
+    return ok(
+      selfApplications(map, {
+        ...(this.settings?.self ? { configured: this.settings.self } : {}),
+        ...(remote ? { remote } : {}),
+        root: this.here,
+        mapIsLocal: this.location.local,
+        resolve: (repo) => resolved.get(repo) ?? repo,
+      }),
+    );
+  }
 
   async locate(
     app: Application,
-    location: Pick<SystemLocation, "local" | "root" | "repoBase">,
     options: { readonly fetch?: boolean } = {},
   ): Promise<Result<LocatedSource | undefined, MetatorError>> {
     const dir = appDir(app);
@@ -138,52 +230,44 @@ export class SystemSources {
       const root = absolute(this.here, configured);
       if (await this.reader.isDirectory(root)) return ok({ app: app.id, root, dir, via: "local" });
     }
-    const mapRoot = await location.root();
-    if (mapRoot.isErr()) return err(mapRoot.error);
-    if (!("repo" in app.source))
-      return ok({ app: app.id, root: mapRoot.value, dir, via: location.local ? "here" : "map" });
-    const { repo, ref } = app.source;
-    if (isPath(repo)) {
-      const base = await location.repoBase();
-      if (base.isErr()) return err(base.error);
-      const root = absolute(base.value, repo);
-      if (!ref && (await this.reader.isDirectory(root))) return ok({ app: app.id, root, dir, via: "local" });
-      if (!options.fetch) return ok(undefined);
-      return this.clone(app.id, root, ref, dir);
+    if (!("repo" in app.source)) {
+      const mapRoot = await this.location.root();
+      if (mapRoot.isErr()) return err(mapRoot.error);
+      return ok({ app: app.id, root: mapRoot.value, dir, via: this.location.local ? "here" : "map" });
     }
-    return options.fetch ? this.clone(app.id, repo, ref, dir) : ok(undefined);
+    const { repo, ref } = app.source;
+    const where = this.location.resolveRepo(repo);
+    if (where.isErr()) return err(where.error);
+    // This repository, however the map names it (its path or its remote): the same test as `self`.
+    const remote = await this.origin();
+    const isRemote = remote !== undefined && [repo, where.value].some((r) => sameRepository(r, remote));
+    if (where.value === this.here || isRemote) return ok({ app: app.id, root: this.here, dir, via: "here" });
+    if (where.value.startsWith("/") && !ref && (await this.reader.isDirectory(where.value)))
+      return ok({ app: app.id, root: where.value, dir, via: "local" });
+    if (!options.fetch) return ok(undefined);
+    const cloned = await this.clones.at(where.value, ref);
+    return cloned.isErr() ? err(cloned.error) : ok({ app: app.id, root: cloned.value, dir, via: "clone" });
   }
 
-  private async clone(app: string, repo: string, ref: string | undefined, dir: string) {
-    const sha = await this.cloner.resolve(repo, ref);
-    if (sha.isErr()) return err(sha.error);
-    const root = `${this.cache}/${cloneDir(repo, sha.value)}`;
-    const done = await this.cloner.checkout(repo, sha.value, root);
-    if (done.isErr()) return err(done.error);
-    return ok({ app, root, dir, via: "clone" as const });
+  /** Every application of the map, located (`system sources`). */
+  async locateAll(
+    options: { readonly fetch?: boolean } = {},
+  ): Promise<
+    Result<
+      { readonly map: string; readonly sources: readonly (LocatedSource | { app: string; via: "none" })[] },
+      MetatorError
+    >
+  > {
+    const map = await this.location.require();
+    if (map.isErr()) return err(map.error);
+    const sources: (LocatedSource | { app: string; via: "none" })[] = [];
+    for (const app of map.value.applications) {
+      const at = await this.locate(app, options);
+      if (at.isErr()) return err(at.error);
+      sources.push(at.value ?? { app: app.id, via: "none" });
+    }
+    return ok({ map: this.location.source, sources });
   }
-}
-
-/** The applications of the map whose code is this repository (`system.self`, its remote or its path). */
-export async function selfOf(
-  map: SystemMap,
-  location: Pick<SystemLocation, "local" | "repoBase">,
-  vcs: Pick<Vcs, "remoteUrl">,
-  settings: SystemSettings | undefined,
-  here: string,
-): Promise<Result<Application[], MetatorError>> {
-  const remote = await vcs.remoteUrl();
-  const base = await location.repoBase();
-  if (base.isErr()) return err(base.error);
-  return ok(
-    selfApplications(map, {
-      ...(settings?.self ? { configured: settings.self } : {}),
-      ...(remote.isOk() && remote.value ? { remote: remote.value } : {}),
-      root: here,
-      mapIsLocal: location.local,
-      resolve: (repo) => (isPath(repo) ? absolute(base.value, repo) : repo),
-    }),
-  );
 }
 
 export interface SystemImpactReport extends SystemImpact {
@@ -199,10 +283,8 @@ export interface SystemImpactReport extends SystemImpact {
  */
 export class SystemImpactQuery {
   constructor(
-    private readonly location: SystemLocation,
-    private readonly vcs: Pick<Vcs, "changedFiles" | "remoteUrl">,
-    private readonly settings: SystemSettings | undefined,
-    private readonly here: string,
+    private readonly sources: Pick<SystemSources, "self" | "location">,
+    private readonly vcs: Pick<Vcs, "changedFiles">,
   ) {}
 
   async execute(input: {
@@ -210,15 +292,9 @@ export class SystemImpactQuery {
     readonly files?: readonly string[];
     readonly contracts?: readonly string[];
   }): Promise<Result<SystemImpactReport, MetatorError>> {
-    const map = await this.location.load();
+    const map = await this.sources.location.require();
     if (map.isErr()) return err(map.error);
-    if (!map.value)
-      return err(
-        MetatorError.notFound(`a system map at ${this.location.source}`, {
-          hint: "`metator system discover --write` proposes one; `system.map` in metator.config points to another repository's.",
-        }),
-      );
-    const unknown = (input.contracts ?? []).filter((c) => !map.value?.contracts.some((x) => x.id === c));
+    const unknown = (input.contracts ?? []).filter((c) => !map.value.contracts.some((x) => x.id === c));
     if (unknown.length > 0)
       return err(
         MetatorError.usage(
@@ -232,7 +308,7 @@ export class SystemImpactQuery {
       if (changed.isErr()) return err(changed.error);
       files = changed.value;
     }
-    const self = await selfOf(map.value, this.location, this.vcs, this.settings, this.here);
+    const self = await this.sources.self(map.value);
     if (self.isErr()) return err(self.error);
     const impact = impactOf(map.value, {
       self: self.value,
@@ -240,7 +316,7 @@ export class SystemImpactQuery {
       ...(input.contracts ? { contracts: input.contracts } : {}),
     });
     return ok({
-      map: this.location.source,
+      map: this.sources.location.source,
       self: self.value.map((a) => a.id),
       base: input.files ? null : (input.base ?? null),
       ...impact,

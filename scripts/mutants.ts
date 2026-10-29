@@ -1156,14 +1156,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/system.ts",
-    from: "if (!(await this.fs.exists(spec)))",
-    to: "if (false)",
+    from: "if (text.value === undefined)\n        problems.push({",
+    to: "if (false)\n        problems.push({",
     why: "a local specification must exist",
   },
   {
     file: "packages/core/src/application/system.ts",
-    from: 'if (dir === undefined || dir === "." || (this.remote && !this.remote.location.local)) continue;',
-    to: "continue;",
+    from: "/**`])).length === 0)",
+    to: "/**`])).length === -1)",
     why: "a local application directory must exist",
   },
   {
@@ -2032,8 +2032,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/architecture-plan.ts",
-    from: "const text = canonical(plan.moves.map((m) => ({ id: m.id, move: m.move, wave: m.wave })));",
-    to: "const text = canonical(plan.moves);",
+    from: "moves: plan.moves.map((m) => ({ id: m.id, move: m.move, wave: m.wave }))",
+    to: "moves: plan.moves",
     why: "an approval covers the moves, not their reasons or state",
   },
   {
@@ -2158,7 +2158,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/system-discovery.ts",
-    from: "if (!consumed.has(c)) drift.push(",
+    from: "if (!consumed.has(id)) drift.push(",
     to: "if (false) drift.push(",
     why: "a consumer the map lacks is drift",
   },
@@ -2212,8 +2212,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/system-sources.ts",
-    from: "return isPath(this.map.repo) ? ok(this.repo()) : this.root();",
-    to: "return this.root();",
+    from: "if (isPath(this.map.repo)) return ok(absolute(platform, repo));",
+    to: "if (isPath(this.map.repo)) return ok(repo);",
     why: "relative repositories start where the platform repository is, not in its clone",
   },
   {
@@ -2227,12 +2227,6 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'if (rel.startsWith("..") || isAbsolute(rel)) return err(',
     to: "if (false) return err(",
     why: "a checkout path may not leave its root",
-  },
-  {
-    file: "packages/core/src/application/system.ts",
-    from: "if (text.value === undefined)\n          problems.push({",
-    to: "if (false)\n          problems.push({",
-    why: "a specification missing from another repository's checkout is a problem",
   },
   {
     file: "packages/core/src/domain/contract-diff.ts",
@@ -2260,8 +2254,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/contract-diff.ts",
-    from: "if (!named) return ok(map.contracts.filter((c) => mine.has(c.owner)));",
-    to: "if (!named) return ok(map.contracts.filter((c) => mine.has(c.owner) || true));",
+    from: "const owner = mine.get(c.owner);",
+    to: "const owner = mine.get(c.owner) ?? [...mine.values()][0];",
     why: "only the contracts this repository provides are compared",
   },
   {
@@ -2320,26 +2314,26 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/system-plan.ts",
-    from: "if (plan.approval && plan.approval.digest !== systemPlanDigest(plan))",
+    from: "if (plan.approval && !approvalHolds(plan))",
     to: "if (false)",
     why: "an approval covers exactly the steps that were approved",
   },
   {
-    file: "packages/core/src/application/system-plans.ts",
-    from: "s.dependsOn.every((d) => done.has(d))",
-    to: "true",
+    file: "packages/core/src/domain/system-plan.ts",
+    from: "      s.dependsOn.every((d) => done.has(d)),\n",
+    to: "      true,\n",
     why: "a planned breaking change passes only after the steps before it are done",
   },
   {
-    file: "packages/core/src/application/system-plans.ts",
-    from: "if (!plan.approval || plan.approval.digest !== systemPlanDigest(plan)) continue;",
-    to: "if (!plan.approval) continue;",
+    file: "packages/core/src/domain/system-plan.ts",
+    from: 'if ((plan.status !== "approved" && plan.status !== "running") || !approvalHolds(plan)) return undefined;',
+    to: 'if (plan.status !== "approved" && plan.status !== "running") return undefined;',
     why: "a plan edited after its approval allows nothing",
   },
   {
     file: "packages/core/src/application/contract-diff.ts",
-    from: "if (!verdict.allowed && this.planned) {",
-    to: "if (false) {",
+    from: "    if (!verdict.allowed) {",
+    to: "    if (false) {",
     why: "a breaking change an approved system plan covers passes",
   },
   {
@@ -2362,14 +2356,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/system-runs.ts",
-    from: "children: [...(record.children ?? []), run.value.runId]",
-    to: "children: record.children ?? []",
+    from: "children: [...(parent.value.children ?? []), run.value.runId]",
+    to: "children: parent.value.children ?? []",
     why: "the system run lists its child runs",
   },
   {
-    file: "packages/core/src/application/system-runs.ts",
-    from: 'runStatus === "aborted" || runStatus === "escalated"',
-    to: "false",
+    file: "packages/core/src/domain/plan-progress.ts",
+    from: 'if (run === "aborted" || run === "escalated") return "blocked";',
+    to: "",
     why: "an escalated or aborted child run blocks its step",
   },
   {
@@ -2380,8 +2374,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/system-runs.ts",
-    from: "if (plan.approval.digest !== systemPlanDigest(plan))",
-    to: "if (false)",
+    from: "if (!approvalHolds(plan))\n      return err(",
+    to: "if (false)\n      return err(",
     why: "a plan changed after its approval does not run",
   },
   {
@@ -2404,8 +2398,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/system-eval.ts",
-    from: "passed: score === 1,",
-    to: "passed: score >= 0.3,",
+    from: "passed: checks.every((c) => c === 1),",
+    to: "passed: checks.some((c) => c === 1),",
     why: "a case passes only with every check met",
   },
   {
@@ -2413,5 +2407,95 @@ export const MUTANTS: readonly Mutant[] = [
     from: "const linted = input.host",
     to: "const linted = false",
     why: "with a host the system agents plan the case",
+  },
+  {
+    file: "packages/plugin-git/src/git-repository-cloner.ts",
+    from: "      await rm(partial, { recursive: true, force: true });\n      return err(",
+    to: "      return err(",
+    why: "a failed clone leaves no directory behind",
+  },
+  {
+    file: "packages/core/src/domain/system-plan.ts",
+    from: "      summary: s.summary,\n",
+    to: "",
+    why: "the approval covers what a child run is told to do",
+  },
+  {
+    file: "packages/core/src/domain/system-plan.ts",
+    from: 'const breakingIds = new Set([\n    ...(analysis?.contracts ?? []).filter((c) => c.change === "breaking").map((c) => c.id),\n    ...plan.strategies.map((s) => s.contract),\n  ]);',
+    to: 'const breakingIds = new Set((analysis?.contracts ?? []).filter((c) => c.change === "breaking").map((c) => c.id));',
+    why: "a strategy makes a contract breaking whatever the analysis says",
+  },
+  {
+    file: "packages/core/src/domain/system-impact.ts",
+    from: '.replace(/^[^@/]+@/, "")',
+    to: "",
+    why: "a remote with a user is the same repository",
+  },
+  {
+    file: "packages/core/src/domain/system-map.ts",
+    from: 'const clean = path.replace(/^(\\.\\/)+/, "").replace(/\\/+$/, "");',
+    to: "const clean = path;",
+    why: "./web and web/ are the application web",
+  },
+  {
+    file: "packages/core/src/application/system-sources.ts",
+    from: 'if (where.value === this.here || isRemote) return ok({ app: app.id, root: this.here, dir, via: "here" });',
+    to: "",
+    why: "the application this repository is, is located here",
+  },
+  {
+    file: "packages/core/src/application/system-sources.ts",
+    from: "      sha = this.cloner.resolve(repo, ref);\n      this.shas.set(key, sha);",
+    to: "      sha = this.cloner.resolve(repo, ref);",
+    why: "a pinned ref resolves once per command",
+  },
+  {
+    file: "packages/core/src/application/system-plans.ts",
+    from: 'if (written.value.approval || written.value.status !== "draft") {',
+    to: "if (false) {",
+    why: "an agent never approves the plan it wrote",
+  },
+  {
+    file: "packages/core/src/application/system-plans.ts",
+    from: '    if (!analysis.value)\n      problems.push({\n        severity: "error",',
+    to: '    if (!analysis.value)\n      problems.push({\n        severity: "warning",',
+    why: "a plan without an analysis cannot be approved",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: "      ready.push({ step, at: located.value });",
+    to: "      ready.push({ step, at: located.value });\n      break;",
+    why: "every ready step of a wave starts",
+  },
+  {
+    file: "packages/core/src/domain/ids.ts",
+    from: ".replace(/[łđøßæœ]/g, (c) => LETTERS[c] ?? c)",
+    to: "",
+    why: "letters like ł become their base letter in ids",
+  },
+  {
+    file: "packages/core/src/domain/ids.ts",
+    from: ".sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))",
+    to: "",
+    why: "a digest does not depend on key order",
+  },
+  {
+    file: "packages/core/src/application/document-store.ts",
+    from: "if (value.isOk() && value.value.id !== id)",
+    to: "if (false)",
+    why: "a stored document's id is its file name",
+  },
+  {
+    file: "packages/core/src/application/document-store.ts",
+    from: '      if (id.includes(".")) continue;',
+    to: "",
+    why: "analyses next to plans are not listed as plans",
+  },
+  {
+    file: "packages/core/src/domain/errors.ts",
+    from: '...(typeof hint === "string" ? { hint } : {}),',
+    to: "",
+    why: "a not-found error keeps its hint",
   },
 ];

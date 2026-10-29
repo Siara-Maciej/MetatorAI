@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rename, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import { err, MetatorError, ok, type RepositoryCloner, type Result } from "@metator/core";
 import { simpleGit } from "simple-git";
@@ -36,14 +36,19 @@ export class GitRepositoryCloner implements RepositoryCloner {
     }
   }
 
+  /** Cloned next to `dir` and renamed into place once checked out, so `dir` is always complete. */
   async checkout(repo: string, sha: string, dir: string): Promise<Result<void, MetatorError>> {
     if (existsSync(dir)) return ok(undefined);
+    const partial = `${dir}.partial-${process.pid}`;
     try {
       await mkdir(dirname(dir), { recursive: true });
-      await simpleGit().clone(repo, dir, ["--quiet", "--no-checkout"]);
-      await simpleGit(dir).checkout(["--quiet", sha]);
+      await rm(partial, { recursive: true, force: true });
+      await simpleGit().clone(repo, partial, ["--quiet", "--no-checkout"]);
+      await simpleGit(partial).checkout(["--quiet", sha]);
+      await rename(partial, dir);
       return ok(undefined);
     } catch (e) {
+      await rm(partial, { recursive: true, force: true });
       return err(
         new MetatorError(
           "COMMAND_FAILED",
