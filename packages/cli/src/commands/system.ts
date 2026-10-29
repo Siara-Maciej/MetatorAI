@@ -16,10 +16,17 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
 
   system
     .command("lint")
-    .description("Owners, consumed contracts, contract kinds, deploy cycles and the files in this repository")
+    .description("Owners, consumed contracts, contract kinds, deploy cycles and the specifications")
+    .option(
+      "--fetch",
+      "clone other repositories that have no local checkout to check their specifications",
+      false,
+    )
     .action(
-      action(async () => {
-        const report = await container().resolve("lintSystem").execute();
+      action(async (opts: { fetch: boolean }) => {
+        const report = await container()
+          .resolve("lintSystem")
+          .execute(opts.fetch ? { fetch: true } : {});
         if (report.isErr()) return { result: report };
         const errors = report.value.problems.filter((p) => p.severity === "error");
         if (errors.length > 0) {
@@ -34,6 +41,54 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
         }
         const warnings = report.value.problems.filter((p) => p.severity === "warning").map((p) => p.message);
         return { result: ok(report.value), ...(warnings.length > 0 ? { warnings } : {}) };
+      }),
+    );
+
+  system
+    .command("impact")
+    .description("Where a change lands: changed files or named contracts → contracts → consumers → owners")
+    .option("--base <ref>", "the files changed since the merge base with this ref", "HEAD")
+    .option("--files <files...>", "these files instead of git")
+    .option("--contracts <ids...>", "contracts the change touches, by id")
+    .action(
+      action(async (opts: { base: string; files?: string[]; contracts?: string[] }) => ({
+        result: await container()
+          .resolve("systemImpactQuery")
+          .execute({
+            ...(opts.files ? { files: opts.files } : { base: opts.base }),
+            ...(opts.contracts ? { contracts: opts.contracts } : {}),
+          }),
+      })),
+    );
+
+  system
+    .command("sources")
+    .description("Where each application's code is on this machine: here, a checkout or a pinned clone")
+    .option("--fetch", "clone what has no local checkout", false)
+    .action(
+      action(async (opts: { fetch: boolean }) => {
+        const c = container();
+        const location = c.resolve("systemLocation");
+        const map = await location.load();
+        if (map.isErr()) return { result: map };
+        if (!map.value) return { result: err(MetatorError.notFound(`a system map at ${location.source}`)) };
+        const sources = [];
+        for (const app of map.value.applications) {
+          const at = await c
+            .resolve("systemSources")
+            .locate(app, location, opts.fetch ? { fetch: true } : {});
+          if (at.isErr()) return { result: at };
+          sources.push({
+            app: app.id,
+            ...(at.value ? { root: at.value.root, dir: at.value.dir, via: at.value.via } : { via: "none" }),
+          });
+        }
+        return {
+          result: ok({ map: location.source, sources }),
+          warnings: sources
+            .filter((x) => x.via === "none")
+            .map((x) => `${x.app} has no checkout here: set system.roots.${x.app} or pass --fetch`),
+        };
       }),
     );
 

@@ -51,6 +51,8 @@ describe("metator CLI (process e2e)", () => {
       "owners",
       "system show",
       "system lint",
+      "system impact",
+      "system sources",
       "system discover",
       "system schema",
       "arch init",

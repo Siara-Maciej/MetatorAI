@@ -10,7 +10,8 @@ import {
   type SystemProblem,
 } from "../domain/system-map.ts";
 import { parseYamlDocument } from "../domain/versioned.ts";
-import type { ReadonlyFileSystem } from "../ports/index.ts";
+import type { CheckoutReader, ReadonlyFileSystem } from "../ports/index.ts";
+import type { SystemLocation, SystemSources } from "./system-sources.ts";
 
 /** Reads the system map (`docs/metator/system.yml` by default); no file means no map. */
 export class SystemCatalog {
@@ -56,9 +57,15 @@ export class LintSystem {
     private readonly catalog: Pick<SystemCatalog, "load" | "source">,
     private readonly fs: ReadonlyFileSystem,
     private readonly kinds: readonly string[],
+    /** Checks specifications in other repositories (F7.3): local checkouts, or clones with `fetch`. */
+    private readonly remote?: {
+      readonly location: Pick<SystemLocation, "local" | "root" | "repoBase">;
+      readonly sources: Pick<SystemSources, "locate">;
+      readonly reader: Pick<CheckoutReader, "read">;
+    },
   ) {}
 
-  async execute(): Promise<Result<SystemLintReport, MetatorError>> {
+  async execute(options: { readonly fetch?: boolean } = {}): Promise<Result<SystemLintReport, MetatorError>> {
     const loaded = await this.catalog.load();
     if (loaded.isErr()) return err(loaded.error);
     const source = this.catalog.source;
@@ -70,7 +77,8 @@ export class LintSystem {
     const apps = new Map(map.applications.map((a) => [a.id, a]));
     for (const [i, app] of map.applications.entries()) {
       const dir = localDir(app);
-      if (dir === undefined || dir === ".") continue;
+      // With a map from another repository, its path applications are in that repository.
+      if (dir === undefined || dir === "." || (this.remote && !this.remote.location.local)) continue;
       if ((await this.fs.glob([`${dir.replace(/\/$/, "")}/**`])).length === 0)
         problems.push({
           severity: "error",
@@ -82,8 +90,28 @@ export class LintSystem {
       const owner = apps.get(c.owner);
       if (!owner) continue; // reported by the map lint
       const dir = localDir(owner);
-      if (dir === undefined) {
-        unchecked.push(`${c.id}: ${c.spec.path} in ${"repo" in owner.source ? owner.source.repo : owner.id}`);
+      if (dir === undefined || (this.remote && !this.remote.location.local)) {
+        const where = "repo" in owner.source ? owner.source.repo : owner.id;
+        const located = this.remote
+          ? await this.remote.sources.locate(
+              owner,
+              this.remote.location,
+              options.fetch ? { fetch: true } : {},
+            )
+          : ok(undefined);
+        if (located.isErr()) return err(located.error);
+        if (!located.value || !this.remote) {
+          unchecked.push(`${c.id}: ${c.spec.path} in ${where}`);
+          continue;
+        }
+        const text = await this.remote.reader.read(located.value.root, join(located.value.dir, c.spec.path));
+        if (text.isErr()) return err(text.error);
+        if (text.value === undefined)
+          problems.push({
+            severity: "error",
+            path: `contracts.${i}.spec.path`,
+            message: `contract "${c.id}": specification ${join(located.value.dir, c.spec.path)} does not exist in ${where} (${located.value.via})`,
+          });
         continue;
       }
       const spec = join(dir, c.spec.path);

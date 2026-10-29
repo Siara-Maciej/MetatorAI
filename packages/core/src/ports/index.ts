@@ -210,6 +210,21 @@ export interface ManifestReader {
   manifests(): Promise<Result<ManifestSet, MetatorError>>;
 }
 
+/** Other repositories at a pinned commit, cloned once into a cache (F7.3). */
+export interface RepositoryCloner {
+  /** The commit `ref` points to in `repo` (its default branch without a ref). */
+  resolve(repo: string, ref?: string): Promise<Result<string, MetatorError>>;
+  /** A checkout of `sha` in `dir`; an existing one is reused. */
+  checkout(repo: string, sha: string, dir: string): Promise<Result<void, MetatorError>>;
+}
+
+/** Files of another checkout on this machine, by absolute root (F7.3). */
+export interface CheckoutReader {
+  /** The file's text, or undefined when it does not exist. */
+  read(root: string, path: string): Promise<Result<string | undefined, MetatorError>>;
+  isDirectory(path: string): Promise<boolean>;
+}
+
 /** A specification a contract plugin recognized (F7.2). */
 export interface DetectedContract {
   /** Repo-relative file. */

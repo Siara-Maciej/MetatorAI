@@ -83,6 +83,7 @@ import {
   LintWorkflows,
   ListRuns,
   ListWorktrees,
+  LocalSystemLocation,
   MachineLeases,
   MeasureRuleCoverage,
   MemoryBudget,
@@ -91,6 +92,7 @@ import {
   type MetatorPaths,
   PackRules,
   PatternCatalog,
+  PinnedSystemLocation,
   PlanReview,
   ProposeRefactorPlan,
   ProvideWorktree,
@@ -119,6 +121,8 @@ import {
   SymbolQueries,
   SyncRefactorPlan,
   SystemCatalog,
+  SystemImpactQuery,
+  SystemSources,
   UpdateConfig,
   ValidateCitations,
   ValidateFindings,
@@ -129,6 +133,7 @@ import {
 } from "@metator/core";
 import {
   BunBackgroundProcess,
+  BunCheckoutReader,
   BunFileSystem,
   BunLauncher,
   BunMachineState,
@@ -146,7 +151,7 @@ export { findChildRepos, findFolderRoot, findRepoRoot } from "@metator/plugin-bu
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { DockerComposeRuntime } from "@metator/plugin-docker";
-import { GitVcs, GitWorktreeManager } from "@metator/plugin-git";
+import { GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
 import { ClaudeAgentHost, ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
 import { CopilotAgentHost, CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
 import { ScenarioAgentHost } from "@metator/plugin-host-scenario";
@@ -439,12 +444,44 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     findOwners: asFunction(({ fileSystem }) => new FindOwners(fileSystem)),
     // Contract kinds the installed plugins provide (ADR-0047). MVP: OpenAPI only.
     contractKinds: asValue(["openapi"]),
-    systemCatalog: asFunction(({ fileSystem, paths }) => new SystemCatalog(fileSystem, paths.system)),
-    lintSystem: asFunction(
-      ({ systemCatalog, fileSystem, contractKinds }) =>
-        new LintSystem(systemCatalog, fileSystem, contractKinds),
+    systemCatalog: asFunction(({ fileSystem, paths, config }) => {
+      const map = config.config.system?.map;
+      return new SystemCatalog(
+        fileSystem,
+        map && "path" in map && !("repo" in map) ? map.path : paths.system,
+      );
+    }),
+    repositoryCloner: asFunction(() => new GitRepositoryCloner()).singleton(),
+    checkoutReader: asFunction(() => new BunCheckoutReader()).singleton(),
+    systemLocation: asFunction(({ systemCatalog, config, root, repositoryCloner, checkoutReader }) => {
+      const map = config.config.system?.map;
+      return map && "repo" in map
+        ? new PinnedSystemLocation(map, root, join(root, ".metator/system"), repositoryCloner, checkoutReader)
+        : new LocalSystemLocation(systemCatalog, root);
+    }),
+    systemSources: asFunction(
+      ({ config, root, repositoryCloner, checkoutReader }) =>
+        new SystemSources(
+          config.config.system,
+          root,
+          join(root, ".metator/system"),
+          repositoryCloner,
+          checkoutReader,
+        ),
     ),
-    showSystem: asFunction(({ systemCatalog }) => new ShowSystem(systemCatalog)),
+    systemImpactQuery: asFunction(
+      ({ systemLocation, vcs, config, root }) =>
+        new SystemImpactQuery(systemLocation, vcs, config.config.system, root),
+    ),
+    lintSystem: asFunction(
+      ({ systemLocation, fileSystem, contractKinds, systemSources, checkoutReader }) =>
+        new LintSystem(systemLocation, fileSystem, contractKinds, {
+          location: systemLocation,
+          sources: systemSources,
+          reader: checkoutReader,
+        }),
+    ),
+    showSystem: asFunction(({ systemLocation }) => new ShowSystem(systemLocation)),
     contractDetectors: asFunction(() => [new OpenApiContractDetector()]).singleton(),
     discoverySource: asFunction(
       ({ root, vcs, fileSystem, manifestReader, analyzeArchitecture, findOwners }) =>

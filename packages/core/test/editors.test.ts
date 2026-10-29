@@ -25,7 +25,7 @@ describe("editors", () => {
 });
 
 describe("UpdateConfig", () => {
-  test("a YAML config keeps its comments and other settings and becomes v3", async () => {
+  test("a YAML config keeps its comments and other settings and becomes the current version", async () => {
     const fs = new InMemoryFileSystem({
       "metator.config.yml":
         "# ours\nkind: MetatorConfig\nschemaVersion: 2\nhosts:\n  targets: [claude] # only claude\n",
@@ -40,7 +40,7 @@ describe("UpdateConfig", () => {
     expect([config.editor, config.hosts.targets, parse(text).schemaVersion]).toEqual([
       "cursor",
       ["claude"],
-      3,
+      4,
     ]);
   });
 
@@ -51,7 +51,7 @@ describe("UpdateConfig", () => {
     await new UpdateConfig(json).execute({ editor: "zed" });
     expect(JSON.parse((await json.read("metator.config.json"))._unsafeUnwrap())).toEqual({
       kind: "MetatorConfig",
-      schemaVersion: 3,
+      schemaVersion: 4,
       editor: "zed",
     });
     const none = new InMemoryFileSystem();
@@ -94,11 +94,11 @@ describe("UpdateConfig", () => {
     });
   });
 
-  test("every v2 config reads as v3 without an editor", () => {
+  test("every v2 config reads as the current version without an editor", () => {
     const v2 = MetatorConfigDocument.parse(
       { kind: "MetatorConfig", schemaVersion: 2, hosts: { targets: ["copilot"] } },
       "c",
     );
-    expect([v2._unsafeUnwrap().editor, MetatorConfigDocument.current]).toEqual([undefined, 3]);
+    expect([v2._unsafeUnwrap().editor, MetatorConfigDocument.current]).toEqual([undefined, 4]);
   });
 });

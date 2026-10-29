@@ -221,11 +221,41 @@ metator system show [options]
 
 ### `metator system lint`
 
-Owners, consumed contracts, contract kinds, deploy cycles and the files in this repository
+Owners, consumed contracts, contract kinds, deploy cycles and the specifications
 
 ```bash
 metator system lint [options]
 ```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--fetch` | clone other repositories that have no local checkout to check their specifications |  |
+
+### `metator system impact`
+
+Where a change lands: changed files or named contracts → contracts → consumers → owners
+
+```bash
+metator system impact [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--base <ref>` | the files changed since the merge base with this ref | `"HEAD"` |
+| `--files <files...>` | these files instead of git |  |
+| `--contracts <ids...>` | contracts the change touches, by id |  |
+
+### `metator system sources`
+
+Where each application's code is on this machine: here, a checkout or a pinned clone
+
+```bash
+metator system sources [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--fetch` | clone what has no local checkout |  |
 
 ### `metator system discover`
 

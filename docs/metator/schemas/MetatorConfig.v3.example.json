@@ -1,0 +1,9 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 3,
+  "editor": "code",
+  "gates": {
+    "full": [{ "id": "graph", "run": { "metator": "graph diff" } }]
+  },
+  "hosts": { "targets": ["claude"], "metatorCommand": "bun run metator" }
+}

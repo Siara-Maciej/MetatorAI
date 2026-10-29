@@ -23,6 +23,7 @@ import {
   type CheckDebugTags,
   type CheckFlaky,
   type CheckMemory,
+  type CheckoutReader,
   type CheckpointRun,
   type CheckQuote,
   type CheckRules,
@@ -113,6 +114,7 @@ import {
   type RecordArchitectureBaseline,
   type RefactorPlanStore,
   type RemoveWorktree,
+  type RepositoryCloner,
   type RepositoryDiscoverySource,
   type Result,
   type RevisionReader,
@@ -141,6 +143,9 @@ import {
   type SymbolQueries,
   type SyncRefactorPlan,
   type SystemCatalog,
+  type SystemImpactQuery,
+  type SystemLocation,
+  type SystemSources,
   type Timer,
   type ToolBoundariesReader,
   type TreeCopier,
@@ -269,6 +274,11 @@ export interface Cradle {
   contractDetectors: readonly ContractDetector[];
   discoverySource: RepositoryDiscoverySource;
   discoverSystem: DiscoverSystem;
+  repositoryCloner: RepositoryCloner;
+  checkoutReader: CheckoutReader;
+  systemLocation: SystemLocation;
+  systemSources: SystemSources;
+  systemImpactQuery: SystemImpactQuery;
   architecturePolicyCatalog: ArchitecturePolicyCatalog;
   architectureFacts: ArchitectureFacts;
   analyzeArchitecture: AnalyzeArchitecture;

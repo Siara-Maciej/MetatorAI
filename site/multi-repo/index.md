@@ -19,7 +19,7 @@ The same map describes both topologies, and mixed setups too:
 | Separate repositories | `source: { repo: github.com/shop/mailer, ref: v1.4.0 }` |
 | Mixed | both kinds in one map |
 
-Other repositories are read from a local checkout when you work locally, or from a clone pinned to `ref` in CI and review (F7.3).
+Other repositories are read from a local checkout when you work locally, or from a clone pinned to `ref` in CI and review (see [Where a change lands](#where-a-change-lands)).
 
 ## Describe the system
 
@@ -120,14 +120,69 @@ metator system schema    # the JSON Schema of the map
 
 `system lint` runs inside `metator meta check-all`, so a map that drifts from the code fails CI.
 
+## Where a change lands
+
+In a system of many repositories, each application repository points at the one map:
+
+```yaml
+# metator.config.yml in the billing and web repositories
+kind: MetatorConfig
+schemaVersion: 4
+system:
+  map: { repo: ../platform, ref: main, path: docs/metator/system.yml }   # a URL works too
+```
+
+MetatorAI resolves `ref` to a commit and reads the map from a clone of exactly that commit, cached in `.metator/system/`. A map written as a path (`system.map: { path: ... }`) is a file of this repository.
+
+```bash
+metator system impact                      # the files changed since HEAD
+metator system impact --base main          # since a branch
+metator system impact --files openapi.yaml # or the files you name
+metator system impact --contracts billing-api   # what a change to a contract reaches, from any repository
+```
+
+```json
+{"map":"../platform@main:docs/metator/system.yml","self":["billing"],
+ "contracts":[{"id":"billing-api","owner":"billing","change":"spec","consumers":[{"app":"web","version":"^2"}]}],
+ "applications":[
+   {"id":"billing","reasons":["its files changed (openapi.yaml)","provides billing-api"],"owners":["@billing-team"]},
+   {"id":"web","reasons":["consumes billing-api@^2 (spec)"],"owners":["@web-team"]}],
+ "unmapped":[]}
+```
+
+| Field | Meaning |
+|---|---|
+| `self` | the applications this repository is: `system.self`, else those whose `repo` is this repository (its remote or its path), else, with the map here, its `path` applications |
+| `change: spec` | the contract's specification changed |
+| `change: implementation` | other files of the provider changed: the contract may behave differently |
+| `change: named` | you asked about it with `--contracts` |
+| `unmapped` | changed files that belong to no application |
+
+**Where the other applications' code is:**
+
+```bash
+metator system sources            # each application: here, in the map's checkout, a local checkout, or none
+metator system sources --fetch    # clone what is missing, at its pinned ref
+metator system lint --fetch       # check specifications in other repositories too
+```
+
+| Source in the map | Found at |
+|---|---|
+| `{ path: apps/web }` | the repository the map is in |
+| `{ repo: ../web }` | that directory, relative to the platform repository |
+| `{ repo: ../billing, ref: main }`, `{ repo: github.com/shop/mailer }` | a clone at the pinned commit, with `--fetch` |
+| any, with `system.roots.<id>` | your local checkout |
+
+Clones never run code and never change your checkouts. Without `--fetch`, MetatorAI does not touch the network, and `system lint` lists the specifications it could not check.
+
 ## Roadmap of the multi-repo phase (F7)
 
 | Step | What it adds | Status |
 |---|---|---|
 | F7.1 System map | `SystemMap`, `system lint`, `system show`, deploy waves | ✅ available |
 | F7.2 Discovery | detect monorepo or separate repositories, applications and OpenAPI specs; propose the map with evidence (`system discover`) | ✅ available |
-| F7.3 Impact | read other repositories (checkout or pinned clone); `system impact`: changed files → contracts → consumers → owners | next |
-| F7.4 Compatibility | `contract diff` for OpenAPI (breaking or not) and a contract gate | planned |
+| F7.3 Impact | read other repositories (checkout or pinned clone); `system impact`: changed files → contracts → consumers → owners | ✅ available |
+| F7.4 Compatibility | `contract diff` for OpenAPI (breaking or not) and a contract gate | next |
 | F7.5 System plan | a plan per application, in deploy order, with a strategy for breaking changes; `mt-system-scout`, `mt-system-planner` | planned |
 | F7.6 Linked runs | one system run with child runs in each repository, a combined status | planned |
 

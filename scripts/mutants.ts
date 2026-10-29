@@ -1162,7 +1162,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/system.ts",
-    from: 'if (dir === undefined || dir === ".") continue;',
+    from: 'if (dir === undefined || dir === "." || (this.remote && !this.remote.location.local)) continue;',
     to: "continue;",
     why: "a local application directory must exist",
   },
@@ -2185,5 +2185,53 @@ export const MUTANTS: readonly Mutant[] = [
     from: "if (!/^(3\\.|2\\.0)/.test(String(version))) return ok(undefined);",
     to: "",
     why: "only OpenAPI 3 and Swagger 2 are specifications",
+  },
+  {
+    file: "packages/core/src/domain/system-impact.ts",
+    from: "if (!before || rank[change] > rank[before]) changes.set(c.id, change);",
+    to: "changes.set(c.id, change);",
+    why: "a spec change wins over an implementation change of one contract",
+  },
+  {
+    file: "packages/core/src/domain/system-impact.ts",
+    from: ".sort((x, y) => depth(y) - depth(x))[0];",
+    to: "[0];",
+    why: "the deepest application owns a changed file",
+  },
+  {
+    file: "packages/core/src/domain/system-impact.ts",
+    from: 'if (!("repo" in a.source)) return here.mapIsLocal;',
+    to: 'if (!("repo" in a.source)) return true;',
+    why: "path applications are this repository's only when the map is here",
+  },
+  {
+    file: "packages/core/src/application/system-sources.ts",
+    from: "if (!options.fetch) return ok(undefined);",
+    to: "",
+    why: "a repository is cloned only with --fetch",
+  },
+  {
+    file: "packages/core/src/application/system-sources.ts",
+    from: "return isPath(this.map.repo) ? ok(this.repo()) : this.root();",
+    to: "return this.root();",
+    why: "relative repositories start where the platform repository is, not in its clone",
+  },
+  {
+    file: "packages/plugin-git/src/git-repository-cloner.ts",
+    from: "^{}`) ?? pick(`heads/",
+    to: "`) ?? pick(`heads/",
+    why: "an annotated tag pins its commit, not the tag object",
+  },
+  {
+    file: "packages/plugin-bun/src/bun-checkout-reader.ts",
+    from: 'if (rel.startsWith("..") || isAbsolute(rel)) return err(',
+    to: "if (false) return err(",
+    why: "a checkout path may not leave its root",
+  },
+  {
+    file: "packages/core/src/application/system.ts",
+    from: "if (text.value === undefined)\n          problems.push({",
+    to: "if (false)\n          problems.push({",
+    why: "a specification missing from another repository's checkout is a problem",
   },
 ];

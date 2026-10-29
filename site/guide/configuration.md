@@ -11,7 +11,7 @@ metator config schema    # JSON Schema, e.g. for editor completion
 
 ```yaml
 kind: MetatorConfig
-schemaVersion: 2
+schemaVersion: 4
 
 # Quality gates: your own checks, run by `metator gate quick|full` and by agents.
 gates:
@@ -52,7 +52,15 @@ hosts:
 
 # The editor `metator ui` opens a run's worktree in; set the first time you pick one.
 editor: code                               # or "code --new-window", cursor, zed, nvim, ...
+
+# A system of many applications (see "Systems of many applications").
+system:
+  map: { repo: github.com/shop/platform, ref: v3, path: docs/metator/system.yml }   # the map in a platform repository
+  roots: { billing: ../billing }           # local checkouts of other applications
+  self: [web]                              # which applications this repository is (found from the map when unset)
 ```
+
+Older files (`schemaVersion` 1 to 3) still load: MetatorAI upgrades them in memory.
 
 ## Gates
 
