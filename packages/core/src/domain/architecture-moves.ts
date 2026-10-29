@@ -89,14 +89,21 @@ export function checkMoves(input: ArchitectureInput, moves: readonly Move[]): st
     if (m.type === "merge") {
       need(m.from);
       need(m.into);
+      if (m.from === m.into) problems.push(`${describe(m)}: a package cannot merge into itself`);
     }
     if (m.type === "invert") {
       need(m.from);
       need(m.to);
+      if (m.from === m.to) problems.push(`${describe(m)}: a package does not depend on itself`);
     }
     if (m.type === "declare") need(m.package);
     if (m.type === "extract") {
       if (known.has(m.package.name)) problems.push(`${describe(m)}: ${m.package.name} already exists`);
+      const dir = m.package.dir.replace(/\/+$/, "");
+      const clash = [...input.manifests.packages, ...(input.extraPackages ?? [])].find(
+        (p) => p.dir === dir || p.dir.startsWith(`${dir}/`),
+      );
+      if (clash) problems.push(`${describe(m)}: ${dir} holds ${clash.name} already`);
       known.add(m.package.name);
     }
     if ((m.type === "move" || m.type === "extract") && !input.files.some((f) => matchesAny(f, m.files)))
@@ -207,18 +214,44 @@ export function applyMoves(
     byName.set(a, withDependency(pa, b));
     declared.push({ package: a, dependency: b });
   }
-  // External packages the moved files import go with them.
+  // External packages the moved files import go with them, from the package they were in before.
+  const earlier = [...input.manifests.packages, ...(input.extraPackages ?? [])];
+  const ownerBefore = (file: string) =>
+    input.placement?.get(file) ??
+    packageOf(
+      file,
+      earlier.map((p) => ({ name: p.name, dir: p.dir })),
+    )?.name;
   for (const x of externals) {
     if (!touched.has(x.from)) continue;
     const pa = byName.get(owner(x.from));
-    const before = input.manifests.packages.find(
-      (p) => p.name === (packageOf(x.from, input.manifests.packages)?.name ?? ""),
-    );
+    const before = earlier.find((p) => p.name === ownerBefore(x.from));
     const field = before ? DEPENDENCY_FIELDS.find((f) => before[f][x.name] !== undefined) : undefined;
     if (!pa || !field || DEPENDENCY_FIELDS.some((f) => pa[f][x.name] !== undefined)) continue;
     byName.set(pa.name, { ...pa, [field]: { ...pa[field], [x.name]: before?.[field][x.name] ?? "*" } });
     declared.push({ package: pa.name, dependency: x.name });
   }
+  // Declarations the moves made stale: a package that used a workspace package before and no
+  // longer imports it after (its files moved, or the dependency was inverted) drops it.
+  const pairs = (
+    of: (file: string) => string | undefined,
+    list: readonly ResolvedImport[],
+    xs: readonly { readonly from: string; readonly name: string }[],
+  ) =>
+    new Set([
+      ...list.map((i) => `${of(i.from)}\u0000${of(i.to)}`),
+      ...xs.map((x) => `${of(x.from)}\u0000${x.name}`),
+    ]);
+  const usedBefore = pairs(ownerBefore, input.imports, input.externals);
+  const usedAfter = pairs(owner, imports, externals);
+  for (const [name, p] of byName)
+    for (const field of DEPENDENCY_FIELDS)
+      for (const dep of Object.keys(p[field])) {
+        const key = `${name}\u0000${dep}`;
+        if (!byName.has(dep) || !usedBefore.has(key) || usedAfter.has(key)) continue;
+        const { [dep]: _, ...rest } = (byName.get(name) as PackageManifest)[field];
+        byName.set(name, { ...(byName.get(name) as PackageManifest), [field]: rest });
+      }
   const isExtra = new Set(extra.map((p) => p.name));
   const packages = [...byName.values()].filter((p) => !isExtra.has(p.name));
   const created = [...byName.values()].filter((p) => isExtra.has(p.name));

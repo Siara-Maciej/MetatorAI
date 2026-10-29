@@ -642,14 +642,28 @@ export function analyzeArchitecture(input: ArchitectureInput): ArchitectureRepor
   const counted = (file: string) => !ignored(file) && !isTest(file);
   const barrel = (file: string) =>
     /(^|\/)index\.[cm]?[jt]sx?$/.test(file) || (byPackage.get(pkgOf(file))?.entries.includes(file) ?? false);
-  const seedsFrom = (keep: (from: string, target: string) => boolean, tests = false) =>
-    [...modules.entries()].flatMap(([from, m]) =>
-      counted(from) || (tests && !ignored(from))
-        ? m.imports
-            .filter((i) => keep(from, i.target))
-            .map((i) => ({ target: i.target, imported: i.imported }))
-        : [],
-    );
+  // Imports of a workspace package by name that is not linked (no install): its entry files,
+  // wholly, since the names imported were not resolved.
+  const unlinkedSeeds = input.externals.flatMap((x) =>
+    (byPackage.get(x.name)?.entries ?? [])
+      .filter((f) => modules.has(f))
+      .map((target) => ({ from: x.from, target, imported: "*" })),
+  );
+  const seedsFrom = (keep: (from: string, target: string) => boolean, tests = false) => {
+    const usable = (from: string) => counted(from) || (tests && !ignored(from));
+    return [
+      ...[...modules.entries()].flatMap(([from, m]) =>
+        usable(from)
+          ? m.imports
+              .filter((i) => keep(from, i.target))
+              .map((i) => ({ target: i.target, imported: i.imported }))
+          : [],
+      ),
+      ...unlinkedSeeds
+        .filter((s) => usable(s.from) && keep(s.from, s.target))
+        .map((s) => ({ target: s.target, imported: s.imported })),
+    ];
+  };
   const usedOutside = reachedExports(
     modules,
     seedsFrom((from, target) => pkgOf(from) !== pkgOf(target)),
@@ -758,8 +772,9 @@ export function analyzeArchitecture(input: ArchitectureInput): ArchitectureRepor
       .filter((p) => p.metrics && p.metrics.ca >= 3 && p.metrics.ce >= 3)
       .map((p) => ({ package: p.name, fanIn: p.metrics?.ca ?? 0, fanOut: p.metrics?.ce ?? 0 })),
     deadExports: deadExports.slice(0, 200),
+    // A package only tests use (a testing library) is used: test edges count here.
     deadPackages: workspace
-      .filter((p) => p.kind === "lib" && isPrivate(p.name) && p.dependents.length === 0)
+      .filter((p) => p.kind === "lib" && isPrivate(p.name) && !edges.some((e) => e.to === p.name))
       .map((p) => p.name),
   };
 
@@ -870,6 +885,8 @@ function kindOf(
     if (rule.kind && rule.packages.some((p) => matchesPackage(p, m))) return rule.kind;
   if (m.projectType) return m.projectType === "application" ? "app" : "lib";
   if (m.dir === "apps" || m.dir.startsWith("apps/")) return "app";
+  // A package others import is a library, even with a `bin` (a tool that is also a library, like
+  // typescript); mark an imported application with `kind: app` in the policy to check app-import.
   if (dependents > 0) return "lib";
   const runnable = ["start", "dev", "serve"].some((s) => m.scripts[s] !== undefined);
   return m.bin || (runnable && !m.entry) ? "app" : "lib";
@@ -892,7 +909,8 @@ export function packageCycles(edges: readonly ArchEdge[]): ArchCycle[] {
       const inner = edges
         .filter((e) => members.has(e.from) && members.has(e.to))
         .map((e) => ({ from: e.from, to: e.to, imports: e.imports, runtime: e.runtime }));
-      const typeOnly = !runtimeSets.some((r) => c.every((p) => r.has(p)));
+      // Type-only when no runtime cycle runs through it: a runtime SCC inside it is a runtime cycle.
+      const typeOnly = !runtimeSets.some((r) => r.size > 1 && [...r].every((p) => members.has(p)));
       const packages = [...c].sort(byName);
       return { packages, edges: inner, typeOnly, cut: cheapestCut({ packages, edges: inner }) };
     })

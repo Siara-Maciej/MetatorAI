@@ -319,8 +319,7 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
           ...(opts.host ? { host: opts.host } : {}),
           ...(opts.case ? { only: opts.case } : {}),
         });
-        if (r.isErr() || opts.min === undefined || r.value.summary.score >= Number(opts.min))
-          return { result: r };
+        if (r.isErr() || opts.min === undefined || r.value.summary.score >= opts.min) return { result: r };
         return {
           result: err(
             new MetatorError("CHECK_FAILED", `mean score ${r.value.summary.score} is below ${opts.min}`, {

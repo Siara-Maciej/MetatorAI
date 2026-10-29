@@ -145,9 +145,9 @@ describe("metator arch (real CLI, real monorepo)", () => {
     // The example on the architecture guide page.
     expect(invert.effect).toMatchObject({
       before: { cycles: 1, errors: 5, warnings: 2, score: 73 },
-      after: { cycles: 0, errors: 5, warnings: 2, score: 73 },
+      after: { cycles: 0, errors: 5, warnings: 1, score: 74 },
       fixed: ["cycle:@shop/cart,@shop/pricing"],
-      added: [{ id: "unused-dependency:@shop/pricing→@shop/cart", severity: "warning" }],
+      added: [],
       rewrites: 1,
       declared: [],
     });

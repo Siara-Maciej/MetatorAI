@@ -113,6 +113,7 @@ import {
   type RepositoryRuns,
   RuleCatalog,
   RunAffectedTests,
+  RunArchEvals,
   RunDrivers,
   RunEvals,
   RunGate,
@@ -670,6 +671,22 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     runRefactorPlan: asFunction(
       ({ refactorPlanStore, initRun }) => new RunRefactorPlan(refactorPlanStore, initRun),
+    ),
+    runArchEvals: asFunction(
+      ({ fileSystem, paths, sandbox }) =>
+        new RunArchEvals(
+          fileSystem,
+          paths.archEvals,
+          sandbox,
+          (root) => {
+            const there = elsewhere(root);
+            return {
+              propose: there.resolve("proposeRefactorPlan"),
+              facts: there.resolve("architectureFacts"),
+            };
+          },
+          () => agentDefinitionFiles(fileSystem, ["mt-arch-planner"]),
+        ),
     ),
     syncRefactorPlan: asFunction(
       ({ refactorPlanStore, runRepository }) => new SyncRefactorPlan(refactorPlanStore, runRepository),

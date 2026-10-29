@@ -457,6 +457,36 @@ describe("analyzeArchitecture: metrics and boundaries", () => {
     expect(r.boundaries?.hubs).toEqual([]);
   });
 
+  test("an unlinked monorepo (no install): imports by package name still use the package's exports", () => {
+    const mods = new Map(world().modules);
+    const cart = mods.get("packages/cart/src/index.ts") as ResolvedModule;
+    mods.set("packages/cart/src/index.ts", { ...cart, imports: [] });
+    const unlinked = world({
+      modules: mods,
+      imports: world().imports.filter((i) => i.from !== "packages/cart/src/index.ts"),
+      externals: [{ from: "packages/cart/src/index.ts", name: "@x/money", typeOnly: false }],
+      manifests: {
+        packages: world().manifests.packages.map((p) =>
+          p.name === "@x/money" ? { ...p, entries: ["packages/money/src/index.ts"] } : p,
+        ),
+      },
+    });
+    const r = analyzeArchitecture(unlinked);
+    expect(r.boundaries?.deadExports.map((d) => d.package)).not.toContain("@x/money");
+    expect(r.packages.find((p) => p.name === "@x/money")?.metrics?.exportsUsed).toBeGreaterThan(0);
+  });
+
+  test("a library only tests use (a testing library) is not dead", () => {
+    const r = analyzeArchitecture(
+      world({
+        files: [...world().files, "packages/testing/src/index.ts"],
+        imports: [...world().imports, imp("packages/kit/test/kit.test.ts", "packages/testing/src/index.ts")],
+        manifests: { packages: [...world().manifests.packages, m("packages/testing", "@x/testing")] },
+      }),
+    );
+    expect(r.boundaries?.deadPackages).toEqual([]);
+  });
+
   test("without modules there are no dead exports and abstractness is 0", () => {
     const { modules: _, ...bare } = world();
     const r = analyzeArchitecture(bare);

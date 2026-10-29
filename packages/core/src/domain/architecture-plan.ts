@@ -90,13 +90,59 @@ const summary = (r: ArchitectureReport) => ({
   score: r.summary.score,
 });
 
-/** The plan with each move's effect (relative to the state before it) and the whole result. */
+/** Moves not yet done: the ones the repository does not show yet. Done moves are its code now. */
+const remaining = (plan: Pick<RefactorPlan, "moves">): PlanMove[] =>
+  orderedMoves(plan).filter((m) => m.status !== "done");
+
+/** Files a move rewrites by name: two moves of one wave must not share one (they run in parallel). */
+const filesOf = (m: Move): readonly string[] => (m.type === "move" || m.type === "extract" ? m.files : []);
+
+/**
+ * The remaining moves applied wave by wave. The moves of one wave run in parallel, each in its own
+ * worktree, so each must be possible on the state the waves before it leave (not on its siblings').
+ */
+export function replayPlan(
+  input: ArchitectureInput,
+  plan: Pick<RefactorPlan, "moves">,
+): { readonly state: ArchitectureInput; readonly problems: readonly RefactorPlanProblem[] } {
+  const problems: RefactorPlanProblem[] = [];
+  let state = input;
+  const moves = remaining(plan);
+  for (const wave of [...new Set(moves.map((m) => m.wave))]) {
+    const inWave = moves.filter((m) => m.wave === wave);
+    const owner = new Map<string, string>();
+    for (const pm of inWave) {
+      for (const p of checkMoves(state, [pm.move]))
+        problems.push({ severity: "error", move: pm.id, message: p });
+      for (const f of filesOf(pm.move)) {
+        const other = owner.get(f);
+        if (other)
+          problems.push({
+            severity: "error",
+            move: pm.id,
+            message: `${f} is also moved by ${other} in wave ${wave}; moves of one wave run in parallel`,
+          });
+        else owner.set(f, pm.id);
+      }
+    }
+    state = applyMoves(
+      state,
+      inWave.map((m) => m.move),
+    ).input;
+  }
+  return { state, problems };
+}
+
+/**
+ * The plan with each remaining move's effect (relative to the state before it) and the whole
+ * result. A done move keeps the effect it had: the repository already shows it.
+ */
 export function simulatePlan(input: ArchitectureInput, plan: RefactorPlan): RefactorPlan {
   let state = input;
   let report = analyzeArchitecture(input);
   const first = report;
   const effects = new Map<string, z.output<typeof EffectSchema>>();
-  for (const pm of orderedMoves(plan)) {
+  for (const pm of remaining(plan)) {
     const s = simulateMoves(state, [pm.move], report);
     effects.set(pm.id, {
       scoreBefore: s.effect.before.score,
@@ -123,23 +169,25 @@ export interface RefactorPlanProblem {
   readonly severity: "error" | "warning";
   readonly move?: string;
   readonly message: string;
+  /** `stale-approval`: the one error approving again fixes. */
+  readonly code?: "stale-approval";
 }
 
+type Counts = Pick<ArchitectureReport["summary"], "cycles" | "errors" | "warnings">;
+
 /** Whether a goal holds after the plan, given the report before it. */
-export function goalMet(
-  goal: PlanGoal,
-  before: ArchitectureReport["summary"],
-  after: ArchitectureReport["summary"],
-): boolean {
+export function goalMet(goal: PlanGoal, before: Counts, after: Counts): boolean {
   if (goal === "no-cycles") return after.cycles === 0;
   if (goal === "no-errors") return after.errors === 0;
   return after.errors + after.warnings < before.errors + before.warnings;
 }
 
 /**
- * Plan lint (E1): ids unique, waves 1, 2, … without gaps, every move possible where it runs,
- * citations that exist, effects written by the current simulation, no error the plan adds, the
- * goal reached, and an approval that still covers the moves.
+ * Plan lint (E1): ids unique, waves 1, 2, … without gaps, every move possible where it runs and
+ * no file in two moves of one wave, citations that exist, effects written by the current
+ * simulation, no error the plan adds, the goal reached, and an approval that still covers the
+ * moves. Once moves are done the repository is their result: lint checks what remains, and the
+ * goal against the result the plan started from.
  */
 export function lintRefactorPlan(
   plan: RefactorPlan,
@@ -153,7 +201,11 @@ export function lintRefactorPlan(
     problems.push({ severity: "warning", message, ...(move ? { move } : {}) });
 
   if (plan.approval && plan.approval.digest !== planDigest(plan))
-    error(`the moves changed after ${plan.approval.by} approved them; approve the plan again`);
+    problems.push({
+      severity: "error",
+      code: "stale-approval",
+      message: `the moves changed after ${plan.approval.by} approved them; approve the plan again`,
+    });
   if (plan.moves.length === 0) error("the plan has no moves");
   const ids = plan.moves.map((m) => m.id);
   for (const id of new Set(ids.filter((id, i) => ids.indexOf(id) !== i)))
@@ -167,32 +219,35 @@ export function lintRefactorPlan(
     for (const c of m.citations)
       if (!exists(c.replace(/:\d+(-\d+)?$/, ""))) error(`${c} does not exist`, m.id);
 
-  // Every move must be possible on the state the moves before it leave.
-  let state = input;
-  for (const pm of orderedMoves(plan)) {
-    for (const p of checkMoves(state, [pm.move])) error(p, pm.id);
-    state = applyMoves(state, [pm.move]).input;
-  }
-  if (problems.some((p) => p.severity === "error")) return problems;
+  const replayed = replayPlan(input, plan);
+  problems.push(...replayed.problems);
+  if (problems.some((p) => p.severity === "error" && p.code !== "stale-approval")) return problems;
 
-  const simulated = simulatePlan(input, plan);
-  for (const m of simulated.moves) {
-    const written = plan.moves.find((x) => x.id === m.id)?.effect;
-    if (canonical(written) !== canonical(m.effect))
-      error("the effect is missing or out of date: run `metator arch plan simulate`", m.id);
-    else if (m.effect && m.effect.fixed.length === 0 && m.effect.scoreAfter <= m.effect.scoreBefore)
-      warn("the move fixes nothing on its own", m.id);
+  // Effects and the result describe the repository before the plan; once moves are done it has changed.
+  const started = plan.moves.some((m) => m.status === "done");
+  if (!started) {
+    const simulated = simulatePlan(input, plan);
+    for (const m of simulated.moves) {
+      const written = plan.moves.find((x) => x.id === m.id)?.effect;
+      if (canonical(written) !== canonical(m.effect))
+        error("the effect is missing or out of date: run `metator arch plan simulate`", m.id);
+      else if (m.effect && m.effect.fixed.length === 0 && m.effect.scoreAfter <= m.effect.scoreBefore)
+        warn("the move fixes nothing on its own", m.id);
+    }
+    if (
+      canonical(plan.result) !== canonical(simulated.result) &&
+      !problems.some((p) => p.move && p.severity === "error")
+    )
+      error("the result is missing or out of date: run `metator arch plan simulate`");
   }
-  if (canonical(plan.result) !== canonical(simulated.result) && !problems.some((p) => p.move))
-    error("the result is missing or out of date: run `metator arch plan simulate`");
 
   const before = analyzeArchitecture(input);
-  const after = analyzeArchitecture(state);
+  const after = analyzeArchitecture(replayed.state);
   const beforeIds = new Set(before.violations.filter((v) => !v.exception).map((v) => v.id));
   for (const v of after.violations)
     if (!v.exception && v.severity === "error" && !beforeIds.has(v.id))
       error(`the plan adds ${v.id}: ${v.message}`);
-  if (!goalMet(plan.goal, before.summary, after.summary))
+  if (!goalMet(plan.goal, (started && plan.result?.before) || before.summary, after.summary))
     error(
       `the plan does not reach its goal ${plan.goal}: ${after.summary.cycles} cycle(s), ${after.summary.errors} error(s), ${after.summary.warnings} warning(s) after it`,
     );
@@ -215,12 +270,21 @@ export function describeMove(m: Move): string {
   }
 }
 
-/** The moves `arch plan run` starts next: the pending ones of the first wave not done. */
-export function nextWave(plan: RefactorPlan): { wave: number; moves: PlanMove[] } | undefined {
+/**
+ * The first wave not done: its pending moves (what `arch plan run` starts) and its blocked ones
+ * (what stops the plan until a person sets them back to pending).
+ */
+export function nextWave(
+  plan: RefactorPlan,
+): { wave: number; moves: PlanMove[]; blocked: PlanMove[] } | undefined {
   for (const wave of [...new Set(plan.moves.map((m) => m.wave))].sort((a, b) => a - b)) {
     const moves = plan.moves.filter((m) => m.wave === wave);
     if (moves.every((m) => m.status === "done")) continue;
-    return { wave, moves: moves.filter((m) => m.status === "pending") };
+    return {
+      wave,
+      moves: moves.filter((m) => m.status === "pending"),
+      blocked: moves.filter((m) => m.status === "blocked"),
+    };
   }
   return undefined;
 }

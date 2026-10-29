@@ -119,3 +119,44 @@ describe("metator arch check (real CLI, real monorepo)", () => {
     expect(tight.json.data).toEqual({ file: "metator/arch-baseline.json", violations: 0, dropped: 2 });
   }, 90_000);
 });
+
+describe("metator arch check after a rename (real CLI)", () => {
+  test("renaming a file inside a cycle adds nothing: the base resolves its own files", async () => {
+    const r = await ScratchRepo.create();
+    try {
+      await r.write(".gitignore", ".metator/\nnode_modules/\n");
+      await r.write("package.json", json({ name: "w", private: true, workspaces: ["packages/*"] }));
+      await r.write(
+        "packages/a/package.json",
+        json({ name: "@w/a", main: "src/index.ts", dependencies: { "@w/b": "*" } }),
+      );
+      await r.write(
+        "packages/a/src/index.ts",
+        'import { x } from "../../b/src/x.ts";\nexport const a = x;\n',
+      );
+      await r.write(
+        "packages/b/package.json",
+        json({ name: "@w/b", main: "src/x.ts", dependencies: { "@w/a": "*" } }),
+      );
+      await r.write(
+        "packages/b/src/x.ts",
+        'import { a } from "../../a/src/index.ts";\nexport const x = 1;\nexport const y = () => a;\n',
+      );
+      await r.commit("a cycle");
+      await r.git("checkout", "-q", "-b", "rename");
+      await r.git("mv", "packages/b/src/x.ts", "packages/b/src/y.ts");
+      await r.write(
+        "packages/a/src/index.ts",
+        'import { x } from "../../b/src/y.ts";\nexport const a = x;\n',
+      );
+      await r.write(
+        "packages/b/package.json",
+        json({ name: "@w/b", main: "src/y.ts", dependencies: { "@w/a": "*" } }),
+      );
+      const check = await metator(["arch", "check", "--base", "main"], r.root);
+      expect([check.code, (check.json.data as { failing: unknown[] }).failing]).toEqual([0, []]);
+    } finally {
+      await r.dispose();
+    }
+  }, 90_000);
+});

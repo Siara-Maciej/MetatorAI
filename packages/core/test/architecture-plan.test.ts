@@ -11,6 +11,7 @@ import {
   SyncRefactorPlan,
 } from "../src/application/architecture-plans.ts";
 import { type ArchitectureInput, manifestOf, type ResolvedImport } from "../src/domain/architecture.ts";
+import { applyMoves } from "../src/domain/architecture-moves.ts";
 import {
   describeMove,
   goalMet,
@@ -110,7 +111,11 @@ describe("plan basics", () => {
     });
     const p = plan({ moves: [m("b", 2), m("a", 1, "done"), m("c", 2, "running"), m("d", 3)] });
     expect(orderedMoves(p).map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
-    expect(nextWave(p)).toEqual({ wave: 2, moves: [m("b", 2)] });
+    expect(nextWave(p)).toEqual({ wave: 2, moves: [m("b", 2)], blocked: [] });
+    const stuck = plan({
+      moves: [m("a", 1, "done"), { ...m("b", 2), status: "blocked" }, m("c", 2, "running")],
+    });
+    expect(nextWave(stuck)).toEqual({ wave: 2, moves: [], blocked: [{ ...m("b", 2), status: "blocked" }] });
     expect(nextWave(plan({ moves: [m("a", 1, "done")] }))).toBeUndefined();
   });
 
@@ -252,8 +257,9 @@ describe("simulatePlan and lint", () => {
       goal: "fewer-violations",
       moves: [
         {
+          // Moving a file where it already is changes nothing: fewer violations is not reached.
           id: "w",
-          move: { type: "move", files: ["packages/cart/src/index.ts"], to: "@x/pricing" },
+          move: { type: "move", files: ["packages/cart/src/total.ts"], to: "@x/cart" },
           why: "x",
           citations: ["packages/cart/src/index.ts"],
           wave: 1,
@@ -289,6 +295,87 @@ describe("simulatePlan and lint", () => {
     ]);
   });
 
+  test("moves of one wave run in parallel: each on the state before the wave, no file in two", () => {
+    const extract = {
+      id: "extract",
+      move: {
+        type: "extract",
+        files: ["packages/pricing/src/rules.ts"],
+        package: { name: "@x/rules", dir: "packages/rules" },
+      },
+      why: "Rules are their own concern.",
+      citations: ["packages/pricing/src/rules.ts"],
+      wave: 1,
+    };
+    const sameWave = plan({
+      moves: [
+        extract,
+        {
+          ...extract,
+          id: "total",
+          move: { type: "move", files: ["packages/cart/src/total.ts"], to: "@x/rules" },
+        },
+      ],
+    });
+    expect(lintRefactorPlan(sameWave, input(), exists).map((p) => [p.move, p.message])).toEqual([
+      ["total", "move packages/cart/src/total.ts to @x/rules: there is no package @x/rules"],
+    ]);
+    const overlap = plan({
+      moves: [
+        extract,
+        {
+          ...extract,
+          id: "twice",
+          move: { type: "move", files: ["packages/pricing/src/rules.ts"], to: "@x/cart" },
+        },
+      ],
+    });
+    expect(lintRefactorPlan(overlap, input(), exists).map((p) => [p.move, p.message])).toEqual([
+      [
+        "twice",
+        "packages/pricing/src/rules.ts is also moved by extract in wave 1; moves of one wave run in parallel",
+      ],
+    ]);
+  });
+
+  test("done moves are the repository now: lint checks what remains, the goal against the start", () => {
+    const s = simulatePlan(input(), plan());
+    const m1 = s.moves[0] as RefactorPlan["moves"][number];
+    // m1 ran: the repository has no cycle any more, and m1 cannot run again (rules.ts is in cart).
+    const after = applyMoves(input(), [m1.move]).input;
+    const done = { ...s, status: "running" as const, moves: [{ ...m1, status: "done" as const }] };
+    expect(lintRefactorPlan(done, after, exists)).toEqual([]);
+    // Simulate keeps a done move's effect instead of computing one on a repository that already has it.
+    expect(simulatePlan(after, done).moves[0]?.effect).toEqual(m1.effect);
+    // fewer-violations is measured from where the plan started, not from the half-done repository.
+    const fewer = { ...done, goal: "fewer-violations" as const };
+    expect(lintRefactorPlan(fewer, after, exists)).toEqual([]);
+  });
+
+  test("a move's warning does not hide a stale result", () => {
+    const s = simulatePlan(
+      input(),
+      plan({
+        goal: "fewer-violations",
+        moves: [
+          plan().moves[0],
+          {
+            id: "noop",
+            move: { type: "declare", package: "@x/cart", dependency: "@x/pricing" },
+            why: "x",
+            citations: ["c"],
+            wave: 2,
+          },
+        ],
+      }),
+    );
+    const problems = lintRefactorPlan({ ...s, result: undefined }, input(), exists);
+    expect(problems.map((p) => [p.severity, p.message])).toEqual([
+      ["warning", "the move fixes nothing on its own"],
+      ["error", "the result is missing or out of date: run `metator arch plan simulate`"],
+    ]);
+  });
+
   test("an approval covers exactly the moves it was given", () => {
     const s = simulatePlan(input(), plan());
     const approved = {
@@ -300,8 +387,8 @@ describe("simulatePlan and lint", () => {
     const edited = { ...approved, moves: approved.moves.map((m) => ({ ...m, wave: 1, why: "changed" })) };
     expect(lintRefactorPlan(edited, input(), exists)).toEqual([]); // the reason is not part of the digest
     const moved = { ...approved, approval: { ...approved.approval, digest: "00000000" } };
-    expect(lintRefactorPlan(moved, input(), exists).map((p) => p.message)).toEqual([
-      "the moves changed after maciej approved them; approve the plan again",
+    expect(lintRefactorPlan(moved, input(), exists).map((p) => [p.code, p.message])).toEqual([
+      ["stale-approval", "the moves changed after maciej approved them; approve the plan again"],
     ]);
   });
 });
@@ -467,6 +554,34 @@ describe("plan use cases", () => {
     expect((await failing.execute("break-cycle")).isErr()).toBe(true);
   });
 
+  test("approving again replaces an approval the moves outgrew", async () => {
+    const { store, clock, lint } = world();
+    const s = simulatePlan(input(), plan());
+    await store.save({ ...s, status: "approved", approval: { by: "ala", at: "x", digest: "00000000" } });
+    const again = (
+      await new ApproveRefactorPlan(lint, store, clock).execute({ id: "break-cycle", by: "maciej" })
+    )._unsafeUnwrap();
+    expect(again.approval).toEqual({ by: "maciej", at: "2026-10-29T12:00:00.000Z", digest: planDigest(s) });
+  });
+
+  test("run refuses a wave stopped by a blocked move, and says how to go on", async () => {
+    const { store } = world();
+    const s = simulatePlan(input(), plan());
+    await store.save({
+      ...s,
+      status: "running",
+      approval: { by: "maciej", at: "x", digest: planDigest(s) },
+      moves: s.moves.map((m) => ({ ...m, status: "blocked" as const, note: "run r1 aborted" })),
+    });
+    const run = new RunRefactorPlan(store, { execute: async () => err(MetatorError.usage("not reached")) });
+    const e = (await run.execute({ id: "break-cycle" }))._unsafeUnwrapErr();
+    expect([e.code, e.message, e.hint]).toEqual([
+      "USAGE",
+      "wave 1 of break-cycle is blocked: m1 (run r1 aborted)",
+      "Finish or fix the move by hand, then set its status to pending (to run it again) or done in metator/arch/plans/break-cycle.yml.",
+    ]);
+  });
+
   test("propose: a fresh report, a draft, the planner on the host, then simulate and lint", async () => {
     const { store, facts, lint, fs } = world();
     // The planner writes the moves into the draft while it runs.
@@ -517,6 +632,34 @@ describe("plan use cases", () => {
     expect(host.tasks[0]?.prompt).toContain("metator/arch/plans/break-the-pricing-cycle.yml");
     expect(await fs.exists("metator/arch/plans/break-the-pricing-cycle.yml")).toBe(true);
 
+    // An approval the planner writes itself is dropped: a person approves.
+    const selfApproving = new FakeAgentHost({
+      "mt-arch-planner": [
+        {
+          effect: async () => {
+            const draft = (await store.load("self"))._unsafeUnwrap();
+            await store.save({
+              ...draft,
+              moves: plan().moves,
+              status: "approved",
+              approval: { by: "mt-arch-planner", at: "x", digest: "x" },
+            });
+          },
+        },
+      ],
+    });
+    const sly = (
+      await new ProposeRefactorPlan(
+        new Map([["scenario", selfApproving]]),
+        analyze,
+        store,
+        create,
+        new SimulateRefactorPlan(facts, store),
+        lint,
+      ).execute({ title: "Self", goal: "no-cycles", host: "scenario", by: "m", cwd: "/r", projectRoot: "/r" })
+    )._unsafeUnwrap();
+    expect([sly.plan.status, sly.plan.approval, sly.plan.moves.length]).toEqual(["draft", undefined, 1]);
+
     const unknown = await propose.execute({
       title: "x",
       goal: "no-cycles",
@@ -545,6 +688,9 @@ describe("plan use cases", () => {
         projectRoot: "/r",
       })
     )._unsafeUnwrapErr();
-    expect([e.code, e.message]).toEqual(["COMMAND_FAILED", "scenario: the host stopped without a plan"]);
+    expect([e.code, e.message]).toEqual([
+      "COMMAND_FAILED",
+      "scenario: mt-arch-planner stopped without a result",
+    ]);
   });
 });

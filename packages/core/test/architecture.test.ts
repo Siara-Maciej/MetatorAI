@@ -259,6 +259,22 @@ describe("analyzeArchitecture: cycles", () => {
       },
     });
 
+  test("a runtime cycle stays an error when type-only imports widen its component", () => {
+    const wide = input({
+      imports: [
+        imp("packages/ui/src/button.ts", "packages/core/src/money.ts", "@x/core"),
+        imp("packages/core/src/money.ts", "packages/ui/src/button.ts", "@x/ui"),
+        imp("packages/core/src/money.ts", "apps/web/src/main.ts", "@x/web", true),
+        imp("apps/web/src/main.ts", "packages/core/src/money.ts", "@x/core", true),
+      ],
+    });
+    const report = analyzeArchitecture(wide);
+    expect(report.cycles.map((c) => [c.packages, c.typeOnly])).toEqual([
+      [["@x/core", "@x/ui", "@x/web"], false],
+    ]);
+    expect(report.violations.find((v) => v.kind === "cycle")?.severity).toBe("error");
+  });
+
   test("packages that depend on each other are one cycle with its inner edges, an error", () => {
     const report = analyzeArchitecture(cyclic(false));
     expect(report.cycles).toEqual([

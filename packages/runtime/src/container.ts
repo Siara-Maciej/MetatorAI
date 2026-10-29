@@ -131,6 +131,7 @@ import {
   type RuleEngine,
   type RuleScaffolder,
   type RunAffectedTests,
+  type RunArchEvals,
   type RunDrivers,
   type RunEvals,
   type RunGate,
@@ -292,6 +293,7 @@ export interface Cradle {
   runSystemPlan: RunSystemPlan;
   systemPlanStatus: SystemPlanStatus;
   runSystemEvals: RunSystemEvals;
+  runArchEvals: RunArchEvals;
   systemPlanStore: SystemPlanStore;
   analyzeSystem: AnalyzeSystem;
   createSystemPlan: CreateSystemPlan;

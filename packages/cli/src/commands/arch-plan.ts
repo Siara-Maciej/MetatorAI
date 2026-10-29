@@ -6,12 +6,12 @@ import {
   PLAN_GOALS,
   type PlanGoal,
   RefactorPlanDocument,
-  RunArchEvals,
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { person } from "../live.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
+import { minScore } from "./system-plan.ts";
 
 const goal = () =>
   new Option("--goal <goal>", "what the plan must reach").choices([...PLAN_GOALS]).default("no-cycles");
@@ -175,35 +175,9 @@ export function registerArchPlanCommands(
     .action(action(async () => ({ result: ok(RefactorPlanDocument.jsonSchema("input")) })));
 }
 
-const PLANNER_FILES = [".claude/agents/mt-arch-planner.md", ".github/agents/mt-arch-planner.agent.md"];
-
 /** `arch eval` (H7): the golden set of refactor planning, each case planned in a fresh repository. */
-export function registerArchEvalCommands(
-  arch: Command,
-  { action, container, containerAt }: CommandContext,
-): void {
-  const evals = () => {
-    const c = container();
-    const fs = c.resolve("fileSystem");
-    return new RunArchEvals(
-      fs,
-      c.resolve("paths").archEvals,
-      c.resolve("sandbox"),
-      (root) => {
-        const there = containerAt(root);
-        return { propose: there.resolve("proposeRefactorPlan"), facts: there.resolve("architectureFacts") };
-      },
-      // The planner's definition for the hosts, as `agents install` writes it in this repository.
-      async () => {
-        const out: Record<string, string> = {};
-        for (const file of PLANNER_FILES) {
-          const text = await fs.read(file);
-          if (text.isOk()) out[file] = text.value;
-        }
-        return out;
-      },
-    );
-  };
+export function registerArchEvalCommands(arch: Command, { action, container }: CommandContext): void {
+  const evals = () => container().resolve("runArchEvals");
   const evalCmd = arch
     .command("eval")
     .description("Score mt-arch-planner on the golden set of refactor planning");
@@ -227,16 +201,15 @@ export function registerArchEvalCommands(
     .description("Plan every case on your AI host in a fresh repository and score the plans")
     .option("--case <id>", "only this case")
     .option("--host <host>", `the AI host that plans: ${HOSTS.join(", ")}`)
-    .option("--min <score>", "fail below this mean score (0 to 1)")
+    .addOption(minScore())
     .action(
-      action(async (opts: { case?: string; host?: string; min?: string }) => {
+      action(async (opts: { case?: string; host?: string; min?: number }) => {
         const r = await evals().execute({
           host: opts.host ?? defaultHost(container()),
           by: person(process.env),
           ...(opts.case ? { only: opts.case } : {}),
         });
-        if (r.isErr() || opts.min === undefined || r.value.summary.score >= Number(opts.min))
-          return { result: r };
+        if (r.isErr() || opts.min === undefined || r.value.summary.score >= opts.min) return { result: r };
         return {
           result: err(
             new MetatorError("CHECK_FAILED", `mean score ${r.value.summary.score} is below ${opts.min}`, {

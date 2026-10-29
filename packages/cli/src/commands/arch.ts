@@ -1,15 +1,14 @@
-import { ArchitecturePolicyDocument, err, MetatorError, type Move, ok } from "@metator/core";
+import {
+  ArchitecturePolicyDocument,
+  DECLARATION_KINDS,
+  err,
+  MetatorError,
+  type Move,
+  ok,
+} from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 import { registerArchEvalCommands, registerArchPlanCommands } from "./arch-plan.ts";
-
-const DECLARATION_KINDS = new Set([
-  "undeclared",
-  "root-only",
-  "dev-in-prod",
-  "unused-dependency",
-  "version-drift",
-]);
 
 export function registerArchCommands(program: Command, ctx: CommandContext): void {
   const { action, container } = ctx;

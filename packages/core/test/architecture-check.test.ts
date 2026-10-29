@@ -6,6 +6,7 @@ import {
   CheckArchitecture,
   InitArchitecturePolicy,
   RecordArchitectureBaseline,
+  resolveAmong,
 } from "../src/application/architecture.ts";
 import {
   type ArchitectureInput,
@@ -293,6 +294,46 @@ const analyzer: ImportAnalyzer = {
 };
 
 describe("BaseArchitectureFacts", () => {
+  test("a file renamed on the branch: its base imports resolve to the base's files, not today's tree", async () => {
+    // Base: a/index.ts → b/x.ts → a/index.ts (a cycle). Branch: x.ts renamed to y.ts, cycle kept.
+    const current = input({
+      files: ["packages/core/src/a.ts", "packages/core/src/y.ts"],
+      imports: [
+        {
+          from: "packages/core/src/a.ts",
+          to: "packages/core/src/y.ts",
+          specifier: "./y.ts",
+          typeOnly: false,
+        },
+      ],
+      externals: [],
+    });
+    const history = new FakeHistory({
+      "packages/core/src/a.ts": 'import "./x.js"',
+      "packages/core/src/x.ts": 'import "./a.ts"',
+      "packages/core/src/y.ts": undefined,
+    });
+    const vcs = new FakeVcs(
+      [],
+      ["packages/core/src/a.ts", "packages/core/src/x.ts", "packages/core/src/y.ts"],
+    );
+    const relative = {
+      ...analyzer,
+      resolve: (from: string, specifier: string) => {
+        const target = resolveAmong(from, specifier, new Set(current.files), [".ts"]);
+        return target ? { type: "file" as const, path: target } : { type: "unresolved" as const };
+      },
+    };
+    const at = (await new BaseArchitectureFacts(vcs, history, relative).at(current, "main"))._unsafeUnwrap();
+    expect([...at.files].sort()).toEqual(["packages/core/src/a.ts", "packages/core/src/x.ts"]);
+    expect(at.imports.map((i) => [i.from, i.to])).toEqual([
+      ["packages/core/src/a.ts", "packages/core/src/x.ts"],
+      ["packages/core/src/x.ts", "packages/core/src/a.ts"],
+    ]);
+    expect(resolveAmong("p/src/a.ts", "../lib", new Set(["p/lib/index.ts"]), [".ts"])).toBe("p/lib/index.ts");
+    expect(resolveAmong("p/src/a.ts", "zod", new Set(["zod"]), [".ts"])).toBeUndefined();
+  });
+
   test("changed files import and changed manifests declare as they did at the base", async () => {
     const current = input({
       files: [...input().files, "packages/core/src/new.ts"],

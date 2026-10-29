@@ -224,18 +224,30 @@ export class BaseArchitectureFacts {
     const imports: ResolvedImport[] = current.imports.filter((i) => !touched.has(i.from));
     const externals: ExternalImport[] = current.externals.filter((x) => !touched.has(x.from));
     const files = new Set(current.files);
+    const texts = new Map<string, string>();
     for (const file of sources) {
       const text = await this.history.readAt(base, file);
       if (text.isErr()) return err(text.error);
-      if (text.value === undefined) {
+      if (text.value === undefined)
         files.delete(file); // added on the branch
-        continue;
-      }
-      const parsed = this.analyzer.parse(file, text.value);
+      else texts.set(file, text.value);
+    }
+    // Files only the base has (deleted or renamed on the branch) are part of the base, and base
+    // imports of them resolve to them, not to whatever the current tree has at that path.
+    const baseOnly = new Set([...texts.keys()].filter((f) => !current.files.includes(f)));
+    for (const f of baseOnly) files.add(f);
+    for (const [file, text] of texts) {
+      const parsed = this.analyzer.parse(file, text);
       if (parsed.isErr()) continue; // unparsable at the base: nothing to compare against
       for (const imp of parsed.value) {
         const target = this.analyzer.resolve(file, imp.specifier);
-        if (target.type === "file")
+        const atBase =
+          target.type === "file"
+            ? undefined
+            : resolveAmong(file, imp.specifier, baseOnly, this.analyzer.extensions);
+        if (atBase)
+          imports.push({ from: file, to: atBase, specifier: imp.specifier, typeOnly: imp.typeOnly });
+        else if (target.type === "file")
           imports.push({ from: file, to: target.path, specifier: imp.specifier, typeOnly: imp.typeOnly });
         else if (target.type === "external")
           externals.push({ from: file, name: target.name, typeOnly: imp.typeOnly });
@@ -431,4 +443,29 @@ export class SimulateArchitecture {
     const simulated = simulateMoves(facts.value, input.moves);
     return ok({ moves: input.moves, effect: simulated.effect, cycles: simulated.report.cycles });
   }
+}
+
+/** A relative specifier resolved among `files` (with an extension, `.js` written for `.ts`, or `index`). */
+export function resolveAmong(
+  from: string,
+  specifier: string,
+  files: ReadonlySet<string>,
+  extensions: readonly string[],
+): string | undefined {
+  if (!specifier.startsWith(".")) return undefined;
+  const parts = from.split("/").slice(0, -1);
+  for (const segment of specifier.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") parts.pop();
+    else parts.push(segment);
+  }
+  const path = parts.join("/");
+  const stem = path.replace(/\.[cm]?jsx?$/, "");
+  const candidates = [
+    path,
+    ...extensions.map((e) => `${stem}${e}`),
+    ...extensions.map((e) => `${path}${e}`),
+    ...extensions.map((e) => `${path}/index${e}`),
+  ];
+  return candidates.find((c) => files.has(c));
 }

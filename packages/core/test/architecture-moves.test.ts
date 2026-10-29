@@ -101,6 +101,50 @@ describe("moves", () => {
     ).toEqual([]);
   });
 
+  test("check: no package merges into or inverts against itself; an extract lands on free ground", () => {
+    expect(
+      checkMoves(input(), [
+        { type: "merge", from: "@x/cart", into: "@x/cart" },
+        { type: "invert", from: "@x/cart", to: "@x/cart" },
+        {
+          type: "extract",
+          files: ["packages/cart/src/total.ts"],
+          package: { name: "@x/a", dir: "packages/cart/" },
+        },
+        {
+          type: "extract",
+          files: ["packages/cart/src/total.ts"],
+          package: { name: "@x/b", dir: "packages" },
+        },
+      ]),
+    ).toEqual([
+      "merge @x/cart into @x/cart: a package cannot merge into itself",
+      "invert @x/cart → @x/cart: a package does not depend on itself",
+      "extract packages/cart/src/total.ts into @x/a: packages/cart holds @x/cart already",
+      "extract packages/cart/src/total.ts into @x/b: packages holds @x/cart already",
+    ]);
+  });
+
+  test("externals follow a file from the package it was in just before, not from its directory", () => {
+    // rules.ts went to a new package that pins zod ^5 (pricing has ^4); moving it on to web takes ^5.
+    const first = applyMoves(input(), [
+      {
+        type: "extract",
+        files: ["packages/pricing/src/rules.ts"],
+        package: { name: "@x/rules", dir: "packages/rules" },
+      },
+    ]).input;
+    const pinned = {
+      ...first,
+      extraPackages: (first.extraPackages ?? []).map((p) => ({ ...p, dependencies: { zod: "^5" } })),
+    };
+    const moved = applyMoves(pinned, [
+      { type: "move", files: ["packages/pricing/src/rules.ts"], to: "@x/web" },
+    ]);
+    expect(moved.declared).toContainEqual({ package: "@x/web", dependency: "zod" });
+    expect(moved.input.manifests.packages.find((p) => p.name === "@x/web")?.dependencies.zod).toBe("^5");
+  });
+
   test("move: the file belongs to the receiving package, which declares what it imports", () => {
     const moved = applyMoves(input(), [
       { type: "move", files: ["packages/pricing/src/rules.ts"], to: "@x/cart" },
@@ -225,10 +269,11 @@ describe("simulateMoves", () => {
       { type: "move", files: ["packages/pricing/src/rules.ts"], to: "@x/cart" },
     ]);
     expect(same.effect.rewrites).toBe(1); // the import inside cart stays inside cart
-    expect(s.effect.added.map((v) => v.id)).toEqual([
-      "unused-dependency:@x/pricing→@x/cart",
-      "unused-dependency:@x/pricing→zod",
-    ]);
+    // pricing no longer imports cart: the move drops that declaration instead of leaving it stale.
+    expect(s.effect.added.map((v) => v.id)).toEqual(["unused-dependency:@x/pricing→zod"]);
+    expect(s.input.manifests.packages.find((p) => p.name === "@x/pricing")?.dependencies).toEqual({
+      zod: "^4",
+    });
     expect(s.report.cycles).toEqual([]);
   });
 

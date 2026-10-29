@@ -180,6 +180,20 @@ describe("RunArchEvals", () => {
     );
   });
 
+  test("a plan with a move that cannot run scores 0, whatever its simulation would say", async () => {
+    const fs = new InMemoryFileSystem({ "evals/a.yml": caseFile("a") });
+    const sandbox = { create: async () => ok({ root: "/box", dispose: async () => {} }) };
+    const ghost = { ...pm("m2"), move: { type: "merge", from: "@x/ghost", into: "@x/cart" } };
+    const evals = new RunArchEvals(fs, "evals", sandbox, () => ({
+      facts: { gather: async () => ok(input()) },
+      propose: { execute: async () => ok({ plan: plan([pm("m1"), ghost]), problems: [] }) },
+    }));
+    const r = (await evals.execute({ host: "scenario", by: "m" }))._unsafeUnwrap();
+    expect(r.cases.map((c) => [c.score, c.error])).toEqual([
+      [0, "impossible moves: m2: merge @x/ghost into @x/cart: there is no package @x/ghost"],
+    ]);
+  });
+
   test("a broken case file or a sandbox that cannot be made is the error", async () => {
     const broken = new RunArchEvals(
       new InMemoryFileSystem({ "evals/a.yml": "kind: ArchEvalCase\nschemaVersion: 1\nid: A\n" }),

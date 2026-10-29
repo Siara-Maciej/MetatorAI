@@ -26,6 +26,15 @@ export const VIOLATION_KINDS = [
 ] as const;
 export type ViolationKind = (typeof VIOLATION_KINDS)[number];
 
+/** The kinds about what packages declare (`arch declared`), as opposed to how they depend. */
+export const DECLARATION_KINDS: ReadonlySet<ViolationKind> = new Set([
+  "undeclared",
+  "root-only",
+  "dev-in-prod",
+  "unused-dependency",
+  "version-drift",
+]);
+
 export type ArchSeverity = "error" | "warning";
 
 /** What each kind weighs unless the policy says otherwise. */

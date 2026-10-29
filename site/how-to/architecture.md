@@ -87,16 +87,16 @@ metator arch simulate invert @shop/pricing @shop/cart                          #
 
 ```json
 {"moves":[{"type":"invert","from":"@shop/pricing","to":"@shop/cart"}],
- "effect":{"before":{"cycles":1,"errors":5,"warnings":2,"score":73},"after":{"cycles":0,"errors":5,"warnings":2,"score":73},
+ "effect":{"before":{"cycles":1,"errors":5,"warnings":2,"score":73},"after":{"cycles":0,"errors":5,"warnings":1,"score":74},
            "fixed":["cycle:@shop/cart,@shop/pricing"],
-           "added":[{"id":"unused-dependency:@shop/pricing→@shop/cart","severity":"warning"}],
+           "added":[],
            "rewrites":1,"declared":[]},
  "cycles":[]}
 ```
 
 - `fixed` and `added` are violation ids before and after the move.
 - `rewrites` counts the import statements that change package (what a codemod rewrites).
-- `declared` lists the dependencies the moved code needs in its new home. Declarations that were already missing move with the files and stay visible.
+- `declared` lists the dependencies the moved code needs in its new home. Declarations that were already missing move with the files and stay visible; a declaration the move makes unused (pricing no longer imports cart) is dropped.
 
 Nothing is written, and the simulation runs the same analysis as `arch analyze`, so a proposal by a person or an agent is judged by numbers, not by opinion.
 
@@ -110,7 +110,7 @@ metator arch plan propose "Break the pricing cycle" --goal no-cycles     # --hos
 
 1. MetatorAI writes a fresh report and an empty draft `metator/arch/plans/break-the-pricing-cycle.yml`.
 2. `mt-arch-planner` runs on your AI host. It reads the report, the module cards and the code, tries each move with `arch simulate`, and writes the moves with their reasons and citations.
-3. MetatorAI writes each move's effect into the plan (`arch plan simulate`) and lints it.
+3. MetatorAI writes each move's effect into the plan (`arch plan simulate`) and lints it. The plan stays a draft: an approval the planner writes itself is dropped.
 
 ```yaml
 kind: RefactorPlan
@@ -127,26 +127,29 @@ moves:
     wave: 1
     effect:                          # written by `arch plan simulate`, never by hand
       scoreBefore: 95
-      scoreAfter: 99
+      scoreAfter: 100
       fixed: ["cycle:@shop/cart,@shop/pricing"]
-      added: ["unused-dependency:@shop/pricing→@shop/cart"]
+      added: []
       rewrites: 1
       declared: []
 result:
   before: { cycles: 1, errors: 1, warnings: 0, score: 95 }
-  after: { cycles: 0, errors: 0, warnings: 1, score: 99 }
+  after: { cycles: 0, errors: 0, warnings: 0, score: 100 }
 ```
 
 You can also write a plan by hand: `metator arch plan new <title> --goal …`, then add moves (`metator arch plan schema` prints the format).
 
 **Lint** (`metator arch plan lint <id>`) refuses a plan when:
-- a move cannot run where it stands (unknown package, files that match nothing);
+- a move cannot run where it stands (unknown package, files that match nothing). Moves of one wave run in parallel in separate worktrees, so each must be possible on the state the earlier waves leave, not on what a sibling in its wave creates;
+- two moves of one wave move the same file;
 - a citation does not exist;
 - an effect is out of date;
 - the plan adds an error, or does not reach its goal;
 - the moves changed after the approval.
 
 A move that fixes nothing on its own is a warning.
+
+Once moves are done, the repository is their result. Lint then checks only the moves that remain, does not ask for a new simulation, and measures the goal against the `result.before` the plan started from.
 
 ## Approve and execute
 
@@ -159,6 +162,7 @@ metator arch plan status break-the-pricing-cycle         # read the runs back: d
 - The approval records who approved and a digest of the moves. Editing a move afterwards (not its reason) needs a new approval, and `arch plan run` refuses until then.
 - `run` starts each move of the next wave as an `mt-refactor` run in its own worktree. The task names the move, its reason and its evidence. Drive the runs as usual (`metator run drive`, `metator ui`).
 - `status` marks a move done when its run is done, and blocked (with the run) when it was aborted or escalated. The plan is done when every move is.
+- A blocked move stops its wave: `run` fails and says so. Finish or fix the move by hand, then set its `status` to `pending` (to run it again) or `done` in the plan. The status is not part of the approval, so no new approval is needed.
 
 ## Measure the planner
 
@@ -168,6 +172,8 @@ A planner is only as good as its plans. `docs/metator/evals/arch/` holds small m
 metator arch eval list
 metator arch eval run --host claude --min 0.8
 ```
+
+A plan with a move that cannot run scores 0: its simulated result would describe a repository that cannot exist.
 
 ```json
 {"summary":{"cases":2,"passed":2,"score":1},
