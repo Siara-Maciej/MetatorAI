@@ -25,6 +25,8 @@ export class RunRepository {
   constructor(
     private readonly fs: FileSystem,
     private readonly paths: MetatorPaths,
+    /** The run this process works for (a run's worktree): what "no run named" means, not the latest. */
+    private readonly current?: string,
   ) {}
 
   runDir(runId: string): string {
@@ -73,9 +75,10 @@ export class RunRepository {
     return parseRunRecord(text.value, source);
   }
 
-  /** Resolves "latest" (or undefined) to the most recently written run. */
+  /** Resolves undefined to the current run (when there is one), and "latest" to the most recent run. */
   async resolveId(runId: string | undefined): Promise<Result<string, MetatorError>> {
     if (runId && runId !== "latest") return ok(runId);
+    if (runId === undefined && this.current && (await this.exists(this.current))) return ok(this.current);
     const source = this.pointerFile();
     const text = await this.fs.read(source);
     if (text.isErr()) {

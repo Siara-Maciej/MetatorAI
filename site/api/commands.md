@@ -1578,6 +1578,32 @@ metator run checkpoint [options]
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
 
+### `metator run resume`
+
+Resume an escalated run at the stage it escalated from, once the cause is fixed
+
+```bash
+metator run resume [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--by <name>` | who resumes it (recorded in log.md) **Required.** |  |
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run write`
+
+Write an artifact the current stage produces (intake: task.md) from stdin into the run
+
+```bash
+metator run write [options] <artifact>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<artifact>` | the artifact's name, as the stage's `produces` lists it | |
+| `--run <id>` | run id (default: latest) |  |
+
 ### `metator run handoff`
 
 Write handoff.md from the run directory: stage, approvals, artifacts, recent log, how to resume
@@ -1627,7 +1653,7 @@ metator run schema [options] <artifact>
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `<artifact>` | artifact (one of: analysis, research, summary) | |
+| `<artifact>` | artifact: analysis, research, summary (with or without .json) | |
 
 ### `metator run list`
 

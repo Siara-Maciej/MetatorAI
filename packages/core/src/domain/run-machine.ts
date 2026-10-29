@@ -156,6 +156,24 @@ export class RunStateMachine {
     return ok(this.toState(next));
   }
 
+  /**
+   * An escalated run back at the stage it escalated from, after a person removed the cause. Its
+   * history and loop counts stay: the next failure there escalates again once its loop is spent.
+   */
+  resume(state: RunState): Result<RunState, MetatorError> {
+    if (state.stage !== "escalated")
+      return err(
+        MetatorError.usage(
+          `the run is ${state.status}; only an escalated run resumes`,
+          state.status === "active" ? "It is still going: `metator run drive`." : "Start a new run.",
+        ),
+      );
+    const from = state.context.history.at(-1)?.stage;
+    if (!from || !this.spec.stages.some((s) => s.id === from))
+      return err(new MetatorError("INVALID_CONFIG", "the run's history does not say where it escalated"));
+    return ok({ ...state, stage: from, status: "active", context: structuredClone(state.context) });
+  }
+
   private expected(state: RunState): string {
     if (state.status !== "active") return `The run is ${state.status}; start a new run.`;
     const accepted = this.expects(state);

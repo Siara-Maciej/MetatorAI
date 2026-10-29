@@ -161,7 +161,9 @@ export class CreateWorktree {
       ports: ports.value,
       createdAt: this.clock.now().toISOString(),
     };
-    const added = await this.git.add(entry.path, entry.branch, entry.base);
+    // The run's state stays in this checkout; its agents, hooks and plan commands find it in the
+    // worktree at the same path.
+    const added = await this.git.add(entry.path, entry.branch, entry.base, [this.paths.runs]);
     if (added.isErr()) return err(added.error);
     const saved = await this.registry.save([...all.value, entry]);
     if (saved.isErr()) return err(saved.error);

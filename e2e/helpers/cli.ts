@@ -19,11 +19,13 @@ export async function metator(
   args: readonly string[],
   cwd: string,
   env: Readonly<Record<string, string>> = {},
+  stdin?: string,
 ): Promise<CliRun> {
   const started = performance.now();
   const proc = Bun.spawn(["bun", CLI_ENTRY, ...args], {
     cwd,
     env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
+    ...(stdin !== undefined ? { stdin: new Blob([stdin]) } : {}),
     stdout: "pipe",
     stderr: "pipe",
   });

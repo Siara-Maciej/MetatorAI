@@ -50,7 +50,9 @@ export function toEvent(name: EventName, opts: AdvanceOptions): Result<RunEvent,
 }
 
 export function registerRunCommands(program: Command, ctx: CommandContext): void {
-  const { action, container } = ctx;
+  const { action, stdin } = ctx;
+  // In a worktree, the run is the one of the checkout it came from.
+  const container = ctx.runs;
   const runs = program.command("run").description("Start and drive workflow runs (state machine)");
 
   runs
@@ -140,6 +142,32 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     );
 
   runs
+    .command("resume")
+    .description("Resume an escalated run at the stage it escalated from, once the cause is fixed")
+    .requiredOption("--by <name>", "who resumes it (recorded in log.md)")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (opts: { by: string; run?: string }) => ({
+        result: await container()
+          .resolve("resumeRun")
+          .execute({ by: opts.by, ...(opts.run ? { runId: opts.run } : {}) }),
+      })),
+    );
+
+  runs
+    .command("write")
+    .description("Write an artifact the current stage produces (intake: task.md) from stdin into the run")
+    .argument("<artifact>", "the artifact's name, as the stage's `produces` lists it")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (artifact: string, opts: { run?: string }) => ({
+        result: await container()
+          .resolve("writeRunArtifact")
+          .execute({ artifact, content: await stdin(), ...(opts.run ? { runId: opts.run } : {}) }),
+      })),
+    );
+
+  runs
     .command("handoff")
     .description(
       "Write handoff.md from the run directory: stage, approvals, artifacts, recent log, how to resume",
@@ -192,11 +220,23 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
   runs
     .command("schema")
     .description("Print the JSON Schema of a run artifact written by a worker")
-    .addArgument(new Argument("<artifact>", "artifact").choices(Object.keys(RUN_ARTIFACTS)))
+    // `analysis.json`, as a stage's `produces` names it, is the same artifact as `analysis`.
+    .argument("<artifact>", `artifact: ${Object.keys(RUN_ARTIFACTS).join(", ")} (with or without .json)`)
     .action(
-      action(async (artifact: keyof typeof RUN_ARTIFACTS) => ({
-        result: ok(RUN_ARTIFACTS[artifact].jsonSchema("input")),
-      })),
+      action(async (artifact: string) => {
+        const name = artifact.replace(/\.json$/, "");
+        return {
+          result:
+            name in RUN_ARTIFACTS
+              ? ok(RUN_ARTIFACTS[name as keyof typeof RUN_ARTIFACTS].jsonSchema("input"))
+              : err(
+                  MetatorError.usage(
+                    `no schema for ${artifact}`,
+                    `Artifacts with a schema: ${Object.keys(RUN_ARTIFACTS).join(", ")}.`,
+                  ),
+                ),
+        };
+      }),
     );
 
   runs

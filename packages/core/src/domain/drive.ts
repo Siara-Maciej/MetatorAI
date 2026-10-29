@@ -140,10 +140,21 @@ export function stagePrompt(input: StagePromptInput): string {
     `You are ${input.agent}, working stage "${input.stage.id}" of run ${input.runId}.`,
     `Task: ${input.task}`,
     ...(input.stage.description ? [`Stage goal: ${input.stage.description}`] : []),
+    ...(produces.length === 0
+      ? [`Artifacts of the run are in ${input.runDir}.`]
+      : (input.stage.parallel ?? []).length > 1
+        ? [
+            `This stage's workers run in parallel and together write ${produces.join(", ")} into ${input.runDir}.`,
+            "Write only the artifact your own instructions name; the others are not yours.",
+          ]
+        : [`Write these artifacts into ${input.runDir}: ${produces.join(", ")}.`]),
     ...(produces.length > 0
-      ? [`Write these artifacts into ${input.runDir}: ${produces.join(", ")}.`]
-      : [`Artifacts of the run are in ${input.runDir}.`]),
+      ? [
+          `Write an artifact with your Write tool at ${input.runDir}/<artifact> (it needs no approval there). Only without a Write tool, and never for JSON, use \`metator run write <artifact>\` with the text on stdin. \`metator run schema <artifact>\` prints a JSON artifact's format.`,
+        ]
+      : []),
     ...(input.skills.length > 0 ? [`Skills you may use: ${input.skills.join(", ")}.`] : []),
+    "Run each `metator` command on its own: no `cd`, pipes, redirections or other commands in the same call (alone they need no approval). Look at files with Read, Glob and Grep.",
     ...(input.retry ? [`The previous attempt failed its gate: ${input.retry}`] : []),
     ...(input.answer ? [`A person answered your question: ${input.answer}`] : []),
     "Finish with exactly one last line:",

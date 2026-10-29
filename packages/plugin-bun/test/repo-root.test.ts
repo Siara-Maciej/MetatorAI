@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findChildRepos, findFolderRoot, findRepoRoot } from "../src/repo-root.ts";
+import { findChildRepos, findFolderRoot, findRepoRoot, runsRootOf } from "../src/repo-root.ts";
 
 const dirs: string[] = [];
 afterAll(async () => {
@@ -48,5 +48,22 @@ describe("a folder of repositories", () => {
     expect(findFolderRoot(withRepos)).toBe(withRepos);
     const empty = await folder(["notes/x.md"]);
     expect(findFolderRoot(empty)).toBeUndefined();
+  });
+});
+
+describe("runsRootOf", () => {
+  test("a MetatorAI worktree keeps its run in the checkout it came from; any other root keeps its own", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "metator-runs-root-"));
+    await mkdir(join(repo, ".git"));
+    const wt = join(repo, ".metator/wt/20261029-x");
+    await mkdir(join(wt, ".git"), { recursive: true });
+    expect(runsRootOf(wt)).toBe(repo);
+    expect(runsRootOf(`${wt}/`)).toBe(repo);
+    expect(runsRootOf(repo)).toBe(repo);
+    // Under .metator/wt of something that is no repository: the root keeps its own runs.
+    const loose = join(tmpdir(), "metator-loose", ".metator/wt/y");
+    expect(runsRootOf(loose)).toBe(loose);
+    expect(runsRootOf(join(repo, "packages/a"))).toBe(join(repo, "packages/a"));
+    await rm(repo, { recursive: true, force: true });
   });
 });

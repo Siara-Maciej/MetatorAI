@@ -63,9 +63,11 @@ export function apiSurface(
   pkg: string,
   entry: string,
   declarations: ReadonlyMap<string, string>,
+  /** The files the API starts from, when the entry is a pattern (subpath exports): default the entry. */
+  starts: readonly string[] = [entry],
 ): ApiSnapshot {
   const seen = new Set<string>();
-  const queue = [entry];
+  const queue = [...starts];
   while (queue.length > 0) {
     const file = queue.shift() as string;
     if (seen.has(file) || !declarations.has(file)) continue;

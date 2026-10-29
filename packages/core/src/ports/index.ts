@@ -48,7 +48,16 @@ export interface ProcessRunner {
 
 /** Git worktrees (F8.2). Paths are repo-relative. */
 export interface WorktreeManager {
-  add(path: string, branch: string, base: string): Promise<Result<void, MetatorError>>;
+  /**
+   * A new worktree on `branch` from `base`. Each `shared` directory of this checkout (a run's
+   * state) is reached from the worktree through a link at the same relative path.
+   */
+  add(
+    path: string,
+    branch: string,
+    base: string,
+    shared?: readonly string[],
+  ): Promise<Result<void, MetatorError>>;
   remove(path: string, force: boolean): Promise<Result<void, MetatorError>>;
   /** Uncommitted or untracked changes in the worktree. */
   isDirty(path: string): Promise<Result<boolean, MetatorError>>;

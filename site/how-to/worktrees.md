@@ -20,8 +20,9 @@ metator run init --workflow mt-bugfix --task "Fix rounding" --worktree --base ma
 1. Runs `git worktree add` at `.metator/wt/<run>` on a new branch `metator/<run>`, branched from `--base` (default `HEAD`).
 2. Leases a block of 20 ports that no other worktree holds and that nothing on this machine listens on.
 3. Records the worktree in the run (`state.json`) and in `.metator/worktrees.json`.
+4. Links `.metator/runs` of your checkout into the worktree and lists it in `.git/info/exclude`, so the run's agents, hooks and `metator plan` find the run at the same path, and git never sees the link. In the worktree, `metator run …` without `--run` means that worktree's run, even when another run started later.
 
-Add `.metator/` to your `.gitignore`. The worktrees live there, and so do run state and caches.
+`metator setup` adds `.metator/` to your `.gitignore`: the worktrees live there, and so do run state and caches.
 
 ## See and manage worktrees
 

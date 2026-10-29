@@ -9,7 +9,7 @@ import { defaultHost, HOSTS, newRun, resume, sessionRows, startDetached } from "
 export function registerDriveCommands(
   program: Command,
   runs: Command,
-  { action, container, terminal }: CommandContext,
+  { action, runs: container, terminal }: CommandContext,
 ): void {
   const root = () => (program.opts() as { root?: string }).root;
 

@@ -129,7 +129,17 @@ export function lintPlan(plan: Plan, facts: PlanFacts): PlanLint {
         problem(s.id, "error", "a created file needs patternSource (an exemplar) or newPatternAdr");
       if (s.patternSource && s.newPatternAdr)
         problem(s.id, "error", "use patternSource or newPatternAdr, not both");
-      if (s.patternSource) {
+      if (s.patternSource && facts.patterns.size === 0) {
+        // No pattern catalog (docs/metator/patterns) in this repository: the exemplar must exist.
+        const exemplar = s.patternSource.exemplar.replace(/:\d+$/, "");
+        if (!facts.files.has(exemplar)) problem(s.id, "error", `exemplar ${exemplar} does not exist`);
+        else
+          problem(
+            s.id,
+            "warning",
+            `no pattern catalog: ${exemplar} is checked to exist, not to be an occurrence of ${s.patternSource.pattern}`,
+          );
+      } else if (s.patternSource) {
         const occurrences = facts.patterns.get(s.patternSource.pattern);
         const exemplar = s.patternSource.exemplar.replace(/:\d+$/, "");
         if (!occurrences)

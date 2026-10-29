@@ -48,7 +48,7 @@ A created file without an exemplar fails:
    "message":"a created file needs patternSource (an exemplar) or newPatternAdr"}]}}}
 ```
 
-**Why:** new code should look like your best existing code. The fix is either an exemplar found with `metator similar --file packages/billing/src/discount.ts`, or an ADR for a deliberately new abstraction.
+**Why:** new code should look like your best existing code. The fix is either an exemplar found with `metator similar --file packages/billing/src/discount.ts`, or an ADR for a deliberately new abstraction. In a repository without a pattern catalog (`docs/metator/patterns`), any existing file can be the exemplar; lint checks that it exists and says, as a warning, that it could not check more. A step's `rules` are canon rule ids; without a canon they stay empty.
 
 Other checks `plan lint` makes:
 

@@ -114,6 +114,23 @@ describe("LintPlan", () => {
     });
   });
 
+  test("without a pattern catalog the exemplar is looked up in the repository", async () => {
+    const none = (files: InMemoryFileSystem) =>
+      new LintPlan(
+        files,
+        { execute: async () => ok({ patterns: [], problems: [] }) },
+        new RuleCatalog(files, DEFAULT_PATHS),
+        graph([{ from: "src/use.ts", to: "src/a.mapper.ts" }]),
+        DEFAULT_TEST_GLOBS,
+      );
+    const there = (await none(fs()).execute({ file: `${RUN}/plan.json` }))._unsafeUnwrap();
+    expect(there.problems.map((p) => p.severity)).toEqual(["warning"]);
+    const gone = fs();
+    await gone.remove("src/b.mapper.ts");
+    const missing = (await none(gone).execute({ file: `${RUN}/plan.json` }))._unsafeUnwrap();
+    expect(missing.problems.map((p) => p.message)).toContain("exemplar src/b.mapper.ts does not exist");
+  });
+
   test("facts come from the repository: occurrences, existing files, canon rules, import edges", async () => {
     const broken = {
       ...PLAN,

@@ -2,7 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
-import { AdvanceRun, ApproveRun, GetRunStatus, InitRun, ListRuns } from "../src/application/runs.ts";
+import {
+  AdvanceRun,
+  ApproveRun,
+  GetRunStatus,
+  InitRun,
+  ListRuns,
+  ResumeRun,
+  WriteRunArtifact,
+} from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 
 const FEATURE = `
@@ -363,5 +371,69 @@ describe("autonomy: skipped gates and autopilot", () => {
       await w.advance.execute({ event: { type: "APPROVE", by: "m", choice: "autopilot" } })
     )._unsafeUnwrap();
     expect(approved.autonomy).toBe("L2"); // autopilot only raises L0
+  });
+});
+
+describe("the current run and its artifacts", () => {
+  test("in a run's worktree, no run named means that run, not the latest; latest still means latest", async () => {
+    const w = world();
+    const first = (await w.init.execute({ workflow: "feature", task: "first" }))._unsafeUnwrap().runId;
+    const second = (await w.init.execute({ workflow: "feature", task: "second" }))._unsafeUnwrap().runId;
+    const mine = new RunRepository(w.fs, DEFAULT_PATHS, first);
+    expect((await mine.resolveId(undefined))._unsafeUnwrap()).toBe(first);
+    expect((await mine.resolveId("latest"))._unsafeUnwrap()).toBe(second);
+    // A current run that does not exist (a worktree of something else) falls back to the latest.
+    expect((await new RunRepository(w.fs, DEFAULT_PATHS, "gone").resolveId(undefined))._unsafeUnwrap()).toBe(
+      second,
+    );
+  });
+
+  test("run write: only what the current stage produces, never empty", async () => {
+    const w = world({
+      ".github/metator/workflows/feature.yml":
+        "kind: Workflow\nschemaVersion: 2\nid: feature\nstages:\n  - id: plan\n    owner: mt-planner\n    produces: [plan.json]\n  - id: build\n    owner: mt-implementer\n",
+    });
+    const id = (await w.init.execute({ workflow: "feature", task: "write" }))._unsafeUnwrap().runId;
+    const write = new WriteRunArtifact(w.catalog, w.repo, w.fs);
+    const done = (await write.execute({ artifact: "plan.json", content: '{"steps":[]}' }))._unsafeUnwrap();
+    expect(done).toEqual({ runId: id, file: `.metator/runs/${id}/plan.json`, bytes: 12 });
+    expect((await w.fs.read(done.file))._unsafeUnwrap()).toBe('{"steps":[]}\n');
+    const other = (await write.execute({ artifact: "../../x.md", content: "x" }))._unsafeUnwrapErr();
+    expect([other.code, other.message, other.hint]).toEqual([
+      "USAGE",
+      "stage plan does not produce ../../x.md",
+      "It produces: plan.json.",
+    ]);
+    expect((await write.execute({ artifact: "plan.json", content: "  \n" }))._unsafeUnwrapErr().message).toBe(
+      "plan.json is empty",
+    );
+    await w.advance.execute({ event: { type: "PASS" } });
+    expect((await write.execute({ artifact: "plan.json", content: "x" }))._unsafeUnwrapErr().hint).toBe(
+      "This stage produces no artifact; its workers write theirs.",
+    );
+  });
+});
+
+describe("resuming an escalated run", () => {
+  test("it goes on at the stage it escalated from; history and loops stay; the log says who", async () => {
+    const w = world();
+    const runId = (await w.init.execute({ workflow: "feature", task: "resume me" }))._unsafeUnwrap().runId;
+    const resume = new ResumeRun(w.catalog, w.repo, w.clock);
+    expect((await resume.execute({ by: "ala" }))._unsafeUnwrapErr().message).toBe(
+      "the run is active; only an escalated run resumes",
+    );
+    await w.advance.execute({ event: { type: "PASS" } }); // plan → plan-gate
+    await w.advance.execute({ event: { type: "FAIL", reason: "x" } }); // loop back to plan (1 of 1)
+    await w.advance.execute({ event: { type: "PASS" } });
+    const escalated = (await w.advance.execute({ event: { type: "FAIL", reason: "again" } }))._unsafeUnwrap();
+    expect(escalated.status).toBe("escalated");
+    const back = (await resume.execute({ by: "ala" }))._unsafeUnwrap();
+    expect([back.stage, back.status, back.loops]).toEqual(["plan-gate", "active", { plan: 1 }]);
+    const log = (await w.fs.read(`.metator/runs/${runId}/log.md`))._unsafeUnwrap();
+    expect(log).toContain("resumed at plan-gate · by ala");
+    // The loop is spent: the next failure escalates again.
+    expect(
+      (await w.advance.execute({ event: { type: "FAIL", reason: "still" } }))._unsafeUnwrap().status,
+    ).toBe("escalated");
   });
 });

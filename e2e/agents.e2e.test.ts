@@ -56,7 +56,9 @@ describe("metator meta agents-lint / generate", () => {
     expect(copilot).toContain("user-invocable: false\n");
     expect(copilot).toContain("1. `npx metator gate quick --base <ref>`");
     const claude = await repo.read(".claude/agents/mt-checker.md");
-    expect(claude).toContain("tools: Read, Glob, Bash(npx metator gate:*)\n");
+    expect(claude).toContain(
+      "tools: Read, Glob, Bash(npx metator gate:*), Bash(npx metator run status:*), Bash(npx metator run schema:*), Bash(npx metator run write:*)\n",
+    );
     expect(claude).toContain("model: haiku\n");
     expect((await metator(["generate", "--check"], repo.root)).code).toBe(0);
   });

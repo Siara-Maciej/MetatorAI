@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { MetatorError, parseYamlDocument, REPO_SET_FILE, RepoSetDocument, reposOf } from "@metator/core";
 import {
   bootstrap,
@@ -8,6 +8,7 @@ import {
   findRepoRoot,
   loadConfig,
   machineStateDir,
+  runsRootOf,
 } from "@metator/runtime";
 import { Command, type CommanderError } from "commander";
 import { registerAdrCommands } from "./commands/adr.ts";
@@ -72,12 +73,13 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
     .helpCommand(false);
 
   const env = options.env ?? process.env;
-  const containerAt = (root: string) => {
+  const containerAt = (root: string, extra: { readonly run?: string } = {}) => {
     // An invalid config stops every command with its exact field (thrown at the composition root).
     const config = loadConfig(root);
     if (config.isErr()) throw config.error;
     return bootstrap({
       root,
+      ...extra,
       config: config.value,
       ...(env.METATOR_NOW ? { now: env.METATOR_NOW } : {}),
       ...(env.METATOR_ROLE ? { role: env.METATOR_ROLE } : {}),
@@ -97,6 +99,12 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
 
   const ctx: CommandContext = {
     container: () => containerAt(findRepoRoot(start())),
+    // In a run's worktree (`.metator/wt/<run id>`), runs live in the checkout and the run is its own.
+    runs: () => {
+      const root = findRepoRoot(start());
+      const main = runsRootOf(root);
+      return main === root ? containerAt(root) : containerAt(main, { run: basename(root) });
+    },
     containerAt,
     folder: folderOf,
     stdin: options.stdin ?? (async () => ""),

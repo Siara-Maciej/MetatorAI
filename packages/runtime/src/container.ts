@@ -126,6 +126,7 @@ import {
   type RepositoryDiscoverySource,
   type RepositoryRuns,
   type Result,
+  type ResumeRun,
   type RevisionReader,
   type RuleCatalog,
   type RuleEngine,
@@ -173,6 +174,7 @@ import {
   type WorkspaceReader,
   type WorktreeManager,
   type WorktreeRegistry,
+  type WriteRunArtifact,
 } from "@metator/core";
 import { type AwilixContainer, AwilixResolutionError, createContainer, InjectionMode } from "awilix";
 import type { LoadedConfig } from "./config.ts";
@@ -255,6 +257,8 @@ export interface Cradle {
   guardSubagentOutput: GuardSubagentOutput;
   guardSessionStart: GuardSessionStart;
   checkpointRun: CheckpointRun;
+  writeRunArtifact: WriteRunArtifact;
+  resumeRun: ResumeRun;
   handoffRun: HandoffRun;
   closeRun: CloseRun;
   listRuns: ListRuns;

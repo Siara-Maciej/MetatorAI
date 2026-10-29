@@ -1,11 +1,13 @@
 import {
   err,
+  type FileSystem,
   HOST_TARGETS,
   type HostTarget,
   type InstallReport,
   type InstallStep,
   MetatorError,
   ok,
+  type Result,
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
@@ -127,6 +129,10 @@ export function registerSetupCommands(
         const generated = await step(["generate", ...(answers.hooks ? ["--hooks"] : [])]);
         if (generated.code !== 0) return { result: err(fromEnvelope(generated.envelope, "generate")) };
 
+        // Local state (the index, runs, worktrees) never goes into a commit.
+        const ignored = await ignoreLocalState(c.resolve("fileSystem"));
+        if (ignored.isErr()) return { result: ignored };
+
         const checks = [];
         for (const argv of SETUP_CHECKS) {
           const r = await invoke([...prefix, ...argv]);
@@ -140,6 +146,7 @@ export function registerSetupCommands(
           hooks: answers.hooks,
           canon: { mode, version: report.version, lock: report.lock, steps: count(report.steps) },
           generated: (generated.envelope.data as { written: string[] }).written.length,
+          gitignore: ignored.value,
           checks,
           next: ["metator workflow list", 'metator run init --workflow mt-feature --task "…"'],
         };
@@ -158,6 +165,22 @@ export function registerSetupCommands(
         return { result: ok(summary), warnings };
       }),
     );
+}
+
+/** `.metator/` in `.gitignore`: "added", or "present" when a line already ignores it. */
+async function ignoreLocalState(
+  fs: Pick<FileSystem, "exists" | "read" | "write">,
+): Promise<Result<"added" | "present", MetatorError>> {
+  const file = ".gitignore";
+  const text = (await fs.exists(file)) ? await fs.read(file) : ok("");
+  if (text.isErr()) return err(text.error);
+  if (text.value.split("\n").some((l) => /^\/?\.metator\/?\s*$/.test(l))) return ok("present");
+  const sep = text.value === "" || text.value.endsWith("\n") ? "" : "\n";
+  const written = await fs.write(
+    file,
+    `${text.value}${sep}${text.value === "" ? "" : "\n"}# MetatorAI: local state (index, runs, worktrees)\n.metator/\n`,
+  );
+  return written.isErr() ? err(written.error) : ok("added");
 }
 
 function count(steps: readonly InstallStep[]): Record<string, number> {

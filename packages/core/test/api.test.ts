@@ -113,6 +113,38 @@ describe("ApiSnapshots", () => {
     ]);
   });
 
+  test("subpath pattern exports: every module they expose is the API", async () => {
+    const fs = new InMemoryFileSystem({
+      "packages/money/package.json": manifest({ "./*": "./src/**/*.ts" }),
+    });
+    const many: DeclarationEmitter = {
+      emit: async () =>
+        ok(
+          new Map([
+            [`${D}/format/percent.d.ts`, "export declare const percent: (v: number) => string;"],
+            [`${D}/round.d.ts`, "export declare const round: (v: number) => number;"],
+            ["packages/other/src/x.d.ts", "export declare const x: 1;"],
+          ]),
+        ),
+    };
+    const snap = (
+      await new ApiSnapshots(many, workspace, fs, DEFAULT_PATHS).current("@acme/money")
+    )._unsafeUnwrap();
+    expect([snap.entry, snap.files.map((f) => f.path)]).toEqual([
+      `${D}/**/*.d.ts`,
+      [`${D}/format/percent.d.ts`, `${D}/round.d.ts`],
+    ]);
+    const none = new ApiSnapshots(
+      emitter("x"),
+      workspace,
+      new InMemoryFileSystem({
+        "packages/money/package.json": manifest({ "./*": "./lib/*.js" }),
+      }),
+      DEFAULT_PATHS,
+    );
+    expect((await none.current("@acme/money"))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+
   test("entries from conditional exports or main; errors as values", async () => {
     for (const exports of [{ ".": { types: "./dist/index.d.ts", import: "./src/index.ts" } }, undefined]) {
       const fs = new InMemoryFileSystem({

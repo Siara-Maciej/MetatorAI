@@ -111,6 +111,7 @@ import {
   RemoveWorktree,
   RepositoryDiscoverySource,
   type RepositoryRuns,
+  ResumeRun,
   RuleCatalog,
   RunAffectedTests,
   RunArchEvals,
@@ -146,6 +147,7 @@ import {
   WorkflowCatalog,
   WorkOverview,
   WorktreeRegistry,
+  WriteRunArtifact,
 } from "@metator/core";
 import {
   BunBackgroundProcess,
@@ -162,7 +164,7 @@ import {
   TempGitSandbox,
 } from "@metator/plugin-bun";
 
-export { findChildRepos, findFolderRoot, findRepoRoot } from "@metator/plugin-bun";
+export { findChildRepos, findFolderRoot, findRepoRoot, runsRootOf } from "@metator/plugin-bun";
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
@@ -194,6 +196,8 @@ export interface BootstrapOptions {
   readonly paths?: MetatorPaths;
   /** ISO timestamp pinning the clock (METATOR_NOW): reproducible run ids and logs. */
   readonly now?: string;
+  /** The run this process works for (in a run's worktree): the default of every `run` command. */
+  readonly run?: string;
   /** The calling agent's role (METATOR_ROLE), for hooks that cannot tell from the payload. */
   readonly role?: string;
   /** Where the shipped agent canon is read from (METATOR_CANON); default: this installation. */
@@ -824,7 +828,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     workflowCatalog: asFunction(
       ({ fileSystem, paths }) => new WorkflowCatalog(fileSystem, paths),
     ).singleton(),
-    runRepository: asFunction(({ fileSystem, paths }) => new RunRepository(fileSystem, paths)).singleton(),
+    runRepository: asFunction(
+      ({ fileSystem, paths }) => new RunRepository(fileSystem, paths, options.run),
+    ).singleton(),
     initRun: asFunction(
       ({ workflowCatalog, runRepository, clock, provideWorktree }) =>
         new InitRun(workflowCatalog, runRepository, clock, provideWorktree),
@@ -907,6 +913,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     guardSessionStart: asFunction(
       ({ getRunStatus, fileSystem, paths }) => new GuardSessionStart(getRunStatus, fileSystem, paths),
+    ),
+    resumeRun: asFunction(
+      ({ workflowCatalog, runRepository, clock }) => new ResumeRun(workflowCatalog, runRepository, clock),
+    ),
+    writeRunArtifact: asFunction(
+      ({ workflowCatalog, runRepository, fileSystem }) =>
+        new WriteRunArtifact(workflowCatalog, runRepository, fileSystem),
     ),
     checkpointRun: asFunction(
       ({ getRunStatus, runRepository, clock }) =>

@@ -2,7 +2,7 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-refactor
-revision: 2
+revision: 3
 description: Snapshot the API, pin behavior, small steps, prove equivalence
 entry: { prompt: mt-refactor }
 input:
@@ -16,8 +16,8 @@ stages:
     owner: "script:metator index build"
   - id: baseline
     description: API snapshot before the change
+    # Snapshots go to .metator/api/<package>.json; the gates stage compares against them.
     owner: "script:metator api snapshot"
-    produces: [api-baseline.json]
   - id: characterize
     description: Characterization tests that pass on the old code, behavior inventory
     owner: [mt-test-author, skill:mt-characterization-tests]

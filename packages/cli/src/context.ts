@@ -26,6 +26,8 @@ export interface Folder {
 export interface CommandContext {
   /** Builds the container for the repository selected by `--root` or the working directory. */
   readonly container: () => MetatorContainer;
+  /** The container that holds this repository's runs (in a worktree: the checkout it came from). */
+  readonly runs: () => MetatorContainer;
   /** The container of another repository (one of a folder's). */
   readonly containerAt: (root: string) => MetatorContainer;
   /** The folder of repositories this command runs in; null inside a repository. */

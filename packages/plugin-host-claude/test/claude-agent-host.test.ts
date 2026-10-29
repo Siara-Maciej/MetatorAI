@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AgentQuestion } from "@metator/core";
 import { agentHostContract, collect } from "@metator/testing";
-import { ClaudeAgentHost, type ClaudeQuery, toEvents } from "../src/claude-agent-host.ts";
+import { ClaudeAgentHost, type ClaudeQuery, declaredCommands, toEvents } from "../src/claude-agent-host.ts";
 
 const task = {
   agent: "mt-planner",
@@ -53,6 +56,22 @@ describe("ClaudeAgentHost", () => {
     expect(inRepo.calls[0]?.options.projectConfigRoot).toBeUndefined();
   });
 
+  test("the agent's narrow command grants are pre-approved; broad tools are not", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metator-claude-"));
+    await Bun.write(
+      join(root, ".claude/agents/mt-planner.md"),
+      "---\nname: mt-planner\ntools: Read, Edit, Bash, Bash(metator plan:*), Bash(bun run metator graph:*)\n---\n# Role\ntools: Bash(not:*)\n",
+    );
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(query), { ...task, projectRoot: root });
+    expect(calls[0]?.options.allowedTools).toEqual(["Bash(metator plan:*)", "Bash(bun run metator graph:*)"]);
+    // No agent file (or no tools line): nothing is pre-approved.
+    expect(declaredCommands(join(root, "missing.md"))).toEqual([]);
+    await Bun.write(join(root, "plain.md"), "# no front matter\n");
+    expect(declaredCommands(join(root, "plain.md"))).toEqual([]);
+    await rm(root, { recursive: true, force: true });
+  });
+
   test("AskUserQuestion goes to a person; the answers return keyed by question", async () => {
     let returned: unknown;
     const { query } = fakeQuery(async (can) => {
@@ -93,6 +112,85 @@ describe("ClaudeAgentHost", () => {
       { behavior: "allow", updatedInput: { command: "rm -rf build" } },
       { behavior: "deny", message: "no pushes from runs" },
     ]);
+  });
+
+  test("writing the run's own artifacts needs no person; a write anywhere else asks", async () => {
+    const decisions: unknown[] = [];
+    const { query } = fakeQuery(async (can) => {
+      decisions.push(await can("Write", { file_path: "/repo/.metator/runs/r/analysis.json", content: "{}" }));
+      decisions.push(await can("Edit", { file_path: "/repo/.metator/runs/r/sub/x.md" }));
+      decisions.push(await can("Write", { file_path: "/repo/.metator/runs/r/../r2/analysis.json" }));
+      decisions.push(await can("Write", { file_path: "/repo/packages/a.ts" }));
+      return [init, success];
+    });
+    const asked: string[] = [];
+    await collect(new ClaudeAgentHost(query), task, async (q) => {
+      asked.push(q.prompt);
+      return { choices: ["Deny"], text: "not there" };
+    });
+    expect(decisions).toEqual([
+      {
+        behavior: "allow",
+        updatedInput: { file_path: "/repo/.metator/runs/r/analysis.json", content: "{}" },
+      },
+      { behavior: "allow", updatedInput: { file_path: "/repo/.metator/runs/r/sub/x.md" } },
+      { behavior: "deny", message: "not there" },
+      { behavior: "deny", message: "not there" },
+    ]);
+    expect(asked).toHaveLength(2);
+  });
+
+  test("in the run's own worktree edits need no person; in the checkout itself they ask", async () => {
+    const decisions: unknown[] = [];
+    const asked: string[] = [];
+    const run = async (t: typeof task) => {
+      const { query } = fakeQuery(async (can) => {
+        decisions.push(await can("Edit", { file_path: `${t.cwd}/packages/a.ts` }));
+        return [init, success];
+      });
+      await collect(new ClaudeAgentHost(query), t, async (q) => {
+        asked.push(q.prompt);
+        return { choices: ["Deny"], text: "no" };
+      });
+    };
+    await run(task); // cwd is the run's worktree
+    await run({ ...task, cwd: "/repo" }); // no worktree: the person's own checkout
+    expect(decisions.map((d) => (d as { behavior: string }).behavior)).toEqual(["allow", "deny"]);
+    expect(asked).toEqual(['mt-planner wants to use Edit: {"file_path":"/repo/packages/a.ts"}']);
+  });
+
+  test("a person sees a command whole before deciding on it", async () => {
+    const long = `echo ${"x".repeat(500)} && rm -rf build`;
+    const { query } = fakeQuery(async (can) => {
+      await can("Bash", { command: long });
+      return [init, success];
+    });
+    const asked: string[] = [];
+    await collect(new ClaudeAgentHost(query), task, async (q) => {
+      asked.push(q.prompt);
+      return { choices: ["Deny"], text: "no" };
+    });
+    expect(asked).toEqual([`mt-planner wants to use Bash: ${long}`]);
+  });
+
+  test("a write through a link to the run directory (from a worktree) is a write into the run", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metator-link-"));
+    const runDir = join(root, ".metator/runs/r");
+    await mkdir(runDir, { recursive: true });
+    await mkdir(join(root, ".metator/wt/r/.metator"), { recursive: true });
+    await symlink(join(root, ".metator/runs"), join(root, ".metator/wt/r/.metator/runs"));
+    const decisions: unknown[] = [];
+    const { query } = fakeQuery(async (can) => {
+      decisions.push(await can("Edit", { file_path: join(root, ".metator/wt/r/.metator/runs/r/plan.json") }));
+      decisions.push(await can("Write", { file_path: join(root, ".metator/wt/r/src/a.ts") }));
+      return [init, success];
+    });
+    await collect(new ClaudeAgentHost(query), { ...task, runDir }, async () => ({
+      choices: ["Deny"],
+      text: "no",
+    }));
+    expect(decisions.map((d) => (d as { behavior: string }).behavior)).toEqual(["allow", "deny"]);
+    await rm(root, { recursive: true, force: true });
   });
 
   test("SDK messages become host-neutral events; an error result is not ok", () => {

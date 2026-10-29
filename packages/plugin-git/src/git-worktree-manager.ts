@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, symlinkSync } from "node:fs";
+import { dirname, isAbsolute, join } from "node:path";
 import { err, MetatorError, ok, type Result, type WorktreeManager } from "@metator/core";
 import { simpleGit } from "simple-git";
 
@@ -7,9 +7,32 @@ import { simpleGit } from "simple-git";
 export class GitWorktreeManager implements WorktreeManager {
   constructor(private readonly root: string) {}
 
-  async add(path: string, branch: string, base: string): Promise<Result<void, MetatorError>> {
+  async add(
+    path: string,
+    branch: string,
+    base: string,
+    shared: readonly string[] = [],
+  ): Promise<Result<void, MetatorError>> {
     return this.attempt(`git worktree add ${path}`, async () => {
       await simpleGit(this.root).raw(["worktree", "add", "-b", branch, path, base]);
+      if (shared.length === 0) return;
+      // The links are not work: git ignores them (info/exclude is shared by every worktree), so a
+      // worktree stays clean and `git add -A` never commits one.
+      const common = (await simpleGit(this.root).revparse(["--git-common-dir"])).trim();
+      const exclude = join(isAbsolute(common) ? common : join(this.root, common), "info", "exclude");
+      const known = existsSync(exclude) ? readFileSync(exclude, "utf8") : "";
+      const missing = shared.map((d) => `/${d}`).filter((p) => !known.split("\n").includes(p));
+      if (missing.length > 0) {
+        mkdirSync(dirname(exclude), { recursive: true });
+        appendFileSync(exclude, `${known === "" || known.endsWith("\n") ? "" : "\n"}${missing.join("\n")}\n`);
+      }
+      for (const dir of shared) {
+        const link = join(this.root, path, dir);
+        if (existsSync(link)) continue;
+        mkdirSync(join(this.root, dir), { recursive: true });
+        mkdirSync(dirname(link), { recursive: true });
+        symlinkSync(join(this.root, dir), link, "dir");
+      }
     });
   }
 

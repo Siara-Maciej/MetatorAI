@@ -120,7 +120,12 @@ describe("worktree use cases", () => {
       "main",
       { from: 41020, count: 20 },
     ]);
-    expect(w.git.worktrees.get(".metator/wt/feat-a")).toEqual({ branch: "metator/feat-a", base: "main" });
+    // The run's state is reached from the worktree, not copied into it.
+    expect(w.git.worktrees.get(".metator/wt/feat-a")).toEqual({
+      branch: "metator/feat-a",
+      base: "main",
+      shared: [".metator/runs"],
+    });
     const second = (await w.create.execute({ id: "feat-b", ports: 5 }))._unsafeUnwrap();
     // Blocks align to their size: 41000-41004 holds the busy port, 41005-41009 is free.
     expect(second.ports).toEqual({ from: 41005, count: 5 });

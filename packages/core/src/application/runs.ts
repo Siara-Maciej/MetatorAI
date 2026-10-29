@@ -3,7 +3,7 @@ import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run-machine.ts";
 import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "../domain/run-record.ts";
-import type { Clock } from "../ports/index.ts";
+import type { Clock, FileSystem } from "../ports/index.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { CreateWorktree } from "./worktrees.ts";
@@ -204,6 +204,39 @@ export class AdvanceRun {
   }
 }
 
+/** `run resume`: an escalated run goes on at the stage it escalated from, and the log says who resumed it. */
+export class ResumeRun {
+  constructor(
+    private readonly catalog: WorkflowCatalog,
+    private readonly repo: RunRepository,
+    private readonly clock: Clock,
+  ) {}
+
+  async execute(input: {
+    readonly runId?: string;
+    readonly by: string;
+  }): Promise<Result<RunView, MetatorError>> {
+    const id = await this.repo.resolveId(input.runId);
+    if (id.isErr()) return err(id.error);
+    const record = await this.repo.load(id.value);
+    if (record.isErr()) return err(record.error);
+    const resolved = await machineFor(this.catalog, record.value.workflow.id);
+    if (resolved.isErr()) return err(resolved.error);
+    const next = resolved.value.machine.resume(record.value.state);
+    if (next.isErr()) return err(next.error);
+    const now = this.clock.now().toISOString();
+    const updated = { ...record.value, state: next.value, updatedAt: now };
+    const saved = await this.repo.save(updated);
+    if (saved.isErr()) return err(saved.error);
+    const logged = await this.repo.appendLog(
+      updated.runId,
+      `${now} · resumed at ${next.value.stage} · by ${input.by}`,
+    );
+    if (logged.isErr()) return err(logged.error);
+    return ok(view(updated, resolved.value.machine, this.repo));
+  }
+}
+
 function approval(event: { readonly by: string; readonly choice?: string }, at: string): Approval {
   return event.choice === undefined ? { by: event.by, at } : { by: event.by, choice: event.choice, at };
 }
@@ -299,6 +332,53 @@ export class GetRunStatus {
     const resolved = await machineFor(this.catalog, record.value.workflow.id);
     if (resolved.isErr()) return err(resolved.error);
     return ok(view(record.value, resolved.value.machine, this.repo));
+  }
+}
+
+/**
+ * `run write <artifact>`: a coordinator writes what its stage produces (intake's `task.md`)
+ * through the CLI it may run, never a file of the code. Only an artifact the current stage
+ * declares in `produces`, in the run directory.
+ */
+export class WriteRunArtifact {
+  constructor(
+    private readonly catalog: WorkflowCatalog,
+    private readonly repo: RunRepository,
+    private readonly fs: Pick<FileSystem, "write">,
+  ) {}
+
+  async execute(input: {
+    readonly runId?: string;
+    readonly artifact: string;
+    readonly content: string;
+  }): Promise<
+    Result<{ readonly runId: string; readonly file: string; readonly bytes: number }, MetatorError>
+  > {
+    const id = await this.repo.resolveId(input.runId);
+    if (id.isErr()) return err(id.error);
+    const record = await this.repo.load(id.value);
+    if (record.isErr()) return err(record.error);
+    const entry = await this.catalog.get(record.value.workflow.id);
+    if (entry.isErr()) return err(entry.error);
+    const stage = entry.value.spec.stages.find((s) => s.id === record.value.state.stage);
+    const produces = stage?.produces ?? [];
+    if (!produces.includes(input.artifact))
+      return err(
+        MetatorError.usage(
+          `stage ${record.value.state.stage} does not produce ${input.artifact}`,
+          produces.length > 0
+            ? `It produces: ${produces.join(", ")}.`
+            : "This stage produces no artifact; its workers write theirs.",
+        ),
+      );
+    if (input.content.trim().length === 0) return err(MetatorError.usage(`${input.artifact} is empty`));
+    const file = `${this.repo.runDir(id.value)}/${input.artifact}`;
+    const written = await this.fs.write(
+      file,
+      input.content.endsWith("\n") ? input.content : `${input.content}\n`,
+    );
+    if (written.isErr()) return err(written.error);
+    return ok({ runId: id.value, file, bytes: input.content.length });
   }
 }
 

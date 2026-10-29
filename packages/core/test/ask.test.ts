@@ -33,6 +33,24 @@ describe("conversation domain", () => {
     ]);
   });
 
+  test("citations: Next.js segments, and a bare file name after its full path is that file", () => {
+    const answer = [
+      "Mounted in apps/web/app/[locale]/(protected)/layout.tsx:52.",
+      "The registry is packages/a/src/registry.ts:72; registration at `registry.ts:36`.",
+      "Two providers: packages/x/providers.tsx:12 and apps/web/providers.tsx:45; see providers.tsx:70.",
+      "An unknown one: lonely.ts:3.",
+    ].join("\n");
+    expect(findCitations(answer)).toEqual([
+      { path: "apps/web/app/[locale]/(protected)/layout.tsx", line: 52 },
+      { path: "packages/a/src/registry.ts", line: 72 },
+      { path: "packages/a/src/registry.ts", line: 36 },
+      { path: "packages/x/providers.tsx", line: 12 },
+      { path: "apps/web/providers.tsx", line: 45 },
+      { path: "apps/web/providers.tsx", line: 70 },
+      { path: "lonely.ts", line: 3 },
+    ]);
+  });
+
   test("the prompt carries the rules and earlier turns, unless the host continues its session", () => {
     const turns = [1, 2, 3, 4].map((n) => ({
       at: "2026-10-28T10:00:00.000Z",

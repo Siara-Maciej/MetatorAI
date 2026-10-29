@@ -28,6 +28,8 @@ import type { WorkflowCatalog } from "./workflow-catalog.ts";
 
 /** The free-text option every question has, so a person is never forced into a listed choice. */
 export const OTHER = "Other";
+/** How many times one worker may ask a person in a stage before the stage fails. */
+const MAX_ANSWERS = 3;
 
 export type ActivityInput = Omit<RunActivity, "at">;
 
@@ -405,7 +407,11 @@ export class DriveRun {
     ctx: StageContext,
     script: string,
   ): Promise<Result<{ ok: boolean; tail: string }, MetatorError>> {
-    const words = parseShell(script.replaceAll("{runDir}", ctx.runDir)).filter((w) => typeof w === "string");
+    // `{runDir}` is repository-relative: the same path in the checkout and in a run's worktree (it
+    // links the run directory in), where an absolute path to the checkout would be outside the root.
+    const words = parseShell(script.replaceAll("{runDir}", this.d.repo.runDir(ctx.runId))).filter(
+      (w) => typeof w === "string",
+    );
     if (words[0] === "metator") {
       words.splice(0, 1, ...parseShell(this.d.metatorCommand).filter((w) => typeof w === "string"));
     }
@@ -427,7 +433,8 @@ export class DriveRun {
   ): Promise<Result<Outcome, MetatorError>> {
     let answer: string | undefined;
     let resume = ctx.resume;
-    for (let round = 0; round < 3; round++) {
+    // Up to three answers, and the agent always runs again with the last one.
+    for (let answers = 0; ; answers++) {
       const prompt = stagePrompt({
         runId: ctx.runId,
         task: ctx.task,
@@ -445,6 +452,8 @@ export class DriveRun {
         return ok({ type: "FAIL", reason: `${agent} failed: ${result.value.text.slice(-300)}` });
       const status = parseStatus(result.value.text);
       if (status?.kind !== "blocked") return ok({ type: "PASS" });
+      if (answers === MAX_ANSWERS)
+        return ok({ type: "FAIL", reason: `${agent} stayed blocked after ${MAX_ANSWERS} answers` });
       const q = await this.d.journal.ask(
         ctx.runId,
         {
@@ -462,7 +471,6 @@ export class DriveRun {
       if (a.isErr()) return err(a.error);
       answer = a.value.text ?? a.value.choices.join(", ");
     }
-    return ok({ type: "FAIL", reason: `${agent} stayed blocked after three answers` });
   }
 
   private async critic(ctx: StageContext, agent: string): Promise<Result<Outcome, MetatorError>> {

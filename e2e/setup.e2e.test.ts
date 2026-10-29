@@ -13,6 +13,7 @@ const SCOUT = "metator/agents/mt-scout.md";
 const GRILL = "metator/skills/mt-grill/SKILL.md";
 
 interface Setup {
+  gitignore: string;
   hosts: string[];
   workflows: string[];
   canon: { mode: string; steps: Record<string, number> };
@@ -68,6 +69,13 @@ describe("metator setup (real CLI)", () => {
       kind: "InstallLock",
       schemaVersion: 1,
     });
+    // Local state (index, runs, worktrees) is ignored once, never committed.
+    expect([data.gitignore, await repo.read(".gitignore")]).toEqual([
+      "added",
+      expect.stringContaining("\n.metator/\n"),
+    ]);
+    const again = (await metator(["setup", "--host", "claude", "--yes"], repo.root)).json.data as Setup;
+    expect(again.gitignore).toBe("present");
   });
 
   test("a second install is refused; setup again updates and says the config keeps its hosts", async () => {

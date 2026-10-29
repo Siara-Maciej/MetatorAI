@@ -70,3 +70,17 @@ test("switchBranch starts the new branch at this checkout's HEAD and deletes the
   expect(out(wt, "rev-parse", "HEAD")).toBe(out(dir, "rev-parse", "HEAD"));
   expect(out(dir, "branch", "--list", "metator/pool-1")).toBe("");
 });
+
+test("shared directories of the checkout are reached from the worktree through a link", async () => {
+  const dir = await repo();
+  const m = new GitWorktreeManager(dir);
+  (await m.add(".metator/wt/r1", "metator/r1", "HEAD", [".metator/runs"]))._unsafeUnwrap();
+  await writeFile(join(dir, ".metator/runs/state.json"), "{}");
+  expect(await Bun.file(join(dir, ".metator/wt/r1/.metator/runs/state.json")).text()).toBe("{}");
+  // The link is not work in the worktree: it stays clean.
+  expect((await m.isDirty(".metator/wt/r1"))._unsafeUnwrap()).toBe(false);
+  // A second worktree does not write the exclude line twice.
+  (await m.add(".metator/wt/r2", "metator/r2", "HEAD", [".metator/runs"]))._unsafeUnwrap();
+  const exclude = await Bun.file(join(dir, ".git/info/exclude")).text();
+  expect(exclude.split("\n").filter((l) => l === "/.metator/runs")).toHaveLength(1);
+});

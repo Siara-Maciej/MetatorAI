@@ -98,6 +98,19 @@ describe("drive domain", () => {
     expect(gatePrompt({ runId: "r", task: "t", stage, agent: "mt-plan-critic", runDir: "/d" })).toContain(
       "VERDICT: FAIL: <the reason>",
     );
+    // Workers of one stage in parallel: each writes only its own artifact.
+    const parallel = { id: "context", produces: ["a.json", "b.json"], parallel: ["x", "y"] } as StageSpec;
+    const mine = stagePrompt({
+      runId: "r",
+      task: "t",
+      stage: parallel,
+      agent: "x",
+      skills: [],
+      runDir: "/d",
+    });
+    expect(mine).toContain("Write only the artifact your own instructions name");
+    expect(mine).not.toContain("Write these artifacts into");
+    expect(p).toContain("Write an artifact with your Write tool at /repo/.metator/runs/r/<artifact>");
   });
 
   test("question ids count up per run", () => {
@@ -216,10 +229,11 @@ describe("DriveRun", () => {
       runDir: `/repo/.metator/runs/${runId}`,
     });
     expect(w.host.tasks[1]?.prompt).toContain("Skills you may use: mt-create-from-pattern.");
-    // Scripts run through hosts.metatorCommand, with {runDir} filled and the run in the environment.
+    // Scripts run through hosts.metatorCommand, with {runDir} filled (repository-relative, so it is
+    // the same path in a run's worktree) and the run in the environment.
     expect(w.scripts.calls.map((c) => c.argv)).toEqual([
       ["bun", "run", "metator", "index", "build"],
-      ["test", "-f", `/repo/.metator/runs/${runId}/plan.md`],
+      ["test", "-f", `.metator/runs/${runId}/plan.md`],
     ]);
     expect(w.scripts.calls[0]?.env).toEqual({
       METATOR_RUN: runId,
@@ -303,6 +317,43 @@ describe("DriveRun", () => {
       impl[1]?.prompt.includes("A person answered your question: EUR"),
     ]).toEqual([2, "mt-implementer-1", true]);
     expect(w.asked.find((q) => q.source === "agent")?.prompt).toBe("which currency?");
+  });
+
+  test("the third answer still reaches the agent; a fourth question fails the stage", async () => {
+    const blocked = (n: number) => ({ text: `STATUS: blocked: question ${n}?` });
+    const answers = (q: { source: string }) =>
+      q.source === "gate" ? { choices: ["Approve"] } : { choices: [OTHER], text: "go on" };
+    const w = world(
+      {
+        "mt-planner": [writesPlan],
+        "mt-implementer": [blocked(1), blocked(2), blocked(3), { text: "STATUS: done" }],
+        "mt-plan-critic": [{ text: "VERDICT: PASS" }],
+      },
+      answers,
+      okScripts(),
+    );
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    expect(w.host.tasks.filter((t) => t.agent === "mt-implementer")).toHaveLength(4);
+
+    const stuck = world(
+      {
+        "mt-planner": [writesPlan],
+        "mt-implementer": [blocked(1), blocked(2), blocked(3), blocked(4)],
+        "mt-plan-critic": [{ text: "VERDICT: PASS" }],
+      },
+      answers,
+      okScripts(),
+    );
+    w0 = stuck;
+    const id = await stuck.start();
+    expect((await stuck.drive.execute({ runId: id, host: "fake" }))._unsafeUnwrap().status).toBe("escalated");
+    const fail = (await stuck.journal.activity(id))
+      ._unsafeUnwrap()
+      .find((a) => a.type === "advance" && a.text.startsWith("FAIL"));
+    expect(fail?.text).toBe("FAIL: mt-implementer stayed blocked after 3 answers");
+    expect(stuck.asked.filter((q) => q.source === "agent")).toHaveLength(3);
   });
 
   test("a failing script and a failing agent are FAILs with their output, not exceptions", async () => {

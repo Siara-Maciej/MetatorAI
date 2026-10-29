@@ -180,6 +180,8 @@ describe("metator CLI (process e2e)", () => {
       "run advance",
       "run approve",
       "run checkpoint",
+      "run resume",
+      "run write",
       "run handoff",
       "run close",
       "run status",
