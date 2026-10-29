@@ -29,7 +29,7 @@ export class SymbolQueries {
       MetatorError
     >
   > {
-    const modules = await this.modules();
+    const modules = await this.resolvedModules();
     if (modules.isErr()) return err(modules.error);
     const definitions = findSymbol(name, modules.value);
     const reexportedBy = new Set<string>();
@@ -48,7 +48,7 @@ export class SymbolQueries {
       MetatorError
     >
   > {
-    const modules = await this.modules();
+    const modules = await this.resolvedModules();
     if (modules.isErr()) return err(modules.error);
     const definitions = findSymbol(input.name, modules.value);
     const candidates = input.file ? definitions.filter((d) => d.file === input.file) : definitions;
@@ -74,7 +74,8 @@ export class SymbolQueries {
     });
   }
 
-  private async modules(): Promise<Result<Map<string, ResolvedModule>, MetatorError>> {
+  /** Every source module's names with their specifiers resolved to files. */
+  async resolvedModules(): Promise<Result<Map<string, ResolvedModule>, MetatorError>> {
     const files = await this.sources.list(this.imports.extensions);
     if (files.isErr()) return err(files.error);
     const out = new Map<string, ResolvedModule>();

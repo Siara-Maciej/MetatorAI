@@ -71,6 +71,10 @@ export interface InitRunInput {
   readonly autonomy?: Autonomy;
   /** Work in a new git worktree with its own ports (F8.2), branched from `base`. */
   readonly worktree?: { readonly base?: string };
+  /** The run this one is a child of (F7.6), possibly in another repository. */
+  readonly parent?: string;
+  /** The system plan step this run carries out (F7.6). */
+  readonly system?: RunRecord["system"];
 }
 
 export class InitRun {
@@ -109,6 +113,8 @@ export class InitRun {
       state: machine.start(),
       approvals: {},
       ...(worktree ? { worktree } : {}),
+      ...(input.parent ? { parent: input.parent } : {}),
+      ...(input.system ? { system: input.system } : {}),
     };
     const { record, lines } = skipGates(machine, created, now);
     const saved = await this.repo.save(record);
@@ -116,6 +122,10 @@ export class InitRun {
     for (const line of [
       `${now} · created · workflow ${record.workflow.id}@${record.workflow.revision} · ${record.autonomy}`,
       ...(worktree ? [`${now} · worktree · ${worktree.path} on ${worktree.branch}`] : []),
+      ...(input.parent ? [`${now} · parent · ${input.parent}`] : []),
+      ...(input.system
+        ? [`${now} · system · plan ${input.system.plan}, step ${input.system.step} in ${input.system.app}`]
+        : []),
       ...lines,
     ]) {
       const logged = await this.repo.appendLog(runId, line);

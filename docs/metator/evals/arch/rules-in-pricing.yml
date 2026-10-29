@@ -1,0 +1,23 @@
+kind: ArchEvalCase
+schemaVersion: 1
+id: rules-in-pricing
+description: Discount rules that read the cart live in pricing, so cart and pricing depend on each other. A good plan moves the rules to cart (one move) and leaves no cycle.
+goal: no-cycles
+files:
+  package.json: |
+    { "name": "shop", "private": true, "workspaces": ["packages/*"] }
+  packages/cart/package.json: |
+    { "name": "@shop/cart", "private": true, "main": "src/index.ts", "dependencies": { "@shop/pricing": "*" } }
+  packages/cart/src/index.ts: |
+    import { price } from "@shop/pricing";
+    export const cart = { items: [] as number[], price };
+  packages/pricing/package.json: |
+    { "name": "@shop/pricing", "private": true, "main": "src/index.ts", "dependencies": { "@shop/cart": "*" } }
+  packages/pricing/src/index.ts: |
+    export const price = (n: number) => n * 1.23;
+  packages/pricing/src/rules.ts: |
+    import { cart } from "@shop/cart";
+    export const discount = () => (cart.items.length > 3 ? 0.1 : 0);
+expect:
+  fixed: ["cycle:@shop/cart,@shop/pricing"]
+  maxMoves: 2

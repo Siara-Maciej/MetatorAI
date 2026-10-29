@@ -1,0 +1,100 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "ArchitectureBaseline",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ArchitectureBaseline"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "violations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "cycle",
+                "layer",
+                "tag",
+                "app-import",
+                "undeclared",
+                "root-only",
+                "dev-in-prod",
+                "relative-import",
+                "unused-dependency",
+                "version-drift",
+                "unlayered",
+                "threshold",
+                "expired-exception",
+                "unused-exception"
+              ]
+            }
+          },
+          "required": ["id", "kind"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "violations"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ArchitectureBaseline"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "violations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "cycle",
+                "layer",
+                "tag",
+                "app-import",
+                "undeclared",
+                "root-only",
+                "dev-in-prod",
+                "relative-import",
+                "unused-dependency",
+                "version-drift",
+                "unlayered",
+                "threshold",
+                "expired-exception",
+                "unused-exception"
+              ]
+            }
+          },
+          "required": ["id", "kind"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "violations"],
+    "additionalProperties": false
+  }
+}

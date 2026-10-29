@@ -1,0 +1,38 @@
+kind: SystemEvalCase
+schemaVersion: 1
+id: versioned-prices
+description: Pricing changes the shape of a price under the versioned policy. A good plan releases a new major version first and then moves each consumer to it.
+task: Prices with currency
+input:
+  breaking: [prices]
+files:
+  docs/metator/system.yml: |
+    kind: SystemMap
+    schemaVersion: 1
+    system: shop
+    applications:
+      - { id: pricing, kind: service, source: { path: apps/pricing }, owners: ["@pricing-team"] }
+      - { id: web, kind: frontend, source: { path: apps/web }, owners: ["@web-team"], consumes: [prices@^2] }
+      - { id: checkout, kind: service, source: { path: apps/checkout }, owners: ["@checkout-team"], consumes: [prices@^2] }
+    contracts:
+      - { id: prices, kind: openapi, owner: pricing, spec: { path: prices.yaml } }
+    policies: { breaking: versioned }
+  apps/pricing/prices.yaml: |
+    openapi: 3.0.3
+    info: { title: Prices, version: 2.3.0 }
+    paths:
+      /prices/{sku}:
+        get:
+          parameters: [{ name: sku, in: path, required: true, schema: { type: string } }]
+          responses: { "200": { description: ok } }
+  apps/web/src/main.ts: |
+    export const price = (sku: string) => fetch(`/prices/${sku}`);
+  apps/checkout/src/main.ts: |
+    export const total = () => 0;
+expect:
+  applications: [pricing, web, checkout]
+  contracts: { prices: breaking }
+  steps: [pricing-bump, web-migrate, checkout-migrate]
+  order:
+    - [pricing-bump, web-migrate]
+    - [pricing-bump, checkout-migrate]

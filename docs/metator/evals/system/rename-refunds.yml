@@ -1,0 +1,41 @@
+kind: SystemEvalCase
+schemaVersion: 1
+id: rename-refunds
+description: Billing renames its refunds endpoint, which web and mail call. Under expand-contract a good plan adds the new shape, migrates both consumers, and only then removes the old one.
+task: Rename refunds to credit notes
+input:
+  breaking: [billing-api]
+files:
+  docs/metator/system.yml: |
+    kind: SystemMap
+    schemaVersion: 1
+    system: shop
+    applications:
+      - { id: billing, kind: service, source: { path: apps/billing }, owners: ["@billing-team"] }
+      - { id: web, kind: frontend, source: { path: apps/web }, owners: ["@web-team"], consumes: [billing-api@^1] }
+      - { id: mail, kind: worker, source: { path: apps/mail }, owners: ["@mail-team"], consumes: [billing-api] }
+      - { id: search, kind: service, source: { path: apps/search }, owners: ["@search-team"] }
+    contracts:
+      - { id: billing-api, kind: openapi, owner: billing, spec: { path: openapi.yaml } }
+  apps/billing/openapi.yaml: |
+    openapi: 3.0.3
+    info: { title: Billing API, version: 1.4.0 }
+    paths:
+      /refunds:
+        post:
+          responses: { "201": { description: created } }
+  apps/web/src/main.ts: |
+    export const refund = () => fetch("/refunds", { method: "POST" });
+  apps/mail/src/main.ts: |
+    export const onRefund = () => "refund mail";
+  apps/search/src/main.ts: |
+    export const search = () => [];
+expect:
+  applications: [billing, web, mail]
+  contracts: { billing-api: breaking }
+  steps: [billing-expand, web-migrate, mail-migrate, billing-contract]
+  order:
+    - [billing-expand, web-migrate]
+    - [billing-expand, mail-migrate]
+    - [web-migrate, billing-contract]
+    - [mail-migrate, billing-contract]

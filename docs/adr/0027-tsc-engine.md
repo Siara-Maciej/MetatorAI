@@ -1,6 +1,6 @@
 # ADR-0027: tsc jako silnik E1, włączone reguły narzędzi i wybór silników
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -29,3 +29,6 @@ Część reguł projektu wymusza kompilator (`noUncheckedIndexedAccess`, `exactO
 | API kompilatora do odczytu opcji | TS 7 nie ma stabilnego API JS (ADR-0008) |
 | Czytanie `tsconfig.json` samodzielnie | `extends`, domyślne wartości i rodzina `strict`; `--showConfig` robi to poprawnie |
 | Uruchamianie wszystkich silników w `rules check` | typecheck i lint tam, gdzie nikt o nie nie prosił |
+
+## Implikacje dla kodu
+ADR-0027 egzekwują reguły kanonu MT-CODE-008, MT-CODE-009 (`metator rules show <id>`).

@@ -1,0 +1,284 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "SystemPlan",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "SystemPlan"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "task": {
+        "type": "string",
+        "minLength": 1
+      },
+      "status": {
+        "default": "draft",
+        "type": "string",
+        "enum": ["draft", "approved", "running", "done"]
+      },
+      "createdBy": {
+        "type": "string"
+      },
+      "approval": {
+        "type": "object",
+        "properties": {
+          "by": {
+            "type": "string",
+            "minLength": 1
+          },
+          "at": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          }
+        },
+        "required": ["by", "at", "digest"],
+        "additionalProperties": false
+      },
+      "strategies": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "contract": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "strategy": {
+              "type": "string",
+              "enum": ["expand-contract", "versioned"]
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": ["contract", "strategy"],
+          "additionalProperties": false
+        }
+      },
+      "steps": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "app": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "contracts": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]*$"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": ["change", "expand", "migrate", "contract", "bump"]
+                  }
+                },
+                "required": ["id", "role"],
+                "additionalProperties": false
+              }
+            },
+            "dependsOn": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              }
+            },
+            "deploy": {
+              "type": "object",
+              "properties": {
+                "flag": {
+                  "type": "string"
+                },
+                "rollback": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "status": {
+              "default": "pending",
+              "type": "string",
+              "enum": ["pending", "running", "done", "blocked"]
+            },
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "app", "summary"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "id", "task"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "SystemPlan"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "task": {
+        "type": "string",
+        "minLength": 1
+      },
+      "status": {
+        "default": "draft",
+        "type": "string",
+        "enum": ["draft", "approved", "running", "done"]
+      },
+      "createdBy": {
+        "type": "string"
+      },
+      "approval": {
+        "type": "object",
+        "properties": {
+          "by": {
+            "type": "string",
+            "minLength": 1
+          },
+          "at": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          }
+        },
+        "required": ["by", "at", "digest"],
+        "additionalProperties": false
+      },
+      "strategies": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "contract": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "strategy": {
+              "type": "string",
+              "enum": ["expand-contract", "versioned"]
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": ["contract", "strategy"],
+          "additionalProperties": false
+        }
+      },
+      "steps": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "app": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "contracts": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]*$"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": ["change", "expand", "migrate", "contract", "bump"]
+                  }
+                },
+                "required": ["id", "role"],
+                "additionalProperties": false
+              }
+            },
+            "dependsOn": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              }
+            },
+            "deploy": {
+              "type": "object",
+              "properties": {
+                "flag": {
+                  "type": "string"
+                },
+                "rollback": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "status": {
+              "default": "pending",
+              "type": "string",
+              "enum": ["pending", "running", "done", "blocked"]
+            },
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "app", "summary", "contracts", "dependsOn", "status"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["kind", "schemaVersion", "id", "task", "status", "strategies", "steps"],
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,56 @@
+# W13: a change across a system of many applications (docs/design/08-system-landscape.md §3.2).
+kind: Workflow
+schemaVersion: 2
+id: mt-system-change
+revision: 1
+description: Analyze the system, plan steps per application, approve, carry them out as child runs in each repository
+entry: { prompt: mt-system-change }
+input:
+  oneOf: [task_ref, task_text]
+  optional: [autonomy, breaking]
+preconditions: [clean-tree, branch-ok]
+limits: { parallel: 6 }
+stages:
+  - id: analyze
+    description: "`metator system analyze <task>` (with --breaking for what the task breaks), then mt-system-scout checks the analysis"
+    owner: mt-system-scout
+    produces: [system-analysis.md]
+  - id: plan
+    description: "`metator system plan new <task>`, then mt-system-planner refines the steps"
+    owner: mt-system-planner
+    produces: [system-plan.md]
+  - id: plan-gate
+    description: Every consumer of a breaking change migrates, providers first, a strategy per the map's policy
+    owner: "script:metator system plan lint --run {runDir}"
+    gate: { script: "metator system plan lint --run {runDir}" }
+    onFail: { goto: plan, loop: plan }
+  - id: plan-approval
+    description: "A person approves the system plan (`metator system plan approve`) and this gate"
+    hitl: true
+    neverSkip: true
+  - id: children
+    description: The steps that can start, each a child run (W1) in its application's repository
+    owner: "script:metator system plan run --run {runDir}"
+  - id: status
+    description: The child runs read back; the next wave starts when this one is done
+    owner: "script:metator system status --run {runDir}"
+    gate: { script: "metator system status --run {runDir} --check" }
+    onFail: { goto: children, loop: waves }
+  - id: delivery
+    description: Every step done; the deploy order follows the plan's waves
+    hitl: true
+    neverSkip: true
+loops: { plan: 2, waves: 12 }
+escalation:
+  onLoopExhausted: report the steps that are blocked, their child runs and options
+  onAmbiguity: stop and ask (skill mt-grill)
+autonomy: [L0, L1]
+permissions: { edit: metator/system/plans, external: [] }
+done:
+  - system plan lint clean and approved by a person
+  - every step's child run done in its repository
+  - contract diff passes in every provider's repository
+recovery: [a blocked child run is resolved in its repository, then system status again]
+resume: metator system status --run <run>, then continue at the last approved stage
+telemetry: [stage_duration, loops, escalations, outcome, child_runs]
+report: the plan's waves with each step's child run, repository and outcome

@@ -263,3 +263,24 @@ describe("GitVcs.lastChanged (real git)", () => {
     );
   });
 });
+
+describe("GitVcs.commits (real git)", () => {
+  test("the files of the last commits, newest first, at most the limit", async () => {
+    const dir = await repo();
+    await writeFile(join(dir, "a.md"), "a\n");
+    await writeFile(join(dir, "b.md"), "b\n");
+    await sh(dir, "add", ".");
+    await sh(dir, "commit", "-q", "-m", "init");
+    await writeFile(join(dir, "b.md"), "b2\n");
+    await sh(dir, "commit", "-q", "-am", "b");
+    await sh(dir, "commit", "-q", "--allow-empty", "-m", "empty");
+    expect((await new GitVcs(dir).commits(10))._unsafeUnwrap()).toEqual([[], ["b.md"], ["a.md", "b.md"]]);
+    expect((await new GitVcs(dir).commits(1))._unsafeUnwrap()).toEqual([[]]);
+  });
+
+  test("no commits yet: none; not a repository: an error value", async () => {
+    const empty = await repo();
+    expect((await new GitVcs(empty).commits(5))._unsafeUnwrap()).toEqual([]);
+    expect((await new GitVcs(join(empty, "missing")).commits(5))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+});

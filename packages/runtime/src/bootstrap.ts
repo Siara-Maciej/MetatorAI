@@ -1,16 +1,27 @@
+import { existsSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   AddLesson,
   AdvanceRun,
   AgentCatalog,
   type AgentHost,
+  AnalyzeArchitecture,
   AnalyzeEnvironment,
+  AnalyzeSystem,
   ApiSnapshots,
+  ApproveRefactorPlan,
   ApproveRun,
+  ApproveSystemPlan,
+  ArchitectureBaselineStore,
+  ArchitectureFacts,
+  ArchitecturePolicyCatalog,
+  AskQuestion,
   AuditAgents,
+  BaseArchitectureFacts,
   BuildImportGraph,
   BuildModuleCards,
+  CheckArchitecture,
   CheckDebugTags,
   CheckFlaky,
   CheckMemory,
@@ -18,17 +29,23 @@ import {
   CheckQuote,
   CheckRules,
   type Clock,
+  CloneCache,
   CloseRun,
   CompareEvals,
   ComputeAffected,
+  ConversationRepository,
+  CreateRefactorPlan,
+  CreateSystemPlan,
   CreateWorktree,
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
+  DiffContracts,
   DiffCoverage,
   DiffImportGraph,
   Discover,
   DiscoverEnvironment,
+  DiscoverSystem,
   DocsDrift,
   DocsInventory,
   DocsLinks,
@@ -36,6 +53,7 @@ import {
   EnvironmentCatalog,
   EnvironmentServices,
   EvalCatalog,
+  type FileSystem,
   FindMemoryDupes,
   FindOwners,
   FindSimilar,
@@ -53,6 +71,7 @@ import {
   GuardSubagentOutput,
   HandoffRun,
   IndexedImportGraphReader,
+  InitArchitecturePolicy,
   InitEnvironment,
   InitProject,
   InitRun,
@@ -63,12 +82,15 @@ import {
   LintAdrs,
   LintAgents,
   LintPlan,
+  LintRefactorPlan,
   LintRules,
   LintSkills,
   LintSystem,
+  LintSystemPlan,
   LintWorkflows,
   ListRuns,
   ListWorktrees,
+  LocalSystemLocation,
   MachineLeases,
   MeasureRuleCoverage,
   MemoryBudget,
@@ -77,35 +99,56 @@ import {
   type MetatorPaths,
   PackRules,
   PatternCatalog,
+  PinnedSystemLocation,
+  PlannedBreakingChanges,
   PlanReview,
+  ProposeRefactorPlan,
+  ProposeSystemPlan,
   ProvideWorktree,
   PruneWorktrees,
+  RecordArchitectureBaseline,
+  RefactorPlanStore,
   RemoveWorktree,
+  RepositoryDiscoverySource,
+  type RepositoryRuns,
   RuleCatalog,
   RunAffectedTests,
+  RunArchEvals,
   RunDrivers,
   RunEvals,
   RunGate,
   RunJournal,
+  RunRefactorPlan,
   RunRepository,
+  RunSystemEvals,
+  RunSystemPlan,
   ScaffoldRule,
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
-  SetEditor,
   ShowSystem,
+  SimulateArchitecture,
+  SimulateRefactorPlan,
   SkillCatalog,
   SourceFiles,
   SymbolQueries,
+  SyncRefactorPlan,
   SystemCatalog,
+  SystemImpactQuery,
+  SystemPlanStatus,
+  SystemPlanStore,
+  SystemSources,
+  UpdateConfig,
   ValidateCitations,
   ValidateFindings,
   WarmPool,
   WorkflowCatalog,
+  WorkOverview,
   WorktreeRegistry,
 } from "@metator/core";
 import {
   BunBackgroundProcess,
+  BunCheckoutReader,
   BunFileSystem,
   BunLauncher,
   BunMachineState,
@@ -115,6 +158,7 @@ import {
   BunTimer,
   NodeBinResolver,
   NodeTreeCopier,
+  TempGitSandbox,
 } from "@metator/plugin-bun";
 
 export { findChildRepos, findFolderRoot, findRepoRoot } from "@metator/plugin-bun";
@@ -122,21 +166,24 @@ export { findChildRepos, findFolderRoot, findRepoRoot } from "@metator/plugin-bu
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { DockerComposeRuntime } from "@metator/plugin-docker";
-import { GitVcs, GitWorktreeManager } from "@metator/plugin-git";
+import { GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
 import { ClaudeAgentHost, ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
 import { CopilotAgentHost, CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
 import { ScenarioAgentHost } from "@metator/plugin-host-scenario";
 import {
   GetPortProbe,
+  JsonToolBoundariesReader,
   LcovCoverageReader,
+  ManypkgManifestReader,
   ManypkgWorkspaceReader,
   NodePackageManager,
   WaitOnHealthProbe,
 } from "@metator/plugin-node";
+import { OpenApiContractDetector, OpenApiContractDiffer } from "@metator/plugin-openapi";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
 import { resolveCanon } from "./canon.ts";
-import { type LoadedConfig, resolvePaths } from "./config.ts";
+import { type LoadedConfig, loadConfig, resolvePaths } from "./config.ts";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
 
 export interface BootstrapOptions {
@@ -172,12 +219,30 @@ export function machineStateDir(env: Readonly<Record<string, string | undefined>
 
 const systemClock: Clock = { now: () => new Date() };
 
+/** The host files of shipped agents in this repository (as `agents install` writes them), for sandboxes. */
+async function agentDefinitionFiles(fs: FileSystem, ids: readonly string[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const id of ids)
+    for (const file of [`.claude/agents/${id}.md`, `.github/agents/${id}.agent.md`]) {
+      const text = await fs.read(file);
+      if (text.isOk()) out[file] = text.value;
+    }
+  return out;
+}
+
 /**
  * Composition root: the only place that knows concrete adapters. Use cases keep plain
  * constructors (framework-agnostic); awilix wires them through factories.
  */
 export function bootstrap(options: BootstrapOptions): MetatorContainer {
   const c = createMetatorContainer();
+  /** The container of another repository root, with that repository's own config. */
+  const elsewhere = (root: string): MetatorContainer => {
+    const config = loadConfig(root);
+    if (config.isErr()) throw config.error;
+    const { paths: _here, ...shared } = options;
+    return bootstrap({ ...shared, root, config: config.value });
+  };
   const pinned = options.now ? new Date(options.now) : undefined;
   const config = options.config ?? { config: DEFAULT_CONFIG, source: undefined };
   c.register({
@@ -192,7 +257,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
     timer: asFunction(() => new BunTimer()).singleton(),
     launcher: asFunction(() => new BunLauncher()).singleton(),
-    setEditor: asFunction(({ fileSystem }) => new SetEditor(fileSystem)),
+    updateConfig: asFunction(({ fileSystem }) => new UpdateConfig(fileSystem)),
     containerRuntime: asFunction(() => new DockerComposeRuntime(options.dockerBin)).singleton(),
     healthProbe: asFunction(() => new WaitOnHealthProbe()).singleton(),
     environmentCatalog: asFunction(({ fileSystem, paths }) => new EnvironmentCatalog(fileSystem, paths)),
@@ -240,6 +305,37 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     dataIsolator: asFunction(() => new BunSqlDataIsolator()).singleton(),
     treeCopier: asFunction(() => new NodeTreeCopier()).singleton(),
     backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
+    workOverview: asFunction(
+      ({
+        runRepository,
+        workflowCatalog,
+        runJournal,
+        runDrivers,
+        worktreeRegistry,
+        environmentServices,
+        conversationRepository,
+        clock,
+      }) =>
+        new WorkOverview(
+          runRepository,
+          workflowCatalog,
+          runJournal,
+          runDrivers,
+          worktreeRegistry,
+          environmentServices,
+          conversationRepository,
+          clock,
+        ),
+    ),
+    conversationRepository: asFunction(
+      ({ fileSystem, paths }) => new ConversationRepository(fileSystem, paths),
+    ).singleton(),
+    askQuestion: asFunction(
+      ({ agentHosts, conversationRepository, clock }) =>
+        new AskQuestion(agentHosts, conversationRepository, clock, async (cwd: string, path: string) =>
+          existsSync(join(cwd, path)),
+        ),
+    ),
     agentHosts: asFunction(() => {
       const hosts = new Map<string, AgentHost>([
         ["claude", new ClaudeAgentHost()],
@@ -287,11 +383,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     vcs: asFunction(({ root }) => new GitVcs(root)).singleton(),
     revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    changeHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    sandbox: asFunction(() => new TempGitSandbox()).singleton(),
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     packageManager: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     binResolver: asFunction(({ root }) => new NodeBinResolver(root)).singleton(),
     workspaceReader: asFunction(({ root }) => new ManypkgWorkspaceReader(root)).singleton(),
+    toolBoundariesReader: asFunction(({ root }) => new JsonToolBoundariesReader(root)).singleton(),
+    manifestReader: asFunction(
+      ({ root, workspaceReader }) => new ManypkgManifestReader(root, workspaceReader),
+    ).singleton(),
     importAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
     symbolAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
     sourceFiles: asFunction(
@@ -348,8 +450,16 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new CheckMemory(memoryMapReader, knowledgeFiles, fileSystem, memoryBudget, validateCitations),
     ),
     buildModuleCards: asFunction(
-      ({ buildImportGraph, fileSystem, paths, testGlobs, findOwners, patternCatalog }) =>
-        new BuildModuleCards(buildImportGraph, fileSystem, paths, testGlobs, findOwners, patternCatalog),
+      ({ buildImportGraph, fileSystem, paths, testGlobs, findOwners, patternCatalog, systemCatalog }) =>
+        new BuildModuleCards(
+          buildImportGraph,
+          fileSystem,
+          paths,
+          testGlobs,
+          findOwners,
+          patternCatalog,
+          systemCatalog,
+        ),
     ),
     patternCatalog: asFunction(({ fileSystem, paths }) => new PatternCatalog(fileSystem, paths)).singleton(),
     scanPatterns: asFunction(
@@ -375,12 +485,216 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     findOwners: asFunction(({ fileSystem }) => new FindOwners(fileSystem)),
     // Contract kinds the installed plugins provide (ADR-0047). MVP: OpenAPI only.
     contractKinds: asValue(["openapi"]),
-    systemCatalog: asFunction(({ fileSystem, paths }) => new SystemCatalog(fileSystem, paths.system)),
-    lintSystem: asFunction(
-      ({ systemCatalog, fileSystem, contractKinds }) =>
-        new LintSystem(systemCatalog, fileSystem, contractKinds),
+    systemCatalog: asFunction(({ fileSystem, paths, config }) => {
+      const map = config.config.system?.map;
+      return new SystemCatalog(
+        fileSystem,
+        map && "path" in map && !("repo" in map) ? map.path : paths.system,
+      );
+    }),
+    repositoryCloner: asFunction(() => new GitRepositoryCloner()).singleton(),
+    checkoutReader: asFunction(() => new BunCheckoutReader()).singleton(),
+    // One clone cache per process: a pinned ref resolves to one commit for the whole command.
+    cloneCache: asFunction(
+      ({ repositoryCloner, root, paths }) => new CloneCache(repositoryCloner, join(root, paths.systemCache)),
+    ).singleton(),
+    systemLocation: asFunction(({ systemCatalog, config, root, cloneCache, checkoutReader }) => {
+      const map = config.config.system?.map;
+      return map && "repo" in map
+        ? new PinnedSystemLocation(map, root, cloneCache, checkoutReader)
+        : new LocalSystemLocation(systemCatalog, root);
+    }),
+    systemSources: asFunction(
+      ({ config, root, systemLocation, cloneCache, checkoutReader, vcs }) =>
+        new SystemSources(config.config.system, root, systemLocation, cloneCache, checkoutReader, vcs),
     ),
-    showSystem: asFunction(({ systemCatalog }) => new ShowSystem(systemCatalog)),
+    systemImpactQuery: asFunction(({ systemSources, vcs }) => new SystemImpactQuery(systemSources, vcs)),
+    lintSystem: asFunction(
+      ({ systemSources, fileSystem, contractKinds, checkoutReader }) =>
+        new LintSystem(systemSources, fileSystem, contractKinds, checkoutReader),
+    ),
+    showSystem: asFunction(({ systemLocation }) => new ShowSystem(systemLocation)),
+    contractDetectors: asFunction(() => [new OpenApiContractDetector()]).singleton(),
+    contractDiffers: asFunction(() => [new OpenApiContractDiffer()]).singleton(),
+    diffContracts: asFunction(
+      ({ systemSources, revisionReader, fileSystem, contractDiffers, systemPlanStore }) =>
+        new DiffContracts(
+          systemSources,
+          revisionReader,
+          fileSystem,
+          contractDiffers,
+          new PlannedBreakingChanges(systemPlanStore),
+        ),
+    ),
+    systemPlanStore: asFunction(
+      ({ fileSystem, paths }) => new SystemPlanStore(fileSystem, paths.systemPlans),
+    ),
+    analyzeSystem: asFunction(
+      ({ systemImpactQuery, diffContracts, systemPlanStore }) =>
+        new AnalyzeSystem(systemImpactQuery, diffContracts, systemPlanStore),
+    ),
+    createSystemPlan: asFunction(
+      ({ analyzeSystem, systemLocation, systemPlanStore }) =>
+        new CreateSystemPlan(analyzeSystem, systemLocation, systemPlanStore),
+    ),
+    lintSystemPlan: asFunction(
+      ({ systemLocation, systemPlanStore }) => new LintSystemPlan(systemLocation, systemPlanStore),
+    ),
+    approveSystemPlan: asFunction(
+      ({ lintSystemPlan, systemPlanStore, clock }) =>
+        new ApproveSystemPlan(lintSystemPlan, systemPlanStore, clock),
+    ),
+    proposeSystemPlan: asFunction(
+      ({ agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore }) =>
+        new ProposeSystemPlan(agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore),
+    ),
+    // Run tools of another repository on this machine: its own container, with its own config.
+    repositoryRuns: asValue((root: string): RepositoryRuns => {
+      const there = root === options.root ? c : elsewhere(root);
+      return { init: there.resolve("initRun"), runs: there.resolve("runRepository") };
+    }),
+    runSystemPlan: asFunction(
+      ({ systemPlanStore, systemSources, repositoryRuns, clock, runRepository }) =>
+        new RunSystemPlan(systemPlanStore, systemSources, repositoryRuns, clock, runRepository),
+    ),
+    systemPlanStatus: asFunction(
+      ({ systemPlanStore, systemSources, repositoryRuns }) =>
+        new SystemPlanStatus(systemPlanStore, systemSources, repositoryRuns),
+    ),
+    runSystemEvals: asFunction(
+      ({ fileSystem, paths, sandbox }) =>
+        new RunSystemEvals(
+          fileSystem,
+          paths.systemEvals,
+          sandbox,
+          (root) => {
+            const there = elsewhere(root);
+            return {
+              create: there.resolve("createSystemPlan"),
+              propose: there.resolve("proposeSystemPlan"),
+              lint: there.resolve("lintSystemPlan"),
+              store: there.resolve("systemPlanStore"),
+            };
+          },
+          () => agentDefinitionFiles(fileSystem, ["mt-system-scout", "mt-system-planner"]),
+        ),
+    ),
+    discoverySource: asFunction(
+      ({ root, vcs, fileSystem, manifestReader, architectureFacts, findOwners }) =>
+        new RepositoryDiscoverySource(
+          basename(root),
+          vcs,
+          fileSystem,
+          manifestReader,
+          architectureFacts,
+          findOwners,
+        ),
+    ),
+    discoverSystem: asFunction(({ contractDetectors }) => new DiscoverSystem(contractDetectors)),
+    architecturePolicyCatalog: asFunction(
+      ({ fileSystem, paths }) => new ArchitecturePolicyCatalog(fileSystem, paths.architecture),
+    ),
+    architectureFacts: asFunction(
+      ({
+        buildImportGraph,
+        manifestReader,
+        architecturePolicyCatalog,
+        clock,
+        symbolQueries,
+        changeHistory,
+        findOwners,
+      }) =>
+        new ArchitectureFacts(buildImportGraph, manifestReader, architecturePolicyCatalog, clock, {
+          symbols: symbolQueries,
+          history: changeHistory,
+          owners: findOwners,
+        }),
+    ),
+    architectureBaselineStore: asFunction(
+      ({ fileSystem, paths }) => new ArchitectureBaselineStore(fileSystem, paths.archBaseline),
+    ),
+    baseArchitectureFacts: asFunction(
+      ({ vcs, revisionReader, importAnalyzer }) =>
+        new BaseArchitectureFacts(vcs, revisionReader, importAnalyzer),
+    ),
+    checkArchitecture: asFunction(
+      ({ architectureFacts, baseArchitectureFacts, architectureBaselineStore, fileSystem }) =>
+        new CheckArchitecture(
+          architectureFacts,
+          baseArchitectureFacts,
+          architectureBaselineStore,
+          fileSystem,
+        ),
+    ),
+    recordArchitectureBaseline: asFunction(
+      ({ architectureFacts, architectureBaselineStore }) =>
+        new RecordArchitectureBaseline(architectureFacts, architectureBaselineStore),
+    ),
+    initArchitecturePolicy: asFunction(
+      ({ architectureFacts, toolBoundariesReader, fileSystem, paths }) =>
+        new InitArchitecturePolicy(architectureFacts, toolBoundariesReader, fileSystem, paths.architecture),
+    ),
+    simulateArchitecture: asFunction(({ architectureFacts }) => new SimulateArchitecture(architectureFacts)),
+    refactorPlanStore: asFunction(
+      ({ fileSystem, paths }) => new RefactorPlanStore(fileSystem, paths.archPlans),
+    ),
+    createRefactorPlan: asFunction(({ refactorPlanStore }) => new CreateRefactorPlan(refactorPlanStore)),
+    simulateRefactorPlan: asFunction(
+      ({ architectureFacts, refactorPlanStore }) =>
+        new SimulateRefactorPlan(architectureFacts, refactorPlanStore),
+    ),
+    lintRefactorPlan: asFunction(
+      ({ architectureFacts, refactorPlanStore, fileSystem }) =>
+        new LintRefactorPlan(architectureFacts, refactorPlanStore, fileSystem),
+    ),
+    approveRefactorPlan: asFunction(
+      ({ lintRefactorPlan, refactorPlanStore, clock }) =>
+        new ApproveRefactorPlan(lintRefactorPlan, refactorPlanStore, clock),
+    ),
+    proposeRefactorPlan: asFunction(
+      ({
+        agentHosts,
+        analyzeArchitecture,
+        refactorPlanStore,
+        createRefactorPlan,
+        simulateRefactorPlan,
+        lintRefactorPlan,
+      }) =>
+        new ProposeRefactorPlan(
+          agentHosts,
+          analyzeArchitecture,
+          refactorPlanStore,
+          createRefactorPlan,
+          simulateRefactorPlan,
+          lintRefactorPlan,
+        ),
+    ),
+    runRefactorPlan: asFunction(
+      ({ refactorPlanStore, initRun }) => new RunRefactorPlan(refactorPlanStore, initRun),
+    ),
+    runArchEvals: asFunction(
+      ({ fileSystem, paths, sandbox }) =>
+        new RunArchEvals(
+          fileSystem,
+          paths.archEvals,
+          sandbox,
+          (root) => {
+            const there = elsewhere(root);
+            return {
+              propose: there.resolve("proposeRefactorPlan"),
+              facts: there.resolve("architectureFacts"),
+            };
+          },
+          () => agentDefinitionFiles(fileSystem, ["mt-arch-planner"]),
+        ),
+    ),
+    syncRefactorPlan: asFunction(
+      ({ refactorPlanStore, runRepository }) => new SyncRefactorPlan(refactorPlanStore, runRepository),
+    ),
+    analyzeArchitecture: asFunction(
+      ({ architectureFacts, fileSystem, paths }) =>
+        new AnalyzeArchitecture(architectureFacts, fileSystem, paths),
+    ),
     docsLinks: asFunction(({ sourceFiles, fileSystem }) => new DocsLinks(sourceFiles, fileSystem)),
     docsInventory: asFunction(
       ({ sourceFiles, fileSystem, revisionReader, findOwners, docsLinks, clock }) =>
@@ -420,8 +734,24 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new Discover(fileSystem, sourceFiles, vcs, workspaceReader, packageManagerDetector, paths),
     ),
     gateChecks: asFunction(
-      ({ checkRules, runAffectedTests, diffImportGraph, apiSnapshots, diffCoverage }) =>
-        new GateChecks(checkRules, runAffectedTests, diffImportGraph, apiSnapshots, diffCoverage),
+      ({
+        checkRules,
+        runAffectedTests,
+        diffImportGraph,
+        apiSnapshots,
+        diffCoverage,
+        checkArchitecture,
+        diffContracts,
+      }) =>
+        new GateChecks(
+          checkRules,
+          runAffectedTests,
+          diffImportGraph,
+          apiSnapshots,
+          diffCoverage,
+          checkArchitecture,
+          diffContracts,
+        ),
     ),
     runGate: asFunction(
       ({ config, packageManager, binResolver, processRunner, gateChecks, vcs, fileSystem, paths, clock }) =>

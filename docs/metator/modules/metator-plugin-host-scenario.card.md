@@ -25,7 +25,7 @@ dir: packages/plugin-host-scenario
 
 ## Invariants
 
-- The n-th start of an agent plays its n-th entry and the last entry repeats [[cite: packages/plugin-host-scenario/src/scenario-agent-host.ts:58 | "const steps = entries[Math.min(n, entries.length - 1)] ?? [];"]].
+- The n-th start of an agent plays its n-th entry and the last entry repeats [[cite: packages/plugin-host-scenario/src/scenario-agent-host.ts:60 | "const steps = entries[Math.min(n, entries.length - 1)] ?? [];"]].
 - A missing or invalid scenario is a failed result, never a throw.
 
 ## Allowed dependencies

@@ -1,6 +1,6 @@
 # ADR-0031: Znaleziska review: schemat, polityka dowodów i walidacja cytatów
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -31,3 +31,6 @@ Review agentowe „halucynuje” cytaty i linie, a znaleziska bez dowodu blokuj�
 |-------------|--------------------|
 | Zaufanie modelowi co do cytatów | to główne źródło fałszywych alarmów |
 | Deduplikacja po dokładnym tekście twierdzenia | różne soczewki opisują tę samą przyczynę innymi słowami |
+
+## Implikacje dla kodu
+ADR-0031 egzekwują reguły kanonu MT-CODE-002, MT-CODE-001 (`metator rules show <id>`).

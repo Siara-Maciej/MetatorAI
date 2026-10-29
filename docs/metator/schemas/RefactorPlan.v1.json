@@ -1,0 +1,660 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "RefactorPlan",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "RefactorPlan"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "title": {
+        "type": "string",
+        "minLength": 1
+      },
+      "goal": {
+        "type": "string",
+        "enum": ["no-cycles", "no-errors", "fewer-violations"]
+      },
+      "status": {
+        "default": "draft",
+        "type": "string",
+        "enum": ["draft", "approved", "running", "done"]
+      },
+      "createdBy": {
+        "type": "string"
+      },
+      "approval": {
+        "type": "object",
+        "properties": {
+          "by": {
+            "type": "string",
+            "minLength": 1
+          },
+          "at": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          }
+        },
+        "required": ["by", "at", "digest"],
+        "additionalProperties": false
+      },
+      "moves": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "move": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "move"
+                    },
+                    "files": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "to": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["type", "files", "to"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "merge"
+                    },
+                    "from": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "into": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["type", "from", "into"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "extract"
+                    },
+                    "files": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "package": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "dir": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": ["name", "dir"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "files", "package"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "invert"
+                    },
+                    "from": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "to": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["type", "from", "to"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "declare"
+                    },
+                    "package": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "dependency": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "field": {
+                      "type": "string",
+                      "enum": ["dependencies", "peerDependencies", "optionalDependencies", "devDependencies"]
+                    }
+                  },
+                  "required": ["type", "package", "dependency"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "why": {
+              "type": "string",
+              "minLength": 1
+            },
+            "citations": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "wave": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "status": {
+              "default": "pending",
+              "type": "string",
+              "enum": ["pending", "running", "done", "blocked"]
+            },
+            "run": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            },
+            "effect": {
+              "type": "object",
+              "properties": {
+                "scoreBefore": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "scoreAfter": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "fixed": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "added": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "rewrites": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "declared": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "package": {
+                        "type": "string"
+                      },
+                      "dependency": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["package", "dependency"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["scoreBefore", "scoreAfter", "fixed", "added", "rewrites", "declared"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["id", "move", "why", "citations", "wave"],
+          "additionalProperties": false
+        }
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": "object",
+            "properties": {
+              "cycles": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "errors": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "warnings": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "score": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["cycles", "errors", "warnings", "score"],
+            "additionalProperties": false
+          },
+          "after": {
+            "type": "object",
+            "properties": {
+              "cycles": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "errors": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "warnings": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "score": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["cycles", "errors", "warnings", "score"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["before", "after"],
+        "additionalProperties": false
+      }
+    },
+    "required": ["kind", "schemaVersion", "id", "title", "goal"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "RefactorPlan"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "title": {
+        "type": "string",
+        "minLength": 1
+      },
+      "goal": {
+        "type": "string",
+        "enum": ["no-cycles", "no-errors", "fewer-violations"]
+      },
+      "status": {
+        "default": "draft",
+        "type": "string",
+        "enum": ["draft", "approved", "running", "done"]
+      },
+      "createdBy": {
+        "type": "string"
+      },
+      "approval": {
+        "type": "object",
+        "properties": {
+          "by": {
+            "type": "string",
+            "minLength": 1
+          },
+          "at": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          }
+        },
+        "required": ["by", "at", "digest"],
+        "additionalProperties": false
+      },
+      "moves": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "move": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "move"
+                    },
+                    "files": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "to": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["type", "files", "to"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "merge"
+                    },
+                    "from": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "into": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["type", "from", "into"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "extract"
+                    },
+                    "files": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "package": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "dir": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": ["name", "dir"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "files", "package"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "invert"
+                    },
+                    "from": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "to": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["type", "from", "to"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "declare"
+                    },
+                    "package": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "dependency": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "field": {
+                      "type": "string",
+                      "enum": ["dependencies", "peerDependencies", "optionalDependencies", "devDependencies"]
+                    }
+                  },
+                  "required": ["type", "package", "dependency"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "why": {
+              "type": "string",
+              "minLength": 1
+            },
+            "citations": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "wave": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "status": {
+              "default": "pending",
+              "type": "string",
+              "enum": ["pending", "running", "done", "blocked"]
+            },
+            "run": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            },
+            "effect": {
+              "type": "object",
+              "properties": {
+                "scoreBefore": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "scoreAfter": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "fixed": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "added": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "rewrites": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "declared": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "package": {
+                        "type": "string"
+                      },
+                      "dependency": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["package", "dependency"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["scoreBefore", "scoreAfter", "fixed", "added", "rewrites", "declared"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["id", "move", "why", "citations", "wave", "status"],
+          "additionalProperties": false
+        }
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": "object",
+            "properties": {
+              "cycles": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "errors": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "warnings": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "score": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["cycles", "errors", "warnings", "score"],
+            "additionalProperties": false
+          },
+          "after": {
+            "type": "object",
+            "properties": {
+              "cycles": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "errors": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "warnings": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "score": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["cycles", "errors", "warnings", "score"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["before", "after"],
+        "additionalProperties": false
+      }
+    },
+    "required": ["kind", "schemaVersion", "id", "title", "goal", "status", "moves"],
+    "additionalProperties": false
+  }
+}

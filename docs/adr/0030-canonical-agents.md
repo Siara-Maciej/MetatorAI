@@ -1,6 +1,6 @@
 # ADR-0030: Agenci kanoniczni i generatory hostów (Copilot, Claude Code)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 - Doprecyzowuje: [ADR-0005](0005-canonical-agent-format.md)
 
@@ -39,3 +39,6 @@ ADR-0005 przyjął, że agenci są pisani raz w formacie neutralnym, a pluginy h
 | Pliki hostów pisane ręcznie | dryf między hostami i wersjami, duplikacja (ADR-0005) |
 | `kind`/`schemaVersion` w front matter plików hostów | hosty walidują swój front matter; nieznane klucze dają ostrzeżenia |
 | Jeden plugin dla wszystkich hostów | SRP: zmiana u jednego dostawcy nie powinna dotykać drugiego |
+
+## Implikacje dla kodu
+ADR-0030 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

@@ -66,7 +66,7 @@ cd ~/work
 metator repos init       # writes metator.repos.yml from the repositories below (two levels deep)
 metator repos list       # each repository and whether MetatorAI is set up in it
 metator repos status     # each repository's active runs, questions waiting for you, running services
-metator ui               # pick a repository, work in its sessions, come back for the next one
+metator ui               # every repository's sessions on one screen, grouped by repository
 ```
 
 ```yaml
@@ -87,7 +87,7 @@ Without `metator.repos.yml`, a folder that is not a repository itself but holds 
 | Where you are | What `metator` acts on | What runs there |
 |---|---|---|
 | inside a repository, at any depth (`~/work/shop/src`) | that repository: the nearest `.git` wins, even inside a folder of repositories | every command |
-| the folder (`~/work`), or a folder below it that is not a repository | all repositories of the folder | `ui`, `repos init\|list\|status` (and `ask` and `status` as they ship) |
+| the folder (`~/work`), or a folder below it that is not a repository | all repositories of the folder | `ui`, `repos init\|list\|status`, [`ask`](../workflows/ask.md), [`status`](../workflows/sessions.md#the-work-at-a-glance) |
 | anywhere, with `-C <path>` | the repository or folder at `<path>` | as above, for that place |
 
 Any other command in the folder stops with a pointer instead of guessing:
@@ -108,4 +108,4 @@ metator -C shop run init --workflow mt-feature --task "Add discount"    # from t
 
 ### The folder shares nothing
 
-The folder is a list, not a configuration: it holds no agents, rules or state of its own, and changing it never touches a repository. A [system map](./index.md) is the other way round: it describes what the applications are and how their contracts connect them, while the folder only says where their checkouts are on your disk.
+The folder is a list, not a configuration: it holds no agents, rules or workflows of its own, only `metator.repos.yml` and the conversations of questions asked there, and changing it never touches a repository. A [system map](./index.md) is the other way round: it describes what the applications are and how their contracts connect them, while the folder only says where their checkouts are on your disk.

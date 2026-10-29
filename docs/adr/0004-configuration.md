@@ -1,6 +1,6 @@
 # ADR-0004: Konfiguracja: metator.config.ts / .json, warstwy, jeden schemat
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 - Źródło: [ARCHITECTURE.md §8](../ARCHITECTURE.md)
 
@@ -21,3 +21,6 @@ Konfiguracja musi być typowana dla repo TS i dostępna dla repo bez TS. Agent b
 | Alternatywa | Dlaczego odrzucona |
 |-------------|--------------------|
 | Tylko YAML | brak typów i autouzupełniania w edytorze |
+
+## Implikacje dla kodu
+ADR-0004 egzekwują reguły kanonu MT-CODE-002, MT-CODE-003 (`metator rules show <id>`).

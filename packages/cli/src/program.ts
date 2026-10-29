@@ -13,9 +13,12 @@ import { Command, type CommanderError } from "commander";
 import { registerAdrCommands } from "./commands/adr.ts";
 import { registerAgentCommands } from "./commands/agents.ts";
 import { registerApiCommands } from "./commands/api.ts";
+import { registerArchCommands } from "./commands/arch.ts";
+import { registerAskCommands } from "./commands/ask.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerConfigCommands } from "./commands/config.ts";
+import { registerContractCommands } from "./commands/contract.ts";
 import { registerCoverageCommands } from "./commands/coverage.ts";
 import { registerDebugTagsCommands } from "./commands/debug-tags.ts";
 import { registerDiscoverCommands } from "./commands/discover.ts";
@@ -37,6 +40,7 @@ import { registerReposCommands } from "./commands/repos.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
 import { registerSetupCommands } from "./commands/setup.ts";
+import { registerStatusCommand } from "./commands/status.ts";
 import { registerSystemCommands } from "./commands/system.ts";
 import { registerTestCommands } from "./commands/test.ts";
 import { registerUiCommands } from "./commands/ui.ts";
@@ -115,6 +119,8 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerApiCommands(program, ctx);
   registerOwnersCommand(program, ctx);
   registerSystemCommands(program, ctx);
+  registerContractCommands(program, ctx);
+  registerArchCommands(program, ctx);
   registerRulesCommands(program, ctx);
   registerMemoryCommands(program, ctx);
   registerLessonsCommands(program, ctx);
@@ -142,6 +148,8 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerEnvCommands(program, ctx);
   registerUiCommands(program, ctx);
   registerReposCommands(program, ctx);
+  registerAskCommands(program, ctx);
+  registerStatusCommand(program, ctx);
 
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).
   program.hook("preAction", (_root, action) => {
@@ -163,6 +171,7 @@ export const FOLDER_COMMANDS: ReadonlySet<string> = new Set([
   "repos init",
   "repos list",
   "repos status",
+  "system discover",
   "ui",
   "ask",
   "ask list",

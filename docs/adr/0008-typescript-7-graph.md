@@ -1,6 +1,6 @@
 # ADR-0008: Graf importów przy TypeScript 7 (natywny kompilator)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 - Źródło: [ARCHITECTURE.md §6.3, design/04-commands.md §5.1](../ARCHITECTURE.md)
 
@@ -25,3 +25,6 @@ Graf importów nie zależy od API kompilatora TS. Ekstrakcja importów idzie prz
 |-------------|--------------------|
 | Pin `typescript@5` dla API | rozjazd z wersją w repo użytkownika |
 | `typescript/unstable/sync` | niestabilne API, ryzyko łamania przy aktualizacjach |
+
+## Implikacje dla kodu
+ADR-0008 egzekwują reguły kanonu MT-CODE-005, MT-CODE-006 (`metator rules show <id>`).

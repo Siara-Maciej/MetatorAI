@@ -1,6 +1,6 @@
 # ADR-0029: `metator.config`, `init` i bramki `gate quick|full`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -36,3 +36,6 @@ ADR-0004 przewiduje jeden plik konfiguracji z warstwami nad wartościami domyśl
 | `npx`/`bunx` dla binarek | mogą pobierać pakiety z sieci; binarka repo jest przypięta i szybsza |
 | Przerywanie bramki na pierwszym błędzie | jeden przebieg ma pokazać wszystko, co jest czerwone |
 | Tylko `metator.config.ts` | wymaga wykonania kodu przy każdym uruchomieniu; YAML/JSON wystarczają na v1 |
+
+## Implikacje dla kodu
+ADR-0029 egzekwują reguły kanonu MT-CODE-002, MT-CODE-003, MT-CODE-004 (`metator rules show <id>`).

@@ -1,6 +1,6 @@
 # ADR-0050: Worktree runu i bloki portów (`WorktreeRegistry`, `RunRecord` v3)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-27
 
 ## Kontekst
@@ -41,3 +41,6 @@ Run, który zmienia kod w working tree człowieka, blokuje jego pracę, a dwa ru
 | Worktree obok repo (`../repo.wt/<id>`) | poza korzeniem, który widzi port `FileSystem`; trudniejsze sprzątanie |
 | Plik `.env` w worktree | niezatwierdzona zmiana w kodzie użytkownika; brak wersjonowania |
 | Własny test wolnego portu na `node:net` | ADR-0010: `get-port` to sprawdzony pakiet |
+
+## Implikacje dla kodu
+ADR-0050 egzekwują reguły kanonu MT-CODE-002, MT-CODE-003 (`metator rules show <id>`).

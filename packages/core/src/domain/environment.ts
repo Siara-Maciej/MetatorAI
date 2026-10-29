@@ -1,5 +1,6 @@
 import { alg, Graph } from "@dagrejs/graphlib";
 import { z } from "zod";
+import { fnv1a } from "./ids.ts";
 import { defineDocument } from "./versioned.ts";
 import type { PortBlock } from "./worktree.ts";
 
@@ -361,14 +362,4 @@ export function composeProject(root: string, place: Place): string {
       .replace(/^-+|-+$/g, "")
       .slice(0, 24) || "repo";
   return `metator-${slug}-${fnv1a(root).slice(0, 6)}-${place}`;
-}
-
-/** FNV-1a, 32 bits, as hex: a short stable tag for a path (not for security). */
-function fnv1a(text: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h.toString(16).padStart(8, "0");
 }

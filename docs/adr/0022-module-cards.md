@@ -1,6 +1,6 @@
 # ADR-0022: Karty modułów: generowany blok z grafu, sekcje kuratorowane
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -34,3 +34,6 @@ Agent zaczynający pracę w pakiecie potrzebuje krótkiej, prawdziwej wizytówki
 | Osobne pliki: generowany i kuratorowany | agent musi czytać dwa pliki, łatwo zgubić jeden |
 | Liczniki plików i importów w bloku | każdy PR dodający plik musiałby regenerować karty |
 | Generowanie całej karty | niszczy kuratorowaną wiedzę |
+
+## Implikacje dla kodu
+ADR-0022 egzekwują reguły kanonu MT-CODE-002 (`metator rules show <id>`).

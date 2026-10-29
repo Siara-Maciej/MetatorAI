@@ -14,7 +14,7 @@ dir: packages/plugin-bun
 - Test-only dependencies: `@metator/testing`
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-bun/src/index.ts`
-- Third-party: `bun`
+- Third-party: none
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: none
 <!-- metator:generated:end -->

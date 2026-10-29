@@ -1,6 +1,6 @@
 # ADR-0049: `metator setup` i instalacja kanonu z pakietu (`InstallLock`)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-27
 
 ## Kontekst
@@ -44,3 +44,6 @@ Instalacja MetatorAI w repo wymagała ręcznego kopiowania kanonu (`cp -r …/me
 | Kopia kanonu jako bazy do 3-way merge | duplikuje kanon w repo; hash w locku wystarcza, by odróżnić „nietknięty” od „zmieniony” |
 | `@inquirer/prompts` | większy; clack daje te same typy pytań i wyjście na dowolny strumień |
 | Pakiet hashujący albo `node:crypto` w `core` | `core` nie robi I/O ani nie zależy od runtime'u; Web Crypto jest standardem |
+
+## Implikacje dla kodu
+ADR-0049 egzekwują reguły kanonu MT-CODE-002, MT-CODE-005 (`metator rules show <id>`).

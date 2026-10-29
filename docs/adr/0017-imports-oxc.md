@@ -1,6 +1,6 @@
 # ADR-0017: Analiza importów JS/TS: oxc-parser + oxc-resolver
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 - Zastępuje częściowo: [ADR-0008](0008-typescript-7-graph.md) (ekstrakcja i rozwiązywanie importów)
 
@@ -28,3 +28,6 @@ Graf importów potrzebuje dwóch rzeczy: listy importów z pliku (statyczne, `im
 | API kompilatora TypeScript | TS 7 (natywny) nie ma stabilnego API JS |
 | dependency-cruiser / madge | całe narzędzia CLI z własnym modelem i konfiguracją, za ciężkie jako biblioteka |
 | es-module-lexer + enhanced-resolve | lexer nie rozróżnia `import type`; enhanced-resolve wolniejszy i bez natywnego `tsconfig#paths` |
+
+## Implikacje dla kodu
+ADR-0017 egzekwują reguły kanonu MT-CODE-005, MT-ARCH-005 (`metator rules show <id>`).

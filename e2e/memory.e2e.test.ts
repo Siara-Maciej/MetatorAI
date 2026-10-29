@@ -166,7 +166,7 @@ describe("with a memory map", () => {
       await repo.write("docs/modules/billing.md", CARD);
       await Bun.file(repo.path("docs/modules/orders.md")).delete();
     }
-  });
+  }, 60_000);
 
   test("matrix: who reads and writes which memory", async () => {
     const r = await metator(["memory", "matrix"], repo.root);

@@ -25,7 +25,7 @@ dir: packages/plugin-typescript
 
 ## Invariants
 
-- Node builtins are external, never files [[cite: packages/plugin-typescript/src/oxc-import-analyzer.ts:135 | "if (specifier.startsWith(\"node:\")) return { type: \"external\", name: specifier };"]].
+- Node builtins are external, never files [[cite: packages/plugin-typescript/src/oxc-import-analyzer.ts:136 | "if (specifier.startsWith(\"node:\")) return { type: \"external\", name: specifier };"]].
 
 ## Allowed dependencies
 

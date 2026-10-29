@@ -1,6 +1,6 @@
 # ADR-0024: `adr lint`: łańcuch ADR → reguła i spójny dziennik decyzji
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -29,3 +29,6 @@
 |-------------|--------------------|
 | log4brains / adr-tools | narzędzia do tworzenia i publikacji ADR, nie walidują powiązań z kanonem reguł |
 | Nagłówek `kind`/`schemaVersion` w każdym ADR | zmusza ludzi do formatu narzędzia; ADR to dokumenty dla ludzi |
+
+## Implikacje dla kodu
+ADR-0024 egzekwują reguły kanonu MT-CODE-002 (`metator rules show <id>`).

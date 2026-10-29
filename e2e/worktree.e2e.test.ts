@@ -114,5 +114,5 @@ describe("metator worktree (real CLI)", () => {
     expect((late.json.data as { removed: string[] }).removed).toEqual([first.id]);
     expect((await list()).map((e) => e.id)).toEqual([second.id]);
     expect(await repo.git("worktree", "list")).not.toContain(first.id);
-  });
+  }, 60_000); // seven CLI processes
 });

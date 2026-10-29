@@ -14,9 +14,16 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `Lesson` | `docs/metator/lessons/*.md` | `metator lessons add` after your approval |
 | `ClaimSet` | `docs/metator/claims.json` | the docs analysis after your approval |
 | `SystemMap` | `docs/metator/system.yml` | you |
+| `SystemAnalysis` | `metator/system/plans/<id>.analysis.yml` | `metator system analyze`, then you or mt-system-scout |
+| `SystemEvalCase` | `docs/metator/evals/system/*.yml` | you (three are shipped) |
+| `SystemPlan` | `metator/system/plans/<id>.yml` | `metator system plan new` (draft), you or mt-system-planner (steps), `approve` (you), `system plan run` and `system status` (progress) |
+| `ArchitecturePolicy` | `metator/architecture.yml` | you (`metator arch init` proposes it) |
+| `ArchitectureBaseline` | `metator/arch-baseline.json` | `metator arch baseline` |
+| `RefactorPlan` | `metator/arch/plans/<id>.yml` | you or mt-arch-planner (moves); `metator arch plan simulate` (effects), `approve` (you), `run` and `status` |
+| `ArchEvalCase` | `docs/metator/evals/arch/*.yml` | you (two are shipped) |
 | `Environment` | `metator/environment.yml` | you (`metator env init` proposes it) |
-| `Workflow` | `.github/metator/workflows/*.yml` | you (five are shipped) |
-| `Agent` | `metator/agents/*.md` | you (23 are shipped) |
+| `Workflow` | `.github/metator/workflows/*.yml` | you (six are shipped) |
+| `Agent` | `metator/agents/*.md` | you (27 are shipped) |
 | `Skill` | `metator/skills/*/SKILL.md` | you (six are shipped) |
 | `InstallLock` | `metator/install.lock.json` | `metator setup`, `metator agents install\|update` (never by hand) |
 | `EvalCase` | `docs/metator/evals/golden/*.yml` | you |
@@ -42,8 +49,10 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `RunDriver` | `.metator/runs/<id>/driver.json` | `metator run drive` |
 | `EnvState` | `.metator/env/<worktree, main or shared>.json` | `metator env up\|down` |
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |
+| `ArchitectureReport` | `.metator/arch/report.json` (and `report.md`) | `metator arch analyze` |
 | `PortLeases` | `~/.local/state/metator/port-leases.json` (machine-wide) | `metator worktree new\|rm` |
 | `RepoSet` | `metator.repos.yml` in a folder of repositories | you (`metator repos init` proposes it) |
+| `Conversation` | `.metator/conversations/<id>.json` | `metator ask` |
 | `WorktreeRegistry` | `.metator/worktrees.json` | `metator worktree *`, `metator run init --worktree` |
 | `EvalReport` | `<runs-dir>/report.json` | `metator eval run` |
 

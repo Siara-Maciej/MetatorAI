@@ -1,6 +1,6 @@
 # ADR-0055: Szybki start środowiska (`env analyze`, izolacja danych, pula, częściowy start)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-27
 
 ## Kontekst
@@ -51,3 +51,6 @@ Po F8.5 każdy worktree startuje swoje usługi od zera. Przy typowym backendzie 
 | `cp --reflink` przez powłokę | `node:fs cp` z FICLONE robi to samo przenośnie i zwraca błąd jako wartość |
 | Nowe pole „pool” w `WorktreeRegistry` | wydana wersja się nie zmienia; wpis `pool-*` bez runu wystarcza |
 | Rekomendacje zapisywane od razu w `environment.yml` | plik jest przeglądany jak kod; zmiana należy do człowieka |
+
+## Implikacje dla kodu
+ADR-0055 egzekwują reguły kanonu MT-CODE-002, MT-TEST-002 (`metator rules show <id>`).

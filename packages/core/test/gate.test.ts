@@ -40,7 +40,7 @@ const unused = {
   diff: async () => err(new MetatorError("INTERNAL", "not used here")),
 };
 const checksWith = (rules: ReturnType<typeof violations>) =>
-  new GateChecks(rules, unused, unused, unused, unused);
+  new GateChecks(rules, unused, unused, unused, unused, unused);
 
 function gate(
   gates: unknown,

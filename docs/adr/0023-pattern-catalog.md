@@ -1,6 +1,6 @@
 # ADR-0023: Katalog wzorców z wykrywaniem w ast-grep i `similar`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -33,3 +33,6 @@ Agent tworzący nowy plik powinien skopiować sposób, w jaki repo już to robi,
 | Wzorce jako Markdown z ręczną listą przykładów | lista się rozjeżdża z kodem; brak weryfikacji exemplara |
 | Embeddingi do `similar` | zależność od modelu i usług, niedeterministyczne wyniki w CI |
 | Reguły wykrywania jako `severity: info` w regułach architektury | mieszają wzorce z naruszeniami; osobny katalog jest czytelniejszy |
+
+## Implikacje dla kodu
+ADR-0023 egzekwują reguły kanonu MT-CODE-002, MT-TEST-003 (`metator rules show <id>`).

@@ -1,0 +1,30 @@
+kind: SystemEvalCase
+schemaVersion: 1
+id: add-credits
+description: Billing adds a credits endpoint. Nothing a consumer uses changes, so a good plan is one step in billing and no consumer has to move.
+task: Add credits
+input:
+  contracts: [billing-api]
+files:
+  docs/metator/system.yml: |
+    kind: SystemMap
+    schemaVersion: 1
+    system: shop
+    applications:
+      - { id: billing, kind: service, source: { path: apps/billing }, owners: ["@billing-team"] }
+      - { id: web, kind: frontend, source: { path: apps/web }, owners: ["@web-team"], consumes: [billing-api] }
+    contracts:
+      - { id: billing-api, kind: openapi, owner: billing, spec: { path: openapi.yaml } }
+  apps/billing/openapi.yaml: |
+    openapi: 3.0.3
+    info: { title: Billing API, version: 1.4.0 }
+    paths:
+      /invoices:
+        get:
+          responses: { "200": { description: ok } }
+  apps/web/src/main.ts: |
+    export const invoices = () => fetch("/invoices");
+expect:
+  applications: [billing, web]
+  contracts: { billing-api: compatible }
+  steps: [billing-change]

@@ -1,6 +1,6 @@
 # ADR-0042: `Workflow` v2 z anatomią i `workflow lint`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -31,3 +31,6 @@
 |-------------|--------------------|
 | Anatomia jako pola wymagane w v2 | pliki v1 przestałyby się wczytywać; runy w toku stanęłyby |
 | Anatomia w osobnym pliku obok workflow | dwa źródła prawdy o jednym workflow |
+
+## Implikacje dla kodu
+ADR-0042 egzekwują reguły kanonu MT-CODE-002, MT-CODE-003 (`metator rules show <id>`).

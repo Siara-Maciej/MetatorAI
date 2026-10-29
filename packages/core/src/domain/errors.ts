@@ -35,8 +35,13 @@ export class MetatorError extends Error {
     return new MetatorError("USAGE", message, hint === undefined ? {} : { hint });
   }
 
-  static notFound(what: string, details?: Record<string, unknown>): MetatorError {
-    return new MetatorError("NOT_FOUND", `${what} not found`, details === undefined ? {} : { details });
+  /** `what` was not found; a `hint` in `extra` is the hint, everything else is details. */
+  static notFound(what: string, extra?: Record<string, unknown> & { readonly hint?: string }): MetatorError {
+    const { hint, ...details } = extra ?? {};
+    return new MetatorError("NOT_FOUND", `${what} not found`, {
+      ...(typeof hint === "string" ? { hint } : {}),
+      ...(Object.keys(details).length > 0 ? { details } : {}),
+    });
   }
 
   toJSON(): { code: ErrorCode; message: string; hint?: string; details?: Readonly<Record<string, unknown>> } {

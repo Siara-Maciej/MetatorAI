@@ -54,7 +54,7 @@ afterAll(async () => {
   for (const r of ((await mt("run", "list")).json.data as { runId: string }[]) ?? [])
     await mt("run", "stop", "--run", r.runId);
   await repo.dispose();
-});
+}, 60_000);
 
 interface Followed {
   runId: string;

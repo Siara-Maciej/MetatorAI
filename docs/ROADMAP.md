@@ -197,12 +197,12 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 
 **Zadania (MVP)**
 - [x] F7.1 `SystemMap` v1 (aplikacje, kontrakty, polityki), rejestr rodzajów kontraktów (MVP: `openapi`), `system schema|show|lint`, `system lint` w `meta check-all` (ADR-0047). Karty aplikacji w F7.5.
-- [ ] F7.2 Automatyczna topologia (monorepo albo osobne repo) i `system discover` (aplikacje, specyfikacje OpenAPI, konsumenci z dowodami).
-- [ ] F7.3 Port `SystemSourceReader` (lokalny checkout, klon do cache zależnie od użycia), mapa w repo platformy przypięta w aplikacjach, `system impact`.
-- [ ] F7.4 Port `ContractDiffer`, provider OpenAPI (`openapi-diff`), `contract diff`, krok bramki w `gate full`.
-- [ ] F7.5 `SystemAnalysis`, `SystemPlan`, `system plan lint`, agenci `mt-system-scout`, `mt-system-planner`, karty aplikacji.
-- [ ] F7.6 Runy powiązane (`RunRecord` v3: rodzic i dzieci), `system status`, workflow W13 `mt-system-change`.
-- [ ] F7.7 Przypadki wieloaplikacyjne w złotym zbiorze, score impact i planu.
+- [x] F7.2 Automatyczna topologia (pojedyncza aplikacja, monorepo, folder repozytoriów) i `system discover [--write|--check]` (aplikacje, specyfikacje OpenAPI, konsumenci z dowodami i pewnością); port `ContractDetector`, `plugin-openapi` (ADR-0067).
+- [x] F7.3 Porty `RepositoryCloner` i `CheckoutReader` (lokalny checkout, `system.roots`, klon przypiętego commita w `.metator/system/` tylko z `--fetch`), mapa w repo platformy przypięta w aplikacjach (`system.map`, `MetatorConfig` v4), `system impact|sources`, `system lint --fetch` (ADR-0068).
+- [x] F7.4 Port `ContractDiffer`, provider OpenAPI (`api-smart-diff`, Swagger 2 przez `swagger2openapi`; ADR-0073: parametry, OpenAPI 3.1, typy), `contract diff [--base] [--check]` z werdyktem wg `compatibility` i `policies.breaking` oraz zakresów konsumentów (`semver`), krok bramki `metator: contract diff` (ADR-0069).
+- [x] F7.5 `SystemAnalysis` v1 (`system analyze`), `SystemPlan` v1 (szkic wg polityki: expand → migrate → contract albo bump → migrate), `system plan new|propose|list|show|lint|approve|schema`, agenci `mt-system-scout` i `mt-system-planner`, zgoda tylko człowieka (hook), bramka `contract diff` przepuszcza zmianę łamiącą zaplanowaną i zatwierdzoną, karty aplikacji (ADR-0070).
+- [x] F7.6 Runy powiązane: `RunRecord` v4 (`system: { plan, step, app }`; `parent`/`children` z v3), `run init --parent`, `system plan run` (run-dziecko W1 w repozytorium aplikacji, tylko w checkoucie), `system status [--check]`, workflow W13 `mt-system-change` (ADR-0071).
+- [x] F7.7 `SystemEvalCase` v1 (aplikacje, zmiany kontraktów, kroki, kolejność), score impact i planu, `system eval list|run [--host] [--min]|schema`, trzy przypadki na start (ADR-0072). Kryterium pilota (≥ 95% na prawdziwych zadaniach) czeka na dane z pilota.
 
 **Post-MVP:** AsyncAPI, GraphQL, gRPC, pakiety npm, schemat bazy i konfiguracja jako kontrakty; `oasdiff`; katalog Backstage; kolejność wdrożeń z pipeline'ów; źródło przez API hosta; Pact (lista w [design §9](design/08-system-landscape.md#9-post-mvp-do-zrobienia-później)).
 
@@ -231,9 +231,23 @@ Plan: [design/10](design/10-repos-ask-tui.md), zaakceptowany przez użytkownika.
 
 - [x] G1 Niezależne repozytoria na jednej maszynie: `PortLeases` v1 dla całej maszyny (port `MachineState`), projekt Compose per repozytorium (ADR-0056).
 - [x] G2 Folder repozytoriów: `RepoSet` v1, `repos init|list|status`, komendy świadome folderu, `ui` z wyborem repozytorium (ADR-0057).
-- [ ] G3 `metator ask`: agent `mt-guide`, `Conversation` v1, dopytania.
-- [ ] G4 `metator status`: przegląd pracy (`WorkOverview`).
-- [ ] G5 `metator ui` na Ink: panele, paleta komend, ustawienia.
+- [x] G3 `metator ask`: agent `mt-guide`, `Conversation` v1, dopytania (`--continue`, `--conversation`), sprawdzanie cytatów, folder repozytoriów (ADR-0058).
+- [x] G4 `metator status`: przegląd pracy (`WorkOverview`), także w folderze repozytoriów (ADR-0059).
+- [x] G5 `metator ui` na Ink: panele sesji i szczegółów, pasek etapów, odpowiedzi w miejscu, aplikacje, rozmowy, paleta komend, ustawienia, folder repozytoriów na jednym ekranie (ADR-0060).
+
+---
+
+## H: Architektura pakietów dużego monorepo
+
+Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realizację całości (H1–H7), potem F7.2–F7.7.
+
+- [x] H1 Graf pakietów z grafu plików, cykle pakietów, `package.json` kontra importy, `ArchitectureReport` v1, `ArchitecturePolicy` v1, port `ManifestReader`, `arch analyze|cycles|declared|schema` (ADR-0061).
+- [x] H2 Polityka w CI: `ArchitectureBaseline` v1, `arch check --base` (tylko nowe naruszenia), SARIF, krok bramki `arch check`, `arch init` (także z `boundaries` Turborepo i `depConstraints` Nx) (ADR-0062).
+- [x] H3 Metryki (Martin, głębokość), progi, granice (podział, scalenie, huby, martwe eksporty i pakiety), wspólne zmiany z historii git (port `ChangeHistory`), zespoły z `CODEOWNERS`, zasięg aplikacji, raport HTML (ADR-0063).
+- [x] H4 Ruchy jako dane (`Move`: move, merge, extract, invert, declare), `arch simulate move|merge|extract|invert`, różnica raportów, najtańsze cięcie cykli (ADR-0064).
+- [x] H5 Agent `mt-arch-planner`, `RefactorPlan` v1, `arch plan new|propose|list|show|simulate|lint|approve|schema`, zatwierdzenie z digestem, hook blokuje zatwierdzenie przez agenta (ADR-0065).
+- [x] H6 `arch plan run` (fala jako runy W3 w osobnych worktree) i `arch plan status` (stan ruchów z runów) (ADR-0065).
+- [x] H7 Ewaluacja: `ArchEvalCase` v1, dwa przypadki w `docs/metator/evals/arch/`, port `Sandbox`, `arch eval list|run|schema` (ADR-0066).
 
 ## Role i odpowiedzialności
 

@@ -221,10 +221,219 @@ metator system show [options]
 
 ### `metator system lint`
 
-Owners, consumed contracts, contract kinds, deploy cycles and the files in this repository
+Owners, consumed contracts, contract kinds, deploy cycles and the specifications
 
 ```bash
 metator system lint [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--fetch` | clone other repositories that have no local checkout to check their specifications |  |
+
+### `metator system impact`
+
+Where a change lands: changed files or named contracts → contracts → consumers → owners
+
+```bash
+metator system impact [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--base <ref>` | the files changed since the merge base with this ref | `"HEAD"` |
+| `--files <files...>` | these files instead of git |  |
+| `--contracts <ids...>` | contracts the change touches, by id |  |
+
+### `metator system sources`
+
+Where each application's code is on this machine: here, a checkout or a pinned clone
+
+```bash
+metator system sources [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--fetch` | clone what has no local checkout |  |
+
+### `metator system discover`
+
+Propose a system map from the code: applications, contracts and consumers, with evidence
+
+```bash
+metator system discover [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--write` | write the proposal to the map file when there is none (never overwrites) |  |
+| `--check` | fail when the map lacks what the code shows |  |
+
+### `metator system analyze`
+
+What a task touches across the system: contracts, breaking or not, consumers, owners
+
+```bash
+metator system analyze [options] <task...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<task>` | the task | |
+| `--base <ref>` | the files changed since the merge base with this ref | `"HEAD"` |
+| `--files <files...>` | these files instead of git |  |
+| `--contracts <ids...>` | contracts the task changes |  |
+| `--breaking <ids...>` | contracts the task changes in a breaking way |  |
+
+### `metator system plan new`
+
+Draft a plan from the task's analysis, by the map's breaking and deploy policies
+
+```bash
+metator system plan new [options] <task...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<task>` | the task | |
+| `--base <ref>` | the files changed since the merge base with this ref | `"HEAD"` |
+| `--files <files...>` | these files instead of git |  |
+| `--contracts <ids...>` | contracts the task changes |  |
+| `--breaking <ids...>` | contracts the task changes in a breaking way |  |
+
+### `metator system plan propose`
+
+mt-system-scout checks the analysis and mt-system-planner refines the plan; then lint
+
+```bash
+metator system plan propose [options] <task...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<task>` | the task | |
+| `--host <host>` | the AI host that plans: claude, copilot, scenario |  |
+| `--base <ref>` | the files changed since the merge base with this ref | `"HEAD"` |
+| `--files <files...>` | these files instead of git |  |
+| `--contracts <ids...>` | contracts the task changes |  |
+| `--breaking <ids...>` | contracts the task changes in a breaking way |  |
+
+### `metator system plan list`
+
+Every system plan with its status and steps
+
+```bash
+metator system plan list [options]
+```
+
+### `metator system plan show`
+
+One system plan with its waves and its analysis
+
+```bash
+metator system plan show [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator system plan lint`
+
+Check the plan: every consumer of a breaking change migrates, providers first, a strategy per policy
+
+```bash
+metator system plan lint [options] [id]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[id]` | the plan id | |
+| `--run <run>` | the plan of this system run (an id or its run directory) |  |
+
+### `metator system plan approve`
+
+Approve the plan's steps as they are now (a person, never an agent)
+
+```bash
+metator system plan approve [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+| `--by <name>` | who approves (default METATOR_USER or the login) |  |
+
+### `metator system plan run`
+
+Start the steps that can start: a child run (W1) in each application's repository
+
+```bash
+metator system plan run [options] [id]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[id]` | the plan id | |
+| `--run <run>` | the system run (W13) the child runs belong to; its plan when no id is given |  |
+| `--base <ref>` | start each child run in a new worktree branched from this ref |  |
+| `--workflow <id>` | the workflow of the child runs | `"mt-feature"` |
+
+### `metator system plan schema`
+
+Print the JSON Schema of a system plan (or, with --analysis, of its analysis)
+
+```bash
+metator system plan schema [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--analysis` | the analysis instead |  |
+
+### `metator system status`
+
+Each step's child run read back from its repository; the plan done when every step is
+
+```bash
+metator system status [options] [id]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[id]` | the plan id | |
+| `--run <run>` | the plan of this system run (an id or its run directory) |  |
+| `--check` | fail until every step is done (a W13 gate) |  |
+
+### `metator system eval list`
+
+The golden cases (docs/metator/evals/system)
+
+```bash
+metator system eval list [options]
+```
+
+### `metator system eval run`
+
+Analyze and plan every case in a fresh repository (with --host, the system agents too) and score it
+
+```bash
+metator system eval run [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--case <id>` | only this case |  |
+| `--host <host>` | refine with mt-system-scout and mt-system-planner on this AI host: claude, copilot, scenario |  |
+| `--min <score>` | fail below this mean score (0 to 1) |  |
+
+### `metator system eval schema`
+
+Print the JSON Schema of a golden case
+
+```bash
+metator system eval schema [options]
 ```
 
 ### `metator system schema`
@@ -233,6 +442,290 @@ Print the JSON Schema of the system map
 
 ```bash
 metator system schema [options]
+```
+
+## contract
+
+### `metator contract diff`
+
+Each provided contract's specification since a base: breaking or not, judged by the map's policy
+
+```bash
+metator contract diff [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--base <ref>` | compare with the merge base of this ref | `"HEAD"` |
+| `--contracts <ids...>` | only these contracts |  |
+| `--check` | fail when a change breaks a contract the map's policy protects |  |
+
+## arch
+
+### `metator arch init`
+
+Propose metator/architecture.yml from the packages, Nx and Turborepo boundaries; never overwrites
+
+```bash
+metator arch init [options]
+```
+
+### `metator arch analyze`
+
+Analyze the package graph; writes .metator/arch/report.json and report.md
+
+```bash
+metator arch analyze [options]
+```
+
+### `metator arch check`
+
+Fail on violations the change adds: not at the base, not in the baseline, not excepted
+
+```bash
+metator arch check [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--base <ref>` | compare against the merge base with this ref |  |
+| `--strict` | new warnings fail too |  |
+| `--sarif <file>` | also write the new violations as SARIF 2.1.0 (code scanning) |  |
+
+### `metator arch baseline`
+
+Accept the current violations in metator/arch-baseline.json (--tighten only drops fixed ones)
+
+```bash
+metator arch baseline [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--tighten` | keep only baseline entries that still occur; never accept new ones |  |
+
+### `metator arch simulate move`
+
+Move files (paths or globs) to another package
+
+```bash
+metator arch simulate move [options] <files...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<files>` | repo-relative files or globs | |
+| `--to <package>` | the package that receives them **Required.** |  |
+
+### `metator arch simulate merge`
+
+Merge one package into another
+
+```bash
+metator arch simulate merge [options] <package>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<package>` | the package that disappears | |
+| `--into <package>` | the package that receives its files **Required.** |  |
+
+### `metator arch simulate extract`
+
+Extract files into a new package
+
+```bash
+metator arch simulate extract [options] <files...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<files>` | repo-relative files or globs | |
+| `--name <name>` | the new package's name **Required.** |  |
+| `--dir <dir>` | the new package's directory **Required.** |  |
+
+### `metator arch simulate invert`
+
+Invert a dependency: &lt;from&gt; keeps a port, &lt;to&gt; implements it
+
+```bash
+metator arch simulate invert [options] <from> <to>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<from>` | the package that depends today | |
+| `<to>` | the package it depends on today | |
+
+### `metator arch plan new`
+
+Start an empty draft plan in metator/arch/plans/
+
+```bash
+metator arch plan new [options] <title...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<title>` | what the refactor is for | |
+| `--goal <goal>` | what the plan must reach (one of: no-cycles, no-errors, fewer-violations) | `"no-cycles"` |
+
+### `metator arch plan propose`
+
+Let mt-arch-planner fill a plan on your AI host, then simulate and lint it
+
+```bash
+metator arch plan propose [options] <title...>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<title>` | what the refactor is for | |
+| `--goal <goal>` | what the plan must reach (one of: no-cycles, no-errors, fewer-violations) | `"no-cycles"` |
+| `--host <host>` | the AI host that plans: claude, copilot, scenario |  |
+
+### `metator arch plan list`
+
+Every refactor plan with its goal, status and moves
+
+```bash
+metator arch plan list [options]
+```
+
+### `metator arch plan show`
+
+One refactor plan
+
+```bash
+metator arch plan show [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator arch plan simulate`
+
+Write each move's effect and the whole result into the plan
+
+```bash
+metator arch plan simulate [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator arch plan lint`
+
+Check the plan: moves possible, citations real, effects current, no new errors, goal reached
+
+```bash
+metator arch plan lint [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator arch plan approve`
+
+Approve the plan's moves as they are now (a person, never an agent)
+
+```bash
+metator arch plan approve [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+| `--by <name>` | who approves (default METATOR_USER or the login) |  |
+
+### `metator arch plan run`
+
+Start the next wave: one W3 refactor run per move, each in its own worktree
+
+```bash
+metator arch plan run [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+| `--base <ref>` | branch the worktrees from this ref |  |
+
+### `metator arch plan status`
+
+Read the moves' runs back into the plan: done, blocked, the plan done when all are
+
+```bash
+metator arch plan status [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+
+### `metator arch plan schema`
+
+Print the JSON Schema of a refactor plan
+
+```bash
+metator arch plan schema [options]
+```
+
+### `metator arch eval list`
+
+The golden cases (docs/metator/evals/arch)
+
+```bash
+metator arch eval list [options]
+```
+
+### `metator arch eval run`
+
+Plan every case on your AI host in a fresh repository and score the plans
+
+```bash
+metator arch eval run [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--case <id>` | only this case |  |
+| `--host <host>` | the AI host that plans: claude, copilot, scenario |  |
+| `--min <score>` | fail below this mean score (0 to 1) |  |
+
+### `metator arch eval schema`
+
+Print the JSON Schema of a golden case
+
+```bash
+metator arch eval schema [options]
+```
+
+### `metator arch cycles`
+
+Cycles between packages, with the imports that close them
+
+```bash
+metator arch cycles [options]
+```
+
+### `metator arch declared`
+
+Dependencies imported but not declared, declared but not imported, and version drift
+
+```bash
+metator arch declared [options]
+```
+
+### `metator arch schema`
+
+Print the JSON Schema of metator/architecture.yml
+
+```bash
+metator arch schema [options]
 ```
 
 ## rules
@@ -1040,6 +1533,7 @@ metator run init [options]
 | `--autonomy <level>` | L0 all gates, L1 skip plan approval, L2 headless (one of: L0, L1, L2) | `"L0"` |
 | `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
 | `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
+| `--parent <run>` | the run this one is a child of (a system run, possibly in another repository) |  |
 
 ### `metator run advance`
 
@@ -1391,7 +1885,7 @@ metator env schema [options]
 
 ### `metator ui`
 
-Sessions in the terminal: switch runs, answer questions, run apps, open the code
+The full-screen view: every session, its progress and questions, apps, conversations, settings
 
 ```bash
 metator ui [options]
@@ -1425,4 +1919,24 @@ Each repository's work: active runs, questions waiting for you, running services
 
 ```bash
 metator repos status [options]
+```
+
+## ask
+
+### `metator ask list`
+
+Conversations of `metator ask`, newest first
+
+```bash
+metator ask list [options]
+```
+
+## status
+
+### `metator status`
+
+The work at a glance: each run's stages, who must act, questions, services; conversations
+
+```bash
+metator status [options]
 ```

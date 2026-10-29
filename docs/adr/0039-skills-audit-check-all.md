@@ -1,6 +1,6 @@
 # ADR-0039: Skille kanoniczne, `meta skills-lint`, `meta audit` i `meta check-all`
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -38,3 +38,6 @@ Katalog komend (04-commands §I) wymaga lintu skilli, audytu agentów i skilli (
 | Metoda `skill()` w `HostGenerator` | szósty członek portu (MT-ARCH-008); inna oś zmiany |
 | `check-all` jako osobne procesy | wolniej; to samo co dawny skrypt `canon` |
 | Kryteria zaliczenia skopiowane do use case'u | dwa źródła prawdy o tym, kiedy sprawdzenie przechodzi |
+
+## Implikacje dla kodu
+ADR-0039 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

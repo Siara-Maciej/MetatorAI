@@ -1,6 +1,6 @@
 # ADR-0057: Folder repozytoriów (`metator.repos.yml`, `repos *`)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-27
 
 ## Kontekst
@@ -18,7 +18,7 @@ Użytkownik pyta, czy `metator` uruchamiać w folderze, w którym leżą wszystk
   - nazwa domyślnie to ostatni człon ścieżki, a dwie takie same nazwy to błąd;
   - `repos init` proponuje plik z wykrytych repozytoriów, nazywając całą ścieżką tylko te, które by się zderzyły, i nigdy nie nadpisuje istniejącego.
 - **Komendy w folderze:** `help`, `version`, `repos init|list|status`, `ui`, `ask`, `ask list`, `status` (lista `FOLDER_COMMANDS`). Każda inna kończy się `USAGE` w hooku `preAction` z nazwami repozytoriów i podpowiedzią `-C <repository>`. Nic nie zgaduje repozytorium za człowieka.
-- **`metator ui` w folderze:** najpierw wybór repozytorium, potem jego sesje, potem powrót do wyboru. Widok wszystkich repozytoriów naraz przyjdzie z G5.
+- **`metator ui` w folderze:** w G2 najpierw wybór repozytorium, potem jego sesje. Od G5 (ADR-0060) sesje wszystkich repozytoriów są na jednym ekranie, pogrupowane po repozytorium.
 - CLI buduje kontener dla dowolnego repozytorium (`containerAt`), więc komendy folderu pracują na kontenerze każdego repozytorium osobno.
 
 ## Konsekwencje
@@ -37,3 +37,6 @@ Użytkownik pyta, czy `metator` uruchamiać w folderze, w którym leżą wszystk
 | Jeden Metator dla całego folderu (wspólna konfiguracja i stan) | łamie niezależność repozytoriów; każde ma inne reguły, workflowy i hosty |
 | Zgadywanie repozytorium w folderze (np. ostatnio używane) | komenda zmieniająca kod nie może trafić do niewłaściwego repozytorium |
 | Nazwa `workspace` | `workspace list` już opisuje pakiety monorepo; `repos` mówi wprost, o co chodzi |
+
+## Implikacje dla kodu
+ADR-0057 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

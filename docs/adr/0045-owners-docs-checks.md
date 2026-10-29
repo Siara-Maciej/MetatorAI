@@ -1,6 +1,6 @@
 # ADR-0045: `owners`, `docs inventory|links|drift`, właściciele i wzorce w kartach
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -50,3 +50,6 @@ Karty modułów nie mówiły, kto jest właścicielem pakietu ani jakie wzorce m
 | Pakiet `ignore` (semantyka gitignore) | `docs/*` w gitignore obejmuje też pliki zagnieżdżone, a w CODEOWNERS nie; nowa zależność dla błędnej semantyki |
 | `codeowners-utils` | nieutrzymywany od 2022, ciągnie `find-up` i `cross-spawn`; to samo dopasowanie gitignore |
 | remark/mdast do linków | ciężka zależność dla trzech form linku; maskowanie kodu już mamy |
+
+## Implikacje dla kodu
+ADR-0045 egzekwują reguły kanonu MT-CODE-002, MT-ARCH-008 (`metator rules show <id>`).

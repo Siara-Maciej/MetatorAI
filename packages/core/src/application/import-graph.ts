@@ -1,3 +1,4 @@
+import type { ResolvedImport } from "../domain/architecture.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { DependencyGraph, type Edge } from "../domain/graph.ts";
 import { classifyEdge, type ImportIndex, ImportIndexDocument, packageOf } from "../domain/import-index.ts";
@@ -23,8 +24,14 @@ export interface ImportGraphReport {
   readonly edges: readonly Edge[];
   readonly packages: readonly WorkspacePackage[];
   readonly externals: readonly string[];
-  /** Which file imports which external package or builtin (for per-package summaries). */
-  readonly externalUses: readonly { readonly from: string; readonly name: string }[];
+  /** Which file imports which external package or builtin (typeOnly: only through `import type`). */
+  readonly externalUses: readonly {
+    readonly from: string;
+    readonly name: string;
+    readonly typeOnly: boolean;
+  }[];
+  /** Every import that resolved to a file, with its specifier (for the package architecture). */
+  readonly imports: readonly ResolvedImport[];
   readonly unresolved: readonly UnresolvedImport[];
   readonly stats: { readonly parsed: number; readonly reused: number; readonly failed: number };
   readonly parseErrors: readonly { readonly file: string; readonly message: string }[];
@@ -81,16 +88,20 @@ export class BuildImportGraph {
 
     const edges: Edge[] = [];
     const externals = new Set<string>();
-    const externalUses = new Map<string, { from: string; name: string }>();
+    const externalUses = new Map<string, { from: string; name: string; typeOnly: boolean }>();
+    const imports: ResolvedImport[] = [];
     const unresolved: UnresolvedImport[] = [];
     for (const [from, entry] of Object.entries(next.files)) {
       for (const imp of entry.imports) {
         const target = this.analyzer.resolve(from, imp.specifier);
         if (target.type === "file") {
           edges.push({ from, to: target.path, kind: classifyEdge(from, target.path, packages.value) });
+          imports.push({ from, to: target.path, specifier: imp.specifier, typeOnly: imp.typeOnly });
         } else if (target.type === "external") {
           externals.add(target.name);
-          externalUses.set(`${from}\u0000${target.name}`, { from, name: target.name });
+          const key = `${from}\u0000${target.name}`;
+          const typeOnly = imp.typeOnly && (externalUses.get(key)?.typeOnly ?? true);
+          externalUses.set(key, { from, name: target.name, typeOnly });
         } else if (!unresolved.some((u) => u.from === from && u.specifier === imp.specifier)) {
           unresolved.push({ from, specifier: imp.specifier });
         }
@@ -109,6 +120,7 @@ export class BuildImportGraph {
       packages: packages.value,
       externals: [...externals].sort(),
       externalUses: [...externalUses.values()],
+      imports,
       unresolved,
       stats: { parsed, reused, failed: parseErrors.length },
       parseErrors,

@@ -1,0 +1,24 @@
+kind: ArchEvalCase
+schemaVersion: 1
+id: banner-imports-app
+description: A shared banner library imports the web application for its page title. A good plan inverts that dependency or moves the title out of the application; nothing may depend on the application afterwards.
+goal: no-errors
+files:
+  package.json: |
+    { "name": "shop", "private": true, "workspaces": ["apps/*", "packages/*"] }
+  apps/web/package.json: |
+    { "name": "@shop/web", "private": true, "scripts": { "dev": "bun src/main.ts" }, "dependencies": { "@shop/banner": "*" } }
+  apps/web/src/main.ts: |
+    import { banner } from "@shop/banner";
+    console.log(banner());
+  apps/web/src/title.ts: |
+    export const title = "Shop";
+  packages/banner/package.json: |
+    { "name": "@shop/banner", "private": true, "main": "src/index.ts", "dependencies": { "@shop/web": "*" } }
+  packages/banner/src/index.ts: |
+    import { title } from "@shop/web/src/title.ts";
+    export const banner = () => `Welcome to ${title}`;
+expect:
+  fixed: ["app-import:@shop/banner→@shop/web"]
+  forbidden: ["cycle:@shop/banner,@shop/web"]
+  maxMoves: 2

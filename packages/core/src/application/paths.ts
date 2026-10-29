@@ -38,6 +38,24 @@ export interface MetatorPaths {
   readonly envState: string;
   /** What a start costs, measured by `env analyze` (`EnvProfile`, F8.7). */
   readonly envProfile: string;
+  /** Conversations of `metator ask` (`Conversation`, G3). */
+  readonly conversations: string;
+  /** How packages may depend on each other (`ArchitecturePolicy`, H2). */
+  readonly architecture: string;
+  /** Architecture violations accepted for now (`ArchitectureBaseline`, H2). */
+  readonly archBaseline: string;
+  /** Generated architecture reports (`arch analyze`, H1). */
+  readonly arch: string;
+  /** Refactor plans (`RefactorPlan`, H5). */
+  readonly archPlans: string;
+  /** The golden set of refactor planning (`ArchEvalCase`, H7). */
+  readonly archEvals: string;
+  /** System plans and their analyses (`SystemPlan`, `SystemAnalysis`, F7.5). */
+  readonly systemPlans: string;
+  /** The golden set of system changes (`SystemEvalCase`, F7.7). */
+  readonly systemEvals: string;
+  /** Clones of other repositories at pinned commits (F7.3). */
+  readonly systemCache: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -65,6 +83,15 @@ export const DEFAULT_PATHS: MetatorPaths = {
   environment: "metator/environment.yml",
   envState: ".metator/env",
   envProfile: ".metator/env-profile.json",
+  conversations: ".metator/conversations",
+  architecture: "metator/architecture.yml",
+  archBaseline: "metator/arch-baseline.json",
+  arch: ".metator/arch",
+  archPlans: "metator/arch/plans",
+  archEvals: "docs/metator/evals/arch",
+  systemPlans: "metator/system/plans",
+  systemEvals: "docs/metator/evals/system",
+  systemCache: ".metator/system",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

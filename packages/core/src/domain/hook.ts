@@ -133,6 +133,26 @@ function destructive(argv: readonly string[]): string | undefined {
   return undefined;
 }
 
+/**
+ * A plan's approval is the person's: no agent runs `metator arch plan approve` or `metator system
+ * plan approve` (the plan's author is an agent; run gates keep their own relay through
+ * `metator run approve`).
+ */
+function planApproval(argv: readonly string[]): string | undefined {
+  const at = argv.findIndex(
+    (a) => a === "metator" || a.endsWith("/metator") || a.endsWith("cli/src/main.ts"),
+  );
+  if (at < 0) return undefined;
+  // Options and their values (`-C ../shop`) may come first: look for the three words in a row.
+  const words = argv.slice(at + 1);
+  for (const group of ["arch", "system"]) {
+    const i = words.indexOf(group);
+    if (i >= 0 && words[i + 1] === "plan" && words[i + 2] === "approve")
+      return `metator ${group} plan approve`;
+  }
+  return undefined;
+}
+
 export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecision {
   const paths = touchedPaths(hook);
   const shell = SHELL_TOOL.test(hook.tool) ? commandsOf(text(hook.input.command) ?? "") : [];
@@ -147,6 +167,9 @@ export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecisio
   for (const argv of shell) {
     const what = destructive(argv);
     if (what) return deny(`${what} is blocked: it can lose work. Ask the user to run it.`);
+    const approve = planApproval(argv);
+    if (approve)
+      return deny(`${approve} is the user's decision: show what to approve and ask the user to run it.`);
   }
   if (!ctx.run) return { decision: "allow", reason: "no active run" };
 

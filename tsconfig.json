@@ -15,7 +15,8 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "jsx": "react-jsx"
   },
   "include": ["packages/*/src", "packages/*/test", "e2e", "scripts", "rules/conformance"]
 }

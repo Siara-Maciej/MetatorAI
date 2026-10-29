@@ -1,44 +1,47 @@
 import { err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
-import { hub } from "../ui.ts";
+import { runTui } from "../tui/run.tsx";
+import { tuiService } from "../tui/service.ts";
 
-/** `metator ui` (F8.6): sessions, questions, applications and code of every run, in one place. */
-export function registerUiCommands(
-  program: Command,
-  { action, container, containerAt, folder, terminal }: CommandContext,
-): void {
+/**
+ * `metator ui` (G5, ADR-0060): every session of this repository, or of every repository of a
+ * folder, in one full-screen view: progress, questions, apps, conversations, settings.
+ */
+export function registerUiCommands(program: Command, ctx: CommandContext): void {
   program
     .command("ui")
-    .description("Sessions in the terminal: switch runs, answer questions, run apps, open the code")
+    .description(
+      "The full-screen view: every session, its progress and questions, apps, conversations, settings",
+    )
     .action(
-      action(async () => {
-        if (!terminal) {
+      ctx.action(async () => {
+        if (!ctx.terminal) {
           return {
             result: err(
               MetatorError.usage(
                 "`metator ui` needs a terminal",
-                "Use `metator run list`, `run questions`, `run answer` and `env status` instead.",
+                "Use `metator status` for the overview, and `run answer`, `run continue`, `ask` and `env` to act.",
               ),
             ),
           };
         }
-        const f = folder();
-        if (!f) {
-          const root = (program.opts() as { root?: string }).root;
-          return { result: ok(await hub({ c: container(), terminal, root, env: process.env })) };
-        }
-        // A folder of repositories (G2): pick one, work in it, come back to pick another.
-        const visited: string[] = [];
-        for (;;) {
-          const picked = await terminal.choose<string>(`${f.root} · ${f.repos.length} repositories`, [
-            ...f.repos.map((r) => ({ value: r.root, label: r.name, hint: r.path })),
-            { value: "quit", label: "Quit" },
-          ]);
-          if (picked === null || picked === "quit") return { result: ok({ visited }) };
-          const r = await hub({ c: containerAt(picked), terminal, root: picked, env: process.env });
-          visited.push(...r.visited);
-        }
+        const folder = ctx.folder();
+        const service = tuiService({
+          containerAt: ctx.containerAt,
+          folder,
+          root: folder ? folder.root : ctx.container().resolve("root"),
+          env: process.env,
+        });
+        const refreshMs = Number(process.env.METATOR_UI_REFRESH_MS) || undefined;
+        return {
+          result: ok(
+            await runTui(service, {
+              write: (t) => ctx.terminal?.raw(t),
+              ...(refreshMs ? { refreshMs } : {}),
+            }),
+          ),
+        };
       }),
     );
 }

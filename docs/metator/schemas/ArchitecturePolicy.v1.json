@@ -1,0 +1,436 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "ArchitecturePolicy",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ArchitecturePolicy"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "packages": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "packages": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["app", "lib"]
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[^\\s,]+$"
+              }
+            },
+            "layer": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["packages"],
+          "additionalProperties": false
+        }
+      },
+      "layers": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "packages": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[^\\s,]+$"
+              }
+            }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        }
+      },
+      "rules": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "string",
+              "pattern": "^[^\\s,]+$"
+            },
+            "to": {
+              "type": "string",
+              "pattern": "^[^\\s,]+$"
+            },
+            "allow": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[^\\s,]+$"
+              }
+            },
+            "deny": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[^\\s,]+$"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "tests": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "ignore": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "thresholds": {
+        "default": {},
+        "type": "object",
+        "properties": {
+          "distance": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "fanOut": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "fanIn": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "files": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "depth": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "additionalProperties": false
+      },
+      "severity": {
+        "default": {},
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "enum": [
+            "cycle",
+            "layer",
+            "tag",
+            "app-import",
+            "undeclared",
+            "root-only",
+            "dev-in-prod",
+            "relative-import",
+            "unused-dependency",
+            "version-drift",
+            "unlayered",
+            "threshold",
+            "expired-exception",
+            "unused-exception"
+          ]
+        },
+        "additionalProperties": {
+          "type": "string",
+          "enum": ["error", "warning", "off"]
+        }
+      },
+      "exceptions": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "violation": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            },
+            "owner": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expires": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": ["violation", "reason", "owner", "expires"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false,
+    "required": ["kind", "schemaVersion"]
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ArchitecturePolicy"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "packages": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "packages": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["app", "lib"]
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[^\\s,]+$"
+              }
+            },
+            "layer": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["packages"],
+          "additionalProperties": false
+        }
+      },
+      "layers": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "packages": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[^\\s,]+$"
+              }
+            }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        }
+      },
+      "rules": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "string",
+              "pattern": "^[^\\s,]+$"
+            },
+            "to": {
+              "type": "string",
+              "pattern": "^[^\\s,]+$"
+            },
+            "allow": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[^\\s,]+$"
+              }
+            },
+            "deny": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[^\\s,]+$"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "tests": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "ignore": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "thresholds": {
+        "default": {},
+        "type": "object",
+        "properties": {
+          "distance": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "fanOut": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "fanIn": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "files": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "depth": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "additionalProperties": false
+      },
+      "severity": {
+        "default": {},
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "enum": [
+            "cycle",
+            "layer",
+            "tag",
+            "app-import",
+            "undeclared",
+            "root-only",
+            "dev-in-prod",
+            "relative-import",
+            "unused-dependency",
+            "version-drift",
+            "unlayered",
+            "threshold",
+            "expired-exception",
+            "unused-exception"
+          ]
+        },
+        "additionalProperties": {
+          "type": "string",
+          "enum": ["error", "warning", "off"]
+        }
+      },
+      "exceptions": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "violation": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            },
+            "owner": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expires": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": ["violation", "reason", "owner", "expires"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "packages",
+      "layers",
+      "rules",
+      "ignore",
+      "thresholds",
+      "severity",
+      "exceptions"
+    ],
+    "additionalProperties": false
+  }
+}

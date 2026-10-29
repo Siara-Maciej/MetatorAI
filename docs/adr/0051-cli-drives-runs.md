@@ -1,6 +1,6 @@
 # ADR-0051: CLI prowadzi run (`AgentHost`, `run drive`, `RunActivity`, `Question`)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-27
 
 ## Kontekst
@@ -63,3 +63,6 @@ Dotąd run prowadził koordynator LLM w hoście (Claude Code, Copilot), a człow
 | Daemon z gniazdem lokalnym | dodatkowy proces do zarządzania; pliki wystarczą, przetrwają restart i są audytowalne |
 | `claude -p --output-format stream-json` zamiast SDK | zgody i pytania wymagałyby własnego serwera MCP (`--permission-prompt-tool`); SDK daje `canUseTool` |
 | Koordynator LLM jako jedyny prowadzący | brak ciągłego widoku w CLI i odpowiedzi z innego procesu; kolejność etapów zależna od modelu |
+
+## Implikacje dla kodu
+ADR-0051 egzekwują reguły kanonu MT-ARCH-008, MT-TEST-002 (`metator rules show <id>`).

@@ -3,31 +3,51 @@ import {
   type AdvanceRun,
   type AgentCatalog,
   type AgentHost,
+  type AnalyzeArchitecture,
   type AnalyzeEnvironment,
+  type AnalyzeSystem,
   type ApiSnapshots,
+  type ApproveRefactorPlan,
   type ApproveRun,
+  type ApproveSystemPlan,
+  type ArchitectureBaselineStore,
+  type ArchitectureFacts,
+  type ArchitecturePolicyCatalog,
+  type AskQuestion,
   type AuditAgents,
   type BackgroundProcess,
+  type BaseArchitectureFacts,
   type BinResolver,
   type BuildImportGraph,
   type BuildModuleCards,
+  type ChangeHistory,
+  type CheckArchitecture,
   type CheckDebugTags,
   type CheckFlaky,
   type CheckMemory,
+  type CheckoutReader,
   type CheckpointRun,
   type CheckQuote,
   type CheckRules,
   type Clock,
+  type CloneCache,
   type CloseRun,
   type CompareEvals,
   type ComputeAffected,
   type ContainerRuntime,
+  type ContractDetector,
+  type ContractDiffer,
+  type ConversationRepository,
+  type CreateRefactorPlan,
+  type CreateSystemPlan,
   type CreateWorktree,
   type DataIsolator,
+  type DiffContracts,
   type DiffCoverage,
   type DiffImportGraph,
   type Discover,
   type DiscoverEnvironment,
+  type DiscoverSystem,
   type DocsDrift,
   type DocsInventory,
   type DocsLinks,
@@ -57,6 +77,7 @@ import {
   type HostGenerator,
   type ImportAnalyzer,
   type ImportGraphReader,
+  type InitArchitecturePolicy,
   type InitEnvironment,
   type InitProject,
   type InitRun,
@@ -68,15 +89,18 @@ import {
   type LintAdrs,
   type LintAgents,
   type LintPlan,
+  type LintRefactorPlan,
   type LintRules,
   type LintSkills,
   type LintSystem,
+  type LintSystemPlan,
   type LintWorkflows,
   type ListRuns,
   type ListWorktrees,
   type Logger,
   type MachineLeases,
   type MachineState,
+  type ManifestReader,
   type MeasureRuleCoverage,
   type MemoryBudget,
   type MemoryMapReader,
@@ -91,39 +115,61 @@ import {
   type PlanReview,
   type PortProbe,
   type ProcessRunner,
+  type ProposeRefactorPlan,
+  type ProposeSystemPlan,
   type ProvideWorktree,
   type PruneWorktrees,
+  type RecordArchitectureBaseline,
+  type RefactorPlanStore,
   type RemoveWorktree,
+  type RepositoryCloner,
+  type RepositoryDiscoverySource,
+  type RepositoryRuns,
   type Result,
   type RevisionReader,
   type RuleCatalog,
   type RuleEngine,
   type RuleScaffolder,
   type RunAffectedTests,
+  type RunArchEvals,
   type RunDrivers,
   type RunEvals,
   type RunGate,
   type RunJournal,
+  type RunRefactorPlan,
   type RunRepository,
+  type RunSystemEvals,
+  type RunSystemPlan,
+  type Sandbox,
   type ScaffoldRule,
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
-  type SetEditor,
   type ShowSystem,
+  type SimulateArchitecture,
+  type SimulateRefactorPlan,
   type SkillCatalog,
   type SkillGenerator,
   type SourceFiles,
   type SymbolAnalyzer,
   type SymbolQueries,
+  type SyncRefactorPlan,
   type SystemCatalog,
+  type SystemImpactQuery,
+  type SystemLocation,
+  type SystemPlanStatus,
+  type SystemPlanStore,
+  type SystemSources,
   type Timer,
+  type ToolBoundariesReader,
   type TreeCopier,
+  type UpdateConfig,
   type ValidateCitations,
   type ValidateFindings,
   type Vcs,
   type WarmPool,
   type WorkflowCatalog,
+  type WorkOverview,
   type WorkspaceReader,
   type WorktreeManager,
   type WorktreeRegistry,
@@ -150,11 +196,15 @@ export interface Cradle {
   processRunner: ProcessRunner;
   vcs: Vcs;
   revisionReader: RevisionReader;
+  changeHistory: ChangeHistory;
+  sandbox: Sandbox;
   nodePackageManager: PackageManagerDetector & PackageManager;
   packageManagerDetector: PackageManagerDetector;
   packageManager: PackageManager;
   binResolver: BinResolver;
   workspaceReader: WorkspaceReader;
+  manifestReader: ManifestReader;
+  toolBoundariesReader: ToolBoundariesReader;
   importAnalyzer: ImportAnalyzer;
   symbolAnalyzer: SymbolAnalyzer;
   importGraphReader: ImportGraphReader;
@@ -168,7 +218,7 @@ export interface Cradle {
   launcher: Launcher;
   dataIsolator: DataIsolator;
   treeCopier: TreeCopier;
-  setEditor: SetEditor;
+  updateConfig: UpdateConfig;
   containerRuntime: ContainerRuntime;
   healthProbe: HealthProbe;
   environmentCatalog: EnvironmentCatalog;
@@ -177,6 +227,9 @@ export interface Cradle {
   environmentServices: EnvironmentServices;
   backgroundProcess: BackgroundProcess;
   agentHosts: ReadonlyMap<string, AgentHost>;
+  conversationRepository: ConversationRepository;
+  askQuestion: AskQuestion;
+  workOverview: WorkOverview;
   runJournal: RunJournal;
   runDrivers: RunDrivers;
   driveRun: DriveRun;
@@ -232,6 +285,45 @@ export interface Cradle {
   findOwners: FindOwners;
   contractKinds: readonly string[];
   systemCatalog: SystemCatalog;
+  contractDetectors: readonly ContractDetector[];
+  contractDiffers: readonly ContractDiffer[];
+  diffContracts: DiffContracts;
+  cloneCache: CloneCache;
+  repositoryRuns: (root: string) => RepositoryRuns;
+  runSystemPlan: RunSystemPlan;
+  systemPlanStatus: SystemPlanStatus;
+  runSystemEvals: RunSystemEvals;
+  runArchEvals: RunArchEvals;
+  systemPlanStore: SystemPlanStore;
+  analyzeSystem: AnalyzeSystem;
+  createSystemPlan: CreateSystemPlan;
+  lintSystemPlan: LintSystemPlan;
+  approveSystemPlan: ApproveSystemPlan;
+  proposeSystemPlan: ProposeSystemPlan;
+  discoverySource: RepositoryDiscoverySource;
+  discoverSystem: DiscoverSystem;
+  repositoryCloner: RepositoryCloner;
+  checkoutReader: CheckoutReader;
+  systemLocation: SystemLocation;
+  systemSources: SystemSources;
+  systemImpactQuery: SystemImpactQuery;
+  architecturePolicyCatalog: ArchitecturePolicyCatalog;
+  architectureFacts: ArchitectureFacts;
+  analyzeArchitecture: AnalyzeArchitecture;
+  architectureBaselineStore: ArchitectureBaselineStore;
+  baseArchitectureFacts: BaseArchitectureFacts;
+  checkArchitecture: CheckArchitecture;
+  recordArchitectureBaseline: RecordArchitectureBaseline;
+  initArchitecturePolicy: InitArchitecturePolicy;
+  simulateArchitecture: SimulateArchitecture;
+  refactorPlanStore: RefactorPlanStore;
+  createRefactorPlan: CreateRefactorPlan;
+  simulateRefactorPlan: SimulateRefactorPlan;
+  lintRefactorPlan: LintRefactorPlan;
+  approveRefactorPlan: ApproveRefactorPlan;
+  proposeRefactorPlan: ProposeRefactorPlan;
+  runRefactorPlan: RunRefactorPlan;
+  syncRefactorPlan: SyncRefactorPlan;
   lintSystem: LintSystem;
   showSystem: ShowSystem;
   docsLinks: DocsLinks;

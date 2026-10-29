@@ -53,7 +53,9 @@ export class ScenarioAgentHost implements AgentHost {
       yield { type: "result", ok: false, text: `the scenario has no entry for ${task.agent}` };
       return;
     }
-    const n = this.starts.get(task.agent) ?? 0;
+    // Continuing a session of this agent (a new process, e.g. `ask --continue`) plays the entry after it.
+    const resumed = task.resume?.match(new RegExp(`^scenario-${task.agent}-(\\d+)$`))?.[1];
+    const n = Math.max(this.starts.get(task.agent) ?? 0, resumed ? Number(resumed) : 0);
     this.starts.set(task.agent, n + 1);
     const steps = entries[Math.min(n, entries.length - 1)] ?? [];
     yield { type: "session", id: `scenario-${task.agent}-${n + 1}` };

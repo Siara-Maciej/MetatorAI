@@ -1,6 +1,6 @@
 # ADR-0005: Kanoniczny format agentów i generatory hostów
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 - Źródło: [ARCHITECTURE.md §11](../ARCHITECTURE.md)
 
@@ -22,3 +22,6 @@ Agenci, skille, workflowy i reguły są pisane raz w formacie neutralnym (abstra
 | Alternatywa | Dlaczego odrzucona |
 |-------------|--------------------|
 | Ręczne utrzymywanie plików per host | dryf i duplikacja |
+
+## Implikacje dla kodu
+ADR-0005 egzekwują reguły kanonu MT-CODE-002, MT-TEST-001 (`metator rules show <id>`).

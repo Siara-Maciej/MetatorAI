@@ -1,6 +1,6 @@
 # ADR-0001: Capabilities i providery
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 - Źródło: [ARCHITECTURE.md §1](../ARCHITECTURE.md)
 
@@ -24,3 +24,6 @@ Workflowy odwołują się wyłącznie do **capabilities** (`lint`, `format`, `ty
 |-------------|--------------------|
 | Komendy narzędzi wprost w specach | wiąże workflow ze stackiem, łamie DIP |
 | Jeden uniwersalny port `ToolPort.run(any)` | God-interface, łamie ISP i LSP |
+
+## Implikacje dla kodu
+ADR-0001 egzekwują reguły kanonu MT-ARCH-005, MT-ARCH-007, MT-ARCH-008 (`metator rules show <id>`).

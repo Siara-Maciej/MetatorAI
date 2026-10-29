@@ -1,0 +1,50 @@
+{
+  "kind": "RunRecord",
+  "schemaVersion": 3,
+  "runId": "20261025-mt-feature-discounts",
+  "workflow": {
+    "id": "feature",
+    "revision": 1,
+    "source": ".github/metator/workflows/feature.yml"
+  },
+  "task": "Combined discounts on invoices",
+  "autonomy": "L0",
+  "createdAt": "2026-10-25T09:00:00.000Z",
+  "updatedAt": "2026-10-25T10:00:00.000Z",
+  "state": {
+    "workflow": "feature",
+    "stage": "build",
+    "status": "active",
+    "context": {
+      "loops": {},
+      "history": [
+        {
+          "stage": "plan",
+          "event": "PASS"
+        },
+        {
+          "stage": "approval",
+          "event": "APPROVE",
+          "detail": "maciej"
+        }
+      ]
+    }
+  },
+  "approvals": {
+    "approval": {
+      "by": "maciej",
+      "at": "2026-10-25T10:00:00.000Z"
+    },
+    "push": {
+      "by": "maciej",
+      "at": "2026-10-25T10:30:00.000Z"
+    }
+  },
+  "worktree": {
+    "id": "20261025-mt-feature-discounts",
+    "path": ".metator/wt/20261025-mt-feature-discounts",
+    "branch": "metator/20261025-mt-feature-discounts"
+  },
+  "host": "claude",
+  "parent": "20261025-mt-system-change-discounts"
+}

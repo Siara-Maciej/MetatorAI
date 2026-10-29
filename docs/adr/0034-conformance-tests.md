@@ -1,6 +1,6 @@
 # ADR-0034: Testy zgodności jako silnik E1 i kanon w 100% egzekwowany narzędziami
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-26
 
 ## Kontekst
@@ -34,3 +34,6 @@ Kanon MetatorAI miał 12 z 20 reguł E1 (60%). Pozostałe 8 (E2/E3) zależały o
 | Relacje między plikami w ast-grep | ast-grep dopasowuje w obrębie pliku |
 | Raport JUnit z `bun test` | wymaga parsera XML; kod wyjścia i linie `(fail)` wystarczają |
 | Snapshoty `toMatchSnapshot` | `bun test -u` nadpisuje je jednym poleceniem, czyli zmiana w miejscu |
+
+## Implikacje dla kodu
+ADR-0034 egzekwują reguły kanonu MT-TEST-001, MT-TEST-002, MT-TEST-003 (`metator rules show <id>`).

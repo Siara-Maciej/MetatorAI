@@ -69,13 +69,24 @@ const RunRecordV2Schema = RunRecordV1Schema.extend({
 /**
  * v3 (F8, ADR-0050) adds where and by whom a run is carried out, all optional: the worktree it
  * works in, the AI host and its session (to resume), and the parent and children of linked runs.
+ * Never change it.
  */
-export const RunRecordSchema = RunRecordV2Schema.extend({
+const RunRecordV3Schema = RunRecordV2Schema.extend({
   worktree: z.strictObject({ id: z.string(), path: z.string(), branch: z.string() }).optional(),
   host: z.string().optional(),
   hostSession: z.string().optional(),
   parent: z.string().regex(RUN_ID).optional(),
   children: z.array(z.string().regex(RUN_ID)).optional(),
+}).strict();
+
+/**
+ * v4 (F7.6, ADR-0071) adds, optionally, the system plan step a child run carries out: the plan,
+ * the step and the application whose repository it runs in.
+ */
+export const RunRecordSchema = RunRecordV3Schema.extend({
+  system: z
+    .strictObject({ plan: z.string().min(1), step: z.string().min(1), app: z.string().min(1) })
+    .optional(),
 }).strict();
 
 export type RunRecord = z.infer<typeof RunRecordSchema>;
@@ -94,9 +105,11 @@ export const RunRecordDocument = defineDocument("RunRecord", {
         return { ...v1, approvals };
       },
     },
+    // Every v3 field is optional: a v2 record is a v3 record that ran in place.
+    { schema: RunRecordV3Schema, fromPrevious: (previous) => previous },
   ],
   latest: RunRecordSchema,
-  // Every v3 field is optional: a v2 record is a v3 record that ran in place.
+  // `system` is optional: a v3 record is a v4 record of a run outside any system plan.
   upgrade: (previous) => previous,
   hint: "Do not edit state.json by hand; use `metator run advance` or `metator run approve`.",
 });

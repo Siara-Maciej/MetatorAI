@@ -12,9 +12,9 @@ dir: packages/core
 - Directory: `packages/core`
 - Depends on: none
 - Test-only dependencies: `@metator/testing`
-- Used by: `(root)`, `@metator/cli`, `@metator/plugin-astgrep`, `@metator/plugin-biome`, `@metator/plugin-bun`, `@metator/plugin-docker`, `@metator/plugin-git`, `@metator/plugin-host-claude`, `@metator/plugin-host-copilot`, `@metator/plugin-host-scenario`, `@metator/plugin-node`, `@metator/plugin-typescript`, `@metator/runtime`, `@metator/testing`
+- Used by: `(root)`, `@metator/cli`, `@metator/plugin-astgrep`, `@metator/plugin-biome`, `@metator/plugin-bun`, `@metator/plugin-docker`, `@metator/plugin-git`, `@metator/plugin-host-claude`, `@metator/plugin-host-copilot`, `@metator/plugin-host-scenario`, `@metator/plugin-node`, `@metator/plugin-openapi`, `@metator/plugin-typescript`, `@metator/runtime`, `@metator/testing`
 - Imported by other packages: `packages/core/src/index.ts`
-- Third-party: `@dagrejs/graphlib`, `@sindresorhus/slugify`, `github-slugger`, `neverthrow`, `picomatch`, `shell-quote`, `xstate`, `yaml`, `zod`
+- Third-party: `@dagrejs/graphlib`, `@sindresorhus/slugify`, `github-slugger`, `neverthrow`, `picomatch`, `semver`, `shell-quote`, `xstate`, `yaml`, `zod`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: `use-case`, `versioned-document`
 <!-- metator:generated:end -->

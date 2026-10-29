@@ -1,6 +1,6 @@
 # ADR-0007: Model bezpieczeństwa: allowlista komend i jawne pluginy
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 - Źródło: [ARCHITECTURE.md §15](../ARCHITECTURE.md)
 
@@ -21,3 +21,6 @@ Agent dostaje uprawnienie wyłącznie do `metator …`. `metator` wykonuje tylko
 | Alternatywa | Dlaczego odrzucona |
 |-------------|--------------------|
 | Poleganie na uprawnieniach hosta | różne per host i per wersja, łatwe do rozszczelnienia |
+
+## Implikacje dla kodu
+ADR-0007 egzekwują reguły kanonu MT-ARCH-007, MT-CODE-004 (`metator rules show <id>`).

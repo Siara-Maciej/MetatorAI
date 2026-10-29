@@ -1,6 +1,6 @@
 # Workflows and runs
 
-A workflow turns "implement this" into stages with owners, artifacts and gates. MetatorAI ships five:
+A workflow turns "implement this" into stages with owners, artifacts and gates. MetatorAI ships six:
 
 | Workflow | Use it for | Start in chat |
 |---|---|---|
@@ -9,6 +9,7 @@ A workflow turns "implement this" into stages with owners, artifacts and gates. 
 | [`mt-refactor` (W3)](./refactor.md) | changing structure without changing behavior | ask `mt-orchestrator` with the scope |
 | [`mt-pr-review` (W4)](./review.md) | reviewing a PR, interactively or in CI | ask `mt-pr-review` with the PR |
 | [`mt-self-review` (W5)](./review.md#self-review-w5) | fixing your own branch before you open the PR | ask `mt-pr-review` in self-review mode |
+| [`mt-system-change` (W13)](./system.md) | a change across several applications and repositories | ask `mt-orchestrator` with the task |
 
 The specs live in `.github/metator/workflows/*.yml`. Read them; they are the contract the agents follow.
 

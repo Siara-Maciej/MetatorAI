@@ -2,7 +2,11 @@
  * Ports: small interfaces cut along axes of change (ISP). Adapters live in plugins;
  * application code depends only on these.
  */
+
 import type { Agent } from "../domain/agent.ts";
+import type { ManifestSet } from "../domain/architecture.ts";
+import type { ToolBoundaries } from "../domain/architecture-check.ts";
+import type { ContractComparison } from "../domain/contract-diff.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
@@ -197,6 +201,74 @@ export interface WorkspacePackage {
 
 export interface WorkspaceReader {
   packages(): Promise<Result<readonly WorkspacePackage[], MetatorError>>;
+}
+
+/**
+ * What each workspace package declares (H1): `package.json` dependencies and entry points, plus
+ * the tags and project type of Nx `project.json` and Turborepo `turbo.json`.
+ */
+export interface ManifestReader {
+  manifests(): Promise<Result<ManifestSet, MetatorError>>;
+}
+
+/** Other repositories at a pinned commit, cloned once into a cache (F7.3). */
+export interface RepositoryCloner {
+  /** The commit `ref` points to in `repo` (its default branch without a ref). */
+  resolve(repo: string, ref?: string): Promise<Result<string, MetatorError>>;
+  /** A checkout of `sha` in `dir`; an existing one is reused. */
+  checkout(repo: string, sha: string, dir: string): Promise<Result<void, MetatorError>>;
+}
+
+/** Files of another checkout on this machine, by absolute root (F7.3). */
+export interface CheckoutReader {
+  /** The file's text, or undefined when it does not exist. */
+  read(root: string, path: string): Promise<Result<string | undefined, MetatorError>>;
+  isDirectory(path: string): Promise<boolean>;
+}
+
+/** A specification a contract plugin recognized (F7.2). */
+export interface DetectedContract {
+  /** Repo-relative file. */
+  readonly path: string;
+  readonly title: string;
+  readonly version?: string;
+  /** Where the provider says it is served (`servers[].url`). */
+  readonly servers: readonly string[];
+}
+
+/** One contract kind's specifications (`openapi`, later `asyncapi`, …): what `system discover` finds. */
+export interface ContractDetector {
+  readonly kind: string;
+  /** Files worth reading, as globs. */
+  readonly globs: readonly string[];
+  detect(path: string, text: string): Result<DetectedContract | undefined, MetatorError>;
+}
+
+/** Two versions of one contract kind's specification compared (`contract diff`, F7.4). */
+export interface ContractDiffer {
+  readonly kind: string;
+  compare(
+    before: { readonly path: string; readonly text: string },
+    after: { readonly path: string; readonly text: string },
+  ): Promise<Result<ContractComparison, MetatorError>>;
+}
+
+/** A throwaway git repository made of given files (H7: architecture evals), removed by `dispose`. */
+export interface Sandbox {
+  create(
+    files: Readonly<Record<string, string>>,
+  ): Promise<Result<{ readonly root: string; dispose(): Promise<void> }, MetatorError>>;
+}
+
+/** Recent history of the repository (H3: packages that change together). */
+export interface ChangeHistory {
+  /** Files each of the last `limit` commits changed, newest first; none before the first commit. */
+  commits(limit: number): Promise<Result<readonly (readonly string[])[], MetatorError>>;
+}
+
+/** Boundary rules other tools enforce (Turborepo `boundaries`, Nx `depConstraints`), for `arch init`. */
+export interface ToolBoundariesReader {
+  read(): Promise<Result<readonly ToolBoundaries[], MetatorError>>;
 }
 
 export interface ImportSpecifier {

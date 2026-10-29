@@ -100,7 +100,7 @@ describe("metator docs (real CLI)", () => {
     ]);
     await repo.write("src/tax.ts", "// rates\nexport const TAX = 0.23;\n");
     await repo.write("docs/metator/claims.json", CLAIMS(2));
-  });
+  }, 60_000); // six CLI processes
 
   test("claims-schema prints the JSON Schema of the claims file", async () => {
     const r = await metator(["docs", "claims-schema"], repo.root);

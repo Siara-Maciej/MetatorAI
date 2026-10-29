@@ -15,9 +15,11 @@ export function describeCommands(program: Command): { commands: CommandInfo[] } 
   const walk = (cmd: Command, prefix: string) => {
     for (const sub of cmd.commands) {
       const name = `${prefix}${sub.name()}`;
-      if (sub.commands.length > 0) walk(sub, `${name} `);
-      else
+      // A group is listed itself only when it also runs on its own (`metator run`, `metator ask`).
+      const runsItself = (sub as unknown as { _actionHandler?: unknown })._actionHandler != null;
+      if (sub.commands.length === 0 || runsItself)
         commands.push({ name, summary: sub.description(), usage: `metator ${name} ${sub.usage()}`.trim() });
+      if (sub.commands.length > 0) walk(sub, `${name} `);
     }
   };
   walk(program, "");

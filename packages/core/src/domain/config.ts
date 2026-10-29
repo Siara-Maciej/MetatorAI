@@ -11,11 +11,20 @@ export type MetatorStep =
   | { readonly command: "rules check" }
   | { readonly command: "test affected" }
   | { readonly command: "graph diff" }
+  | { readonly command: "arch check" }
+  | { readonly command: "contract diff" }
   | { readonly command: "api diff"; readonly package: string }
   | { readonly command: "coverage diff"; readonly min?: number; readonly lcov?: string };
 
 export function parseMetatorStep(text: string): MetatorStep | undefined {
-  if (text === "rules check" || text === "test affected" || text === "graph diff") return { command: text };
+  if (
+    text === "rules check" ||
+    text === "test affected" ||
+    text === "graph diff" ||
+    text === "arch check" ||
+    text === "contract diff"
+  )
+    return { command: text };
   const api = /^api diff (\S+)$/.exec(text);
   if (api) return { command: "api diff", package: api[1] as string };
   const cov = /^coverage diff(?: --min (\d{1,3}))?(?: --lcov (\S+))?$/.exec(text);
@@ -29,7 +38,7 @@ export function parseMetatorStep(text: string): MetatorStep | undefined {
 }
 
 const METATOR_STEPS =
-  "rules check, test affected, graph diff, api diff <package>, coverage diff [--min <percent>] [--lcov <file>]";
+  "rules check, test affected, graph diff, arch check, contract diff, api diff <package>, coverage diff [--min <percent>] [--lcov <file>]";
 
 function gateStepSchema<M extends z.ZodType<string>>(metator: M) {
   return z.strictObject({
@@ -124,20 +133,50 @@ function configFields(step: typeof GateStepSchema | typeof GateStepV1Schema) {
   };
 }
 
-export const MetatorConfigSchema = ConfigV3Schema;
+/**
+ * v4 adds `system` (F7.3, ADR-0068): where the system map is (this repository, or a platform
+ * repository at a pinned ref), where other applications are checked out on this machine, and
+ * which applications of the map this repository is. Every v3 file is a valid v4 file.
+ */
+const SystemSettings = z.strictObject({
+  map: z
+    .union([
+      z.strictObject({ path: z.string().min(1) }),
+      z.strictObject({
+        /** A git URL or a path to the repository that holds the map. */
+        repo: z.string().min(1),
+        /** Pinned commit, tag or branch (default: the default branch). */
+        ref: z.string().min(1).optional(),
+        path: z.string().min(1).default("docs/metator/system.yml"),
+      }),
+    ])
+    .optional(),
+  /** Application id → its local checkout (relative to this repository or absolute). */
+  roots: z.record(z.string(), z.string().min(1)).default({}),
+  /** The applications of the map this repository is (default: found by its remote or path). */
+  self: z.array(z.string().min(1)).optional(),
+});
+const ConfigV4Schema = z.strictObject({
+  ...ConfigV3Schema.shape,
+  system: SystemSettings.optional(),
+});
+
+export const MetatorConfigSchema = ConfigV4Schema;
+export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
 /**
  * v2 widens gate steps to every MetatorAI check; every v1 file is a valid v2 file.
- * v3 adds `editor`; every v2 file is a valid v3 file.
+ * v3 adds `editor`; every v2 file is a valid v3 file. v4 adds `system`; every v3 file is a valid v4 file.
  */
 export const MetatorConfigDocument = defineDocument("MetatorConfig", {
   history: [
     { schema: configSchema(GateStepV1Schema) },
     { schema: configSchema(GateStepSchema), fromPrevious: (v1) => v1 },
+    { schema: ConfigV3Schema, fromPrevious: (v2) => v2 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v2) => v2,
+  upgrade: (v3) => v3,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

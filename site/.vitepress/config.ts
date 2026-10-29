@@ -45,10 +45,12 @@ export default defineConfig({
           { text: "Overview and runs", link: "/workflows/" },
           { text: "Drive a run from the CLI", link: "/workflows/drive" },
           { text: "Sessions in the terminal", link: "/workflows/sessions" },
+          { text: "Ask about the code", link: "/workflows/ask" },
           { text: "Feature (W1)", link: "/workflows/feature" },
           { text: "Bug fix (W2)", link: "/workflows/bugfix" },
           { text: "Refactor (W3)", link: "/workflows/refactor" },
           { text: "Review (W4, W5)", link: "/workflows/review" },
+          { text: "System change (W13)", link: "/workflows/system" },
         ],
       },
       {
@@ -70,6 +72,7 @@ export default defineConfig({
           { text: "Hooks and guardrails", link: "/how-to/hooks" },
           { text: "Runs in worktrees", link: "/how-to/worktrees" },
           { text: "Start the application", link: "/how-to/environments" },
+          { text: "Package architecture", link: "/how-to/architecture" },
         ],
       },
       {

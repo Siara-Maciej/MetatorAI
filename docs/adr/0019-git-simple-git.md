@@ -1,6 +1,6 @@
 # ADR-0019: Obsługa gita: simple-git
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -25,3 +25,6 @@ Port `Vcs` (`changedFiles(base)`, `listFiles()`) był zaimplementowany ręcznie:
 | isomorphic-git | czysty JS bez binarki, ale wolny na dużych repo i z niepełną obsługą ignorów (brak globalnych excludes, `info/exclude` częściowo) |
 | nodegit / es-git (libgit2) | natywne bindingi, cięższa instalacja, problemy z Bun |
 | Ręczne wywołania git przez ProcessRunner | duplikuje bibliotekę (ADR-0010) |
+
+## Implikacje dla kodu
+ADR-0019 egzekwują reguły kanonu MT-CODE-005, MT-ARCH-005 (`metator rules show <id>`).

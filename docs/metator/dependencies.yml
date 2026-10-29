@@ -41,6 +41,19 @@ packages:
     }
   - { package: picomatch, need: "globs", adr: 0010-dependency-policy.md }
   - {
+      package: api-smart-diff,
+      need: "OpenAPI 3.0/3.1 specifications compared, each change breaking or not (contract diff)",
+      adr: 0073-openapi-differ.md,
+    }
+  - {
+      package: swagger2openapi,
+      need: "Swagger 2 converted to OpenAPI 3 for contract diff",
+      adr: 0073-openapi-differ.md,
+    }
+  - { package: "@types/swagger2openapi", need: "types for swagger2openapi", adr: 0073-openapi-differ.md }
+  - { package: semver, need: "consumers' version ranges of a contract", adr: 0069-contract-diff.md }
+  - { package: "@types/semver", need: "types for semver", adr: 0069-contract-diff.md }
+  - {
       package: playwright,
       need: "README visuals rendered in a real browser (e2e)",
       adr: 0034-conformance-tests.md,
@@ -53,3 +66,24 @@ packages:
   - { package: wait-on, need: "readiness of started services (TCP, HTTP)", adr: 0053-environments.md }
   - { package: yaml, need: "YAML documents", adr: 0015-schemas-zod-yaml.md }
   - { package: zod, need: "schemas", adr: 0015-schemas-zod-yaml.md }
+  - {
+      package: "@inkjs/ui",
+      need: "text input, select and spinner for the full-screen terminal view",
+      adr: 0060-terminal-ui-ink.md,
+    }
+  - {
+      package: "@types/react",
+      need: "types for the terminal view's React components",
+      adr: 0060-terminal-ui-ink.md,
+    }
+  - {
+      package: ink,
+      need: "full-screen terminal view (`metator ui`) as React components",
+      adr: 0060-terminal-ui-ink.md,
+    }
+  - {
+      package: ink-testing-library,
+      need: "component tests of the terminal view",
+      adr: 0060-terminal-ui-ink.md,
+    }
+  - { package: react, need: "the component model under Ink", adr: 0060-terminal-ui-ink.md }

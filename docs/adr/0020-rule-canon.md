@@ -1,6 +1,6 @@
 # ADR-0020: Kanon reguł jako wersjonowany YAML, adaptery hostów i silniki E1
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-10-25
 
 ## Kontekst
@@ -34,3 +34,6 @@ Reguły muszą mieć niezmienne ID, poziom egzekucji (E1/E2/E3), zakres (`applyT
 | remark/mdast do parsowania Markdown | ciężka zależność dla danych, które i tak są strukturalne |
 | `@ast-grep/napi` zamiast CLI | nie obsługuje `sgconfig.yml` (ruleDirs, testy); CLI to kanoniczny interfejs narzędzia |
 | Ręcznie pisane `.instructions.md` | kopia kanonu, która się rozjeżdża |
+
+## Implikacje dla kodu
+ADR-0020 egzekwują reguły kanonu MT-CODE-002, MT-TEST-003 (`metator rules show <id>`).

@@ -158,6 +158,17 @@ metator index build && metator gate full       # measured facts, then your own c
 @mt-pr-review review PR #482                      → review with proof
 ```
 
+### Work from the terminal
+
+```bash
+metator ui                                     # full screen: every session, its stages, what needs you, apps, settings
+metator run                                    # a new run, driven in the background and watched live
+metator ask "How is the discount computed?"    # a plain question about the code, answered with path:line citations
+metator status                                 # the same overview as JSON, for scripts
+```
+
+Several repositories? Run `metator setup` in each; from the folder that holds them, `metator ui`, `ask` and `status` cover them all ([Several repositories](https://siara-maciej.github.io/MetatorAI/multi-repo/repositories)).
+
 ### What the CLI does today
 
 Every command prints one JSON line:
