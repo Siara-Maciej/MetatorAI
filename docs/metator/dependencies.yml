@@ -41,10 +41,16 @@ packages:
     }
   - { package: picomatch, need: "globs", adr: 0010-dependency-policy.md }
   - {
-      package: openapi-diff,
-      need: "OpenAPI and Swagger specifications compared, breaking or not (contract diff)",
-      adr: 0069-contract-diff.md,
+      package: api-smart-diff,
+      need: "OpenAPI 3.0/3.1 specifications compared, each change breaking or not (contract diff)",
+      adr: 0073-openapi-differ.md,
     }
+  - {
+      package: swagger2openapi,
+      need: "Swagger 2 converted to OpenAPI 3 for contract diff",
+      adr: 0073-openapi-differ.md,
+    }
+  - { package: "@types/swagger2openapi", need: "types for swagger2openapi", adr: 0073-openapi-differ.md }
   - { package: semver, need: "consumers' version ranges of a contract", adr: 0069-contract-diff.md }
   - { package: "@types/semver", need: "types for semver", adr: 0069-contract-diff.md }
   - {

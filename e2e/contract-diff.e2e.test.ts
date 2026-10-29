@@ -90,7 +90,11 @@ describe("metator contract diff (real CLI, real monorepo)", () => {
     const added = (await mt("contract", "diff", "--base", "main")).json.data as Report;
     expect(added.contracts[0]?.status).toBe("compatible");
     expect(added.contracts[0]?.changes).toEqual([
-      expect.objectContaining({ code: "path.add", severity: "non-breaking" }),
+      expect.objectContaining({
+        code: "operation.add",
+        severity: "non-breaking",
+        location: "paths./credits.get",
+      }),
     ]);
     expect((await mt("gate", "full", "--base", "main")).code).toBe(0);
   }, 90_000);
@@ -142,5 +146,24 @@ describe("metator contract diff (real CLI, real monorepo)", () => {
     ]);
     const unknown = await mt("contract", "diff", "--contracts", "nope");
     expect((unknown.json.error as { message: string }).message).toBe("unknown contract nope");
+  }, 90_000);
+
+  test("a query parameter that becomes required is breaking (OpenAPI 3.1 too)", async () => {
+    await repo.write("docs/metator/system.yml", MAP("expand-contract"));
+    const withParam = (required: boolean) =>
+      SPEC.replace("openapi: 3.0.3", "openapi: 3.1.0").replace(
+        "    get:\n",
+        `    get:\n      parameters: [{ name: status, in: query, required: ${required}, schema: { type: string } }]\n`,
+      );
+    await repo.write("apps/billing/openapi.yaml", withParam(false));
+    await repo.commit("a parameter");
+    await repo.write("apps/billing/openapi.yaml", withParam(true));
+    const r = (await mt("contract", "diff")).json.data as Report;
+    const entry = r.contracts[0] as Entry;
+    expect([entry.status, entry.allowed, entry.changes.map((c) => [c.code, c.severity])]).toEqual([
+      "breaking",
+      false,
+      [["parameter.add", "breaking"]],
+    ]);
   }, 90_000);
 });

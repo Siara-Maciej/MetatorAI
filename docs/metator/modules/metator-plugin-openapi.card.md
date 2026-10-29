@@ -14,14 +14,14 @@ dir: packages/plugin-openapi
 - Test-only dependencies: `@metator/testing`
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-openapi/src/index.ts`
-- Third-party: `openapi-diff`, `yaml`
+- Third-party: `api-smart-diff`, `swagger2openapi`, `yaml`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility
 
-The `openapi` contract kind of the system map (F7, design/08). `ContractDetector` finds OpenAPI 3 and Swagger 2 specifications (YAML or JSON) with their title, version and servers for `system discover`. `ContractDiffer` compares two versions of a specification on `openapi-diff` and classifies each change breaking, non-breaking or unclassified for `contract diff` (ADR-0069). It decides nothing about applications, consumers or policy; that is core's discovery and `judgeContract`.
+The `openapi` contract kind of the system map (F7, design/08). `ContractDetector` finds OpenAPI 3 and Swagger 2 specifications (YAML or JSON) with their title, version and servers for `system discover`. `ContractDiffer` compares two versions of a specification (OpenAPI 3.0, 3.1, Swagger 2 converted to 3) on `api-smart-diff` and classifies each change breaking, non-breaking or unclassified for `contract diff`: operations, parameters, request and response bodies (ADR-0069, ADR-0073). It decides nothing about applications, consumers or policy; that is core's discovery and `judgeContract`.
 
 ## Invariants
 
@@ -30,9 +30,9 @@ The `openapi` contract kind of the system map (F7, design/08). `ContractDetector
 
 ## Allowed dependencies
 
-`@metator/core`, `yaml` and `openapi-diff`. No other plugin; runtime wires it.
+`@metator/core`, `yaml`, `api-smart-diff` and `swagger2openapi`. No other plugin; runtime wires it.
 
 ## Pitfalls
 
 - A Swagger 2 specification has no `servers`: the server is built from `schemes`, `host` and `basePath`.
-- `openapi-diff` validates both specifications and throws on anything invalid; the differ turns that into `PARSE_FAILED` [[cite: packages/plugin-openapi/src/openapi-contract-differ.ts:78 | "openapi-diff failed"]].
+- api-smart-diff calls every changed `type` non-breaking; the differ makes a request type that narrows or a response type that widens breaking [[cite: packages/plugin-openapi/src/openapi-contract-differ.ts:61 | "function typeChange("]].

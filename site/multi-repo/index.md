@@ -210,7 +210,16 @@ Whether a breaking change passes depends on the map:
 | `policies.breaking: versioned` | passes with a new major version in the specification; consumers outside the new range are named |
 | `policies.breaking: forbidden` | fails |
 
-Add it to the full gate with `{ metator: contract diff }`. OpenAPI 3.0 and Swagger 2 are compared on [openapi-diff](https://github.com/atlassian/openapi-diff): paths, methods, status codes, headers and request and response bodies. Parameter changes and OpenAPI 3.1 are not classified yet.
+Add it to the full gate with `{ metator: contract diff }`. OpenAPI 3.0, 3.1 and Swagger 2 are compared on [api-smart-diff](https://github.com/udamir/api-smart-diff):
+
+| Change | Breaking |
+|---|---|
+| an operation removed, a new required parameter, a parameter made required or removed | yes |
+| a response field no longer required, also through a `$ref` | yes |
+| a request type that narrows (string → integer), a response type that widens (integer → string) | yes |
+| a new operation, a new optional parameter, a request type that widens (integer → number) | no |
+
+Only the API surface counts (`paths`, `webhooks`, `security`, `servers`); a schema in `components` counts where an operation uses it.
 
 ## Plan a change across the system
 

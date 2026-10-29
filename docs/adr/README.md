@@ -76,3 +76,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0070](0070-system-plan.md) | Plan systemowy: `SystemAnalysis`, `SystemPlan`, lint kolejności i strategii, agenci systemowi | Accepted |
 | [0071](0071-linked-runs.md) | Runy powiązane: run systemowy W13 i runy-dzieci w repozytoriach aplikacji | Accepted |
 | [0072](0072-system-evals.md) | Złoty zbiór zmian systemowych i score analizy oraz planu | Accepted |
+| [0073](0073-openapi-differ.md) | Differ OpenAPI na `api-smart-diff`: parametry, OpenAPI 3.1 i Swagger 2 przez konwersję | Proposed |

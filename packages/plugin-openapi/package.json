@@ -8,10 +8,12 @@
   },
   "dependencies": {
     "@metator/core": "workspace:*",
-    "openapi-diff": "^0.24.1",
+    "api-smart-diff": "^1.0.6",
+    "swagger2openapi": "^7.0.8",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@metator/testing": "workspace:*"
+    "@metator/testing": "workspace:*",
+    "@types/swagger2openapi": "^7.0.4"
   }
 }

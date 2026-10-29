@@ -2272,9 +2272,27 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-openapi/src/openapi-contract-differ.ts",
-    from: 'format: String(doc.swagger ?? "").startsWith("2") ? "swagger2" : "openapi3",',
-    to: 'format: "openapi3",',
-    why: "Swagger 2 is compared as Swagger 2",
+    from: "if (!spec.swagger) return spec.doc;",
+    to: "return spec.doc;",
+    why: "Swagger 2 is converted to OpenAPI 3 before it is compared",
+  },
+  {
+    file: "packages/plugin-openapi/src/openapi-contract-differ.ts",
+    from: ".filter((d) => SURFACE.has(String(d.path[0])))",
+    to: "",
+    why: "components count where operations use them, not twice",
+  },
+  {
+    file: "packages/plugin-openapi/src/openapi-contract-differ.ts",
+    from: "if (!request && !response) return false;\n  return request",
+    to: "return false;\n  return request",
+    why: "a request type that narrows or a response type that widens is breaking",
+  },
+  {
+    file: "packages/plugin-openapi/src/openapi-contract-differ.ts",
+    from: 'if (doc.paths !== undefined && !object(doc.paths)) return fail("`paths` is not an object");',
+    to: "",
+    why: "a document whose paths are not an object is not a specification",
   },
   {
     file: "packages/core/src/domain/system-plan.ts",
