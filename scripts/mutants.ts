@@ -256,7 +256,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/adrs.ts",
-    from: 'if (adr.status === "Accepted") {',
+    from: 'if (adr.status === "Accepted" && canon.size > 0) {',
     to: "if (false) {",
     why: "an Accepted ADR names the canon rules it implies",
   },
@@ -268,8 +268,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/adrs.ts",
-    from: "else if (adr.status && !row.toLowerCase().includes(adr.status.toLowerCase())) {",
-    to: "else if (false) {",
+    from: "row.toLowerCase().includes(s.toLowerCase()),",
+    to: "true,",
     why: "the ADR index shows each ADR's current status",
   },
   {
