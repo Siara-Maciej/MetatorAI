@@ -765,7 +765,7 @@ describe("AnalyzeArchitecture", () => {
     });
     expect((await fs.read(".metator/arch/report.html"))._unsafeUnwrap()).toStartWith("<!doctype html>");
     const json = JSON.parse((await fs.read(".metator/arch/report.json"))._unsafeUnwrap());
-    expect([json.kind, json.schemaVersion, json.summary.score]).toEqual(["ArchitectureReport", 1, 100]);
+    expect([json.kind, json.schemaVersion, json.summary.score]).toEqual(["ArchitectureReport", 2, 100]);
     expect((await fs.read(".metator/arch/report.md"))._unsafeUnwrap()).toStartWith("# Architecture report");
   });
 

@@ -25,7 +25,7 @@ dir: packages/plugin-git
 
 ## Invariants
 
-- Renames count under both paths, so importers of the old path are affected [[cite: packages/plugin-git/src/git-vcs.ts:36 | "diffSummary([\"--no-renames\", ref.value])"]].
+- Renames count under both paths, so importers of the old path are affected [[cite: packages/plugin-git/src/git-vcs.ts:42 | "diffSummary([\"--no-renames\", ref.value])"]].
 
 ## Allowed dependencies
 

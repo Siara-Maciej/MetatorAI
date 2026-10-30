@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ArchitectureReport, Violation } from "./architecture.ts";
-import { type ArchitecturePolicy, VIOLATION_KINDS } from "./architecture-policy.ts";
+import { moduleDirOf, proposeModuleGlobs } from "./architecture-modules.ts";
+import { type ArchitecturePolicy, VIOLATION_KINDS, VIOLATION_KINDS_V1 } from "./architecture-policy.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -8,13 +9,18 @@ import { defineDocument } from "./versioned.ts";
  * ratchet that fails a change only for what it adds, SARIF for code scanning, and a first
  * policy proposed from what the repository already is and the boundaries Nx or Turborepo know.
  */
-export const ArchitectureBaselineSchema = z.strictObject({
-  violations: z.array(z.strictObject({ id: z.string().min(1), kind: z.enum(VIOLATION_KINDS) })),
-});
+const baselineSchema = <K extends readonly [string, ...string[]]>(kinds: K) =>
+  z.strictObject({
+    violations: z.array(z.strictObject({ id: z.string().min(1), kind: z.enum(kinds) })),
+  });
+export const ArchitectureBaselineSchema = baselineSchema(VIOLATION_KINDS);
 export type ArchitectureBaseline = z.output<typeof ArchitectureBaselineSchema>;
 
 export const ArchitectureBaselineDocument = defineDocument("ArchitectureBaseline", {
+  history: [{ schema: baselineSchema(VIOLATION_KINDS_V1) }],
   latest: ArchitectureBaselineSchema,
+  // Version 2 knows the module kinds (ADR-0074); a version 1 baseline is one already.
+  upgrade: (v1) => v1,
   errorCode: "INVALID_CONFIG",
   hint: "`metator arch baseline` writes it from the current report.",
 });
@@ -205,22 +211,36 @@ export interface PolicyProposal {
  * application), the tags the packages already carry, and the rules Nx or Turborepo enforce. It
  * describes the repository as it is, so violations it would add are the ones to fix first.
  */
-export function proposePolicy(report: ArchitectureReport, tools: readonly ToolBoundaries[]): PolicyProposal {
+export function proposePolicy(
+  report: ArchitectureReport,
+  tools: readonly ToolBoundaries[],
+  /** The repository's source files: folders of modules inside a package are proposed too. */
+  files: readonly string[] = [],
+): PolicyProposal {
   const apps = report.packages.filter((p) => p.kind === "app").map((p) => p.name);
   const libs = report.packages.filter((p) => p.kind === "lib").map((p) => p.name);
   const layers: Record<string, unknown>[] = [];
   if (apps.length > 0) layers.push({ name: "apps", packages: apps });
   if (libs.length > 0) layers.push({ name: "libs", packages: libs });
   const rules = tools.flatMap((t) => t.rules);
+  const globs = proposeModuleGlobs(files);
+  // Modules that already keep a `contracts/` folder say where their public part is.
+  const contracts = globs.length > 0 && files.some((f) => /\/contracts\//.test(f) && moduleDirOf(f, globs));
   const notes = [
     `${apps.length} application(s), ${libs.length} librar${libs.length === 1 ? "y" : "ies"}, ${report.cycles.length} cycle(s) found.`,
     ...tools.map((t) => `${t.rules.length} rule(s) imported from ${t.source}.`),
     "Split libs into the layers you intend (e.g. features, domain, shared); `metator arch analyze` shows what breaks.",
+    ...(globs.length > 0
+      ? [
+          `Modules inside packages: ${globs.join(", ")}${contracts ? ", imported through their contracts/" : ""}; \`metator arch analyze\` shows their cycles.`,
+        ]
+      : []),
   ];
   return {
     body: {
       ...(layers.length > 0 ? { layers } : {}),
       ...(rules.length > 0 ? { rules } : {}),
+      ...(globs.length > 0 ? { modules: { globs, ...(contracts ? { public: ["contracts/**"] } : {}) } } : {}),
     },
     notes,
   };

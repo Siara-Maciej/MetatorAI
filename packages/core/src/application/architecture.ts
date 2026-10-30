@@ -434,7 +434,7 @@ export class InitArchitecturePolicy {
     if (facts.isErr()) return err(facts.error);
     const tools = await this.tools.read();
     if (tools.isErr()) return err(tools.error);
-    const proposal = proposePolicy(analyzeArchitecture(facts.value), tools.value);
+    const proposal = proposePolicy(analyzeArchitecture(facts.value), tools.value, facts.value.files);
     const doc = ArchitecturePolicyDocument.stamp(ArchitecturePolicySchema.parse(proposal.body));
     const text = renderYamlDocument(
       { kind: doc.kind, schemaVersion: doc.schemaVersion, ...proposal.body },

@@ -11,6 +11,7 @@ import {
   overThresholds,
   reachedExports,
 } from "./architecture-metrics.ts";
+import { analyzeModules, moduleViolations } from "./architecture-modules.ts";
 import {
   ARCH_TEST_GLOBS,
   ARCH_TOOLING_GLOBS,
@@ -22,6 +23,7 @@ import {
   matchesPackage,
   tagsOf,
   VIOLATION_KINDS,
+  VIOLATION_KINDS_V1,
   type ViolationKind,
 } from "./architecture-policy.ts";
 import { matchesAny } from "./glob.ts";
@@ -137,17 +139,19 @@ const Evidence = z.strictObject({
   specifier: z.string().optional(),
 });
 
-const ViolationSchema = z.strictObject({
-  /** Stable across runs (`kind:subject`): baselines and exceptions refer to it. */
-  id: z.string().min(1),
-  kind: z.enum(VIOLATION_KINDS),
-  severity: z.enum(["error", "warning"]),
-  message: z.string(),
-  packages: z.array(Name),
-  evidence: z.array(Evidence),
-  /** Set when a policy exception covers the violation; it then does not count. */
-  exception: z.strictObject({ reason: z.string(), owner: z.string(), expires: z.string() }).optional(),
-});
+const violationSchema = <K extends readonly [string, ...string[]]>(kinds: K) =>
+  z.strictObject({
+    /** Stable across runs (`kind:subject`): baselines and exceptions refer to it. */
+    id: z.string().min(1),
+    kind: z.enum(kinds),
+    severity: z.enum(["error", "warning"]),
+    message: z.string(),
+    packages: z.array(Name),
+    evidence: z.array(Evidence),
+    /** Set when a policy exception covers the violation; it then does not count. */
+    exception: z.strictObject({ reason: z.string(), owner: z.string(), expires: z.string() }).optional(),
+  });
+const ViolationSchema = violationSchema(VIOLATION_KINDS);
 export type Violation = z.output<typeof ViolationSchema>;
 
 const MetricsSchema = z.strictObject({
@@ -254,7 +258,44 @@ const AppsSchema = z.strictObject({
   blastRadius: z.array(z.strictObject({ package: Name, apps: z.array(Name) })),
 });
 
-export const ArchitectureReportSchema = z.strictObject({
+const ModuleRefs = z.array(z.strictObject({ from: z.string(), to: z.string() })).max(5);
+
+/** Modules inside packages (ADR-0074): the units of a modular monolith and how they depend. */
+const ModulesSchema = z.strictObject({
+  globs: z.array(z.string()),
+  public: z.array(z.string()).optional(),
+  modules: z.array(
+    z.strictObject({
+      name: z.string(),
+      dir: z.string(),
+      files: z.number().int().nonnegative(),
+      dependsOn: z.array(z.string()),
+      dependents: z.array(z.string()),
+    }),
+  ),
+  edges: z.array(
+    z.strictObject({
+      from: z.string(),
+      to: z.string(),
+      imports: z.number().int().positive(),
+      runtime: z.number().int().nonnegative(),
+      samples: ModuleRefs,
+      /** Imports of files outside the target's public part. */
+      internal: z.number().int().nonnegative(),
+      internalSamples: ModuleRefs,
+    }),
+  ),
+  twoWay: z.array(z.tuple([z.string(), z.string()])),
+  cycles: z.array(
+    z.strictObject({
+      modules: z.array(z.string()).min(2),
+      edges: z.array(z.strictObject({ from: z.string(), to: z.string(), imports: z.number().int() })),
+      typeOnly: z.boolean(),
+    }),
+  ),
+});
+
+const reportFields = <K extends readonly [string, ...string[]]>(kinds: K) => ({
   /** The policy file used, or null for the defaults. */
   policy: z.string().nullable(),
   summary: z.strictObject({
@@ -272,7 +313,7 @@ export const ArchitectureReportSchema = z.strictObject({
   packages: z.array(PackageSchema),
   edges: z.array(EdgeSchema),
   cycles: z.array(CycleSchema),
-  violations: z.array(ViolationSchema),
+  violations: z.array(violationSchema(kinds)),
   boundaries: BoundariesSchema.optional(),
   coupling: z.array(CouplingSchema).optional(),
   teams: TeamsSchema.optional(),
@@ -283,10 +324,18 @@ export const ArchitectureReportSchema = z.strictObject({
     sample: z.array(z.strictObject({ from: z.string(), specifier: z.string() })).max(50),
   }),
 });
+
+export const ArchitectureReportSchema = z.strictObject({
+  ...reportFields(VIOLATION_KINDS),
+  modules: ModulesSchema.optional(),
+});
 export type ArchitectureReport = z.output<typeof ArchitectureReportSchema>;
 
 export const ArchitectureReportDocument = defineDocument("ArchitectureReport", {
+  history: [{ schema: z.strictObject(reportFields(VIOLATION_KINDS_V1)) }],
   latest: ArchitectureReportSchema,
+  // Version 2 only adds: the modules section and two violation kinds.
+  upgrade: (v1) => v1,
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -811,6 +860,22 @@ export function analyzeArchitecture(input: ArchitectureInput): ArchitectureRepor
   const linked = (a: string, b: string) => wsEdges.some((e) => e.from === a && e.to === b);
   const apps = workspace.filter((p) => p.kind === "app").map((p) => p.name);
 
+  // Modules inside packages: the units of a modular monolith (ADR-0074).
+  const inner = policy.modules
+    ? analyzeModules({
+        policy: policy.modules,
+        files: input.files.filter((f) => !ignored(f)),
+        imports: input.imports.filter((i) => !ignored(i.from) && !ignored(i.to)),
+        isTest,
+        packageOf: (dir) => pkgOf(`${dir}/x`),
+      })
+    : undefined;
+  for (const v of inner ? moduleViolations(inner) : []) {
+    add(v.kind, v.subject, v.message, v.modules, v.evidence);
+    // A cycle only `import type` closes is a warning, as between packages.
+    if (v.typeOnly) (violations.at(-1) as Violation).severity = "warning";
+  }
+
   const final = applyPolicy(violations, policy, input.today);
   return {
     policy: input.policySource,
@@ -855,6 +920,7 @@ export function analyzeArchitecture(input: ArchitectureInput): ArchitectureRepor
     edges,
     cycles,
     violations: final,
+    ...(inner ? { modules: inner } : {}),
     unresolved: {
       count: input.unresolved.length,
       sample: input.unresolved.slice(0, 50).map((u) => ({ ...u })),

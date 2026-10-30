@@ -8,7 +8,8 @@ import { defineDocument } from "./versioned.ts";
  * thresholds and exceptions that expire. `metator/architecture.yml`; written by people
  * (`arch init` proposes one) and reviewed like code.
  */
-export const VIOLATION_KINDS = [
+/** The kinds of version 1 of the policy, report and baseline (frozen: a released version never changes). */
+export const VIOLATION_KINDS_V1 = [
   "cycle",
   "layer",
   "tag",
@@ -24,6 +25,8 @@ export const VIOLATION_KINDS = [
   "expired-exception",
   "unused-exception",
 ] as const;
+/** Version 2 adds the modules of a package (ADR-0074): cycles between them, imports of their internals. */
+export const VIOLATION_KINDS = [...VIOLATION_KINDS_V1, "module-cycle", "module-internal"] as const;
 export type ViolationKind = (typeof VIOLATION_KINDS)[number];
 
 /** The kinds about what packages declare (`arch declared`), as opposed to how they depend. */
@@ -53,6 +56,8 @@ export const DEFAULT_SEVERITY: Readonly<Record<ViolationKind, ArchSeverity>> = {
   threshold: "warning",
   "expired-exception": "error",
   "unused-exception": "warning",
+  "module-cycle": "error",
+  "module-internal": "error",
 };
 
 export const ARCH_TEST_GLOBS: readonly string[] = [
@@ -132,7 +137,14 @@ const ThresholdsSchema = z.strictObject({
   depth: z.number().int().positive().optional(),
 });
 
-export const ArchitecturePolicySchema = z.strictObject({
+const ModulesSchema = z.strictObject({
+  /** Directories that are modules, e.g. `src/module/*` (a modular monolith's bounded contexts). */
+  globs: z.array(z.string().min(1)).min(1),
+  /** Paths inside a module that others may import (`contracts/**`); without it, every file. */
+  public: z.array(z.string().min(1)).min(1).optional(),
+});
+
+const policyFields = <K extends readonly [string, ...string[]]>(kinds: K) => ({
   packages: z.array(PackageRuleSchema).default([]),
   /** Ordered top to bottom: a package may depend on its own layer and the layers below it. */
   layers: z.array(LayerSchema).default([]),
@@ -142,14 +154,25 @@ export const ArchitecturePolicySchema = z.strictObject({
   /** Files left out of the analysis (generated code, vendored copies). */
   ignore: z.array(z.string().min(1)).default([]),
   thresholds: ThresholdsSchema.default({}),
-  severity: z.partialRecord(z.enum(VIOLATION_KINDS), z.enum(["error", "warning", "off"])).default({}),
+  severity: z.partialRecord(z.enum(kinds), z.enum(["error", "warning", "off"])).default({}),
   exceptions: z.array(ExceptionSchema).default([]),
+});
+
+const ArchitecturePolicyV1Schema = z.strictObject(policyFields(VIOLATION_KINDS_V1));
+
+export const ArchitecturePolicySchema = z.strictObject({
+  ...policyFields(VIOLATION_KINDS),
+  /** Modules inside packages (ADR-0074): analyzed like packages, imported only through `public`. */
+  modules: ModulesSchema.optional(),
 });
 export type ArchitecturePolicy = z.output<typeof ArchitecturePolicySchema>;
 export type ArchitectureException = ArchitecturePolicy["exceptions"][number];
 
 export const ArchitecturePolicyDocument = defineDocument("ArchitecturePolicy", {
+  history: [{ schema: ArchitecturePolicyV1Schema }],
   latest: ArchitecturePolicySchema,
+  // Version 2 only adds: modules, and two violation kinds a severity can name.
+  upgrade: (v1) => v1,
   errorCode: "INVALID_CONFIG",
   hint: "`metator arch init` proposes a policy from the packages it finds.",
 });

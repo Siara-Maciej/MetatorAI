@@ -80,6 +80,28 @@ export function renderArchitectureMarkdown(report: ArchitectureReport): string {
   }
   out.push("");
 
+  const mods = report.modules;
+  if (mods) {
+    out.push(
+      "## Modules",
+      "",
+      `${mods.modules.length} modules in ${mods.globs.join(", ")}${mods.public ? `; public part: ${mods.public.join(", ")}` : ""}.`,
+      "",
+    );
+    if (mods.twoWay.length > 0)
+      out.push(
+        `Import each other (${mods.twoWay.length}): ${mods.twoWay.map(([a, z]) => `${a} ⇄ ${z}`).join(", ")}.`,
+        "",
+      );
+    for (const c of mods.cycles)
+      out.push(`- Cycle of ${c.modules.length}${c.typeOnly ? " (type-only)" : ""}: ${list(c.modules)}`);
+    if (mods.cycles.length > 0) out.push("");
+    out.push("| Module | Files | Depends on | Dependents |", "|--------|------:|------------|------------|");
+    for (const m of mods.modules)
+      out.push(`| ${m.name} | ${m.files} | ${list(m.dependsOn)} | ${list(m.dependents)} |`);
+    out.push("");
+  }
+
   const b = report.boundaries;
   if (b) {
     out.push("## Boundaries", "");

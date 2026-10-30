@@ -1,0 +1,18 @@
+{
+  "kind": "ArchitecturePolicy",
+  "schemaVersion": 1,
+  "packages": [{ "packages": ["@shop/web"], "kind": "app", "tags": ["scope:web"] }],
+  "layers": [{ "name": "apps", "packages": ["apps/*"] }, { "name": "libs", "packages": ["packages/*"] }],
+  "rules": [{ "from": "scope:web", "deny": ["scope:db"] }],
+  "ignore": ["**/generated/**"],
+  "thresholds": { "fanOut": 8 },
+  "severity": { "unused-dependency": "off" },
+  "exceptions": [
+    {
+      "violation": "cycle:@shop/a,@shop/b",
+      "reason": "split in progress",
+      "owner": "@arch",
+      "expires": "2026-12-31"
+    }
+  ]
+}

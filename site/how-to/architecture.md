@@ -45,6 +45,8 @@ The **score** is 100 minus 5 per error and 1 per warning. Use it as a trend, not
 | `version-drift` | warning | One dependency declared with several version ranges across packages. |
 | `layer`, `unlayered`, `tag` | error, warning, error | Your policy's layers and tag rules (below). |
 | `expired-exception`, `unused-exception` | error, warning | Your policy's exceptions. |
+| `module-cycle` | error | [Modules inside a package](#modules-inside-a-package) depend on each other (a warning when only `import type` closes the cycle). |
+| `module-internal` | error | A module imports another module's file outside its public part (`contracts/**`). |
 
 Two narrower views:
 
@@ -73,6 +75,36 @@ Besides violations, the report describes the packages. These are **signals for a
 Set `thresholds` in the policy to turn a metric into a warning, e.g. `fanOut: 8`, `files: 400`, `distance: 0.7`, `depth: 6`.
 
 Open `.metator/arch/report.html` in a browser for the same report as a page. It has the package graph (applications on top, cycle edges red, broken rules orange) and works offline.
+
+## Modules inside a package
+
+A modular monolith is one package with its modules in folders: a NestJS app with `src/module/*`, a frontend organised by `features/*`. Name the folders in the policy and every module is analyzed like a package:
+
+```yaml
+# metator/architecture.yml
+modules:
+  globs: ["src/module/*"]        # each folder is a module
+  public: ["contracts/**"]       # what other modules may import; without it, every file
+```
+
+`arch init` proposes this when it finds a `module`, `modules`, `features`, `domains` or `contexts` folder with three or more modules, and `public: [contracts/**]` when the modules already keep a `contracts/` folder.
+
+The report then has a **Modules** section:
+- each module with its files, what it depends on and what depends on it;
+- the pairs that import each other;
+- the cycles;
+- a `module-cycle` violation for each cycle, and a `module-internal` violation for each pair that imports past the public part, with the files.
+
+Test files do not count. Folders with one name in different packages are named by package and folder (`web/Auth`).
+
+```text
+17 modules in src/module/*; public part: contracts/**.
+Import each other (12): auth ⇄ users, buyer ⇄ financing, cars ⇄ organizations, …
+- Cycle of 9: auth, cars, companies, locations, offers, organizations, permissions, roles, users
+- Cycle of 4: buyer, financing, integrations, sse-notifications
+```
+
+Accept what is there with `arch baseline`. From then on, `arch check` fails a change only for a new boundary it breaks (`module-internal:mail→users`), like for packages.
 
 ## Try a move before you make it
 
