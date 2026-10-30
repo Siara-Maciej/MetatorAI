@@ -22,6 +22,7 @@ import {
   type BuildImportGraph,
   type BuildModuleCards,
   type ChangeHistory,
+  type ChangePatch,
   type CheckArchitecture,
   type CheckDebugTags,
   type CheckFlaky,
@@ -148,6 +149,7 @@ import {
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
+  type ShowChangeDiff,
   type ShowSystem,
   type SimulateArchitecture,
   type SimulateRefactorPlan,
@@ -365,6 +367,8 @@ export interface Cradle {
   planReview: PlanReview;
   describeReviewedChange: DescribeReviewedChange;
   branchHistory: BranchHistory;
+  showChangeDiff: ShowChangeDiff;
+  changePatch: ChangePatch & Vcs;
   judgeFindings: JudgeFindings;
   formatReviewComments: FormatReviewComments;
   evalCatalog: EvalCatalog;

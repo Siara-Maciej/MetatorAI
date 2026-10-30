@@ -128,6 +128,7 @@ import {
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  ShowChangeDiff,
   ShowSystem,
   SimulateArchitecture,
   SimulateRefactorPlan,
@@ -392,6 +393,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
     changeHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
     branchHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    changePatch: asFunction(({ root }) => new GitVcs(root, [".metator/"])).singleton(),
     sandbox: asFunction(() => new TempGitSandbox()).singleton(),
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
@@ -822,6 +824,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores }) =>
         new PlanReview(vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores),
     ),
+    showChangeDiff: asFunction(({ changePatch }) => new ShowChangeDiff(changePatch)),
     describeReviewedChange: asFunction(
       ({ vcs, branchHistory, fileSystem }) => new DescribeReviewedChange(vcs, branchHistory, fileSystem),
     ),

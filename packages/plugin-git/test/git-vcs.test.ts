@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -332,5 +333,28 @@ describe("GitVcs.branch (real git)", () => {
     await sh(dir, "add", ".");
     await sh(dir, "commit", "-q", "-m", "init");
     expect((await new GitVcs(dir).branch("HEAD"))._unsafeUnwrap().uncommitted).toBe(false);
+  });
+});
+
+describe("GitVcs.patch", () => {
+  test("tracked changes as git diff without external drivers; a new file whole; only the files asked", async () => {
+    const dir = await repo();
+    await writeFile(join(dir, "a.ts"), "one\ntwo\n");
+    await writeFile(join(dir, ".gitattributes"), "*.ts diff=evil\n");
+    await sh(dir, "add", ".");
+    await sh(dir, "commit", "-q", "-m", "init");
+    // A configured external diff driver would run a program: it must not.
+    await sh(dir, "config", "diff.evil.command", "touch PWNED");
+    await sh(dir, "config", "diff.external", "touch PWNED");
+    await writeFile(join(dir, "a.ts"), "one\n2\n");
+    await writeFile(join(dir, "new.ts"), "x\ny\n");
+    const vcs = new GitVcs(dir);
+    const patch = (await vcs.patch("HEAD"))._unsafeUnwrap();
+    expect(patch).toContain("--- a/a.ts\n+++ b/a.ts");
+    expect(patch).toContain("-two\n+2");
+    expect(patch).toContain("--- /dev/null\n+++ b/new.ts\n@@ -0,0 +1,2 @@\n+x\n+y\n");
+    expect(existsSync(join(dir, "PWNED"))).toBe(false);
+    const one = (await vcs.patch("HEAD", ["new.ts"]))._unsafeUnwrap();
+    expect([one.includes("a.ts"), one.includes("new.ts")]).toEqual([false, true]);
   });
 });

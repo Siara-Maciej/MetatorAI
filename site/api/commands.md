@@ -1279,6 +1279,19 @@ metator review metadata [options]
 | `--base <ref>` | the branch the change goes into | `"HEAD"` |
 | `--out <path>` | also write it as a ReviewMetadata document |  |
 
+### `metator review diff`
+
+The change as a unified diff (new files whole), without MetatorAI's own files
+
+```bash
+metator review diff [options] [files...]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[files]` | only these files | |
+| `--base <ref>` | the branch the change goes into | `"HEAD"` |
+
 ### `metator review plan`
 
 Shards per package with card and rules; lenses run per shard

@@ -93,8 +93,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
-    from: "else return false; // redirection",
-    to: "else continue; // redirection",
+    from: "else return false; // a redirection to a file",
+    to: "else continue; // a redirection to a file",
     why: "a redirection or a chain is not a read-only command",
   },
   {
@@ -216,6 +216,24 @@ export const MUTANTS: readonly Mutant[] = [
     from: "if (matchesAny(f, METATOR_FILES)) continue;",
     to: "",
     why: "MetatorAI's own files are no code to review",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: '.replace(/(^|\\s)[12]?>>?\\s*\\/dev\\/null(?=$|[\\s;&|])/g, "$1")',
+    to: "",
+    why: "output thrown away to /dev/null still only reads",
+  },
+  {
+    file: "packages/plugin-git/src/git-vcs.ts",
+    from: '"--no-ext-diff",',
+    to: "",
+    why: "review diff never runs a repository's external diff driver",
+  },
+  {
+    file: "packages/core/src/application/review.ts",
+    from: "files = changed.value.filter((f) => !matchesAny(f, METATOR_FILES));",
+    to: "files = [...changed.value];",
+    why: "review diff leaves out MetatorAI's own files",
   },
   {
     file: "packages/core/src/application/cards.ts",

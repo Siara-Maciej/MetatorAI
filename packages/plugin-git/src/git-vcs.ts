@@ -1,9 +1,10 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   type BranchCommit,
   type BranchHistory,
   type ChangeHistory,
+  type ChangePatch,
   err,
   MetatorError,
   ok,
@@ -20,7 +21,7 @@ import { type SimpleGit, simpleGit } from "simple-git";
  * that differs from the merge base with `base`: committed on the branch, staged, unstaged,
  * deleted and untracked (non-ignored) files. Paths are repo-relative.
  */
-export class GitVcs implements Vcs, RevisionReader, ChangeHistory, BranchHistory {
+export class GitVcs implements Vcs, RevisionReader, ChangeHistory, BranchHistory, ChangePatch {
   private client: SimpleGit | undefined;
 
   constructor(
@@ -141,6 +142,49 @@ export class GitVcs implements Vcs, RevisionReader, ChangeHistory, BranchHistory
         else if (line !== "") out.at(-1)?.push(line);
       }
       return ok(out);
+    });
+  }
+
+  async patch(base: string, files?: readonly string[]): Promise<Result<string, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      const status = await git.value.status();
+      const wanted = (f: string) => (!files || files.includes(f)) && !this.own.some((p) => f.startsWith(p));
+      const parts: string[] = [];
+      if (await this.hasCommits(git.value)) {
+        const ref = await this.mergeBase(git.value, base);
+        if (ref.isErr()) return err(ref.error);
+        const paths = files ? [...files] : [];
+        // No external diff driver or textconv: a repository's config cannot run a program here.
+        const text = await git.value.raw([
+          "diff",
+          "--no-ext-diff",
+          "--no-textconv",
+          "--no-color",
+          ref.value,
+          "--",
+          ...paths,
+        ]);
+        if (text) parts.push(text.trimEnd());
+      }
+      for (const f of status.not_added.filter(wanted).sort()) {
+        const path = join(this.root, f);
+        if (!existsSync(path)) continue;
+        const lines = readFileSync(path, "utf8").replace(/\n$/, "").split("\n");
+        parts.push(
+          [
+            `diff --git a/${f} b/${f}`,
+            "new file",
+            "--- /dev/null",
+            `+++ b/${f}`,
+            `@@ -0,0 +1,${lines.length} @@`,
+          ]
+            .concat(lines.map((l) => `+${l}`))
+            .join("\n"),
+        );
+      }
+      return ok(parts.length > 0 ? `${parts.join("\n")}\n` : "");
     });
   }
 

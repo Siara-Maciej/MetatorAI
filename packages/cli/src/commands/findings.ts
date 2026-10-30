@@ -159,6 +159,18 @@ export function registerReviewCommands(program: Command, { action, container }: 
       })),
     );
   review
+    .command("diff")
+    .description("The change as a unified diff (new files whole), without MetatorAI's own files")
+    .argument("[files...]", "only these files")
+    .option("--base <ref>", "the branch the change goes into", "HEAD")
+    .action(
+      action(async (files: string[], opts: { base: string }) => ({
+        result: await container()
+          .resolve("showChangeDiff")
+          .execute({ base: opts.base, ...(files.length > 0 ? { files: files.map(normalizePath) } : {}) }),
+      })),
+    );
+  review
     .command("plan")
     .description("Shards per package with card and rules; lenses run per shard")
     .option("--base <ref>", "review files changed against this ref", "HEAD")

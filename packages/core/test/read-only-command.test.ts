@@ -15,6 +15,21 @@ describe("readOnlyCommand", () => {
     expect(ro("grep -rln offers . | sort | uniq")).toBe(true);
   });
 
+  test("chains of readers, cd inside the directories, and output thrown away or joined still only read", () => {
+    expect(
+      ro(
+        'cd /folder 2>/dev/null; find src/module/users -maxdepth 1 -type f 2>/dev/null; grep -rn "offer-reminder" src | head -20; grep -n findAll src/x.ts',
+      ),
+    ).toBe(true);
+    expect(ro("grep -rn offers src 2>&1 | head -5 && ls src || ls")).toBe(true);
+    expect(ro("ls src;")).toBe(true);
+    expect(ro("cd /elsewhere && ls")).toBe(false);
+    expect(ro("grep -rn offers src 2>/tmp/err.txt")).toBe(false);
+    expect(ro("grep -rn offers src >> out.txt")).toBe(false);
+    expect(ro("ls & rm -rf src")).toBe(false);
+    expect(ro(";")).toBe(false);
+  });
+
   test("options that write or run, redirections, chains and substitutions do not", () => {
     expect(ro("find . -name '*.ts' -delete")).toBe(false);
     expect(ro("find . -exec rm {} ;")).toBe(false);

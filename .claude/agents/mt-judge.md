@@ -10,7 +10,7 @@ model: opus
 - `findings/merged.json` after verification, and `review-plan.json`.
 
 # Procedure
-1. Calibrate severity with the rubric: blocking only for confirmed wrong behavior on a reachable path; style is never blocking.
+1. Calibrate severity with the rubric: blocking only for confirmed wrong behavior on a reachable path, or for code that does not build (it breaks CI whatever calls it); style is never blocking.
 2. Merge findings that still share a root cause; keep the clearest claim.
 3. List the areas the lenses checked and found correct (for example "rounding in invoice totals").
 4. `bun run metator findings verdict <dir>/findings --verified-correct <areas…>`.

@@ -8,9 +8,9 @@ description: Use when a review lens decides whether something it found is a find
 A lens worker (`mt-review-*`) has a candidate problem and must decide if it becomes a finding.
 
 # Steps
-1. Is it reachable? Trace a real caller to the location (`metator graph callers <symbol>`); no caller means no blocking finding.
+1. Is it reachable? Trace a real caller to the location (`metator graph callers <symbol>`); no caller means no blocking finding. One exception: code that does not compile or type-check (a call to a method that does not exist, an import of a missing file, a wrong type) breaks the build, CI and every deploy whatever calls it. The build is its reachability, and the missing or mismatched declaration is its evidence (a trace).
 2. What triggers it? Name the concrete input or state. No trigger means it is a question for the author, not a finding.
-3. Severity: blocking (wrong result, data loss, security, broken contract on a reachable path), major (wrong in an edge case), minor (maintainability with a rule id), nit (style; usually omit).
+3. Severity: blocking (wrong result, data loss, security, broken contract on a reachable path, or code that does not build), major (wrong in an edge case), minor (maintainability with a rule id), nit (style; usually omit).
 4. Evidence: a failing test, a trace, a canon rule id or a doc citation. Blocking needs one.
 5. Quote the exact code at the location; `metator findings validate` rejects a quote that is not in the file.
 

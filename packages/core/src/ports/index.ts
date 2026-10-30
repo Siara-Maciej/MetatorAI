@@ -182,6 +182,16 @@ export interface Vcs {
   remoteUrl(): Promise<Result<string | undefined, MetatorError>>;
 }
 
+/** The change itself as a unified diff (`review diff`): what a reviewer reads besides the files. */
+export interface ChangePatch {
+  /**
+   * The diff of the given files (all changed files when none are given) from the merge base with
+   * `base` to the working tree; a new, untracked file is shown whole as added. No external diff
+   * driver or text conversion runs.
+   */
+  patch(base: string, files?: readonly string[]): Promise<Result<string, MetatorError>>;
+}
+
 /** A commit of a branch, as a review's metadata shows it. */
 export interface BranchCommit {
   readonly sha: string;

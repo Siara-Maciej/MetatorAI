@@ -7,6 +7,7 @@ import {
   FormatReviewComments,
   JudgeFindings,
   PlanReview,
+  ShowChangeDiff,
 } from "../src/application/review.ts";
 import { RuleCatalog } from "../src/application/rules.ts";
 import { type Finding, FindingSetDocument } from "../src/domain/finding.ts";
@@ -233,5 +234,28 @@ describe("DescribeReviewedChange", () => {
     ]);
     const saved = JSON.parse((await fs.read("run/pr.json"))._unsafeUnwrap());
     expect([saved.kind, saved.schemaVersion, saved.commits.length]).toEqual(["ReviewMetadata", 1, 3]);
+  });
+});
+
+describe("ShowChangeDiff", () => {
+  test("the changed files without MetatorAI's own, or the files named; nothing changed is an empty patch", async () => {
+    const asked: (readonly string[] | undefined)[] = [];
+    const changes = {
+      changedFiles: async () => ok([".claude/agents/mt-guide.md", "src/a.ts"]),
+      patch: async (_base: string, files?: readonly string[]) => {
+        asked.push(files);
+        return ok(`patch of ${files?.join(",")}`);
+      },
+    };
+    const show = new ShowChangeDiff(changes);
+    expect((await show.execute({ base: "main" }))._unsafeUnwrap()).toEqual({
+      base: "main",
+      files: ["src/a.ts"],
+      patch: "patch of src/a.ts",
+    });
+    expect((await show.execute({ base: "main", files: ["b.ts"] }))._unsafeUnwrap().files).toEqual(["b.ts"]);
+    const none = new ShowChangeDiff({ ...changes, changedFiles: async () => ok([".claude/agents/mt-x.md"]) });
+    expect((await none.execute({ base: "main" }))._unsafeUnwrap().patch).toBe("");
+    expect(asked).toEqual([["src/a.ts"], ["b.ts"]]);
   });
 });

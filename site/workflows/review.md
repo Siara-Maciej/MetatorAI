@@ -23,6 +23,7 @@ metator run drive --host claude
 ```text
 meta    metator review metadata --base main      → pr.json: branch, commits, authors, files, uncommitted work
 plan    metator review plan --base main          → shards per package, with its card and rules
+diff    metator review diff --base main [file]   → the change as a unified diff, new files whole
 find    lens × shard in parallel (max 6)         → findings/<lens>-<shard>.json
 check   metator findings validate <dir> --fix --plan review-plan.json
                                                  → invented quotes and unproven blockers dropped;
@@ -31,6 +32,8 @@ merge   metator findings merge <dir>             → duplicates across lenses me
 verify  mt-verifier per blocking/major finding    → confirmed | refuted | unproven
 judge   metator findings verdict <dir>, mt-judge  → verdict.json
 ```
+
+**Lenses read the change without git.** `metator review diff` gives the patch from the merge base to the working tree, new files whole, and never runs an external diff driver or text conversion a repository configures. MetatorAI's own files (host files, canon, cards) are left out of the diff, the plan and `system impact`.
 
 **Resuming is safe.** A run that stops and continues runs `findings merge` again; the verifications already recorded for the same finding (same id, file and quote) stay in `merged.json`, so the verify stage is not lost. Paths may be relative or absolute inside the repository.
 
@@ -45,6 +48,8 @@ Every finding quotes the code and names its location. A blocking finding also ne
 - a trigger (the input that breaks it);
 - reachability (the caller path to it);
 - evidence.
+
+Code that does not build (a call to a method that does not exist, a missing import, a wrong type) is blocking whatever calls it: it breaks CI and every deploy. Where the compiler cannot run, the quoted call and the declaration that lacks it are its evidence.
 
 `findings validate` checks quotes against the code. A single quote can be checked directly:
 

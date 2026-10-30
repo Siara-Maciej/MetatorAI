@@ -5,7 +5,7 @@ id: mt-review-logic
 role: worker
 description: Finds logic problems in one shard of a change and writes findings that prove themselves. Started by mt-pr-review. Do not use on its own or to fix code.
 tier: reasoning
-capabilities: [read, edit, search, "metator:graph", "metator:rules", "metator:similar", "metator:findings", "metator:symbols"]
+capabilities: [read, edit, search, "metator:graph", "metator:rules", "metator:similar", "metator:findings", "metator:symbols", "metator:review"]
 inputs: [review-plan.json, shard id]
 output: { artifact: "findings/logic-<shard>.json", schema: FindingSet@1, summaryLines: 10 }
 ---

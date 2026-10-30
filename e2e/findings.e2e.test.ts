@@ -138,6 +138,14 @@ describe("metator findings", () => {
         uncommitted: true,
       });
       expect(JSON.parse(await repo.read(".metator/runs/r1/pr.json")).kind).toBe("ReviewMetadata");
+      // The change itself, as reviewers read it: committed and uncommitted, against the base.
+      const diff = data(await metator(["review", "diff", "--base", "main"], repo.root)) as {
+        files: string[];
+        patch: string;
+      };
+      expect(diff.files).toEqual(["src/pay.ts"]);
+      expect(diff.patch).toContain("+++ b/src/pay.ts");
+      expect(diff.patch).toContain("+export const fee = 2;");
       expect((await metator(["review", "plan", "--lenses", "style"], repo.root)).code).toBe(64);
 
       const blocker = finding("LOGIC-001", "logic", {

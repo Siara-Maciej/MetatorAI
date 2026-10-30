@@ -15,7 +15,7 @@ import {
   VerdictDocument,
 } from "../domain/verdict.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
-import type { BranchHistory, FileSystem, Vcs, WorkspaceReader } from "../ports/index.ts";
+import type { BranchHistory, ChangePatch, FileSystem, Vcs, WorkspaceReader } from "../ports/index.ts";
 import { cardFile } from "./cards.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RuleCatalog } from "./rules.ts";
@@ -181,5 +181,26 @@ export class DescribeReviewedChange {
       if (saved.isErr()) return err(saved.error);
     }
     return ok(metadata);
+  }
+}
+
+/** `review diff`: the change as a unified diff, without MetatorAI's own files, for a reviewer to read. */
+export class ShowChangeDiff {
+  constructor(private readonly changes: ChangePatch & Pick<Vcs, "changedFiles">) {}
+
+  async execute(input: {
+    readonly base: string;
+    readonly files?: readonly string[];
+  }): Promise<Result<{ base: string; files: string[]; patch: string }, MetatorError>> {
+    let files = input.files ? [...input.files] : undefined;
+    if (!files) {
+      const changed = await this.changes.changedFiles(input.base);
+      if (changed.isErr()) return err(changed.error);
+      files = changed.value.filter((f) => !matchesAny(f, METATOR_FILES));
+    }
+    if (files.length === 0) return ok({ base: input.base, files, patch: "" });
+    const patch = await this.changes.patch(input.base, files);
+    if (patch.isErr()) return err(patch.error);
+    return ok({ base: input.base, files, patch: patch.value });
   }
 }
