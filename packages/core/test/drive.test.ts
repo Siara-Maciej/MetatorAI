@@ -124,9 +124,11 @@ describe("drive domain", () => {
 const WORKFLOW = `kind: Workflow
 schemaVersion: 2
 id: demo
+input:
+  optional: [base]
 stages:
   - id: setup
-    owner: "script:metator index build"
+    owner: "script:metator index build --base {base|HEAD}"
   - id: plan
     owner: mt-planner
     produces: [plan.md]
@@ -181,9 +183,13 @@ function world(
     root: "/repo",
     metatorCommand: "bun run metator",
   });
-  const start = async () => {
+  const start = async (inputs?: Record<string, string>) => {
     const view = (
-      await new InitRun(catalog, repo, clock).execute({ workflow: "demo", task: "Add discount" })
+      await new InitRun(catalog, repo, clock).execute({
+        workflow: "demo",
+        task: "Add discount",
+        ...(inputs ? { inputs } : {}),
+      })
     )._unsafeUnwrap();
     runId = view.runId;
     return view.runId;
@@ -261,7 +267,7 @@ describe("DriveRun", () => {
     // Scripts run through hosts.metatorCommand, with {runDir} filled (repository-relative, so it is
     // the same path in a run's worktree) and the run in the environment.
     expect(w.scripts.calls.map((c) => c.argv)).toEqual([
-      ["bun", "run", "metator", "index", "build"],
+      ["bun", "run", "metator", "index", "build", "--base", "HEAD"],
       ["test", "-f", `.metator/runs/${runId}/plan.md`],
     ]);
     expect(w.scripts.calls[0]?.env).toEqual({
@@ -285,6 +291,23 @@ describe("DriveRun", () => {
       "drive",
       5,
     ]);
+  });
+
+  test("a script reads the run's inputs: the value it was started with, else the default", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start({ base: "origin/main" });
+    await w.drive.execute({ runId, host: "fake", maxSteps: 1 });
+    expect(w.scripts.calls[0]?.argv).toEqual([
+      "bun",
+      "run",
+      "metator",
+      "index",
+      "build",
+      "--base",
+      "origin/main",
+    ]);
+    expect((await w.repo.load(runId))._unsafeUnwrap().inputs).toEqual({ base: "origin/main" });
   });
 
   test("a failing critic sends the run back with its reason, then the loop limit escalates", async () => {
@@ -395,7 +418,7 @@ describe("DriveRun", () => {
     const fail = (await w.journal.activity(runId))._unsafeUnwrap().find((a) => a.type === "advance");
     expect([r.status, fail?.text]).toEqual([
       "escalated",
-      "FAIL: `metator index build` failed: index: parse error in a.ts",
+      "FAIL: `metator index build --base {base|HEAD}` failed: index: parse error in a.ts",
     ]);
 
     const w2 = world(

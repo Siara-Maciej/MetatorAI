@@ -74,6 +74,8 @@ export interface AskInput {
   readonly projectRoot: string;
   /** How the place is named to the guide: "this repository", "the folder shop (3 repositories)". */
   readonly where: string;
+  /** More directories the guide reads: where a folder's linked repositories really are. */
+  readonly dirs?: readonly string[];
   /** Each event as it arrives (the terminal streams the answer). */
   readonly onEvent?: (e: AgentEvent) => void;
   /** A question the host asks the person (a permission); the guide only reads, so the default denies. */
@@ -86,7 +88,11 @@ export interface AskResult {
   readonly citations: readonly AnswerCitation[];
 }
 
-const DENY: AgentAnswer = { choices: ["Deny"], text: "mt-guide only reads; nothing may change." };
+const DENY: AgentAnswer = {
+  choices: ["Deny"],
+  // The guide hears why, and what it may use instead, so it does not retry the same command.
+  text: "mt-guide only reads: search with Grep and Glob or a read-only grep, rg, find or ls on paths inside this directory, read with Read, and run `metator` commands. Nothing else runs here.",
+};
 
 /**
  * `metator ask` (G3, ADR-0058): a plain question about the code, answered by mt-guide through the
@@ -131,6 +137,7 @@ export class AskQuestion {
         prompt: guidePrompt(question, input.where, previous?.turns ?? [], resume !== undefined),
         cwd: input.cwd,
         projectRoot: input.projectRoot,
+        ...(input.dirs && input.dirs.length > 0 ? { dirs: input.dirs } : {}),
         runDir: `${input.projectRoot}/${this.conversations.file(id).replace(/\/[^/]+$/, "")}`,
         ...(resume ? { resume } : {}),
       },

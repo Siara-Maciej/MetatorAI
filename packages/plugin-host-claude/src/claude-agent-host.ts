@@ -1,6 +1,15 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import type { AgentAnswer, AgentEvent, AgentHost, AgentQuestion, AgentTask } from "@metator/core";
+import {
+  type AgentAnswer,
+  type AgentEvent,
+  type AgentHost,
+  type AgentQuestion,
+  type AgentTask,
+  permissionResponse,
+  readOnlyCommand,
+  secretPath,
+} from "@metator/core";
 
 /** The slice of the Agent SDK's `query()` this host uses; injected in tests, imported lazily otherwise. */
 export type ClaudeQuery = (params: {
@@ -66,6 +75,50 @@ export function declaredCommands(agentFile: string): string[] {
     .filter((t) => /^Bash\([^()]+:\*\)$/.test(t));
 }
 
+/** The tools of a front matter line, split at the commas between tools, not inside `Agent(a, b)`. */
+function toolList(line: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of line) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === "," && depth === 0) {
+      out.push(current.trim());
+      current = "";
+    } else current += ch;
+  }
+  if (current.trim()) out.push(current.trim());
+  return out;
+}
+
+/**
+ * The agent of a generated `.claude/agents` file as an SDK definition. The session gets it
+ * directly, so it applies wherever the session works: in a folder of repositories the working
+ * directory has no `.claude/` of its own.
+ */
+export function agentDefinition(
+  agentFile: string,
+): { description: string; prompt: string; tools?: string[]; model?: string } | undefined {
+  let text: string;
+  try {
+    text = readFileSync(agentFile, "utf8");
+  } catch {
+    return undefined;
+  }
+  const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
+  if (!m) return undefined;
+  const field = (name: string) => new RegExp(`^${name}:\\s*(.+)$`, "m").exec(m[1] as string)?.[1]?.trim();
+  const tools = field("tools");
+  const model = field("model");
+  return {
+    description: field("description") ?? "",
+    prompt: (m[2] as string).trim(),
+    ...(tools ? { tools: toolList(tools) } : {}),
+    ...(model ? { model } : {}),
+  };
+}
+
 /**
  * AgentHost on the Claude Agent SDK (ADR-0051): the canonical agent runs as the main thread
  * (`agent`), with the project's `.claude/` agents, skills and hooks. AskUserQuestion and every
@@ -85,6 +138,14 @@ export class ClaudeAgentHost implements AgentHost {
       // worktree: it is isolated, and nothing leaves it without a person (push needs an approval).
       // A write anywhere else, the checkout itself included, asks a person.
       const isolated = task.cwd !== task.projectRoot;
+      // A search through the shell only reads (a host without Grep and Glob searches this way);
+      // a file that may hold secrets is denied before this, by the PreToolUse hook.
+      if (
+        tool === "Bash" &&
+        typeof input.command === "string" &&
+        readOnlyCommand(input.command, [task.cwd, task.projectRoot, task.runDir, ...(task.dirs ?? [])])
+      )
+        return { behavior: "allow", updatedInput: input };
       if (
         WRITES.has(tool) &&
         typeof input.file_path === "string" &&
@@ -104,13 +165,33 @@ export class ClaudeAgentHost implements AgentHost {
         ? { behavior: "allow", updatedInput: input }
         : { behavior: "deny", message: answer.text ?? "a person denied this tool call" };
     };
+    const agentFile = join(task.projectRoot, ".claude", "agents", `${task.agent}.md`);
+    const definition = agentDefinition(agentFile);
+    // Secrets stay unread in-process too: the project's own deny rules and hooks may not apply
+    // where the session works (a folder of repositories has no settings of its own).
+    const secrets = async (input: unknown) => {
+      const call = input as { tool_name?: unknown; tool_input?: unknown };
+      const file = secretPath(
+        {
+          tool: typeof call.tool_name === "string" ? call.tool_name : "",
+          input: (call.tool_input ?? {}) as Record<string, unknown>,
+          stopActive: false,
+        },
+        task.cwd,
+      );
+      return file
+        ? permissionResponse({ decision: "deny", reason: `${file} may hold secrets; agents do not read it.` })
+        : {};
+    };
     const options: Record<string, unknown> = {
       cwd: task.cwd,
       agent: task.agent,
-      allowedTools: declaredCommands(join(task.projectRoot, ".claude", "agents", `${task.agent}.md`)),
+      ...(definition ? { agents: { [task.agent]: definition } } : {}),
+      hooks: { PreToolUse: [{ hooks: [secrets] }] },
+      allowedTools: declaredCommands(agentFile),
       settingSources: ["project"],
       permissionMode: "default",
-      additionalDirectories: [task.runDir],
+      additionalDirectories: [task.runDir, ...(task.dirs ?? [])],
       canUseTool,
       ...(task.cwd !== task.projectRoot ? { projectConfigRoot: task.projectRoot } : {}),
       ...(task.resume ? { resume: task.resume } : {}),

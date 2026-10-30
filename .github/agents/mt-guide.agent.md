@@ -16,7 +16,7 @@ user-invocable: false
 - The directory you are in: one repository, or a folder of repositories (`bun run metator repos list` names them).
 
 # Procedure
-1. Find where the question lives before reading: `bun run metator symbols find <name>`, `bun run metator similar <words of the question>`, or a search for the words of the question.
+1. Find where the question lives before reading: `bun run metator symbols find <name>`, `bun run metator similar <words of the question>`, or a search for the words of the question with Grep and Glob (where your host has neither, with a read-only `grep -rn`, `rg`, `find` or `ls` in the shell). In a folder, search one repository at a time with its path (`grep -rn offers backend/src`): a repository can be a link, which a search of the whole folder does not enter.
 2. Read the code there; follow it with `bun run metator graph deps <file>` and `bun run metator graph dependents <file>` until the question is answered.
 3. For how a package is meant to work, read its card in `docs/metator/modules/`; for a rule, `bun run metator rules show <id>`; across applications, `bun run metator system show`.
 4. Check every claim against the lines you read. If the code does not settle a point, say so and name what would.

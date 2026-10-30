@@ -2,6 +2,7 @@ import {
   AnalysisDocument,
   AutonomySchema,
   err,
+  INPUT_NAME,
   MetatorError,
   ok,
   ResearchDocument,
@@ -68,6 +69,12 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .option("--worktree", "work in a new git worktree with its own ports (.metator/wt/<run>)", false)
     .option("--base <ref>", "with --worktree: the ref to branch from", "HEAD")
     .option("--parent <run>", "the run this one is a child of (a system run, possibly in another repository)")
+    .option(
+      "--input <name=value>",
+      "a workflow input its scripts read as {name} (repeatable), e.g. base=main",
+      (v: string, all: string[]) => [...all, v],
+      [] as string[],
+    )
     .action(
       action(
         async (opts: {
@@ -77,10 +84,22 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
           worktree: boolean;
           base: string;
           parent?: string;
+          input: string[];
         }) => {
           const task = opts.task.trim();
           if (task === "") return { result: err(MetatorError.usage("--task must not be empty")) };
+          const inputs: Record<string, string> = {};
+          for (const pair of opts.input) {
+            const at = pair.indexOf("=");
+            const name = pair.slice(0, at);
+            if (at <= 0 || !INPUT_NAME.test(name) || at === pair.length - 1)
+              return {
+                result: err(MetatorError.usage(`--input ${pair}: expected <name>=<value>, e.g. base=main`)),
+              };
+            inputs[name] = pair.slice(at + 1);
+          }
           const input = {
+            ...(Object.keys(inputs).length > 0 ? { inputs } : {}),
             workflow: opts.workflow,
             task,
             autonomy: opts.autonomy,

@@ -9,6 +9,13 @@
 @mt-pr-review self-review my branch against main
 ```
 
+From a terminal, the branch's own commits are reviewed when the run gets the base; without it, only the uncommitted change against `HEAD`:
+
+```bash
+metator run init --workflow mt-pr-review --task "Review the reminder service" --input base=origin/main
+metator run drive --host claude
+```
+
 <WorkflowDiagram id="mt-pr-review" />
 
 ## The review core

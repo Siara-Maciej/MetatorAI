@@ -155,7 +155,7 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
       approvals: { approval: { by: "maciej", choice: "1" }, push: { by: "maciej" } },
     });
     const state = JSON.parse(await repo.read(`.metator/runs/${runId}/state.json`));
-    expect([state.schemaVersion, Object.keys(state.approvals).sort()]).toEqual([4, ["approval", "push"]]);
+    expect([state.schemaVersion, Object.keys(state.approvals).sort()]).toEqual([5, ["approval", "push"]]);
   });
 
   test("finishing the last stage completes the run", async () => {

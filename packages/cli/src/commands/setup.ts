@@ -8,6 +8,7 @@ import {
   MetatorError,
   ok,
   type Result,
+  writesFile,
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
@@ -24,6 +25,7 @@ interface InstallOptions {
   readonly workflows?: string[];
   readonly theirs: boolean;
   readonly dryRun: boolean;
+  readonly generate: boolean;
 }
 
 const conflictWarnings = (steps: readonly InstallStep[]) =>
@@ -53,6 +55,7 @@ export function registerSetupCommands(
       .option("--workflows <ids...>", "workflows to install (default: all, or the installed ones on update)")
       .option("--theirs", "resolve conflicts with the canon's version", false)
       .option("--dry-run", "report what would change without writing", false)
+      .option("--no-generate", "leave the host files (.claude/agents, .github/agents, skills) as they are")
       .action(
         action(async (opts: InstallOptions) => {
           const report = await container()
@@ -64,8 +67,17 @@ export function registerSetupCommands(
               ...(opts.workflows ? { workflows: opts.workflows } : {}),
             });
           if (report.isErr()) return { result: report };
+          // A changed canon reaches the agents only through their host files: refresh them.
+          let generated = 0;
+          if (opts.generate && !opts.dryRun && report.value.steps.some((s) => writesFile(s.action))) {
+            const hosts = await container().resolve("generateHosts").execute({ check: false, hooks: false });
+            if (hosts.isErr()) return { result: hosts };
+            const skills = await container().resolve("generateSkills").execute({ check: false });
+            if (skills.isErr()) return { result: skills };
+            generated = hosts.value.written.length + skills.value.written.length;
+          }
           return {
-            result: report,
+            result: ok({ ...report.value, generated }),
             warnings: [
               ...conflictWarnings(report.value.steps),
               ...upstreamWarnings(report.value.removedUpstream),
@@ -124,7 +136,8 @@ export function registerSetupCommands(
           const saved = await c.resolve("updateConfig").execute({ hostTargets: answers.hosts });
           if (saved.isErr()) return { result: saved };
         }
-        const canon = await step(["agents", mode, "--workflows", ...answers.workflows]);
+        // Setup generates the host files itself, once, after the config and the canon.
+        const canon = await step(["agents", mode, "--no-generate", "--workflows", ...answers.workflows]);
         if (canon.code !== 0) return { result: err(fromEnvelope(canon.envelope, `agents ${mode}`)) };
         const generated = await step(["generate", ...(answers.hooks ? ["--hooks"] : [])]);
         if (generated.code !== 0) return { result: err(fromEnvelope(generated.envelope, "generate")) };

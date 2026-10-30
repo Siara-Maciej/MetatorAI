@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { MetatorError } from "./errors.ts";
-import type { Result } from "./result.ts";
+import { MetatorError } from "./errors.ts";
+import { err, ok, type Result } from "./result.ts";
 import { defineDocument, parseJsonDocument } from "./versioned.ts";
 
 /**
@@ -83,10 +83,21 @@ const RunRecordV3Schema = RunRecordV2Schema.extend({
  * v4 (F7.6, ADR-0071) adds, optionally, the system plan step a child run carries out: the plan,
  * the step and the application whose repository it runs in.
  */
-export const RunRecordSchema = RunRecordV3Schema.extend({
+const RunRecordV4Schema = RunRecordV3Schema.extend({
   system: z
     .strictObject({ plan: z.string().min(1), step: z.string().min(1), app: z.string().min(1) })
     .optional(),
+}).strict();
+
+/** An input name a workflow declares (`input.required`, `oneOf`, `optional`): `base`, `task_ref`. */
+export const INPUT_NAME = /^[a-z][a-z0-9_]*$/;
+
+/**
+ * v5 adds, optionally, the values of the workflow's inputs the run was started with
+ * (`run init --input base=main`): its scripts read them as `{base}`. Never change v1–v4.
+ */
+export const RunRecordSchema = RunRecordV4Schema.extend({
+  inputs: z.record(z.string().regex(INPUT_NAME), z.string().min(1)).optional(),
 }).strict();
 
 export type RunRecord = z.infer<typeof RunRecordSchema>;
@@ -107,9 +118,11 @@ export const RunRecordDocument = defineDocument("RunRecord", {
     },
     // Every v3 field is optional: a v2 record is a v3 record that ran in place.
     { schema: RunRecordV3Schema, fromPrevious: (previous) => previous },
+    // `system` is optional: a v3 record is a v4 record of a run outside any system plan.
+    { schema: RunRecordV4Schema, fromPrevious: (previous) => previous },
   ],
   latest: RunRecordSchema,
-  // `system` is optional: a v3 record is a v4 record of a run outside any system plan.
+  // `inputs` is optional: a v4 record is a v5 record started without inputs.
   upgrade: (previous) => previous,
   hint: "Do not edit state.json by hand; use `metator run advance` or `metator run approve`.",
 });
@@ -121,6 +134,38 @@ export const RunPointerDocument = defineDocument("RunPointer", {
 export const RunLogDocument = defineDocument("RunLog", {
   latest: z.object({ runId: z.string().regex(RUN_ID) }).strict(),
 });
+
+/**
+ * A workflow script with the run's inputs filled in: `{name}` is the input's value and
+ * `{name|default}` falls back to the default when the run was started without it. A placeholder
+ * of an input with neither is an error that says how to start the run.
+ */
+export function fillInputs(
+  script: string,
+  inputs: Readonly<Record<string, string>>,
+): Result<string, MetatorError> {
+  const missing: string[] = [];
+  const filled = script.replace(
+    /\{([a-z][a-z0-9_]*)(?:\|([^{}]*))?\}/g,
+    (whole, name: string, fallback?: string) => {
+      if (name === "runDir") return whole; // the drive's own placeholder
+      const value = inputs[name] ?? fallback;
+      if (value === undefined || value === "") {
+        missing.push(name);
+        return whole;
+      }
+      return value;
+    },
+  );
+  return missing.length > 0
+    ? err(
+        MetatorError.usage(
+          `the script needs the input ${missing.map((m) => `\`${m}\``).join(", ")}: ${script}`,
+          `Start the run with ${missing.map((m) => `--input ${m}=<value>`).join(" ")}.`,
+        ),
+      )
+    : ok(filled);
+}
 
 export function parseRunRecord(text: string, source: string): Result<RunRecord, MetatorError> {
   return parseJsonDocument(text, source).andThen((raw) => RunRecordDocument.parse(raw, source));

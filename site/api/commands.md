@@ -1068,6 +1068,7 @@ metator agents install [options]
 | `--workflows <ids...>` | workflows to install (default: all, or the installed ones on update) |  |
 | `--theirs` | resolve conflicts with the canon's version |  |
 | `--dry-run` | report what would change without writing |  |
+| `--no-generate` | leave the host files (.claude/agents, .github/agents, skills) as they are |  |
 
 ### `metator agents update`
 
@@ -1082,6 +1083,7 @@ metator agents update [options]
 | `--workflows <ids...>` | workflows to install (default: all, or the installed ones on update) |  |
 | `--theirs` | resolve conflicts with the canon's version |  |
 | `--dry-run` | report what would change without writing |  |
+| `--no-generate` | leave the host files (.claude/agents, .github/agents, skills) as they are |  |
 
 ## setup
 
@@ -1547,6 +1549,7 @@ metator run init [options]
 | `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
 | `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
 | `--parent <run>` | the run this one is a child of (a system run, possibly in another repository) |  |
+| `--input <name=value>` | a workflow input its scripts read as {name} (repeatable), e.g. base=main | `[]` |
 
 ### `metator run advance`
 

@@ -120,6 +120,12 @@ describe("metator setup (real CLI)", () => {
     ]);
     expect(await repo.read(SCOUT)).toContain("Upstream note.");
     expect(await repo.read(GRILL)).toContain("one question at a time");
+    // The agents run from their host files: the update refreshed them too.
+    expect((theirs.json.data as { generated: number }).generated).toBeGreaterThan(0);
+    const hostFile = (await Bun.file(repo.path(".claude/agents/mt-scout.md")).exists())
+      ? ".claude/agents/mt-scout.md"
+      : ".github/agents/mt-scout.agent.md";
+    expect(await repo.read(hostFile)).toContain("Upstream note.");
   });
 
   test("errors as values: unknown workflow, update before install", async () => {

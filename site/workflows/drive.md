@@ -118,7 +118,7 @@ metator run drive --run <id> --host claude --detach
 ## How a stage is carried
 
 1. **A HITL stage** becomes a question (Approve, Reject, Other). Skipped stages (`skipAt` your autonomy level) never ask.
-2. **Scripts** (`owner: "script:…"`) run with your `hosts.metatorCommand`. `{runDir}` in the command is the run directory, and `METATOR_RUN` and `METATOR_RUN_DIR` are set.
+2. **Scripts** (`owner: "script:…"`) run with your `hosts.metatorCommand`. `{runDir}` in the command is the run directory, and `METATOR_RUN` and `METATOR_RUN_DIR` are set. The run's inputs fill their placeholders: `{base}` is the value from `run init --input base=main`, and `{base|HEAD}` falls back to `HEAD` when the run was started without it. An input with neither stops the run with the `--input` it needs; `run init` refuses an input the workflow does not declare (`input:` in its spec).
 3. **Agents** run in order; `parallel` workers run together. Each gets one message: the stage, the task, where to write its artifacts, the skills it may use and, after a failed gate, why it failed. It must finish with `STATUS: done` or `STATUS: blocked: <question>`.
 4. **Artifacts** listed in `produces` must exist in the run directory, or the stage fails. Workers of a parallel stage each write only their own. A coordinator without a Write tool writes one with `metator run write <artifact>` (the text on stdin); only an artifact the current stage produces is accepted.
 5. **Gates:** `gate.script` must exit 0; the critic of `gate.llm` must end with `VERDICT: PASS`. A missing verdict is a FAIL, never a silent pass.

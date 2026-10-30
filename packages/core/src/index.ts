@@ -101,6 +101,7 @@ export * from "./domain/owners.ts";
 export * from "./domain/pattern.ts";
 export * from "./domain/plan.ts";
 export * from "./domain/proposal.ts";
+export * from "./domain/read-only-command.ts";
 export * from "./domain/repo-set.ts";
 export * from "./domain/result.ts";
 export * from "./domain/review-metadata.ts";

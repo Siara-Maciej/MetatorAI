@@ -40,6 +40,8 @@ Each file gets one of these outcomes:
 - `kept`: you changed it and the canon did not, so it is left alone.
 - `conflict`: both sides changed it. Your version is kept and a warning names the file; `--theirs` takes the canon's version.
 
+When files change, the host files (`.claude/agents`, `.github/agents`, skills) are generated again, so the agents run the new canon; `--no-generate` leaves them as they are.
+
 **Why:** your team adapts agents to its repository; an update must not undo that silently. The lock is how MetatorAI tells "untouched" from "changed here".
 
 ## 3. Ask the codebase questions

@@ -2,23 +2,24 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-pr-review
-revision: 6
+revision: 7
 description: Shard, find with lenses, verify, judge, publish after approval
 entry: { prompt: mt-review, ci: true }
 input:
   oneOf: [pr, base]
   optional: [autonomy, lenses]
+# Scripts read the run's inputs: `run init --input base=main`; without it, HEAD (the uncommitted change).
 preconditions: [index-fresh]
 limits: { parallel: 6 }
 stages:
   - id: metadata
     description: PR metadata and authorship
     # From git, as a document: the coordinator needs no shell for it.
-    owner: "script:metator review metadata --out {runDir}/pr.json"
+    owner: "script:metator review metadata --base {base|HEAD} --out {runDir}/pr.json"
     produces: [pr.json]
   - id: shard
     description: Affected files and shards per package
-    owner: "script:metator review plan --out {runDir}/review-plan.json"
+    owner: "script:metator review plan --base {base|HEAD} --out {runDir}/review-plan.json"
     produces: [review-plan.json]
   - id: rules
     description: Rule pack per shard

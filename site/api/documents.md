@@ -64,6 +64,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `Research` | `research.json` | `mt-pattern-miner` |
 | `Plan` | `plan.json` | `mt-planner` |
 | `PlanScope` | `plan-scope.json` | `metator plan scope` |
+| `ReviewMetadata` | `pr.json` | `metator review metadata` |
 | `ReviewPlan` | `review-plan.json` | `metator review plan` |
 | `FindingSet` | `findings/*.json`, `findings/merged.json` | review lenses, `metator findings merge` |
 | `Verdict` | `verdict.json` | `metator findings verdict` |

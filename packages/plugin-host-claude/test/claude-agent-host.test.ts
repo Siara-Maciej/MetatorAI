@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentQuestion } from "@metator/core";
 import { agentHostContract, collect } from "@metator/testing";
-import { ClaudeAgentHost, type ClaudeQuery, declaredCommands, toEvents } from "../src/claude-agent-host.ts";
+import {
+  agentDefinition,
+  ClaudeAgentHost,
+  type ClaudeQuery,
+  declaredCommands,
+  toEvents,
+} from "../src/claude-agent-host.ts";
 
 const task = {
   agent: "mt-planner",
@@ -70,6 +76,80 @@ describe("ClaudeAgentHost", () => {
     await Bun.write(join(root, "plain.md"), "# no front matter\n");
     expect(declaredCommands(join(root, "plain.md"))).toEqual([]);
     await rm(root, { recursive: true, force: true });
+  });
+
+  test("the agent is defined for the session from the project's file, so it applies in a folder too", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metator-claude-"));
+    await Bun.write(
+      join(root, ".claude/agents/mt-guide.md"),
+      "---\nname: mt-guide\ndescription: Answers questions\ntools: Read, Glob, Grep, Agent(mt-a, mt-b), Bash(metator graph:*)\nmodel: sonnet\n---\n<!-- generated -->\n\n# Role\nYou answer.\n",
+    );
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    // A folder of repositories: the session works in the folder, the agent comes from a repository.
+    await collect(new ClaudeAgentHost(query), {
+      ...task,
+      agent: "mt-guide",
+      cwd: "/folder",
+      projectRoot: root,
+    });
+    expect(calls[0]?.options.agents).toEqual({
+      "mt-guide": {
+        description: "Answers questions",
+        prompt: "<!-- generated -->\n\n# Role\nYou answer.",
+        tools: ["Read", "Glob", "Grep", "Agent(mt-a, mt-b)", "Bash(metator graph:*)"],
+        model: "sonnet",
+      },
+    });
+    expect(agentDefinition(join(root, "missing.md"))).toBeUndefined();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  test("a search through the shell that only reads runs without a person; anything else asks", async () => {
+    const asked: string[] = [];
+    const { query } = fakeQuery(async (can) => {
+      await can("Bash", { command: 'grep -rn "offers" backend/src --include=*.ts' });
+      await can("Bash", { command: "find . -name '*.ts' -delete" });
+      return [init, success];
+    });
+    await collect(new ClaudeAgentHost(query), { ...task, cwd: "/folder" }, async (q) => {
+      asked.push(q.prompt);
+      return { choices: ["Deny"] };
+    });
+    expect(asked).toEqual(["mt-planner wants to use Bash: find . -name '*.ts' -delete"]);
+  });
+
+  test("the directories a folder's linked repositories really are in are readable and searchable", async () => {
+    const asked: string[] = [];
+    const { query, calls } = fakeQuery(async (can) => {
+      await can("Bash", { command: "grep -rn offers /clones/api/src" });
+      await can("Bash", { command: "grep -rn offers /clones/other/src" });
+      return [init, success];
+    });
+    await collect(
+      new ClaudeAgentHost(query),
+      { ...task, cwd: "/folder", dirs: ["/clones/api"] },
+      async (q) => {
+        asked.push(q.prompt);
+        return { choices: ["Deny"] };
+      },
+    );
+    expect(calls[0]?.options.additionalDirectories).toEqual(["/repo/.metator/runs/r", "/clones/api"]);
+    expect(asked).toEqual(["mt-planner wants to use Bash: grep -rn offers /clones/other/src"]);
+  });
+
+  test("a tool call on a file that may hold secrets is denied in-process, wherever the session works", async () => {
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(query), { ...task, cwd: "/folder" });
+    type Hook = (input: unknown) => Promise<{ hookSpecificOutput?: { permissionDecision: string } }>;
+    const hooks = calls[0]?.options.hooks as { PreToolUse: { hooks: Hook[] }[] };
+    const hook = hooks.PreToolUse[0]?.hooks[0] as Hook;
+    const decision = async (tool_name: string, tool_input: Record<string, unknown>) =>
+      (await hook({ hook_event_name: "PreToolUse", tool_name, tool_input })).hookSpecificOutput
+        ?.permissionDecision;
+    expect(await decision("Read", { file_path: "/folder/backend/.env.secret" })).toBe("deny");
+    expect(await decision("Bash", { command: "cat backend/.env.local" })).toBe("deny");
+    expect(await decision("Read", { file_path: "/folder/backend/src/main.ts" })).toBeUndefined();
+    expect(await decision("Read", { file_path: "/folder/backend/.env.example" })).toBeUndefined();
   });
 
   test("AskUserQuestion goes to a person; the answers return keyed by question", async () => {

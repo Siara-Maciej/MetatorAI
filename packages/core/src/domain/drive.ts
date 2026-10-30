@@ -19,6 +19,8 @@ export interface AgentTask {
   readonly runDir: string;
   /** The host session to continue, when there is one. */
   readonly resume?: string;
+  /** More absolute directories the agent reads (the real places of a folder's linked repositories). */
+  readonly dirs?: readonly string[];
 }
 
 export interface AgentQuestion {

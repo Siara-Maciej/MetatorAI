@@ -3,10 +3,17 @@ import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run-machine.ts";
 import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "../domain/run-record.ts";
+import type { WorkflowSpec } from "../domain/workflow-spec.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { CreateWorktree } from "./worktrees.ts";
+
+/** Every input a workflow declares, in `oneOf`, `required` and `optional`. */
+export function workflowInputs(spec: WorkflowSpec): string[] {
+  const i = spec.input;
+  return [...new Set([...(i?.oneOf ?? []), ...(i?.required ?? []), ...(i?.optional ?? [])])];
+}
 
 /** What commands return about a run: enough for an agent to decide its next step. */
 export interface RunView {
@@ -75,6 +82,8 @@ export interface InitRunInput {
   readonly parent?: string;
   /** The system plan step this run carries out (F7.6). */
   readonly system?: RunRecord["system"];
+  /** Values of the workflow's inputs (`base=main`): its scripts read them as `{base}`. */
+  readonly inputs?: Readonly<Record<string, string>>;
 }
 
 export class InitRun {
@@ -89,6 +98,15 @@ export class InitRun {
     const resolved = await machineFor(this.catalog, input.workflow);
     if (resolved.isErr()) return err(resolved.error);
     const { machine, source } = resolved.value;
+    const declared = workflowInputs(machine.workflow);
+    const unknown = Object.keys(input.inputs ?? {}).filter((k) => !declared.includes(k));
+    if (unknown.length > 0)
+      return err(
+        MetatorError.usage(
+          `workflow ${machine.workflow.id} has no input ${unknown.map((u) => `\`${u}\``).join(", ")}`,
+          declared.length > 0 ? `Its inputs: ${declared.join(", ")}.` : "It declares no inputs.",
+        ),
+      );
 
     const now = this.clock.now().toISOString();
     const runId = await this.uniqueId(now, machine.workflow.id, input.task);
@@ -115,6 +133,7 @@ export class InitRun {
       ...(worktree ? { worktree } : {}),
       ...(input.parent ? { parent: input.parent } : {}),
       ...(input.system ? { system: input.system } : {}),
+      ...(input.inputs && Object.keys(input.inputs).length > 0 ? { inputs: { ...input.inputs } } : {}),
     };
     const { record, lines } = skipGates(machine, created, now);
     const saved = await this.repo.save(record);

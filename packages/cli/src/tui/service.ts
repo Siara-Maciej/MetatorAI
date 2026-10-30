@@ -232,6 +232,7 @@ export function tuiService(ctx: ServiceContext): TuiService {
         cwd: place.cwd,
         projectRoot: place.projectRoot,
         where: place.where,
+        ...(place.dirs ? { dirs: place.dirs } : {}),
         onEvent: (e) => {
           if (e.type === "text") onText(e.text);
         },

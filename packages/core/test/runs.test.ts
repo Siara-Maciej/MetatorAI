@@ -91,7 +91,7 @@ describe("run lifecycle", () => {
     const state = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     expect(state).toMatchObject({
       kind: "RunRecord",
-      schemaVersion: 4,
+      schemaVersion: 5,
       workflow: { id: "feature", revision: 1 },
       approvals: {},
       createdAt: "2026-10-25T09:00:00.000Z",
@@ -102,6 +102,30 @@ describe("run lifecycle", () => {
       runId: run.runId,
     });
     expect((await w.fs.read(run.files.log))._unsafeUnwrap()).toContain("created · workflow feature@1 · L0");
+  });
+
+  test("inputs the workflow declares are kept on the record; an input it does not declare is refused", async () => {
+    const w = world({
+      ".github/metator/workflows/feature.yml": FEATURE.replace(
+        "schemaVersion: 1",
+        "schemaVersion: 2",
+      ).replace("stages:", "input:\n  oneOf: [pr, base]\nstages:"),
+    });
+    const run = (
+      await w.init.execute({ workflow: "feature", task: "t", inputs: { base: "main" } })
+    )._unsafeUnwrap();
+    expect((await w.repo.load(run.runId))._unsafeUnwrap().inputs).toEqual({ base: "main" });
+    const error = (
+      await w.init.execute({ workflow: "feature", task: "t", inputs: { bse: "main" } })
+    )._unsafeUnwrapErr();
+    expect([error.code, error.message, error.hint]).toEqual([
+      "USAGE",
+      "workflow feature has no input `bse`",
+      "Its inputs: pr, base.",
+    ]);
+    // Without inputs the record has none.
+    const plain = (await w.init.execute({ workflow: "feature", task: "u" }))._unsafeUnwrap();
+    expect((await w.repo.load(plain.runId))._unsafeUnwrap().inputs).toBeUndefined();
   });
 
   test("same task on the same day gets a unique id", async () => {
@@ -176,7 +200,7 @@ describe("run lifecycle", () => {
     await w.fs.write(run.files.state, JSON.stringify(headerless));
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
     expect(error.code).toBe("INVALID_ARTIFACT");
-    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 4" at the top of the document.');
+    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 5" at the top of the document.');
   });
 
   test("state.json from a newer MetatorAI is refused, not misread", async () => {
@@ -185,7 +209,7 @@ describe("run lifecycle", () => {
     const saved = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     await w.fs.write(run.files.state, JSON.stringify({ ...saved, schemaVersion: 99 }));
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
-    expect(error.message).toContain("schemaVersion 99 is newer than supported (4)");
+    expect(error.message).toContain("schemaVersion 99 is newer than supported (5)");
     expect(error.hint).toContain("Upgrade metator-ai");
   });
 

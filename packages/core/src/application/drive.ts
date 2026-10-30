@@ -18,6 +18,7 @@ import { MetatorError } from "../domain/errors.ts";
 import { stoppedAt } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
+import { fillInputs } from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
 import { parseJsonDocument, serializeJsonDocument, serializeJsonLine } from "../domain/versioned.ts";
 import type { StageSpec } from "../domain/workflow-spec.ts";
@@ -310,6 +311,7 @@ export class DriveRun {
         ...(record.value.hostSession ? { resume: record.value.hostSession } : {}),
         since: record.value.updatedAt,
         pollMs: input.pollMs ?? 500,
+        inputs: record.value.inputs ?? {},
       };
       const outcome = stage.hitl ? await this.humanGate(ctx) : await this.work(ctx);
       if (outcome.isErr()) {
@@ -434,7 +436,9 @@ export class DriveRun {
   ): Promise<Result<{ ok: boolean; tail: string }, MetatorError>> {
     // `{runDir}` is repository-relative: the same path in the checkout and in a run's worktree (it
     // links the run directory in), where an absolute path to the checkout would be outside the root.
-    const words = parseShell(script.replaceAll("{runDir}", this.d.repo.runDir(ctx.runId))).filter(
+    const filled = fillInputs(script, ctx.inputs);
+    if (filled.isErr()) return err(filled.error);
+    const words = parseShell(filled.value.replaceAll("{runDir}", this.d.repo.runDir(ctx.runId))).filter(
       (w) => typeof w === "string",
     );
     if (words[0] === "metator") {
@@ -615,4 +619,6 @@ interface StageContext {
   /** When the run last changed: answers given after it are still to be acted on. */
   readonly since: string;
   readonly pollMs: number;
+  /** The run's inputs, for `{name}` in its scripts. */
+  readonly inputs: Readonly<Record<string, string>>;
 }

@@ -44,6 +44,8 @@ In a [folder of repositories](../multi-repo/repositories.md#a-folder-of-reposito
 cd ~/work && metator ask "Which repositories call the billing API?"
 ```
 
+A repository may be a link to a clone elsewhere (`~/work/api -> ~/src/api`). The guide is told where each one really is and may read and search there; a search of the whole folder would not enter a link.
+
 ## What the guide never does
 
-It only reads. It never edits or creates files, and it never runs a command that changes anything; a permission the host asks for is denied unless you allow it in the terminal. When the question asks for a change, it explains how the change could be made and points you to [`metator run`](./drive.md) to make it.
+It only reads. It never edits or creates files, and it never runs a command that changes anything; a permission the host asks for is denied unless you allow it in the terminal. A search through the shell that only reads (`grep -rn`, `rg`, `find`, `ls` on paths inside the folder) runs without asking, so the guide can search on a host that has no search tools of its own. Files that may hold secrets (`.env*`, keys) stay unread in every case. When the question asks for a change, it explains how the change could be made and points you to [`metator run`](./drive.md) to make it.

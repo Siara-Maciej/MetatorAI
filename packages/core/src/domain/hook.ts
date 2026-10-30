@@ -153,17 +153,26 @@ function planApproval(argv: readonly string[]): string | undefined {
   return undefined;
 }
 
+/**
+ * The file a tool call would read or write that may hold secrets (`.env`, keys), by path or as a
+ * shell argument; undefined when there is none. Hosts check it in-process too, where no hook runs.
+ */
+export function secretPath(hook: HookInput, root: string): string | undefined {
+  const shell = SHELL_TOOL.test(hook.tool) ? commandsOf(text(hook.input.command) ?? "") : [];
+  const secretArgs = shell.flatMap((argv) => argv.slice(1)).filter((a) => !a.startsWith("-"));
+  return [...touchedPaths(hook), ...secretArgs].find((p) => {
+    const rel = repoRelative(p, root) ?? p.replaceAll("\\", "/");
+    return matchesAny(rel.startsWith("/") ? rel.slice(1) : rel, SECRET_GLOBS);
+  });
+}
+
 export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecision {
   const paths = touchedPaths(hook);
   const shell = SHELL_TOOL.test(hook.tool) ? commandsOf(text(hook.input.command) ?? "") : [];
 
   // Secrets are never read or written, with or without a run (MT-SEC).
-  const secretArgs = shell.flatMap((argv) => argv.slice(1)).filter((a) => !a.startsWith("-"));
-  for (const p of [...paths, ...secretArgs]) {
-    const rel = repoRelative(p, ctx.root) ?? p.replaceAll("\\", "/");
-    if (matchesAny(rel.startsWith("/") ? rel.slice(1) : rel, SECRET_GLOBS))
-      return deny(`${p} may hold secrets; agents do not read or write it.`);
-  }
+  const secret = secretPath(hook, ctx.root);
+  if (secret) return deny(`${secret} may hold secrets; agents do not read or write it.`);
   for (const argv of shell) {
     const what = destructive(argv);
     if (what) return deny(`${what} is blocked: it can lose work. Ask the user to run it.`);
