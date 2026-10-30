@@ -318,6 +318,31 @@ describe("DiscoverSystem", () => {
     expect(r.proposal.applications.find((a) => a.id === "web")?.consumes).toEqual(["api-api"]);
   });
 
+  test("an application that declares its OpenAPI file: the served document is evidence, fetched only by who fetches it", async () => {
+    const r = (
+      await new DiscoverSystem(detectors).execute({
+        system: "shop",
+        sources: [
+          source("api", {
+            specs: [SPEC],
+            texts: [{ path: "src/main.ts", text: "SwaggerModule.setup('docs', app, d);" }],
+          }),
+          source("web", {
+            texts: [
+              { path: "package.json", text: '"gen": "openapi-typescript https://api.shop.io/docs-json"' },
+              { path: "src/x.ts", text: "fetch('/docs-json2')" },
+            ],
+          }),
+        ],
+      })
+    )._unsafeUnwrap();
+    expect(r.proposal.contracts.map((c) => c.id)).toEqual(["billing-api"]);
+    expect(r.evidence.filter((e) => e.subject.includes(" /")).map((e) => [e.subject, e.proposed])).toEqual([
+      ["served:api /docs-json", false],
+      ["consumes:web→api /docs-json", false],
+    ]);
+  });
+
   test("a folder: repositories are applications by name, sources by remote, clashing ids prefixed", async () => {
     const r = (
       await new DiscoverSystem(detectors).execute({
