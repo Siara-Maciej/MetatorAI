@@ -25,7 +25,7 @@ Composition root: the awilix container, the typed Cradle and the JSON envelope. 
 
 ## Invariants
 
-- The container is strict, so lifetime mistakes fail fast [[cite: packages/runtime/src/container.ts:375 | "createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true })"]].
+- The container is strict, so lifetime mistakes fail fast [[cite: packages/runtime/src/container.ts:379 | "createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true })"]].
 
 ## Allowed dependencies
 

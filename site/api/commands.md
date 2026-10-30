@@ -1263,6 +1263,19 @@ metator findings schema [options]
 
 ## review
 
+### `metator review metadata`
+
+The branch against its base: commits, authors, changed files, uncommitted work (pr.json)
+
+```bash
+metator review metadata [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--base <ref>` | the branch the change goes into | `"HEAD"` |
+| `--out <path>` | also write it as a ReviewMetadata document |  |
+
 ### `metator review plan`
 
 Shards per package with card and rules; lenses run per shard

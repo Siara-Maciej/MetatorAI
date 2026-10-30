@@ -42,6 +42,29 @@ describe("ClaudeGenerator", () => {
     });
     expect(file).toMatchSnapshot();
   });
+
+  test("a coordinator starts only its delegates; an agent capability without delegates stays open", () => {
+    const tools = (delegates: string[]) =>
+      new ClaudeGenerator()
+        .agent(agent({ role: "coordinator", capabilities: ["read", "agent"], delegates }), BODY, {
+          source: "metator/agents/mt-x.md",
+          metatorCommand: "metator",
+        })
+        .content.match(/^tools: (.*)$/m)?.[1];
+    expect(tools(["mt-a", "mt-b"])).toBe("Read, Glob, Agent(mt-a, mt-b)");
+    expect(tools([])).toBe("Read, Glob, Task");
+  });
+
+  test("an agent with the whole shell still names its metator commands: they run without asking", () => {
+    const file = new ClaudeGenerator().agent(
+      agent({ capabilities: ["read", "execute", "metator:findings"] }),
+      BODY,
+      { source: "metator/agents/mt-x.md", metatorCommand: "metator" },
+    );
+    expect(file.content.match(/^tools: (.*)$/m)?.[1]).toBe(
+      "Read, Glob, Bash, Bash(metator findings:*), Bash(metator run status:*), Bash(metator run schema:*), Bash(metator run write:*)",
+    );
+  });
 });
 
 describe("ClaudeGenerator.hooks (.claude/settings.json)", () => {

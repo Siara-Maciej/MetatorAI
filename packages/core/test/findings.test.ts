@@ -151,4 +151,32 @@ describe("mergeFindings / MergeFindingSets", () => {
     expect([merged.kind, merged.lens, merged.findings.length]).toEqual(["FindingSet", "merged", 1]);
     expect((await w.validate.execute({ dir: "f", fix: false }))._unsafeUnwrap().files).toBe(2);
   });
+
+  test("merging again keeps the verifications already recorded for the same finding", async () => {
+    const w = world({ "f/logic.json": setFile("logic", [finding()]) });
+    (await w.merge.execute({ dir: "f" }))._unsafeUnwrap();
+    const verification = { status: "confirmed" as const, by: "mt-verifier", evidence: "pay(10) throws" };
+    const first = JSON.parse((await w.fs.read("f/merged.json"))._unsafeUnwrap());
+    first.findings = first.findings.map((f: Finding) => (f.id === "LOGIC-001" ? { ...f, verification } : f));
+    await w.fs.write("f/merged.json", JSON.stringify(first));
+    // A lens rewrote its file: the finding with a new quote is not the one that was verified.
+    await w.fs.write(
+      "f/tests.json",
+      setFile("tests", [
+        finding({
+          id: "TESTS-001",
+          lens: "tests",
+          location: { file: "src/pay.ts", line: 2 },
+          quote: "if (amount < 0) return 0;",
+          claim: "negative amounts have no test",
+        }),
+      ]),
+    );
+    (await w.merge.execute({ dir: "f" }))._unsafeUnwrap();
+    const again = JSON.parse((await w.fs.read("f/merged.json"))._unsafeUnwrap());
+    expect(again.findings.map((f: Finding) => [f.id, f.verification?.status])).toEqual([
+      ["TESTS-001", undefined],
+      ["LOGIC-001", "confirmed"],
+    ]);
+  });
 });

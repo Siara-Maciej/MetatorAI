@@ -18,6 +18,7 @@ import {
   type BackgroundProcess,
   type BaseArchitectureFacts,
   type BinResolver,
+  type BranchHistory,
   type BuildImportGraph,
   type BuildModuleCards,
   type ChangeHistory,
@@ -42,6 +43,7 @@ import {
   type CreateSystemPlan,
   type CreateWorktree,
   type DataIsolator,
+  type DescribeReviewedChange,
   type DiffContracts,
   type DiffCoverage,
   type DiffImportGraph,
@@ -361,6 +363,8 @@ export interface Cradle {
   validateFindings: ValidateFindings;
   mergeFindings: MergeFindingSets;
   planReview: PlanReview;
+  describeReviewedChange: DescribeReviewedChange;
+  branchHistory: BranchHistory;
   judgeFindings: JudgeFindings;
   formatReviewComments: FormatReviewComments;
   evalCatalog: EvalCatalog;

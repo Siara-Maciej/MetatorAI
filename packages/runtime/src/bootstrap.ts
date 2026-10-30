@@ -40,6 +40,7 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
+  DescribeReviewedChange,
   DiffContracts,
   DiffCoverage,
   DiffImportGraph,
@@ -390,6 +391,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     vcs: asFunction(({ root }) => new GitVcs(root, [".metator/"])).singleton(),
     revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
     changeHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    branchHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
     sandbox: asFunction(() => new TempGitSandbox()).singleton(),
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
@@ -809,6 +811,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     planReview: asFunction(
       ({ vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores }) =>
         new PlanReview(vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores),
+    ),
+    describeReviewedChange: asFunction(
+      ({ vcs, branchHistory, fileSystem }) => new DescribeReviewedChange(vcs, branchHistory, fileSystem),
     ),
     judgeFindings: asFunction(({ fileSystem }) => new JudgeFindings(fileSystem)),
     formatReviewComments: asFunction(({ fileSystem }) => new FormatReviewComments(fileSystem)),

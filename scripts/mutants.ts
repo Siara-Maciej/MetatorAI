@@ -62,6 +62,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "paths must not escape the repository root",
   },
   {
+    file: "packages/plugin-bun/src/bun-file-system.ts",
+    from: "isAbsolute(path) ? resolve(path) :",
+    to: "false ? resolve(path) :",
+    why: "an absolute path inside the root names the same file",
+  },
+  {
+    file: "packages/core/src/application/findings.ts",
+    from: "return v && !f.verification ? { ...f, verification: v } : f;",
+    to: "return f;",
+    why: "merging again keeps the recorded verifications",
+  },
+  {
+    file: "packages/cli/src/commands/meta.ts",
+    from: "if (!sub) break;",
+    to: "if (!sub) return undefined;",
+    why: "--help describes the command the words before it name",
+  },
+  {
     file: "packages/cli/src/run.ts",
     from: "return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
     to: "return 0;",
@@ -1861,6 +1879,42 @@ export const MUTANTS: readonly Mutant[] = [
     from: "const missing = first.isErr() ? EXTERNAL_NETWORK.exec(first.error.message)?.[1] : undefined;",
     to: "const missing = undefined as string | undefined;",
     why: "a missing external network is created before the service starts again",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-generator.ts",
+    from: 'if (c === "agent" && agent.delegates.length > 0)',
+    to: "if (false)",
+    why: "a coordinator starts only the agents it delegates to",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-generator.ts",
+    from: "    for (const g of metatorGroups(agent)) tools.add(",
+    to: '    if (!tools.has("Bash")) for (const g of metatorGroups(agent)) tools.add(',
+    why: "an agent with the whole shell still has its metator commands allowed",
+  },
+  {
+    file: "packages/core/src/domain/review-metadata.ts",
+    from: "const key = c.email.toLowerCase();",
+    to: "const key = c.email;",
+    why: "one author's commits count together, whatever the case of the email",
+  },
+  {
+    file: "packages/core/src/domain/review-metadata.ts",
+    from: "b.commits - a.commits ||",
+    to: "",
+    why: "authors with more commits come first",
+  },
+  {
+    file: "packages/plugin-git/src/git-vcs.ts",
+    from: "const uncommitted = !status.isClean();",
+    to: "const uncommitted = false;",
+    why: "uncommitted work is reported",
+  },
+  {
+    file: "packages/plugin-git/src/git-vcs.ts",
+    from: "}..HEAD`])",
+    to: "}`])",
+    why: "only the commits after the merge base belong to the branch",
   },
   {
     file: "packages/core/src/domain/versioned.ts",

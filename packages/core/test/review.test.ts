@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { FakeVcs, InMemoryFileSystem } from "@metator/testing";
 import { stringify } from "yaml";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
-import { FormatReviewComments, JudgeFindings, PlanReview } from "../src/application/review.ts";
+import {
+  DescribeReviewedChange,
+  FormatReviewComments,
+  JudgeFindings,
+  PlanReview,
+} from "../src/application/review.ts";
 import { RuleCatalog } from "../src/application/rules.ts";
 import { type Finding, FindingSetDocument } from "../src/domain/finding.ts";
 import { ok } from "../src/domain/result.ts";
@@ -178,5 +183,43 @@ describe("JudgeFindings / FormatReviewComments", () => {
         await new JudgeFindings(new InMemoryFileSystem({})).execute({ dir: "x", verifiedCorrect: [] })
       )._unsafeUnwrapErr().hint,
     ).toContain("findings merge");
+  });
+});
+
+describe("DescribeReviewedChange", () => {
+  test("pr.json: the branch, its commits with authors by count, the files, uncommitted work; a versioned document", async () => {
+    const fs = new InMemoryFileSystem();
+    const commit = (author: string, email: string, subject: string) => ({
+      sha: subject,
+      author,
+      email,
+      date: "2026-10-30T06:00:00+00:00",
+      subject,
+    });
+    const history = {
+      branch: async () =>
+        ok({
+          branch: "feature",
+          head: "h",
+          mergeBase: "m",
+          commits: [commit("Bo", "bo@x", "c3"), commit("Ann", "ann@x", "c2"), commit("Bo", "BO@x", "c1")],
+          uncommitted: true,
+        }),
+    };
+    const vcs = { changedFiles: async () => ok(["src/a.ts"]) };
+    const r = (
+      await new DescribeReviewedChange(vcs, history, fs).execute({ base: "main", out: "run/pr.json" })
+    )._unsafeUnwrap();
+    expect([r.branch, r.files, r.uncommitted, r.authors]).toEqual([
+      "feature",
+      ["src/a.ts"],
+      true,
+      [
+        { name: "Bo", email: "bo@x", commits: 2 },
+        { name: "Ann", email: "ann@x", commits: 1 },
+      ],
+    ]);
+    const saved = JSON.parse((await fs.read("run/pr.json"))._unsafeUnwrap());
+    expect([saved.kind, saved.schemaVersion, saved.commits.length]).toEqual(["ReviewMetadata", 1, 3]);
   });
 });

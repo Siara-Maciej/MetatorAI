@@ -1,0 +1,192 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "ReviewMetadata",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ReviewMetadata"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "base": {
+        "type": "string",
+        "minLength": 1
+      },
+      "branch": {
+        "type": ["string", "null"]
+      },
+      "head": {
+        "type": ["string", "null"]
+      },
+      "mergeBase": {
+        "type": ["string", "null"]
+      },
+      "commits": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sha": {
+              "type": "string"
+            },
+            "author": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "date": {
+              "type": "string"
+            },
+            "subject": {
+              "type": "string"
+            }
+          },
+          "required": ["sha", "author", "email", "date", "subject"],
+          "additionalProperties": false
+        }
+      },
+      "authors": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "commits": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": ["name", "email", "commits"],
+          "additionalProperties": false
+        }
+      },
+      "files": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "uncommitted": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "base",
+      "branch",
+      "head",
+      "mergeBase",
+      "commits",
+      "authors",
+      "files",
+      "uncommitted"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "ReviewMetadata"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "base": {
+        "type": "string",
+        "minLength": 1
+      },
+      "branch": {
+        "type": ["string", "null"]
+      },
+      "head": {
+        "type": ["string", "null"]
+      },
+      "mergeBase": {
+        "type": ["string", "null"]
+      },
+      "commits": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sha": {
+              "type": "string"
+            },
+            "author": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "date": {
+              "type": "string"
+            },
+            "subject": {
+              "type": "string"
+            }
+          },
+          "required": ["sha", "author", "email", "date", "subject"],
+          "additionalProperties": false
+        }
+      },
+      "authors": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "commits": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": ["name", "email", "commits"],
+          "additionalProperties": false
+        }
+      },
+      "files": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "uncommitted": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "base",
+      "branch",
+      "head",
+      "mergeBase",
+      "commits",
+      "authors",
+      "files",
+      "uncommitted"
+    ],
+    "additionalProperties": false
+  }
+}

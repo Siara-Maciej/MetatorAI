@@ -2,6 +2,7 @@ import { MetatorError } from "../domain/errors.ts";
 import { FindingSetDocument, type LENSES } from "../domain/finding.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { authorsOf, type ReviewMetadata, ReviewMetadataDocument } from "../domain/review-metadata.ts";
 import { DEFAULT_LENSES, type ReviewPlan, ReviewPlanDocument, shardFiles } from "../domain/review-plan.ts";
 import { rulesFor } from "../domain/rule.ts";
 import {
@@ -13,7 +14,7 @@ import {
   VerdictDocument,
 } from "../domain/verdict.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
-import type { FileSystem, Vcs, WorkspaceReader } from "../ports/index.ts";
+import type { BranchHistory, FileSystem, Vcs, WorkspaceReader } from "../ports/index.ts";
 import { cardFile } from "./cards.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RuleCatalog } from "./rules.ts";
@@ -139,5 +140,43 @@ export class FormatReviewComments {
       );
     }
     return ok({ decision: verdict.value.decision, ...toComments(verdict.value, input.format, input.role) });
+  }
+}
+
+/** `review metadata` (pr.json): the branch, its commits and authors, the files; from git. */
+export class DescribeReviewedChange {
+  constructor(
+    private readonly vcs: Pick<Vcs, "changedFiles">,
+    private readonly history: BranchHistory,
+    private readonly fs: FileSystem,
+  ) {}
+
+  async execute(input: {
+    readonly base: string;
+    readonly out?: string;
+  }): Promise<Result<ReviewMetadata, MetatorError>> {
+    const branch = await this.history.branch(input.base);
+    if (branch.isErr()) return err(branch.error);
+    const files = await this.vcs.changedFiles(input.base);
+    if (files.isErr()) return err(files.error);
+    const commits = branch.value.commits.map((c) => ({ ...c }));
+    const metadata: ReviewMetadata = {
+      base: input.base,
+      branch: branch.value.branch,
+      head: branch.value.head,
+      mergeBase: branch.value.mergeBase,
+      commits,
+      authors: authorsOf(commits),
+      files: [...files.value],
+      uncommitted: branch.value.uncommitted,
+    };
+    if (input.out) {
+      const saved = await this.fs.write(
+        input.out,
+        serializeJsonDocument(ReviewMetadataDocument.stamp(metadata)),
+      );
+      if (saved.isErr()) return err(saved.error);
+    }
+    return ok(metadata);
   }
 }

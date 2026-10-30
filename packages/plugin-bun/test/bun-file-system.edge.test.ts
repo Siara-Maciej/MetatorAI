@@ -42,6 +42,16 @@ describe("BunFileSystem edge cases", () => {
     expect(await fs.exists("./docs/x.md")).toBe(true);
   });
 
+  test("an absolute path inside the root is the same file; one outside it is a usage error", async () => {
+    const { fs, root } = await fresh();
+    await fs.write("runs/1/findings/merged.json", "{}");
+    expect((await fs.read(join(root, "runs/1/findings/merged.json")))._unsafeUnwrap()).toBe("{}");
+    expect(await fs.exists(join(root, "runs/1/findings/merged.json"))).toBe(true);
+    expect((await fs.write(join(root, "runs/1/verdict.json"), "v")).isOk()).toBe(true);
+    expect(await Bun.file(join(root, "runs/1/verdict.json")).text()).toBe("v");
+    expect((await fs.read(join(tmpdir(), "elsewhere.json")))._unsafeUnwrapErr().code).toBe("USAGE");
+  });
+
   test("UTF-8 content round-trips byte-exactly", async () => {
     const { fs } = await fresh();
     const content = "zażółć gęślą jaźń · 日本語 · emoji 🚀\n";

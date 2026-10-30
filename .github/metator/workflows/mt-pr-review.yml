@@ -2,7 +2,7 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-pr-review
-revision: 2
+revision: 6
 description: Shard, find with lenses, verify, judge, publish after approval
 entry: { prompt: mt-review, ci: true }
 input:
@@ -13,7 +13,8 @@ limits: { parallel: 6 }
 stages:
   - id: metadata
     description: PR metadata and authorship
-    owner: mt-pr-review
+    # From git, as a document: the coordinator needs no shell for it.
+    owner: "script:metator review metadata --out {runDir}/pr.json"
     produces: [pr.json]
   - id: shard
     description: Affected files and shards per package
@@ -32,11 +33,13 @@ stages:
       - mt-review-tests
       - mt-review-security
     produces: [findings]
-    gate: { script: "metator findings validate {runDir}/findings" }
+    # --fix updates the line of a quote that moved; an invented quote is still dropped.
+    gate: { script: "metator findings validate {runDir}/findings --fix" }
   - id: verify
     description: Merge, then refute each blocking finding with fresh eyes
-    owner: [mt-verifier, "script:metator findings merge {runDir}/findings"]
-    produces: [merged.json]
+    # The verifier works on merged.json: merge first.
+    owner: ["script:metator findings merge {runDir}/findings", mt-verifier]
+    produces: [findings/merged.json]
   - id: judge
     owner: [mt-judge, skill:mt-review-rubric]
     produces: [verdict.json]

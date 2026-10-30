@@ -1,7 +1,7 @@
 import { err, ok } from "@metator/core";
 import { exitCodeFor, fromUnknown, serialize, toEnvelope } from "@metator/runtime";
 import { CommanderError } from "commander";
-import { describeCommands } from "./commands/meta.ts";
+import { describeCommandFor, describeCommands } from "./commands/meta.ts";
 import type { Outcome } from "./context.ts";
 import { buildProgram, fromCommander, type ProgramOptions } from "./program.ts";
 
@@ -28,6 +28,11 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
       },
     },
   );
+  const help = describeCommandFor(program, argv);
+  if (help) {
+    io.out(serialize(toEnvelope(ok(help), [])));
+    return 0;
+  }
   try {
     await program.parseAsync(argv.length === 0 ? ["help"] : [...argv], { from: "user" });
     outcome ??= { result: ok(describeCommands(program)) }; // a command group without subcommand → help

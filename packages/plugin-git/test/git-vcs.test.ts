@@ -299,3 +299,38 @@ describe("GitVcs.commits (real git)", () => {
     expect((await new GitVcs(join(empty, "missing")).commits(5))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
   });
 });
+
+describe("GitVcs.branch (real git)", () => {
+  test("the branch against its base: merge base, commits after it with authors, uncommitted work", async () => {
+    const dir = await scenario();
+    const b = (await new GitVcs(dir).branch("main"))._unsafeUnwrap();
+    expect([b.branch, b.uncommitted, b.commits.map((c) => [c.author, c.email, c.subject])]).toEqual([
+      "feature",
+      true,
+      [["Test", "t@example.com", "feature work"]],
+    ]);
+    expect(b.head).toMatch(/^[0-9a-f]{40}$/);
+    expect(b.mergeBase).toMatch(/^[0-9a-f]{40}$/);
+    expect(b.mergeBase).not.toBe(b.head);
+    expect(b.commits[0]?.date).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // Against HEAD: nothing after it.
+    expect((await new GitVcs(dir).branch("HEAD"))._unsafeUnwrap().commits).toEqual([]);
+    expect((await new GitVcs(dir).branch("nope"))._unsafeUnwrapErr().code).toBe("USAGE");
+  });
+
+  test("a repository without commits has no head; a clean tree has nothing uncommitted", async () => {
+    const empty = await repo();
+    expect((await new GitVcs(empty).branch("main"))._unsafeUnwrap()).toEqual({
+      branch: "main",
+      head: null,
+      mergeBase: null,
+      commits: [],
+      uncommitted: false,
+    });
+    const dir = await repo();
+    await writeFile(join(dir, "a.ts"), "a");
+    await sh(dir, "add", ".");
+    await sh(dir, "commit", "-q", "-m", "init");
+    expect((await new GitVcs(dir).branch("HEAD"))._unsafeUnwrap().uncommitted).toBe(false);
+  });
+});

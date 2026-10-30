@@ -103,6 +103,7 @@ export * from "./domain/plan.ts";
 export * from "./domain/proposal.ts";
 export * from "./domain/repo-set.ts";
 export * from "./domain/result.ts";
+export * from "./domain/review-metadata.ts";
 export * from "./domain/review-plan.ts";
 export * from "./domain/rule.ts";
 export * from "./domain/run-machine.ts";

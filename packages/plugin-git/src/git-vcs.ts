@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
+  type BranchCommit,
+  type BranchHistory,
   type ChangeHistory,
   err,
   MetatorError,
@@ -18,7 +20,7 @@ import { type SimpleGit, simpleGit } from "simple-git";
  * that differs from the merge base with `base`: committed on the branch, staged, unstaged,
  * deleted and untracked (non-ignored) files. Paths are repo-relative.
  */
-export class GitVcs implements Vcs, RevisionReader, ChangeHistory {
+export class GitVcs implements Vcs, RevisionReader, ChangeHistory, BranchHistory {
   private client: SimpleGit | undefined;
 
   constructor(
@@ -139,6 +141,31 @@ export class GitVcs implements Vcs, RevisionReader, ChangeHistory {
         else if (line !== "") out.at(-1)?.push(line);
       }
       return ok(out);
+    });
+  }
+
+  async branch(base: string): ReturnType<BranchHistory["branch"]> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      const status = await git.value.status();
+      const uncommitted = !status.isClean();
+      const branch = status.detached ? null : status.current;
+      if (!(await this.hasCommits(git.value)))
+        return ok({ branch, head: null, mergeBase: null, commits: [] as BranchCommit[], uncommitted });
+      const head = (await git.value.revparse(["HEAD"])).trim();
+      const ref = await this.mergeBase(git.value, base);
+      if (ref.isErr()) return err(ref.error);
+      const mergeBase = ref.value === "HEAD" ? head : ref.value;
+      const commits: BranchCommit[] = [];
+      for (const line of (
+        await git.value.raw(["log", "--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s", `${mergeBase}..HEAD`])
+      ).split("\n")) {
+        const [sha, author, email, date, subject] = line.split("\u001f");
+        if (sha && author !== undefined && email !== undefined && date !== undefined)
+          commits.push({ sha, author, email, date, subject: subject ?? "" });
+      }
+      return ok({ branch, head, mergeBase, commits, uncommitted });
     });
   }
 

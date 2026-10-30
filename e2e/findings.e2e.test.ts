@@ -122,6 +122,22 @@ describe("metator findings", () => {
         repo.root,
       );
       expect(data(plan)).toMatchObject({ files: ["src/pay.ts"], lenses: ["logic", "tests"], tasks: 2 });
+      // pr.json from git: the branch, its commits and authors, uncommitted work.
+      await repo.git("add", "src/pay.ts");
+      await repo.git("-c", "user.name=Ann", "-c", "user.email=ann@x", "commit", "-q", "-m", "Add a fee");
+      await repo.write("src/pay.ts", `${CODE}export const fee = 2;\n`);
+      const meta = await metator(
+        ["review", "metadata", "--base", "main", "--out", ".metator/runs/r1/pr.json"],
+        repo.root,
+      );
+      expect(data(meta)).toMatchObject({
+        branch: "review",
+        commits: [{ author: "Ann", email: "ann@x", subject: "Add a fee" }],
+        authors: [{ name: "Ann", commits: 1 }],
+        files: ["src/pay.ts"],
+        uncommitted: true,
+      });
+      expect(JSON.parse(await repo.read(".metator/runs/r1/pr.json")).kind).toBe("ReviewMetadata");
       expect((await metator(["review", "plan", "--lenses", "style"], repo.root)).code).toBe(64);
 
       const blocker = finding("LOGIC-001", "logic", {

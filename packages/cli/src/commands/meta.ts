@@ -26,6 +26,43 @@ export function describeCommands(program: Command): { commands: CommandInfo[] } 
   return { commands };
 }
 
+export interface CommandHelp extends CommandInfo {
+  readonly options: { readonly flags: string; readonly description: string; readonly default?: unknown }[];
+  readonly commands?: CommandInfo[];
+}
+
+/**
+ * `metator <command> --help`: the command the words before the flag name, with its options (and
+ * the commands of a group). `--help` with no command, or after `--`, is the whole list.
+ */
+export function describeCommandFor(program: Command, argv: readonly string[]): CommandHelp | undefined {
+  const end = argv.indexOf("--");
+  const words = end === -1 ? argv : argv.slice(0, end);
+  if (!words.some((a) => a === "--help" || a === "-h")) return undefined;
+  let cmd = program;
+  const path: string[] = [];
+  for (const word of words) {
+    const sub = cmd.commands.find((c) => c.name() === word || c.aliases().includes(word));
+    if (!sub) break;
+    cmd = sub;
+    path.push(sub.name());
+  }
+  if (path.length === 0) return undefined;
+  const name = path.join(" ");
+  const commands = cmd.commands.length > 0 ? describeCommands(cmd).commands : undefined;
+  return {
+    name,
+    summary: cmd.description(),
+    usage: `metator ${name} ${cmd.usage()}`.trim(),
+    options: cmd.options.map((o) => ({
+      flags: o.flags,
+      description: o.description,
+      ...(o.defaultValue !== undefined ? { default: o.defaultValue } : {}),
+    })),
+    ...(commands ? { commands: commands.map((c) => ({ ...c, name: `${name} ${c.name}` })) } : {}),
+  };
+}
+
 export function registerMetaCommands(program: Command, { action }: CommandContext): void {
   program
     .command("version")

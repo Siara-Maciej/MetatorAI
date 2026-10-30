@@ -66,11 +66,15 @@ export class ClaudeGenerator implements HostGenerator {
   agent(agent: Agent, body: string, context: HostAgentContext): GeneratedFile {
     const tools = new Set<string>();
     for (const c of agent.capabilities) {
-      if (!c.startsWith("metator:")) for (const t of CLAUDE_TOOLS[c as BasicCapability]) tools.add(t);
+      if (c.startsWith("metator:")) continue;
+      // A coordinator starts only the workers it delegates to: never a general-purpose agent
+      // that has every tool its own definition withholds.
+      if (c === "agent" && agent.delegates.length > 0) tools.add(`Agent(${agent.delegates.join(", ")})`);
+      else for (const t of CLAUDE_TOOLS[c as BasicCapability]) tools.add(t);
     }
-    // Without general Bash, MetatorAI command groups are allowed one by one.
-    if (!tools.has("Bash"))
-      for (const g of metatorGroups(agent)) tools.add(`Bash(${context.metatorCommand} ${g}:*)`);
+    // MetatorAI command groups by name: without general Bash they are all the shell an agent
+    // has; with it, they are the commands that run without asking a person (`allowedTools`).
+    for (const g of metatorGroups(agent)) tools.add(`Bash(${context.metatorCommand} ${g}:*)`);
     const front = {
       name: agent.id,
       description: agent.description,

@@ -120,9 +120,9 @@ export function registerSetupCommands(
           const init = await step(["init", "--host", ...answers.hosts]);
           if (init.code !== 0) return { result: err(fromEnvelope(init.envelope, "init")) };
         } else if (answers.hosts.join() !== configured.config.hosts.targets.join()) {
-          warnings.push(
-            `${configured.source} keeps hosts.targets [${configured.config.hosts.targets.join(", ")}]; set it to [${answers.hosts.join(", ")}] to generate for those hosts`,
-          );
+          // Hosts chosen now (--host or the questions) win over the file: saved, comments kept.
+          const saved = await c.resolve("updateConfig").execute({ hostTargets: answers.hosts });
+          if (saved.isErr()) return { result: saved };
         }
         const canon = await step(["agents", mode, "--workflows", ...answers.workflows]);
         if (canon.code !== 0) return { result: err(fromEnvelope(canon.envelope, `agents ${mode}`)) };

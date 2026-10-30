@@ -114,9 +114,16 @@ export class MergeFindingSets {
     );
     const { merged, duplicates } = mergeFindings(kept);
     const output = `${input.dir.replace(/\/$/, "")}/${MERGED}`;
+    // A workflow that resumes runs merge again: the verifications already recorded for the same
+    // finding (id, file and quote) stay, so the verify stage is not lost.
+    const verified = await this.verifications(output);
+    const findings = merged.map((f) => {
+      const v = verified.get(sameFinding(f));
+      return v && !f.verification ? { ...f, verification: v } : f;
+    });
     const saved = await this.fs.write(
       output,
-      serializeJsonDocument(FindingSetDocument.stamp({ lens: "merged", findings: merged })),
+      serializeJsonDocument(FindingSetDocument.stamp({ lens: "merged", findings })),
     );
     if (saved.isErr()) return err(saved.error);
     return ok({
@@ -127,7 +134,19 @@ export class MergeFindingSets {
       output,
     });
   }
+
+  private async verifications(path: string): Promise<Map<string, NonNullable<Finding["verification"]>>> {
+    const out = new Map<string, NonNullable<Finding["verification"]>>();
+    const text = await this.fs.read(path);
+    if (text.isErr()) return out;
+    const set = parseJsonDocument(text.value, path).andThen((raw) => FindingSetDocument.parse(raw, path));
+    if (set.isErr()) return out; // an unreadable previous merge is replaced, not trusted
+    for (const f of set.value.findings) if (f.verification) out.set(sameFinding(f), f.verification);
+    return out;
+  }
 }
+
+const sameFinding = (f: Finding) => `${f.id}\u0000${f.location.file}\u0000${f.quote}`;
 
 async function loadSets(
   fs: FileSystem,

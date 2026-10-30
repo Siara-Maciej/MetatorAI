@@ -19,7 +19,7 @@ metator setup --host claude --hooks --yes       # the same without questions (sc
 ```
 
 **What it does, in order:**
-1. **Survey and config.** It detects the package manager, workspaces, scripts, linters, test runners and CI. A script that runs a task runner (`turbo lint`, `nx run-many -t test`) counts as the task it runs. A script that rewrites files (`eslint --fix`) is never a gate's check. Then it writes `metator.config.yml` with the chosen hosts and quality gates, each with the evidence behind it (`metator init --dry-run` shows the proposal alone). An existing config is never overwritten.
+1. **Survey and config.** It detects the package manager, workspaces, scripts, linters, test runners and CI. A script that runs a task runner (`turbo lint`, `nx run-many -t test`) counts as the task it runs. A script that rewrites files (`eslint --fix`) is never a gate's check. Then it writes `metator.config.yml` with the chosen hosts and quality gates, each with the evidence behind it (`metator init --dry-run` shows the proposal alone). An existing config is never overwritten; only its `hostTargets` change when you choose other hosts (`metator setup --host claude` in a repository set up for Copilot adds the Claude Code files and keeps everything else).
 2. **The canon.** It copies the agents, skills and the chosen W1–W5 workflow specs shipped with MetatorAI into `metator/` and `.github/metator/workflows`. Every copied file is recorded in `metator/install.lock.json` with its content hash.
 3. **Host files.** It generates `.claude/agents`, `.github/agents` and the skills for the hosts you chose, and the hooks with `--hooks`.
 4. **Checks.** It lints the agents, skills and workflows and confirms the generated files are fresh, as proof the repository is ready.

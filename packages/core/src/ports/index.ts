@@ -182,6 +182,35 @@ export interface Vcs {
   remoteUrl(): Promise<Result<string | undefined, MetatorError>>;
 }
 
+/** A commit of a branch, as a review's metadata shows it. */
+export interface BranchCommit {
+  readonly sha: string;
+  readonly author: string;
+  readonly email: string;
+  /** ISO date of the commit. */
+  readonly date: string;
+  readonly subject: string;
+}
+
+/** A branch against its base (`review metadata`): where it forks and what it adds. */
+export interface BranchHistory {
+  branch(base: string): Promise<
+    Result<
+      {
+        /** The current branch; null when HEAD is detached. */
+        readonly branch: string | null;
+        readonly head: string | null;
+        readonly mergeBase: string | null;
+        /** Commits after the merge base, newest first. */
+        readonly commits: readonly BranchCommit[];
+        /** The working tree has changes no commit holds. */
+        readonly uncommitted: boolean;
+      },
+      MetatorError
+    >
+  >;
+}
+
 /** File contents at an earlier revision (split from Vcs: history is read by few use cases). */
 export interface RevisionReader {
   /** `path` at the merge base of `base` and HEAD; undefined when the file did not exist there. */

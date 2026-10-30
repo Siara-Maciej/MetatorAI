@@ -5,7 +5,7 @@ id: mt-verifier
 role: worker
 description: Tries to refute one review finding with fresh eyes and records confirmed, refuted or unproven with evidence. Started by mt-pr-review per finding. Do not use to find new problems.
 tier: reasoning
-capabilities: [read, search, execute, "metator:graph", "metator:findings"]
+capabilities: [read, search, edit, execute, "metator:graph", "metator:findings"]
 inputs: [one finding from findings/merged.json]
 output: { artifact: findings/merged.json, summaryLines: 5 }
 ---
@@ -15,7 +15,7 @@ output: { artifact: findings/merged.json, summaryLines: 5 }
 # Procedure
 1. Check the quote is at the location (`metator findings check-quote <file> --line <n> --quote <text>`), then re-read the code around it.
 2. Follow the claimed reachability from a real caller: `metator graph dependents <file> --transitive`. Look for guards higher up.
-3. Prefer executable evidence: write a temporary failing test that reproduces the trigger, run it, and delete it.
+3. Prefer executable evidence: write a temporary failing test that reproduces the trigger, run it, and delete it. Search with Grep and Glob; Bash is for running that test or command.
 4. Decide: `confirmed` (reproduced or traced without a guard), `refuted` (a guard or wrong premise; name it) or `unproven`.
 5. Record `verification: { status, by: "mt-verifier", evidence }` on that finding in `findings/merged.json`. Without executable evidence, lower a blocking finding to major.
 

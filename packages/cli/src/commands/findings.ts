@@ -137,9 +137,20 @@ export function registerFindingsCommands(program: Command, { action, container }
 }
 
 export function registerReviewCommands(program: Command, { action, container }: CommandContext): void {
-  program
-    .command("review")
-    .description("Plan a review of the change")
+  const review = program.command("review").description("Plan a review of the change and describe it");
+  review
+    .command("metadata")
+    .description("The branch against its base: commits, authors, changed files, uncommitted work (pr.json)")
+    .option("--base <ref>", "the branch the change goes into", "HEAD")
+    .option("--out <path>", "also write it as a ReviewMetadata document")
+    .action(
+      action(async (opts: { base: string; out?: string }) => ({
+        result: await container()
+          .resolve("describeReviewedChange")
+          .execute({ base: opts.base, ...(opts.out ? { out: normalizePath(opts.out) } : {}) }),
+      })),
+    );
+  review
     .command("plan")
     .description("Shards per package with card and rules; lenses run per shard")
     .option("--base <ref>", "review files changed against this ref", "HEAD")

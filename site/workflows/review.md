@@ -14,6 +14,7 @@
 ## The review core
 
 ```text
+meta    metator review metadata --base main      → pr.json: branch, commits, authors, files, uncommitted work
 plan    metator review plan --base main          → shards per package, with its card and rules
 find    lens × shard in parallel (max 6)         → findings/<lens>-<shard>.json
 check   metator findings validate <dir> --fix    → invented quotes and unproven blockers dropped
@@ -21,6 +22,8 @@ merge   metator findings merge <dir>             → duplicates across lenses me
 verify  mt-verifier per blocking/major finding    → confirmed | refuted | unproven
 judge   metator findings verdict <dir>, mt-judge  → verdict.json
 ```
+
+**Resuming is safe.** A run that stops and continues runs `findings merge` again; the verifications already recorded for the same finding (same id, file and quote) stay in `merged.json`, so the verify stage is not lost. Paths may be relative or absolute inside the repository.
 
 **Why sharding:** a lens that sees one package at a time, with that package's card and rules, reasons better than one that sees a 3,000-line diff.
 

@@ -56,6 +56,8 @@ capabilities: [read, search, "metator:graph", "metator:workspace", "metator:card
 tools: Read, Glob, Grep, Bash(metator graph:*), Bash(metator workspace:*), Bash(metator cards:*), Bash(metator owners:*)
 ```
 
+A coordinator gets `Agent(<its workers>)`, never a plain `Agent`: it can start only the workers it delegates to, not a general-purpose agent with every tool its own definition withholds. Review lenses read with Read, Glob and Grep and run only their `metator` commands; the verifier gets a shell to run the test that refutes a finding.
+
 `metator meta agents-lint` checks every delegation: the agent is known, its coordinator allows it, and there are no cycles. `metator meta audit` finds dead agents and nesting deeper than two levels.
 
 ## Trustworthy review
