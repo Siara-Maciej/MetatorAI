@@ -164,6 +164,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a root that builds through a task runner is not type-checked at the root",
   },
   {
+    file: "packages/core/src/domain/proposal.ts",
+    from: "full.push(step(capability, { workspaces: name }));",
+    to: "",
+    why: "packages that type-check themselves get a workspaces typecheck step",
+  },
+  {
+    file: "packages/core/src/application/gate.ts",
+    from: 'if ("workspaces" in run) return this.packageManager.workspacesCommand(run.workspaces);',
+    to: "",
+    why: "a workspaces step runs through the package manager",
+  },
+  {
+    file: "packages/plugin-node/src/node-package-manager.ts",
+    from: 'pnpm: ["pnpm", "-r", "--if-present", "run", script],',
+    to: 'pnpm: ["pnpm", "run", script],',
+    why: "pnpm runs a workspaces script in every package",
+  },
+  {
     file: "packages/core/src/application/cards.ts",
     from: "const modulesPolicy = policy.value?.policy.modules;",
     to: "const modulesPolicy = undefined;",

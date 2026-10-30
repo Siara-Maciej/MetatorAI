@@ -58,6 +58,32 @@ describe("NodePackageManager (real files)", () => {
   });
 });
 
+describe("NodePackageManager workspaces", () => {
+  test.each([
+    [{ "package-lock.json": "{}" }, ["npm", "run", "typecheck", "--workspaces", "--if-present"]],
+    [{ "pnpm-lock.yaml": "" }, ["pnpm", "-r", "--if-present", "run", "typecheck"]],
+    [{ "bun.lock": "" }, ["bun", "run", "--filter", "*", "typecheck"]],
+    [{ "yarn.lock": "" }, ["yarn", "workspaces", "run", "typecheck"]],
+  ])("a script of every workspace package: %j → %j", async (files, argv) => {
+    const pm = new NodePackageManager(await repo({ "package.json": "{}", ...files }));
+    expect((await pm.workspacesCommand("typecheck"))._unsafeUnwrap().argv).toEqual(argv);
+  });
+
+  test("yarn 2 and later run it with workspaces foreach", async () => {
+    const pm = new NodePackageManager(
+      await repo({ "package.json": JSON.stringify({ packageManager: "yarn@4.5.0" }) }),
+    );
+    expect((await pm.workspacesCommand("typecheck"))._unsafeUnwrap().argv).toEqual([
+      "yarn",
+      "workspaces",
+      "foreach",
+      "-A",
+      "run",
+      "typecheck",
+    ]);
+  });
+});
+
 describe("NodePackageManager detection", () => {
   test("detects once per instance; later lockfile changes do not flip the answer mid-run", async () => {
     const root = await repo({ "package.json": "{}", "yarn.lock": "" });

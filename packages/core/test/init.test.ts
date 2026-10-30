@@ -80,6 +80,34 @@ describe("proposeConfig", () => {
       { ruleCanon: false },
     );
     expect(runner.gates.full).toEqual([]);
+    // ...unless its packages type-check themselves: then the package manager runs that script.
+    const packages = discovery({ build: "turbo build" });
+    const withPackages = proposeConfig(
+      {
+        ...packages,
+        scripts: [
+          ...packages.scripts,
+          ...["apps/web", "apps/admin"].map((dir) => ({
+            package: dir,
+            dir,
+            name: "typecheck",
+            command: "tsc --noEmit",
+            candidates: classifyScript(
+              "typecheck",
+              "tsc --noEmit",
+              `${dir}/package.json#scripts.typecheck`,
+            ).map((c) => ({ ...c, evidence: [...c.evidence] })),
+          })),
+        ],
+        tools: [{ id: "typescript", evidence: ["tsconfig.json"] }],
+      },
+      { ruleCanon: false },
+    );
+    expect(ids(withPackages.gates.full)).toEqual(['typecheck:{"workspaces":"typecheck"}:none']);
+    expect(withPackages.decisions[0]?.evidence).toEqual([
+      "apps/web/package.json#scripts.typecheck",
+      "apps/admin/package.json#scripts.typecheck",
+    ]);
   });
 
   test("a whole-project lint script gets a per-file tool in quick, with the tool's evidence", () => {

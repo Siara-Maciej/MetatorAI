@@ -70,6 +70,7 @@ A gate is a named list of steps. A step runs one of:
 |---|---|---|
 | `{ script: <name> }` | a `package.json` script through your package manager | `{ script: lint }` |
 | `{ bin: <name>, args: [...] }` | a binary from `node_modules/.bin` | `{ bin: tsc, args: [--noEmit] }` |
+| `{ workspaces: <name> }` | the script in every workspace package that has it, through your package manager (`pnpm -r --if-present run <name>`, `npm run <name> --workspaces --if-present`, `bun run --filter '*' <name>`, `yarn workspaces foreach -A run <name>`) | `{ workspaces: typecheck }` |
 | `{ metator: <check> }` | a MetatorAI check in process | `rules check`, `test affected`, `graph diff`, `arch check`, `contract diff`, `api diff <package>`, `coverage diff [--min N] [--lcov file]` |
 
 Other step fields:
@@ -81,7 +82,7 @@ Other step fields:
 | `okExitCodes` | `[0]` | a tool that exits 1 when it only reports findings |
 | `timeoutMs` | `600000` | stop a hanging step |
 
-`metator init` proposes the steps from your own scripts. When TypeScript is configured at the root but no script type-checks (a build that only transpiles, such as `nest build`), it proposes `{ bin: tsc, args: [--noEmit, -p, tsconfig.json] }` for `full`, so a type error cannot pass every gate.
+`metator init` proposes the steps from your own scripts. When TypeScript is configured at the root but no script type-checks (a build that only transpiles, such as `nest build`), it proposes `{ bin: tsc, args: [--noEmit, -p, tsconfig.json] }` for `full`, so a type error cannot pass every gate. In a monorepo whose packages type-check with their own script and no root script runs them, it proposes `{ workspaces: <that script> }` instead.
 
 ```bash
 metator gate quick --base main           # quick gate on the files changed on the branch

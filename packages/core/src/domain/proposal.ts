@@ -86,6 +86,29 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
       });
       continue;
     }
+    if (!found && capability === "typecheck") {
+      // A monorepo whose packages type-check themselves (`apps/web: typecheck`) and no root
+      // script that runs them: the package manager runs that script in every package.
+      const perPackage = discovery.scripts.filter(
+        (s) => s.dir !== "." && s.candidates.some((c) => c.capability === "typecheck"),
+      );
+      const count = new Map<string, number>();
+      for (const s of perPackage) count.set(s.name, (count.get(s.name) ?? 0) + 1);
+      const name = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+      if (name) {
+        full.push(step(capability, { workspaces: name }));
+        decisions.push({
+          capability,
+          gate: "full",
+          step: `workspaces ${name}`,
+          evidence: perPackage
+            .filter((s) => s.name === name)
+            .map((s) => `${s.dir}/package.json#scripts.${name}`),
+          reason: `${count.get(name)} package(s) type-check with their own ${name} script and no root script runs them`,
+        });
+      }
+      continue;
+    }
     if (!found) continue;
     full.push(step(capability, { script: found.script }));
     decisions.push({

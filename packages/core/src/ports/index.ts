@@ -393,6 +393,8 @@ export interface PackageManagerDetector {
 /** Runs package.json scripts the way the repository's package manager does (npm needs `--`). */
 export interface PackageManager {
   scriptCommand(script: string, args: readonly string[]): Promise<Result<ResolvedCommand, MetatorError>>;
+  /** The script in every workspace package that has it (`pnpm -r --if-present run <script>`). */
+  workspacesCommand(script: string): Promise<Result<ResolvedCommand, MetatorError>>;
 }
 
 /** Commands for project binaries: `node_modules/.bin/<bin>` of the repository first, PATH otherwise. */
