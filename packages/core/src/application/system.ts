@@ -83,6 +83,7 @@ export class LintSystem {
       const owner = apps.get(c.owner);
       if (!owner) continue; // reported by the map lint
       const spec = specPath(owner, c);
+      if (spec === undefined) continue; // served at runtime: there is no file to look for
       const located = await this.sources.locate(owner, options.fetch ? { fetch: true } : {});
       if (located.isErr()) return err(located.error);
       const where = "repo" in owner.source ? owner.source.repo : owner.id;

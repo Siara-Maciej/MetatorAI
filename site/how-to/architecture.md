@@ -106,6 +106,8 @@ Import each other (12): auth ⇄ users, buyer ⇄ financing, cars ⇄ organizati
 
 Accept what is there with `arch baseline`. From then on, `arch check` fails a change only for a new boundary it breaks (`module-internal:mail→users`), like for packages.
 
+`metator cards build` writes a card for each module too (`docs/metator/modules/<package>-<module>.card.md`): the modules it depends on and that use it, the ones it imports each other with, its files other modules import, and who imports it past its public part. Agents read the module's card, not only the package's.
+
 ## Try a move before you make it
 
 Every cycle in the report comes with its **cheapest cut**: the edges whose removal leaves no cycle, with the fewest imports to move. The cut is exact for cycles of up to seven packages and comes from an ordering heuristic above that.

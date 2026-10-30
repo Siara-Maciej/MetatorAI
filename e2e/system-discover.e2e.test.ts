@@ -225,7 +225,8 @@ describe("metator system discover in a folder of three repositories (real CLI)",
     expect(d.evidence).toContainEqual(
       expect.objectContaining({ subject: "consumes:web→billing-api", file: "web/package.json" }),
     );
-    // The document billing serves at runtime, and web fetching it: shown, not proposed.
+    // The document billing serves at runtime, and web fetching it: shown, not proposed, since
+    // billing already declares its OpenAPI file (ADR-0076).
     expect(
       d.evidence.filter((e) => e.subject.includes(" /")).map((e) => [e.subject, e.proposed, e.file]),
     ).toEqual([

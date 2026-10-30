@@ -23,22 +23,30 @@ export function registerFindingsCommands(program: Command, { action, container }
     )
     .argument("<dir>", "directory of FindingSet JSON files, e.g. .metator/runs/<id>/findings")
     .option("--fix", "rewrite the line of findings whose quote moved", false)
+    .option("--plan <file>", "review-plan.json: fail when a lens wrote no file for a shard")
     .action(
-      action(async (dir: string, opts: { fix: boolean }) => {
+      action(async (dir: string, opts: { fix: boolean; plan?: string }) => {
         const report = await container()
           .resolve("validateFindings")
-          .execute({ dir: normalizePath(dir), fix: opts.fix });
+          .execute({
+            dir: normalizePath(dir),
+            fix: opts.fix,
+            ...(opts.plan ? { plan: normalizePath(opts.plan) } : {}),
+          });
         if (report.isErr()) return { result: report };
         const { invalid, moved } = report.value.counts;
         const unreadable = report.value.unreadable.length;
-        if (invalid + moved + unreadable > 0) {
+        const missing = report.value.missing.length;
+        if (invalid + moved + unreadable + missing > 0) {
           return {
             result: err(
               new MetatorError(
                 "CHECK_FAILED",
-                `${invalid} invalid, ${moved} moved, ${unreadable} unreadable`,
+                `${invalid} invalid, ${moved} moved, ${unreadable} unreadable, ${missing} missing`,
                 {
-                  hint: "Invalid findings never reach Verify: fix the quote or the missing fields; `--fix` updates moved lines.",
+                  hint: missing
+                    ? `No findings file from: ${report.value.missing.join(", ")}. Each lens writes one per shard, with \`findings: []\` when it found nothing.`
+                    : "Invalid findings never reach Verify: fix the quote or the missing fields; `--fix` updates moved lines.",
                   details: { ...report.value },
                 },
               ),

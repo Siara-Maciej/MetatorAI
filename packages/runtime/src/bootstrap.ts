@@ -458,7 +458,16 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new CheckMemory(memoryMapReader, knowledgeFiles, fileSystem, memoryBudget, validateCitations),
     ),
     buildModuleCards: asFunction(
-      ({ buildImportGraph, fileSystem, paths, testGlobs, findOwners, patternCatalog, systemCatalog }) =>
+      ({
+        buildImportGraph,
+        fileSystem,
+        paths,
+        testGlobs,
+        findOwners,
+        patternCatalog,
+        systemCatalog,
+        architecturePolicyCatalog,
+      }) =>
         new BuildModuleCards(
           buildImportGraph,
           fileSystem,
@@ -467,6 +476,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           findOwners,
           patternCatalog,
           systemCatalog,
+          architecturePolicyCatalog,
         ),
     ),
     patternCatalog: asFunction(({ fileSystem, paths }) => new PatternCatalog(fileSystem, paths)).singleton(),

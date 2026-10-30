@@ -1,0 +1,368 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "SystemMap",
+  "version": 2,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "SystemMap"
+      },
+      "schemaVersion": {
+        "const": 2
+      },
+      "system": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "applications": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "kind": {
+              "default": "service",
+              "type": "string",
+              "enum": ["frontend", "service", "worker", "gateway", "library", "other"]
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["path"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "repo": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "ref": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["repo"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "owners": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "deploy": {
+              "type": "object",
+              "properties": {
+                "unit": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "environments": {
+                  "default": [],
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "consumes": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*(@\\S+)?$"
+              }
+            }
+          },
+          "required": ["id", "source"],
+          "additionalProperties": false
+        }
+      },
+      "contracts": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "kind": {
+              "type": "string",
+              "minLength": 1
+            },
+            "owner": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "spec": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["path"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "served": {
+                      "type": "string",
+                      "pattern": "^\\/"
+                    }
+                  },
+                  "required": ["served"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "compatibility": {
+              "default": "backward",
+              "type": "string",
+              "enum": ["backward", "forward", "full", "none"]
+            }
+          },
+          "required": ["id", "kind", "owner", "spec"],
+          "additionalProperties": false
+        }
+      },
+      "policies": {
+        "default": {
+          "deployOrder": "providers-first",
+          "breaking": "expand-contract"
+        },
+        "type": "object",
+        "properties": {
+          "deployOrder": {
+            "default": "providers-first",
+            "type": "string",
+            "enum": ["providers-first", "none"]
+          },
+          "breaking": {
+            "default": "expand-contract",
+            "type": "string",
+            "enum": ["expand-contract", "versioned", "forbidden"]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "required": ["kind", "schemaVersion", "system", "applications"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "SystemMap"
+      },
+      "schemaVersion": {
+        "const": 2
+      },
+      "system": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "applications": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "kind": {
+              "default": "service",
+              "type": "string",
+              "enum": ["frontend", "service", "worker", "gateway", "library", "other"]
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["path"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "repo": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "ref": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["repo"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "owners": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "deploy": {
+              "type": "object",
+              "properties": {
+                "unit": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "environments": {
+                  "default": [],
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": ["environments"],
+              "additionalProperties": false
+            },
+            "consumes": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*(@\\S+)?$"
+              }
+            }
+          },
+          "required": ["id", "kind", "source", "owners", "consumes"],
+          "additionalProperties": false
+        }
+      },
+      "contracts": {
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "kind": {
+              "type": "string",
+              "minLength": 1
+            },
+            "owner": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "spec": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["path"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "served": {
+                      "type": "string",
+                      "pattern": "^\\/"
+                    }
+                  },
+                  "required": ["served"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "compatibility": {
+              "default": "backward",
+              "type": "string",
+              "enum": ["backward", "forward", "full", "none"]
+            }
+          },
+          "required": ["id", "kind", "owner", "spec", "compatibility"],
+          "additionalProperties": false
+        }
+      },
+      "policies": {
+        "default": {
+          "deployOrder": "providers-first",
+          "breaking": "expand-contract"
+        },
+        "type": "object",
+        "properties": {
+          "deployOrder": {
+            "default": "providers-first",
+            "type": "string",
+            "enum": ["providers-first", "none"]
+          },
+          "breaking": {
+            "default": "expand-contract",
+            "type": "string",
+            "enum": ["expand-contract", "versioned", "forbidden"]
+          }
+        },
+        "required": ["deployOrder", "breaking"],
+        "additionalProperties": false
+      }
+    },
+    "required": ["kind", "schemaVersion", "system", "applications", "contracts", "policies"],
+    "additionalProperties": false
+  }
+}

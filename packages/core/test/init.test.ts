@@ -48,6 +48,40 @@ describe("proposeConfig", () => {
     expect(p.decisions[0]?.evidence).toEqual(["package.json#scripts.lint"]);
   });
 
+  test("TypeScript at the root with no script that type-checks: the compiler is the typecheck step", () => {
+    const p = proposeConfig(
+      {
+        ...discovery({ build: "nest build", test: "jest" }),
+        tools: [{ id: "typescript", evidence: ["tsconfig.json", "package.json#devDependencies.typescript"] }],
+      },
+      { ruleCanon: false },
+    );
+    expect(ids(p.gates.full)).toEqual([
+      'typecheck:{"bin":"tsc","args":["--noEmit","-p","tsconfig.json"]}:none',
+      'test:{"script":"test"}:none',
+    ]);
+    // A typecheck script wins; a tsconfig only in a package proposes nothing at the root.
+    const own = proposeConfig(
+      {
+        ...discovery({ typecheck: "tsc --noEmit" }),
+        tools: [{ id: "typescript", evidence: ["tsconfig.json"] }],
+      },
+      { ruleCanon: false },
+    );
+    expect(ids(own.gates.full)).toEqual(['typecheck:{"script":"typecheck"}:none']);
+    const perPackage = proposeConfig(
+      { ...discovery({}), tools: [{ id: "typescript", evidence: ["packages/ui/tsconfig.json"] }] },
+      { ruleCanon: false },
+    );
+    expect(perPackage.gates.full).toEqual([]);
+    // A monorepo whose root builds through a task runner type-checks per package, not at the root.
+    const runner = proposeConfig(
+      { ...discovery({ build: "turbo build" }), tools: [{ id: "typescript", evidence: ["tsconfig.json"] }] },
+      { ruleCanon: false },
+    );
+    expect(runner.gates.full).toEqual([]);
+  });
+
   test("a whole-project lint script gets a per-file tool in quick, with the tool's evidence", () => {
     const p = proposeConfig(discovery({ lint: "biome check ." }, ["biome"]), { ruleCanon: false });
     expect(p.gates.quick[0]?.run).toEqual({

@@ -81,6 +81,8 @@ Other step fields:
 | `okExitCodes` | `[0]` | a tool that exits 1 when it only reports findings |
 | `timeoutMs` | `600000` | stop a hanging step |
 
+`metator init` proposes the steps from your own scripts. When TypeScript is configured at the root but no script type-checks (a build that only transpiles, such as `nest build`), it proposes `{ bin: tsc, args: [--noEmit, -p, tsconfig.json] }` for `full`, so a type error cannot pass every gate.
+
 ```bash
 metator gate quick --base main           # quick gate on the files changed on the branch
 metator gate quick --files src/a.ts      # or on explicit files

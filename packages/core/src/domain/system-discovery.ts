@@ -189,9 +189,10 @@ export function systemDrift(map: SystemMap, proposal: SystemMap): string[] {
   const drift: string[] = [];
   // A proposed contract is the map's when its id matches, or its owner and specification do.
   const contracts = new Map(map.contracts.map((c) => [c.id, c]));
+  const where = (c: SystemMap["contracts"][number]) =>
+    "path" in c.spec ? cleanPath(c.spec.path) : `served:${c.spec.served}`;
   const known = (c: SystemMap["contracts"][number]) =>
-    contracts.get(c.id) ??
-    map.contracts.find((x) => x.owner === c.owner && cleanPath(x.spec.path) === cleanPath(c.spec.path));
+    contracts.get(c.id) ?? map.contracts.find((x) => x.owner === c.owner && where(x) === where(c));
   const inMap = new Map(proposal.contracts.map((c) => [c.id, known(c)?.id ?? c.id]));
   const apps = new Map(map.applications.map((a) => [a.id, a]));
   for (const a of proposal.applications) {
@@ -207,7 +208,10 @@ export function systemDrift(map: SystemMap, proposal: SystemMap): string[] {
     }
   }
   for (const c of proposal.contracts)
-    if (!known(c)) drift.push(`contract ${c.id} (${c.spec.path} of ${c.owner}) is not in the map`);
+    if (!known(c))
+      drift.push(
+        `contract ${c.id} (${"path" in c.spec ? c.spec.path : `served at ${c.spec.served}`} of ${c.owner}) is not in the map`,
+      );
   return drift;
 }
 

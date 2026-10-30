@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { InMemoryFileSystem } from "@metator/testing";
 import { MergeFindingSets, ValidateFindings } from "../src/application/findings.ts";
 import { type Finding, FindingSetDocument, mergeFindings, policyProblems } from "../src/domain/finding.ts";
+import { ReviewPlanDocument } from "../src/domain/review-plan.ts";
 
 const CODE =
   "export function pay(amount: number) {\n  if (amount < 0) return 0;\n  return amount * rate;\n}\n";
@@ -178,5 +179,28 @@ describe("mergeFindings / MergeFindingSets", () => {
       ["TESTS-001", undefined],
       ["LOGIC-001", "confirmed"],
     ]);
+  });
+
+  test("with a review plan, a lens that wrote no file for a shard is missing", async () => {
+    const plan = JSON.stringify(
+      ReviewPlanDocument.stamp({
+        files: ["src/pay.ts"],
+        lenses: ["logic", "tests"],
+        shards: [{ id: "app", package: "app", files: ["src/pay.ts"], card: null, rules: [] }],
+        tasks: 2,
+      }),
+    );
+    const w = world({ "f/logic-app.json": setFile("logic", [finding()]), "run/review-plan.json": plan });
+    const report = (
+      await w.validate.execute({ dir: "f", fix: false, plan: "run/review-plan.json" })
+    )._unsafeUnwrap();
+    expect(report.missing).toEqual(["f/tests-app.json"]);
+    await w.fs.write("f/tests-app.json", setFile("tests", []));
+    expect(
+      (await w.validate.execute({ dir: "f", fix: false, plan: "run/review-plan.json" }))._unsafeUnwrap()
+        .missing,
+    ).toEqual([]);
+    // Without a plan nothing is expected.
+    expect((await w.validate.execute({ dir: "f", fix: false }))._unsafeUnwrap().missing).toEqual([]);
   });
 });

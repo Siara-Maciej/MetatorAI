@@ -18,7 +18,7 @@ model: opus
 6. Read files with Read and find them with Glob and Grep (where your host has neither, with a read-only `grep`, `rg`, `find` or `ls` in the shell, which runs without asking); run no other shell commands besides your `bun run metator` ones (`bun run metator symbols find <name>` for where a symbol is defined). Validating the findings is the coordinator's step.
 
 # Output
-- The FindingSet for your lens and shard (`bun run metator findings schema`); an empty list is a valid result.
+- The FindingSet for your lens and shard (`bun run metator findings schema`) at `findings/<lens>-<shard>.json`, always: with nothing found, `findings: []`. A missing file fails the stage's gate.
 - At most 10 summary lines with the number of findings per severity.
 
 # Stop conditions

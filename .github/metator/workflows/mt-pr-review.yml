@@ -2,7 +2,7 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-pr-review
-revision: 7
+revision: 8
 description: Shard, find with lenses, verify, judge, publish after approval
 entry: { prompt: mt-review, ci: true }
 input:
@@ -34,8 +34,9 @@ stages:
       - mt-review-tests
       - mt-review-security
     produces: [findings]
-    # --fix updates the line of a quote that moved; an invented quote is still dropped.
-    gate: { script: "metator findings validate {runDir}/findings --fix" }
+    # --fix updates the line of a quote that moved; an invented quote is still dropped. --plan
+    # fails the stage when a lens wrote no file for a shard (it found nothing: an empty list).
+    gate: { script: "metator findings validate {runDir}/findings --fix --plan {runDir}/review-plan.json" }
   - id: verify
     description: Merge, then refute each blocking finding with fresh eyes
     # The verifier works on merged.json: merge first.

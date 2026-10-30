@@ -1201,6 +1201,7 @@ metator findings validate [options] <dir>
 |---|---|---|
 | `<dir>` | directory of FindingSet JSON files, e.g. .metator/runs/&lt;id&gt;/findings | |
 | `--fix` | rewrite the line of findings whose quote moved |  |
+| `--plan <file>` | review-plan.json: fail when a lens wrote no file for a shard |  |
 
 ### `metator findings check-quote`
 

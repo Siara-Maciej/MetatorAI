@@ -134,6 +134,42 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a folder's linked repositories are read where they really are",
   },
   {
+    file: "packages/core/src/domain/proposal.ts",
+    from: 'if (!found && capability === "typecheck" && configuredAtRoot("typescript") && buildsItself) {',
+    to: "if (false) {",
+    why: "TypeScript without a typecheck script gets the compiler as its typecheck step",
+  },
+  {
+    file: "packages/core/src/application/findings.ts",
+    from: "if (!(await this.fs.exists(file))) missing.push(file);",
+    to: "",
+    why: "a lens that wrote no file for a shard is missing",
+  },
+  {
+    file: "packages/core/src/application/contract-diff.ts",
+    from: "if (spec === undefined) {",
+    to: "if (spec === undefined && false) {",
+    why: "a contract served at runtime is not compared",
+  },
+  {
+    file: "packages/core/src/application/system-discovery.ts",
+    from: "servedConsumers.set(f.from, (servedConsumers.get(f.from) ?? new Set()).add(id));",
+    to: "",
+    why: "an application that fetches a served document consumes its contract",
+  },
+  {
+    file: "packages/core/src/domain/proposal.ts",
+    from: "rootBuild !== undefined && !commandsOf(rootBuild.command).some((c) => runnerTasks(c) !== undefined);",
+    to: "true;",
+    why: "a root that builds through a task runner is not type-checked at the root",
+  },
+  {
+    file: "packages/core/src/application/cards.ts",
+    from: "const modulesPolicy = policy.value?.policy.modules;",
+    to: "const modulesPolicy = undefined;",
+    why: "each module of the policy gets a card",
+  },
+  {
     file: "packages/cli/src/run.ts",
     from: "return final.result.isOk() ? 0 : exitCodeFor(final.result.error);",
     to: "return 0;",

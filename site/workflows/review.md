@@ -24,7 +24,9 @@ metator run drive --host claude
 meta    metator review metadata --base main      → pr.json: branch, commits, authors, files, uncommitted work
 plan    metator review plan --base main          → shards per package, with its card and rules
 find    lens × shard in parallel (max 6)         → findings/<lens>-<shard>.json
-check   metator findings validate <dir> --fix    → invented quotes and unproven blockers dropped
+check   metator findings validate <dir> --fix --plan review-plan.json
+                                                 → invented quotes and unproven blockers dropped;
+                                                   a lens that wrote no file for a shard fails it
 merge   metator findings merge <dir>             → duplicates across lenses merged
 verify  mt-verifier per blocking/major finding    → confirmed | refuted | unproven
 judge   metator findings verdict <dir>, mt-judge  → verdict.json

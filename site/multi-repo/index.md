@@ -71,6 +71,8 @@ policies:
 | `consumes: orders-api@^1` | the contract and the version range a consumer expects | a breaking change outside the range needs a migration plan |
 | `deployOrder: providers-first` | deploy order from the contract graph | the plan ships in waves, providers first |
 
+A provider that serves its document at runtime instead of committing it (a NestJS app with `SwaggerModule.setup('docs')`) declares `spec: { served: /docs-json }`. The contract still has an owner and consumers, so `system impact` and `system analyze` name the applications a change in the provider reaches. `contract diff` lists it under `notCompared`: there is no file at the base to compare until the document is exported to one.
+
 ## Let MetatorAI propose it
 
 You do not have to write the map from scratch:
@@ -103,7 +105,7 @@ metator system discover --check    # in CI: fail when the map lacks what the cod
 | Kind | `service` (an API specification or a server framework), `frontend` (React, Vue, Svelte, …), `worker` or `gateway` (by name), `other` (a command-line tool, anything else) |
 | Contracts | OpenAPI 3 and Swagger 2 specifications inside an application (contract kinds are plugins) |
 | Consumers | another application's files that refer to the specification (`../billing/openapi.yaml`, medium confidence), or call the host its `servers` name (low confidence: shown, not proposed). A library's files (an API client package such as `packages/api`) speak for the applications that depend on it |
-| Served documents | an OpenAPI document a framework serves at runtime instead of a file (NestJS `SwaggerModule.setup('docs')` serves `/docs-json`), and the files that fetch it (`openapi-typescript https://api.example.com/docs-json`). Shown, not proposed: export the document to a file to declare it as a contract that `contract diff` can compare |
+| Served documents | an OpenAPI document a framework serves at runtime instead of a file (NestJS `SwaggerModule.setup('docs')` serves `/docs-json`), and the files that fetch it (`openapi-typescript https://api.example.com/docs-json`). Proposed as a contract `spec: { served: /docs-json }` with its fetchers as consumers; export the document to a file when `contract diff` should compare it |
 | Owners | `CODEOWNERS` |
 
 Discovery never reads a real env file (`.env`, `.env.local`, `.env.secret`), committed or not: only templates such as `.env.example`. It never overwrites an approved map. Review the proposal like any other change.

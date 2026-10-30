@@ -1,0 +1,13 @@
+{
+  "kind": "SystemMap",
+  "schemaVersion": 1,
+  "system": "shop",
+  "applications": [
+    { "id": "billing", "kind": "service", "source": { "path": "apps/billing" }, "consumes": [] },
+    { "id": "web", "kind": "frontend", "source": { "repo": "../web" }, "consumes": ["billing-api@^1"] }
+  ],
+  "contracts": [
+    { "id": "billing-api", "kind": "openapi", "owner": "billing", "spec": { "path": "openapi.yaml" } }
+  ],
+  "policies": { "deployOrder": "providers-first", "breaking": "expand-contract" }
+}

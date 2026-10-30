@@ -8,6 +8,7 @@ import {
 } from "../domain/finding.ts";
 import { locateQuote } from "../domain/memory.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { ReviewPlanDocument } from "../domain/review-plan.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
 
@@ -26,6 +27,8 @@ export interface FindingsReport {
   readonly counts: Readonly<Record<FindingVerdict["status"], number>>;
   /** Files that are not valid FindingSet documents. */
   readonly unreadable: readonly { readonly source: string; readonly message: string }[];
+  /** With a review plan: the lens × shard files no lens wrote (`<lens>-<shard>.json`). */
+  readonly missing: readonly string[];
 }
 
 const MERGED = "merged.json";
@@ -41,7 +44,23 @@ export class ValidateFindings {
   async execute(input: {
     readonly dir: string;
     readonly fix: boolean;
+    /** review-plan.json: every lens must have written its file for every shard. */
+    readonly plan?: string;
   }): Promise<Result<FindingsReport, MetatorError>> {
+    const missing: string[] = [];
+    if (input.plan) {
+      const text = await this.fs.read(input.plan);
+      if (text.isErr()) return err(text.error);
+      const plan = parseJsonDocument(text.value, input.plan).andThen((raw) =>
+        ReviewPlanDocument.parse(raw, input.plan as string),
+      );
+      if (plan.isErr()) return err(plan.error);
+      for (const shard of plan.value.shards)
+        for (const lens of plan.value.lenses) {
+          const file = `${input.dir.replace(/\/$/, "")}/${lens}-${shard.id}.json`;
+          if (!(await this.fs.exists(file))) missing.push(file);
+        }
+    }
     const sets = await loadSets(this.fs, input.dir);
     const verdicts: FindingVerdict[] = [];
     for (const { source, set } of sets.sets) {
@@ -65,7 +84,7 @@ export class ValidateFindings {
     }
     const counts = { valid: 0, moved: 0, fixed: 0, invalid: 0 };
     for (const v of verdicts) counts[v.status]++;
-    return ok({ files: sets.sets.length, findings: verdicts, counts, unreadable: sets.unreadable });
+    return ok({ files: sets.sets.length, findings: verdicts, counts, unreadable: sets.unreadable, missing });
   }
 
   private async check(f: Finding, source: string, fix: boolean): Promise<FindingVerdict> {

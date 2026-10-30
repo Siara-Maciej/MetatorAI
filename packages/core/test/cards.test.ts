@@ -220,3 +220,63 @@ describe("splitCard", () => {
     expect(splitCard(`# no header ${GENERATED_START}${GENERATED_END}`, "c.md").isErr()).toBe(true);
   });
 });
+
+describe("module cards (ADR-0074)", () => {
+  const M = "src/module";
+  const report: ImportGraphReport = {
+    ...REPORT,
+    files: [
+      `${M}/users/users.service.ts`,
+      `${M}/users/contracts/q.ts`,
+      `${M}/auth/auth.service.ts`,
+      `${M}/mail/mail.ts`,
+    ],
+    edges: [],
+    packages: [{ name: "api", dir: "." }],
+    externalUses: [],
+    imports: [
+      {
+        from: `${M}/auth/auth.service.ts`,
+        to: `${M}/users/users.service.ts`,
+        specifier: "x",
+        typeOnly: false,
+      },
+      {
+        from: `${M}/users/users.service.ts`,
+        to: `${M}/auth/auth.service.ts`,
+        specifier: "x",
+        typeOnly: false,
+      },
+      { from: `${M}/mail/mail.ts`, to: `${M}/users/contracts/q.ts`, specifier: "x", typeOnly: false },
+    ],
+  };
+  const policy = { modules: { globs: [`${M}/*`], public: ["contracts/**"] } };
+
+  test("each module of the policy gets a card with the modules it depends on, its users and its surface", async () => {
+    const fs = new InMemoryFileSystem({});
+    const cards = new BuildModuleCards(
+      { execute: async () => ok(report) },
+      fs,
+      DEFAULT_PATHS,
+      DEFAULT_TEST_GLOBS,
+      new FindOwners(fs),
+      new PatternCatalog(fs, DEFAULT_PATHS),
+      undefined,
+      { load: async () => ok({ policy: policy as never, source: "metator/architecture.yml" }) },
+    );
+    const written = (await cards.execute({ check: false }))._unsafeUnwrap().written;
+    expect(written).toContain("docs/metator/modules/api-users.card.md");
+    expect(written).toContain("docs/metator/modules/api-auth.card.md");
+    const users = (await fs.read("docs/metator/modules/api-users.card.md"))._unsafeUnwrap();
+    expect(users).toContain(`- Directory: \`${M}/users\` (a module of \`api\`)`);
+    expect(users).toContain("- Depends on modules: `auth`");
+    expect(users).toContain("- Used by modules: `auth`, `mail`");
+    expect(users).toContain("- Imports each other with: `auth`");
+    expect(users).toContain(
+      `- Imported by other modules: \`${M}/users/contracts/q.ts\`, \`${M}/users/users.service.ts\``,
+    );
+    expect(users).toContain("- Imported past its public part (contracts/**) by: `auth`");
+    // Built again, nothing changes; check mode agrees.
+    expect((await cards.execute({ check: true }))._unsafeUnwrap().stale).toEqual([]);
+  });
+});

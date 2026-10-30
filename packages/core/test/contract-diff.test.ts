@@ -187,6 +187,20 @@ describe("DiffContracts", () => {
     expect(same.differ.seen).toEqual([]);
   });
 
+  test("a contract served at runtime (SystemMap v2) is listed as not compared, never as unchanged", async () => {
+    const served = MAP.replace("schemaVersion: 1", "schemaVersion: 2").replace(
+      "{ id: events, kind: asyncapi, owner: billing, spec: { path: events.yaml } }",
+      "{ id: events, kind: openapi, owner: billing, spec: { served: /docs-json } }",
+    );
+    const { diff } = setup(
+      { "docs/metator/system.yml": served, "apps/billing/openapi.yaml": "v1" },
+      { "apps/billing/openapi.yaml": "v1" },
+    );
+    const r = (await diff.execute({ base: "main" }))._unsafeUnwrap();
+    expect(r.contracts.map((c) => c.id)).toEqual(["billing-api"]);
+    expect(r.notCompared).toEqual([{ id: "events", served: "/docs-json" }]);
+  });
+
   test("a breaking change an approved system plan covers passes, with the plan's reason", async () => {
     const fs = new InMemoryFileSystem({
       "docs/metator/system.yml": MAP,

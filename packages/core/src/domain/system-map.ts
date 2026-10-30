@@ -40,7 +40,10 @@ const ApplicationSchema = z.strictObject({
   consumes: z.array(ConsumesSchema).default([]),
 });
 
-const ContractSchema = z.strictObject({
+const compatibility = z.enum(["backward", "forward", "full", "none"]).default("backward");
+
+/** v1: the specification is a file. Never change it (MT-CODE-003). */
+const ContractSchemaV1 = z.strictObject({
   id,
   /** A contract kind a plugin provides (MVP: `openapi`). */
   kind: z.string().min(1),
@@ -48,28 +51,49 @@ const ContractSchema = z.strictObject({
   owner: id,
   /** The specification file, relative to the owner's source. */
   spec: z.strictObject({ path: z.string().min(1) }),
-  compatibility: z.enum(["backward", "forward", "full", "none"]).default("backward"),
+  compatibility,
 });
 
-export const SystemMapSchema = z.strictObject({
+/**
+ * v2 (ADR-0076): the specification is a file, or the provider serves it at runtime
+ * (`served: /docs-json`, a NestJS app): such a contract has consumers and an owner, but no file
+ * that `contract diff` could compare.
+ */
+const ContractSchema = ContractSchemaV1.extend({
+  spec: z.union([
+    z.strictObject({ path: z.string().min(1) }),
+    z.strictObject({ served: z.string().regex(/^\//, "a path the provider serves, e.g. /docs-json") }),
+  ]),
+});
+
+const policies = z
+  .strictObject({
+    /** providers-first: an application deploys after the providers of what it consumes. */
+    deployOrder: z.enum(["providers-first", "none"]).default("providers-first"),
+    /** How a breaking contract change is introduced. */
+    breaking: z.enum(["expand-contract", "versioned", "forbidden"]).default("expand-contract"),
+  })
+  .default({ deployOrder: "providers-first", breaking: "expand-contract" });
+
+const SystemMapV1Schema = z.strictObject({
   system: id,
   applications: z.array(ApplicationSchema).min(1, "a system has at least one application"),
+  contracts: z.array(ContractSchemaV1).default([]),
+  policies,
+});
+
+export const SystemMapSchema = SystemMapV1Schema.extend({
   contracts: z.array(ContractSchema).default([]),
-  policies: z
-    .strictObject({
-      /** providers-first: an application deploys after the providers of what it consumes. */
-      deployOrder: z.enum(["providers-first", "none"]).default("providers-first"),
-      /** How a breaking contract change is introduced. */
-      breaking: z.enum(["expand-contract", "versioned", "forbidden"]).default("expand-contract"),
-    })
-    .default({ deployOrder: "providers-first", breaking: "expand-contract" }),
 });
 export type SystemMap = z.output<typeof SystemMapSchema>;
 export type Application = SystemMap["applications"][number];
 export type Contract = SystemMap["contracts"][number];
 
 export const SystemMapDocument = defineDocument("SystemMap", {
+  history: [{ schema: SystemMapV1Schema }],
   latest: SystemMapSchema,
+  // A v1 contract's file is a v2 contract's file: nothing to migrate.
+  upgrade: (previous) => previous,
   errorCode: "INVALID_CONFIG",
   hint: "Fix the listed issues; `metator system schema` prints the JSON Schema.",
 });
@@ -94,9 +118,13 @@ export function inDir(dir: string, path: string): string {
 /** The directory of an application inside its own repository (`.` for the whole repository). */
 export const appDir = (app: Application): string => cleanPath(app.source.path ?? ".");
 
-/** A contract's specification, relative to its provider's repository. */
-export const specPath = (owner: Application, contract: Contract): string =>
-  inDir(appDir(owner), contract.spec.path);
+/** A contract's specification file, relative to its provider's repository; none when it is served. */
+export const specPath = (owner: Application, contract: Contract): string | undefined =>
+  "path" in contract.spec ? inDir(appDir(owner), contract.spec.path) : undefined;
+
+/** Where a contract's specification is: its file, or the path its provider serves it at. */
+export const specWhere = (owner: Application, contract: Contract): string =>
+  specPath(owner, contract) ?? `served at ${(contract.spec as { served: string }).served}`;
 
 /** The applications that consume a contract, with the version range each expects. */
 export function consumersOf(

@@ -290,14 +290,32 @@ describe("DiscoverSystem", () => {
         ],
       })
     )._unsafeUnwrap();
-    const shown = r.evidence.filter((e) => !e.proposed).map((e) => [e.subject, e.file]);
+    const shown = r.evidence
+      .filter((e) => e.subject.startsWith("contract:") || e.subject.startsWith("consumes:"))
+      .map((e) => [e.subject, e.file]);
     expect(shown).toEqual([
-      ["served:api /docs-json", "api/src/main.ts:2"],
-      ["consumes:web→api /docs-json", "web/packages/api/package.json"],
-      ["served:api /docs/buyer-json", "api/src/main.ts:3"],
+      ["contract:api-api", "api/src/main.ts:2"],
+      ["consumes:web→api-api", "web/packages/api/package.json"],
+      ["contract:api-api-2", "api/src/main.ts:3"],
     ]);
-    // Not proposed: the map needs a specification file, and a served document is none.
-    expect(r.proposal.contracts).toEqual([]);
+    // A served document is a contract with no file (ADR-0076); its consumers consume it.
+    expect(r.proposal.contracts).toEqual([
+      {
+        id: "api-api",
+        kind: "openapi",
+        owner: "api",
+        spec: { served: "/docs-json" },
+        compatibility: "backward",
+      },
+      {
+        id: "api-api-2",
+        kind: "openapi",
+        owner: "api",
+        spec: { served: "/docs/buyer-json" },
+        compatibility: "backward",
+      },
+    ]);
+    expect(r.proposal.applications.find((a) => a.id === "web")?.consumes).toEqual(["api-api"]);
   });
 
   test("a folder: repositories are applications by name, sources by remote, clashing ids prefixed", async () => {

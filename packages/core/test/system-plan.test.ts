@@ -371,7 +371,7 @@ function world() {
     },
   };
   const diff = {
-    execute: async () => ok({ map: "m", base: "HEAD", contracts: [], failing: [] }),
+    execute: async () => ok({ map: "m", base: "HEAD", contracts: [], failing: [], notCompared: [] }),
   };
   const analyze = new AnalyzeSystem(impact, diff, store);
   const create = new CreateSystemPlan(analyze, location, store);

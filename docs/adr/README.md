@@ -79,3 +79,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0073](0073-openapi-differ.md) | Differ OpenAPI na `api-smart-diff`: parametry, OpenAPI 3.1 i Swagger 2 przez konwersję | Proposed |
 | [0074](0074-modules-inside-a-package.md) | Moduły wewnątrz pakietu: modularny monolit analizowany jak monorepo | Proposed |
 | [0075](0075-shell-search-without-a-person.md) | Wyszukiwanie przez powłokę bez pytania człowieka; sekrety blokowane w procesie | Proposed |
+| [0076](0076-served-contracts.md) | Kontrakt serwowany w czasie działania (SystemMap v2) | Proposed |
