@@ -77,7 +77,13 @@ export const SECRET_GLOBS: readonly string[] = [
   "**/.netrc",
 ];
 
+/** Why a driven agent may not move the run itself. */
+export const DRIVEN_RUN_CONTROL = (command: string) =>
+  `${command} is the drive's: \`metator run drive\` moves this run when your work is done. End with STATUS: done, or STATUS: blocked: <question>.`;
+
 export interface PreToolContext {
+  /** The session is one `metator run drive` started: the drive moves the run, never the agent. */
+  readonly driven?: boolean;
   readonly root: string;
   /** The active run (status active), if any. */
   readonly run?: { readonly id: string; readonly approvals: Readonly<Record<string, Approval>> };
@@ -166,6 +172,38 @@ export function secretPath(hook: HookInput, root: string): string | undefined {
   });
 }
 
+/** `metator run` subcommands that move or end a run: the drive's to call, never a driven agent's. */
+const RUN_CONTROL = new Set([
+  "advance",
+  "approve",
+  "answer",
+  "stop",
+  "close",
+  "resume",
+  "drive",
+  "continue",
+  "init",
+]);
+
+/**
+ * The run-control command a tool call runs (`metator run advance pass`), or undefined. In a run
+ * `metator run drive` carries, the drive moves the run when a stage's work is done; an agent that
+ * advances it itself makes the drive's own event land on the next stage, which is then skipped.
+ */
+export function runControlCommand(hook: HookInput): string | undefined {
+  if (!SHELL_TOOL.test(hook.tool)) return undefined;
+  for (const argv of commandsOf(text(hook.input.command) ?? "")) {
+    const at = argv.findIndex(
+      (a) => a === "metator" || a.endsWith("/metator") || a.endsWith("cli/src/main.ts"),
+    );
+    if (at < 0) continue;
+    const words = argv.slice(at + 1).filter((w) => !w.startsWith("-"));
+    const i = words.indexOf("run");
+    if (i >= 0 && RUN_CONTROL.has(words[i + 1] ?? "")) return `metator run ${words[i + 1]}`;
+  }
+  return undefined;
+}
+
 export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecision {
   const paths = touchedPaths(hook);
   const shell = SHELL_TOOL.test(hook.tool) ? commandsOf(text(hook.input.command) ?? "") : [];
@@ -173,6 +211,8 @@ export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecisio
   // Secrets are never read or written, with or without a run (MT-SEC).
   const secret = secretPath(hook, ctx.root);
   if (secret) return deny(`${secret} may hold secrets; agents do not read or write it.`);
+  const control = ctx.driven ? runControlCommand(hook) : undefined;
+  if (control) return deny(DRIVEN_RUN_CONTROL(control));
   for (const argv of shell) {
     const what = destructive(argv);
     if (what) return deny(`${what} is blocked: it can lose work. Ask the user to run it.`);

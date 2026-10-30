@@ -46,7 +46,9 @@ export function registerGuardCommands(program: Command, { action, container, std
           answer(
             await container()
               .resolve(token)
-              .execute(payload(await stdin())),
+              // A session `metator run drive` started (the host sets METATOR_DRIVEN): the drive
+              // moves the run, so the guards neither let the agent do it nor ask it to.
+              .execute(payload(await stdin()), { driven: Boolean(process.env.METATOR_DRIVEN) }),
             name,
           ),
         ),

@@ -322,6 +322,19 @@ export class DriveRun {
         await say({ type: "drive", stage: stage.id, text: `stopped: ${outcome.value.reason}` });
         break;
       }
+      // Someone moved the run while the stage worked (an agent, a person in another terminal):
+      // this outcome was for a stage the run has left, so sending it would skip the next one.
+      const now = await this.d.repo.load(runId);
+      if (now.isErr()) return err(now.error);
+      if (now.value.state.stage !== stage.id || now.value.state.status !== "active") {
+        await say({
+          type: "drive",
+          stage: stage.id,
+          text: `the run moved on while ${stage.id} worked (now ${now.value.state.stage}, ${now.value.state.status}); its outcome is not sent`,
+        });
+        retry = undefined;
+        continue;
+      }
       const moved =
         outcome.value.type === "APPROVE"
           ? await this.d.approve.execute({
@@ -564,6 +577,7 @@ export class DriveRun {
           cwd: ctx.cwd,
           projectRoot: this.d.root,
           runDir: ctx.runDir,
+          driven: true,
           ...(resume ? { resume } : {}),
         },
         ask,

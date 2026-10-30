@@ -182,6 +182,42 @@ export const MUTANTS: readonly Mutant[] = [
     why: "pnpm runs a workspaces script in every package",
   },
   {
+    file: "packages/core/src/domain/system-impact.ts",
+    from: "if (matchesAny(file, METATOR_FILES)) continue;",
+    to: "",
+    why: "files MetatorAI writes itself change no application",
+  },
+  {
+    file: "packages/core/src/application/guard.ts",
+    from: 'return ok(decision.decision === "deny" ? permissionResponse(decision) : null);',
+    to: "return ok(permissionResponse(decision));",
+    why: "the pre-tool guard answers only denials, never an allow that skips the host's prompts",
+  },
+  {
+    file: "packages/core/src/application/guard.ts",
+    from: "if (session.driven) return ok(null); // the drive advances the run when the agent stops",
+    to: "",
+    why: "a driven agent is not asked to advance the run when it stops",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: 'if (now.value.state.stage !== stage.id || now.value.state.status !== "active") {',
+    to: "if (false) {",
+    why: "the drive does not send an outcome for a stage the run has left",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: "const control = task.driven ? runControlCommand(hook) : undefined;",
+    to: "const control = undefined;",
+    why: "a driven agent may not move the run itself",
+  },
+  {
+    file: "packages/core/src/application/review.ts",
+    from: "if (matchesAny(f, METATOR_FILES)) continue;",
+    to: "",
+    why: "MetatorAI's own files are no code to review",
+  },
+  {
     file: "packages/core/src/application/cards.ts",
     from: "const modulesPolicy = policy.value?.policy.modules;",
     to: "const modulesPolicy = undefined;",
@@ -3184,8 +3220,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
-    from: 'script.replaceAll("{runDir}", this.d.repo.runDir(ctx.runId))',
-    to: 'script.replaceAll("{runDir}", ctx.runDir)',
+    from: 'filled.value.replaceAll("{runDir}", this.d.repo.runDir(ctx.runId))',
+    to: 'filled.value.replaceAll("{runDir}", ctx.runDir)',
     why: "a stage script finds the run directory from a run's worktree too",
   },
   {

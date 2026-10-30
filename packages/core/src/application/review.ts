@@ -5,6 +5,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import { authorsOf, type ReviewMetadata, ReviewMetadataDocument } from "../domain/review-metadata.ts";
 import { DEFAULT_LENSES, type ReviewPlan, ReviewPlanDocument, shardFiles } from "../domain/review-plan.ts";
 import { rulesFor } from "../domain/rule.ts";
+import { METATOR_FILES } from "../domain/system-impact.ts";
 import {
   judge,
   type ReviewComment,
@@ -48,6 +49,8 @@ export class PlanReview {
     const reviewable: string[] = [];
     for (const f of files) {
       if (this.ignores.length > 0 && matchesAny(f, this.ignores)) continue;
+      // MetatorAI's own files (host files, canon, cards) are no code to review.
+      if (matchesAny(f, METATOR_FILES)) continue;
       if (await this.fs.exists(f)) reviewable.push(f); // deleted files have no code to review
     }
     const packages = await this.workspace.packages();

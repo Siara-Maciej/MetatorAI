@@ -194,7 +194,7 @@ function world(
     runId = view.runId;
     return view.runId;
   };
-  return { fs, repo, journal, host, drive, start, asked, scripts };
+  return { fs, repo, journal, host, drive, start, asked, scripts, advance };
 }
 
 const okScripts = () =>
@@ -291,6 +291,34 @@ describe("DriveRun", () => {
       "drive",
       5,
     ]);
+  });
+
+  test("an agent that moves the run itself does not make the drive skip the next stage", async () => {
+    // The planner advances the run on its own (plan → approval); the drive's PASS for plan would
+    // otherwise approve the approval stage. It is not sent, and the approval still asks a person.
+    const selfAdvancing: FakeAgentTurn = {
+      effect: async (task) => {
+        await writesPlan.effect?.(task);
+        await w0?.advance.execute({ runId: "20261027-demo-add-discount", event: { type: "PASS" } });
+      },
+    };
+    const asked: string[] = [];
+    const w = world(
+      { "mt-planner": [selfAdvancing] },
+      (q) => {
+        asked.push(q.stage);
+        return { choices: ["Approve"] };
+      },
+      okScripts(),
+    );
+    w0 = w;
+    const runId = await w.start();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 3 });
+    const record = (await w.repo.load(runId))._unsafeUnwrap();
+    // The approval gate was put to a person, not passed by the planner's leftover PASS.
+    expect([asked[0], record.approvals.approval?.by]).toEqual(["approval", "maciej"]);
+    const notes = (await w.journal.activity(runId))._unsafeUnwrap().filter((a) => a.type === "drive");
+    expect(notes.some((a) => a.text.includes("the run moved on while plan worked"))).toBe(true);
   });
 
   test("a script reads the run's inputs: the value it was started with, else the default", async () => {

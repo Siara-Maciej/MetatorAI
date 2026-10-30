@@ -137,6 +137,28 @@ describe("ClaudeAgentHost", () => {
     expect(asked).toEqual(["mt-planner wants to use Bash: grep -rn offers /clones/other/src"]);
   });
 
+  test("a session the drive started may not move the run; its hooks are told it is driven", async () => {
+    type Hook = (input: unknown) => Promise<{ hookSpecificOutput?: { permissionDecision: string } }>;
+    const hookOf = (options: Record<string, unknown>) =>
+      (options.hooks as { PreToolUse: { hooks: Hook[] }[] }).PreToolUse[0]?.hooks[0] as Hook;
+    const advance = {
+      hook_event_name: "PreToolUse",
+      tool_name: "Bash",
+      tool_input: { command: "metator run advance pass" },
+    };
+    const driven = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(driven.query), { ...task, driven: true });
+    const options = driven.calls[0]?.options as Record<string, unknown>;
+    expect((await hookOf(options)(advance)).hookSpecificOutput?.permissionDecision).toBe("deny");
+    expect((options.env as Record<string, string>).METATOR_DRIVEN).toBe("1");
+    // Outside a drive (`metator ask`, an interactive session) nothing is driven.
+    const free = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(free.query), task);
+    const freeOptions = free.calls[0]?.options as Record<string, unknown>;
+    expect((await hookOf(freeOptions)(advance)).hookSpecificOutput).toBeUndefined();
+    expect(freeOptions.env).toBeUndefined();
+  });
+
   test("a tool call on a file that may hold secrets is denied in-process, wherever the session works", async () => {
     const { query, calls } = fakeQuery(async () => [init, success]);
     await collect(new ClaudeAgentHost(query), { ...task, cwd: "/folder" });

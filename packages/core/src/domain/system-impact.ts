@@ -1,3 +1,4 @@
+import { matchesAny } from "./glob.ts";
 import {
   type Application,
   appDir,
@@ -82,6 +83,25 @@ export function selfApplications(
 }
 
 /** The impact of changed files of this repository's applications, and of contracts named outright. */
+/**
+ * Files MetatorAI itself writes in a repository (its state, canon, cards, map and the host files
+ * it generates): a change to them changes no application.
+ */
+export const METATOR_FILES: readonly string[] = [
+  ".metator/**",
+  "metator/**",
+  "metator.config.yml",
+  "metator.config.json",
+  "metator.repos.yml",
+  "docs/metator/**",
+  ".claude/agents/mt-*",
+  ".claude/skills/mt-*/**",
+  ".github/agents/mt-*",
+  ".github/skills/mt-*/**",
+  ".github/instructions/mt-*",
+  ".github/metator/**",
+];
+
 export function impactOf(
   map: SystemMap,
   input: {
@@ -113,6 +133,7 @@ export function impactOf(
       .filter((a) => appDir(a) === "." || file === appDir(a) || file.startsWith(`${appDir(a)}/`))
       .sort((x, y) => depth(y) - depth(x))[0];
   for (const file of input.files) {
+    if (matchesAny(file, METATOR_FILES)) continue;
     const app = appOf(file);
     if (app) {
       changed.add(app.id);

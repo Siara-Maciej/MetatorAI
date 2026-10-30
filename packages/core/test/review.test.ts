@@ -131,8 +131,20 @@ describe("PlanReview", () => {
       "docs/metator/modules/acme-a.card.md": "card",
       "packages/a/src/x.ts": "",
       "packages/a/dist/x.js": "",
+      ".claude/agents/mt-guide.md": "",
+      "metator/agents/mt-guide.md": "",
     });
-    const vcs = new FakeVcs([], ["packages/a/src/x.ts", "packages/a/src/deleted.ts", "packages/a/dist/x.js"]);
+    // MetatorAI's own files (host files, canon) are no code to review, as ignored ones are not.
+    const vcs = new FakeVcs(
+      [],
+      [
+        "packages/a/src/x.ts",
+        "packages/a/src/deleted.ts",
+        "packages/a/dist/x.js",
+        ".claude/agents/mt-guide.md",
+        "metator/agents/mt-guide.md",
+      ],
+    );
     const workspace = { packages: async () => ok([{ name: "@acme/a", dir: "packages/a" }]) };
     const plan = (
       await new PlanReview(vcs, workspace, new RuleCatalog(fs, DEFAULT_PATHS), fs, DEFAULT_PATHS, [

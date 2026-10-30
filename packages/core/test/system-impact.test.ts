@@ -119,6 +119,23 @@ describe("system impact domain", () => {
     expect(i.unmapped).toEqual(["docs/x.md"]);
   });
 
+  test("files MetatorAI writes itself (host files, canon, cards, the map) change no application", () => {
+    const root = {
+      ...MAP,
+      applications: MAP.applications.map((a) => (a.id === "billing" ? { ...a, source: { path: "." } } : a)),
+    };
+    const i = impactOf(root, {
+      self: root.applications.filter((a) => a.id === "billing"),
+      files: [
+        ".claude/agents/mt-guide.md",
+        "metator/agents/mt-scout.md",
+        "docs/metator/modules/x.card.md",
+        "metator.config.yml",
+      ],
+    });
+    expect([i.applications, i.contracts, i.unmapped]).toEqual([[], [], []]);
+  });
+
   test("a changed library reaches the applications whose files import it, and their contracts", () => {
     const i = impactOf(MAP, {
       self: [at("billing"), at("pricing")],

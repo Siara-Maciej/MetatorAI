@@ -6,8 +6,10 @@ import {
   type AgentHost,
   type AgentQuestion,
   type AgentTask,
+  DRIVEN_RUN_CONTROL,
   permissionResponse,
   readOnlyCommand,
+  runControlCommand,
   secretPath,
 } from "@metator/core";
 
@@ -171,17 +173,21 @@ export class ClaudeAgentHost implements AgentHost {
     // where the session works (a folder of repositories has no settings of its own).
     const secrets = async (input: unknown) => {
       const call = input as { tool_name?: unknown; tool_input?: unknown };
-      const file = secretPath(
-        {
-          tool: typeof call.tool_name === "string" ? call.tool_name : "",
-          input: (call.tool_input ?? {}) as Record<string, unknown>,
-          stopActive: false,
-        },
-        task.cwd,
-      );
-      return file
-        ? permissionResponse({ decision: "deny", reason: `${file} may hold secrets; agents do not read it.` })
-        : {};
+      const hook = {
+        tool: typeof call.tool_name === "string" ? call.tool_name : "",
+        input: (call.tool_input ?? {}) as Record<string, unknown>,
+        stopActive: false,
+      };
+      const file = secretPath(hook, task.cwd);
+      if (file)
+        return permissionResponse({
+          decision: "deny",
+          reason: `${file} may hold secrets; agents do not read it.`,
+        });
+      // The drive moves a run it carries: an agent that advances it makes the drive's own event
+      // land on the next stage, which is then skipped.
+      const control = task.driven ? runControlCommand(hook) : undefined;
+      return control ? permissionResponse({ decision: "deny", reason: DRIVEN_RUN_CONTROL(control) }) : {};
     };
     const options: Record<string, unknown> = {
       cwd: task.cwd,
@@ -194,6 +200,8 @@ export class ClaudeAgentHost implements AgentHost {
       additionalDirectories: [task.runDir, ...(task.dirs ?? [])],
       canUseTool,
       ...(task.cwd !== task.projectRoot ? { projectConfigRoot: task.projectRoot } : {}),
+      // The project's hooks (`metator guard *`) see that the drive carries this session.
+      ...(task.driven ? { env: { ...process.env, METATOR_DRIVEN: "1" } } : {}),
       ...(task.resume ? { resume: task.resume } : {}),
     };
     for await (const message of query({ prompt: task.prompt, options })) yield* toEvents(message);

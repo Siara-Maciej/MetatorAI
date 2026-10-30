@@ -31,6 +31,12 @@ import type { GetRunStatus, RunView } from "./runs.ts";
 export type HookResponse = Record<string, unknown> | null;
 
 /** The active run (status active) and its run directory, or undefined in free mode. */
+/** About the host session a hook runs in. */
+export interface GuardSession {
+  /** Started by `metator run drive`: the drive, not the agent, moves the run. */
+  readonly driven?: boolean;
+}
+
 async function activeRun(
   status: Pick<GetRunStatus, "execute">,
 ): Promise<Result<RunView | undefined, MetatorError>> {
@@ -53,7 +59,7 @@ export class GuardPreTool {
     private readonly role: string | undefined,
   ) {}
 
-  async execute(raw: unknown): Promise<Result<HookResponse, MetatorError>> {
+  async execute(raw: unknown, session: GuardSession = {}): Promise<Result<HookResponse, MetatorError>> {
     const hook = readHookInput(raw);
     const run = await activeRun(this.status);
     if (run.isErr()) return err(run.error);
@@ -73,11 +79,14 @@ export class GuardPreTool {
     );
     const decision = preToolPolicy(hook, {
       root: this.root,
+      ...(session.driven ? { driven: true } : {}),
       ...(run.value ? { run: { id: run.value.runId, approvals: run.value.approvals } } : {}),
       ...(editScope ? { editScope } : {}),
       coordinator: this.role === "coordinator" || (hook.agent !== undefined && coordinators.has(hook.agent)),
     });
-    return ok(permissionResponse(decision));
+    // Only a denial is an answer: "allow" from a PreToolUse hook would skip the host's own
+    // permission prompts, so a call the guard does not object to goes to them as usual.
+    return ok(decision.decision === "deny" ? permissionResponse(decision) : null);
   }
 }
 
@@ -89,7 +98,7 @@ export class GuardPostEdit {
     private readonly root: string,
   ) {}
 
-  async execute(raw: unknown): Promise<Result<HookResponse, MetatorError>> {
+  async execute(raw: unknown, _session: GuardSession = {}): Promise<Result<HookResponse, MetatorError>> {
     const hook = readHookInput(raw);
     if (!isEditTool(hook.tool)) return ok(null);
     const files: string[] = [];
@@ -119,8 +128,9 @@ export class GuardPostEdit {
 export class GuardStop {
   constructor(private readonly status: Pick<GetRunStatus, "execute">) {}
 
-  async execute(raw: unknown): Promise<Result<HookResponse, MetatorError>> {
+  async execute(raw: unknown, session: GuardSession = {}): Promise<Result<HookResponse, MetatorError>> {
     if (readHookInput(raw).stopActive) return ok(null); // never loop: the host already continued once
+    if (session.driven) return ok(null); // the drive advances the run when the agent stops
     const run = await activeRun(this.status);
     if (run.isErr()) return err(run.error);
     // Waiting for a human is a legitimate stop.
@@ -160,7 +170,7 @@ export class GuardSubagentOutput {
     private readonly fs: FileSystem,
   ) {}
 
-  async execute(raw: unknown): Promise<Result<HookResponse, MetatorError>> {
+  async execute(raw: unknown, _session: GuardSession = {}): Promise<Result<HookResponse, MetatorError>> {
     if (readHookInput(raw).stopActive) return ok(null);
     const run = await activeRun(this.status);
     if (run.isErr()) return err(run.error);

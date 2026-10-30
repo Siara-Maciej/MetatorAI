@@ -122,7 +122,7 @@ metator run drive --run <id> --host claude --detach
 3. **Agents** run in order; `parallel` workers run together. Each gets one message: the stage, the task, where to write its artifacts, the skills it may use and, after a failed gate, why it failed. It must finish with `STATUS: done` or `STATUS: blocked: <question>`.
 4. **Artifacts** listed in `produces` must exist in the run directory, or the stage fails. Workers of a parallel stage each write only their own. A coordinator without a Write tool writes one with `metator run write <artifact>` (the text on stdin); only an artifact the current stage produces is accepted.
 5. **Gates:** `gate.script` must exit 0; the critic of `gate.llm` must end with `VERDICT: PASS`. A missing verdict is a FAIL, never a silent pass.
-6. **Transitions** go through `run advance` and `run approve`. Loops, limits and escalation are the workflow's, exactly as in interactive mode.
+6. **Transitions** are the drive's: it sends `run advance` or `run approve` when the stage is done. An agent the drive started may not move the run itself (the host denies `metator run advance` and the like), and if the run moved anyway while a stage worked, the drive does not send that stage's outcome to the next stage. Transitions go through `run advance` and `run approve`. Loops, limits and escalation are the workflow's, exactly as in interactive mode.
 
 ## Try it without a model
 

@@ -21,6 +21,8 @@ export interface AgentTask {
   readonly resume?: string;
   /** More absolute directories the agent reads (the real places of a folder's linked repositories). */
   readonly dirs?: readonly string[];
+  /** Started by `metator run drive`: the drive moves the run, so the agent may not. */
+  readonly driven?: boolean;
 }
 
 export interface AgentQuestion {
