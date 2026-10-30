@@ -156,4 +156,6 @@ It runs, in one process and with one report:
 - `generate --check`;
 - `docs links`, `docs drift`, `system lint`.
 
+`adr lint` reads the decision log where `paths.adr` points (`metator init` sets it when the ADRs are in `adr/` or `docs/decisions`). It accepts the common formats: `0012-short-title.md` or `012.md`; a `# ADR-0012: Title` or `## ADR 012: Title` heading; `- Status: Accepted` or `**Status:** Accepted`, with `Draft` read as `Proposed`. Without a rule canon the log keeps its own shape: a missing Context, Decision or Consequences section is a warning, and an Accepted ADR need not name canon rules.
+
 Each failing check is named with its error.

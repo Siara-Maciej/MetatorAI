@@ -418,6 +418,23 @@ describe("analyzeArchitecture: declarations", () => {
     ]);
   });
 
+  test("a package whose @types are declared is declared: its types are what the import uses", () => {
+    const withTypes = (devDependencies: Record<string, string>) =>
+      ids(
+        input({
+          externals: [
+            ext("packages/core/src/guard.ts", "express"),
+            ext("packages/core/src/x.ts", "@scope/lib"),
+          ],
+          manifests: {
+            packages: [m("packages/core", "@x/core", { main: "x", devDependencies })],
+          },
+        }),
+      ).filter((id) => id.startsWith("undeclared"));
+    expect(withTypes({ "@types/express": "5", "@types/scope__lib": "1" })).toEqual([]);
+    expect(withTypes({})).toEqual(["undeclared:@x/core→@scope/lib", "undeclared:@x/core→express"]);
+  });
+
   test("builtins, invalid names, root files and the package itself are not external dependencies", () => {
     expect(
       ids(
@@ -427,6 +444,7 @@ describe("analyzeArchitecture: declarations", () => {
             ext("packages/core/src/money.ts", "node:fs"),
             ext("packages/core/src/money.ts", "bun:test"),
             ext("packages/core/src/money.ts", "bun"),
+            ext("packages/core/load/test.js", "k6"),
             ext("packages/core/src/money.ts", "~/alias"),
             ext("packages/core/src/money.ts", "#internal"),
             ext("packages/core/src/money.ts", "@x/core"),

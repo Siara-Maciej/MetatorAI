@@ -102,6 +102,24 @@ describe("InitProject", () => {
     expect(config.gates.full.map((s) => s.id)).toEqual(["lint", "test"]);
   });
 
+  test("ADRs found outside docs/adr are written as paths.adr; the default place is not written", async () => {
+    const written = async (adr: string | null) => {
+      const fs = new InMemoryFileSystem({});
+      const found = {
+        execute: async () => ok({ ...discovery({ lint: "eslint ." }), docs: { adr, codeowners: null } }),
+      };
+      await new InitProject(found as never, fs, DEFAULT_PATHS).execute({ dryRun: false });
+      const text = (await fs.read("metator.config.yml"))._unsafeUnwrap();
+      return [
+        MetatorConfigDocument.parse(parse(text), "c")._unsafeUnwrap().paths.adr,
+        text.includes("paths:"),
+      ];
+    };
+    expect(await written("adr")).toEqual(["adr", true]);
+    expect(await written("docs/adr")).toEqual([undefined, false]);
+    expect(await written(null)).toEqual([undefined, false]);
+  });
+
   test("chosen hosts are written; without a choice the file keeps the default (every host)", async () => {
     const targets = async (hosts?: ("claude" | "copilot")[]) => {
       const fs = new InMemoryFileSystem({});

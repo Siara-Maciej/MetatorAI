@@ -32,17 +32,23 @@ export const ADR_SECTIONS = {
 } as const;
 
 const RULE_REF = /\b[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-\d{3}\b/g;
-const STATUS = /^\s*[-*]\s*Status:\s*(.+?)\s*$/im;
-const DATE = /^\s*[-*]\s*(?:Date|Data):\s*(\d{4}-\d{2}-\d{2})\b/im;
-const TITLE = /^#\s+ADR-(\d+):\s*(.+?)\s*$/m;
+// `- Status: X` (list item), `Status: X` or `**Status:** X` (bold label), as ADR tools write them.
+const label = (names: string) => `^\\s*(?:[-*]\\s+)?(?:\\*\\*)?(?:${names})(?::\\*\\*|\\*\\*:|:)\\s*`;
+const STATUS = new RegExp(`${label("Status")}(.+?)\\s*$`, "im");
+const DATE = new RegExp(`${label("Date|Data")}(\\d{4}-\\d{2}-\\d{2})\\b`, "im");
+/** `# ADR-0012: Title`, also `## ADR 012: Title` under a generic first heading. */
+const TITLE = /^#{1,2}\s+ADR[- ]?(\d+):\s*(.+?)\s*$/m;
 
 export function parseAdr(markdown: string): ParsedAdr {
   const text = maskMarkdownCode(markdown);
   const title = TITLE.exec(text);
   const statusText = STATUS.exec(text)?.[1];
-  const status = (["Proposed", "Accepted", "Deprecated", "Superseded"] as const).find((s) =>
-    statusText?.toLowerCase().startsWith(s.toLowerCase()),
-  );
+  // "Draft" is how many logs say Proposed.
+  const status = statusText?.toLowerCase().startsWith("draft")
+    ? ("Proposed" as const)
+    : (["Proposed", "Accepted", "Deprecated", "Superseded"] as const).find((s) =>
+        statusText?.toLowerCase().startsWith(s.toLowerCase()),
+      );
   const statusRefs = statusText
     ? [...statusText.matchAll(/ADR-(\d+)|\b(\d{4})\b/g)].map((m) => Number(m[1] ?? m[2]))
     : [];
@@ -52,7 +58,7 @@ export function parseAdr(markdown: string): ParsedAdr {
   let inImplications = false;
   for (const line of text.split("\n")) {
     const heading = /^##\s+(.+?)\s*#*\s*$/.exec(line)?.[1];
-    if (heading && !line.startsWith("###")) {
+    if (heading && !line.startsWith("###") && !TITLE.test(line)) {
       sections.push(heading);
       inImplications = (ADR_SECTIONS.implications as readonly string[]).some((s) => sameHeading(s, heading));
       continue;

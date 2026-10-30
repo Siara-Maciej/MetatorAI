@@ -21,7 +21,11 @@ import { type SimpleGit, simpleGit } from "simple-git";
 export class GitVcs implements Vcs, RevisionReader, ChangeHistory {
   private client: SimpleGit | undefined;
 
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    /** Path prefixes that are never a change (MetatorAI's own state, before it is gitignored). */
+    private readonly own: readonly string[] = [],
+  ) {}
 
   async changedFiles(base: string): Promise<Result<readonly string[], MetatorError>> {
     const git = await this.repo();
@@ -29,12 +33,14 @@ export class GitVcs implements Vcs, RevisionReader, ChangeHistory {
     return this.attempt(async () => {
       const status = await git.value.status();
       // No commits yet: everything staged or untracked is new.
-      if (!(await this.hasCommits(git.value))) return ok(sortedUnique(status.files.map((f) => f.path)));
+      const mine = (f: string) => !this.own.some((p) => f.startsWith(p));
+      if (!(await this.hasCommits(git.value)))
+        return ok(sortedUnique(status.files.map((f) => f.path)).filter(mine));
       const ref = await this.mergeBase(git.value, base);
       if (ref.isErr()) return err(ref.error);
       // --no-renames: a rename counts under both paths, the old path's importers are affected too.
       const diff = (await git.value.diffSummary(["--no-renames", ref.value])).files.map((f) => f.file);
-      return ok(sortedUnique([...diff, ...status.not_added]));
+      return ok(sortedUnique([...diff, ...status.not_added]).filter(mine));
     });
   }
 

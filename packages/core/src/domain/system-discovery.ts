@@ -210,3 +210,39 @@ export function systemDrift(map: SystemMap, proposal: SystemMap): string[] {
     if (!known(c)) drift.push(`contract ${c.id} (${c.spec.path} of ${c.owner}) is not in the map`);
   return drift;
 }
+
+/**
+ * An API document a framework serves at runtime instead of a file (NestJS
+ * `SwaggerModule.setup('docs', …)` serves `/docs-json`): there is no specification to declare
+ * as a contract until it is exported to a file, but its consumers still show the dependency.
+ */
+export interface ServedSpec {
+  readonly framework: string;
+  /** Where the JSON document is served, e.g. `/docs-json`. */
+  readonly url: string;
+  readonly line: number;
+}
+
+const SERVED: readonly { framework: string; pattern: RegExp; url: (path: string) => string }[] = [
+  {
+    framework: "NestJS",
+    pattern: /SwaggerModule\.setup\(\s*['"`]\/?([\w/.-]+?)\/?['"`]/g,
+    url: (path) => `/${path}-json`,
+  },
+];
+
+export function servedSpecs(text: string): ServedSpec[] {
+  const out: ServedSpec[] = [];
+  for (const s of SERVED)
+    for (const m of text.matchAll(s.pattern))
+      out.push({
+        framework: s.framework,
+        url: s.url(m[1] as string),
+        line: text.slice(0, m.index).split("\n").length,
+      });
+  return out;
+}
+
+/** Whether a file fetches a served document: the URL ends with its path (any host or prefix). */
+export const fetchesServed = (text: string, url: string) =>
+  new RegExp(`${url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w/-])`).test(text);

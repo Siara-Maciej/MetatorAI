@@ -169,19 +169,36 @@ describe("metator system discover in a folder of three repositories (real CLI)",
       git("add", "-A");
       git("commit", "-q", "-m", "init");
     };
+    // The application is the repository's root (its own Dockerfile), with a library package beside it.
     await repo("billing", {
-      "package.json": json({ name: "billing", private: true, scripts: { start: "bun src/server.ts" } }),
-      "src/server.ts": "export const s = 1;\n",
+      "package.json": json({
+        name: "billing",
+        private: true,
+        workspaces: ["packages/*"],
+        scripts: { start: "bun src/server.ts" },
+        dependencies: { "billing-templates": "workspace:*" },
+      }),
+      Dockerfile: "FROM oven/bun\n",
+      "src/server.ts":
+        'import { t } from "billing-templates";\nexport const s = t;\nSwaggerModule.setup("docs", app, document);\n',
+      "packages/templates/package.json": json({ name: "billing-templates", private: true, main: "index.ts" }),
+      "packages/templates/index.ts": "export const t = 1;\n",
       "openapi.yaml": SPEC,
     });
     await repo("web", {
       "package.json": json({
         name: "web",
         private: true,
-        scripts: { dev: "vite", "gen:api": "openapi-typescript ../billing/openapi.yaml" },
+        scripts: {
+          dev: "vite",
+          "gen:api": "openapi-typescript ../billing/openapi.yaml",
+          "gen:live": "openapi-typescript https://billing.shop.internal/docs-json",
+        },
         dependencies: { react: "19" },
       }),
       "src/main.ts": "export const m = 1;\n",
+      // A real env file (secrets) is never read, even committed: no evidence comes from it.
+      ".env.local": "BILLING_DOCS=https://billing.shop.internal/docs-json\n",
     });
     await repo("notify", {
       "package.json": json({ name: "notify-worker", private: true, scripts: { start: "bun src/index.ts" } }),
@@ -208,6 +225,13 @@ describe("metator system discover in a folder of three repositories (real CLI)",
     expect(d.evidence).toContainEqual(
       expect.objectContaining({ subject: "consumes:web→billing-api", file: "web/package.json" }),
     );
+    // The document billing serves at runtime, and web fetching it: shown, not proposed.
+    expect(
+      d.evidence.filter((e) => e.subject.includes(" /")).map((e) => [e.subject, e.proposed, e.file]),
+    ).toEqual([
+      ["served:billing /docs-json", false, "billing/src/server.ts:3"],
+      ["consumes:web→billing /docs-json", false, "web/package.json"],
+    ]);
     // A folder has no map of its own: --write and --check say so instead of doing nothing.
     for (const flag of ["--write", "--check"]) {
       const r2 = await metator(["system", "discover", flag], folder);

@@ -99,13 +99,14 @@ metator system discover --check    # in CI: fail when the map lacks what the cod
 | Finding | From |
 |---|---|
 | Topology | a folder of repositories (`repos`), a repository with several applications (`monorepo`), or one application (`single`) |
-| Applications | workspace packages nothing depends on that run on their own, and packages with a `Dockerfile` (a deploy unit); in a folder, each repository |
+| Applications | workspace packages nothing depends on that run on their own, and packages with a `Dockerfile` (a deploy unit); the repository root too when it has its own `Dockerfile` (an application with library packages beside it); in a folder, each repository |
 | Kind | `service` (an API specification or a server framework), `frontend` (React, Vue, Svelte, …), `worker` or `gateway` (by name), `other` (a command-line tool, anything else) |
 | Contracts | OpenAPI 3 and Swagger 2 specifications inside an application (contract kinds are plugins) |
-| Consumers | another application's files that refer to the specification (`../billing/openapi.yaml`, medium confidence), or call the host its `servers` name (low confidence: shown, not proposed) |
+| Consumers | another application's files that refer to the specification (`../billing/openapi.yaml`, medium confidence), or call the host its `servers` name (low confidence: shown, not proposed). A library's files (an API client package such as `packages/api`) speak for the applications that depend on it |
+| Served documents | an OpenAPI document a framework serves at runtime instead of a file (NestJS `SwaggerModule.setup('docs')` serves `/docs-json`), and the files that fetch it (`openapi-typescript https://api.example.com/docs-json`). Shown, not proposed: export the document to a file to declare it as a contract that `contract diff` can compare |
 | Owners | `CODEOWNERS` |
 
-Discovery never overwrites an approved map. Review the proposal like any other change.
+Discovery never reads a real env file (`.env`, `.env.local`, `.env.secret`), committed or not: only templates such as `.env.example`. It never overwrites an approved map. Review the proposal like any other change.
 
 ## Check and read it
 

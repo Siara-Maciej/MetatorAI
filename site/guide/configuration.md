@@ -101,7 +101,7 @@ All defaults, overridable under `paths:`:
 | `memoryMap` | `docs/metator/memory-map.yml` | the memory map |
 | `cards` | `docs/metator/modules` | module cards |
 | `patterns` | `docs/metator/patterns` | the pattern catalog |
-| `adr` | `docs/adr` | architecture decisions |
+| `adr` | `docs/adr` | architecture decisions; `metator init` writes it when it finds them elsewhere (`adr/`, `docs/decisions`) |
 | `gates` | `.metator/gates` | gate reports |
 | `agents` | `metator/agents` | canonical agents |
 | `evals` | `docs/metator/evals/golden` | golden review cases |

@@ -1,17 +1,22 @@
 import { analyzeArchitecture } from "../domain/architecture.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
+import { SECRET_GLOBS } from "../domain/hook.ts";
 import { packageOf } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   type AppCandidate,
   contractIds,
+  type DiscoveryEvidence,
   type FoundContract,
   type FoundReference,
+  fetchesServed,
   kindFrom,
   needlesOf,
   proposeSystem,
+  type ServedSpec,
   type SystemDiscovery,
+  servedSpecs,
   slugId,
   systemDrift,
   type Topology,
@@ -56,8 +61,38 @@ export interface DiscoverySource {
     detectors: readonly ContractDetector[],
   ): Promise<Result<readonly (DetectedContract & { readonly kind: string })[], MetatorError>>;
   owners(dirs: readonly string[]): Promise<Result<readonly (readonly string[])[], MetatorError>>;
+  /** Every workspace package with the workspace packages it depends on, to place a library's files. */
+  packages(): Promise<
+    Result<
+      readonly { readonly name: string; readonly dir: string; readonly deps: readonly string[] }[],
+      MetatorError
+    >
+  >;
   /** Text files worth searching for references, with their content. */
   texts(): AsyncIterable<{ readonly path: string; readonly text: string }>;
+}
+
+/** Library package → the applications that depend on it, directly or through other libraries. */
+function librariesUsedBy(
+  packages: readonly { readonly name: string; readonly dir: string; readonly deps: readonly string[] }[],
+  apps: readonly { readonly id: string; readonly dir: string }[],
+): Map<string, string[]> {
+  const byName = new Map(packages.map((p) => [p.name, p]));
+  const out = new Map<string, string[]>();
+  for (const app of apps) {
+    const own = packages.find((p) => p.dir === app.dir);
+    const stack = [...(own?.deps ?? [])];
+    const seen = new Set<string>();
+    while (stack.length > 0) {
+      const name = stack.pop() as string;
+      const lib = byName.get(name);
+      if (!lib || seen.has(name) || lib.dir === app.dir) continue;
+      seen.add(name);
+      out.set(name, [...(out.get(name) ?? []), app.id]);
+      stack.push(...lib.deps);
+    }
+  }
+  return out;
 }
 
 /** A repository on this machine, read through its own container's ports. */
@@ -111,8 +146,25 @@ export class RepositoryDiscoverySource implements DiscoverySource {
     if (facts.isErr()) return err(facts.error);
     const report = analyzeArchitecture(facts.value);
     const kinds = new Map(report.packages.map((p) => [p.name, p.kind]));
-    return ok(
-      packages.flatMap((m) => {
+    // The root with a Dockerfile of its own is an application too (an app with a few library
+    // packages beside it), not just the workspace that holds them.
+    const root = manifests.value.root;
+    const rootApp =
+      root && docker(".")
+        ? [
+            {
+              name: root.name && root.name !== "(root)" ? root.name : this.name,
+              dir: ".",
+              deps: deps(root),
+              signals: ["Dockerfile at the root: the repository itself is deployed"],
+              docker: true,
+              bin: root.bin ?? false,
+            },
+          ]
+        : [];
+    return ok([
+      ...rootApp,
+      ...packages.flatMap((m) => {
         const signals = [
           ...(kinds.get(m.name) === "app"
             ? [`${m.name} is an application (no package depends on it, it runs on its own)`]
@@ -123,6 +175,18 @@ export class RepositoryDiscoverySource implements DiscoverySource {
           ? [{ name: m.name, dir: m.dir, deps: deps(m), signals, docker: docker(m.dir), bin: m.bin }]
           : [];
       }),
+    ]);
+  }
+
+  async packages() {
+    const manifests = await this.manifests.manifests();
+    if (manifests.isErr()) return err(manifests.error);
+    return ok(
+      manifests.value.packages.map((m) => ({
+        name: m.name,
+        dir: m.dir,
+        deps: [...Object.keys(m.dependencies), ...Object.keys(m.devDependencies)],
+      })),
     );
   }
 
@@ -151,7 +215,8 @@ export class RepositoryDiscoverySource implements DiscoverySource {
   async *texts() {
     const files = await this.files();
     if (files.isErr()) return;
-    for (const path of files.value.filter((f) => matchesAny(f, SEARCHED))) {
+    // Never a secret (a real `.env`, keys), tracked or not: the same line the guard draws for agents.
+    for (const path of files.value.filter((f) => matchesAny(f, SEARCHED) && !matchesAny(f, SECRET_GLOBS))) {
       const text = await this.fs.read(path);
       if (text.isOk() && text.value.length <= MAX_TEXT) yield { path, text: text.value };
     }
@@ -236,36 +301,50 @@ export class DiscoverSystem {
     // Consumers: another application's files that point at a contract.
     const references: FoundReference[] = [];
     const seen = new Set<string>();
+    // Documents served at runtime, and the files that may fetch one (kept small: only those
+    // that mention a `-json` URL), matched once every application's files have been read.
+    const served: { app: string; file: string; spec: ServedSpec }[] = [];
+    const fetching: { from: string; file: string; text: string }[] = [];
     for (const [i, source] of input.sources.entries()) {
       const mine = apps.filter((a) => a.sourceIndex === i);
       const refs = mine.map((a) => ({ name: a.id, dir: a.dir }));
+      const packages = await source.packages();
+      if (packages.isErr()) return err(packages.error);
+      const usedBy = librariesUsedBy(packages.value, mine);
+      const libs = packages.value.filter((p) => p.dir !== ".").map((p) => ({ name: p.name, dir: p.dir }));
       for await (const { path, text } of source.texts()) {
-        const from = packageOf(path, refs)?.name;
-        if (!from) continue;
-        for (const c of contracts) {
-          if (c.app === from) continue;
-          const provider = apps.find((a) => a.id === c.app);
-          const dir =
-            provider?.dir === "." && folder
-              ? (input.sources[provider.sourceIndex]?.name ?? ".")
-              : (provider?.dir ?? ".");
-          for (const n of needlesOf(c, dir)) {
-            const key = `${from}\u0000${ids.get(c)}\u0000${n.reason}`;
-            if (seen.has(key) || !text.includes(n.text)) continue;
-            seen.add(key);
-            references.push({
-              from,
-              contract: ids.get(c) as string,
-              file: folder ? `${source.name}/${path}` : path,
-              reason: n.reason,
-              confidence: n.confidence,
-            });
+        const app = packageOf(path, refs)?.name;
+        // A library's file speaks for the applications that depend on it (an API client package).
+        const froms = app ? [app] : (usedBy.get(packageOf(path, libs)?.name ?? "") ?? []);
+        const file = folder ? `${source.name}/${path}` : path;
+        for (const from of froms) {
+          for (const spec of servedSpecs(text)) served.push({ app: from, file, spec });
+          if (text.includes("-json")) fetching.push({ from, file, text });
+          for (const c of contracts) {
+            if (c.app === from) continue;
+            const provider = apps.find((a) => a.id === c.app);
+            const dir =
+              provider?.dir === "." && folder
+                ? (input.sources[provider.sourceIndex]?.name ?? ".")
+                : (provider?.dir ?? ".");
+            for (const n of needlesOf(c, dir)) {
+              const key = `${from}\u0000${ids.get(c)}\u0000${n.reason}`;
+              if (seen.has(key) || !text.includes(n.text)) continue;
+              seen.add(key);
+              references.push({
+                from,
+                contract: ids.get(c) as string,
+                file: folder ? `${source.name}/${path}` : path,
+                reason: n.reason,
+                confidence: n.confidence,
+              });
+            }
           }
         }
       }
     }
     const topology: Topology = folder ? "repos" : apps.length > 1 ? "monorepo" : "single";
-    const discovery = proposeSystem({
+    const proposed = proposeSystem({
       system: slugId(input.system),
       topology,
       apps,
@@ -273,6 +352,26 @@ export class DiscoverSystem {
       references,
       ids,
     });
+    const runtime: DiscoveryEvidence[] = [];
+    for (const { app, file, spec } of served) {
+      runtime.push({
+        subject: `served:${app} ${spec.url}`,
+        reason: `${spec.framework} serves an OpenAPI document at ${spec.url}, not a file: export it to a file (for example openapi.json, regenerated by a script) to declare it as a contract that \`contract diff\` can compare`,
+        file: `${file}:${spec.line}`,
+        confidence: "high",
+        proposed: false,
+      });
+      for (const f of fetching)
+        if (f.from !== app && fetchesServed(f.text, spec.url))
+          runtime.push({
+            subject: `consumes:${f.from}→${app} ${spec.url}`,
+            reason: `fetches ${spec.url}, the document ${app} serves`,
+            file: f.file,
+            confidence: "medium",
+            proposed: false,
+          });
+    }
+    const discovery = { ...proposed, evidence: [...proposed.evidence, ...runtime] };
 
     let drift: string[] = [];
     let written: string | undefined;

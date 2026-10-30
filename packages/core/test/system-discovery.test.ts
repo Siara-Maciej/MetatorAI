@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { InMemoryFileSystem } from "@metator/testing";
-import { DiscoverSystem, type DiscoverySource } from "../src/application/system-discovery.ts";
+import {
+  DiscoverSystem,
+  type DiscoverySource,
+  RepositoryDiscoverySource,
+} from "../src/application/system-discovery.ts";
+import { manifestOf } from "../src/domain/architecture.ts";
+import { EMPTY_POLICY } from "../src/domain/architecture-policy.ts";
 import { ok } from "../src/domain/result.ts";
 import {
   contractIds,
@@ -163,6 +169,7 @@ function source(
     specs: unknown[];
     texts: { path: string; text: string }[];
     remote: string;
+    packages: { name: string; dir: string; deps: string[] }[];
   }> = {},
 ): DiscoverySource {
   return {
@@ -176,6 +183,7 @@ function source(
       ),
     specifications: async () => ok((over.specs ?? []) as never),
     owners: async (dirs) => ok(dirs.map(() => [])),
+    packages: async () => ok(over.packages ?? []),
     texts: async function* () {
       for (const t of over.texts ?? []) yield t;
     },
@@ -238,6 +246,60 @@ describe("DiscoverSystem", () => {
     ]);
   });
 
+  test("a document served at runtime is shown with its consumers, also those whose API client is a library", async () => {
+    const r = (
+      await new DiscoverSystem(detectors).execute({
+        system: "shop",
+        sources: [
+          source("api", {
+            texts: [
+              {
+                path: "src/main.ts",
+                text: "x\nSwaggerModule.setup('docs', app, document);\nSwaggerModule.setup(\"docs/buyer\", app, d);",
+              },
+            ],
+          }),
+          source("web", {
+            apps: [
+              {
+                name: "@w/web",
+                dir: "apps/web",
+                deps: ["@w/api"],
+                signals: ["s"],
+                docker: false,
+                bin: false,
+              },
+            ],
+            packages: [
+              { name: "@w/web", dir: "apps/web", deps: ["@w/api"] },
+              { name: "@w/api", dir: "packages/api", deps: [] },
+              { name: "@w/unused", dir: "packages/unused", deps: [] },
+            ],
+            texts: [
+              {
+                path: "packages/api/package.json",
+                text: '"gen": "openapi-typescript https://api.shop.io/docs-json -o x.ts"',
+              },
+              {
+                path: "packages/unused/package.json",
+                text: '"gen": "openapi-typescript http://localhost:3000/docs-json"',
+              },
+              { path: "apps/web/x.ts", text: "fetch('/docs-json2')" },
+            ],
+          }),
+        ],
+      })
+    )._unsafeUnwrap();
+    const shown = r.evidence.filter((e) => !e.proposed).map((e) => [e.subject, e.file]);
+    expect(shown).toEqual([
+      ["served:api /docs-json", "api/src/main.ts:2"],
+      ["consumes:web→api /docs-json", "web/packages/api/package.json"],
+      ["served:api /docs/buyer-json", "api/src/main.ts:3"],
+    ]);
+    // Not proposed: the map needs a specification file, and a served document is none.
+    expect(r.proposal.contracts).toEqual([]);
+  });
+
   test("a folder: repositories are applications by name, sources by remote, clashing ids prefixed", async () => {
     const r = (
       await new DiscoverSystem(detectors).execute({
@@ -284,5 +346,43 @@ describe("DiscoverSystem", () => {
       write: true,
     });
     expect(again._unsafeUnwrapErr().code).toBe("USAGE");
+  });
+});
+
+describe("RepositoryDiscoverySource", () => {
+  const repo = (files: string[]) => {
+    const root = manifestOf(".", { name: "api", dependencies: { "api-templates": "workspace:*" } });
+    const lib = manifestOf("packages/templates", { name: "api-templates", main: "index.js" });
+    const manifests = { manifests: async () => ok({ root, packages: [root, lib] }) };
+    const facts = {
+      gather: async () =>
+        ok({
+          files: [],
+          imports: [],
+          externals: [],
+          unresolved: [],
+          manifests: { root, packages: [root, lib] },
+          policy: EMPTY_POLICY,
+          policySource: null,
+          today: "2026-10-30",
+        }),
+    };
+    return new RepositoryDiscoverySource(
+      "api",
+      { listFiles: async () => ok(files), remoteUrl: async () => ok("x") },
+      new InMemoryFileSystem({}),
+      manifests as never,
+      facts as never,
+      { execute: async () => ok({ owners: [] }) } as never,
+    );
+  };
+
+  test("an application at the root with its own Dockerfile, beside its library packages", async () => {
+    const apps = (
+      await repo(["Dockerfile", "src/main.ts", "packages/templates/index.js"]).applications()
+    )._unsafeUnwrap();
+    expect(apps.map((a) => [a.name, a.dir, a.docker])).toEqual([["api", ".", true]]);
+    // Without a Dockerfile the root is only the workspace that holds the packages.
+    expect((await repo(["src/main.ts"]).applications())._unsafeUnwrap().map((a) => a.dir)).not.toContain(".");
   });
 });

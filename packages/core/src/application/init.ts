@@ -56,11 +56,14 @@ export class InitProject {
         ...(st.files === "append" ? { files: st.files } : {}),
         ...(st.match ? { match: st.match } : {}),
       }));
+    const adr = discovery.value.docs.adr;
     const header = MetatorConfigDocument.stamp(DEFAULT_CONFIG);
     const body = {
       kind: header.kind,
       schemaVersion: header.schemaVersion,
       gates: { quick: minimal(proposal.gates.quick), full: minimal(proposal.gates.full) },
+      // ADRs found where MetatorAI would not look for them: `adr lint` reads them there.
+      ...(adr && adr !== this.paths.adr ? { paths: { adr } } : {}),
       ...(input.hosts ? { hosts: { targets: [...input.hosts] } } : {}),
     };
     const text = renderYamlDocument(

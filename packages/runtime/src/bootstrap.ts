@@ -386,7 +386,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           metatorCommand: config.config.hosts.metatorCommand,
         }),
     ),
-    vcs: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    // `.metator/` is MetatorAI's own state: never a change, even before setup gitignores it.
+    vcs: asFunction(({ root }) => new GitVcs(root, [".metator/"])).singleton(),
     revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
     changeHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
     sandbox: asFunction(() => new TempGitSandbox()).singleton(),

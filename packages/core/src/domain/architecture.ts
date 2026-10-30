@@ -328,7 +328,11 @@ export interface ArchitectureInput {
 }
 
 const NPM_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
-const isBuiltin = (name: string) => name.startsWith("node:") || name.startsWith("bun:") || name === "bun";
+/** Modules the runtime provides, not a package: Node and Bun builtins, k6's modules in load tests. */
+const isBuiltin = (name: string) =>
+  name.startsWith("node:") || name.startsWith("bun:") || name === "bun" || name === "k6";
+/** `express` → `@types/express`, `@scope/pkg` → `@types/scope__pkg`. */
+const typesOf = (name: string) => `@types/${name.startsWith("@") ? name.slice(1).replace("/", "__") : name}`;
 
 interface EdgeAcc {
   imports: number;
@@ -546,6 +550,9 @@ export function analyzeArchitecture(input: ArchitectureInput): ArchitectureRepor
     const [p, name] = key.split("\u0000") as [string, string];
     const field = declaredIn(byPackage.get(p), name);
     const evidence = x.files.map((file) => ({ file, specifier: name }));
+    // `import { Request } from "express"` with @types/express declared: the types are what is
+    // used (TypeScript drops the import), as in a NestJS app on top of @nestjs/platform-express.
+    if (field === undefined && declaredIn(byPackage.get(p), typesOf(name)) !== undefined) continue;
     if (field === undefined) {
       if (declaredIn(input.manifests.root, name) !== undefined)
         add(

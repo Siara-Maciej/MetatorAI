@@ -145,6 +145,39 @@ describe("ApiSnapshots", () => {
     expect((await none.current("@acme/money"))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
   });
 
+  test("a package that ships its own declarations (types): they are the API, without compiling", async () => {
+    const fs = new InMemoryFileSystem({
+      "packages/money/package.json": JSON.stringify({
+        name: "@acme/money",
+        main: "dist/index.js",
+        types: "types/index.d.ts",
+      }),
+      "packages/money/types/index.d.ts": 'export * from "./money";\n',
+      "packages/money/types/money.d.ts": "export declare function add(a: number, b: number): number;\n",
+      "packages/money/types/unused.d.ts": "export declare const x: 1;\n",
+    });
+    const notCalled: DeclarationEmitter = {
+      emit: async () => err(new MetatorError("BIN_NOT_FOUND", "tsc is not installed")),
+    };
+    const snap = (
+      await new ApiSnapshots(notCalled, workspace, fs, DEFAULT_PATHS).current("@acme/money")
+    )._unsafeUnwrap();
+    expect([snap.entry, snap.files.map((f) => f.path)]).toEqual([
+      "packages/money/types/index.d.ts",
+      ["packages/money/types/index.d.ts", "packages/money/types/money.d.ts"],
+    ]);
+    // A `types` file that is not in the repository (built later): compiled from the sources as before.
+    await fs.write(
+      "packages/money/package.json",
+      JSON.stringify({ main: "src/index.ts", types: "dist/index.d.ts" }),
+    );
+    expect(
+      (
+        await new ApiSnapshots(emitter("x"), workspace, fs, DEFAULT_PATHS).current("@acme/money")
+      )._unsafeUnwrap().entry,
+    ).toBe(`${D}/index.d.ts`);
+  });
+
   test("entries from conditional exports or main; errors as values", async () => {
     for (const exports of [{ ".": { types: "./dist/index.d.ts", import: "./src/index.ts" } }, undefined]) {
       const fs = new InMemoryFileSystem({

@@ -80,6 +80,21 @@ describe("GitVcs (real git)", () => {
     expect(files.some((f) => f.startsWith("dist/"))).toBe(false);
   });
 
+  test("its own state is never a change, even before it is gitignored", async () => {
+    const dir = await scenario();
+    await Bun.write(join(dir, ".metator/index/imports.json"), "{}");
+    expect((await new GitVcs(dir).changedFiles("main"))._unsafeUnwrap()).toContain(
+      ".metator/index/imports.json",
+    );
+    expect((await new GitVcs(dir, [".metator/"]).changedFiles("main"))._unsafeUnwrap()).toEqual([
+      "a.ts",
+      "b.ts",
+      "c ż.ts",
+      "d.ts",
+      "e.ts",
+    ]);
+  });
+
   test("clean tree has no changes", async () => {
     const dir = await repo();
     await writeFile(join(dir, "a.ts"), "a");

@@ -89,6 +89,31 @@ describe("LintAdrs", () => {
     expect(report).toMatchObject({ adrs: 2, byStatus: { Accepted: 1, Superseded: 1 } });
   });
 
+  test("a log in its own format, without a rule canon: numbered files, bold labels, sections as advice", async () => {
+    const fs = new InMemoryFileSystem({
+      "adr/001.md":
+        "# Architecture Decision Record\n\n## ADR 001: Public ids\n\n**Status:** Accepted  \n**Date:** 2025-05-09  \n\n## Context\nx\n\n## Decision\ny\n",
+      "adr/index.md": "| ADR 001 | [Public ids](001.md) | ✅ Accepted |\n",
+    });
+    const report = (
+      await new LintAdrs(fs, { ...DEFAULT_PATHS, adr: "adr" }, new RuleCatalog(fs, DEFAULT_PATHS)).execute()
+    )._unsafeUnwrap();
+    expect([report.adrs, report.byStatus]).toEqual([1, { Accepted: 1 }]);
+    expect(parseAdr("## ADR 007: Errors\n\n**Status:** Draft  \n").status).toBe("Proposed");
+    await fs.write(
+      "adr/002.md",
+      "## ADR 002: Errors\n\n**Status:** Draft\n\n## Context\n## Decision\n## Consequences\n",
+    );
+    await fs.write("adr/index.md", "| [Public ids](001.md) | Accepted |\n| [Errors](002.md) | 🟡 Draft |\n");
+    const again = (
+      await new LintAdrs(fs, { ...DEFAULT_PATHS, adr: "adr" }, new RuleCatalog(fs, DEFAULT_PATHS)).execute()
+    )._unsafeUnwrap();
+    expect(again.problems.filter((p) => p.severity === "error")).toEqual([]);
+    expect(report.problems.map((p) => `${p.severity}: ${p.message}`)).toEqual([
+      'warning: missing section "## Consequences" or "## Konsekwencje"',
+    ]);
+  });
+
   test("file name, title, status, date and sections", async () => {
     const { messages } = await lint({
       "docs/adr/bad name.md": "# x",
@@ -100,7 +125,7 @@ describe("LintAdrs", () => {
       '0003-c.md: warning: missing "- Date: YYYY-MM-DD"',
       '0003-c.md: error: missing section "## Decision" or "## Decyzja"',
       '0003-c.md: error: missing section "## Consequences" or "## Konsekwencje"',
-      "bad name.md: error: file name must be NNNN-short-title.md",
+      "bad name.md: error: file name must be NNNN-short-title.md (or NNN.md)",
     ]);
   });
 

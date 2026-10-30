@@ -10,6 +10,8 @@ interface Manifest {
   readonly exports?: unknown;
   readonly main?: string;
   readonly module?: string;
+  readonly types?: string;
+  readonly typings?: string;
 }
 
 /** The source file a package's `.` export (or main) points at, e.g. `src/index.ts`. */
@@ -67,6 +69,21 @@ export class ApiSnapshots {
     const manifest = parseJsonDocument(text.value, manifestFile);
     if (manifest.isErr()) return err(manifest.error);
     const prefix = found.dir === "." ? "" : `${found.dir}/`;
+    // A package that ships its own declarations (`types`, e.g. next to a bundled dist): they are
+    // the API as consumers see it, read as they are.
+    const shipped = (manifest.value as Manifest).types ?? (manifest.value as Manifest).typings;
+    if (shipped?.endsWith(".d.ts")) {
+      const entry = `${prefix}${shipped.replace(/^\.\//, "")}`;
+      if (await this.fs.exists(entry)) {
+        const files = await this.fs.glob([`${prefix}**/*.d.ts`]);
+        const declarations = new Map<string, string>();
+        for (const f of files.filter((f) => !f.includes("/node_modules/"))) {
+          const t = await this.fs.read(f);
+          if (t.isOk()) declarations.set(f, t.value);
+        }
+        return ok(apiSurface(pkg, entry, declarations));
+      }
+    }
     const toDeclaration = (source: string) => `${prefix}${source}`.replace(/\.(m|c)?(t|j)sx?$/, ".d.ts");
     const source = entryOf(manifest.value as Manifest);
     const patterns = source ? [] : wildcardExports(manifest.value as Manifest);

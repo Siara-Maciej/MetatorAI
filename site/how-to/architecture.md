@@ -36,7 +36,7 @@ The **score** is 100 minus 5 per error and 1 per warning. Use it as a trend, not
 | Kind | Default | Meaning |
 |------|---------|---------|
 | `cycle` | error | Packages depend on each other (test-only imports never make a cycle). A cycle closed only by `import type` is a warning. |
-| `undeclared` | error | A file imports a package (workspace or npm) that its `package.json` does not declare. |
+| `undeclared` | error | A file imports a package (workspace or npm) that its `package.json` does not declare. An import whose `@types/` package is declared counts as declared (`import { Request } from "express"` with `@types/express`: TypeScript drops it). Runtime modules are not packages: `node:*`, `bun:*`, `k6` in load tests. |
 | `root-only` | warning | Only the repository root declares it, so it works through hoisting and breaks when the package is used alone. |
 | `dev-in-prod` | error | Production code imports something declared only in `devDependencies`. Tests, tool configuration (`*.config.*`, `jest.setup.*`) and tool packages (a shared lint or TypeScript config that every package declares only in `devDependencies`) are not production code. |
 | `relative-import` | error | `../../other-package/src/x` instead of the package name. |

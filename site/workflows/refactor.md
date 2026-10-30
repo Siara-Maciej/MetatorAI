@@ -14,7 +14,7 @@
 
 | Step | Command or skill | What it proves |
 |---|---|---|
-| API baseline | `metator api snapshot @shop/billing` | records every declaration the package exports. Without a package: every package with an API. A package's API is its `.` export or `main`, or every module its subpath patterns expose (`"./*": "./src/*.ts"`); applications and config packages are skipped, with why |
+| API baseline | `metator api snapshot @shop/billing` | records every declaration the package exports. Without a package: every package with an API. A package's API is its `.` export or `main`, or every module its subpath patterns expose (`"./*": "./src/*.ts"`); a package that ships its own declarations (`types` points at a `.d.ts` in the repository, next to a bundled `dist`) is read from them as they are; applications and config packages are skipped, with why |
 | characterization | skill `mt-characterization-tests` | tests that pass on the **old** code pin today's behavior; `equivalence.md` lists behaviors per function |
 | small steps | `mt-refactorer`, `metator gate quick` after each step | every step keeps the tests green |
 | API unchanged | `metator api diff @shop/billing` | any added or removed declaration fails |
