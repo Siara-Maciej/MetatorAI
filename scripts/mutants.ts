@@ -1665,6 +1665,42 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a waiting question comes first in the next step",
   },
   {
+    file: "packages/core/src/domain/overview.ts",
+    from: "return history.at(-1)?.stage ?? stage;",
+    to: "return stage;",
+    why: "an escalated run is at the stage its history ends with, not at its end state",
+  },
+  {
+    file: "packages/core/src/application/overview.ts",
+    from: "const stage = stoppedAt(r.state.stage, r.state.status, r.state.context.history);",
+    to: "const stage = r.state.stage;",
+    why: "the overview shows the stage an escalated run stopped at",
+  },
+  {
+    file: "packages/core/src/domain/overview.ts",
+    from: 'escalated: n("escalated"),',
+    to: "escalated: 0,",
+    why: "escalated runs are counted",
+  },
+  {
+    file: "packages/cli/src/tui/components/ChatView.tsx",
+    from: "marginTop={-top}",
+    to: "marginTop={0}",
+    why: "PgDn scrolls a long answer",
+  },
+  {
+    file: "packages/cli/src/tui/components/ChatView.tsx",
+    from: 'height={layout.rows} overflow="hidden"',
+    to: "",
+    why: "a long answer stays inside the screen",
+  },
+  {
+    file: "packages/cli/src/tui/App.tsx",
+    from: '["active", "escalated"].includes(run.run.status)',
+    to: 'run.run.status === "active"',
+    why: "Enter resumes an escalated run",
+  },
+  {
     file: "packages/core/src/domain/versioned.ts",
     from: 'doc.setIn(key.split("."), value);',
     to: "doc.set(key, value);",

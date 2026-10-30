@@ -174,6 +174,11 @@ export function tuiService(ctx: ServiceContext): TuiService {
       if (driver.isOk() && driver.value?.alive) return null;
       const record = await c.resolve("runRepository").load(runId);
       if (record.isErr()) return message(record.error);
+      // An escalated run goes back to the stage it escalated from (its cause is fixed), then on.
+      if (record.value.state.status === "escalated") {
+        const resumed = await c.resolve("resumeRun").execute({ runId, by: person(ctx.env) });
+        if (resumed.isErr()) return message(resumed.error);
+      }
       // The host that drove it last, else the one the run records, else the default.
       const last = driver.isOk() ? driver.value?.host : undefined;
       const hosts = c.resolve("agentHosts");

@@ -4,7 +4,13 @@ import { WorkOverview } from "../src/application/overview.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
 import { MetatorError } from "../src/domain/errors.ts";
-import { attentionOf, byAttention, countAttention, stageProgress } from "../src/domain/overview.ts";
+import {
+  attentionOf,
+  byAttention,
+  countAttention,
+  stageProgress,
+  stoppedAt,
+} from "../src/domain/overview.ts";
 import { err, ok } from "../src/domain/result.ts";
 
 const STAGES = [{ id: "intake" }, { id: "plan" }, { id: "plan-approval", hitl: true }, { id: "build" }];
@@ -39,6 +45,15 @@ describe("overview domain", () => {
     ]);
   });
 
+  test("an escalated or aborted run is at the stage its history ends with, not at its end state", () => {
+    const history = [{ stage: "intake" }, { stage: "plan" }];
+    expect(stoppedAt("escalated", "escalated", history)).toBe("plan");
+    expect(stoppedAt("aborted", "aborted", history)).toBe("plan");
+    expect(stoppedAt("escalated", "escalated", [])).toBe("escalated");
+    expect(stoppedAt("build", "active", history)).toBe("build");
+    expect(stoppedAt("done", "done", history)).toBe("done");
+  });
+
   test("who must act: a question or an undriven gate means you; then the drive; finished runs say how", () => {
     expect(attentionOf("active", 1, true, false)).toBe("you");
     expect(attentionOf("active", 0, false, true)).toBe("you");
@@ -53,7 +68,7 @@ describe("overview domain", () => {
       { id: "e", attention: "driving" as const, updatedAt: "2026-10-28T07:00:00Z" },
     ];
     expect(byAttention(runs).map((r) => r.id)).toEqual(["d", "c", "e", "b", "a"]);
-    expect(countAttention(runs)).toEqual({ you: 2, driving: 1, stopped: 1, finished: 1 });
+    expect(countAttention(runs)).toEqual({ you: 2, driving: 1, stopped: 1, escalated: 0, finished: 1 });
   });
 });
 
@@ -149,6 +164,36 @@ async function world() {
 }
 
 describe("WorkOverview", () => {
+  test("an escalated run shows the stages it passed and the one it stopped at, and is counted", async () => {
+    const { overview, runs } = await world();
+    await runs.save({
+      runId: "20261028-mt-feature-d",
+      workflow: { id: "mt-feature", revision: 2, source: "x" },
+      task: "d",
+      autonomy: "L0",
+      createdAt: "2026-10-28T10:00:00.000Z",
+      updatedAt: "2026-10-28T10:30:00.000Z",
+      state: {
+        workflow: "mt-feature",
+        stage: "escalated",
+        status: "escalated",
+        context: {
+          loops: {},
+          history: [
+            { stage: "intake", event: "PASS" },
+            { stage: "plan", event: "FAIL" },
+          ],
+        },
+      },
+      approvals: {},
+    } as never);
+    const o = (await overview.execute())._unsafeUnwrap();
+    const d = o.runs.find((r) => r.runId.endsWith("-d"));
+    expect([d?.stage, d?.attention]).toEqual(["plan", "escalated"]);
+    expect(d?.stages.map((s) => s.state)).toEqual(["done", "stopped", "next", "next"]);
+    expect(o.counts.escalated).toBe(1);
+  });
+
   test("every run: stages, who acts, open questions, host, last activity, worktree and services", async () => {
     const o = (await (await world()).overview.execute())._unsafeUnwrap();
     expect(o.runs.map((r) => [r.runId.slice(-1), r.attention, r.host, r.questions.length])).toEqual([
@@ -165,7 +210,15 @@ describe("WorkOverview", () => {
       ["running"],
     ]);
     expect(o.runs[2]?.elapsedMs).toBe(1_800_000); // finished: up to its last change
-    expect(o.counts).toEqual({ you: 2, driving: 0, stopped: 0, finished: 1, questions: 1, services: 1 });
+    expect(o.counts).toEqual({
+      you: 2,
+      driving: 0,
+      stopped: 0,
+      escalated: 0,
+      finished: 1,
+      questions: 1,
+      services: 1,
+    });
     expect(o.conversations).toEqual([
       { id: "20261028-why", title: "Why?", host: "claude", turns: 2, updatedAt: "2026-10-28T11:00:00.000Z" },
     ]);

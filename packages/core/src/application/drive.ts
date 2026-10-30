@@ -15,6 +15,7 @@ import {
   stageWork,
 } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { stoppedAt } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
 import { isTerminal } from "../domain/run-report.ts";
@@ -33,12 +34,9 @@ export const OTHER = "Other";
  * (a stack trace's tail says nothing). Undefined when the output is no gate result.
  */
 export function failedSteps(stdout: string): string | undefined {
-  let envelope: unknown;
-  try {
-    envelope = JSON.parse(stdout.trim().split("\n").at(-1) ?? "");
-  } catch {
-    return undefined;
-  }
+  const parsed = parseJsonDocument(stdout.trim().split("\n").at(-1) ?? "", "gate output");
+  if (parsed.isErr()) return undefined;
+  const envelope = parsed.value;
   const error = (envelope as { error?: { message?: unknown; details?: { steps?: unknown } } } | null)?.error;
   const steps = error?.details?.steps;
   if (!Array.isArray(steps)) return undefined;
@@ -350,7 +348,11 @@ export class DriveRun {
       const closed = await this.d.close.execute({ runId });
       if (closed.isErr()) return err(closed.error);
     }
-    await say({ type: "drive", text: `finished: ${status} at ${stage}` });
+    const at = stoppedAt(stage, status, final.value.state.context.history);
+    await say({
+      type: "drive",
+      text: at === status ? `finished: ${status}` : `finished: ${status} at ${at}`,
+    });
     return ok({ runId, status, stage, steps });
   }
 

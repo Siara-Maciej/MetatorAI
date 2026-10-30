@@ -1,7 +1,7 @@
 import type { Conversation, HostTarget, Question, RunActivity, RunOverview } from "@metator/core";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChatView } from "./components/ChatView.tsx";
+import { ChatView, chatLayout } from "./components/ChatView.tsx";
 import {
   AnswerDialog,
   AskDialog,
@@ -77,6 +77,8 @@ export function App(props: AppProps) {
   const [pending, setPending] = useState<{ question: string; text: string } | undefined>();
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  // The conversation's first shown line once the person scrolls; until then its latest question.
+  const [scroll, setScroll] = useState<number | undefined>();
   const visited = useRef<string[]>([...(props.kept?.visited ?? [])]);
   const waitingBefore = useRef<number | null>(null);
 
@@ -206,6 +208,11 @@ export function App(props: AppProps) {
     }
   };
 
+  const cols = size.columns;
+  const height = Math.max(10, size.rows - 4);
+  const left = Math.min(44, Math.max(28, Math.floor(cols * 0.34)));
+  const right = Math.max(30, cols - left - 1);
+
   const move = (by: number) => {
     if (choices.length === 0) return;
     const at = Math.max(
@@ -214,7 +221,16 @@ export function App(props: AppProps) {
     );
     const next = choices[(at + by + choices.length) % choices.length] as Row & { key: string };
     setSelected(next.key);
+    setScroll(undefined);
     setNotice(null);
+  };
+
+  const page = (by: number) => {
+    if (!talk && !pending) return;
+    const layout = chatLayout(pending ? null : chat, pending, right, height - 3);
+    setScroll((s) =>
+      Math.min(layout.max, Math.max(0, (s ?? layout.start) + by * Math.max(1, layout.rows - 2))),
+    );
   };
 
   useInput(
@@ -223,12 +239,14 @@ export function App(props: AppProps) {
       if (dialog) return;
       if (key.upArrow || input === "k") return move(-1);
       if (key.downArrow || input === "j") return move(1);
+      if (key.pageDown || (key.ctrl && input === "d")) return page(1);
+      if (key.pageUp || (key.ctrl && input === "u")) return page(-1);
       if (key.tab || key.rightArrow) return setTab(TABS[(TABS.indexOf(tab) + 1) % TABS.length] as Tab);
       if (key.leftArrow) return setTab(TABS[(TABS.indexOf(tab) + TABS.length - 1) % TABS.length] as Tab);
       if (input === ":" || (key.ctrl && input === "k")) return setDialog({ kind: "palette" });
       if (key.return) {
         if (run?.run.attention === "you") return void act("answer");
-        if (run && run.run.attention !== "driving" && run.run.status === "active")
+        if (run && run.run.attention !== "driving" && ["active", "escalated"].includes(run.run.status))
           return void act("continue");
         if (talk) return void act("reply");
         return;
@@ -239,26 +257,30 @@ export function App(props: AppProps) {
     { isActive: true },
   );
 
-  const cols = size.columns;
-  const height = Math.max(10, size.rows - 4);
-  const left = Math.min(44, Math.max(28, Math.floor(cols * 0.34)));
-  const right = Math.max(30, cols - left - 1);
   const t = snapshot ? totals(snapshot) : null;
   const repoName = (root: string) => snapshot?.repos.find((r) => r.root === root)?.name;
 
   return (
     <Box flexDirection="column" width={cols}>
       <Box justifyContent="space-between" paddingX={1}>
-        <Text bold color="cyan">
-          MetatorAI · {snapshot?.title ?? "…"}
-        </Text>
+        <Box flexShrink={0} marginRight={2}>
+          <Text bold color="cyan">
+            MetatorAI · {snapshot?.title ?? "…"}
+          </Text>
+        </Box>
         {t ? (
-          <Text>
+          <Text wrap="truncate">
             <Text color={t.you > 0 ? "yellow" : "gray"}>{t.you} need you</Text>
             <Text dimColor> · </Text>
             <Text color="cyan">{t.driving} driving</Text>
             <Text dimColor> · </Text>
             <Text>{t.stopped} stopped</Text>
+            {t.escalated > 0 ? (
+              <>
+                <Text dimColor> · </Text>
+                <Text color="red">{t.escalated} escalated</Text>
+              </>
+            ) : null}
             <Text dimColor> · </Text>
             <Text color="green">{t.services} services</Text>
           </Text>
@@ -343,7 +365,13 @@ export function App(props: AppProps) {
             <Palette commands={COMMANDS} onRun={(id) => void act(id)} />
           ) : null}
           {dialog ? null : pending ? (
-            <ChatView conversation={null} pending={pending} width={right} height={height - 3} />
+            <ChatView
+              conversation={null}
+              pending={pending}
+              width={right}
+              height={height - 3}
+              {...(scroll === undefined ? {} : { scroll })}
+            />
           ) : run ? (
             <RunDetail
               run={run.run as RunOverview}
@@ -354,7 +382,12 @@ export function App(props: AppProps) {
               height={height - 3}
             />
           ) : talk ? (
-            <ChatView conversation={chat} width={right} height={height - 3} />
+            <ChatView
+              conversation={chat}
+              width={right}
+              height={height - 3}
+              {...(scroll === undefined ? {} : { scroll })}
+            />
           ) : (
             <Box borderStyle="round" borderColor="gray" paddingX={1} flexDirection="column" width={right}>
               <Text>Nothing selected.</Text>
@@ -367,7 +400,7 @@ export function App(props: AppProps) {
         {notice ? (
           <Text color={notice.error ? "red" : "green"}>{notice.text}</Text>
         ) : (
-          <Text dimColor>
+          <Text dimColor wrap="truncate">
             ↑↓ select · ⏎ act · tab view · a answer · n new run · ? ask · c continue · : all commands · ,
             settings · q quit
           </Text>

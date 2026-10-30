@@ -157,6 +157,37 @@ describe("metator ui (real CLI, full screen)", () => {
     await rm(folder, { recursive: true, force: true });
   }, 90_000);
 
+  test("an escalated run shows the stage it stopped at, and c resumes and drives it", async () => {
+    const other = await ScratchRepo.create();
+    await other.write(".gitignore", ".metator/\n");
+    await other.write(
+      ".github/metator/workflows/fix.yml",
+      "kind: Workflow\nschemaVersion: 2\nid: fix\nstages:\n  - id: build\n    owner: mt-implementer\n",
+    );
+    await other.write("scenario.yml", SCENARIO);
+    await other.commit("init");
+    const here = { ...env, METATOR_AGENT_SCENARIO: other.path("scenario.yml") };
+    await metator(["run", "init", "--workflow", "fix", "--task", "Fix the discount"], other.root, here);
+    await metator(["run", "advance", "fail", "--reason", "the gate needs a token"], other.root, here);
+    const r = await inTerminal(
+      ["ui"],
+      other.root,
+      [
+        { waitFor: "at build: fix the cause, then resume it (c)", keys: "c" },
+        { waitFor: "every stage passed", keys: "q" },
+      ],
+      60_000,
+      here,
+    );
+    expect(r.code).toBe(0);
+    expect(r.screen).toContain("1 escalated");
+    expect(r.screen).toContain("[build !]");
+    const status = (await metator(["run", "status"], other.root, here)).json.data as { status: string };
+    expect(status.status).toBe("done");
+    expect(await other.read("src/discount.ts")).toBe("export const discount = 1;\n");
+    await other.dispose();
+  }, 90_000);
+
   test("without a terminal, ui points to the commands that do the same", async () => {
     const r = await mt("ui");
     expect([r.code, (r.json.error as { message: string; hint: string }).message]).toEqual([

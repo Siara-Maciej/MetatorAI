@@ -23,7 +23,7 @@ metator ui
 ```
 
 **On the screen:**
-- **The header:** how many sessions need you, how many are driving or stopped, how many services run.
+- **The header:** how many sessions need you, how many are driving, stopped or escalated, how many services run.
 - **Sessions on the left:** runs, the ones that need you first, then the conversations of [`metator ask`](./ask.md). In a [folder of repositories](../multi-repo/repositories.md#a-folder-of-repositories), every repository's runs, under its name.
 - **The selected session on the right:**
   - what it needs now, and the key that does it;
@@ -37,11 +37,12 @@ The view refreshes by itself; the terminal bell rings when a new question arrive
 | Key | Does |
 |---|---|
 | `↑` `↓` (`k` `j`) | select a session |
-| `⏎` | what the session needs: answer it, continue it, or follow up in a conversation |
+| `⏎` | what the session needs: answer it, continue or resume it, or follow up in a conversation |
 | `a` | answer the run's question; at a human gate nobody drives, approve it or reject it with a reason |
-| `c` · `x` | continue the run (drive it again with the host it used) · stop its drive |
+| `c` · `x` | continue the run (drive it again with the host it used); an escalated run is resumed first, at the stage it stopped at · stop its drive |
 | `n` | new run: repository, workflow, task, autonomy, AI host, own worktree or not |
 | `?` · `r` | ask about the code · follow up in the selected conversation |
+| `PgUp` `PgDn` (`Ctrl+U` `Ctrl+D`) | scroll a long answer in a conversation |
 | `u` · `w` | start · stop the run's applications |
 | `e` · `t` · `d` | open the worktree in your editor · a shell there · the run's diff |
 | `g` | go to the next session that needs you |
@@ -50,6 +51,8 @@ The view refreshes by itself; the terminal bell rings when a new question arrive
 | `q` | quit |
 
 An answer is carried out by the run's drive: when none is running, `metator ui` starts it again with the host that drove the run, so you never have to continue by hand after answering.
+
+An escalated run shows the stage it stopped at (`[gates !]`) and the stages it passed. Remove the cause (the gate's output is in **Activity**), then `c` resumes the run there, as [`metator run resume`](./drive.md) does, and drives it on.
 
 A terminal editor, the shell and the diff get the whole terminal; when you leave them, the view comes back where you were. A window editor (VS Code, Cursor, Zed…) opens on its own.
 
@@ -79,7 +82,7 @@ metator status
    "worktree":{"id":"20261028-mt-feature-add-discount","branch":"metator/20261028-mt-feature-add-discount","ports":{"from":41000,"count":20}},
    "services":[{"service":"api","status":"running","ports":{"http":41000}}]}],
  "conversations":[{"id":"20261028-how-is-vat-computed","title":"How is VAT computed?","turns":2}],
- "counts":{"you":1,"driving":0,"stopped":0,"finished":3,"questions":1,"services":1}}
+ "counts":{"you":1,"driving":0,"stopped":0,"escalated":1,"finished":3,"questions":1,"services":1}}
 ```
 
 | `attention` | Meaning |
@@ -87,7 +90,7 @@ metator status
 | `you` | a question waits for you, or a human gate nobody drives: answer, approve, or continue the run |
 | `driving` | the drive is working; watch it live |
 | `stopped` | nobody drives it; continue it any time |
-| `done`, `escalated`, `aborted` | finished, and how |
+| `done`, `escalated`, `aborted` | finished, and how; an escalated or aborted run's `stage` is the stage it stopped at |
 
 Runs come sorted the same way: what waits for you first. In a [folder of repositories](../multi-repo/repositories.md#a-folder-of-repositories), `metator status` gives this for every repository, with the sums.
 
