@@ -59,6 +59,8 @@ Every process gets the ports of every service as `METATOR_PORT_<SERVICE>_<NAME>`
 
 ::: tip Compose and ports
 Compose takes ports from the environment only where the file says so. Write `"${METATOR_PORT_API_HTTP:-3000}:3000"` instead of `"3000:3000"`, so two worktrees never ask for the same port.
+
+A network the compose file declares `external: true` (the `docker network create shop-net` a README asks for) is created the first time a service needs it.
 :::
 
 ## 3. Start, check, stop

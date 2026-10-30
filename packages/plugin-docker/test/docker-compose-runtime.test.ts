@@ -52,3 +52,27 @@ test("a failing compose is an error value with stderr; a missing binary is BIN_N
   const missing = await new DockerComposeRuntime(join(d.dir, "nope")).up(svc);
   expect(missing._unsafeUnwrapErr().code).toBe("BIN_NOT_FOUND");
 });
+
+test("an external network compose cannot find is created, then the service starts; the message is the command", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "metator-docker-"));
+  dirs.push(dir);
+  const calls = join(dir, "calls");
+  const bin = join(dir, "docker");
+  // Fails `up` until `network create` has run, as compose does with a missing external network.
+  await writeFile(
+    bin,
+    `#!/bin/sh\necho "$*" >> ${calls}\nif [ "$1" = network ]; then touch ${dir}/net; exit 0; fi\nif [ ! -f ${dir}/net ]; then echo "network shop-net declared as external, but could not be found" >&2; exit 1; fi\nexit 0\n`,
+  );
+  await chmod(bin, 0o755);
+  const svc = { file: "compose.yml", service: "db", project: "p", cwd: dir, env: {} };
+  expect((await new DockerComposeRuntime(bin).up(svc)).isOk()).toBe(true);
+  expect((await Bun.file(calls).text()).trim().split("\n")).toEqual([
+    "compose -p p -f compose.yml up -d db",
+    "network create shop-net",
+    "compose -p p -f compose.yml up -d db",
+  ]);
+  const failing = await fakeDocker(1);
+  expect((await new DockerComposeRuntime(failing.bin).up(svc))._unsafeUnwrapErr().message).toStartWith(
+    `\`${failing.bin} compose -p p -f compose.yml up -d db\` exited 1`,
+  );
+});

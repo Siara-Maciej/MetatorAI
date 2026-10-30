@@ -90,6 +90,10 @@ describe("OxcImportAnalyzer.resolve (real monorepo, real bun install)", () => {
     });
   });
 
+  test("a tsconfig paths alias to a missing file is unresolved, not a package to declare", () => {
+    expect(analyzer.resolve("apps/web/src/main.ts", "@app/does-not-exist")).toEqual({ type: "unresolved" });
+  });
+
   test("non-code assets resolve to files", () => {
     expect(analyzer.resolve("apps/web/src/main.ts", "./styles.css")).toEqual({
       type: "file",

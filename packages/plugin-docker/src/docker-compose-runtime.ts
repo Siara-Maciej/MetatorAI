@@ -7,11 +7,20 @@ import {
   type Result,
 } from "@metator/core";
 
+const EXTERNAL_NETWORK = /network ([\w.-]+) declared as external, but could not be found/;
+
 /** ContainerRuntime on `docker compose` (ADR-0053): `up -d`, `stop` and `logs` of one service. */
 export class DockerComposeRuntime implements ContainerRuntime {
   constructor(private readonly bin: string = "docker") {}
 
   async up(s: ComposeService): Promise<Result<void, MetatorError>> {
+    const first = await this.compose(s, ["up", "-d", s.service]);
+    // An external network compose expects to exist (a README's `docker network create x`): create
+    // it, as a person would, and start once more.
+    const missing = first.isErr() ? EXTERNAL_NETWORK.exec(first.error.message)?.[1] : undefined;
+    if (!missing) return first.map(() => undefined);
+    const created = await this.run(s, [this.bin, "network", "create", missing]);
+    if (created.isErr()) return err(created.error);
     return (await this.compose(s, ["up", "-d", s.service])).map(() => undefined);
   }
 
@@ -23,11 +32,14 @@ export class DockerComposeRuntime implements ContainerRuntime {
     return this.compose(s, ["logs", "--no-color", "--tail", String(lines), s.service]);
   }
 
-  private async compose(s: ComposeService, args: readonly string[]): Promise<Result<string, MetatorError>> {
-    const argv = [this.bin, "compose", "-p", s.project, "-f", s.file, ...args];
+  private compose(s: ComposeService, args: readonly string[]): Promise<Result<string, MetatorError>> {
+    return this.run(s, [this.bin, "compose", "-p", s.project, "-f", s.file, ...args]);
+  }
+
+  private async run(s: ComposeService, argv: readonly string[]): Promise<Result<string, MetatorError>> {
     let proc: ReturnType<typeof Bun.spawn>;
     try {
-      proc = Bun.spawn(argv, {
+      proc = Bun.spawn([...argv], {
         cwd: s.cwd,
         env: { ...process.env, ...s.env },
         stdout: "pipe",
@@ -49,7 +61,7 @@ export class DockerComposeRuntime implements ContainerRuntime {
       return err(
         new MetatorError(
           "COMMAND_FAILED",
-          `\`${argv.slice(0, 7).join(" ")} ${args.join(" ")}\` exited ${code}: ${errText.trim().slice(-500)}`,
+          `\`${argv.join(" ")}\` exited ${code}: ${errText.trim().slice(-500)}`,
         ),
       );
     }

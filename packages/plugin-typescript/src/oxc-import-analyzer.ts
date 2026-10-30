@@ -67,6 +67,8 @@ export class OxcImportAnalyzer implements ImportAnalyzer, SymbolAnalyzer {
   readonly extensions = EXTENSIONS;
   /** By tsconfig file ("" for none). */
   private readonly resolvers = new Map<string, ResolverFactory>();
+  /** Each tsconfig's `paths` keys, to tell a missing aliased file from a package. */
+  private readonly aliasKeys = new Map<string, string[]>();
   /** By directory: the nearest tsconfig.json up to the root, or "". */
   private readonly nearest = new Map<string, string>();
   private readonly degraded: string[] = [];
@@ -93,6 +95,18 @@ export class OxcImportAnalyzer implements ImportAnalyzer, SymbolAnalyzer {
         : this.tsconfigFor(parent);
     this.nearest.set(dir, found);
     return found;
+  }
+
+  private aliased(tsconfig: string, specifier: string): boolean {
+    if (!tsconfig) return false;
+    let keys = this.aliasKeys.get(tsconfig);
+    if (!keys) {
+      keys = Object.keys(pathAliases(tsconfig));
+      this.aliasKeys.set(tsconfig, keys);
+    }
+    return keys.some((k) =>
+      k.endsWith("$") ? specifier === k.slice(0, -1) : specifier === k || specifier.startsWith(`${k}/`),
+    );
   }
 
   private resolverFor(tsconfig: string): ResolverFactory {
@@ -207,9 +221,14 @@ export class OxcImportAnalyzer implements ImportAnalyzer, SymbolAnalyzer {
     // `fs`, `path/posix`: builtins read as `node:` ones, never as packages to declare.
     if (bare && isBuiltin(specifier)) return { type: "external", name: `node:${specifier}` };
     const dir = dirname(join(this.root, fromPath));
-    const result = this.resolverFor(this.tsconfigFor(dir)).sync(dir, specifier);
+    const tsconfig = this.tsconfigFor(dir);
+    const result = this.resolverFor(tsconfig).sync(dir, specifier);
+    // A bare specifier the tsconfig's `paths` claim (`module/users/x`) that resolves to nothing
+    // is a missing file of this repository, not a package to declare.
     if (!result.path)
-      return bare ? { type: "external", name: packageName(specifier) } : { type: "unresolved" };
+      return bare && !this.aliased(tsconfig, specifier)
+        ? { type: "external", name: packageName(specifier) }
+        : { type: "unresolved" };
     const rel = normalizePath(relative(this.root, result.path));
     const outside = rel.startsWith("../") || rel === ".." || isAbsolute(rel);
     if (outside || rel.startsWith("node_modules/") || rel.includes("/node_modules/")) {

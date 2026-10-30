@@ -1827,6 +1827,42 @@ export const MUTANTS: readonly Mutant[] = [
     why: "init proposes contracts/ as the public part when modules keep one",
   },
   {
+    file: "packages/core/src/domain/system-impact.ts",
+    from: "const users = [...new Set((input.usedBy?.(file) ?? []).map(appOf))]",
+    to: "const users = [...new Set(([] as string[]).map(appOf))]",
+    why: "a changed library reaches the applications that import it",
+  },
+  {
+    file: "packages/core/src/application/system-sources.ts",
+    from: "if (this.graph && files.length > 0) {",
+    to: "if (false) {",
+    why: "system impact reads the import graph for library files",
+  },
+  {
+    file: "packages/core/src/application/system-sources.ts",
+    from: "return urls.some((u) => sameRepository(u, repo)) ? candidate : undefined;",
+    to: "return candidate;",
+    why: "a sibling checkout counts only with the map's remote",
+  },
+  {
+    file: "packages/core/src/application/system-sources.ts",
+    from: "    if (!ref) {\n      const sibling",
+    to: "    if (true) {\n      const sibling",
+    why: "a pinned ref is cloned, not read from a sibling's working tree",
+  },
+  {
+    file: "packages/plugin-typescript/src/oxc-import-analyzer.ts",
+    from: "bare && !this.aliased(tsconfig, specifier)",
+    to: "bare",
+    why: "a missing file behind a tsconfig alias is unresolved, not a package",
+  },
+  {
+    file: "packages/plugin-docker/src/docker-compose-runtime.ts",
+    from: "const missing = first.isErr() ? EXTERNAL_NETWORK.exec(first.error.message)?.[1] : undefined;",
+    to: "const missing = undefined as string | undefined;",
+    why: "a missing external network is created before the service starts again",
+  },
+  {
     file: "packages/core/src/domain/versioned.ts",
     from: 'doc.setIn(key.split("."), value);',
     to: "doc.set(key, value);",

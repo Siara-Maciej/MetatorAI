@@ -149,7 +149,7 @@ const sourcesOf = (location: LocalSystemLocation) =>
     "/src/platform",
     location,
     new CloneCache({ resolve: async () => ok("a".repeat(40)), checkout: async () => ok(undefined) }, "/c"),
-    { isDirectory: async () => false },
+    { isDirectory: async () => false, read: async () => ok(undefined) },
     { remoteUrl: async () => ok(undefined) },
   );
 

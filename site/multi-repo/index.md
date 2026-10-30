@@ -159,7 +159,8 @@ metator system impact --contracts billing-api   # what a change to a contract re
 | `change: spec` | the contract's specification changed |
 | `change: implementation` | other files of the provider changed: the contract may behave differently |
 | `change: named` | you asked about it with `--contracts` |
-| `unmapped` | changed files that belong to no application |
+| `uses <file>, which changed` | a changed file of no application (a library package such as `packages/ui`) that this application's files import, directly or not, by the import graph |
+| `unmapped` | changed files that belong to no application and that no application imports |
 
 **Where the other applications' code is:**
 
@@ -174,6 +175,7 @@ metator system lint --fetch       # check specifications in other repositories t
 | `{ path: apps/web }` | the repository the map is in |
 | `{ repo: ../web }` | that directory, relative to the platform repository |
 | `{ repo: ../billing, ref: main }`, `{ repo: github.com/shop/mailer }` | a clone at the pinned commit, with `--fetch` |
+| `{ repo: github.com/shop/web }` without `ref`, cloned next to this repository | `../web`, when its git remote is that repository |
 | any, with `system.roots.<id>` | your local checkout |
 
 Clones never run code and never change your checkouts. Without `--fetch`, MetatorAI does not touch the network, and `system lint` lists the specifications it could not check.

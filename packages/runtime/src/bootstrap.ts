@@ -514,7 +514,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ config, root, systemLocation, cloneCache, checkoutReader, vcs }) =>
         new SystemSources(config.config.system, root, systemLocation, cloneCache, checkoutReader, vcs),
     ),
-    systemImpactQuery: asFunction(({ systemSources, vcs }) => new SystemImpactQuery(systemSources, vcs)),
+    systemImpactQuery: asFunction(
+      ({ systemSources, vcs, importGraphReader }) =>
+        new SystemImpactQuery(systemSources, vcs, importGraphReader),
+    ),
     lintSystem: asFunction(
       ({ systemSources, fileSystem, contractKinds, checkoutReader }) =>
         new LintSystem(systemSources, fileSystem, contractKinds, checkoutReader),

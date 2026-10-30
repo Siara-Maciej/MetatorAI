@@ -119,6 +119,21 @@ describe("system impact domain", () => {
     expect(i.unmapped).toEqual(["docs/x.md"]);
   });
 
+  test("a changed library reaches the applications whose files import it, and their contracts", () => {
+    const i = impactOf(MAP, {
+      self: [at("billing"), at("pricing")],
+      files: ["packages/money/round.ts", "docs/x.md"],
+      usedBy: (f) =>
+        f === "packages/money/round.ts" ? ["packages/money/index.ts", "apps/billing/src/a.ts"] : [],
+    });
+    expect(i.applications.map((a) => [a.id, a.changed, a.reasons[0]])).toEqual([
+      ["billing", true, "uses packages/money/round.ts, which changed"],
+      ["web", false, "consumes billing-api@^2 (implementation)"],
+      ["mail", false, "consumes billing-api (implementation)"],
+    ]);
+    expect(i.unmapped).toEqual(["docs/x.md"]);
+  });
+
   test("a spec change wins over an implementation change; named contracts; a whole-repository application", () => {
     const i = impactOf(MAP, {
       self: [at("billing")],
@@ -264,6 +279,37 @@ describe("where the map and the applications are", () => {
       dir: ".",
       via: "clone",
     });
+    // Cloned side by side: ../shop-web with the remote the map names is that application's checkout.
+    const beside = new SystemSources(
+      undefined,
+      "/src/platform",
+      location,
+      new CloneCache(cloner, CACHE),
+      new FakeReader(
+        {
+          "/src/shop-web/.git/config": '[remote "origin"]\n\turl = git@github.com:acme/shop-web.git\n',
+          "/src/other/.git/config": '[remote "origin"]\n\turl = https://github.com/someone/other\n',
+        },
+        ["/src/shop-web", "/src/other"],
+      ),
+      noRemote,
+    );
+    const app2 = (repo: string, ref?: string) =>
+      SystemMapSchema.parse({
+        system: "s",
+        applications: [{ id: "w", source: { repo, ...(ref ? { ref } : {}) } }],
+      }).applications[0] as (typeof map.applications)[number];
+    expect((await beside.locate(app2("https://github.com/acme/shop-web")))._unsafeUnwrap()).toEqual({
+      app: "w",
+      root: "/src/shop-web",
+      dir: ".",
+      via: "local",
+    });
+    // Another remote, or a pinned commit: not this checkout.
+    expect((await beside.locate(app2("https://github.com/acme/other")))._unsafeUnwrap()).toBeUndefined();
+    expect(
+      (await beside.locate(app2("https://github.com/acme/shop-web", "main")))._unsafeUnwrap(),
+    ).toBeUndefined();
     const all = (await sources.locateAll())._unsafeUnwrap();
     expect(all.sources.map((s) => [s.app, s.via])).toEqual([
       ["billing", "none"],
@@ -323,6 +369,43 @@ describe("where the map and the applications are", () => {
       vcs,
     );
     expect((await empty.execute({}))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+
+  test("impact query: a changed library file reaches the application through the import graph", async () => {
+    const fs = new InMemoryFileSystem({
+      "docs/metator/system.yml":
+        "kind: SystemMap\nschemaVersion: 1\nsystem: s\napplications:\n  - id: web\n    source: { path: apps/web }\n",
+    });
+    const location = new LocalSystemLocation(new SystemCatalog(fs, "docs/metator/system.yml"), "/r");
+    const sources = new SystemSources(
+      undefined,
+      "/r",
+      location,
+      new CloneCache(new FakeCloner(), CACHE),
+      new FakeReader({}),
+      noRemote,
+    );
+    const graph = {
+      read: async () =>
+        ok([
+          { from: "apps/web/main.ts", to: "packages/ui/index.ts", kind: "internal" as const },
+          { from: "packages/ui/index.ts", to: "packages/ui/button.ts", kind: "internal" as const },
+        ]),
+    };
+    const vcs = { changedFiles: async () => ok([]) };
+    const r = (
+      await new SystemImpactQuery(sources, vcs, graph).execute({ files: ["packages/ui/button.ts"] })
+    )._unsafeUnwrap();
+    expect([r.applications.map((a) => [a.id, a.reasons]), r.unmapped]).toEqual([
+      [["web", ["uses packages/ui/button.ts, which changed"]]],
+      [],
+    ]);
+    // Without the graph the file belongs to no application.
+    expect(
+      (
+        await new SystemImpactQuery(sources, vcs).execute({ files: ["packages/ui/button.ts"] })
+      )._unsafeUnwrap().unmapped,
+    ).toEqual(["packages/ui/button.ts"]);
   });
 
   test("lint checks every specification where its provider's code is: here, a checkout or a clone", async () => {

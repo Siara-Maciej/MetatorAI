@@ -148,3 +148,50 @@ describe("metator system impact (real CLI, three repositories, pinned map)", () 
     expect(local.sources[0]?.via).toBe("local");
   }, 120_000);
 });
+
+describe("library changes and checkouts side by side (real CLI)", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "metator-impact-lib-"));
+    const repo = async (name: string, files: Record<string, string>, remote?: string) => {
+      for (const [p, t] of Object.entries(files)) await Bun.write(join(dir, name, p), t);
+      git(join(dir, name), "init", "-q", "-b", "main");
+      if (remote) git(join(dir, name), "remote", "add", "origin", remote);
+      git(join(dir, name), "add", "-A");
+      git(join(dir, name), "commit", "-q", "-m", "init");
+    };
+    // The web application imports a library package; the API lives in a repository next to it.
+    await repo("shop", {
+      ".gitignore": ".metator/\n",
+      "package.json": `${JSON.stringify({ name: "shop", private: true, workspaces: ["apps/*", "packages/*"] })}\n`,
+      "apps/web/package.json": `${JSON.stringify({ name: "web", dependencies: { ui: "*" } })}\n`,
+      "apps/web/src/main.ts":
+        'import { button } from "../../../packages/ui/src/button";\nexport const m = button;\n',
+      "packages/ui/package.json": `${JSON.stringify({ name: "ui", main: "src/button.ts" })}\n`,
+      "packages/ui/src/button.ts": "export const button = 1;\n",
+      "docs/metator/system.yml":
+        "kind: SystemMap\nschemaVersion: 1\nsystem: shop\napplications:\n  - id: web\n    source: { path: apps/web }\n  - id: api\n    source: { repo: https://github.com/acme/api }\n",
+      "metator.config.yml":
+        "kind: MetatorConfig\nschemaVersion: 4\nsystem:\n  map: { path: docs/metator/system.yml }\n",
+    });
+    await repo("api", { "src/server.ts": "export const s = 1;\n" }, "git@github.com:acme/api.git");
+  }, 60_000);
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test("a changed library file reaches the application that imports it; it is not unmapped", async () => {
+    const r = await metator(["system", "impact", "--files", "packages/ui/src/button.ts"], join(dir, "shop"));
+    const i = r.json.data as Impact;
+    expect([i.applications.map((a) => [a.id, a.reasons]), i.unmapped]).toEqual([
+      [["web", ["uses packages/ui/src/button.ts, which changed"]]],
+      [],
+    ]);
+  }, 60_000);
+
+  test("the repository cloned next to this one with the map's remote is that application's checkout", async () => {
+    const r = await metator(["system", "sources"], join(dir, "shop"));
+    const sources = (r.json.data as { sources: { app: string; via: string; root?: string }[] }).sources;
+    expect(sources.find((s) => s.app === "api")).toMatchObject({ via: "local", root: join(dir, "api") });
+  }, 60_000);
+});
