@@ -140,8 +140,13 @@ export function classifyScript(name: string, script: string, evidence: string): 
   for (const s of SIGNALS) {
     const byName = s.name.test(name);
     // A task runner's task counts like the tool it runs: `turbo lint` lints, `turbo run test:ui` tests.
+    // A task its whole name gives to another capability (`test:e2e`) is not this one by its prefix.
     const runs = (c: readonly string[]) =>
-      runnerTasks(c)?.some((t) => s.name.test(t) || s.name.test(t.split(":")[0] as string)) ?? false;
+      runnerTasks(c)?.some(
+        (t) =>
+          s.name.test(t) ||
+          (s.name.test(t.split(":")[0] as string) && !SIGNALS.some((o) => o !== s && o.name.test(t))),
+      ) ?? false;
     const matching = commands.find((c) => s.command.test(c.join(" ")) || runs(c));
     if (!byName && !matching) continue;
     // A specific name ("test:e2e") wins over another capability's command signal ("bun test e2e");

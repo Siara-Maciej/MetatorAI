@@ -110,6 +110,37 @@ describe("proposeConfig", () => {
     ]);
   });
 
+  test("packages that test themselves, and a root ci script that only builds and runs e2e", () => {
+    const base = discovery({ ci: "turbo run build --filter=web && turbo run test:e2e" });
+    const pkg = (dir: string, name: string, command: string) => ({
+      package: dir,
+      dir,
+      name,
+      command,
+      candidates: classifyScript(name, command, `${dir}/package.json#scripts.${name}`).map((c) => ({
+        ...c,
+        evidence: [...c.evidence],
+      })),
+    });
+    const r = proposeConfig(
+      {
+        ...base,
+        scripts: [
+          ...base.scripts,
+          pkg("packages/lib", "test", "vitest run"),
+          pkg("packages/lib", "test:watch", "vitest"),
+          pkg("packages/signing", "test", "vitest"),
+        ],
+      },
+      { ruleCanon: false },
+    );
+    // ci is the e2e gate only; the unit tests are each package's own test script.
+    expect(ids(r.gates.full)).toEqual(['test:{"workspaces":"test"}:none', 'e2e:{"script":"ci"}:none']);
+    expect(r.decisions.find((d) => d.capability === "test")?.reason).toBe(
+      "2 package(s) test with their own test script and no root script runs them",
+    );
+  });
+
   test("a whole-project lint script gets a per-file tool in quick, with the tool's evidence", () => {
     const p = proposeConfig(discovery({ lint: "biome check ." }, ["biome"]), { ruleCanon: false });
     expect(p.gates.quick[0]?.run).toEqual({

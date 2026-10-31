@@ -82,7 +82,7 @@ Other step fields:
 | `okExitCodes` | `[0]` | a tool that exits 1 when it only reports findings |
 | `timeoutMs` | `600000` | stop a hanging step |
 
-`metator init` proposes the steps from your own scripts. When TypeScript is configured at the root but no script type-checks (a build that only transpiles, such as `nest build`), it proposes `{ bin: tsc, args: [--noEmit, -p, tsconfig.json] }` for `full`, so a type error cannot pass every gate. In a monorepo whose packages type-check with their own script and no root script runs them, it proposes `{ workspaces: <that script> }` instead.
+`metator init` proposes the steps from your own scripts. When TypeScript is configured at the root but no script type-checks (a build that only transpiles, such as `nest build`), it proposes `{ bin: tsc, args: [--noEmit, -p, tsconfig.json] }` for `full`, so a type error cannot pass every gate. In a monorepo whose packages type-check or test with their own script and no root script runs them, it proposes `{ workspaces: <that script> }` instead. A task runner's task is read by its whole name: `turbo run test:e2e` runs end-to-end tests, so a root `ci` script that builds and runs it is the e2e gate, not the unit tests.
 
 ```bash
 metator gate quick --base main           # quick gate on the files changed on the branch

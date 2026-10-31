@@ -33,6 +33,8 @@ describe("classifyScript", () => {
     ["test", "nx run-many -t test lint", ["test:0.95:whole"]],
     ["verify", "nx affected --targets=lint,test", ["lint:0.75:whole", "test:0.75:whole"]],
     ["test", "lerna run test", ["test:0.95:whole"]],
+    // A task named for end-to-end tests runs them, not the unit tests its prefix names.
+    ["ci", "turbo run build --filter=web && turbo run test:e2e", ["e2e:0.75:whole", "build:0.75:whole"]],
     // A fixer is the last choice for a check.
     ["lint-staged:eslint", "eslint --fix", ["lint:0.3:whole"]],
     ["lint", "biome check --write .", ["lint:0.3:whole"]],

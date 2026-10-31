@@ -212,6 +212,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a driven agent may not move the run itself",
   },
   {
+    file: "packages/core/src/domain/discovery.ts",
+    from: '(s.name.test(t.split(":")[0] as string) && !SIGNALS.some((o) => o !== s && o.name.test(t))),',
+    to: 's.name.test(t.split(":")[0] as string),',
+    why: "a task its whole name gives to another capability is not this one by its prefix",
+  },
+  {
+    file: "packages/core/src/domain/proposal.ts",
+    from: '(capability === "typecheck" || capability === "test")',
+    to: '(capability === "typecheck")',
+    why: "packages that test themselves are a test gate",
+  },
+  {
     file: "packages/core/src/application/system-discovery.ts",
     from: "if (shared.length < 2) continue;",
     to: "if (shared.length < 1) continue;",
@@ -3335,8 +3347,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/discovery.ts",
-    from: 'runnerTasks(c)?.some((t) => s.name.test(t) || s.name.test(t.split(":")[0] as string)) ?? false;',
-    to: "runnerTasks(c)?.some((t) => s.name.test(t)) ?? false;",
+    from: "s.name.test(t) ||\n          (s.name.test(",
+    to: "s.name.test(t) ||\n          (false && s.name.test(",
     why: "a runner task test:ui is a test",
   },
   {
