@@ -128,6 +128,7 @@ describe("drive domain", () => {
       notes: ["No node_modules here."],
     });
     expect(p).toContain("No node_modules here.");
+    expect(p).toContain("never with an interpreter or a script");
   });
 
   test("a stage a later stage sent back hears that the work since is already in the working tree", () => {
@@ -157,6 +158,9 @@ describe("drive domain", () => {
     });
     expect(p).toContain("No node_modules here.");
     expect(p).toContain("The checks a change must pass are the repository's configured gates");
+    // The critic is told how to see the change and which commands exist, instead of guessing.
+    expect(p).toContain("`metator review diff --base HEAD` shows the change");
+    expect(p).toContain("`metator help` lists every command");
   });
 
   test("question ids count up per run", () => {

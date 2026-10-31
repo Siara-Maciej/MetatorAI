@@ -357,6 +357,18 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/drive.ts",
+    from: '"`metator review diff --base HEAD` shows the change; `metator help` lists every command (use no other).",',
+    to: "",
+    why: "a critic is told how to see the change and which commands exist",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
+    from: '"Read and change files, JSON included, with Read, Edit and Write: never with an interpreter or a script (`python`, `node`, `jq`), which asks a person every time.",',
+    to: "",
+    why: "agents edit files with their tools, not with interpreters that ask a person",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
     from: "if (!input.retryFrom || input.retryFrom === input.stage.id)",
     to: "if (true)",
     why: "a stage sent back hears that the work since is in the working tree",
