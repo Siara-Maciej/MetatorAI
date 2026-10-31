@@ -212,6 +212,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a driven agent may not move the run itself",
   },
   {
+    file: "packages/core/src/application/system-discovery.ts",
+    from: "if (shared.length < 2) continue;",
+    to: "if (shared.length < 1) continue;",
+    why: "one shared route is not enough to call an application a consumer",
+  },
+  {
+    file: "packages/core/src/domain/system-discovery.ts",
+    from: "if (!HTTP_CLIENT.test(text)) return [];",
+    to: "",
+    why: "paths in a file without an HTTP client are the application's own pages",
+  },
+  {
+    file: "packages/core/src/domain/system-discovery.ts",
+    from: "/@(?:Controller|Get|Post|Put|Patch|Delete|All)",
+    to: "/@(?:Controller)",
+    why: "a NestJS method's route counts too",
+  },
+  {
     file: "packages/core/src/application/review.ts",
     from: "const saved = await this.fs.write(input.out, patch);",
     to: "const saved = ok(undefined);",

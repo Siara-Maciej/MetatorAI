@@ -6,6 +6,8 @@ import { packageOf } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   type AppCandidate,
+  apiRoutes,
+  calledRoutes,
   contractIds,
   type DiscoveryEvidence,
   type FoundContract,
@@ -305,6 +307,9 @@ export class DiscoverSystem {
     // that mention a `-json` URL), matched once every application's files have been read.
     const served: { app: string; file: string; spec: ServedSpec }[] = [];
     const fetching: { from: string; file: string; text: string }[] = [];
+    // Routes each application serves, and the routes each calls with a hand-written HTTP client.
+    const serves = new Map<string, Set<string>>();
+    const calls = new Map<string, { routes: Set<string>; file: string }>();
     for (const [i, source] of input.sources.entries()) {
       const mine = apps.filter((a) => a.sourceIndex === i);
       const refs = mine.map((a) => ({ name: a.id, dir: a.dir }));
@@ -320,6 +325,13 @@ export class DiscoverSystem {
         for (const from of froms) {
           for (const spec of servedSpecs(text)) served.push({ app: from, file, spec });
           if (text.includes("-json")) fetching.push({ from, file, text });
+          for (const r of apiRoutes(text)) serves.set(from, (serves.get(from) ?? new Set()).add(r));
+          const called = calledRoutes(text);
+          if (called.length > 0) {
+            const seen = calls.get(from) ?? { routes: new Set<string>(), file };
+            for (const r of called) seen.routes.add(r);
+            calls.set(from, seen);
+          }
           for (const c of contracts) {
             if (c.app === from) continue;
             const provider = apps.find((a) => a.id === c.app);
@@ -416,7 +428,33 @@ export class DiscoverSystem {
         return more.length > 0 ? { ...a, consumes: [...a.consumes, ...more].sort() } : a;
       }),
     };
-    const discovery = { ...proposed, proposal, evidence: [...proposed.evidence, ...runtime] };
+    // A hand-written client names no spec: it consumes an API when it calls two or more of the
+    // routes that application serves.
+    const byRoutes: DiscoveryEvidence[] = [];
+    const withCalls = proposal.applications.map((a) => {
+      const called = calls.get(a.id);
+      if (!called) return a;
+      const more: string[] = [];
+      for (const c of proposal.contracts) {
+        if (c.kind !== "openapi" || c.owner === a.id || a.consumes.includes(c.id)) continue;
+        const shared = [...called.routes].filter((r) => serves.get(c.owner)?.has(r));
+        if (shared.length < 2) continue;
+        more.push(c.id);
+        byRoutes.push({
+          subject: `consumes:${a.id}→${c.id}`,
+          reason: `calls routes ${c.owner} serves (${shared.map((r) => `/${r}`).join(", ")}) with an HTTP client`,
+          file: called.file,
+          confidence: "medium",
+          proposed: true,
+        });
+      }
+      return more.length > 0 ? { ...a, consumes: [...a.consumes, ...more].sort() } : a;
+    });
+    const discovery = {
+      ...proposed,
+      proposal: { ...proposal, applications: withCalls },
+      evidence: [...proposed.evidence, ...runtime, ...byRoutes],
+    };
 
     let drift: string[] = [];
     let written: string | undefined;

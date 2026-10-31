@@ -180,7 +180,7 @@ describe("metator system discover in a folder of three repositories (real CLI)",
       }),
       Dockerfile: "FROM oven/bun\n",
       "src/server.ts":
-        'import { t } from "billing-templates";\nexport const s = t;\nSwaggerModule.setup("docs", app, document);\n',
+        'import { t } from "billing-templates";\nexport const s = t;\nSwaggerModule.setup("docs", app, document);\n@Controller("invoices")\nrouter.get("/refunds", h);\n',
       "packages/templates/package.json": json({ name: "billing-templates", private: true, main: "index.ts" }),
       "packages/templates/index.ts": "export const t = 1;\n",
       "openapi.yaml": SPEC,
@@ -202,7 +202,8 @@ describe("metator system discover in a folder of three repositories (real CLI)",
     });
     await repo("notify", {
       "package.json": json({ name: "notify-worker", private: true, scripts: { start: "bun src/index.ts" } }),
-      "src/index.ts": "export const n = 1;\n",
+      // A hand-written client: no spec named, but it calls two routes billing declares.
+      "src/index.ts": "await fetch(BILLING + '/invoices/1');\nawait fetch(BILLING + '/refunds');\n",
     });
   });
   afterAll(async () => {
@@ -216,12 +217,15 @@ describe("metator system discover in a folder of three repositories (real CLI)",
     expect(d.topology).toBe("repos");
     expect(d.proposal.applications.map((a) => [a.id, a.kind, a.source, a.consumes])).toEqual([
       ["billing", "service", { repo: "billing" }, []],
-      ["notify", "worker", { repo: "notify" }, []],
+      ["notify", "worker", { repo: "notify" }, ["billing-api"]],
       ["web", "frontend", { repo: "web" }, ["billing-api"]],
     ]);
     expect(d.proposal.contracts.map((c) => [c.id, c.owner, c.spec.path])).toEqual([
       ["billing-api", "billing", "openapi.yaml"],
     ]);
+    expect(d.evidence).toContainEqual(
+      expect.objectContaining({ subject: "consumes:notify→billing-api", file: "notify/src/index.ts" }),
+    );
     expect(d.evidence).toContainEqual(
       expect.objectContaining({ subject: "consumes:web→billing-api", file: "web/package.json" }),
     );

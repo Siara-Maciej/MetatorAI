@@ -250,3 +250,31 @@ export function servedSpecs(text: string): ServedSpec[] {
 /** Whether a file fetches a served document: the URL ends with its path (any host or prefix). */
 export const fetchesServed = (text: string, url: string) =>
   new RegExp(`${url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w/-])`).test(text);
+
+/**
+ * The first path segment of each route a server declares: NestJS controllers and their methods,
+ * Express or Fastify handlers (`router.get('/tags')`, `app.use('/profiles', …)`). A parameter
+ * (`:id`) is no route name.
+ */
+export function apiRoutes(text: string): string[] {
+  const out = new Set<string>();
+  const patterns = [
+    /@(?:Controller|Get|Post|Put|Patch|Delete|All)\(\s*['"`]\/?([a-z][\w-]*)/g,
+    /\b(?:app|router|server|fastify)\.(?:get|post|put|patch|delete|all|use|route)\(\s*['"`]\/([a-z][\w-]*)/g,
+  ];
+  for (const p of patterns) for (const m of text.matchAll(p)) out.add(m[1] as string);
+  return [...out].sort();
+}
+
+const HTTP_CLIENT = /\bfetch\(|\baxios\b|\bsuperagent\b|\$fetch\(|\bky\b|\bHttpClient\b|\buseFetch\(|\bgot\(/;
+
+/**
+ * The first path segment of each path a file with an HTTP client calls (`'/articles/feed'`,
+ * `` `${API_ROOT}/users` ``). In a file without one, paths are the application's own pages.
+ */
+export function calledRoutes(text: string): string[] {
+  if (!HTTP_CLIENT.test(text)) return [];
+  const out = new Set<string>();
+  for (const m of text.matchAll(/['"`](?:\$\{[^}]+\})?\/([a-z][\w-]*)/g)) out.add(m[1] as string);
+  return [...out].sort();
+}

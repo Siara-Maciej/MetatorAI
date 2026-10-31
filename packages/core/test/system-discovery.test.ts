@@ -9,6 +9,8 @@ import { manifestOf } from "../src/domain/architecture.ts";
 import { EMPTY_POLICY } from "../src/domain/architecture-policy.ts";
 import { ok } from "../src/domain/result.ts";
 import {
+  apiRoutes,
+  calledRoutes,
   contractIds,
   type FoundContract,
   kindFrom,
@@ -122,6 +124,18 @@ describe("discovery helpers", () => {
     expect(d.evidence.filter((e) => !e.proposed).map((e) => e.subject)).toEqual([
       "consumes:worker→billing-api",
     ]);
+  });
+
+  test("routes a server declares and the routes a hand-written HTTP client calls", () => {
+    const nest =
+      "@Controller('articles')\nexport class A {}\n@Controller()\nclass U { @Post('users/login') login() {} @Get(':id') one() {} }";
+    const express = "router.get('/tags', h); app.use('/profiles', p);";
+    expect(apiRoutes(nest)).toEqual(["articles", "users"]);
+    expect(apiRoutes(express)).toEqual(["profiles", "tags"]);
+    const client = `const r = superagent.get(\`\${API_ROOT}\${url}\`);\nget('/articles/feed'); post('/users/login'); get(\`/profiles/\${u}\`);`;
+    expect(calledRoutes(client)).toEqual(["articles", "profiles", "users"]);
+    // Paths in a file with no HTTP client are routes of the app itself, not calls.
+    expect(calledRoutes("navigate('/articles'); <Link to='/profiles'/>")).toEqual([]);
   });
 
   test("drift: what the code shows and the map lacks", () => {
@@ -363,6 +377,42 @@ describe("DiscoverSystem", () => {
       ["tools-web", { repo: "tools", path: "apps/web" }, []],
     ]);
     expect(r.evidence.find((e) => e.subject === "consumes:web→billing-api")?.file).toBe("web/package.json");
+  });
+
+  test("a hand-written HTTP client consumes the API whose routes it calls, two routes at least", async () => {
+    const r = (
+      await new DiscoverSystem(detectors).execute({
+        system: "conduit",
+        sources: [
+          source("api", {
+            specs: [SPEC],
+            texts: [
+              { path: "src/articles.controller.ts", text: "@Controller('articles')\n@Post('users/login')" },
+            ],
+          }),
+          source("web", {
+            texts: [
+              {
+                path: "src/agent.js",
+                text: "superagent.get('/articles/feed'); superagent.post('/users/login');",
+              },
+            ],
+          }),
+          source("admin", { texts: [{ path: "src/agent.js", text: "fetch('/articles')" }] }),
+        ],
+      })
+    )._unsafeUnwrap();
+    const api = r.proposal.contracts[0]?.id as string;
+    expect(r.proposal.applications.map((a) => [a.id, a.consumes])).toEqual([
+      ["api", []],
+      ["web", [api]],
+      ["admin", []],
+    ]);
+    expect(r.evidence.find((e) => e.subject === `consumes:web→${api}`)).toMatchObject({
+      reason: "calls routes api serves (/articles, /users) with an HTTP client",
+      file: "web/src/agent.js",
+      confidence: "medium",
+    });
   });
 
   test("with a map: drift, a written proposal when there is none, never an overwrite", async () => {
