@@ -96,7 +96,7 @@ metator run activity --tail 8
   {"type":"agent","stage":"build","agent":"mt-test-author","text":"mt-test-author started"},
   {"type":"tool","stage":"build","agent":"mt-test-author","text":"Write packages/billing/test/discount.test.ts"},
   {"type":"advance","stage":"build","text":"PASS"},
-  {"type":"stage","stage":"gates","text":"Lint, typecheck, rules, affected tests, graph and API diff"},
+  {"type":"stage","stage":"gates","text":"The repository's configured gates (metator gate full)"},
   {"type":"tool","stage":"gates","text":"$ metator gate full"}]}
 ```
 

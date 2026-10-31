@@ -40,7 +40,7 @@ stages:
     owner: [mt-test-author, mt-implementer, skill:mt-create-from-pattern]
     produces: [build-log.md]
   - id: gates
-    description: Lint, typecheck, rules, affected tests, graph and API diff
+    description: The repository's configured gates (metator gate full)
     owner: mt-gatekeeper
     produces: [gates.md]
     gate: { script: metator gate full }

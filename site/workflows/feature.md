@@ -26,7 +26,7 @@ The orchestrator creates the run (`metator run init --workflow mt-feature --task
 | plan-gate | `metator plan lint`, then `mt-plan-critic` | | deterministic checks first, then an independent critic |
 | plan-approval | **you** | | the cheapest moment to change direction |
 | build | `mt-test-author` → `mt-implementer` | `build-log.md` | tests RED, then GREEN, only inside the plan scope |
-| gates | `mt-gatekeeper` (`metator gate full`) | `gates.md` | your checks plus rules, affected tests, graph diff |
+| gates | `mt-gatekeeper` (`metator gate full`) | `gates.md` | the checks your `gates.full` configures, and no others |
 | review | `mt-pr-review` | `verdict.json` | parallel lenses, verified findings, a judge |
 | delivery | **you** (`neverSkip`) | | nothing leaves your machine without you |
 | publish | `mt-pr-author` | `pr.md` | commit message and PR from the run's artifacts |

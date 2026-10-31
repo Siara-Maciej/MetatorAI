@@ -18,6 +18,7 @@ output: { artifact: gates.md, summaryLines: 10 }
 3. Run each gate in the foreground and wait for it, however long it takes: its report is the answer you read (`.metator/gates/<gate>.json` in your working directory). A gate in the background ends after your turn, when you can no longer read it.
 4. For each failing step, copy its `detail` (the end of the tool's output) as it is.
 5. For rule violations, add `metator rules show <id>` for each canon rule id.
+6. Run gates only (`metator gate <gate>`): the repository's configuration decides which checks a gate runs. Never add checks of your own (debug tags, contract diff, tests, a compiler); a check missing from the gate is for a person to add to `metator.config.yml`, so mention it in the summary instead.
 
 # Output
 - `gates.md`: each step with pass, fail, error or skipped; failing output; rule explanations.
