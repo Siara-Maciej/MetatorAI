@@ -363,7 +363,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/drive.ts",
-    from: '"`metator review diff --base HEAD` shows the change; `metator help` lists every command (use no other).",',
+    from: '"The change is `change.diff` in the run directory when the review wrote it (Read it), else `metator review diff --base HEAD`; `metator help` lists every command (use no other).",',
     to: "",
     why: "a critic is told how to see the change and which commands exist",
   },
@@ -402,6 +402,12 @@ export const MUTANTS: readonly Mutant[] = [
     from: "let answer = pending.value;",
     to: "let answer: string | undefined;",
     why: "a restarted drive gives a blocked agent the answer given while no drive ran",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "p(;(\\d+|\\$)(,(\\d+|\\$))?p)*$/",
+    to: "p$/",
+    why: "sed -n with several ranges only prints",
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",

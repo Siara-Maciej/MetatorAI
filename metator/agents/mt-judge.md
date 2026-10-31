@@ -5,7 +5,7 @@ id: mt-judge
 role: worker
 description: Calibrates the merged, verified findings and lists what was verified correct, then records the decision. Started by mt-pr-review after verification. Do not use to find or verify findings.
 tier: reasoning
-capabilities: [read, edit, "metator:findings"]
+capabilities: [read, edit, search, "metator:findings", "metator:review"]
 inputs: [findings/merged.json, review-plan.json]
 output: { artifact: verdict.json, summaryLines: 15 }
 ---

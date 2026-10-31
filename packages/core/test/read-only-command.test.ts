@@ -47,6 +47,8 @@ describe("readOnlyCommand", () => {
   test("sed that only prints a range of lines reads; any other sed does not", () => {
     expect(ro("sed -n 1,200p src/a.ts | grep -n Expose")).toBe(true);
     expect(ro("sed -n '10,$p' src/a.ts")).toBe(true);
+    expect(ro("sed -n '20,30p;78,95p' src/a.ts")).toBe(true);
+    expect(ro("sed -n '20,30p;1w out.txt' src/a.ts")).toBe(false);
     expect(ro("sed -i 's/a/b/' src/a.ts")).toBe(false);
     expect(ro("sed -i 1p src/a.ts")).toBe(false);
     expect(ro("sed -n '1w out.txt' src/a.ts")).toBe(false);

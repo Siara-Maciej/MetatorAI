@@ -207,7 +207,7 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
     `Task: ${input.task}`,
     `Review the artifacts in ${input.runDir}: ${(input.stage.produces ?? []).join(", ") || "(none listed)"}.`,
     "Read files with Read, Glob and Grep; run no shell commands besides a single `metator` command per call, and no interpreter (`python`, `node`, `jq`).",
-    "`metator review diff --base HEAD` shows the change; `metator help` lists every command (use no other).",
+    "The change is `change.diff` in the run directory when the review wrote it (Read it), else `metator review diff --base HEAD`; `metator help` lists every command (use no other).",
     // A check the repository does not configure, or cannot run where the run works, is not the
     // critic's to demand: the gate reports (`.metator/gates/<gate>.json`) say what passed.
     "The checks a change must pass are the repository's configured gates; their reports are in .metator/gates/. Do not fail the stage for a check the gates do not configure or that cannot run here; name it in your reason only if the artifacts claim it passed.",

@@ -44,7 +44,8 @@ function sedPrint(argv: readonly string[], inside: (arg: string) => boolean): bo
   if (program !== "sed" || args[0] !== "-n" || args.length < 2) return false;
   const [script, ...files] = args.slice(1);
   return (
-    /^(\d+|\$)(,(\d+|\$))?p$/.test(script as string) && files.every((f) => !f.startsWith("-") && inside(f))
+    /^(\d+|\$)(,(\d+|\$))?p(;(\d+|\$)(,(\d+|\$))?p)*$/.test(script as string) &&
+    files.every((f) => !f.startsWith("-") && inside(f))
   );
 }
 
