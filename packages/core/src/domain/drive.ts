@@ -166,7 +166,7 @@ export function stagePrompt(input: StagePromptInput): string {
     ...(input.skills.length > 0 ? [`Skills you may use: ${input.skills.join(", ")}.`] : []),
     "Run each `metator` command on its own: no `cd`, pipes, redirections or other commands in the same call (alone they need no approval). Look at files with Read, Glob and Grep.",
     "Read and change files, JSON included, with Read, Edit and Write: never with an interpreter or a script (`python`, `node`, `jq`), which asks a person every time.",
-    "`metator help` lists every metator command; use no other (a guessed one only asks a person).",
+    "`metator help` lists every metator command; use no other (a guessed one only asks a person). Never `metator ask`: it starts another agent; read the code yourself.",
     ...(input.notes ?? []),
     ...decisionLines(input),
     ...retryLines(input),
@@ -208,7 +208,7 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
     `Task: ${input.task}`,
     `Review the artifacts in ${input.runDir}: ${(input.stage.produces ?? []).join(", ") || "(none listed)"}.`,
     "Read files with Read, Glob and Grep; run no shell commands besides a single `metator` command per call, and no interpreter (`python`, `node`, `jq`).",
-    "The change is `change.diff` in the run directory when the review wrote it (Read it), else `metator review diff --base HEAD`; `metator help` lists every command (use no other).",
+    "The change is `change.diff` in the run directory when the review wrote it (Read it), else `metator review diff --base HEAD`; `metator help` lists every command (use no other, and never `metator ask`, which starts another agent).",
     // A check the repository does not configure, or cannot run where the run works, is not the
     // critic's to demand: the gate reports (`.metator/gates/<gate>.json`) say what passed.
     "The checks a change must pass are the repository's configured gates; their reports are in .metator/gates/. Do not fail the stage for a check the gates do not configure or that cannot run here; name it in your reason only if the artifacts claim it passed.",

@@ -130,6 +130,7 @@ describe("drive domain", () => {
     expect(p).toContain("No node_modules here.");
     expect(p).toContain("never with an interpreter or a script");
     expect(p).toContain("`metator help` lists every metator command");
+    expect(p).toContain("Never `metator ask`: it starts another agent");
   });
 
   test("a person's answers in the run are decisions every later agent and critic hears", () => {
@@ -174,6 +175,7 @@ describe("drive domain", () => {
     expect(p).toContain("The checks a change must pass are the repository's configured gates");
     // The critic is told how to see the change and which commands exist, instead of guessing.
     expect(p).toContain("else `metator review diff --base HEAD`");
+    expect(p).toContain("never `metator ask`");
     expect(p).toContain("`metator help` lists every command");
   });
 

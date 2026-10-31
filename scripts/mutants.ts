@@ -363,7 +363,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/drive.ts",
-    from: '"The change is `change.diff` in the run directory when the review wrote it (Read it), else `metator review diff --base HEAD`; `metator help` lists every command (use no other).",',
+    from: '"The change is `change.diff` in the run directory when the review wrote it (Read it), else `metator review diff --base HEAD`; `metator help` lists every command (use no other, and never `metator ask`, which starts another agent).",',
     to: "",
     why: "a critic is told how to see the change and which commands exist",
   },
@@ -393,7 +393,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/drive.ts",
-    from: '"`metator help` lists every metator command; use no other (a guessed one only asks a person).",',
+    from: '"`metator help` lists every metator command; use no other (a guessed one only asks a person). Never `metator ask`: it starts another agent; read the code yourself.",',
     to: "",
     why: "workers are told where the metator commands are listed",
   },
