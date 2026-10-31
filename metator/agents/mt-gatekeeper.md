@@ -15,12 +15,13 @@ output: { artifact: gates.md, summaryLines: 10 }
 # Procedure
 1. `metator gate quick --base <ref>`.
 2. If it passes and the coordinator asks for it: `metator gate full`.
-3. For each failing step, copy its `detail` (the end of the tool's output) as it is.
-4. For rule violations, add `metator rules show <id>` for each canon rule id.
+3. Run each gate in the foreground and wait for it, however long it takes: its report is the answer you read (`.metator/gates/<gate>.json` in your working directory). A gate in the background ends after your turn, when you can no longer read it.
+4. For each failing step, copy its `detail` (the end of the tool's output) as it is.
+5. For rule violations, add `metator rules show <id>` for each canon rule id.
 
 # Output
 - `gates.md`: each step with pass, fail, error or skipped; failing output; rule explanations.
 - A summary of at most 10 lines: green, or the failing steps.
 
 # Stop conditions
-- A step errors (tool missing, exit 127): stop and report it; it is not a code problem.
+- A step errors (tool missing, exit 127), or the dependencies are not installed: stop and report it; it is not a code problem.

@@ -119,6 +119,29 @@ describe("AskQuestion", () => {
     expect((await w.repo.list())._unsafeUnwrap().map((c) => c.turns.length)).toEqual([1]);
   });
 
+  test("a short path is the file next to one cited in full before it", async () => {
+    const w = world({
+      "mt-guide": [
+        {
+          text: "The list is in api/src/module/offers/controllers/admin.ts:41; its items are dto/item.dto.ts:59, built in offer.service.ts:150, and nowhere/else.ts:3.",
+        },
+      ],
+    });
+    for (const f of [
+      "api/src/module/offers/controllers/admin.ts",
+      "api/src/module/offers/dto/item.dto.ts",
+      "api/src/module/offers/controllers/offer.service.ts",
+    ])
+      await w.fs.write(f, "x\n");
+    const r = (await w.ask.execute({ ...w.input, question: "Where?" }))._unsafeUnwrap();
+    expect(r.citations.map((c) => [c.path, c.exists])).toEqual([
+      ["api/src/module/offers/controllers/admin.ts", true],
+      ["api/src/module/offers/dto/item.dto.ts", true],
+      ["api/src/module/offers/controllers/offer.service.ts", true],
+      ["nowhere/else.ts", false],
+    ]);
+  });
+
   test("a follow-up continues the host's session and the same conversation", async () => {
     const w = world({ "mt-guide": [{ text: "first" }, { text: "second" }] });
     const first = (await w.ask.execute({ ...w.input, question: "Where is VAT?" }))._unsafeUnwrap();

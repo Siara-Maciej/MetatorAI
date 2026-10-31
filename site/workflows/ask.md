@@ -44,6 +44,8 @@ In a [folder of repositories](../multi-repo/repositories.md#a-folder-of-reposito
 cd ~/work && metator ask "Which repositories call the billing API?"
 ```
 
+Every `path:line` in the answer is checked against the code. An answer usually names a file in full once and then writes it, or its neighbours, relative to that place (`dto/offer.dto.ts:59`); such a short path counts as the file next to the one cited before it.
+
 A repository may be a link to a clone elsewhere (`~/work/api -> ~/src/api`). The guide is told where each one really is and may read and search there; a search of the whole folder would not enter a link.
 
 ## What the guide never does

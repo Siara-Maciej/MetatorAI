@@ -80,6 +80,23 @@ export function findCitations(answer: string): { path: string; line: number }[] 
   return out;
 }
 
+/**
+ * Where a short citation (`dto/offer.dto.ts`, `offer.repository.ts`) may be: the same path inside
+ * each directory, and each of its parents, of the full paths the answer cites, nearest first. An
+ * answer names a file in full once and then writes it, or its neighbours, relative to that place.
+ */
+export function citationCandidates(path: string, known: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const full of [...known].reverse()) {
+    const parts = full.split("/").slice(0, -1);
+    for (let i = parts.length; i > 0; i--) {
+      const candidate = `${parts.slice(0, i).join("/")}/${path}`;
+      if (candidate !== path && !out.includes(candidate)) out.push(candidate);
+    }
+  }
+  return out;
+}
+
 const RULES =
   "Read the code; change nothing. Cite every claim as path:line (relative to the directory you are in). Say plainly when the code does not settle something.";
 

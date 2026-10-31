@@ -236,6 +236,37 @@ export const MUTANTS: readonly Mutant[] = [
     why: "review diff leaves out MetatorAI's own files",
   },
   {
+    file: "packages/core/src/application/ask.ts",
+    from: "for (const candidate of exists ? [] : citationCandidates(path, known))",
+    to: "for (const candidate of [] as string[])",
+    why: "a short citation is the file next to one cited in full before it",
+  },
+  {
+    file: "packages/plugin-bun/src/node-bin-resolver.ts",
+    from: "existsSync(local) || uninstalled ? local : bin",
+    to: "existsSync(local) ? local : bin",
+    why: "a Node project without node_modules never runs another version of a binary from PATH",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (key !== "") expanded = true;',
+    to: "expanded = true;",
+    why: "a lone $ (a regular expression's end anchor) is no variable",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "if (metatorHelp(argv)) return true;",
+    to: "",
+    why: "metator help only prints",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: "const runsIn = cwd;",
+    to: "const runsIn = this.d.root;",
+    why: "an agent in a run's worktree gets the run directory through the worktree",
+  },
+
+  {
     file: "packages/core/src/application/cards.ts",
     from: "const modulesPolicy = policy.value?.policy.modules;",
     to: "const modulesPolicy = undefined;",
@@ -760,8 +791,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-bun/src/node-bin-resolver.ts",
-    from: "existsSync(local) ? local : bin",
-    to: "bin",
+    from: "existsSync(local) || uninstalled ? local : bin",
+    to: "uninstalled ? local : bin",
     why: "the repo's pinned binary wins over PATH",
   },
   {
@@ -1798,8 +1829,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/ask.ts",
-    from: "citations.push({ ...c, exists: await this.cited(input.cwd, c.path) });",
-    to: "citations.push({ ...c, exists: true });",
+    from: "let exists = await this.cited(input.cwd, path);",
+    to: "let exists = true;",
     why: "a cited file that does not exist is flagged",
   },
   {

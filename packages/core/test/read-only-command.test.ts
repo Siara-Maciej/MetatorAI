@@ -22,12 +22,24 @@ describe("readOnlyCommand", () => {
       ),
     ).toBe(true);
     expect(ro("grep -rn offers src 2>&1 | head -5 && ls src || ls")).toBe(true);
+    expect(ro('ls node_modules/.bin 2>&1 | grep -E "^(jest|tsc)$"; ls node_modules | wc -l')).toBe(true);
     expect(ro("ls src;")).toBe(true);
     expect(ro("cd /elsewhere && ls")).toBe(false);
     expect(ro("grep -rn offers src 2>/tmp/err.txt")).toBe(false);
     expect(ro("grep -rn offers src >> out.txt")).toBe(false);
     expect(ro("ls & rm -rf src")).toBe(false);
     expect(ro(";")).toBe(false);
+  });
+
+  test("metator help and a command's --help only print", () => {
+    expect([ro("metator help"), ro("metator run answer --help"), ro("metator findings -h")]).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(ro("metator run advance pass")).toBe(false);
+    expect(ro("metator run advance --help --reason x")).toBe(false);
+    expect(ro("metator --help; metator run advance pass")).toBe(false);
   });
 
   test("options that write or run, redirections, chains and substitutions do not", () => {

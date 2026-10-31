@@ -69,7 +69,7 @@ A gate is a named list of steps. A step runs one of:
 | `run` | Meaning | Example |
 |---|---|---|
 | `{ script: <name> }` | a `package.json` script through your package manager | `{ script: lint }` |
-| `{ bin: <name>, args: [...] }` | a binary from `node_modules/.bin` | `{ bin: tsc, args: [--noEmit] }` |
+| `{ bin: <name>, args: [...] }` | a binary from `node_modules/.bin` (from PATH only when the project has none; with dependencies not installed it is reported missing, never run in another version from PATH) | `{ bin: tsc, args: [--noEmit] }` |
 | `{ workspaces: <name> }` | the script in every workspace package that has it, through your package manager (`pnpm -r --if-present run <name>`, `npm run <name> --workspaces --if-present`, `bun run --filter '*' <name>`, `yarn workspaces foreach -A run <name>`) | `{ workspaces: typecheck }` |
 | `{ metator: <check> }` | a MetatorAI check in process | `rules check`, `test affected`, `graph diff`, `arch check`, `contract diff`, `api diff <package>`, `coverage diff [--min N] [--lcov file]` |
 

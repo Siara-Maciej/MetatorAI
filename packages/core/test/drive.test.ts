@@ -293,6 +293,20 @@ describe("DriveRun", () => {
     ]);
   });
 
+  test("in a run's worktree an agent gets the run directory through the worktree, inside its root", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start();
+    const record = (await w.repo.load(runId))._unsafeUnwrap();
+    const worktree = { id: "wt1", path: ".metator/wt/wt1", branch: "metator/wt1" };
+    (await w.repo.save({ ...record, worktree }))._unsafeUnwrap();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 2 });
+    expect([w.host.tasks[0]?.cwd, w.host.tasks[0]?.runDir]).toEqual([
+      "/repo/.metator/wt/wt1",
+      `/repo/.metator/wt/wt1/.metator/runs/${runId}`,
+    ]);
+  });
+
   test("an agent that moves the run itself does not make the drive skip the next stage", async () => {
     // The planner advances the run on its own (plan → approval); the drive's PASS for plan would
     // otherwise approve the approval stage. It is not sent, and the approval still asks a person.

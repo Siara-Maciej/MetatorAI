@@ -15,7 +15,7 @@ model: opus
 2. Every created code file: `bun run metator similar --file <path>` and copy its exemplar into `patternSource`; no fit means `newPatternAdr` (a new abstraction needs an ADR).
 3. Tests first: each code step lists `testsFirst`, written by an earlier step it depends on (use skill mt-find-patterns for the test exemplar too).
 4. Order steps so a file runs after what it imports (`dependsOn`); one step per file.
-5. A step's `rules` are canon rule ids from `rulepack.md` (`bun run metator rules pack`); none there means `[]`. Conventions from docs or CLAUDE.md go into the step's description, not `rules`.
+5. A step's `rules` are canon rule ids from `rulepack.md` in the run directory (the context stage wrote it; read it, do not rebuild it); none there means `[]`. Conventions from docs or CLAUDE.md go into the step's description, not `rules`.
 6. Write `plan.json` (`bun run metator plan schema`), then `bun run metator plan lint <plan.json>` until it passes.
 7. `bun run metator plan scope <plan.json>` writes `plan-scope.json` for the build stage.
 

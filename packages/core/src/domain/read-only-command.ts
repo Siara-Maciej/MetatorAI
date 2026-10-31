@@ -34,6 +34,18 @@ const WRITES_OR_RUNS: Readonly<Record<string, RegExp>> = {
   sort: /^(-o|--output(=|$)|--compress-program(=|$))/,
 };
 
+/** `metator help` or `metator <command…> --help`: help prints, it runs nothing. */
+function metatorHelp(argv: readonly string[]): boolean {
+  const [program, ...rest] = argv;
+  if (program !== "metator" || rest.length === 0) return false;
+  const last = rest.at(-1) as string;
+  const words = rest.slice(0, -1);
+  return (
+    (rest.length === 1 && last === "help") ||
+    ((last === "--help" || last === "-h") && words.every((w) => /^[a-z][a-z0-9-]*$/.test(w)))
+  );
+}
+
 export function readOnlyCommand(command: string, dirs: readonly string[]): boolean {
   // Substitutions, process substitution and several lines could run anything.
   if (/[`\n\r]|\$\(|<\(|>\(/.test(command)) return false;
@@ -43,7 +55,8 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
     .replace(/(^|\s)[12]>&[12](?=$|[\s;&|])/g, "$1");
   let expanded = false;
   const tokens = parse(quiet, (key) => {
-    expanded = true;
+    // A lone `$` (a regular expression's end anchor) names no variable: it stays literal.
+    if (key !== "") expanded = true;
     return `$${key}`;
   });
   if (expanded) return false;
@@ -63,6 +76,7 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
     commands.filter((argv) => argv.length > 0).length > 0 &&
     commands.every((argv, i) => {
       if (argv.length === 0) return i === commands.length - 1 && i > 0; // a trailing `;`
+      if (metatorHelp(argv)) return true;
       const [program, ...args] = argv;
       if (!program || !READERS.has(program)) return false;
       const forbidden = WRITES_OR_RUNS[program];

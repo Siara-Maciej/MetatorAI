@@ -8,6 +8,11 @@ export class NodeBinResolver implements BinResolver {
 
   async command(bin: string, args: readonly string[]): Promise<ResolvedCommand> {
     const local = join(this.root, "node_modules", ".bin", bin);
-    return { argv: [existsSync(local) ? local : bin, ...args], cwd: this.root };
+    // A Node project whose dependencies are not installed: the binary is its own pinned one, not
+    // another version from PATH that would fail (or pass) for reasons of its own. It is reported
+    // as not found, which says to install first.
+    const uninstalled =
+      existsSync(join(this.root, "package.json")) && !existsSync(join(this.root, "node_modules"));
+    return { argv: [existsSync(local) || uninstalled ? local : bin, ...args], cwd: this.root };
   }
 }

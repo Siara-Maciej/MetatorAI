@@ -2,6 +2,7 @@ import {
   type AnswerCitation,
   type Conversation,
   ConversationDocument,
+  citationCandidates,
   conversationId,
   findCitations,
   guidePrompt,
@@ -152,8 +153,20 @@ export class AskQuestion {
       }
     }
     const citations: AnswerCitation[] = [];
-    for (const c of findCitations(answer))
-      citations.push({ ...c, exists: await this.cited(input.cwd, c.path) });
+    const known: string[] = [];
+    for (const c of findCitations(answer)) {
+      let path = c.path;
+      let exists = await this.cited(input.cwd, path);
+      // A short path relative to a file cited before it: where it really is.
+      for (const candidate of exists ? [] : citationCandidates(path, known))
+        if (await this.cited(input.cwd, candidate)) {
+          path = candidate;
+          exists = true;
+          break;
+        }
+      if (exists && path.includes("/")) known.push(path);
+      citations.push({ path, line: c.line, exists });
+    }
     const at = this.clock.now().toISOString();
     const conversation: Conversation = {
       id,

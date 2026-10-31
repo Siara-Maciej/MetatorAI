@@ -300,13 +300,17 @@ export class DriveRun {
         return err(new MetatorError("INTERNAL", `stage ${record.value.state.stage} is not in the workflow`));
       await say({ type: "stage", stage: stage.id, text: stage.description ?? stage.id });
 
+      const cwd = record.value.worktree ? `${this.d.root}/${record.value.worktree.path}` : this.d.root;
+      // Through the run's worktree when it has one (the worktree links the run directory in): a
+      // path into the checkout would be outside the root the agent's metator commands read from.
+      const runsIn = cwd;
       const ctx: StageContext = {
         runId,
         task: record.value.task,
         stage,
         host,
-        cwd: record.value.worktree ? `${this.d.root}/${record.value.worktree.path}` : this.d.root,
-        runDir: `${this.d.root}/${this.d.repo.runDir(runId)}`,
+        cwd,
+        runDir: `${runsIn}/${this.d.repo.runDir(runId)}`,
         ...(retry ? { retry } : {}),
         ...(record.value.hostSession ? { resume: record.value.hostSession } : {}),
         since: record.value.updatedAt,
