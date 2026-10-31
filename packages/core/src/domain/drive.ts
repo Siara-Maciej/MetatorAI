@@ -166,6 +166,7 @@ export function stagePrompt(input: StagePromptInput): string {
     ...(input.skills.length > 0 ? [`Skills you may use: ${input.skills.join(", ")}.`] : []),
     "Run each `metator` command on its own: no `cd`, pipes, redirections or other commands in the same call (alone they need no approval). Look at files with Read, Glob and Grep.",
     "Read and change files, JSON included, with Read, Edit and Write: never with an interpreter or a script (`python`, `node`, `jq`), which asks a person every time.",
+    "`metator help` lists every metator command; use no other (a guessed one only asks a person).",
     ...(input.notes ?? []),
     ...decisionLines(input),
     ...retryLines(input),

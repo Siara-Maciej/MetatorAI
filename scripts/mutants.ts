@@ -393,6 +393,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/drive.ts",
+    from: '"`metator help` lists every metator command; use no other (a guessed one only asks a person).",',
+    to: "",
+    why: "workers are told where the metator commands are listed",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
     from: "if (!input.retryFrom || input.retryFrom === input.stage.id)",
     to: "if (true)",
     why: "a stage sent back hears that the work since is in the working tree",

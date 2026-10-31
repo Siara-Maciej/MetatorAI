@@ -129,6 +129,7 @@ describe("drive domain", () => {
     });
     expect(p).toContain("No node_modules here.");
     expect(p).toContain("never with an interpreter or a script");
+    expect(p).toContain("`metator help` lists every metator command");
   });
 
   test("a person's answers in the run are decisions every later agent and critic hears", () => {
