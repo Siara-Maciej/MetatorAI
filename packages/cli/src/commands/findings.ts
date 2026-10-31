@@ -163,11 +163,16 @@ export function registerReviewCommands(program: Command, { action, container }: 
     .description("The change as a unified diff (new files whole), without MetatorAI's own files")
     .argument("[files...]", "only these files")
     .option("--base <ref>", "the branch the change goes into", "HEAD")
+    .option("--out <path>", "write the patch to this file as plain text (read it with your Read tool)")
     .action(
-      action(async (files: string[], opts: { base: string }) => ({
+      action(async (files: string[], opts: { base: string; out?: string }) => ({
         result: await container()
           .resolve("showChangeDiff")
-          .execute({ base: opts.base, ...(files.length > 0 ? { files: files.map(normalizePath) } : {}) }),
+          .execute({
+            base: opts.base,
+            ...(files.length > 0 ? { files: files.map(normalizePath) } : {}),
+            ...(opts.out ? { out: normalizePath(opts.out) } : {}),
+          }),
       })),
     );
   review

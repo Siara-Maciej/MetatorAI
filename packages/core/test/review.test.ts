@@ -274,7 +274,19 @@ describe("ShowChangeDiff", () => {
     });
     expect((await show.execute({ base: "main", files: ["b.ts"] }))._unsafeUnwrap().files).toEqual(["b.ts"]);
     const none = new ShowChangeDiff({ ...changes, changedFiles: async () => ok([".claude/agents/mt-x.md"]) });
-    expect((await none.execute({ base: "main" }))._unsafeUnwrap().patch).toBe("");
+    expect((await none.execute({ base: "main" }))._unsafeUnwrap()).toMatchObject({ patch: "" });
     expect(asked).toEqual([["src/a.ts"], ["b.ts"]]);
+  });
+
+  test("--out writes the patch as plain text and answers with the file and its size", async () => {
+    const fs = new InMemoryFileSystem();
+    const changes = {
+      changedFiles: async () => ok(["src/a.ts"]),
+      patch: async () => ok("diff --git a/src/a.ts\n+x\n"),
+    };
+    const out = ".metator/runs/r1/change.diff";
+    const r = (await new ShowChangeDiff(changes, fs).execute({ base: "HEAD", out }))._unsafeUnwrap();
+    expect(r).toEqual({ base: "HEAD", files: ["src/a.ts"], output: out, lines: 3 });
+    expect((await fs.read(out))._unsafeUnwrap()).toBe("diff --git a/src/a.ts\n+x\n");
   });
 });

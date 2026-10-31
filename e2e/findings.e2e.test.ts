@@ -146,6 +146,15 @@ describe("metator findings", () => {
       expect(diff.files).toEqual(["src/pay.ts"]);
       expect(diff.patch).toContain("+++ b/src/pay.ts");
       expect(diff.patch).toContain("+export const fee = 2;");
+      // A large patch goes to a file an agent reads with its Read tool.
+      const saved = data(
+        await metator(
+          ["review", "diff", "--base", "main", "--out", ".metator/runs/r1/change.diff"],
+          repo.root,
+        ),
+      ) as { output: string; lines: number };
+      expect(saved.output).toBe(".metator/runs/r1/change.diff");
+      expect(await repo.read(".metator/runs/r1/change.diff")).toBe(diff.patch);
       expect((await metator(["review", "plan", "--lenses", "style"], repo.root)).code).toBe(64);
 
       const blocker = finding("LOGIC-001", "logic", {

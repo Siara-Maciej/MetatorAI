@@ -189,9 +189,36 @@ export class DescribeReviewedChange {
 
 /** `review diff`: the change as a unified diff, without MetatorAI's own files, for a reviewer to read. */
 export class ShowChangeDiff {
-  constructor(private readonly changes: ChangePatch & Pick<Vcs, "changedFiles">) {}
+  constructor(
+    private readonly changes: ChangePatch & Pick<Vcs, "changedFiles">,
+    private readonly fs?: Pick<FileSystem, "write">,
+  ) {}
 
+  /**
+   * With `out` the patch goes to that file as plain text and the answer is short (the file and
+   * its size): an agent reads a large patch with its Read tool instead of digging it out of JSON.
+   */
   async execute(input: {
+    readonly base: string;
+    readonly files?: readonly string[];
+    readonly out?: string;
+  }): Promise<
+    Result<
+      | { base: string; files: string[]; patch: string }
+      | { base: string; files: string[]; output: string; lines: number },
+      MetatorError
+    >
+  > {
+    const shown = await this.show(input);
+    if (shown.isErr() || !input.out) return shown;
+    if (!this.fs) return err(new MetatorError("INTERNAL", "review diff --out needs a file system"));
+    const { patch, ...rest } = shown.value;
+    const saved = await this.fs.write(input.out, patch);
+    if (saved.isErr()) return err(saved.error);
+    return ok({ ...rest, output: input.out, lines: patch === "" ? 0 : patch.split("\n").length });
+  }
+
+  private async show(input: {
     readonly base: string;
     readonly files?: readonly string[];
   }): Promise<Result<{ base: string; files: string[]; patch: string }, MetatorError>> {

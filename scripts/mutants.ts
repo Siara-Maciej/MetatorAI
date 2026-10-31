@@ -213,6 +213,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/review.ts",
+    from: "const saved = await this.fs.write(input.out, patch);",
+    to: "const saved = ok(undefined);",
+    why: "review diff --out writes the patch",
+  },
+  {
+    file: "packages/core/src/application/review.ts",
     from: "if (matchesAny(f, METATOR_FILES)) continue;",
     to: "",
     why: "MetatorAI's own files are no code to review",

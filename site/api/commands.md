@@ -1291,6 +1291,7 @@ metator review diff [options] [files...]
 |---|---|---|
 | `[files]` | only these files | |
 | `--base <ref>` | the branch the change goes into | `"HEAD"` |
+| `--out <path>` | write the patch to this file as plain text (read it with your Read tool) |  |
 
 ### `metator review plan`
 

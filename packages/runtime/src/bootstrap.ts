@@ -832,7 +832,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores }) =>
         new PlanReview(vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores),
     ),
-    showChangeDiff: asFunction(({ changePatch }) => new ShowChangeDiff(changePatch)),
+    showChangeDiff: asFunction(({ changePatch, fileSystem }) => new ShowChangeDiff(changePatch, fileSystem)),
     describeReviewedChange: asFunction(
       ({ vcs, branchHistory, fileSystem }) => new DescribeReviewedChange(vcs, branchHistory, fileSystem),
     ),

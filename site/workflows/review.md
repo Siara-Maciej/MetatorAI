@@ -33,7 +33,7 @@ verify  mt-verifier per blocking/major finding    → confirmed | refuted | unpr
 judge   metator findings verdict <dir>, mt-judge  → verdict.json
 ```
 
-**Lenses read the change without git.** `metator review diff` gives the patch from the merge base to the working tree, new files whole, and never runs an external diff driver or text conversion a repository configures. MetatorAI's own files (host files, canon, cards) are left out of the diff, the plan and `system impact`.
+**Lenses read the change without git.** `metator review diff` gives the patch from the merge base to the working tree, new files whole, and never runs an external diff driver or text conversion a repository configures. MetatorAI's own files (host files, canon, cards) are left out of the diff, the plan and `system impact`. A large change is written with `--out <run dir>/change.diff` as a plain patch, which the coordinator and the lenses read with their Read tool.
 
 **Resuming is safe.** A run that stops and continues runs `findings merge` again; the verifications already recorded for the same finding (same id, file and quote) stay in `merged.json`, so the verify stage is not lost. Paths may be relative or absolute inside the repository.
 
