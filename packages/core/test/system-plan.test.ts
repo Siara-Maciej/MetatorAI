@@ -531,6 +531,28 @@ describe("system plan use cases", () => {
     ]);
   });
 
+  test("propose: the agents may read every application's checkout on this machine", async () => {
+    const w = world();
+    const host = new FakeAgentHost({});
+    const propose = new ProposeSystemPlan(
+      new Map([["scenario", host]]),
+      w.analyze,
+      w.create,
+      w.lint,
+      w.store,
+      async () => ["/r", "/folder/frontend", "/folder/frontend"],
+    );
+    await propose.execute({
+      task: "Rename refunds",
+      breaking: ["billing-api"],
+      host: "scenario",
+      by: "ana",
+      cwd: "/r",
+      projectRoot: "/r",
+    });
+    expect(host.tasks.map((t) => t.dirs)).toEqual([["/folder/frontend"], ["/folder/frontend"]]);
+  });
+
   test("propose: the scout checks the analysis, the planner refines the draft, then lint", async () => {
     const w = world();
     const host = new FakeAgentHost({
@@ -573,6 +595,8 @@ describe("system plan use cases", () => {
       [],
       "Add the new shape of billing-api beside the old one (refined)",
     ]);
+    // Without the other repositories' checkouts, the agents may read only this one.
+    expect(host.tasks[0]?.dirs).toBeUndefined();
     expect((await propose.execute({ ...input, host: "nope" }))._unsafeUnwrapErr().message).toBe(
       "unknown host nope",
     );

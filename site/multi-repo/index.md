@@ -240,7 +240,7 @@ metator system plan lint rename-refunds
 metator system plan approve rename-refunds                      # you, never an agent
 ```
 
-The analysis is saved next to the plan. `system plan new` and `propose` analyze again when you name what the task touches (`--contracts`, `--breaking` or `--files`); otherwise they reuse the saved analysis. Once the plan is approved or running, its analysis stays as approved: `system analyze` refuses and asks for a new task. `propose` keeps whatever the agents wrote as a draft, and drops an approval an agent wrote itself.
+The analysis is saved next to the plan. `system plan new` and `propose` analyze again when you name what the task touches (`--contracts`, `--breaking` or `--files`); otherwise they reuse the saved analysis. Once the plan is approved or running, its analysis stays as approved: `system analyze` refuses and asks for a new task. `propose` keeps whatever the agents wrote as a draft, and drops an approval an agent wrote itself. Its agents may read, without asking, every application's checkout already on this machine (`metator system sources` shows where), so they find which consumer really calls a changed endpoint instead of guessing from the application's name.
 
 Under `expand-contract` the draft is:
 

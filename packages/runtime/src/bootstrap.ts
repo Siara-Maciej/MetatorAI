@@ -569,8 +569,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ApproveSystemPlan(lintSystemPlan, systemPlanStore, clock),
     ),
     proposeSystemPlan: asFunction(
-      ({ agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore }) =>
-        new ProposeSystemPlan(agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore),
+      ({ agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore, systemSources }) =>
+        new ProposeSystemPlan(
+          agentHosts,
+          analyzeSystem,
+          createSystemPlan,
+          lintSystemPlan,
+          systemPlanStore,
+          () => checkoutRoots(systemSources),
+        ),
     ),
     // Run tools of another repository on this machine: its own container, with its own config.
     repositoryRuns: asValue((root: string): RepositoryRuns => {
@@ -962,6 +969,20 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     listRuns: asFunction(({ runRepository }) => new ListRuns(runRepository)),
   });
   return c;
+}
+
+/** Where the map's applications' code already is on this machine (never a clone fetched for this). */
+export async function checkoutRoots(
+  sources: Pick<SystemSources, "locate" | "location">,
+): Promise<readonly string[]> {
+  const map = await sources.location.require();
+  if (map.isErr()) return [];
+  const roots: string[] = [];
+  for (const app of map.value.applications) {
+    const located = await sources.locate(app);
+    if (located.isOk() && located.value) roots.push(located.value.root);
+  }
+  return roots;
 }
 
 /**

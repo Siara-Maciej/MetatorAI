@@ -332,6 +332,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a critic leaves the choice of checks to the repository's gates",
   },
   {
+    file: "packages/runtime/src/bootstrap.ts",
+    from: "if (located.isOk() && located.value) roots.push(located.value.root);",
+    to: "",
+    why: "the checkouts the map's applications are in reach the system plan agents",
+  },
+  {
+    file: "packages/core/src/application/system-plans.ts",
+    from: "...(elsewhere.length > 0 ? { dirs: elsewhere } : {}),",
+    to: "",
+    why: "system plan agents read the other applications' checkouts",
+  },
+  {
     file: "packages/core/src/application/drive.ts",
     from: "let answer = pending.value;",
     to: "let answer: string | undefined;",
