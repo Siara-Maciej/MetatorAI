@@ -130,6 +130,21 @@ describe("drive domain", () => {
     expect(p).toContain("No node_modules here.");
   });
 
+  test("a stage a later stage sent back hears that the work since is already in the working tree", () => {
+    const stage = { id: "plan", produces: ["plan.json"] } as unknown as StageSpec;
+    const base = { runId: "r", task: "t", stage, agent: "mt-planner", skills: [], runDir: "/d" };
+    const back = stagePrompt({ ...base, retry: "the e2e header test breaks", retryFrom: "review" });
+    expect(back).toContain("Stage review failed and sent the run back here: the e2e header test breaks");
+    expect(back).toContain("is already in the working tree");
+    expect(gatePrompt({ ...base, agent: "mt-plan-critic", retry: "x", retryFrom: "review" })).toContain(
+      "already in the working tree",
+    );
+    // Its own gate failing keeps the plain message.
+    const own = stagePrompt({ ...base, retry: "lint failed", retryFrom: "plan" });
+    expect(own).toContain("The previous attempt failed its gate: lint failed");
+    expect(own).not.toContain("already in the working tree");
+  });
+
   test("a critic gets the notes too, and the repository's gates settle which checks a change needs", () => {
     const stage = { id: "review", produces: ["verdict.json"] } as unknown as StageSpec;
     const p = gatePrompt({
@@ -211,10 +226,10 @@ function world(
     root: "/repo",
     metatorCommand: "bun run metator",
   });
-  const start = async (inputs?: Record<string, string>) => {
+  const start = async (inputs?: Record<string, string>, workflow = "demo") => {
     const view = (
       await new InitRun(catalog, repo, clock).execute({
-        workflow: "demo",
+        workflow,
         task: "Add discount",
         ...(inputs ? { inputs } : {}),
       })
@@ -402,8 +417,56 @@ describe("DriveRun", () => {
     const plans = w.host.tasks.filter((t) => t.agent === "mt-planner");
     expect([
       plans.length,
-      plans.at(-1)?.prompt.includes("failed its gate: mt-plan-critic: no tests"),
+      plans
+        .at(-1)
+        ?.prompt.includes("Stage check failed and sent the run back here: mt-plan-critic: no tests"),
     ]).toEqual([2, true]);
+    // Every stage until the failing one hears it, its critic too; the first pass heard nothing.
+    const impl = w.host.tasks.filter((t) => t.agent === "mt-implementer");
+    const critics = w.host.tasks.filter((t) => t.agent === "mt-plan-critic");
+    expect([
+      impl.map((t) => t.prompt.includes("sent the run back")),
+      critics.map((t) => t.prompt.includes("sent the run back")),
+    ]).toEqual([
+      [false, true],
+      [false, false],
+    ]);
+  });
+
+  test("once the stage that sent the run back passes, the stages after it hear nothing of it", async () => {
+    const w = world(
+      {
+        "mt-planner": [{}, {}],
+        "mt-plan-critic": [{ text: "VERDICT: FAIL: no tests" }, { text: "VERDICT: PASS" }],
+        "mt-scout": [{}],
+      },
+      () => ({ choices: ["Approve"] }),
+    );
+    await w.fs.write(
+      ".github/metator/workflows/loop.yml",
+      `kind: Workflow
+schemaVersion: 2
+id: loop
+stages:
+  - id: plan
+    owner: mt-planner
+  - id: check
+    gate: { llm: mt-plan-critic }
+    onFail: { goto: plan, loop: plan }
+  - id: after
+    owner: mt-scout
+loops:
+  plan: 2
+`,
+    );
+    const runId = await w.start(undefined, "loop");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const plans = w.host.tasks.filter((t) => t.agent === "mt-planner").map((t) => t.prompt);
+    const after = w.host.tasks.find((t) => t.agent === "mt-scout")?.prompt ?? "";
+    expect([plans[1]?.includes("sent the run back"), after.includes("sent the run back")]).toEqual([
+      true,
+      false,
+    ]);
   });
 
   test("a rejected gate is a FAIL with the person's reason", async () => {

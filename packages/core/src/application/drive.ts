@@ -291,6 +291,9 @@ export class DriveRun {
 
     let steps = 0;
     let retry: string | undefined;
+    let retryFrom: string | undefined;
+    // A later stage that failed and sent the run back: every stage until it is reached again hears it.
+    let sentBack: { readonly from: string; readonly reason: string } | undefined;
     for (; steps < (input.maxSteps ?? 200); steps++) {
       const record = await this.d.repo.load(runId);
       if (record.isErr()) return err(record.error);
@@ -301,6 +304,13 @@ export class DriveRun {
       if (!stage)
         return err(new MetatorError("INTERNAL", `stage ${record.value.state.stage} is not in the workflow`));
       await say({ type: "stage", stage: stage.id, text: stage.description ?? stage.id });
+      if (sentBack?.from === stage.id) sentBack = undefined;
+      const why =
+        sentBack && retryFrom !== stage.id
+          ? { retry: sentBack.reason, retryFrom: sentBack.from }
+          : retry
+            ? { retry, ...(retryFrom ? { retryFrom } : {}) }
+            : {};
 
       const cwd = record.value.worktree ? `${this.d.root}/${record.value.worktree.path}` : this.d.root;
       // Through the run's worktree when it has one (the worktree links the run directory in): a
@@ -313,7 +323,7 @@ export class DriveRun {
         host,
         cwd,
         runDir: `${runsIn}/${this.d.repo.runDir(runId)}`,
-        ...(retry ? { retry } : {}),
+        ...why,
         ...(record.value.hostSession ? { resume: record.value.hostSession } : {}),
         since: record.value.updatedAt,
         pollMs: input.pollMs ?? 500,
@@ -355,6 +365,8 @@ export class DriveRun {
         return err(moved.error);
       }
       retry = outcome.value.type === "FAIL" ? outcome.value.reason : undefined;
+      retryFrom = outcome.value.type === "FAIL" ? stage.id : undefined;
+      if (outcome.value.type === "FAIL") sentBack = { from: stage.id, reason: outcome.value.reason ?? "" };
       await say({
         type: "advance",
         stage: stage.id,
@@ -497,6 +509,7 @@ export class DriveRun {
         runDir: ctx.runDir,
         ...(answer ? { answer } : {}),
         ...(ctx.retry ? { retry: ctx.retry } : {}),
+        ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
         ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
       });
       const result = await this.runHost(ctx, agent, prompt, resume);
@@ -555,6 +568,8 @@ export class DriveRun {
       agent,
       runDir: ctx.runDir,
       ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
+      ...(ctx.retry ? { retry: ctx.retry } : {}),
+      ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
     });
     const result = await this.runHost(ctx, agent, prompt, undefined);
     if (result.isErr()) return err(result.error);
@@ -661,6 +676,7 @@ interface StageContext {
   readonly cwd: string;
   readonly runDir: string;
   readonly retry?: string;
+  readonly retryFrom?: string;
   readonly resume?: string;
   /** When the run last changed: answers given after it are still to be acted on. */
   readonly since: string;

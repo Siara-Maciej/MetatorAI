@@ -135,6 +135,8 @@ export interface StagePromptInput {
   readonly answer?: string;
   /** Why the stage came back (a FAIL from its gate), when it did. */
   readonly retry?: string;
+  /** The stage whose failure brought the run here: a later one when it was sent back. */
+  readonly retryFrom?: string;
   /** What the agent must know about where it works (dependencies not installed). */
   readonly notes?: readonly string[];
 }
@@ -162,7 +164,7 @@ export function stagePrompt(input: StagePromptInput): string {
     ...(input.skills.length > 0 ? [`Skills you may use: ${input.skills.join(", ")}.`] : []),
     "Run each `metator` command on its own: no `cd`, pipes, redirections or other commands in the same call (alone they need no approval). Look at files with Read, Glob and Grep.",
     ...(input.notes ?? []),
-    ...(input.retry ? [`The previous attempt failed its gate: ${input.retry}`] : []),
+    ...retryLines(input),
     ...(input.answer ? [`A person answered your question: ${input.answer}`] : []),
     "Finish with exactly one last line:",
     "STATUS: done",
@@ -170,6 +172,20 @@ export function stagePrompt(input: StagePromptInput): string {
     "STATUS: blocked: <the question>",
   ];
   return `${lines.join("\n")}\n`;
+}
+
+/**
+ * Why the stage runs again. Sent back by a later stage, it is told that the work of the stages
+ * since is already in the working tree: redoing it from the old plan would do it twice.
+ */
+function retryLines(input: Pick<StagePromptInput, "stage" | "retry" | "retryFrom">): string[] {
+  if (!input.retry) return [];
+  if (!input.retryFrom || input.retryFrom === input.stage.id)
+    return [`The previous attempt failed its gate: ${input.retry}`];
+  return [
+    `Stage ${input.retryFrom} failed and sent the run back here: ${input.retry}`,
+    "Whatever the stages since this one changed is already in the working tree (`metator review diff --base HEAD` shows it). Keep what is done and change only what the failure asks for; a step already done is not done again.",
+  ];
 }
 
 /** The message a critic gets for an LLM gate. */
@@ -183,6 +199,7 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
     // critic's to demand: the gate reports (`.metator/gates/<gate>.json`) say what passed.
     "The checks a change must pass are the repository's configured gates; their reports are in .metator/gates/. Do not fail the stage for a check the gates do not configure or that cannot run here; name it in your reason only if the artifacts claim it passed.",
     ...(input.notes ?? []),
+    ...(input.retryFrom && input.retryFrom !== input.stage.id ? retryLines(input) : []),
     "Finish with exactly one last line:",
     "VERDICT: PASS",
     "or",

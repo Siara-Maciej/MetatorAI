@@ -345,6 +345,24 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
+    from: 'if (outcome.value.type === "FAIL") sentBack = { from: stage.id, reason: outcome.value.reason ?? "" };',
+    to: "",
+    why: "the stages a later stage sent the run back to hear why",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: "if (sentBack?.from === stage.id) sentBack = undefined;",
+    to: "",
+    why: "the stage that sent the run back is not told it sent it back",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
+    from: "if (!input.retryFrom || input.retryFrom === input.stage.id)",
+    to: "if (true)",
+    why: "a stage sent back hears that the work since is in the working tree",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
     from: "let answer = pending.value;",
     to: "let answer: string | undefined;",
     why: "a restarted drive gives a blocked agent the answer given while no drive ran",
