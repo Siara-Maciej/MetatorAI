@@ -34,6 +34,87 @@ const WRITES_OR_RUNS: Readonly<Record<string, RegExp>> = {
   sort: /^(-o|--output(=|$)|--compress-program(=|$))/,
 };
 
+/**
+ * `sed -n '1,200p' file`: sed that only prints a range of lines. Any other script (a `w` writes a
+ * file, an `e` runs a command) or option (`-i` edits in place) is not read-only.
+ */
+function sedPrint(argv: readonly string[], inside: (arg: string) => boolean): boolean {
+  const [program, ...args] = argv;
+  if (program !== "sed" || args[0] !== "-n" || args.length < 2) return false;
+  const [script, ...files] = args.slice(1);
+  return (
+    /^(\d+|\$)(,(\d+|\$))?p$/.test(script as string) && files.every((f) => !f.startsWith("-") && inside(f))
+  );
+}
+
+/** `metator …`, also as the repository runs it (`bun run metator …`, `npx metator …`). */
+function asMetator(argv: readonly string[]): readonly string[] | undefined {
+  if (argv[0] === "metator") return argv;
+  if ((argv[0] === "npx" || argv[0] === "bunx") && argv[1] === "metator") return argv.slice(1);
+  if (
+    ["bun", "npm", "pnpm", "yarn"].includes(argv[0] as string) &&
+    argv[1] === "run" &&
+    argv[2] === "metator"
+  )
+    return argv.slice(2);
+  return undefined;
+}
+
+/** MetatorAI commands that only read and print: what any agent may look up without asking. */
+const METATOR_QUERIES = new Set([
+  "symbols find",
+  "graph deps",
+  "graph dependents",
+  "graph callers",
+  "graph path",
+  "graph cycles",
+  "graph packages",
+  "graph affected",
+  "graph diff",
+  "similar",
+  "owners",
+  "workspace list",
+  "rules show",
+  "rules pack",
+  "rules lint",
+  "review diff",
+  "system show",
+  "system lint",
+  "system impact",
+  "system sources",
+  "run status",
+  "run activity",
+  "run questions",
+  "run list",
+  "run schema",
+  "config show",
+  "changed",
+  "findings schema",
+  "findings check-quote",
+  "plan lint",
+  "plan schema",
+  "arch cycles",
+  "arch declared",
+  "adr lint",
+  "docs links",
+  "docs inventory",
+]);
+/** Options that make a query write a file. */
+const WRITING_OPTIONS = /^--(out|write|fix|save)(=|$)/;
+
+/** `metator symbols find X`, `metator graph deps f`…: a query that reads and prints. */
+function metatorQuery(argv: readonly string[]): boolean {
+  const [program, ...rest] = argv;
+  if (program !== "metator") return false;
+  const words: string[] = [];
+  for (const w of rest) {
+    if (w.startsWith("-")) break;
+    words.push(w);
+  }
+  const command = [2, 1].map((n) => words.slice(0, n).join(" ")).find((c) => METATOR_QUERIES.has(c));
+  return command !== undefined && !rest.some((a) => WRITING_OPTIONS.test(a));
+}
+
 /** `metator help` or `metator <command…> --help`: help prints, it runs nothing. */
 function metatorHelp(argv: readonly string[]): boolean {
   const [program, ...rest] = argv;
@@ -76,7 +157,9 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
     commands.filter((argv) => argv.length > 0).length > 0 &&
     commands.every((argv, i) => {
       if (argv.length === 0) return i === commands.length - 1 && i > 0; // a trailing `;`
-      if (metatorHelp(argv)) return true;
+      const metator = asMetator(argv);
+      if (metator && (metatorHelp(metator) || metatorQuery(metator))) return true;
+      if (sedPrint(argv, inside)) return true;
       const [program, ...args] = argv;
       if (!program || !READERS.has(program)) return false;
       const forbidden = WRITES_OR_RUNS[program];

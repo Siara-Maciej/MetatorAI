@@ -255,9 +255,27 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
-    from: "if (metatorHelp(argv)) return true;",
-    to: "",
+    from: "if (metator && (metatorHelp(metator) || metatorQuery(metator))) return true;",
+    to: "if (metator && metatorQuery(metator)) return true;",
     why: "metator help only prints",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (program !== "sed" || args[0] !== "-n" || args.length < 2) return false;',
+    to: 'if (program !== "sed" || args.length < 2) return false;',
+    why: "only sed -n prints just the lines asked",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "return command !== undefined && !rest.some((a) => WRITING_OPTIONS.test(a));",
+    to: "return command !== undefined;",
+    why: "a metator query with an option that writes a file is not read-only",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (argv[0] === "metator") return argv;',
+    to: "if (false) return argv;",
+    why: "a plain metator query reads",
   },
   {
     file: "packages/core/src/application/drive.ts",

@@ -31,6 +31,41 @@ describe("readOnlyCommand", () => {
     expect(ro(";")).toBe(false);
   });
 
+  test("sed that only prints a range of lines reads; any other sed does not", () => {
+    expect(ro("sed -n 1,200p src/a.ts | grep -n Expose")).toBe(true);
+    expect(ro("sed -n '10,$p' src/a.ts")).toBe(true);
+    expect(ro("sed -i 's/a/b/' src/a.ts")).toBe(false);
+    expect(ro("sed -i 1p src/a.ts")).toBe(false);
+    expect(ro("sed -n '1w out.txt' src/a.ts")).toBe(false);
+    expect(ro("sed -n 1,5p /etc/passwd")).toBe(false);
+    expect(ro("sed 's/a/b/' src/a.ts")).toBe(false);
+  });
+
+  test("metator queries only read; commands that write or move a run do not", () => {
+    expect(
+      [
+        "metator symbols find OfferListItemDto",
+        "metator graph dependents src/a.ts --transitive",
+        "metator rules show MT-TS-001",
+        "metator run status",
+        "metator review diff --base main src/a.ts",
+        "metator plan lint .metator/runs/r/plan.json",
+        "bun run metator graph deps src/a.ts",
+        "npx metator help",
+      ].map(ro),
+    ).toEqual([true, true, true, true, true, true, true, true]);
+    expect(
+      [
+        "metator run advance pass",
+        "metator cards build",
+        "metator index build",
+        "metator review plan --out x.json",
+        "metator graph diff --out x.json",
+        "metator docs links --fix",
+      ].map(ro),
+    ).toEqual([false, false, false, false, false, false]);
+  });
+
   test("metator help and a command's --help only print", () => {
     expect([ro("metator help"), ro("metator run answer --help"), ro("metator findings -h")]).toEqual([
       true,
