@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_TEST_GLOBS } from "../src/application/paths.ts";
+import { matchesAny } from "../src/domain/glob.ts";
 import { lintPlan, type Plan, PlanDocument, type PlanFacts, planScope } from "../src/domain/plan.ts";
 
 const SRC = "packages/billing/src";
@@ -187,6 +188,11 @@ describe("lintPlan", () => {
       "S4 error: code changes need testsFirst (the tests written before it)",
       `S5 error: ${SRC}/money.ts is not a test file`,
     ]);
+  });
+
+  test("a NestJS end-to-end test (*.e2e-spec.ts) is a test file", () => {
+    expect(matchesAny("test/e2e/offer.e2e-spec.ts", DEFAULT_TEST_GLOBS)).toBe(true);
+    expect(matchesAny("src/offer.service.ts", DEFAULT_TEST_GLOBS)).toBe(false);
   });
 
   test("an importer runs after the files it imports; transitive order is enough", () => {

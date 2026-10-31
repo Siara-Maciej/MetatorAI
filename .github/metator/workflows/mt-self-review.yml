@@ -25,7 +25,7 @@ stages:
     produces: [build-log.md]
   - id: gates
     owner: mt-gatekeeper
-    produces: [gates.json]
+    produces: [gates.md]
     gate: { script: metator gate quick }
     onFail: { goto: build, loop: build }
   - id: review

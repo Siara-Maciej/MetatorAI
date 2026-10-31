@@ -264,6 +264,8 @@ export interface DriveDependencies {
   readonly root: string;
   /** How scripts call MetatorAI (`hosts.metatorCommand`). */
   readonly metatorCommand: string;
+  /** What agents must know about the directory they work in (dependencies not installed). */
+  readonly notes?: (cwd: string) => Promise<readonly string[]>;
 }
 
 /**
@@ -478,7 +480,11 @@ export class DriveRun {
     agent: string,
     skills: readonly string[],
   ): Promise<Result<Outcome, MetatorError>> {
-    let answer: string | undefined;
+    // A drive that restarts continues where the last one stopped: the agent's question, answered
+    // since (or answered now), goes back to it.
+    const pending = await this.pendingAnswer(ctx, agent);
+    if (pending.isErr()) return err(pending.error);
+    let answer = pending.value;
     let resume = ctx.resume;
     // Up to three answers, and the agent always runs again with the last one.
     for (let answers = 0; ; answers++) {
@@ -491,6 +497,7 @@ export class DriveRun {
         runDir: ctx.runDir,
         ...(answer ? { answer } : {}),
         ...(ctx.retry ? { retry: ctx.retry } : {}),
+        ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
       });
       const result = await this.runHost(ctx, agent, prompt, resume);
       if (result.isErr()) return err(result.error);
@@ -520,6 +527,26 @@ export class DriveRun {
     }
   }
 
+  /**
+   * The answer to the question this agent stopped on, when the stage's last question is its own
+   * and no drive has acted on the answer yet; an open one is waited for.
+   */
+  private async pendingAnswer(
+    ctx: StageContext,
+    agent: string,
+  ): Promise<Result<string | undefined, MetatorError>> {
+    const all = await this.d.journal.questions(ctx.runId);
+    if (all.isErr()) return err(all.error);
+    const last = all.value.filter((q) => q.stage === ctx.stage.id).at(-1);
+    if (last?.source !== "agent" || last.agent !== agent) return ok(undefined);
+    if (last.answer && last.answer.at <= ctx.since) return ok(undefined);
+    const a = last.answer
+      ? ok(last.answer)
+      : await this.d.journal.waitFor(ctx.runId, last.id, this.d.timer, ctx.pollMs);
+    if (a.isErr()) return err(a.error);
+    return ok(a.value.text ?? a.value.choices.join(", "));
+  }
+
   private async critic(ctx: StageContext, agent: string): Promise<Result<Outcome, MetatorError>> {
     const prompt = gatePrompt({
       runId: ctx.runId,
@@ -527,6 +554,7 @@ export class DriveRun {
       stage: ctx.stage,
       agent,
       runDir: ctx.runDir,
+      ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
     });
     const result = await this.runHost(ctx, agent, prompt, undefined);
     if (result.isErr()) return err(result.error);

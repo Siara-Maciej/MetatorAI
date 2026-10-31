@@ -87,6 +87,10 @@ describe("metator run schema (real CLI)", () => {
     const kinds: [string, string][] = [
       ["analysis", "Analysis"],
       ["research", "Research"],
+      ["plan.json", "Plan"],
+      ["plan-scope.json", "PlanScope"],
+      ["verdict", "Verdict"],
+      ["findings", "FindingSet"],
       ["summary", "RunSummary"],
     ];
     for (const [artifact, kind] of kinds) {
@@ -95,7 +99,9 @@ describe("metator run schema (real CLI)", () => {
       expect([r.code, schema.properties.kind.const]).toEqual([0, kind]);
     }
     expect((await metator(["run", "schema", "notes"], repo.root)).code).toBe(64);
-  });
+    // gates.md is prose: the gate's own report is the structured one.
+    expect((await metator(["run", "schema", "gates.json"], repo.root)).code).toBe(64);
+  }, 60_000);
 });
 
 describe("metator run: autopilot (real CLI)", () => {

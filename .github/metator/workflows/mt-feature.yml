@@ -42,7 +42,7 @@ stages:
   - id: gates
     description: Lint, typecheck, rules, affected tests, graph and API diff
     owner: mt-gatekeeper
-    produces: [gates.json]
+    produces: [gates.md]
     gate: { script: metator gate full }
     onFail: { goto: build, loop: build }
   - id: review
@@ -69,8 +69,8 @@ escalation:
   onAmbiguity: stop and ask (skill mt-grill)
 autonomy: [L0, L1]
 permissions: { edit: plan-scope, external: [push, comment] }
-done: [gates.json passes, verdict.json decision is APPROVED, push approved]
+done: [the gates pass, verdict.json decision is APPROVED, push approved]
 recovery: [failed gate runs skill mt-diagnose, retry a tool once, then escalate]
 resume: metator run status, then continue at the last approved stage
 telemetry: [stage_duration, tokens, loops, escalations, outcome]
-report: summary with links to plan.json, gates.json, verdict.json and the PR
+report: summary with links to plan.json, gates.md, verdict.json and the PR

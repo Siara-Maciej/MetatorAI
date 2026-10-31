@@ -31,6 +31,19 @@ describe("readOnlyCommand", () => {
     expect(ro(";")).toBe(false);
   });
 
+  test("names set up front stand for their words, which are checked like any other", () => {
+    expect(
+      ro(
+        "R=.metator/runs/r; grep -o '\"base[^,]*' $R/state.json $R/*.json | head; cat $R/task.md | head -40",
+      ),
+    ).toBe(true);
+    expect(ro("D=/folder && ls $D/src; echo ---; ls $D")).toBe(true);
+    expect(ro("D=/etc; cat $D/passwd")).toBe(false);
+    expect(ro("R=x; rm -rf $R")).toBe(false);
+    expect(ro("R=$(rm -rf src); ls")).toBe(false);
+    expect(ro("R=x; cat $OTHER")).toBe(false);
+  });
+
   test("sed that only prints a range of lines reads; any other sed does not", () => {
     expect(ro("sed -n 1,200p src/a.ts | grep -n Expose")).toBe(true);
     expect(ro("sed -n '10,$p' src/a.ts")).toBe(true);
@@ -51,9 +64,10 @@ describe("readOnlyCommand", () => {
         "metator review diff --base main src/a.ts",
         "metator plan lint .metator/runs/r/plan.json",
         "bun run metator graph deps src/a.ts",
+        "metator api diff @acme/money",
         "npx metator help",
       ].map(ro),
-    ).toEqual([true, true, true, true, true, true, true, true]);
+    ).toEqual([true, true, true, true, true, true, true, true, true]);
     expect(
       [
         "metator run advance pass",

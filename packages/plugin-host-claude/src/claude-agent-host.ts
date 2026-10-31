@@ -41,6 +41,7 @@ const described = (input: unknown) => {
 };
 
 const WRITES = new Set(["Write", "Edit", "MultiEdit"]);
+const READS = new Set(["Read", "Grep", "Glob"]);
 /** The real path of `path` (links resolved) through its nearest existing ancestor: it may be new. */
 const real = (path: string): string => {
   const abs = resolve(path);
@@ -133,27 +134,25 @@ export class ClaudeAgentHost implements AgentHost {
 
   async *run(task: AgentTask, ask: (q: AgentQuestion) => Promise<AgentAnswer>): AsyncIterable<AgentEvent> {
     const query = this.query ?? (await loadQuery());
+    const isolated = task.cwd !== task.projectRoot;
+    const dirs = [task.cwd, task.projectRoot, task.runDir, ...(task.dirs ?? [])];
+    // What runs without a person: a search through the shell that only reads (a host without
+    // Grep and Glob searches this way), reading or searching where the session may read, writing
+    // the run's own artifacts (the stage's job) and editing the run's own worktree (isolated;
+    // nothing leaves it without a person, push needs an approval). A write anywhere else, the
+    // checkout itself included, asks a person. A file that may hold secrets is denied before this.
+    const needsNoPerson = (tool: string, input: Record<string, unknown>): boolean => {
+      if (tool === "Bash") return typeof input.command === "string" && readOnlyCommand(input.command, dirs);
+      const file = input.file_path ?? input.path ?? task.cwd;
+      if (typeof file !== "string") return false;
+      if (READS.has(tool))
+        return dirs.some((dir) => dir === resolve(task.cwd, file) || inside(dir, resolve(task.cwd, file)));
+      return WRITES.has(tool) && (inside(task.runDir, file) || (isolated && inside(task.cwd, file)));
+    };
     const canUseTool = async (tool: string, input: Record<string, unknown>): Promise<Permission> => {
       if (tool === "AskUserQuestion")
         return { behavior: "allow", updatedInput: await answerQuestions(input, ask) };
-      // Writing the run's own artifacts is the stage's job, and so is editing the run's own
-      // worktree: it is isolated, and nothing leaves it without a person (push needs an approval).
-      // A write anywhere else, the checkout itself included, asks a person.
-      const isolated = task.cwd !== task.projectRoot;
-      // A search through the shell only reads (a host without Grep and Glob searches this way);
-      // a file that may hold secrets is denied before this, by the PreToolUse hook.
-      if (
-        tool === "Bash" &&
-        typeof input.command === "string" &&
-        readOnlyCommand(input.command, [task.cwd, task.projectRoot, task.runDir, ...(task.dirs ?? [])])
-      )
-        return { behavior: "allow", updatedInput: input };
-      if (
-        WRITES.has(tool) &&
-        typeof input.file_path === "string" &&
-        (inside(task.runDir, input.file_path) || (isolated && inside(task.cwd, input.file_path)))
-      )
-        return { behavior: "allow", updatedInput: input };
+      if (needsNoPerson(tool, input)) return { behavior: "allow", updatedInput: input };
       const answer = await ask({
         source: "permission",
         prompt: `${task.agent} wants to use ${tool}: ${described(input)}`,
@@ -197,11 +196,19 @@ export class ClaudeAgentHost implements AgentHost {
       allowedTools: declaredCommands(agentFile),
       settingSources: ["project"],
       permissionMode: "default",
-      additionalDirectories: [task.runDir, ...(task.dirs ?? [])],
+      // The run directory as given and where it really is: in a worktree it is a link into the
+      // checkout, and the host checks the resolved path.
+      additionalDirectories: [...new Set([task.runDir, real(task.runDir), ...(task.dirs ?? [])])],
       canUseTool,
       ...(task.cwd !== task.projectRoot ? { projectConfigRoot: task.projectRoot } : {}),
-      // The project's hooks (`metator guard *`) see that the drive carries this session.
-      ...(task.driven ? { env: { ...process.env, METATOR_DRIVEN: "1" } } : {}),
+      env: {
+        ...process.env,
+        // Workers run in the foreground: one started in the background outlives the turn that
+        // started it, and its permission prompts then fail ("Stream closed") or are refused.
+        CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1",
+        // The project's hooks (`metator guard *`) see that the drive carries this session.
+        ...(task.driven ? { METATOR_DRIVEN: "1" } : {}),
+      },
       ...(task.resume ? { resume: task.resume } : {}),
     };
     for await (const message of query({ prompt: task.prompt, options })) yield* toEvents(message);

@@ -2,13 +2,19 @@ import {
   AnalysisDocument,
   AutonomySchema,
   err,
+  FindingSetDocument,
   INPUT_NAME,
   MetatorError,
   ok,
+  PlanDocument,
+  PlanScopeDocument,
   ResearchDocument,
   type Result,
+  ReviewMetadataDocument,
+  ReviewPlanDocument,
   type RunEvent,
   RunSummaryDocument,
+  VerdictDocument,
 } from "@metator/core";
 import { Argument, type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
@@ -17,8 +23,18 @@ import { registerDriveCommands } from "./drive.ts";
 
 export const EVENTS = ["pass", "fail", "approve", "abort"] as const;
 
-/** Artifacts whose format `run schema` prints (plans, findings and verdicts have their own group). */
-const RUN_ARTIFACTS = { analysis: AnalysisDocument, research: ResearchDocument, summary: RunSummaryDocument };
+/** The JSON artifacts a stage produces, by the name its `produces` gives them: `run schema` prints each. */
+const RUN_ARTIFACTS = {
+  analysis: AnalysisDocument,
+  research: ResearchDocument,
+  plan: PlanDocument,
+  "plan-scope": PlanScopeDocument,
+  "review-plan": ReviewPlanDocument,
+  pr: ReviewMetadataDocument,
+  findings: FindingSetDocument,
+  verdict: VerdictDocument,
+  summary: RunSummaryDocument,
+};
 type EventName = (typeof EVENTS)[number];
 
 interface AdvanceOptions {

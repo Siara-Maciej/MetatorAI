@@ -135,6 +135,8 @@ export interface StagePromptInput {
   readonly answer?: string;
   /** Why the stage came back (a FAIL from its gate), when it did. */
   readonly retry?: string;
+  /** What the agent must know about where it works (dependencies not installed). */
+  readonly notes?: readonly string[];
 }
 
 /** The message a worker gets: one stage, its artifacts, and how to report back. */
@@ -159,6 +161,7 @@ export function stagePrompt(input: StagePromptInput): string {
       : []),
     ...(input.skills.length > 0 ? [`Skills you may use: ${input.skills.join(", ")}.`] : []),
     "Run each `metator` command on its own: no `cd`, pipes, redirections or other commands in the same call (alone they need no approval). Look at files with Read, Glob and Grep.",
+    ...(input.notes ?? []),
     ...(input.retry ? [`The previous attempt failed its gate: ${input.retry}`] : []),
     ...(input.answer ? [`A person answered your question: ${input.answer}`] : []),
     "Finish with exactly one last line:",
@@ -176,6 +179,10 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
     `Task: ${input.task}`,
     `Review the artifacts in ${input.runDir}: ${(input.stage.produces ?? []).join(", ") || "(none listed)"}.`,
     "Read files with Read, Glob and Grep; run no shell commands besides a single `metator` command per call.",
+    // A check the repository does not configure, or cannot run where the run works, is not the
+    // critic's to demand: the gate reports (`.metator/gates/<gate>.json`) say what passed.
+    "The checks a change must pass are the repository's configured gates; their reports are in .metator/gates/. Do not fail the stage for a check the gates do not configure or that cannot run here; name it in your reason only if the artifacts claim it passed.",
+    ...(input.notes ?? []),
     "Finish with exactly one last line:",
     "VERDICT: PASS",
     "or",

@@ -16,7 +16,7 @@ output: { artifact: verdict.json, summaryLines: 15 }
 1. Calibrate severity with the rubric: blocking only for confirmed wrong behavior on a reachable path, or for code that does not build (it breaks CI whatever calls it); style is never blocking.
 2. Merge findings that still share a root cause; keep the clearest claim.
 3. List the areas the lenses checked and found correct (for example "rounding in invoice totals").
-4. `metator findings verdict <dir>/findings --verified-correct <areas…>`.
+4. `metator findings verdict <dir>/findings --verified-correct <areas…>`, on its own (one `metator` command per call, paths from the repository root, no `cd`): it writes `verdict.json` next to that directory.
 
 # Output
 - `verdict.json`: decision, blocking findings, findings to consider, verified-correct areas.

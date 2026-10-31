@@ -183,6 +183,27 @@ describe("GuardSubagentOutput", () => {
     expect((await w.subagent.execute({ stop_hook_active: true }))._unsafeUnwrap()).toBeNull();
   });
 
+  test("what the run itself writes (questions, the driver, review metadata) is known", async () => {
+    const w = world();
+    const run = (await w.init())._unsafeUnwrap();
+    const dir = w.repo.runDir(run.runId);
+    await w.fs.write(
+      `${dir}/driver.json`,
+      JSON.stringify({
+        kind: "RunDriver",
+        schemaVersion: 1,
+        pid: 1,
+        host: "claude",
+        startedAt: "2026-10-31T01:53:43.693Z",
+      }),
+    );
+    await w.fs.write(`${dir}/questions/q001.json`, JSON.stringify({ kind: "Question", schemaVersion: 1 }));
+    const out = (await w.subagent.execute({}))._unsafeUnwrap() as { reason: string };
+    expect(out.reason).toContain("questions/q001.json: does not match Question v1");
+    expect(out.reason).not.toContain("driver.json");
+    expect(out.reason).not.toContain("unknown or missing kind");
+  });
+
   test("context artifacts and the run summary are known documents", async () => {
     const w = world();
     const run = (await w.init())._unsafeUnwrap();

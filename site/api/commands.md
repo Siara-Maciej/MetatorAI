@@ -1683,7 +1683,7 @@ metator run schema [options] <artifact>
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `<artifact>` | artifact: analysis, research, summary (with or without .json) | |
+| `<artifact>` | artifact: analysis, research, plan, plan-scope, review-plan, pr, findings, verdict, summary (with or without .json) | |
 
 ### `metator run list`
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Clock, Logger } from "@metator/core";
 import { asFunction, asValue } from "awilix";
+import { workNotes } from "../src/bootstrap.ts";
 import { createMetatorContainer, resolvePort } from "../src/container.ts";
 
 const fixedClock = (iso: string): Clock => ({ now: () => new Date(iso) });
@@ -74,5 +75,20 @@ describe("Metator container (awilix)", () => {
     const clock = fixedClock("2026-01-01T00:00:00Z");
     c.register({ clock: asValue(clock) });
     expect(resolvePort(c, "clock")._unsafeUnwrap()).toBe(clock);
+  });
+});
+
+describe("workNotes", () => {
+  test("a Node project without node_modules is told its tools cannot run; an installed one is not", async () => {
+    const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = await mkdtemp(join(tmpdir(), "metator-notes-"));
+    expect(workNotes(dir)).toEqual([]);
+    await writeFile(join(dir, "package.json"), "{}");
+    expect(workNotes(dir)[0]).toContain("dependencies are not installed");
+    await mkdir(join(dir, "node_modules"));
+    expect(workNotes(dir)).toEqual([]);
+    await rm(dir, { recursive: true, force: true });
   });
 });

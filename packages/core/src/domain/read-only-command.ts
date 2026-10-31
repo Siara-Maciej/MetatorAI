@@ -22,6 +22,7 @@ const READERS = new Set([
   "uniq",
   "cut",
   "tr",
+  "echo", // a separator between readers' output (`echo ---`); a redirection is refused anyway
 ]);
 
 /** Readers whose first word (or each `-e` value) is a pattern, not a path. */
@@ -78,6 +79,7 @@ const METATOR_QUERIES = new Set([
   "rules pack",
   "rules lint",
   "review diff",
+  "api diff",
   "system show",
   "system lint",
   "system impact",
@@ -127,6 +129,9 @@ function metatorHelp(argv: readonly string[]): boolean {
   );
 }
 
+/** `NAME=word;` (or `&&`) at the start of a command: a word with nothing to expand or quote. */
+const ASSIGNMENT = /^\s*([A-Za-z_]\w*)=([^\s;&|$'"\\`(){}<>*?]+)\s*(?:;|&&)/;
+
 export function readOnlyCommand(command: string, dirs: readonly string[]): boolean {
   // Substitutions, process substitution and several lines could run anything.
   if (/[`\n\r]|\$\(|<\(|>\(/.test(command)) return false;
@@ -134,8 +139,18 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
   const quiet = command
     .replace(/(^|\s)[12]?>>?\s*\/dev\/null(?=$|[\s;&|])/g, "$1")
     .replace(/(^|\s)[12]>&[12](?=$|[\s;&|])/g, "$1");
+  // Plain names set up front (`R=.metator/runs/x; cat $R/plan.json`) stand for their words; the
+  // words are then checked like any other.
+  const vars = new Map<string, string>();
+  let rest = quiet;
+  for (let m = ASSIGNMENT.exec(rest); m; m = ASSIGNMENT.exec(rest)) {
+    vars.set(m[1] as string, m[2] as string);
+    rest = rest.slice(m[0].length);
+  }
   let expanded = false;
-  const tokens = parse(quiet, (key) => {
+  const tokens = parse(rest, (key) => {
+    const value = vars.get(key);
+    if (value !== undefined) return value;
     // A lone `$` (a regular expression's end anchor) names no variable: it stays literal.
     if (key !== "") expanded = true;
     return `$${key}`;

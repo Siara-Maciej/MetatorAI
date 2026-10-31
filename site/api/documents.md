@@ -76,7 +76,7 @@ metator config schema      metator rules schema       metator patterns schema
 metator memory schema      metator workflow schema    metator plan schema
 metator findings schema    metator eval schema        metator system schema
 metator docs claims-schema metator meta agents-schema metator meta skills-schema
-metator run schema analysis|research|summary
+metator run schema analysis|research|plan|plan-scope|review-plan|pr|findings|verdict|summary
 ```
 
 The JSON Schema of every released version is also in the repository under `docs/metator/schemas/<Kind>.v<N>.json`.

@@ -18,9 +18,9 @@ user-invocable: false
 # Procedure
 1. Check the quote is at the location (`bun run metator findings check-quote <file> --line <n> --quote <text>`), then re-read the code around it.
 2. Follow the claimed reachability from a real caller: `bun run metator graph dependents <file> --transitive`. Look for guards higher up.
-3. Prefer executable evidence: write a temporary failing test that reproduces the trigger, run it, and delete it. Search with Grep and Glob, or with a read-only `grep`, `rg` or `find` where your host has neither; Bash is otherwise for running that test or command.
+3. Prefer executable evidence: write a temporary failing test that reproduces the trigger, run it, and delete it. Read files, JSON included, with Read, and search with Grep and Glob, or with a read-only `grep`, `rg` or `find` where your host has neither; Bash is otherwise for running that test or command, never an interpreter (`python -c`, `node -e`) to read or edit a file.
 4. Decide: `confirmed` (reproduced or traced without a guard), `refuted` (a guard or wrong premise; name it) or `unproven`.
-5. Record `verification: { status, by: "mt-verifier", evidence }` on that finding in `findings/merged.json`. Without executable evidence, lower a blocking finding to major, unless the code does not build: a quote of the call and of the declaration that lacks it is evidence enough when the compiler cannot run here.
+5. Record `verification: { status, by: "mt-verifier", evidence }` on that finding in `findings/merged.json` with your Edit tool. Without executable evidence, lower a blocking finding to major, unless the code does not build: a quote of the call and of the declaration that lacks it is evidence enough when the compiler cannot run here.
 
 # Output
 - The updated finding in `findings/merged.json`.

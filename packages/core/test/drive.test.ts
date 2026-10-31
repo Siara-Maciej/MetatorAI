@@ -116,6 +116,34 @@ describe("drive domain", () => {
     expect(p).toContain("Write an artifact with your Write tool at /repo/.metator/runs/r/<artifact>");
   });
 
+  test("notes about where the agent works go into its prompt", () => {
+    const stage = { id: "build", produces: [] } as unknown as StageSpec;
+    const p = stagePrompt({
+      runId: "r",
+      task: "t",
+      stage,
+      agent: "a",
+      skills: [],
+      runDir: "/d",
+      notes: ["No node_modules here."],
+    });
+    expect(p).toContain("No node_modules here.");
+  });
+
+  test("a critic gets the notes too, and the repository's gates settle which checks a change needs", () => {
+    const stage = { id: "review", produces: ["verdict.json"] } as unknown as StageSpec;
+    const p = gatePrompt({
+      runId: "r",
+      task: "t",
+      stage,
+      agent: "mt-judge",
+      runDir: "/d",
+      notes: ["No node_modules here."],
+    });
+    expect(p).toContain("No node_modules here.");
+    expect(p).toContain("The checks a change must pass are the repository's configured gates");
+  });
+
   test("question ids count up per run", () => {
     expect([nextQuestionId([]), nextQuestionId(["q001", "q009"])]).toEqual(["q001", "q010"]);
   });
@@ -194,7 +222,7 @@ function world(
     runId = view.runId;
     return view.runId;
   };
-  return { fs, repo, journal, host, drive, start, asked, scripts, advance };
+  return { fs, repo, journal, host, drive, start, asked, scripts, advance, clock };
 }
 
 const okScripts = () =>
@@ -411,6 +439,34 @@ describe("DriveRun", () => {
       impl[1]?.prompt.includes("A person answered your question: EUR"),
     ]).toEqual([2, "mt-implementer-1", true]);
     expect(w.asked.find((q) => q.source === "agent")?.prompt).toBe("which currency?");
+  });
+
+  test("a restarted drive gives a blocked agent the answer given while no drive ran", async () => {
+    const w = world(
+      { "mt-planner": [writesPlan], "mt-implementer": [{ text: "STATUS: done" }] },
+      () => ({ choices: ["Approve"] }),
+      okScripts(),
+    );
+    w0 = w;
+    const runId = await w.start();
+    // The first drive got as far as the planner, which asked and stopped; then the drive ended.
+    await w.advance.execute({ runId, event: { type: "PASS" } });
+    w.clock.advance(1000);
+    const q = (
+      await w.journal.ask(runId, {
+        stage: "plan",
+        source: "agent",
+        agent: "mt-planner",
+        prompt: "which currency?",
+        options: [{ label: OTHER }],
+        multiSelect: false,
+      })
+    )._unsafeUnwrap();
+    w.clock.advance(1000);
+    await w.journal.answer(runId, q.id, { choices: [OTHER], text: "EUR", by: "maciej" });
+    await w.drive.execute({ runId, host: "fake", maxSteps: 1 });
+    const planner = w.host.tasks.find((t) => t.agent === "mt-planner");
+    expect(planner?.prompt).toContain("A person answered your question: EUR");
   });
 
   test("the third answer still reaches the agent; a fourth question fails the stage", async () => {

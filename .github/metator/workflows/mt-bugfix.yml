@@ -39,7 +39,7 @@ stages:
   - id: gates
     description: Gates plus no new import edges (graph diff)
     owner: mt-gatekeeper
-    produces: [gates.json]
+    produces: [gates.md]
     gate: { script: metator gate full }
     onFail: { goto: build, loop: build }
   - id: review
@@ -61,10 +61,10 @@ autonomy: [L0, L1]
 permissions: { edit: plan-scope, external: [push, comment] }
 done:
   - repro.json fails before and passes after
-  - gates.json passes
+  - the gates pass
   - no blocking findings
   - push approved
 recovery: [skill mt-diagnose on a failed gate, retry a tool once, then escalate]
 resume: metator run status, then continue at the last approved stage
 telemetry: [stage_duration, tokens, loops, escalations, outcome]
-report: root cause, the regression test, links to repro.json, gates.json and verdict.json
+report: root cause, the regression test, links to repro.json, gates.md and verdict.json

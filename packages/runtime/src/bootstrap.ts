@@ -386,6 +386,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           timer,
           root,
           metatorCommand: config.config.hosts.metatorCommand,
+          notes: async (cwd) => workNotes(cwd),
         }),
     ),
     // `.metator/` is MetatorAI's own state: never a change, even before setup gitignores it.
@@ -961,4 +962,16 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     listRuns: asFunction(({ runRepository }) => new ListRuns(runRepository)),
   });
   return c;
+}
+
+/**
+ * What an agent must know about the directory it works in. A Node project without node_modules
+ * cannot run its tests, type checker or linters there, and installing is not the agent's call.
+ */
+export function workNotes(cwd: string): string[] {
+  if (existsSync(join(cwd, "package.json")) && !existsSync(join(cwd, "node_modules")))
+    return [
+      "The project's dependencies are not installed here (no node_modules): its tests, type checker and linters cannot run. Do not install anything or try to run them; write the code and tests, and say plainly that they were not run.",
+    ];
+  return [];
 }

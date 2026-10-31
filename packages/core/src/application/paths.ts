@@ -106,5 +106,7 @@ export const DEFAULT_SOURCE_IGNORES: readonly string[] = [
 
 export const DEFAULT_TEST_GLOBS: readonly string[] = [
   "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+  // NestJS end-to-end tests: test/app.e2e-spec.ts.
+  "**/*.e2e-spec.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
   "**/__tests__/**",
 ];

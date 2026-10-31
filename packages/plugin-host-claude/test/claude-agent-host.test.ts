@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentQuestion } from "@metator/core";
@@ -118,6 +118,26 @@ describe("ClaudeAgentHost", () => {
     expect(asked).toEqual(["mt-planner wants to use Bash: find . -name '*.ts' -delete"]);
   });
 
+  test("a run directory reached through a link (a run's worktree) is readable where it really is", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metator-claude-"));
+    await mkdir(join(root, ".metator/runs/r"), { recursive: true });
+    await mkdir(join(root, ".metator/wt/r/.metator"), { recursive: true });
+    await symlink(join(root, ".metator/runs"), join(root, ".metator/wt/r/.metator/runs"));
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    const linked = join(root, ".metator/wt/r/.metator/runs/r");
+    await collect(new ClaudeAgentHost(query), {
+      ...task,
+      cwd: join(root, ".metator/wt/r"),
+      projectRoot: root,
+      runDir: linked,
+    });
+    expect(calls[0]?.options.additionalDirectories).toEqual([
+      linked,
+      await realpath(join(root, ".metator/runs/r")),
+    ]);
+    await rm(root, { recursive: true, force: true });
+  });
+
   test("the directories a folder's linked repositories really are in are readable and searchable", async () => {
     const asked: string[] = [];
     const { query, calls } = fakeQuery(async (can) => {
@@ -156,7 +176,7 @@ describe("ClaudeAgentHost", () => {
     await collect(new ClaudeAgentHost(free.query), task);
     const freeOptions = free.calls[0]?.options as Record<string, unknown>;
     expect((await hookOf(freeOptions)(advance)).hookSpecificOutput).toBeUndefined();
-    expect(freeOptions.env).toBeUndefined();
+    expect((freeOptions.env as Record<string, string>).METATOR_DRIVEN).toBeUndefined();
   });
 
   test("a tool call on a file that may hold secrets is denied in-process, wherever the session works", async () => {
@@ -172,6 +192,36 @@ describe("ClaudeAgentHost", () => {
     expect(await decision("Bash", { command: "cat backend/.env.local" })).toBe("deny");
     expect(await decision("Read", { file_path: "/folder/backend/src/main.ts" })).toBeUndefined();
     expect(await decision("Read", { file_path: "/folder/backend/.env.example" })).toBeUndefined();
+  });
+
+  test("reading and searching where the session may read, through the shell too, needs no person", async () => {
+    const asked: string[] = [];
+    const { query } = fakeQuery(async (can) => {
+      for (const [tool, input] of [
+        ["Bash", { command: "R=.metator/runs/r; grep -rn Offer src $R | head -20" }],
+        ["Read", { file_path: "/repo/.metator/wt/r/src/offer.ts" }],
+        ["Grep", { pattern: "Offer" }],
+        ["Read", { file_path: "/etc/passwd" }],
+        ["Bash", { command: "rm -rf src" }],
+      ] as const)
+        await can(tool, input);
+      return [init, success];
+    });
+    await collect(new ClaudeAgentHost(query), task, async (q) => {
+      asked.push(q.prompt);
+      return { choices: ["Deny"] };
+    });
+    expect(asked).toEqual([
+      'mt-planner wants to use Read: {"file_path":"/etc/passwd"}',
+      "mt-planner wants to use Bash: rm -rf src",
+    ]);
+  });
+
+  test("workers run in the foreground, where their permission prompts reach a person", async () => {
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(query), task);
+    const env = calls[0]?.options.env as Record<string, string>;
+    expect([env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS, env.METATOR_DRIVEN]).toEqual(["1", undefined]);
   });
 
   test("AskUserQuestion goes to a person; the answers return keyed by question", async () => {

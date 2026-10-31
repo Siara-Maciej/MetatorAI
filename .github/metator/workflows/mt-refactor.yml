@@ -42,7 +42,7 @@ stages:
   - id: gates
     description: API unchanged (or only planned), coverage at least the baseline
     owner: mt-gatekeeper
-    produces: [gates.json]
+    produces: [gates.md]
     gate: { script: metator gate full }
     onFail: { goto: build, loop: build }
   - id: review
