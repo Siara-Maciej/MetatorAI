@@ -82,6 +82,9 @@ export class PlanReview {
 }
 
 const parent = (dir: string) => dir.replace(/\/$/, "").replace(/\/[^/]*$/, "") || ".";
+/** Where the verdict goes: a run's own directory when the findings are anywhere in one (its stage produces it there), else next to them. */
+const verdictDir = (dir: string) =>
+  /^(.*?(?:^|\/)\.metator\/runs\/[^/]+)(?:\/|$)/.exec(dir)?.[1] ?? parent(dir);
 
 /** `findings verdict`: the decision from merged findings, written next to the findings directory. */
 export class JudgeFindings {
@@ -103,7 +106,7 @@ export class JudgeFindings {
     const set = parseJsonDocument(text.value, source).andThen((raw) => FindingSetDocument.parse(raw, source));
     if (set.isErr()) return err(set.error);
     const verdict = judge(set.value.findings, input.verifiedCorrect);
-    const output = `${parent(input.dir)}/verdict.json`;
+    const output = `${verdictDir(input.dir)}/verdict.json`;
     const saved = await this.fs.write(output, serializeJsonDocument(VerdictDocument.stamp(verdict)));
     if (saved.isErr()) return err(saved.error);
     return ok({ ...verdict, output });

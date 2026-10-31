@@ -53,6 +53,9 @@ export function failedSteps(stdout: string): string | undefined {
 /** How many times one worker may ask a person in a stage before the stage fails. */
 const MAX_ANSWERS = 3;
 
+/** How many of a person's latest answers go into every prompt. */
+const MAX_DECISIONS = 12;
+
 export type ActivityInput = Omit<RunActivity, "at">;
 
 /** What a drive leaves in the run directory: the activity line by line, and the questions. */
@@ -324,6 +327,7 @@ export class DriveRun {
         cwd,
         runDir: `${runsIn}/${this.d.repo.runDir(runId)}`,
         ...why,
+        ...(await this.decisions(runId)),
         ...(record.value.hostSession ? { resume: record.value.hostSession } : {}),
         since: record.value.updatedAt,
         pollMs: input.pollMs ?? 500,
@@ -510,6 +514,7 @@ export class DriveRun {
         ...(answer ? { answer } : {}),
         ...(ctx.retry ? { retry: ctx.retry } : {}),
         ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
+        ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
         ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
       });
       const result = await this.runHost(ctx, agent, prompt, resume);
@@ -538,6 +543,20 @@ export class DriveRun {
       if (a.isErr()) return err(a.error);
       answer = a.value.text ?? a.value.choices.join(", ");
     }
+  }
+
+  /**
+   * What a person said in this run, in their own words (an answer with text), latest last: the
+   * decisions later agents follow and critics do not count as defects.
+   */
+  private async decisions(runId: string): Promise<{ decisions?: readonly string[] }> {
+    const all = await this.d.journal.questions(runId);
+    if (all.isErr()) return {};
+    const said = all.value
+      .filter((q) => q.answer?.text)
+      .slice(-MAX_DECISIONS)
+      .map((q) => `${q.stage}: ${q.prompt.slice(0, 160)} → ${(q.answer?.text ?? "").slice(0, 400)}`);
+    return said.length > 0 ? { decisions: said } : {};
   }
 
   /**
@@ -570,6 +589,7 @@ export class DriveRun {
       ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
       ...(ctx.retry ? { retry: ctx.retry } : {}),
       ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
+      ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
     });
     const result = await this.runHost(ctx, agent, prompt, undefined);
     if (result.isErr()) return err(result.error);
@@ -677,6 +697,7 @@ interface StageContext {
   readonly runDir: string;
   readonly retry?: string;
   readonly retryFrom?: string;
+  readonly decisions?: readonly string[];
   readonly resume?: string;
   /** When the run last changed: answers given after it are still to be acted on. */
   readonly since: string;

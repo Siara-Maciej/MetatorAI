@@ -131,6 +131,19 @@ describe("drive domain", () => {
     expect(p).toContain("never with an interpreter or a script");
   });
 
+  test("a person's answers in the run are decisions every later agent and critic hears", () => {
+    const stage = { id: "review", produces: ["verdict.json"] } as unknown as StageSpec;
+    const base = { runId: "r", task: "t", stage, runDir: "/d" };
+    const decisions = ["intake: add the field by hand; the backend is not on dev yet"];
+    const worker = stagePrompt({ ...base, agent: "a", skills: [], decisions });
+    const critic = gatePrompt({ ...base, agent: "mt-judge", decisions });
+    for (const p of [worker, critic]) {
+      expect(p).toContain("A person decided in this run (follow it; it is not a defect):");
+      expect(p).toContain("- intake: add the field by hand; the backend is not on dev yet");
+    }
+    expect(stagePrompt({ ...base, agent: "a", skills: [] })).not.toContain("A person decided");
+  });
+
   test("a stage a later stage sent back hears that the work since is already in the working tree", () => {
     const stage = { id: "plan", produces: ["plan.json"] } as unknown as StageSpec;
     const base = { runId: "r", task: "t", stage, agent: "mt-planner", skills: [], runDir: "/d" };
@@ -506,6 +519,9 @@ loops:
       impl[1]?.prompt.includes("A person answered your question: EUR"),
     ]).toEqual([2, "mt-implementer-1", true]);
     expect(w.asked.find((q) => q.source === "agent")?.prompt).toBe("which currency?");
+    // The answer is a decision every later agent and critic hears.
+    const critic = w.host.tasks.find((t) => t.agent === "mt-plan-critic")?.prompt ?? "";
+    expect(critic).toContain("- build: which currency? → EUR");
   });
 
   test("a restarted drive gives a blocked agent the answer given while no drive ran", async () => {

@@ -135,6 +135,8 @@ export interface StagePromptInput {
   readonly answer?: string;
   /** Why the stage came back (a FAIL from its gate), when it did. */
   readonly retry?: string;
+  /** What a person decided earlier in the run (answers to agents' questions), for every later agent. */
+  readonly decisions?: readonly string[];
   /** The stage whose failure brought the run here: a later one when it was sent back. */
   readonly retryFrom?: string;
   /** What the agent must know about where it works (dependencies not installed). */
@@ -165,6 +167,7 @@ export function stagePrompt(input: StagePromptInput): string {
     "Run each `metator` command on its own: no `cd`, pipes, redirections or other commands in the same call (alone they need no approval). Look at files with Read, Glob and Grep.",
     "Read and change files, JSON included, with Read, Edit and Write: never with an interpreter or a script (`python`, `node`, `jq`), which asks a person every time.",
     ...(input.notes ?? []),
+    ...decisionLines(input),
     ...retryLines(input),
     ...(input.answer ? [`A person answered your question: ${input.answer}`] : []),
     "Finish with exactly one last line:",
@@ -173,6 +176,14 @@ export function stagePrompt(input: StagePromptInput): string {
     "STATUS: blocked: <the question>",
   ];
   return `${lines.join("\n")}\n`;
+}
+
+/** A person's earlier answers: decisions the work follows, never defects to fail it for. */
+function decisionLines(input: Pick<StagePromptInput, "decisions">): string[] {
+  const decisions = input.decisions ?? [];
+  return decisions.length === 0
+    ? []
+    : ["A person decided in this run (follow it; it is not a defect):", ...decisions.map((d) => `- ${d}`)];
 }
 
 /**
@@ -201,6 +212,7 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
     // critic's to demand: the gate reports (`.metator/gates/<gate>.json`) say what passed.
     "The checks a change must pass are the repository's configured gates; their reports are in .metator/gates/. Do not fail the stage for a check the gates do not configure or that cannot run here; name it in your reason only if the artifacts claim it passed.",
     ...(input.notes ?? []),
+    ...decisionLines(input),
     ...(input.retryFrom && input.retryFrom !== input.stage.id ? retryLines(input) : []),
     "Finish with exactly one last line:",
     "VERDICT: PASS",

@@ -368,6 +368,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "agents edit files with their tools, not with interpreters that ask a person",
   },
   {
+    file: "packages/core/src/application/review.ts",
+    from: "verdictDir(input.dir)}/verdict.json",
+    to: "parent(input.dir)}/verdict.json",
+    why: "inside a run the verdict is the run's, however deep the findings are",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: ".filter((q) => q.answer?.text)",
+    to: ".filter(() => false)",
+    why: "a person's answers reach the later agents and critics",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
+    from: '"A person decided in this run (follow it; it is not a defect):", ...decisions',
+    to: "...decisions",
+    why: "decisions are introduced as decisions",
+  },
+  {
     file: "packages/core/src/domain/drive.ts",
     from: "if (!input.retryFrom || input.retryFrom === input.stage.id)",
     to: "if (true)",

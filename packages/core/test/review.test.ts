@@ -176,6 +176,25 @@ describe("PlanReview", () => {
 });
 
 describe("JudgeFindings / FormatReviewComments", () => {
+  test("inside a run, the verdict is the run's, however deep the findings are", async () => {
+    const merged = JSON.stringify(FindingSetDocument.stamp({ lens: "merged", findings: [] }));
+    const fs = new InMemoryFileSystem({
+      ".metator/runs/r1/review/findings/merged.json": merged,
+      "/repo/.metator/wt/r1/.metator/runs/r1/findings/merged.json": merged,
+    });
+    const judge = new JudgeFindings(fs);
+    const nested = (
+      await judge.execute({ dir: ".metator/runs/r1/review/findings", verifiedCorrect: [] })
+    )._unsafeUnwrap();
+    const top = (
+      await judge.execute({ dir: "/repo/.metator/wt/r1/.metator/runs/r1/findings", verifiedCorrect: [] })
+    )._unsafeUnwrap();
+    expect([nested.output, top.output]).toEqual([
+      ".metator/runs/r1/verdict.json",
+      "/repo/.metator/wt/r1/.metator/runs/r1/verdict.json",
+    ]);
+  });
+
   test("verdict next to the findings dir; comments refuse an undecided verdict", async () => {
     const fs = new InMemoryFileSystem({
       "run/findings/merged.json": JSON.stringify(
