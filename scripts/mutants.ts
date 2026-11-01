@@ -159,8 +159,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-agent-host.ts",
-    from: "declaredAfterCd(input.command, declared, dirs))",
-    to: "false)",
+    from: "declaredAfterCd(input.command, declared, dirs) ||",
+    to: "false ||",
     why: "cd into a working directory before a declared command asks no one",
   },
   {
@@ -168,6 +168,18 @@ export const MUTANTS: readonly Mutant[] = [
     from: '  "ls-remote",\n',
     to: "",
     why: "git ls-remote only reads",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "if (/[`;|&<>]|\\$/.test(head)) return false;",
+    to: "",
+    why: "a chain or pipe before the here-document is not the declared command",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: "declaredWithDocument(input.command, declared))",
+    to: "false)",
+    why: "a declared command fed a quoted here-document asks no one",
   },
   {
     file: "packages/core/src/application/paths.ts",

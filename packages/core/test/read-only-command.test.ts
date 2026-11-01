@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { declaredAfterCd, deliveryCommand, readOnlyCommand } from "../src/domain/read-only-command.ts";
+import {
+  declaredAfterCd,
+  declaredWithDocument,
+  deliveryCommand,
+  readOnlyCommand,
+} from "../src/domain/read-only-command.ts";
 
 const DIRS = ["/folder", "/repo/.metator/runs/r"];
 const ro = (command: string) => readOnlyCommand(command, DIRS);
@@ -244,6 +249,30 @@ describe("declaredAfterCd", () => {
         "cd /repo && metator findings merge $(pwd)",
         "metator findings merge x",
       ].map((c) => declaredAfterCd(c, declared, dirs)),
+    ).toEqual(Array(8).fill(false));
+  });
+});
+
+describe("declaredWithDocument", () => {
+  const declared = ["metator run"];
+  const doc = (head: string, body = "# Task\n\nUse $HOME and `x` literally.", end = "EOF") =>
+    `${head} <<'${end}'\n${body}\n${end}`;
+  test("a declared command fed a quoted here-document", () => {
+    expect(declaredWithDocument(doc("metator run write --run r task.md"), declared)).toBe(true);
+    expect(declaredWithDocument(`metator run write task.md <<"END"\nbody\nEND\n`, declared)).toBe(true);
+  });
+  test("an unquoted document, another command, or anything around it is not", () => {
+    expect(
+      [
+        "metator run write task.md <<EOF\n$(rm -rf src)\nEOF",
+        doc("rm -rf src; metator run write task.md"),
+        doc("metator run write task.md | tee x"),
+        doc("metator run write task.md > out"),
+        doc("metator gate full"),
+        doc("metator runx write"),
+        `${doc("metator run write task.md")}\nrm -rf src`,
+        "metator run write task.md",
+      ].map((c) => declaredWithDocument(c, declared)),
     ).toEqual(Array(8).fill(false));
   });
 });

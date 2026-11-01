@@ -72,6 +72,8 @@ describe("ClaudeAgentHost", () => {
     const { query } = fakeQuery(async (can) => {
       await can("Bash", { command: `cd ${root} && metator plan scope .metator/runs/r/plan.json` });
       await can("Bash", { command: "cd /etc && metator plan scope x" });
+      // A declared command fed a quoted here-document (an artifact on stdin) asks no one either.
+      await can("Bash", { command: "metator plan scope x <<'EOF'\nbody\nEOF" });
       return [init, success];
     });
     await collect(new ClaudeAgentHost(query), { ...task, projectRoot: root }, async (q) => {

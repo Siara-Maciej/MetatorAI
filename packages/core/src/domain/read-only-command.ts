@@ -331,3 +331,16 @@ export function declaredAfterCd(
     dirs.some((d) => dir === d.replace(/\/$/, "") || dir.startsWith(`${d.replace(/\/$/, "")}/`));
   return inside && declared.some((p) => rest === p || rest.startsWith(`${p} `));
 }
+
+/**
+ * `<declared command> <<'EOF' … EOF`: a command the agent's definition declares, fed a quoted
+ * here-document (nothing in it expands), as `metator run write task.md` reads its artifact from
+ * stdin. One command; the line before the document has no chain, pipe, redirection or substitution.
+ */
+export function declaredWithDocument(command: string, declared: readonly string[]): boolean {
+  const m = /^\s*([^\n]*?)\s*<<-?\s*(['"])([A-Za-z_]\w*)\2[ \t]*\n[\s\S]*?\n\3[ \t]*\n?$/.exec(command);
+  if (!m) return false;
+  const head = (m[1] as string).trim();
+  if (/[`;|&<>]|\$/.test(head)) return false;
+  return declared.some((p) => head === p || head.startsWith(`${p} `));
+}

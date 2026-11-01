@@ -8,6 +8,7 @@ import {
   type AgentTask,
   DRIVEN_RUN_CONTROL,
   declaredAfterCd,
+  declaredWithDocument,
   deliveryCommand,
   permissionResponse,
   readOnlyCommand,
@@ -156,7 +157,8 @@ export class ClaudeAgentHost implements AgentHost {
             (isolated &&
               (task.approved ?? []).includes("push") &&
               deliveryCommand(input.command, [task.cwd])) ||
-            declaredAfterCd(input.command, declared, dirs))
+            declaredAfterCd(input.command, declared, dirs) ||
+            declaredWithDocument(input.command, declared))
         );
       const file = input.file_path ?? input.path ?? task.cwd;
       if (typeof file !== "string") return false;
