@@ -11,6 +11,35 @@ const DIRS = ["/folder", "/repo/.metator/runs/r"];
 const ro = (command: string) => readOnlyCommand(command, DIRS);
 
 describe("readOnlyCommand", () => {
+  test("after cd into a working directory, relative paths resolve against it, .. too", () => {
+    const run = ["/r", "/r/.metator/runs/x", "/r/.metator/wt/x"];
+    const go = (c: string) => readOnlyCommand(c, run);
+    expect(
+      [
+        "cd /r/.metator/runs/x && cat ../../wt/x/index.ts; ls ../../../.claude/skills",
+        "cd /r/.metator/runs/x && grep -n verification findings/merged.json | head",
+      ].map(go),
+    ).toEqual([true, true]);
+    expect(
+      [
+        "cd /r/.metator/runs/x && cat ../../../../etc/passwd",
+        "cd /etc && cat passwd",
+        "cd src && cat ../../x",
+      ].map(go),
+    ).toEqual([false, false, false]);
+  });
+  test("quotes decide what the shell substitutes: a literal backtick or $( in a pattern only reads", () => {
+    expect(
+      ['grep -n "^##\\|^\\`\\`\\`" README.md', "grep -n '`code`' README.md", "grep -n '$(x)' README.md"].map(
+        ro,
+      ),
+    ).toEqual([true, true, true]);
+    expect(
+      ['grep -n "`rm -rf src`" README.md', 'grep -n "$(rm -rf src)" README.md', "grep -n x `rm -rf src`"].map(
+        ro,
+      ),
+    ).toEqual([false, false, false]);
+  });
   test("searches and listings inside the working directories only read", () => {
     expect(ro('grep -rn "offers" backend/src --include=*.ts')).toBe(true);
     expect(ro('grep -rn "/api/offers" frontend/packages')).toBe(true);
@@ -156,8 +185,10 @@ describe("readOnlyCommand", () => {
         "git log --format=%H -1",
         "git ls-remote origin refs/heads/metator/r",
         "git ls-remote /srv/remotes/app.git metator/r",
+        "git remote -v",
+        "git remote get-url --push origin",
       ].map(ro),
-    ).toEqual(Array(16).fill(true));
+    ).toEqual(Array(18).fill(true));
     expect(
       [
         "git push",
@@ -172,12 +203,15 @@ describe("readOnlyCommand", () => {
         "git log -p --textconv",
         "git grep -O offers",
         "git ls-remote --upload-pack=evil origin",
+        "git remote set-url origin https://evil",
+        "git remote add evil https://evil",
+        "git remote remove origin",
         "git grep --open-files-in-pager=vim offers",
         "git show HEAD -- /etc/passwd",
         "git -C",
         "git",
       ].map(ro),
-    ).toEqual(Array(16).fill(false));
+    ).toEqual(Array(19).fill(false));
   });
 
   test("readlink and realpath resolve paths inside the working directories", () => {

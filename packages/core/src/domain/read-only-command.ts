@@ -65,7 +65,10 @@ const GIT_READS = new Set([
   "describe",
   "branch",
   "ls-remote",
+  "remote",
 ]);
+/** `git remote get-url` with its read options and one remote name. */
+const REMOTE_URL = /^get-url( --push| --all)* [\w.-]+$/;
 /** `git branch` lists only with these options; any other (a name, `-d`, `-m`) changes branches. */
 const BRANCH_LISTS = /^(--show-current|--list|-a|--all|-r|--remotes|-v|-vv|--verbose)$/;
 /** Options that make a reading git command write a file or run a program. */
@@ -86,6 +89,12 @@ function gitRead(argv: readonly string[], inside: (arg: string) => boolean): boo
   const args = argv.slice(i + 1);
   if (!GIT_READS.has(sub) || args.some((a) => GIT_WRITES_OR_RUNS.test(a))) return false;
   if (sub === "branch" && !args.every((a) => BRANCH_LISTS.test(a))) return false;
+  // `git remote` lists (`-v`) or reads a URL (`get-url [--push|--all] <name>`); add, set-url and remove change it.
+  if (
+    sub === "remote" &&
+    !(args.every((a) => a === "-v" || a === "--verbose") || REMOTE_URL.test(args.join(" ")))
+  )
+    return false;
   const patterns = new Set<number>();
   if (sub === "grep") {
     args.forEach((a, j) => {
@@ -190,7 +199,8 @@ const ASSIGNMENT = /^\s*([A-Za-z_]\w*)=((?:[^\s;&|$'"\\`(){}<>*?]|\$[A-Za-z_]\w*
 
 export function readOnlyCommand(command: string, dirs: readonly string[]): boolean {
   // Substitutions, process substitution and several lines could run anything.
-  if (/[`\n\r]|\$\(|<\(|>\(/.test(command)) return false;
+  const { unquoted, substitutes } = shellQuotes(command);
+  if (substitutes || /[\n\r]|<\(|>\(/.test(unquoted)) return false;
   // Output thrown away or joined (`2>/dev/null`, `2>&1`) writes nothing: the only redirections allowed.
   const quiet = command
     .replace(/(^|\s)[12]?>>?\s*\/dev\/null(?=$|[\s;&|])/g, "$1")
@@ -227,14 +237,30 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
     else if ("op" in token && ["|", ";", "&&", "||"].includes(token.op)) commands.push([]);
     else return false; // a redirection to a file, `&`, a comment: not plain reading
   }
-  const inside = (arg: string) =>
-    !arg.split("/").includes("..") &&
-    !arg.startsWith("~") &&
-    (!arg.startsWith("/") || dirs.some((d) => arg === d || arg.startsWith(`${d.replace(/\/$/, "")}/`)));
+  const within = (path: string) =>
+    dirs.some((d) => path === d.replace(/\/$/, "") || path.startsWith(`${d.replace(/\/$/, "")}/`));
+  // After `cd <a working directory>`, a relative path (`../wt/x/a.ts` too) is resolved against it.
+  let base: string | undefined;
+  const inside = (arg: string) => {
+    if (arg.startsWith("~")) return false;
+    if (!arg.startsWith("/") && base !== undefined) return within(resolvePath(`${base}/${arg}`));
+    if (arg.split("/").includes("..")) return false;
+    return !arg.startsWith("/") || within(arg);
+  };
   return (
     commands.filter((argv) => argv.length > 0).length > 0 &&
     commands.every((argv, i) => {
       if (argv.length === 0) return i === commands.length - 1 && i > 0; // a trailing `;`
+      if (argv[0] === "cd" && argv.length === 2) {
+        const to = argv[1] as string;
+        if (!inside(to)) return false;
+        base = to.startsWith("/")
+          ? resolvePath(to)
+          : base === undefined
+            ? undefined
+            : resolvePath(`${base}/${to}`);
+        return true;
+      }
       const metator = asMetator(argv);
       if (metator && (metatorHelp(metator) || metatorQuery(metator))) return true;
       if (sedPrint(argv, inside) || gitRead(argv, inside)) return true;
@@ -261,17 +287,35 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
   );
 }
 
-/** A branch name to push: no option, no refspec (`:branch` deletes, `a:b` renames). */
+/** An absolute path with `.` and `..` folded (`/a/b/../c` is `/a/c`). */
+function resolvePath(path: string): string {
+  const parts: string[] = [];
+  for (const part of path.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") parts.pop();
+    else parts.push(part);
+  }
+  return `/${parts.join("/")}`;
+}
+
 /** A run's branch (`metator/<run id>`), by name or as the target of `HEAD:`. */
 const RUN_BRANCH = /^(HEAD:(refs\/heads\/)?)?metator\/[A-Za-z0-9][\w.-]*$/;
 
 /**
- * The command with each quoted span emptied, and whether the shell would expand anything in it:
- * `$` or a backtick outside single quotes and not escaped. Inside single quotes both are literal.
+ * The command with each quoted span emptied, and whether the shell would expand or substitute
+ * anything in it: `$` or a backtick outside single quotes and not escaped. Inside single quotes
+ * both are literal.
  */
-function shellQuotes(command: string): { readonly unquoted: string; readonly expands: boolean } {
+function shellQuotes(command: string): {
+  readonly unquoted: string;
+  /** `$` that would expand: a variable, a substitution. */
+  readonly expands: boolean;
+  /** A command substitution: `$(` or a backtick. */
+  readonly substitutes: boolean;
+} {
   let unquoted = "";
   let expands = false;
+  let substitutes = false;
   let quote: "'" | '"' | undefined;
   for (let i = 0; i < command.length; i++) {
     const c = command[i] as string;
@@ -280,15 +324,17 @@ function shellQuotes(command: string): { readonly unquoted: string; readonly exp
     } else if (c === "\\") {
       i++; // an escaped character is literal
       if (!quote) unquoted += "_";
-    } else if (c === "$" || c === "`") expands = true;
-    else if (quote === '"') {
+    } else if (c === "$" || c === "`") {
+      expands = true;
+      if (c === "`" || command[i + 1] === "(") substitutes = true;
+    } else if (quote === '"') {
       if (c === '"') quote = undefined;
     } else if (c === "'" || c === '"') {
       quote = c;
       unquoted += "''";
     } else unquoted += c;
   }
-  return { unquoted, expands };
+  return { unquoted, expands, substitutes };
 }
 
 /** What `git commit` may take: a message, all tracked changes, quiet. */

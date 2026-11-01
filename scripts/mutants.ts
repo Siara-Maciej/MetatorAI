@@ -219,14 +219,38 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
+    from: "const REMOTE_URL = /^get-url( --push| --all)* [\\w.-]+$/;",
+    to: "const REMOTE_URL = /./;",
+    why: "git remote reads URLs, never sets or adds one",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (c === "`" || command[i + 1] === "(") substitutes = true;',
+    to: "",
+    why: "a command substitution in a reading command asks a person",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (part === "..") parts.pop();',
+    to: 'if (part === "..") continue;',
+    why: "a path after cd that climbs out of the working directories asks",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "if (!inside(to)) return false;",
+    to: "",
+    why: "cd goes only into a working directory",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
     from: "i++; // an escaped character is literal",
     to: "",
     why: "an escaped $ or quote in a commit message is literal",
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
-    from: '} else if (c === "$" || c === "`") expands = true;',
-    to: "}",
+    from: 'expands = true;\n      if (c === "`"',
+    to: 'if (c === "`"',
     why: "a commit message that would run a command asks a person",
   },
   {
