@@ -429,6 +429,18 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/drive.ts",
+    from: "    RUN_WITHOUT_ASKING,\n    ...(input.notes ?? []),\n    ...decisionLines(input),\n    ...retryLines(input),",
+    to: "    ...(input.notes ?? []),\n    ...decisionLines(input),\n    ...retryLines(input),",
+    why: "workers are pointed at the skill that lists commands needing no one",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
+    from: '    RUN_WITHOUT_ASKING,\n    "The change is',
+    to: '    "The change is',
+    why: "critics are pointed at the skill that lists commands needing no one",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
     from: "if (!input.retryFrom || input.retryFrom === input.stage.id)",
     to: "if (true)",
     why: "a stage sent back hears that the work since is in the working tree",

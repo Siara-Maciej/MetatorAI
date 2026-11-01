@@ -167,6 +167,7 @@ export function stagePrompt(input: StagePromptInput): string {
     "Run each `metator` command on its own: no `cd`, pipes, redirections or other commands in the same call (alone they need no approval). Look at files with Read, Glob and Grep.",
     "Read and change files, JSON included, with Read, Edit and Write: never with an interpreter or a script (`python`, `node`, `jq`), which asks a person every time.",
     "`metator help` lists every metator command; use no other (a guessed one only asks a person). Never `metator ask`: it starts another agent; read the code yourself.",
+    RUN_WITHOUT_ASKING,
     ...(input.notes ?? []),
     ...decisionLines(input),
     ...retryLines(input),
@@ -201,6 +202,10 @@ function retryLines(input: Pick<StagePromptInput, "stage" | "retry" | "retryFrom
   ];
 }
 
+/** The skill that lists, for every command people were asked about, the form that needs no one. */
+const RUN_WITHOUT_ASKING =
+  "Before any shell or metator command, follow the skill mt-run-without-asking: it says, for each command a person would be asked about, the form that runs without asking.";
+
 /** The message a critic gets for an LLM gate. */
 export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): string {
   const lines = [
@@ -208,6 +213,7 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
     `Task: ${input.task}`,
     `Review the artifacts in ${input.runDir}: ${(input.stage.produces ?? []).join(", ") || "(none listed)"}.`,
     "Read files with Read, Glob and Grep; run no shell commands besides a single `metator` command per call, and no interpreter (`python`, `node`, `jq`).",
+    RUN_WITHOUT_ASKING,
     "The change is `change.diff` in the run directory when the review wrote it (Read it), else `metator review diff --base HEAD`; `metator help` lists every command (use no other, and never `metator ask`, which starts another agent).",
     // A check the repository does not configure, or cannot run where the run works, is not the
     // critic's to demand: the gate reports (`.metator/gates/<gate>.json`) say what passed.

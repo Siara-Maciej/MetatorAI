@@ -10,6 +10,9 @@ Skills are reusable procedures with optional scripts. A host loads a skill when 
 | `mt-review-rubric` | a lens decides whether something is a finding and how severe | finding problems in the first place |
 | `mt-grill` | a task is ambiguous at intake | the plan is approved, or the code can answer the question |
 | `mt-diagnose` | a test, a gate or a bug fails and the cause is not obvious | writing the fix |
+| `mt-run-without-asking` | an agent is about to run a shell or metator command in a run: which form needs no person (no `cd`, `$(…)`, git or interpreters; `metator review diff` for the change, Read/Edit/Write for files) | deciding what the task needs |
+
+Every stage and every critic is told to follow `mt-run-without-asking`. Each row of its table is a command people were asked about in real runs, with the answer they gave: a run that follows it stops only for decisions, not for permissions.
 
 ## Anatomy of a skill
 

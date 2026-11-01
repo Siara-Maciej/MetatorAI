@@ -129,6 +129,7 @@ describe("drive domain", () => {
     });
     expect(p).toContain("No node_modules here.");
     expect(p).toContain("never with an interpreter or a script");
+    expect(p).toContain("follow the skill mt-run-without-asking");
     expect(p).toContain("`metator help` lists every metator command");
     expect(p).toContain("Never `metator ask`: it starts another agent");
   });
@@ -176,6 +177,7 @@ describe("drive domain", () => {
     // The critic is told how to see the change and which commands exist, instead of guessing.
     expect(p).toContain("else `metator review diff --base HEAD`");
     expect(p).toContain("never `metator ask`");
+    expect(p).toContain("follow the skill mt-run-without-asking");
     expect(p).toContain("`metator help` lists every command");
   });
 
