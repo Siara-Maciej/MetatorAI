@@ -223,7 +223,9 @@ export class GitVcs
     return this.attempt(async () => {
       const branch = (await git.value.revparse(["--abbrev-ref", "HEAD"])).trim();
       const head = (await git.value.revparse(["HEAD"])).trim();
-      const listed = (await git.value.raw(["ls-remote", "origin", `refs/heads/${branch}`])).trim();
+      // Where pushes go: a fork or a mirror pushes to another URL than it fetches from.
+      const pushUrl = (await git.value.raw(["remote", "get-url", "--push", "origin"])).trim();
+      const listed = (await git.value.raw(["ls-remote", pushUrl, `refs/heads/${branch}`])).trim();
       const status = await git.value.status();
       const mine = (f: string) => !this.own.some((p) => f.startsWith(p));
       return ok({

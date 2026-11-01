@@ -159,6 +159,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-git/src/git-vcs.ts",
+    from: '["ls-remote", pushUrl, `refs/heads/${branch}`]',
+    to: '["ls-remote", "origin", `refs/heads/${branch}`]',
+    why: "publication is asked where pushes go, not where fetches come from",
+  },
+  {
+    file: "packages/plugin-git/src/git-vcs.ts",
     from: 'remote: listed === "" ? null : (listed.split(/\\s+/)[0] ?? null),',
     to: "remote: null,",
     why: "the branch on origin is asked of origin itself",

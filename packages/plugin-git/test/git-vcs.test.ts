@@ -385,4 +385,22 @@ describe("GitVcs published", () => {
     const after = (await vcs.published())._unsafeUnwrap();
     expect([after.remote, after.uncommitted]).toEqual([after.head, []]);
   });
+
+  test("asks where pushes go: a push URL apart from the fetch URL (a fork, a mirror)", async () => {
+    const upstream = await repo();
+    await writeFile(join(upstream, "a.ts"), "a");
+    await sh(upstream, "add", ".");
+    await sh(upstream, "commit", "-qm", "init");
+    const fork = await mkdtemp(join(tmpdir(), "metator-fork-"));
+    dirs.push(fork);
+    await sh(fork, "init", "-q", "--bare", ".");
+    const clone = await mkdtemp(join(tmpdir(), "metator-clone-"));
+    dirs.push(clone);
+    await sh(clone, "clone", "-q", upstream, ".");
+    await sh(clone, "remote", "set-url", "--push", "origin", fork);
+    await sh(clone, "switch", "-qc", "metator/r");
+    await sh(clone, "push", "-q", "origin", "metator/r");
+    const state = (await new GitVcs(clone).published())._unsafeUnwrap();
+    expect(state.remote).toBe(state.head);
+  });
 });
