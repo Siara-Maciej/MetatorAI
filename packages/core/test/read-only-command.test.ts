@@ -5,6 +5,7 @@ import {
   deliveryCommand,
   readOnlyCommand,
   runArtifactWrite,
+  singleDeclaredCommand,
 } from "../src/domain/read-only-command.ts";
 
 const DIRS = ["/folder", "/repo/.metator/runs/r"];
@@ -367,5 +368,27 @@ describe("runArtifactWrite", () => {
         "cat .metator/runs/r/a",
       ].map(w),
     ).toEqual(Array(9).fill(false));
+  });
+});
+
+describe("singleDeclaredCommand", () => {
+  test("one declared command, quoted text included; nothing chained or substituted", () => {
+    const d = ["metator findings"];
+    expect(
+      [
+        "metator findings merge .metator/runs/r/findings",
+        "metator findings calibrate x --trigger 'a; b | c'",
+        "metator findings",
+      ].map((c) => singleDeclaredCommand(c, d)),
+    ).toEqual([true, true, true]);
+    expect(
+      [
+        "metator findings --help | head",
+        "metator findings merge x && node -e 1",
+        "metator findings merge $(rm -rf src)",
+        "metator findingsx",
+        "metator graph deps x",
+      ].map((c) => singleDeclaredCommand(c, d)),
+    ).toEqual([false, false, false, false, false]);
   });
 });

@@ -15,6 +15,7 @@ import {
   runArtifactWrite,
   runControlCommand,
   secretPath,
+  singleDeclaredCommand,
 } from "@metator/core";
 
 /** The slice of the Agent SDK's `query()` this host uses; injected in tests, imported lazily otherwise. */
@@ -227,8 +228,12 @@ export class ClaudeAgentHost implements AgentHost {
         const file = join(task.projectRoot, ".claude", "agents", `${agent}.md`);
         const tools = agentDefinition(file)?.tools;
         const own = declaredCommands(file).map((t) => t.slice("Bash(".length, -":*)".length));
-        const declaredCall = own.some((d) => command.trim() === d || command.trim().startsWith(`${d} `));
-        if (tools && !tools.includes("Bash") && !declaredCall && !needsNoPerson("Bash", hook.input, own))
+        if (
+          tools &&
+          !tools.includes("Bash") &&
+          !singleDeclaredCommand(command, own) &&
+          !needsNoPerson("Bash", hook.input, own)
+        )
           return permissionResponse({ decision: "deny", reason: OUTSIDE_DEFINITION(agent, own) });
       }
       return {};

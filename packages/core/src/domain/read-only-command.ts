@@ -290,6 +290,17 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
   );
 }
 
+/**
+ * One command of the given prefixes (`metator findings`) and nothing chained to it: no `;`, `&&`,
+ * `|`, redirection, line break or substitution outside quotes.
+ */
+export function singleDeclaredCommand(command: string, declared: readonly string[]): boolean {
+  const { unquoted, substitutes } = shellQuotes(command);
+  if (substitutes || /[;&|<>\n\r]/.test(unquoted)) return false;
+  const trimmed = command.trim();
+  return declared.some((d) => trimmed === d || trimmed.startsWith(`${d} `));
+}
+
 /** An absolute path with `.` and `..` folded (`/a/b/../c` is `/a/c`). */
 function resolvePath(path: string): string {
   const parts: string[] = [];

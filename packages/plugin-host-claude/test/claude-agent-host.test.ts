@@ -124,6 +124,10 @@ describe("ClaudeAgentHost", () => {
     } as never);
     expect(await decide("grep -n x README.md")).toBeUndefined();
     expect(await decide("metator findings merge .metator/runs/r/findings")).toBeUndefined();
+    // A declared command with another chained to it is not the declared command.
+    expect((await decide("metator findings calibrate --help | head; node -e 'x'"))?.permissionDecision).toBe(
+      "deny",
+    );
     expect((await decide("find / -name x", "mt-review-logic"))?.permissionDecision).toBe("deny");
     // A subagent whose definition grants Bash goes on to the usual question.
     expect(await decide("node -e 'console.log(2)'", "mt-verifier")).toBeUndefined();

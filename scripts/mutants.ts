@@ -249,8 +249,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-agent-host.ts",
-    from: 'if (tools && !tools.includes("Bash") && !declaredCall && !needsNoPerson("Bash", hook.input, own))',
-    to: 'if (tools && !declaredCall && !needsNoPerson("Bash", hook.input, own))',
+    from: '!tools.includes("Bash") &&\n          !singleDeclaredCommand',
+    to: "!singleDeclaredCommand",
     why: "an agent whose definition grants Bash is not refused, it asks",
   },
   {
@@ -258,6 +258,12 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'const agent = typeof call.agent_type === "string" ? call.agent_type : task.agent;',
     to: "const agent = task.agent;",
     why: "a subagent is judged by its own definition",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "if (substitutes || /[;&|<>\\n\\r]/.test(unquoted)) return false;\n  const trimmed",
+    to: "const trimmed",
+    why: "a declared command with another chained to it is not the declared command",
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
