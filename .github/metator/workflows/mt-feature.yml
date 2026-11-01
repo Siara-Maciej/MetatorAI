@@ -54,7 +54,7 @@ stages:
     gate: { llm: mt-judge }
     onFail: { goto: plan, loop: review }
   - id: delivery
-    description: The human approves the push and the PR
+    description: The human approves the push (and a PR, when the task asks for one)
     hitl: true
     neverSkip: true
     # Approving the delivery approves the push: the publish stage pushes without asking again.
