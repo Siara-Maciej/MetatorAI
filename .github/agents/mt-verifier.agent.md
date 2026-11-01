@@ -28,3 +28,4 @@ user-invocable: false
 
 # Stop conditions
 - Reproducing needs network, secrets or changing shared state: stop at `unproven` and say what would prove it.
+- The repository's dependencies are not installed (no `node_modules`, no compiler): do not look for tools or install anything; trace the code, and stop at `unproven` when tracing cannot decide.
