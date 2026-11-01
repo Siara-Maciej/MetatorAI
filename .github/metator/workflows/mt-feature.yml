@@ -60,7 +60,7 @@ stages:
     # Approving the delivery approves the push: the publish stage pushes without asking again.
     grants: [push]
   - id: publish
-    description: Push and open the PR after approval
+    description: Commit and push the run's branch after approval (a PR only when the task asks for one)
     owner: mt-pr-author
     produces: [pr.md]
     # Done only when the change is committed and origin's branch is at the checked-out commit.
@@ -80,4 +80,4 @@ done: [the gates pass, verdict.json decision is APPROVED, push approved]
 recovery: [failed gate runs skill mt-diagnose, retry a tool once, then escalate]
 resume: metator run status, then continue at the last approved stage
 telemetry: [stage_duration, tokens, loops, escalations, outcome]
-report: summary with links to plan.json, gates.md, verdict.json and the PR
+report: summary with links to plan.json, gates.md, verdict.json and the pushed branch (or the PR)
