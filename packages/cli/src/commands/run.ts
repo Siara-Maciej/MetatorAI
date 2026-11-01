@@ -258,8 +258,9 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       "Whether the run's work is published: nothing uncommitted, and origin's branch at the checked-out commit (the publish gate)",
     )
     .action(
+      // The branch checked out here (a run's worktree), not the checkout its runs live in.
       action(async () => ({
-        result: await container().resolve("checkPublished").execute(),
+        result: await ctx.container().resolve("checkPublished").execute(),
       })),
     );
 

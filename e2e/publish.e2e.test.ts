@@ -42,4 +42,27 @@ describe("metator run published (real CLI)", () => {
       "metator/run-1",
     ]);
   }, 60_000);
+
+  test("in a run's worktree it checks the worktree's branch, not the checkout's untracked setup", async () => {
+    await repo.git("switch", "-q", "-c", "main-2");
+    await repo.write("metator.config.yml", "kind: MetatorConfig\nschemaVersion: 5\n");
+    await repo.git("worktree", "add", "-q", "-b", "metator/run-2", ".metator/wt/run-2", "HEAD");
+    const wt = `${repo.root}/.metator/wt/run-2`;
+    await Bun.write(`${wt}/src/c.ts`, "export const c = 3;\n");
+    const notYet = await metator(["run", "published"], wt);
+    expect((notYet.json.error as { message: string }).message).toBe(
+      "not published: not committed: src/c.ts (git add -A, then git commit)",
+    );
+    const git = (...a: string[]) =>
+      Bun.spawnSync(
+        ["git", "-c", "user.name=T", "-c", "user.email=t@e", "-c", "commit.gpgsign=false", ...a],
+        {
+          cwd: wt,
+        },
+      );
+    git("add", "-A");
+    git("commit", "-qm", "c");
+    git("push", "-q", "origin", "metator/run-2");
+    expect((await metator(["run", "published"], wt)).code).toBe(0);
+  }, 60_000);
 });
