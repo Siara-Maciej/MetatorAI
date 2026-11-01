@@ -168,6 +168,8 @@ export class ClaudeAgentHost implements AgentHost {
         return (
           typeof input.command === "string" &&
           (readOnlyCommand(input.command, dirs) ||
+            // The agent's own declared command, alone; its quoted text may hold `&&` or `|`.
+            singleDeclaredCommand(input.command, own) ||
             // After the push is approved: committing and pushing the run's branch in its worktree.
             (isolated &&
               (task.approved ?? []).includes("push") &&

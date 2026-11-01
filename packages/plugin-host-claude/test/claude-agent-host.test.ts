@@ -77,6 +77,8 @@ describe("ClaudeAgentHost", () => {
       await can("Bash", { command: "metator plan scope x <<'EOF'\nbody\nEOF" });
       // A run artifact written through the shell into the run directory asks no one either.
       await can("Bash", { command: "cat > /repo/.metator/runs/r/findings/x.json <<'EOF'\n{}\nEOF" });
+      // A declared command whose quoted text holds `&&` asks no one; one chained to another asks.
+      await can("Bash", { command: 'metator plan scope x --why "lint && test"' });
       // Removing a file in the isolated worktree or the run directory asks no one either.
       await can("Bash", { command: "rm test/repro.test.js /repo/.metator/runs/r/findings/x.json" });
       return [init, success];

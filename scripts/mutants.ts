@@ -302,6 +302,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a later stage sending the run back starts a new round of the loops it goes back over",
   },
   {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: "singleDeclaredCommand(input.command, own) ||\n            // After the push",
+    to: "// After the push",
+    why: "a declared command whose quoted text holds && asks no one",
+  },
+  {
     file: "packages/core/src/domain/read-only-command.ts",
     from: "i++; // an escaped character is literal",
     to: "",
