@@ -17,6 +17,7 @@ Every stage of a run, before a Bash call. A command a person must allow stops th
 | `$(…)`, backticks, `xargs`, a `for` loop, `\| while` | separate calls, or Grep for the list first |
 | a `for` loop or `cat` over `findings/*.json` | `bun run metator findings merge <run dir>/findings`, then Read `findings/merged.json` (every finding in one file) |
 | a backtick inside a grep pattern | the Grep tool for that pattern |
+| `$`, `$$` or a backtick in an argument's text (a trigger, evidence, a commit message) inside double quotes: the shell expands it | single quotes (`--trigger 'indent: "$$"'`; a `'` inside is written `'\''`) |
 | `python -c`, `node -e`, `jq`, `awk` on a file | Read the file (JSON too); `sed -n <a>,<b>p` for a range |
 | a script that edits `plan.json`, `merged.json` or code | Edit (one change per call) or Write the whole file |
 | `mkdir -p`, `cp`, `mv`, `cat > file <<EOF`, `printf > file` | Write: it creates the directories it needs |
