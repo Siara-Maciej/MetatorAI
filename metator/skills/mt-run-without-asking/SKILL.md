@@ -24,7 +24,7 @@ Every stage of a run, before a Bash call. A command a person must allow stops th
 | `git add`, `git commit`, `git checkout`, `git stash`, `git -c …`, `git diff --output` at any stage before publish | nothing: those stages leave the change in the working tree; reading git (`status`, `log`, `show`, `diff`, `blame`, `grep`, `rev-parse`, `merge-base`, `ls-files`, `describe`, `branch --show-current`) runs without asking, also as `git -C <checkout>` |
 | (publish stage, after the delivery approval) committing and pushing the run's branch | do it: `git add -A`, `git commit -m "…"` (one `-m` per paragraph, or a quoted multi-line message), `git push -u origin <branch>` run without asking; never a force push, `--amend` or `--no-verify` |
 | a large diff dug out of a tool-result file | `metator review diff --base HEAD --out <run dir>/change.diff`, then Read it |
-| `find /`, `ls node_modules`, `node --version` | dependencies are not installed unless the stage says so: reason from the code |
+| `find /`, `ls node_modules`, `node --version`, `which tsc`, `ls ~/.npm` | dependencies are not installed unless the stage says so: reason from the code |
 | `curl`, `wget`, any network call | none: work from the code and the run's decisions |
 | `readlink`, `realpath` outside the working directories | inside them both run without asking; `<worktree>/.metator/runs` is a link to the checkout's runs: both paths are the same files |
 | `metator ask` | read the code yourself: it starts another agent |
