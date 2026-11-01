@@ -99,7 +99,20 @@ describe("RunStateMachine (XState)", () => {
     );
     const back = drive(toReview, { type: "FAIL" });
     expect(back.stage).toBe("plan");
-    expect(back.context.loops).toEqual({ review: 1 });
+    expect(back.context.loops).toEqual({ plan: 0, review: 1 });
+  });
+
+  test("a review that sends the run back starts a new round of plan-gate tries", () => {
+    const P = { type: "PASS" } as const;
+    const F = { type: "FAIL" } as const;
+    // Round one: the plan gate fails twice (its whole budget), then passes; the review sends it back.
+    const back = drive(machine().start(), P, P, F, P, F, P, P, { type: "APPROVE", by: "u" }, P, F);
+    expect([back.stage, back.context.loops]).toEqual(["plan", { plan: 0, review: 1 }]);
+    // Round two: the plan gate may fail twice again before the run escalates.
+    const retried = drive(back, P, F, P, F, P, P);
+    expect([retried.stage, retried.status]).toEqual(["approval", "active"]);
+    const exhausted = drive(back, P, F, P, F, P, F);
+    expect(exhausted.status).toBe("escalated");
   });
 
   test("a stage without onFail escalates on FAIL", () => {

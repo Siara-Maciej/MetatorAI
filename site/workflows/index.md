@@ -85,7 +85,7 @@ metator workflow lint            # every spec against the 16-section anatomy
 `workflow lint` requires every workflow to answer:
 
 - **start:** entry, input contract, preconditions;
-- **stages:** stages with owners, artifacts, gates, parallelism, loops;
+- **stages:** stages with owners, artifacts, gates, parallelism, loops (a stage's `onFail` sends the run back and counts against its loop; when a later stage, such as review, sends the run back, the loops of the stages it goes back over start again, so a plan the review sent back gets its full plan-gate tries);
 - **control:** escalation, autonomy, permissions;
 - **finish:** definition of done, recovery, resume;
 - **reporting:** telemetry, final report.

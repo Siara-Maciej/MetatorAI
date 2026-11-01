@@ -296,6 +296,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a type test may import its devDependencies (tsd)",
   },
   {
+    file: "packages/core/src/domain/run-machine.ts",
+    from: "return { loops: { ...context.loops, ...fresh, [loop]:",
+    to: "return { loops: { ...context.loops, [loop]:",
+    why: "a later stage sending the run back starts a new round of the loops it goes back over",
+  },
+  {
     file: "packages/core/src/domain/read-only-command.ts",
     from: "i++; // an escaped character is literal",
     to: "",
