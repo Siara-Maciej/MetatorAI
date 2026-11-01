@@ -267,6 +267,24 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (files.length === 0 || files.some((f) => f.startsWith("-") || f.split("/").includes(".."))) return false;',
+    to: "",
+    why: "rm takes files, never an option such as -r or a climb out",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "return dirs.some((d) => abs.startsWith(",
+    to: "return true || dirs.some((d) => abs.startsWith(",
+    why: "rm removes only inside the run's directories",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: "removeInside(input.command, isolated ? [...runDirs, task.cwd] : runDirs, task.cwd))",
+    to: "false)",
+    why: "removing a file in the isolated worktree or the run directory asks no one",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
     from: "i++; // an escaped character is literal",
     to: "",
     why: "an escaped $ or quote in a commit message is literal",
@@ -315,8 +333,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-agent-host.ts",
-    from: "runArtifactWrite(input.command, runDirs, task.cwd))",
-    to: "false)",
+    from: "runArtifactWrite(input.command, runDirs, task.cwd) ||",
+    to: "false ||",
     why: "a run artifact written through the shell into the run directory asks no one",
   },
   {

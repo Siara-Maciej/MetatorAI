@@ -440,6 +440,24 @@ export function declaredWithDocument(command: string, declared: readonly string[
 }
 
 /**
+ * `rm [-f] <file>…` where every file is inside the given directories (the run's isolated worktree,
+ * the run directory): the same files Edit and Write may change there without asking. No `-r`, no
+ * glob, no `..`, nothing chained.
+ */
+export function removeInside(command: string, dirs: readonly string[], cwd: string): boolean {
+  const { unquoted, expands } = shellQuotes(command);
+  if (expands || /[;&|<>*?[\]{}~\n\r]/.test(unquoted)) return false;
+  const words = command.trim().split(/\s+/);
+  if (words[0] !== "rm") return false;
+  const files = words.slice(1).filter((w) => w !== "-f");
+  if (files.length === 0 || files.some((f) => f.startsWith("-") || f.split("/").includes(".."))) return false;
+  return files.every((f) => {
+    const abs = resolvePath(f.startsWith("/") ? f : `${cwd}/${f}`);
+    return dirs.some((d) => abs.startsWith(`${resolvePath(d)}/`));
+  });
+}
+
+/**
  * Writing a run's own artifact through the shell, as some agents do instead of their Write tool:
  * `mkdir -p <dir>`, `cat > <file> <<'EOF' … EOF` (a quoted here-document, nothing expands), or the
  * two joined by `&&` or `;`. Every path must be inside the run directory (`runDirs`: as given and

@@ -77,6 +77,8 @@ describe("ClaudeAgentHost", () => {
       await can("Bash", { command: "metator plan scope x <<'EOF'\nbody\nEOF" });
       // A run artifact written through the shell into the run directory asks no one either.
       await can("Bash", { command: "cat > /repo/.metator/runs/r/findings/x.json <<'EOF'\n{}\nEOF" });
+      // Removing a file in the isolated worktree or the run directory asks no one either.
+      await can("Bash", { command: "rm test/repro.test.js /repo/.metator/runs/r/findings/x.json" });
       return [init, success];
     });
     await collect(new ClaudeAgentHost(query), { ...task, projectRoot: root }, async (q) => {

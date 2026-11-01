@@ -4,6 +4,7 @@ import {
   declaredWithDocument,
   deliveryCommand,
   readOnlyCommand,
+  removeInside,
   runArtifactWrite,
   singleDeclaredCommand,
 } from "../src/domain/read-only-command.ts";
@@ -390,5 +391,28 @@ describe("singleDeclaredCommand", () => {
         "metator graph deps x",
       ].map((c) => singleDeclaredCommand(c, d)),
     ).toEqual([false, false, false, false, false]);
+  });
+});
+
+describe("removeInside", () => {
+  test("removes files inside the given directories only, one by one", () => {
+    const dirs = ["/r/.metator/wt/x", "/r/.metator/runs/x"];
+    const go = (c: string) => removeInside(c, dirs, "/r/.metator/wt/x");
+    expect(["rm test/repro.test.js", "rm -f /r/.metator/runs/x/findings/tests.json a.js"].map(go)).toEqual([
+      true,
+      true,
+    ]);
+    expect(
+      [
+        "rm -rf test",
+        "rm test/*.js",
+        "rm ../../../index.js",
+        "rm /r/index.js",
+        "rm a.js; rm b.js",
+        "rm $F",
+        "rm",
+        "rm /r/.metator/wt/x",
+      ].map(go),
+    ).toEqual(Array(8).fill(false));
   });
 });

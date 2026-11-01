@@ -12,6 +12,7 @@ import {
   deliveryCommand,
   permissionResponse,
   readOnlyCommand,
+  removeInside,
   runArtifactWrite,
   runControlCommand,
   secretPath,
@@ -173,7 +174,9 @@ export class ClaudeAgentHost implements AgentHost {
               deliveryCommand(input.command, [task.cwd])) ||
             declaredAfterCd(input.command, own, dirs) ||
             declaredWithDocument(input.command, own) ||
-            runArtifactWrite(input.command, runDirs, task.cwd))
+            runArtifactWrite(input.command, runDirs, task.cwd) ||
+            // Removing a file where Edit and Write need no person: the run directory, an isolated worktree.
+            removeInside(input.command, isolated ? [...runDirs, task.cwd] : runDirs, task.cwd))
         );
       const file = input.file_path ?? input.path ?? task.cwd;
       if (typeof file !== "string") return false;
