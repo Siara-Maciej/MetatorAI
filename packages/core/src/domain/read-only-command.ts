@@ -64,6 +64,7 @@ const GIT_READS = new Set([
   "grep",
   "describe",
   "branch",
+  "ls-remote",
 ]);
 /** `git branch` lists only with these options; any other (a name, `-d`, `-m`) changes branches. */
 const BRANCH_LISTS = /^(--show-current|--list|-a|--all|-r|--remotes|-v|-vv|--verbose)$/;

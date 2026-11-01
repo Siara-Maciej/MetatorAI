@@ -164,6 +164,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "cd into a working directory before a declared command asks no one",
   },
   {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: '  "ls-remote",\n',
+    to: "",
+    why: "git ls-remote only reads",
+  },
+  {
     file: "packages/core/src/application/paths.ts",
     from: '  "**/{test,tests,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",\n',
     to: "",

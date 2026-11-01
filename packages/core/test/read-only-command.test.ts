@@ -147,8 +147,9 @@ describe("readOnlyCommand", () => {
         "git branch -a -v",
         "git describe --tags",
         "git log --format=%H -1",
+        "git ls-remote origin refs/heads/metator/r",
       ].map(ro),
-    ).toEqual(Array(14).fill(true));
+    ).toEqual(Array(15).fill(true));
     expect(
       [
         "git push",
