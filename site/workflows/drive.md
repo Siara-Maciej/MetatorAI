@@ -80,7 +80,9 @@ metator run answer q003 --text "use EUR, never mix currencies" --by alice   # Ot
 - writing its artifacts into the run directory;
 - editing files inside the run's own worktree. The worktree is isolated, and nothing leaves it without you: a push always needs `metator run approve push`.
 
-Anything else asks: an edit in your own checkout (a run without `--worktree`), other shell commands, a write anywhere outside. Claude Code itself always asks for a command it cannot read safely, such as a heredoc that holds JSON. Every stage tells its agents to read and change files with Read, Edit and Write, never with an interpreter (`python`, `node`, `jq`), which would ask you each time.
+An agent whose definition grants no plain `Bash` (a coordinator such as `mt-pr-review`, a planner, a review lens) is never put to you for a shell command: anything outside its declared commands and reading is refused at once, with the reason, and it carries on with its own tools or hands the work to an agent that runs code (`mt-verifier`). Its subagents have definitions of their own.
+
+For the other agents, anything else asks: an edit in your own checkout (a run without `--worktree`), other shell commands, a write anywhere outside. Claude Code itself always asks for a command it cannot read safely, such as a heredoc that holds JSON. Every stage tells its agents to read and change files with Read, Edit and Write, never with an interpreter (`python`, `node`, `jq`), which would ask you each time.
 
 The same rules hold for the workers a coordinator starts (the review lenses). They run in the foreground of the stage's session, so their questions reach you too: a worker in the background would outlive the turn that started it, and its permission prompts could not be answered.
 

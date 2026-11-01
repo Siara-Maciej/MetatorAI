@@ -9,6 +9,7 @@ import {
   ClaudeAgentHost,
   type ClaudeQuery,
   declaredCommands,
+  OUTSIDE_DEFINITION,
   toEvents,
 } from "../src/claude-agent-host.ts";
 
@@ -66,7 +67,7 @@ describe("ClaudeAgentHost", () => {
     const root = await mkdtemp(join(tmpdir(), "metator-claude-"));
     await Bun.write(
       join(root, ".claude/agents/mt-planner.md"),
-      "---\nname: mt-planner\ntools: Read, Bash(metator plan:*)\n---\n# Role\n",
+      "---\nname: mt-planner\ntools: Read, Bash, Bash(metator plan:*)\n---\n# Role\n",
     );
     const asked: string[] = [];
     const { query } = fakeQuery(async (can) => {
@@ -83,6 +84,42 @@ describe("ClaudeAgentHost", () => {
       return { choices: ["Deny"] };
     });
     expect(asked).toEqual(["cd /etc && metator plan scope x"]);
+    await rm(root, { recursive: true, force: true });
+  });
+
+  test("an agent without plain Bash is refused other commands without a person; its subagents still ask", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metator-claude-"));
+    await Bun.write(
+      join(root, ".claude/agents/mt-pr-review.md"),
+      "---\nname: mt-pr-review\ntools: Read, Agent(mt-verifier), Bash(metator findings:*)\n---\n# Role\n",
+    );
+    const asked: string[] = [];
+    const results: unknown[] = [];
+    const { query } = fakeQuery(async (can) => {
+      const sub = can as (
+        t: string,
+        i: Record<string, unknown>,
+        o?: { agentID?: string },
+      ) => Promise<unknown>;
+      results.push(await can("Bash", { command: "node -e 'console.log(1)'" }));
+      results.push(await can("Bash", { command: "grep -n x README.md" }));
+      results.push(await sub("Bash", { command: "node -e 'console.log(2)'" }, { agentID: "verifier-1" }));
+      return [init, success];
+    });
+    await collect(
+      new ClaudeAgentHost(query),
+      { ...task, agent: "mt-pr-review", projectRoot: root },
+      async (q) => {
+        asked.push(q.prompt);
+        return { choices: ["Deny"], text: "no" };
+      },
+    );
+    expect(results[0]).toEqual({
+      behavior: "deny",
+      message: OUTSIDE_DEFINITION("mt-pr-review", ["metator findings"]),
+    });
+    expect((results[1] as { behavior: string }).behavior).toBe("allow");
+    expect(asked).toEqual(["mt-pr-review wants to use Bash: node -e 'console.log(2)'"]);
     await rm(root, { recursive: true, force: true });
   });
 

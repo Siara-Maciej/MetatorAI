@@ -208,7 +208,9 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
   // Plain names set up front (`R=.metator/runs/x; cat $R/plan.json`) stand for their words; the
   // words are then checked like any other.
   const vars = new Map<string, string>();
-  let rest = quiet;
+  // A leading `cd <dir>;` may come before the names (`cd /wt; R=.metator/runs/x; cat $R/a`).
+  const cd = /^\s*cd\s+[\w./-]+\s*(?:;|&&)/.exec(quiet)?.[0] ?? "";
+  let rest = quiet.slice(cd.length);
   for (let m = ASSIGNMENT.exec(rest); m; m = ASSIGNMENT.exec(rest)) {
     let unknown = false;
     const value = (m[2] as string).replace(/\$([A-Za-z_]\w*)/g, (_, name: string) => {
@@ -220,6 +222,7 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
     vars.set(m[1] as string, value);
     rest = rest.slice(m[0].length);
   }
+  rest = `${cd} ${rest}`;
   let expanded = false;
   const tokens = parse(rest, (key) => {
     const value = vars.get(key);

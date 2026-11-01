@@ -18,8 +18,9 @@ describe("readOnlyCommand", () => {
       [
         "cd /r/.metator/runs/x && cat ../../wt/x/index.ts; ls ../../../.claude/skills",
         "cd /r/.metator/runs/x && grep -n verification findings/merged.json | head",
+        "cd /r/.metator/wt/x; R=.metator/runs/x; cat $R/gates.md; echo ----; ls $R/findings",
       ].map(go),
-    ).toEqual([true, true]);
+    ).toEqual([true, true, true]);
     expect(
       [
         "cd /r/.metator/runs/x && cat ../../../../etc/passwd",

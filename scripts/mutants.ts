@@ -243,6 +243,24 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
+    from: "let rest = quiet.slice(cd.length);",
+    to: "let rest = quiet;",
+    why: "names set after a leading cd stand for their words",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: 'const shellless = ownTools !== undefined && !ownTools.includes("Bash");',
+    to: "const shellless = false;",
+    why: "an agent without plain Bash is refused other commands without asking a person",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: 'if (tool === "Bash" && shellless && options?.agentID === undefined)',
+    to: 'if (tool === "Bash" && shellless)',
+    why: "a subagent with its own definition still asks",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
     from: "i++; // an escaped character is literal",
     to: "",
     why: "an escaped $ or quote in a commit message is literal",

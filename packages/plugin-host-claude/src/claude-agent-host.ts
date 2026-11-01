@@ -23,6 +23,10 @@ export type ClaudeQuery = (params: {
   options: Record<string, unknown>;
 }) => AsyncIterable<Record<string, unknown>>;
 
+/** Why a command outside an agent's definition is refused without asking anyone. */
+export const OUTSIDE_DEFINITION = (agent: string, declared: readonly string[]) =>
+  `${agent} runs only the commands its definition declares (${declared.join(", ") || "none"}) and commands that only read inside the working directories. Use those, Read, Grep and Glob; to run code, delegate to an agent that runs it (mt-verifier in a review). This was refused without asking a person.`;
+
 type Permission =
   | { behavior: "allow"; updatedInput: Record<string, unknown> }
   | { behavior: "deny"; message: string };
@@ -172,10 +176,21 @@ export class ClaudeAgentHost implements AgentHost {
         return dirs.some((dir) => dir === resolve(task.cwd, file) || inside(dir, resolve(task.cwd, file)));
       return WRITES.has(tool) && (inside(task.runDir, file) || (isolated && inside(task.cwd, file)));
     };
-    const canUseTool = async (tool: string, input: Record<string, unknown>): Promise<Permission> => {
+    // An agent whose definition grants no plain Bash (a coordinator, a lens) runs only the commands
+    // it declares and the ones that only read: anything else is refused with that reason, not put
+    // to a person. Its subagents (`agentID`) have definitions of their own and still ask.
+    const ownTools = agentDefinition(join(task.projectRoot, ".claude", "agents", `${task.agent}.md`))?.tools;
+    const shellless = ownTools !== undefined && !ownTools.includes("Bash");
+    const canUseTool = async (
+      tool: string,
+      input: Record<string, unknown>,
+      options?: { readonly agentID?: string },
+    ): Promise<Permission> => {
       if (tool === "AskUserQuestion")
         return { behavior: "allow", updatedInput: await answerQuestions(input, ask) };
       if (needsNoPerson(tool, input)) return { behavior: "allow", updatedInput: input };
+      if (tool === "Bash" && shellless && options?.agentID === undefined)
+        return { behavior: "deny", message: OUTSIDE_DEFINITION(task.agent, declared) };
       const answer = await ask({
         source: "permission",
         prompt: `${task.agent} wants to use ${tool}: ${described(input)}`,
