@@ -159,7 +159,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-agent-host.ts",
-    from: "declaredAfterCd(input.command, declared, dirs) ||",
+    from: "declaredAfterCd(input.command, own, dirs) ||",
     to: "false ||",
     why: "cd into a working directory before a declared command asks no one",
   },
@@ -177,7 +177,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-agent-host.ts",
-    from: "declaredWithDocument(input.command, declared) ||",
+    from: "declaredWithDocument(input.command, own) ||",
     to: "false ||",
     why: "a declared command fed a quoted here-document asks no one",
   },
@@ -249,15 +249,15 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-agent-host.ts",
-    from: 'const shellless = ownTools !== undefined && !ownTools.includes("Bash");',
-    to: "const shellless = false;",
-    why: "an agent without plain Bash is refused other commands without asking a person",
+    from: 'if (tools && !tools.includes("Bash") && !declaredCall && !needsNoPerson("Bash", hook.input, own))',
+    to: 'if (tools && !declaredCall && !needsNoPerson("Bash", hook.input, own))',
+    why: "an agent whose definition grants Bash is not refused, it asks",
   },
   {
     file: "packages/plugin-host-claude/src/claude-agent-host.ts",
-    from: 'if (tool === "Bash" && shellless && options?.agentID === undefined)',
-    to: 'if (tool === "Bash" && shellless)',
-    why: "a subagent with its own definition still asks",
+    from: 'const agent = typeof call.agent_type === "string" ? call.agent_type : task.agent;',
+    to: "const agent = task.agent;",
+    why: "a subagent is judged by its own definition",
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",

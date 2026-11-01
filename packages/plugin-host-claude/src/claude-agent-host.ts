@@ -157,7 +157,11 @@ export class ClaudeAgentHost implements AgentHost {
     const declared = declaredCommands(join(task.projectRoot, ".claude", "agents", `${task.agent}.md`)).map(
       (t) => t.slice("Bash(".length, -":*)".length),
     );
-    const needsNoPerson = (tool: string, input: Record<string, unknown>): boolean => {
+    const needsNoPerson = (
+      tool: string,
+      input: Record<string, unknown>,
+      own: readonly string[] = declared,
+    ): boolean => {
       if (tool === "Bash")
         return (
           typeof input.command === "string" &&
@@ -166,8 +170,8 @@ export class ClaudeAgentHost implements AgentHost {
             (isolated &&
               (task.approved ?? []).includes("push") &&
               deliveryCommand(input.command, [task.cwd])) ||
-            declaredAfterCd(input.command, declared, dirs) ||
-            declaredWithDocument(input.command, declared) ||
+            declaredAfterCd(input.command, own, dirs) ||
+            declaredWithDocument(input.command, own) ||
             runArtifactWrite(input.command, runDirs, task.cwd))
         );
       const file = input.file_path ?? input.path ?? task.cwd;
@@ -176,21 +180,10 @@ export class ClaudeAgentHost implements AgentHost {
         return dirs.some((dir) => dir === resolve(task.cwd, file) || inside(dir, resolve(task.cwd, file)));
       return WRITES.has(tool) && (inside(task.runDir, file) || (isolated && inside(task.cwd, file)));
     };
-    // An agent whose definition grants no plain Bash (a coordinator, a lens) runs only the commands
-    // it declares and the ones that only read: anything else is refused with that reason, not put
-    // to a person. Its subagents (`agentID`) have definitions of their own and still ask.
-    const ownTools = agentDefinition(join(task.projectRoot, ".claude", "agents", `${task.agent}.md`))?.tools;
-    const shellless = ownTools !== undefined && !ownTools.includes("Bash");
-    const canUseTool = async (
-      tool: string,
-      input: Record<string, unknown>,
-      options?: { readonly agentID?: string },
-    ): Promise<Permission> => {
+    const canUseTool = async (tool: string, input: Record<string, unknown>): Promise<Permission> => {
       if (tool === "AskUserQuestion")
         return { behavior: "allow", updatedInput: await answerQuestions(input, ask) };
       if (needsNoPerson(tool, input)) return { behavior: "allow", updatedInput: input };
-      if (tool === "Bash" && shellless && options?.agentID === undefined)
-        return { behavior: "deny", message: OUTSIDE_DEFINITION(task.agent, declared) };
       const answer = await ask({
         source: "permission",
         prompt: `${task.agent} wants to use ${tool}: ${described(input)}`,
@@ -208,8 +201,8 @@ export class ClaudeAgentHost implements AgentHost {
     const definition = agentDefinition(agentFile);
     // Secrets stay unread in-process too: the project's own deny rules and hooks may not apply
     // where the session works (a folder of repositories has no settings of its own).
-    const secrets = async (input: unknown) => {
-      const call = input as { tool_name?: unknown; tool_input?: unknown };
+    const preToolUse = async (input: unknown) => {
+      const call = input as { tool_name?: unknown; tool_input?: unknown; agent_type?: unknown };
       const hook = {
         tool: typeof call.tool_name === "string" ? call.tool_name : "",
         input: (call.tool_input ?? {}) as Record<string, unknown>,
@@ -224,13 +217,27 @@ export class ClaudeAgentHost implements AgentHost {
       // The drive moves a run it carries: an agent that advances it makes the drive's own event
       // land on the next stage, which is then skipped.
       const control = task.driven ? runControlCommand(hook) : undefined;
-      return control ? permissionResponse({ decision: "deny", reason: DRIVEN_RUN_CONTROL(control) }) : {};
+      if (control) return permissionResponse({ decision: "deny", reason: DRIVEN_RUN_CONTROL(control) });
+      // An agent whose definition grants no plain Bash (a coordinator, a lens, a planner) runs only
+      // the commands it declares and the ones that need no person: anything else is refused with
+      // that reason, never put to a person. The hook names the agent, a subagent's too.
+      const agent = typeof call.agent_type === "string" ? call.agent_type : task.agent;
+      const command = hook.input.command;
+      if (hook.tool === "Bash" && typeof command === "string") {
+        const file = join(task.projectRoot, ".claude", "agents", `${agent}.md`);
+        const tools = agentDefinition(file)?.tools;
+        const own = declaredCommands(file).map((t) => t.slice("Bash(".length, -":*)".length));
+        const declaredCall = own.some((d) => command.trim() === d || command.trim().startsWith(`${d} `));
+        if (tools && !tools.includes("Bash") && !declaredCall && !needsNoPerson("Bash", hook.input, own))
+          return permissionResponse({ decision: "deny", reason: OUTSIDE_DEFINITION(agent, own) });
+      }
+      return {};
     };
     const options: Record<string, unknown> = {
       cwd: task.cwd,
       agent: task.agent,
       ...(definition ? { agents: { [task.agent]: definition } } : {}),
-      hooks: { PreToolUse: [{ hooks: [secrets] }] },
+      hooks: { PreToolUse: [{ hooks: [preToolUse] }] },
       allowedTools: declaredCommands(agentFile),
       settingSources: ["project"],
       permissionMode: "default",

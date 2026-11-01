@@ -87,39 +87,46 @@ describe("ClaudeAgentHost", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  test("an agent without plain Bash is refused other commands without a person; its subagents still ask", async () => {
+  test("an agent without plain Bash, a subagent too, is refused other commands without a person", async () => {
     const root = await mkdtemp(join(tmpdir(), "metator-claude-"));
     await Bun.write(
       join(root, ".claude/agents/mt-pr-review.md"),
       "---\nname: mt-pr-review\ntools: Read, Agent(mt-verifier), Bash(metator findings:*)\n---\n# Role\n",
     );
-    const asked: string[] = [];
-    const results: unknown[] = [];
-    const { query } = fakeQuery(async (can) => {
-      const sub = can as (
-        t: string,
-        i: Record<string, unknown>,
-        o?: { agentID?: string },
-      ) => Promise<unknown>;
-      results.push(await can("Bash", { command: "node -e 'console.log(1)'" }));
-      results.push(await can("Bash", { command: "grep -n x README.md" }));
-      results.push(await sub("Bash", { command: "node -e 'console.log(2)'" }, { agentID: "verifier-1" }));
-      return [init, success];
-    });
-    await collect(
-      new ClaudeAgentHost(query),
-      { ...task, agent: "mt-pr-review", projectRoot: root },
-      async (q) => {
-        asked.push(q.prompt);
-        return { choices: ["Deny"], text: "no" };
-      },
+    await Bun.write(
+      join(root, ".claude/agents/mt-verifier.md"),
+      "---\nname: mt-verifier\ntools: Read, Bash\n---\n",
     );
-    expect(results[0]).toEqual({
-      behavior: "deny",
-      message: OUTSIDE_DEFINITION("mt-pr-review", ["metator findings"]),
-    });
-    expect((results[1] as { behavior: string }).behavior).toBe("allow");
-    expect(asked).toEqual(["mt-pr-review wants to use Bash: node -e 'console.log(2)'"]);
+    await Bun.write(
+      join(root, ".claude/agents/mt-review-logic.md"),
+      "---\nname: mt-review-logic\ntools: Read, Bash(metator graph:*)\n---\n",
+    );
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(query), { ...task, agent: "mt-pr-review", projectRoot: root });
+    type Hook = (input: unknown) => Promise<{
+      hookSpecificOutput?: { permissionDecision: string; permissionDecisionReason?: string };
+    }>;
+    const options = calls[0]?.options as Record<string, unknown>;
+    const hook = (options.hooks as { PreToolUse: { hooks: Hook[] }[] }).PreToolUse[0]?.hooks[0] as Hook;
+    const decide = async (command: string, agent_type?: string) =>
+      (
+        await hook({
+          hook_event_name: "PreToolUse",
+          tool_name: "Bash",
+          tool_input: { command },
+          ...(agent_type ? { agent_id: "a-1", agent_type } : {}),
+        })
+      ).hookSpecificOutput;
+    expect(await decide("node -e 'console.log(1)'")).toEqual({
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: OUTSIDE_DEFINITION("mt-pr-review", ["metator findings"]),
+    } as never);
+    expect(await decide("grep -n x README.md")).toBeUndefined();
+    expect(await decide("metator findings merge .metator/runs/r/findings")).toBeUndefined();
+    expect((await decide("find / -name x", "mt-review-logic"))?.permissionDecision).toBe("deny");
+    // A subagent whose definition grants Bash goes on to the usual question.
+    expect(await decide("node -e 'console.log(2)'", "mt-verifier")).toBeUndefined();
     await rm(root, { recursive: true, force: true });
   });
 
