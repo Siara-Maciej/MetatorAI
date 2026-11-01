@@ -129,7 +129,9 @@ describe("drive domain", () => {
     });
     expect(p).toContain("No node_modules here.");
     expect(p).toContain("never with an interpreter or a script");
-    expect(p).toContain("follow the skill mt-run-without-asking");
+    expect(p).toContain(
+      "follow the skill mt-run-without-asking (Read `.claude/skills/mt-run-without-asking/SKILL.md`",
+    );
     expect(p).toContain("`metator help` lists every metator command");
     expect(p).toContain("Never `metator ask`: it starts another agent");
   });
