@@ -205,6 +205,47 @@ describe("metator findings", () => {
     }
   }, 30_000); // several real processes
 
+  test("calibrate raises a finding to blocking and folds its duplicates into merged.json", async () => {
+    const dir = ".metator/runs/r2/findings";
+    await repo.write(
+      `${dir}/merged.json`,
+      set("merged", [
+        finding("LOGIC-001", "logic"),
+        finding("SEC-001", "security", { quote: "return amount;" }),
+      ]),
+    );
+    const bare = await metator(
+      ["findings", "calibrate", dir, "--id", "LOGIC-001", "--severity", "blocking"],
+      repo.root,
+    );
+    expect([bare.code, (bare.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+    const r = await metator(
+      [
+        "findings",
+        "calibrate",
+        dir,
+        "--id",
+        "LOGIC-001",
+        "--severity",
+        "blocking",
+        "--merge",
+        "SEC-001",
+        "--trigger",
+        "pay(10)",
+        "--reachability",
+        "checkout calls pay",
+        "--evidence",
+        "test:src/pay.test.ts",
+      ],
+      repo.root,
+    );
+    expect([r.code, (r.json.data as { findings: number }).findings]).toEqual([0, 1]);
+    const saved = JSON.parse(await repo.read(`${dir}/merged.json`)) as { findings: Data[] };
+    expect(saved.findings.map((f) => [f.id, f.severity, f.alsoFrom])).toEqual([
+      ["LOGIC-001", "blocking", ["security"]],
+    ]);
+  }, 60_000);
+
   test("schema prints the FindingSet JSON Schema; a missing dir argument is a usage error", async () => {
     expect(
       ((data(await metator(["findings", "schema"], repo.root)).properties as Data).kind as Data).const,

@@ -1217,6 +1217,24 @@ metator findings check-quote [options] <file>
 | `--line <n>` | line the quote is claimed to be on **Required.** |  |
 | `--quote <text>` | the quoted code **Required.** |  |
 
+### `metator findings calibrate`
+
+The judge's calibration of &lt;dir&gt;/merged.json: one finding's severity, and the findings with the same root cause folded into it
+
+```bash
+metator findings calibrate [options] <dir>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<dir>` | directory with merged.json | |
+| `--id <id>` | the finding to calibrate **Required.** |  |
+| `--severity <severity>` | new severity: blocking, major, minor, nit |  |
+| `--merge <ids...>` | findings with the same root cause, folded into it (their lenses join alsoFrom) |  |
+| `--trigger <text>` | the input or state that triggers it (a blocker needs one) |  |
+| `--reachability <text>` | the path from a real caller (a blocker needs one) |  |
+| `--evidence <type:ref>` | test, trace, rule or doc, then the reference (a blocker needs one) |  |
+
 ### `metator findings merge`
 
 Drop invalid findings and merge duplicates across lenses into &lt;dir&gt;/merged.json

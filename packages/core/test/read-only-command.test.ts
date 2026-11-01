@@ -80,8 +80,9 @@ describe("readOnlyCommand", () => {
         "metator api diff @acme/money",
         "npx metator help",
         "metator findings validate .metator/runs/r/findings",
+        "metator version",
       ].map(ro),
-    ).toEqual([true, true, true, true, true, true, true, true, true, true]);
+    ).toEqual([true, true, true, true, true, true, true, true, true, true, true]);
     expect(
       [
         "metator run advance pass",

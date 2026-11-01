@@ -113,6 +113,7 @@ function asMetator(argv: readonly string[]): readonly string[] | undefined {
 
 /** MetatorAI commands that only read and print: what any agent may look up without asking. */
 const METATOR_QUERIES = new Set([
+  "version",
   "symbols find",
   "graph deps",
   "graph dependents",

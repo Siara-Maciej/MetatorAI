@@ -22,6 +22,7 @@ import {
   type BranchPublication,
   type BuildImportGraph,
   type BuildModuleCards,
+  type CalibrateFinding,
   type ChangeHistory,
   type ChangePatch,
   type CheckArchitecture,
@@ -366,6 +367,7 @@ export interface Cradle {
   generateSkills: GenerateSkills;
   validateFindings: ValidateFindings;
   mergeFindings: MergeFindingSets;
+  calibrateFinding: CalibrateFinding;
   planReview: PlanReview;
   describeReviewedChange: DescribeReviewedChange;
   branchHistory: BranchHistory;

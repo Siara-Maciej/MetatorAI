@@ -16,8 +16,8 @@ user-invocable: false
 - `findings/merged.json` after verification, and `review-plan.json`.
 
 # Procedure
-1. Calibrate severity with the rubric: blocking only for confirmed wrong behavior on a reachable path, or for code that does not build (it breaks CI whatever calls it); style is never blocking.
-2. Merge findings that still share a root cause; keep the clearest claim.
+1. Calibrate severity with the rubric: blocking only for confirmed wrong behavior on a reachable path, or for code that does not build (it breaks CI whatever calls it); style is never blocking. A confirmed regression (an existing test or caller breaks) is blocking.
+2. Merge findings that still share a root cause; keep the clearest claim. Both with one command, never by editing JSON: `bun run metator findings calibrate <dir>/findings --id <id> [--severity <s>] [--merge <ids…>] [--trigger <t> --reachability <r> --evidence <test|trace|rule|doc>:<ref>]` (a blocker needs the last three).
 3. List the areas the lenses checked and found correct (for example "rounding in invoice totals").
 4. `bun run metator findings verdict <dir>/findings --verified-correct <areas…>`, on its own (one `bun run metator` command per call, paths from the repository root, no `cd`): it writes `verdict.json` next to that directory.
 

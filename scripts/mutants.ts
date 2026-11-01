@@ -194,6 +194,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "ls-remote --upload-pack runs a program",
   },
   {
+    file: "packages/core/src/domain/finding.ts",
+    from: "  const problems = policyProblems(updated);\n  if (problems.length > 0) return { problems };\n",
+    to: "",
+    why: "a calibrated blocker meets the findings policy",
+  },
+  {
+    file: "packages/core/src/domain/finding.ts",
+    from: "findings: findings.filter((f) => !folded.includes(f))",
+    to: "findings: findings",
+    why: "folded duplicates leave merged.json",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: '  "version",\n',
+    to: "",
+    why: "metator version only prints",
+  },
+  {
     file: "packages/core/src/application/paths.ts",
     from: '  "**/{test,tests,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",\n',
     to: "",

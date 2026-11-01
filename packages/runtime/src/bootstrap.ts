@@ -21,6 +21,7 @@ import {
   BaseArchitectureFacts,
   BuildImportGraph,
   BuildModuleCards,
+  CalibrateFinding,
   CheckArchitecture,
   CheckDebugTags,
   CheckFlaky,
@@ -829,6 +830,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     mergeFindings: asFunction(
       ({ fileSystem, validateFindings }) => new MergeFindingSets(fileSystem, validateFindings),
     ),
+    calibrateFinding: asFunction(({ fileSystem }) => new CalibrateFinding(fileSystem)),
     planReview: asFunction(
       ({ vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores }) =>
         new PlanReview(vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores),

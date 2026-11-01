@@ -1,8 +1,10 @@
-import type { MetatorError } from "../domain/errors.ts";
+import { MetatorError } from "../domain/errors.ts";
 import {
+  calibrateFinding,
   type Finding,
   type FindingSet,
   FindingSetDocument,
+  type FindingSeverity,
   mergeFindings,
   policyProblems,
 } from "../domain/finding.ts";
@@ -103,6 +105,55 @@ export class ValidateFindings {
     if (match.status === "moved")
       return { id: f.id, source, status: fix ? "fixed" : "moved", reasons: [], line: match.line };
     return { id: f.id, source, status: "valid", reasons: [] };
+  }
+}
+
+/** `findings calibrate`: the judge sets a merged finding's severity and folds duplicates into it. */
+export class CalibrateFinding {
+  constructor(private readonly fs: FileSystem) {}
+
+  async execute(input: {
+    readonly dir: string;
+    readonly id: string;
+    readonly severity?: FindingSeverity;
+    readonly merge?: readonly string[];
+    readonly trigger?: string;
+    readonly reachability?: string;
+    readonly evidence?: NonNullable<Finding["evidence"]>;
+  }): Promise<
+    Result<{ readonly output: string; readonly findings: number; readonly finding: Finding }, MetatorError>
+  > {
+    const output = `${input.dir.replace(/\/$/, "")}/${MERGED}`;
+    const set = (await this.fs.read(output))
+      .andThen((text) => parseJsonDocument(text, output))
+      .andThen((raw) => FindingSetDocument.parse(raw, output));
+    if (set.isErr()) return err(set.error);
+    const { dir: _dir, ...change } = input;
+    const changed = calibrateFinding(set.value.findings, change);
+    if ("unknown" in changed)
+      return err(
+        MetatorError.usage(
+          `no finding ${changed.unknown.join(", ")} in ${output}`,
+          "Run `metator findings merge` first; calibrate the ids merged.json lists.",
+        ),
+      );
+    if ("problems" in changed)
+      return err(
+        MetatorError.usage(
+          `${input.id} cannot be ${input.severity ?? "kept"}: ${changed.problems.join("; ")}`,
+          "A blocker names its trigger, reachability and evidence: pass --trigger, --reachability and --evidence <test|trace|rule|doc>:<ref>.",
+        ),
+      );
+    const saved = await this.fs.write(
+      output,
+      serializeJsonDocument(FindingSetDocument.stamp({ ...set.value, findings: changed.findings })),
+    );
+    if (saved.isErr()) return err(saved.error);
+    return ok({
+      output,
+      findings: changed.findings.length,
+      finding: changed.findings.find((f) => f.id === input.id) as Finding,
+    });
   }
 }
 

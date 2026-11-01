@@ -149,6 +149,7 @@ describe("metator CLI (process e2e)", () => {
       "generate",
       "findings validate",
       "findings check-quote",
+      "findings calibrate",
       "findings merge",
       "findings verdict",
       "findings to-github",

@@ -2,14 +2,25 @@ import {
   DEFAULT_LENSES,
   err,
   FindingSetDocument,
+  type FindingSeverity,
   LENSES,
   MetatorError,
   normalizePath,
   ok,
+  SEVERITIES,
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
+
+interface CalibrateOptions {
+  readonly id: string;
+  readonly severity?: string;
+  readonly merge?: string[];
+  readonly trigger?: string;
+  readonly reachability?: string;
+  readonly evidence?: string;
+}
 
 export function registerFindingsCommands(program: Command, { action, container }: CommandContext): void {
   const findings = program
@@ -83,6 +94,65 @@ export function registerFindingsCommands(program: Command, { action, container }
               },
             ),
           ),
+        };
+      }),
+    );
+
+  findings
+    .command("calibrate")
+    .description(
+      "The judge's calibration of <dir>/merged.json: one finding's severity, and the findings with the same root cause folded into it",
+    )
+    .argument("<dir>", "directory with merged.json")
+    .requiredOption("--id <id>", "the finding to calibrate")
+    .option("--severity <severity>", `new severity: ${SEVERITIES.join(", ")}`)
+    .option(
+      "--merge <ids...>",
+      "findings with the same root cause, folded into it (their lenses join alsoFrom)",
+    )
+    .option("--trigger <text>", "the input or state that triggers it (a blocker needs one)")
+    .option("--reachability <text>", "the path from a real caller (a blocker needs one)")
+    .option("--evidence <type:ref>", "test, trace, rule or doc, then the reference (a blocker needs one)")
+    .action(
+      action(async (dir: string, opts: CalibrateOptions) => {
+        if (opts.severity && !(SEVERITIES as readonly string[]).includes(opts.severity))
+          return {
+            result: err(
+              MetatorError.usage(
+                `unknown severity ${opts.severity}`,
+                `Use one of: ${SEVERITIES.join(", ")}.`,
+              ),
+            ),
+          };
+        const evidence = opts.evidence ? /^(test|trace|rule|doc):(.+)$/.exec(opts.evidence) : null;
+        if (opts.evidence && !evidence)
+          return {
+            result: err(
+              MetatorError.usage(
+                `invalid --evidence ${opts.evidence}`,
+                "Use <test|trace|rule|doc>:<reference>.",
+              ),
+            ),
+          };
+        return {
+          result: await container()
+            .resolve("calibrateFinding")
+            .execute({
+              dir: normalizePath(dir),
+              id: opts.id,
+              ...(opts.severity ? { severity: opts.severity as FindingSeverity } : {}),
+              ...(opts.merge ? { merge: opts.merge } : {}),
+              ...(opts.trigger ? { trigger: opts.trigger } : {}),
+              ...(opts.reachability ? { reachability: opts.reachability } : {}),
+              ...(evidence
+                ? {
+                    evidence: {
+                      type: evidence[1] as "test" | "trace" | "rule" | "doc",
+                      ref: evidence[2] as string,
+                    },
+                  }
+                : {}),
+            }),
         };
       }),
     );
