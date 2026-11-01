@@ -193,10 +193,13 @@ describe("metator system discover in a folder of three repositories (real CLI)",
           dev: "vite",
           "gen:api": "openapi-typescript ../billing/openapi.yaml",
           "gen:live": "openapi-typescript https://billing.shop.internal/docs-json",
+          // A copy downloaded to generate a client: web serves nothing it describes.
+          "gen:copy": "curl -sL https://billing.shop.internal/openapi.yaml -o ./src/api/openapi.yaml",
         },
         dependencies: { react: "19" },
       }),
       "src/main.ts": "export const m = 1;\n",
+      "src/api/openapi.yaml": SPEC,
       // A real env file (secrets) is never read, even committed: no evidence comes from it.
       ".env.local": "BILLING_DOCS=https://billing.shop.internal/docs-json\n",
     });

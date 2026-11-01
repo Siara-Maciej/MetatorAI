@@ -64,6 +64,48 @@ describe("ManypkgWorkspaceReader", () => {
     ]);
   });
 
+  test("an application at the root next to its workspaces is a package too", async () => {
+    const app = await fixture({
+      "package.json": '{ "name": "movies", "private": true }',
+      "nuxt.config.ts": "export default {}\n",
+      "pnpm-workspace.yaml": "packages:\n  - proxy\n",
+      "proxy/package.json": '{ "name": "proxy" }',
+    });
+    expect((await new ManypkgWorkspaceReader(app).packages())._unsafeUnwrap()).toEqual([
+      { name: "movies", dir: "." },
+      { name: "proxy", dir: "proxy" },
+    ]);
+  });
+
+  test("services side by side without a workspace are packages; the root only when it runs code", async () => {
+    const services = {
+      "package.json": '{ "name": "platform", "scripts": { "lint": "npm --prefix user run lint" } }',
+      "user/package.json": '{ "name": "user" }',
+      "gateway/package.json": '{ "name": "gateway" }',
+      "test/fixtures/app/package.json": '{ "name": "fixture" }',
+      "examples/demo/package.json": '{ "name": "demo" }',
+    };
+    expect((await new ManypkgWorkspaceReader(await fixture(services)).packages())._unsafeUnwrap()).toEqual([
+      { name: "gateway", dir: "gateway", standalone: true },
+      { name: "user", dir: "user", standalone: true },
+    ]);
+    const withRoot = await fixture({
+      ...services,
+      "package.json": '{ "name": "platform", "dependencies": { "express": "^5.0.0" } }',
+    });
+    expect((await new ManypkgWorkspaceReader(withRoot).packages())._unsafeUnwrap().map((p) => p.dir)).toEqual(
+      [".", "gateway", "user"],
+    );
+    // One nested package.json (a `functions/` folder) leaves the repository one package.
+    const one = await fixture({
+      "package.json": '{ "name": "site" }',
+      "functions/package.json": '{ "name": "fn" }',
+    });
+    expect((await new ManypkgWorkspaceReader(one).packages())._unsafeUnwrap()).toEqual([
+      { name: "site", dir: "." },
+    ]);
+  });
+
   test("a single-package repository is one package at the root", async () => {
     const root = await fixture({ "package.json": '{ "name": "solo" }' });
     expect((await new ManypkgWorkspaceReader(root).packages())._unsafeUnwrap()).toEqual([

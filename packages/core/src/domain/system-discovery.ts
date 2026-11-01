@@ -68,7 +68,19 @@ export function slugId(name: string): string {
 }
 
 const FRONTEND = ["react", "vue", "svelte", "@angular/core", "next", "nuxt", "vite", "solid-js", "preact"];
-const SERVICE = ["express", "fastify", "hono", "koa", "@nestjs/core", "elysia", "@hapi/hapi"];
+const SERVICE = [
+  ...["express", "fastify", "hono", "koa", "@nestjs/core", "elysia", "@hapi/hapi"],
+  // GraphQL servers: a schema served over HTTP is a service whatever framework carries it.
+  ...[
+    "graphql-http",
+    "express-graphql",
+    "graphql-yoga",
+    "@apollo/server",
+    "apollo-server",
+    "apollo-server-express",
+    "mercurius",
+  ],
+];
 
 /** What kind of application its name and dependencies suggest. */
 export function kindFrom(
@@ -76,18 +88,42 @@ export function kindFrom(
   dependencies: readonly string[],
   hasSpec: boolean,
   bin = false,
+  /** Dependencies only for development: a mock server there serves nothing in production. */
+  devOnly: readonly string[] = [],
 ): Application["kind"] {
   if (/(^|[-/])(worker|jobs?|cron|consumer)s?($|[-/])/.test(name)) return "worker";
   if (/(^|[-/])gateway($|[-/])/.test(name)) return "gateway";
   // A name that ends in what it is (`openpage-api`, `@acme/backend`) wins over the framework it
   // renders with (a Next.js API): `api-client` or `server-utils` say nothing.
   if (/(^|[-/])(api|server|backend|service)s?$/.test(name)) return "service";
-  if (hasSpec || dependencies.some((d) => SERVICE.includes(d))) return "service";
+  if (hasSpec || dependencies.some((d) => SERVICE.includes(d) && !devOnly.includes(d))) return "service";
   // A command-line tool is not a frontend, even when it draws with React (Ink).
   if (bin) return "other";
   if (dependencies.some((d) => FRONTEND.includes(d))) return "frontend";
   return "other";
 }
+
+/**
+ * A specification a package script downloads (`curl …/openapi.yml -o ./src/services/openapi.yml`)
+ * is a copy of another application's contract, kept to generate a client: it says nothing about
+ * what this application serves.
+ */
+export function fetchedSpec(
+  path: string,
+  packages: readonly { readonly dir: string; readonly scripts: Readonly<Record<string, string>> }[],
+): boolean {
+  return packages.some((m) => {
+    if (m.dir !== "." && !path.startsWith(`${m.dir}/`)) return false;
+    const rel = m.dir === "." ? path : path.slice(m.dir.length + 1);
+    return Object.values(m.scripts).some(
+      (script) =>
+        /\b(curl|wget)\b|https?:\/\//.test(script) &&
+        new RegExp(`(^|[\\s="'])(\\./)?${literal(rel)}($|[\\s"';&|])`).test(script),
+    );
+  });
+}
+
+const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Contract ids from titles, unique: `Billing API` twice becomes `billing-api` and `billing-api-2`. */
 export function contractIds(found: readonly FoundContract[]): Map<FoundContract, string> {
@@ -266,6 +302,22 @@ export function apiRoutes(text: string): string[] {
     /\b(?:app|router|server|fastify)\.(?:get|post|put|patch|delete|all|use|route)\(\s*['"`]\/([a-z][\w-]*)/g,
   ];
   for (const p of patterns) for (const m of text.matchAll(p)) out.add(m[1] as string);
+  return [...out].sort();
+}
+
+/** Message patterns a NestJS microservice handles (`@MessagePattern('task_create')`, `@EventPattern`). */
+export function handledMessages(text: string): string[] {
+  const out = new Set<string>();
+  for (const m of text.matchAll(/@(?:MessagePattern|EventPattern)\(\s*['"`]([\w.:-]+)['"`]/g))
+    out.add(m[1] as string);
+  return [...out].sort();
+}
+
+/** Message patterns a file sends through a microservice client (`client.send('task_create', …)`). */
+export function sentMessages(text: string): string[] {
+  if (!/\bClient(?:Proxy|Kafka|RMQ|Redis|Nats|Grpc)\b/.test(text)) return [];
+  const out = new Set<string>();
+  for (const m of text.matchAll(/\.(?:send|emit)\(\s*['"`]([\w.:-]+)['"`]/g)) out.add(m[1] as string);
   return [...out].sort();
 }
 

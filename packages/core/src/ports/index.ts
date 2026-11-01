@@ -245,6 +245,8 @@ export interface WorkspacePackage {
   readonly name: string;
   /** Repo-relative directory; "." for a single-package repository root. */
   readonly dir: string;
+  /** A project of its own beside others (no workspace holds it): the package manager cannot run a script across it. */
+  readonly standalone?: boolean;
 }
 
 export interface WorkspaceReader {

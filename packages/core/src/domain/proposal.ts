@@ -73,7 +73,9 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
 
   for (const capability of ["lint", "typecheck", "test", "e2e"] as const) {
     const found = best(capability);
-    if (!found && capability === "typecheck" && configuredAtRoot("typescript") && buildsItself) {
+    // A script that checks one corner (`tsc -p tsconfig.tracker.json`) is no project typecheck.
+    const partial = found !== undefined && found.c.confidence < 0.5;
+    if ((!found || partial) && capability === "typecheck" && configuredAtRoot("typescript") && buildsItself) {
       // TypeScript without a typecheck script (a build that only transpiles, `nest build`):
       // type errors would pass every gate, so the compiler checks the root project itself.
       full.push(step(capability, { bin: "tsc", args: ["--noEmit", "-p", "tsconfig.json"] }));
@@ -82,7 +84,9 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
         gate: "full",
         step: "tsc --noEmit -p tsconfig.json",
         evidence: tools.get("typescript") ?? [],
-        reason: `TypeScript is configured at the root, the root builds itself (${rootBuild?.name}) and no script type-checks`,
+        reason: `TypeScript is configured at the root, the root builds itself (${rootBuild?.name}) and ${
+          partial ? `${found.script} type-checks only part of it` : "no script type-checks"
+        }`,
       });
       continue;
     }
@@ -90,8 +94,13 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
       // A monorepo whose packages type-check or test themselves (`apps/web: typecheck`,
       // `packages/lib: test`) and no root script that runs them: the package manager runs that
       // script in every package.
+      // Only workspace packages: the package manager runs nothing across standalone projects.
+      const workspace = new Set(discovery.workspaces.map((w) => w.dir));
       const perPackage = discovery.scripts.filter(
-        (s) => s.dir !== "." && s.candidates.some((c) => c.capability === capability && c.confidence >= 0.95),
+        (s) =>
+          s.dir !== "." &&
+          workspace.has(s.dir) &&
+          s.candidates.some((c) => c.capability === capability && c.confidence >= 0.95),
       );
       const count = new Map<string, number>();
       for (const s of perPackage) count.set(s.name, (count.get(s.name) ?? 0) + 1);

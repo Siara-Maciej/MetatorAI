@@ -159,16 +159,25 @@ export function classifyScript(name: string, script: string, evidence: string): 
         : fileScopability(matching);
     // A script that fixes what it finds is the last choice for a check (format is a fixer by nature).
     const fixer = s.capability !== "format" && matching !== undefined && fixes(matching);
+    // `check:tracker: tsc -p tsconfig.tracker.json` type-checks one corner, not the project.
+    const project = matching?.join(" ").match(/(?:^|\s)(?:-p|--project)\s+(\S+)/)?.[1];
+    const partial =
+      s.capability === "typecheck" &&
+      !byName &&
+      project !== undefined &&
+      !/^(\.\/)?tsconfig\.json$/.test(project);
     out.push({
       capability: s.capability,
-      confidence: fixer ? 0.3 : byName && matching ? 0.95 : byName ? 0.6 : 0.75,
+      confidence: fixer ? 0.3 : partial ? 0.4 : byName && matching ? 0.95 : byName ? 0.6 : 0.75,
       evidence: [evidence],
       fileScopable: !fixer && commands.length === 1 && scope.fileScopable,
       reason: fixer
         ? "it rewrites files (--fix/--write); a gate only checks"
-        : commands.length > 1
-          ? `composite script (${commands.length} commands)`
-          : scope.reason,
+        : partial
+          ? `it type-checks only ${project}`
+          : commands.length > 1
+            ? `composite script (${commands.length} commands)`
+            : scope.reason,
     });
   }
   return out.sort((a, b) => b.confidence - a.confidence);

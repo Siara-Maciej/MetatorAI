@@ -60,6 +60,23 @@ describe("proposeConfig", () => {
       'typecheck:{"bin":"tsc","args":["--noEmit","-p","tsconfig.json"]}:none',
       'test:{"script":"test"}:none',
     ]);
+    // A script that type-checks one corner (`tsc -p tsconfig.tracker.json`) is not the project's typecheck.
+    const corner = proposeConfig(
+      {
+        ...discovery({ build: "next build", "tracker:types": "tsc -p tsconfig.tracker.json --noEmit" }),
+        tools: [{ id: "typescript", evidence: ["tsconfig.json"] }],
+      },
+      { ruleCanon: false },
+    );
+    expect(ids(corner.gates.full)).toEqual([
+      'typecheck:{"bin":"tsc","args":["--noEmit","-p","tsconfig.json"]}:none',
+    ]);
+    expect(corner.decisions[0]?.reason).toContain("tracker:types type-checks only part of it");
+    expect(classifyScript("tracker:types", "tsc -p tsconfig.tracker.json --noEmit", "p")[0]?.reason).toBe(
+      "it type-checks only tsconfig.tracker.json",
+    );
+    expect(classifyScript("check:types", "tsc -p ./tsconfig.json --noEmit", "p")[0]?.confidence).toBe(0.75);
+    expect(classifyScript("typecheck", "tsc -p tsconfig.app.json", "p")[0]?.confidence).toBe(0.95);
     // A typecheck script wins; a tsconfig only in a package proposes nothing at the root.
     const own = proposeConfig(
       {
@@ -85,6 +102,7 @@ describe("proposeConfig", () => {
     const withPackages = proposeConfig(
       {
         ...packages,
+        workspaces: ["apps/web", "apps/admin"].map((dir) => ({ name: dir, dir })),
         scripts: [
           ...packages.scripts,
           ...["apps/web", "apps/admin"].map((dir) => ({
@@ -125,6 +143,7 @@ describe("proposeConfig", () => {
     const r = proposeConfig(
       {
         ...base,
+        workspaces: ["packages/lib", "packages/signing"].map((dir) => ({ name: dir, dir })),
         scripts: [
           ...base.scripts,
           pkg("packages/lib", "test", "vitest run"),
@@ -139,6 +158,12 @@ describe("proposeConfig", () => {
     expect(r.decisions.find((d) => d.capability === "test")?.reason).toBe(
       "2 package(s) test with their own test script and no root script runs them",
     );
+    // Standalone projects (no workspace holds them): the package manager runs nothing across them.
+    const standalone = proposeConfig(
+      { ...base, scripts: [...base.scripts, pkg("user", "test", "jest"), pkg("mailer", "test", "jest")] },
+      { ruleCanon: false },
+    );
+    expect(ids(standalone.gates.full)).toEqual(['e2e:{"script":"ci"}:none']);
   });
 
   test("a whole-project lint script gets a per-file tool in quick, with the tool's evidence", () => {

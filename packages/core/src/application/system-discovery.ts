@@ -12,12 +12,15 @@ import {
   type DiscoveryEvidence,
   type FoundContract,
   type FoundReference,
+  fetchedSpec,
   fetchesServed,
+  handledMessages,
   kindFrom,
   needlesOf,
   proposeSystem,
   type ServedSpec,
   type SystemDiscovery,
+  sentMessages,
   servedSpecs,
   slugId,
   systemDrift,
@@ -52,6 +55,8 @@ export interface DiscoverySource {
         readonly name: string;
         readonly dir: string;
         readonly deps: readonly string[];
+        /** Of deps, those only in devDependencies (a mock server, a test tool). */
+        readonly devOnly?: readonly string[];
         readonly signals: readonly string[];
         readonly docker: boolean;
         readonly bin: boolean;
@@ -129,6 +134,8 @@ export class RepositoryDiscoverySource implements DiscoverySource {
       ...Object.keys(m.dependencies),
       ...Object.keys(m.devDependencies),
     ];
+    const devOnly = (m: (typeof manifests.value.packages)[number]) =>
+      Object.keys(m.devDependencies).filter((d) => m.dependencies[d] === undefined);
     const packages = manifests.value.packages.filter((m) => m.dir !== ".");
     if (packages.length === 0) {
       // One application: the repository itself.
@@ -138,6 +145,7 @@ export class RepositoryDiscoverySource implements DiscoverySource {
           name: root?.name && root.name !== "(root)" ? root.name : this.name,
           dir: ".",
           deps: root ? deps(root) : [],
+          devOnly: root ? devOnly(root) : [],
           signals: ["the repository is one application"],
           docker: docker("."),
           bin: root?.bin ?? false,
@@ -151,15 +159,24 @@ export class RepositoryDiscoverySource implements DiscoverySource {
     // The root with a Dockerfile of its own is an application too (an app with a few library
     // packages beside it), not just the workspace that holds them.
     const root = manifests.value.root;
+    // ...and so is a root the workspace lists as a package that nothing depends on (a Nuxt app
+    // with a `proxy` package beside it).
+    const rootListed = root !== undefined && manifests.value.packages.some((m) => m.dir === ".");
+    const rootRuns = rootListed && kinds.get(root.name) === "app";
     const rootApp =
-      root && docker(".")
+      root && (docker(".") || rootRuns)
         ? [
             {
               name: root.name && root.name !== "(root)" ? root.name : this.name,
               dir: ".",
               deps: deps(root),
-              signals: ["Dockerfile at the root: the repository itself is deployed"],
-              docker: true,
+              devOnly: devOnly(root),
+              signals: [
+                docker(".")
+                  ? "Dockerfile at the root: the repository itself is deployed"
+                  : `${root.name} at the root is an application (no package depends on it, it runs on its own)`,
+              ],
+              docker: docker("."),
               bin: root.bin ?? false,
             },
           ]
@@ -174,7 +191,17 @@ export class RepositoryDiscoverySource implements DiscoverySource {
           ...(docker(m.dir) ? [`${m.dir}/Dockerfile`] : []),
         ];
         return signals.length > 0
-          ? [{ name: m.name, dir: m.dir, deps: deps(m), signals, docker: docker(m.dir), bin: m.bin }]
+          ? [
+              {
+                name: m.name,
+                dir: m.dir,
+                deps: deps(m),
+                devOnly: devOnly(m),
+                signals,
+                docker: docker(m.dir),
+                bin: m.bin,
+              },
+            ]
           : [];
       }),
     ]);
@@ -195,9 +222,12 @@ export class RepositoryDiscoverySource implements DiscoverySource {
   async specifications(detectors: readonly ContractDetector[]) {
     const files = await this.files();
     if (files.isErr()) return err(files.error);
+    const manifests = await this.manifests.manifests();
+    if (manifests.isErr()) return err(manifests.error);
+    const scripted = [...(manifests.value.root ? [manifests.value.root] : []), ...manifests.value.packages];
     const out: (DetectedContract & { kind: string })[] = [];
     for (const d of detectors)
-      for (const path of files.value.filter((f) => matchesAny(f, d.globs))) {
+      for (const path of files.value.filter((f) => matchesAny(f, d.globs) && !fetchedSpec(f, scripted))) {
         const text = await this.fs.read(path);
         if (text.isErr() || text.value.length > MAX_TEXT) continue;
         const found = d.detect(path, text.value);
@@ -276,7 +306,7 @@ export class DiscoverSystem {
           source: folder
             ? { repo: remote ?? source.name, ...(a.dir === "." ? {} : { path: a.dir }) }
             : { path: a.dir },
-          kind: kindFrom(a.name, a.deps, hasSpec, a.bin),
+          kind: kindFrom(a.name, a.deps, hasSpec, a.bin, a.devOnly),
           owners: owners.value[j] ?? [],
           ...(a.docker ? { deployUnit: id } : {}),
           signals: a.signals,
@@ -310,6 +340,9 @@ export class DiscoverSystem {
     // Routes each application serves, and the routes each calls with a hand-written HTTP client.
     const serves = new Map<string, Set<string>>();
     const calls = new Map<string, { routes: Set<string>; file: string }>();
+    // Messages each service handles, and the messages each sends through a microservice client.
+    const handles = new Map<string, Set<string>>();
+    const sends = new Map<string, { messages: Set<string>; file: string }>();
     for (const [i, source] of input.sources.entries()) {
       const mine = apps.filter((a) => a.sourceIndex === i);
       const refs = mine.map((a) => ({ name: a.id, dir: a.dir }));
@@ -326,6 +359,13 @@ export class DiscoverSystem {
           for (const spec of servedSpecs(text)) served.push({ app: from, file, spec });
           if (text.includes("-json")) fetching.push({ from, file, text });
           for (const r of apiRoutes(text)) serves.set(from, (serves.get(from) ?? new Set()).add(r));
+          for (const m of handledMessages(text)) handles.set(from, (handles.get(from) ?? new Set()).add(m));
+          const sent = sentMessages(text);
+          if (sent.length > 0) {
+            const seen = sends.get(from) ?? { messages: new Set<string>(), file };
+            for (const m of sent) seen.messages.add(m);
+            sends.set(from, seen);
+          }
           const called = calledRoutes(text);
           if (called.length > 0) {
             const seen = calls.get(from) ?? { routes: new Set<string>(), file };
@@ -450,10 +490,26 @@ export class DiscoverSystem {
       }
       return more.length > 0 ? { ...a, consumes: [...a.consumes, ...more].sort() } : a;
     });
+    // Services that talk by messages (NestJS microservices over TCP, Redis, Kafka…) have no
+    // specification to name as a contract: who calls whom is shown, not proposed.
+    const byMessages: DiscoveryEvidence[] = [];
+    for (const [from, sent] of sends)
+      for (const [to, handled] of handles) {
+        if (to === from) continue;
+        const shared = [...sent.messages].filter((m) => handled.has(m));
+        if (shared.length === 0) continue;
+        byMessages.push({
+          subject: `messages:${from}→${to}`,
+          reason: `sends ${shared.join(", ")}, which ${to} handles (@MessagePattern): a dependency with no contract file`,
+          file: sent.file,
+          confidence: "medium",
+          proposed: false,
+        });
+      }
     const discovery = {
       ...proposed,
       proposal: { ...proposal, applications: withCalls },
-      evidence: [...proposed.evidence, ...runtime, ...byRoutes],
+      evidence: [...proposed.evidence, ...runtime, ...byRoutes, ...byMessages],
     };
 
     let drift: string[] = [];
