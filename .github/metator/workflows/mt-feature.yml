@@ -63,11 +63,14 @@ stages:
     description: Push and open the PR after approval
     owner: mt-pr-author
     produces: [pr.md]
+    # Done only when the change is committed and pushed: the branch's upstream holds the working tree.
+    gate: { script: "git diff --quiet @{u}" }
+    onFail: { goto: publish, loop: publish }
   - id: learn
     description: Lessons from the run
     owner: mt-retro
     optional: true
-loops: { plan: 2, build: 2, review: 3 }
+loops: { plan: 2, build: 2, review: 3, publish: 1 }
 escalation:
   onLoopExhausted: report open issues with options (continue, manual, abort)
   onAmbiguity: stop and ask (skill mt-grill)

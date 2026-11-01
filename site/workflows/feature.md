@@ -29,7 +29,7 @@ The orchestrator creates the run (`metator run init --workflow mt-feature --task
 | gates | `mt-gatekeeper` (`metator gate full`) | `gates.md` | the checks your `gates.full` configures, and no others |
 | review | `mt-pr-review` | `verdict.json` | parallel lenses, verified findings, a judge; the stage passes only on an APPROVED verdict, whatever the critic says |
 | delivery | **you** (`neverSkip`) | | nothing leaves your machine without you; approving it approves the push (`grants: [push]`) |
-| publish | `mt-pr-author` | `pr.md` | commits and pushes the run's branch without asking (never a force push, an amend or `--no-verify`); a PR only when the task asks for one and a code host is configured |
+| publish | `mt-pr-author` | `pr.md` | commits and pushes the run's branch without asking (never a force push, an amend or `--no-verify`); done only when the branch's upstream holds the change (`git diff --quiet @{u}`); a PR only when the task asks for one and a code host is configured |
 | learn (optional) | `mt-retro` | | lessons with citations for next time |
 
 ## The plan gate in practice

@@ -19,7 +19,8 @@ Every stage of a run, before a Bash call. A command a person must allow stops th
 | `python -c`, `node -e`, `jq`, `awk` on a file | Read the file (JSON too); `sed -n <a>,<b>p` for a range |
 | a script that edits `plan.json`, `merged.json` or code | Edit (one change per call) or Write the whole file |
 | `mkdir -p`, `cp`, `mv`, `cat > file <<EOF`, `printf > file` | Write: it creates the directories it needs |
-| `git add`, `git commit`, `git checkout`, `git stash`, `git -c …`, `git diff --output` | nothing before publish: the run commits there (after the delivery gate, `git add -A`, `git commit -m …` and `git push -u origin <branch>` run without asking for the publish agent); reading git (`status`, `log`, `show`, `diff`, `blame`, `grep`, `rev-parse`, `merge-base`, `ls-files`, `describe`, `branch --show-current`) runs without asking, also as `git -C <checkout>` |
+| `git add`, `git commit`, `git checkout`, `git stash`, `git -c …`, `git diff --output` at any stage before publish | nothing: those stages leave the change in the working tree; reading git (`status`, `log`, `show`, `diff`, `blame`, `grep`, `rev-parse`, `merge-base`, `ls-files`, `describe`, `branch --show-current`) runs without asking, also as `git -C <checkout>` |
+| (publish stage, after the delivery approval) committing and pushing the run's branch | do it: `git add -A`, `git commit -m "…"` (one `-m` per paragraph, or a quoted multi-line message), `git push -u origin <branch>` run without asking; never a force push, `--amend` or `--no-verify` |
 | a large diff dug out of a tool-result file | `bun run metator review diff --base HEAD --out <run dir>/change.diff`, then Read it |
 | `find /`, `ls node_modules`, `node --version` | dependencies are not installed unless the stage says so: reason from the code |
 | `curl`, `wget`, any network call | none: work from the code and the run's decisions |

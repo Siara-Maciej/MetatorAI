@@ -88,6 +88,14 @@ describe("shipped workflows", () => {
       const spec = parseWorkflowYaml(await Bun.file(file).text(), file)._unsafeUnwrap();
       const approval = spec.stages.find((s) => s.id === "plan-approval");
       expect([id, approval?.hitl, approval?.onFail?.goto]).toEqual([id, true, "plan"]);
+      // Approving the delivery approves the push; publish is done only when the branch is pushed.
+      const delivery = spec.stages.find((s) => s.id === "delivery");
+      const publish = spec.stages.find((s) => s.id === "publish");
+      expect([delivery?.grants, publish?.gate?.script, publish?.onFail?.goto]).toEqual([
+        ["push"],
+        "git diff --quiet @{u}",
+        "publish",
+      ]);
     }
   });
 });
