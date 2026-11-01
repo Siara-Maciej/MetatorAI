@@ -284,6 +284,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "removing a file in the isolated worktree or the run directory asks no one",
   },
   {
+    file: "packages/core/src/application/paths.ts",
+    from: '  "**/*.test-d.{ts,tsx,mts,cts}",\n',
+    to: "",
+    why: "a type test (index.test-d.ts) is a test file, so its dev-only imports are fine",
+  },
+  {
     file: "packages/core/src/domain/read-only-command.ts",
     from: "i++; // an escaped character is literal",
     to: "",

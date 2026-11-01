@@ -225,6 +225,7 @@ describe("lintPlan", () => {
       "packages/a/test/x.ts",
       "test.js",
       "test.ts",
+      "index.test-d.ts",
     ])
       expect([t, matchesAny(t, DEFAULT_TEST_GLOBS)]).toEqual([t, true]);
     expect(matchesAny("src/testing/helpers.ts", DEFAULT_TEST_GLOBS)).toBe(false);
