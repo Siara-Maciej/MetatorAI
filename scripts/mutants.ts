@@ -140,6 +140,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a repository with tests still needs tests first",
   },
   {
+    file: "packages/core/src/domain/run-record.ts",
+    from: "/(?<!@)\\{([a-z][a-z0-9_]*)",
+    to: "/\\{([a-z][a-z0-9_]*)",
+    why: "git's @{u} is no workflow input",
+  },
+  {
     file: "packages/core/src/application/runs.ts",
     from: "...Object.fromEntries(granted.map((g) => [g, given])),",
     to: "",

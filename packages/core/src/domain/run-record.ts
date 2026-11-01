@@ -145,8 +145,9 @@ export function fillInputs(
   inputs: Readonly<Record<string, string>>,
 ): Result<string, MetatorError> {
   const missing: string[] = [];
+  // `@{u}` or `HEAD@{1}` is git's revision syntax, not an input.
   const filled = script.replace(
-    /\{([a-z][a-z0-9_]*)(?:\|([^{}]*))?\}/g,
+    /(?<!@)\{([a-z][a-z0-9_]*)(?:\|([^{}]*))?\}/g,
     (whole, name: string, fallback?: string) => {
       if (name === "runDir") return whole; // the drive's own placeholder
       const value = inputs[name] ?? fallback;

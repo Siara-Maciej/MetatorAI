@@ -11,6 +11,11 @@ describe("fillInputs", () => {
     expect(fillInputs("metator review plan --base {base|HEAD}", {})._unsafeUnwrap()).toBe(
       "metator review plan --base HEAD",
     );
+    // git's revision syntax is no input: the publish gate compares with the upstream.
+    expect(fillInputs("git diff --quiet @{u}", {})._unsafeUnwrap()).toBe("git diff --quiet @{u}");
+    expect(fillInputs("git show HEAD@{upstream} {base}", { base: "main" })._unsafeUnwrap()).toBe(
+      "git show HEAD@{upstream} main",
+    );
     expect(fillInputs("x {base} {base}", { base: "origin/main" })._unsafeUnwrap()).toBe(
       "x origin/main origin/main",
     );
