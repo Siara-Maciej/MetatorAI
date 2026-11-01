@@ -165,6 +165,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
+    from: "if (/[\\n\\r]/.test(unquoted) ||",
+    to: "if (",
+    why: "a line break outside quotes starts another command",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
     from: "if (!COMMIT_OPTIONS.test(a)) return false;",
     to: "",
     why: "git commit --amend or --no-verify is no plain delivery commit",

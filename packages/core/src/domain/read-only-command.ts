@@ -269,7 +269,9 @@ const COMMIT_OPTIONS = /^(-m|--message|-a|--all|-q|--quiet)$/;
  * a skipped hook (`--no-verify`), a `-c` setting, or a path outside the directories.
  */
 export function deliveryCommand(command: string, dirs: readonly string[]): boolean {
-  if (/[`\n\r]|\$/.test(command)) return false;
+  // A commit message may span lines inside its quotes; a line break outside them starts a command.
+  const unquoted = command.replace(/'[^']*'|"[^"\\]*"/g, "''");
+  if (/[\n\r]/.test(unquoted) || /[`$]/.test(command)) return false;
   const parts: string[][] = [[]];
   for (const token of parse(command)) {
     if (typeof token === "string") (parts.at(-1) as string[]).push(token);
