@@ -49,7 +49,8 @@ export class GitWorktreeManager implements WorktreeManager {
     const untracked =
       setup.length === 0
         ? []
-        : (await git.raw(["ls-files", "--others", "--exclude-standard", "--", ...setup]))
+        : // Ignored ones too: a repository may gitignore `.claude/` and still use its agents.
+          (await git.raw(["ls-files", "--others", "--", ...setup]))
             .split("\n")
             .filter((f) => f !== "" && !existsSync(join(this.root, path, f)));
     for (const file of untracked) {

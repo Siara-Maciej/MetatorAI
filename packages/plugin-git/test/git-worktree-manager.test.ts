@@ -89,15 +89,19 @@ test("an uncommitted setup reaches the worktree as links, ignored there only", a
   const dir = await repo();
   await writeFile(join(dir, "metator.config.yml"), "kind: MetatorConfig\n");
   await Bun.write(join(dir, ".claude/skills/mt-x/SKILL.md"), "skill\n");
+  // A repository that gitignores .claude/ still uses its agents and skills in the worktree.
+  await Bun.write(join(dir, ".claude/agents/mt-y.md"), "agent\n");
+  await writeFile(join(dir, ".gitignore"), ".claude/agents/\n");
   await Bun.write(join(dir, "src/new.ts"), "not setup\n");
   const manager = new GitWorktreeManager(dir);
-  const setup = ["metator.config.yml", ".claude/skills", "docs/metator"];
+  const setup = ["metator.config.yml", ".claude/skills", ".claude/agents", "docs/metator"];
   expect((await manager.add(".metator/wt/a", "metator/a", "HEAD", [".metator/runs"], setup)).isOk()).toBe(
     true,
   );
   const wt = join(dir, ".metator/wt/a");
   expect(await Bun.file(join(wt, "metator.config.yml")).text()).toBe("kind: MetatorConfig\n");
   expect(await Bun.file(join(wt, ".claude/skills/mt-x/SKILL.md")).text()).toBe("skill\n");
+  expect(await Bun.file(join(wt, ".claude/agents/mt-y.md")).text()).toBe("agent\n");
   // Only setup paths: other untracked work of the checkout stays out of the run's worktree.
   expect(await Bun.file(join(wt, "src/new.ts")).exists()).toBe(false);
   // What MetatorAI writes in the worktree's own .metator/ (its index, gate reports) is no work.

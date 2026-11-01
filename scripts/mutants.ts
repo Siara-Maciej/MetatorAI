@@ -182,6 +182,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a declared command fed a quoted here-document asks no one",
   },
   {
+    file: "packages/plugin-git/src/git-worktree-manager.ts",
+    from: '(await git.raw(["ls-files", "--others", "--", ...setup]))',
+    to: '(await git.raw(["ls-files", "--others", "--exclude-standard", "--", ...setup]))',
+    why: "a gitignored .claude/ still reaches the worktree",
+  },
+  {
     file: "packages/core/src/application/paths.ts",
     from: '  "**/{test,tests,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",\n',
     to: "",
