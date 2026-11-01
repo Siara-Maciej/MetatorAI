@@ -16,6 +16,7 @@ import { RunRepository } from "../src/application/run-repository.ts";
 import { AdvanceRun, ApproveRun, InitRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import {
+  blockedPrompt,
   gatePrompt,
   nextQuestionId,
   parseCriticVerdict,
@@ -59,6 +60,17 @@ describe("drive domain", () => {
       question: "which currency?",
     });
     expect(parseStatus("no marker at all")).toBeUndefined();
+  });
+
+  test("a blocked agent's question comes with what it wrote before it", () => {
+    const text = "Two choices:\n1. EUR (my recommendation)\n2. USD\nSTATUS: blocked: answer 1 or 2";
+    expect(blockedPrompt(text, "answer 1 or 2")).toBe(
+      "Two choices:\n1. EUR (my recommendation)\n2. USD\n\nanswer 1 or 2",
+    );
+    expect(blockedPrompt("STATUS: blocked: which currency?", "which currency?")).toBe("which currency?");
+    const long = `${"x".repeat(4000)}\nSTATUS: blocked: q`;
+    expect(blockedPrompt(long, "q").length).toBeLessThan(3100);
+    expect(blockedPrompt(long, "q").startsWith("…")).toBe(true);
   });
 
   test("a critic passes only with VERDICT: PASS; anything else is a FAIL with a reason", () => {
@@ -659,7 +671,10 @@ loops:
     const w = world(
       {
         "mt-planner": [writesPlan],
-        "mt-implementer": [{ text: "STATUS: blocked: which currency?" }, { text: "STATUS: done" }],
+        "mt-implementer": [
+          { text: "Prices are in cents; EUR or USD?\nSTATUS: blocked: which currency?" },
+          { text: "STATUS: done" },
+        ],
         "mt-plan-critic": [{ text: "VERDICT: PASS" }],
       },
       (q) => (q.source === "gate" ? { choices: ["Approve"] } : { choices: [OTHER], text: "EUR" }),
@@ -674,7 +689,10 @@ loops:
       impl[1]?.resume,
       impl[1]?.prompt.includes("A person answered your question: EUR"),
     ]).toEqual([2, "mt-implementer-1", true]);
-    expect(w.asked.find((q) => q.source === "agent")?.prompt).toBe("which currency?");
+    // The person reads what the agent wrote before its question.
+    expect(w.asked.find((q) => q.source === "agent")?.prompt).toBe(
+      "Prices are in cents; EUR or USD?\n\nwhich currency?",
+    );
     // The answer is a decision every later agent and critic hears.
     const critic = w.host.tasks.find((t) => t.agent === "mt-plan-critic")?.prompt ?? "";
     expect(critic).toContain("- build: which currency? → EUR");

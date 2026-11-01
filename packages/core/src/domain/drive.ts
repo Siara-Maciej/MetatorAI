@@ -244,6 +244,23 @@ export function parseStatus(text: string): WorkerStatus | undefined {
   return /^done\b/i.test(line) ? { kind: "done" } : undefined;
 }
 
+/** The most of an agent's explanation a person is shown with its question. */
+const MAX_CONTEXT = 3000;
+
+/**
+ * What a person reads when an agent stops on `STATUS: blocked: <question>`: the question, after
+ * what the agent wrote before it (its numbered options, its recommendation), which the question
+ * itself often only refers to ("answer the 3 numbered questions").
+ */
+export function blockedPrompt(text: string, question: string): string {
+  const lines = text.split(/\r?\n/);
+  const at = lines.map((l) => l.trim().toUpperCase().startsWith("STATUS:")).lastIndexOf(true);
+  const before = (at >= 0 ? lines.slice(0, at) : lines).join("\n").trim();
+  if (before === "") return question;
+  const context = before.length > MAX_CONTEXT ? `…${before.slice(-MAX_CONTEXT)}` : before;
+  return `${context}\n\n${question}`;
+}
+
 export type CriticVerdict = { readonly pass: true } | { readonly pass: false; readonly reason: string };
 
 /** The critic's last `VERDICT:` line; anything else is a FAIL, never a silent pass. */

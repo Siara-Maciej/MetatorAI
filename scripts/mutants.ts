@@ -218,6 +218,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "git -C names a directory the agent works in",
   },
   {
+    file: "packages/core/src/application/drive.ts",
+    from: "prompt: blockedPrompt(result.value.text, status.question),",
+    to: "prompt: status.question,",
+    why: "a blocked agent's question carries what it wrote before it",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
+    from: "return `${context}\\n\\n${question}`;",
+    to: "return question;",
+    why: "the person sees the options the agent listed",
+  },
+  {
     file: "packages/core/src/application/paths.ts",
     from: '  "**/{test,tests,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",\n',
     to: "",

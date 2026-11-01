@@ -2,6 +2,7 @@ import { parse as parseShell } from "shell-quote";
 import {
   type AgentAnswer,
   type AgentQuestion,
+  blockedPrompt,
   gatePrompt,
   nextQuestionId,
   parseCriticVerdict,
@@ -545,7 +546,7 @@ export class DriveRun {
           stage: ctx.stage.id,
           source: "agent",
           agent,
-          prompt: status.question,
+          prompt: blockedPrompt(result.value.text, status.question),
           options: [{ label: OTHER, description: "Your answer goes back to the agent" }],
           multiSelect: false,
         },
@@ -568,7 +569,16 @@ export class DriveRun {
     const said = all.value
       .filter((q) => q.answer?.text)
       .slice(-MAX_DECISIONS)
-      .map((q) => `${q.stage}: ${q.prompt.slice(0, 160)} → ${(q.answer?.text ?? "").slice(0, 400)}`);
+      // The question itself: its last paragraph, after any explanation the agent wrote before it.
+      .map(
+        (q) =>
+          `${q.stage}: ${(
+            q.prompt
+              .trim()
+              .split(/\n\s*\n/)
+              .at(-1) ?? ""
+          ).slice(0, 160)} → ${(q.answer?.text ?? "").slice(0, 400)}`,
+      );
     return said.length > 0 ? { decisions: said } : {};
   }
 
