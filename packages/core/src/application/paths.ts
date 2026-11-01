@@ -112,4 +112,6 @@ export const DEFAULT_TEST_GLOBS: readonly string[] = [
   // Test directories whose files carry no .test suffix: mocha's test/morgan.js, ava's test/main.ts,
   // jasmine's spec/.
   "**/{test,tests,spec}/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+  // A single test file named after what it is: sindresorhus's test.js, test.ts.
+  "**/{test,tests,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
 ];

@@ -165,6 +165,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/paths.ts",
+    from: '  "**/{test,tests,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",\n',
+    to: "",
+    why: "a single test.js at the root is a test",
+  },
+  {
+    file: "packages/core/src/application/paths.ts",
     from: '  "**/{test,tests,spec}/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",\n',
     to: "",
     why: "a mocha test in test/ without a .test suffix is a test",

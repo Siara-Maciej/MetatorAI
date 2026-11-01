@@ -218,7 +218,14 @@ describe("lintPlan", () => {
     expect(matchesAny("apps/api/e2e/offer.e2e-spec.ts", DEFAULT_TEST_GLOBS)).toBe(true);
     expect(matchesAny("src/offer.service.ts", DEFAULT_TEST_GLOBS)).toBe(false);
     // Test directories without a .test suffix: mocha, ava, jasmine; nested in a package too.
-    for (const t of ["test/morgan.js", "tests/main.ts", "spec/parse.mjs", "packages/a/test/x.ts"])
+    for (const t of [
+      "test/morgan.js",
+      "tests/main.ts",
+      "spec/parse.mjs",
+      "packages/a/test/x.ts",
+      "test.js",
+      "test.ts",
+    ])
       expect([t, matchesAny(t, DEFAULT_TEST_GLOBS)]).toEqual([t, true]);
     expect(matchesAny("src/testing/helpers.ts", DEFAULT_TEST_GLOBS)).toBe(false);
     expect(matchesAny("index.js", DEFAULT_TEST_GLOBS)).toBe(false);
