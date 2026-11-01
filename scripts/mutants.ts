@@ -158,6 +158,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "whether a repository has tests is read from its files",
   },
   {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "if (unknown) return false;",
+    to: "",
+    why: "an assignment from a name never set ($HOME) could be any path",
+  },
+  {
     file: "packages/core/src/domain/proposal.ts",
     from: "workspace.has(s.dir) &&",
     to: "",
@@ -615,7 +621,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
-    from: "vars.set(m[1] as string, m[2] as string);",
+    from: "vars.set(m[1] as string, value);",
     to: "",
     why: "a name set up front stands for its word",
   },

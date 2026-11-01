@@ -42,6 +42,12 @@ describe("readOnlyCommand", () => {
     expect(ro("R=x; rm -rf $R")).toBe(false);
     expect(ro("R=$(rm -rf src); ls")).toBe(false);
     expect(ro("R=x; cat $OTHER")).toBe(false);
+    // A name set from names set before it stands for their words too.
+    expect(ro("R=/folder; D=$R/src; ls $D; cat $D/a.ts")).toBe(true);
+    expect(ro("R=/folder; D=$R/../etc; cat $D/passwd")).toBe(false);
+    expect(ro("D=$HOME/x; ls $D")).toBe(false);
+    // A name never set stands for nothing a reader could check: `src$D/a.ts` is not `src/a.ts`.
+    expect(ro("D=$UNSET; cat src$D/a.ts")).toBe(false);
   });
 
   test("sed that only prints a range of lines reads; any other sed does not", () => {

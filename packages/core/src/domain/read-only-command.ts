@@ -177,8 +177,11 @@ function metatorHelp(argv: readonly string[]): boolean {
   );
 }
 
-/** `NAME=word;` (or `&&`) at the start of a command: a word with nothing to expand or quote. */
-const ASSIGNMENT = /^\s*([A-Za-z_]\w*)=([^\s;&|$'"\\`(){}<>*?]+)\s*(?:;|&&)/;
+/**
+ * `NAME=word;` (or `&&`) at the start of a command: a word with nothing to quote, and nothing to
+ * expand but names set before it (`R=/repo; D=$R/runs;`).
+ */
+const ASSIGNMENT = /^\s*([A-Za-z_]\w*)=((?:[^\s;&|$'"\\`(){}<>*?]|\$[A-Za-z_]\w*)+)\s*(?:;|&&)/;
 
 export function readOnlyCommand(command: string, dirs: readonly string[]): boolean {
   // Substitutions, process substitution and several lines could run anything.
@@ -192,7 +195,14 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
   const vars = new Map<string, string>();
   let rest = quiet;
   for (let m = ASSIGNMENT.exec(rest); m; m = ASSIGNMENT.exec(rest)) {
-    vars.set(m[1] as string, m[2] as string);
+    let unknown = false;
+    const value = (m[2] as string).replace(/\$([A-Za-z_]\w*)/g, (_, name: string) => {
+      const known = vars.get(name);
+      if (known === undefined) unknown = true;
+      return known ?? "";
+    });
+    if (unknown) return false;
+    vars.set(m[1] as string, value);
     rest = rest.slice(m[0].length);
   }
   let expanded = false;
