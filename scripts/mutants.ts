@@ -146,6 +146,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "git's @{u} is no workflow input",
   },
   {
+    file: "packages/cli/src/tui/model.ts",
+    from: "FINISHED.has(run.attention) && `${r.root}#${run.runId}` !== keep;",
+    to: "FINISHED.has(run.attention);",
+    why: "the selected run stays in view when it finishes",
+  },
+  {
+    file: "packages/cli/src/tui/model.ts",
+    from: "if (shown) rows.push(...finished.map(row));",
+    to: "",
+    why: "an open repository shows its finished sessions",
+  },
+  {
+    file: "packages/cli/src/tui/model.ts",
+    from: 'const FINISHED: ReadonlySet<Attention> = new Set(["done", "aborted"]);',
+    to: 'const FINISHED: ReadonlySet<Attention> = new Set(["done", "aborted", "escalated"]);',
+    why: "an escalated run still needs someone and stays in view",
+  },
+  {
     file: "packages/core/src/domain/publication.ts",
     from: "if (p.remote !== p.head)",
     to: "if (false)",

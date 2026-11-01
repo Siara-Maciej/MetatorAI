@@ -25,6 +25,14 @@ export interface Snapshot {
 export type Row =
   | { readonly kind: "heading"; readonly text: string }
   | { readonly kind: "run"; readonly key: string; readonly repo: string; readonly run: RunOverview }
+  /** A repository's finished sessions folded into one line; `open` shows them below it. */
+  | {
+      readonly kind: "finished";
+      readonly key: string;
+      readonly repo: string;
+      readonly count: number;
+      readonly open: boolean;
+    }
   | {
       readonly kind: "chat";
       readonly key: string;
@@ -32,14 +40,42 @@ export type Row =
       readonly chat: ConversationOverview;
     };
 
-/** The list: runs by repository (who must act first), then the conversations. */
-export function rowsOf(s: Snapshot): Row[] {
+/** Sessions with nothing left to do: they fold away so the ones that need someone stay in view. */
+const FINISHED: ReadonlySet<Attention> = new Set(["done", "aborted"]);
+
+/** The key of a repository's folded line of finished sessions. */
+export const finishedKey = (root: string) => `${root}#finished`;
+
+/**
+ * The list: runs by repository (who must act first), then the conversations. A repository's
+ * finished runs (done, aborted) fold into one line after its other runs, unless `open` names it.
+ * The selected run (`keep`) stays in view when it finishes: the person is looking at it.
+ */
+export function rowsOf(s: Snapshot, open: ReadonlySet<string> = new Set(), keep?: string): Row[] {
   const rows: Row[] = [];
   const many = s.repos.length > 1;
   for (const r of s.repos) {
     if (many) rows.push({ kind: "heading", text: r.error ? `${r.name} · ${r.error}` : r.name });
-    for (const run of r.overview?.runs ?? [])
-      rows.push({ kind: "run", key: `${r.root}#${run.runId}`, repo: r.root, run });
+    const runs = r.overview?.runs ?? [];
+    const row = (run: RunOverview): Row => ({
+      kind: "run",
+      key: `${r.root}#${run.runId}`,
+      repo: r.root,
+      run,
+    });
+    const folds = (run: RunOverview) => FINISHED.has(run.attention) && `${r.root}#${run.runId}` !== keep;
+    rows.push(...runs.filter((run) => !folds(run)).map(row));
+    const finished = runs.filter(folds);
+    if (finished.length === 0) continue;
+    const shown = open.has(r.root);
+    rows.push({
+      kind: "finished",
+      key: finishedKey(r.root),
+      repo: r.root,
+      count: finished.length,
+      open: shown,
+    });
+    if (shown) rows.push(...finished.map(row));
   }
   const chats: Row[] = [];
   for (const r of s.repos)

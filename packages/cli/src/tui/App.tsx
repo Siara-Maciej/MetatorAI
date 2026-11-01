@@ -13,7 +13,7 @@ import {
 } from "./components/Dialogs.tsx";
 import { RunDetail, TABS, type Tab } from "./components/RunDetail.tsx";
 import { SessionList } from "./components/SessionList.tsx";
-import { type Row, rowsOf, type Snapshot, selectable, totals } from "./model.ts";
+import { finishedKey, type Row, rowsOf, type Snapshot, selectable, totals } from "./model.ts";
 import type { Launch, Settings, TuiService } from "./service.ts";
 
 /** How `metator ui` ends a screen: quit, or give the terminal to a program and come back. */
@@ -59,6 +59,7 @@ const COMMANDS: readonly PaletteCommand[] = [
   { id: "shell", label: "Shell in the worktree", key: "t" },
   { id: "diff", label: "Diff of the run", key: "d" },
   { id: "next-waiting", label: "Go to the next session that needs you", key: "g" },
+  { id: "finished", label: "Show or hide the finished sessions of this repository", key: "f" },
   { id: "settings", label: "Settings: editor, AI hosts", key: "," },
   { id: "quit", label: "Quit", key: "q" },
 ];
@@ -71,6 +72,8 @@ export function App(props: AppProps) {
   const [size, setSize] = useState({ columns: stdout.columns || 100, rows: stdout.rows || 30 });
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selected, setSelected] = useState<string | undefined>(props.kept?.selected);
+  // Repositories whose finished sessions are shown; folded by default.
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
   const [tab, setTab] = useState<Tab>(props.kept?.tab ?? "overview");
   const [activity, setActivity] = useState<readonly RunActivity[]>([]);
   const [chat, setChat] = useState<Conversation | null>(null);
@@ -104,7 +107,10 @@ export function App(props: AppProps) {
     };
   }, [stdout]);
 
-  const rows = useMemo(() => (snapshot ? rowsOf(snapshot) : []), [snapshot]);
+  const rows = useMemo(
+    () => (snapshot ? rowsOf(snapshot, unfolded, selected) : []),
+    [snapshot, unfolded, selected],
+  );
   const choices = useMemo(() => selectable(rows), [rows]);
   // The selection follows its session across refreshes; the first one when it is gone.
   const current = choices.find((r) => r.key === selected) ?? choices[0];
@@ -113,6 +119,16 @@ export function App(props: AppProps) {
   }, [current, selected]);
 
   const run = current?.kind === "run" ? current : undefined;
+  const folded = current?.kind === "finished" ? current : undefined;
+  /** Shows or hides a repository's finished sessions, keeping the selection on its folded line. */
+  const toggleFinished = (repo: string) => {
+    setUnfolded((o) => {
+      const next = new Set(o);
+      if (!next.delete(repo)) next.add(repo);
+      return next;
+    });
+    setSelected(finishedKey(repo));
+  };
   const talk = current?.kind === "chat" ? current : undefined;
   useEffect(() => {
     if (!run) return;
@@ -199,6 +215,13 @@ export function App(props: AppProps) {
         else say("Nothing waits for you.", "");
         return;
       }
+      case "finished": {
+        const repo =
+          folded?.repo ?? run?.repo ?? (current?.kind === "chat" ? undefined : snapshot?.repos[0]?.root);
+        if (repo && rows.some((r) => r.kind === "finished" && r.repo === repo)) toggleFinished(repo);
+        else say("No finished sessions here.", "");
+        return;
+      }
       case "settings":
         setDialog({ kind: "settings", repo: repoOf, settings: await service.settings(repoOf) });
         return;
@@ -245,6 +268,7 @@ export function App(props: AppProps) {
       if (key.leftArrow) return setTab(TABS[(TABS.indexOf(tab) + TABS.length - 1) % TABS.length] as Tab);
       if (input === ":" || (key.ctrl && input === "k")) return setDialog({ kind: "palette" });
       if (key.return) {
+        if (folded) return toggleFinished(folded.repo);
         if (run?.run.attention === "you") return void act("answer");
         if (run && run.run.attention !== "driving" && ["active", "escalated"].includes(run.run.status))
           return void act("continue");
@@ -381,6 +405,14 @@ export function App(props: AppProps) {
               width={right}
               height={height - 3}
             />
+          ) : folded ? (
+            <Box borderStyle="round" borderColor="gray" paddingX={1} flexDirection="column" width={right}>
+              <Text>
+                {folded.count} finished session{folded.count === 1 ? "" : "s"}
+                {snapshot && snapshot.repos.length > 1 ? ` in ${repoName(folded.repo)}` : ""}
+              </Text>
+              <Text dimColor>⏎ or f: {folded.open ? "hide" : "show"} them</Text>
+            </Box>
           ) : talk ? (
             <ChatView
               conversation={chat}
@@ -401,8 +433,8 @@ export function App(props: AppProps) {
           <Text color={notice.error ? "red" : "green"}>{notice.text}</Text>
         ) : (
           <Text dimColor wrap="truncate">
-            ↑↓ select · ⏎ act · tab view · a answer · n new run · ? ask · c continue · : all commands · ,
-            settings · q quit
+            ↑↓ select · ⏎ act · tab view · a answer · n new run · ? ask · c continue · f finished · : all
+            commands · , settings · q quit
           </Text>
         )}
       </Box>

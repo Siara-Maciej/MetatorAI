@@ -24,7 +24,7 @@ metator ui
 
 **On the screen:**
 - **The header:** how many sessions need you, how many are driving, stopped or escalated, how many services run.
-- **Sessions on the left:** runs, the ones that need you first, then the conversations of [`metator ask`](./ask.md). In a [folder of repositories](../multi-repo/repositories.md#a-folder-of-repositories), every repository's runs, under its name.
+- **Sessions on the left:** runs, the ones that need you first, then the conversations of [`metator ask`](./ask.md). In a [folder of repositories](../multi-repo/repositories.md#a-folder-of-repositories), every repository's runs, under its name. A repository's finished runs (done or aborted) fold into one line, `▸ 3 finished`, after its other runs; an escalated run stays in view, since it still needs someone.
 - **The selected session on the right:**
   - what it needs now, and the key that does it;
   - its stages, with the current one in brackets: `✓` done, `⟳` working, `?` waits for you, `!` stopped, `·` still to come;
@@ -37,7 +37,7 @@ The view refreshes by itself; the terminal bell rings when a new question arrive
 | Key | Does |
 |---|---|
 | `↑` `↓` (`k` `j`) | select a session |
-| `⏎` | what the session needs: answer it, continue or resume it, or follow up in a conversation |
+| `⏎` | what the session needs: answer it, continue or resume it, or follow up in a conversation; on a `▸ N finished` line, show or hide those sessions |
 | `a` | answer the run's question; at a human gate nobody drives, approve it or reject it with a reason |
 | `c` · `x` | continue the run (drive it again with the host it used); an escalated run is resumed first, at the stage it stopped at · stop its drive |
 | `n` | new run: repository, workflow, task, autonomy, AI host, own worktree or not |
@@ -46,6 +46,7 @@ The view refreshes by itself; the terminal bell rings when a new question arrive
 | `u` · `w` | start · stop the run's applications |
 | `e` · `t` · `d` | open the worktree in your editor · a shell there · the run's diff |
 | `g` | go to the next session that needs you |
+| `f` (or `⏎` on the `▸ N finished` line) | show or hide the repository's finished sessions |
 | `,` | settings |
 | `:` or `Ctrl+K` | every action by name, with a filter |
 | `q` | quit |

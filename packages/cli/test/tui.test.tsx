@@ -219,6 +219,37 @@ describe("tui model", () => {
     expect(totals(s)).toMatchObject({ you: 1, stopped: 0 });
   });
 
+  test("finished sessions fold into one line after the others, unless their repository is open", () => {
+    const s = snap([
+      runOf("done", { attention: "done", status: "done" }),
+      runOf("live", { attention: "driving" }),
+      runOf("gone", { attention: "aborted", status: "aborted" }),
+      runOf("stuck", { attention: "escalated", status: "escalated" }),
+    ]);
+    const keys = (open?: Set<string>) =>
+      rowsOf(s, open).map((r) =>
+        r.kind === "finished" ? `▸ ${r.count} ${r.open}` : r.kind === "run" ? r.run.task : "",
+      );
+    // An escalated run still needs someone: it stays in view.
+    expect(keys()).toEqual(["Task live", "Task stuck", "▸ 2 false"]);
+    expect(keys(new Set(["/r/shop"]))).toEqual([
+      "Task live",
+      "Task stuck",
+      "▸ 2 true",
+      "Task done",
+      "Task gone",
+    ]);
+    // The selected run stays in view when it finishes.
+    expect(rowsOf(s, undefined, "/r/shop#20261028-mt-feature-done").map((r) => r.kind)).toEqual([
+      "run",
+      "run",
+      "run",
+      "finished",
+    ]);
+    // Nothing finished: no folded line.
+    expect(rowsOf(snap([runOf("live", { attention: "driving" })])).map((r) => r.kind)).toEqual(["run"]);
+  });
+
   test("stage bar, durations, the next step and fitting text", () => {
     expect(stageBar(runOf("a").stages)).toBe("plan ✓ ─ [build ⟳] ─ review ·");
     expect(
@@ -266,6 +297,28 @@ describe("metator ui (components)", () => {
     expect(f.indexOf("Task rounding")).toBeLessThan(f.indexOf("Task docs"));
     expect(f).toContain("waits for you: Which rounding?");
     expect(f).toContain("plan ✓ ─ [build ⟳] ─ review ·");
+    r.unmount();
+  });
+
+  test("finished sessions are folded; Enter on the line shows them, f hides them again", async () => {
+    const s = new FakeService([
+      snap([
+        runOf("live", { attention: "you", questions: [ASKED.question] }),
+        runOf("shipped", { attention: "done", status: "done" }),
+        runOf("old", { attention: "done", status: "done" }),
+      ]),
+    ]);
+    const r = app(s);
+    await shows(r, "2 finished · ⏎ to show");
+    expect(r.lastFrame()).not.toContain("Task shipped");
+    r.stdin.write(KEY.down);
+    await shows(r, "2 finished sessions");
+    r.stdin.write(KEY.enter);
+    await shows(r, "Task shipped");
+    expect(r.lastFrame()).toContain("Task old");
+    expect(r.lastFrame()).toContain("f: hide them");
+    r.stdin.write("f");
+    await until("the finished sessions folded again", () => !(r.lastFrame() ?? "").includes("Task shipped"));
     r.unmount();
   });
 
