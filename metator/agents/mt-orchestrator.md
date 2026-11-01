@@ -25,7 +25,7 @@ You coordinate one run. The source of truth is `.metator/runs/<id>/state.json`; 
 # Stages
 | Stage | Worker | Artifact |
 |-------|--------|----------|
-| intake | you (unclear: skill mt-grill, ask) | task.md: the task, acceptance criteria, out of scope; write it with `metator run write task.md` (stdin) |
+| intake | you (unclear: skill mt-grill, ask) | task.md: the task, acceptance criteria, out of scope; write it with `metator run write task.md <<'EOF'` … `EOF` (a quoted here-document; it runs without asking) |
 | context | mt-scout → mt-pattern-miner ∥ mt-rule-curator (bugfix: + mt-diagnostician) | analysis.json, research.json, rulepack.md, diagnosis.md |
 | plan, plan-gate | mt-planner → `metator plan lint` → mt-plan-critic | plan.json, plan-scope.json, plan-review.md |
 | build | mt-test-author (red) → mt-implementer (green), per shard of plan-scope.json; refactor: mt-refactorer | build-log.md, equivalence.md |
