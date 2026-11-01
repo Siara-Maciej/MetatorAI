@@ -157,6 +157,31 @@ describe("ClaudeAgentHost", () => {
     expect(asked).toEqual(["mt-planner wants to use Bash: grep -rn offers /clones/other/src"]);
   });
 
+  test("after the push is approved, committing and pushing the run's branch in its worktree asks no one", async () => {
+    const commands = [
+      "git add -A && git commit -m 'feat: me' && git push -u origin metator/r",
+      "git push --force origin metator/r",
+    ];
+    const run = async (approved?: string[]) => {
+      const asked: string[] = [];
+      const { query } = fakeQuery(async (can) => {
+        for (const command of commands) await can("Bash", { command });
+        return [init, success];
+      });
+      await collect(
+        new ClaudeAgentHost(query),
+        { ...task, cwd: "/repo/.metator/wt/r", ...(approved ? { approved } : {}) },
+        async (q) => {
+          asked.push(q.prompt.replace("mt-planner wants to use Bash: ", ""));
+          return { choices: ["Deny"] };
+        },
+      );
+      return asked;
+    };
+    expect(await run(["push"])).toEqual(["git push --force origin metator/r"]);
+    expect(await run()).toEqual(commands);
+  });
+
   test("a session the drive started may not move the run; its hooks are told it is driven", async () => {
     type Hook = (input: unknown) => Promise<{ hookSpecificOutput?: { permissionDecision: string } }>;
     const hookOf = (options: Record<string, unknown>) =>

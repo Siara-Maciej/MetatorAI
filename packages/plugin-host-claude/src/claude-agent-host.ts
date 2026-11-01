@@ -7,6 +7,7 @@ import {
   type AgentQuestion,
   type AgentTask,
   DRIVEN_RUN_CONTROL,
+  deliveryCommand,
   permissionResponse,
   readOnlyCommand,
   runControlCommand,
@@ -142,7 +143,15 @@ export class ClaudeAgentHost implements AgentHost {
     // nothing leaves it without a person, push needs an approval). A write anywhere else, the
     // checkout itself included, asks a person. A file that may hold secrets is denied before this.
     const needsNoPerson = (tool: string, input: Record<string, unknown>): boolean => {
-      if (tool === "Bash") return typeof input.command === "string" && readOnlyCommand(input.command, dirs);
+      if (tool === "Bash")
+        return (
+          typeof input.command === "string" &&
+          (readOnlyCommand(input.command, dirs) ||
+            // After the push is approved: committing and pushing the run's branch in its worktree.
+            (isolated &&
+              (task.approved ?? []).includes("push") &&
+              deliveryCommand(input.command, [task.cwd])))
+        );
       const file = input.file_path ?? input.path ?? task.cwd;
       if (typeof file !== "string") return false;
       if (READS.has(tool))

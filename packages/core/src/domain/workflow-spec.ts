@@ -49,6 +49,18 @@ const stageV2 = {
   optional: z.boolean().optional(),
 };
 
+/**
+ * v3: a human gate may grant external actions (`grants: [push]`): approving it is the person's
+ * approval of those actions too, so the stage after it can push without asking again.
+ */
+const stageV3 = {
+  ...stageV2,
+  grants: z
+    .array(z.enum(["push", "comment"]))
+    .optional()
+    .describe("external actions approving this human gate approves (push, comment)"),
+};
+
 /** v2 anatomy of a workflow: the 16 sections `workflow lint` requires (02-workflows §1). */
 const anatomy = {
   entry: z
@@ -89,7 +101,7 @@ const workflowFields = {
 };
 const loops = z.record(id, z.number().int().min(0)).default({});
 
-export const StageSpecSchema = z.object(stageV2).strict();
+export const StageSpecSchema = z.object(stageV3).strict();
 
 /** v1 (released): stages with hitl and onFail only. Never change it (MT-CODE-003). */
 const WorkflowSpecV1Schema = z
@@ -97,6 +109,16 @@ const WorkflowSpecV1Schema = z
     ...workflowFields,
     stages: z.array(z.object(stageV1).strict()).min(1, "a workflow needs at least one stage"),
     loops,
+  })
+  .strict();
+
+/** v2 (released): stages without grants. Never change it (MT-CODE-003). */
+const WorkflowSpecV2Schema = z
+  .object({
+    ...workflowFields,
+    stages: z.array(z.object(stageV2).strict()).min(1, "a workflow needs at least one stage"),
+    loops,
+    ...anatomy,
   })
   .strict();
 
@@ -125,6 +147,13 @@ export const WorkflowSpecSchema = z
           message: `Stage "${stage.id}" loops to unknown stage "${stage.onFail.goto}"`,
         });
       }
+      if (stage.grants && !stage.hitl) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["stages", i, "grants"],
+          message: `Stage "${stage.id}" grants ${stage.grants.join(", ")} but is no human gate (hitl)`,
+        });
+      }
       if (stage.onFail && spec.loops[stage.onFail.loop] === undefined) {
         ctx.addIssue({
           code: "custom",
@@ -147,11 +176,12 @@ export interface SpecIssue {
 /**
  * Workflow files are versioned documents (ADR-0016). v2 (ADR-0042) adds the anatomy sections;
  * they are optional in the schema, so every v1 file is a v2 file, and required by `workflow lint`.
+ * v3 adds `grants` to a human gate; every v2 file is a v3 file.
  */
 export const WorkflowDocument = defineDocument("Workflow", {
-  history: [{ schema: WorkflowSpecV1Schema }],
+  history: [{ schema: WorkflowSpecV1Schema }, { schema: WorkflowSpecV2Schema, fromPrevious: (v1) => v1 }],
   latest: WorkflowSpecSchema,
-  upgrade: (v1) => v1,
+  upgrade: (v2) => v2,
   errorCode: "INVALID_CONFIG",
   hint: "Fix the listed issues; `metator workflow schema` prints the JSON Schema.",
 });

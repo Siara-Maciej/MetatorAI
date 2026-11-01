@@ -255,3 +255,53 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
     })
   );
 }
+
+/** A branch name to push: no option, no refspec (`:branch` deletes, `a:b` renames). */
+const BRANCH = /^[A-Za-z0-9][\w./-]*$/;
+
+/** What `git commit` may take: a message, all tracked changes, quiet. */
+const COMMIT_OPTIONS = /^(-m|--message|-a|--all|-q|--quiet)$/;
+
+/**
+ * After a person approved the push (the delivery gate): staging, committing and pushing the run's
+ * branch, nothing else that writes. `git add -A`, `git commit -m "<msg>"`, `git push -u origin
+ * <branch>`, each alone or chained with `&&`, and any read-only part. Never a force push, an amend,
+ * a skipped hook (`--no-verify`), a `-c` setting, or a path outside the directories.
+ */
+export function deliveryCommand(command: string, dirs: readonly string[]): boolean {
+  if (/[`\n\r]|\$/.test(command)) return false;
+  const parts: string[][] = [[]];
+  for (const token of parse(command)) {
+    if (typeof token === "string") (parts.at(-1) as string[]).push(token);
+    else if ("op" in token && token.op === "&&") parts.push([]);
+    else return false;
+  }
+  const inside = (arg: string) =>
+    !arg.split("/").includes("..") &&
+    !arg.startsWith("~") &&
+    (!arg.startsWith("/") || dirs.some((d) => arg === d || arg.startsWith(`${d.replace(/\/$/, "")}/`)));
+  const writes = (argv: readonly string[]): boolean => {
+    const [git, sub, ...args] = argv;
+    if (git !== "git") return false;
+    if (sub === "add")
+      return args.every((a) => a === "-A" || a === "--all" || (!a.startsWith("-") && inside(a)));
+    if (sub === "commit") {
+      for (let i = 0; i < args.length; i++) {
+        const a = args[i] as string;
+        if (!COMMIT_OPTIONS.test(a)) return false;
+        if (a === "-m" || a === "--message") i++; // the message is any text
+      }
+      return args.includes("-m") || args.includes("--message");
+    }
+    if (sub === "push") {
+      const words = args.filter((a) => !/^(-u|--set-upstream|-q|--quiet)$/.test(a));
+      return words.length === 2 && words[0] === "origin" && BRANCH.test(words[1] as string);
+    }
+    return false;
+  };
+  return (
+    parts.every((p) => p.length > 0) &&
+    parts.some(writes) &&
+    parts.every((p) => writes(p) || readOnlyCommand(p.join(" "), dirs))
+  );
+}

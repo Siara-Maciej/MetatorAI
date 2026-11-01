@@ -91,3 +91,23 @@ describe("shipped workflows", () => {
     }
   });
 });
+
+describe("workflow v3: grants", () => {
+  const v = (stage: string, schemaVersion = 3) =>
+    `kind: Workflow\nschemaVersion: ${schemaVersion}\nid: w\nstages:\n  - id: build\n${stage}`;
+  test("a human gate may grant external actions; a v2 file is a v3 file", () => {
+    const spec = parseWorkflowYaml(v("  - id: delivery\n    hitl: true\n    grants: [push]\n"), "w.yml");
+    expect(spec._unsafeUnwrap().stages[1]?.grants).toEqual(["push"]);
+    expect(parseWorkflowYaml(v("  - id: delivery\n    hitl: true\n", 2), "w.yml").isOk()).toBe(true);
+  });
+  test("only a human gate grants, and only push or comment; a v2 file cannot", () => {
+    const notGate = parseWorkflowYaml(v("  - id: publish\n    grants: [push]\n"), "w.yml");
+    expect(notGate._unsafeUnwrapErr().message).toContain('Stage "publish" grants push but is no human gate');
+    expect(parseWorkflowYaml(v("  - id: d\n    hitl: true\n    grants: [deploy]\n"), "w.yml").isErr()).toBe(
+      true,
+    );
+    expect(parseWorkflowYaml(v("  - id: d\n    hitl: true\n    grants: [push]\n", 2), "w.yml").isErr()).toBe(
+      true,
+    );
+  });
+});

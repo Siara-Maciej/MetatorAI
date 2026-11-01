@@ -1,0 +1,17 @@
+{
+  "kind": "Workflow",
+  "schemaVersion": 2,
+  "id": "feature",
+  "revision": 1,
+  "stages": [
+    { "id": "plan", "owner": "mt-planner", "produces": ["plan.json"] },
+    {
+      "id": "plan-gate",
+      "gate": { "script": "metator plan lint {runDir}/plan.json" },
+      "onFail": { "goto": "plan", "loop": "plan" }
+    },
+    { "id": "delivery", "hitl": true, "neverSkip": true },
+    { "id": "publish", "owner": "mt-pr-author", "produces": ["pr.md"] }
+  ],
+  "loops": { "plan": 2 }
+}

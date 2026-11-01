@@ -190,10 +190,16 @@ export class AdvanceRun {
     if (next.isErr()) return err(next.error);
 
     const now = this.clock.now().toISOString();
-    const approvals =
-      input.event.type === "APPROVE"
-        ? { ...record.value.approvals, [before]: approval(input.event, now) }
-        : record.value.approvals;
+    // Approving a gate that grants external actions (delivery grants push) approves them too.
+    const granted = machine.workflow.stages.find((s) => s.id === before)?.grants ?? [];
+    const given = input.event.type === "APPROVE" ? approval(input.event, now) : undefined;
+    const approvals = given
+      ? {
+          ...record.value.approvals,
+          [before]: given,
+          ...Object.fromEntries(granted.map((g) => [g, given])),
+        }
+      : record.value.approvals;
     const autopilot = input.event.type === "APPROVE" && input.event.choice === AUTOPILOT_CHOICE;
     if (autopilot && machine.workflow.autonomy && !machine.workflow.autonomy.includes("L1")) {
       return err(

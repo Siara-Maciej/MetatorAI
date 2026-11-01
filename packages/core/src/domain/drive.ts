@@ -23,6 +23,8 @@ export interface AgentTask {
   readonly dirs?: readonly string[];
   /** Started by `metator run drive`: the drive moves the run, so the agent may not. */
   readonly driven?: boolean;
+  /** External actions a person approved in this run (`push` after the delivery gate). */
+  readonly approved?: readonly string[];
 }
 
 export interface AgentQuestion {

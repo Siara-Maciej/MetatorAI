@@ -140,6 +140,48 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a repository with tests still needs tests first",
   },
   {
+    file: "packages/core/src/application/runs.ts",
+    from: "...Object.fromEntries(granted.map((g) => [g, given])),",
+    to: "",
+    why: "approving a gate that grants the push approves the push",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: "...(approved.length > 0 ? { approved } : {}),",
+    to: "",
+    why: "the agents after an approved push are told the push is approved",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: '(task.approved ?? []).includes("push") &&',
+    to: "",
+    why: "committing and pushing asks a person until the push is approved",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'return words.length === 2 && words[0] === "origin" && BRANCH.test(words[1] as string);',
+    to: "return true;",
+    why: "a push names origin and one branch, never a refspec or a force",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "if (!COMMIT_OPTIONS.test(a)) return false;",
+    to: "",
+    why: "git commit --amend or --no-verify is no plain delivery commit",
+  },
+  {
+    file: "packages/core/src/domain/workflow-spec.ts",
+    from: "if (stage.grants && !stage.hitl) {",
+    to: "if (false) {",
+    why: "only a human gate grants external actions",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: '.includes("verdict.json") && ctx.stage.onFail) {',
+    to: '.includes("verdict.json")) {',
+    why: "a PR review's CHANGES_REQUIRED is its answer, not a failure",
+  },
+  {
     file: "packages/core/src/application/drive.ts",
     from: 'if (blocks) return ok({ type: "FAIL", reason: blocks });',
     to: "",

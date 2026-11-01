@@ -1,6 +1,6 @@
 # W2: fix a bug with a regression test that reproduces it first (02-workflows §3).
 kind: Workflow
-schemaVersion: 2
+schemaVersion: 3
 id: mt-bugfix
 revision: 2
 description: Reproduce, diagnose, fix behind a regression test, verify
@@ -52,6 +52,8 @@ stages:
   - id: delivery
     hitl: true
     neverSkip: true
+    # Approving the delivery approves the push: the publish stage pushes without asking again.
+    grants: [push]
   - id: publish
     owner: mt-pr-author
     produces: [pr.md]

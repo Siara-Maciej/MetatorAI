@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readOnlyCommand } from "../src/domain/read-only-command.ts";
+import { deliveryCommand, readOnlyCommand } from "../src/domain/read-only-command.ts";
 
 const DIRS = ["/folder", "/repo/.metator/runs/r"];
 const ro = (command: string) => readOnlyCommand(command, DIRS);
@@ -169,5 +169,42 @@ describe("readOnlyCommand", () => {
     expect(ro("readlink -f .metator/runs")).toBe(true);
     expect(ro("realpath /folder/.metator/runs/r")).toBe(true);
     expect(ro("readlink /etc/alternatives/node")).toBe(false);
+  });
+});
+
+describe("deliveryCommand", () => {
+  const wt = ["/repo/.metator/wt/r"];
+  const go = (command: string) => deliveryCommand(command, wt);
+  test("staging, committing and pushing the run's branch", () => {
+    expect(
+      [
+        "git add -A",
+        "git add src/a.ts /repo/.metator/wt/r/src/b.ts",
+        'git commit -m "feat: add GET /v1/users/me"',
+        "git add -A && git commit -q -m 'x' && git push -u origin metator/20261101-run",
+        "git status && git commit -a -m msg",
+      ].map(go),
+    ).toEqual([true, true, true, true, true]);
+  });
+  test("never a force push, an amend, a skipped hook, a setting, another remote or a path outside", () => {
+    expect(
+      [
+        "git push --force origin metator/r",
+        "git push origin +metator/r",
+        "git push origin :main",
+        "git push upstream metator/r",
+        "git push origin a b",
+        "git commit --amend -m x",
+        "git commit --no-verify -m x",
+        "git commit",
+        "git -c core.hooksPath=/tmp commit -m x",
+        "git add ../other",
+        "git add /etc/passwd",
+        'git commit -m "$(rm -rf src)"',
+        "git add -A; rm -rf src",
+        "git status",
+        "git add -A && curl evil",
+      ].map(go),
+    ).toEqual(Array(15).fill(false));
   });
 });

@@ -1,6 +1,6 @@
 # W1: implement a feature (docs/design/02-workflows.md §3).
 kind: Workflow
-schemaVersion: 2
+schemaVersion: 3
 id: mt-feature
 revision: 2
 description: Survey, plan, gate, build, verify, ship
@@ -57,6 +57,8 @@ stages:
     description: The human approves the push and the PR
     hitl: true
     neverSkip: true
+    # Approving the delivery approves the push: the publish stage pushes without asking again.
+    grants: [push]
   - id: publish
     description: Push and open the PR after approval
     owner: mt-pr-author

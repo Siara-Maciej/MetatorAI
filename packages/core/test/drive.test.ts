@@ -566,6 +566,64 @@ loops:
     ]);
   });
 
+  test("approving a gate that grants the push records it, and the agents after it are told", async () => {
+    const w = world({ "mt-scout": [{}], "mt-pr-author": [{}] }, () => ({ choices: ["Approve"] }));
+    await w.fs.write(
+      ".github/metator/workflows/loop.yml",
+      `kind: Workflow
+schemaVersion: 3
+id: loop
+stages:
+  - id: build
+    owner: mt-scout
+  - id: delivery
+    hitl: true
+    grants: [push]
+  - id: publish
+    owner: mt-pr-author
+`,
+    );
+    const runId = await w.start(undefined, "loop");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const approvals = (await w.repo.load(runId))._unsafeUnwrap().approvals;
+    expect(Object.keys(approvals).sort()).toEqual(["delivery", "push"]);
+    const approved = (agent: string) => w.host.tasks.find((t) => t.agent === agent)?.approved;
+    expect([approved("mt-scout"), approved("mt-pr-author")]).toEqual([undefined, ["push"]]);
+  });
+
+  test("where the verdict is the deliverable (no way back), CHANGES_REQUIRED passes", async () => {
+    let runId = "";
+    const w = world(
+      {
+        "mt-pr-review": [
+          {
+            effect: async () => {
+              await w.fs.write(
+                `${w.repo.runDir(runId)}/verdict.json`,
+                JSON.stringify({
+                  kind: "Verdict",
+                  schemaVersion: 1,
+                  decision: "CHANGES_REQUIRED",
+                  blocking: [],
+                  unverified: [],
+                  consider: [],
+                  verifiedCorrect: [],
+                }),
+              );
+            },
+          },
+        ],
+      },
+      () => ({ choices: ["Approve"] }),
+    );
+    await w.fs.write(
+      ".github/metator/workflows/loop.yml",
+      "kind: Workflow\nschemaVersion: 2\nid: loop\nstages:\n  - id: judge\n    owner: mt-pr-review\n    produces: [verdict.json]\n",
+    );
+    runId = await w.start(undefined, "loop");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+  });
+
   test("a rejected plan with a way back goes to the planner with the person's reason", async () => {
     let gates = 0;
     const w = world({ "mt-planner": [{}, {}], "mt-scout": [{}] }, (q) =>

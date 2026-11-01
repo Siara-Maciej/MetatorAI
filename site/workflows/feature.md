@@ -28,8 +28,8 @@ The orchestrator creates the run (`metator run init --workflow mt-feature --task
 | build | `mt-test-author` → `mt-implementer` | `build-log.md` | tests RED, then GREEN, only inside the plan scope |
 | gates | `mt-gatekeeper` (`metator gate full`) | `gates.md` | the checks your `gates.full` configures, and no others |
 | review | `mt-pr-review` | `verdict.json` | parallel lenses, verified findings, a judge; the stage passes only on an APPROVED verdict, whatever the critic says |
-| delivery | **you** (`neverSkip`) | | nothing leaves your machine without you |
-| publish | `mt-pr-author` | `pr.md` | commit message and PR from the run's artifacts |
+| delivery | **you** (`neverSkip`) | | nothing leaves your machine without you; approving it approves the push (`grants: [push]`) |
+| publish | `mt-pr-author` | `pr.md` | commits and pushes the run's branch without asking (never a force push, an amend or `--no-verify`); a PR only when the task asks for one and a code host is configured |
 | learn (optional) | `mt-retro` | | lessons with citations for next time |
 
 ## The plan gate in practice

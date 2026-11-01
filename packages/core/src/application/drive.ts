@@ -18,7 +18,7 @@ import { MetatorError } from "../domain/errors.ts";
 import { stoppedAt } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
-import { fillInputs } from "../domain/run-record.ts";
+import { APPROVAL_ACTIONS, fillInputs } from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
 import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
 import { parseJsonDocument, serializeJsonDocument, serializeJsonLine } from "../domain/versioned.ts";
@@ -446,8 +446,10 @@ export class DriveRun {
       if (!there) missing.push(artifact);
     }
     if (missing.length > 0) return ok({ type: "FAIL", reason: `missing artifacts: ${missing.join(", ")}` });
-    // A stage that produces the review's verdict passes only on an approval, whatever its critic says.
-    if ((ctx.stage.produces ?? []).includes("verdict.json")) {
+    // A stage that produces the review's verdict and can send the run back to fix it passes only on
+    // an approval, whatever its critic says. Where the verdict is the deliverable (a PR review, no
+    // way back), CHANGES_REQUIRED is an answer, not a failure.
+    if ((ctx.stage.produces ?? []).includes("verdict.json") && ctx.stage.onFail) {
       const file = `${this.d.repo.runDir(ctx.runId)}/verdict.json`;
       const verdict = (await this.d.fs.read(file))
         .andThen((text) => parseJsonDocument(text, file))
@@ -644,6 +646,11 @@ export class DriveRun {
         ? { choices: a.value.choices, ...(a.value.text ? { text: a.value.text } : {}) }
         : { choices: [] };
     };
+    // What a person approved so far (the push, after the delivery gate): the host lets the agent do it.
+    const record = await this.d.repo.load(ctx.runId);
+    const approved = record.isOk()
+      ? (APPROVAL_ACTIONS as readonly string[]).filter((a) => record.value.approvals[a] !== undefined)
+      : [];
     let text = "";
     let session: string | undefined;
     let okResult = false;
@@ -656,6 +663,7 @@ export class DriveRun {
           projectRoot: this.d.root,
           runDir: ctx.runDir,
           driven: true,
+          ...(approved.length > 0 ? { approved } : {}),
           ...(resume ? { resume } : {}),
         },
         ask,
