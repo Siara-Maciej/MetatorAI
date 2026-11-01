@@ -49,6 +49,9 @@ describe("discovery helpers", () => {
     expect(kindFrom("web", ["react"], false)).toBe("frontend");
     expect(kindFrom("cli", ["react", "ink"], false, true)).toBe("other");
     expect(kindFrom("misc", [], false)).toBe("other");
+    expect(kindFrom("openpage-api", ["next", "react"], false)).toBe("service");
+    expect(kindFrom("@hoppscotch/backend", [], false)).toBe("service");
+    expect(kindFrom("api-client", ["react"], false)).toBe("frontend");
   });
 
   test("contract ids are unique; a title-less spec is named after its file", () => {

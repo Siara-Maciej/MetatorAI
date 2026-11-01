@@ -109,11 +109,57 @@ describe("readOnlyCommand", () => {
 
   test("programs that are not readers, and paths outside the working directories, do not", () => {
     expect(ro("node -e 'require(\"fs\")'")).toBe(false);
-    expect(ro("git log")).toBe(false);
+    expect(ro("git commit -m x")).toBe(false);
     expect(ro("cat /etc/passwd")).toBe(false);
     expect(ro("grep -r token ../other")).toBe(false);
     expect(ro("ls ~")).toBe(false);
     expect(ro("ls /folder-other")).toBe(false);
     expect(ro("")).toBe(false);
+  });
+
+  test("git that only reads the repository reads; git that writes, runs or leaves the directories does not", () => {
+    expect(
+      [
+        "git status",
+        "git log --oneline -5",
+        "git --no-pager diff HEAD -- src/a.ts",
+        "git -C /folder show HEAD~1:src/a.ts",
+        "git diff origin/main..HEAD --stat",
+        "git rev-parse --show-toplevel",
+        "git merge-base HEAD origin/main",
+        "git ls-files src | wc -l",
+        "git blame -L 10,20 src/a.ts",
+        'git grep -n "/api/offers" -- src',
+        "git branch --show-current",
+        "git branch -a -v",
+        "git describe --tags",
+        "git log --format=%H -1",
+      ].map(ro),
+    ).toEqual(Array(14).fill(true));
+    expect(
+      [
+        "git push",
+        "git checkout main",
+        "git branch -D main",
+        "git branch feature",
+        "git -c core.pager=sh log",
+        "git -C /etc log",
+        "git -C ../other status",
+        "git diff --output=out.patch",
+        "git diff --ext-diff",
+        "git log -p --textconv",
+        "git grep -O offers",
+        "git grep --open-files-in-pager=vim offers",
+        "git show HEAD -- /etc/passwd",
+        "git -C",
+        "git",
+      ].map(ro),
+    ).toEqual(Array(15).fill(false));
+  });
+
+  test("readlink and realpath resolve paths inside the working directories", () => {
+    expect(ro("readlink -f .metator/runs")).toBe(true);
+    expect(ro("realpath /folder/.metator/runs/r")).toBe(true);
+    expect(ro("readlink /etc/alternatives/node")).toBe(false);
   });
 });

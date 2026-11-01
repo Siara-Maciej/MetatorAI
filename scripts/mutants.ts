@@ -92,6 +92,48 @@ export const MUTANTS: readonly Mutant[] = [
     why: "an input the workflow does not declare is refused",
   },
   {
+    file: "packages/plugin-node/src/manypkg-workspace-reader.ts",
+    from: 'if (!/missing the "name" field/.test((e as Error).message)) throw e;',
+    to: "throw e;",
+    why: "a package.json without a name is named after its directory, not an error",
+  },
+  {
+    file: "packages/core/src/domain/system-discovery.ts",
+    from: 'if (/(^|[-/])(api|server|backend|service)s?$/.test(name)) return "service";',
+    to: "",
+    why: "an application named for what it is (openpage-api) is a service even when it uses Next.js",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (argv[i] === "-C" && !inside(argv[++i] ?? "/")) return false;',
+    to: 'if (argv[i] === "-C") i++;',
+    why: "git -C names a directory, which must be one the agent works in",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (sub === "branch" && !args.every((a) => BRANCH_LISTS.test(a))) return false;',
+    to: "",
+    why: "git branch with a name creates or deletes a branch",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "if (!GIT_READS.has(sub) || args.some((a) => GIT_WRITES_OR_RUNS.test(a))) return false;",
+    to: "if (!GIT_READS.has(sub)) return false;",
+    why: "git diff --output writes and --ext-diff runs a program",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (sub === "grep") {',
+    to: 'if (sub === "grip") {',
+    why: "a git grep pattern that looks like a path is not a path",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: '  "readlink",\n',
+    to: "",
+    why: "readlink only resolves a path",
+  },
+  {
     file: "packages/core/src/domain/read-only-command.ts",
     from: "else return false; // a redirection to a file",
     to: "else continue; // a redirection to a file",

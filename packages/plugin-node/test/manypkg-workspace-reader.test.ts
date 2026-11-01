@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { createMonorepo, MONOREPO_FILES, writeFixture } from "@metator/testing";
 import { ManypkgWorkspaceReader } from "../src/manypkg-workspace-reader.ts";
 
@@ -44,6 +44,23 @@ describe("ManypkgWorkspaceReader", () => {
     });
     expect((await new ManypkgWorkspaceReader(root).packages())._unsafeUnwrap()).toEqual([
       { name: "@p/one", dir: "libs/one" },
+    ]);
+  });
+
+  test("a package.json without a name is named after its directory, not an error", async () => {
+    const pnpm = await fixture({
+      "package.json": '{ "private": true }',
+      "pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
+      "pnpm-workspace.yaml": "packages:\n  - proxy\n  - '!**/test/**'\n",
+      "proxy/package.json": '{ "private": true }',
+    });
+    expect((await new ManypkgWorkspaceReader(pnpm).packages())._unsafeUnwrap()).toEqual([
+      { name: "proxy", dir: "proxy" },
+    ]);
+    const single = await fixture({ "package.json": '{ "private": true }', "pnpm-lock.yaml": "x: 1\n" });
+    const name = basename(single);
+    expect((await new ManypkgWorkspaceReader(single).packages())._unsafeUnwrap()).toEqual([
+      { name, dir: "." },
     ]);
   });
 

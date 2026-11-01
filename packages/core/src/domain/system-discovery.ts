@@ -79,6 +79,9 @@ export function kindFrom(
 ): Application["kind"] {
   if (/(^|[-/])(worker|jobs?|cron|consumer)s?($|[-/])/.test(name)) return "worker";
   if (/(^|[-/])gateway($|[-/])/.test(name)) return "gateway";
+  // A name that ends in what it is (`openpage-api`, `@acme/backend`) wins over the framework it
+  // renders with (a Next.js API): `api-client` or `server-utils` say nothing.
+  if (/(^|[-/])(api|server|backend|service)s?$/.test(name)) return "service";
   if (hasSpec || dependencies.some((d) => SERVICE.includes(d))) return "service";
   // A command-line tool is not a frontend, even when it draws with React (Ink).
   if (bin) return "other";

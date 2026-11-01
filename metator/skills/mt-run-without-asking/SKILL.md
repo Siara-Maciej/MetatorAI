@@ -8,7 +8,7 @@ description: Use when you are about to run a shell or metator command in a Metat
 Every stage of a run, before a Bash call. A command a person must allow stops the run until someone answers, and a guessed command only asks. Each row below was asked in real runs and answered the same way.
 
 # Steps
-1. Read and change files with Read, Edit and Write (JSON included). Find files with Glob and Grep; where your host has neither, a plain `grep -rn`, `rg`, `find <dir>`, `ls`, `cat`, `head`, `tail`, `wc` or `sed -n <a>,<b>p` runs without asking.
+1. Read and change files with Read, Edit and Write (JSON included). Find files with Glob and Grep; where your host has neither, a plain `grep -rn`, `rg`, `find <dir>`, `ls`, `cat`, `head`, `tail`, `wc`, `readlink`, `realpath` or `sed -n <a>,<b>p` runs without asking, and so does git that only reads.
 2. One command per call, with paths from the repository root. These always ask, so leave them out:
 
 | Instead of | Use |
@@ -19,11 +19,11 @@ Every stage of a run, before a Bash call. A command a person must allow stops th
 | `python -c`, `node -e`, `jq`, `awk` on a file | Read the file (JSON too); `sed -n <a>,<b>p` for a range |
 | a script that edits `plan.json`, `merged.json` or code | Edit (one change per call) or Write the whole file |
 | `mkdir -p`, `cp`, `mv`, `cat > file <<EOF`, `printf > file` | Write: it creates the directories it needs |
-| `git status`, `git log`, `git diff`, `git show`, `git grep` | `metator review diff --base HEAD [file]` for the change; `metator run status` for the base; Grep instead of `git grep` |
+| `git add`, `git commit`, `git checkout`, `git stash`, `git -c …`, `git diff --output` | nothing: the run commits at delivery; reading git (`status`, `log`, `show`, `diff`, `blame`, `grep`, `rev-parse`, `merge-base`, `ls-files`, `describe`, `branch --show-current`) runs without asking, also as `git -C <checkout>` |
 | a large diff dug out of a tool-result file | `metator review diff --base HEAD --out <run dir>/change.diff`, then Read it |
 | `find /`, `ls node_modules`, `node --version` | dependencies are not installed unless the stage says so: reason from the code |
 | `curl`, `wget`, any network call | none: work from the code and the run's decisions |
-| `readlink`, `realpath` on the run directory | `<worktree>/.metator/runs` is a link to the checkout's runs: both paths are the same files |
+| `readlink`, `realpath` outside the working directories | inside them both run without asking; `<worktree>/.metator/runs` is a link to the checkout's runs: both paths are the same files |
 | `metator ask` | read the code yourself: it starts another agent |
 | a metator command you think exists (`metator diff`, `metator run artifacts`, `metator run validate`, `metator gates status`, `metator review grep`) | `metator help`, and use only what it lists |
 | `metator guard …` | hooks run themselves; never run one |
@@ -38,7 +38,7 @@ No artifact: the commands you run, each in the form above.
 # Checklist
 - [ ] no `cd`, `..`, `$(…)`, backticks, loops or pipes into an interpreter
 - [ ] files read and written with Read, Edit and Write, never through the shell
-- [ ] the change seen through `metator review diff`, never git
+- [ ] the change seen through `metator review diff` or git that only reads; git never writes
 - [ ] every metator command is one `metator help` lists
 
 # Errors

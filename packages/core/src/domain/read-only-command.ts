@@ -22,6 +22,8 @@ const READERS = new Set([
   "uniq",
   "cut",
   "tr",
+  "readlink",
+  "realpath",
   "echo", // a separator between readers' output (`echo ---`); a redirection is refused anyway
 ]);
 
@@ -47,6 +49,50 @@ function sedPrint(argv: readonly string[], inside: (arg: string) => boolean): bo
     /^(\d+|\$)(,(\d+|\$))?p(;(\d+|\$)(,(\d+|\$))?p)*$/.test(script as string) &&
     files.every((f) => !f.startsWith("-") && inside(f))
   );
+}
+
+/** git subcommands that only read the repository and print. */
+const GIT_READS = new Set([
+  "status",
+  "log",
+  "show",
+  "diff",
+  "rev-parse",
+  "merge-base",
+  "ls-files",
+  "blame",
+  "grep",
+  "describe",
+  "branch",
+]);
+/** `git branch` lists only with these options; any other (a name, `-d`, `-m`) changes branches. */
+const BRANCH_LISTS = /^(--show-current|--list|-a|--all|-r|--remotes|-v|-vv|--verbose)$/;
+/** Options that make a reading git command write a file or run a program. */
+const GIT_WRITES_OR_RUNS = /^(--output(=|$)|--ext-diff$|--textconv$|-O|--open-files-in-pager(=|$))/;
+
+/**
+ * `git status`, `git log --oneline -5`, `git -C <dir> diff HEAD -- src`: git that only reads. Before
+ * the subcommand only `-C <dir inside the directories>` and `--no-pager` (a `-c` sets config that
+ * could run a program); after it, every word that is not a search pattern is checked as a path.
+ */
+function gitRead(argv: readonly string[], inside: (arg: string) => boolean): boolean {
+  if (argv[0] !== "git") return false;
+  let i = 1;
+  for (; argv[i] === "-C" || argv[i] === "--no-pager"; i++) {
+    if (argv[i] === "-C" && !inside(argv[++i] ?? "/")) return false;
+  }
+  const sub = argv[i] as string;
+  const args = argv.slice(i + 1);
+  if (!GIT_READS.has(sub) || args.some((a) => GIT_WRITES_OR_RUNS.test(a))) return false;
+  if (sub === "branch" && !args.every((a) => BRANCH_LISTS.test(a))) return false;
+  const patterns = new Set<number>();
+  if (sub === "grep") {
+    args.forEach((a, j) => {
+      if (a === "-e") patterns.add(j + 1);
+    });
+    if (patterns.size === 0) patterns.add(args.findIndex((a) => !a.startsWith("-")));
+  }
+  return args.every((a, j) => patterns.has(j) || inside(a.includes("=") ? a.slice(a.indexOf("=") + 1) : a));
 }
 
 /** `metator …`, also as the repository runs it (`bun run metator …`, `npx metator …`). */
@@ -175,7 +221,7 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
       if (argv.length === 0) return i === commands.length - 1 && i > 0; // a trailing `;`
       const metator = asMetator(argv);
       if (metator && (metatorHelp(metator) || metatorQuery(metator))) return true;
-      if (sedPrint(argv, inside)) return true;
+      if (sedPrint(argv, inside) || gitRead(argv, inside)) return true;
       const [program, ...args] = argv;
       if (!program || !READERS.has(program)) return false;
       const forbidden = WRITES_OR_RUNS[program];

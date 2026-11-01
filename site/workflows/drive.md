@@ -76,7 +76,7 @@ metator run answer q003 --text "use EUR, never mix currencies" --by alice   # Ot
 
 **What a worker may do without asking** (Claude Code):
 - the MetatorAI commands its definition names (`Bash(metator plan:*)` and the like), one command per call;
-- reading and searching in the repository, the run directory and the linked repositories, also through the shell when the command only reads (`grep`, `sed -n`, `cat`, read-only `metator` queries such as `graph`, `api diff` or `findings validate`);
+- reading and searching in the repository, the run directory and the linked repositories, also through the shell when the command only reads (`grep`, `sed -n`, `cat`, `readlink`, git that only reads such as `git status`, `git log` or `git diff` without `--output` or `--ext-diff`, read-only `metator` queries such as `graph`, `api diff` or `findings validate`);
 - writing its artifacts into the run directory;
 - editing files inside the run's own worktree. The worktree is isolated, and nothing leaves it without you: a push always needs `metator run approve push`.
 
