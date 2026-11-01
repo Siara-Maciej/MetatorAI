@@ -351,3 +351,40 @@ export function declaredWithDocument(command: string, declared: readonly string[
   if (/[`;|&<>]|\$/.test(head)) return false;
   return declared.some((p) => head === p || head.startsWith(`${p} `));
 }
+
+/**
+ * Writing a run's own artifact through the shell, as some agents do instead of their Write tool:
+ * `mkdir -p <dir>`, `cat > <file> <<'EOF' … EOF` (a quoted here-document, nothing expands), or the
+ * two joined by `&&` or `;`. Every path must be inside the run directory (`runDirs`: as given and
+ * where it really is), the same files the Write tool may write there without asking.
+ */
+export function runArtifactWrite(command: string, runDirs: readonly string[], cwd: string): boolean {
+  const doc = /^([\s\S]*?)<<-?\s*(['"])([A-Za-z_]\w*)\2[ \t]*\n[\s\S]*?\n\3[ \t]*\n?$/.exec(command);
+  const head = doc ? (doc[1] as string) : command;
+  if (/[`\n\r|<]|\$/.test(head)) return false;
+  const parts = head
+    .split(/&&|;/)
+    .map((p) => p.trim())
+    .filter((p) => p !== "");
+  if (parts.length === 0) return false;
+  const inRun = (path: string) => {
+    const abs = path.startsWith("/") ? path : `${cwd.replace(/\/$/, "")}/${path}`;
+    return (
+      !abs.split("/").includes("..") &&
+      runDirs.some((d) => abs === d.replace(/\/$/, "") || abs.startsWith(`${d.replace(/\/$/, "")}/`))
+    );
+  };
+  let writes = 0;
+  for (const [i, part] of parts.entries()) {
+    const mkdir = /^mkdir\s+-p\s+(\S+)$/.exec(part);
+    if (mkdir) {
+      if (!inRun(mkdir[1] as string)) return false;
+      continue;
+    }
+    // Only the last part may take the here-document, and only `cat > <file>` takes one.
+    const cat = /^cat\s*>\s*(\S+)$/.exec(part);
+    if (!cat || !doc || i !== parts.length - 1 || !inRun(cat[1] as string)) return false;
+    writes++;
+  }
+  return writes === 1 || (!doc && writes === 0);
+}

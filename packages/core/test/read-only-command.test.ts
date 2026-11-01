@@ -4,6 +4,7 @@ import {
   declaredWithDocument,
   deliveryCommand,
   readOnlyCommand,
+  runArtifactWrite,
 } from "../src/domain/read-only-command.ts";
 
 const DIRS = ["/folder", "/repo/.metator/runs/r"];
@@ -280,5 +281,36 @@ describe("declaredWithDocument", () => {
         "metator run write task.md",
       ].map((c) => declaredWithDocument(c, declared)),
     ).toEqual(Array(8).fill(false));
+  });
+});
+
+describe("runArtifactWrite", () => {
+  const runs = ["/repo/.metator/runs/r", "/repo/.metator/wt/r/.metator/runs/r"];
+  const cwd = "/repo/.metator/wt/r";
+  const w = (command: string) => runArtifactWrite(command, runs, cwd);
+  test("mkdir and a quoted here-document into the run directory, as the Write tool would", () => {
+    expect(
+      [
+        "mkdir -p .metator/runs/r/findings",
+        "cat > .metator/runs/r/findings/tests.json <<'E'\n{\"findings\": []}\nE",
+        "mkdir -p .metator/runs/r/findings && cat > .metator/runs/r/findings/x.json <<'EOF'\n$HOME `ls`\nEOF",
+        'cat > /repo/.metator/runs/r/pr.md <<"END"\nbody\nEND\n',
+      ].map(w),
+    ).toEqual([true, true, true, true]);
+  });
+  test("outside the run directory, an unquoted document, or anything else is not", () => {
+    expect(
+      [
+        "cat > src/index.js <<'E'\nx\nE",
+        "cat > .metator/runs/r/../../../src/a.js <<'E'\nx\nE",
+        "mkdir -p /tmp/x",
+        "cat > .metator/runs/r/x.json <<E\n$(rm -rf src)\nE",
+        "cat > .metator/runs/r/a <<'E'\nx\nE\nrm -rf src",
+        "rm -rf .metator/runs/r",
+        "cat > .metator/runs/r/a <<'E'\nx\nE && rm x",
+        "mkdir -p .metator/runs/r/f; rm -rf src",
+        "cat .metator/runs/r/a",
+      ].map(w),
+    ).toEqual(Array(9).fill(false));
   });
 });

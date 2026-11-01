@@ -12,6 +12,7 @@ import {
   deliveryCommand,
   permissionResponse,
   readOnlyCommand,
+  runArtifactWrite,
   runControlCommand,
   secretPath,
 } from "@metator/core";
@@ -145,6 +146,10 @@ export class ClaudeAgentHost implements AgentHost {
     // nothing leaves it without a person, push needs an approval). A write anywhere else, the
     // checkout itself included, asks a person. A file that may hold secrets is denied before this.
     // The commands the agent's definition declares (`Bash(metator findings:*)` → `metator findings`).
+    // The run directory as given, where it really is, and as the worktree reaches it (its
+    // `.metator/runs` is a link to the checkout's).
+    const runs = /\/(\.metator\/runs\/.+)$/.exec(task.runDir)?.[1];
+    const runDirs = [task.runDir, real(task.runDir), ...(runs ? [join(task.cwd, runs)] : [])];
     const declared = declaredCommands(join(task.projectRoot, ".claude", "agents", `${task.agent}.md`)).map(
       (t) => t.slice("Bash(".length, -":*)".length),
     );
@@ -158,7 +163,8 @@ export class ClaudeAgentHost implements AgentHost {
               (task.approved ?? []).includes("push") &&
               deliveryCommand(input.command, [task.cwd])) ||
             declaredAfterCd(input.command, declared, dirs) ||
-            declaredWithDocument(input.command, declared))
+            declaredWithDocument(input.command, declared) ||
+            runArtifactWrite(input.command, runDirs, task.cwd))
         );
       const file = input.file_path ?? input.path ?? task.cwd;
       if (typeof file !== "string") return false;

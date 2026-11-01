@@ -177,8 +177,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-agent-host.ts",
-    from: "declaredWithDocument(input.command, declared))",
-    to: "false)",
+    from: "declaredWithDocument(input.command, declared) ||",
+    to: "false ||",
     why: "a declared command fed a quoted here-document asks no one",
   },
   {
@@ -228,6 +228,18 @@ export const MUTANTS: readonly Mutant[] = [
     from: "return `${context}\\n\\n${question}`;",
     to: "return question;",
     why: "the person sees the options the agent listed",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: '    const abs = path.startsWith("/") ? path : `${cwd.replace(/\\/$/, "")}/${path}`;\n    return (\n      !abs.split("/").includes("..") &&',
+    to: '    const abs = path.startsWith("/") ? path : `${cwd.replace(/\\/$/, "")}/${path}`;\n    return (',
+    why: "a path out of the run directory through .. is no run artifact",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: "runArtifactWrite(input.command, runDirs, task.cwd))",
+    to: "false)",
+    why: "a run artifact written through the shell into the run directory asks no one",
   },
   {
     file: "packages/core/src/application/paths.ts",

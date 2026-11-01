@@ -74,6 +74,8 @@ describe("ClaudeAgentHost", () => {
       await can("Bash", { command: "cd /etc && metator plan scope x" });
       // A declared command fed a quoted here-document (an artifact on stdin) asks no one either.
       await can("Bash", { command: "metator plan scope x <<'EOF'\nbody\nEOF" });
+      // A run artifact written through the shell into the run directory asks no one either.
+      await can("Bash", { command: "cat > /repo/.metator/runs/r/findings/x.json <<'EOF'\n{}\nEOF" });
       return [init, success];
     });
     await collect(new ClaudeAgentHost(query), { ...task, projectRoot: root }, async (q) => {
