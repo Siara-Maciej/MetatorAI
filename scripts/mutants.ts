@@ -290,6 +290,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a type test (index.test-d.ts) is a test file, so its dev-only imports are fine",
   },
   {
+    file: "packages/core/src/domain/architecture-policy.ts",
+    from: '  "**/*.test-d.*",\n',
+    to: "",
+    why: "a type test may import its devDependencies (tsd)",
+  },
+  {
     file: "packages/core/src/domain/read-only-command.ts",
     from: "i++; // an escaped character is literal",
     to: "",

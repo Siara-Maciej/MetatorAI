@@ -328,6 +328,14 @@ describe("analyzeArchitecture: declarations", () => {
       imports: [imp("packages/ui/test/button.test.ts", "packages/core/src/money.ts", "@x/core")],
     });
     expect(ids(testOnly)).toEqual([]);
+    // A type test (index.test-d.ts) and a root test.js are tests too.
+    for (const file of ["packages/ui/index.test-d.ts", "packages/ui/test.js"]) {
+      const typeTest = input({
+        manifests: { packages: [WEB, dev, CORE] },
+        imports: [imp(file, "packages/core/src/money.ts", "@x/core")],
+      });
+      expect([file, ids(typeTest)]).toEqual([file, []]);
+    }
   });
 
   test("tool configuration may use devDependencies: it runs at build or check time", () => {

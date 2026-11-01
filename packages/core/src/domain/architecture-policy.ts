@@ -68,6 +68,11 @@ export const ARCH_TEST_GLOBS: readonly string[] = [
   "**/fixtures/**",
   "**/*.test.*",
   "**/*.spec.*",
+  // NestJS end-to-end tests (app.e2e-spec.ts) and type tests (index.test-d.ts).
+  "**/*.e2e-spec.*",
+  "**/*.test-d.*",
+  // A single test file named after what it is: sindresorhus's test.js.
+  "**/{test,tests,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
   "**/*.stories.*",
 ];
 
