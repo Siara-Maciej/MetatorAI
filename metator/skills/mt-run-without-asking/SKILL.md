@@ -28,6 +28,7 @@ Every stage of a run, before a Bash call. A command a person must allow stops th
 | `curl`, `wget`, any network call | none: work from the code and the run's decisions |
 | `readlink`, `realpath` outside the working directories | inside them both run without asking; `<worktree>/.metator/runs` is a link to the checkout's runs: both paths are the same files |
 | `metator ask` | read the code yourself: it starts another agent |
+| `./metator`, `npx metator`, `bun run metator`, `cmd1 \|\| cmd2` fallbacks | `metator <command>` alone: it is on PATH |
 | MetatorAI's own source (to find a schema or a command's options) | `metator plan schema`, `metator run schema <artifact>`, `metator findings schema`, `metator <command> --help` |
 | a metator command you think exists (`metator diff`, `metator run artifacts`, `metator run validate`, `metator gates status`, `metator review grep`) | `metator help`, and use only what it lists |
 | `metator guard …` | hooks run themselves; never run one |
