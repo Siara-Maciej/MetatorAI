@@ -1674,6 +1674,14 @@ metator run status [options]
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
 
+### `metator run published`
+
+Whether the run's work is published: nothing uncommitted, and origin's branch at the checked-out commit (the publish gate)
+
+```bash
+metator run published [options]
+```
+
 ### `metator run schema`
 
 Print the JSON Schema of a run artifact written by a worker

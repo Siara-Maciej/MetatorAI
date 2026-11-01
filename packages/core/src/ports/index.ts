@@ -12,6 +12,7 @@ import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domai
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
+import type { PublishedBranch } from "../domain/publication.ts";
 import type { Result } from "../domain/result.ts";
 import type { Skill } from "../domain/skill.ts";
 import type { ModuleSymbols } from "../domain/symbols.ts";
@@ -183,6 +184,11 @@ export interface Vcs {
   listFiles(): Promise<Result<readonly string[], MetatorError>>;
   /** URL of the `origin` remote (or the first one); undefined when there is none. */
   remoteUrl(): Promise<Result<string | undefined, MetatorError>>;
+}
+
+export interface BranchPublication {
+  /** Asks `origin` itself (`git ls-remote`), not a remote-tracking ref a single-branch clone lacks. */
+  published(): Promise<Result<PublishedBranch, MetatorError>>;
 }
 
 /** The change itself as a unified diff (`review diff`): what a reviewer reads besides the files. */

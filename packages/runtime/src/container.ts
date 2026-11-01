@@ -19,6 +19,7 @@ import {
   type BaseArchitectureFacts,
   type BinResolver,
   type BranchHistory,
+  type BranchPublication,
   type BuildImportGraph,
   type BuildModuleCards,
   type ChangeHistory,
@@ -28,6 +29,7 @@ import {
   type CheckFlaky,
   type CheckMemory,
   type CheckoutReader,
+  type CheckPublished,
   type CheckpointRun,
   type CheckQuote,
   type CheckRules,
@@ -368,7 +370,8 @@ export interface Cradle {
   describeReviewedChange: DescribeReviewedChange;
   branchHistory: BranchHistory;
   showChangeDiff: ShowChangeDiff;
-  changePatch: ChangePatch & Vcs;
+  checkPublished: CheckPublished;
+  changePatch: ChangePatch & Vcs & BranchPublication;
   judgeFindings: JudgeFindings;
   formatReviewComments: FormatReviewComments;
   evalCatalog: EvalCatalog;

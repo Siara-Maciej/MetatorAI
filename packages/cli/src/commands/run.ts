@@ -253,6 +253,17 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     );
 
   runs
+    .command("published")
+    .description(
+      "Whether the run's work is published: nothing uncommitted, and origin's branch at the checked-out commit (the publish gate)",
+    )
+    .action(
+      action(async () => ({
+        result: await container().resolve("checkPublished").execute(),
+      })),
+    );
+
+  runs
     .command("schema")
     .description("Print the JSON Schema of a run artifact written by a worker")
     // `analysis.json`, as a stage's `produces` names it, is the same artifact as `analysis`.

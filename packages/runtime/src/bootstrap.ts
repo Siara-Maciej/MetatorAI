@@ -25,6 +25,7 @@ import {
   CheckDebugTags,
   CheckFlaky,
   CheckMemory,
+  CheckPublished,
   CheckpointRun,
   CheckQuote,
   CheckRules,
@@ -833,6 +834,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new PlanReview(vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores),
     ),
     showChangeDiff: asFunction(({ changePatch, fileSystem }) => new ShowChangeDiff(changePatch, fileSystem)),
+    checkPublished: asFunction(({ changePatch }) => new CheckPublished(changePatch)),
     describeReviewedChange: asFunction(
       ({ vcs, branchHistory, fileSystem }) => new DescribeReviewedChange(vcs, branchHistory, fileSystem),
     ),

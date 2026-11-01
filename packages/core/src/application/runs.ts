@@ -1,10 +1,11 @@
 import slugify from "@sindresorhus/slugify";
 import { MetatorError } from "../domain/errors.ts";
+import { type PublishedBranch, publicationProblem } from "../domain/publication.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run-machine.ts";
 import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "../domain/run-record.ts";
 import type { WorkflowSpec } from "../domain/workflow-spec.ts";
-import type { Clock, FileSystem } from "../ports/index.ts";
+import type { BranchPublication, Clock, FileSystem } from "../ports/index.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { CreateWorktree } from "./worktrees.ts";
@@ -424,5 +425,27 @@ export class ListRuns {
       rows.push({ runId, workflow: workflow.id, stage: state.stage, status: state.status, updatedAt });
     }
     return ok(rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  }
+}
+
+/**
+ * `run published`: the publish stage's gate. The run's work is published when nothing is left
+ * uncommitted and origin's branch is at the commit checked out (asked of origin itself).
+ */
+export class CheckPublished {
+  constructor(private readonly branch: BranchPublication) {}
+
+  async execute(): Promise<Result<PublishedBranch, MetatorError>> {
+    const state = await this.branch.published();
+    if (state.isErr()) return err(state.error);
+    const problem = publicationProblem(state.value);
+    return problem
+      ? err(
+          new MetatorError("CHECK_FAILED", `not published: ${problem}`, {
+            hint: "Commit and push the run's branch; the publish stage passes when origin holds it.",
+            details: { ...state.value },
+          }),
+        )
+      : ok(state.value);
   }
 }

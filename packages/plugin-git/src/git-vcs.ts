@@ -3,11 +3,13 @@ import { join } from "node:path";
 import {
   type BranchCommit,
   type BranchHistory,
+  type BranchPublication,
   type ChangeHistory,
   type ChangePatch,
   err,
   MetatorError,
   ok,
+  type PublishedBranch,
   type Result,
   type RevisionReader,
   type Vcs,
@@ -21,7 +23,9 @@ import { type SimpleGit, simpleGit } from "simple-git";
  * that differs from the merge base with `base`: committed on the branch, staged, unstaged,
  * deleted and untracked (non-ignored) files. Paths are repo-relative.
  */
-export class GitVcs implements Vcs, RevisionReader, ChangeHistory, BranchHistory, ChangePatch {
+export class GitVcs
+  implements Vcs, RevisionReader, ChangeHistory, BranchHistory, ChangePatch, BranchPublication
+{
   private client: SimpleGit | undefined;
 
   constructor(
@@ -210,6 +214,24 @@ export class GitVcs implements Vcs, RevisionReader, ChangeHistory, BranchHistory
           commits.push({ sha, author, email, date, subject: subject ?? "" });
       }
       return ok({ branch, head, mergeBase, commits, uncommitted });
+    });
+  }
+
+  async published(): Promise<Result<PublishedBranch, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      const branch = (await git.value.revparse(["--abbrev-ref", "HEAD"])).trim();
+      const head = (await git.value.revparse(["HEAD"])).trim();
+      const listed = (await git.value.raw(["ls-remote", "origin", `refs/heads/${branch}`])).trim();
+      const status = await git.value.status();
+      const mine = (f: string) => !this.own.some((p) => f.startsWith(p));
+      return ok({
+        branch,
+        head,
+        remote: listed === "" ? null : (listed.split(/\s+/)[0] ?? null),
+        uncommitted: sortedUnique(status.files.map((f) => f.path)).filter(mine),
+      });
     });
   }
 

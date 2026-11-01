@@ -146,6 +146,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "git's @{u} is no workflow input",
   },
   {
+    file: "packages/core/src/domain/publication.ts",
+    from: "if (p.remote !== p.head)",
+    to: "if (false)",
+    why: "a branch origin holds at an older commit is not published",
+  },
+  {
+    file: "packages/core/src/domain/publication.ts",
+    from: "if (p.uncommitted.length > 0)",
+    to: "if (false)",
+    why: "uncommitted work is not published",
+  },
+  {
+    file: "packages/plugin-git/src/git-vcs.ts",
+    from: 'remote: listed === "" ? null : (listed.split(/\\s+/)[0] ?? null),',
+    to: "remote: null,",
+    why: "the branch on origin is asked of origin itself",
+  },
+  {
     file: "packages/core/src/application/runs.ts",
     from: "...Object.fromEntries(granted.map((g) => [g, given])),",
     to: "",

@@ -93,7 +93,7 @@ describe("shipped workflows", () => {
       const publish = spec.stages.find((s) => s.id === "publish");
       expect([delivery?.grants, publish?.gate?.script, publish?.onFail?.goto]).toEqual([
         ["push"],
-        "git diff --quiet @{u}",
+        "metator run published",
         "publish",
       ]);
     }

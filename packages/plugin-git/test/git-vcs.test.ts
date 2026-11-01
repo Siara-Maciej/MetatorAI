@@ -358,3 +358,31 @@ describe("GitVcs.patch", () => {
     expect([one.includes("a.ts"), one.includes("new.ts")]).toEqual([false, true]);
   });
 });
+
+describe("GitVcs published", () => {
+  test("asks origin itself: a single-branch clone's pushed branch counts, an unpushed commit does not", async () => {
+    const upstream = await repo();
+    await writeFile(join(upstream, "a.ts"), "a");
+    await sh(upstream, "add", ".");
+    await sh(upstream, "commit", "-qm", "init");
+    const bare = await mkdtemp(join(tmpdir(), "metator-bare-"));
+    dirs.push(bare);
+    await sh(bare, "clone", "-q", "--bare", upstream, ".");
+    const clone = await mkdtemp(join(tmpdir(), "metator-clone-"));
+    dirs.push(clone);
+    // --single-branch: pushing another branch leaves no remote-tracking ref for it.
+    await sh(clone, "clone", "-q", "--single-branch", `file://${bare}`, ".");
+    await sh(clone, "switch", "-qc", "metator/r");
+    await writeFile(join(clone, "b.ts"), "b");
+    await writeFile(join(clone, ".metator-own"), "x");
+    const vcs = new GitVcs(clone, [".metator-own"]);
+
+    const before = (await vcs.published())._unsafeUnwrap();
+    expect([before.branch, before.remote, before.uncommitted]).toEqual(["metator/r", null, ["b.ts"]]);
+    await sh(clone, "add", "b.ts");
+    await sh(clone, "commit", "-qm", "b");
+    await sh(clone, "push", "-q", "origin", "metator/r");
+    const after = (await vcs.published())._unsafeUnwrap();
+    expect([after.remote, after.uncommitted]).toEqual([after.head, []]);
+  });
+});

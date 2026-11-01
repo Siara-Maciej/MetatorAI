@@ -187,6 +187,7 @@ describe("metator CLI (process e2e)", () => {
       "run handoff",
       "run close",
       "run status",
+    "run published",
       "run schema",
       "run list",
       "run continue",

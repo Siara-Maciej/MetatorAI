@@ -136,6 +136,7 @@ const METATOR_QUERIES = new Set([
   "run questions",
   "run list",
   "run schema",
+  "run published",
   "config show",
   "changed",
   "findings schema",

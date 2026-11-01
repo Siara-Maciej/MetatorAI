@@ -57,8 +57,8 @@ stages:
   - id: publish
     owner: mt-pr-author
     produces: [pr.md]
-    # Done only when the change is committed and pushed: the branch's upstream holds the working tree.
-    gate: { script: "git diff --quiet @{u}" }
+    # Done only when the change is committed and origin's branch is at the checked-out commit.
+    gate: { script: metator run published }
     onFail: { goto: publish, loop: publish }
 loops: { plan: 2, build: 2, review: 3, publish: 1 }
 escalation:
