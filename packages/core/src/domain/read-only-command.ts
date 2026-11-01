@@ -93,6 +93,8 @@ function gitRead(argv: readonly string[], inside: (arg: string) => boolean): boo
     });
     if (patterns.size === 0) patterns.add(args.findIndex((a) => !a.startsWith("-")));
   }
+  // ls-remote names a remote (a URL, a name or a bare repository's path), and refs: no file here.
+  if (sub === "ls-remote") return !args.some((a) => /^--(upload-pack|exec)(=|$)/.test(a));
   return args.every((a, j) => patterns.has(j) || inside(a.includes("=") ? a.slice(a.indexOf("=") + 1) : a));
 }
 

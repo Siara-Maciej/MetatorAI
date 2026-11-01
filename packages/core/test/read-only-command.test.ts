@@ -153,8 +153,9 @@ describe("readOnlyCommand", () => {
         "git describe --tags",
         "git log --format=%H -1",
         "git ls-remote origin refs/heads/metator/r",
+        "git ls-remote /srv/remotes/app.git metator/r",
       ].map(ro),
-    ).toEqual(Array(15).fill(true));
+    ).toEqual(Array(16).fill(true));
     expect(
       [
         "git push",
@@ -168,12 +169,13 @@ describe("readOnlyCommand", () => {
         "git diff --ext-diff",
         "git log -p --textconv",
         "git grep -O offers",
+        "git ls-remote --upload-pack=evil origin",
         "git grep --open-files-in-pager=vim offers",
         "git show HEAD -- /etc/passwd",
         "git -C",
         "git",
       ].map(ro),
-    ).toEqual(Array(15).fill(false));
+    ).toEqual(Array(16).fill(false));
   });
 
   test("readlink and realpath resolve paths inside the working directories", () => {

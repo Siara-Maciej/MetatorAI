@@ -188,6 +188,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a gitignored .claude/ still reaches the worktree",
   },
   {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (sub === "ls-remote") return !args.some((a) => /^--(upload-pack|exec)(=|$)/.test(a));',
+    to: 'if (sub === "ls-remote") return true;',
+    why: "ls-remote --upload-pack runs a program",
+  },
+  {
     file: "packages/core/src/application/paths.ts",
     from: '  "**/{test,tests,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",\n',
     to: "",
