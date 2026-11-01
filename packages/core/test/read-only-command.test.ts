@@ -203,6 +203,26 @@ describe("deliveryCommand", () => {
       ].map(go),
     ).toEqual([true, true, true, true, true, true, true]);
   });
+  test("a message keeps what the shell leaves literal; the push may name the run's branch through HEAD", () => {
+    expect(
+      [
+        'git commit -m "keys carry a \\$ prefix" -m "second\nparagraph"',
+        "git commit -m 'it costs $5 and `nothing` runs'",
+        'git commit -m "a \\"quoted\\" word"',
+        "git push origin HEAD:metator/20261101-run",
+        "git push -u origin HEAD:refs/heads/metator/20261101-run",
+      ].map(go),
+    ).toEqual([true, true, true, true, true]);
+    expect(
+      [
+        'git commit -m "x `rm -rf src`"',
+        "git commit -m 'a'\"$(rm -rf src)\"",
+        "git push origin main",
+        "git push origin HEAD:main",
+        "git push origin HEAD:refs/heads/main",
+      ].map(go),
+    ).toEqual([false, false, false, false, false]);
+  });
   test("never a force push, an amend, a skipped hook, a setting, another remote or a path outside", () => {
     expect(
       [

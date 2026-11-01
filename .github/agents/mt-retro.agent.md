@@ -18,7 +18,7 @@ user-invocable: false
 # Procedure
 1. Find what cost loops: failed gates, plan revisions, review findings, escalations (`bun run metator run status --run <id>`).
 2. For each, the root cause and the check that would have caught it earlier.
-3. Propose lessons with a citation (`[[cite: file:line | "quote"]]`) and, where a tool can decide it, a rule for the canon (E1). After a human approves one, write it with `bun run metator lessons add`.
+3. Propose lessons with a citation (`[[cite: file:line | "quote"]]`) and, where a tool can decide it, a rule for the canon (E1). Write each with the exact `bun run metator lessons add` command that records it; never run it and never ask for approval: a person reads `retro.md` after the run and runs the ones they approve.
 
 # Output
 - `retro.md`: findings, proposed lessons and rules, each with its evidence.

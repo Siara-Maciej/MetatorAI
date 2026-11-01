@@ -262,7 +262,34 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
 }
 
 /** A branch name to push: no option, no refspec (`:branch` deletes, `a:b` renames). */
-const BRANCH = /^[A-Za-z0-9][\w./-]*$/;
+/** A run's branch (`metator/<run id>`), by name or as the target of `HEAD:`. */
+const RUN_BRANCH = /^(HEAD:(refs\/heads\/)?)?metator\/[A-Za-z0-9][\w.-]*$/;
+
+/**
+ * The command with each quoted span emptied, and whether the shell would expand anything in it:
+ * `$` or a backtick outside single quotes and not escaped. Inside single quotes both are literal.
+ */
+function shellQuotes(command: string): { readonly unquoted: string; readonly expands: boolean } {
+  let unquoted = "";
+  let expands = false;
+  let quote: "'" | '"' | undefined;
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i] as string;
+    if (quote === "'") {
+      if (c === "'") quote = undefined;
+    } else if (c === "\\") {
+      i++; // an escaped character is literal
+      if (!quote) unquoted += "_";
+    } else if (c === "$" || c === "`") expands = true;
+    else if (quote === '"') {
+      if (c === '"') quote = undefined;
+    } else if (c === "'" || c === '"') {
+      quote = c;
+      unquoted += "''";
+    } else unquoted += c;
+  }
+  return { unquoted, expands };
+}
 
 /** What `git commit` may take: a message, all tracked changes, quiet. */
 const COMMIT_OPTIONS = /^(-m|--message|-a|--all|-q|--quiet)$/;
@@ -275,8 +302,8 @@ const COMMIT_OPTIONS = /^(-m|--message|-a|--all|-q|--quiet)$/;
  */
 export function deliveryCommand(command: string, dirs: readonly string[]): boolean {
   // A commit message may span lines inside its quotes; a line break outside them starts a command.
-  const unquoted = command.replace(/'[^']*'|"[^"\\]*"/g, "''");
-  if (/[\n\r]/.test(unquoted) || /[`$]/.test(command)) return false;
+  const { unquoted, expands } = shellQuotes(command);
+  if (/[\n\r]/.test(unquoted) || expands) return false;
   const parts: string[][] = [[]];
   for (const token of parse(command)) {
     if (typeof token === "string") (parts.at(-1) as string[]).push(token);
@@ -306,7 +333,7 @@ export function deliveryCommand(command: string, dirs: readonly string[]): boole
     }
     if (sub === "push") {
       const words = args.filter((a) => !/^(-u|--set-upstream|-q|--quiet)$/.test(a));
-      return words.length === 2 && words[0] === "origin" && BRANCH.test(words[1] as string);
+      return words.length === 2 && words[0] === "origin" && RUN_BRANCH.test(words[1] as string);
     }
     return false;
   };

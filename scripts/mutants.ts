@@ -218,6 +218,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "git -C names a directory the agent works in",
   },
   {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "i++; // an escaped character is literal",
+    to: "",
+    why: "an escaped $ or quote in a commit message is literal",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: '} else if (c === "$" || c === "`") expands = true;',
+    to: "}",
+    why: "a commit message that would run a command asks a person",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "const RUN_BRANCH = /^(HEAD:(refs\\/heads\\/)?)?metator\\/[A-Za-z0-9][\\w.-]*$/;",
+    to: "const RUN_BRANCH = /^(HEAD:(refs\\/heads\\/)?)?[A-Za-z0-9][\\w./-]*$/;",
+    why: "the approved push publishes only the run's branch",
+  },
+  {
     file: "packages/core/src/application/drive.ts",
     from: 'if (limit) return ok({ type: "STOP", reason: limitReason(agent, limit) });\n        return ok({ type: "FAIL"',
     to: 'return ok({ type: "FAIL"',
@@ -327,7 +345,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
-    from: 'return words.length === 2 && words[0] === "origin" && BRANCH.test(words[1] as string);',
+    from: 'return words.length === 2 && words[0] === "origin" && RUN_BRANCH.test(words[1] as string);',
     to: "return true;",
     why: "a push names origin and one branch, never a refspec or a force",
   },

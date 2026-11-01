@@ -74,7 +74,7 @@ When `src/tax.ts` changes to `0.21`, `docs drift` fails with `1 drifted`. The do
 
 ## Lessons
 
-After a run, `mt-retro` proposes lessons. Once you approve one, it is written with evidence:
+After a run, `mt-retro` proposes lessons in the run's `retro.md` without stopping the run to ask. Each proposal comes with the command that records it; run the ones you approve:
 
 ```bash
 metator lessons add --title "Guard negative totals" \
