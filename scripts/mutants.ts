@@ -219,6 +219,18 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
+    from: 'if (limit) return ok({ type: "STOP", reason: limitReason(agent, limit) });\n        return ok({ type: "FAIL"',
+    to: 'return ok({ type: "FAIL"',
+    why: "an AI host out of capacity stops the drive instead of escalating the run",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
+    from: "hit your (session|usage|weekly|daily) limit|",
+    to: "",
+    why: "a host's session limit is told apart from a failing agent",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
     from: "prompt: blockedPrompt(result.value.text, status.question),",
     to: "prompt: status.question,",
     why: "a blocked agent's question carries what it wrote before it",

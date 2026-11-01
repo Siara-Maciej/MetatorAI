@@ -18,6 +18,7 @@ import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import {
   blockedPrompt,
   gatePrompt,
+  hostLimit,
   nextQuestionId,
   parseCriticVerdict,
   parseStatus,
@@ -60,6 +61,15 @@ describe("drive domain", () => {
       question: "which currency?",
     });
     expect(parseStatus("no marker at all")).toBeUndefined();
+  });
+
+  test("a host's limit is told apart from any other failure", () => {
+    expect(hostLimit("Error\nYou've hit your session limit · resets 3:50pm (UTC)")).toBe(
+      "You've hit your session limit · resets 3:50pm (UTC)",
+    );
+    expect(hostLimit("API Error: 429 Too Many Requests")).toBe("API Error: 429 Too Many Requests");
+    expect(hostLimit("Overloaded, try again")).toBe("Overloaded, try again");
+    expect(hostLimit("TypeError: cannot read x of undefined")).toBeUndefined();
   });
 
   test("a blocked agent's question comes with what it wrote before it", () => {
@@ -667,6 +677,23 @@ loops:
     expect([plans.length, plans[1]?.includes("drop the node:test files")]).toEqual([2, true]);
   });
 
+  test("an AI host out of capacity stops the drive; the run waits at its stage, not escalated", async () => {
+    const w = world(
+      { "mt-planner": [{ ok: false, text: "You've hit your session limit · resets 3:50pm (UTC)" }] },
+      () => ({ choices: ["Approve"] }),
+      okScripts(),
+    );
+    const runId = await w.start();
+    await w.drive.execute({ runId, host: "fake" });
+    const record = (await w.repo.load(runId))._unsafeUnwrap();
+    expect([record.state.stage, record.state.status]).toEqual(["plan", "active"]);
+    const stopped = (await w.journal.activity(runId))
+      ._unsafeUnwrap()
+      .find((e) => e.type === "drive" && e.text.startsWith("stopped:"));
+    expect(stopped?.text).toContain("You've hit your session limit · resets 3:50pm (UTC)");
+    expect(stopped?.text).toContain("metator run continue");
+  });
+
   test("a blocked agent asks a person and resumes its session with the answer", async () => {
     const w = world(
       {
@@ -776,18 +803,14 @@ loops:
       "FAIL: `metator index build --base {base|HEAD}` failed: index: parse error in a.ts",
     ]);
 
-    const w2 = world(
-      { "mt-planner": [{ ok: false, text: "model overloaded" }] },
-      () => undefined,
-      okScripts(),
-    );
+    const w2 = world({ "mt-planner": [{ ok: false, text: "tool crashed" }] }, () => undefined, okScripts());
     const id2 = await w2.start();
     await w2.drive.execute({ runId: id2, host: "fake", maxSteps: 2 });
     const f2 = (await w2.journal.activity(id2))
       ._unsafeUnwrap()
       .filter((a) => a.type === "advance")
       .at(-1);
-    expect(f2?.text).toBe("FAIL: mt-planner failed: model overloaded");
+    expect(f2?.text).toBe("FAIL: mt-planner failed: tool crashed");
 
     // A worker that reports done without writing its artifact fails the stage.
     const w3 = world({ "mt-planner": [{ text: "STATUS: done" }] }, () => undefined, okScripts());

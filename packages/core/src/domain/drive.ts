@@ -244,6 +244,22 @@ export function parseStatus(text: string): WorkerStatus | undefined {
   return /^done\b/i.test(line) ? { kind: "done" } : undefined;
 }
 
+/**
+ * The AI host is out of capacity for now (a session or usage limit, rate limiting, an overloaded
+ * service): nothing is wrong with the stage, so the run waits for it instead of failing. Returns
+ * the host's own line about it, or undefined for any other failure.
+ */
+export function hostLimit(text: string): string | undefined {
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) =>
+      /\b(hit your (session|usage|weekly|daily) limit|usage limit (reached|exceeded)|rate.?limit(ed)?|overloaded|too many requests|429\b)/i.test(
+        l,
+      ),
+    );
+}
+
 /** The most of an agent's explanation a person is shown with its question. */
 const MAX_CONTEXT = 3000;
 

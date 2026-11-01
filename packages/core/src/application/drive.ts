@@ -4,6 +4,7 @@ import {
   type AgentQuestion,
   blockedPrompt,
   gatePrompt,
+  hostLimit,
   nextQuestionId,
   parseCriticVerdict,
   parseStatus,
@@ -253,6 +254,10 @@ export interface DriveReport {
 }
 
 type Outcome = RunEvent | { readonly type: "STOP"; readonly reason: string };
+
+/** Why the drive stopped on a host limit, and how the person carries on. */
+const limitReason = (agent: string, limit: string) =>
+  `the AI host is out of capacity for ${agent} (${limit}); the run waits at this stage: continue it when the limit resets (metator run continue)`;
 
 export interface DriveDependencies {
   readonly catalog: WorkflowCatalog;
@@ -534,8 +539,11 @@ export class DriveRun {
       const result = await this.runHost(ctx, agent, prompt, resume);
       if (result.isErr()) return err(result.error);
       resume = result.value.session ?? resume;
-      if (!result.value.ok)
+      if (!result.value.ok) {
+        const limit = hostLimit(result.value.text);
+        if (limit) return ok({ type: "STOP", reason: limitReason(agent, limit) });
         return ok({ type: "FAIL", reason: `${agent} failed: ${result.value.text.slice(-300)}` });
+      }
       const status = parseStatus(result.value.text);
       if (status?.kind !== "blocked") return ok({ type: "PASS" });
       if (answers === MAX_ANSWERS)
@@ -616,6 +624,8 @@ export class DriveRun {
     });
     const result = await this.runHost(ctx, agent, prompt, undefined);
     if (result.isErr()) return err(result.error);
+    const limit = result.value.ok ? undefined : hostLimit(result.value.text);
+    if (limit) return ok({ type: "STOP", reason: limitReason(agent, limit) });
     const verdict = parseCriticVerdict(result.value.text);
     await this.d.journal.record(ctx.runId, {
       type: "gate",
