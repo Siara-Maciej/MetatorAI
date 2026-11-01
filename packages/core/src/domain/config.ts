@@ -40,18 +40,28 @@ export function parseMetatorStep(text: string): MetatorStep | undefined {
 const METATOR_STEPS =
   "rules check, test affected, graph diff, arch check, contract diff, api diff <package>, coverage diff [--min <percent>] [--lcov <file>]";
 
-function gateStepSchema<M extends z.ZodType<string>>(metator: M) {
+function runSchemas<M extends z.ZodType<string>>(metator: M) {
+  return [
+    z
+      .strictObject({ script: z.string().min(1) })
+      .describe("package.json script, run by the repo's package manager"),
+    z
+      .strictObject({ bin: z.string().min(1), args: z.array(z.string()).default([]) })
+      .describe("binary from node_modules/.bin"),
+    z.strictObject({ metator }).describe("a MetatorAI check, run in process"),
+  ] as const;
+}
+
+/** v5: a package.json script of every workspace package that has it (`pnpm -r --if-present run x`). */
+const WorkspacesRun = z
+  .strictObject({ workspaces: z.string().min(1) })
+  .describe("the script in every workspace package that has it, run by the repo's package manager");
+
+function gateStepSchema<M extends z.ZodType<string>, R extends z.ZodType>(metator: M, run?: R) {
+  const runs = runSchemas(metator);
   return z.strictObject({
     id: z.string().regex(/^[a-z][a-z0-9:-]*$/, "expected a short id, e.g. lint or test:affected"),
-    run: z.union([
-      z
-        .strictObject({ script: z.string().min(1) })
-        .describe("package.json script, run by the repo's package manager"),
-      z
-        .strictObject({ bin: z.string().min(1), args: z.array(z.string()).default([]) })
-        .describe("binary from node_modules/.bin"),
-      z.strictObject({ metator }).describe("a MetatorAI check, run in process"),
-    ]),
+    run: (run ?? z.union(runs)) as R extends z.ZodType ? R : z.ZodUnion<typeof runs>,
     /** append: the gate's files are appended as arguments (only for file-scopable commands). */
     files: z.enum(["append", "none"]).default("none"),
     /** With files: append, only files matching these globs are passed (e.g. a linter's languages). */
@@ -64,8 +74,14 @@ function gateStepSchema<M extends z.ZodType<string>>(metator: M) {
 
 /** v1 (released): `metator` runs only `rules check`. Never change it (MT-CODE-003). */
 const GateStepV1Schema = gateStepSchema(z.enum(["rules check"]));
+const metatorStep = z
+  .string()
+  .refine((t) => parseMetatorStep(t) !== undefined, `expected one of: ${METATOR_STEPS}`);
+/** v2–v4 gate steps. Never change them. */
+const GateStepV4Schema = gateStepSchema(metatorStep);
 export const GateStepSchema = gateStepSchema(
-  z.string().refine((t) => parseMetatorStep(t) !== undefined, `expected one of: ${METATOR_STEPS}`),
+  metatorStep,
+  z.union([...runSchemas(metatorStep), WorkspacesRun]),
 );
 export type GateStep = z.output<typeof GateStepSchema>;
 
@@ -91,18 +107,20 @@ const PathOverrides = z
   })
   .partial();
 
-function configSchema(step: typeof GateStepSchema | typeof GateStepV1Schema) {
+type AnyGateStep = typeof GateStepSchema | typeof GateStepV4Schema | typeof GateStepV1Schema;
+
+function configSchema<S extends AnyGateStep>(step: S) {
   return z.strictObject(configFields(step));
 }
 
 /** v3 adds the person's editor for `metator ui` (ADR-0054); every v2 file is a valid v3 file. */
 const ConfigV3Schema = z.strictObject({
-  ...configFields(GateStepSchema),
+  ...configFields(GateStepV4Schema),
   /** The command that opens a directory in the person's editor, e.g. "code" or "nvim". */
   editor: z.string().min(1).optional(),
 });
 
-function configFields(step: typeof GateStepSchema | typeof GateStepV1Schema) {
+function configFields<S extends AnyGateStep>(step: S) {
   return {
     paths: PathOverrides.default({}),
     project: z
@@ -161,7 +179,14 @@ const ConfigV4Schema = z.strictObject({
   system: SystemSettings.optional(),
 });
 
-export const MetatorConfigSchema = ConfigV4Schema;
+/** v5 adds the `workspaces` gate step: a script of every workspace package. Every v4 file is a v5 file. */
+const ConfigV5Schema = z.strictObject({
+  ...ConfigV4Schema.shape,
+  ...configFields(GateStepSchema),
+  editor: ConfigV4Schema.shape.editor,
+});
+
+export const MetatorConfigSchema = ConfigV5Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -172,11 +197,12 @@ export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 export const MetatorConfigDocument = defineDocument("MetatorConfig", {
   history: [
     { schema: configSchema(GateStepV1Schema) },
-    { schema: configSchema(GateStepSchema), fromPrevious: (v1) => v1 },
+    { schema: configSchema(GateStepV4Schema), fromPrevious: (v1) => v1 },
     { schema: ConfigV3Schema, fromPrevious: (v2) => v2 },
+    { schema: ConfigV4Schema, fromPrevious: (v3) => v3 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v3) => v3,
+  upgrade: (v4) => v4,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

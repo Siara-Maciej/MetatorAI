@@ -44,6 +44,19 @@ export function stageProgress(
   });
 }
 
+/**
+ * The stage a run is at. A run that escalated or was aborted is in its end state, not a stage:
+ * it stopped at the stage its history ends with.
+ */
+export function stoppedAt(
+  stage: string,
+  status: string,
+  history: readonly { readonly stage: string }[],
+): string {
+  if (stage !== status || (status !== "escalated" && status !== "aborted")) return stage;
+  return history.at(-1)?.stage ?? stage;
+}
+
 export function attentionOf(
   status: string,
   waiting: number,
@@ -82,6 +95,8 @@ export interface AttentionCounts {
   readonly you: number;
   readonly driving: number;
   readonly stopped: number;
+  /** Escalated runs: a person removes the cause and resumes them. */
+  readonly escalated: number;
   readonly finished: number;
 }
 
@@ -91,6 +106,7 @@ export function countAttention(runs: readonly { readonly attention: Attention }[
     you: n("you"),
     driving: n("driving"),
     stopped: n("stopped"),
+    escalated: n("escalated"),
     finished: runs.length - n("you") - n("driving") - n("stopped"),
   };
 }

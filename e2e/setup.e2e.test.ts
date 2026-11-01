@@ -13,6 +13,7 @@ const SCOUT = "metator/agents/mt-scout.md";
 const GRILL = "metator/skills/mt-grill/SKILL.md";
 
 interface Setup {
+  gitignore: string;
   hosts: string[];
   workflows: string[];
   canon: { mode: string; steps: Record<string, number> };
@@ -68,14 +69,24 @@ describe("metator setup (real CLI)", () => {
       kind: "InstallLock",
       schemaVersion: 1,
     });
+    // Local state (index, runs, worktrees) is ignored once, never committed.
+    expect([data.gitignore, await repo.read(".gitignore")]).toEqual([
+      "added",
+      expect.stringContaining("\n.metator/\n"),
+    ]);
+    const again = (await metator(["setup", "--host", "claude", "--yes"], repo.root)).json.data as Setup;
+    expect(again.gitignore).toBe("present");
   });
 
-  test("a second install is refused; setup again updates and says the config keeps its hosts", async () => {
+  test("a second install is refused; setup again updates and saves the hosts it was given", async () => {
     const again = await metator(["agents", "install"], repo.root);
     expect([again.code, (again.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
     const r = await metator(["setup", "--host", "copilot", "--yes"], repo.root);
     expect([r.code, (r.json.data as Setup).canon.mode]).toEqual([0, "update"]);
-    expect((r.json.warnings as string[]).some((w) => w.includes("keeps hosts.targets [claude]"))).toBe(true);
+    expect(await repo.read("metator.config.yml")).toMatch(/targets:\s*\n\s*- copilot\n/);
+    expect(await Bun.file(join(repo.root, ".github/agents/mt-scout.agent.md")).exists()).toBe(true);
+    // Back to Claude for the tests below.
+    expect((await metator(["setup", "--host", "claude", "--yes"], repo.root)).code).toBe(0);
   });
 
   test("update takes a newer canon, keeps a local edit and reports a real conflict", async () => {
@@ -109,6 +120,12 @@ describe("metator setup (real CLI)", () => {
     ]);
     expect(await repo.read(SCOUT)).toContain("Upstream note.");
     expect(await repo.read(GRILL)).toContain("one question at a time");
+    // The agents run from their host files: the update refreshed them too.
+    expect((theirs.json.data as { generated: number }).generated).toBeGreaterThan(0);
+    const hostFile = (await Bun.file(repo.path(".claude/agents/mt-scout.md")).exists())
+      ? ".claude/agents/mt-scout.md"
+      : ".github/agents/mt-scout.agent.md";
+    expect(await repo.read(hostFile)).toContain("Upstream note.");
   });
 
   test("errors as values: unknown workflow, update before install", async () => {

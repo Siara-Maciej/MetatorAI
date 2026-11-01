@@ -22,14 +22,14 @@ The orchestrator creates the run (`metator run init --workflow mt-feature --task
 | setup | `metator index build` | | a fresh import index, so every later fact is current |
 | intake | orchestrator, skill `mt-grill` | `task.md` | ambiguity is resolved by asking you, not by guessing |
 | context | `mt-scout` ∥ `mt-pattern-miner` ∥ `mt-rule-curator` | `analysis.json`, `research.json`, `rulepack.md` | facts about what the task touches, the exemplars to copy, the rules that apply |
-| plan | `mt-planner` | `plan.json`, `plan-scope.json` | every step has a file, tests first and an exemplar |
+| plan | `mt-planner` | `plan.json`, `plan-scope.json` | every step has a file, tests first and an exemplar (in a repository with no tests at all, a code step without tests first is a warning, not an error) |
 | plan-gate | `metator plan lint`, then `mt-plan-critic` | | deterministic checks first, then an independent critic |
-| plan-approval | **you** | | the cheapest moment to change direction |
+| plan-approval | **you** | | the cheapest moment to change direction: Reject with a reason sends the plan back to the planner with it (within the plan loop limit) |
 | build | `mt-test-author` → `mt-implementer` | `build-log.md` | tests RED, then GREEN, only inside the plan scope |
-| gates | `mt-gatekeeper` (`metator gate full`) | `gates.json` | your checks plus rules, affected tests, graph diff |
-| review | `mt-pr-review` | `verdict.json` | parallel lenses, verified findings, a judge |
-| delivery | **you** (`neverSkip`) | | nothing leaves your machine without you |
-| publish | `mt-pr-author` | `pr.md` | commit message and PR from the run's artifacts |
+| gates | `mt-gatekeeper` (`metator gate full`) | `gates.md` | the checks your `gates.full` configures, and no others |
+| review | `mt-pr-review` | `verdict.json` | parallel lenses, verified findings, a judge; the stage passes only on an APPROVED verdict, whatever the critic says |
+| delivery | **you** (`neverSkip`) | | nothing leaves your machine without you; approving it approves the push (`grants: [push]`) |
+| publish | `mt-pr-author` | `pr.md` | commits and pushes the run's branch without asking (never a force push, an amend or `--no-verify`); done only when nothing is left uncommitted and origin's branch is at the checked-out commit (`metator run published`, which asks origin itself); a PR only when the task asks for one and a code host is configured |
 | learn (optional) | `mt-retro` | | lessons with citations for next time |
 
 ## The plan gate in practice
@@ -48,7 +48,7 @@ A created file without an exemplar fails:
    "message":"a created file needs patternSource (an exemplar) or newPatternAdr"}]}}}
 ```
 
-**Why:** new code should look like your best existing code. The fix is either an exemplar found with `metator similar --file packages/billing/src/discount.ts`, or an ADR for a deliberately new abstraction.
+**Why:** new code should look like your best existing code. The fix is either an exemplar found with `metator similar --file packages/billing/src/discount.ts`, or an ADR for a deliberately new abstraction. In a repository without a pattern catalog (`docs/metator/patterns`), any existing file can be the exemplar; lint checks that it exists and says, as a warning, that it could not check more. A step's `rules` are canon rule ids; without a canon they stay empty.
 
 Other checks `plan lint` makes:
 
@@ -68,6 +68,6 @@ metator run approve push --by alice                   # lets the PR author push 
 
 ## Done means
 
-- `gates.json` passes;
+- the gates pass;
 - `verdict.json` says `APPROVED`;
 - the push was approved.

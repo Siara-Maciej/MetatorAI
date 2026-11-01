@@ -1,11 +1,14 @@
 import {
   err,
+  type FileSystem,
   HOST_TARGETS,
   type HostTarget,
   type InstallReport,
   type InstallStep,
   MetatorError,
   ok,
+  type Result,
+  writesFile,
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
@@ -22,6 +25,7 @@ interface InstallOptions {
   readonly workflows?: string[];
   readonly theirs: boolean;
   readonly dryRun: boolean;
+  readonly generate: boolean;
 }
 
 const conflictWarnings = (steps: readonly InstallStep[]) =>
@@ -51,6 +55,7 @@ export function registerSetupCommands(
       .option("--workflows <ids...>", "workflows to install (default: all, or the installed ones on update)")
       .option("--theirs", "resolve conflicts with the canon's version", false)
       .option("--dry-run", "report what would change without writing", false)
+      .option("--no-generate", "leave the host files (.claude/agents, .github/agents, skills) as they are")
       .action(
         action(async (opts: InstallOptions) => {
           const report = await container()
@@ -62,8 +67,17 @@ export function registerSetupCommands(
               ...(opts.workflows ? { workflows: opts.workflows } : {}),
             });
           if (report.isErr()) return { result: report };
+          // A changed canon reaches the agents only through their host files: refresh them.
+          let generated = 0;
+          if (opts.generate && !opts.dryRun && report.value.steps.some((s) => writesFile(s.action))) {
+            const hosts = await container().resolve("generateHosts").execute({ check: false, hooks: false });
+            if (hosts.isErr()) return { result: hosts };
+            const skills = await container().resolve("generateSkills").execute({ check: false });
+            if (skills.isErr()) return { result: skills };
+            generated = hosts.value.written.length + skills.value.written.length;
+          }
           return {
-            result: report,
+            result: ok({ ...report.value, generated }),
             warnings: [
               ...conflictWarnings(report.value.steps),
               ...upstreamWarnings(report.value.removedUpstream),
@@ -118,14 +132,19 @@ export function registerSetupCommands(
           const init = await step(["init", "--host", ...answers.hosts]);
           if (init.code !== 0) return { result: err(fromEnvelope(init.envelope, "init")) };
         } else if (answers.hosts.join() !== configured.config.hosts.targets.join()) {
-          warnings.push(
-            `${configured.source} keeps hosts.targets [${configured.config.hosts.targets.join(", ")}]; set it to [${answers.hosts.join(", ")}] to generate for those hosts`,
-          );
+          // Hosts chosen now (--host or the questions) win over the file: saved, comments kept.
+          const saved = await c.resolve("updateConfig").execute({ hostTargets: answers.hosts });
+          if (saved.isErr()) return { result: saved };
         }
-        const canon = await step(["agents", mode, "--workflows", ...answers.workflows]);
+        // Setup generates the host files itself, once, after the config and the canon.
+        const canon = await step(["agents", mode, "--no-generate", "--workflows", ...answers.workflows]);
         if (canon.code !== 0) return { result: err(fromEnvelope(canon.envelope, `agents ${mode}`)) };
         const generated = await step(["generate", ...(answers.hooks ? ["--hooks"] : [])]);
         if (generated.code !== 0) return { result: err(fromEnvelope(generated.envelope, "generate")) };
+
+        // Local state (the index, runs, worktrees) never goes into a commit.
+        const ignored = await ignoreLocalState(c.resolve("fileSystem"));
+        if (ignored.isErr()) return { result: ignored };
 
         const checks = [];
         for (const argv of SETUP_CHECKS) {
@@ -140,6 +159,7 @@ export function registerSetupCommands(
           hooks: answers.hooks,
           canon: { mode, version: report.version, lock: report.lock, steps: count(report.steps) },
           generated: (generated.envelope.data as { written: string[] }).written.length,
+          gitignore: ignored.value,
           checks,
           next: ["metator workflow list", 'metator run init --workflow mt-feature --task "…"'],
         };
@@ -158,6 +178,22 @@ export function registerSetupCommands(
         return { result: ok(summary), warnings };
       }),
     );
+}
+
+/** `.metator/` in `.gitignore`: "added", or "present" when a line already ignores it. */
+async function ignoreLocalState(
+  fs: Pick<FileSystem, "exists" | "read" | "write">,
+): Promise<Result<"added" | "present", MetatorError>> {
+  const file = ".gitignore";
+  const text = (await fs.exists(file)) ? await fs.read(file) : ok("");
+  if (text.isErr()) return err(text.error);
+  if (text.value.split("\n").some((l) => /^\/?\.metator\/?\s*$/.test(l))) return ok("present");
+  const sep = text.value === "" || text.value.endsWith("\n") ? "" : "\n";
+  const written = await fs.write(
+    file,
+    `${text.value}${sep}${text.value === "" ? "" : "\n"}# MetatorAI: local state (index, runs, worktrees)\n.metator/\n`,
+  );
+  return written.isErr() ? err(written.error) : ok("added");
 }
 
 function count(steps: readonly InstallStep[]): Record<string, number> {

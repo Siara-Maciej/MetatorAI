@@ -25,7 +25,7 @@ dir: packages/plugin-docker
 
 ## Invariants
 
-- Each place has its own Compose project, so worktrees never stop each other's containers [[cite: packages/plugin-docker/src/docker-compose-runtime.ts:27 | "const argv = [this.bin, \"compose\", \"-p\", s.project, \"-f\", s.file, ...args];"]].
+- Each place has its own Compose project, so worktrees never stop each other's containers [[cite: packages/plugin-docker/src/docker-compose-runtime.ts:36 | "return this.run(s, [this.bin, \"compose\", \"-p\", s.project, \"-f\", s.file, ...args]);"]].
 - A failing command or a missing binary is an error value with the reason, never a throw.
 
 ## Allowed dependencies

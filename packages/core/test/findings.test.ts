@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { InMemoryFileSystem } from "@metator/testing";
-import { MergeFindingSets, ValidateFindings } from "../src/application/findings.ts";
-import { type Finding, FindingSetDocument, mergeFindings, policyProblems } from "../src/domain/finding.ts";
+import { CalibrateFinding, MergeFindingSets, ValidateFindings } from "../src/application/findings.ts";
+import {
+  calibrateFinding,
+  type Finding,
+  FindingSetDocument,
+  mergeFindings,
+  policyProblems,
+} from "../src/domain/finding.ts";
+import { ReviewPlanDocument } from "../src/domain/review-plan.ts";
 
 const CODE =
   "export function pay(amount: number) {\n  if (amount < 0) return 0;\n  return amount * rate;\n}\n";
@@ -150,5 +157,120 @@ describe("mergeFindings / MergeFindingSets", () => {
     const merged = JSON.parse((await w.fs.read("f/merged.json"))._unsafeUnwrap());
     expect([merged.kind, merged.lens, merged.findings.length]).toEqual(["FindingSet", "merged", 1]);
     expect((await w.validate.execute({ dir: "f", fix: false }))._unsafeUnwrap().files).toBe(2);
+  });
+
+  test("merging again keeps the verifications already recorded for the same finding", async () => {
+    const w = world({ "f/logic.json": setFile("logic", [finding()]) });
+    (await w.merge.execute({ dir: "f" }))._unsafeUnwrap();
+    const verification = { status: "confirmed" as const, by: "mt-verifier", evidence: "pay(10) throws" };
+    const first = JSON.parse((await w.fs.read("f/merged.json"))._unsafeUnwrap());
+    first.findings = first.findings.map((f: Finding) => (f.id === "LOGIC-001" ? { ...f, verification } : f));
+    await w.fs.write("f/merged.json", JSON.stringify(first));
+    // A lens rewrote its file: the finding with a new quote is not the one that was verified.
+    await w.fs.write(
+      "f/tests.json",
+      setFile("tests", [
+        finding({
+          id: "TESTS-001",
+          lens: "tests",
+          location: { file: "src/pay.ts", line: 2 },
+          quote: "if (amount < 0) return 0;",
+          claim: "negative amounts have no test",
+        }),
+      ]),
+    );
+    (await w.merge.execute({ dir: "f" }))._unsafeUnwrap();
+    const again = JSON.parse((await w.fs.read("f/merged.json"))._unsafeUnwrap());
+    expect(again.findings.map((f: Finding) => [f.id, f.verification?.status])).toEqual([
+      ["TESTS-001", undefined],
+      ["LOGIC-001", "confirmed"],
+    ]);
+  });
+
+  test("with a review plan, a lens that wrote no file for a shard is missing", async () => {
+    const plan = JSON.stringify(
+      ReviewPlanDocument.stamp({
+        files: ["src/pay.ts"],
+        lenses: ["logic", "tests"],
+        shards: [{ id: "app", package: "app", files: ["src/pay.ts"], card: null, rules: [] }],
+        tasks: 2,
+      }),
+    );
+    const w = world({ "f/logic-app.json": setFile("logic", [finding()]), "run/review-plan.json": plan });
+    const report = (
+      await w.validate.execute({ dir: "f", fix: false, plan: "run/review-plan.json" })
+    )._unsafeUnwrap();
+    expect(report.missing).toEqual(["f/tests-app.json"]);
+    await w.fs.write("f/tests-app.json", setFile("tests", []));
+    expect(
+      (await w.validate.execute({ dir: "f", fix: false, plan: "run/review-plan.json" }))._unsafeUnwrap()
+        .missing,
+    ).toEqual([]);
+    // Without a plan nothing is expected.
+    expect((await w.validate.execute({ dir: "f", fix: false }))._unsafeUnwrap().missing).toEqual([]);
+  });
+});
+
+describe("calibrate", () => {
+  const blocker = {
+    trigger: "any positive amount",
+    reachability: "checkout → invoice → pay",
+    evidence: { type: "test" as const, ref: "src/pay.test.ts: pay(10) throws" },
+  };
+  const merged = (findings: Finding[]) =>
+    JSON.stringify(FindingSetDocument.stamp({ lens: "merged", findings }));
+  const confirmed = { verification: { status: "confirmed" as const, by: "mt-verifier", evidence: "x" } };
+  test("the judge raises a finding to blocking and folds the same root cause into it", () => {
+    const findings = [
+      finding({ ...confirmed }),
+      finding({ id: "SEC-001", lens: "security", ...confirmed }),
+      finding({ id: "CON-001", lens: "contracts", alsoFrom: ["tests"] }),
+      finding({ id: "LOGIC-002", claim: "an unrelated finding about something else here" }),
+    ];
+    const r = calibrateFinding(findings, {
+      id: "LOGIC-001",
+      severity: "blocking",
+      merge: ["SEC-001", "CON-001"],
+      ...blocker,
+    });
+    expect("findings" in r && r.findings.map((f) => [f.id, f.severity, f.alsoFrom])).toEqual([
+      ["LOGIC-001", "blocking", ["contracts", "security", "tests"]],
+      ["LOGIC-002", "major", undefined],
+    ]);
+  });
+  test("an unknown id, or a blocker without trigger, reachability or evidence, is refused", () => {
+    expect(calibrateFinding([finding()], { id: "NOPE-001", merge: ["X-001"] })).toEqual({
+      unknown: ["NOPE-001", "X-001"],
+    });
+    expect(calibrateFinding([finding()], { id: "LOGIC-001", severity: "blocking" })).toEqual({
+      problems: ["blocking needs trigger", "blocking needs reachability", "blocking needs evidence"],
+    });
+  });
+  test("calibrate rewrites merged.json; a refusal leaves it as it was", async () => {
+    const { fs } = world({
+      "f/merged.json": merged([finding(), finding({ id: "SEC-001", lens: "security" })]),
+    });
+    const calibrate = new CalibrateFinding(fs);
+    const refused = await calibrate.execute({ dir: "f", id: "LOGIC-001", severity: "blocking" });
+    expect(refused._unsafeUnwrapErr().message).toBe(
+      "LOGIC-001 cannot be blocking: blocking needs trigger; blocking needs reachability; blocking needs evidence",
+    );
+    const r = (
+      await calibrate.execute({
+        dir: "f/",
+        id: "LOGIC-001",
+        severity: "blocking",
+        merge: ["SEC-001"],
+        ...blocker,
+      })
+    )._unsafeUnwrap();
+    expect([r.output, r.findings, r.finding.severity, r.finding.alsoFrom]).toEqual([
+      "f/merged.json",
+      1,
+      "blocking",
+      ["security"],
+    ]);
+    const saved = FindingSetDocument.parse(JSON.parse((await fs.read("f/merged.json"))._unsafeUnwrap()), "m");
+    expect(saved._unsafeUnwrap().findings.map((f) => f.id)).toEqual(["LOGIC-001"]);
   });
 });

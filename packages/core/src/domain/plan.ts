@@ -58,6 +58,8 @@ export interface PlanFacts {
   /** Pattern id → files that are occurrences of it. */
   readonly patterns: ReadonlyMap<string, ReadonlySet<string>>;
   readonly rules: ReadonlySet<string>;
+  /** Whether any test file exists in the repository (default: one of `files` is a test). */
+  readonly hasTests?: boolean;
   /** Internal import edges (importer → imported). */
   readonly imports: readonly { readonly from: string; readonly to: string }[];
   readonly testGlobs: readonly string[];
@@ -111,6 +113,11 @@ export function lintPlan(plan: Plan, facts: PlanFacts): PlanLint {
       );
   const created = new Set(plan.steps.filter((s) => s.action === "create").map((s) => s.path));
   const isTest = (path: string) => matchesAny(path, facts.testGlobs);
+  // A repository with no test at all (no runner either, most likely): a plan cannot write tests
+  // first without adding a test setup the task may forbid, so a missing testsFirst only warns.
+  const untested =
+    !(facts.hasTests ?? [...facts.files].some(isTest)) &&
+    !plan.steps.some((s) => s.action !== "delete" && isTest(s.path));
 
   for (const s of plan.steps) {
     for (const path of [s.path, ...s.testsFirst])
@@ -129,7 +136,17 @@ export function lintPlan(plan: Plan, facts: PlanFacts): PlanLint {
         problem(s.id, "error", "a created file needs patternSource (an exemplar) or newPatternAdr");
       if (s.patternSource && s.newPatternAdr)
         problem(s.id, "error", "use patternSource or newPatternAdr, not both");
-      if (s.patternSource) {
+      if (s.patternSource && facts.patterns.size === 0) {
+        // No pattern catalog (docs/metator/patterns) in this repository: the exemplar must exist.
+        const exemplar = s.patternSource.exemplar.replace(/:\d+$/, "");
+        if (!facts.files.has(exemplar)) problem(s.id, "error", `exemplar ${exemplar} does not exist`);
+        else
+          problem(
+            s.id,
+            "warning",
+            `no pattern catalog: ${exemplar} is checked to exist, not to be an occurrence of ${s.patternSource.pattern}`,
+          );
+      } else if (s.patternSource) {
         const occurrences = facts.patterns.get(s.patternSource.pattern);
         const exemplar = s.patternSource.exemplar.replace(/:\d+$/, "");
         if (!occurrences)
@@ -141,7 +158,13 @@ export function lintPlan(plan: Plan, facts: PlanFacts): PlanLint {
 
     if (code && s.action !== "delete") {
       if (s.testsFirst.length === 0)
-        problem(s.id, "error", "code changes need testsFirst (the tests written before it)");
+        problem(
+          s.id,
+          untested ? "warning" : "error",
+          untested
+            ? "changes code without testsFirst: the repository has no tests (no file matches the test globs) and the plan adds none"
+            : "code changes need testsFirst (the tests written before it)",
+        );
       const earlier = before(s.id);
       const earlierPaths = new Set(plan.steps.filter((x) => earlier.has(x.id)).map((x) => x.path));
       for (const t of s.testsFirst) {

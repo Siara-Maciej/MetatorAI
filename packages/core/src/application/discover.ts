@@ -66,6 +66,8 @@ export class Discover {
       if (!manifest) continue;
       manifests.push({ dir, manifest });
       for (const [script, command] of Object.entries(manifest.scripts ?? {})) {
+        // `"//": "…"` and `"// name": "…"` are comments by npm convention, not scripts.
+        if (script.startsWith("//")) continue;
         scripts.push({
           package: manifest.name ?? name,
           dir,
@@ -96,7 +98,7 @@ export class Discover {
     const remote = await this.vcs.remoteUrl();
     const discovery: Discovery = {
       packageManager: pm.value ? { ...pm.value, lockfiles: [...pm.value.lockfiles] } : null,
-      workspaces: packages.value.map((p) => ({ name: p.name, dir: p.dir })),
+      workspaces: packages.value.filter((p) => !p.standalone).map((p) => ({ name: p.name, dir: p.dir })),
       scripts,
       tools,
       ci: CI_SIGNATURES.map((c) => ({

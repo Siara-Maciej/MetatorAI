@@ -330,6 +330,38 @@ describe("analyzeArchitecture: declarations", () => {
     expect(ids(testOnly)).toEqual([]);
   });
 
+  test("tool configuration may use devDependencies: it runs at build or check time", () => {
+    const dev = m("packages/ui", "@x/ui", { main: "x", devDependencies: { "@x/core": "*", eslint: "9" } });
+    const config = input({
+      files: [...input().files, "packages/ui/eslint.config.js", "packages/ui/jest.setup.ts"],
+      manifests: { packages: [WEB, dev, CORE] },
+      imports: [imp("packages/ui/eslint.config.js", "packages/core/src/money.ts", "@x/core")],
+      externals: [ext("packages/ui/eslint.config.js", "eslint"), ext("packages/ui/jest.setup.ts", "eslint")],
+    });
+    expect(ids(config)).toEqual([]);
+  });
+
+  test("a workspace package everyone declares only in devDependencies is a tool: its imports are dev-time", () => {
+    const LINT = m("packages/lint", "@x/lint", {
+      main: "index.js",
+      devDependencies: { "eslint-plugin-x": "1" },
+    });
+    const web = m("apps/web", "@x/web", { devDependencies: { "@x/lint": "*" } });
+    const tool = input({
+      files: ["apps/web/src/main.ts", "packages/lint/index.js"],
+      imports: [],
+      externals: [ext("packages/lint/index.js", "eslint-plugin-x")],
+      manifests: { packages: [web, LINT] },
+    });
+    expect(ids(tool)).toEqual([]);
+    // Once a package declares it as a dependency, it ships: its devDependencies are in production.
+    const shipped = {
+      ...tool,
+      manifests: { packages: [m("apps/web", "@x/web", { dependencies: { "@x/lint": "*" } }), LINT] },
+    };
+    expect(ids(shipped)).toEqual(["dev-in-prod:@x/lint→eslint-plugin-x"]);
+  });
+
   test("a relative import into another package", () => {
     const report = analyzeArchitecture(
       input({
@@ -386,6 +418,23 @@ describe("analyzeArchitecture: declarations", () => {
     ]);
   });
 
+  test("a package whose @types are declared is declared: its types are what the import uses", () => {
+    const withTypes = (devDependencies: Record<string, string>) =>
+      ids(
+        input({
+          externals: [
+            ext("packages/core/src/guard.ts", "express"),
+            ext("packages/core/src/x.ts", "@scope/lib"),
+          ],
+          manifests: {
+            packages: [m("packages/core", "@x/core", { main: "x", devDependencies })],
+          },
+        }),
+      ).filter((id) => id.startsWith("undeclared"));
+    expect(withTypes({ "@types/express": "5", "@types/scope__lib": "1" })).toEqual([]);
+    expect(withTypes({})).toEqual(["undeclared:@x/core→@scope/lib", "undeclared:@x/core→express"]);
+  });
+
   test("builtins, invalid names, root files and the package itself are not external dependencies", () => {
     expect(
       ids(
@@ -395,6 +444,7 @@ describe("analyzeArchitecture: declarations", () => {
             ext("packages/core/src/money.ts", "node:fs"),
             ext("packages/core/src/money.ts", "bun:test"),
             ext("packages/core/src/money.ts", "bun"),
+            ext("packages/core/load/test.js", "k6"),
             ext("packages/core/src/money.ts", "~/alias"),
             ext("packages/core/src/money.ts", "#internal"),
             ext("packages/core/src/money.ts", "@x/core"),
@@ -715,7 +765,7 @@ describe("AnalyzeArchitecture", () => {
     });
     expect((await fs.read(".metator/arch/report.html"))._unsafeUnwrap()).toStartWith("<!doctype html>");
     const json = JSON.parse((await fs.read(".metator/arch/report.json"))._unsafeUnwrap());
-    expect([json.kind, json.schemaVersion, json.summary.score]).toEqual(["ArchitectureReport", 1, 100]);
+    expect([json.kind, json.schemaVersion, json.summary.score]).toEqual(["ArchitectureReport", 2, 100]);
     expect((await fs.read(".metator/arch/report.md"))._unsafeUnwrap()).toStartWith("# Architecture report");
   });
 

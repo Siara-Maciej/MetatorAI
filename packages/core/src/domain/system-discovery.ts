@@ -68,7 +68,19 @@ export function slugId(name: string): string {
 }
 
 const FRONTEND = ["react", "vue", "svelte", "@angular/core", "next", "nuxt", "vite", "solid-js", "preact"];
-const SERVICE = ["express", "fastify", "hono", "koa", "@nestjs/core", "elysia", "@hapi/hapi"];
+const SERVICE = [
+  ...["express", "fastify", "hono", "koa", "@nestjs/core", "elysia", "@hapi/hapi"],
+  // GraphQL servers: a schema served over HTTP is a service whatever framework carries it.
+  ...[
+    "graphql-http",
+    "express-graphql",
+    "graphql-yoga",
+    "@apollo/server",
+    "apollo-server",
+    "apollo-server-express",
+    "mercurius",
+  ],
+];
 
 /** What kind of application its name and dependencies suggest. */
 export function kindFrom(
@@ -76,15 +88,42 @@ export function kindFrom(
   dependencies: readonly string[],
   hasSpec: boolean,
   bin = false,
+  /** Dependencies only for development: a mock server there serves nothing in production. */
+  devOnly: readonly string[] = [],
 ): Application["kind"] {
   if (/(^|[-/])(worker|jobs?|cron|consumer)s?($|[-/])/.test(name)) return "worker";
   if (/(^|[-/])gateway($|[-/])/.test(name)) return "gateway";
-  if (hasSpec || dependencies.some((d) => SERVICE.includes(d))) return "service";
+  // A name that ends in what it is (`openpage-api`, `@acme/backend`) wins over the framework it
+  // renders with (a Next.js API): `api-client` or `server-utils` say nothing.
+  if (/(^|[-/])(api|server|backend|service)s?$/.test(name)) return "service";
+  if (hasSpec || dependencies.some((d) => SERVICE.includes(d) && !devOnly.includes(d))) return "service";
   // A command-line tool is not a frontend, even when it draws with React (Ink).
   if (bin) return "other";
   if (dependencies.some((d) => FRONTEND.includes(d))) return "frontend";
   return "other";
 }
+
+/**
+ * A specification a package script downloads (`curl …/openapi.yml -o ./src/services/openapi.yml`)
+ * is a copy of another application's contract, kept to generate a client: it says nothing about
+ * what this application serves.
+ */
+export function fetchedSpec(
+  path: string,
+  packages: readonly { readonly dir: string; readonly scripts: Readonly<Record<string, string>> }[],
+): boolean {
+  return packages.some((m) => {
+    if (m.dir !== "." && !path.startsWith(`${m.dir}/`)) return false;
+    const rel = m.dir === "." ? path : path.slice(m.dir.length + 1);
+    return Object.values(m.scripts).some(
+      (script) =>
+        /\b(curl|wget)\b|https?:\/\//.test(script) &&
+        new RegExp(`(^|[\\s="'])(\\./)?${literal(rel)}($|[\\s"';&|])`).test(script),
+    );
+  });
+}
+
+const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Contract ids from titles, unique: `Billing API` twice becomes `billing-api` and `billing-api-2`. */
 export function contractIds(found: readonly FoundContract[]): Map<FoundContract, string> {
@@ -189,9 +228,10 @@ export function systemDrift(map: SystemMap, proposal: SystemMap): string[] {
   const drift: string[] = [];
   // A proposed contract is the map's when its id matches, or its owner and specification do.
   const contracts = new Map(map.contracts.map((c) => [c.id, c]));
+  const where = (c: SystemMap["contracts"][number]) =>
+    "path" in c.spec ? cleanPath(c.spec.path) : `served:${c.spec.served}`;
   const known = (c: SystemMap["contracts"][number]) =>
-    contracts.get(c.id) ??
-    map.contracts.find((x) => x.owner === c.owner && cleanPath(x.spec.path) === cleanPath(c.spec.path));
+    contracts.get(c.id) ?? map.contracts.find((x) => x.owner === c.owner && where(x) === where(c));
   const inMap = new Map(proposal.contracts.map((c) => [c.id, known(c)?.id ?? c.id]));
   const apps = new Map(map.applications.map((a) => [a.id, a]));
   for (const a of proposal.applications) {
@@ -207,6 +247,89 @@ export function systemDrift(map: SystemMap, proposal: SystemMap): string[] {
     }
   }
   for (const c of proposal.contracts)
-    if (!known(c)) drift.push(`contract ${c.id} (${c.spec.path} of ${c.owner}) is not in the map`);
+    if (!known(c))
+      drift.push(
+        `contract ${c.id} (${"path" in c.spec ? c.spec.path : `served at ${c.spec.served}`} of ${c.owner}) is not in the map`,
+      );
   return drift;
+}
+
+/**
+ * An API document a framework serves at runtime instead of a file (NestJS
+ * `SwaggerModule.setup('docs', …)` serves `/docs-json`): there is no specification to declare
+ * as a contract until it is exported to a file, but its consumers still show the dependency.
+ */
+export interface ServedSpec {
+  readonly framework: string;
+  /** Where the JSON document is served, e.g. `/docs-json`. */
+  readonly url: string;
+  readonly line: number;
+}
+
+const SERVED: readonly { framework: string; pattern: RegExp; url: (path: string) => string }[] = [
+  {
+    framework: "NestJS",
+    pattern: /SwaggerModule\.setup\(\s*['"`]\/?([\w/.-]+?)\/?['"`]/g,
+    url: (path) => `/${path}-json`,
+  },
+];
+
+export function servedSpecs(text: string): ServedSpec[] {
+  const out: ServedSpec[] = [];
+  for (const s of SERVED)
+    for (const m of text.matchAll(s.pattern))
+      out.push({
+        framework: s.framework,
+        url: s.url(m[1] as string),
+        line: text.slice(0, m.index).split("\n").length,
+      });
+  return out;
+}
+
+/** Whether a file fetches a served document: the URL ends with its path (any host or prefix). */
+export const fetchesServed = (text: string, url: string) =>
+  new RegExp(`${url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w/-])`).test(text);
+
+/**
+ * The first path segment of each route a server declares: NestJS controllers and their methods,
+ * Express or Fastify handlers (`router.get('/tags')`, `app.use('/profiles', …)`). A parameter
+ * (`:id`) is no route name.
+ */
+export function apiRoutes(text: string): string[] {
+  const out = new Set<string>();
+  const patterns = [
+    /@(?:Controller|Get|Post|Put|Patch|Delete|All)\(\s*['"`]\/?([a-z][\w-]*)/g,
+    /\b(?:app|router|server|fastify)\.(?:get|post|put|patch|delete|all|use|route)\(\s*['"`]\/([a-z][\w-]*)/g,
+  ];
+  for (const p of patterns) for (const m of text.matchAll(p)) out.add(m[1] as string);
+  return [...out].sort();
+}
+
+/** Message patterns a NestJS microservice handles (`@MessagePattern('task_create')`, `@EventPattern`). */
+export function handledMessages(text: string): string[] {
+  const out = new Set<string>();
+  for (const m of text.matchAll(/@(?:MessagePattern|EventPattern)\(\s*['"`]([\w.:-]+)['"`]/g))
+    out.add(m[1] as string);
+  return [...out].sort();
+}
+
+/** Message patterns a file sends through a microservice client (`client.send('task_create', …)`). */
+export function sentMessages(text: string): string[] {
+  if (!/\bClient(?:Proxy|Kafka|RMQ|Redis|Nats|Grpc)\b/.test(text)) return [];
+  const out = new Set<string>();
+  for (const m of text.matchAll(/\.(?:send|emit)\(\s*['"`]([\w.:-]+)['"`]/g)) out.add(m[1] as string);
+  return [...out].sort();
+}
+
+const HTTP_CLIENT = /\bfetch\(|\baxios\b|\bsuperagent\b|\$fetch\(|\bky\b|\bHttpClient\b|\buseFetch\(|\bgot\(/;
+
+/**
+ * The first path segment of each path a file with an HTTP client calls (`'/articles/feed'`,
+ * `` `${API_ROOT}/users` ``). In a file without one, paths are the application's own pages.
+ */
+export function calledRoutes(text: string): string[] {
+  if (!HTTP_CLIENT.test(text)) return [];
+  const out = new Set<string>();
+  for (const m of text.matchAll(/['"`](?:\$\{[^}]+\})?\/([a-z][\w-]*)/g)) out.add(m[1] as string);
+  return [...out].sort();
 }

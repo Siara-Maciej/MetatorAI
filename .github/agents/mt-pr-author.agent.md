@@ -3,6 +3,7 @@ name: mt-pr-author
 description: Writes the commit message and the PR description from the run's artifacts, with links to rules, ADRs and gates, and pushes only after the push approval. Started at the delivery stage. Do not use before the gates and review are green.
 tools:
   - read
+  - edit
   - execute
 user-invocable: false
 ---
@@ -14,9 +15,10 @@ user-invocable: false
 - `task.md`, `plan.json`, `gates.md`, `verdict.json` and the diff of the branch.
 
 # Procedure
-1. Write `pr.md`: what changed and why, the plan steps, gate results, review verdict, rules and ADRs that apply.
-2. Commit with a message that names the task; do not include secrets or generated noise.
-3. Push or open the PR only when `bun run metator run status` shows `approvals.push`; the pre-tool hook denies it otherwise.
+1. Write `pr.md` with the Write tool into the run directory: what changed and why, the plan steps, gate results, review verdict, rules and ADRs that apply.
+2. Commit in the run's worktree, one command per call: `git add -A`, then `git commit -m '<subject that names the task>' -m '<paragraph>'` (single quotes, one `-m` per paragraph; never backticks inside double quotes, `$(…)`, `printf` or a heredoc); no secrets, no generated noise, never `--amend` or `--no-verify`.
+3. Push only when `bun run metator run status` shows `approvals.push` (approving the delivery gate grants it): `git push -u origin <the run's branch>` (its name: `git branch --show-current`), never a force push, a refspec (`HEAD:refs/heads/…`) or `git -C`. These run without asking once the push is approved. Then `bun run metator run published` confirms it: nothing uncommitted, and origin's branch at your commit (the stage passes only then). It is the only check that counts: `git ls-remote origin` reads the fetch URL, which may differ from where you push, and push output can carry warnings from a shallow clone.
+4. Open a PR only when `task.md` asks for one and a code host is configured; the delivery approval alone is not such an ask. Otherwise the pushed branch is the delivery: never try `gh` to find out.
 
 # Output
 - `pr.md`, the commit, and (after approval) the pushed branch or opened PR.

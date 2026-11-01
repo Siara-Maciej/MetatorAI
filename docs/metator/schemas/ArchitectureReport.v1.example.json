@@ -1,0 +1,114 @@
+{
+  "kind": "ArchitectureReport",
+  "schemaVersion": 1,
+  "policy": null,
+  "summary": {
+    "packages": 2,
+    "apps": 1,
+    "edges": 1,
+    "cycles": 0,
+    "errors": 1,
+    "warnings": 0,
+    "excepted": 0,
+    "score": 95
+  },
+  "packages": [
+    {
+      "name": "@shop/core",
+      "dir": "packages/core",
+      "kind": "lib",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [],
+      "dependents": ["@shop/web"],
+      "metrics": {
+        "ca": 1,
+        "ce": 0,
+        "instability": 0,
+        "abstractness": 0,
+        "distance": 1,
+        "depth": 0,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@shop/web",
+      "dir": "apps/web",
+      "kind": "app",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": ["@shop/core"],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 1,
+        "instability": 1,
+        "abstractness": 0,
+        "distance": 0,
+        "depth": 1,
+        "exportsUsed": null
+      }
+    }
+  ],
+  "boundaries": {
+    "split": [],
+    "merge": [],
+    "hubs": [],
+    "deadExports": [],
+    "deadPackages": []
+  },
+  "apps": {
+    "closure": [
+      {
+        "app": "@shop/web",
+        "packages": ["@shop/core"]
+      }
+    ],
+    "blastRadius": [
+      {
+        "package": "@shop/core",
+        "apps": ["@shop/web"]
+      }
+    ]
+  },
+  "edges": [
+    {
+      "from": "@shop/web",
+      "to": "@shop/core",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "apps/web/src/main.ts",
+          "to": "packages/core/src/money.ts"
+        }
+      ]
+    }
+  ],
+  "cycles": [],
+  "violations": [
+    {
+      "id": "undeclared:@shop/core→lodash",
+      "kind": "undeclared",
+      "severity": "error",
+      "message": "@shop/core imports lodash without declaring it in package.json",
+      "packages": ["@shop/core"],
+      "evidence": [
+        {
+          "file": "packages/core/src/money.ts",
+          "specifier": "lodash"
+        }
+      ]
+    }
+  ],
+  "unresolved": {
+    "count": 0,
+    "sample": []
+  }
+}

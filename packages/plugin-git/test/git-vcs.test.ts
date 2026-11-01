@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -78,6 +79,21 @@ describe("GitVcs (real git)", () => {
     const dir = await scenario();
     const files = (await new GitVcs(dir).changedFiles("main"))._unsafeUnwrap();
     expect(files.some((f) => f.startsWith("dist/"))).toBe(false);
+  });
+
+  test("its own state is never a change, even before it is gitignored", async () => {
+    const dir = await scenario();
+    await Bun.write(join(dir, ".metator/index/imports.json"), "{}");
+    expect((await new GitVcs(dir).changedFiles("main"))._unsafeUnwrap()).toContain(
+      ".metator/index/imports.json",
+    );
+    expect((await new GitVcs(dir, [".metator/"]).changedFiles("main"))._unsafeUnwrap()).toEqual([
+      "a.ts",
+      "b.ts",
+      "c ż.ts",
+      "d.ts",
+      "e.ts",
+    ]);
   });
 
   test("clean tree has no changes", async () => {
@@ -282,5 +298,109 @@ describe("GitVcs.commits (real git)", () => {
     const empty = await repo();
     expect((await new GitVcs(empty).commits(5))._unsafeUnwrap()).toEqual([]);
     expect((await new GitVcs(join(empty, "missing")).commits(5))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+});
+
+describe("GitVcs.branch (real git)", () => {
+  test("the branch against its base: merge base, commits after it with authors, uncommitted work", async () => {
+    const dir = await scenario();
+    const b = (await new GitVcs(dir).branch("main"))._unsafeUnwrap();
+    expect([b.branch, b.uncommitted, b.commits.map((c) => [c.author, c.email, c.subject])]).toEqual([
+      "feature",
+      true,
+      [["Test", "t@example.com", "feature work"]],
+    ]);
+    expect(b.head).toMatch(/^[0-9a-f]{40}$/);
+    expect(b.mergeBase).toMatch(/^[0-9a-f]{40}$/);
+    expect(b.mergeBase).not.toBe(b.head);
+    expect(b.commits[0]?.date).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // Against HEAD: nothing after it.
+    expect((await new GitVcs(dir).branch("HEAD"))._unsafeUnwrap().commits).toEqual([]);
+    expect((await new GitVcs(dir).branch("nope"))._unsafeUnwrapErr().code).toBe("USAGE");
+  });
+
+  test("a repository without commits has no head; a clean tree has nothing uncommitted", async () => {
+    const empty = await repo();
+    expect((await new GitVcs(empty).branch("main"))._unsafeUnwrap()).toEqual({
+      branch: "main",
+      head: null,
+      mergeBase: null,
+      commits: [],
+      uncommitted: false,
+    });
+    const dir = await repo();
+    await writeFile(join(dir, "a.ts"), "a");
+    await sh(dir, "add", ".");
+    await sh(dir, "commit", "-q", "-m", "init");
+    expect((await new GitVcs(dir).branch("HEAD"))._unsafeUnwrap().uncommitted).toBe(false);
+  });
+});
+
+describe("GitVcs.patch", () => {
+  test("tracked changes as git diff without external drivers; a new file whole; only the files asked", async () => {
+    const dir = await repo();
+    await writeFile(join(dir, "a.ts"), "one\ntwo\n");
+    await writeFile(join(dir, ".gitattributes"), "*.ts diff=evil\n");
+    await sh(dir, "add", ".");
+    await sh(dir, "commit", "-q", "-m", "init");
+    // A configured external diff driver would run a program: it must not.
+    await sh(dir, "config", "diff.evil.command", "touch PWNED");
+    await sh(dir, "config", "diff.external", "touch PWNED");
+    await writeFile(join(dir, "a.ts"), "one\n2\n");
+    await writeFile(join(dir, "new.ts"), "x\ny\n");
+    const vcs = new GitVcs(dir);
+    const patch = (await vcs.patch("HEAD"))._unsafeUnwrap();
+    expect(patch).toContain("--- a/a.ts\n+++ b/a.ts");
+    expect(patch).toContain("-two\n+2");
+    expect(patch).toContain("--- /dev/null\n+++ b/new.ts\n@@ -0,0 +1,2 @@\n+x\n+y\n");
+    expect(existsSync(join(dir, "PWNED"))).toBe(false);
+    const one = (await vcs.patch("HEAD", ["new.ts"]))._unsafeUnwrap();
+    expect([one.includes("a.ts"), one.includes("new.ts")]).toEqual([false, true]);
+  });
+});
+
+describe("GitVcs published", () => {
+  test("asks origin itself: a single-branch clone's pushed branch counts, an unpushed commit does not", async () => {
+    const upstream = await repo();
+    await writeFile(join(upstream, "a.ts"), "a");
+    await sh(upstream, "add", ".");
+    await sh(upstream, "commit", "-qm", "init");
+    const bare = await mkdtemp(join(tmpdir(), "metator-bare-"));
+    dirs.push(bare);
+    await sh(bare, "clone", "-q", "--bare", upstream, ".");
+    const clone = await mkdtemp(join(tmpdir(), "metator-clone-"));
+    dirs.push(clone);
+    // --single-branch: pushing another branch leaves no remote-tracking ref for it.
+    await sh(clone, "clone", "-q", "--single-branch", `file://${bare}`, ".");
+    await sh(clone, "switch", "-qc", "metator/r");
+    await writeFile(join(clone, "b.ts"), "b");
+    await writeFile(join(clone, ".metator-own"), "x");
+    const vcs = new GitVcs(clone, [".metator-own"]);
+
+    const before = (await vcs.published())._unsafeUnwrap();
+    expect([before.branch, before.remote, before.uncommitted]).toEqual(["metator/r", null, ["b.ts"]]);
+    await sh(clone, "add", "b.ts");
+    await sh(clone, "commit", "-qm", "b");
+    await sh(clone, "push", "-q", "origin", "metator/r");
+    const after = (await vcs.published())._unsafeUnwrap();
+    expect([after.remote, after.uncommitted]).toEqual([after.head, []]);
+  });
+
+  test("asks where pushes go: a push URL apart from the fetch URL (a fork, a mirror)", async () => {
+    const upstream = await repo();
+    await writeFile(join(upstream, "a.ts"), "a");
+    await sh(upstream, "add", ".");
+    await sh(upstream, "commit", "-qm", "init");
+    const fork = await mkdtemp(join(tmpdir(), "metator-fork-"));
+    dirs.push(fork);
+    await sh(fork, "init", "-q", "--bare", ".");
+    const clone = await mkdtemp(join(tmpdir(), "metator-clone-"));
+    dirs.push(clone);
+    await sh(clone, "clone", "-q", upstream, ".");
+    await sh(clone, "remote", "set-url", "--push", "origin", fork);
+    await sh(clone, "switch", "-qc", "metator/r");
+    await sh(clone, "push", "-q", "origin", "metator/r");
+    const state = (await new GitVcs(clone).published())._unsafeUnwrap();
+    expect(state.remote).toBe(state.head);
   });
 });

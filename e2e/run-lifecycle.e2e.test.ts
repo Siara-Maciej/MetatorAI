@@ -155,7 +155,7 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
       approvals: { approval: { by: "maciej", choice: "1" }, push: { by: "maciej" } },
     });
     const state = JSON.parse(await repo.read(`.metator/runs/${runId}/state.json`));
-    expect([state.schemaVersion, Object.keys(state.approvals).sort()]).toEqual([4, ["approval", "push"]]);
+    expect([state.schemaVersion, Object.keys(state.approvals).sort()]).toEqual([5, ["approval", "push"]]);
   });
 
   test("finishing the last stage completes the run", async () => {
@@ -297,7 +297,7 @@ describe("every persisted file is a versioned document (ADR-0016)", () => {
       expect(r.code).toBe(1);
       expect(r.json.error).toMatchObject({
         code: "INVALID_CONFIG",
-        hint: 'Expected "kind: Workflow" and "schemaVersion: 2" at the top of the document.',
+        hint: 'Expected "kind: Workflow" and "schemaVersion: 3" at the top of the document.',
       });
     } finally {
       await Bun.file(repo.path(".github/metator/workflows/legacy.yml")).delete();

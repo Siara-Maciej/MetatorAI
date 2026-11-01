@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { createMonorepo, MONOREPO_FILES, writeFixture } from "@metator/testing";
 import { ManypkgWorkspaceReader } from "../src/manypkg-workspace-reader.ts";
 
@@ -44,6 +44,65 @@ describe("ManypkgWorkspaceReader", () => {
     });
     expect((await new ManypkgWorkspaceReader(root).packages())._unsafeUnwrap()).toEqual([
       { name: "@p/one", dir: "libs/one" },
+    ]);
+  });
+
+  test("a package.json without a name is named after its directory, not an error", async () => {
+    const pnpm = await fixture({
+      "package.json": '{ "private": true }',
+      "pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
+      "pnpm-workspace.yaml": "packages:\n  - proxy\n  - '!**/test/**'\n",
+      "proxy/package.json": '{ "private": true }',
+    });
+    expect((await new ManypkgWorkspaceReader(pnpm).packages())._unsafeUnwrap()).toEqual([
+      { name: "proxy", dir: "proxy" },
+    ]);
+    const single = await fixture({ "package.json": '{ "private": true }', "pnpm-lock.yaml": "x: 1\n" });
+    const name = basename(single);
+    expect((await new ManypkgWorkspaceReader(single).packages())._unsafeUnwrap()).toEqual([
+      { name, dir: "." },
+    ]);
+  });
+
+  test("an application at the root next to its workspaces is a package too", async () => {
+    const app = await fixture({
+      "package.json": '{ "name": "movies", "private": true }',
+      "nuxt.config.ts": "export default {}\n",
+      "pnpm-workspace.yaml": "packages:\n  - proxy\n",
+      "proxy/package.json": '{ "name": "proxy" }',
+    });
+    expect((await new ManypkgWorkspaceReader(app).packages())._unsafeUnwrap()).toEqual([
+      { name: "movies", dir: "." },
+      { name: "proxy", dir: "proxy" },
+    ]);
+  });
+
+  test("services side by side without a workspace are packages; the root only when it runs code", async () => {
+    const services = {
+      "package.json": '{ "name": "platform", "scripts": { "lint": "npm --prefix user run lint" } }',
+      "user/package.json": '{ "name": "user" }',
+      "gateway/package.json": '{ "name": "gateway" }',
+      "test/fixtures/app/package.json": '{ "name": "fixture" }',
+      "examples/demo/package.json": '{ "name": "demo" }',
+    };
+    expect((await new ManypkgWorkspaceReader(await fixture(services)).packages())._unsafeUnwrap()).toEqual([
+      { name: "gateway", dir: "gateway", standalone: true },
+      { name: "user", dir: "user", standalone: true },
+    ]);
+    const withRoot = await fixture({
+      ...services,
+      "package.json": '{ "name": "platform", "dependencies": { "express": "^5.0.0" } }',
+    });
+    expect((await new ManypkgWorkspaceReader(withRoot).packages())._unsafeUnwrap().map((p) => p.dir)).toEqual(
+      [".", "gateway", "user"],
+    );
+    // One nested package.json (a `functions/` folder) leaves the repository one package.
+    const one = await fixture({
+      "package.json": '{ "name": "site" }',
+      "functions/package.json": '{ "name": "fn" }',
+    });
+    expect((await new ManypkgWorkspaceReader(one).packages())._unsafeUnwrap()).toEqual([
+      { name: "site", dir: "." },
     ]);
   });
 

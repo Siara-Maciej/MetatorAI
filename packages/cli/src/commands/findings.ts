@@ -2,14 +2,25 @@ import {
   DEFAULT_LENSES,
   err,
   FindingSetDocument,
+  type FindingSeverity,
   LENSES,
   MetatorError,
   normalizePath,
   ok,
+  SEVERITIES,
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
+
+interface CalibrateOptions {
+  readonly id: string;
+  readonly severity?: string;
+  readonly merge?: string[];
+  readonly trigger?: string;
+  readonly reachability?: string;
+  readonly evidence?: string;
+}
 
 export function registerFindingsCommands(program: Command, { action, container }: CommandContext): void {
   const findings = program
@@ -23,22 +34,30 @@ export function registerFindingsCommands(program: Command, { action, container }
     )
     .argument("<dir>", "directory of FindingSet JSON files, e.g. .metator/runs/<id>/findings")
     .option("--fix", "rewrite the line of findings whose quote moved", false)
+    .option("--plan <file>", "review-plan.json: fail when a lens wrote no file for a shard")
     .action(
-      action(async (dir: string, opts: { fix: boolean }) => {
+      action(async (dir: string, opts: { fix: boolean; plan?: string }) => {
         const report = await container()
           .resolve("validateFindings")
-          .execute({ dir: normalizePath(dir), fix: opts.fix });
+          .execute({
+            dir: normalizePath(dir),
+            fix: opts.fix,
+            ...(opts.plan ? { plan: normalizePath(opts.plan) } : {}),
+          });
         if (report.isErr()) return { result: report };
         const { invalid, moved } = report.value.counts;
         const unreadable = report.value.unreadable.length;
-        if (invalid + moved + unreadable > 0) {
+        const missing = report.value.missing.length;
+        if (invalid + moved + unreadable + missing > 0) {
           return {
             result: err(
               new MetatorError(
                 "CHECK_FAILED",
-                `${invalid} invalid, ${moved} moved, ${unreadable} unreadable`,
+                `${invalid} invalid, ${moved} moved, ${unreadable} unreadable, ${missing} missing`,
                 {
-                  hint: "Invalid findings never reach Verify: fix the quote or the missing fields; `--fix` updates moved lines.",
+                  hint: missing
+                    ? `No findings file from: ${report.value.missing.join(", ")}. Each lens writes one per shard, with \`findings: []\` when it found nothing.`
+                    : "Invalid findings never reach Verify: fix the quote or the missing fields; `--fix` updates moved lines.",
                   details: { ...report.value },
                 },
               ),
@@ -75,6 +94,65 @@ export function registerFindingsCommands(program: Command, { action, container }
               },
             ),
           ),
+        };
+      }),
+    );
+
+  findings
+    .command("calibrate")
+    .description(
+      "The judge's calibration of <dir>/merged.json: one finding's severity, and the findings with the same root cause folded into it",
+    )
+    .argument("<dir>", "directory with merged.json")
+    .requiredOption("--id <id>", "the finding to calibrate")
+    .option("--severity <severity>", `new severity: ${SEVERITIES.join(", ")}`)
+    .option(
+      "--merge <ids...>",
+      "findings with the same root cause, folded into it (their lenses join alsoFrom)",
+    )
+    .option("--trigger <text>", "the input or state that triggers it (a blocker needs one)")
+    .option("--reachability <text>", "the path from a real caller (a blocker needs one)")
+    .option("--evidence <type:ref>", "test, trace, rule or doc, then the reference (a blocker needs one)")
+    .action(
+      action(async (dir: string, opts: CalibrateOptions) => {
+        if (opts.severity && !(SEVERITIES as readonly string[]).includes(opts.severity))
+          return {
+            result: err(
+              MetatorError.usage(
+                `unknown severity ${opts.severity}`,
+                `Use one of: ${SEVERITIES.join(", ")}.`,
+              ),
+            ),
+          };
+        const evidence = opts.evidence ? /^(test|trace|rule|doc):(.+)$/.exec(opts.evidence) : null;
+        if (opts.evidence && !evidence)
+          return {
+            result: err(
+              MetatorError.usage(
+                `invalid --evidence ${opts.evidence}`,
+                "Use <test|trace|rule|doc>:<reference>.",
+              ),
+            ),
+          };
+        return {
+          result: await container()
+            .resolve("calibrateFinding")
+            .execute({
+              dir: normalizePath(dir),
+              id: opts.id,
+              ...(opts.severity ? { severity: opts.severity as FindingSeverity } : {}),
+              ...(opts.merge ? { merge: opts.merge } : {}),
+              ...(opts.trigger ? { trigger: opts.trigger } : {}),
+              ...(opts.reachability ? { reachability: opts.reachability } : {}),
+              ...(evidence
+                ? {
+                    evidence: {
+                      type: evidence[1] as "test" | "trace" | "rule" | "doc",
+                      ref: evidence[2] as string,
+                    },
+                  }
+                : {}),
+            }),
         };
       }),
     );
@@ -137,9 +215,37 @@ export function registerFindingsCommands(program: Command, { action, container }
 }
 
 export function registerReviewCommands(program: Command, { action, container }: CommandContext): void {
-  program
-    .command("review")
-    .description("Plan a review of the change")
+  const review = program.command("review").description("Plan a review of the change and describe it");
+  review
+    .command("metadata")
+    .description("The branch against its base: commits, authors, changed files, uncommitted work (pr.json)")
+    .option("--base <ref>", "the branch the change goes into", "HEAD")
+    .option("--out <path>", "also write it as a ReviewMetadata document")
+    .action(
+      action(async (opts: { base: string; out?: string }) => ({
+        result: await container()
+          .resolve("describeReviewedChange")
+          .execute({ base: opts.base, ...(opts.out ? { out: normalizePath(opts.out) } : {}) }),
+      })),
+    );
+  review
+    .command("diff")
+    .description("The change as a unified diff (new files whole), without MetatorAI's own files")
+    .argument("[files...]", "only these files")
+    .option("--base <ref>", "the branch the change goes into", "HEAD")
+    .option("--out <path>", "write the patch to this file as plain text (read it with your Read tool)")
+    .action(
+      action(async (files: string[], opts: { base: string; out?: string }) => ({
+        result: await container()
+          .resolve("showChangeDiff")
+          .execute({
+            base: opts.base,
+            ...(files.length > 0 ? { files: files.map(normalizePath) } : {}),
+            ...(opts.out ? { out: normalizePath(opts.out) } : {}),
+          }),
+      })),
+    );
+  review
     .command("plan")
     .description("Shards per package with card and rules; lenses run per shard")
     .option("--base <ref>", "review files changed against this ref", "HEAD")

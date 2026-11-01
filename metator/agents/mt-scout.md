@@ -5,7 +5,7 @@ id: mt-scout
 role: worker
 description: Maps what a task touches before planning, from the import graph and module cards. Use at the start of a run to scope the change. Do not use to write code or to review.
 tier: standard
-capabilities: [read, search, "metator:graph", "metator:workspace", "metator:cards", "metator:owners"]
+capabilities: [read, search, edit, "metator:graph", "metator:workspace", "metator:cards", "metator:owners"]
 inputs: [task]
 output: { artifact: analysis.json, schema: Analysis@1, summaryLines: 15 }
 ---

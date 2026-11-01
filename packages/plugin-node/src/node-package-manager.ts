@@ -40,6 +40,26 @@ export class NodePackageManager implements PackageManagerDetector, PackageManage
     return ok({ argv: [resolved.command, ...resolved.args], cwd: this.root });
   }
 
+  async workspacesCommand(script: string): Promise<Result<ResolvedCommand, MetatorError>> {
+    const pm = await this.detect();
+    if (pm.isErr()) return err(pm.error);
+    const name = pm.value?.name ?? "npm";
+    // Each tool's own way to run a script in every workspace package that has one.
+    const berry = name === "yarn" && !/^1\./.test(pm.value?.version ?? "1.");
+    const argv: Record<string, readonly string[]> = {
+      npm: ["npm", "run", script, "--workspaces", "--if-present"],
+      pnpm: ["pnpm", "-r", "--if-present", "run", script],
+      bun: ["bun", "run", "--filter", "*", script],
+      yarn: berry
+        ? ["yarn", "workspaces", "foreach", "-A", "run", script]
+        : ["yarn", "workspaces", "run", script],
+    };
+    const command = argv[name];
+    if (!command)
+      return err(new MetatorError("INTERNAL", `No workspaces command for package manager ${name}`));
+    return ok({ argv: [...command], cwd: this.root });
+  }
+
   private async run(): Promise<Result<DetectedPackageManager | undefined, MetatorError>> {
     try {
       const found = await detect({ cwd: this.root, stopDir: this.root });

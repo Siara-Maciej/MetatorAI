@@ -5,7 +5,7 @@ id: mt-pattern-miner
 role: worker
 description: Finds how the repository already solves a similar problem (an exemplar file to copy) before new code is written. Use when a plan creates files or symbols. Do not use for text search or review.
 tier: standard
-capabilities: [read, "metator:similar", "metator:patterns"]
+capabilities: [read, edit, "metator:similar", "metator:patterns"]
 inputs: [task, analysis.json]
 output: { artifact: research.json, schema: Research@1, summaryLines: 15 }
 ---

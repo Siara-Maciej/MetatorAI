@@ -1,5 +1,6 @@
 import type { SystemSettings } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { DependencyGraph } from "../domain/graph.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   cloneDir,
@@ -11,7 +12,7 @@ import {
 } from "../domain/system-impact.ts";
 import { type Application, appDir, type SystemMap, SystemMapDocument } from "../domain/system-map.ts";
 import { parseYamlDocument } from "../domain/versioned.ts";
-import type { CheckoutReader, RepositoryCloner, Vcs } from "../ports/index.ts";
+import type { CheckoutReader, ImportGraphReader, RepositoryCloner, Vcs } from "../ports/index.ts";
 
 /** `path` resolved against an absolute `base`, with `.` and `..` taken out. */
 export function absolute(base: string, path: string): string {
@@ -190,7 +191,7 @@ export class SystemSources {
     private readonly here: string,
     readonly location: SystemLocation,
     private readonly clones: Pick<CloneCache, "at">,
-    private readonly reader: Pick<CheckoutReader, "isDirectory">,
+    private readonly reader: Pick<CheckoutReader, "isDirectory" | "read">,
     private readonly vcs: Pick<Vcs, "remoteUrl">,
   ) {}
 
@@ -244,9 +245,31 @@ export class SystemSources {
     if (where.value === this.here || isRemote) return ok({ app: app.id, root: this.here, dir, via: "here" });
     if (where.value.startsWith("/") && !ref && (await this.reader.isDirectory(where.value)))
       return ok({ app: app.id, root: where.value, dir, via: "local" });
+    // Repositories cloned side by side: a sibling named like the repository, with its remote. A
+    // pinned ref is a commit, not a working tree, so it is still cloned.
+    if (!ref) {
+      const sibling = await this.sibling(repo);
+      if (sibling) return ok({ app: app.id, root: sibling, dir, via: "local" });
+    }
     if (!options.fetch) return ok(undefined);
     const cloned = await this.clones.at(where.value, ref);
     return cloned.isErr() ? err(cloned.error) : ok({ app: app.id, root: cloned.value, dir, via: "clone" });
+  }
+
+  /** `../<name>` next to this repository when its git remote is `repo`. */
+  private async sibling(repo: string): Promise<string | undefined> {
+    const name = repo
+      .replace(/\/+$/, "")
+      .replace(/\.git$/, "")
+      .split(/[/:]/)
+      .at(-1);
+    if (!name || name === "." || name === "..") return undefined;
+    const candidate = `${this.here.replace(/\/[^/]+\/?$/, "")}/${name}`;
+    if (candidate === this.here || !(await this.reader.isDirectory(candidate))) return undefined;
+    const config = await this.reader.read(candidate, ".git/config");
+    if (config.isErr() || config.value === undefined) return undefined;
+    const urls = [...config.value.matchAll(/^\s*url\s*=\s*(\S+)/gm)].map((m) => m[1] as string);
+    return urls.some((u) => sameRepository(u, repo)) ? candidate : undefined;
   }
 
   /** Every application of the map, located (`system sources`). */
@@ -285,6 +308,8 @@ export class SystemImpactQuery {
   constructor(
     private readonly sources: Pick<SystemSources, "self" | "location">,
     private readonly vcs: Pick<Vcs, "changedFiles">,
+    /** The import graph: a changed library reaches the applications that import it. */
+    private readonly graph?: ImportGraphReader,
   ) {}
 
   async execute(input: {
@@ -310,9 +335,17 @@ export class SystemImpactQuery {
     }
     const self = await this.sources.self(map.value);
     if (self.isErr()) return err(self.error);
+    let usedBy: ((file: string) => readonly string[]) | undefined;
+    if (this.graph && files.length > 0) {
+      const edges = await this.graph.read();
+      if (edges.isErr()) return err(edges.error);
+      const deps = new DependencyGraph(edges.value);
+      usedBy = (file) => [...deps.affected([file])].filter((f) => f !== file);
+    }
     const impact = impactOf(map.value, {
       self: self.value,
       files,
+      ...(usedBy ? { usedBy } : {}),
       ...(input.contracts ? { contracts: input.contracts } : {}),
     });
     return ok({

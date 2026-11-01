@@ -12,6 +12,7 @@ import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domai
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
+import type { PublishedBranch } from "../domain/publication.ts";
 import type { Result } from "../domain/result.ts";
 import type { Skill } from "../domain/skill.ts";
 import type { ModuleSymbols } from "../domain/symbols.ts";
@@ -48,7 +49,19 @@ export interface ProcessRunner {
 
 /** Git worktrees (F8.2). Paths are repo-relative. */
 export interface WorktreeManager {
-  add(path: string, branch: string, base: string): Promise<Result<void, MetatorError>>;
+  /**
+   * A new worktree on `branch` from `base`. Each `shared` directory of this checkout (a run's
+   * state) is reached from the worktree through a link at the same relative path. Each untracked
+   * file of this checkout under a `setup` path (a MetatorAI setup not committed yet) is linked too,
+   * and ignored in that worktree only: its agents, gates and skills are the checkout's.
+   */
+  add(
+    path: string,
+    branch: string,
+    base: string,
+    shared?: readonly string[],
+    setup?: readonly string[],
+  ): Promise<Result<void, MetatorError>>;
   remove(path: string, force: boolean): Promise<Result<void, MetatorError>>;
   /** Uncommitted or untracked changes in the worktree. */
   isDirty(path: string): Promise<Result<boolean, MetatorError>>;
@@ -173,6 +186,50 @@ export interface Vcs {
   remoteUrl(): Promise<Result<string | undefined, MetatorError>>;
 }
 
+export interface BranchPublication {
+  /** Asks `origin` itself (`git ls-remote`), not a remote-tracking ref a single-branch clone lacks. */
+  published(): Promise<Result<PublishedBranch, MetatorError>>;
+}
+
+/** The change itself as a unified diff (`review diff`): what a reviewer reads besides the files. */
+export interface ChangePatch {
+  /**
+   * The diff of the given files (all changed files when none are given) from the merge base with
+   * `base` to the working tree; a new, untracked file is shown whole as added. No external diff
+   * driver or text conversion runs.
+   */
+  patch(base: string, files?: readonly string[]): Promise<Result<string, MetatorError>>;
+}
+
+/** A commit of a branch, as a review's metadata shows it. */
+export interface BranchCommit {
+  readonly sha: string;
+  readonly author: string;
+  readonly email: string;
+  /** ISO date of the commit. */
+  readonly date: string;
+  readonly subject: string;
+}
+
+/** A branch against its base (`review metadata`): where it forks and what it adds. */
+export interface BranchHistory {
+  branch(base: string): Promise<
+    Result<
+      {
+        /** The current branch; null when HEAD is detached. */
+        readonly branch: string | null;
+        readonly head: string | null;
+        readonly mergeBase: string | null;
+        /** Commits after the merge base, newest first. */
+        readonly commits: readonly BranchCommit[];
+        /** The working tree has changes no commit holds. */
+        readonly uncommitted: boolean;
+      },
+      MetatorError
+    >
+  >;
+}
+
 /** File contents at an earlier revision (split from Vcs: history is read by few use cases). */
 export interface RevisionReader {
   /** `path` at the merge base of `base` and HEAD; undefined when the file did not exist there. */
@@ -197,6 +254,8 @@ export interface WorkspacePackage {
   readonly name: string;
   /** Repo-relative directory; "." for a single-package repository root. */
   readonly dir: string;
+  /** A project of its own beside others (no workspace holds it): the package manager cannot run a script across it. */
+  readonly standalone?: boolean;
 }
 
 export interface WorkspaceReader {
@@ -292,6 +351,8 @@ export interface ImportAnalyzer {
   parse(path: string, content: string): Result<readonly ImportSpecifier[], MetatorError>;
   /** Resolves a specifier from a repo-relative file; files outside the repo or in node_modules are external. */
   resolve(fromPath: string, specifier: string): Resolution;
+  /** What made resolution approximate (e.g. a config that extends a package not installed). */
+  notes?(): readonly string[];
 }
 
 /** Exported and imported names of one module (split from ImportAnalyzer: a different axis). */
@@ -353,6 +414,8 @@ export interface PackageManagerDetector {
 /** Runs package.json scripts the way the repository's package manager does (npm needs `--`). */
 export interface PackageManager {
   scriptCommand(script: string, args: readonly string[]): Promise<Result<ResolvedCommand, MetatorError>>;
+  /** The script in every workspace package that has it (`pnpm -r --if-present run <script>`). */
+  workspacesCommand(script: string): Promise<Result<ResolvedCommand, MetatorError>>;
 }
 
 /** Commands for project binaries: `node_modules/.bin/<bin>` of the repository first, PATH otherwise. */

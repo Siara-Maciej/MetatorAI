@@ -169,23 +169,44 @@ describe("metator system discover in a folder of three repositories (real CLI)",
       git("add", "-A");
       git("commit", "-q", "-m", "init");
     };
+    // The application is the repository's root (its own Dockerfile), with a library package beside it.
     await repo("billing", {
-      "package.json": json({ name: "billing", private: true, scripts: { start: "bun src/server.ts" } }),
-      "src/server.ts": "export const s = 1;\n",
+      "package.json": json({
+        name: "billing",
+        private: true,
+        workspaces: ["packages/*"],
+        scripts: { start: "bun src/server.ts" },
+        dependencies: { "billing-templates": "workspace:*" },
+      }),
+      Dockerfile: "FROM oven/bun\n",
+      "src/server.ts":
+        'import { t } from "billing-templates";\nexport const s = t;\nSwaggerModule.setup("docs", app, document);\n@Controller("invoices")\nrouter.get("/refunds", h);\n',
+      "packages/templates/package.json": json({ name: "billing-templates", private: true, main: "index.ts" }),
+      "packages/templates/index.ts": "export const t = 1;\n",
       "openapi.yaml": SPEC,
     });
     await repo("web", {
       "package.json": json({
         name: "web",
         private: true,
-        scripts: { dev: "vite", "gen:api": "openapi-typescript ../billing/openapi.yaml" },
+        scripts: {
+          dev: "vite",
+          "gen:api": "openapi-typescript ../billing/openapi.yaml",
+          "gen:live": "openapi-typescript https://billing.shop.internal/docs-json",
+          // A copy downloaded to generate a client: web serves nothing it describes.
+          "gen:copy": "curl -sL https://billing.shop.internal/openapi.yaml -o ./src/api/openapi.yaml",
+        },
         dependencies: { react: "19" },
       }),
       "src/main.ts": "export const m = 1;\n",
+      "src/api/openapi.yaml": SPEC,
+      // A real env file (secrets) is never read, even committed: no evidence comes from it.
+      ".env.local": "BILLING_DOCS=https://billing.shop.internal/docs-json\n",
     });
     await repo("notify", {
       "package.json": json({ name: "notify-worker", private: true, scripts: { start: "bun src/index.ts" } }),
-      "src/index.ts": "export const n = 1;\n",
+      // A hand-written client: no spec named, but it calls two routes billing declares.
+      "src/index.ts": "await fetch(BILLING + '/invoices/1');\nawait fetch(BILLING + '/refunds');\n",
     });
   });
   afterAll(async () => {
@@ -199,15 +220,26 @@ describe("metator system discover in a folder of three repositories (real CLI)",
     expect(d.topology).toBe("repos");
     expect(d.proposal.applications.map((a) => [a.id, a.kind, a.source, a.consumes])).toEqual([
       ["billing", "service", { repo: "billing" }, []],
-      ["notify", "worker", { repo: "notify" }, []],
+      ["notify", "worker", { repo: "notify" }, ["billing-api"]],
       ["web", "frontend", { repo: "web" }, ["billing-api"]],
     ]);
     expect(d.proposal.contracts.map((c) => [c.id, c.owner, c.spec.path])).toEqual([
       ["billing-api", "billing", "openapi.yaml"],
     ]);
     expect(d.evidence).toContainEqual(
+      expect.objectContaining({ subject: "consumes:notify→billing-api", file: "notify/src/index.ts" }),
+    );
+    expect(d.evidence).toContainEqual(
       expect.objectContaining({ subject: "consumes:web→billing-api", file: "web/package.json" }),
     );
+    // The document billing serves at runtime, and web fetching it: shown, not proposed, since
+    // billing already declares its OpenAPI file (ADR-0076).
+    expect(
+      d.evidence.filter((e) => e.subject.includes(" /")).map((e) => [e.subject, e.proposed, e.file]),
+    ).toEqual([
+      ["served:billing /docs-json", false, "billing/src/server.ts:3"],
+      ["consumes:web→billing /docs-json", false, "web/package.json"],
+    ]);
     // A folder has no map of its own: --write and --check say so instead of doing nothing.
     for (const flag of ["--write", "--check"]) {
       const r2 = await metator(["system", "discover", flag], folder);

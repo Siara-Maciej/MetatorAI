@@ -37,6 +37,8 @@ export interface ContractDiffReport {
   readonly contracts: readonly ContractDiffEntry[];
   /** Contracts whose change the map's policy does not allow. */
   readonly failing: readonly string[];
+  /** Contracts whose provider serves the specification at runtime: no file to compare. */
+  readonly notCompared: readonly { readonly id: string; readonly served: string }[];
 }
 
 /**
@@ -65,8 +67,14 @@ export class DiffContracts {
     const chosen = choose(map.value, new Map(self.value.map((a) => [a.id, a])), input.contracts);
     if (chosen.isErr()) return err(chosen.error);
     const entries: ContractDiffEntry[] = [];
+    const notCompared: { id: string; served: string }[] = [];
     for (const { contract, owner } of chosen.value) {
-      const entry = await this.diff(map.value, contract, owner, input.base);
+      const spec = specPath(owner, contract);
+      if (spec === undefined) {
+        notCompared.push({ id: contract.id, served: (contract.spec as { served: string }).served });
+        continue;
+      }
+      const entry = await this.diff(map.value, contract, spec, input.base);
       if (entry.isErr()) return err(entry.error);
       entries.push(entry.value);
     }
@@ -75,16 +83,16 @@ export class DiffContracts {
       base: input.base,
       contracts: entries,
       failing: entries.filter((e) => !e.allowed).map((e) => e.id),
+      notCompared,
     });
   }
 
   private async diff(
     map: SystemMap,
     contract: Contract,
-    owner: Application,
+    spec: string,
     base: string,
   ): Promise<Result<ContractDiffEntry, MetatorError>> {
-    const spec = specPath(owner, contract);
     const before = await this.revisions.readAt(base, spec);
     if (before.isErr()) return err(before.error);
     let after: string | undefined;

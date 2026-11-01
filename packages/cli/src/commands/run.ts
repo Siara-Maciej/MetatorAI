@@ -2,12 +2,19 @@ import {
   AnalysisDocument,
   AutonomySchema,
   err,
+  FindingSetDocument,
+  INPUT_NAME,
   MetatorError,
   ok,
+  PlanDocument,
+  PlanScopeDocument,
   ResearchDocument,
   type Result,
+  ReviewMetadataDocument,
+  ReviewPlanDocument,
   type RunEvent,
   RunSummaryDocument,
+  VerdictDocument,
 } from "@metator/core";
 import { Argument, type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
@@ -16,8 +23,18 @@ import { registerDriveCommands } from "./drive.ts";
 
 export const EVENTS = ["pass", "fail", "approve", "abort"] as const;
 
-/** Artifacts whose format `run schema` prints (plans, findings and verdicts have their own group). */
-const RUN_ARTIFACTS = { analysis: AnalysisDocument, research: ResearchDocument, summary: RunSummaryDocument };
+/** The JSON artifacts a stage produces, by the name its `produces` gives them: `run schema` prints each. */
+const RUN_ARTIFACTS = {
+  analysis: AnalysisDocument,
+  research: ResearchDocument,
+  plan: PlanDocument,
+  "plan-scope": PlanScopeDocument,
+  "review-plan": ReviewPlanDocument,
+  pr: ReviewMetadataDocument,
+  findings: FindingSetDocument,
+  verdict: VerdictDocument,
+  summary: RunSummaryDocument,
+};
 type EventName = (typeof EVENTS)[number];
 
 interface AdvanceOptions {
@@ -50,7 +67,9 @@ export function toEvent(name: EventName, opts: AdvanceOptions): Result<RunEvent,
 }
 
 export function registerRunCommands(program: Command, ctx: CommandContext): void {
-  const { action, container } = ctx;
+  const { action, stdin } = ctx;
+  // In a worktree, the run is the one of the checkout it came from.
+  const container = ctx.runs;
   const runs = program.command("run").description("Start and drive workflow runs (state machine)");
 
   runs
@@ -66,6 +85,12 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .option("--worktree", "work in a new git worktree with its own ports (.metator/wt/<run>)", false)
     .option("--base <ref>", "with --worktree: the ref to branch from", "HEAD")
     .option("--parent <run>", "the run this one is a child of (a system run, possibly in another repository)")
+    .option(
+      "--input <name=value>",
+      "a workflow input its scripts read as {name} (repeatable), e.g. base=main",
+      (v: string, all: string[]) => [...all, v],
+      [] as string[],
+    )
     .action(
       action(
         async (opts: {
@@ -75,10 +100,22 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
           worktree: boolean;
           base: string;
           parent?: string;
+          input: string[];
         }) => {
           const task = opts.task.trim();
           if (task === "") return { result: err(MetatorError.usage("--task must not be empty")) };
+          const inputs: Record<string, string> = {};
+          for (const pair of opts.input) {
+            const at = pair.indexOf("=");
+            const name = pair.slice(0, at);
+            if (at <= 0 || !INPUT_NAME.test(name) || at === pair.length - 1)
+              return {
+                result: err(MetatorError.usage(`--input ${pair}: expected <name>=<value>, e.g. base=main`)),
+              };
+            inputs[name] = pair.slice(at + 1);
+          }
           const input = {
+            ...(Object.keys(inputs).length > 0 ? { inputs } : {}),
             workflow: opts.workflow,
             task,
             autonomy: opts.autonomy,
@@ -140,6 +177,32 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     );
 
   runs
+    .command("resume")
+    .description("Resume an escalated run at the stage it escalated from, once the cause is fixed")
+    .requiredOption("--by <name>", "who resumes it (recorded in log.md)")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (opts: { by: string; run?: string }) => ({
+        result: await container()
+          .resolve("resumeRun")
+          .execute({ by: opts.by, ...(opts.run ? { runId: opts.run } : {}) }),
+      })),
+    );
+
+  runs
+    .command("write")
+    .description("Write an artifact the current stage produces (intake: task.md) from stdin into the run")
+    .argument("<artifact>", "the artifact's name, as the stage's `produces` lists it")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (artifact: string, opts: { run?: string }) => ({
+        result: await container()
+          .resolve("writeRunArtifact")
+          .execute({ artifact, content: await stdin(), ...(opts.run ? { runId: opts.run } : {}) }),
+      })),
+    );
+
+  runs
     .command("handoff")
     .description(
       "Write handoff.md from the run directory: stage, approvals, artifacts, recent log, how to resume",
@@ -190,13 +253,37 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     );
 
   runs
+    .command("published")
+    .description(
+      "Whether the run's work is published: nothing uncommitted, and origin's branch at the checked-out commit (the publish gate)",
+    )
+    .action(
+      // The branch checked out here (a run's worktree), not the checkout its runs live in.
+      action(async () => ({
+        result: await ctx.container().resolve("checkPublished").execute(),
+      })),
+    );
+
+  runs
     .command("schema")
     .description("Print the JSON Schema of a run artifact written by a worker")
-    .addArgument(new Argument("<artifact>", "artifact").choices(Object.keys(RUN_ARTIFACTS)))
+    // `analysis.json`, as a stage's `produces` names it, is the same artifact as `analysis`.
+    .argument("<artifact>", `artifact: ${Object.keys(RUN_ARTIFACTS).join(", ")} (with or without .json)`)
     .action(
-      action(async (artifact: keyof typeof RUN_ARTIFACTS) => ({
-        result: ok(RUN_ARTIFACTS[artifact].jsonSchema("input")),
-      })),
+      action(async (artifact: string) => {
+        const name = artifact.replace(/\.json$/, "");
+        return {
+          result:
+            name in RUN_ARTIFACTS
+              ? ok(RUN_ARTIFACTS[name as keyof typeof RUN_ARTIFACTS].jsonSchema("input"))
+              : err(
+                  MetatorError.usage(
+                    `no schema for ${artifact}`,
+                    `Artifacts with a schema: ${Object.keys(RUN_ARTIFACTS).join(", ")}.`,
+                  ),
+                ),
+        };
+      }),
     );
 
   runs

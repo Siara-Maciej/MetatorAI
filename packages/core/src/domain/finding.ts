@@ -115,3 +115,47 @@ export function mergeFindings(findings: readonly Finding[]): { merged: Finding[]
   );
   return { merged, duplicates: findings.length - merged.length };
 }
+
+/**
+ * The judge's calibration of one merged finding (`findings calibrate`): its severity, and the
+ * findings that share its root cause folded into it (their lenses join `alsoFrom`). Returns the new
+ * list, or the ids it does not know.
+ */
+export function calibrateFinding(
+  findings: readonly Finding[],
+  change: {
+    readonly id: string;
+    readonly severity?: FindingSeverity;
+    readonly merge?: readonly string[];
+    /** What a blocker needs and the finding may lack: its trigger, reachability, evidence. */
+    readonly trigger?: string;
+    readonly reachability?: string;
+    readonly evidence?: NonNullable<Finding["evidence"]>;
+  },
+): { readonly findings: Finding[] } | { readonly unknown: string[] } | { readonly problems: string[] } {
+  const ids = new Set(findings.map((f) => f.id));
+  const unknown = [change.id, ...(change.merge ?? [])].filter((id) => !ids.has(id));
+  if (unknown.length > 0) return { unknown };
+  const folded = findings.filter((f) => f.id !== change.id && (change.merge ?? []).includes(f.id));
+  const target = findings.find((f) => f.id === change.id) as Finding;
+  const lenses = [
+    ...new Set([...(target.alsoFrom ?? []), ...folded.flatMap((f) => [f.lens, ...(f.alsoFrom ?? [])])]),
+  ]
+    .filter((l) => l !== target.lens)
+    .sort();
+  const updated: Finding = {
+    ...target,
+    ...(change.severity ? { severity: change.severity } : {}),
+    ...(change.trigger ? { trigger: change.trigger } : {}),
+    ...(change.reachability ? { reachability: change.reachability } : {}),
+    ...(change.evidence ? { evidence: change.evidence } : {}),
+    ...(lenses.length > 0 ? { alsoFrom: lenses } : {}),
+  };
+  // The same policy every finding meets: a blocker without trigger, reachability or evidence is
+  // dropped by the next validation, so it is refused here instead.
+  const problems = policyProblems(updated);
+  if (problems.length > 0) return { problems };
+  return {
+    findings: findings.filter((f) => !folded.includes(f)).map((f) => (f.id === change.id ? updated : f)),
+  };
+}

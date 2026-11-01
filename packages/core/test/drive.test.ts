@@ -8,7 +8,7 @@ import {
   InstantTimer,
   ScriptedProcessRunner,
 } from "@metator/testing";
-import { DriveRun, OTHER, RunJournal } from "../src/application/drive.ts";
+import { DriveRun, failedSteps, OTHER, RunJournal } from "../src/application/drive.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { CloseRun } from "../src/application/run-close.ts";
 import { RunDrivers } from "../src/application/run-drivers.ts";
@@ -16,7 +16,9 @@ import { RunRepository } from "../src/application/run-repository.ts";
 import { AdvanceRun, ApproveRun, InitRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import {
+  blockedPrompt,
   gatePrompt,
+  hostLimit,
   nextQuestionId,
   parseCriticVerdict,
   parseStatus,
@@ -61,6 +63,26 @@ describe("drive domain", () => {
     expect(parseStatus("no marker at all")).toBeUndefined();
   });
 
+  test("a host's limit is told apart from any other failure", () => {
+    expect(hostLimit("Error\nYou've hit your session limit · resets 3:50pm (UTC)")).toBe(
+      "You've hit your session limit · resets 3:50pm (UTC)",
+    );
+    expect(hostLimit("API Error: 429 Too Many Requests")).toBe("API Error: 429 Too Many Requests");
+    expect(hostLimit("Overloaded, try again")).toBe("Overloaded, try again");
+    expect(hostLimit("TypeError: cannot read x of undefined")).toBeUndefined();
+  });
+
+  test("a blocked agent's question comes with what it wrote before it", () => {
+    const text = "Two choices:\n1. EUR (my recommendation)\n2. USD\nSTATUS: blocked: answer 1 or 2";
+    expect(blockedPrompt(text, "answer 1 or 2")).toBe(
+      "Two choices:\n1. EUR (my recommendation)\n2. USD\n\nanswer 1 or 2",
+    );
+    expect(blockedPrompt("STATUS: blocked: which currency?", "which currency?")).toBe("which currency?");
+    const long = `${"x".repeat(4000)}\nSTATUS: blocked: q`;
+    expect(blockedPrompt(long, "q").length).toBeLessThan(3100);
+    expect(blockedPrompt(long, "q").startsWith("…")).toBe(true);
+  });
+
   test("a critic passes only with VERDICT: PASS; anything else is a FAIL with a reason", () => {
     expect(parseCriticVerdict("ok\nVERDICT: PASS")).toEqual({ pass: true });
     expect(parseCriticVerdict("VERDICT: FAIL: step 3 has no test")).toEqual({
@@ -98,6 +120,89 @@ describe("drive domain", () => {
     expect(gatePrompt({ runId: "r", task: "t", stage, agent: "mt-plan-critic", runDir: "/d" })).toContain(
       "VERDICT: FAIL: <the reason>",
     );
+    expect(gatePrompt({ runId: "r", task: "t", stage, agent: "mt-plan-critic", runDir: "/d" })).toContain(
+      "Read files with Read, Glob and Grep",
+    );
+    // Workers of one stage in parallel: each writes only its own artifact.
+    const parallel = { id: "context", produces: ["a.json", "b.json"], parallel: ["x", "y"] } as StageSpec;
+    const mine = stagePrompt({
+      runId: "r",
+      task: "t",
+      stage: parallel,
+      agent: "x",
+      skills: [],
+      runDir: "/d",
+    });
+    expect(mine).toContain("Write only the artifact your own instructions name");
+    expect(mine).not.toContain("Write these artifacts into");
+    expect(p).toContain("Write an artifact with your Write tool at /repo/.metator/runs/r/<artifact>");
+  });
+
+  test("notes about where the agent works go into its prompt", () => {
+    const stage = { id: "build", produces: [] } as unknown as StageSpec;
+    const p = stagePrompt({
+      runId: "r",
+      task: "t",
+      stage,
+      agent: "a",
+      skills: [],
+      runDir: "/d",
+      notes: ["No node_modules here."],
+    });
+    expect(p).toContain("No node_modules here.");
+    expect(p).toContain("never with an interpreter or a script");
+    expect(p).toContain(
+      "follow the skill mt-run-without-asking (Read `.claude/skills/mt-run-without-asking/SKILL.md`",
+    );
+    expect(p).toContain("`metator help` lists every metator command");
+    expect(p).toContain("Never `metator ask`: it starts another agent");
+  });
+
+  test("a person's answers in the run are decisions every later agent and critic hears", () => {
+    const stage = { id: "review", produces: ["verdict.json"] } as unknown as StageSpec;
+    const base = { runId: "r", task: "t", stage, runDir: "/d" };
+    const decisions = ["intake: add the field by hand; the backend is not on dev yet"];
+    const worker = stagePrompt({ ...base, agent: "a", skills: [], decisions });
+    const critic = gatePrompt({ ...base, agent: "mt-judge", decisions });
+    for (const p of [worker, critic]) {
+      expect(p).toContain("A person decided in this run (follow it; it is not a defect):");
+      expect(p).toContain("- intake: add the field by hand; the backend is not on dev yet");
+    }
+    expect(stagePrompt({ ...base, agent: "a", skills: [] })).not.toContain("A person decided");
+  });
+
+  test("a stage a later stage sent back hears that the work since is already in the working tree", () => {
+    const stage = { id: "plan", produces: ["plan.json"] } as unknown as StageSpec;
+    const base = { runId: "r", task: "t", stage, agent: "mt-planner", skills: [], runDir: "/d" };
+    const back = stagePrompt({ ...base, retry: "the e2e header test breaks", retryFrom: "review" });
+    expect(back).toContain("Stage review failed and sent the run back here: the e2e header test breaks");
+    expect(back).toContain("is already in the working tree");
+    expect(gatePrompt({ ...base, agent: "mt-plan-critic", retry: "x", retryFrom: "review" })).toContain(
+      "already in the working tree",
+    );
+    // Its own gate failing keeps the plain message.
+    const own = stagePrompt({ ...base, retry: "lint failed", retryFrom: "plan" });
+    expect(own).toContain("The previous attempt failed its gate: lint failed");
+    expect(own).not.toContain("already in the working tree");
+  });
+
+  test("a critic gets the notes too, and the repository's gates settle which checks a change needs", () => {
+    const stage = { id: "review", produces: ["verdict.json"] } as unknown as StageSpec;
+    const p = gatePrompt({
+      runId: "r",
+      task: "t",
+      stage,
+      agent: "mt-judge",
+      runDir: "/d",
+      notes: ["No node_modules here."],
+    });
+    expect(p).toContain("No node_modules here.");
+    expect(p).toContain("The checks a change must pass are the repository's configured gates");
+    // The critic is told how to see the change and which commands exist, instead of guessing.
+    expect(p).toContain("else `metator review diff --base HEAD`");
+    expect(p).toContain("never `metator ask`");
+    expect(p).toContain("follow the skill mt-run-without-asking");
+    expect(p).toContain("`metator help` lists every command");
   });
 
   test("question ids count up per run", () => {
@@ -108,9 +213,11 @@ describe("drive domain", () => {
 const WORKFLOW = `kind: Workflow
 schemaVersion: 2
 id: demo
+input:
+  optional: [base]
 stages:
   - id: setup
-    owner: "script:metator index build"
+    owner: "script:metator index build --base {base|HEAD}"
   - id: plan
     owner: mt-planner
     produces: [plan.md]
@@ -165,14 +272,18 @@ function world(
     root: "/repo",
     metatorCommand: "bun run metator",
   });
-  const start = async () => {
+  const start = async (inputs?: Record<string, string>, workflow = "demo") => {
     const view = (
-      await new InitRun(catalog, repo, clock).execute({ workflow: "demo", task: "Add discount" })
+      await new InitRun(catalog, repo, clock).execute({
+        workflow,
+        task: "Add discount",
+        ...(inputs ? { inputs } : {}),
+      })
     )._unsafeUnwrap();
     runId = view.runId;
     return view.runId;
   };
-  return { fs, repo, journal, host, drive, start, asked, scripts };
+  return { fs, repo, journal, host, drive, start, asked, scripts, advance, clock };
 }
 
 const okScripts = () =>
@@ -186,6 +297,32 @@ const writesPlan: FakeAgentTurn = {
   },
 };
 let w0: ReturnType<typeof world> | undefined;
+
+describe("failedSteps", () => {
+  test("a failed gate is each failing step and the first line of its output", () => {
+    const out = JSON.stringify({
+      ok: false,
+      error: {
+        message: "gate quick failed: lint",
+        details: {
+          steps: [
+            {
+              id: "lint",
+              status: "fail",
+              detail: "\n[ERR_PNPM_FETCH_401] GET https://x: Unauthorized\n    at a (b.mjs:1)",
+            },
+            { id: "types", status: "pass", detail: "ok" },
+          ],
+        },
+      },
+    });
+    expect(failedSteps(`noise\n${out}\n`)).toBe(
+      "gate quick failed: lint; lint: [ERR_PNPM_FETCH_401] GET https://x: Unauthorized",
+    );
+    expect(failedSteps("plain text")).toBeUndefined();
+    expect(failedSteps(JSON.stringify({ ok: true, data: {} }))).toBeUndefined();
+  });
+});
 
 describe("DriveRun", () => {
   test("a whole run: script, agent, human gate, agent with a question, gate script and critic", async () => {
@@ -216,10 +353,11 @@ describe("DriveRun", () => {
       runDir: `/repo/.metator/runs/${runId}`,
     });
     expect(w.host.tasks[1]?.prompt).toContain("Skills you may use: mt-create-from-pattern.");
-    // Scripts run through hosts.metatorCommand, with {runDir} filled and the run in the environment.
+    // Scripts run through hosts.metatorCommand, with {runDir} filled (repository-relative, so it is
+    // the same path in a run's worktree) and the run in the environment.
     expect(w.scripts.calls.map((c) => c.argv)).toEqual([
-      ["bun", "run", "metator", "index", "build"],
-      ["test", "-f", `/repo/.metator/runs/${runId}/plan.md`],
+      ["bun", "run", "metator", "index", "build", "--base", "HEAD"],
+      ["test", "-f", `.metator/runs/${runId}/plan.md`],
     ]);
     expect(w.scripts.calls[0]?.env).toEqual({
       METATOR_RUN: runId,
@@ -244,6 +382,65 @@ describe("DriveRun", () => {
     ]);
   });
 
+  test("in a run's worktree an agent gets the run directory through the worktree, inside its root", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start();
+    const record = (await w.repo.load(runId))._unsafeUnwrap();
+    const worktree = { id: "wt1", path: ".metator/wt/wt1", branch: "metator/wt1" };
+    (await w.repo.save({ ...record, worktree }))._unsafeUnwrap();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 2 });
+    expect([w.host.tasks[0]?.cwd, w.host.tasks[0]?.runDir]).toEqual([
+      "/repo/.metator/wt/wt1",
+      `/repo/.metator/wt/wt1/.metator/runs/${runId}`,
+    ]);
+  });
+
+  test("an agent that moves the run itself does not make the drive skip the next stage", async () => {
+    // The planner advances the run on its own (plan → approval); the drive's PASS for plan would
+    // otherwise approve the approval stage. It is not sent, and the approval still asks a person.
+    const selfAdvancing: FakeAgentTurn = {
+      effect: async (task) => {
+        await writesPlan.effect?.(task);
+        await w0?.advance.execute({ runId: "20261027-demo-add-discount", event: { type: "PASS" } });
+      },
+    };
+    const asked: string[] = [];
+    const w = world(
+      { "mt-planner": [selfAdvancing] },
+      (q) => {
+        asked.push(q.stage);
+        return { choices: ["Approve"] };
+      },
+      okScripts(),
+    );
+    w0 = w;
+    const runId = await w.start();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 3 });
+    const record = (await w.repo.load(runId))._unsafeUnwrap();
+    // The approval gate was put to a person, not passed by the planner's leftover PASS.
+    expect([asked[0], record.approvals.approval?.by]).toEqual(["approval", "maciej"]);
+    const notes = (await w.journal.activity(runId))._unsafeUnwrap().filter((a) => a.type === "drive");
+    expect(notes.some((a) => a.text.includes("the run moved on while plan worked"))).toBe(true);
+  });
+
+  test("a script reads the run's inputs: the value it was started with, else the default", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start({ base: "origin/main" });
+    await w.drive.execute({ runId, host: "fake", maxSteps: 1 });
+    expect(w.scripts.calls[0]?.argv).toEqual([
+      "bun",
+      "run",
+      "metator",
+      "index",
+      "build",
+      "--base",
+      "origin/main",
+    ]);
+    expect((await w.repo.load(runId))._unsafeUnwrap().inputs).toEqual({ base: "origin/main" });
+  });
+
   test("a failing critic sends the run back with its reason, then the loop limit escalates", async () => {
     const w = world(
       { "mt-planner": [writesPlan], "mt-plan-critic": [{ text: "VERDICT: FAIL: no tests" }] },
@@ -266,8 +463,56 @@ describe("DriveRun", () => {
     const plans = w.host.tasks.filter((t) => t.agent === "mt-planner");
     expect([
       plans.length,
-      plans.at(-1)?.prompt.includes("failed its gate: mt-plan-critic: no tests"),
+      plans
+        .at(-1)
+        ?.prompt.includes("Stage check failed and sent the run back here: mt-plan-critic: no tests"),
     ]).toEqual([2, true]);
+    // Every stage until the failing one hears it, its critic too; the first pass heard nothing.
+    const impl = w.host.tasks.filter((t) => t.agent === "mt-implementer");
+    const critics = w.host.tasks.filter((t) => t.agent === "mt-plan-critic");
+    expect([
+      impl.map((t) => t.prompt.includes("sent the run back")),
+      critics.map((t) => t.prompt.includes("sent the run back")),
+    ]).toEqual([
+      [false, true],
+      [false, false],
+    ]);
+  });
+
+  test("once the stage that sent the run back passes, the stages after it hear nothing of it", async () => {
+    const w = world(
+      {
+        "mt-planner": [{}, {}],
+        "mt-plan-critic": [{ text: "VERDICT: FAIL: no tests" }, { text: "VERDICT: PASS" }],
+        "mt-scout": [{}],
+      },
+      () => ({ choices: ["Approve"] }),
+    );
+    await w.fs.write(
+      ".github/metator/workflows/loop.yml",
+      `kind: Workflow
+schemaVersion: 2
+id: loop
+stages:
+  - id: plan
+    owner: mt-planner
+  - id: check
+    gate: { llm: mt-plan-critic }
+    onFail: { goto: plan, loop: plan }
+  - id: after
+    owner: mt-scout
+loops:
+  plan: 2
+`,
+    );
+    const runId = await w.start(undefined, "loop");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const plans = w.host.tasks.filter((t) => t.agent === "mt-planner").map((t) => t.prompt);
+    const after = w.host.tasks.find((t) => t.agent === "mt-scout")?.prompt ?? "";
+    expect([plans[1]?.includes("sent the run back"), after.includes("sent the run back")]).toEqual([
+      true,
+      false,
+    ]);
   });
 
   test("a rejected gate is a FAIL with the person's reason", async () => {
@@ -283,11 +528,180 @@ describe("DriveRun", () => {
     expect(history.at(-1)).toEqual({ stage: "approval", event: "FAIL", detail: "split step 2" });
   });
 
+  test("a review passes only on an approving verdict, whatever its critic says", async () => {
+    const finding = {
+      id: "CON-001",
+      lens: "contracts",
+      severity: "blocking",
+      confidence: 0.9,
+      location: { file: "src/list.tsx", line: 47 },
+      quote: "<h4>No discussions yet</h4>",
+      claim: "the e2e smoke test still waits for the old heading",
+      verification: { status: "confirmed", evidence: "e2e/smoke.spec.ts:30", by: "mt-verifier" },
+    };
+    const verdicts = [
+      { decision: "CHANGES_REQUIRED", blocking: [finding], unverified: [], consider: [] },
+      { decision: "APPROVED", blocking: [], unverified: [], consider: [] },
+    ];
+    let runId = "";
+    const writesVerdict = (): FakeAgentTurn => ({
+      effect: async () => {
+        const v = verdicts.shift();
+        await w.fs.write(
+          `${w.repo.runDir(runId)}/verdict.json`,
+          JSON.stringify({ kind: "Verdict", schemaVersion: 1, ...v, verifiedCorrect: [] }),
+        );
+      },
+    });
+    const w = world(
+      {
+        "mt-pr-review": [writesVerdict(), writesVerdict()],
+        // The critic agrees the verdict is right: that is no approval of the change.
+        "mt-judge": [{ text: "VERDICT: PASS" }, { text: "VERDICT: PASS" }],
+      },
+      () => ({ choices: ["Approve"] }),
+    );
+    await w.fs.write(
+      ".github/metator/workflows/loop.yml",
+      `kind: Workflow
+schemaVersion: 2
+id: loop
+stages:
+  - id: review
+    owner: mt-pr-review
+    produces: [verdict.json]
+    gate: { llm: mt-judge }
+    onFail: { goto: review, loop: review }
+loops:
+  review: 2
+`,
+    );
+    runId = await w.start(undefined, "loop");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const history = (await w.repo.load(runId))._unsafeUnwrap().state.context.history;
+    expect(history.filter((h) => h.stage === "review").map((h) => [h.event, h.detail])).toEqual([
+      [
+        "FAIL",
+        "the review decided CHANGES_REQUIRED: src/list.tsx:47 the e2e smoke test still waits for the old heading",
+      ],
+      ["PASS", undefined],
+    ]);
+  });
+
+  test("approving a gate that grants the push records it, and the agents after it are told", async () => {
+    const w = world({ "mt-scout": [{}], "mt-pr-author": [{}] }, () => ({ choices: ["Approve"] }));
+    await w.fs.write(
+      ".github/metator/workflows/loop.yml",
+      `kind: Workflow
+schemaVersion: 3
+id: loop
+stages:
+  - id: build
+    owner: mt-scout
+  - id: delivery
+    hitl: true
+    grants: [push]
+  - id: publish
+    owner: mt-pr-author
+`,
+    );
+    const runId = await w.start(undefined, "loop");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const approvals = (await w.repo.load(runId))._unsafeUnwrap().approvals;
+    expect(Object.keys(approvals).sort()).toEqual(["delivery", "push"]);
+    const approved = (agent: string) => w.host.tasks.find((t) => t.agent === agent)?.approved;
+    expect([approved("mt-scout"), approved("mt-pr-author")]).toEqual([undefined, ["push"]]);
+  });
+
+  test("where the verdict is the deliverable (no way back), CHANGES_REQUIRED passes", async () => {
+    let runId = "";
+    const w = world(
+      {
+        "mt-pr-review": [
+          {
+            effect: async () => {
+              await w.fs.write(
+                `${w.repo.runDir(runId)}/verdict.json`,
+                JSON.stringify({
+                  kind: "Verdict",
+                  schemaVersion: 1,
+                  decision: "CHANGES_REQUIRED",
+                  blocking: [],
+                  unverified: [],
+                  consider: [],
+                  verifiedCorrect: [],
+                }),
+              );
+            },
+          },
+        ],
+      },
+      () => ({ choices: ["Approve"] }),
+    );
+    await w.fs.write(
+      ".github/metator/workflows/loop.yml",
+      "kind: Workflow\nschemaVersion: 2\nid: loop\nstages:\n  - id: judge\n    owner: mt-pr-review\n    produces: [verdict.json]\n",
+    );
+    runId = await w.start(undefined, "loop");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+  });
+
+  test("a rejected plan with a way back goes to the planner with the person's reason", async () => {
+    let gates = 0;
+    const w = world({ "mt-planner": [{}, {}], "mt-scout": [{}] }, (q) =>
+      q.source === "gate" && gates++ === 0
+        ? { choices: ["Reject"], text: "drop the node:test files" }
+        : { choices: ["Approve"] },
+    );
+    w0 = w;
+    await w.fs.write(
+      ".github/metator/workflows/loop.yml",
+      `kind: Workflow
+schemaVersion: 2
+id: loop
+stages:
+  - id: plan
+    owner: mt-planner
+  - id: plan-approval
+    hitl: true
+    onFail: { goto: plan, loop: plan }
+  - id: after
+    owner: mt-scout
+loops:
+  plan: 2
+`,
+    );
+    const runId = await w.start(undefined, "loop");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const plans = w.host.tasks.filter((t) => t.agent === "mt-planner").map((t) => t.prompt);
+    expect([plans.length, plans[1]?.includes("drop the node:test files")]).toEqual([2, true]);
+  });
+
+  test("an AI host out of capacity stops the drive; the run waits at its stage, not escalated", async () => {
+    const w = world(
+      { "mt-planner": [{ ok: false, text: "You've hit your session limit · resets 3:50pm (UTC)" }] },
+      () => ({ choices: ["Approve"] }),
+      okScripts(),
+    );
+    const runId = await w.start();
+    await w.drive.execute({ runId, host: "fake" });
+    const record = (await w.repo.load(runId))._unsafeUnwrap();
+    expect([record.state.stage, record.state.status]).toEqual(["plan", "active"]);
+    const stopped = (await w.journal.activity(runId))
+      ._unsafeUnwrap()
+      .find((e) => e.type === "drive" && e.text.startsWith("stopped:"));
+    expect(stopped?.text).toContain("You've hit your session limit · resets 3:50pm (UTC)");
+    expect(stopped?.text).toContain("metator run continue");
+  });
+
   test("a blocked agent asks a person and resumes its session with the answer", async () => {
     const w = world(
       {
         "mt-planner": [writesPlan],
-        "mt-implementer": [{ text: "STATUS: blocked: which currency?" }, { text: "STATUS: done" }],
+        "mt-implementer": [
+          { text: "Prices are in cents; EUR or USD?\nSTATUS: blocked: which currency?" },
+          { text: "STATUS: done" },
+        ],
         "mt-plan-critic": [{ text: "VERDICT: PASS" }],
       },
       (q) => (q.source === "gate" ? { choices: ["Approve"] } : { choices: [OTHER], text: "EUR" }),
@@ -302,7 +716,78 @@ describe("DriveRun", () => {
       impl[1]?.resume,
       impl[1]?.prompt.includes("A person answered your question: EUR"),
     ]).toEqual([2, "mt-implementer-1", true]);
-    expect(w.asked.find((q) => q.source === "agent")?.prompt).toBe("which currency?");
+    // The person reads what the agent wrote before its question.
+    expect(w.asked.find((q) => q.source === "agent")?.prompt).toBe(
+      "Prices are in cents; EUR or USD?\n\nwhich currency?",
+    );
+    // The answer is a decision every later agent and critic hears.
+    const critic = w.host.tasks.find((t) => t.agent === "mt-plan-critic")?.prompt ?? "";
+    expect(critic).toContain("- build: which currency? → EUR");
+  });
+
+  test("a restarted drive gives a blocked agent the answer given while no drive ran", async () => {
+    const w = world(
+      { "mt-planner": [writesPlan], "mt-implementer": [{ text: "STATUS: done" }] },
+      () => ({ choices: ["Approve"] }),
+      okScripts(),
+    );
+    w0 = w;
+    const runId = await w.start();
+    // The first drive got as far as the planner, which asked and stopped; then the drive ended.
+    await w.advance.execute({ runId, event: { type: "PASS" } });
+    w.clock.advance(1000);
+    const q = (
+      await w.journal.ask(runId, {
+        stage: "plan",
+        source: "agent",
+        agent: "mt-planner",
+        prompt: "which currency?",
+        options: [{ label: OTHER }],
+        multiSelect: false,
+      })
+    )._unsafeUnwrap();
+    w.clock.advance(1000);
+    await w.journal.answer(runId, q.id, { choices: [OTHER], text: "EUR", by: "maciej" });
+    await w.drive.execute({ runId, host: "fake", maxSteps: 1 });
+    const planner = w.host.tasks.find((t) => t.agent === "mt-planner");
+    expect(planner?.prompt).toContain("A person answered your question: EUR");
+  });
+
+  test("the third answer still reaches the agent; a fourth question fails the stage", async () => {
+    const blocked = (n: number) => ({ text: `STATUS: blocked: question ${n}?` });
+    const answers = (q: { source: string }) =>
+      q.source === "gate" ? { choices: ["Approve"] } : { choices: [OTHER], text: "go on" };
+    const w = world(
+      {
+        "mt-planner": [writesPlan],
+        "mt-implementer": [blocked(1), blocked(2), blocked(3), { text: "STATUS: done" }],
+        "mt-plan-critic": [{ text: "VERDICT: PASS" }],
+      },
+      answers,
+      okScripts(),
+    );
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    expect(w.host.tasks.filter((t) => t.agent === "mt-implementer")).toHaveLength(4);
+
+    const stuck = world(
+      {
+        "mt-planner": [writesPlan],
+        "mt-implementer": [blocked(1), blocked(2), blocked(3), blocked(4)],
+        "mt-plan-critic": [{ text: "VERDICT: PASS" }],
+      },
+      answers,
+      okScripts(),
+    );
+    w0 = stuck;
+    const id = await stuck.start();
+    expect((await stuck.drive.execute({ runId: id, host: "fake" }))._unsafeUnwrap().status).toBe("escalated");
+    const fail = (await stuck.journal.activity(id))
+      ._unsafeUnwrap()
+      .find((a) => a.type === "advance" && a.text.startsWith("FAIL"));
+    expect(fail?.text).toBe("FAIL: mt-implementer stayed blocked after 3 answers");
+    expect(stuck.asked.filter((q) => q.source === "agent")).toHaveLength(3);
   });
 
   test("a failing script and a failing agent are FAILs with their output, not exceptions", async () => {
@@ -315,21 +800,17 @@ describe("DriveRun", () => {
     const fail = (await w.journal.activity(runId))._unsafeUnwrap().find((a) => a.type === "advance");
     expect([r.status, fail?.text]).toEqual([
       "escalated",
-      "FAIL: `metator index build` failed: index: parse error in a.ts",
+      "FAIL: `metator index build --base {base|HEAD}` failed: index: parse error in a.ts",
     ]);
 
-    const w2 = world(
-      { "mt-planner": [{ ok: false, text: "model overloaded" }] },
-      () => undefined,
-      okScripts(),
-    );
+    const w2 = world({ "mt-planner": [{ ok: false, text: "tool crashed" }] }, () => undefined, okScripts());
     const id2 = await w2.start();
     await w2.drive.execute({ runId: id2, host: "fake", maxSteps: 2 });
     const f2 = (await w2.journal.activity(id2))
       ._unsafeUnwrap()
       .filter((a) => a.type === "advance")
       .at(-1);
-    expect(f2?.text).toBe("FAIL: mt-planner failed: model overloaded");
+    expect(f2?.text).toBe("FAIL: mt-planner failed: tool crashed");
 
     // A worker that reports done without writing its artifact fails the stage.
     const w3 = world({ "mt-planner": [{ text: "STATUS: done" }] }, () => undefined, okScripts());

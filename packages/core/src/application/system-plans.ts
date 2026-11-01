@@ -250,6 +250,8 @@ export class ProposeSystemPlan {
     private readonly create: Pick<CreateSystemPlan, "execute">,
     private readonly lint: Pick<LintSystemPlan, "execute">,
     private readonly store: SystemPlanStore,
+    /** Where the map's applications' code is on this machine: the agents read other repositories there. */
+    private readonly roots?: () => Promise<readonly string[]>,
   ) {}
 
   async execute(
@@ -274,6 +276,9 @@ export class ProposeSystemPlan {
       const made = await this.analyze.execute(input);
       if (made.isErr()) return err(made.error);
     }
+    const elsewhere = [...new Set(this.roots ? await this.roots() : [])].filter(
+      (r) => r !== input.projectRoot && r !== input.cwd,
+    );
     const agent = (name: string, prompt: string) =>
       runAgent({
         host,
@@ -284,6 +289,7 @@ export class ProposeSystemPlan {
           cwd: input.cwd,
           projectRoot: input.projectRoot,
           runDir: `${input.projectRoot}/${this.store.dir}`,
+          ...(elsewhere.length > 0 ? { dirs: elsewhere } : {}),
         },
         deny: DENY,
         hint: `What was written is kept in ${this.store.dir}; run \`metator system plan propose\` again or edit it.`,

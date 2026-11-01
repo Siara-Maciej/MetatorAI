@@ -224,7 +224,7 @@ describe("GateChecks", () => {
       execute: async (input: { base: string }) => {
         calls.length = 0;
         calls.push(input);
-        return ok({ map: "m", base: input.base, contracts: entries as never, failing: [] });
+        return ok({ map: "m", base: input.base, contracts: entries as never, failing: [], notCompared: [] });
       },
     });
     const red = await new GateChecks(

@@ -13,6 +13,8 @@ const config = (gates: unknown) => MetatorConfigSchema.parse({ gates });
 const pm = {
   scriptCommand: async (script: string, args: readonly string[]) =>
     ok<ResolvedCommand>({ argv: ["bun", "run", script, ...args], cwd: "/repo" }),
+  workspacesCommand: async (script: string) =>
+    ok<ResolvedCommand>({ argv: ["bun", "run", "--filter", "*", script], cwd: "/repo" }),
 };
 const bins = {
   command: async (bin: string, args: readonly string[]): Promise<ResolvedCommand> => ({
@@ -84,6 +86,19 @@ describe("RunGate", () => {
       passed: true,
       startedAt: "2026-10-26T10:00:00.000Z",
     });
+  });
+
+  test("a workspaces step runs the script in every workspace package through the package manager", async () => {
+    const runner = new ScriptedProcessRunner([{ argvPrefix: [], result: { exitCode: 0 } }]);
+    const step = {
+      id: "typecheck",
+      run: { workspaces: "typecheck" },
+      files: "none" as const,
+      okExitCodes: [0],
+      timeoutMs: 1000,
+    };
+    (await gate({ full: [step] }, runner).run.execute({ gate: "full" }))._unsafeUnwrap();
+    expect(runner.calls.map((c) => c.argv)).toEqual([["bun", "run", "--filter", "*", "typecheck"]]);
   });
 
   test("every step runs; a failing step carries the end of its output; 127 is an error", async () => {

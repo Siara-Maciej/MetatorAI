@@ -40,6 +40,7 @@ export function registerAskCommands(program: Command, ctx: CommandContext): void
             cwd: place.cwd,
             projectRoot: place.projectRoot,
             where: place.where,
+            ...(place.dirs ? { dirs: place.dirs } : {}),
             // In a terminal the answer and the tools it used are shown as they arrive.
             ...(terminal
               ? {

@@ -1,17 +1,27 @@
 import { analyzeArchitecture } from "../domain/architecture.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
+import { SECRET_GLOBS } from "../domain/hook.ts";
 import { packageOf } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   type AppCandidate,
+  apiRoutes,
+  calledRoutes,
   contractIds,
+  type DiscoveryEvidence,
   type FoundContract,
   type FoundReference,
+  fetchedSpec,
+  fetchesServed,
+  handledMessages,
   kindFrom,
   needlesOf,
   proposeSystem,
+  type ServedSpec,
   type SystemDiscovery,
+  sentMessages,
+  servedSpecs,
   slugId,
   systemDrift,
   type Topology,
@@ -45,6 +55,8 @@ export interface DiscoverySource {
         readonly name: string;
         readonly dir: string;
         readonly deps: readonly string[];
+        /** Of deps, those only in devDependencies (a mock server, a test tool). */
+        readonly devOnly?: readonly string[];
         readonly signals: readonly string[];
         readonly docker: boolean;
         readonly bin: boolean;
@@ -56,8 +68,38 @@ export interface DiscoverySource {
     detectors: readonly ContractDetector[],
   ): Promise<Result<readonly (DetectedContract & { readonly kind: string })[], MetatorError>>;
   owners(dirs: readonly string[]): Promise<Result<readonly (readonly string[])[], MetatorError>>;
+  /** Every workspace package with the workspace packages it depends on, to place a library's files. */
+  packages(): Promise<
+    Result<
+      readonly { readonly name: string; readonly dir: string; readonly deps: readonly string[] }[],
+      MetatorError
+    >
+  >;
   /** Text files worth searching for references, with their content. */
   texts(): AsyncIterable<{ readonly path: string; readonly text: string }>;
+}
+
+/** Library package → the applications that depend on it, directly or through other libraries. */
+function librariesUsedBy(
+  packages: readonly { readonly name: string; readonly dir: string; readonly deps: readonly string[] }[],
+  apps: readonly { readonly id: string; readonly dir: string }[],
+): Map<string, string[]> {
+  const byName = new Map(packages.map((p) => [p.name, p]));
+  const out = new Map<string, string[]>();
+  for (const app of apps) {
+    const own = packages.find((p) => p.dir === app.dir);
+    const stack = [...(own?.deps ?? [])];
+    const seen = new Set<string>();
+    while (stack.length > 0) {
+      const name = stack.pop() as string;
+      const lib = byName.get(name);
+      if (!lib || seen.has(name) || lib.dir === app.dir) continue;
+      seen.add(name);
+      out.set(name, [...(out.get(name) ?? []), app.id]);
+      stack.push(...lib.deps);
+    }
+  }
+  return out;
 }
 
 /** A repository on this machine, read through its own container's ports. */
@@ -92,6 +134,8 @@ export class RepositoryDiscoverySource implements DiscoverySource {
       ...Object.keys(m.dependencies),
       ...Object.keys(m.devDependencies),
     ];
+    const devOnly = (m: (typeof manifests.value.packages)[number]) =>
+      Object.keys(m.devDependencies).filter((d) => m.dependencies[d] === undefined);
     const packages = manifests.value.packages.filter((m) => m.dir !== ".");
     if (packages.length === 0) {
       // One application: the repository itself.
@@ -101,6 +145,7 @@ export class RepositoryDiscoverySource implements DiscoverySource {
           name: root?.name && root.name !== "(root)" ? root.name : this.name,
           dir: ".",
           deps: root ? deps(root) : [],
+          devOnly: root ? devOnly(root) : [],
           signals: ["the repository is one application"],
           docker: docker("."),
           bin: root?.bin ?? false,
@@ -111,8 +156,34 @@ export class RepositoryDiscoverySource implements DiscoverySource {
     if (facts.isErr()) return err(facts.error);
     const report = analyzeArchitecture(facts.value);
     const kinds = new Map(report.packages.map((p) => [p.name, p.kind]));
-    return ok(
-      packages.flatMap((m) => {
+    // The root with a Dockerfile of its own is an application too (an app with a few library
+    // packages beside it), not just the workspace that holds them.
+    const root = manifests.value.root;
+    // ...and so is a root the workspace lists as a package that nothing depends on (a Nuxt app
+    // with a `proxy` package beside it).
+    const rootListed = root !== undefined && manifests.value.packages.some((m) => m.dir === ".");
+    const rootRuns = rootListed && kinds.get(root.name) === "app";
+    const rootApp =
+      root && (docker(".") || rootRuns)
+        ? [
+            {
+              name: root.name && root.name !== "(root)" ? root.name : this.name,
+              dir: ".",
+              deps: deps(root),
+              devOnly: devOnly(root),
+              signals: [
+                docker(".")
+                  ? "Dockerfile at the root: the repository itself is deployed"
+                  : `${root.name} at the root is an application (no package depends on it, it runs on its own)`,
+              ],
+              docker: docker("."),
+              bin: root.bin ?? false,
+            },
+          ]
+        : [];
+    return ok([
+      ...rootApp,
+      ...packages.flatMap((m) => {
         const signals = [
           ...(kinds.get(m.name) === "app"
             ? [`${m.name} is an application (no package depends on it, it runs on its own)`]
@@ -120,18 +191,43 @@ export class RepositoryDiscoverySource implements DiscoverySource {
           ...(docker(m.dir) ? [`${m.dir}/Dockerfile`] : []),
         ];
         return signals.length > 0
-          ? [{ name: m.name, dir: m.dir, deps: deps(m), signals, docker: docker(m.dir), bin: m.bin }]
+          ? [
+              {
+                name: m.name,
+                dir: m.dir,
+                deps: deps(m),
+                devOnly: devOnly(m),
+                signals,
+                docker: docker(m.dir),
+                bin: m.bin,
+              },
+            ]
           : [];
       }),
+    ]);
+  }
+
+  async packages() {
+    const manifests = await this.manifests.manifests();
+    if (manifests.isErr()) return err(manifests.error);
+    return ok(
+      manifests.value.packages.map((m) => ({
+        name: m.name,
+        dir: m.dir,
+        deps: [...Object.keys(m.dependencies), ...Object.keys(m.devDependencies)],
+      })),
     );
   }
 
   async specifications(detectors: readonly ContractDetector[]) {
     const files = await this.files();
     if (files.isErr()) return err(files.error);
+    const manifests = await this.manifests.manifests();
+    if (manifests.isErr()) return err(manifests.error);
+    const scripted = [...(manifests.value.root ? [manifests.value.root] : []), ...manifests.value.packages];
     const out: (DetectedContract & { kind: string })[] = [];
     for (const d of detectors)
-      for (const path of files.value.filter((f) => matchesAny(f, d.globs))) {
+      for (const path of files.value.filter((f) => matchesAny(f, d.globs) && !fetchedSpec(f, scripted))) {
         const text = await this.fs.read(path);
         if (text.isErr() || text.value.length > MAX_TEXT) continue;
         const found = d.detect(path, text.value);
@@ -151,7 +247,8 @@ export class RepositoryDiscoverySource implements DiscoverySource {
   async *texts() {
     const files = await this.files();
     if (files.isErr()) return;
-    for (const path of files.value.filter((f) => matchesAny(f, SEARCHED))) {
+    // Never a secret (a real `.env`, keys), tracked or not: the same line the guard draws for agents.
+    for (const path of files.value.filter((f) => matchesAny(f, SEARCHED) && !matchesAny(f, SECRET_GLOBS))) {
       const text = await this.fs.read(path);
       if (text.isOk() && text.value.length <= MAX_TEXT) yield { path, text: text.value };
     }
@@ -209,7 +306,7 @@ export class DiscoverSystem {
           source: folder
             ? { repo: remote ?? source.name, ...(a.dir === "." ? {} : { path: a.dir }) }
             : { path: a.dir },
-          kind: kindFrom(a.name, a.deps, hasSpec, a.bin),
+          kind: kindFrom(a.name, a.deps, hasSpec, a.bin, a.devOnly),
           owners: owners.value[j] ?? [],
           ...(a.docker ? { deployUnit: id } : {}),
           signals: a.signals,
@@ -236,36 +333,70 @@ export class DiscoverSystem {
     // Consumers: another application's files that point at a contract.
     const references: FoundReference[] = [];
     const seen = new Set<string>();
+    // Documents served at runtime, and the files that may fetch one (kept small: only those
+    // that mention a `-json` URL), matched once every application's files have been read.
+    const served: { app: string; file: string; spec: ServedSpec }[] = [];
+    const fetching: { from: string; file: string; text: string }[] = [];
+    // Routes each application serves, and the routes each calls with a hand-written HTTP client.
+    const serves = new Map<string, Set<string>>();
+    const calls = new Map<string, { routes: Set<string>; file: string }>();
+    // Messages each service handles, and the messages each sends through a microservice client.
+    const handles = new Map<string, Set<string>>();
+    const sends = new Map<string, { messages: Set<string>; file: string }>();
     for (const [i, source] of input.sources.entries()) {
       const mine = apps.filter((a) => a.sourceIndex === i);
       const refs = mine.map((a) => ({ name: a.id, dir: a.dir }));
+      const packages = await source.packages();
+      if (packages.isErr()) return err(packages.error);
+      const usedBy = librariesUsedBy(packages.value, mine);
+      const libs = packages.value.filter((p) => p.dir !== ".").map((p) => ({ name: p.name, dir: p.dir }));
       for await (const { path, text } of source.texts()) {
-        const from = packageOf(path, refs)?.name;
-        if (!from) continue;
-        for (const c of contracts) {
-          if (c.app === from) continue;
-          const provider = apps.find((a) => a.id === c.app);
-          const dir =
-            provider?.dir === "." && folder
-              ? (input.sources[provider.sourceIndex]?.name ?? ".")
-              : (provider?.dir ?? ".");
-          for (const n of needlesOf(c, dir)) {
-            const key = `${from}\u0000${ids.get(c)}\u0000${n.reason}`;
-            if (seen.has(key) || !text.includes(n.text)) continue;
-            seen.add(key);
-            references.push({
-              from,
-              contract: ids.get(c) as string,
-              file: folder ? `${source.name}/${path}` : path,
-              reason: n.reason,
-              confidence: n.confidence,
-            });
+        const app = packageOf(path, refs)?.name;
+        // A library's file speaks for the applications that depend on it (an API client package).
+        const froms = app ? [app] : (usedBy.get(packageOf(path, libs)?.name ?? "") ?? []);
+        const file = folder ? `${source.name}/${path}` : path;
+        for (const from of froms) {
+          for (const spec of servedSpecs(text)) served.push({ app: from, file, spec });
+          if (text.includes("-json")) fetching.push({ from, file, text });
+          for (const r of apiRoutes(text)) serves.set(from, (serves.get(from) ?? new Set()).add(r));
+          for (const m of handledMessages(text)) handles.set(from, (handles.get(from) ?? new Set()).add(m));
+          const sent = sentMessages(text);
+          if (sent.length > 0) {
+            const seen = sends.get(from) ?? { messages: new Set<string>(), file };
+            for (const m of sent) seen.messages.add(m);
+            sends.set(from, seen);
+          }
+          const called = calledRoutes(text);
+          if (called.length > 0) {
+            const seen = calls.get(from) ?? { routes: new Set<string>(), file };
+            for (const r of called) seen.routes.add(r);
+            calls.set(from, seen);
+          }
+          for (const c of contracts) {
+            if (c.app === from) continue;
+            const provider = apps.find((a) => a.id === c.app);
+            const dir =
+              provider?.dir === "." && folder
+                ? (input.sources[provider.sourceIndex]?.name ?? ".")
+                : (provider?.dir ?? ".");
+            for (const n of needlesOf(c, dir)) {
+              const key = `${from}\u0000${ids.get(c)}\u0000${n.reason}`;
+              if (seen.has(key) || !text.includes(n.text)) continue;
+              seen.add(key);
+              references.push({
+                from,
+                contract: ids.get(c) as string,
+                file: folder ? `${source.name}/${path}` : path,
+                reason: n.reason,
+                confidence: n.confidence,
+              });
+            }
           }
         }
       }
     }
     const topology: Topology = folder ? "repos" : apps.length > 1 ? "monorepo" : "single";
-    const discovery = proposeSystem({
+    const proposed = proposeSystem({
       system: slugId(input.system),
       topology,
       apps,
@@ -273,6 +404,113 @@ export class DiscoverSystem {
       references,
       ids,
     });
+    // A document served at runtime is a contract too (ADR-0076): it has an owner and consumers,
+    // only no file that `contract diff` could compare.
+    const runtime: DiscoveryEvidence[] = [];
+    const servedContracts: SystemMap["contracts"] = [];
+    const servedConsumers = new Map<string, Set<string>>();
+    const usedIds = new Set(proposed.proposal.contracts.map((c) => c.id));
+    for (const { app, file, spec } of served) {
+      // An application that declares its OpenAPI file serves that document: it is shown, not doubled.
+      if (proposed.proposal.contracts.some((c) => c.owner === app && c.kind === "openapi")) {
+        runtime.push({
+          subject: `served:${app} ${spec.url}`,
+          reason: `${spec.framework} serves an OpenAPI document at ${spec.url}; ${app} already declares an OpenAPI file, most likely the same document`,
+          file: `${file}:${spec.line}`,
+          confidence: "medium",
+          proposed: false,
+        });
+        for (const f of fetching)
+          if (f.from !== app && fetchesServed(f.text, spec.url))
+            runtime.push({
+              subject: `consumes:${f.from}→${app} ${spec.url}`,
+              reason: `fetches ${spec.url}, the document ${app} serves`,
+              file: f.file,
+              confidence: "medium",
+              proposed: false,
+            });
+        continue;
+      }
+      let id = slugId(`${app}-api`);
+      for (let n = 2; usedIds.has(id); n++) id = slugId(`${app}-api-${n}`);
+      usedIds.add(id);
+      servedContracts.push({
+        id,
+        kind: "openapi",
+        owner: app,
+        spec: { served: spec.url },
+        compatibility: "backward",
+      });
+      runtime.push({
+        subject: `contract:${id}`,
+        reason: `${spec.framework} serves an OpenAPI document at ${spec.url}: a contract with no file to compare (export it to one for \`contract diff\`)`,
+        file: `${file}:${spec.line}`,
+        confidence: "high",
+        proposed: true,
+      });
+      for (const f of fetching)
+        if (f.from !== app && fetchesServed(f.text, spec.url)) {
+          servedConsumers.set(f.from, (servedConsumers.get(f.from) ?? new Set()).add(id));
+          runtime.push({
+            subject: `consumes:${f.from}→${id}`,
+            reason: `fetches ${spec.url}, the document ${app} serves`,
+            file: f.file,
+            confidence: "medium",
+            proposed: true,
+          });
+        }
+    }
+    const proposal: SystemMap = {
+      ...proposed.proposal,
+      contracts: [...proposed.proposal.contracts, ...servedContracts],
+      applications: proposed.proposal.applications.map((a) => {
+        const more = [...(servedConsumers.get(a.id) ?? [])].filter((c) => !a.consumes.includes(c));
+        return more.length > 0 ? { ...a, consumes: [...a.consumes, ...more].sort() } : a;
+      }),
+    };
+    // A hand-written client names no spec: it consumes an API when it calls two or more of the
+    // routes that application serves.
+    const byRoutes: DiscoveryEvidence[] = [];
+    const withCalls = proposal.applications.map((a) => {
+      const called = calls.get(a.id);
+      if (!called) return a;
+      const more: string[] = [];
+      for (const c of proposal.contracts) {
+        if (c.kind !== "openapi" || c.owner === a.id || a.consumes.includes(c.id)) continue;
+        const shared = [...called.routes].filter((r) => serves.get(c.owner)?.has(r));
+        if (shared.length < 2) continue;
+        more.push(c.id);
+        byRoutes.push({
+          subject: `consumes:${a.id}→${c.id}`,
+          reason: `calls routes ${c.owner} serves (${shared.map((r) => `/${r}`).join(", ")}) with an HTTP client`,
+          file: called.file,
+          confidence: "medium",
+          proposed: true,
+        });
+      }
+      return more.length > 0 ? { ...a, consumes: [...a.consumes, ...more].sort() } : a;
+    });
+    // Services that talk by messages (NestJS microservices over TCP, Redis, Kafka…) have no
+    // specification to name as a contract: who calls whom is shown, not proposed.
+    const byMessages: DiscoveryEvidence[] = [];
+    for (const [from, sent] of sends)
+      for (const [to, handled] of handles) {
+        if (to === from) continue;
+        const shared = [...sent.messages].filter((m) => handled.has(m));
+        if (shared.length === 0) continue;
+        byMessages.push({
+          subject: `messages:${from}→${to}`,
+          reason: `sends ${shared.join(", ")}, which ${to} handles (@MessagePattern): a dependency with no contract file`,
+          file: sent.file,
+          confidence: "medium",
+          proposed: false,
+        });
+      }
+    const discovery = {
+      ...proposed,
+      proposal: { ...proposal, applications: withCalls },
+      evidence: [...proposed.evidence, ...runtime, ...byRoutes, ...byMessages],
+    };
 
     let drift: string[] = [];
     let written: string | undefined;

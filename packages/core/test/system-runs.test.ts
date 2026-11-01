@@ -95,7 +95,7 @@ function world(steps: SystemPlan["steps"], roots: Record<string, string> = { web
     "/src/platform",
     location,
     new CloneCache({ resolve: async () => ok("a"), checkout: async () => ok(undefined) }, "/c"),
-    { isDirectory: async (p: string) => dirs.includes(p) },
+    { isDirectory: async (p: string) => dirs.includes(p), read: async () => ok(undefined) },
     { remoteUrl: async () => ok(undefined) },
   );
   const repos = new Map([

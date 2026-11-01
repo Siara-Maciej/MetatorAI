@@ -25,6 +25,14 @@ export interface Snapshot {
 export type Row =
   | { readonly kind: "heading"; readonly text: string }
   | { readonly kind: "run"; readonly key: string; readonly repo: string; readonly run: RunOverview }
+  /** A repository's finished sessions folded into one line; `open` shows them below it. */
+  | {
+      readonly kind: "finished";
+      readonly key: string;
+      readonly repo: string;
+      readonly count: number;
+      readonly open: boolean;
+    }
   | {
       readonly kind: "chat";
       readonly key: string;
@@ -32,14 +40,42 @@ export type Row =
       readonly chat: ConversationOverview;
     };
 
-/** The list: runs by repository (who must act first), then the conversations. */
-export function rowsOf(s: Snapshot): Row[] {
+/** Sessions with nothing left to do: they fold away so the ones that need someone stay in view. */
+const FINISHED: ReadonlySet<Attention> = new Set(["done", "aborted"]);
+
+/** The key of a repository's folded line of finished sessions. */
+export const finishedKey = (root: string) => `${root}#finished`;
+
+/**
+ * The list: runs by repository (who must act first), then the conversations. A repository's
+ * finished runs (done, aborted) fold into one line after its other runs, unless `open` names it.
+ * The selected run (`keep`) stays in view when it finishes: the person is looking at it.
+ */
+export function rowsOf(s: Snapshot, open: ReadonlySet<string> = new Set(), keep?: string): Row[] {
   const rows: Row[] = [];
   const many = s.repos.length > 1;
   for (const r of s.repos) {
     if (many) rows.push({ kind: "heading", text: r.error ? `${r.name} · ${r.error}` : r.name });
-    for (const run of r.overview?.runs ?? [])
-      rows.push({ kind: "run", key: `${r.root}#${run.runId}`, repo: r.root, run });
+    const runs = r.overview?.runs ?? [];
+    const row = (run: RunOverview): Row => ({
+      kind: "run",
+      key: `${r.root}#${run.runId}`,
+      repo: r.root,
+      run,
+    });
+    const folds = (run: RunOverview) => FINISHED.has(run.attention) && `${r.root}#${run.runId}` !== keep;
+    rows.push(...runs.filter((run) => !folds(run)).map(row));
+    const finished = runs.filter(folds);
+    if (finished.length === 0) continue;
+    const shown = open.has(r.root);
+    rows.push({
+      kind: "finished",
+      key: finishedKey(r.root),
+      repo: r.root,
+      count: finished.length,
+      open: shown,
+    });
+    if (shown) rows.push(...finished.map(row));
   }
   const chats: Row[] = [];
   for (const r of s.repos)
@@ -57,6 +93,7 @@ export interface Totals {
   readonly you: number;
   readonly driving: number;
   readonly stopped: number;
+  readonly escalated: number;
   readonly questions: number;
   readonly services: number;
 }
@@ -67,6 +104,7 @@ export function totals(s: Snapshot): Totals {
     you: sum("you"),
     driving: sum("driving"),
     stopped: sum("stopped"),
+    escalated: sum("escalated"),
     questions: sum("questions"),
     services: sum("services"),
   };
@@ -119,10 +157,9 @@ export function nextStep(run: RunOverview): string {
   if (run.attention === "you") return `waits at ${run.stage}: approve it (a) or continue the run (c)`;
   if (run.attention === "driving") return `working${run.last ? `: ${run.last.text}` : ""}`;
   if (run.attention === "stopped") return `stopped at ${run.stage}  (c: continue)`;
-  // A finished run's stage is its end state (done, escalated, aborted).
-  return run.stage === run.status
-    ? ATTENTION[run.attention].label
-    : `${ATTENTION[run.attention].label} at ${run.stage}`;
+  if (run.attention === "escalated") return `at ${run.stage}: fix the cause, then resume it (c)`;
+  if (run.attention === "aborted") return `at ${run.stage}`;
+  return "every stage passed";
 }
 
 /** The text cut to a width, with an ellipsis. */
@@ -131,3 +168,12 @@ export function fit(text: string, width: number): string {
   const flat = text.replace(/\s+/g, " ");
   return flat.length <= width ? flat : `${flat.slice(0, width - 1)}…`;
 }
+
+/** How many terminal lines a text takes at a width, wrapped as Ink wraps it (roughly, by length). */
+export function wrappedLines(text: string, width: number): number {
+  const w = Math.max(1, width);
+  return text.split("\n").reduce((n, line) => n + Math.max(1, Math.ceil(line.length / w)), 0);
+}
+
+/** The farthest a view of `lines` lines scrolls in a window of `rows` lines. */
+export const maxScroll = (lines: number, rows: number) => Math.max(0, lines - rows);

@@ -58,7 +58,7 @@ A **run** is one execution of a workflow for one task, stored in `.metator/runs/
 
 - `state.json` holds the current stage, loops used and approvals;
 - `log.md` is an append-only audit trail;
-- artifacts are files such as `plan.json`, `findings/*.json`, `verdict.json`, `gates.json`.
+- artifacts are files such as `plan.json`, `findings/*.json`, `verdict.json`, `gates.md`.
 
 A run moves only through `metator run advance` and `metator run approve`. Any session, CI job or AI host can resume it with `metator run status`.
 

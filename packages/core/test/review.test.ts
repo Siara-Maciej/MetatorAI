@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { FakeVcs, InMemoryFileSystem } from "@metator/testing";
 import { stringify } from "yaml";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
-import { FormatReviewComments, JudgeFindings, PlanReview } from "../src/application/review.ts";
+import {
+  DescribeReviewedChange,
+  FormatReviewComments,
+  JudgeFindings,
+  PlanReview,
+  ShowChangeDiff,
+} from "../src/application/review.ts";
 import { RuleCatalog } from "../src/application/rules.ts";
 import { type Finding, FindingSetDocument } from "../src/domain/finding.ts";
 import { ok } from "../src/domain/result.ts";
@@ -126,8 +132,20 @@ describe("PlanReview", () => {
       "docs/metator/modules/acme-a.card.md": "card",
       "packages/a/src/x.ts": "",
       "packages/a/dist/x.js": "",
+      ".claude/agents/mt-guide.md": "",
+      "metator/agents/mt-guide.md": "",
     });
-    const vcs = new FakeVcs([], ["packages/a/src/x.ts", "packages/a/src/deleted.ts", "packages/a/dist/x.js"]);
+    // MetatorAI's own files (host files, canon) are no code to review, as ignored ones are not.
+    const vcs = new FakeVcs(
+      [],
+      [
+        "packages/a/src/x.ts",
+        "packages/a/src/deleted.ts",
+        "packages/a/dist/x.js",
+        ".claude/agents/mt-guide.md",
+        "metator/agents/mt-guide.md",
+      ],
+    );
     const workspace = { packages: async () => ok([{ name: "@acme/a", dir: "packages/a" }]) };
     const plan = (
       await new PlanReview(vcs, workspace, new RuleCatalog(fs, DEFAULT_PATHS), fs, DEFAULT_PATHS, [
@@ -158,6 +176,25 @@ describe("PlanReview", () => {
 });
 
 describe("JudgeFindings / FormatReviewComments", () => {
+  test("inside a run, the verdict is the run's, however deep the findings are", async () => {
+    const merged = JSON.stringify(FindingSetDocument.stamp({ lens: "merged", findings: [] }));
+    const fs = new InMemoryFileSystem({
+      ".metator/runs/r1/review/findings/merged.json": merged,
+      "/repo/.metator/wt/r1/.metator/runs/r1/findings/merged.json": merged,
+    });
+    const judge = new JudgeFindings(fs);
+    const nested = (
+      await judge.execute({ dir: ".metator/runs/r1/review/findings", verifiedCorrect: [] })
+    )._unsafeUnwrap();
+    const top = (
+      await judge.execute({ dir: "/repo/.metator/wt/r1/.metator/runs/r1/findings", verifiedCorrect: [] })
+    )._unsafeUnwrap();
+    expect([nested.output, top.output]).toEqual([
+      ".metator/runs/r1/verdict.json",
+      "/repo/.metator/wt/r1/.metator/runs/r1/verdict.json",
+    ]);
+  });
+
   test("verdict next to the findings dir; comments refuse an undecided verdict", async () => {
     const fs = new InMemoryFileSystem({
       "run/findings/merged.json": JSON.stringify(
@@ -178,5 +215,78 @@ describe("JudgeFindings / FormatReviewComments", () => {
         await new JudgeFindings(new InMemoryFileSystem({})).execute({ dir: "x", verifiedCorrect: [] })
       )._unsafeUnwrapErr().hint,
     ).toContain("findings merge");
+  });
+});
+
+describe("DescribeReviewedChange", () => {
+  test("pr.json: the branch, its commits with authors by count, the files, uncommitted work; a versioned document", async () => {
+    const fs = new InMemoryFileSystem();
+    const commit = (author: string, email: string, subject: string) => ({
+      sha: subject,
+      author,
+      email,
+      date: "2026-10-30T06:00:00+00:00",
+      subject,
+    });
+    const history = {
+      branch: async () =>
+        ok({
+          branch: "feature",
+          head: "h",
+          mergeBase: "m",
+          commits: [commit("Bo", "bo@x", "c3"), commit("Ann", "ann@x", "c2"), commit("Bo", "BO@x", "c1")],
+          uncommitted: true,
+        }),
+    };
+    const vcs = { changedFiles: async () => ok(["src/a.ts"]) };
+    const r = (
+      await new DescribeReviewedChange(vcs, history, fs).execute({ base: "main", out: "run/pr.json" })
+    )._unsafeUnwrap();
+    expect([r.branch, r.files, r.uncommitted, r.authors]).toEqual([
+      "feature",
+      ["src/a.ts"],
+      true,
+      [
+        { name: "Bo", email: "bo@x", commits: 2 },
+        { name: "Ann", email: "ann@x", commits: 1 },
+      ],
+    ]);
+    const saved = JSON.parse((await fs.read("run/pr.json"))._unsafeUnwrap());
+    expect([saved.kind, saved.schemaVersion, saved.commits.length]).toEqual(["ReviewMetadata", 1, 3]);
+  });
+});
+
+describe("ShowChangeDiff", () => {
+  test("the changed files without MetatorAI's own, or the files named; nothing changed is an empty patch", async () => {
+    const asked: (readonly string[] | undefined)[] = [];
+    const changes = {
+      changedFiles: async () => ok([".claude/agents/mt-guide.md", "src/a.ts"]),
+      patch: async (_base: string, files?: readonly string[]) => {
+        asked.push(files);
+        return ok(`patch of ${files?.join(",")}`);
+      },
+    };
+    const show = new ShowChangeDiff(changes);
+    expect((await show.execute({ base: "main" }))._unsafeUnwrap()).toEqual({
+      base: "main",
+      files: ["src/a.ts"],
+      patch: "patch of src/a.ts",
+    });
+    expect((await show.execute({ base: "main", files: ["b.ts"] }))._unsafeUnwrap().files).toEqual(["b.ts"]);
+    const none = new ShowChangeDiff({ ...changes, changedFiles: async () => ok([".claude/agents/mt-x.md"]) });
+    expect((await none.execute({ base: "main" }))._unsafeUnwrap()).toMatchObject({ patch: "" });
+    expect(asked).toEqual([["src/a.ts"], ["b.ts"]]);
+  });
+
+  test("--out writes the patch as plain text and answers with the file and its size", async () => {
+    const fs = new InMemoryFileSystem();
+    const changes = {
+      changedFiles: async () => ok(["src/a.ts"]),
+      patch: async () => ok("diff --git a/src/a.ts\n+x\n"),
+    };
+    const out = ".metator/runs/r1/change.diff";
+    const r = (await new ShowChangeDiff(changes, fs).execute({ base: "HEAD", out }))._unsafeUnwrap();
+    expect(r).toEqual({ base: "HEAD", files: ["src/a.ts"], output: out, lines: 3 });
+    expect((await fs.read(out))._unsafeUnwrap()).toBe("diff --git a/src/a.ts\n+x\n");
   });
 });

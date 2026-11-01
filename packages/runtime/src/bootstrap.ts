@@ -21,10 +21,12 @@ import {
   BaseArchitectureFacts,
   BuildImportGraph,
   BuildModuleCards,
+  CalibrateFinding,
   CheckArchitecture,
   CheckDebugTags,
   CheckFlaky,
   CheckMemory,
+  CheckPublished,
   CheckpointRun,
   CheckQuote,
   CheckRules,
@@ -40,6 +42,7 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
+  DescribeReviewedChange,
   DiffContracts,
   DiffCoverage,
   DiffImportGraph,
@@ -111,6 +114,7 @@ import {
   RemoveWorktree,
   RepositoryDiscoverySource,
   type RepositoryRuns,
+  ResumeRun,
   RuleCatalog,
   RunAffectedTests,
   RunArchEvals,
@@ -126,11 +130,13 @@ import {
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  ShowChangeDiff,
   ShowSystem,
   SimulateArchitecture,
   SimulateRefactorPlan,
   SkillCatalog,
   SourceFiles,
+  StyleImports,
   SymbolQueries,
   SyncRefactorPlan,
   SystemCatalog,
@@ -145,6 +151,7 @@ import {
   WorkflowCatalog,
   WorkOverview,
   WorktreeRegistry,
+  WriteRunArtifact,
 } from "@metator/core";
 import {
   BunBackgroundProcess,
@@ -161,7 +168,7 @@ import {
   TempGitSandbox,
 } from "@metator/plugin-bun";
 
-export { findChildRepos, findFolderRoot, findRepoRoot } from "@metator/plugin-bun";
+export { findChildRepos, findFolderRoot, findRepoRoot, runsRootOf } from "@metator/plugin-bun";
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
@@ -193,6 +200,8 @@ export interface BootstrapOptions {
   readonly paths?: MetatorPaths;
   /** ISO timestamp pinning the clock (METATOR_NOW): reproducible run ids and logs. */
   readonly now?: string;
+  /** The run this process works for (in a run's worktree): the default of every `run` command. */
+  readonly run?: string;
   /** The calling agent's role (METATOR_ROLE), for hooks that cannot tell from the payload. */
   readonly role?: string;
   /** Where the shipped agent canon is read from (METATOR_CANON); default: this installation. */
@@ -379,11 +388,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           timer,
           root,
           metatorCommand: config.config.hosts.metatorCommand,
+          notes: async (cwd) => workNotes(cwd),
         }),
     ),
-    vcs: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    // `.metator/` is MetatorAI's own state: never a change, even before setup gitignores it.
+    vcs: asFunction(({ root }) => new GitVcs(root, [".metator/"])).singleton(),
     revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
     changeHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    branchHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
+    changePatch: asFunction(({ root }) => new GitVcs(root, [".metator/"])).singleton(),
     sandbox: asFunction(() => new TempGitSandbox()).singleton(),
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
@@ -450,7 +463,16 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new CheckMemory(memoryMapReader, knowledgeFiles, fileSystem, memoryBudget, validateCitations),
     ),
     buildModuleCards: asFunction(
-      ({ buildImportGraph, fileSystem, paths, testGlobs, findOwners, patternCatalog, systemCatalog }) =>
+      ({
+        buildImportGraph,
+        fileSystem,
+        paths,
+        testGlobs,
+        findOwners,
+        patternCatalog,
+        systemCatalog,
+        architecturePolicyCatalog,
+      }) =>
         new BuildModuleCards(
           buildImportGraph,
           fileSystem,
@@ -459,6 +481,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           findOwners,
           patternCatalog,
           systemCatalog,
+          architecturePolicyCatalog,
         ),
     ),
     patternCatalog: asFunction(({ fileSystem, paths }) => new PatternCatalog(fileSystem, paths)).singleton(),
@@ -508,7 +531,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ config, root, systemLocation, cloneCache, checkoutReader, vcs }) =>
         new SystemSources(config.config.system, root, systemLocation, cloneCache, checkoutReader, vcs),
     ),
-    systemImpactQuery: asFunction(({ systemSources, vcs }) => new SystemImpactQuery(systemSources, vcs)),
+    systemImpactQuery: asFunction(
+      ({ systemSources, vcs, importGraphReader }) =>
+        new SystemImpactQuery(systemSources, vcs, importGraphReader),
+    ),
     lintSystem: asFunction(
       ({ systemSources, fileSystem, contractKinds, checkoutReader }) =>
         new LintSystem(systemSources, fileSystem, contractKinds, checkoutReader),
@@ -545,8 +571,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ApproveSystemPlan(lintSystemPlan, systemPlanStore, clock),
     ),
     proposeSystemPlan: asFunction(
-      ({ agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore }) =>
-        new ProposeSystemPlan(agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore),
+      ({ agentHosts, analyzeSystem, createSystemPlan, lintSystemPlan, systemPlanStore, systemSources }) =>
+        new ProposeSystemPlan(
+          agentHosts,
+          analyzeSystem,
+          createSystemPlan,
+          lintSystemPlan,
+          systemPlanStore,
+          () => checkoutRoots(systemSources),
+        ),
     ),
     // Run tools of another repository on this machine: its own container, with its own config.
     repositoryRuns: asValue((root: string): RepositoryRuns => {
@@ -603,11 +636,14 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         symbolQueries,
         changeHistory,
         findOwners,
+        sourceFiles,
+        fileSystem,
       }) =>
         new ArchitectureFacts(buildImportGraph, manifestReader, architecturePolicyCatalog, clock, {
           symbols: symbolQueries,
           history: changeHistory,
           owners: findOwners,
+          styles: new StyleImports(sourceFiles, fileSystem),
         }),
     ),
     architectureBaselineStore: asFunction(
@@ -794,9 +830,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     mergeFindings: asFunction(
       ({ fileSystem, validateFindings }) => new MergeFindingSets(fileSystem, validateFindings),
     ),
+    calibrateFinding: asFunction(({ fileSystem }) => new CalibrateFinding(fileSystem)),
     planReview: asFunction(
       ({ vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores }) =>
         new PlanReview(vcs, workspaceReader, ruleCatalog, fileSystem, paths, sourceIgnores),
+    ),
+    showChangeDiff: asFunction(({ changePatch, fileSystem }) => new ShowChangeDiff(changePatch, fileSystem)),
+    checkPublished: asFunction(({ changePatch }) => new CheckPublished(changePatch)),
+    describeReviewedChange: asFunction(
+      ({ vcs, branchHistory, fileSystem }) => new DescribeReviewedChange(vcs, branchHistory, fileSystem),
     ),
     judgeFindings: asFunction(({ fileSystem }) => new JudgeFindings(fileSystem)),
     formatReviewComments: asFunction(({ fileSystem }) => new FormatReviewComments(fileSystem)),
@@ -820,7 +862,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     workflowCatalog: asFunction(
       ({ fileSystem, paths }) => new WorkflowCatalog(fileSystem, paths),
     ).singleton(),
-    runRepository: asFunction(({ fileSystem, paths }) => new RunRepository(fileSystem, paths)).singleton(),
+    runRepository: asFunction(
+      ({ fileSystem, paths }) => new RunRepository(fileSystem, paths, options.run),
+    ).singleton(),
     initRun: asFunction(
       ({ workflowCatalog, runRepository, clock, provideWorktree }) =>
         new InitRun(workflowCatalog, runRepository, clock, provideWorktree),
@@ -904,6 +948,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     guardSessionStart: asFunction(
       ({ getRunStatus, fileSystem, paths }) => new GuardSessionStart(getRunStatus, fileSystem, paths),
     ),
+    resumeRun: asFunction(
+      ({ workflowCatalog, runRepository, clock }) => new ResumeRun(workflowCatalog, runRepository, clock),
+    ),
+    writeRunArtifact: asFunction(
+      ({ workflowCatalog, runRepository, fileSystem }) =>
+        new WriteRunArtifact(workflowCatalog, runRepository, fileSystem),
+    ),
     checkpointRun: asFunction(
       ({ getRunStatus, runRepository, clock }) =>
         new CheckpointRun(getRunStatus, runRepository, () => clock.now().toISOString()),
@@ -922,4 +973,30 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     listRuns: asFunction(({ runRepository }) => new ListRuns(runRepository)),
   });
   return c;
+}
+
+/** Where the map's applications' code already is on this machine (never a clone fetched for this). */
+export async function checkoutRoots(
+  sources: Pick<SystemSources, "locate" | "location">,
+): Promise<readonly string[]> {
+  const map = await sources.location.require();
+  if (map.isErr()) return [];
+  const roots: string[] = [];
+  for (const app of map.value.applications) {
+    const located = await sources.locate(app);
+    if (located.isOk() && located.value) roots.push(located.value.root);
+  }
+  return roots;
+}
+
+/**
+ * What an agent must know about the directory it works in. A Node project without node_modules
+ * cannot run its tests, type checker or linters there, and installing is not the agent's call.
+ */
+export function workNotes(cwd: string): string[] {
+  if (existsSync(join(cwd, "package.json")) && !existsSync(join(cwd, "node_modules")))
+    return [
+      "The project's dependencies are not installed here (no node_modules): its tests, type checker and linters cannot run. Do not install anything or try to run them; write the code and tests, and say plainly that they were not run.",
+    ];
+  return [];
 }

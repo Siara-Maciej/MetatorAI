@@ -1,3 +1,4 @@
+import { matchesAny } from "./glob.ts";
 import {
   type Application,
   appDir,
@@ -82,12 +83,33 @@ export function selfApplications(
 }
 
 /** The impact of changed files of this repository's applications, and of contracts named outright. */
+/**
+ * Files MetatorAI itself writes in a repository (its state, canon, cards, map and the host files
+ * it generates): a change to them changes no application.
+ */
+export const METATOR_FILES: readonly string[] = [
+  ".metator/**",
+  "metator/**",
+  "metator.config.yml",
+  "metator.config.json",
+  "metator.repos.yml",
+  "docs/metator/**",
+  ".claude/agents/mt-*",
+  ".claude/skills/mt-*/**",
+  ".github/agents/mt-*",
+  ".github/skills/mt-*/**",
+  ".github/instructions/mt-*",
+  ".github/metator/**",
+];
+
 export function impactOf(
   map: SystemMap,
   input: {
     readonly self: readonly Application[];
     readonly files: readonly string[];
     readonly contracts?: readonly string[];
+    /** Files that import a file, directly or not: a changed library reaches the apps using it. */
+    readonly usedBy?: (file: string) => readonly string[];
   },
 ): SystemImpact {
   const reasons = new Map<string, Set<string>>();
@@ -106,17 +128,29 @@ export function impactOf(
   const owned = (app: string) => map.contracts.filter((c) => c.owner === app);
   const depth = (a: Application) => (appDir(a) === "." ? 0 : appDir(a).split("/").length);
   const unmapped: string[] = [];
-  for (const file of input.files) {
-    const app = input.self
+  const appOf = (file: string) =>
+    input.self
       .filter((a) => appDir(a) === "." || file === appDir(a) || file.startsWith(`${appDir(a)}/`))
       .sort((x, y) => depth(y) - depth(x))[0];
-    if (!app) {
-      unmapped.push(file);
+  for (const file of input.files) {
+    if (matchesAny(file, METATOR_FILES)) continue;
+    const app = appOf(file);
+    if (app) {
+      changed.add(app.id);
+      note(app.id, `its files changed (${file})`);
+      for (const c of owned(app.id)) mark(c, specPath(app, c) === file ? "spec" : "implementation");
       continue;
     }
-    changed.add(app.id);
-    note(app.id, `its files changed (${file})`);
-    for (const c of owned(app.id)) mark(c, specPath(app, c) === file ? "spec" : "implementation");
+    // A file of no application (a library package): the applications whose files import it.
+    const users = [...new Set((input.usedBy?.(file) ?? []).map(appOf))].filter(
+      (a): a is Application => a !== undefined,
+    );
+    if (users.length === 0) unmapped.push(file);
+    for (const user of users) {
+      changed.add(user.id);
+      note(user.id, `uses ${file}, which changed`);
+      for (const c of owned(user.id)) mark(c, "implementation");
+    }
   }
   for (const id of input.contracts ?? []) {
     const c = map.contracts.find((x) => x.id === id);

@@ -2,6 +2,7 @@ import {
   type AnswerCitation,
   type Conversation,
   ConversationDocument,
+  citationCandidates,
   conversationId,
   findCitations,
   guidePrompt,
@@ -74,6 +75,8 @@ export interface AskInput {
   readonly projectRoot: string;
   /** How the place is named to the guide: "this repository", "the folder shop (3 repositories)". */
   readonly where: string;
+  /** More directories the guide reads: where a folder's linked repositories really are. */
+  readonly dirs?: readonly string[];
   /** Each event as it arrives (the terminal streams the answer). */
   readonly onEvent?: (e: AgentEvent) => void;
   /** A question the host asks the person (a permission); the guide only reads, so the default denies. */
@@ -86,7 +89,11 @@ export interface AskResult {
   readonly citations: readonly AnswerCitation[];
 }
 
-const DENY: AgentAnswer = { choices: ["Deny"], text: "mt-guide only reads; nothing may change." };
+const DENY: AgentAnswer = {
+  choices: ["Deny"],
+  // The guide hears why, and what it may use instead, so it does not retry the same command.
+  text: "mt-guide only reads: search with Grep and Glob or a read-only grep, rg, find or ls on paths inside this directory, read with Read, and run `metator` commands. Nothing else runs here.",
+};
 
 /**
  * `metator ask` (G3, ADR-0058): a plain question about the code, answered by mt-guide through the
@@ -131,6 +138,7 @@ export class AskQuestion {
         prompt: guidePrompt(question, input.where, previous?.turns ?? [], resume !== undefined),
         cwd: input.cwd,
         projectRoot: input.projectRoot,
+        ...(input.dirs && input.dirs.length > 0 ? { dirs: input.dirs } : {}),
         runDir: `${input.projectRoot}/${this.conversations.file(id).replace(/\/[^/]+$/, "")}`,
         ...(resume ? { resume } : {}),
       },
@@ -145,8 +153,20 @@ export class AskQuestion {
       }
     }
     const citations: AnswerCitation[] = [];
-    for (const c of findCitations(answer))
-      citations.push({ ...c, exists: await this.cited(input.cwd, c.path) });
+    const known: string[] = [];
+    for (const c of findCitations(answer)) {
+      let path = c.path;
+      let exists = await this.cited(input.cwd, path);
+      // A short path relative to a file cited before it: where it really is.
+      for (const candidate of exists ? [] : citationCandidates(path, known))
+        if (await this.cited(input.cwd, candidate)) {
+          path = candidate;
+          exists = true;
+          break;
+        }
+      if (exists && path.includes("/")) known.push(path);
+      citations.push({ path, line: c.line, exists });
+    }
     const at = this.clock.now().toISOString();
     const conversation: Conversation = {
       id,

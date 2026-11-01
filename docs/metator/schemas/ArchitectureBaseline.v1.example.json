@@ -1,0 +1,8 @@
+{
+  "kind": "ArchitectureBaseline",
+  "schemaVersion": 1,
+  "violations": [
+    { "id": "cycle:@shop/a,@shop/b", "kind": "cycle" },
+    { "id": "undeclared:@shop/web→lodash", "kind": "undeclared" }
+  ]
+}

@@ -19,6 +19,12 @@ export interface AgentTask {
   readonly runDir: string;
   /** The host session to continue, when there is one. */
   readonly resume?: string;
+  /** More absolute directories the agent reads (the real places of a folder's linked repositories). */
+  readonly dirs?: readonly string[];
+  /** Started by `metator run drive`: the drive moves the run, so the agent may not. */
+  readonly driven?: boolean;
+  /** External actions a person approved in this run (`push` after the delivery gate). */
+  readonly approved?: readonly string[];
 }
 
 export interface AgentQuestion {
@@ -131,6 +137,12 @@ export interface StagePromptInput {
   readonly answer?: string;
   /** Why the stage came back (a FAIL from its gate), when it did. */
   readonly retry?: string;
+  /** What a person decided earlier in the run (answers to agents' questions), for every later agent. */
+  readonly decisions?: readonly string[];
+  /** The stage whose failure brought the run here: a later one when it was sent back. */
+  readonly retryFrom?: string;
+  /** What the agent must know about where it works (dependencies not installed). */
+  readonly notes?: readonly string[];
 }
 
 /** The message a worker gets: one stage, its artifacts, and how to report back. */
@@ -140,11 +152,27 @@ export function stagePrompt(input: StagePromptInput): string {
     `You are ${input.agent}, working stage "${input.stage.id}" of run ${input.runId}.`,
     `Task: ${input.task}`,
     ...(input.stage.description ? [`Stage goal: ${input.stage.description}`] : []),
+    ...(produces.length === 0
+      ? [`Artifacts of the run are in ${input.runDir}.`]
+      : (input.stage.parallel ?? []).length > 1
+        ? [
+            `This stage's workers run in parallel and together write ${produces.join(", ")} into ${input.runDir}.`,
+            "Write only the artifact your own instructions name; the others are not yours.",
+          ]
+        : [`Write these artifacts into ${input.runDir}: ${produces.join(", ")}.`]),
     ...(produces.length > 0
-      ? [`Write these artifacts into ${input.runDir}: ${produces.join(", ")}.`]
-      : [`Artifacts of the run are in ${input.runDir}.`]),
+      ? [
+          `Write an artifact with your Write tool at ${input.runDir}/<artifact> (it needs no approval there). Only without a Write tool, and never for JSON, use \`metator run write <artifact>\` with the text on stdin. \`metator run schema <artifact>\` prints a JSON artifact's format.`,
+        ]
+      : []),
     ...(input.skills.length > 0 ? [`Skills you may use: ${input.skills.join(", ")}.`] : []),
-    ...(input.retry ? [`The previous attempt failed its gate: ${input.retry}`] : []),
+    "Run each `metator` command on its own: no `cd`, pipes, redirections or other commands in the same call (alone they need no approval). Look at files with Read, Glob and Grep.",
+    "Read and change files, JSON included, with Read, Edit and Write: never with an interpreter or a script (`python`, `node`, `jq`), which asks a person every time.",
+    "`metator help` lists every metator command; use no other (a guessed one only asks a person). Never `metator ask`: it starts another agent; read the code yourself.",
+    RUN_WITHOUT_ASKING,
+    ...(input.notes ?? []),
+    ...decisionLines(input),
+    ...retryLines(input),
     ...(input.answer ? [`A person answered your question: ${input.answer}`] : []),
     "Finish with exactly one last line:",
     "STATUS: done",
@@ -154,12 +182,47 @@ export function stagePrompt(input: StagePromptInput): string {
   return `${lines.join("\n")}\n`;
 }
 
+/** A person's earlier answers: decisions the work follows, never defects to fail it for. */
+function decisionLines(input: Pick<StagePromptInput, "decisions">): string[] {
+  const decisions = input.decisions ?? [];
+  return decisions.length === 0
+    ? []
+    : ["A person decided in this run (follow it; it is not a defect):", ...decisions.map((d) => `- ${d}`)];
+}
+
+/**
+ * Why the stage runs again. Sent back by a later stage, it is told that the work of the stages
+ * since is already in the working tree: redoing it from the old plan would do it twice.
+ */
+function retryLines(input: Pick<StagePromptInput, "stage" | "retry" | "retryFrom">): string[] {
+  if (!input.retry) return [];
+  if (!input.retryFrom || input.retryFrom === input.stage.id)
+    return [`The previous attempt failed its gate: ${input.retry}`];
+  return [
+    `Stage ${input.retryFrom} failed and sent the run back here: ${input.retry}`,
+    "Whatever the stages since this one changed is already in the working tree (`metator review diff --base HEAD` shows it). Keep what is done and change only what the failure asks for; a step already done is not done again.",
+  ];
+}
+
+/** The skill that lists, for every command people were asked about, the form that needs no one. */
+const RUN_WITHOUT_ASKING =
+  "Before any shell or metator command, follow the skill mt-run-without-asking (Read `.claude/skills/mt-run-without-asking/SKILL.md`, or `.github/skills/mt-run-without-asking/SKILL.md` on GitHub Copilot; never search for it): it says, for each command a person would be asked about, the form that runs without asking.";
+
 /** The message a critic gets for an LLM gate. */
 export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): string {
   const lines = [
     `You are ${input.agent}, the critic of stage "${input.stage.id}" of run ${input.runId}.`,
     `Task: ${input.task}`,
     `Review the artifacts in ${input.runDir}: ${(input.stage.produces ?? []).join(", ") || "(none listed)"}.`,
+    "Read files with Read, Glob and Grep; run no shell commands besides a single `metator` command per call, and no interpreter (`python`, `node`, `jq`).",
+    RUN_WITHOUT_ASKING,
+    "The change is `change.diff` in the run directory when the review wrote it (Read it), else `metator review diff --base HEAD`; `metator help` lists every command (use no other, and never `metator ask`, which starts another agent).",
+    // A check the repository does not configure, or cannot run where the run works, is not the
+    // critic's to demand: the gate reports (`.metator/gates/<gate>.json`) say what passed.
+    "The checks a change must pass are the repository's configured gates; their reports are in .metator/gates/. Do not fail the stage for a check the gates do not configure or that cannot run here; name it in your reason only if the artifacts claim it passed.",
+    ...(input.notes ?? []),
+    ...decisionLines(input),
+    ...(input.retryFrom && input.retryFrom !== input.stage.id ? retryLines(input) : []),
     "Finish with exactly one last line:",
     "VERDICT: PASS",
     "or",
@@ -179,6 +242,39 @@ export function parseStatus(text: string): WorkerStatus | undefined {
   const blocked = /^blocked:\s*(.+)$/i.exec(line);
   if (blocked) return { kind: "blocked", question: (blocked[1] as string).trim() };
   return /^done\b/i.test(line) ? { kind: "done" } : undefined;
+}
+
+/**
+ * The AI host is out of capacity for now (a session or usage limit, rate limiting, an overloaded
+ * service): nothing is wrong with the stage, so the run waits for it instead of failing. Returns
+ * the host's own line about it, or undefined for any other failure.
+ */
+export function hostLimit(text: string): string | undefined {
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) =>
+      /\b(hit your (session|usage|weekly|daily) limit|usage limit (reached|exceeded)|rate.?limit(ed)?|overloaded|too many requests|429\b)/i.test(
+        l,
+      ),
+    );
+}
+
+/** The most of an agent's explanation a person is shown with its question. */
+const MAX_CONTEXT = 3000;
+
+/**
+ * What a person reads when an agent stops on `STATUS: blocked: <question>`: the question, after
+ * what the agent wrote before it (its numbered options, its recommendation), which the question
+ * itself often only refers to ("answer the 3 numbered questions").
+ */
+export function blockedPrompt(text: string, question: string): string {
+  const lines = text.split(/\r?\n/);
+  const at = lines.map((l) => l.trim().toUpperCase().startsWith("STATUS:")).lastIndexOf(true);
+  const before = (at >= 0 ? lines.slice(0, at) : lines).join("\n").trim();
+  if (before === "") return question;
+  const context = before.length > MAX_CONTEXT ? `…${before.slice(-MAX_CONTEXT)}` : before;
+  return `${context}\n\n${question}`;
 }
 
 export type CriticVerdict = { readonly pass: true } | { readonly pass: false; readonly reason: string };

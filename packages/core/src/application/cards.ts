@@ -1,4 +1,5 @@
 import slugify from "@sindresorhus/slugify";
+import { type ArchModule, analyzeModules, type ModulesReport } from "../domain/architecture-modules.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { packageOf } from "../domain/import-index.ts";
@@ -7,6 +8,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import { parseConsumes, type SystemMap } from "../domain/system-map.ts";
 import { readFrontMatter } from "../domain/versioned.ts";
 import type { FileSystem, WorkspacePackage } from "../ports/index.ts";
+import type { ArchitecturePolicyCatalog } from "./architecture.ts";
 import type { BuildImportGraph, ImportGraphReport } from "./import-graph.ts";
 import type { FindOwners } from "./owners.ts";
 import type { MetatorPaths } from "./paths.ts";
@@ -44,6 +46,8 @@ export class BuildModuleCards {
     private readonly owners: Pick<FindOwners, "execute">,
     private readonly patterns: Pick<PatternCatalog, "scan">,
     private readonly system?: Pick<MapFile, "load">,
+    /** The architecture policy: its `modules` get a card each, as packages do (ADR-0074). */
+    private readonly architecture?: Pick<ArchitecturePolicyCatalog, "load">,
   ) {}
 
   async execute(input: { readonly check: boolean }): Promise<Result<CardsReport, MetatorError>> {
@@ -101,6 +105,59 @@ export class BuildModuleCards {
       const saved = await this.fs.write(file, next);
       if (saved.isErr()) return err(saved.error);
       written.push(file);
+    }
+
+    // Modules inside a package (a modular monolith's `src/module/*`): a card per module.
+    const policy = this.architecture ? await this.architecture.load() : ok(undefined);
+    if (policy.isErr()) return err(policy.error);
+    const modulesPolicy = policy.value?.policy.modules;
+    if (modulesPolicy) {
+      const isTest = (f: string) => matchesAny(f, this.testGlobs);
+      const inner = analyzeModules({
+        policy: modulesPolicy,
+        files: r.files,
+        imports: r.imports,
+        isTest,
+        packageOf: (dir) => packageOf(`${dir}/x`, r.packages)?.name ?? "(root)",
+      });
+      const dirs = inner.modules.map((m) => m.dir);
+      const owned = await this.owners.execute({ paths: dirs.map((d) => `${d}/index.ts`) });
+      if (owned.isErr()) return err(owned.error);
+      for (const [i, m] of inner.modules.entries()) {
+        const pkg = packageOf(`${m.dir}/x`, r.packages);
+        const name = pkg && pkg.name !== "(root)" && !m.name.includes("/") ? `${pkg.name}/${m.name}` : m.name;
+        const file = cardFile(this.paths.cards, name);
+        expected.add(file);
+        const generated = renderModule(m, inner, r, isTest, {
+          owners: owned.value.owners[i]?.owners ?? [],
+          codeowners: owned.value.source !== undefined,
+          patterns: exemplars.filter((e) => e.file.startsWith(`${m.dir}/`)).map((e) => e.id),
+          package: pkg?.name ?? "(root)",
+        });
+        const current = await this.fs.read(file);
+        let next: string;
+        if (current.isErr()) {
+          next = renderCard({ package: name, dir: m.dir, generated, ...cardSkeleton(name) });
+        } else {
+          const parts = splitCard(current.value, file);
+          if (parts.isErr()) {
+            invalid.push({ file, message: parts.error.message });
+            continue;
+          }
+          next = renderCard({ ...parts.value, package: name, dir: m.dir, generated });
+          if (next === current.value) {
+            unchanged.push(file);
+            continue;
+          }
+        }
+        if (input.check) {
+          stale.push(file);
+          continue;
+        }
+        const saved = await this.fs.write(file, next);
+        if (saved.isErr()) return err(saved.error);
+        written.push(file);
+      }
     }
 
     const orphaned: string[] = [];
@@ -171,6 +228,53 @@ function renderGenerated(
     `- Owners: ${extra.codeowners ? names(extra.owners) : "none (no CODEOWNERS)"}`,
     `- Patterns with their exemplar here: ${names(extra.patterns)}`,
     ...(extra.application ? [extra.application] : []),
+    "",
+  ];
+  return lines.join("\n");
+}
+
+/** The generated block of a module's card: the same structural facts as a package's, between modules. */
+function renderModule(
+  m: ArchModule,
+  inner: ModulesReport,
+  r: ImportGraphReport,
+  isTest: (file: string) => boolean,
+  extra: {
+    readonly owners: readonly string[];
+    readonly codeowners: boolean;
+    readonly patterns: readonly string[];
+    readonly package: string;
+  },
+): string {
+  const inModule = (f: string) => f.startsWith(`${m.dir}/`);
+  const surface = new Set<string>();
+  for (const i of r.imports)
+    if (
+      inModule(i.to) &&
+      !inModule(i.from) &&
+      !isTest(i.from) &&
+      inner.modules.some((o) => i.from.startsWith(`${o.dir}/`))
+    )
+      surface.add(i.to);
+  const pastPublic = inner.edges.filter((e) => e.to === m.name && e.internal > 0).map((e) => e.from);
+  const names = (values: Iterable<string>) => {
+    const sorted = [...new Set(values)].sort();
+    return sorted.length === 0 ? "none" : sorted.map((v) => `\`${v}\``).join(", ");
+  };
+  const twoWay = inner.twoWay.filter((p) => p.includes(m.name)).map((p) => (p[0] === m.name ? p[1] : p[0]));
+  const lines = [
+    "",
+    "<!-- Generated by `metator cards build` from the import graph. Edit the sections below, not this block. -->",
+    `- Directory: \`${m.dir}\` (a module of \`${extra.package}\`)`,
+    `- Depends on modules: ${names(m.dependsOn)}`,
+    `- Used by modules: ${names(m.dependents)}`,
+    `- Imports each other with: ${names(twoWay)}`,
+    `- Imported by other modules: ${names(surface)}`,
+    ...(inner.public
+      ? [`- Imported past its public part (${inner.public.join(", ")}) by: ${names(pastPublic)}`]
+      : []),
+    `- Owners: ${extra.codeowners ? names(extra.owners) : "none (no CODEOWNERS)"}`,
+    `- Patterns with their exemplar here: ${names(extra.patterns)}`,
     "",
   ];
   return lines.join("\n");

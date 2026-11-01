@@ -80,3 +80,42 @@ describe("workflow spec", () => {
     );
   });
 });
+
+describe("shipped workflows", () => {
+  test("a person who rejects a plan sends it back to the planner with the reason", async () => {
+    for (const id of ["mt-feature", "mt-bugfix", "mt-refactor"]) {
+      const file = `${import.meta.dir}/../../../.github/metator/workflows/${id}.yml`;
+      const spec = parseWorkflowYaml(await Bun.file(file).text(), file)._unsafeUnwrap();
+      const approval = spec.stages.find((s) => s.id === "plan-approval");
+      expect([id, approval?.hitl, approval?.onFail?.goto]).toEqual([id, true, "plan"]);
+      // Approving the delivery approves the push; publish is done only when the branch is pushed.
+      const delivery = spec.stages.find((s) => s.id === "delivery");
+      const publish = spec.stages.find((s) => s.id === "publish");
+      expect([delivery?.grants, publish?.gate?.script, publish?.onFail?.goto]).toEqual([
+        ["push"],
+        "metator run published",
+        "publish",
+      ]);
+    }
+  });
+});
+
+describe("workflow v3: grants", () => {
+  const v = (stage: string, schemaVersion = 3) =>
+    `kind: Workflow\nschemaVersion: ${schemaVersion}\nid: w\nstages:\n  - id: build\n${stage}`;
+  test("a human gate may grant external actions; a v2 file is a v3 file", () => {
+    const spec = parseWorkflowYaml(v("  - id: delivery\n    hitl: true\n    grants: [push]\n"), "w.yml");
+    expect(spec._unsafeUnwrap().stages[1]?.grants).toEqual(["push"]);
+    expect(parseWorkflowYaml(v("  - id: delivery\n    hitl: true\n", 2), "w.yml").isOk()).toBe(true);
+  });
+  test("only a human gate grants, and only push or comment; a v2 file cannot", () => {
+    const notGate = parseWorkflowYaml(v("  - id: publish\n    grants: [push]\n"), "w.yml");
+    expect(notGate._unsafeUnwrapErr().message).toContain('Stage "publish" grants push but is no human gate');
+    expect(parseWorkflowYaml(v("  - id: d\n    hitl: true\n    grants: [deploy]\n"), "w.yml").isErr()).toBe(
+      true,
+    );
+    expect(parseWorkflowYaml(v("  - id: d\n    hitl: true\n    grants: [push]\n", 2), "w.yml").isErr()).toBe(
+      true,
+    );
+  });
+});

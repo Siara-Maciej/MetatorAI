@@ -1,13 +1,24 @@
 import { describe, expect, test } from "bun:test";
 import { InMemoryFileSystem } from "@metator/testing";
-import { DiscoverSystem, type DiscoverySource } from "../src/application/system-discovery.ts";
+import {
+  DiscoverSystem,
+  type DiscoverySource,
+  RepositoryDiscoverySource,
+} from "../src/application/system-discovery.ts";
+import { manifestOf } from "../src/domain/architecture.ts";
+import { EMPTY_POLICY } from "../src/domain/architecture-policy.ts";
 import { ok } from "../src/domain/result.ts";
 import {
+  apiRoutes,
+  calledRoutes,
   contractIds,
   type FoundContract,
+  fetchedSpec,
+  handledMessages,
   kindFrom,
   needlesOf,
   proposeSystem,
+  sentMessages,
   slugId,
   systemDrift,
 } from "../src/domain/system-discovery.ts";
@@ -41,6 +52,12 @@ describe("discovery helpers", () => {
     expect(kindFrom("web", ["react"], false)).toBe("frontend");
     expect(kindFrom("cli", ["react", "ink"], false, true)).toBe("other");
     expect(kindFrom("misc", [], false)).toBe("other");
+    expect(kindFrom("openpage-api", ["next", "react"], false)).toBe("service");
+    expect(kindFrom("@hoppscotch/backend", [], false)).toBe("service");
+    expect(kindFrom("api-client", ["react"], false)).toBe("frontend");
+    expect(kindFrom("swapi-graphql", ["graphql", "graphql-http"], false)).toBe("service");
+    // A mock server in devDependencies serves nothing in production.
+    expect(kindFrom("react-vite", ["react", "express"], false, false, ["express"])).toBe("frontend");
   });
 
   test("contract ids are unique; a title-less spec is named after its file", () => {
@@ -118,6 +135,25 @@ describe("discovery helpers", () => {
     ]);
   });
 
+  test("routes a server declares and the routes a hand-written HTTP client calls", () => {
+    const nest =
+      "@Controller('articles')\nexport class A {}\n@Controller()\nclass U { @Post('users/login') login() {} @Get(':id') one() {} }";
+    const express = "router.get('/tags', h); app.use('/profiles', p);";
+    expect(apiRoutes(nest)).toEqual(["articles", "users"]);
+    expect(apiRoutes(express)).toEqual(["profiles", "tags"]);
+    const client = `const r = superagent.get(\`\${API_ROOT}\${url}\`);\nget('/articles/feed'); post('/users/login'); get(\`/profiles/\${u}\`);`;
+    expect(calledRoutes(client)).toEqual(["articles", "profiles", "users"]);
+    // Paths in a file with no HTTP client are routes of the app itself, not calls.
+    expect(calledRoutes("navigate('/articles'); <Link to='/profiles'/>")).toEqual([]);
+    expect(handledMessages("@MessagePattern('user_create')\n@EventPattern(\"user.created\")")).toEqual([
+      "user.created",
+      "user_create",
+    ]);
+    // Without a microservice client, `.send('x')` is any other send (a socket, an express response).
+    expect(sentMessages("res.send('ok'); socket.emit('joined')")).toEqual([]);
+    expect(sentMessages("c: ClientProxy; c.send('user_create', u)")).toEqual(["user_create"]);
+  });
+
   test("drift: what the code shows and the map lacks", () => {
     const map = SystemMapSchema.parse({
       system: "s",
@@ -163,6 +199,7 @@ function source(
     specs: unknown[];
     texts: { path: string; text: string }[];
     remote: string;
+    packages: { name: string; dir: string; deps: string[] }[];
   }> = {},
 ): DiscoverySource {
   return {
@@ -176,6 +213,7 @@ function source(
       ),
     specifications: async () => ok((over.specs ?? []) as never),
     owners: async (dirs) => ok(dirs.map(() => [])),
+    packages: async () => ok(over.packages ?? []),
     texts: async function* () {
       for (const t of over.texts ?? []) yield t;
     },
@@ -238,6 +276,103 @@ describe("DiscoverSystem", () => {
     ]);
   });
 
+  test("a document served at runtime is shown with its consumers, also those whose API client is a library", async () => {
+    const r = (
+      await new DiscoverSystem(detectors).execute({
+        system: "shop",
+        sources: [
+          source("api", {
+            texts: [
+              {
+                path: "src/main.ts",
+                text: "x\nSwaggerModule.setup('docs', app, document);\nSwaggerModule.setup(\"docs/buyer\", app, d);",
+              },
+            ],
+          }),
+          source("web", {
+            apps: [
+              {
+                name: "@w/web",
+                dir: "apps/web",
+                deps: ["@w/api"],
+                signals: ["s"],
+                docker: false,
+                bin: false,
+              },
+            ],
+            packages: [
+              { name: "@w/web", dir: "apps/web", deps: ["@w/api"] },
+              { name: "@w/api", dir: "packages/api", deps: [] },
+              { name: "@w/unused", dir: "packages/unused", deps: [] },
+            ],
+            texts: [
+              {
+                path: "packages/api/package.json",
+                text: '"gen": "openapi-typescript https://api.shop.io/docs-json -o x.ts"',
+              },
+              {
+                path: "packages/unused/package.json",
+                text: '"gen": "openapi-typescript http://localhost:3000/docs-json"',
+              },
+              { path: "apps/web/x.ts", text: "fetch('/docs-json2')" },
+            ],
+          }),
+        ],
+      })
+    )._unsafeUnwrap();
+    const shown = r.evidence
+      .filter((e) => e.subject.startsWith("contract:") || e.subject.startsWith("consumes:"))
+      .map((e) => [e.subject, e.file]);
+    expect(shown).toEqual([
+      ["contract:api-api", "api/src/main.ts:2"],
+      ["consumes:web→api-api", "web/packages/api/package.json"],
+      ["contract:api-api-2", "api/src/main.ts:3"],
+    ]);
+    // A served document is a contract with no file (ADR-0076); its consumers consume it.
+    expect(r.proposal.contracts).toEqual([
+      {
+        id: "api-api",
+        kind: "openapi",
+        owner: "api",
+        spec: { served: "/docs-json" },
+        compatibility: "backward",
+      },
+      {
+        id: "api-api-2",
+        kind: "openapi",
+        owner: "api",
+        spec: { served: "/docs/buyer-json" },
+        compatibility: "backward",
+      },
+    ]);
+    expect(r.proposal.applications.find((a) => a.id === "web")?.consumes).toEqual(["api-api"]);
+  });
+
+  test("an application that declares its OpenAPI file: the served document is evidence, fetched only by who fetches it", async () => {
+    const r = (
+      await new DiscoverSystem(detectors).execute({
+        system: "shop",
+        sources: [
+          source("api", {
+            specs: [SPEC],
+            texts: [{ path: "src/main.ts", text: "SwaggerModule.setup('docs', app, d);" }],
+          }),
+          source("web", {
+            texts: [
+              { path: "package.json", text: '"gen": "openapi-typescript https://api.shop.io/docs-json"' },
+              { path: "src/x.ts", text: "fetch('/docs-json2')" },
+            ],
+          }),
+        ],
+      })
+    )._unsafeUnwrap();
+    expect(r.proposal.contracts.map((c) => c.id)).toEqual(["billing-api"]);
+    expect(r.evidence.filter((e) => e.subject.includes(" /")).map((e) => [e.subject, e.proposed])).toEqual([
+      ["served:api /docs-json", false],
+      ["consumes:web→api /docs-json", false],
+    ]);
+  });
+
   test("a folder: repositories are applications by name, sources by remote, clashing ids prefixed", async () => {
     const r = (
       await new DiscoverSystem(detectors).execute({
@@ -258,6 +393,87 @@ describe("DiscoverSystem", () => {
       ["tools-web", { repo: "tools", path: "apps/web" }, []],
     ]);
     expect(r.evidence.find((e) => e.subject === "consumes:web→billing-api")?.file).toBe("web/package.json");
+  });
+
+  test("a hand-written HTTP client consumes the API whose routes it calls, two routes at least", async () => {
+    const r = (
+      await new DiscoverSystem(detectors).execute({
+        system: "conduit",
+        sources: [
+          source("api", {
+            specs: [SPEC],
+            texts: [
+              { path: "src/articles.controller.ts", text: "@Controller('articles')\n@Post('users/login')" },
+            ],
+          }),
+          source("web", {
+            texts: [
+              {
+                path: "src/agent.js",
+                text: "superagent.get('/articles/feed'); superagent.post('/users/login');",
+              },
+            ],
+          }),
+          source("admin", { texts: [{ path: "src/agent.js", text: "fetch('/articles')" }] }),
+        ],
+      })
+    )._unsafeUnwrap();
+    const api = r.proposal.contracts[0]?.id as string;
+    expect(r.proposal.applications.map((a) => [a.id, a.consumes])).toEqual([
+      ["api", []],
+      ["web", [api]],
+      ["admin", []],
+    ]);
+    expect(r.evidence.find((e) => e.subject === `consumes:web→${api}`)).toMatchObject({
+      reason: "calls routes api serves (/articles, /users) with an HTTP client",
+      file: "web/src/agent.js",
+      confidence: "medium",
+    });
+  });
+
+  test("services that talk by messages: who sends what the other handles is shown, not proposed", async () => {
+    const r = (
+      await new DiscoverSystem(detectors).execute({
+        system: "s",
+        sources: [
+          source("task", {
+            texts: [
+              {
+                path: "src/task.controller.ts",
+                text: "@MessagePattern('task_create')\n@EventPattern('task_done')",
+              },
+            ],
+          }),
+          // Handles a message nobody here sends: no dependency on it.
+          source("user", {
+            texts: [{ path: "src/user.controller.ts", text: "@MessagePattern('user_create')" }],
+          }),
+          source("gateway", {
+            texts: [
+              {
+                path: "src/tasks.controller.ts",
+                text: "private readonly client: ClientProxy;\nthis.client.send('task_create', x); this.client.emit('task_done', y); this.client.send('other', z);",
+              },
+            ],
+          }),
+        ],
+      })
+    )._unsafeUnwrap();
+    expect(r.proposal.applications.map((a) => [a.id, a.consumes])).toEqual([
+      ["task", []],
+      ["user", []],
+      ["gateway", []],
+    ]);
+    expect(r.evidence.filter((e) => e.subject.startsWith("messages:"))).toEqual([
+      {
+        subject: "messages:gateway→task",
+        reason:
+          "sends task_create, task_done, which task handles (@MessagePattern): a dependency with no contract file",
+        file: "gateway/src/tasks.controller.ts",
+        confidence: "medium",
+        proposed: false,
+      },
+    ]);
   });
 
   test("with a map: drift, a written proposal when there is none, never an overwrite", async () => {
@@ -284,5 +500,94 @@ describe("DiscoverSystem", () => {
       write: true,
     });
     expect(again._unsafeUnwrapErr().code).toBe("USAGE");
+  });
+});
+
+describe("RepositoryDiscoverySource", () => {
+  const repo = (files: string[], rootListed = false) => {
+    const root = manifestOf(".", {
+      name: "api",
+      scripts: { dev: "nuxt dev" },
+      dependencies: { "api-templates": "workspace:*" },
+    });
+    const lib = manifestOf("packages/templates", { name: "api-templates", main: "index.js" });
+    const listed = rootListed ? [root, lib] : [lib];
+    const manifests = { manifests: async () => ok({ root, packages: listed }) };
+    const facts = {
+      gather: async () =>
+        ok({
+          files: [],
+          imports: [],
+          externals: [],
+          unresolved: [],
+          manifests: { root, packages: listed },
+          policy: EMPTY_POLICY,
+          policySource: null,
+          today: "2026-10-30",
+        }),
+    };
+    return new RepositoryDiscoverySource(
+      "api",
+      { listFiles: async () => ok(files), remoteUrl: async () => ok("x") },
+      new InMemoryFileSystem({}),
+      manifests as never,
+      facts as never,
+      { execute: async () => ok({ owners: [] }) } as never,
+    );
+  };
+
+  test("an application at the root with its own Dockerfile, beside its library packages", async () => {
+    const apps = (
+      await repo(["Dockerfile", "src/main.ts", "packages/templates/index.js"]).applications()
+    )._unsafeUnwrap();
+    expect(apps.map((a) => [a.name, a.dir, a.docker])).toEqual([["api", ".", true]]);
+    // Without a Dockerfile the root is only the workspace that holds the packages.
+    expect((await repo(["src/main.ts"]).applications())._unsafeUnwrap().map((a) => a.dir)).not.toContain(".");
+  });
+
+  test("a specification a script downloads is not read as the application's own", async () => {
+    const root = manifestOf(".", {
+      name: "web",
+      scripts: { "gen:api": "curl -sL https://api.example.com/openapi.yml -o ./src/api/openapi.yml" },
+    });
+    const source = new RepositoryDiscoverySource(
+      "web",
+      { listFiles: async () => ok(["src/api/openapi.yml", "openapi.yml"]), remoteUrl: async () => ok("x") },
+      new InMemoryFileSystem({ "src/api/openapi.yml": "openapi: 3.0.0", "openapi.yml": "openapi: 3.0.0" }),
+      { manifests: async () => ok({ root, packages: [] }) } as never,
+      { gather: async () => ok({}) } as never,
+      { execute: async () => ok({ owners: [] }) } as never,
+    );
+    const yaml: ContractDetector = {
+      kind: "openapi",
+      globs: ["**/*.yml"],
+      detect: (path) => ok({ path, title: path, servers: [] }),
+    };
+    expect((await source.specifications([yaml]))._unsafeUnwrap().map((s) => s.path)).toEqual(["openapi.yml"]);
+  });
+
+  test("a root the workspace lists as a package that nothing depends on is an application", async () => {
+    const apps = (
+      await repo(["nuxt.config.ts", "packages/templates/index.js"], true).applications()
+    )._unsafeUnwrap();
+    expect(apps.map((a) => [a.name, a.dir, a.docker, a.signals[0]])).toEqual([
+      ["api", ".", false, "api at the root is an application (no package depends on it, it runs on its own)"],
+    ]);
+  });
+});
+
+describe("fetchedSpec", () => {
+  const scripts = (dir: string, script: string) => [{ dir, scripts: { "generate:api": script } }];
+  const curl = "curl -sL https://example.com/api/openapi.yml -o ./src/services/openapi.yml && sta generate";
+  test("a specification a script downloads is a copy, not what the application serves", () => {
+    expect(fetchedSpec("src/services/openapi.yml", scripts(".", curl))).toBe(true);
+    expect(fetchedSpec("web/src/services/openapi.yml", scripts("web", curl))).toBe(true);
+  });
+  test("a specification no script downloads, or one only generated from, is the application's own", () => {
+    expect(
+      fetchedSpec("src/services/openapi.yml", scripts(".", "sta generate -p ./src/services/openapi.yml")),
+    ).toBe(false);
+    expect(fetchedSpec("openapi.yml", scripts(".", curl))).toBe(false);
+    expect(fetchedSpec("api/src/services/openapi.yml", scripts("web", curl))).toBe(false);
   });
 });

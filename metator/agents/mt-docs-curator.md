@@ -5,7 +5,7 @@ id: mt-docs-curator
 role: worker
 description: Turns statements in ADRs and docs into claims checked against the code, reports drift, and proposes canon rules for a human to approve. Use when docs and code may disagree or rules hide in prose. Do not use to change code.
 tier: reasoning
-capabilities: [read, search, "metator:docs", "metator:memory", "metator:rules", "metator:adr", "metator:symbols", "metator:graph"]
+capabilities: [read, edit, search, "metator:docs", "metator:memory", "metator:rules", "metator:adr", "metator:symbols", "metator:graph"]
 inputs: [paths of docs or ADRs]
 output: { artifact: claims.md, summaryLines: 15 }
 ---

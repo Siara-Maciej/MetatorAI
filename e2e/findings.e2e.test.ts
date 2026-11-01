@@ -122,6 +122,39 @@ describe("metator findings", () => {
         repo.root,
       );
       expect(data(plan)).toMatchObject({ files: ["src/pay.ts"], lenses: ["logic", "tests"], tasks: 2 });
+      // pr.json from git: the branch, its commits and authors, uncommitted work.
+      await repo.git("add", "src/pay.ts");
+      await repo.git("-c", "user.name=Ann", "-c", "user.email=ann@x", "commit", "-q", "-m", "Add a fee");
+      await repo.write("src/pay.ts", `${CODE}export const fee = 2;\n`);
+      const meta = await metator(
+        ["review", "metadata", "--base", "main", "--out", ".metator/runs/r1/pr.json"],
+        repo.root,
+      );
+      expect(data(meta)).toMatchObject({
+        branch: "review",
+        commits: [{ author: "Ann", email: "ann@x", subject: "Add a fee" }],
+        authors: [{ name: "Ann", commits: 1 }],
+        files: ["src/pay.ts"],
+        uncommitted: true,
+      });
+      expect(JSON.parse(await repo.read(".metator/runs/r1/pr.json")).kind).toBe("ReviewMetadata");
+      // The change itself, as reviewers read it: committed and uncommitted, against the base.
+      const diff = data(await metator(["review", "diff", "--base", "main"], repo.root)) as {
+        files: string[];
+        patch: string;
+      };
+      expect(diff.files).toEqual(["src/pay.ts"]);
+      expect(diff.patch).toContain("+++ b/src/pay.ts");
+      expect(diff.patch).toContain("+export const fee = 2;");
+      // A large patch goes to a file an agent reads with its Read tool.
+      const saved = data(
+        await metator(
+          ["review", "diff", "--base", "main", "--out", ".metator/runs/r1/change.diff"],
+          repo.root,
+        ),
+      ) as { output: string; lines: number };
+      expect(saved.output).toBe(".metator/runs/r1/change.diff");
+      expect(await repo.read(".metator/runs/r1/change.diff")).toBe(diff.patch);
       expect((await metator(["review", "plan", "--lenses", "style"], repo.root)).code).toBe(64);
 
       const blocker = finding("LOGIC-001", "logic", {
@@ -171,6 +204,47 @@ describe("metator findings", () => {
       await repo.git("checkout", "-q", "main");
     }
   }, 30_000); // several real processes
+
+  test("calibrate raises a finding to blocking and folds its duplicates into merged.json", async () => {
+    const dir = ".metator/runs/r2/findings";
+    await repo.write(
+      `${dir}/merged.json`,
+      set("merged", [
+        finding("LOGIC-001", "logic"),
+        finding("SEC-001", "security", { quote: "return amount;" }),
+      ]),
+    );
+    const bare = await metator(
+      ["findings", "calibrate", dir, "--id", "LOGIC-001", "--severity", "blocking"],
+      repo.root,
+    );
+    expect([bare.code, (bare.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+    const r = await metator(
+      [
+        "findings",
+        "calibrate",
+        dir,
+        "--id",
+        "LOGIC-001",
+        "--severity",
+        "blocking",
+        "--merge",
+        "SEC-001",
+        "--trigger",
+        "pay(10)",
+        "--reachability",
+        "checkout calls pay",
+        "--evidence",
+        "test:src/pay.test.ts",
+      ],
+      repo.root,
+    );
+    expect([r.code, (r.json.data as { findings: number }).findings]).toEqual([0, 1]);
+    const saved = JSON.parse(await repo.read(`${dir}/merged.json`)) as { findings: Data[] };
+    expect(saved.findings.map((f) => [f.id, f.severity, f.alsoFrom])).toEqual([
+      ["LOGIC-001", "blocking", ["security"]],
+    ]);
+  }, 60_000);
 
   test("schema prints the FindingSet JSON Schema; a missing dir argument is a usage error", async () => {
     expect(

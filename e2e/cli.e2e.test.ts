@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, metator } from "./helpers/cli.ts";
 
 let repo: string;
 
@@ -21,6 +21,20 @@ afterAll(async () => {
 });
 
 describe("metator CLI (process e2e)", () => {
+  test("output larger than a pipe's buffer reaches a slow reader whole", async () => {
+    // `memory inventory` of this repository is well over 64 KiB; the reader starts after a second.
+    const self = join(import.meta.dir, "..");
+    const proc = Bun.spawn(["sh", "-c", `bun "${CLI_ENTRY}" memory inventory | (sleep 1; cat)`], {
+      cwd: self,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const out = await new Response(proc.stdout).text();
+    await proc.exited;
+    expect(out.length).toBeGreaterThan(65_536);
+    expect(JSON.parse(out).ok).toBe(true);
+  });
+
   test("version: exit 0, single JSON line, empty stderr", async () => {
     const run = await metator(["version"], repo);
     expect(run.code).toBe(0);
@@ -135,10 +149,13 @@ describe("metator CLI (process e2e)", () => {
       "generate",
       "findings validate",
       "findings check-quote",
+      "findings calibrate",
       "findings merge",
       "findings verdict",
       "findings to-github",
       "findings schema",
+      "review metadata",
+      "review diff",
       "review plan",
       "eval run",
       "eval score",
@@ -166,9 +183,12 @@ describe("metator CLI (process e2e)", () => {
       "run advance",
       "run approve",
       "run checkpoint",
+      "run resume",
+      "run write",
       "run handoff",
       "run close",
       "run status",
+      "run published",
       "run schema",
       "run list",
       "run continue",

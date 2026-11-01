@@ -5,6 +5,16 @@ const MARKERS = [".git", "metator.config.ts", "metator.config.json", "metator.co
 const FOLDER_FILE = "metator.repos.yml";
 const isRepo = (dir: string) => MARKERS.some((m) => existsSync(join(dir, m)));
 
+/**
+ * Where a repository's runs live: a MetatorAI worktree (`<repo>/.metator/wt/<id>`, `worktree new`
+ * and `run init --worktree`) keeps its run in the checkout it was made from; any other root keeps
+ * its own.
+ */
+export function runsRootOf(root: string): string {
+  const main = /^(.*)\/\.metator\/wt\/[^/]+\/?$/.exec(resolve(root))?.[1];
+  return main !== undefined && isRepo(main) ? main : resolve(root);
+}
+
 /** Nearest ancestor (including `start`) containing a git repo or a MetatorAI config; else `start`. */
 export function findRepoRoot(start: string): string {
   let dir = resolve(start);

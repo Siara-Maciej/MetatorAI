@@ -71,6 +71,8 @@ policies:
 | `consumes: orders-api@^1` | the contract and the version range a consumer expects | a breaking change outside the range needs a migration plan |
 | `deployOrder: providers-first` | deploy order from the contract graph | the plan ships in waves, providers first |
 
+A provider that serves its document at runtime instead of committing it (a NestJS app with `SwaggerModule.setup('docs')`) declares `spec: { served: /docs-json }`. The contract still has an owner and consumers, so `system impact` and `system analyze` name the applications a change in the provider reaches. `contract diff` lists it under `notCompared`: there is no file at the base to compare until the document is exported to one.
+
 ## Let MetatorAI propose it
 
 You do not have to write the map from scratch:
@@ -80,6 +82,8 @@ metator system discover            # in a repository (one application or a monor
 metator system discover --write    # write the proposal to docs/metator/system.yml when there is no map yet
 metator system discover --check    # in CI: fail when the map lacks what the code shows
 ```
+
+`--write` and `--check` need a map, so they run in the repository that holds it. In a folder of repositories, discovery only proposes.
 
 ```json
 {"topology":"monorepo",
@@ -97,13 +101,15 @@ metator system discover --check    # in CI: fail when the map lacks what the cod
 | Finding | From |
 |---|---|
 | Topology | a folder of repositories (`repos`), a repository with several applications (`monorepo`), or one application (`single`) |
-| Applications | workspace packages nothing depends on that run on their own, and packages with a `Dockerfile` (a deploy unit); in a folder, each repository |
-| Kind | `service` (an API specification or a server framework), `frontend` (React, Vue, Svelte, …), `worker` or `gateway` (by name), `other` (a command-line tool, anything else) |
-| Contracts | OpenAPI 3 and Swagger 2 specifications inside an application (contract kinds are plugins) |
-| Consumers | another application's files that refer to the specification (`../billing/openapi.yaml`, medium confidence), or call the host its `servers` name (low confidence: shown, not proposed) |
+| Applications | workspace packages nothing depends on that run on their own, and packages with a `Dockerfile` (a deploy unit); projects side by side without a workspace (`user/`, `mailer/`, `gateway/`, each with its own `package.json`); the repository root too when it has its own `Dockerfile` or a framework config (`nuxt.config.ts`, `next.config.js`, `angular.json`, …) and nothing depends on it (an application with packages beside it); in a folder, each repository |
+| Kind | `service` (an API specification, a server framework or a GraphQL server in `dependencies` — one only in `devDependencies`, such as a mock server, does not count — or a name that ends in `api`, `server`, `backend` or `service`, such as `openpage-api` built on Next.js), `frontend` (React, Vue, Svelte, …), `worker` or `gateway` (by name), `other` (a command-line tool, anything else) |
+| Contracts | OpenAPI 3 and Swagger 2 specifications inside an application (contract kinds are plugins); a copy a script downloads (`curl …/openapi.yml -o src/api/openapi.yml`, to generate a client) is not that application's contract |
+| Consumers | another application's files that refer to the specification (`../billing/openapi.yaml`, medium confidence), or call the host its `servers` name (low confidence: shown, not proposed). A hand-written client too: a file with an HTTP client (`fetch`, `axios`, `superagent`, …) that calls two or more routes the provider declares (NestJS `@Controller('articles')`, Express `router.get('/tags')`) makes its application a consumer (medium confidence). A library's files (an API client package such as `packages/api`) speak for the applications that depend on it |
+| Messages | services that talk through a NestJS microservice client (`ClientProxy.send('task_create')`) to another's `@MessagePattern('task_create')` or `@EventPattern`: shown as `messages:gateway→task` evidence, not proposed, since there is no contract file to name |
+| Served documents | an OpenAPI document a framework serves at runtime instead of a file (NestJS `SwaggerModule.setup('docs')` serves `/docs-json`), and the files that fetch it (`openapi-typescript https://api.example.com/docs-json`). Proposed as a contract `spec: { served: /docs-json }` with its fetchers as consumers; export the document to a file when `contract diff` should compare it |
 | Owners | `CODEOWNERS` |
 
-Discovery never overwrites an approved map. Review the proposal like any other change.
+Discovery never reads a real env file (`.env`, `.env.local`, `.env.secret`), committed or not: only templates such as `.env.example`. It never overwrites an approved map. Review the proposal like any other change.
 
 ## Check and read it
 
@@ -156,7 +162,8 @@ metator system impact --contracts billing-api   # what a change to a contract re
 | `change: spec` | the contract's specification changed |
 | `change: implementation` | other files of the provider changed: the contract may behave differently |
 | `change: named` | you asked about it with `--contracts` |
-| `unmapped` | changed files that belong to no application |
+| `uses <file>, which changed` | a changed file of no application (a library package such as `packages/ui`) that this application's files import, directly or not, by the import graph |
+| `unmapped` | changed files that belong to no application and that no application imports |
 
 **Where the other applications' code is:**
 
@@ -171,6 +178,7 @@ metator system lint --fetch       # check specifications in other repositories t
 | `{ path: apps/web }` | the repository the map is in |
 | `{ repo: ../web }` | that directory, relative to the platform repository |
 | `{ repo: ../billing, ref: main }`, `{ repo: github.com/shop/mailer }` | a clone at the pinned commit, with `--fetch` |
+| `{ repo: github.com/shop/web }` without `ref`, cloned next to this repository | `../web`, when its git remote is that repository |
 | any, with `system.roots.<id>` | your local checkout |
 
 Clones never run code and never change your checkouts. Without `--fetch`, MetatorAI does not touch the network, and `system lint` lists the specifications it could not check.
@@ -233,6 +241,8 @@ metator system plan lint rename-refunds
 metator system plan approve rename-refunds                      # you, never an agent
 ```
 
+The analysis is saved next to the plan. `system plan new` and `propose` analyze again when you name what the task touches (`--contracts`, `--breaking` or `--files`); otherwise they reuse the saved analysis. Once the plan is approved or running, its analysis stays as approved: `system analyze` refuses and asks for a new task. `propose` keeps whatever the agents wrote as a draft, and drops an approval an agent wrote itself. Its agents may read, without asking, every application's checkout already on this machine (`metator system sources` shows where), so they find which consumer really calls a changed endpoint instead of guessing from the application's name.
+
 Under `expand-contract` the draft is:
 
 | Wave | Step | In repository of | What it does |
@@ -254,6 +264,8 @@ Under `versioned` it is `bump` (a new major version) and then a `migrate` step f
 | Analysis | the plan has no analysis: nothing says what breaks |
 | Approval | anything a child run is told changed after you approved it: a step, its summary, deploy flag or rollback, the task |
 
+Warnings do not block: an application with no owners, a contract that changes in a way not classified yet (`unknown`) while it has consumers, a strategy for a contract the analysis does not call breaking, an application the analysis says changes but no step runs in, and no step yet that removes the old shape. Approving again replaces an approval the plan outgrew.
+
 **The gate respects the plan.** Once you approve it, `contract diff --check` lets the breaking change through in the provider's repository, but only for the step that breaks it, and only after the steps before it are done:
 
 ```json
@@ -272,7 +284,7 @@ metator system plan run rename-refunds        # the steps that can start, each a
 metator system status rename-refunds          # the child runs read back; the plan is done when every step is
 ```
 
-Set `system.roots` for the repositories you have checked out. A step whose application has only a clone cannot start.
+Set `system.roots` for the repositories you have checked out. A step whose application has only a clone cannot start, and every ready step is located before any starts, so a wave starts whole or not at all.
 
 ## Measure it
 
@@ -308,6 +320,8 @@ expect:
 | lint clean | `system plan lint` has no error |
 | steps | the expected steps are in the plan |
 | order | the plan keeps every expected order pair, also through other steps |
+
+A case passes only when every score is 1.
 
 ## Roadmap of the multi-repo phase (F7)
 

@@ -37,6 +37,13 @@ export function SessionList(props: {
               {fit(r.chat.title, width - 6)}
             </Text>
           );
+        if (r.kind === "finished")
+          return (
+            <Text key={r.key} {...(on ? { inverse: true } : {})} dimColor={!on}>
+              <Text color="green">{r.open ? "▾" : "▸"} </Text>
+              {fit(`${r.count} finished${r.open ? "" : " · ⏎ to show"}`, width - 6)}
+            </Text>
+          );
         const a = ATTENTION[r.run.attention];
         const label = r.run.task || r.run.runId;
         return (

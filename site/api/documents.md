@@ -64,6 +64,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `Research` | `research.json` | `mt-pattern-miner` |
 | `Plan` | `plan.json` | `mt-planner` |
 | `PlanScope` | `plan-scope.json` | `metator plan scope` |
+| `ReviewMetadata` | `pr.json` | `metator review metadata` |
 | `ReviewPlan` | `review-plan.json` | `metator review plan` |
 | `FindingSet` | `findings/*.json`, `findings/merged.json` | review lenses, `metator findings merge` |
 | `Verdict` | `verdict.json` | `metator findings verdict` |
@@ -75,7 +76,7 @@ metator config schema      metator rules schema       metator patterns schema
 metator memory schema      metator workflow schema    metator plan schema
 metator findings schema    metator eval schema        metator system schema
 metator docs claims-schema metator meta agents-schema metator meta skills-schema
-metator run schema analysis|research|summary
+metator run schema analysis|research|plan|plan-scope|review-plan|pr|findings|verdict|summary
 ```
 
 The JSON Schema of every released version is also in the repository under `docs/metator/schemas/<Kind>.v<N>.json`.

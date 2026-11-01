@@ -5,7 +5,7 @@ id: mt-rule-curator
 role: worker
 description: Collects the canon rules that apply to the files a change touches, sized for the planner and reviewers. Use after scoping, before planning. Do not use to change rules.
 tier: fast
-capabilities: [read, "metator:rules"]
+capabilities: [read, edit, "metator:rules"]
 inputs: [analysis.json]
 output: { artifact: rulepack.md, summaryLines: 10 }
 ---

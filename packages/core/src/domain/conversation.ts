@@ -52,18 +52,46 @@ export function conversationId(question: string, at: Date, taken: (id: string) =
   for (let n = 2; ; n++) if (!taken(`${base}-${n}`)) return `${base}-${n}`;
 }
 
-/** Every `path:line` (or `path:line-line`) in an answer, first mention first. */
+/**
+ * Every `path:line` (or `path:line-line`) in an answer, first mention first. Next.js segments
+ * (`app/[locale]/(protected)/layout.tsx`) are paths too. A bare file name (`registry.ts:36`) after
+ * its full path was cited means that file: the one mentioned last with that name.
+ */
 export function findCitations(answer: string): { path: string; line: number }[] {
   const seen = new Set<string>();
   const out: { path: string; line: number }[] = [];
-  const re = /(?<![\w/.-])((?:\.{0,2}\/)?(?:[\w@.-]+\/)*[\w@.-]+\.[A-Za-z0-9]{1,8}):(\d+)(?:-\d+)?\b/g;
+  const segment = String.raw`(?:\[[\w.-]+\]|\([\w.-]+\)|[\w@.-]+)`;
+  const re = new RegExp(
+    String.raw`(?<![\w/.-])((?:\.{0,2}\/)?(?:${segment}\/)*[\w@.-]+\.[A-Za-z0-9]{1,8}):(\d+)(?:-\d+)?\b`,
+    "g",
+  );
+  const full = new Map<string, string>(); // file name → the full path mentioned last
   for (const m of answer.matchAll(re)) {
-    const path = (m[1] as string).replace(/^\.\//, "");
+    let path = (m[1] as string).replace(/^\.\//, "");
+    if (path.includes("/")) full.set(path.slice(path.lastIndexOf("/") + 1), path);
+    else path = full.get(path) ?? path;
     const line = Number(m[2]);
     const key = `${path}:${line}`;
     if (line > 0 && !seen.has(key) && !/^https?:/.test(path)) {
       seen.add(key);
       out.push({ path, line });
+    }
+  }
+  return out;
+}
+
+/**
+ * Where a short citation (`dto/offer.dto.ts`, `offer.repository.ts`) may be: the same path inside
+ * each directory, and each of its parents, of the full paths the answer cites, nearest first. An
+ * answer names a file in full once and then writes it, or its neighbours, relative to that place.
+ */
+export function citationCandidates(path: string, known: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const full of [...known].reverse()) {
+    const parts = full.split("/").slice(0, -1);
+    for (let i = parts.length; i > 0; i--) {
+      const candidate = `${parts.slice(0, i).join("/")}/${path}`;
+      if (candidate !== path && !out.includes(candidate)) out.push(candidate);
     }
   }
   return out;

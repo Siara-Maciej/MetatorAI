@@ -1068,6 +1068,7 @@ metator agents install [options]
 | `--workflows <ids...>` | workflows to install (default: all, or the installed ones on update) |  |
 | `--theirs` | resolve conflicts with the canon's version |  |
 | `--dry-run` | report what would change without writing |  |
+| `--no-generate` | leave the host files (.claude/agents, .github/agents, skills) as they are |  |
 
 ### `metator agents update`
 
@@ -1082,6 +1083,7 @@ metator agents update [options]
 | `--workflows <ids...>` | workflows to install (default: all, or the installed ones on update) |  |
 | `--theirs` | resolve conflicts with the canon's version |  |
 | `--dry-run` | report what would change without writing |  |
+| `--no-generate` | leave the host files (.claude/agents, .github/agents, skills) as they are |  |
 
 ## setup
 
@@ -1199,6 +1201,7 @@ metator findings validate [options] <dir>
 |---|---|---|
 | `<dir>` | directory of FindingSet JSON files, e.g. .metator/runs/&lt;id&gt;/findings | |
 | `--fix` | rewrite the line of findings whose quote moved |  |
+| `--plan <file>` | review-plan.json: fail when a lens wrote no file for a shard |  |
 
 ### `metator findings check-quote`
 
@@ -1213,6 +1216,24 @@ metator findings check-quote [options] <file>
 | `<file>` | file the quote is claimed to be in | |
 | `--line <n>` | line the quote is claimed to be on **Required.** |  |
 | `--quote <text>` | the quoted code **Required.** |  |
+
+### `metator findings calibrate`
+
+The judge's calibration of &lt;dir&gt;/merged.json: one finding's severity, and the findings with the same root cause folded into it
+
+```bash
+metator findings calibrate [options] <dir>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<dir>` | directory with merged.json | |
+| `--id <id>` | the finding to calibrate **Required.** |  |
+| `--severity <severity>` | new severity: blocking, major, minor, nit |  |
+| `--merge <ids...>` | findings with the same root cause, folded into it (their lenses join alsoFrom) |  |
+| `--trigger <text>` | the input or state that triggers it (a blocker needs one) |  |
+| `--reachability <text>` | the path from a real caller (a blocker needs one) |  |
+| `--evidence <type:ref>` | test, trace, rule or doc, then the reference (a blocker needs one) |  |
 
 ### `metator findings merge`
 
@@ -1262,6 +1283,33 @@ metator findings schema [options]
 ```
 
 ## review
+
+### `metator review metadata`
+
+The branch against its base: commits, authors, changed files, uncommitted work (pr.json)
+
+```bash
+metator review metadata [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--base <ref>` | the branch the change goes into | `"HEAD"` |
+| `--out <path>` | also write it as a ReviewMetadata document |  |
+
+### `metator review diff`
+
+The change as a unified diff (new files whole), without MetatorAI's own files
+
+```bash
+metator review diff [options] [files...]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[files]` | only these files | |
+| `--base <ref>` | the branch the change goes into | `"HEAD"` |
+| `--out <path>` | write the patch to this file as plain text (read it with your Read tool) |  |
 
 ### `metator review plan`
 
@@ -1534,6 +1582,7 @@ metator run init [options]
 | `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
 | `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
 | `--parent <run>` | the run this one is a child of (a system run, possibly in another repository) |  |
+| `--input <name=value>` | a workflow input its scripts read as {name} (repeatable), e.g. base=main | `[]` |
 
 ### `metator run advance`
 
@@ -1578,6 +1627,32 @@ metator run checkpoint [options]
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
 
+### `metator run resume`
+
+Resume an escalated run at the stage it escalated from, once the cause is fixed
+
+```bash
+metator run resume [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--by <name>` | who resumes it (recorded in log.md) **Required.** |  |
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run write`
+
+Write an artifact the current stage produces (intake: task.md) from stdin into the run
+
+```bash
+metator run write [options] <artifact>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<artifact>` | the artifact's name, as the stage's `produces` lists it | |
+| `--run <id>` | run id (default: latest) |  |
+
 ### `metator run handoff`
 
 Write handoff.md from the run directory: stage, approvals, artifacts, recent log, how to resume
@@ -1617,6 +1692,14 @@ metator run status [options]
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
 
+### `metator run published`
+
+Whether the run's work is published: nothing uncommitted, and origin's branch at the checked-out commit (the publish gate)
+
+```bash
+metator run published [options]
+```
+
 ### `metator run schema`
 
 Print the JSON Schema of a run artifact written by a worker
@@ -1627,7 +1710,7 @@ metator run schema [options] <artifact>
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `<artifact>` | artifact (one of: analysis, research, summary) | |
+| `<artifact>` | artifact: analysis, research, plan, plan-scope, review-plan, pr, findings, verdict, summary (with or without .json) | |
 
 ### `metator run list`
 

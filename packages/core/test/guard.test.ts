@@ -57,9 +57,12 @@ function world(files: Record<string, string> = {}, role?: string) {
     checkpoint: new CheckpointRun(status, repo, () => clock.now().toISOString()),
   };
 }
+/** No answer ("none") leaves the call to the host's own permission rules; only a denial answers. */
 const decision = (r: unknown) =>
-  (r as { hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string } })
-    .hookSpecificOutput;
+  r === null
+    ? { permissionDecision: "none", permissionDecisionReason: "" }
+    : (r as { hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string } })
+        .hookSpecificOutput;
 const edit = (path: string, agent?: string) => ({
   tool_name: "Edit",
   tool_input: { file_path: `${ROOT}/${path}` },
@@ -70,12 +73,12 @@ describe("GuardPreTool", () => {
   test("free mode without runs; the active run's plan-scope.json decides edits", async () => {
     const w = world();
     expect(decision((await w.preTool.execute(edit("src/b.ts")))._unsafeUnwrap()).permissionDecision).toBe(
-      "allow",
+      "none",
     );
     const run = (await w.init())._unsafeUnwrap();
     await w.fs.write(`${w.repo.runDir(run.runId)}/plan-scope.json`, SCOPE(["src/a.ts"]));
     expect(decision((await w.preTool.execute(edit("src/a.ts")))._unsafeUnwrap()).permissionDecision).toBe(
-      "allow",
+      "none",
     );
     expect(decision((await w.preTool.execute(edit("src/b.ts")))._unsafeUnwrap()).permissionDecision).toBe(
       "deny",
@@ -88,12 +91,12 @@ describe("GuardPreTool", () => {
     const push = { tool_name: "Bash", tool_input: { command: "git push origin feature" } };
     expect(decision((await w.preTool.execute(push))._unsafeUnwrap()).permissionDecision).toBe("deny");
     await w.approve.execute({ gate: "push", by: "maciej" });
-    expect(decision((await w.preTool.execute(push))._unsafeUnwrap()).permissionDecision).toBe("allow");
+    expect(decision((await w.preTool.execute(push))._unsafeUnwrap()).permissionDecision).toBe("none");
     await w.advance.execute({ event: { type: "ABORT", reason: "done" } });
     const force = { tool_name: "Bash", tool_input: { command: "git push --force" } };
     expect(decision((await w.preTool.execute(force))._unsafeUnwrap()).permissionDecision).toBe("deny");
     expect(decision((await w.preTool.execute(edit("anything.ts")))._unsafeUnwrap()).permissionDecision).toBe(
-      "allow",
+      "none",
     );
   });
 
@@ -107,7 +110,7 @@ describe("GuardPreTool", () => {
     expect(
       decision((await w.preTool.execute(edit("src/a.ts", "mt-implementer")))._unsafeUnwrap())
         .permissionDecision,
-    ).toBe("allow");
+    ).toBe("none");
     const byEnv = world({}, "coordinator");
     await byEnv.init();
     expect(decision((await byEnv.preTool.execute(edit("src/a.ts")))._unsafeUnwrap()).permissionDecision).toBe(
@@ -137,6 +140,25 @@ describe("GuardStop", () => {
     await w.advance.execute({ event: { type: "PASS" } }); // → approval (HITL)
     expect((await w.stop.execute({}))._unsafeUnwrap()).toBeNull();
   });
+
+  test("in a session the drive started, the agent may stop: the drive moves the run", async () => {
+    const w = world();
+    await w.init();
+    expect((await w.stop.execute({}, { driven: true }))._unsafeUnwrap()).toBeNull();
+    expect(((await w.stop.execute({}))._unsafeUnwrap() as { decision: string }).decision).toBe("block");
+  });
+});
+
+describe("GuardPreTool in a driven session", () => {
+  test("a driven agent may not move the run; outside a drive the command is the host's to decide", async () => {
+    const w = world();
+    await w.init();
+    const advance = { tool_name: "Bash", tool_input: { command: "metator run advance pass" } };
+    expect(
+      decision((await w.preTool.execute(advance, { driven: true }))._unsafeUnwrap()).permissionDecision,
+    ).toBe("deny");
+    expect((await w.preTool.execute(advance))._unsafeUnwrap()).toBeNull();
+  });
 });
 
 describe("GuardSubagentOutput", () => {
@@ -159,6 +181,27 @@ describe("GuardSubagentOutput", () => {
     expect(out.reason).toContain("notes.json: unknown or missing kind");
     expect(out.reason).not.toContain("plan-scope.json");
     expect((await w.subagent.execute({ stop_hook_active: true }))._unsafeUnwrap()).toBeNull();
+  });
+
+  test("what the run itself writes (questions, the driver, review metadata) is known", async () => {
+    const w = world();
+    const run = (await w.init())._unsafeUnwrap();
+    const dir = w.repo.runDir(run.runId);
+    await w.fs.write(
+      `${dir}/driver.json`,
+      JSON.stringify({
+        kind: "RunDriver",
+        schemaVersion: 1,
+        pid: 1,
+        host: "claude",
+        startedAt: "2026-10-31T01:53:43.693Z",
+      }),
+    );
+    await w.fs.write(`${dir}/questions/q001.json`, JSON.stringify({ kind: "Question", schemaVersion: 1 }));
+    const out = (await w.subagent.execute({}))._unsafeUnwrap() as { reason: string };
+    expect(out.reason).toContain("questions/q001.json: does not match Question v1");
+    expect(out.reason).not.toContain("driver.json");
+    expect(out.reason).not.toContain("unknown or missing kind");
   });
 
   test("context artifacts and the run summary are known documents", async () => {

@@ -1,6 +1,6 @@
 # W1: implement a feature (docs/design/02-workflows.md §3).
 kind: Workflow
-schemaVersion: 2
+schemaVersion: 3
 id: mt-feature
 revision: 2
 description: Survey, plan, gate, build, verify, ship
@@ -35,14 +35,16 @@ stages:
     description: The human approves the plan
     hitl: true
     skipAt: [L1]
+    # A person who rejects the plan sends it back with the reason, like a failed plan gate.
+    onFail: { goto: plan, loop: plan }
   - id: build
     description: Tests RED then GREEN, edits only inside the plan scope
     owner: [mt-test-author, mt-implementer, skill:mt-create-from-pattern]
     produces: [build-log.md]
   - id: gates
-    description: Lint, typecheck, rules, affected tests, graph and API diff
+    description: The repository's configured gates (metator gate full)
     owner: mt-gatekeeper
-    produces: [gates.json]
+    produces: [gates.md]
     gate: { script: metator gate full }
     onFail: { goto: build, loop: build }
   - id: review
@@ -52,25 +54,30 @@ stages:
     gate: { llm: mt-judge }
     onFail: { goto: plan, loop: review }
   - id: delivery
-    description: The human approves the push and the PR
+    description: The human approves the push (and a PR, when the task asks for one)
     hitl: true
     neverSkip: true
+    # Approving the delivery approves the push: the publish stage pushes without asking again.
+    grants: [push]
   - id: publish
-    description: Push and open the PR after approval
+    description: Commit and push the run's branch after approval (a PR only when the task asks for one)
     owner: mt-pr-author
     produces: [pr.md]
+    # Done only when the change is committed and origin's branch is at the checked-out commit.
+    gate: { script: metator run published }
+    onFail: { goto: publish, loop: publish }
   - id: learn
     description: Lessons from the run
     owner: mt-retro
     optional: true
-loops: { plan: 2, build: 2, review: 3 }
+loops: { plan: 2, build: 2, review: 3, publish: 1 }
 escalation:
   onLoopExhausted: report open issues with options (continue, manual, abort)
   onAmbiguity: stop and ask (skill mt-grill)
 autonomy: [L0, L1]
 permissions: { edit: plan-scope, external: [push, comment] }
-done: [gates.json passes, verdict.json decision is APPROVED, push approved]
+done: [the gates pass, verdict.json decision is APPROVED, push approved]
 recovery: [failed gate runs skill mt-diagnose, retry a tool once, then escalate]
 resume: metator run status, then continue at the last approved stage
 telemetry: [stage_duration, tokens, loops, escalations, outcome]
-report: summary with links to plan.json, gates.json, verdict.json and the PR
+report: summary with links to plan.json, gates.md, verdict.json and the pushed branch (or the PR)

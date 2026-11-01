@@ -17,16 +17,28 @@ export function registerApiCommands(program: Command, { action, container }: Com
       action(async (pkg: string | undefined) => {
         const c = container();
         if (pkg) return { result: await c.resolve("apiSnapshots").snapshot({ package: pkg }) };
-        // Without a package (a refactor's snapshot stage): every package of the workspace.
+        // Without a package (a refactor's snapshot stage): every package of the workspace that has
+        // an API. An application or a config package names no entry: it is skipped, with why.
         const packages = await c.resolve("workspaceReader").packages();
         if (packages.isErr()) return { result: packages };
         const snapshots = [];
+        const skipped: { package: string; reason: string }[] = [];
         for (const p of packages.value) {
           const snap = await c.resolve("apiSnapshots").snapshot({ package: p.name });
-          if (snap.isErr()) return { result: snap };
-          snapshots.push(snap.value);
+          if (snap.isOk()) snapshots.push(snap.value);
+          else if (snap.error.code === "INVALID_CONFIG" || snap.error.code === "NOT_FOUND")
+            skipped.push({ package: p.name, reason: snap.error.message });
+          else return { result: snap };
         }
-        return { result: ok({ snapshots }) };
+        if (snapshots.length === 0 && skipped.length > 0)
+          return {
+            result: err(
+              new MetatorError("NOT_FOUND", "no workspace package has an API to snapshot", {
+                details: { skipped },
+              }),
+            ),
+          };
+        return { result: ok({ snapshots, skipped }) };
       }),
     );
 

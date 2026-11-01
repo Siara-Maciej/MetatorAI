@@ -1,7 +1,7 @@
 import type { Conversation, HostTarget, Question, RunActivity, RunOverview } from "@metator/core";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChatView } from "./components/ChatView.tsx";
+import { ChatView, chatLayout } from "./components/ChatView.tsx";
 import {
   AnswerDialog,
   AskDialog,
@@ -13,7 +13,7 @@ import {
 } from "./components/Dialogs.tsx";
 import { RunDetail, TABS, type Tab } from "./components/RunDetail.tsx";
 import { SessionList } from "./components/SessionList.tsx";
-import { type Row, rowsOf, type Snapshot, selectable, totals } from "./model.ts";
+import { finishedKey, type Row, rowsOf, type Snapshot, selectable, totals } from "./model.ts";
 import type { Launch, Settings, TuiService } from "./service.ts";
 
 /** How `metator ui` ends a screen: quit, or give the terminal to a program and come back. */
@@ -59,6 +59,7 @@ const COMMANDS: readonly PaletteCommand[] = [
   { id: "shell", label: "Shell in the worktree", key: "t" },
   { id: "diff", label: "Diff of the run", key: "d" },
   { id: "next-waiting", label: "Go to the next session that needs you", key: "g" },
+  { id: "finished", label: "Show or hide the finished sessions of this repository", key: "f" },
   { id: "settings", label: "Settings: editor, AI hosts", key: "," },
   { id: "quit", label: "Quit", key: "q" },
 ];
@@ -71,12 +72,16 @@ export function App(props: AppProps) {
   const [size, setSize] = useState({ columns: stdout.columns || 100, rows: stdout.rows || 30 });
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selected, setSelected] = useState<string | undefined>(props.kept?.selected);
+  // Repositories whose finished sessions are shown; folded by default.
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
   const [tab, setTab] = useState<Tab>(props.kept?.tab ?? "overview");
   const [activity, setActivity] = useState<readonly RunActivity[]>([]);
   const [chat, setChat] = useState<Conversation | null>(null);
   const [pending, setPending] = useState<{ question: string; text: string } | undefined>();
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  // The conversation's first shown line once the person scrolls; until then its latest question.
+  const [scroll, setScroll] = useState<number | undefined>();
   const visited = useRef<string[]>([...(props.kept?.visited ?? [])]);
   const waitingBefore = useRef<number | null>(null);
 
@@ -102,7 +107,10 @@ export function App(props: AppProps) {
     };
   }, [stdout]);
 
-  const rows = useMemo(() => (snapshot ? rowsOf(snapshot) : []), [snapshot]);
+  const rows = useMemo(
+    () => (snapshot ? rowsOf(snapshot, unfolded, selected) : []),
+    [snapshot, unfolded, selected],
+  );
   const choices = useMemo(() => selectable(rows), [rows]);
   // The selection follows its session across refreshes; the first one when it is gone.
   const current = choices.find((r) => r.key === selected) ?? choices[0];
@@ -111,6 +119,16 @@ export function App(props: AppProps) {
   }, [current, selected]);
 
   const run = current?.kind === "run" ? current : undefined;
+  const folded = current?.kind === "finished" ? current : undefined;
+  /** Shows or hides a repository's finished sessions, keeping the selection on its folded line. */
+  const toggleFinished = (repo: string) => {
+    setUnfolded((o) => {
+      const next = new Set(o);
+      if (!next.delete(repo)) next.add(repo);
+      return next;
+    });
+    setSelected(finishedKey(repo));
+  };
   const talk = current?.kind === "chat" ? current : undefined;
   useEffect(() => {
     if (!run) return;
@@ -197,6 +215,13 @@ export function App(props: AppProps) {
         else say("Nothing waits for you.", "");
         return;
       }
+      case "finished": {
+        const repo =
+          folded?.repo ?? run?.repo ?? (current?.kind === "chat" ? undefined : snapshot?.repos[0]?.root);
+        if (repo && rows.some((r) => r.kind === "finished" && r.repo === repo)) toggleFinished(repo);
+        else say("No finished sessions here.", "");
+        return;
+      }
       case "settings":
         setDialog({ kind: "settings", repo: repoOf, settings: await service.settings(repoOf) });
         return;
@@ -206,6 +231,11 @@ export function App(props: AppProps) {
     }
   };
 
+  const cols = size.columns;
+  const height = Math.max(10, size.rows - 4);
+  const left = Math.min(44, Math.max(28, Math.floor(cols * 0.34)));
+  const right = Math.max(30, cols - left - 1);
+
   const move = (by: number) => {
     if (choices.length === 0) return;
     const at = Math.max(
@@ -214,7 +244,16 @@ export function App(props: AppProps) {
     );
     const next = choices[(at + by + choices.length) % choices.length] as Row & { key: string };
     setSelected(next.key);
+    setScroll(undefined);
     setNotice(null);
+  };
+
+  const page = (by: number) => {
+    if (!talk && !pending) return;
+    const layout = chatLayout(pending ? null : chat, pending, right, height - 3);
+    setScroll((s) =>
+      Math.min(layout.max, Math.max(0, (s ?? layout.start) + by * Math.max(1, layout.rows - 2))),
+    );
   };
 
   useInput(
@@ -223,12 +262,15 @@ export function App(props: AppProps) {
       if (dialog) return;
       if (key.upArrow || input === "k") return move(-1);
       if (key.downArrow || input === "j") return move(1);
+      if (key.pageDown || (key.ctrl && input === "d")) return page(1);
+      if (key.pageUp || (key.ctrl && input === "u")) return page(-1);
       if (key.tab || key.rightArrow) return setTab(TABS[(TABS.indexOf(tab) + 1) % TABS.length] as Tab);
       if (key.leftArrow) return setTab(TABS[(TABS.indexOf(tab) + TABS.length - 1) % TABS.length] as Tab);
       if (input === ":" || (key.ctrl && input === "k")) return setDialog({ kind: "palette" });
       if (key.return) {
+        if (folded) return toggleFinished(folded.repo);
         if (run?.run.attention === "you") return void act("answer");
-        if (run && run.run.attention !== "driving" && run.run.status === "active")
+        if (run && run.run.attention !== "driving" && ["active", "escalated"].includes(run.run.status))
           return void act("continue");
         if (talk) return void act("reply");
         return;
@@ -239,26 +281,30 @@ export function App(props: AppProps) {
     { isActive: true },
   );
 
-  const cols = size.columns;
-  const height = Math.max(10, size.rows - 4);
-  const left = Math.min(44, Math.max(28, Math.floor(cols * 0.34)));
-  const right = Math.max(30, cols - left - 1);
   const t = snapshot ? totals(snapshot) : null;
   const repoName = (root: string) => snapshot?.repos.find((r) => r.root === root)?.name;
 
   return (
     <Box flexDirection="column" width={cols}>
       <Box justifyContent="space-between" paddingX={1}>
-        <Text bold color="cyan">
-          MetatorAI · {snapshot?.title ?? "…"}
-        </Text>
+        <Box flexShrink={0} marginRight={2}>
+          <Text bold color="cyan">
+            MetatorAI · {snapshot?.title ?? "…"}
+          </Text>
+        </Box>
         {t ? (
-          <Text>
+          <Text wrap="truncate">
             <Text color={t.you > 0 ? "yellow" : "gray"}>{t.you} need you</Text>
             <Text dimColor> · </Text>
             <Text color="cyan">{t.driving} driving</Text>
             <Text dimColor> · </Text>
             <Text>{t.stopped} stopped</Text>
+            {t.escalated > 0 ? (
+              <>
+                <Text dimColor> · </Text>
+                <Text color="red">{t.escalated} escalated</Text>
+              </>
+            ) : null}
             <Text dimColor> · </Text>
             <Text color="green">{t.services} services</Text>
           </Text>
@@ -343,7 +389,13 @@ export function App(props: AppProps) {
             <Palette commands={COMMANDS} onRun={(id) => void act(id)} />
           ) : null}
           {dialog ? null : pending ? (
-            <ChatView conversation={null} pending={pending} width={right} height={height - 3} />
+            <ChatView
+              conversation={null}
+              pending={pending}
+              width={right}
+              height={height - 3}
+              {...(scroll === undefined ? {} : { scroll })}
+            />
           ) : run ? (
             <RunDetail
               run={run.run as RunOverview}
@@ -353,8 +405,21 @@ export function App(props: AppProps) {
               width={right}
               height={height - 3}
             />
+          ) : folded ? (
+            <Box borderStyle="round" borderColor="gray" paddingX={1} flexDirection="column" width={right}>
+              <Text>
+                {folded.count} finished session{folded.count === 1 ? "" : "s"}
+                {snapshot && snapshot.repos.length > 1 ? ` in ${repoName(folded.repo)}` : ""}
+              </Text>
+              <Text dimColor>⏎ or f: {folded.open ? "hide" : "show"} them</Text>
+            </Box>
           ) : talk ? (
-            <ChatView conversation={chat} width={right} height={height - 3} />
+            <ChatView
+              conversation={chat}
+              width={right}
+              height={height - 3}
+              {...(scroll === undefined ? {} : { scroll })}
+            />
           ) : (
             <Box borderStyle="round" borderColor="gray" paddingX={1} flexDirection="column" width={right}>
               <Text>Nothing selected.</Text>
@@ -367,9 +432,9 @@ export function App(props: AppProps) {
         {notice ? (
           <Text color={notice.error ? "red" : "green"}>{notice.text}</Text>
         ) : (
-          <Text dimColor>
-            ↑↓ select · ⏎ act · tab view · a answer · n new run · ? ask · c continue · : all commands · ,
-            settings · q quit
+          <Text dimColor wrap="truncate">
+            ↑↓ select · ⏎ act · tab view · a answer · n new run · ? ask · c continue · f finished · : all
+            commands · , settings · q quit
           </Text>
         )}
       </Box>

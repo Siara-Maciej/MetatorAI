@@ -28,6 +28,16 @@ Failure:
 
 Hook commands (`metator guard ...`) are the exception: they print the answer the host expects, or nothing.
 
+## Help
+
+`metator help` lists every command. `metator <command> --help` (or `-h`) describes one command: its usage, its options with their defaults and, for a group like `metator findings`, its commands. Both succeed with exit code 0.
+
+```bash
+metator run answer --help
+# {"ok":true,"data":{"name":"run answer","usage":"metator run answer [options] <question>",
+#  "options":[{"flags":"--by <name>","description":"..."}, ...]}}
+```
+
 ## Exit codes
 
 | Exit code | When |

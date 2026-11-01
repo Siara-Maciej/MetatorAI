@@ -17,7 +17,8 @@ export interface AdrLintReport {
   readonly problems: readonly AdrProblem[];
 }
 
-const FILE = /^(\d{4})-[a-z0-9][a-z0-9-]*\.md$/;
+/** `0012-short-title.md`, also `012.md` and `012-title.md` as other ADR logs number them. */
+const FILE = /^(\d{3,4})(?:-[a-z0-9][a-z0-9-]*)?\.md$/;
 const INDEX_NAMES = ["README.md", "index.md"];
 
 /**
@@ -42,10 +43,13 @@ export class LintAdrs {
 
     for (const file of [...files].sort()) {
       const error = (message: string) => problems.push({ file, severity: "error", message });
+      // Without a rule canon the log keeps its own format: its sections are advice, not errors.
+      const advice = (message: string) =>
+        problems.push({ file, severity: canon.size > 0 ? "error" : "warning", message });
       const name = file.slice(dir.length + 1);
       const numbered = FILE.exec(name);
       if (!numbered) {
-        error("file name must be NNNN-short-title.md");
+        error("file name must be NNNN-short-title.md (or NNN.md)");
         continue;
       }
       const text = await this.fs.read(file);
@@ -66,9 +70,10 @@ export class LintAdrs {
       if (!adr.date) problems.push({ file, severity: "warning", message: 'missing "- Date: YYYY-MM-DD"' });
       for (const [key, names] of Object.entries(ADR_SECTIONS)) {
         if (key !== "implications" && !hasSection(adr, names))
-          error(`missing section "## ${names.join('" or "## ')}"`);
+          advice(`missing section "## ${names.join('" or "## ')}"`);
       }
-      if (adr.status === "Accepted") {
+      // The ADR → rule chain holds where there are rules to name.
+      if (adr.status === "Accepted" && canon.size > 0) {
         if (!hasSection(adr, ADR_SECTIONS.implications)) {
           error(
             `Accepted ADRs need "## ${ADR_SECTIONS.implications.join('" or "## ')}" naming the rules they imply`,
@@ -118,7 +123,13 @@ export class LintAdrs {
         const row = rows.find((r) => r.includes(`](${base})`) || r.includes(`](./${base})`));
         if (!row) {
           problems.push({ file, severity: "error", message: `does not link ${base}` });
-        } else if (adr.status && !row.toLowerCase().includes(adr.status.toLowerCase())) {
+        } else if (
+          adr.status &&
+          // The status as the ADR words it ("Draft") or as MetatorAI reads it ("Proposed").
+          ![adr.status, adr.statusText?.split(/\s/)[0] ?? adr.status].some((s) =>
+            row.toLowerCase().includes(s.toLowerCase()),
+          )
+        ) {
           problems.push({
             file,
             severity: "error",
@@ -126,8 +137,8 @@ export class LintAdrs {
           });
         }
       }
-      for (const m of text.value.matchAll(/\]\((?:\.\/)?(\d{4}-[^)#]+\.md)\)/g)) {
-        if (!parsed.has(Number((m[1] as string).slice(0, 4)))) {
+      for (const m of text.value.matchAll(/\]\((?:\.\/)?(\d{3,4}(?:-[^)#]+)?\.md)\)/g)) {
+        if (!parsed.has(Number(/^\d+/.exec(m[1] as string)?.[0]))) {
           problems.push({ file, severity: "error", message: `links ${m[1]}, which does not exist` });
         }
       }

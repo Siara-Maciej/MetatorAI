@@ -16,6 +16,21 @@ import type { Clock, FileSystem, MachineState, PortProbe, WorktreeManager } from
 import type { MetatorPaths } from "./paths.ts";
 import type { RunRepository } from "./run-repository.ts";
 
+/** Where `metator setup` writes: the configuration, the canon, host agents, skills and instructions. */
+export const SETUP_PATHS = [
+  "metator.config.yml",
+  "metator",
+  "docs/metator",
+  ".claude/agents",
+  ".claude/skills",
+  ".claude/settings.json",
+  ".github/metator",
+  ".github/agents",
+  ".github/skills",
+  ".github/instructions",
+  ".github/hooks",
+] as const;
+
 /** The registry file (`.metator/worktrees.json`): every worktree MetatorAI created and its ports. */
 export class WorktreeRegistry {
   constructor(
@@ -161,7 +176,11 @@ export class CreateWorktree {
       ports: ports.value,
       createdAt: this.clock.now().toISOString(),
     };
-    const added = await this.git.add(entry.path, entry.branch, entry.base);
+    // The run's state stays in this checkout; its agents, hooks and plan commands find it in the
+    // worktree at the same path.
+    // A setup not committed yet (`metator setup` just ran) still reaches the worktree: without it
+    // the run's gates, agents and skills would be the defaults.
+    const added = await this.git.add(entry.path, entry.branch, entry.base, [this.paths.runs], SETUP_PATHS);
     if (added.isErr()) return err(added.error);
     const saved = await this.registry.save([...all.value, entry]);
     if (saved.isErr()) return err(saved.error);

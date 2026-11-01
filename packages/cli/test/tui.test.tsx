@@ -70,6 +70,7 @@ function overview(runs: RunOverview[], conversations: Overview["conversations"] 
       you: n("you"),
       driving: n("driving"),
       stopped: n("stopped"),
+      escalated: n("escalated"),
       finished: 0,
       questions: runs.reduce((k, r) => k + r.questions.length, 0),
       services: 0,
@@ -87,6 +88,7 @@ class FakeService implements TuiService {
   calls: string[] = [];
   snapshots: Snapshot[];
   launchResult: Launch | string | null = null;
+  answerText = "In src/vat.ts:3.";
   constructor(snapshots: Snapshot[]) {
     this.snapshots = snapshots;
   }
@@ -115,7 +117,7 @@ class FakeService implements TuiService {
           at: "2026-10-28T10:00:00.000Z",
           by: "m",
           question: "How is VAT computed?",
-          answer: "In src/vat.ts:3.",
+          answer: this.answerText,
           ok: true,
           citations: [{ path: "src/vat.ts", line: 3, exists: false }],
         },
@@ -217,6 +219,37 @@ describe("tui model", () => {
     expect(totals(s)).toMatchObject({ you: 1, stopped: 0 });
   });
 
+  test("finished sessions fold into one line after the others, unless their repository is open", () => {
+    const s = snap([
+      runOf("done", { attention: "done", status: "done" }),
+      runOf("live", { attention: "driving" }),
+      runOf("gone", { attention: "aborted", status: "aborted" }),
+      runOf("stuck", { attention: "escalated", status: "escalated" }),
+    ]);
+    const keys = (open?: Set<string>) =>
+      rowsOf(s, open).map((r) =>
+        r.kind === "finished" ? `▸ ${r.count} ${r.open}` : r.kind === "run" ? r.run.task : "",
+      );
+    // An escalated run still needs someone: it stays in view.
+    expect(keys()).toEqual(["Task live", "Task stuck", "▸ 2 false"]);
+    expect(keys(new Set(["/r/shop"]))).toEqual([
+      "Task live",
+      "Task stuck",
+      "▸ 2 true",
+      "Task done",
+      "Task gone",
+    ]);
+    // The selected run stays in view when it finishes.
+    expect(rowsOf(s, undefined, "/r/shop#20261028-mt-feature-done").map((r) => r.kind)).toEqual([
+      "run",
+      "run",
+      "run",
+      "finished",
+    ]);
+    // Nothing finished: no folded line.
+    expect(rowsOf(snap([runOf("live", { attention: "driving" })])).map((r) => r.kind)).toEqual(["run"]);
+  });
+
   test("stage bar, durations, the next step and fitting text", () => {
     expect(stageBar(runOf("a").stages)).toBe("plan ✓ ─ [build ⟳] ─ review ·");
     expect(
@@ -267,6 +300,28 @@ describe("metator ui (components)", () => {
     r.unmount();
   });
 
+  test("finished sessions are folded; Enter on the line shows them, f hides them again", async () => {
+    const s = new FakeService([
+      snap([
+        runOf("live", { attention: "you", questions: [ASKED.question] }),
+        runOf("shipped", { attention: "done", status: "done" }),
+        runOf("old", { attention: "done", status: "done" }),
+      ]),
+    ]);
+    const r = app(s);
+    await shows(r, "2 finished · ⏎ to show");
+    expect(r.lastFrame()).not.toContain("Task shipped");
+    r.stdin.write(KEY.down);
+    await shows(r, "2 finished sessions");
+    r.stdin.write(KEY.enter);
+    await shows(r, "Task shipped");
+    expect(r.lastFrame()).toContain("Task old");
+    expect(r.lastFrame()).toContain("f: hide them");
+    r.stdin.write("f");
+    await until("the finished sessions folded again", () => !(r.lastFrame() ?? "").includes("Task shipped"));
+    r.unmount();
+  });
+
   test("move, switch to Activity, answer a question with Enter", async () => {
     const s = new FakeService([
       snap([runOf("rounding", { attention: "you", questions: [ASKED.question] }), runOf("docs")]),
@@ -287,6 +342,56 @@ describe("metator ui (components)", () => {
     await calls(s, 1);
     expect(s.calls).toEqual(["answer q001 Banker's"]);
     await shows(r, "Answered q001: Banker's");
+    r.unmount();
+  });
+
+  test("an escalated run shows where it stopped; c or Enter resumes it", async () => {
+    const s = new FakeService([
+      snap([
+        runOf("gates", {
+          status: "escalated",
+          attention: "escalated",
+          stage: "build",
+          stages: [
+            { id: "plan", state: "done", hitl: false },
+            { id: "build", state: "stopped", hitl: false },
+            { id: "review", state: "next", hitl: false },
+          ],
+        }),
+      ]),
+    ]);
+    const r = app(s);
+    await shows(r, "at build: fix the cause, then resume it (c)");
+    const f = r.lastFrame() ?? "";
+    expect(f).toContain("1 escalated");
+    expect(f).toContain("plan ✓ ─ [build !] ─ review ·");
+    expect(f).toContain("c: resume");
+    r.stdin.write(KEY.enter);
+    await calls(s, 1);
+    expect(s.calls).toEqual(["continue ates"]);
+    r.unmount();
+  });
+
+  test("a long answer stays inside the screen and scrolls with PgDn and PgUp", async () => {
+    const s = new FakeService([
+      snap([], [{ id: "20261028-why", title: "Why?", host: "scenario", turns: 1, updatedAt: "x" }]),
+    ]);
+    s.answerText = Array.from({ length: 80 }, (_, i) => `answer line ${String(i + 1).padStart(2, "0")}`).join(
+      "\n",
+    );
+    const r = app(s);
+    await shows(r, "answer line 01");
+    const first = r.lastFrame() ?? "";
+    // The header and the session list stay on the screen: the answer does not push them off.
+    expect(first.split("\n").length).toBeLessThanOrEqual(30);
+    expect(first).toContain("MetatorAI · shop");
+    expect(first).toContain("PgUp/PgDn scroll");
+    expect(first).not.toContain("answer line 40");
+    r.stdin.write("\u001B[6~");
+    await shows(r, "answer line 25");
+    expect(r.lastFrame()).not.toContain("answer line 01");
+    r.stdin.write("\u001B[5~");
+    await shows(r, "answer line 01");
     r.unmount();
   });
 

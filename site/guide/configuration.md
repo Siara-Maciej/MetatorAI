@@ -40,6 +40,8 @@ paths:
 # What the import graph and knowledge scans ignore, and what counts as a test.
 project:
   sourceIgnores: ["**/node_modules/**", "**/dist/**", "**/generated/**"]
+  # Default: *.test.* and *.spec.* files, *.e2e-spec.*, __tests__/, any script under test/,
+  # tests/ or spec/ (mocha's test/app.js, ava's test/main.ts), and a single test.js or test.ts. Set it only to narrow or widen that.
   testGlobs: ["**/*.test.ts", "**/__tests__/**"]
 
 # Generated host files.
@@ -69,7 +71,8 @@ A gate is a named list of steps. A step runs one of:
 | `run` | Meaning | Example |
 |---|---|---|
 | `{ script: <name> }` | a `package.json` script through your package manager | `{ script: lint }` |
-| `{ bin: <name>, args: [...] }` | a binary from `node_modules/.bin` | `{ bin: tsc, args: [--noEmit] }` |
+| `{ bin: <name>, args: [...] }` | a binary from `node_modules/.bin` (from PATH only when the project has none; with dependencies not installed it is reported missing, never run in another version from PATH) | `{ bin: tsc, args: [--noEmit] }` |
+| `{ workspaces: <name> }` | the script in every workspace package that has it, through your package manager (`pnpm -r --if-present run <name>`, `npm run <name> --workspaces --if-present`, `bun run --filter '*' <name>`, `yarn workspaces foreach -A run <name>`) | `{ workspaces: typecheck }` |
 | `{ metator: <check> }` | a MetatorAI check in process | `rules check`, `test affected`, `graph diff`, `arch check`, `contract diff`, `api diff <package>`, `coverage diff [--min N] [--lcov file]` |
 
 Other step fields:
@@ -80,6 +83,8 @@ Other step fields:
 | `match` | all files | with `files: append`, pass only files the tool understands |
 | `okExitCodes` | `[0]` | a tool that exits 1 when it only reports findings |
 | `timeoutMs` | `600000` | stop a hanging step |
+
+`metator init` proposes the steps from your own scripts. When TypeScript is configured at the root but no script type-checks (a build that only transpiles, such as `nest build`), it proposes `{ bin: tsc, args: [--noEmit, -p, tsconfig.json] }` for `full`, so a type error cannot pass every gate. In a monorepo whose packages type-check or test with their own script and no root script runs them, it proposes `{ workspaces: <that script> }` instead. Workspace packages come from `package.json#workspaces` or `pnpm-workspace.yaml`; a package whose `package.json` has no `name` (an app never published, a proxy folder) is named after its directory, and a root with a framework config (`nuxt.config.ts`, `next.config.js`, …) is a package beside its workspaces. Without any workspace, two or more projects side by side (`user/package.json`, `mailer/package.json`; not tests, fixtures, examples or docs) are packages each; `init` then proposes no `{ workspaces: … }` step, since the package manager runs nothing across them. A script that type-checks one sub-project (`tsc -p tsconfig.tracker.json`) is not taken as the project's typecheck: with a root `tsconfig.json`, `init` proposes `tsc --noEmit -p tsconfig.json`. A task runner's task is read by its whole name: `turbo run test:e2e` runs end-to-end tests, so a root `ci` script that builds and runs it is the e2e gate, not the unit tests.
 
 ```bash
 metator gate quick --base main           # quick gate on the files changed on the branch
@@ -101,7 +106,7 @@ All defaults, overridable under `paths:`:
 | `memoryMap` | `docs/metator/memory-map.yml` | the memory map |
 | `cards` | `docs/metator/modules` | module cards |
 | `patterns` | `docs/metator/patterns` | the pattern catalog |
-| `adr` | `docs/adr` | architecture decisions |
+| `adr` | `docs/adr` | architecture decisions; `metator init` writes it when it finds them elsewhere (`adr/`, `docs/decisions`) |
 | `gates` | `.metator/gates` | gate reports |
 | `agents` | `metator/agents` | canonical agents |
 | `evals` | `docs/metator/evals/golden` | golden review cases |

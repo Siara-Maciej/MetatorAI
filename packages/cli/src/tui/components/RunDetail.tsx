@@ -100,7 +100,10 @@ function Overview({ run, width }: { readonly run: RunOverview; readonly width: n
       ) : (
         <Text dimColor>works in this checkout</Text>
       )}
-      <Text dimColor>e: editor · t: shell · d: diff · c: continue · x: stop the drive</Text>
+      <Text dimColor>
+        e: editor · t: shell · d: diff · {run.status === "escalated" ? "c: resume" : "c: continue"} · x: stop
+        the drive
+      </Text>
     </Box>
   );
 }

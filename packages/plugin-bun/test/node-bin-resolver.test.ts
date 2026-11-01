@@ -21,4 +21,14 @@ describe("NodeBinResolver (real files)", () => {
     });
     expect(await resolver.command("eslint", [])).toEqual({ argv: ["eslint"], cwd: root });
   });
+
+  test("a Node project without node_modules runs its own binary path, reported missing, never another from PATH", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metator-bin-"));
+    dirs.push(root);
+    await Bun.write(join(root, "package.json"), "{}");
+    expect((await new NodeBinResolver(root).command("tsc", ["--noEmit"])).argv).toEqual([
+      join(root, "node_modules/.bin/tsc"),
+      "--noEmit",
+    ]);
+  });
 });

@@ -33,6 +33,24 @@ describe("conversation domain", () => {
     ]);
   });
 
+  test("citations: Next.js segments, and a bare file name after its full path is that file", () => {
+    const answer = [
+      "Mounted in apps/web/app/[locale]/(protected)/layout.tsx:52.",
+      "The registry is packages/a/src/registry.ts:72; registration at `registry.ts:36`.",
+      "Two providers: packages/x/providers.tsx:12 and apps/web/providers.tsx:45; see providers.tsx:70.",
+      "An unknown one: lonely.ts:3.",
+    ].join("\n");
+    expect(findCitations(answer)).toEqual([
+      { path: "apps/web/app/[locale]/(protected)/layout.tsx", line: 52 },
+      { path: "packages/a/src/registry.ts", line: 72 },
+      { path: "packages/a/src/registry.ts", line: 36 },
+      { path: "packages/x/providers.tsx", line: 12 },
+      { path: "apps/web/providers.tsx", line: 45 },
+      { path: "apps/web/providers.tsx", line: 70 },
+      { path: "lonely.ts", line: 3 },
+    ]);
+  });
+
   test("the prompt carries the rules and earlier turns, unless the host continues its session", () => {
     const turns = [1, 2, 3, 4].map((n) => ({
       at: "2026-10-28T10:00:00.000Z",
@@ -99,6 +117,29 @@ describe("AskQuestion", () => {
     ]);
     expect(task.prompt).toContain("Question: How is the discount computed?");
     expect((await w.repo.list())._unsafeUnwrap().map((c) => c.turns.length)).toEqual([1]);
+  });
+
+  test("a short path is the file next to one cited in full before it", async () => {
+    const w = world({
+      "mt-guide": [
+        {
+          text: "The list is in api/src/module/offers/controllers/admin.ts:41; its items are dto/item.dto.ts:59, built in offer.service.ts:150, and nowhere/else.ts:3.",
+        },
+      ],
+    });
+    for (const f of [
+      "api/src/module/offers/controllers/admin.ts",
+      "api/src/module/offers/dto/item.dto.ts",
+      "api/src/module/offers/controllers/offer.service.ts",
+    ])
+      await w.fs.write(f, "x\n");
+    const r = (await w.ask.execute({ ...w.input, question: "Where?" }))._unsafeUnwrap();
+    expect(r.citations.map((c) => [c.path, c.exists])).toEqual([
+      ["api/src/module/offers/controllers/admin.ts", true],
+      ["api/src/module/offers/dto/item.dto.ts", true],
+      ["api/src/module/offers/controllers/offer.service.ts", true],
+      ["nowhere/else.ts", false],
+    ]);
   });
 
   test("a follow-up continues the host's session and the same conversation", async () => {

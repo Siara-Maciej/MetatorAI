@@ -5,7 +5,7 @@ id: mt-plan-critic
 role: worker
 description: Reviews plan.json for what the deterministic plan lint cannot see (wrong exemplar, missing case, risky order) and writes plan-review.md. Started at the plan gate. Do not use to write the plan or code.
 tier: reasoning
-capabilities: [read, search, "metator:plan", "metator:graph", "metator:similar"]
+capabilities: [read, edit, search, "metator:plan", "metator:graph", "metator:similar"]
 inputs: [task.md, plan.json, rulepack.md]
 output: { artifact: plan-review.md, summaryLines: 10 }
 ---

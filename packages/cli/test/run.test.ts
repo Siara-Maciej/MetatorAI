@@ -21,6 +21,19 @@ describe("metator CLI", () => {
     expect(JSON.stringify(json)).toContain('"name":"version"');
   });
 
+  test("--help on a command describes that command and its options, not every command", async () => {
+    const { code, json } = await invoke("run", "answer", "--help");
+    expect(code).toBe(0);
+    const data = json.data as { name: string; usage: string; options: { flags: string }[] };
+    expect(data.name).toBe("run answer");
+    expect(data.usage).toContain("metator run answer");
+    expect(data.options.map((o) => o.flags)).toContain("--by <name>");
+    expect(JSON.stringify(json)).not.toContain('"name":"version"');
+    // A group lists its commands.
+    const group = (await invoke("findings", "-h")).json.data as { commands: { name: string }[] };
+    expect(group.commands.map((c) => c.name)).toContain("findings verdict");
+  });
+
   test("unknown command is a usage error with a hint and exit code 64", async () => {
     const { code, json } = await invoke("frobnicate");
     expect(code).toBe(64);

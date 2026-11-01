@@ -16,6 +16,7 @@ import {
   MachineLeases,
   PruneWorktrees,
   RemoveWorktree,
+  SETUP_PATHS,
   WorktreeRegistry,
 } from "../src/application/worktrees.ts";
 import { RunRecordDocument } from "../src/domain/run-record.ts";
@@ -120,7 +121,16 @@ describe("worktree use cases", () => {
       "main",
       { from: 41020, count: 20 },
     ]);
-    expect(w.git.worktrees.get(".metator/wt/feat-a")).toEqual({ branch: "metator/feat-a", base: "main" });
+    // The run's state is reached from the worktree, not copied into it; so is a setup not
+    // committed yet (its configuration, agents and skills).
+    expect(w.git.worktrees.get(".metator/wt/feat-a")).toEqual({
+      branch: "metator/feat-a",
+      base: "main",
+      shared: [".metator/runs"],
+      setup: [...SETUP_PATHS],
+    });
+    expect(SETUP_PATHS).toContain("metator.config.yml");
+    expect(SETUP_PATHS).toContain(".claude/skills");
     const second = (await w.create.execute({ id: "feat-b", ports: 5 }))._unsafeUnwrap();
     // Blocks align to their size: 41000-41004 holds the busy port, 41005-41009 is free.
     expect(second.ports).toEqual({ from: 41005, count: 5 });
@@ -190,8 +200,8 @@ describe("worktree use cases", () => {
   });
 });
 
-describe("RunRecord v3 and v4", () => {
-  test("a v2 record reads as v4 unchanged; v1 still migrates through v2", () => {
+describe("RunRecord v3 to v5", () => {
+  test("a v2 record reads as v5 unchanged; v1 still migrates through v2", () => {
     const base = {
       runId: "20261001-mt-tiny-a",
       workflow: { id: "mt-tiny", revision: 1, source: "x.yml" },
@@ -207,7 +217,7 @@ describe("RunRecord v3 and v4", () => {
       },
     };
     const v2 = RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 2, ...base, approvals: {} }, "s");
-    expect([v2._unsafeUnwrap().worktree, RunRecordDocument.current]).toEqual([undefined, 4]);
+    expect([v2._unsafeUnwrap().worktree, RunRecordDocument.current]).toEqual([undefined, 5]);
     const v3 = RunRecordDocument.parse(
       { kind: "RunRecord", schemaVersion: 3, ...base, approvals: {}, parent: "20261001-mt-system-change-x" },
       "s",

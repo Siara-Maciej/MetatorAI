@@ -72,7 +72,19 @@ metator run answer q003 --text "use EUR, never mix currencies" --by alice   # Ot
 |---|---|---|
 | `gate` | a HITL stage (plan approval, push, comments) | Approve continues; Reject sends the run back with your reason |
 | `agent` | a worker asks (`AskUserQuestion` in Claude Code, `STATUS: blocked: …` from any host) | the answer goes back to the same agent session, which continues |
-| `permission` | a worker wants a tool that is not pre-approved (Claude Code) | Allow runs the call; Deny refuses it, with your reason |
+| `permission` | a worker wants a tool that is not pre-approved (Claude Code) | Allow runs the call; Deny refuses it, with your reason. The question shows a command whole |
+
+**What a worker may do without asking** (Claude Code):
+- the MetatorAI commands its definition names (`Bash(metator plan:*)` and the like), one command per call;
+- reading and searching in the repository, the run directory and the linked repositories, also through the shell when the command only reads (`grep`, `sed -n`, `cat`, `readlink`, git that only reads such as `git status`, `git log` or `git diff` without `--output` or `--ext-diff`, read-only `metator` queries such as `graph`, `api diff` or `findings validate`);
+- writing its artifacts into the run directory;
+- editing files inside the run's own worktree. The worktree is isolated, and nothing leaves it without you: a push always needs `metator run approve push`.
+
+An agent whose definition grants no plain `Bash` (a coordinator such as `mt-pr-review`, a planner, a review lens) is never put to you for a shell command: anything outside its declared commands and reading is refused at once, with the reason, and it carries on with its own tools or hands the work to an agent that runs code (`mt-verifier`). Its subagents have definitions of their own.
+
+For the other agents, anything else asks: an edit in your own checkout (a run without `--worktree`), other shell commands, a write anywhere outside. Claude Code itself always asks for a command it cannot read safely, such as a heredoc that holds JSON. Every stage tells its agents to read and change files with Read, Edit and Write, never with an interpreter (`python`, `node`, `jq`), which would ask you each time.
+
+The same rules hold for the workers a coordinator starts (the review lenses). They run in the foreground of the stage's session, so their questions reach you too: a worker in the background would outlive the turn that started it, and its permission prompts could not be answered.
 
 ## Watch the run
 
@@ -86,7 +98,7 @@ metator run activity --tail 8
   {"type":"agent","stage":"build","agent":"mt-test-author","text":"mt-test-author started"},
   {"type":"tool","stage":"build","agent":"mt-test-author","text":"Write packages/billing/test/discount.test.ts"},
   {"type":"advance","stage":"build","text":"PASS"},
-  {"type":"stage","stage":"gates","text":"Lint, typecheck, rules, affected tests, graph and API diff"},
+  {"type":"stage","stage":"gates","text":"The repository's configured gates (metator gate full)"},
   {"type":"tool","stage":"gates","text":"$ metator gate full"}]}
 ```
 
@@ -101,14 +113,21 @@ metator run drive --host claude --detach  # continue later: the same open questi
 
 A run has at most one live driver. A second `run drive` is refused while the first is alive, and a driver that died does not block a new one.
 
+**An escalated run** (a gate red too often, a worker blocked after three answers) waits for you. Fix the cause, then resume it where it stopped:
+
+```bash
+metator run resume --run <id> --by alice   # back at the stage it escalated from; history and loop counts stay
+metator run drive --run <id> --host claude --detach
+```
+
 ## How a stage is carried
 
 1. **A HITL stage** becomes a question (Approve, Reject, Other). Skipped stages (`skipAt` your autonomy level) never ask.
-2. **Scripts** (`owner: "script:…"`) run with your `hosts.metatorCommand`. `{runDir}` in the command is the run directory, and `METATOR_RUN` and `METATOR_RUN_DIR` are set.
-3. **Agents** run in order; `parallel` workers run together. Each gets one message: the stage, the task, where to write its artifacts, the skills it may use and, after a failed gate, why it failed. It must finish with `STATUS: done` or `STATUS: blocked: <question>`.
-4. **Artifacts** listed in `produces` must exist in the run directory, or the stage fails.
-5. **Gates:** `gate.script` must exit 0; the critic of `gate.llm` must end with `VERDICT: PASS`. A missing verdict is a FAIL, never a silent pass.
-6. **Transitions** go through `run advance` and `run approve`. Loops, limits and escalation are the workflow's, exactly as in interactive mode.
+2. **Scripts** (`owner: "script:…"`) run with your `hosts.metatorCommand`. `{runDir}` in the command is the run directory, and `METATOR_RUN` and `METATOR_RUN_DIR` are set. The run's inputs fill their placeholders: `{base}` is the value from `run init --input base=main`, and `{base|HEAD}` falls back to `HEAD` when the run was started without it. An input with neither stops the run with the `--input` it needs; `run init` refuses an input the workflow does not declare (`input:` in its spec).
+3. **Agents** run in order; `parallel` workers run together. Each gets one message: the stage, the task, where to write its artifacts, the skills it may use, notes about where it works (dependencies not installed there, so tests and the compiler cannot run) and, after a failed gate, why it failed. What you answered earlier in the run in your own words (the text of an answer) goes into every later agent's and critic's message as a decision to follow, so a critic does not fail the work for doing what you decided. A stage a later one sent back (review → plan) hears which stage failed and why, and that the work done since is already in the run's working tree, so a step already done is not planned or built again; every stage until the failing one is reached again hears it. It must finish with `STATUS: done` or `STATUS: blocked: <question>`.
+4. **Artifacts** listed in `produces` must exist in the run directory, or the stage fails. Workers of a parallel stage each write only their own. A coordinator without a Write tool writes one with `metator run write <artifact>` (the text on stdin); only an artifact the current stage produces is accepted.
+5. **Gates:** `gate.script` must exit 0; the critic of `gate.llm` must end with `VERDICT: PASS`. The critic is told that `metator review diff --base HEAD` shows the change and `metator help` lists the commands, so it does not guess at others. A missing verdict is a FAIL, never a silent pass. The critic gets the same notes about where the run works, and the repository's configured gates (their reports in `.metator/gates/`) settle which checks a change needs: a check they do not configure, or one that cannot run there, is no reason to fail.
+6. **Transitions** are the drive's: it sends `run advance` or `run approve` when the stage is done. An agent the drive started may not move the run itself (the host denies `metator run advance` and the like), and if the run moved anyway while a stage worked, the drive does not send that stage's outcome to the next stage. Transitions go through `run advance` and `run approve`. Loops, limits and escalation are the workflow's, exactly as in interactive mode.
 
 ## Try it without a model
 

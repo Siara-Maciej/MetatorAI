@@ -48,6 +48,124 @@ describe("proposeConfig", () => {
     expect(p.decisions[0]?.evidence).toEqual(["package.json#scripts.lint"]);
   });
 
+  test("TypeScript at the root with no script that type-checks: the compiler is the typecheck step", () => {
+    const p = proposeConfig(
+      {
+        ...discovery({ build: "nest build", test: "jest" }),
+        tools: [{ id: "typescript", evidence: ["tsconfig.json", "package.json#devDependencies.typescript"] }],
+      },
+      { ruleCanon: false },
+    );
+    expect(ids(p.gates.full)).toEqual([
+      'typecheck:{"bin":"tsc","args":["--noEmit","-p","tsconfig.json"]}:none',
+      'test:{"script":"test"}:none',
+    ]);
+    // A script that type-checks one corner (`tsc -p tsconfig.tracker.json`) is not the project's typecheck.
+    const corner = proposeConfig(
+      {
+        ...discovery({ build: "next build", "tracker:types": "tsc -p tsconfig.tracker.json --noEmit" }),
+        tools: [{ id: "typescript", evidence: ["tsconfig.json"] }],
+      },
+      { ruleCanon: false },
+    );
+    expect(ids(corner.gates.full)).toEqual([
+      'typecheck:{"bin":"tsc","args":["--noEmit","-p","tsconfig.json"]}:none',
+    ]);
+    expect(corner.decisions[0]?.reason).toContain("tracker:types type-checks only part of it");
+    expect(classifyScript("tracker:types", "tsc -p tsconfig.tracker.json --noEmit", "p")[0]?.reason).toBe(
+      "it type-checks only tsconfig.tracker.json",
+    );
+    expect(classifyScript("check:types", "tsc -p ./tsconfig.json --noEmit", "p")[0]?.confidence).toBe(0.75);
+    expect(classifyScript("typecheck", "tsc -p tsconfig.app.json", "p")[0]?.confidence).toBe(0.95);
+    // A typecheck script wins; a tsconfig only in a package proposes nothing at the root.
+    const own = proposeConfig(
+      {
+        ...discovery({ typecheck: "tsc --noEmit" }),
+        tools: [{ id: "typescript", evidence: ["tsconfig.json"] }],
+      },
+      { ruleCanon: false },
+    );
+    expect(ids(own.gates.full)).toEqual(['typecheck:{"script":"typecheck"}:none']);
+    const perPackage = proposeConfig(
+      { ...discovery({}), tools: [{ id: "typescript", evidence: ["packages/ui/tsconfig.json"] }] },
+      { ruleCanon: false },
+    );
+    expect(perPackage.gates.full).toEqual([]);
+    // A monorepo whose root builds through a task runner type-checks per package, not at the root.
+    const runner = proposeConfig(
+      { ...discovery({ build: "turbo build" }), tools: [{ id: "typescript", evidence: ["tsconfig.json"] }] },
+      { ruleCanon: false },
+    );
+    expect(runner.gates.full).toEqual([]);
+    // ...unless its packages type-check themselves: then the package manager runs that script.
+    const packages = discovery({ build: "turbo build" });
+    const withPackages = proposeConfig(
+      {
+        ...packages,
+        workspaces: ["apps/web", "apps/admin"].map((dir) => ({ name: dir, dir })),
+        scripts: [
+          ...packages.scripts,
+          ...["apps/web", "apps/admin"].map((dir) => ({
+            package: dir,
+            dir,
+            name: "typecheck",
+            command: "tsc --noEmit",
+            candidates: classifyScript(
+              "typecheck",
+              "tsc --noEmit",
+              `${dir}/package.json#scripts.typecheck`,
+            ).map((c) => ({ ...c, evidence: [...c.evidence] })),
+          })),
+        ],
+        tools: [{ id: "typescript", evidence: ["tsconfig.json"] }],
+      },
+      { ruleCanon: false },
+    );
+    expect(ids(withPackages.gates.full)).toEqual(['typecheck:{"workspaces":"typecheck"}:none']);
+    expect(withPackages.decisions[0]?.evidence).toEqual([
+      "apps/web/package.json#scripts.typecheck",
+      "apps/admin/package.json#scripts.typecheck",
+    ]);
+  });
+
+  test("packages that test themselves, and a root ci script that only builds and runs e2e", () => {
+    const base = discovery({ ci: "turbo run build --filter=web && turbo run test:e2e" });
+    const pkg = (dir: string, name: string, command: string) => ({
+      package: dir,
+      dir,
+      name,
+      command,
+      candidates: classifyScript(name, command, `${dir}/package.json#scripts.${name}`).map((c) => ({
+        ...c,
+        evidence: [...c.evidence],
+      })),
+    });
+    const r = proposeConfig(
+      {
+        ...base,
+        workspaces: ["packages/lib", "packages/signing"].map((dir) => ({ name: dir, dir })),
+        scripts: [
+          ...base.scripts,
+          pkg("packages/lib", "test", "vitest run"),
+          pkg("packages/lib", "test:watch", "vitest"),
+          pkg("packages/signing", "test", "vitest"),
+        ],
+      },
+      { ruleCanon: false },
+    );
+    // ci is the e2e gate only; the unit tests are each package's own test script.
+    expect(ids(r.gates.full)).toEqual(['test:{"workspaces":"test"}:none', 'e2e:{"script":"ci"}:none']);
+    expect(r.decisions.find((d) => d.capability === "test")?.reason).toBe(
+      "2 package(s) test with their own test script and no root script runs them",
+    );
+    // Standalone projects (no workspace holds them): the package manager runs nothing across them.
+    const standalone = proposeConfig(
+      { ...base, scripts: [...base.scripts, pkg("user", "test", "jest"), pkg("mailer", "test", "jest")] },
+      { ruleCanon: false },
+    );
+    expect(ids(standalone.gates.full)).toEqual(['e2e:{"script":"ci"}:none']);
+  });
+
   test("a whole-project lint script gets a per-file tool in quick, with the tool's evidence", () => {
     const p = proposeConfig(discovery({ lint: "biome check ." }, ["biome"]), { ruleCanon: false });
     expect(p.gates.quick[0]?.run).toEqual({
@@ -60,10 +178,24 @@ describe("proposeConfig", () => {
     ]);
   });
 
-  test("no per-file tool means no quick lint; a rule canon adds the rules step to both gates", () => {
+  test("no per-file tool: the quick gate runs the whole lint script; a rule canon adds the rules step", () => {
     const p = proposeConfig(discovery({ lint: "stylelint ." }), { ruleCanon: true });
-    expect(ids(p.gates.quick)).toEqual(['rules:{"metator":"rules check"}:none']);
-    expect(p.gates.full.map((s) => s.id)).toEqual(["lint", "rules"]); // the script still runs in full
+    expect(ids(p.gates.quick)).toEqual([
+      'lint:{"script":"lint"}:none',
+      'rules:{"metator":"rules check"}:none',
+    ]);
+    expect(p.gates.full.map((s) => s.id)).toEqual(["lint", "rules"]);
+    // A tool configured per package only (no root config) does not run on files from the root either.
+    const perPackage = proposeConfig(
+      {
+        ...discovery({ lint: "turbo lint" }),
+        tools: [
+          { id: "eslint", evidence: ["packages/ui/eslint.config.js", "package.json#devDependencies.eslint"] },
+        ],
+      },
+      { ruleCanon: false },
+    );
+    expect(ids(perPackage.gates.quick)).toEqual(['lint:{"script":"lint"}:none']);
   });
 
   test("the same discovery always gives the same proposal", () => {
@@ -86,6 +218,24 @@ describe("InitProject", () => {
     const config = MetatorConfigDocument.parse(parse(text), "metator.config.yml")._unsafeUnwrap();
     expect(config.gates.quick.map((s) => s.id)).toEqual(["lint"]);
     expect(config.gates.full.map((s) => s.id)).toEqual(["lint", "test"]);
+  });
+
+  test("ADRs found outside docs/adr are written as paths.adr; the default place is not written", async () => {
+    const written = async (adr: string | null) => {
+      const fs = new InMemoryFileSystem({});
+      const found = {
+        execute: async () => ok({ ...discovery({ lint: "eslint ." }), docs: { adr, codeowners: null } }),
+      };
+      await new InitProject(found as never, fs, DEFAULT_PATHS).execute({ dryRun: false });
+      const text = (await fs.read("metator.config.yml"))._unsafeUnwrap();
+      return [
+        MetatorConfigDocument.parse(parse(text), "c")._unsafeUnwrap().paths.adr,
+        text.includes("paths:"),
+      ];
+    };
+    expect(await written("adr")).toEqual(["adr", true]);
+    expect(await written("docs/adr")).toEqual([undefined, false]);
+    expect(await written(null)).toEqual([undefined, false]);
   });
 
   test("chosen hosts are written; without a choice the file keeps the default (every host)", async () => {

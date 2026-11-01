@@ -118,7 +118,7 @@ describe("linked runs (real CLI, three repositories)", () => {
       await Bun.file(join(at("billing"), ".metator/runs", first[0]?.run as string, "state.json")).text(),
     );
     expect([child.schemaVersion, child.parent, child.system]).toEqual([
-      4,
+      5,
       parent,
       { plan: "rename-refunds", step: "billing-bump", app: "billing" },
     ]);

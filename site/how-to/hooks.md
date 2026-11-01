@@ -24,7 +24,7 @@ Review the diff and commit it. Hooks call `metator` on your `PATH` (see [Install
 | PostToolUse | `metator guard post-edit` | reports rule violations of the edited file back to the agent |
 | SubagentStop | `metator guard subagent-output` | every JSON artifact of the run must be a valid document |
 | PreCompact | `metator guard precompact` | writes a checkpoint into the run log before the context is compacted |
-| Stop | `metator guard stop` | an active run at a working stage must be advanced or escalated before the agent stops |
+| Stop | `metator guard stop` | an active run at a working stage must be advanced or escalated before the agent stops (not in a session `metator run drive` started: the drive moves the run) |
 
 ## What `pre-tool` denies
 
@@ -35,6 +35,9 @@ Review the diff and commit it. Hooks call `metator` on your `PATH` (see [Install
 | Outside the plan (during a run) | an edit to a file not listed in the active run's `plan-scope.json`, or outside the repository |
 | Coordinators editing (during a run) | `mt-orchestrator` or `mt-pr-review` editing code (they delegate) |
 | External actions (during a run) | `git push`, `gh pr create`, `gh pr comment`, GitHub MCP write tools, without `metator run approve push` or `comment` |
+| Moving a driven run | `metator run advance`, `approve`, `answer`, `stop`, `close`, `resume` from an agent `metator run drive` started: the drive moves the run when the stage's work is done |
+
+The guard only ever denies. A call it does not object to gets no answer, so your host's own permission rules decide it as usual; an `allow` from a hook would skip them.
 
 Secrets and destructive commands are blocked always. The other checks apply while a run is active: approvals, scope and roles belong to a run. Without an active run, MetatorAI does not stand in your way (free mode).
 
@@ -49,7 +52,7 @@ echo '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | metator guard 
 
 metator run approve push --by alice
 echo '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | metator guard pre-tool
-# {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"ok"}}
+# (no output: nothing to object to, your host's permissions decide)
 ```
 
 **Why hooks fail open on their own errors:** a broken hook must not lock you out of your editor. Errors are reported as a system message, and the decision falls back to the host's default.

@@ -8,6 +8,7 @@ import {
   countAttention,
   type StageProgress,
   stageProgress,
+  stoppedAt,
 } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Clock } from "../ports/index.ts";
@@ -88,8 +89,9 @@ export class WorkOverview {
       const driver = await this.drivers.status(runId);
       const driving = driver.isOk() && driver.value?.alive === true;
       const spec = await this.workflows.get(r.workflow.id);
-      const declared = spec.isOk() ? spec.value.spec.stages : [{ id: r.state.stage }];
-      const stages = stageProgress(declared, r.state.stage, r.state.status, open.length);
+      const stage = stoppedAt(r.state.stage, r.state.status, r.state.context.history);
+      const declared = spec.isOk() ? spec.value.spec.stages : [{ id: stage }];
+      const stages = stageProgress(declared, stage, r.state.status, open.length);
       const atGate = stages.some((s) => s.state === "waiting" && s.hitl);
       const activity = await this.journal.activity(runId);
       const last = activity.isOk() ? activity.value.at(-1) : undefined;
@@ -116,7 +118,7 @@ export class WorkOverview {
         task: r.task,
         autonomy: r.autonomy,
         status: r.state.status,
-        stage: r.state.stage,
+        stage,
         attention: attentionOf(r.state.status, open.length, driving, atGate),
         stages,
         questions: open,

@@ -114,7 +114,7 @@ describe("metator arch (real CLI, real monorepo)", () => {
     expect(report.summary).toMatchObject({ errors: 5, warnings: 2, score: 73 });
 
     const saved = JSON.parse(await repo.read(".metator/arch/report.json"));
-    expect([saved.kind, saved.schemaVersion, saved.summary.score]).toEqual(["ArchitectureReport", 1, 73]);
+    expect([saved.kind, saved.schemaVersion, saved.summary.score]).toEqual(["ArchitectureReport", 2, 73]);
     const md = await repo.read(".metator/arch/report.md");
     expect(md).toContain("### @shop/cart ⇄ @shop/pricing (type-only)");
     expect(md).toContain("**app-import** @shop/banner depends on the application @shop/web");

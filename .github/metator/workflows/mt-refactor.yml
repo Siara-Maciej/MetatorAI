@@ -1,8 +1,8 @@
 # W3: refactor that keeps behavior (02-workflows §3).
 kind: Workflow
-schemaVersion: 2
+schemaVersion: 3
 id: mt-refactor
-revision: 2
+revision: 3
 description: Snapshot the API, pin behavior, small steps, prove equivalence
 entry: { prompt: mt-refactor }
 input:
@@ -16,8 +16,8 @@ stages:
     owner: "script:metator index build"
   - id: baseline
     description: API snapshot before the change
+    # Snapshots go to .metator/api/<package>.json; the gates stage compares against them.
     owner: "script:metator api snapshot"
-    produces: [api-baseline.json]
   - id: characterize
     description: Characterization tests that pass on the old code, behavior inventory
     owner: [mt-test-author, skill:mt-characterization-tests]
@@ -33,6 +33,8 @@ stages:
   - id: plan-approval
     hitl: true
     skipAt: [L1]
+    # A person who rejects the plan sends it back with the reason, like a failed plan gate.
+    onFail: { goto: plan, loop: plan }
   - id: build
     description: One step at a time, gate quick plus api diff and graph diff after each
     owner: mt-refactorer
@@ -42,7 +44,7 @@ stages:
   - id: gates
     description: API unchanged (or only planned), coverage at least the baseline
     owner: mt-gatekeeper
-    produces: [gates.json]
+    produces: [gates.md]
     gate: { script: metator gate full }
     onFail: { goto: build, loop: build }
   - id: review
@@ -55,10 +57,15 @@ stages:
   - id: delivery
     hitl: true
     neverSkip: true
+    # Approving the delivery approves the push: the publish stage pushes without asking again.
+    grants: [push]
   - id: publish
     owner: mt-pr-author
     produces: [pr.md]
-loops: { plan: 2, build: 3, review: 3 }
+    # Done only when the change is committed and origin's branch is at the checked-out commit.
+    gate: { script: metator run published }
+    onFail: { goto: publish, loop: publish }
+loops: { plan: 2, build: 3, review: 3, publish: 1 }
 escalation:
   onLoopExhausted: report the steps that changed behavior and options
   onAmbiguity: stop and ask (skill mt-grill)

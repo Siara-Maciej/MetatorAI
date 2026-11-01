@@ -1,5 +1,5 @@
 import type { GateStep } from "./config.ts";
-import type { Capability, Discovery } from "./discovery.ts";
+import { type Capability, commandsOf, type Discovery, runnerTasks } from "./discovery.ts";
 
 /**
  * Config proposal from discovery (`metator init`, ARCHITECTURE §10.1 B7). Deterministic: the
@@ -60,8 +60,65 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
       )
       .sort((a, b) => b.c.confidence - a.c.confidence)[0];
 
+  // A tool configured at the root (its config file is there, not only in a package).
+  const configuredAtRoot = (id: string) =>
+    (tools.get(id) ?? []).some((e) => !e.includes("/") && !e.includes("#"));
+  // The root compiles its own TypeScript (`nest build`, `tsc`), not each package's through a
+  // task runner (`turbo build`): only then is the root tsconfig a project to type-check.
+  const rootBuild = discovery.scripts.find(
+    (s) => s.dir === "." && s.candidates.some((c) => c.capability === "build"),
+  );
+  const buildsItself =
+    rootBuild !== undefined && !commandsOf(rootBuild.command).some((c) => runnerTasks(c) !== undefined);
+
   for (const capability of ["lint", "typecheck", "test", "e2e"] as const) {
     const found = best(capability);
+    // A script that checks one corner (`tsc -p tsconfig.tracker.json`) is no project typecheck.
+    const partial = found !== undefined && found.c.confidence < 0.5;
+    if ((!found || partial) && capability === "typecheck" && configuredAtRoot("typescript") && buildsItself) {
+      // TypeScript without a typecheck script (a build that only transpiles, `nest build`):
+      // type errors would pass every gate, so the compiler checks the root project itself.
+      full.push(step(capability, { bin: "tsc", args: ["--noEmit", "-p", "tsconfig.json"] }));
+      decisions.push({
+        capability,
+        gate: "full",
+        step: "tsc --noEmit -p tsconfig.json",
+        evidence: tools.get("typescript") ?? [],
+        reason: `TypeScript is configured at the root, the root builds itself (${rootBuild?.name}) and ${
+          partial ? `${found.script} type-checks only part of it` : "no script type-checks"
+        }`,
+      });
+      continue;
+    }
+    if (!found && (capability === "typecheck" || capability === "test")) {
+      // A monorepo whose packages type-check or test themselves (`apps/web: typecheck`,
+      // `packages/lib: test`) and no root script that runs them: the package manager runs that
+      // script in every package.
+      // Only workspace packages: the package manager runs nothing across standalone projects.
+      const workspace = new Set(discovery.workspaces.map((w) => w.dir));
+      const perPackage = discovery.scripts.filter(
+        (s) =>
+          s.dir !== "." &&
+          workspace.has(s.dir) &&
+          s.candidates.some((c) => c.capability === capability && c.confidence >= 0.95),
+      );
+      const count = new Map<string, number>();
+      for (const s of perPackage) count.set(s.name, (count.get(s.name) ?? 0) + 1);
+      const name = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+      if (name) {
+        full.push(step(capability, { workspaces: name }));
+        decisions.push({
+          capability,
+          gate: "full",
+          step: `workspaces ${name}`,
+          evidence: perPackage
+            .filter((s) => s.name === name)
+            .map((s) => `${s.dir}/package.json#scripts.${name}`),
+          reason: `${count.get(name)} package(s) ${capability === "test" ? "test" : "type-check"} with their own ${name} script and no root script runs them`,
+        });
+      }
+      continue;
+    }
     if (!found) continue;
     full.push(step(capability, { script: found.script }));
     decisions.push({
@@ -84,7 +141,9 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
       });
       continue;
     }
-    const tool = FILE_TOOLS[capability]?.find((t) => tools.has(t.tool));
+    // Run on the changed files from the root only when the root configures the tool: with one
+    // config per package (no root config), a root `eslint <files>` finds no configuration.
+    const tool = FILE_TOOLS[capability]?.find((t) => tools.has(t.tool) && configuredAtRoot(t.tool));
     if (tool) {
       quick.push(step(capability, { bin: tool.bin, args: [...tool.args] }, "append"));
       decisions.push({
@@ -93,6 +152,16 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
         step: `${tool.bin} on files`,
         evidence: [...(tools.get(tool.tool) ?? []), ...found.c.evidence],
         reason: `${found.c.reason}; ${tool.tool} runs on the changed files directly`,
+      });
+    } else {
+      // Nothing runs on the changed files alone: the whole lint script, slower but never empty.
+      quick.push(step(capability, { script: found.script }));
+      decisions.push({
+        capability,
+        gate: "quick",
+        step: `script ${found.script}`,
+        evidence: found.c.evidence,
+        reason: `${found.c.reason}; no linter configured at the root runs on the changed files alone`,
       });
     }
   }

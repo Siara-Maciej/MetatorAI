@@ -1,6 +1,6 @@
 # W2: fix a bug with a regression test that reproduces it first (02-workflows §3).
 kind: Workflow
-schemaVersion: 2
+schemaVersion: 3
 id: mt-bugfix
 revision: 2
 description: Reproduce, diagnose, fix behind a regression test, verify
@@ -32,6 +32,8 @@ stages:
   - id: plan-approval
     hitl: true
     skipAt: [L1]
+    # A person who rejects the plan sends it back with the reason, like a failed plan gate.
+    onFail: { goto: plan, loop: plan }
   - id: build
     description: Regression test RED, fix, GREEN
     owner: [mt-test-author, mt-implementer]
@@ -39,7 +41,7 @@ stages:
   - id: gates
     description: Gates plus no new import edges (graph diff)
     owner: mt-gatekeeper
-    produces: [gates.json]
+    produces: [gates.md]
     gate: { script: metator gate full }
     onFail: { goto: build, loop: build }
   - id: review
@@ -50,10 +52,15 @@ stages:
   - id: delivery
     hitl: true
     neverSkip: true
+    # Approving the delivery approves the push: the publish stage pushes without asking again.
+    grants: [push]
   - id: publish
     owner: mt-pr-author
     produces: [pr.md]
-loops: { plan: 2, build: 2, review: 3 }
+    # Done only when the change is committed and origin's branch is at the checked-out commit.
+    gate: { script: metator run published }
+    onFail: { goto: publish, loop: publish }
+loops: { plan: 2, build: 2, review: 3, publish: 1 }
 escalation:
   onLoopExhausted: report the hypotheses tried and options
   onAmbiguity: stop and ask (skill mt-grill)
@@ -61,10 +68,10 @@ autonomy: [L0, L1]
 permissions: { edit: plan-scope, external: [push, comment] }
 done:
   - repro.json fails before and passes after
-  - gates.json passes
+  - the gates pass
   - no blocking findings
   - push approved
 recovery: [skill mt-diagnose on a failed gate, retry a tool once, then escalate]
 resume: metator run status, then continue at the last approved stage
 telemetry: [stage_duration, tokens, loops, escalations, outcome]
-report: root cause, the regression test, links to repro.json, gates.json and verdict.json
+report: root cause, the regression test, links to repro.json, gates.md and verdict.json

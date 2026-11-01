@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_TEST_GLOBS } from "../src/application/paths.ts";
+import { matchesAny } from "../src/domain/glob.ts";
 import { lintPlan, type Plan, PlanDocument, type PlanFacts, planScope } from "../src/domain/plan.ts";
 
 const SRC = "packages/billing/src";
@@ -154,6 +155,27 @@ describe("lintPlan", () => {
     ).toBe("S2 error: use patternSource or newPatternAdr, not both");
   });
 
+  test("without a pattern catalog an exemplar only has to exist (a warning says so)", () => {
+    const none = facts({ files: FACTS.files, patterns: new Map() });
+    const lintNone = (exemplar: string) =>
+      lintPlan(
+        withSteps((steps) => {
+          steps[1] = {
+            ...(steps[1] as Plan["steps"][number]),
+            patternSource: { pattern: "formatter", exemplar, reason: "r" },
+          };
+          return steps;
+        }),
+        none,
+      ).problems.map((p) => `${p.step} ${p.severity}: ${p.message}`);
+    expect(lintNone(`${SRC}/money.ts:3`)).toEqual([
+      `S2 warning: no pattern catalog: ${SRC}/money.ts is checked to exist, not to be an occurrence of formatter`,
+    ]);
+    expect(lintNone("packages/nope/x.ts:1")).toEqual([
+      "S2 error: exemplar packages/nope/x.ts does not exist",
+    ]);
+  });
+
   test("code needs its tests first, written by a step it depends on", () => {
     const plan = withSteps((steps) => {
       (steps[1] as { dependsOn: string[] }).dependsOn = [];
@@ -166,6 +188,47 @@ describe("lintPlan", () => {
       "S4 error: code changes need testsFirst (the tests written before it)",
       `S5 error: ${SRC}/money.ts is not a test file`,
     ]);
+  });
+
+  test("a repository with no tests and a plan that adds none: a missing testsFirst only warns", () => {
+    const untested = PlanDocument.parse(
+      {
+        kind: "Plan",
+        schemaVersion: 1,
+        task: "Format dates",
+        scope: ["src/**"],
+        steps: [{ id: "S1", action: "modify", path: "src/lib/date.ts", intent: "format" }],
+      },
+      "plan.json",
+    )._unsafeUnwrap();
+    const lint = (files: string[]) =>
+      lintPlan(untested, facts({ files: new Set(files), imports: [] })).problems.map(
+        (p) => `${p.step} ${p.severity}: ${p.message}`,
+      );
+    expect(lint(["src/lib/date.ts"])).toEqual([
+      "S1 warning: changes code without testsFirst: the repository has no tests (no file matches the test globs) and the plan adds none",
+    ]);
+    // One test anywhere in the repository: tests come first again.
+    expect(lint(["src/lib/date.ts", "src/lib/url.test.ts"])).toEqual([
+      "S1 error: code changes need testsFirst (the tests written before it)",
+    ]);
+  });
+
+  test("a NestJS end-to-end test (*.e2e-spec.ts) is a test file", () => {
+    expect(matchesAny("apps/api/e2e/offer.e2e-spec.ts", DEFAULT_TEST_GLOBS)).toBe(true);
+    expect(matchesAny("src/offer.service.ts", DEFAULT_TEST_GLOBS)).toBe(false);
+    // Test directories without a .test suffix: mocha, ava, jasmine; nested in a package too.
+    for (const t of [
+      "test/morgan.js",
+      "tests/main.ts",
+      "spec/parse.mjs",
+      "packages/a/test/x.ts",
+      "test.js",
+      "test.ts",
+    ])
+      expect([t, matchesAny(t, DEFAULT_TEST_GLOBS)]).toEqual([t, true]);
+    expect(matchesAny("src/testing/helpers.ts", DEFAULT_TEST_GLOBS)).toBe(false);
+    expect(matchesAny("index.js", DEFAULT_TEST_GLOBS)).toBe(false);
   });
 
   test("an importer runs after the files it imports; transitive order is enough", () => {

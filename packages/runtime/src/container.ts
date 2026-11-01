@@ -18,14 +18,19 @@ import {
   type BackgroundProcess,
   type BaseArchitectureFacts,
   type BinResolver,
+  type BranchHistory,
+  type BranchPublication,
   type BuildImportGraph,
   type BuildModuleCards,
+  type CalibrateFinding,
   type ChangeHistory,
+  type ChangePatch,
   type CheckArchitecture,
   type CheckDebugTags,
   type CheckFlaky,
   type CheckMemory,
   type CheckoutReader,
+  type CheckPublished,
   type CheckpointRun,
   type CheckQuote,
   type CheckRules,
@@ -42,6 +47,7 @@ import {
   type CreateSystemPlan,
   type CreateWorktree,
   type DataIsolator,
+  type DescribeReviewedChange,
   type DiffContracts,
   type DiffCoverage,
   type DiffImportGraph,
@@ -126,6 +132,7 @@ import {
   type RepositoryDiscoverySource,
   type RepositoryRuns,
   type Result,
+  type ResumeRun,
   type RevisionReader,
   type RuleCatalog,
   type RuleEngine,
@@ -145,6 +152,7 @@ import {
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
+  type ShowChangeDiff,
   type ShowSystem,
   type SimulateArchitecture,
   type SimulateRefactorPlan,
@@ -173,6 +181,7 @@ import {
   type WorkspaceReader,
   type WorktreeManager,
   type WorktreeRegistry,
+  type WriteRunArtifact,
 } from "@metator/core";
 import { type AwilixContainer, AwilixResolutionError, createContainer, InjectionMode } from "awilix";
 import type { LoadedConfig } from "./config.ts";
@@ -255,6 +264,8 @@ export interface Cradle {
   guardSubagentOutput: GuardSubagentOutput;
   guardSessionStart: GuardSessionStart;
   checkpointRun: CheckpointRun;
+  writeRunArtifact: WriteRunArtifact;
+  resumeRun: ResumeRun;
   handoffRun: HandoffRun;
   closeRun: CloseRun;
   listRuns: ListRuns;
@@ -356,7 +367,13 @@ export interface Cradle {
   generateSkills: GenerateSkills;
   validateFindings: ValidateFindings;
   mergeFindings: MergeFindingSets;
+  calibrateFinding: CalibrateFinding;
   planReview: PlanReview;
+  describeReviewedChange: DescribeReviewedChange;
+  branchHistory: BranchHistory;
+  showChangeDiff: ShowChangeDiff;
+  checkPublished: CheckPublished;
+  changePatch: ChangePatch & Vcs & BranchPublication;
   judgeFindings: JudgeFindings;
   formatReviewComments: FormatReviewComments;
   evalCatalog: EvalCatalog;

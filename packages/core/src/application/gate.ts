@@ -126,6 +126,7 @@ export class RunGate {
     args: readonly string[],
   ): Promise<Result<ResolvedCommand, MetatorError>> {
     if ("script" in run) return this.packageManager.scriptCommand(run.script, args);
+    if ("workspaces" in run) return this.packageManager.workspacesCommand(run.workspaces);
     return ok(await this.bins.command(run.bin, [...run.args, ...args]));
   }
 

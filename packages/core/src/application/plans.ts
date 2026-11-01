@@ -53,7 +53,11 @@ export class LintPlan {
     if (imports.isErr()) return err(imports.error);
 
     const files = new Set<string>();
-    for (const s of plan.value.steps) if (await this.fs.exists(s.path)) files.add(s.path);
+    const named = plan.value.steps.flatMap((s) => [
+      s.path,
+      ...(s.patternSource ? [s.patternSource.exemplar.replace(/:\d+$/, "")] : []),
+    ]);
+    for (const path of new Set(named)) if (await this.fs.exists(path)) files.add(path);
     return ok(
       lintPlan(plan.value, {
         files,
@@ -61,6 +65,7 @@ export class LintPlan {
         rules: new Set((await this.rules.scan()).rules.map((r) => r.rule.id)),
         imports: imports.value,
         testGlobs: this.testGlobs,
+        hasTests: (await this.fs.glob(this.testGlobs)).some((f) => !f.includes("node_modules/")),
       }),
     );
   }

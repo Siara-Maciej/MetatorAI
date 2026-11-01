@@ -222,6 +222,65 @@ describe("proposePolicy", () => {
     expect(ArchitecturePolicySchema.parse(proposal.body).layers).toHaveLength(2);
     expect(proposePolicy(report([]), []).body).toEqual({});
   });
+
+  test("module folders inside a package are proposed, with contracts/ as their public part when they keep one", () => {
+    const r = analyzeArchitecture(input());
+    const files = ["src/module/a/x.ts", "src/module/b/contracts/q.ts", "src/module/c/x.ts"];
+    const proposal = proposePolicy(r, [], files);
+    expect(proposal.body.modules).toEqual({ globs: ["src/module/*"], public: ["contracts/**"] });
+    expect(proposal.notes.at(-1)).toBe(
+      "Modules inside packages: src/module/*, imported through their contracts/; `metator arch analyze` shows their cycles.",
+    );
+    expect(
+      proposePolicy(r, [], files.slice(0, 1).concat("src/module/b/x.ts", "src/module/c/x.ts")).body.modules,
+    ).toEqual({
+      globs: ["src/module/*"],
+    });
+    expect(ArchitecturePolicySchema.parse(proposal.body).modules?.globs).toEqual(["src/module/*"]);
+  });
+});
+
+describe("modules in the analysis", () => {
+  const modular = (policy: object) =>
+    analyzeArchitecture(
+      input({
+        files: ["src/module/a/a.ts", "src/module/b/b.ts", "src/module/b/contracts/q.ts"],
+        imports: [
+          { from: "src/module/a/a.ts", to: "src/module/b/b.ts", specifier: "../b/b", typeOnly: false },
+          { from: "src/module/b/b.ts", to: "src/module/a/a.ts", specifier: "../a/a", typeOnly: false },
+        ],
+        manifests: { packages: [manifestOf(".", { name: "api" })] },
+        policy: ArchitecturePolicySchema.parse(policy),
+      }),
+    );
+
+  test("a modules policy adds the modules section and their violations; severities apply to them", () => {
+    const r = modular({ modules: { globs: ["src/module/*"], public: ["contracts/**"] } });
+    expect(r.modules?.twoWay).toEqual([["a", "b"]]);
+    expect(r.violations.map((v) => [v.id, v.severity])).toEqual([
+      ["module-cycle:a,b", "error"],
+      ["module-internal:a→b", "error"],
+      ["module-internal:b→a", "error"],
+    ]);
+    const softer = modular({ modules: { globs: ["src/module/*"] }, severity: { "module-cycle": "warning" } });
+    expect(softer.violations.map((v) => [v.id, v.severity])).toEqual([["module-cycle:a,b", "warning"]]);
+    expect(modular({}).modules).toBeUndefined();
+  });
+
+  test("a module cycle only import type closes is a warning", () => {
+    const r = analyzeArchitecture(
+      input({
+        files: ["src/module/a/a.ts", "src/module/b/b.ts"],
+        imports: [
+          { from: "src/module/a/a.ts", to: "src/module/b/b.ts", specifier: "../b/b", typeOnly: true },
+          { from: "src/module/b/b.ts", to: "src/module/a/a.ts", specifier: "../a/a", typeOnly: false },
+        ],
+        manifests: { packages: [manifestOf(".", { name: "api" })] },
+        policy: ArchitecturePolicySchema.parse({ modules: { globs: ["src/module/*"] } }),
+      }),
+    );
+    expect(r.violations.map((v) => [v.id, v.severity])).toEqual([["module-cycle:a,b", "warning"]]);
+  });
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -258,8 +317,14 @@ describe("ArchitectureBaselineStore", () => {
     await store.save({ violations: [{ id: "cycle:a", kind: "cycle" }] });
     expect(JSON.parse((await fs.read("metator/arch-baseline.json"))._unsafeUnwrap())).toMatchObject({
       kind: "ArchitectureBaseline",
-      schemaVersion: 1,
+      schemaVersion: 2,
     });
+    expect((await store.load())._unsafeUnwrap()).toEqual({ violations: [{ id: "cycle:a", kind: "cycle" }] });
+    // A version 1 baseline (before modules) reads as it is.
+    await fs.write(
+      "metator/arch-baseline.json",
+      '{"kind":"ArchitectureBaseline","schemaVersion":1,"violations":[{"id":"cycle:a","kind":"cycle"}]}',
+    );
     expect((await store.load())._unsafeUnwrap()).toEqual({ violations: [{ id: "cycle:a", kind: "cycle" }] });
     await fs.write(
       "metator/arch-baseline.json",
@@ -510,7 +575,7 @@ describe("InitArchitecturePolicy", () => {
     expect(r.file).toBe("metator/architecture.yml");
     const text = (await fs.read("metator/architecture.yml"))._unsafeUnwrap();
     expect(text).toStartWith("# How packages may depend on each other (metator arch). 1 application(s)");
-    expect(text).toContain("kind: ArchitecturePolicy\nschemaVersion: 1\nlayers:\n  - name: apps\n");
+    expect(text).toContain("kind: ArchitecturePolicy\nschemaVersion: 2\nlayers:\n  - name: apps\n");
     expect(text).toContain("deny:\n      - type:db");
     const again = (await init.execute())._unsafeUnwrapErr();
     expect([again.code, again.message]).toEqual(["USAGE", "metator/architecture.yml already exists"]);

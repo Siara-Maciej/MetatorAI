@@ -1,5 +1,5 @@
 import { mkdir, rm } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   err,
   type FileSystem,
@@ -12,7 +12,7 @@ import {
 
 const DEFAULT_IGNORES = ["!**/node_modules/**", "!.git/**"];
 
-/** FileSystem adapter on Bun APIs. Paths in and out are repo-relative with forward slashes. */
+/** FileSystem adapter on Bun APIs. Paths in and out are repo-relative with forward slashes; absolute paths inside the root are accepted. */
 export class BunFileSystem implements FileSystem {
   constructor(private readonly root: string) {}
 
@@ -70,7 +70,8 @@ export class BunFileSystem implements FileSystem {
   }
 
   private resolve(path: string): Result<string, MetatorError> {
-    const target = join(this.root, normalizePath(path));
+    // An absolute path inside the root (`{runDir}` a host expanded) names the same file as its relative one.
+    const target = isAbsolute(path) ? resolve(path) : join(this.root, normalizePath(path));
     return relative(this.root, target).startsWith("..")
       ? err(MetatorError.usage(`Path escapes the repository root: ${path}`))
       : ok(target);

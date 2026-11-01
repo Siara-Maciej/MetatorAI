@@ -81,11 +81,8 @@ describe("metator guard (real hook processes)", () => {
       { tool_name: "Bash", tool_input: { command: "git push" } },
       repo.root,
     );
-    expect(decision(push)).toEqual({
-      hookEventName: "PreToolUse",
-      permissionDecision: "allow",
-      permissionDecisionReason: "no active run",
-    });
+    // No objection is no answer: "allow" would skip the host's own permission prompts.
+    expect([push.code, push.json]).toEqual([0, null]);
     expect((await hook(["guard", "stop"], {}, repo.root)).json).toBeNull();
   });
 
@@ -101,7 +98,7 @@ describe("metator guard (real hook processes)", () => {
       { tool_name: "Edit", tool_input: { file_path: repo.path("src/a.ts") } },
       repo.root,
     );
-    expect(decision(inside)?.permissionDecision).toBe("allow");
+    expect(inside.json).toBeNull();
     const outside = await hook(
       ["guard", "pre-tool"],
       { tool_name: "Write", tool_input: { file_path: repo.path("src/b.ts") } },
@@ -119,10 +116,19 @@ describe("metator guard (real hook processes)", () => {
     const push = { tool_name: "Bash", tool_input: { command: "git push origin feature" } };
     expect(decision(await hook(["guard", "pre-tool"], push, repo.root))?.permissionDecision).toBe("deny");
     await metator(["run", "approve", "push", "--by", "maciej"], repo.root);
-    expect(decision(await hook(["guard", "pre-tool"], push, repo.root))?.permissionDecision).toBe("allow");
+    expect((await hook(["guard", "pre-tool"], push, repo.root)).json).toBeNull();
 
     const stop = await hook(["guard", "stop"], { stop_hook_active: false }, repo.root);
     expect(stop.json).toMatchObject({ decision: "block" });
+    // In a session `metator run drive` started, the drive moves the run: the agent may stop, and
+    // may not advance the run itself.
+    const driven = { METATOR_DRIVEN: "1" };
+    expect((await hook(["guard", "stop"], { stop_hook_active: false }, repo.root, driven)).json).toBeNull();
+    const advance = { tool_name: "Bash", tool_input: { command: "metator run advance pass" } };
+    expect(
+      decision(await hook(["guard", "pre-tool"], advance, repo.root, driven))?.permissionDecisionReason,
+    ).toContain("is the drive's");
+    expect((await hook(["guard", "pre-tool"], advance, repo.root)).json).toBeNull();
     expect(String(stop.json?.reason)).toContain("stage build");
     expect((await hook(["guard", "stop"], { stop_hook_active: true }, repo.root)).json).toBeNull();
   }, 30_000); // ten hook processes

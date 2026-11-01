@@ -1,12 +1,20 @@
 import slugify from "@sindresorhus/slugify";
 import { MetatorError } from "../domain/errors.ts";
+import { type PublishedBranch, publicationProblem } from "../domain/publication.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run-machine.ts";
 import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "../domain/run-record.ts";
-import type { Clock } from "../ports/index.ts";
+import type { WorkflowSpec } from "../domain/workflow-spec.ts";
+import type { BranchPublication, Clock, FileSystem } from "../ports/index.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { CreateWorktree } from "./worktrees.ts";
+
+/** Every input a workflow declares, in `oneOf`, `required` and `optional`. */
+export function workflowInputs(spec: WorkflowSpec): string[] {
+  const i = spec.input;
+  return [...new Set([...(i?.oneOf ?? []), ...(i?.required ?? []), ...(i?.optional ?? [])])];
+}
 
 /** What commands return about a run: enough for an agent to decide its next step. */
 export interface RunView {
@@ -75,6 +83,8 @@ export interface InitRunInput {
   readonly parent?: string;
   /** The system plan step this run carries out (F7.6). */
   readonly system?: RunRecord["system"];
+  /** Values of the workflow's inputs (`base=main`): its scripts read them as `{base}`. */
+  readonly inputs?: Readonly<Record<string, string>>;
 }
 
 export class InitRun {
@@ -89,6 +99,15 @@ export class InitRun {
     const resolved = await machineFor(this.catalog, input.workflow);
     if (resolved.isErr()) return err(resolved.error);
     const { machine, source } = resolved.value;
+    const declared = workflowInputs(machine.workflow);
+    const unknown = Object.keys(input.inputs ?? {}).filter((k) => !declared.includes(k));
+    if (unknown.length > 0)
+      return err(
+        MetatorError.usage(
+          `workflow ${machine.workflow.id} has no input ${unknown.map((u) => `\`${u}\``).join(", ")}`,
+          declared.length > 0 ? `Its inputs: ${declared.join(", ")}.` : "It declares no inputs.",
+        ),
+      );
 
     const now = this.clock.now().toISOString();
     const runId = await this.uniqueId(now, machine.workflow.id, input.task);
@@ -115,6 +134,7 @@ export class InitRun {
       ...(worktree ? { worktree } : {}),
       ...(input.parent ? { parent: input.parent } : {}),
       ...(input.system ? { system: input.system } : {}),
+      ...(input.inputs && Object.keys(input.inputs).length > 0 ? { inputs: { ...input.inputs } } : {}),
     };
     const { record, lines } = skipGates(machine, created, now);
     const saved = await this.repo.save(record);
@@ -171,10 +191,16 @@ export class AdvanceRun {
     if (next.isErr()) return err(next.error);
 
     const now = this.clock.now().toISOString();
-    const approvals =
-      input.event.type === "APPROVE"
-        ? { ...record.value.approvals, [before]: approval(input.event, now) }
-        : record.value.approvals;
+    // Approving a gate that grants external actions (delivery grants push) approves them too.
+    const granted = machine.workflow.stages.find((s) => s.id === before)?.grants ?? [];
+    const given = input.event.type === "APPROVE" ? approval(input.event, now) : undefined;
+    const approvals = given
+      ? {
+          ...record.value.approvals,
+          [before]: given,
+          ...Object.fromEntries(granted.map((g) => [g, given])),
+        }
+      : record.value.approvals;
     const autopilot = input.event.type === "APPROVE" && input.event.choice === AUTOPILOT_CHOICE;
     if (autopilot && machine.workflow.autonomy && !machine.workflow.autonomy.includes("L1")) {
       return err(
@@ -201,6 +227,39 @@ export class AdvanceRun {
       if (logged.isErr()) return err(logged.error);
     }
     return ok(view(updated, machine, this.repo));
+  }
+}
+
+/** `run resume`: an escalated run goes on at the stage it escalated from, and the log says who resumed it. */
+export class ResumeRun {
+  constructor(
+    private readonly catalog: WorkflowCatalog,
+    private readonly repo: RunRepository,
+    private readonly clock: Clock,
+  ) {}
+
+  async execute(input: {
+    readonly runId?: string;
+    readonly by: string;
+  }): Promise<Result<RunView, MetatorError>> {
+    const id = await this.repo.resolveId(input.runId);
+    if (id.isErr()) return err(id.error);
+    const record = await this.repo.load(id.value);
+    if (record.isErr()) return err(record.error);
+    const resolved = await machineFor(this.catalog, record.value.workflow.id);
+    if (resolved.isErr()) return err(resolved.error);
+    const next = resolved.value.machine.resume(record.value.state);
+    if (next.isErr()) return err(next.error);
+    const now = this.clock.now().toISOString();
+    const updated = { ...record.value, state: next.value, updatedAt: now };
+    const saved = await this.repo.save(updated);
+    if (saved.isErr()) return err(saved.error);
+    const logged = await this.repo.appendLog(
+      updated.runId,
+      `${now} · resumed at ${next.value.stage} · by ${input.by}`,
+    );
+    if (logged.isErr()) return err(logged.error);
+    return ok(view(updated, resolved.value.machine, this.repo));
   }
 }
 
@@ -302,6 +361,53 @@ export class GetRunStatus {
   }
 }
 
+/**
+ * `run write <artifact>`: a coordinator writes what its stage produces (intake's `task.md`)
+ * through the CLI it may run, never a file of the code. Only an artifact the current stage
+ * declares in `produces`, in the run directory.
+ */
+export class WriteRunArtifact {
+  constructor(
+    private readonly catalog: WorkflowCatalog,
+    private readonly repo: RunRepository,
+    private readonly fs: Pick<FileSystem, "write">,
+  ) {}
+
+  async execute(input: {
+    readonly runId?: string;
+    readonly artifact: string;
+    readonly content: string;
+  }): Promise<
+    Result<{ readonly runId: string; readonly file: string; readonly bytes: number }, MetatorError>
+  > {
+    const id = await this.repo.resolveId(input.runId);
+    if (id.isErr()) return err(id.error);
+    const record = await this.repo.load(id.value);
+    if (record.isErr()) return err(record.error);
+    const entry = await this.catalog.get(record.value.workflow.id);
+    if (entry.isErr()) return err(entry.error);
+    const stage = entry.value.spec.stages.find((s) => s.id === record.value.state.stage);
+    const produces = stage?.produces ?? [];
+    if (!produces.includes(input.artifact))
+      return err(
+        MetatorError.usage(
+          `stage ${record.value.state.stage} does not produce ${input.artifact}`,
+          produces.length > 0
+            ? `It produces: ${produces.join(", ")}.`
+            : "This stage produces no artifact; its workers write theirs.",
+        ),
+      );
+    if (input.content.trim().length === 0) return err(MetatorError.usage(`${input.artifact} is empty`));
+    const file = `${this.repo.runDir(id.value)}/${input.artifact}`;
+    const written = await this.fs.write(
+      file,
+      input.content.endsWith("\n") ? input.content : `${input.content}\n`,
+    );
+    if (written.isErr()) return err(written.error);
+    return ok({ runId: id.value, file, bytes: input.content.length });
+  }
+}
+
 export class ListRuns {
   constructor(private readonly repo: RunRepository) {}
 
@@ -319,5 +425,27 @@ export class ListRuns {
       rows.push({ runId, workflow: workflow.id, stage: state.stage, status: state.status, updatedAt });
     }
     return ok(rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  }
+}
+
+/**
+ * `run published`: the publish stage's gate. The run's work is published when nothing is left
+ * uncommitted and origin's branch is at the commit checked out (asked of origin itself).
+ */
+export class CheckPublished {
+  constructor(private readonly branch: BranchPublication) {}
+
+  async execute(): Promise<Result<PublishedBranch, MetatorError>> {
+    const state = await this.branch.published();
+    if (state.isErr()) return err(state.error);
+    const problem = publicationProblem(state.value);
+    return problem
+      ? err(
+          new MetatorError("CHECK_FAILED", `not published: ${problem}`, {
+            hint: "Commit and push the run's branch; the publish stage passes when origin holds it.",
+            details: { ...state.value },
+          }),
+        )
+      : ok(state.value);
   }
 }

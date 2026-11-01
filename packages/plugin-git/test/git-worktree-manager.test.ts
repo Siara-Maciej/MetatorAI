@@ -70,3 +70,45 @@ test("switchBranch starts the new branch at this checkout's HEAD and deletes the
   expect(out(wt, "rev-parse", "HEAD")).toBe(out(dir, "rev-parse", "HEAD"));
   expect(out(dir, "branch", "--list", "metator/pool-1")).toBe("");
 });
+
+test("shared directories of the checkout are reached from the worktree through a link", async () => {
+  const dir = await repo();
+  const m = new GitWorktreeManager(dir);
+  (await m.add(".metator/wt/r1", "metator/r1", "HEAD", [".metator/runs"]))._unsafeUnwrap();
+  await writeFile(join(dir, ".metator/runs/state.json"), "{}");
+  expect(await Bun.file(join(dir, ".metator/wt/r1/.metator/runs/state.json")).text()).toBe("{}");
+  // The link is not work in the worktree: it stays clean.
+  expect((await m.isDirty(".metator/wt/r1"))._unsafeUnwrap()).toBe(false);
+  // A second worktree does not write the exclude line twice.
+  (await m.add(".metator/wt/r2", "metator/r2", "HEAD", [".metator/runs"]))._unsafeUnwrap();
+  const exclude = await Bun.file(join(dir, ".git/info/exclude")).text();
+  expect(exclude.split("\n").filter((l) => l === "/.metator/runs")).toHaveLength(1);
+});
+
+test("an uncommitted setup reaches the worktree as links, ignored there only", async () => {
+  const dir = await repo();
+  await writeFile(join(dir, "metator.config.yml"), "kind: MetatorConfig\n");
+  await Bun.write(join(dir, ".claude/skills/mt-x/SKILL.md"), "skill\n");
+  // A repository that gitignores .claude/ still uses its agents and skills in the worktree.
+  await Bun.write(join(dir, ".claude/agents/mt-y.md"), "agent\n");
+  await writeFile(join(dir, ".gitignore"), ".claude/agents/\n");
+  await Bun.write(join(dir, "src/new.ts"), "not setup\n");
+  const manager = new GitWorktreeManager(dir);
+  const setup = ["metator.config.yml", ".claude/skills", ".claude/agents", "docs/metator"];
+  expect((await manager.add(".metator/wt/a", "metator/a", "HEAD", [".metator/runs"], setup)).isOk()).toBe(
+    true,
+  );
+  const wt = join(dir, ".metator/wt/a");
+  expect(await Bun.file(join(wt, "metator.config.yml")).text()).toBe("kind: MetatorConfig\n");
+  expect(await Bun.file(join(wt, ".claude/skills/mt-x/SKILL.md")).text()).toBe("skill\n");
+  expect(await Bun.file(join(wt, ".claude/agents/mt-y.md")).text()).toBe("agent\n");
+  // Only setup paths: other untracked work of the checkout stays out of the run's worktree.
+  expect(await Bun.file(join(wt, "src/new.ts")).exists()).toBe(false);
+  // What MetatorAI writes in the worktree's own .metator/ (its index, gate reports) is no work.
+  await Bun.write(join(wt, ".metator/index/files.json"), "{}\n");
+  expect((await manager.isDirty(".metator/wt/a"))._unsafeUnwrap()).toBe(false);
+  // The checkout still shows the setup as untracked: the person still sees it to commit.
+  const status = Bun.spawnSync(["git", "status", "--short", "-uall"], { cwd: dir }).stdout.toString();
+  expect(status).toContain("?? metator.config.yml");
+  expect(status).toContain("?? .claude/skills/mt-x/SKILL.md");
+});

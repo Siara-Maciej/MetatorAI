@@ -1,10 +1,15 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  type BranchCommit,
+  type BranchHistory,
+  type BranchPublication,
   type ChangeHistory,
+  type ChangePatch,
   err,
   MetatorError,
   ok,
+  type PublishedBranch,
   type Result,
   type RevisionReader,
   type Vcs,
@@ -18,10 +23,16 @@ import { type SimpleGit, simpleGit } from "simple-git";
  * that differs from the merge base with `base`: committed on the branch, staged, unstaged,
  * deleted and untracked (non-ignored) files. Paths are repo-relative.
  */
-export class GitVcs implements Vcs, RevisionReader, ChangeHistory {
+export class GitVcs
+  implements Vcs, RevisionReader, ChangeHistory, BranchHistory, ChangePatch, BranchPublication
+{
   private client: SimpleGit | undefined;
 
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    /** Path prefixes that are never a change (MetatorAI's own state, before it is gitignored). */
+    private readonly own: readonly string[] = [],
+  ) {}
 
   async changedFiles(base: string): Promise<Result<readonly string[], MetatorError>> {
     const git = await this.repo();
@@ -29,12 +40,14 @@ export class GitVcs implements Vcs, RevisionReader, ChangeHistory {
     return this.attempt(async () => {
       const status = await git.value.status();
       // No commits yet: everything staged or untracked is new.
-      if (!(await this.hasCommits(git.value))) return ok(sortedUnique(status.files.map((f) => f.path)));
+      const mine = (f: string) => !this.own.some((p) => f.startsWith(p));
+      if (!(await this.hasCommits(git.value)))
+        return ok(sortedUnique(status.files.map((f) => f.path)).filter(mine));
       const ref = await this.mergeBase(git.value, base);
       if (ref.isErr()) return err(ref.error);
       // --no-renames: a rename counts under both paths, the old path's importers are affected too.
       const diff = (await git.value.diffSummary(["--no-renames", ref.value])).files.map((f) => f.file);
-      return ok(sortedUnique([...diff, ...status.not_added]));
+      return ok(sortedUnique([...diff, ...status.not_added]).filter(mine));
     });
   }
 
@@ -133,6 +146,94 @@ export class GitVcs implements Vcs, RevisionReader, ChangeHistory {
         else if (line !== "") out.at(-1)?.push(line);
       }
       return ok(out);
+    });
+  }
+
+  async patch(base: string, files?: readonly string[]): Promise<Result<string, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      const status = await git.value.status();
+      const wanted = (f: string) => (!files || files.includes(f)) && !this.own.some((p) => f.startsWith(p));
+      const parts: string[] = [];
+      if (await this.hasCommits(git.value)) {
+        const ref = await this.mergeBase(git.value, base);
+        if (ref.isErr()) return err(ref.error);
+        const paths = files ? [...files] : [];
+        // No external diff driver or textconv: a repository's config cannot run a program here.
+        const text = await git.value.raw([
+          "diff",
+          "--no-ext-diff",
+          "--no-textconv",
+          "--no-color",
+          ref.value,
+          "--",
+          ...paths,
+        ]);
+        if (text) parts.push(text.trimEnd());
+      }
+      for (const f of status.not_added.filter(wanted).sort()) {
+        const path = join(this.root, f);
+        if (!existsSync(path)) continue;
+        const lines = readFileSync(path, "utf8").replace(/\n$/, "").split("\n");
+        parts.push(
+          [
+            `diff --git a/${f} b/${f}`,
+            "new file",
+            "--- /dev/null",
+            `+++ b/${f}`,
+            `@@ -0,0 +1,${lines.length} @@`,
+          ]
+            .concat(lines.map((l) => `+${l}`))
+            .join("\n"),
+        );
+      }
+      return ok(parts.length > 0 ? `${parts.join("\n")}\n` : "");
+    });
+  }
+
+  async branch(base: string): ReturnType<BranchHistory["branch"]> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      const status = await git.value.status();
+      const uncommitted = !status.isClean();
+      const branch = status.detached ? null : status.current;
+      if (!(await this.hasCommits(git.value)))
+        return ok({ branch, head: null, mergeBase: null, commits: [] as BranchCommit[], uncommitted });
+      const head = (await git.value.revparse(["HEAD"])).trim();
+      const ref = await this.mergeBase(git.value, base);
+      if (ref.isErr()) return err(ref.error);
+      const mergeBase = ref.value === "HEAD" ? head : ref.value;
+      const commits: BranchCommit[] = [];
+      for (const line of (
+        await git.value.raw(["log", "--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s", `${mergeBase}..HEAD`])
+      ).split("\n")) {
+        const [sha, author, email, date, subject] = line.split("\u001f");
+        if (sha && author !== undefined && email !== undefined && date !== undefined)
+          commits.push({ sha, author, email, date, subject: subject ?? "" });
+      }
+      return ok({ branch, head, mergeBase, commits, uncommitted });
+    });
+  }
+
+  async published(): Promise<Result<PublishedBranch, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return this.attempt(async () => {
+      const branch = (await git.value.revparse(["--abbrev-ref", "HEAD"])).trim();
+      const head = (await git.value.revparse(["HEAD"])).trim();
+      // Where pushes go: a fork or a mirror pushes to another URL than it fetches from.
+      const pushUrl = (await git.value.raw(["remote", "get-url", "--push", "origin"])).trim();
+      const listed = (await git.value.raw(["ls-remote", pushUrl, `refs/heads/${branch}`])).trim();
+      const status = await git.value.status();
+      const mine = (f: string) => !this.own.some((p) => f.startsWith(p));
+      return ok({
+        branch,
+        head,
+        remote: listed === "" ? null : (listed.split(/\s+/)[0] ?? null),
+        uncommitted: sortedUnique(status.files.map((f) => f.path)).filter(mine),
+      });
     });
   }
 

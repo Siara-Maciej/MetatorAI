@@ -1,13 +1,16 @@
-import type { MetatorError } from "../domain/errors.ts";
+import { MetatorError } from "../domain/errors.ts";
 import {
+  calibrateFinding,
   type Finding,
   type FindingSet,
   FindingSetDocument,
+  type FindingSeverity,
   mergeFindings,
   policyProblems,
 } from "../domain/finding.ts";
 import { locateQuote } from "../domain/memory.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { ReviewPlanDocument } from "../domain/review-plan.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
 
@@ -26,6 +29,8 @@ export interface FindingsReport {
   readonly counts: Readonly<Record<FindingVerdict["status"], number>>;
   /** Files that are not valid FindingSet documents. */
   readonly unreadable: readonly { readonly source: string; readonly message: string }[];
+  /** With a review plan: the lens × shard files no lens wrote (`<lens>-<shard>.json`). */
+  readonly missing: readonly string[];
 }
 
 const MERGED = "merged.json";
@@ -41,7 +46,23 @@ export class ValidateFindings {
   async execute(input: {
     readonly dir: string;
     readonly fix: boolean;
+    /** review-plan.json: every lens must have written its file for every shard. */
+    readonly plan?: string;
   }): Promise<Result<FindingsReport, MetatorError>> {
+    const missing: string[] = [];
+    if (input.plan) {
+      const text = await this.fs.read(input.plan);
+      if (text.isErr()) return err(text.error);
+      const plan = parseJsonDocument(text.value, input.plan).andThen((raw) =>
+        ReviewPlanDocument.parse(raw, input.plan as string),
+      );
+      if (plan.isErr()) return err(plan.error);
+      for (const shard of plan.value.shards)
+        for (const lens of plan.value.lenses) {
+          const file = `${input.dir.replace(/\/$/, "")}/${lens}-${shard.id}.json`;
+          if (!(await this.fs.exists(file))) missing.push(file);
+        }
+    }
     const sets = await loadSets(this.fs, input.dir);
     const verdicts: FindingVerdict[] = [];
     for (const { source, set } of sets.sets) {
@@ -65,7 +86,7 @@ export class ValidateFindings {
     }
     const counts = { valid: 0, moved: 0, fixed: 0, invalid: 0 };
     for (const v of verdicts) counts[v.status]++;
-    return ok({ files: sets.sets.length, findings: verdicts, counts, unreadable: sets.unreadable });
+    return ok({ files: sets.sets.length, findings: verdicts, counts, unreadable: sets.unreadable, missing });
   }
 
   private async check(f: Finding, source: string, fix: boolean): Promise<FindingVerdict> {
@@ -84,6 +105,55 @@ export class ValidateFindings {
     if (match.status === "moved")
       return { id: f.id, source, status: fix ? "fixed" : "moved", reasons: [], line: match.line };
     return { id: f.id, source, status: "valid", reasons: [] };
+  }
+}
+
+/** `findings calibrate`: the judge sets a merged finding's severity and folds duplicates into it. */
+export class CalibrateFinding {
+  constructor(private readonly fs: FileSystem) {}
+
+  async execute(input: {
+    readonly dir: string;
+    readonly id: string;
+    readonly severity?: FindingSeverity;
+    readonly merge?: readonly string[];
+    readonly trigger?: string;
+    readonly reachability?: string;
+    readonly evidence?: NonNullable<Finding["evidence"]>;
+  }): Promise<
+    Result<{ readonly output: string; readonly findings: number; readonly finding: Finding }, MetatorError>
+  > {
+    const output = `${input.dir.replace(/\/$/, "")}/${MERGED}`;
+    const set = (await this.fs.read(output))
+      .andThen((text) => parseJsonDocument(text, output))
+      .andThen((raw) => FindingSetDocument.parse(raw, output));
+    if (set.isErr()) return err(set.error);
+    const { dir: _dir, ...change } = input;
+    const changed = calibrateFinding(set.value.findings, change);
+    if ("unknown" in changed)
+      return err(
+        MetatorError.usage(
+          `no finding ${changed.unknown.join(", ")} in ${output}`,
+          "Run `metator findings merge` first; calibrate the ids merged.json lists.",
+        ),
+      );
+    if ("problems" in changed)
+      return err(
+        MetatorError.usage(
+          `${input.id} cannot be ${input.severity ?? "kept"}: ${changed.problems.join("; ")}`,
+          "A blocker names its trigger, reachability and evidence: pass --trigger, --reachability and --evidence <test|trace|rule|doc>:<ref>.",
+        ),
+      );
+    const saved = await this.fs.write(
+      output,
+      serializeJsonDocument(FindingSetDocument.stamp({ ...set.value, findings: changed.findings })),
+    );
+    if (saved.isErr()) return err(saved.error);
+    return ok({
+      output,
+      findings: changed.findings.length,
+      finding: changed.findings.find((f) => f.id === input.id) as Finding,
+    });
   }
 }
 
@@ -114,9 +184,16 @@ export class MergeFindingSets {
     );
     const { merged, duplicates } = mergeFindings(kept);
     const output = `${input.dir.replace(/\/$/, "")}/${MERGED}`;
+    // A workflow that resumes runs merge again: the verifications already recorded for the same
+    // finding (id, file and quote) stay, so the verify stage is not lost.
+    const verified = await this.verifications(output);
+    const findings = merged.map((f) => {
+      const v = verified.get(sameFinding(f));
+      return v && !f.verification ? { ...f, verification: v } : f;
+    });
     const saved = await this.fs.write(
       output,
-      serializeJsonDocument(FindingSetDocument.stamp({ lens: "merged", findings: merged })),
+      serializeJsonDocument(FindingSetDocument.stamp({ lens: "merged", findings })),
     );
     if (saved.isErr()) return err(saved.error);
     return ok({
@@ -127,7 +204,19 @@ export class MergeFindingSets {
       output,
     });
   }
+
+  private async verifications(path: string): Promise<Map<string, NonNullable<Finding["verification"]>>> {
+    const out = new Map<string, NonNullable<Finding["verification"]>>();
+    const text = await this.fs.read(path);
+    if (text.isErr()) return out;
+    const set = parseJsonDocument(text.value, path).andThen((raw) => FindingSetDocument.parse(raw, path));
+    if (set.isErr()) return out; // an unreadable previous merge is replaced, not trusted
+    for (const f of set.value.findings) if (f.verification) out.set(sameFinding(f), f.verification);
+    return out;
+  }
 }
+
+const sameFinding = (f: Finding) => `${f.id}\u0000${f.location.file}\u0000${f.quote}`;
 
 async function loadSets(
   fs: FileSystem,
