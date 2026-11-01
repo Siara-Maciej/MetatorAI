@@ -288,7 +288,11 @@ export function deliveryCommand(command: string, dirs: readonly string[]): boole
     !arg.startsWith("~") &&
     (!arg.startsWith("/") || dirs.some((d) => arg === d || arg.startsWith(`${d.replace(/\/$/, "")}/`)));
   const writes = (argv: readonly string[]): boolean => {
-    const [git, sub, ...args] = argv;
+    // `git -C <the worktree> add -A`: the same command, aimed at a directory the agent works in.
+    const at = argv[1] === "-C" ? 3 : 1;
+    if (at === 3 && !(inside(argv[2] ?? "/") && argv[2] !== undefined)) return false;
+    const [git] = argv;
+    const [sub, ...args] = argv.slice(at);
     if (git !== "git") return false;
     if (sub === "add")
       return args.every((a) => a === "-A" || a === "--all" || (!a.startsWith("-") && inside(a)));

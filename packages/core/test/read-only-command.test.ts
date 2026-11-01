@@ -198,8 +198,9 @@ describe("deliveryCommand", () => {
         "git add -A && git commit -q -m 'x' && git push -u origin metator/20261101-run",
         "git status && git commit -a -m msg",
         'git commit -m "fix: year\n\nShow the year outside the current year."',
+        "git -C /repo/.metator/wt/r add -A",
       ].map(go),
-    ).toEqual([true, true, true, true, true, true]);
+    ).toEqual([true, true, true, true, true, true, true]);
   });
   test("never a force push, an amend, a skipped hook, a setting, another remote or a path outside", () => {
     expect(
@@ -223,8 +224,10 @@ describe("deliveryCommand", () => {
         'git commit -m "x"\nrm -rf src',
         // An unquoted line break starts a command, even one that looks like more paths to add.
         "git add src\nrm src",
+        "git -C /etc add -A",
+        "git -C",
       ].map(go),
-    ).toEqual(Array(18).fill(false));
+    ).toEqual(Array(20).fill(false));
   });
 });
 

@@ -212,6 +212,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "metator version only prints",
   },
   {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (at === 3 && !(inside(argv[2] ?? "/") && argv[2] !== undefined)) return false;',
+    to: "",
+    why: "git -C names a directory the agent works in",
+  },
+  {
     file: "packages/core/src/application/paths.ts",
     from: '  "**/{test,tests,spec}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",\n',
     to: "",
