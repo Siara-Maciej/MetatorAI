@@ -146,6 +146,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "git's @{u} is no workflow input",
   },
   {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: "return inside && declared.some((p) => rest === p || rest.startsWith(`${p} `));",
+    to: "return declared.some((p) => rest === p || rest.startsWith(`${p} `));",
+    why: "a cd out of the working directories is not dropped",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: 'if (rest.includes("&&")) return false;',
+    to: "",
+    why: "a chain after the declared command is not the declared command",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: "declaredAfterCd(input.command, declared, dirs))",
+    to: "false)",
+    why: "cd into a working directory before a declared command asks no one",
+  },
+  {
     file: "packages/core/src/application/paths.ts",
     from: '  "**/{test,tests,spec}/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",\n',
     to: "",

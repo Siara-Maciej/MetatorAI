@@ -166,14 +166,14 @@ function metatorQuery(argv: readonly string[]): boolean {
   return command !== undefined && !rest.some((a) => WRITING_OPTIONS.test(a));
 }
 
-/** `metator help` or `metator <command…> --help`: help prints, it runs nothing. */
+/** `metator help [command…]` or `metator <command…> --help`: help prints, it runs nothing. */
 function metatorHelp(argv: readonly string[]): boolean {
   const [program, ...rest] = argv;
   if (program !== "metator" || rest.length === 0) return false;
   const last = rest.at(-1) as string;
   const words = rest.slice(0, -1);
   return (
-    (rest.length === 1 && last === "help") ||
+    (rest[0] === "help" && rest.slice(1).every((w) => /^[a-z][a-z0-9-]*$/.test(w))) ||
     ((last === "--help" || last === "-h") && words.every((w) => /^[a-z][a-z0-9-]*$/.test(w)))
   );
 }
@@ -307,4 +307,26 @@ export function deliveryCommand(command: string, dirs: readonly string[]): boole
     parts.some(writes) &&
     parts.every((p) => writes(p) || readOnlyCommand(p.join(" "), dirs))
   );
+}
+
+/**
+ * `cd <dir> && <command>` where the directory is one the agent works in and the command is one its
+ * definition declares (`metator findings`): the same call without the `cd`, which agents add out of
+ * habit. Only one `cd` and one command; anything else (another `&&`, a pipe, a substitution) is not.
+ */
+export function declaredAfterCd(
+  command: string,
+  declared: readonly string[],
+  dirs: readonly string[],
+): boolean {
+  if (/[`\n\r;|<>]|\$\(/.test(command)) return false;
+  const m = /^\s*cd\s+(\S+)\s*&&\s*(.+)$/.exec(command);
+  if (!m) return false;
+  const dir = (m[1] as string).replace(/\/$/, "");
+  const rest = (m[2] as string).trim();
+  if (rest.includes("&&")) return false;
+  const inside =
+    !dir.split("/").includes("..") &&
+    dirs.some((d) => dir === d.replace(/\/$/, "") || dir.startsWith(`${d.replace(/\/$/, "")}/`));
+  return inside && declared.some((p) => rest === p || rest.startsWith(`${p} `));
 }

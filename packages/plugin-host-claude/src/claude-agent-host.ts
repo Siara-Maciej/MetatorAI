@@ -7,6 +7,7 @@ import {
   type AgentQuestion,
   type AgentTask,
   DRIVEN_RUN_CONTROL,
+  declaredAfterCd,
   deliveryCommand,
   permissionResponse,
   readOnlyCommand,
@@ -142,6 +143,10 @@ export class ClaudeAgentHost implements AgentHost {
     // the run's own artifacts (the stage's job) and editing the run's own worktree (isolated;
     // nothing leaves it without a person, push needs an approval). A write anywhere else, the
     // checkout itself included, asks a person. A file that may hold secrets is denied before this.
+    // The commands the agent's definition declares (`Bash(metator findings:*)` → `metator findings`).
+    const declared = declaredCommands(join(task.projectRoot, ".claude", "agents", `${task.agent}.md`)).map(
+      (t) => t.slice("Bash(".length, -":*)".length),
+    );
     const needsNoPerson = (tool: string, input: Record<string, unknown>): boolean => {
       if (tool === "Bash")
         return (
@@ -150,7 +155,8 @@ export class ClaudeAgentHost implements AgentHost {
             // After the push is approved: committing and pushing the run's branch in its worktree.
             (isolated &&
               (task.approved ?? []).includes("push") &&
-              deliveryCommand(input.command, [task.cwd])))
+              deliveryCommand(input.command, [task.cwd])) ||
+            declaredAfterCd(input.command, declared, dirs))
         );
       const file = input.file_path ?? input.path ?? task.cwd;
       if (typeof file !== "string") return false;

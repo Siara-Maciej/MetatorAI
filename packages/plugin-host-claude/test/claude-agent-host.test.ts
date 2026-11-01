@@ -62,6 +62,26 @@ describe("ClaudeAgentHost", () => {
     expect(inRepo.calls[0]?.options.projectConfigRoot).toBeUndefined();
   });
 
+  test("a cd into a working directory before a declared command asks no one; elsewhere it asks", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metator-claude-"));
+    await Bun.write(
+      join(root, ".claude/agents/mt-planner.md"),
+      "---\nname: mt-planner\ntools: Read, Bash(metator plan:*)\n---\n# Role\n",
+    );
+    const asked: string[] = [];
+    const { query } = fakeQuery(async (can) => {
+      await can("Bash", { command: `cd ${root} && metator plan scope .metator/runs/r/plan.json` });
+      await can("Bash", { command: "cd /etc && metator plan scope x" });
+      return [init, success];
+    });
+    await collect(new ClaudeAgentHost(query), { ...task, projectRoot: root }, async (q) => {
+      asked.push(q.prompt.replace("mt-planner wants to use Bash: ", ""));
+      return { choices: ["Deny"] };
+    });
+    expect(asked).toEqual(["cd /etc && metator plan scope x"]);
+    await rm(root, { recursive: true, force: true });
+  });
+
   test("the agent's narrow command grants are pre-approved; broad tools are not", async () => {
     const root = await mkdtemp(join(tmpdir(), "metator-claude-"));
     await Bun.write(

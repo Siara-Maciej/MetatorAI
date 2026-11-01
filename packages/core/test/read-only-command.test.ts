@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { deliveryCommand, readOnlyCommand } from "../src/domain/read-only-command.ts";
+import { declaredAfterCd, deliveryCommand, readOnlyCommand } from "../src/domain/read-only-command.ts";
 
 const DIRS = ["/folder", "/repo/.metator/runs/r"];
 const ro = (command: string) => readOnlyCommand(command, DIRS);
@@ -95,6 +95,11 @@ describe("readOnlyCommand", () => {
       true,
       true,
       true,
+    ]);
+    expect([ro("metator help findings"), ro("metator help run answer"), ro("metator help ../x")]).toEqual([
+      true,
+      true,
+      false,
     ]);
     expect(ro("metator run advance pass")).toBe(false);
     expect(ro("metator run advance --help --reason x")).toBe(false);
@@ -211,5 +216,33 @@ describe("deliveryCommand", () => {
         "git add src\nrm src",
       ].map(go),
     ).toEqual(Array(18).fill(false));
+  });
+});
+
+describe("declaredAfterCd", () => {
+  const declared = ["metator findings", "metator run status"];
+  const dirs = ["/repo", "/repo/.metator/runs/r"];
+  test("a declared command after a cd into a working directory is the same call without the cd", () => {
+    expect(
+      [
+        "cd /repo && metator findings merge .metator/runs/r/findings",
+        "cd /repo/.metator/runs/r && metator run status",
+        "cd /repo/ && metator findings validate x",
+      ].map((c) => declaredAfterCd(c, declared, dirs)),
+    ).toEqual([true, true, true]);
+  });
+  test("anything else is not: another directory, another command, a chain, a pipe, a substitution", () => {
+    expect(
+      [
+        "cd /etc && metator findings merge x",
+        "cd /repo/../etc && metator findings merge x",
+        "cd /repo && metator gate full",
+        "cd /repo && metator findingsx",
+        "cd /repo && metator findings merge x && rm -rf src",
+        "cd /repo && metator findings merge x | tee y",
+        "cd /repo && metator findings merge $(pwd)",
+        "metator findings merge x",
+      ].map((c) => declaredAfterCd(c, declared, dirs)),
+    ).toEqual(Array(8).fill(false));
   });
 });
