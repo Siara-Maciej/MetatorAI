@@ -40,6 +40,8 @@ paths:
 # What the import graph and knowledge scans ignore, and what counts as a test.
 project:
   sourceIgnores: ["**/node_modules/**", "**/dist/**", "**/generated/**"]
+  # Default: *.test.* and *.spec.* files, *.e2e-spec.*, __tests__/, and any script under test/,
+  # tests/ or spec/ (mocha's test/app.js, ava's test/main.ts). Set it only to narrow or widen that.
   testGlobs: ["**/*.test.ts", "**/__tests__/**"]
 
 # Generated host files.

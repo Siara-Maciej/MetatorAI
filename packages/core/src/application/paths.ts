@@ -109,4 +109,7 @@ export const DEFAULT_TEST_GLOBS: readonly string[] = [
   // NestJS end-to-end tests: test/app.e2e-spec.ts.
   "**/*.e2e-spec.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
   "**/__tests__/**",
+  // Test directories whose files carry no .test suffix: mocha's test/morgan.js, ava's test/main.ts,
+  // jasmine's spec/.
+  "**/{test,tests,spec}/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
 ];

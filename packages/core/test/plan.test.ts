@@ -215,8 +215,13 @@ describe("lintPlan", () => {
   });
 
   test("a NestJS end-to-end test (*.e2e-spec.ts) is a test file", () => {
-    expect(matchesAny("test/e2e/offer.e2e-spec.ts", DEFAULT_TEST_GLOBS)).toBe(true);
+    expect(matchesAny("apps/api/e2e/offer.e2e-spec.ts", DEFAULT_TEST_GLOBS)).toBe(true);
     expect(matchesAny("src/offer.service.ts", DEFAULT_TEST_GLOBS)).toBe(false);
+    // Test directories without a .test suffix: mocha, ava, jasmine; nested in a package too.
+    for (const t of ["test/morgan.js", "tests/main.ts", "spec/parse.mjs", "packages/a/test/x.ts"])
+      expect([t, matchesAny(t, DEFAULT_TEST_GLOBS)]).toEqual([t, true]);
+    expect(matchesAny("src/testing/helpers.ts", DEFAULT_TEST_GLOBS)).toBe(false);
+    expect(matchesAny("index.js", DEFAULT_TEST_GLOBS)).toBe(false);
   });
 
   test("an importer runs after the files it imports; transitive order is enough", () => {
