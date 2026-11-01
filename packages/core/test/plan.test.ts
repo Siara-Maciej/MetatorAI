@@ -190,6 +190,30 @@ describe("lintPlan", () => {
     ]);
   });
 
+  test("a repository with no tests and a plan that adds none: a missing testsFirst only warns", () => {
+    const untested = PlanDocument.parse(
+      {
+        kind: "Plan",
+        schemaVersion: 1,
+        task: "Format dates",
+        scope: ["src/**"],
+        steps: [{ id: "S1", action: "modify", path: "src/lib/date.ts", intent: "format" }],
+      },
+      "plan.json",
+    )._unsafeUnwrap();
+    const lint = (files: string[]) =>
+      lintPlan(untested, facts({ files: new Set(files), imports: [] })).problems.map(
+        (p) => `${p.step} ${p.severity}: ${p.message}`,
+      );
+    expect(lint(["src/lib/date.ts"])).toEqual([
+      "S1 warning: changes code without testsFirst: the repository has no tests (no file matches the test globs) and the plan adds none",
+    ]);
+    // One test anywhere in the repository: tests come first again.
+    expect(lint(["src/lib/date.ts", "src/lib/url.test.ts"])).toEqual([
+      "S1 error: code changes need testsFirst (the tests written before it)",
+    ]);
+  });
+
   test("a NestJS end-to-end test (*.e2e-spec.ts) is a test file", () => {
     expect(matchesAny("test/e2e/offer.e2e-spec.ts", DEFAULT_TEST_GLOBS)).toBe(true);
     expect(matchesAny("src/offer.service.ts", DEFAULT_TEST_GLOBS)).toBe(false);

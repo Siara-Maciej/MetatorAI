@@ -65,6 +65,7 @@ export class LintPlan {
         rules: new Set((await this.rules.scan()).rules.map((r) => r.rule.id)),
         imports: imports.value,
         testGlobs: this.testGlobs,
+        hasTests: (await this.fs.glob(this.testGlobs)).some((f) => !f.includes("node_modules/")),
       }),
     );
   }

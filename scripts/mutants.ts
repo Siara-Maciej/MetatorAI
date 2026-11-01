@@ -116,6 +116,48 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a service that handles nothing a sender sends is no dependency",
   },
   {
+    file: "packages/plugin-git/src/git-worktree-manager.ts",
+    from: "      await this.linkSetup(path, setup, shared);\n",
+    to: "",
+    why: "a setup not committed yet reaches the run's worktree",
+  },
+  {
+    file: "packages/plugin-git/src/git-worktree-manager.ts",
+    from: "...new Set(shared.map((d) => `/$" + '{d.split("/")[0]}/`)),',
+    to: "",
+    why: "the worktree's own .metator/ (index, gate reports) is no work",
+  },
+  {
+    file: "packages/plugin-git/src/git-worktree-manager.ts",
+    from: 'await wt.raw(["config", "--worktree", "core.excludesFile", excludes]);',
+    to: "",
+    why: "the setup links are ignored in the worktree, so it stays clean",
+  },
+  {
+    file: "packages/core/src/domain/plan.ts",
+    from: "!(facts.hasTests ?? [...facts.files].some(isTest)) &&",
+    to: "",
+    why: "a repository with tests still needs tests first",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: 'if (blocks) return ok({ type: "FAIL", reason: blocks });',
+    to: "",
+    why: "a review stage passes only on an approving verdict",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
+    from: '  "findings validate",\n',
+    to: "",
+    why: "findings validate only reads",
+  },
+  {
+    file: "packages/core/src/application/plans.ts",
+    from: 'hasTests: (await this.fs.glob(this.testGlobs)).some((f) => !f.includes("node_modules/")),',
+    to: "",
+    why: "whether a repository has tests is read from its files",
+  },
+  {
     file: "packages/core/src/domain/proposal.ts",
     from: "workspace.has(s.dir) &&",
     to: "",

@@ -23,6 +23,18 @@ export type Verdict = z.output<typeof VerdictSchema>;
 
 export const VerdictDocument = defineDocument("Verdict", { latest: VerdictSchema });
 
+/**
+ * Why a review stage cannot pass on this verdict, or undefined when it approves. Deterministic: a
+ * critic that agrees the verdict is right must not turn CHANGES_REQUIRED into a pass.
+ */
+export function verdictBlocks(verdict: Verdict): string | undefined {
+  if (verdict.decision === "APPROVED") return undefined;
+  const open = [...verdict.blocking, ...verdict.unverified]
+    .slice(0, 3)
+    .map((f) => `${f.location.file}:${f.location.line} ${f.claim}`);
+  return `the review decided ${verdict.decision}${open.length > 0 ? `: ${open.join("; ")}` : ""}`;
+}
+
 export function judge(findings: readonly Finding[], verifiedCorrect: readonly string[] = []): Verdict {
   const live = findings.filter((f) => f.verification?.status !== "refuted");
   const blocking = live.filter((f) => f.severity === "blocking" && f.verification?.status === "confirmed");

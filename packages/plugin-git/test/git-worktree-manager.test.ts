@@ -84,3 +84,27 @@ test("shared directories of the checkout are reached from the worktree through a
   const exclude = await Bun.file(join(dir, ".git/info/exclude")).text();
   expect(exclude.split("\n").filter((l) => l === "/.metator/runs")).toHaveLength(1);
 });
+
+test("an uncommitted setup reaches the worktree as links, ignored there only", async () => {
+  const dir = await repo();
+  await writeFile(join(dir, "metator.config.yml"), "kind: MetatorConfig\n");
+  await Bun.write(join(dir, ".claude/skills/mt-x/SKILL.md"), "skill\n");
+  await Bun.write(join(dir, "src/new.ts"), "not setup\n");
+  const manager = new GitWorktreeManager(dir);
+  const setup = ["metator.config.yml", ".claude/skills", "docs/metator"];
+  expect((await manager.add(".metator/wt/a", "metator/a", "HEAD", [".metator/runs"], setup)).isOk()).toBe(
+    true,
+  );
+  const wt = join(dir, ".metator/wt/a");
+  expect(await Bun.file(join(wt, "metator.config.yml")).text()).toBe("kind: MetatorConfig\n");
+  expect(await Bun.file(join(wt, ".claude/skills/mt-x/SKILL.md")).text()).toBe("skill\n");
+  // Only setup paths: other untracked work of the checkout stays out of the run's worktree.
+  expect(await Bun.file(join(wt, "src/new.ts")).exists()).toBe(false);
+  // What MetatorAI writes in the worktree's own .metator/ (its index, gate reports) is no work.
+  await Bun.write(join(wt, ".metator/index/files.json"), "{}\n");
+  expect((await manager.isDirty(".metator/wt/a"))._unsafeUnwrap()).toBe(false);
+  // The checkout still shows the setup as untracked: the person still sees it to commit.
+  const status = Bun.spawnSync(["git", "status", "--short", "-uall"], { cwd: dir }).stdout.toString();
+  expect(status).toContain("?? metator.config.yml");
+  expect(status).toContain("?? .claude/skills/mt-x/SKILL.md");
+});

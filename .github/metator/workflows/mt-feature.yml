@@ -35,6 +35,8 @@ stages:
     description: The human approves the plan
     hitl: true
     skipAt: [L1]
+    # A person who rejects the plan sends it back with the reason, like a failed plan gate.
+    onFail: { goto: plan, loop: plan }
   - id: build
     description: Tests RED then GREEN, edits only inside the plan scope
     owner: [mt-test-author, mt-implementer, skill:mt-create-from-pattern]

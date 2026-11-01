@@ -33,6 +33,8 @@ stages:
   - id: plan-approval
     hitl: true
     skipAt: [L1]
+    # A person who rejects the plan sends it back with the reason, like a failed plan gate.
+    onFail: { goto: plan, loop: plan }
   - id: build
     description: One step at a time, gate quick plus api diff and graph diff after each
     owner: mt-refactorer

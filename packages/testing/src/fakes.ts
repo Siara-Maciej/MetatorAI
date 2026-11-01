@@ -146,7 +146,10 @@ export class FakeRuleEngine implements RuleEngine {
 
 /** WorktreeManager in memory: records worktrees; `dirty` marks paths with uncommitted work. */
 export class FakeWorktreeManager implements WorktreeManager {
-  readonly worktrees = new Map<string, { branch: string; base: string; shared?: readonly string[] }>();
+  readonly worktrees = new Map<
+    string,
+    { branch: string; base: string; shared?: readonly string[]; setup?: readonly string[] }
+  >();
   readonly dirty = new Set<string>();
 
   async add(
@@ -154,9 +157,15 @@ export class FakeWorktreeManager implements WorktreeManager {
     branch: string,
     base: string,
     shared: readonly string[] = [],
+    setup: readonly string[] = [],
   ): Promise<Result<void, MetatorError>> {
     if (this.worktrees.has(path)) return err(new MetatorError("COMMAND_FAILED", `${path} already exists`));
-    this.worktrees.set(path, { branch, base, ...(shared.length > 0 ? { shared } : {}) });
+    this.worktrees.set(path, {
+      branch,
+      base,
+      ...(shared.length > 0 ? { shared } : {}),
+      ...(setup.length > 0 ? { setup } : {}),
+    });
     return ok(undefined);
   }
 

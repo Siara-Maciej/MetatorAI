@@ -140,6 +140,7 @@ const METATOR_QUERIES = new Set([
   "changed",
   "findings schema",
   "findings check-quote",
+  "findings validate",
   "plan lint",
   "plan schema",
   "arch cycles",

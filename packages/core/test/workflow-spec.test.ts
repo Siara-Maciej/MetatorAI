@@ -80,3 +80,14 @@ describe("workflow spec", () => {
     );
   });
 });
+
+describe("shipped workflows", () => {
+  test("a person who rejects a plan sends it back to the planner with the reason", async () => {
+    for (const id of ["mt-feature", "mt-bugfix", "mt-refactor"]) {
+      const file = `${import.meta.dir}/../../../.github/metator/workflows/${id}.yml`;
+      const spec = parseWorkflowYaml(await Bun.file(file).text(), file)._unsafeUnwrap();
+      const approval = spec.stages.find((s) => s.id === "plan-approval");
+      expect([id, approval?.hitl, approval?.onFail?.goto]).toEqual([id, true, "plan"]);
+    }
+  });
+});

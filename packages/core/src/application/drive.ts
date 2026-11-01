@@ -20,6 +20,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
 import { fillInputs } from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
+import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
 import { parseJsonDocument, serializeJsonDocument, serializeJsonLine } from "../domain/versioned.ts";
 import type { StageSpec } from "../domain/workflow-spec.ts";
 import type { AgentHost, Clock, FileSystem, ProcessRunner, Timer } from "../ports/index.ts";
@@ -445,6 +446,16 @@ export class DriveRun {
       if (!there) missing.push(artifact);
     }
     if (missing.length > 0) return ok({ type: "FAIL", reason: `missing artifacts: ${missing.join(", ")}` });
+    // A stage that produces the review's verdict passes only on an approval, whatever its critic says.
+    if ((ctx.stage.produces ?? []).includes("verdict.json")) {
+      const file = `${this.d.repo.runDir(ctx.runId)}/verdict.json`;
+      const verdict = (await this.d.fs.read(file))
+        .andThen((text) => parseJsonDocument(text, file))
+        .andThen((raw) => VerdictDocument.parse(raw, file));
+      if (verdict.isErr()) return ok({ type: "FAIL", reason: verdict.error.message });
+      const blocks = verdictBlocks(verdict.value);
+      if (blocks) return ok({ type: "FAIL", reason: blocks });
+    }
 
     const gate = ctx.stage.gate;
     if (gate?.script) {

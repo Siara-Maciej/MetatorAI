@@ -50,13 +50,16 @@ export interface ProcessRunner {
 export interface WorktreeManager {
   /**
    * A new worktree on `branch` from `base`. Each `shared` directory of this checkout (a run's
-   * state) is reached from the worktree through a link at the same relative path.
+   * state) is reached from the worktree through a link at the same relative path. Each untracked
+   * file of this checkout under a `setup` path (a MetatorAI setup not committed yet) is linked too,
+   * and ignored in that worktree only: its agents, gates and skills are the checkout's.
    */
   add(
     path: string,
     branch: string,
     base: string,
     shared?: readonly string[],
+    setup?: readonly string[],
   ): Promise<Result<void, MetatorError>>;
   remove(path: string, force: boolean): Promise<Result<void, MetatorError>>;
   /** Uncommitted or untracked changes in the worktree. */

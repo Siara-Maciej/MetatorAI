@@ -32,6 +32,8 @@ stages:
   - id: plan-approval
     hitl: true
     skipAt: [L1]
+    # A person who rejects the plan sends it back with the reason, like a failed plan gate.
+    onFail: { goto: plan, loop: plan }
   - id: build
     description: Regression test RED, fix, GREEN
     owner: [mt-test-author, mt-implementer]

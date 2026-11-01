@@ -68,8 +68,9 @@ describe("readOnlyCommand", () => {
         "bun run metator graph deps src/a.ts",
         "metator api diff @acme/money",
         "npx metator help",
+        "metator findings validate .metator/runs/r/findings",
       ].map(ro),
-    ).toEqual([true, true, true, true, true, true, true, true, true]);
+    ).toEqual([true, true, true, true, true, true, true, true, true, true]);
     expect(
       [
         "metator run advance pass",
@@ -78,8 +79,9 @@ describe("readOnlyCommand", () => {
         "metator review plan --out x.json",
         "metator graph diff --out x.json",
         "metator docs links --fix",
+        "metator findings validate .metator/runs/r/findings --fix",
       ].map(ro),
-    ).toEqual([false, false, false, false, false, false]);
+    ).toEqual([false, false, false, false, false, false, false]);
   });
 
   test("metator help and a command's --help only print", () => {

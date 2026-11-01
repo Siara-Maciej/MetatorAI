@@ -114,6 +114,20 @@ describe("LintPlan", () => {
     });
   });
 
+  test("whether the repository has any test is read from its files, not only the plan's", async () => {
+    const plan = {
+      ...PLAN,
+      steps: [{ id: "S1", action: "modify", path: "src/use.ts", intent: "use it" }],
+    };
+    const severity = async (files: InMemoryFileSystem) =>
+      (await lint(files).execute({ file: `${RUN}/plan.json` }))._unsafeUnwrap().problems[0]?.severity;
+    // src/use.test.ts exists, though no step names it: tests come first.
+    expect(await severity(fs(plan))).toBe("error");
+    const untested = fs(plan);
+    await untested.remove("src/use.test.ts");
+    expect(await severity(untested)).toBe("warning");
+  });
+
   test("without a pattern catalog the exemplar is looked up in the repository", async () => {
     const none = (files: InMemoryFileSystem) =>
       new LintPlan(

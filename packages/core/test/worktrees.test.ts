@@ -16,6 +16,7 @@ import {
   MachineLeases,
   PruneWorktrees,
   RemoveWorktree,
+  SETUP_PATHS,
   WorktreeRegistry,
 } from "../src/application/worktrees.ts";
 import { RunRecordDocument } from "../src/domain/run-record.ts";
@@ -120,12 +121,16 @@ describe("worktree use cases", () => {
       "main",
       { from: 41020, count: 20 },
     ]);
-    // The run's state is reached from the worktree, not copied into it.
+    // The run's state is reached from the worktree, not copied into it; so is a setup not
+    // committed yet (its configuration, agents and skills).
     expect(w.git.worktrees.get(".metator/wt/feat-a")).toEqual({
       branch: "metator/feat-a",
       base: "main",
       shared: [".metator/runs"],
+      setup: [...SETUP_PATHS],
     });
+    expect(SETUP_PATHS).toContain("metator.config.yml");
+    expect(SETUP_PATHS).toContain(".claude/skills");
     const second = (await w.create.execute({ id: "feat-b", ports: 5 }))._unsafeUnwrap();
     // Blocks align to their size: 41000-41004 holds the busy port, 41005-41009 is free.
     expect(second.ports).toEqual({ from: 41005, count: 5 });

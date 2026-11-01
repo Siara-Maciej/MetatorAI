@@ -504,6 +504,97 @@ loops:
     expect(history.at(-1)).toEqual({ stage: "approval", event: "FAIL", detail: "split step 2" });
   });
 
+  test("a review passes only on an approving verdict, whatever its critic says", async () => {
+    const finding = {
+      id: "CON-001",
+      lens: "contracts",
+      severity: "blocking",
+      confidence: 0.9,
+      location: { file: "src/list.tsx", line: 47 },
+      quote: "<h4>No discussions yet</h4>",
+      claim: "the e2e smoke test still waits for the old heading",
+      verification: { status: "confirmed", evidence: "e2e/smoke.spec.ts:30", by: "mt-verifier" },
+    };
+    const verdicts = [
+      { decision: "CHANGES_REQUIRED", blocking: [finding], unverified: [], consider: [] },
+      { decision: "APPROVED", blocking: [], unverified: [], consider: [] },
+    ];
+    let runId = "";
+    const writesVerdict = (): FakeAgentTurn => ({
+      effect: async () => {
+        const v = verdicts.shift();
+        await w.fs.write(
+          `${w.repo.runDir(runId)}/verdict.json`,
+          JSON.stringify({ kind: "Verdict", schemaVersion: 1, ...v, verifiedCorrect: [] }),
+        );
+      },
+    });
+    const w = world(
+      {
+        "mt-pr-review": [writesVerdict(), writesVerdict()],
+        // The critic agrees the verdict is right: that is no approval of the change.
+        "mt-judge": [{ text: "VERDICT: PASS" }, { text: "VERDICT: PASS" }],
+      },
+      () => ({ choices: ["Approve"] }),
+    );
+    await w.fs.write(
+      ".github/metator/workflows/loop.yml",
+      `kind: Workflow
+schemaVersion: 2
+id: loop
+stages:
+  - id: review
+    owner: mt-pr-review
+    produces: [verdict.json]
+    gate: { llm: mt-judge }
+    onFail: { goto: review, loop: review }
+loops:
+  review: 2
+`,
+    );
+    runId = await w.start(undefined, "loop");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const history = (await w.repo.load(runId))._unsafeUnwrap().state.context.history;
+    expect(history.filter((h) => h.stage === "review").map((h) => [h.event, h.detail])).toEqual([
+      [
+        "FAIL",
+        "the review decided CHANGES_REQUIRED: src/list.tsx:47 the e2e smoke test still waits for the old heading",
+      ],
+      ["PASS", undefined],
+    ]);
+  });
+
+  test("a rejected plan with a way back goes to the planner with the person's reason", async () => {
+    let gates = 0;
+    const w = world({ "mt-planner": [{}, {}], "mt-scout": [{}] }, (q) =>
+      q.source === "gate" && gates++ === 0
+        ? { choices: ["Reject"], text: "drop the node:test files" }
+        : { choices: ["Approve"] },
+    );
+    w0 = w;
+    await w.fs.write(
+      ".github/metator/workflows/loop.yml",
+      `kind: Workflow
+schemaVersion: 2
+id: loop
+stages:
+  - id: plan
+    owner: mt-planner
+  - id: plan-approval
+    hitl: true
+    onFail: { goto: plan, loop: plan }
+  - id: after
+    owner: mt-scout
+loops:
+  plan: 2
+`,
+    );
+    const runId = await w.start(undefined, "loop");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const plans = w.host.tasks.filter((t) => t.agent === "mt-planner").map((t) => t.prompt);
+    expect([plans.length, plans[1]?.includes("drop the node:test files")]).toEqual([2, true]);
+  });
+
   test("a blocked agent asks a person and resumes its session with the answer", async () => {
     const w = world(
       {
