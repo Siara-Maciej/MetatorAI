@@ -2197,3 +2197,19 @@ metator serve [options]
 | `--port <n>` | port to listen on (0: a free one) | `4310` |
 | `--hostname <host>` | address to listen on | `"127.0.0.1"` |
 | `--poll-ms <n>` | how often sockets look for a change | `1000` |
+| `--supervise-ms <n>` | how often the supervisor ticks (0: never) | `5000` |
+
+## supervise
+
+### `metator supervise`
+
+Keep sessions alive: restart drives that died, nudge idle sessions, watch the attention budget
+
+```bash
+metator supervise [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--once` | one tick, then the report |  |
+| `--interval-ms <n>` | how often to tick | `5000` |

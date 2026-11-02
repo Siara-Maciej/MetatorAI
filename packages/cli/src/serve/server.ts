@@ -5,6 +5,7 @@ import {
   type MetatorError,
   type PtyEvent,
   type Result,
+  type Supervisor,
 } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import type { CommandContext, Folder } from "../context.ts";
@@ -17,6 +18,13 @@ export interface ServeOptions {
   readonly pollMs?: number;
   /** Say where the daemon listens on stderr as soon as it does (`{"serving": {url, …}}`). */
   readonly announce?: boolean;
+  /** Run the supervisor's tick this often (0: not at all). */
+  readonly superviseMs?: number;
+  /** How the supervisor starts a drive again. */
+  readonly restart?: (
+    c: MetatorContainer,
+    runId: string,
+  ) => Promise<Result<{ readonly stage: string }, MetatorError>>;
 }
 
 export interface Served {
@@ -268,6 +276,25 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       },
     },
   });
+  // The supervisor: one tick per interval for every repository the daemon serves.
+  const supervisors = new Map<string, Supervisor>();
+  const restart = opts.restart;
+  const superviseTimer =
+    opts.superviseMs && restart
+      ? setInterval(() => {
+          const repos = folder ? folder.repos.map((r) => r.name) : [undefined];
+          for (const repo of repos) {
+            const c = containerFor(repo);
+            if (c.isErr()) continue;
+            const key = repo ?? ".";
+            const container = c.value;
+            const s =
+              supervisors.get(key) ?? container.resolve("supervisor")((runId) => restart(container, runId));
+            supervisors.set(key, s);
+            void s.tick();
+          }
+        }, opts.superviseMs)
+      : undefined;
   const port = server.port ?? opts.port;
   if (opts.announce) {
     const serving = {
@@ -283,6 +310,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     hostname: opts.hostname,
     pid: process.pid,
     stop: async () => {
+      if (superviseTimer) clearInterval(superviseTimer);
       for (const ws of sockets) ws.close();
       await server.stop(true);
     },

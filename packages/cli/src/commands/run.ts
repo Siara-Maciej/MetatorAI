@@ -1,6 +1,7 @@
 import {
   AnalysisDocument,
   AutonomySchema,
+  countAttention,
   err,
   FindingSetDocument,
   INPUT_NAME,
@@ -141,12 +142,21 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
           const ready = await container()
             .resolve("checkReadiness")
             .execute(started.value.worktree ? { worktree: started.value.worktree.id } : {});
+          // The attention budget (SupervisorPolicy.wipLimit): too many runs already wait for a person.
+          const overview = await container().resolve("workOverview").execute();
+          const limit = container().resolve("config").config.supervisor.wipLimit;
+          const waiting = overview.isOk() ? countAttention(overview.value.runs).you : 0;
           return {
             result: ok({
               ...started.value,
               ...(setup?.isOk() ? { setup: setup.value } : {}),
             }),
             warnings: [
+              ...(waiting >= limit
+                ? [
+                    `attention: ${waiting} run(s) already wait for a person (limit ${limit}): answer them first (metator inbox), or raise supervisor.wipLimit`,
+                  ]
+                : []),
               ...taskWarnings(task),
               ...(setup?.isErr() ? [`worktree setup: ${setup.error.message}`] : []),
               ...(ready.isOk() ? readinessWarnings(ready.value, RUN_READINESS) : []),

@@ -167,6 +167,8 @@ import {
   type SkillCatalog,
   type SkillGenerator,
   type SourceFiles,
+  type Supervisor,
+  type SupervisorDependencies,
   type SymbolAnalyzer,
   type SymbolQueries,
   type SyncRefactorPlan,
@@ -256,6 +258,7 @@ export interface Cradle {
   terminal: Terminal;
   interactiveHosts: ReadonlyMap<string, InteractiveHost>;
   ptyBroker: PtyBroker;
+  supervisor: (restart: SupervisorDependencies["restart"]) => Supervisor;
   runMessages: RunMessages;
   runJournal: RunJournal;
   runDrivers: RunDrivers;

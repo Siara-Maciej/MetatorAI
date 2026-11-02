@@ -933,8 +933,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/drive.ts",
-    from: "    RUN_WITHOUT_ASKING,\n    ...(input.notes ?? []),\n    ...decisionLines(input),\n    ...retryLines(input),",
-    to: "    ...(input.notes ?? []),\n    ...decisionLines(input),\n    ...retryLines(input),",
+    from: "    RUN_WITHOUT_ASKING,\n    ...(input.notes ?? []),\n    ...(input.messages ?? []),",
+    to: "    ...(input.notes ?? []),\n    ...(input.messages ?? []),",
     why: "workers are pointed at the skill that lists commands needing no one",
   },
   {
@@ -2613,6 +2613,39 @@ export const MUTANTS: readonly Mutant[] = [
     from: '(pm.value?.lockfiles.length ?? 0) > 0 ? "frozen" : "install"',
     to: '"install"',
     why: "with a lockfile the install keeps it as it is",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: "        if (attempts >= this.d.policy.respawn.maxAttempts) {",
+    to: "        if (false) {",
+    why: "the supervisor gives up after the policy's attempts",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: '          const said = activity.value.at(-1)?.text.startsWith("gave up");',
+    to: "          const said = false;",
+    why: "giving up is said once",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: "      if (!episode) {\n",
+    to: "      if (true) {\n",
+    why: "a session still idle after a nudge is a person's question, not another nudge",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: "    if (this.d.policy.respawn.enabled) {",
+    to: "    if (true) {",
+    why: "respawn can be switched off",
+  },
+  {
+    file: "packages/core/src/application/pty-broker.ts",
+    from:
+      '    if (record.value.driver?.by === "human")\n      return err(\n        MetatorError.usage(\n          `run $' +
+      "{runId} is driven by $" +
+      "{record.value.driver.attachedBy}: no nudge over a person`,\n        ),\n      );\n",
+    to: "",
+    why: "no nudge over a person at the keyboard",
   },
   {
     file: "packages/core/src/application/pty-broker.ts",

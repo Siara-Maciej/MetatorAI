@@ -64,9 +64,17 @@ system:
 # A command run when a question waits for you (see "Notifications" below).
 notify:
   command: notify-send "MetatorAI" "$METATOR_QUESTION_PROMPT"
+
+# The supervisor (see "Supervisor" below); every field has a default.
+supervisor:
+  wipLimit: 4                              # runs that may wait for you at once before new ones warn
+  respawn: { enabled: true, maxAttempts: 3 }
+  idleThresholdMs: 90000                   # no terminal output for this long, no open question: idle
+  hostOrder: [copilot, claude, opencode]
+  chatApprovals: attached-only
 ```
 
-Older files (`schemaVersion` 1 to 5) still load: MetatorAI upgrades them in memory.
+Older files (`schemaVersion` 1 to 6) still load: MetatorAI upgrades them in memory.
 
 ## Notifications
 
@@ -88,6 +96,18 @@ notify:
 ```
 
 A question an answer policy answers is not announced. A failing command is logged in the run's activity and never stops the run; the next drive tries again.
+
+## Supervisor
+
+`supervisor` is the policy `metator supervise` and the daemon follow (ADR-0077):
+
+| Field | Default | What it does |
+|---|---|---|
+| `wipLimit` | 4 | how many runs may wait for a person at once; `run init` warns past it, the inbox shows the count |
+| `respawn.enabled`, `respawn.maxAttempts` | true, 3 | a drive that died is started again at its stage, this many times; then the run's activity says the supervisor gave up |
+| `idleThresholdMs` | 90000 | an interactive session with no output for this long and no open question is idle: nudged once, then a person is asked |
+| `hostOrder` | copilot, claude, opencode | which interactive host a new session takes first |
+| `chatApprovals` | attached-only | an approval said in the chat counts only while the person is attached (the only value today) |
 
 ## Gates
 

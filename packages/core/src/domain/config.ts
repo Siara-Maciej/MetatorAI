@@ -200,7 +200,35 @@ const ConfigV6Schema = z.strictObject({
     .optional(),
 });
 
-export const MetatorConfigSchema = ConfigV6Schema;
+/**
+ * v7 adds `supervisor` (D4, ADR-0077): how the daemon keeps sessions alive and how much a person
+ * is asked at once. Every v6 file is a v7 file (every field has a default).
+ */
+export const SupervisorPolicySchema = z.strictObject({
+  /** How many runs may wait for a person at once before new ones start with a warning. */
+  wipLimit: z.number().int().min(1).default(4),
+  respawn: z
+    .strictObject({
+      enabled: z.boolean().default(true),
+      /** Restarts of one run's drive before the supervisor gives up and says so. */
+      maxAttempts: z.number().int().min(0).default(3),
+    })
+    .default({ enabled: true, maxAttempts: 3 }),
+  /** No terminal output for this long, with no open question, is idleness. */
+  idleThresholdMs: z.number().int().min(1000).default(90_000),
+  /** Which interactive host a new session takes first. */
+  hostOrder: z.array(z.string().min(1)).default(["copilot", "claude", "opencode"]),
+  /** An approval said in the chat counts only while the person is attached. */
+  chatApprovals: z.enum(["attached-only"]).default("attached-only"),
+});
+export type SupervisorPolicy = z.output<typeof SupervisorPolicySchema>;
+
+const ConfigV7Schema = z.strictObject({
+  ...ConfigV6Schema.shape,
+  supervisor: SupervisorPolicySchema.default(SupervisorPolicySchema.parse({})),
+});
+
+export const MetatorConfigSchema = ConfigV7Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -215,9 +243,10 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: ConfigV3Schema, fromPrevious: (v2) => v2 },
     { schema: ConfigV4Schema, fromPrevious: (v3) => v3 },
     { schema: ConfigV5Schema, fromPrevious: (v4) => v4 },
+    { schema: ConfigV6Schema, fromPrevious: (v5) => v5 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v5) => v5,
+  upgrade: (v6) => v6,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

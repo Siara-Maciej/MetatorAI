@@ -49,6 +49,7 @@ export * from "./application/run-repository.ts";
 export * from "./application/runs.ts";
 export * from "./application/skills.ts";
 export * from "./application/source-files.ts";
+export * from "./application/supervisor.ts";
 export * from "./application/symbols.ts";
 export * from "./application/system.ts";
 export * from "./application/system-discovery.ts";

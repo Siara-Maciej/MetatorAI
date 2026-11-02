@@ -177,6 +177,24 @@ export class PtyBroker {
     return ok(undefined);
   }
 
+  /** The supervisor's words to an idle session: typed only while the agent drives, never over a person. */
+  async nudge(runId: string, text: string): Promise<Result<void, MetatorError>> {
+    const entry = this.live.get(runId);
+    if (!entry?.alive) return err(MetatorError.notFound(`a live session of run ${runId}`));
+    const record = await this.d.repo.load(runId);
+    if (record.isErr()) return err(record.error);
+    if (record.value.driver?.by === "human")
+      return err(
+        MetatorError.usage(
+          `run ${runId} is driven by ${record.value.driver.attachedBy}: no nudge over a person`,
+        ),
+      );
+    entry.session.pty.write(`${text}\r`);
+    entry.idle = false;
+    this.armIdle(runId, entry);
+    return ok(undefined);
+  }
+
   resize(runId: string, size: PtySize): Result<void, MetatorError> {
     const entry = this.live.get(runId);
     if (!entry?.alive) return err(MetatorError.notFound(`a live session of run ${runId}`));

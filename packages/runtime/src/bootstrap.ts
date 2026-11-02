@@ -145,6 +145,8 @@ import {
   SkillCatalog,
   SourceFiles,
   StyleImports,
+  Supervisor,
+  type SupervisorDependencies,
   SymbolQueries,
   SyncRefactorPlan,
   SystemCatalog,
@@ -428,9 +430,31 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       return hosts;
     }).singleton(),
     ptyBroker: asFunction(
-      ({ runRepository, runJournal, interactiveHosts, clock, root }) =>
-        new PtyBroker({ repo: runRepository, journal: runJournal, hosts: interactiveHosts, clock, root }),
+      ({ runRepository, runJournal, interactiveHosts, clock, root, config }) =>
+        new PtyBroker({
+          repo: runRepository,
+          journal: runJournal,
+          hosts: interactiveHosts,
+          clock,
+          root,
+          idleMs: config.config.supervisor.idleThresholdMs,
+        }),
     ).singleton(),
+    // The supervisor needs a way to start a drive again, which only the CLI process knows (its own
+    // argv). Not a singleton (its drivers are not): the caller keeps the one instance it ticks.
+    supervisor: asFunction(
+      ({ config, runRepository, runDrivers, runJournal, ptyBroker, workOverview }) =>
+        (restart: SupervisorDependencies["restart"]) =>
+          new Supervisor({
+            policy: config.config.supervisor,
+            repo: runRepository,
+            drivers: runDrivers,
+            journal: runJournal,
+            broker: ptyBroker,
+            overview: workOverview,
+            restart,
+          }),
+    ),
     runDrivers: asFunction(
       ({ fileSystem, runRepository, backgroundProcess, runJournal, clock }) =>
         new RunDrivers(fileSystem, runRepository, backgroundProcess, runJournal, clock),

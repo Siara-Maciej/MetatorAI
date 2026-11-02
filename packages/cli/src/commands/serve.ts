@@ -3,6 +3,7 @@ import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
 import { startServer } from "../serve/server.ts";
+import { resume } from "../sessions.ts";
 
 /**
  * `metator serve` (D3, ADR-0077): the local daemon for the desktop app. The server says where it
@@ -18,13 +19,17 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
     .option("--port <n>", "port to listen on (0: a free one)", (v: string) => Number(v), 4310)
     .option("--hostname <host>", "address to listen on", "127.0.0.1")
     .option("--poll-ms <n>", "how often sockets look for a change", positiveInt, 1000)
+    .option("--supervise-ms <n>", "how often the supervisor ticks (0: never)", (v: string) => Number(v), 5000)
     .action(
-      ctx.action(async (opts: { port: number; hostname: string; pollMs: number }) => {
+      ctx.action(async (opts: { port: number; hostname: string; pollMs: number; superviseMs: number }) => {
+        const root = () => (program.opts() as { root?: string }).root;
         const served = await startServer(ctx, {
           port: opts.port,
           hostname: opts.hostname,
           pollMs: opts.pollMs,
           announce: true,
+          superviseMs: opts.superviseMs,
+          restart: (c, runId) => resume(c, root(), runId),
         });
         const where = {
           port: served.port,
