@@ -29,6 +29,7 @@ import {
   CheckPublished,
   CheckpointRun,
   CheckQuote,
+  CheckReadiness,
   CheckRules,
   type Clock,
   CloneCache,
@@ -314,6 +315,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     dataIsolator: asFunction(() => new BunSqlDataIsolator()).singleton(),
     treeCopier: asFunction(() => new NodeTreeCopier()).singleton(),
     backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
+    checkReadiness: asFunction(
+      ({ fileSystem, paths, config, workflowCatalog, vcs, root }) =>
+        new CheckReadiness(fileSystem, paths, config, workflowCatalog, vcs, async () =>
+          existsSync(join(root, "node_modules")),
+        ),
+    ),
     workOverview: asFunction(
       ({
         runRepository,

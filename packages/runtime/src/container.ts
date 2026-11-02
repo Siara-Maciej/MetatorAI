@@ -33,6 +33,7 @@ import {
   type CheckPublished,
   type CheckpointRun,
   type CheckQuote,
+  type CheckReadiness,
   type CheckRules,
   type Clock,
   type CloneCache,
@@ -239,6 +240,7 @@ export interface Cradle {
   conversationRepository: ConversationRepository;
   askQuestion: AskQuestion;
   workOverview: WorkOverview;
+  checkReadiness: CheckReadiness;
   runJournal: RunJournal;
   runDrivers: RunDrivers;
   driveRun: DriveRun;

@@ -2035,3 +2035,13 @@ The work at a glance: each run's stages, who must act, questions, services; conv
 ```bash
 metator status [options]
 ```
+
+## doctor
+
+### `metator doctor`
+
+What a run here will and will not do: config, canon, workflows, gates, dependencies, remote
+
+```bash
+metator doctor [options]
+```

@@ -12,8 +12,10 @@ import {
   type Result,
   ReviewMetadataDocument,
   ReviewPlanDocument,
+  RUN_READINESS,
   type RunEvent,
   RunSummaryDocument,
+  readinessWarnings,
   VerdictDocument,
 } from "@metator/core";
 import { Argument, type Command, Option } from "commander";
@@ -122,7 +124,13 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
             ...(opts.worktree ? { worktree: { base: opts.base } } : {}),
             ...(opts.parent ? { parent: opts.parent } : {}),
           };
-          return { result: await container().resolve("initRun").execute(input) };
+          const started = await container().resolve("initRun").execute(input);
+          // What this run will not do here (no dependencies, no gates), said once, as it starts.
+          const ready = started.isOk() ? await container().resolve("checkReadiness").execute() : undefined;
+          return {
+            result: started,
+            warnings: ready?.isOk() ? readinessWarnings(ready.value, RUN_READINESS) : [],
+          };
         },
       ),
     );

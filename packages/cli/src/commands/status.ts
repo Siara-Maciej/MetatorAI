@@ -1,4 +1,4 @@
-import { type Overview, ok } from "@metator/core";
+import { type Overview, ok, readinessWarnings } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 
@@ -55,6 +55,18 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
           }),
           warnings,
         };
+      }),
+    );
+
+  program
+    .command("doctor")
+    .description(
+      "What a run here will and will not do: config, canon, workflows, gates, dependencies, remote",
+    )
+    .action(
+      ctx.action(async () => {
+        const r = await ctx.container().resolve("checkReadiness").execute();
+        return { result: r, warnings: r.isOk() ? readinessWarnings(r.value) : [] };
       }),
     );
 }

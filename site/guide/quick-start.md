@@ -26,6 +26,14 @@ metator setup --host claude --hooks --yes       # the same without questions (sc
 
 **Why:** you edit one canonical source, and GitHub Copilot and Claude Code get the same agents. `metator generate --check` in CI fails when someone edits a generated file by hand. MetatorAI never assumes your tools: it runs **your** `lint`, `typecheck` and `test` scripts, chosen from evidence you can check.
 
+**Before the first run, ask what it will not do here:**
+
+```bash
+metator doctor
+```
+
+It checks the config, the installed canon, the workflows, the gates, whether the dependencies are installed and whether there is a git remote. Each check is `ok`, `warn` (a run starts but does less) or `fail` (a run cannot start), and each problem names the command that fixes it. The most common one: with no `node_modules`, a run's tests, type checker and linters cannot run, so its gates check only rules (`fix: bun install`, or the install of your lockfile's package manager). `metator run init` repeats the warnings that matter to a run (gates, dependencies, remote) when it starts one.
+
 ## 2. Take a newer canon later
 
 ```bash

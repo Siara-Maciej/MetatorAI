@@ -2572,6 +2572,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "runs that tie keep a stable order",
   },
   {
+    file: "packages/core/src/application/readiness.ts",
+    from: 'return ok({ ready: checks.every((c) => c.status !== "fail"), checks });',
+    to: "return ok({ ready: true, checks });",
+    why: "a repository without a workflow is not ready",
+  },
+  {
+    file: "packages/core/src/application/readiness.ts",
+    from: "if (await this.installed())",
+    to: 'if (await this.fs.exists("node_modules"))',
+    why: "node_modules is a directory, which FileSystem.exists does not see",
+  },
+  {
+    file: "packages/core/src/application/readiness.ts",
+    from: 'c.status !== "ok" && (!only || only.includes(c.id))',
+    to: 'c.status !== "ok"',
+    why: "a run warns only about what it will not do, not about setup",
+  },
+  {
     file: "packages/core/src/application/overview.ts",
     from: "died: active && driver.isOk() && driver.value !== null && !driver.value.alive,",
     to: "died: active && driver.isOk() && driver.value !== null,",

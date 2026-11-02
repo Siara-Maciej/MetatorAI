@@ -256,8 +256,8 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 Źródła: analiza biznesowa (2026-11-02, część I i II), wnioski z 14 serii testowych runów na repozytoriach OSS i uwagi do analizy. Zasada z analizy: nowe komendy tylko tam, gdzie usuwają zmierzony koszt.
 
 **Niezawodność i wejście (zmierzone w testach)**
-- [ ] P1 Nadzorca runów: drive, który umarł (restart maszyny lub workera), jest widoczny jako `died` w `status` i `ui`; `run revive [--all]` uruchamia go ponownie od etapu, na którym stał.
-- [ ] P2 Gotowość środowiska: `metator doctor` mówi przed runem, czego run nie zrobi (brak zależności, więc testy się nie uruchomią; brak skonfigurowanych bramek; brak hosta AI).
+- [x] P1 Nadzorca runów: drive, który umarł (restart maszyny lub workera), jest widoczny jako `died` w `status` i `ui`; `run revive [--all]` uruchamia go ponownie od etapu, na którym stał.
+- [x] P2 Gotowość środowiska: `metator doctor` mówi przed runem, czego run nie zrobi (brak zależności, więc testy się nie uruchomią; brak skonfigurowanych bramek; brak hosta AI).
 - [ ] P3 Sprawdzenie zadania: intake kończy run jako „nic do zrobienia” z dowodem, zamiast pytać, gdy zadanie jest już zrobione; deterministyczny lint zadania przy `run init`.
 
 **Centrum decyzji (część II)**
