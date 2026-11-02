@@ -66,8 +66,14 @@ export const QuestionOptionSchema = z.strictObject({
   description: z.string().optional(),
 });
 
-/** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
-export const QuestionSchema = z.strictObject({
+const QuestionAnswerSchema = z.strictObject({
+  choices: z.array(z.string()).min(1),
+  text: z.string().optional(),
+  by: z.string().min(1),
+  at: z.iso.datetime(),
+});
+
+const QuestionV1Schema = z.strictObject({
   id: z.string().regex(/^q[0-9]{3,}$/),
   runId: z.string(),
   stage: z.string(),
@@ -78,26 +84,53 @@ export const QuestionSchema = z.strictObject({
   options: z.array(QuestionOptionSchema).min(1),
   multiSelect: z.boolean(),
   askedAt: z.iso.datetime(),
-  answer: z
-    .strictObject({
-      choices: z.array(z.string()).min(1),
-      text: z.string().optional(),
-      by: z.string().min(1),
-      at: z.iso.datetime(),
-    })
-    .optional(),
+  answer: QuestionAnswerSchema.optional(),
+});
+
+/**
+ * What a person needs to decide without opening the run (P4): the task, what the run has done,
+ * the artifacts to look at, the option the evidence points to, and whether the decision can be
+ * taken back. Composed from the run's own record when the question is asked, never by a model.
+ */
+export const DecisionCardSchema = z.strictObject({
+  task: z.string(),
+  /** Stages the run passed, in order. */
+  done: z.array(z.string()),
+  /** Run-directory artifacts the decision rests on (plan.json, verdict.json, …). */
+  artifacts: z.array(z.string()),
+  /** The option label the evidence points to, when there is one. */
+  recommended: z.string().optional(),
+  /** false: the answer starts something that cannot be undone here (a push, closing the run). */
+  reversible: z.boolean(),
+});
+export type DecisionCard = z.output<typeof DecisionCardSchema>;
+
+/** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
+export const QuestionSchema = z.strictObject({
+  ...QuestionV1Schema.shape,
+  /** v2: the decision card; a v1 question has none. */
+  card: DecisionCardSchema.optional(),
 });
 export type Question = z.output<typeof QuestionSchema>;
 export type QuestionAnswer = NonNullable<Question["answer"]>;
 
 export const QuestionDocument = defineDocument("Question", {
+  history: [{ schema: QuestionV1Schema }],
   latest: QuestionSchema,
+  // `card` is optional: a v1 question is a v2 question asked without one.
+  upgrade: (previous) => previous,
   hint: "Answer with `metator run answer <question> --choice <label> --by <name>`.",
 });
 
 /** The drive process of a run (`.metator/runs/<id>/driver.json`), so others can stop or find it. */
 export const RunDriverDocument = defineDocument("RunDriver", {
   latest: z.strictObject({ pid: z.number().int().positive(), host: z.string(), startedAt: z.iso.datetime() }),
+});
+
+/** When a person last read a run's brief (`.metator/runs/<id>/seen.json`): the next brief starts there. */
+export const RunSeenDocument = defineDocument("RunSeen", {
+  latest: z.strictObject({ at: z.iso.datetime() }),
+  hint: "Written by `metator run brief`.",
 });
 
 /** Who works a stage: agents run in order, skills are offered to them, scripts are commands. */

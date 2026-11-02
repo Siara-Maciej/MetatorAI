@@ -92,6 +92,7 @@ export * from "./domain/graph-diff.ts";
 export * from "./domain/hook.ts";
 export * from "./domain/ids.ts";
 export * from "./domain/import-index.ts";
+export * from "./domain/inbox.ts";
 export * from "./domain/install.ts";
 export * from "./domain/lesson.ts";
 export * from "./domain/markdown.ts";

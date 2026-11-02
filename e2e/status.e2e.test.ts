@@ -94,6 +94,51 @@ describe("metator status (real CLI)", () => {
     expect(o.counts).toMatchObject({ you: 1, driving: 0, stopped: 1, questions: 1 });
   }, 30_000);
 
+  test("inbox: the gate as one decision with its card; brief: since the last look, then nothing new", async () => {
+    const inbox = (await mt("inbox")).json.data as {
+      decisions: {
+        task: string;
+        stage: string;
+        driving: boolean;
+        question: {
+          source: string;
+          card?: {
+            task: string;
+            done: string[];
+            artifacts: string[];
+            recommended?: string;
+            reversible: boolean;
+          };
+        };
+      }[];
+    };
+    expect(inbox.decisions.map((d) => [d.task, d.stage, d.driving, d.question.source])).toEqual([
+      ["Add discount", "approval", false, "gate"],
+    ]);
+    expect(inbox.decisions[0]?.question.card).toEqual({
+      task: "Add discount",
+      done: ["intake"],
+      artifacts: [],
+      recommended: "Approve",
+      reversible: true,
+    });
+    const runId = ((await mt("status")).json.data as { runs: (RunRow & { runId: string })[] }).runs[0]
+      ?.runId as string;
+    const first = (await mt("run", "brief", "--run", runId)).json.data as {
+      transitions: string[];
+      questions: string[];
+    };
+    expect(first.transitions).toEqual(["intake PASS"]);
+    expect(first.questions.length).toBe(1);
+    const again = (await mt("run", "brief", "--run", runId)).json.data as {
+      transitions: string[];
+      tools: number;
+    };
+    expect([again.transitions, again.tools]).toEqual([[], 0]);
+    const bad = await mt("run", "brief", "--run", runId, "--since", "yesterday");
+    expect(bad.code).toBe(64);
+  }, 30_000);
+
   test("in a folder of repositories: every repository's overview and the sums", async () => {
     folder = await mkdtemp(join(tmpdir(), "metator-status-folder-"));
     const moved = join(folder, "shop");
@@ -103,5 +148,7 @@ describe("metator status (real CLI)", () => {
     const o = r.json.data as { repos: { name: string; runs: RunRow[] }[]; counts: Record<string, number> };
     expect(o.repos.map((x) => [x.name, x.runs.length])).toEqual([["shop", 2]]);
     expect(o.counts).toMatchObject({ you: 1, stopped: 1, questions: 1 });
+    const inbox = (await metator(["inbox"], folder, env)).json.data as { decisions: { repo: string }[] };
+    expect(inbox.decisions.map((d) => d.repo)).toEqual(["shop"]);
   }, 30_000);
 });

@@ -1801,6 +1801,20 @@ metator run answer [options] <question>
 | `--text <text>` | your own words (with Other, or a reason with Reject) |  |
 | `--by <name>` | who answers **Required.** |  |
 
+### `metator run brief`
+
+What happened in a run since you last looked: transitions, files, answers, questions, errors
+
+```bash
+metator run brief [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--since <time>` | from this ISO time (default: your last brief of the run, else its start) |  |
+| `--peek` | do not mark the run as read |  |
+
 ### `metator run activity`
 
 What the drive did: stages, agents, tools, questions, answers, transitions
@@ -2044,4 +2058,14 @@ What a run here will and will not do: config, canon, workflows, gates, dependenc
 
 ```bash
 metator doctor [options]
+```
+
+## inbox
+
+### `metator inbox`
+
+Every open decision of every run, first the ones a live drive waits on, then the oldest
+
+```bash
+metator inbox [options]
 ```

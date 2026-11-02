@@ -3,6 +3,7 @@ import {
   type AgentAnswer,
   type AgentQuestion,
   blockedPrompt,
+  type DecisionCard,
   gatePrompt,
   hostLimit,
   nextQuestionId,
@@ -13,6 +14,7 @@ import {
   QuestionDocument,
   type RunActivity,
   RunActivityDocument,
+  RunSeenDocument,
   stagePrompt,
   stageWork,
 } from "../domain/drive.ts";
@@ -76,6 +78,31 @@ export class RunJournal {
     return `${this.repo.runDir(runId)}/activity.jsonl`;
   }
 
+  seenFile(runId: string): string {
+    return `${this.repo.runDir(runId)}/seen.json`;
+  }
+
+  /** When a person last read the run's brief; undefined before the first. */
+  async seen(runId: string): Promise<Result<string | undefined, MetatorError>> {
+    const file = this.seenFile(runId);
+    if (!(await this.fs.exists(file))) return ok(undefined);
+    const text = await this.fs.read(file);
+    if (text.isErr()) return err(text.error);
+    return parseJsonDocument(text.value, file)
+      .andThen((raw) => RunSeenDocument.parse(raw, file))
+      .map((d) => d.at);
+  }
+
+  /** A person has read the run up to now: the next brief starts here. */
+  async markSeen(runId: string): Promise<Result<string, MetatorError>> {
+    const at = this.clock.now().toISOString();
+    const written = await this.fs.write(
+      this.seenFile(runId),
+      serializeJsonDocument(RunSeenDocument.stamp({ at })),
+    );
+    return written.map(() => at);
+  }
+
   questionFile(runId: string, id: string): string {
     return `${this.repo.runDir(runId)}/questions/${id}.json`;
   }
@@ -129,6 +156,7 @@ export class RunJournal {
     runId: string,
     q: Pick<Question, "stage" | "source" | "prompt" | "options" | "multiSelect"> & {
       readonly agent?: string;
+      readonly card?: DecisionCard;
     },
     pendingSince?: string,
   ): Promise<Result<Question, MetatorError>> {
@@ -155,6 +183,7 @@ export class RunJournal {
       options,
       multiSelect: q.multiSelect,
       askedAt: this.clock.now().toISOString(),
+      ...(q.card ? { card: q.card } : {}),
     };
     const saved = await this.save(question);
     if (saved.isErr()) return err(saved.error);
@@ -341,6 +370,8 @@ export class DriveRun {
         ...(record.value.hostSession ? { resume: record.value.hostSession } : {}),
         since: record.value.updatedAt,
         autonomy: record.value.autonomy,
+        done: passedStages(record.value.state.context.history),
+        ...lastEventOf(record.value.state.context.history),
         pollMs: input.pollMs ?? 500,
         inputs: record.value.inputs ?? {},
       };
@@ -417,6 +448,12 @@ export class DriveRun {
           { label: "Reject", description: "Send the run back, with your reason" },
         ],
         multiSelect: false,
+        // The stage before passed its checks: the evidence points to approving. A gate that grants
+        // an external action (the push) starts something approving cannot take back.
+        card: await this.card(ctx, {
+          ...(ctx.lastEvent === "PASS" ? { recommended: "Approve" } : {}),
+          reversible: (ctx.stage.grants ?? []).length === 0,
+        }),
       },
       ctx.since,
     );
@@ -570,6 +607,7 @@ export class DriveRun {
           prompt: blockedPrompt(result.value.text, status.question),
           options: [{ label: OTHER, description: "Your answer goes back to the agent" }],
           multiSelect: false,
+          card: await this.card(ctx, { reversible: true }),
         },
         ctx.since,
       );
@@ -610,6 +648,8 @@ export class DriveRun {
           { label: DO_IT, description: "The agent goes on with the task as written" },
         ],
         multiSelect: false,
+        // The worker's evidence points to closing; a closed run does not come back.
+        card: await this.card(ctx, { recommended: CLOSE_RUN, reversible: false }),
       },
       ctx.since,
     );
@@ -621,6 +661,22 @@ export class DriveRun {
       type: "GO_ON",
       answer: a.value.text ?? "A person decided the task is not done yet: do it as written.",
     });
+  }
+
+  /**
+   * The decision card of a question (P4): the task, the stages passed, the artifacts written so
+   * far, and what the caller knows of the recommended option and whether it can be taken back.
+   */
+  private async card(
+    ctx: StageContext,
+    known: { readonly recommended?: string; readonly reversible: boolean },
+  ): Promise<DecisionCard> {
+    const dir = this.d.repo.runDir(ctx.runId);
+    const files = await this.d.fs.glob([`${dir}/*`]);
+    const artifacts = files
+      .map((f) => f.slice(dir.length + 1))
+      .filter((f) => !RUN_BOOKKEEPING.has(f) && !f.endsWith(".jsonl"));
+    return { task: ctx.task, done: [...ctx.done], artifacts, ...known };
   }
 
   /**
@@ -713,6 +769,7 @@ export class DriveRun {
             ...(o.description ? { description: o.description } : {}),
           })),
           multiSelect: q.multiSelect,
+          card: await this.card(ctx, { reversible: true }),
         },
         ctx.since,
       );
@@ -801,4 +858,20 @@ interface StageContext {
   readonly inputs: Readonly<Record<string, string>>;
   /** L2 is headless: what a person would decide in one click is decided by the evidence. */
   readonly autonomy: string;
+  /** Stages the run passed, in order (each once). */
+  readonly done: readonly string[];
+  /** The run's last transition (PASS, FAIL, APPROVE), when it has one. */
+  readonly lastEvent?: string;
 }
+
+/** The run's own files, which no decision rests on. */
+const RUN_BOOKKEEPING = new Set(["state.json", "log.md", "driver.json", "summary.json"]);
+
+const passedStages = (history: readonly { readonly stage: string; readonly event: string }[]): string[] => [
+  ...new Set(history.filter((h) => h.event === "PASS" || h.event === "APPROVE").map((h) => h.stage)),
+];
+
+const lastEventOf = (history: readonly { readonly event: string }[]) => {
+  const last = history.at(-1);
+  return last ? { lastEvent: last.event } : {};
+};

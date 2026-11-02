@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Conversation, Overview, Question, RunOverview } from "@metator/core";
 import { render } from "ink-testing-library";
 import { App, type Exit } from "../src/tui/App.tsx";
+import { AnswerDialog } from "../src/tui/components/Dialogs.tsx";
 import { duration, fit, nextStep, rowsOf, type Snapshot, stageBar, totals } from "../src/tui/model.ts";
 import type { Launch, Settings, TuiService } from "../src/tui/service.ts";
 
@@ -280,6 +281,37 @@ describe("tui model", () => {
     );
     expect(fit("a  b\nc", 10)).toBe("a b c");
     expect(fit("abcdefghijkl", 5)).toBe("abcd…");
+  });
+});
+
+describe("the decision card", () => {
+  test("the task, what was done, the artifacts, the recommended option and a push that cannot be undone", async () => {
+    const q: Question = {
+      ...question("r"),
+      source: "gate",
+      stage: "delivery",
+      prompt: "The human approves the push: approve to continue",
+      options: [{ label: "Approve" }, { label: "Reject" }, { label: "Other" }],
+      card: {
+        task: "Add a flush() method",
+        done: ["intake", "plan", "review"],
+        artifacts: ["plan.json", "verdict.json"],
+        recommended: "Approve",
+        reversible: false,
+      },
+    };
+    const r = render(<AnswerDialog question={q} onAnswer={() => {}} />);
+    await shows(r, "Add a flush() method");
+    const f = r.lastFrame() ?? "";
+    for (const part of [
+      "done: intake → plan → review",
+      "artifacts: plan.json, verdict.json",
+      "cannot be taken back once answered",
+      "Approve (recommended)",
+    ])
+      expect(f).toContain(part);
+    expect(f).not.toContain("Reject (recommended)");
+    r.unmount();
   });
 });
 

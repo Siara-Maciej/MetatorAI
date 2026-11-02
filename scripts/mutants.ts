@@ -2572,6 +2572,36 @@ export const MUTANTS: readonly Mutant[] = [
     why: "runs that tie keep a stable order",
   },
   {
+    file: "packages/core/src/domain/inbox.ts",
+    from: "  Number(b.driving) - Number(a.driving) ||\n",
+    to: "",
+    why: "a decision a live drive waits on comes first",
+  },
+  {
+    file: "packages/core/src/domain/inbox.ts",
+    from: "      .filter((q) => !q.answer)\n",
+    to: "",
+    why: "an answered question is no decision",
+  },
+  {
+    file: "packages/core/src/domain/inbox.ts",
+    from: "  const after = activity.filter((a) => a.at > since);",
+    to: "  const after = activity;",
+    why: "a brief starts at the last look",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: '...(ctx.lastEvent === "PASS" ? { recommended: "Approve" } : {}),',
+    to: '...{ recommended: "Approve" },',
+    why: "approval is recommended only when the stage before passed",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: "reversible: (ctx.stage.grants ?? []).length === 0,",
+    to: "reversible: true,",
+    why: "a gate that grants the push cannot be taken back",
+  },
+  {
     file: "packages/core/src/domain/drive.ts",
     from: '  if (nothing) return { kind: "nothing", evidence: (nothing[1] as string).trim() };\n',
     to: "",
@@ -2585,7 +2615,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
-    from: "if (a.value.choices.includes(CLOSE_RUN)) return ok({ type: \"ABORT\", reason });",
+    from: 'if (a.value.choices.includes(CLOSE_RUN)) return ok({ type: "ABORT", reason });',
     to: "",
     why: "closing the run ends it",
   },
@@ -3989,8 +4019,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
-    from: "      if (answers === MAX_ANSWERS)\n        return ok({ type: \"FAIL\", reason: `${agent} stayed",
-    to: "      if (answers === MAX_ANSWERS - 1)\n        return ok({ type: \"FAIL\", reason: `${agent} stayed",
+    from: '      if (answers === MAX_ANSWERS)\n        return ok({ type: "FAIL", reason: `${agent} stayed',
+    to: '      if (answers === MAX_ANSWERS - 1)\n        return ok({ type: "FAIL", reason: `${agent} stayed',
     why: "the last answer still reaches the agent",
   },
   {

@@ -66,6 +66,29 @@ metator run answer q002 --choice Reject --text "split step 3 into two" --by alic
 metator run answer q003 --text "use EUR, never mix currencies" --by alice   # Other: your own words
 ```
 
+**Every question carries its decision card** (`card`), so you can answer without opening the run: the task, the stages the run passed, the artifacts written so far, the option the evidence points to and whether the answer can be taken back. MetatorAI composes it from the run's own record when it asks, never with a model:
+
+```json
+"card":{"task":"Add combined discount","done":["setup","intake","context","plan","plan-gate"],
+  "artifacts":["analysis.json","plan.json","plan-scope.json","task.md"],
+  "recommended":"Approve","reversible":true}
+```
+
+A gate recommends Approve only when the stage before it passed. The delivery gate, which grants the push, is `reversible: false`, as is closing a run whose worker found nothing to do. `metator ui` shows the card above the options and marks the recommended one.
+
+**All your decisions in one queue**, across runs (and across the repositories of a folder):
+
+```bash
+metator inbox
+```
+
+```json
+{"decisions":[{"runId":"20261027-mt-feature-add-combined-discount","stage":"plan-approval","driving":true,
+  "waitedMs":420000,"question":{"id":"q001","source":"gate","card":{"recommended":"Approve"}}}]}
+```
+
+First the decisions a live drive waits on (that run stands still until you answer), then the ones that have waited longest.
+
 **Questions come from three places:**
 
 | `source` | When | What your answer does |
@@ -104,6 +127,20 @@ metator run activity --tail 8
 
 `.metator/runs/<id>/activity.jsonl` holds every entry, one versioned JSON object per line. It is the record the live view and the session UI read.
 
+**Back after a while?** Ask for the brief instead of reading the log:
+
+```bash
+metator run brief --run <id>
+```
+
+```json
+{"runId":"…","status":"active","stage":"review","since":"2026-11-02T09:12:00.000Z",
+ "transitions":["build PASS","gates PASS"],"files":["/repo/.metator/wt/…/src/discount.ts"],
+ "answers":["q002: Approve · alice"],"questions":[],"errors":[],"tools":41,"last":"… stage: Find in parallel…"}
+```
+
+It covers what happened since your last brief of that run (the first one: since the run started), and remembers that you read it (`.metator/runs/<id>/seen.json`). `--peek` reads without marking; `--since <ISO time>` picks the start yourself. The brief is built from the activity alone, so it is exact and costs nothing.
+
 ## Stop and continue
 
 ```bash
@@ -113,7 +150,7 @@ metator run drive --host claude --detach  # continue later: the same open questi
 
 A run has at most one live driver. A second `run drive` is refused while the first is alive, and a driver that died does not block a new one.
 
-**A drive that died** (the machine restarted, the process was killed) leaves its `driver.json` behind. `metator status` marks the run `died: true`, `metator ui` says "the drive died at <stage>", and one command starts every such drive again, at the stage it stood and with the host it used:
+**A drive that died** (the machine restarted, the process was killed) leaves its `driver.json` behind. `metator status` marks the run `died: true`, `metator ui` says `the drive died at <stage>`, and one command starts every such drive again, at the stage it stood and with the host it used:
 
 ```bash
 metator run revive              # every run whose drive died; --run <id> for one

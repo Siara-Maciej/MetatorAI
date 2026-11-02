@@ -617,6 +617,20 @@ stages:
     expect(Object.keys(approvals).sort()).toEqual(["delivery", "push"]);
     const approved = (agent: string) => w.host.tasks.find((t) => t.agent === agent)?.approved;
     expect([approved("mt-scout"), approved("mt-pr-author")]).toEqual([undefined, ["push"]]);
+    // Its card: the build passed, so approving is recommended; the push it grants cannot be undone.
+    const card = w.asked.find((q) => q.stage === "delivery")?.card;
+    expect([card?.recommended, card?.reversible]).toEqual(["Approve", false]);
+  });
+
+  test("a gate nothing passed before recommends nothing", async () => {
+    const w = world({}, () => ({ choices: ["Approve"] }));
+    await w.fs.write(
+      ".github/metator/workflows/first.yml",
+      "kind: Workflow\nschemaVersion: 2\nid: first\nstages:\n  - id: go\n    hitl: true\n",
+    );
+    const runId = await w.start(undefined, "first");
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    expect(w.asked[0]?.card).toEqual({ task: "Add discount", done: [], artifacts: [], reversible: true });
   });
 
   test("where the verdict is the deliverable (no way back), CHANGES_REQUIRED passes", async () => {
@@ -726,6 +740,20 @@ loops:
     expect(w.asked.find((q) => q.source === "agent")?.prompt).toBe(
       "Prices are in cents; EUR or USD?\n\nwhich currency?",
     );
+    // Each question carries its decision card: the task, the stages passed, the artifacts so far.
+    expect(w.asked.find((q) => q.source === "gate")?.card).toEqual({
+      task: "Add discount",
+      done: ["setup", "plan"],
+      artifacts: ["plan.md"],
+      recommended: "Approve",
+      reversible: true,
+    });
+    expect(w.asked.find((q) => q.source === "agent")?.card).toEqual({
+      task: "Add discount",
+      done: ["setup", "plan", "approval"],
+      artifacts: ["plan.md"],
+      reversible: true,
+    });
     // The answer is a decision every later agent and critic hears.
     const critic = w.host.tasks.find((t) => t.agent === "mt-plan-critic")?.prompt ?? "";
     expect(critic).toContain("- build: which currency? → EUR");
@@ -746,6 +774,7 @@ loops:
     expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("aborted");
     const q = w.asked.find((a) => a.source === "agent");
     expect(q?.options.map((o) => o.label)).toEqual([CLOSE_RUN, DO_IT, OTHER]);
+    expect([q?.card?.recommended, q?.card?.reversible, q?.card?.done]).toEqual([CLOSE_RUN, false, ["setup"]]);
     expect(q?.prompt).toBe(
       "discount() exists\n\nmt-planner found nothing to do: src/discount.ts:3 already applies it",
     );

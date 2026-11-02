@@ -1,4 +1,4 @@
-import { err, MetatorError, ok } from "@metator/core";
+import { briefOf, err, MetatorError, ok } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { follow, person } from "../live.ts";
@@ -188,6 +188,47 @@ export function registerDriveCommands(
           };
         },
       ),
+    );
+
+  runs
+    .command("brief")
+    .description(
+      "What happened in a run since you last looked: transitions, files, answers, questions, errors",
+    )
+    .option("--run <id>", "run id (default: latest)")
+    .option("--since <time>", "from this ISO time (default: your last brief of the run, else its start)")
+    .option("--peek", "do not mark the run as read", false)
+    .action(
+      action(async (opts: { run?: string; since?: string; peek: boolean }) => {
+        const c = container();
+        const id = await c.resolve("runRepository").resolveId(opts.run);
+        if (id.isErr()) return { result: id };
+        if (opts.since && Number.isNaN(Date.parse(opts.since)))
+          return { result: err(MetatorError.usage(`--since ${opts.since}: expected an ISO time`)) };
+        const journal = c.resolve("runJournal");
+        const seen = await journal.seen(id.value);
+        if (seen.isErr()) return { result: seen };
+        const record = await c.resolve("runRepository").load(id.value);
+        if (record.isErr()) return { result: record };
+        const since = opts.since
+          ? new Date(opts.since).toISOString()
+          : (seen.value ?? record.value.createdAt);
+        const activity = await journal.activity(id.value);
+        if (activity.isErr()) return { result: activity };
+        const brief = briefOf(activity.value, since);
+        if (!opts.peek) {
+          const marked = await journal.markSeen(id.value);
+          if (marked.isErr()) return { result: marked };
+        }
+        return {
+          result: ok({
+            runId: id.value,
+            status: record.value.state.status,
+            stage: record.value.state.stage,
+            ...brief,
+          }),
+        };
+      }),
     );
 
   runs

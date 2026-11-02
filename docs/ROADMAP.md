@@ -261,7 +261,7 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 - [x] P3 Sprawdzenie zadania: intake kończy run jako „nic do zrobienia” z dowodem, zamiast pytać, gdy zadanie jest już zrobione; deterministyczny lint zadania przy `run init`.
 
 **Centrum decyzji (część II)**
-- [ ] P4 Karta decyzji (`Question` v2: cel, co zrobiono, rekomendacja, skutki opcji, odwracalność, artefakt), `metator inbox` (pytania ze wszystkich runów według pilności), `run brief` (co się stało od ostatniej wizyty, ze zdarzeń).
+- [x] P4 Karta decyzji (`Question` v2: cel, co zrobiono, rekomendacja, skutki opcji, odwracalność, artefakt), `metator inbox` (pytania ze wszystkich runów według pilności), `run brief` (co się stało od ostatniej wizyty, ze zdarzeń).
 - [ ] P5 Polityki odpowiedzi („zawsze X dla Y”, zapamiętane z odpowiedzi) i powiadomienia (komenda lub webhook, gdy pytanie czeka).
 - [ ] P6 Telemetria: tokeny, koszt, czas ścienny i czas czekania na człowieka per run; `metator report` (ROI, przegląd agentów).
 - [ ] P7 Konflikty między sesjami: zmienione pliki runów w osobnych worktree porównane, ostrzeżenie i kolejność scalania.
