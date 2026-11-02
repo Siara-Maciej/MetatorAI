@@ -8,7 +8,16 @@ import {
   InstantTimer,
   ScriptedProcessRunner,
 } from "@metator/testing";
-import { CLOSE_RUN, DO_IT, DriveRun, failedSteps, OTHER, RunJournal } from "../src/application/drive.ts";
+import {
+  CLOSE_RUN,
+  consequencesOf,
+  DO_IT,
+  DriveRun,
+  failedSteps,
+  OTHER,
+  RunJournal,
+  sinceLastAnswer,
+} from "../src/application/drive.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { CloseRun } from "../src/application/run-close.ts";
 import { RunDrivers } from "../src/application/run-drivers.ts";
@@ -65,6 +74,33 @@ describe("drive domain", () => {
     expect(parseStatus("STATUS: nothing to do: src/discount.ts:12 already rounds half up")).toEqual({
       kind: "nothing",
       evidence: "src/discount.ts:12 already rounds half up",
+    });
+  });
+
+  test("the card's soFar starts after the last answer; a gate's consequences name the onFail loop", () => {
+    const at = "2026-11-02T10:00:00.000Z";
+    const activity = [
+      { at, type: "advance" as const, stage: "plan", text: "PASS" },
+      { at, type: "tool" as const, text: "Edit a.ts" },
+      { at, type: "answer" as const, stage: "approval", text: "q001: Approve · m" },
+      { at, type: "advance" as const, stage: "approval", text: "APPROVE" },
+      { at, type: "tool" as const, text: "Write b.ts" },
+      { at, type: "tool" as const, text: "Edit b.ts" },
+    ];
+    expect(sinceLastAnswer(activity)).toEqual(["approval APPROVE", "2 tool call(s)"]);
+    expect(sinceLastAnswer(activity.slice(0, 2))).toEqual(["plan PASS", "1 tool call(s)"]);
+    const stages = [
+      { id: "plan" },
+      { id: "plan-approval", hitl: true, onFail: { goto: "plan", loop: "plan" } },
+      { id: "build" },
+    ];
+    expect(consequencesOf(stages[1] as never, stages as never, { plan: 1 }, { plan: 2 })).toEqual({
+      Approve: "the run goes on to build",
+      Reject: "back to plan with your reason (loop plan: 2 of 2; past the limit the run escalates)",
+    });
+    expect(consequencesOf(stages[2] as never, stages as never, {}, {})).toEqual({
+      Approve: "the run is done",
+      Reject: "the run escalates with your reason: it waits for a person to resume it",
     });
   });
 
@@ -780,7 +816,14 @@ stages:
     );
     const runId = await w.start(undefined, "first");
     expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
-    expect(w.asked[0]?.card).toEqual({ task: "Add discount", done: [], artifacts: [], reversible: true });
+    expect(w.asked[0]?.card).toMatchObject({
+      task: "Add discount",
+      done: [],
+      artifacts: [],
+      reversible: true,
+      consequences: { Approve: "the run is done" },
+    });
+    expect(w.asked[0]?.card?.recommended).toBeUndefined();
   });
 
   test("where the verdict is the deliverable (no way back), CHANGES_REQUIRED passes", async () => {
@@ -891,14 +934,25 @@ loops:
       "Prices are in cents; EUR or USD?\n\nwhich currency?",
     );
     // Each question carries its decision card: the task, the stages passed, the artifacts so far.
-    expect(w.asked.find((q) => q.source === "gate")?.card).toEqual({
+    const gateCard = w.asked.find((q) => q.source === "gate")?.card;
+    expect(gateCard).toMatchObject({
       task: "Add discount",
       done: ["setup", "plan"],
       artifacts: ["plan.md"],
       recommended: "Approve",
       reversible: true,
+      // v3: what happened, what each answer does, what waiting costs (nothing held here).
+      // The setup script's call counts as a tool call; nothing was answered yet.
+      soFar: ["setup PASS", "plan PASS", "1 tool call(s)"],
+      consequences: {
+        Approve: "the run goes on to build",
+        Reject: "the run escalates with your reason: it waits for a person to resume it",
+      },
+      evidence: [],
+      costOfDelay: [],
     });
-    expect(w.asked.find((q) => q.source === "agent")?.card).toEqual({
+    expect(gateCard?.group).toBeUndefined();
+    expect(w.asked.find((q) => q.source === "agent")?.card).toMatchObject({
       task: "Add discount",
       done: ["setup", "plan", "approval"],
       artifacts: ["plan.md"],

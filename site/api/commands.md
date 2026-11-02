@@ -1938,6 +1938,19 @@ metator worktree setup [options]
 | `--run <id>` | the run whose worktree to set up (default: the latest run) |  |
 | `--up` | also start the worktree's services (metator env up --worktree) |  |
 
+### `metator worktree conflicts`
+
+Files two active runs changed in their own worktrees, and which to merge first
+
+```bash
+metator worktree conflicts [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--notify` | tell both runs of each conflict (a shared-file message each way) |  |
+| `--by <name>` | who sends the messages (with --notify) | `"metator"` |
+
 ### `metator worktree list`
 
 Worktrees with their branch, ports, run status and whether they hold uncommitted work

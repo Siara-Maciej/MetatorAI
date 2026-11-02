@@ -20,7 +20,9 @@ import {
   stageWork,
 } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { GateReportDocument } from "../domain/gate.ts";
 import { stoppedAt } from "../domain/overview.ts";
+import { PlanScopeDocument } from "../domain/plan.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
 import { messageLines, type RunMessage } from "../domain/run-message.ts";
@@ -35,6 +37,7 @@ import type { CloseRun } from "./run-close.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { AdvanceRun, ApproveRun } from "./runs.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
+import type { WorktreeRegistry } from "./worktrees.ts";
 
 /** The free-text option every question has, so a person is never forced into a listed choice. */
 export const OTHER = "Other";
@@ -354,6 +357,10 @@ export interface DriveDependencies {
   readonly notifyCommand?: string;
   /** Messages other runs sent this run (D2): its agents read them as data. */
   readonly messages?: (runId: string) => Promise<Result<readonly RunMessage[], MetatorError>>;
+  /** Where gate reports are (`paths.gates`); the default when absent. */
+  readonly gatesDir?: string;
+  /** The worktree registry, for the ports a run's worktree holds (the card's cost of delay). */
+  readonly worktrees?: Pick<WorktreeRegistry, "get">;
 }
 
 /**
@@ -418,6 +425,11 @@ export class DriveRun {
         autonomy: record.value.autonomy,
         done: passedStages(record.value.state.context.history),
         ...lastEventOf(record.value.state.context.history),
+        stages: entry.value.spec.stages,
+        loops: record.value.state.context.loops,
+        loopLimits: entry.value.spec.loops ?? {},
+        children: record.value.children ?? [],
+        ...(await this.ports(record.value.worktree?.id)),
         pollMs: input.pollMs ?? 500,
         inputs: record.value.inputs ?? {},
       };
@@ -710,6 +722,13 @@ export class DriveRun {
     });
   }
 
+  /** The port block of the run's worktree, when it has one and the registry knows it. */
+  private async ports(worktree: string | undefined): Promise<{ ports?: { from: number; count: number } }> {
+    if (!worktree || !this.d.worktrees) return {};
+    const entry = await this.d.worktrees.get(worktree);
+    return entry.isOk() ? { ports: entry.value.ports } : {};
+  }
+
   /** What other runs told this one, as data for its agents; nothing when there is no reader or no message. */
   private async messageLines(runId: string): Promise<{ messages?: readonly string[] }> {
     if (!this.d.messages) return {};
@@ -774,8 +793,9 @@ export class DriveRun {
   }
 
   /**
-   * The decision card of a question (P4): the task, the stages passed, the artifacts written so
-   * far, and what the caller knows of the recommended option and whether it can be taken back.
+   * The decision card of a question (P4, D5): the task, the stages passed, the artifacts written so
+   * far, what the caller knows of the recommended option and whether it can be taken back, and
+   * what the record, the activity, the gate reports and the plan scope say besides.
    */
   private async card(
     ctx: StageContext,
@@ -786,7 +806,74 @@ export class DriveRun {
     const artifacts = files
       .map((f) => f.slice(dir.length + 1))
       .filter((f) => !RUN_BOOKKEEPING.has(f) && !f.endsWith(".jsonl"));
-    return { task: ctx.task, done: [...ctx.done], artifacts, ...known };
+    const activity = await this.d.journal.activity(ctx.runId);
+    const soFar = activity.isOk() ? sinceLastAnswer(activity.value) : [];
+    const evidence = await this.evidence();
+    const blastRadius = await this.blastRadius(dir);
+    const costOfDelay = await this.costOfDelay(ctx);
+    const group = await this.group(ctx.runId);
+    return {
+      task: ctx.task,
+      done: [...ctx.done],
+      artifacts,
+      ...known,
+      soFar,
+      evidence,
+      consequences: consequencesOf(ctx.stage, ctx.stages, ctx.loops, ctx.loopLimits),
+      ...(blastRadius ? { blastRadius } : {}),
+      costOfDelay,
+      ...(group ? { group } : {}),
+    };
+  }
+
+  /** Each gate report as one line: the gate, whether it passed, every step's outcome. */
+  private async evidence(): Promise<string[]> {
+    const out: string[] = [];
+    for (const file of await this.d.fs.glob([`${this.d.gatesDir ?? ".metator/gates"}/*.json`])) {
+      const text = await this.d.fs.read(file);
+      if (text.isErr()) continue;
+      const report = parseJsonDocument(text.value, file).andThen((raw) =>
+        GateReportDocument.parse(raw, file),
+      );
+      if (report.isErr()) continue;
+      const steps = report.value.steps.map(
+        (s) => `${s.id} ${s.status === "pass" ? "✓" : s.status === "fail" ? "✗" : s.status}`,
+      );
+      out.push(`${report.value.gate}: ${report.value.passed ? "passed" : "failed"} (${steps.join(", ")})`);
+    }
+    return out;
+  }
+
+  /** The plan's files, and the top-level areas (first path segment) they are in. */
+  private async blastRadius(dir: string): Promise<DecisionCard["blastRadius"]> {
+    const file = `${dir}/plan-scope.json`;
+    if (!(await this.d.fs.exists(file))) return undefined;
+    const text = await this.d.fs.read(file);
+    if (text.isErr()) return undefined;
+    const scope = parseJsonDocument(text.value, file).andThen((raw) => PlanScopeDocument.parse(raw, file));
+    if (scope.isErr()) return undefined;
+    const areas = [...new Set(scope.value.edit.map((f) => f.split("/")[0] ?? f))].sort();
+    return { files: scope.value.edit.length, areas };
+  }
+
+  /** What waiting costs: ports the worktree holds, loops used, children waiting on this run. */
+  private async costOfDelay(ctx: StageContext): Promise<string[]> {
+    const out: string[] = [];
+    if (ctx.ports) out.push(`holds ports ${ctx.ports.from}–${ctx.ports.from + ctx.ports.count - 1}`);
+    for (const [loop, used] of Object.entries(ctx.loops))
+      if (used > 0) out.push(`loop ${loop}: ${used} of ${ctx.loopLimits[loop] ?? "?"} used`);
+    if (ctx.children.length > 0) out.push(`${ctx.children.length} child run(s) depend on this run`);
+    return out;
+  }
+
+  /** The feature group: the parent run, and this run's place among its children. */
+  private async group(runId: string): Promise<DecisionCard["group"]> {
+    const record = await this.d.repo.load(runId);
+    if (record.isErr() || !record.value.parent) return undefined;
+    const parent = await this.d.repo.load(record.value.parent);
+    const siblings = parent.isOk() ? (parent.value.children ?? []) : [];
+    const at = siblings.indexOf(runId);
+    return { parent: record.value.parent, step: at >= 0 ? at + 1 : 1, of: Math.max(siblings.length, 1) };
   }
 
   /**
@@ -983,6 +1070,41 @@ interface StageContext {
   readonly done: readonly string[];
   /** The run's last transition (PASS, FAIL, APPROVE), when it has one. */
   readonly lastEvent?: string;
+  /** The workflow's stages, the loops used so far and their limits: what each option would do. */
+  readonly stages: readonly StageSpec[];
+  readonly loops: Readonly<Record<string, number>>;
+  readonly loopLimits: Readonly<Record<string, number>>;
+  readonly children: readonly string[];
+  /** The worktree's port block, when the run has one. */
+  readonly ports?: { readonly from: number; readonly count: number };
+}
+
+/** Transitions and tool calls since a person last answered (the whole run before any answer). */
+export function sinceLastAnswer(activity: readonly RunActivity[]): string[] {
+  const last = activity.map((a) => a.type).lastIndexOf("answer");
+  const after = activity.slice(last + 1);
+  const out = after.filter((a) => a.type === "advance").map((a) => `${a.stage ?? "?"} ${a.text}`);
+  const tools = after.filter((a) => a.type === "tool").length;
+  if (tools > 0) out.push(`${tools} tool call(s)`);
+  return out;
+}
+
+/** What each answer to a gate does, from the workflow: the next stage, or where a FAIL sends the run. */
+export function consequencesOf(
+  stage: StageSpec,
+  stages: readonly StageSpec[],
+  loops: Readonly<Record<string, number>>,
+  limits: Readonly<Record<string, number>>,
+): Record<string, string> {
+  const at = stages.findIndex((s) => s.id === stage.id);
+  const next = stages[at + 1];
+  const out: Record<string, string> = { Approve: next ? `the run goes on to ${next.id}` : "the run is done" };
+  if (stage.onFail) {
+    const used = loops[stage.onFail.loop] ?? 0;
+    const limit = limits[stage.onFail.loop];
+    out.Reject = `back to ${stage.onFail.goto} with your reason (loop ${stage.onFail.loop}: ${used + 1}${limit ? ` of ${limit}` : ""}; past the limit the run escalates)`;
+  } else out.Reject = "the run escalates with your reason: it waits for a person to resume it";
+  return out;
 }
 
 /** The run's own files, which no decision rests on. */

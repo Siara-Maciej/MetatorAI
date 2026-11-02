@@ -2615,6 +2615,30 @@ export const MUTANTS: readonly Mutant[] = [
     why: "with a lockfile the install keeps it as it is",
   },
   {
+    file: "packages/core/src/application/drive.ts",
+    from: '  const last = activity.map((a) => a.type).lastIndexOf("answer");',
+    to: "  const last = -1;",
+    why: "the card says what happened since the last answer, not since the start",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: "  if (stage.onFail) {\n",
+    to: "  if (false) {\n",
+    why: "a gate with onFail says where a rejection sends the run",
+  },
+  {
+    file: "packages/core/src/application/worktree-conflicts.ts",
+    from: "          conflicts.push({ runs: [a.runId, b.runId], files: shared, mergeFirst: a.runId });",
+    to: "          conflicts.push({ runs: [a.runId, b.runId], files: shared, mergeFirst: b.runId });",
+    why: "the run that started earlier is merged first",
+  },
+  {
+    file: "packages/core/src/application/worktree-conflicts.ts",
+    from: '      if (r.state.status !== "active" || !r.worktree) continue;\n',
+    to: "      if (!r.worktree) continue;\n",
+    why: "a finished run clashes with nobody",
+  },
+  {
     file: "packages/core/src/application/supervisor.ts",
     from: "        if (attempts >= this.d.policy.respawn.maxAttempts) {",
     to: "        if (false) {",

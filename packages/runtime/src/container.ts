@@ -190,6 +190,7 @@ import {
   type WorkflowCatalog,
   type WorkOverview,
   type WorkspaceReader,
+  type WorktreeConflicts,
   type WorktreeManager,
   type WorktreeRegistry,
   type WriteRunArtifact,
@@ -252,6 +253,7 @@ export interface Cradle {
   workOverview: WorkOverview;
   checkReadiness: CheckReadiness;
   setupWorktree: SetupWorktree;
+  worktreeConflicts: WorktreeConflicts;
   answerPolicyStore: AnswerPolicyStore;
   buildReport: BuildReport;
   driverLock: DriverLock;

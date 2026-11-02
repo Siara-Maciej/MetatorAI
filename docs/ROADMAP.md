@@ -264,7 +264,7 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 - [x] P4 Karta decyzji (`Question` v2: cel, co zrobiono, rekomendacja, skutki opcji, odwracalność, artefakt), `metator inbox` (pytania ze wszystkich runów według pilności), `run brief` (co się stało od ostatniej wizyty, ze zdarzeń).
 - [x] P5 Polityki odpowiedzi („zawsze X dla Y”, zapamiętane z odpowiedzi) i powiadomienia (komenda lub webhook, gdy pytanie czeka).
 - [x] P6 Telemetria: tokeny, koszt, czas ścienny i czas czekania na człowieka per run; `metator report` (ROI, przegląd agentów).
-- [ ] P7 Konflikty między sesjami: zmienione pliki runów w osobnych worktree porównane, ostrzeżenie i kolejność scalania.
+- [x] P7 Konflikty między sesjami: zmienione pliki runów w osobnych worktree porównane, ostrzeżenie i kolejność scalania.
 
 **Dystrybucja i integracje (część I)**
 - [x] P9 Przygotowanie sesji: `run init --worktree` daje worktree zależności (kopia `node_modules` z głównego checkoutu przy zgodnych lockfile, inaczej `install`), `worktree setup [--up]`, `doctor --run`.
@@ -283,7 +283,7 @@ Specyfikacja: [design/12](design/12-desktop.md), zatwierdzona 2026-11-02 (decyzj
 - [x] D2 `RunActivity` v2 (typy `driver`, `idle`, `message`, `restart`; pole `origin`), `RunMessage` v1 i `run message` (dane, nie instrukcje), widoczne w `status` i w odprawie.
 - [x] D3 `metator serve`: lokalny demon (localhost, bez uwierzytelniania) z `/state`, `/inbox`, `/activity/<run>`, `/pty/<run>`; broker PTY na node-pty z blokadą kierowcy; port `InteractiveHost` z adapterem `scenario` i zestawem kontraktowym.
 - [x] D4 `SupervisorPolicy` v1 w `MetatorConfig` (limit WIP, restart z resume, próg bezczynności, kolejność hostów, zgody z czatu); `metator supervise` (respawn na `run revive`, nudge przy bezczynności, kolejka ponad limitem WIP, sesje potomne z planu systemowego).
-- [ ] D5 Karta decyzji v3 (`soFar`, `proposal`, `evidence`, skutki opcji, `blastRadius`, `costOfDelay`, `group`) i przecięcia `graph affected` między worktree (P7): ostrzeżenie o wspólnym pliku i kolejność scalania.
+- [x] D5 Karta decyzji v3 (`soFar`, `proposal`, `evidence`, skutki opcji, `blastRadius`, `costOfDelay`, `group`) i przecięcia `graph affected` między worktree (P7): ostrzeżenie o wspólnym pliku i kolejność scalania.
 - [ ] D6 Adaptery `InteractiveHost`: Copilot CLI (pierwszy), Claude Code, OpenCode, na tym samym kontrakcie.
 - [ ] D7 Aplikacja Tauri + xterm.js: ekrany 1, 2, 7, K, potem 3, 4, 5, 6; powiadomienia systemowe; kryteria 11a i 11b.
 

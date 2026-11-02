@@ -121,7 +121,7 @@ const QuestionV1Schema = z.strictObject({
  * the artifacts to look at, the option the evidence points to, and whether the decision can be
  * taken back. Composed from the run's own record when the question is asked, never by a model.
  */
-export const DecisionCardSchema = z.strictObject({
+const DecisionCardV2Schema = z.strictObject({
   task: z.string(),
   /** Stages the run passed, in order. */
   done: z.array(z.string()),
@@ -132,21 +132,53 @@ export const DecisionCardSchema = z.strictObject({
   /** false: the answer starts something that cannot be undone here (a push, closing the run). */
   reversible: z.boolean(),
 });
+
+/**
+ * v3 of the card (D5, ADR-0077), every field optional: what happened since the last answer, the
+ * gates' evidence, what each option does, how far the change reaches, what waiting costs, and the
+ * feature group the run is a step of.
+ */
+export const DecisionCardSchema = z.strictObject({
+  ...DecisionCardV2Schema.shape,
+  /** Transitions and tool calls since a person last answered ("build PASS", "14 tool calls"). */
+  soFar: z.array(z.string()).optional(),
+  /** Gate reports as evidence: "full: passed (lint ✓, rules ✓, test ✓)". */
+  evidence: z.array(z.string()).optional(),
+  /** What each option does, by its label: Approve → the next stage; Reject → back to plan (loop 1 of 2). */
+  consequences: z.record(z.string(), z.string()).optional(),
+  /** How far the change reaches: the plan's files and the top-level areas they are in. */
+  blastRadius: z.strictObject({ files: z.number().int().min(0), areas: z.array(z.string()) }).optional(),
+  /** What waiting costs: the worktree's ports held, loops used, runs blocked. */
+  costOfDelay: z.array(z.string()).optional(),
+  /** The feature group this run is a step of (its parent run), and the step's place. */
+  group: z
+    .strictObject({ parent: z.string(), step: z.number().int().min(1), of: z.number().int().min(1) })
+    .optional(),
+});
 export type DecisionCard = z.output<typeof DecisionCardSchema>;
+
+const QuestionV2Schema = z.strictObject({
+  ...QuestionV1Schema.shape,
+  card: DecisionCardV2Schema.optional(),
+});
 
 /** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
 export const QuestionSchema = z.strictObject({
   ...QuestionV1Schema.shape,
-  /** v2: the decision card; a v1 question has none. */
+  /** v2: the decision card; v3 widens it. A v1 question has none. */
   card: DecisionCardSchema.optional(),
 });
 export type Question = z.output<typeof QuestionSchema>;
 export type QuestionAnswer = NonNullable<Question["answer"]>;
 
 export const QuestionDocument = defineDocument("Question", {
-  history: [{ schema: QuestionV1Schema }],
+  history: [
+    { schema: QuestionV1Schema },
+    // `card` is optional: a v1 question is a v2 question asked without one.
+    { schema: QuestionV2Schema, fromPrevious: (previous) => previous },
+  ],
   latest: QuestionSchema,
-  // `card` is optional: a v1 question is a v2 question asked without one.
+  // Every v3 card field is optional: a v2 card is a v3 card that says less.
   upgrade: (previous) => previous,
   hint: "Answer with `metator run answer <question> --choice <label> --by <name>`.",
 });

@@ -109,6 +109,11 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       }
       if (path === "/state") return json(await state(ctx, folder));
       if (path === "/inbox") return json(await inbox(ctx, folder));
+      if (path === "/conflicts") {
+        const c = containerFor(repo);
+        if (c.isErr()) return json({ ok: false, error: c.error }, 404);
+        return fromResult(await c.value.resolve("worktreeConflicts").execute({}));
+      }
       const c = containerFor(repo);
       if (c.isErr()) return json({ ok: false, error: c.error }, 404);
       const run = /^\/runs\/([^/]+)\/([a-z-]+)$/.exec(path);

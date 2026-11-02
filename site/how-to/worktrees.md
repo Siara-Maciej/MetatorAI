@@ -61,6 +61,24 @@ metator worktree prune --dry-run               # what prune would remove
 - **Uncommitted work is never removed silently.** `rm` refuses a worktree with changes unless you pass `--force`, and `prune` skips such worktrees and lists them under `keptDirty`.
 - **Branches stay.** Removing a worktree keeps its `metator/<id>` branch, so committed work is never lost.
 
+## Conflicts between sessions
+
+Two runs in their own worktrees that change the same file will clash when their branches merge. See it before that:
+
+```bash
+metator worktree conflicts            # every active run's changed files, and the pairs that share one
+metator worktree conflicts --notify   # also tell both runs (a shared-file message each way, read as data)
+```
+
+```json
+{"changes":[{"runId":"20261102-mt-feature-a","worktree":"20261102-mt-feature-a","files":["src/invoice.ts"]},
+            {"runId":"20261102-mt-feature-b","worktree":"20261102-mt-feature-b","files":["src/invoice.ts","src/web.ts"]}],
+ "conflicts":[{"runs":["20261102-mt-feature-a","20261102-mt-feature-b"],"files":["src/invoice.ts"],"mergeFirst":"20261102-mt-feature-a"}],
+ "notified":[]}
+```
+
+A worktree's changes are what it committed on its branch, what is in its working tree, and new files git does not ignore, all against the point it branched off. `mergeFirst` is the run that started earlier: merge it, and the other rebases on it. The daemon serves the same at `GET /conflicts`.
+
 ## Ports
 
 Each worktree's block is in its entry (`ports.from`, `ports.count`). `metator worktree new` also returns it as variables:

@@ -60,6 +60,7 @@ import {
   EnvironmentCatalog,
   EnvironmentServices,
   EvalCatalog,
+  err,
   type FileSystem,
   FindMemoryDupes,
   FindOwners,
@@ -104,12 +105,15 @@ import {
   MemoryBudget,
   MemoryMapReader,
   MergeFindingSets,
+  MetatorError,
   type MetatorPaths,
+  ok,
   PackRules,
   PatternCatalog,
   PinnedSystemLocation,
   PlannedBreakingChanges,
   PlanReview,
+  type ProcessRunner,
   ProposeRefactorPlan,
   ProposeSystemPlan,
   ProvideWorktree,
@@ -120,6 +124,7 @@ import {
   RemoveWorktree,
   RepositoryDiscoverySource,
   type RepositoryRuns,
+  type Result,
   ResumeRun,
   RuleCatalog,
   RunAffectedTests,
@@ -161,6 +166,7 @@ import {
   WorkflowCatalog,
   WorkOverview,
   type WorkspacePackage,
+  WorktreeConflicts,
   WorktreeRegistry,
   WriteRunArtifact,
 } from "@metator/core";
@@ -337,6 +343,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     buildReport: asFunction(
       ({ runRepository, runJournal, clock }) => new BuildReport(runRepository, runJournal, clock),
     ),
+    worktreeConflicts: asFunction(
+      ({ runRepository, worktreeRegistry, processRunner, runMessages, root }) =>
+        new WorktreeConflicts(
+          runRepository,
+          worktreeRegistry,
+          (entry) => worktreeChanges(processRunner, root, entry.path),
+          runMessages,
+        ),
+    ),
     checkReadiness: asFunction(
       ({ fileSystem, paths, config, workflowCatalog, vcs, root, worktreeRegistry, environmentServices }) =>
         new CheckReadiness(
@@ -478,6 +493,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         config,
         answerPolicyStore,
         runMessages,
+        paths,
+        worktreeRegistry,
       }) =>
         new DriveRun({
           catalog: workflowCatalog,
@@ -495,6 +512,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           notes: async (cwd) => workNotes(cwd),
           policies: () => answerPolicyStore.list(),
           messages: (runId) => runMessages.list(runId),
+          gatesDir: paths.gates,
+          worktrees: worktreeRegistry,
           ...(config.config.notify ? { notifyCommand: config.config.notify.command } : {}),
         }),
     ),
@@ -1094,6 +1113,30 @@ export async function checkoutRoots(
     if (located.isOk() && located.value) roots.push(located.value.root);
   }
   return roots;
+}
+
+/**
+ * Files a worktree changed since it branched off the main checkout's HEAD: committed on its
+ * branch, in its working tree, or new and not ignored; repo-relative.
+ */
+async function worktreeChanges(
+  runner: ProcessRunner,
+  root: string,
+  path: string,
+): Promise<Result<readonly string[], MetatorError>> {
+  const dir = join(root, path);
+  const git = (argv: string[], cwd: string) => runner.run({ argv: ["git", ...argv], cwd });
+  const head = (await git(["rev-parse", "HEAD"], root)).stdout.trim();
+  const fork = await git(["merge-base", "HEAD", head], dir);
+  if (fork.exitCode !== 0)
+    return err(new MetatorError("COMMAND_FAILED", `git merge-base in ${dir}: ${fork.stderr.trim()}`));
+  const committed = await git(["diff", "--name-only", fork.stdout.trim()], dir);
+  const untracked = await git(["ls-files", "--others", "--exclude-standard"], dir);
+  const files = `${committed.stdout}\n${untracked.stdout}`
+    .split("\n")
+    .map((f) => f.trim())
+    .filter(Boolean);
+  return ok([...new Set(files)].sort());
 }
 
 const isDirectory = (path: string): boolean => {

@@ -50,6 +50,19 @@ export function registerWorktreeCommands(program: Command, { action, container }
     );
 
   worktree
+    .command("conflicts")
+    .description("Files two active runs changed in their own worktrees, and which to merge first")
+    .option("--notify", "tell both runs of each conflict (a shared-file message each way)", false)
+    .option("--by <name>", "who sends the messages (with --notify)", "metator")
+    .action(
+      action(async (opts: { notify: boolean; by: string }) => ({
+        result: await container()
+          .resolve("worktreeConflicts")
+          .execute(opts.notify ? { notify: { by: opts.by } } : {}),
+      })),
+    );
+
+  worktree
     .command("list")
     .description("Worktrees with their branch, ports, run status and whether they hold uncommitted work")
     .action(

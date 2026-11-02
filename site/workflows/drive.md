@@ -76,6 +76,17 @@ metator run answer q003 --text "use EUR, never mix currencies" --by alice   # Ot
 
 A gate recommends Approve only when the stage before it passed. The delivery gate, which grants the push, is `reversible: false`, as is closing a run whose worker found nothing to do. `metator ui` shows the card above the options and marks the recommended one.
 
+The card also says (each from the run's own files, none from a model):
+
+| Field | What | From |
+|---|---|---|
+| `soFar` | transitions and tool calls since you last answered | `activity.jsonl` |
+| `evidence` | each gate report: `full: passed (lint ✓, rules ✓, test ✓)` | `.metator/gates/*.json` |
+| `consequences` | what each answer does: `Approve` → the next stage; `Reject` → back to the stage `onFail` names, with the loop count and limit | the workflow spec, the run's loops |
+| `blastRadius` | how many files the plan touches and the top-level areas they are in | `plan-scope.json` |
+| `costOfDelay` | ports the worktree holds, loops used, child runs waiting on this one | the worktree registry, the run |
+| `group` | the parent run and this run's step among its children | `parent`, `children` |
+
 **All your decisions in one queue**, across runs (and across the repositories of a folder):
 
 ```bash
