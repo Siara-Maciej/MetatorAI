@@ -193,10 +193,14 @@ describe("metator CLI (process e2e)", () => {
       "run list",
       "run continue",
       "run drive",
+      "run revive",
       "run stop",
       "run questions",
       "run answer",
+      "run brief",
       "run activity",
+      "policy list",
+      "policy rm",
       "worktree new",
       "worktree list",
       "worktree rm",
@@ -217,6 +221,8 @@ describe("metator CLI (process e2e)", () => {
       "ask",
       "ask list",
       "status",
+      "doctor",
+      "inbox",
     ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);
   });

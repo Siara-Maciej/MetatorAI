@@ -89,6 +89,20 @@ metator inbox
 
 First the decisions a live drive waits on (that run stands still until you answer), then the ones that have waited longest.
 
+**Answer once, for good.** Questions the team always answers the same way become answer policies:
+
+```bash
+metator run answer q001 --choice Approve --by alice --always
+```
+
+The answer goes to the run, and `metator/answer-policies.yml` gets a policy for the same question (its source, stage, agent and, for a gate, the recommendation it came with). From then on such a question is answered the moment it is asked, by `policy:<id>`, and the run does not wait. Commit the file: the team reviews policies like code. `metator policy list` shows them, `metator policy rm <id>` puts such questions back to a person.
+
+A policy only answers where a wrong answer costs less than a question:
+- a gate only while its card recommends the same answer (a plan approval after the plan gate passed, never after it failed);
+- never a decision that cannot be taken back (the push, closing a run);
+- never Allow for a tool (a policy may Deny one, e.g. `when: { source: permission, promptIncludes: "npx " }`);
+- never Other or Reject, which need your own words.
+
 **Questions come from three places:**
 
 | `source` | When | What your answer does |

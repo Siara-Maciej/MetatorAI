@@ -9,6 +9,7 @@ import {
   AnalyzeArchitecture,
   AnalyzeEnvironment,
   AnalyzeSystem,
+  AnswerPolicyStore,
   ApiSnapshots,
   ApproveRefactorPlan,
   ApproveRun,
@@ -315,6 +316,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     dataIsolator: asFunction(() => new BunSqlDataIsolator()).singleton(),
     treeCopier: asFunction(() => new NodeTreeCopier()).singleton(),
     backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
+    answerPolicyStore: asFunction(({ fileSystem }) => new AnswerPolicyStore(fileSystem)),
     checkReadiness: asFunction(
       ({ fileSystem, paths, config, workflowCatalog, vcs, root }) =>
         new CheckReadiness(fileSystem, paths, config, workflowCatalog, vcs, async () =>
@@ -381,6 +383,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         timer,
         root,
         config,
+        answerPolicyStore,
       }) =>
         new DriveRun({
           catalog: workflowCatalog,
@@ -396,6 +399,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           root,
           metatorCommand: config.config.hosts.metatorCommand,
           notes: async (cwd) => workNotes(cwd),
+          policies: () => answerPolicyStore.list(),
+          ...(config.config.notify ? { notifyCommand: config.config.notify.command } : {}),
         }),
     ),
     // `.metator/` is MetatorAI's own state: never a change, even before setup gitignores it.

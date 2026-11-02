@@ -186,7 +186,21 @@ const ConfigV5Schema = z.strictObject({
   editor: ConfigV4Schema.shape.editor,
 });
 
-export const MetatorConfigSchema = ConfigV5Schema;
+/**
+ * v6 adds `notify` (P5): a command run when a question waits for a person, the question as JSON
+ * in `METATOR_QUESTION`. Every v5 file is a v6 file.
+ */
+const ConfigV6Schema = z.strictObject({
+  ...ConfigV5Schema.shape,
+  notify: z
+    .strictObject({
+      /** A shell command, e.g. `notify-send "$METATOR_QUESTION_PROMPT"` or a curl to a chat webhook. */
+      command: z.string().min(1),
+    })
+    .optional(),
+});
+
+export const MetatorConfigSchema = ConfigV6Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -200,9 +214,10 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: configSchema(GateStepV4Schema), fromPrevious: (v1) => v1 },
     { schema: ConfigV3Schema, fromPrevious: (v2) => v2 },
     { schema: ConfigV4Schema, fromPrevious: (v3) => v3 },
+    { schema: ConfigV5Schema, fromPrevious: (v4) => v4 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v4) => v4,
+  upgrade: (v5) => v5,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

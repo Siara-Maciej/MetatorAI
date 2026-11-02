@@ -26,6 +26,7 @@ import {
   stagePrompt,
   stageWork,
 } from "../src/domain/drive.ts";
+import { ok } from "../src/domain/result.ts";
 import type { StageSpec } from "../src/domain/workflow-spec.ts";
 
 describe("drive domain", () => {
@@ -244,6 +245,7 @@ function world(
   turns: Record<string, FakeAgentTurn[]>,
   person: Person,
   scripts = new ScriptedProcessRunner(),
+  extra: Partial<ConstructorParameters<typeof DriveRun>[0]> = {},
 ) {
   const fs = new InMemoryFileSystem({ ".github/metator/workflows/demo.yml": WORKFLOW });
   const clock = new FixedClock(new Date("2026-10-27T10:00:00.000Z"));
@@ -276,6 +278,7 @@ function world(
     timer,
     root: "/repo",
     metatorCommand: "bun run metator",
+    ...extra,
   });
   const start = async (inputs?: Record<string, string>, workflow = "demo", autonomy?: "L0" | "L1" | "L2") => {
     const view = (
@@ -620,6 +623,98 @@ stages:
     // Its card: the build passed, so approving is recommended; the push it grants cannot be undone.
     const card = w.asked.find((q) => q.stage === "delivery")?.card;
     expect([card?.recommended, card?.reversible]).toEqual(["Approve", false]);
+  });
+
+  test("an answer policy answers the plan approval at once, under its name; a person is not notified", async () => {
+    const scripts = okScripts();
+    const w = world(
+      {
+        "mt-planner": [writesPlan],
+        "mt-implementer": [{ text: "STATUS: done" }],
+        "mt-plan-critic": [{ text: "VERDICT: PASS" }],
+      },
+      () => undefined, // nobody answers: only the policy can
+      scripts,
+      {
+        policies: async () =>
+          ok([
+            {
+              id: "approve-plan",
+              when: { source: "gate" as const, stage: "approval", recommended: "Approve" },
+              answer: { choices: ["Approve"] },
+              by: "alice",
+              at: "2026-11-02T10:00:00.000Z",
+            },
+          ]),
+        notifyCommand: "notify-send hi",
+      },
+    );
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const q = (await w.journal.questions(runId))._unsafeUnwrap()[0];
+    expect([q?.stage, q?.answer?.by, q?.answer?.choices]).toEqual([
+      "approval",
+      "policy:approve-plan",
+      ["Approve"],
+    ]);
+    expect(scripts.calls.some((c) => c.argv[0] === "sh")).toBe(false);
+  });
+
+  test("a question that waits is announced once through notify.command; a failing command is logged", async () => {
+    const scripts = new ScriptedProcessRunner([
+      { argvPrefix: ["bun", "run", "metator", "index", "build"], result: { exitCode: 0 } },
+      { argvPrefix: ["test", "-f"], result: { exitCode: 0 } },
+      { argvPrefix: ["sh", "-c"], result: { exitCode: 7, stderr: "no webhook" } },
+    ]);
+    const w = world(
+      {
+        "mt-planner": [writesPlan],
+        "mt-implementer": [{ text: "STATUS: done" }],
+        "mt-plan-critic": [{ text: "VERDICT: PASS" }],
+      },
+      () => ({ choices: ["Approve"] }),
+      scripts,
+      { policies: async () => ok([]), notifyCommand: "curl -d @- https://chat.example/hook" },
+    );
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const sh = scripts.calls.filter((c) => c.argv[0] === "sh");
+    expect(sh.map((c) => c.argv)).toEqual([["sh", "-c", "curl -d @- https://chat.example/hook"]]);
+    expect(sh[0]?.env?.METATOR_QUESTION_ID).toBe("q001");
+    expect(JSON.parse(sh[0]?.env?.METATOR_QUESTION ?? "{}").card.recommended).toBe("Approve");
+    const errors = (await w.journal.activity(runId))._unsafeUnwrap().filter((a) => a.type === "error");
+    expect(errors.map((e) => e.text)).toEqual(["notify.command failed for q001 (exit 7): no webhook"]);
+  });
+
+  test("a drive that restarts at a waiting question does not announce it again", async () => {
+    const scripts = new ScriptedProcessRunner([
+      { argvPrefix: ["bun", "run", "metator", "index", "build"], result: { exitCode: 0 } },
+      { argvPrefix: ["test", "-f"], result: { exitCode: 0 } },
+      { argvPrefix: ["sh", "-c"], result: { exitCode: 0 } },
+    ]);
+    let away = true;
+    const w = world(
+      {
+        "mt-planner": [writesPlan],
+        "mt-implementer": [{ text: "STATUS: done" }],
+        "mt-plan-critic": [{ text: "VERDICT: PASS" }],
+      },
+      () => {
+        if (away) throw new Error("the drive died while the question waited");
+        return { choices: ["Approve"] };
+      },
+      scripts,
+      { policies: async () => ok([]), notifyCommand: "notify-send q" },
+    );
+    w0 = w;
+    const runId = await w.start();
+    await expect(w.drive.execute({ runId, host: "fake" })).rejects.toThrow("the drive died");
+    away = false;
+    w.asked.length = 0;
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    expect(scripts.calls.filter((c) => c.argv[0] === "sh").length).toBe(1);
   });
 
   test("a gate nothing passed before recommends nothing", async () => {

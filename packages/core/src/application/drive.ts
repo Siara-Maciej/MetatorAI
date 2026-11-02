@@ -1,4 +1,5 @@
 import { parse as parseShell } from "shell-quote";
+import { type AnswerPolicy, matchPolicy } from "../domain/answer-policy.ts";
 import {
   type AgentAnswer,
   type AgentQuestion,
@@ -308,6 +309,10 @@ export interface DriveDependencies {
   readonly metatorCommand: string;
   /** What agents must know about the directory they work in (dependencies not installed). */
   readonly notes?: (cwd: string) => Promise<readonly string[]>;
+  /** The repository's answer policies (P5): a question one of them answers never waits. */
+  readonly policies?: () => Promise<Result<readonly AnswerPolicy[], MetatorError>>;
+  /** A shell command run when a question waits for a person (`notify.command`). */
+  readonly notifyCommand?: string;
 }
 
 /**
@@ -437,7 +442,7 @@ export class DriveRun {
 
   /** A HITL stage: the person approves, or rejects with a reason (FAIL). */
   private async humanGate(ctx: StageContext): Promise<Result<Outcome, MetatorError>> {
-    const q = await this.d.journal.ask(
+    const q = await this.ask(
       ctx.runId,
       {
         stage: ctx.stage.id,
@@ -598,7 +603,7 @@ export class DriveRun {
       if (status?.kind !== "blocked") return ok({ type: "PASS" });
       if (answers === MAX_ANSWERS)
         return ok({ type: "FAIL", reason: `${agent} stayed blocked after ${MAX_ANSWERS} answers` });
-      const q = await this.d.journal.ask(
+      const q = await this.ask(
         ctx.runId,
         {
           stage: ctx.stage.id,
@@ -636,7 +641,7 @@ export class DriveRun {
   > {
     const reason = `nothing to do: ${evidence}`;
     if (ctx.autonomy === "L2") return ok({ type: "ABORT", reason });
-    const q = await this.d.journal.ask(
+    const q = await this.ask(
       ctx.runId,
       {
         stage: ctx.stage.id,
@@ -660,6 +665,61 @@ export class DriveRun {
     return ok({
       type: "GO_ON",
       answer: a.value.text ?? "A person decided the task is not done yet: do it as written.",
+    });
+  }
+
+  /**
+   * Asks a person, unless an answer policy answers at once (recorded under its name). A question
+   * that waits for a person is announced through `notify.command`, once.
+   */
+  private async ask(
+    runId: string,
+    q: Parameters<RunJournal["ask"]>[1],
+    pendingSince?: string,
+  ): Promise<Result<Question, MetatorError>> {
+    const asked = await this.d.journal.ask(runId, q, pendingSince);
+    if (asked.isErr() || asked.value.answer) return asked;
+    const policies = this.d.policies ? await this.d.policies() : ok([]);
+    if (policies.isErr()) return err(policies.error);
+    const policy = matchPolicy(policies.value, asked.value);
+    if (policy) {
+      const answered = await this.d.journal.answer(runId, asked.value.id, {
+        choices: policy.answer.choices,
+        ...(policy.answer.text ? { text: policy.answer.text } : {}),
+        by: `policy:${policy.id}`,
+      });
+      return answered;
+    }
+    await this.notify(asked.value);
+    return asked;
+  }
+
+  /** Runs `notify.command` for a question that now waits; a failure is logged, never fatal. */
+  private async notify(q: Question): Promise<void> {
+    if (!this.d.notifyCommand) return;
+    const activity = await this.d.journal.activity(q.runId);
+    const mark = `notified ${q.id}`;
+    if (activity.isOk() && activity.value.some((a) => a.type === "drive" && a.text.startsWith(mark))) return;
+    const r = await this.d.process.run(
+      {
+        argv: ["sh", "-c", this.d.notifyCommand],
+        cwd: this.d.root,
+        env: {
+          METATOR_RUN: q.runId,
+          METATOR_QUESTION_ID: q.id,
+          METATOR_QUESTION_PROMPT: q.prompt,
+          METATOR_QUESTION: serializeJsonDocument(QuestionDocument.stamp(q)),
+        },
+      },
+      { timeoutMs: 30_000 },
+    );
+    await this.d.journal.record(q.runId, {
+      type: r.exitCode === 0 ? "drive" : "error",
+      stage: q.stage,
+      text:
+        r.exitCode === 0
+          ? mark
+          : `notify.command failed for ${q.id} (exit ${r.exitCode}): ${r.stderr.trim().slice(-300)}`,
     });
   }
 
@@ -757,7 +817,7 @@ export class DriveRun {
     const say = (entry: ActivityInput) => this.d.journal.record(ctx.runId, entry);
     await say({ type: "agent", stage: ctx.stage.id, agent, text: `${agent} started` });
     const ask = async (q: AgentQuestion): Promise<AgentAnswer> => {
-      const asked = await this.d.journal.ask(
+      const asked = await this.ask(
         ctx.runId,
         {
           stage: ctx.stage.id,

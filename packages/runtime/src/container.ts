@@ -6,6 +6,7 @@ import {
   type AnalyzeArchitecture,
   type AnalyzeEnvironment,
   type AnalyzeSystem,
+  type AnswerPolicyStore,
   type ApiSnapshots,
   type ApproveRefactorPlan,
   type ApproveRun,
@@ -241,6 +242,7 @@ export interface Cradle {
   askQuestion: AskQuestion;
   workOverview: WorkOverview;
   checkReadiness: CheckReadiness;
+  answerPolicyStore: AnswerPolicyStore;
   runJournal: RunJournal;
   runDrivers: RunDrivers;
   driveRun: DriveRun;

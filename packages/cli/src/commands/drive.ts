@@ -1,4 +1,4 @@
-import { briefOf, err, MetatorError, ok } from "@metator/core";
+import { briefOf, err, MetatorError, ok, policyFrom, policyRefusal } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { follow, person } from "../live.ts";
@@ -170,22 +170,48 @@ export function registerDriveCommands(
     .option("--choice <labels...>", "the option label(s) chosen")
     .option("--text <text>", "your own words (with Other, or a reason with Reject)")
     .requiredOption("--by <name>", "who answers")
+    .option(
+      "--always",
+      "also answer every such question this way from now on (an answer policy in metator/answer-policies.yml)",
+      false,
+    )
     .action(
       action(
-        async (question: string, opts: { run?: string; choice?: string[]; text?: string; by: string }) => {
+        async (
+          question: string,
+          opts: { run?: string; choice?: string[]; text?: string; by: string; always: boolean },
+        ) => {
           const c = container();
           const id = await c.resolve("runRepository").resolveId(opts.run);
           if (id.isErr()) return { result: id };
           if (!opts.choice && !opts.text) {
             return { result: err(MetatorError.usage("give --choice <label> or --text <answer>")) };
           }
-          return {
-            result: await c.resolve("runJournal").answer(id.value, question, {
-              choices: opts.choice ?? [],
-              by: opts.by,
-              ...(opts.text ? { text: opts.text } : {}),
-            }),
-          };
+          const input = { choices: opts.choice ?? [], ...(opts.text ? { text: opts.text } : {}) };
+          const journal = c.resolve("runJournal");
+          if (opts.always) {
+            const all = await journal.questions(id.value);
+            if (all.isErr()) return { result: all };
+            const q = all.value.find((x) => x.id === question);
+            if (!q) return { result: err(MetatorError.notFound(`question ${question} of run ${id.value}`)) };
+            const refused = policyRefusal(q, input.choices.length > 0 ? input.choices : ["Other"]);
+            if (refused)
+              return { result: err(MetatorError.usage(`no policy: ${refused}`, "Answer without --always.")) };
+          }
+          const answered = await journal.answer(id.value, question, { ...input, by: opts.by });
+          if (answered.isErr() || !opts.always) return { result: answered };
+          const store = c.resolve("answerPolicyStore");
+          const taken = await store.list();
+          if (taken.isErr()) return { result: taken };
+          const policy = policyFrom(
+            answered.value,
+            input,
+            opts.by,
+            c.resolve("clock").now().toISOString(),
+            taken.value.map((p) => p.id),
+          );
+          const added = await store.add(policy);
+          return { result: added.map((p) => ({ ...answered.value, policy: p })) };
         },
       ),
     );
@@ -248,5 +274,24 @@ export function registerDriveCommands(
         const entries = opts.tail ? activity.value.slice(-opts.tail) : activity.value;
         return { result: ok({ runId: id.value, driver: driver.value, entries }) };
       }),
+    );
+
+  const policies = program
+    .command("policy")
+    .description("Answer policies: questions the team answers the same way every time");
+  policies
+    .command("list")
+    .description("Every answer policy in metator/answer-policies.yml")
+    .action(
+      action(async () => ({
+        result: (await container().resolve("answerPolicyStore").list()).map((p) => ({ policies: p })),
+      })),
+    );
+  policies
+    .command("rm")
+    .description("Remove an answer policy: such questions ask a person again")
+    .argument("<id>", "policy id")
+    .action(
+      action(async (id: string) => ({ result: await container().resolve("answerPolicyStore").remove(id) })),
     );
 }

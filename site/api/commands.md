@@ -1800,6 +1800,7 @@ metator run answer [options] <question>
 | `--choice <labels...>` | the option label(s) chosen |  |
 | `--text <text>` | your own words (with Other, or a reason with Reject) |  |
 | `--by <name>` | who answers **Required.** |  |
+| `--always` | also answer every such question this way from now on (an answer policy in metator/answer-policies.yml) |  |
 
 ### `metator run brief`
 
@@ -1827,6 +1828,28 @@ metator run activity [options]
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
 | `--tail <n>` | only the last n entries |  |
+
+## policy
+
+### `metator policy list`
+
+Every answer policy in metator/answer-policies.yml
+
+```bash
+metator policy list [options]
+```
+
+### `metator policy rm`
+
+Remove an answer policy: such questions ask a person again
+
+```bash
+metator policy rm [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | policy id | |
 
 ## worktree
 

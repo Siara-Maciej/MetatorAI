@@ -1,0 +1,33 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 5,
+  "editor": "code",
+  "gates": {
+    "full": [
+      {
+        "id": "graph",
+        "run": {
+          "metator": "graph diff"
+        }
+      },
+      {
+        "id": "workspaces",
+        "run": {
+          "workspaces": "typecheck"
+        }
+      }
+    ]
+  },
+  "hosts": {
+    "targets": ["claude"],
+    "metatorCommand": "bun run metator"
+  },
+  "system": {
+    "map": {
+      "path": "docs/metator/system.yml"
+    },
+    "roots": {
+      "web": "../web"
+    }
+  }
+}

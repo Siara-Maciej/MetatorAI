@@ -2572,6 +2572,42 @@ export const MUTANTS: readonly Mutant[] = [
     why: "runs that tie keep a stable order",
   },
   {
+    file: "packages/core/src/domain/answer-policy.ts",
+    from: "  if (q.card && !q.card.reversible)\n",
+    to: "  if (false)\n",
+    why: "no policy approves what cannot be taken back",
+  },
+  {
+    file: "packages/core/src/domain/answer-policy.ts",
+    from: 'if (q.source === "permission" && !choices.every((c) => c === "Deny"))',
+    to: "if (false)",
+    why: "no policy allows a tool",
+  },
+  {
+    file: "packages/core/src/domain/answer-policy.ts",
+    from: "(p.when.recommended === undefined || p.when.recommended === q.card?.recommended) &&",
+    to: "",
+    why: "a policy made where the evidence recommended an answer waits for the same evidence",
+  },
+  {
+    file: "packages/core/src/application/answer-policies.ts",
+    from: "    if (all.value.some((p) => p.id === policy.id))\n",
+    to: "    if (false)\n",
+    why: "two policies never share an id",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: "    if (policy) {\n",
+    to: "    if (false) {\n",
+    why: "a matching policy answers the question",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: '    if (activity.isOk() && activity.value.some((a) => a.type === "drive" && a.text.startsWith(mark))) return;\n',
+    to: "",
+    why: "a question is announced once",
+  },
+  {
     file: "packages/core/src/domain/inbox.ts",
     from: "  Number(b.driving) - Number(a.driving) ||\n",
     to: "",
