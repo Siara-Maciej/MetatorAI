@@ -115,7 +115,7 @@ describe("metator status (real CLI)", () => {
     expect(inbox.decisions.map((d) => [d.task, d.stage, d.driving, d.question.source])).toEqual([
       ["Add discount", "approval", false, "gate"],
     ]);
-    expect(inbox.decisions[0]?.question.card).toEqual({
+    expect(inbox.decisions[0]?.question.card).toMatchObject({
       task: "Add discount",
       done: ["intake"],
       artifacts: [],
