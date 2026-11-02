@@ -3,6 +3,9 @@ import {
   CheckReadiness,
   DEFAULT_CONFIG,
   DEFAULT_PATHS,
+  err,
+  MetatorError,
+  ok,
   RUN_READINESS,
   readinessWarnings,
 } from "@metator/core";
@@ -35,6 +38,7 @@ describe("CheckReadiness", () => {
       "workflows:ok",
       "gates:ok",
       "dependencies:ok",
+      "environment:ok",
       "remote:ok",
     ]);
     expect(readinessWarnings(v)).toEqual([]);
@@ -93,6 +97,52 @@ describe("CheckReadiness", () => {
     expect(v.checks.find((c) => c.id === "workflows")?.status).toBe("fail");
     expect(v.checks.find((c) => c.id === "dependencies")?.fix).toBe("npm install");
     expect(v.checks.find((c) => c.id === "remote")?.status).toBe("warn");
+  });
+
+  test("a worktree: its own package.json and node_modules, its own services; the fix is worktree setup", async () => {
+    const wt = ".metator/wt/20261102-mt-feature-a";
+    const entry = { id: "20261102-mt-feature-a", path: wt };
+    const check = new CheckReadiness(
+      present("package.json", `${wt}/package.json`),
+      DEFAULT_PATHS,
+      { config: DEFAULT_CONFIG },
+      catalog("w"),
+      new FakeVcs([]),
+      async (p) => p === "node_modules",
+      {
+        get: async (id) =>
+          id === entry.id ? ok(entry as never) : err(MetatorError.notFound(`worktree ${id}`)),
+      },
+      {
+        status: async (input) =>
+          ok([
+            {
+              service: "api",
+              scope: "worktree",
+              place: "a",
+              status: input.worktree ? "not running" : "running",
+              ports: {},
+            },
+            { service: "db", scope: "shared", place: "shared", status: "running", ports: {} },
+          ] as never),
+      },
+    );
+    const here = (await check.execute())._unsafeUnwrap();
+    expect([here.place, here.checks.find((c) => c.id === "dependencies")?.status]).toEqual([".", "ok"]);
+    expect(here.checks.find((c) => c.id === "environment")?.message).toBe("services running: 2 of 2");
+    const there = (await check.execute({ worktree: entry.id }))._unsafeUnwrap();
+    expect(there.place).toBe(wt);
+    expect(there.checks.find((c) => c.id === "dependencies")).toMatchObject({
+      status: "warn",
+      fix: "metator worktree setup --worktree <id>",
+    });
+    expect(there.checks.find((c) => c.id === "environment")).toEqual({
+      id: "environment",
+      status: "warn",
+      message: "services running: 1 of 2: a run cannot reach the application",
+      fix: `metator env up --worktree ${entry.id}`,
+    });
+    expect((await check.execute({ worktree: "nope" }))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
   });
 
   test("a repository that is not a Node project has nothing to install", async () => {

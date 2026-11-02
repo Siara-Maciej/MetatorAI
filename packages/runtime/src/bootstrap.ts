@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
@@ -133,6 +133,7 @@ import {
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  SetupWorktree,
   ShowChangeDiff,
   ShowSystem,
   SimulateArchitecture,
@@ -153,6 +154,7 @@ import {
   WarmPool,
   WorkflowCatalog,
   WorkOverview,
+  type WorkspacePackage,
   WorktreeRegistry,
   WriteRunArtifact,
 } from "@metator/core";
@@ -322,9 +324,49 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ runRepository, runJournal, clock }) => new BuildReport(runRepository, runJournal, clock),
     ),
     checkReadiness: asFunction(
-      ({ fileSystem, paths, config, workflowCatalog, vcs, root }) =>
-        new CheckReadiness(fileSystem, paths, config, workflowCatalog, vcs, async () =>
-          existsSync(join(root, "node_modules")),
+      ({ fileSystem, paths, config, workflowCatalog, vcs, root, worktreeRegistry, environmentServices }) =>
+        new CheckReadiness(
+          fileSystem,
+          paths,
+          config,
+          workflowCatalog,
+          vcs,
+          async (p) => isDirectory(join(root, p)),
+          worktreeRegistry,
+          environmentServices,
+        ),
+    ),
+    setupWorktree: asFunction(
+      ({
+        fileSystem,
+        worktreeRegistry,
+        runRepository,
+        packageManager,
+        processRunner,
+        treeCopier,
+        environmentServices,
+        workspaceReader,
+        root,
+      }) =>
+        new SetupWorktree(
+          fileSystem,
+          worktreeRegistry,
+          runRepository,
+          packageManager,
+          processRunner,
+          treeCopier,
+          environmentServices,
+          {
+            root,
+            isDirectory: async (p) => isDirectory(join(root, p)),
+            workspaces: async () => {
+              const packages = await workspaceReader.packages();
+              return packages.isOk()
+                ? packages.value.map((w: WorkspacePackage) => w.dir).filter((d: string) => d !== ".")
+                : [];
+            },
+            now: () => Date.now(),
+          },
         ),
     ),
     workOverview: asFunction(
@@ -1004,6 +1046,14 @@ export async function checkoutRoots(
   }
   return roots;
 }
+
+const isDirectory = (path: string): boolean => {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+};
 
 /**
  * What an agent must know about the directory it works in. A Node project without node_modules

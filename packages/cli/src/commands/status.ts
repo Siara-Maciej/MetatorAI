@@ -72,11 +72,24 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
   program
     .command("doctor")
     .description(
-      "What a run here will and will not do: config, canon, workflows, gates, dependencies, remote",
+      "What a run here will and will not do: config, canon, workflows, gates, dependencies, environment, remote",
     )
+    .option("--worktree <id>", "look at this worktree (a run's session) instead of this checkout")
+    .option("--run <id>", "look at this run's worktree")
     .action(
-      ctx.action(async () => {
-        const r = await ctx.container().resolve("checkReadiness").execute();
+      ctx.action(async (opts: { worktree?: string; run?: string }) => {
+        const c = ctx.container();
+        let worktree = opts.worktree;
+        if (opts.run) {
+          const record = await c.resolve("runRepository").load(opts.run);
+          if (record.isErr()) return { result: record };
+          if (!record.value.worktree)
+            return {
+              result: err(MetatorError.usage(`run ${opts.run} works in this checkout, not in a worktree`)),
+            };
+          worktree = record.value.worktree.id;
+        }
+        const r = await c.resolve("checkReadiness").execute(worktree ? { worktree } : {});
         return { result: r, warnings: r.isOk() ? readinessWarnings(r.value) : [] };
       }),
     );

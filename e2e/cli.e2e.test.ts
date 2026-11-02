@@ -202,6 +202,7 @@ describe("metator CLI (process e2e)", () => {
       "policy list",
       "policy rm",
       "worktree new",
+      "worktree setup",
       "worktree list",
       "worktree rm",
       "worktree prune",

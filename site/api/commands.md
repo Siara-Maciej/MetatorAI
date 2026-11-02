@@ -1581,6 +1581,7 @@ metator run init [options]
 | `--autonomy <level>` | L0 all gates, L1 skip plan approval, L2 headless (one of: L0, L1, L2) | `"L0"` |
 | `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
 | `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
+| `--no-setup` | with --worktree: leave the worktree without its dependencies (metator worktree setup later) |  |
 | `--parent <run>` | the run this one is a child of (a system run, possibly in another repository) |  |
 | `--input <name=value>` | a workflow input its scripts read as {name} (repeatable), e.g. base=main | `[]` |
 
@@ -1868,6 +1869,20 @@ metator worktree new [options] <id>
 | `--run <id>` | the run that works in it |  |
 | `--ports <count>` | how many ports to lease | `20` |
 
+### `metator worktree setup`
+
+Make a run's worktree able to run tests: its dependencies (the main checkout's, or an install), and --up its services
+
+```bash
+metator worktree setup [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--worktree <id>` | the worktree (default: the run's) |  |
+| `--run <id>` | the run whose worktree to set up (default: the latest run) |  |
+| `--up` | also start the worktree's services (metator env up --worktree) |  |
+
 ### `metator worktree list`
 
 Worktrees with their branch, ports, run status and whether they hold uncommitted work
@@ -2077,11 +2092,16 @@ metator status [options]
 
 ### `metator doctor`
 
-What a run here will and will not do: config, canon, workflows, gates, dependencies, remote
+What a run here will and will not do: config, canon, workflows, gates, dependencies, environment, remote
 
 ```bash
 metator doctor [options]
 ```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--worktree <id>` | look at this worktree (a run's session) instead of this checkout |  |
+| `--run <id>` | look at this run's worktree |  |
 
 ## inbox
 

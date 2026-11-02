@@ -87,6 +87,10 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     )
     .option("--worktree", "work in a new git worktree with its own ports (.metator/wt/<run>)", false)
     .option("--base <ref>", "with --worktree: the ref to branch from", "HEAD")
+    .option(
+      "--no-setup",
+      "with --worktree: leave the worktree without its dependencies (metator worktree setup later)",
+    )
     .option("--parent <run>", "the run this one is a child of (a system run, possibly in another repository)")
     .option(
       "--input <name=value>",
@@ -102,6 +106,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
           autonomy: (typeof AutonomySchema.options)[number];
           worktree: boolean;
           base: string;
+          setup: boolean;
           parent?: string;
           input: string[];
         }) => {
@@ -126,13 +131,25 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
             ...(opts.parent ? { parent: opts.parent } : {}),
           };
           const started = await container().resolve("initRun").execute(input);
+          if (started.isErr()) return { result: started };
+          // A worktree gets its dependencies now, so the run's tests and gates can run there.
+          const setup =
+            opts.worktree && opts.setup
+              ? await container().resolve("setupWorktree").execute({ run: started.value.runId })
+              : undefined;
           // What this run will not do here (no dependencies, no gates), said once, as it starts.
-          const ready = started.isOk() ? await container().resolve("checkReadiness").execute() : undefined;
+          const ready = await container()
+            .resolve("checkReadiness")
+            .execute(started.value.worktree ? { worktree: started.value.worktree.id } : {});
           return {
-            result: started,
+            result: ok({
+              ...started.value,
+              ...(setup?.isOk() ? { setup: setup.value } : {}),
+            }),
             warnings: [
-              ...(started.isOk() ? taskWarnings(task) : []),
-              ...(ready?.isOk() ? readinessWarnings(ready.value, RUN_READINESS) : []),
+              ...taskWarnings(task),
+              ...(setup?.isErr() ? [`worktree setup: ${setup.error.message}`] : []),
+              ...(ready.isOk() ? readinessWarnings(ready.value, RUN_READINESS) : []),
             ],
           };
         },

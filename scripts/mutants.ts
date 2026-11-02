@@ -2577,6 +2577,44 @@ export const MUTANTS: readonly Mutant[] = [
     why: "runs that tie keep a stable order",
   },
   {
+    file: "packages/core/src/application/worktree-setup.ts",
+    from: "      if (main !== here) return false;\n",
+    to: "",
+    why: "a worktree with another lockfile gets its own install, not the main checkout's modules",
+  },
+  {
+    file: "packages/core/src/application/worktree-setup.ts",
+    from:
+      "    if (await this.where.isDirectory(`$" +
+      '{path}/node_modules`)) return ok({ dependencies: "present" });\n',
+    to: "",
+    why: "dependencies already there are not installed again",
+  },
+  {
+    file: "packages/core/src/application/worktree-setup.ts",
+    from: '      if (up.isErr() && up.error.code !== "NOT_FOUND") return err(up.error);\n',
+    to: "",
+    why: "a start that fails fails the setup",
+  },
+  {
+    file: "packages/core/src/application/readiness.ts",
+    from: '      fix: place === "." ? fix : "metator worktree setup --worktree <id>",',
+    to: "      fix,",
+    why: "a worktree's missing dependencies are fixed by worktree setup",
+  },
+  {
+    file: "packages/core/src/application/readiness.ts",
+    from: "    if (running === status.value.length)\n",
+    to: "    if (true)\n",
+    why: "a service that is not running is a warning",
+  },
+  {
+    file: "packages/plugin-node/src/node-package-manager.ts",
+    from: '(pm.value?.lockfiles.length ?? 0) > 0 ? "frozen" : "install"',
+    to: '"install"',
+    why: "with a lockfile the install keeps it as it is",
+  },
+  {
     file: "packages/core/src/domain/telemetry.ts",
     from: '    if (q.answer?.by.startsWith("policy:")) {\n      byPolicy++;\n      continue;\n    }\n',
     to: '    if (q.answer?.by.startsWith("policy:")) byPolicy++;\n',
@@ -2704,14 +2742,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/readiness.ts",
-    from: 'return ok({ ready: checks.every((c) => c.status !== "fail"), checks });',
-    to: "return ok({ ready: true, checks });",
+    from: 'return ok({ ready: checks.every((c) => c.status !== "fail"), place, checks });',
+    to: "return ok({ ready: true, place, checks });",
     why: "a repository without a workflow is not ready",
   },
   {
     file: "packages/core/src/application/readiness.ts",
-    from: "if (await this.installed())",
-    to: 'if (await this.fs.exists("node_modules"))',
+    from: 'if (await this.isDirectory(at("node_modules")))',
+    to: 'if (await this.fs.exists(at("node_modules")))',
     why: "node_modules is a directory, which FileSystem.exists does not see",
   },
   {

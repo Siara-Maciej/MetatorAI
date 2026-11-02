@@ -46,6 +46,7 @@ describe("metator doctor (real CLI)", () => {
       "workflows:ok",
       "gates:warn",
       "dependencies:warn",
+      "environment:ok",
       "remote:warn",
     ]);
     expect(data.checks.find((c) => c.id === "dependencies")?.fix).toBe("bun install");

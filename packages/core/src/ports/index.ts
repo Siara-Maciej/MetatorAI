@@ -416,6 +416,8 @@ export interface PackageManager {
   scriptCommand(script: string, args: readonly string[]): Promise<Result<ResolvedCommand, MetatorError>>;
   /** The script in every workspace package that has it (`pnpm -r --if-present run <script>`). */
   workspacesCommand(script: string): Promise<Result<ResolvedCommand, MetatorError>>;
+  /** Installs the dependencies in `cwd` from the lockfile as it is (`bun install --frozen-lockfile`). */
+  installCommand(cwd: string): Promise<Result<ResolvedCommand, MetatorError>>;
 }
 
 /** Commands for project binaries: `node_modules/.bin/<bin>` of the repository first, PATH otherwise. */

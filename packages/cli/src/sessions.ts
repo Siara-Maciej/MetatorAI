@@ -122,6 +122,15 @@ export async function newRun(
     ...(answers.worktree ? { worktree: {} } : {}),
   });
   if (run.isErr()) return err(run.error);
+  if (answers.worktree) {
+    // The worktree's dependencies first: the run's tests and gates run there.
+    const setup = await c.resolve("setupWorktree").execute({ run: run.value.runId });
+    terminal.show(
+      setup.isOk()
+        ? `worktree ${setup.value.worktree}: dependencies ${setup.value.dependencies}`
+        : `worktree setup failed: ${setup.error.message}`,
+    );
+  }
   const started = await startDetached(c, root, run.value.runId, answers.host);
   if (started.isErr()) return err(started.error);
   terminal.show(`run ${run.value.runId} · ${answers.host} · Ctrl+C leaves; the run goes on`);

@@ -22,7 +22,19 @@ metator run init --workflow mt-bugfix --task "Fix rounding" --worktree --base ma
 3. Records the worktree in the run (`state.json`) and in `.metator/worktrees.json`.
 4. Links `.metator/runs` of your checkout into the worktree and lists it in `.git/info/exclude`, so the run's agents, hooks and `metator plan` find the run at the same path, and git never sees the link. In the worktree, `metator run …` without `--run` means that worktree's run, even when another run started later. A MetatorAI setup you have not committed yet (`metator.config.yml`, `docs/metator/`, `.claude/agents`, `.claude/skills`, `.github/metator/`, …) is linked into the worktree file by file and ignored there only, so the run uses your gates, agents and skills, and your checkout still shows the setup as untracked until you commit it.
 
+5. **Sets the worktree up** so the run's tests, type checker and linters can run there. A fresh `git worktree add` has no `node_modules`: when every lockfile is the same in both checkouts, the main checkout's `node_modules` (and those of its workspace packages) are copied, copy-on-write where the disk can (btrfs, XFS, APFS), so it takes seconds; otherwise the repository's package manager installs in the worktree (`bun install --frozen-lockfile`, `pnpm install --frozen-lockfile`, `npm ci`, …). The result is in the output (`setup.dependencies`: `reused`, `installed`, `present`, `none`), and a failed install is a warning, not a failed run: the run starts, and `metator doctor --run <id>` says what it cannot do. `--no-setup` skips this step.
+
 `metator setup` adds `.metator/` to your `.gitignore`: the worktrees live there, and so do run state and caches.
+
+## Set a session up by hand
+
+```bash
+metator worktree setup --run <id>              # the run's worktree: dependencies as above
+metator worktree setup --worktree spike --up   # a worktree of your own, and its services (metator env up --worktree)
+metator doctor --run <id>                      # what this run can and cannot do in its worktree
+```
+
+`doctor --run` (or `--worktree`) looks at the session's own checkout: its `package.json` and `node_modules`, and, when the repository declares an [environment](environments.md), whether that worktree's services are running (`fix: metator env up --worktree <id>`). `--up` on `worktree setup` starts them; without an environment file it starts nothing and is no failure.
 
 ## See and manage worktrees
 

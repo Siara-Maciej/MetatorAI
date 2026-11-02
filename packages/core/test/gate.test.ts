@@ -15,6 +15,7 @@ const pm = {
     ok<ResolvedCommand>({ argv: ["bun", "run", script, ...args], cwd: "/repo" }),
   workspacesCommand: async (script: string) =>
     ok<ResolvedCommand>({ argv: ["bun", "run", "--filter", "*", script], cwd: "/repo" }),
+  installCommand: async (cwd: string) => ok<ResolvedCommand>({ argv: ["bun", "install"], cwd }),
 };
 const bins = {
   command: async (bin: string, args: readonly string[]): Promise<ResolvedCommand> => ({

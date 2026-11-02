@@ -10,6 +10,7 @@ const affected = (tests: string[]) => ({
 });
 const npm: PackageManager = {
   scriptCommand: async (script, args) => ok({ argv: ["npm", "run", script, "--", ...args], cwd: "/repo" }),
+  installCommand: async (cwd) => ok({ argv: ["npm", "ci"], cwd }),
   workspacesCommand: async (s) => ok({ argv: ["npm", "run", s, "--workspaces"], cwd: "/repo" }),
 };
 
@@ -61,6 +62,7 @@ describe("RunAffectedTests", () => {
     ).toBe("USAGE");
     const noScript: PackageManager = {
       scriptCommand: async () => err(new MetatorError("INTERNAL", "no run command")),
+      installCommand: async () => err(new MetatorError("INTERNAL", "no install command")),
       workspacesCommand: async () => err(new MetatorError("INTERNAL", "no run command")),
     };
     const run = await new RunAffectedTests(affected(["a.test.ts"]), noScript, runner).execute({

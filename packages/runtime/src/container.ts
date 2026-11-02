@@ -155,6 +155,7 @@ import {
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
+  type SetupWorktree,
   type ShowChangeDiff,
   type ShowSystem,
   type SimulateArchitecture,
@@ -243,6 +244,7 @@ export interface Cradle {
   askQuestion: AskQuestion;
   workOverview: WorkOverview;
   checkReadiness: CheckReadiness;
+  setupWorktree: SetupWorktree;
   answerPolicyStore: AnswerPolicyStore;
   buildReport: BuildReport;
   runJournal: RunJournal;

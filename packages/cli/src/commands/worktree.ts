@@ -30,6 +30,26 @@ export function registerWorktreeCommands(program: Command, { action, container }
     );
 
   worktree
+    .command("setup")
+    .description(
+      "Make a run's worktree able to run tests: its dependencies (the main checkout's, or an install), and --up its services",
+    )
+    .option("--worktree <id>", "the worktree (default: the run's)")
+    .option("--run <id>", "the run whose worktree to set up (default: the latest run)")
+    .option("--up", "also start the worktree's services (metator env up --worktree)", false)
+    .action(
+      action(async (opts: { worktree?: string; run?: string; up: boolean }) => ({
+        result: await container()
+          .resolve("setupWorktree")
+          .execute({
+            ...(opts.worktree ? { worktree: opts.worktree } : {}),
+            ...(opts.run ? { run: opts.run } : {}),
+            up: opts.up,
+          }),
+      })),
+    );
+
+  worktree
     .command("list")
     .description("Worktrees with their branch, ports, run status and whether they hold uncommitted work")
     .action(

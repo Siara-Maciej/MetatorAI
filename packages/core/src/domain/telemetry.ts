@@ -1,6 +1,13 @@
 import { z } from "zod";
-import type { Question } from "./drive.ts";
 import { defineDocument } from "./versioned.ts";
+
+/** What the metrics read of a question (the `Question` document carries more). */
+export interface AskedQuestion {
+  readonly source: string;
+  readonly agent?: string | undefined;
+  readonly askedAt: string;
+  readonly answer?: { readonly by: string; readonly at: string } | undefined;
+}
 
 /**
  * Telemetry (P6): what each agent call cost, and what the run cost a person. One line of
@@ -85,7 +92,7 @@ export interface RunFacts {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly history: readonly { readonly event: string }[];
-  readonly questions: readonly Question[];
+  readonly questions: readonly AskedQuestion[];
   readonly usage: readonly AgentUsage[];
 }
 

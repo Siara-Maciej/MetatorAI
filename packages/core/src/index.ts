@@ -55,6 +55,7 @@ export * from "./application/system-runs.ts";
 export * from "./application/system-sources.ts";
 export * from "./application/test-affected.ts";
 export * from "./application/workflow-catalog.ts";
+export * from "./application/worktree-setup.ts";
 export * from "./application/worktrees.ts";
 export * from "./domain/adr.ts";
 export * from "./domain/agent.ts";
