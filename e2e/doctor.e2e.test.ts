@@ -52,14 +52,23 @@ describe("metator doctor (real CLI)", () => {
     expect((r.json.warnings as string[]).length).toBe(5);
   });
 
-  test("run init warns about what this run cannot do; installed dependencies end that warning", async () => {
-    const init = await mt("run", "init", "--workflow", "demo", "--task", "Add a flag");
+  test("run init warns about an open question in the task and what this run cannot do; installed dependencies end that warning", async () => {
+    const init = await mt(
+      "run",
+      "init",
+      "--workflow",
+      "demo",
+      "--task",
+      "Add a --verbose flag to the CLI. Should it also log timings?",
+    );
     expect(init.code).toBe(0);
     expect((init.json.warnings as string[]).map((w) => w.split(":")[0])).toEqual([
+      "task",
       "gates",
       "dependencies",
       "remote",
     ]);
+    expect((init.json.warnings as string[])[0]).toContain("(Should it also log timings?)");
     await mkdir(repo.path("node_modules"));
     const after = await mt("doctor");
     const deps = (after.json.data as { checks: Check[] }).checks.find((c) => c.id === "dependencies");

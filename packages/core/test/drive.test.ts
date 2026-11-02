@@ -8,7 +8,7 @@ import {
   InstantTimer,
   ScriptedProcessRunner,
 } from "@metator/testing";
-import { DriveRun, failedSteps, OTHER, RunJournal } from "../src/application/drive.ts";
+import { CLOSE_RUN, DO_IT, DriveRun, failedSteps, OTHER, RunJournal } from "../src/application/drive.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { CloseRun } from "../src/application/run-close.ts";
 import { RunDrivers } from "../src/application/run-drivers.ts";
@@ -61,6 +61,10 @@ describe("drive domain", () => {
       question: "which currency?",
     });
     expect(parseStatus("no marker at all")).toBeUndefined();
+    expect(parseStatus("STATUS: nothing to do: src/discount.ts:12 already rounds half up")).toEqual({
+      kind: "nothing",
+      evidence: "src/discount.ts:12 already rounds half up",
+    });
   });
 
   test("a host's limit is told apart from any other failure", () => {
@@ -115,6 +119,7 @@ describe("drive domain", () => {
       "failed its gate: step 2 has no exemplar",
       "A person answered your question: EUR",
       "STATUS: blocked: <the question>",
+      "STATUS: nothing to do: <the evidence>",
     ])
       expect(p).toContain(part);
     expect(gatePrompt({ runId: "r", task: "t", stage, agent: "mt-plan-critic", runDir: "/d" })).toContain(
@@ -272,11 +277,12 @@ function world(
     root: "/repo",
     metatorCommand: "bun run metator",
   });
-  const start = async (inputs?: Record<string, string>, workflow = "demo") => {
+  const start = async (inputs?: Record<string, string>, workflow = "demo", autonomy?: "L0" | "L1" | "L2") => {
     const view = (
       await new InitRun(catalog, repo, clock).execute({
         workflow,
         task: "Add discount",
+        ...(autonomy ? { autonomy } : {}),
         ...(inputs ? { inputs } : {}),
       })
     )._unsafeUnwrap();
@@ -723,6 +729,56 @@ loops:
     // The answer is a decision every later agent and critic hears.
     const critic = w.host.tasks.find((t) => t.agent === "mt-plan-critic")?.prompt ?? "";
     expect(critic).toContain("- build: which currency? → EUR");
+  });
+
+  test("a worker that finds nothing to do asks one decision; closing ends the run with the evidence", async () => {
+    const w = world(
+      {
+        "mt-planner": [
+          { text: "discount() exists\nSTATUS: nothing to do: src/discount.ts:3 already applies it" },
+        ],
+      },
+      (q) => (q.source === "gate" ? { choices: ["Approve"] } : { choices: [CLOSE_RUN] }),
+      okScripts(),
+    );
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("aborted");
+    const q = w.asked.find((a) => a.source === "agent");
+    expect(q?.options.map((o) => o.label)).toEqual([CLOSE_RUN, DO_IT, OTHER]);
+    expect(q?.prompt).toBe(
+      "discount() exists\n\nmt-planner found nothing to do: src/discount.ts:3 already applies it",
+    );
+    const log = (await w.fs.read(`.metator/runs/${runId}/log.md`))._unsafeUnwrap();
+    expect(log).toContain("nothing to do: src/discount.ts:3 already applies it");
+  });
+
+  test("do it anyway: the worker goes on with the person's words; headless (L2) closes without asking", async () => {
+    const w = world(
+      {
+        "mt-planner": [{ text: "STATUS: nothing to do: done in a.ts:1" }, writesPlan],
+        "mt-implementer": [{ text: "STATUS: done" }],
+        "mt-plan-critic": [{ text: "VERDICT: PASS" }],
+      },
+      (q) =>
+        q.source === "gate" ? { choices: ["Approve"] } : { choices: [DO_IT], text: "a.ts:1 is the old API" },
+      okScripts(),
+    );
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("done");
+    const planner = w.host.tasks.filter((t) => t.agent === "mt-planner");
+    expect(planner[1]?.prompt).toContain("A person answered your question: a.ts:1 is the old API");
+
+    const h = world(
+      { "mt-planner": [{ text: "STATUS: nothing to do: done in a.ts:1" }] },
+      () => undefined,
+      okScripts(),
+    );
+    w0 = h;
+    const headless = await h.start(undefined, "demo", "L2");
+    expect((await h.drive.execute({ runId: headless, host: "fake" }))._unsafeUnwrap().status).toBe("aborted");
+    expect(h.asked).toEqual([]);
   });
 
   test("a restarted drive gives a blocked agent the answer given while no drive ran", async () => {

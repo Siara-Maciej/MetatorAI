@@ -2572,6 +2572,36 @@ export const MUTANTS: readonly Mutant[] = [
     why: "runs that tie keep a stable order",
   },
   {
+    file: "packages/core/src/domain/drive.ts",
+    from: '  if (nothing) return { kind: "nothing", evidence: (nothing[1] as string).trim() };\n',
+    to: "",
+    why: "a worker that found nothing to do is not done",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: 'if (ctx.autonomy === "L2") return ok({ type: "ABORT", reason });',
+    to: "",
+    why: "a headless run closes on the evidence instead of asking",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: "if (a.value.choices.includes(CLOSE_RUN)) return ok({ type: \"ABORT\", reason });",
+    to: "",
+    why: "closing the run ends it",
+  },
+  {
+    file: "packages/core/src/domain/task-lint.ts",
+    from: "if (!reference && words < 4)",
+    to: "if (words < 4)",
+    why: "a work item reference is a whole task",
+  },
+  {
+    file: "packages/core/src/domain/task-lint.ts",
+    from: '.filter((s) => s.endsWith("?") && !s.endsWith("???") && !/^https?:/.test(s));',
+    to: '.filter((s) => s.endsWith("?"));',
+    why: "a placeholder is not a question",
+  },
+  {
     file: "packages/core/src/application/readiness.ts",
     from: 'return ok({ ready: checks.every((c) => c.status !== "fail"), checks });',
     to: "return ok({ ready: true, checks });",
@@ -3959,8 +3989,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
-    from: "      if (answers === MAX_ANSWERS)\n",
-    to: "      if (answers === MAX_ANSWERS - 1)\n",
+    from: "      if (answers === MAX_ANSWERS)\n        return ok({ type: \"FAIL\", reason: `${agent} stayed",
+    to: "      if (answers === MAX_ANSWERS - 1)\n        return ok({ type: \"FAIL\", reason: `${agent} stayed",
     why: "the last answer still reaches the agent",
   },
   {

@@ -55,6 +55,9 @@ export function failedSteps(stdout: string): string | undefined {
 
 /** How many times one worker may ask a person in a stage before the stage fails. */
 const MAX_ANSWERS = 3;
+/** The two answers to a worker that found nothing to do. */
+export const CLOSE_RUN = "Close the run";
+export const DO_IT = "Do it anyway";
 
 /** How many of a person's latest answers go into every prompt. */
 const MAX_DECISIONS = 12;
@@ -337,6 +340,7 @@ export class DriveRun {
         ...(await this.decisions(runId)),
         ...(record.value.hostSession ? { resume: record.value.hostSession } : {}),
         since: record.value.updatedAt,
+        autonomy: record.value.autonomy,
         pollMs: input.pollMs ?? 500,
         inputs: record.value.inputs ?? {},
       };
@@ -545,6 +549,15 @@ export class DriveRun {
         return ok({ type: "FAIL", reason: `${agent} failed: ${result.value.text.slice(-300)}` });
       }
       const status = parseStatus(result.value.text);
+      if (status?.kind === "nothing") {
+        const decided = await this.nothingToDo(ctx, agent, status.evidence, result.value.text);
+        if (decided.isErr()) return err(decided.error);
+        if (decided.value.type === "ABORT") return ok(decided.value);
+        if (answers === MAX_ANSWERS)
+          return ok({ type: "FAIL", reason: `${agent} found nothing to do after ${MAX_ANSWERS} answers` });
+        answer = decided.value.answer;
+        continue;
+      }
       if (status?.kind !== "blocked") return ok({ type: "PASS" });
       if (answers === MAX_ANSWERS)
         return ok({ type: "FAIL", reason: `${agent} stayed blocked after ${MAX_ANSWERS} answers` });
@@ -565,6 +578,49 @@ export class DriveRun {
       if (a.isErr()) return err(a.error);
       answer = a.value.text ?? a.value.choices.join(", ");
     }
+  }
+
+  /**
+   * A worker found the task already done (or asking for no change): one decision with two
+   * answers instead of a question in prose. Headless (L2), the run ends with the evidence.
+   */
+  private async nothingToDo(
+    ctx: StageContext,
+    agent: string,
+    evidence: string,
+    text: string,
+  ): Promise<
+    Result<
+      | { readonly type: "ABORT"; readonly reason: string }
+      | { readonly type: "GO_ON"; readonly answer: string },
+      MetatorError
+    >
+  > {
+    const reason = `nothing to do: ${evidence}`;
+    if (ctx.autonomy === "L2") return ok({ type: "ABORT", reason });
+    const q = await this.d.journal.ask(
+      ctx.runId,
+      {
+        stage: ctx.stage.id,
+        source: "agent",
+        agent,
+        prompt: blockedPrompt(text, `${agent} found nothing to do: ${evidence}`),
+        options: [
+          { label: CLOSE_RUN, description: "Nothing changes; the run ends as aborted, with this evidence" },
+          { label: DO_IT, description: "The agent goes on with the task as written" },
+        ],
+        multiSelect: false,
+      },
+      ctx.since,
+    );
+    if (q.isErr()) return err(q.error);
+    const a = await this.d.journal.waitFor(ctx.runId, q.value.id, this.d.timer, ctx.pollMs);
+    if (a.isErr()) return err(a.error);
+    if (a.value.choices.includes(CLOSE_RUN)) return ok({ type: "ABORT", reason });
+    return ok({
+      type: "GO_ON",
+      answer: a.value.text ?? "A person decided the task is not done yet: do it as written.",
+    });
   }
 
   /**
@@ -743,4 +799,6 @@ interface StageContext {
   readonly pollMs: number;
   /** The run's inputs, for `{name}` in its scripts. */
   readonly inputs: Readonly<Record<string, string>>;
+  /** L2 is headless: what a person would decide in one click is decided by the evidence. */
+  readonly autonomy: string;
 }

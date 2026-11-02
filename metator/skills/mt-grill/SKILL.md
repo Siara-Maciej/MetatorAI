@@ -9,6 +9,7 @@ The intake stage finds a requirement that allows two readings, or the task has n
 
 # Steps
 1. Answer what the code can answer yourself: `metator symbols find`, `metator graph`, module cards.
+   When the code already does what the task asks (or the task asks for no change), do not ask: finish with `STATUS: nothing to do: <file:line and why>`. The person gets one decision (close the run, or do it anyway) instead of a question in prose.
 2. List the remaining ambiguities; for each give the readings you see and what each would change in the plan.
 3. Ask them in one message, numbered, each with options (the first one your recommendation).
 4. Record the answers in `task.md` under "Decisions", with who decided.

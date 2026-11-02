@@ -16,6 +16,7 @@ import {
   type RunEvent,
   RunSummaryDocument,
   readinessWarnings,
+  taskWarnings,
   VerdictDocument,
 } from "@metator/core";
 import { Argument, type Command, Option } from "commander";
@@ -129,7 +130,10 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
           const ready = started.isOk() ? await container().resolve("checkReadiness").execute() : undefined;
           return {
             result: started,
-            warnings: ready?.isOk() ? readinessWarnings(ready.value, RUN_READINESS) : [],
+            warnings: [
+              ...(started.isOk() ? taskWarnings(task) : []),
+              ...(ready?.isOk() ? readinessWarnings(ready.value, RUN_READINESS) : []),
+            ],
           };
         },
       ),

@@ -178,6 +178,8 @@ export function stagePrompt(input: StagePromptInput): string {
     "STATUS: done",
     "or, when you cannot continue without a decision from a person:",
     "STATUS: blocked: <the question>",
+    "or, when the task is already done in the code or asks for no change at all (name where, file:line):",
+    "STATUS: nothing to do: <the evidence>",
   ];
   return `${lines.join("\n")}\n`;
 }
@@ -233,7 +235,9 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
 
 export type WorkerStatus =
   | { readonly kind: "done" }
-  | { readonly kind: "blocked"; readonly question: string };
+  | { readonly kind: "blocked"; readonly question: string }
+  /** The task is already done, or asks for no change: the evidence says where (file:line). */
+  | { readonly kind: "nothing"; readonly evidence: string };
 
 /** The worker's last `STATUS:` line; none at all counts as done when the host said it succeeded. */
 export function parseStatus(text: string): WorkerStatus | undefined {
@@ -241,6 +245,8 @@ export function parseStatus(text: string): WorkerStatus | undefined {
   if (line === undefined) return undefined;
   const blocked = /^blocked:\s*(.+)$/i.exec(line);
   if (blocked) return { kind: "blocked", question: (blocked[1] as string).trim() };
+  const nothing = /^nothing to do:\s*(.+)$/i.exec(line);
+  if (nothing) return { kind: "nothing", evidence: (nothing[1] as string).trim() };
   return /^done\b/i.test(line) ? { kind: "done" } : undefined;
 }
 

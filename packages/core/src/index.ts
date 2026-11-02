@@ -120,6 +120,7 @@ export * from "./domain/system-eval.ts";
 export * from "./domain/system-impact.ts";
 export * from "./domain/system-map.ts";
 export * from "./domain/system-plan.ts";
+export * from "./domain/task-lint.ts";
 export * from "./domain/verdict.ts";
 export * from "./domain/versioned.ts";
 export * from "./domain/workflow-lint.ts";
