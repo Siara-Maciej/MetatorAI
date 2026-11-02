@@ -48,6 +48,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `Question` | `.metator/runs/<id>/questions/qNNN.json` | `metator run drive` asks, `metator run answer` answers |
 | `RunDriver` | `.metator/runs/<id>/driver.json` | `metator run drive` |
 | `AnswerPolicies` | `metator/answer-policies.yml` | `metator run answer … --always`; `metator policy rm` |
+| `AgentUsage` | `.metator/runs/<id>/usage.jsonl` | `metator run drive` (one line per agent call) |
 | `RunSeen` | `.metator/runs/<id>/seen.json` | `metator run brief` |
 | `EnvState` | `.metator/env/<worktree, main or shared>.json` | `metator env up\|down` |
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |

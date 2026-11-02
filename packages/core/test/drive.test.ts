@@ -717,6 +717,26 @@ stages:
     expect(scripts.calls.filter((c) => c.argv[0] === "sh").length).toBe(1);
   });
 
+  test("every agent call leaves its usage: duration, outcome, and the host's tokens when it reports them", async () => {
+    const w = world(
+      {
+        "mt-planner": [{ ...writesPlan, usage: { inputTokens: 100, outputTokens: 20, costUsd: 0.01 } }],
+        "mt-implementer": [{ text: "boom", ok: false }],
+      },
+      () => ({ choices: ["Approve"] }),
+      okScripts(),
+    );
+    w0 = w;
+    const runId = await w.start();
+    await w.drive.execute({ runId, host: "fake" });
+    const usage = (await w.journal.usage(runId))._unsafeUnwrap();
+    expect(usage.map((u) => [u.stage, u.agent, u.ok, u.inputTokens, u.costUsd])).toEqual([
+      ["plan", "mt-planner", true, 100, 0.01],
+      ["build", "mt-implementer", false, undefined, undefined],
+    ]);
+    expect(usage.every((u) => u.durationMs >= 0 && typeof u.at === "string")).toBe(true);
+  });
+
   test("a gate nothing passed before recommends nothing", async () => {
     const w = world({}, () => ({ choices: ["Approve"] }));
     await w.fs.write(

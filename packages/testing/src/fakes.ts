@@ -16,6 +16,7 @@ import {
   type FileSystem,
   type HealthProbe,
   type HealthTarget,
+  type HostUsage,
   type MachineState,
   MetatorError,
   matchesAny,
@@ -204,6 +205,8 @@ export interface FakeAgentTurn {
   readonly ask?: AgentQuestion;
   /** Runs before the result, e.g. to write an artifact. */
   readonly effect?: (task: AgentTask) => Promise<void> | void;
+  /** What the host reports the call cost. */
+  readonly usage?: HostUsage;
 }
 
 /** AgentHost that plays scripted turns per agent (the last repeats) and records every task. */
@@ -228,7 +231,7 @@ export class FakeAgentHost implements AgentHost {
     }
     await turn.effect?.(task);
     yield { type: "text", text };
-    yield { type: "result", ok: turn.ok ?? true, text: "" };
+    yield { type: "result", ok: turn.ok ?? true, text: "", ...(turn.usage ? { usage: turn.usage } : {}) };
   }
 }
 

@@ -95,6 +95,20 @@ metator status
 
 Runs come sorted the same way: what waits for you first. In a [folder of repositories](../multi-repo/repositories.md#a-folder-of-repositories), `metator status` gives this for every repository, with the sums.
 
-## Without a terminal
+## What the runs cost
+
+```bash
+metator report                      # every run; --since 2026-11-01 for the runs started since then
+```
+
+```json
+{"totals":{"runs":12,"done":10,"calls":131,"agentMs":5130000,"inputTokens":2410000,"outputTokens":188000,"cachedTokens":1900000,"costUsd":41.2,
+  "questions":27,"byPolicy":9,"personWaitMs":2640000,"failures":4},
+ "runs":[{"runId":"…","workflow":"mt-feature","status":"done","wallMs":1860000,
+   "usage":{"calls":11,"costUsd":3.4,"…":"…"},"questions":{"asked":2,"byPolicy":1,"bySource":{"gate":2},"waitMs":120000},"failures":0}],
+ "agents":[{"agent":"mt-pr-review","calls":12,"costUsd":14.1,"agentMs":1500000,"failed":0,"questions":0},{"agent":"mt-implementer","…":"…"}]}
+```
+
+Every agent call leaves one line in `.metator/runs/<id>/usage.jsonl` (`AgentUsage`): its stage, agent, outcome, wall time and, when the host reports them, tokens, cached tokens and cost (Claude Code does; the Copilot CLI and the scenario host report none, so their calls count time only). The report adds what the runs asked of people: questions asked, how many an [answer policy](drive.md) took, how long people's answers were waited for, and how often a gate or review sent a run back (`failures`). `agents` ranks the agents by cost, with their failed calls and the questions they stopped for: the ones to tune first. In a folder of repositories the report spans them all, each run named `<repo>/<run>`.
 
 `metator ui` needs one; in a script it fails with `USAGE`. Use `metator status` for the overview, and the commands `ui` is made of: `run continue`, `run questions`, `run answer`, `env up|down|status|logs`, `worktree list`.

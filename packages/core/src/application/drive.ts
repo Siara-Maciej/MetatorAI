@@ -25,6 +25,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
 import { APPROVAL_ACTIONS, fillInputs } from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
+import { type AgentUsage, AgentUsageDocument, type HostUsage } from "../domain/telemetry.ts";
 import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
 import { parseJsonDocument, serializeJsonDocument, serializeJsonLine } from "../domain/versioned.ts";
 import type { StageSpec } from "../domain/workflow-spec.ts";
@@ -77,6 +78,43 @@ export class RunJournal {
 
   activityFile(runId: string): string {
     return `${this.repo.runDir(runId)}/activity.jsonl`;
+  }
+
+  usageFile(runId: string): string {
+    return `${this.repo.runDir(runId)}/usage.jsonl`;
+  }
+
+  /** The time now, from the journal's clock: how long an agent call took. */
+  now(): Date {
+    return this.clock.now();
+  }
+
+  /** One agent call's usage, appended to `usage.jsonl`. */
+  async recordUsage(runId: string, entry: Omit<AgentUsage, "at">): Promise<Result<void, MetatorError>> {
+    const file = this.usageFile(runId);
+    const before = (await this.fs.exists(file)) ? await this.fs.read(file) : ok("");
+    if (before.isErr()) return err(before.error);
+    const line = serializeJsonLine(
+      AgentUsageDocument.stamp({ at: this.clock.now().toISOString(), ...entry }),
+    );
+    return this.fs.write(file, `${before.value}${line}`);
+  }
+
+  async usage(runId: string): Promise<Result<readonly AgentUsage[], MetatorError>> {
+    const file = this.usageFile(runId);
+    if (!(await this.fs.exists(file))) return ok([]);
+    const text = await this.fs.read(file);
+    if (text.isErr()) return err(text.error);
+    const out: AgentUsage[] = [];
+    for (const [i, line] of text.value.split("\n").entries()) {
+      if (line.trim() === "") continue;
+      const parsed = parseJsonDocument(line, `${file}:${i + 1}`).andThen((raw) =>
+        AgentUsageDocument.parse(raw, `${file}:${i + 1}`),
+      );
+      if (parsed.isErr()) return err(parsed.error);
+      out.push(parsed.value);
+    }
+    return ok(out);
   }
 
   seenFile(runId: string): string {
@@ -847,6 +885,8 @@ export class DriveRun {
     let text = "";
     let session: string | undefined;
     let okResult = false;
+    let usage: HostUsage | undefined;
+    const started = this.d.journal.now().getTime();
     try {
       for await (const event of ctx.host.run(
         {
@@ -877,6 +917,7 @@ export class DriveRun {
           });
         } else {
           okResult = event.ok;
+          usage = event.usage;
           if (event.text) text = `${text}\n${event.text}`.slice(-20_000);
         }
       }
@@ -889,6 +930,14 @@ export class DriveRun {
       agent,
       text: `${agent} ${okResult ? "finished" : "failed"}`,
     });
+    const measured = await this.d.journal.recordUsage(ctx.runId, {
+      stage: ctx.stage.id,
+      agent,
+      ok: okResult,
+      durationMs: Math.max(0, this.d.journal.now().getTime() - started),
+      ...usage,
+    });
+    if (measured.isErr()) return err(measured.error);
     return ok({ ok: okResult, text: text.trim(), ...(session ? { session } : {}) });
   }
 

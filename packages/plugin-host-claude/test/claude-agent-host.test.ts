@@ -9,6 +9,7 @@ import {
   ClaudeAgentHost,
   type ClaudeQuery,
   declaredCommands,
+  hostUsage,
   LOCAL_METATOR,
   OUTSIDE_DEFINITION,
   toEvents,
@@ -469,5 +470,30 @@ describe("ClaudeAgentHost", () => {
       { type: "result", ok: false, text: "error_max_turns: too many turns" },
     ]);
     expect([...toEvents({ type: "user" })]).toEqual([]);
+  });
+
+  test("a result's tokens and cost become the call's usage; a result without them has none", () => {
+    const done = {
+      type: "result",
+      subtype: "success",
+      result: "STATUS: done",
+      total_cost_usd: 0.0421,
+      usage: {
+        input_tokens: 120,
+        cache_creation_input_tokens: 30,
+        cache_read_input_tokens: 9000,
+        output_tokens: 410,
+      },
+    };
+    expect([...toEvents(done)]).toEqual([
+      {
+        type: "result",
+        ok: true,
+        text: "STATUS: done",
+        usage: { inputTokens: 150, outputTokens: 410, cachedTokens: 9000, costUsd: 0.0421 },
+      },
+    ]);
+    expect(hostUsage({ type: "result", usage: { input_tokens: -1, output_tokens: "x" } })).toBeUndefined();
+    expect(hostUsage({ type: "result", total_cost_usd: 0.5 })).toEqual({ costUsd: 0.5 });
   });
 });

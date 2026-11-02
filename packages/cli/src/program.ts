@@ -188,6 +188,7 @@ export const FOLDER_COMMANDS: ReadonlySet<string> = new Set([
   "ask list",
   "status",
   "inbox",
+  "report",
 ]);
 
 function commandName(cmd: Command): string {

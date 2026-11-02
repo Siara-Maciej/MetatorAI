@@ -22,6 +22,7 @@ import {
   BaseArchitectureFacts,
   BuildImportGraph,
   BuildModuleCards,
+  BuildReport,
   CalibrateFinding,
   CheckArchitecture,
   CheckDebugTags,
@@ -317,6 +318,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     treeCopier: asFunction(() => new NodeTreeCopier()).singleton(),
     backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
     answerPolicyStore: asFunction(({ fileSystem }) => new AnswerPolicyStore(fileSystem)),
+    buildReport: asFunction(
+      ({ runRepository, runJournal, clock }) => new BuildReport(runRepository, runJournal, clock),
+    ),
     checkReadiness: asFunction(
       ({ fileSystem, paths, config, workflowCatalog, vcs, root }) =>
         new CheckReadiness(fileSystem, paths, config, workflowCatalog, vcs, async () =>

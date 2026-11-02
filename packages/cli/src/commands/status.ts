@@ -1,4 +1,15 @@
-import { byUrgency, type InboxItem, inboxOf, type Overview, ok, readinessWarnings } from "@metator/core";
+import {
+  byUrgency,
+  err,
+  fleetReport,
+  type InboxItem,
+  inboxOf,
+  MetatorError,
+  type Overview,
+  ok,
+  type RunFacts,
+  readinessWarnings,
+} from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 
@@ -92,6 +103,31 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
         }
         // One queue across repositories, in the same order as within one.
         return { result: ok({ decisions: items.sort(byUrgency) }), warnings };
+      }),
+    );
+
+  program
+    .command("report")
+    .description(
+      "What the runs cost and asked of people: tokens, money, agent time, questions, waiting, per agent",
+    )
+    .option("--since <time>", "only runs started at or after this ISO time")
+    .action(
+      ctx.action(async (opts: { since?: string }) => {
+        if (opts.since && Number.isNaN(Date.parse(opts.since)))
+          return { result: err(MetatorError.usage(`--since ${opts.since}: expected an ISO time`)) };
+        const since = opts.since ? new Date(opts.since).toISOString() : undefined;
+        const f = ctx.folder();
+        if (!f) return { result: await ctx.container().resolve("buildReport").execute(since) };
+        // A folder: every repository's runs in one report, each run named with its repository.
+        const facts: RunFacts[] = [];
+        const warnings: string[] = [];
+        for (const r of f.repos) {
+          const got = await ctx.containerAt(r.root).resolve("buildReport").facts(since);
+          if (got.isErr()) warnings.push(`${r.name}: ${got.error.message}`);
+          else facts.push(...got.value.map((x) => ({ ...x, runId: `${r.name}/${x.runId}` })));
+        }
+        return { result: ok(fleetReport(facts, ctx.container().resolve("clock").now())), warnings };
       }),
     );
 }

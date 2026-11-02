@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { HostUsage } from "./telemetry.ts";
 import { defineDocument } from "./versioned.ts";
 import type { StageSpec } from "./workflow-spec.ts";
 
@@ -44,7 +45,7 @@ export type AgentEvent =
   | { readonly type: "session"; readonly id: string }
   | { readonly type: "text"; readonly text: string }
   | { readonly type: "tool"; readonly name: string; readonly summary: string }
-  | { readonly type: "result"; readonly ok: boolean; readonly text: string };
+  | { readonly type: "result"; readonly ok: boolean; readonly text: string; readonly usage?: HostUsage };
 
 /** One line of `.metator/runs/<id>/activity.jsonl`: what the drive did, for the live view. */
 export const RunActivitySchema = z.strictObject({

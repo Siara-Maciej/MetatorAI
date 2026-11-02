@@ -23,6 +23,7 @@ import {
   type BranchPublication,
   type BuildImportGraph,
   type BuildModuleCards,
+  type BuildReport,
   type CalibrateFinding,
   type ChangeHistory,
   type ChangePatch,
@@ -243,6 +244,7 @@ export interface Cradle {
   workOverview: WorkOverview;
   checkReadiness: CheckReadiness;
   answerPolicyStore: AnswerPolicyStore;
+  buildReport: BuildReport;
   runJournal: RunJournal;
   runDrivers: RunDrivers;
   driveRun: DriveRun;

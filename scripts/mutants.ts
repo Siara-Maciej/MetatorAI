@@ -147,8 +147,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
-    from: "return inside && declared.some((p) => rest === p || rest.startsWith(`${p} `));",
-    to: "return declared.some((p) => rest === p || rest.startsWith(`${p} `));",
+    from: "return inside && declared.some((p) => rest === p || rest.startsWith(`$" + "{p} `));",
+    to: "return declared.some((p) => rest === p || rest.startsWith(`$" + "{p} `));",
     why: "a cd out of the working directories is not dropped",
   },
   {
@@ -363,14 +363,20 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/drive.ts",
-    from: "return `${context}\\n\\n${question}`;",
+    from: "return `$" + "{context}\\n\\n$" + "{question}`;",
     to: "return question;",
     why: "the person sees the options the agent listed",
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
-    from: '    const abs = path.startsWith("/") ? path : `${cwd.replace(/\\/$/, "")}/${path}`;\n    return (\n      !abs.split("/").includes("..") &&',
-    to: '    const abs = path.startsWith("/") ? path : `${cwd.replace(/\\/$/, "")}/${path}`;\n    return (',
+    from:
+      '    const abs = path.startsWith("/") ? path : `$' +
+      '{cwd.replace(/\\/$/, "")}/$' +
+      '{path}`;\n    return (\n      !abs.split("/").includes("..") &&',
+    to:
+      '    const abs = path.startsWith("/") ? path : `$' +
+      '{cwd.replace(/\\/$/, "")}/$' +
+      "{path}`;\n    return (",
     why: "a path out of the run directory through .. is no run artifact",
   },
   {
@@ -393,7 +399,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/tui/model.ts",
-    from: "FINISHED.has(run.attention) && `${r.root}#${run.runId}` !== keep;",
+    from: "FINISHED.has(run.attention) && `$" + "{r.root}#$" + "{run.runId}` !== keep;",
     to: "FINISHED.has(run.attention);",
     why: "the selected run stays in view when it finishes",
   },
@@ -423,8 +429,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-git/src/git-vcs.ts",
-    from: '["ls-remote", pushUrl, `refs/heads/${branch}`]',
-    to: '["ls-remote", "origin", `refs/heads/${branch}`]',
+    from: '["ls-remote", pushUrl, `refs/heads/$' + "{branch}`]",
+    to: '["ls-remote", "origin", `refs/heads/$' + "{branch}`]",
     why: "publication is asked where pushes go, not where fetches come from",
   },
   {
@@ -970,7 +976,7 @@ export const MUTANTS: readonly Mutant[] = [
   {
     file: "packages/core/src/domain/read-only-command.ts",
     from: "if (value !== undefined) return value;",
-    to: "if (value !== undefined) return `$${key}`;",
+    to: "if (value !== undefined) return `$$" + "{key}`;",
     why: "the word a name stands for is checked like any other",
   },
   {
@@ -1090,8 +1096,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/rules.ts",
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: source code under test, not a template
-    from: "d.toolRuleId ? canon.get(`${engine.engine}:${d.toolRuleId}`) : undefined",
+    from: "d.toolRuleId ? canon.get(`$" + "{engine.engine}:$" + "{d.toolRuleId}`) : undefined",
     to: "undefined",
     why: "tool findings are mapped back to canon rule ids",
   },
@@ -2570,6 +2575,36 @@ export const MUTANTS: readonly Mutant[] = [
     from: '      (b.runId ?? "").localeCompare(a.runId ?? ""),\n',
     to: "",
     why: "runs that tie keep a stable order",
+  },
+  {
+    file: "packages/core/src/domain/telemetry.ts",
+    from: '    if (q.answer?.by.startsWith("policy:")) {\n      byPolicy++;\n      continue;\n    }\n',
+    to: '    if (q.answer?.by.startsWith("policy:")) byPolicy++;\n',
+    why: "a policy's answer cost nobody any waiting",
+  },
+  {
+    file: "packages/core/src/domain/telemetry.ts",
+    from: 'const end = run.status === "active" ? now.getTime() : new Date(run.updatedAt).getTime();',
+    to: "const end = now.getTime();",
+    why: "a finished run's wall time ends at its last change",
+  },
+  {
+    file: "packages/core/src/domain/telemetry.ts",
+    from: "failed: a.failed + (u.ok ? 0 : 1)",
+    to: "failed: a.failed",
+    why: "an agent's failed calls are counted",
+  },
+  {
+    file: "packages/core/src/application/report.ts",
+    from: "      if (since && r.createdAt < since) continue;\n",
+    to: "",
+    why: "--since leaves out the runs started before it",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: "      durationMs: Math.max(0, this.d.journal.now().getTime() - started),\n      ...usage,",
+    to: "      durationMs: Math.max(0, this.d.journal.now().getTime() - started),",
+    why: "the host's tokens and cost are kept with the call",
   },
   {
     file: "packages/core/src/domain/answer-policy.ts",
@@ -4055,8 +4090,11 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
-    from: '      if (answers === MAX_ANSWERS)\n        return ok({ type: "FAIL", reason: `${agent} stayed',
-    to: '      if (answers === MAX_ANSWERS - 1)\n        return ok({ type: "FAIL", reason: `${agent} stayed',
+    from:
+      '      if (answers === MAX_ANSWERS)\n        return ok({ type: "FAIL", reason: `$' + "{agent} stayed",
+    to:
+      '      if (answers === MAX_ANSWERS - 1)\n        return ok({ type: "FAIL", reason: `$' +
+      "{agent} stayed",
     why: "the last answer still reaches the agent",
   },
   {

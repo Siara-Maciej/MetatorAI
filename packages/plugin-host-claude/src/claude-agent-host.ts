@@ -10,6 +10,7 @@ import {
   declaredAfterCd,
   declaredWithDocument,
   deliveryCommand,
+  type HostUsage,
   permissionResponse,
   readOnlyCommand,
   removeInside,
@@ -315,8 +316,31 @@ export function* toEvents(message: Record<string, unknown>): Generator<AgentEven
       typeof message.result === "string"
         ? message.result
         : `${String(message.subtype)}${Array.isArray(message.errors) ? `: ${message.errors.join("; ")}` : ""}`;
-    yield { type: "result", ok, text };
+    const usage = hostUsage(message);
+    yield { type: "result", ok, text, ...(usage ? { usage } : {}) };
   }
+}
+
+/** Tokens and cost as the SDK's result message reports them; undefined when it reports none. */
+export function hostUsage(message: Record<string, unknown>): HostUsage | undefined {
+  const u = (message.usage ?? {}) as Record<string, unknown>;
+  const n = (v: unknown) =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : undefined;
+  const input = n(u.input_tokens);
+  const output = n(u.output_tokens);
+  const cached = n(u.cache_read_input_tokens);
+  const created = n(u.cache_creation_input_tokens);
+  const cost =
+    typeof message.total_cost_usd === "number" && message.total_cost_usd >= 0
+      ? message.total_cost_usd
+      : undefined;
+  const out: HostUsage = {
+    ...(input !== undefined || created !== undefined ? { inputTokens: (input ?? 0) + (created ?? 0) } : {}),
+    ...(output !== undefined ? { outputTokens: output } : {}),
+    ...(cached !== undefined ? { cachedTokens: cached } : {}),
+    ...(cost !== undefined ? { costUsd: cost } : {}),
+  };
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** AskUserQuestion: each question goes to a person; the answers go back keyed by question text. */

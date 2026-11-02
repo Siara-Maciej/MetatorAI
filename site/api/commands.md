@@ -2092,3 +2092,17 @@ Every open decision of every run, first the ones a live drive waits on, then the
 ```bash
 metator inbox [options]
 ```
+
+## report
+
+### `metator report`
+
+What the runs cost and asked of people: tokens, money, agent time, questions, waiting, per agent
+
+```bash
+metator report [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--since <time>` | only runs started at or after this ISO time |  |

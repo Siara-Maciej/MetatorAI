@@ -223,6 +223,7 @@ describe("metator CLI (process e2e)", () => {
       "status",
       "doctor",
       "inbox",
+      "report",
     ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);
   });
