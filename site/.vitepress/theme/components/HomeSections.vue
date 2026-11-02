@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import { withBase } from "vitepress";
 import flowUrl from "../../../../assets/flow.svg";
-import reviewUrl from "../../../../assets/review.svg";
 import { data as agents } from "../../data/agents.data.ts";
 import { data as commands } from "../../data/commands.data.ts";
 import { data as workflows } from "../../data/workflows.data.ts";
-import AgentGraph from "./AgentGraph.vue";
-import PrincipleFlow from "./PrincipleFlow.vue";
-import SystemDiagram from "./SystemDiagram.vue";
 import TerminalDemo from "./TerminalDemo.vue";
-import WorkflowDiagram from "./WorkflowDiagram.vue";
 
-/** The landing page below the hero. Every number is read from the shipped canon, not typed in. */
+/**
+ * The landing page below the hero, in the order a reader decides: the loop, proof that it works,
+ * a path for their role, the seven concepts, the modules, governance, and the way in. Every number
+ * is read from the shipped canon, not typed in.
+ */
 const stats = [
   { value: agents.agents.length, label: "agents" },
   { value: agents.skills.length, label: "skills" },
@@ -20,69 +19,67 @@ const stats = [
   { value: 2, label: "AI hosts" },
 ];
 
-const problems = [
-  [
-    "Agents guess the codebase",
-    "Measured facts: import graph, affected tests, module cards, owners, the exemplar to copy.",
-  ],
-  [
-    "Rules live in a wiki",
-    "A rule canon in the repo, delivered per file and enforced by ast-grep, Biome, tsc and tests.",
-  ],
-  [
-    "Plans skip tests and reinvent",
-    "`plan lint` rejects new files without an exemplar or an ADR, and code before its tests.",
-  ],
-  [
-    "Review comments without proof",
-    "Findings quote the code, a verifier tries to refute each one, only confirmed blockers block.",
-  ],
-  ["Agents act on their own", "Hooks deny edits outside the plan and pushes without a human approval."],
-  ["Context is lost", "Every run lives on disk with an audit trail and resumes in any session or CI job."],
+const loop = [
+  ["Survey", "graph, affected tests, patterns, the rules for exactly these files"],
+  ["Plan", "every step names a file, the tests first and an exemplar `file:line`"],
+  ["Gate", "`plan lint`, a critic on another model, then you"],
+  ["Build", "tests red, then green; hooks block any edit outside the plan"],
+  ["Verify", "review lenses in parallel; a verifier tries to refute every finding"],
+  ["Ship", "the PR is drafted; nothing is pushed until a person says go"],
 ];
 
-const enterprise = [
-  [
-    "📜",
-    "Audit trail",
-    "Every transition, approval and checkpoint is appended to the run's log.md; state.json changes only through `metator run`.",
-  ],
-  [
-    "✋",
-    "Human approvals",
-    "Plan, push and PR comments wait for `metator run approve`. Gates marked neverSkip cannot be automated away.",
-  ],
-  [
-    "🔐",
-    "Least privilege",
-    "Each agent gets only the CLI groups it needs; coordinators never edit code; secrets are never read.",
-  ],
-  [
-    "🧾",
-    "Versioned files",
-    "Every file carries kind and schemaVersion, with frozen schemas and migrations on read.",
-  ],
-  [
-    "🚦",
-    "Gates in CI",
-    "`metator gate full` and `metator meta check-all` run the same checks agents run, with one JSON report.",
-  ],
-  [
-    "📏",
-    "Measured review",
-    "Precision and recall on a golden set; `eval compare` fails CI when a prompt change makes review worse.",
-  ],
-  [
-    "🎛️",
-    "One canon, two hosts",
-    "Agents, skills, rules and hooks generated for GitHub Copilot and Claude Code from one source.",
-  ],
-  [
-    "🧩",
-    "Ports and adapters",
-    "Tools are plugins behind small ports; every adapter passes a contract suite.",
-  ],
+const paths = [
+  {
+    role: "Developer",
+    title: "Run a feature with agents you can trust",
+    text: "Start a run, answer its questions, watch a session when you want to see the terminal.",
+    link: "/start/paths#i-write-code-with-agents",
+    where: "Work → Feature, Sessions",
+    accent: "var(--mx-teal)",
+  },
+  {
+    role: "Platform owner",
+    title: "Turn conventions into rules a tool enforces",
+    text: "Write the canon once, generate agents for every host, put the gates in CI.",
+    link: "/start/paths#i-own-the-platform",
+    where: "Knowledge → Rules, Agents, Gates and CI",
+    accent: "var(--mx-violet)",
+  },
+  {
+    role: "Reviewer",
+    title: "Get review comments that prove themselves",
+    text: "Every finding carries a quote, a trigger and a path from a real caller; a verifier tries to refute it first.",
+    link: "/start/paths#i-review-code",
+    where: "Work → Review a PR",
+    accent: "var(--mx-gold)",
+  },
 ];
+
+const concepts = [
+  ["Run", "one task as a state machine, with an audit log on disk", "/concepts/run"],
+  ["Workflow", "the YAML spec a run follows: stages, owners, gates, limits", "/concepts/workflow"],
+  ["Gate and approvals", "checks and human gates no agent can talk past", "/concepts/gate"],
+  ["Canon", "rules, patterns, module cards, ADRs, the memory map", "/concepts/canon"],
+  ["Finding", "a review claim with evidence, verified before it blocks", "/concepts/finding"],
+  ["Host", "Copilot and Claude Code: generated agents and hooks", "/concepts/host"],
+  ["Session", "a worktree, a drive, the questions it asks you", "/concepts/session"],
+];
+
+const modules = [
+  ["Systems of many applications", "/modules/systems"],
+  ["Several repositories", "/modules/repositories"],
+  ["Package architecture", "/modules/architecture"],
+  ["Start the application", "/modules/environments"],
+];
+
+const governance = [
+  "no edit outside the plan",
+  "no push without a person's approval",
+  "no secrets read, no destructive commands",
+  "every run leaves log.md and state.json",
+];
+
+const code = (s: string) => s.replace(/`([^`]+)`/g, "<code>$1</code>");
 </script>
 
 <template>
@@ -95,37 +92,18 @@ const enterprise = [
     </section>
 
     <section class="mx-section">
-      <p class="mx-eyebrow">the idea</p>
-      <h2>The metator marched ahead of the legion and staked out the camp.</h2>
-      <p class="mx-lead">
-        MetatorAI does that for AI agents on your code. Before a line changes, it measures the terrain and marks out
-        the lines every change must follow. Then it puts gates on those lines that no agent can skip.
-      </p>
-      <div class="mx-problems">
-        <article v-for="[p, s] in problems" :key="p">
-          <span class="bad">✕ {{ p }}</span>
-          <span class="good">✓ <span v-html="s.replace(/`([^`]+)`/g, '<code>$1</code>')"></span></span>
-        </article>
-      </div>
-      <a class="mx-more" :href="withBase('/product/idea')">Read the idea →</a>
-    </section>
-
-    <section class="mx-section">
-      <p class="mx-eyebrow">how it works</p>
-      <h2>LLMs decide. Scripts measure. Hooks enforce. Humans approve.</h2>
-      <PrincipleFlow />
+      <p class="mx-eyebrow">the loop</p>
+      <h2>Every stage leaves an artifact with a schema. A stage is done when it validates, not when the model says so.</h2>
+      <ol class="mx-loop">
+        <li v-for="[name, text] in loop" :key="name">
+          <strong>{{ name }}</strong>
+          <span v-html="code(text)"></span>
+        </li>
+      </ol>
       <div class="mx-art-wrap">
         <img class="mx-art" :src="flowUrl" alt="The Metator loop: survey, plan, gate, build, verify, ship, with a bounded loop back to the plan" />
       </div>
-      <a class="mx-more" :href="withBase('/product/how-it-works')">How it works in detail →</a>
-    </section>
-
-    <section class="mx-section">
-      <p class="mx-eyebrow">workflows as state machines</p>
-      <h2>Every stage has an owner, an artifact and a gate.</h2>
-      <p class="mx-lead">This is the shipped feature workflow, drawn from its spec. The token moves the way <code>metator run advance</code> does.</p>
-      <WorkflowDiagram id="mt-feature" />
-      <a class="mx-more" :href="withBase('/workflows/')">All workflows →</a>
+      <a class="mx-more" :href="withBase('/start/how-it-works')">How it works in detail →</a>
     </section>
 
     <section class="mx-section mx-split">
@@ -142,51 +120,70 @@ const enterprise = [
           <li>The rule check names the canon rule that was broken.</li>
           <li>The hook denies a push until a person approves it.</li>
         </ul>
-        <a class="mx-more" :href="withBase('/guide/quick-start')">Try it in 15 minutes →</a>
+        <a class="mx-more" :href="withBase('/start/quick-start')">Try it in 15 minutes →</a>
       </div>
       <TerminalDemo />
     </section>
 
     <section class="mx-section">
-      <p class="mx-eyebrow">agents</p>
-      <h2>{{ agents.agents.length }} agents, each with one job and only the tools for it.</h2>
-      <AgentGraph />
-      <div class="mx-art-wrap">
-        <img class="mx-art" :src="reviewUrl" alt="Review: the diff sharded by module, parallel lenses, a verifier refutes findings, a judge decides" />
+      <p class="mx-eyebrow">choose your path</p>
+      <h2>Three ways in, each a short read.</h2>
+      <div class="mx-paths">
+        <a v-for="p in paths" :key="p.role" :href="withBase(p.link)" :style="{ '--accent': p.accent }">
+          <span class="role">{{ p.role }}</span>
+          <strong>{{ p.title }}</strong>
+          <p>{{ p.text }}</p>
+          <span class="where">{{ p.where }}</span>
+        </a>
       </div>
-      <a class="mx-more" :href="withBase('/agents/')">Meet the agents →</a>
     </section>
 
     <section class="mx-section">
-      <p class="mx-eyebrow">multi-repo</p>
-      <h2>Changes across applications, in the right order.</h2>
-      <p class="mx-lead">
-        The system map says which applications provide and consume which contract. MetatorAI checks it in CI and
-        computes the deploy waves, so a change ships providers first.
-      </p>
-      <SystemDiagram />
-      <a class="mx-more" :href="withBase('/multi-repo/')">Systems of many applications →</a>
+      <p class="mx-eyebrow">seven concepts</p>
+      <h2>Everything else is built from these.</h2>
+      <div class="mx-concepts">
+        <a v-for="[name, text, link] in concepts" :key="name" :href="withBase(link)">
+          <strong>{{ name }}</strong>
+          <span>{{ text }}</span>
+        </a>
+        <div class="mx-concepts-note">
+          Each concept page has the same shape: what, why, where on disk, commands, what enforces it, one JSON example.
+        </div>
+      </div>
     </section>
 
     <section class="mx-section">
-      <p class="mx-eyebrow">built for teams that need control</p>
-      <h2>Governance is a script, not a promise.</h2>
-      <div class="mx-ent">
-        <article v-for="[icon, title, text] in enterprise" :key="title">
-          <span class="icon">{{ icon }}</span>
-          <h3>{{ title }}</h3>
-          <p v-html="text.replace(/`([^`]+)`/g, '<code>$1</code>')"></p>
-        </article>
+      <div class="mx-modules">
+        <span class="badge">Modules</span>
+        <span class="mx-muted">Optional, for when the core is not enough:</span>
+        <template v-for="([name, link], i) in modules" :key="name">
+          <a :href="withBase(link)">{{ name }}</a><span v-if="i < modules.length - 1" class="dot">·</span>
+        </template>
       </div>
-      <a class="mx-more" :href="withBase('/product/enterprise')">Security and governance →</a>
+    </section>
+
+    <section class="mx-section mx-split mx-gov">
+      <div>
+        <p class="mx-eyebrow">built for teams that need control</p>
+        <h2>Governance is a script, not a promise.</h2>
+        <p class="mx-lead">
+          Each rule is a hook you can read and test, with an audit trail per run. Push and PR comments wait for a named
+          person at every autonomy level.
+        </p>
+        <a class="mx-more" :href="withBase('/reference/security')">Security and governance →</a>
+      </div>
+      <ul class="mx-gov-list">
+        <li v-for="g in governance" :key="g">{{ g }}</li>
+      </ul>
     </section>
 
     <section class="mx-cta">
       <h2>Lay out the ground. Then build.</h2>
-      <p>Install from a checkout, survey your repository and run your first workflow.</p>
+      <p>Install from a checkout, survey your repository and run your first workflow in fifteen minutes.</p>
       <div>
-        <a class="primary" :href="withBase('/product/idea')">Get started</a>
-        <a :href="withBase('/api/')">Explore the API</a>
+        <a class="primary" :href="withBase('/start/installation')">Install</a>
+        <a :href="withBase('/start/quick-start')">Quick start</a>
+        <a :href="withBase('/reference/commands-people')">Commands</a>
       </div>
     </section>
   </div>
@@ -230,7 +227,7 @@ const enterprise = [
   color: var(--mx-muted);
 }
 .mx-section {
-  margin: 72px 0;
+  margin: 64px 0;
 }
 .mx-home :deep(h2) {
   border-top: 0 !important;
@@ -241,7 +238,7 @@ const enterprise = [
 }
 .mx-section h2,
 .mx-cta h2 {
-  font-size: 30px;
+  font-size: 28px;
   line-height: 1.2;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -255,11 +252,48 @@ const enterprise = [
   max-width: 760px;
   margin: 0 0 18px;
 }
+.mx-muted {
+  color: var(--mx-muted);
+}
 .mx-more {
   display: inline-block;
   margin-top: 8px;
   font-weight: 600;
   color: var(--vp-c-brand-1);
+}
+.mx-loop {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 8px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  counter-reset: stage;
+}
+@media (max-width: 900px) {
+  .mx-loop {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.mx-loop li {
+  border: 1px solid var(--mx-line);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--mx-panel);
+  font-size: 13.5px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mx-loop li:nth-child(3) {
+  border-color: var(--mx-teal);
+}
+.mx-loop strong {
+  font-size: 15px;
+}
+.mx-loop span {
+  color: var(--mx-muted);
 }
 .mx-art-wrap {
   overflow-x: auto;
@@ -269,30 +303,6 @@ const enterprise = [
   width: 100%;
   border-radius: 14px;
   margin: 16px 0;
-}
-.mx-problems {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-  gap: 12px;
-  margin: 18px 0;
-}
-.mx-problems article {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid var(--mx-line);
-  background: var(--mx-panel);
-  font-size: 14px;
-  line-height: 1.5;
-}
-.mx-problems .bad {
-  color: var(--mx-red);
-  font-weight: 600;
-}
-.mx-problems .good {
-  color: var(--mx-ink);
 }
 .mx-split {
   display: grid;
@@ -323,35 +333,120 @@ const enterprise = [
   color: var(--mx-teal);
   font-weight: 700;
 }
-.mx-ent {
+.mx-paths {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 14px;
-  margin: 18px 0;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
 }
-.mx-ent article {
+.mx-paths a {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 18px;
   border-radius: 12px;
   border: 1px solid var(--mx-line);
   background: var(--mx-panel);
+  color: var(--mx-ink);
   transition: border-color 0.25s ease, transform 0.25s ease;
 }
-.mx-ent article:hover {
-  border-color: var(--mx-teal);
+.mx-paths a:hover {
+  border-color: var(--accent);
   transform: translateY(-2px);
 }
-.mx-ent .icon {
-  font-size: 22px;
+.mx-paths .role {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
-.mx-ent h3 {
-  font-size: 16px;
-  margin: 8px 0 6px;
+.mx-paths strong {
+  font-size: 17px;
+  line-height: 1.3;
 }
-.mx-ent p {
-  font-size: 13.5px;
-  line-height: 1.55;
-  color: var(--mx-muted);
+.mx-paths p {
   margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--mx-muted);
+}
+.mx-paths .where {
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--vp-c-brand-1);
+}
+.mx-concepts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+.mx-concepts a,
+.mx-concepts-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--mx-line);
+  background: var(--mx-panel);
+  color: var(--mx-ink);
+  font-size: 13.5px;
+  line-height: 1.5;
+  transition: border-color 0.25s ease;
+}
+.mx-concepts a:hover {
+  border-color: var(--mx-teal);
+}
+.mx-concepts strong {
+  font-size: 15px;
+}
+.mx-concepts span {
+  color: var(--mx-muted);
+}
+.mx-concepts-note {
+  border-style: dashed;
+  color: var(--mx-muted);
+  justify-content: center;
+}
+.mx-modules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--mx-line);
+  background: var(--mx-panel);
+  font-size: 14px;
+}
+.mx-modules .badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--mx-line);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mx-modules .dot {
+  color: var(--mx-muted);
+}
+.mx-gov-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.mx-gov-list li {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--mx-line);
+  background: var(--mx-panel);
+  font-size: 14px;
 }
 .mx-cta {
   margin-top: 80px;
