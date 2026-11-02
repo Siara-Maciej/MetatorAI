@@ -321,6 +321,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/read-only-command.ts",
+    from: "if (argv.length === 2 && VERSIONED.has(argv[0] as string)",
+    to: "if (VERSIONED.has(argv[0] as string)",
+    why: "only a bare --version is reading, never a tool run with other arguments",
+  },
+  {
+    file: "packages/core/src/domain/read-only-command.ts",
     from: "i++; // an escaped character is literal",
     to: "",
     why: "an escaped $ or quote in a commit message is literal",
