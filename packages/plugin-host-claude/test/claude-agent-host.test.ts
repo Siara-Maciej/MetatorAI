@@ -1,14 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentQuestion } from "@metator/core";
+import { type AgentQuestion, CHAT_APPROVAL_NEEDS_DRIVER } from "@metator/core";
 import { agentHostContract, collect } from "@metator/testing";
 import {
   agentDefinition,
   ClaudeAgentHost,
   type ClaudeQuery,
   declaredCommands,
+  driverOf,
   hostUsage,
   LOCAL_METATOR,
   OUTSIDE_DEFINITION,
@@ -290,6 +291,46 @@ describe("ClaudeAgentHost", () => {
     const freeOptions = free.calls[0]?.options as Record<string, unknown>;
     expect((await hookOf(freeOptions)(advance)).hookSpecificOutput).toBeUndefined();
     expect((freeOptions.env as Record<string, string>).METATOR_DRIVEN).toBeUndefined();
+  });
+
+  test("an approval from the chat passes only while state.json says a person is attached", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "metator-driver-"));
+    const stateOf = (driver?: Record<string, unknown>) =>
+      JSON.stringify({
+        kind: "RunRecord",
+        schemaVersion: 6,
+        runId: "20261102-demo-r",
+        workflow: { id: "demo", revision: 1, source: "x" },
+        task: "t",
+        autonomy: "L0",
+        createdAt: "2026-11-02T10:00:00.000Z",
+        updatedAt: "2026-11-02T10:00:00.000Z",
+        state: { workflow: "demo", stage: "approval", status: "active", context: { loops: {}, history: [] } },
+        approvals: {},
+        ...(driver ? { driver } : {}),
+      });
+    const chat = {
+      hook_event_name: "PreToolUse",
+      tool_name: "Bash",
+      tool_input: { command: "metator run approve approval --by maciej --via chat" },
+    };
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(query), { ...task, runDir: dir, driven: true });
+    type Hook = (
+      input: unknown,
+    ) => Promise<{ hookSpecificOutput?: { permissionDecision: string; permissionDecisionReason?: string } }>;
+    const hooks = calls[0]?.options.hooks as { PreToolUse: { hooks: Hook[] }[] };
+    const hook = hooks.PreToolUse[0]?.hooks[0] as Hook;
+    expect(driverOf(dir)).toBe("agent"); // no state.json yet
+    await writeFile(join(dir, "state.json"), stateOf());
+    expect((await hook(chat)).hookSpecificOutput?.permissionDecisionReason).toBe(CHAT_APPROVAL_NEEDS_DRIVER);
+    await writeFile(
+      join(dir, "state.json"),
+      stateOf({ by: "human", attachedBy: "maciej", attachedAt: "2026-11-02T10:01:00.000Z" }),
+    );
+    expect(driverOf(dir)).toBe("human");
+    expect((await hook(chat)).hookSpecificOutput).toBeUndefined();
+    await rm(dir, { recursive: true, force: true });
   });
 
   test("a tool call on a file that may hold secrets is denied in-process, wherever the session works", async () => {

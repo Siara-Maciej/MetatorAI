@@ -6,12 +6,15 @@ import {
   type AgentHost,
   type AgentQuestion,
   type AgentTask,
+  CHAT_APPROVAL_NEEDS_DRIVER,
+  chatApproval,
   DRIVEN_RUN_CONTROL,
   declaredAfterCd,
   declaredWithDocument,
   deliveryCommand,
   type HostUsage,
   permissionResponse,
+  RunRecordDocument,
   readOnlyCommand,
   removeInside,
   runArtifactWrite,
@@ -65,6 +68,17 @@ const described = (input: unknown) => {
   if (typeof command === "string") return command.length > 4000 ? `${command.slice(0, 4000)}…` : command;
   return JSON.stringify(input ?? {}).slice(0, 400);
 };
+
+/** Who drives the run whose directory this is, from its state.json; the agent when unreadable. */
+export function driverOf(runDir: string): "agent" | "human" {
+  try {
+    const raw = JSON.parse(readFileSync(join(runDir, "state.json"), "utf8"));
+    const record = RunRecordDocument.parse(raw, "state.json");
+    return record.isOk() && record.value.driver?.by === "human" ? "human" : "agent";
+  } catch {
+    return "agent";
+  }
+}
 
 const WRITES = new Set(["Write", "Edit", "MultiEdit"]);
 const READS = new Set(["Read", "Grep", "Glob"]);
@@ -239,7 +253,14 @@ export class ClaudeAgentHost implements AgentHost {
       // The drive moves a run it carries: an agent that advances it makes the drive's own event
       // land on the next stage, which is then skipped.
       const control = task.driven ? runControlCommand(hook) : undefined;
-      if (control) return permissionResponse({ decision: "deny", reason: DRIVEN_RUN_CONTROL(control) });
+      if (control) {
+        // A person's yes in the chat, carried by the agent: only while that person is attached
+        // (state.json, read now: the lock changes while the session runs).
+        if (!chatApproval(hook))
+          return permissionResponse({ decision: "deny", reason: DRIVEN_RUN_CONTROL(control) });
+        if (driverOf(task.runDir) !== "human")
+          return permissionResponse({ decision: "deny", reason: CHAT_APPROVAL_NEEDS_DRIVER });
+      }
       // An agent whose definition grants no plain Bash (a coordinator, a lens, a planner) runs only
       // the commands it declares and the ones that need no person: anything else is refused with
       // that reason, never put to a person. The hook names the agent, a subagent's too.

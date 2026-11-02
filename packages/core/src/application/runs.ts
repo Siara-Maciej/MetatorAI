@@ -30,6 +30,7 @@ export interface RunView {
   readonly approvals: RunRecord["approvals"];
   readonly files: { readonly state: string; readonly log: string };
   readonly worktree?: RunRecord["worktree"];
+  readonly driver?: RunRecord["driver"];
   readonly updatedAt: string;
 }
 
@@ -47,6 +48,7 @@ function view(record: RunRecord, machine: RunStateMachine, repo: RunRepository):
     approvals: record.approvals,
     files: { state: repo.stateFile(record.runId), log: repo.logFile(record.runId) },
     ...(record.worktree ? { worktree: record.worktree } : {}),
+    ...(record.driver ? { driver: record.driver } : {}),
     updatedAt: record.updatedAt,
   };
 }
@@ -312,6 +314,8 @@ export class ApproveRun {
     readonly gate: string;
     readonly by: string;
     readonly choice?: string;
+    /** chat: the person said yes in the session's chat; counts only while they are attached (ADR-0077). */
+    readonly via?: "chat";
   }): Promise<
     Result<RunView | { readonly runId: string; readonly approvals: RunRecord["approvals"] }, MetatorError>
   > {
@@ -319,6 +323,35 @@ export class ApproveRun {
     if (id.isErr()) return err(id.error);
     const record = await this.repo.load(id.value);
     if (record.isErr()) return err(record.error);
+    if (input.via === "chat") {
+      const driver = record.value.driver;
+      if (driver?.by !== "human")
+        return err(
+          MetatorError.usage(
+            `run ${id.value}: nobody is attached, so an approval from the chat does not count`,
+            "A person attaches with `metator run attach --by <name>`; otherwise they approve themselves with `metator run approve <gate> --by <name>`.",
+          ),
+        );
+      if (driver.attachedBy !== input.by)
+        return err(
+          MetatorError.usage(
+            `run ${id.value} is driven by ${driver.attachedBy}, not ${input.by}: only the attached person's yes counts`,
+          ),
+        );
+      // Push and PR comments are never approved from the chat, at any autonomy level.
+      if ((APPROVAL_ACTIONS as readonly string[]).includes(input.gate))
+        return err(
+          MetatorError.usage(
+            `${input.gate} is never approved from the chat`,
+            `The person runs \`metator run approve ${input.gate} --by ${input.by}\` themselves.`,
+          ),
+        );
+      const via = await this.repo.appendLog(
+        id.value,
+        `${this.clock.now().toISOString()} · approval from the chat · ${input.gate} · ${input.by} attached since ${driver.attachedAt}`,
+      );
+      if (via.isErr()) return err(via.error);
+    }
     const decision = { by: input.by, ...(input.choice === undefined ? {} : { choice: input.choice }) };
 
     if (record.value.state.stage === input.gate)

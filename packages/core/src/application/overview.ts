@@ -32,6 +32,9 @@ export interface RunOverview {
   /** Open questions: what to answer, in order. */
   readonly questions: readonly Question[];
   readonly driving: boolean;
+  /** Who drives the session: a person attached (with their name), or the agent. */
+  readonly driver: "agent" | "human";
+  readonly attachedBy?: string | undefined;
   /** Active, and its drive process ended without leaving (a restart, a killed process): `run revive` starts it again. */
   readonly died: boolean;
   /** The host that drives (or drove) the run. */
@@ -125,6 +128,8 @@ export class WorkOverview {
         stages,
         questions: open,
         driving,
+        driver: r.driver?.by ?? "agent",
+        ...(r.driver?.by === "human" && r.driver.attachedBy ? { attachedBy: r.driver.attachedBy } : {}),
         died: active && driver.isOk() && driver.value !== null && !driver.value.alive,
         ...(driver.isOk() && driver.value ? { host: driver.value.host } : r.host ? { host: r.host } : {}),
         ...(last

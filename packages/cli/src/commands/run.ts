@@ -180,8 +180,14 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .requiredOption("--by <name>", "who approved")
     .option("--choice <value>", "selected option")
     .option("--run <id>", "run id (default: latest)")
+    .addOption(
+      new Option(
+        "--via <channel>",
+        "chat: the person said yes in the session's chat; counts only while they are attached",
+      ).choices(["chat"]),
+    )
     .action(
-      action(async (gate: string, opts: { by: string; choice?: string; run?: string }) => ({
+      action(async (gate: string, opts: { by: string; choice?: string; run?: string; via?: "chat" }) => ({
         result: await container()
           .resolve("approveRun")
           .execute({
@@ -189,8 +195,89 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
             by: opts.by,
             ...(opts.choice ? { choice: opts.choice } : {}),
             ...(opts.run ? { runId: opts.run } : {}),
+            ...(opts.via ? { via: opts.via } : {}),
           }),
       })),
+    );
+
+  runs
+    .command("attach")
+    .description("Take the session's keyboard: your input goes to its PTY and your yes in the chat counts")
+    .requiredOption("--by <name>", "who attaches")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (opts: { by: string; run?: string }) => ({
+        result: await container()
+          .resolve("driverLock")
+          .attach({ by: opts.by, ...(opts.run ? { runId: opts.run } : {}) }),
+      })),
+    );
+
+  runs
+    .command("release")
+    .description("Give the session back to the agent")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (opts: { run?: string }) => ({
+        result: await container()
+          .resolve("driverLock")
+          .release(opts.run ? { runId: opts.run } : {}),
+      })),
+    );
+
+  runs
+    .command("message")
+    .description("Send another run a message (data for its agents, never instructions)")
+    .argument("<to>", "the receiving run id")
+    .requiredOption("--from <run>", "the sending run id")
+    .addOption(
+      new Option("--topic <topic>", "what it is about")
+        .choices(["info", "contract", "shared-file", "done"])
+        .default("info"),
+    )
+    .requiredOption("--text <text>", "the message")
+    .option(
+      "--ref <ref>",
+      "a file, run or URL it points at (repeatable)",
+      (v: string, all: string[]) => [...all, v],
+      [] as string[],
+    )
+    .requiredOption("--by <name>", "who sends: an agent of the run, or a person")
+    .action(
+      action(
+        async (
+          to: string,
+          opts: {
+            from: string;
+            topic: "info" | "contract" | "shared-file" | "done";
+            text: string;
+            ref: string[];
+            by: string;
+          },
+        ) => ({
+          result: await container()
+            .resolve("runMessages")
+            .send({ from: opts.from, to, topic: opts.topic, text: opts.text, refs: opts.ref, by: opts.by }),
+        }),
+      ),
+    );
+
+  runs
+    .command("messages")
+    .description("Messages other runs sent this run")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (opts: { run?: string }) => {
+        const c = container();
+        const id = await c.resolve("runRepository").resolveId(opts.run);
+        if (id.isErr()) return { result: id };
+        return {
+          result: (await c.resolve("runMessages").list(id.value)).map((messages) => ({
+            runId: id.value,
+            messages,
+          })),
+        };
+      }),
     );
 
   runs

@@ -37,7 +37,7 @@ export type RunStatus = RunState["status"];
 export const AutonomySchema = z.enum(["L0", "L1", "L2"]);
 export type Autonomy = z.infer<typeof AutonomySchema>;
 
-const RUN_ID = /^\d{8}-[a-z0-9-]+$/;
+export const RUN_ID = /^\d{8}-[a-z0-9-]+$/;
 
 /** v1: released before approvals were recorded. Never change it (MT-CODE-003). */
 const RunRecordV1Schema = z
@@ -96,8 +96,28 @@ export const INPUT_NAME = /^[a-z][a-z0-9_]*$/;
  * v5 adds, optionally, the values of the workflow's inputs the run was started with
  * (`run init --input base=main`): its scripts read them as `{base}`. Never change v1–v4.
  */
-export const RunRecordSchema = RunRecordV4Schema.extend({
+const RunRecordV5Schema = RunRecordV4Schema.extend({
   inputs: z.record(z.string().regex(INPUT_NAME), z.string().min(1)).optional(),
+}).strict();
+
+/** Who drives a session now: the agent (the host writes its PTY) or a person who attached. */
+export const DriverSchema = z
+  .strictObject({
+    by: z.enum(["agent", "human"]),
+    attachedBy: z.string().min(1).optional(),
+    attachedAt: z.iso.datetime().optional(),
+  })
+  .refine((d) => d.by === "agent" || (d.attachedBy !== undefined && d.attachedAt !== undefined), {
+    message: "a human driver names who attached and when",
+  });
+export type Driver = z.output<typeof DriverSchema>;
+
+/**
+ * v6 (D1, ADR-0077) adds, optionally, the driver lock: a person attached to the session takes the
+ * keyboard and may approve from the chat; absent, the agent drives. Never change v1–v5.
+ */
+export const RunRecordSchema = RunRecordV5Schema.extend({
+  driver: DriverSchema.optional(),
 }).strict();
 
 export type RunRecord = z.infer<typeof RunRecordSchema>;
@@ -120,9 +140,11 @@ export const RunRecordDocument = defineDocument("RunRecord", {
     { schema: RunRecordV3Schema, fromPrevious: (previous) => previous },
     // `system` is optional: a v3 record is a v4 record of a run outside any system plan.
     { schema: RunRecordV4Schema, fromPrevious: (previous) => previous },
+    // `inputs` is optional: a v4 record is a v5 record started without inputs.
+    { schema: RunRecordV5Schema, fromPrevious: (previous) => previous },
   ],
   latest: RunRecordSchema,
-  // `inputs` is optional: a v4 record is a v5 record started without inputs.
+  // `driver` is optional: a v5 record is a v6 record the agent drives.
   upgrade: (previous) => previous,
   hint: "Do not edit state.json by hand; use `metator run advance` or `metator run approve`.",
 });

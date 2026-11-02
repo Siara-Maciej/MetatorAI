@@ -54,6 +54,7 @@ function runOf(id: string, over: Partial<RunOverview> = {}): RunOverview {
     ],
     questions: [],
     driving: false,
+    driver: "agent",
     died: false,
     createdAt: "2026-10-28T09:00:00.000Z",
     updatedAt: "2026-10-28T10:00:00.000Z",

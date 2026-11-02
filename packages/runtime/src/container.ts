@@ -61,6 +61,7 @@ import {
   type DocsInventory,
   type DocsLinks,
   type DriveRun,
+  type DriverLock,
   type EnvironmentCatalog,
   type EnvironmentServices,
   type EvalCatalog,
@@ -146,6 +147,7 @@ import {
   type RunEvals,
   type RunGate,
   type RunJournal,
+  type RunMessages,
   type RunRefactorPlan,
   type RunRepository,
   type RunSystemEvals,
@@ -247,6 +249,8 @@ export interface Cradle {
   setupWorktree: SetupWorktree;
   answerPolicyStore: AnswerPolicyStore;
   buildReport: BuildReport;
+  driverLock: DriverLock;
+  runMessages: RunMessages;
   runJournal: RunJournal;
   runDrivers: RunDrivers;
   driveRun: DriveRun;

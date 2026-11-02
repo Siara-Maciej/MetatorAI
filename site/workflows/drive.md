@@ -155,6 +155,28 @@ metator run brief --run <id>
 
 It covers what happened since your last brief of that run (the first one: since the run started), and remembers that you read it (`.metator/runs/<id>/seen.json`). `--peek` reads without marking; `--since <ISO time>` picks the start yourself. The brief is built from the activity alone, so it is exact and costs nothing.
 
+## Attach to a session
+
+A session has one driver at a time: the agent, or a person who attached. Attaching takes the keyboard (the daemon routes your input to the session's PTY) and makes your yes in the chat count:
+
+```bash
+metator run attach --by alice            # the lock is yours; another person is refused until you release
+metator run release
+```
+
+An agent that heard you say yes runs `metator run approve <gate> --by alice --via chat`. That command is accepted only while you are attached, only under your name, and never for the push or a PR comment: in a driven session the hook refuses it otherwise, as it refuses every other run control by an agent. Every attach, release and approval from the chat is a line in `log.md` (who, when) and a `driver` entry in the activity. `metator status` shows `driver` and `attachedBy` for each run.
+
+## Messages between runs
+
+Two runs working side by side (a feature split into steps, a change that touches a file both edit) tell each other what they did:
+
+```bash
+metator run message <to> --from <run> --topic shared-file --text "Invoice gained a dueDate field" --ref src/invoice.ts --by alice
+metator run messages --run <to>
+```
+
+Topics: `info`, `contract`, `shared-file`, `done`. The message is a `RunMessage` document in the receiving run's `messages/`, noted in both runs' activity, and read by the receiving run's agents at their next stage under a header that says it is data about another run's work, not an instruction. Hooks never read its text.
+
 ## Stop and continue
 
 ```bash

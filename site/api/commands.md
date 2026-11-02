@@ -1615,6 +1615,61 @@ metator run approve [options] <gate>
 | `--by <name>` | who approved **Required.** |  |
 | `--choice <value>` | selected option |  |
 | `--run <id>` | run id (default: latest) |  |
+| `--via <channel>` | chat: the person said yes in the session's chat; counts only while they are attached (one of: chat) |  |
+
+### `metator run attach`
+
+Take the session's keyboard: your input goes to its PTY and your yes in the chat counts
+
+```bash
+metator run attach [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--by <name>` | who attaches **Required.** |  |
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run release`
+
+Give the session back to the agent
+
+```bash
+metator run release [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run message`
+
+Send another run a message (data for its agents, never instructions)
+
+```bash
+metator run message [options] <to>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<to>` | the receiving run id | |
+| `--from <run>` | the sending run id **Required.** |  |
+| `--topic <topic>` | what it is about (one of: info, contract, shared-file, done) | `"info"` |
+| `--text <text>` | the message **Required.** |  |
+| `--ref <ref>` | a file, run or URL it points at (repeatable) | `[]` |
+| `--by <name>` | who sends: an agent of the run, or a person **Required.** |  |
+
+### `metator run messages`
+
+Messages other runs sent this run
+
+```bash
+metator run messages [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
 
 ### `metator run checkpoint`
 

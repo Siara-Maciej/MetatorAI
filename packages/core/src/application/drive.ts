@@ -23,6 +23,7 @@ import { MetatorError } from "../domain/errors.ts";
 import { stoppedAt } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
+import { messageLines, type RunMessage } from "../domain/run-message.ts";
 import { APPROVAL_ACTIONS, fillInputs } from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
 import { type AgentUsage, AgentUsageDocument, type HostUsage } from "../domain/telemetry.ts";
@@ -351,6 +352,8 @@ export interface DriveDependencies {
   readonly policies?: () => Promise<Result<readonly AnswerPolicy[], MetatorError>>;
   /** A shell command run when a question waits for a person (`notify.command`). */
   readonly notifyCommand?: string;
+  /** Messages other runs sent this run (D2): its agents read them as data. */
+  readonly messages?: (runId: string) => Promise<Result<readonly RunMessage[], MetatorError>>;
 }
 
 /**
@@ -619,6 +622,7 @@ export class DriveRun {
         ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
         ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
         ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
+        ...(await this.messageLines(ctx.runId)),
       });
       const result = await this.runHost(ctx, agent, prompt, resume);
       if (result.isErr()) return err(result.error);
@@ -704,6 +708,14 @@ export class DriveRun {
       type: "GO_ON",
       answer: a.value.text ?? "A person decided the task is not done yet: do it as written.",
     });
+  }
+
+  /** What other runs told this one, as data for its agents; nothing when there is no reader or no message. */
+  private async messageLines(runId: string): Promise<{ messages?: readonly string[] }> {
+    if (!this.d.messages) return {};
+    const got = await this.d.messages(runId);
+    if (got.isErr() || got.value.length === 0) return {};
+    return { messages: messageLines(got.value) };
   }
 
   /**

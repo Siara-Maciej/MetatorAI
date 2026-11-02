@@ -56,6 +56,7 @@ import {
   DocsInventory,
   DocsLinks,
   DriveRun,
+  DriverLock,
   EnvironmentCatalog,
   EnvironmentServices,
   EvalCatalog,
@@ -125,6 +126,7 @@ import {
   RunEvals,
   RunGate,
   RunJournal,
+  RunMessages,
   RunRefactorPlan,
   RunRepository,
   RunSystemEvals,
@@ -320,6 +322,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     treeCopier: asFunction(() => new NodeTreeCopier()).singleton(),
     backgroundProcess: asFunction(() => new BunBackgroundProcess()).singleton(),
     answerPolicyStore: asFunction(({ fileSystem }) => new AnswerPolicyStore(fileSystem)),
+    driverLock: asFunction(
+      ({ runRepository, runJournal, clock }) => new DriverLock(runRepository, runJournal, clock),
+    ),
+    runMessages: asFunction(
+      ({ fileSystem, runRepository, runJournal, clock }) =>
+        new RunMessages(fileSystem, runRepository, runJournal, clock),
+    ),
     buildReport: asFunction(
       ({ runRepository, runJournal, clock }) => new BuildReport(runRepository, runJournal, clock),
     ),
@@ -430,6 +439,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         root,
         config,
         answerPolicyStore,
+        runMessages,
       }) =>
         new DriveRun({
           catalog: workflowCatalog,
@@ -446,6 +456,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           metatorCommand: config.config.hosts.metatorCommand,
           notes: async (cwd) => workNotes(cwd),
           policies: () => answerPolicyStore.list(),
+          messages: (runId) => runMessages.list(runId),
           ...(config.config.notify ? { notifyCommand: config.config.notify.command } : {}),
         }),
     ),

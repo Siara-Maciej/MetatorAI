@@ -192,7 +192,7 @@ describe("metator run drive (real CLI, scenario host)", () => {
     for (const runId of runs) {
       const text = await repo.read(`.metator/runs/${runId}/activity.jsonl`);
       for (const line of text.trim().split("\n"))
-        expect(JSON.parse(line)).toMatchObject({ kind: "RunActivity", schemaVersion: 1 });
+        expect(JSON.parse(line)).toMatchObject({ kind: "RunActivity", schemaVersion: 2 });
     }
     expect(CLI_ENTRY.endsWith("main.ts")).toBe(true);
   });

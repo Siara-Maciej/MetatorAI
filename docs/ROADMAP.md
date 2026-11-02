@@ -272,6 +272,23 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 
 **Wymaga właściciela (poza kodem):** wybór licencji, konto npm i publikacja, repozytorium pilota, złoty zbiór z prawdziwych PR-ów zespołu, drugi język programowania (po pilocie).
 
+---
+
+## D: MetatorAI Desktop: demon, hosty interaktywne w PTY, supervisor, aplikacja
+
+Specyfikacja: [design/12](design/12-desktop.md), zatwierdzona 2026-11-02 (decyzje 1–15). Ten strumień idzie przed dystrybucją i review w CI (decyzja 10). Z fazy P wchodzą bez zmian: skrzynka decyzji (`inbox`), karta decyzji (`Question` v2), odprawa (`run brief`), polityki odpowiedzi, `run revive`, telemetria.
+
+- [ ] D0 Pomiar bazowy z `report` (czas od pytania do odpowiedzi, pytania na run); spike Copilot CLI w PTY z `--resume` i nagrane payloady hooków (wymaga maszyny z Copilot CLI).
+- [x] D1 Blokada kierowcy: `RunRecord` v6 (`driver: agent | human`, `attachedBy`, `attachedAt`), `run attach|release`, `run approve --via chat` tylko przy kierowcy-człowieku (hook i use case), zapis w `log.md`.
+- [x] D2 `RunActivity` v2 (typy `driver`, `idle`, `message`, `restart`; pole `origin`), `RunMessage` v1 i `run message` (dane, nie instrukcje), widoczne w `status` i w odprawie.
+- [ ] D3 `metator serve`: lokalny demon (localhost, bez uwierzytelniania) z `/state`, `/inbox`, `/activity/<run>`, `/pty/<run>`; broker PTY na node-pty z blokadą kierowcy; port `InteractiveHost` z adapterem `scenario` i zestawem kontraktowym.
+- [ ] D4 `SupervisorPolicy` v1 w `MetatorConfig` (limit WIP, restart z resume, próg bezczynności, kolejność hostów, zgody z czatu); `metator supervise` (respawn na `run revive`, nudge przy bezczynności, kolejka ponad limitem WIP, sesje potomne z planu systemowego).
+- [ ] D5 Karta decyzji v3 (`soFar`, `proposal`, `evidence`, skutki opcji, `blastRadius`, `costOfDelay`, `group`) i przecięcia `graph affected` między worktree (P7): ostrzeżenie o wspólnym pliku i kolejność scalania.
+- [ ] D6 Adaptery `InteractiveHost`: Copilot CLI (pierwszy), Claude Code, OpenCode, na tym samym kontrakcie.
+- [ ] D7 Aplikacja Tauri + xterm.js: ekrany 1, 2, 7, K, potem 3, 4, 5, 6; powiadomienia systemowe; kryteria 11a i 11b.
+
+**Kryterium wyjścia:** 11a (mediana czasu odpowiedzi ≤ 50% bazy, ≥ 80% odpowiedzi bez otwierania sesji) i 11b (sesje utrzymane 8 h bez ręcznego restartu), liczone z tych samych danych, które pokazuje ekran Supervisora.
+
 ## Role i odpowiedzialności
 
 | Rola | Odpowiada za |

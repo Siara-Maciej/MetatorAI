@@ -80,3 +80,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0074](0074-modules-inside-a-package.md) | Moduły wewnątrz pakietu: modularny monolit analizowany jak monorepo | Proposed |
 | [0075](0075-shell-search-without-a-person.md) | Wyszukiwanie przez powłokę bez pytania człowieka; sekrety blokowane w procesie | Proposed |
 | [0076](0076-served-contracts.md) | Kontrakt serwowany w czasie działania (SystemMap v2) | Proposed |
+| [0077](0077-desktop-daemon-driver-lock.md) | Desktop: demon lokalny, hosty interaktywne w PTY, blokada kierowcy | Proposed |

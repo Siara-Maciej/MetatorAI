@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
+  CHAT_APPROVAL_NEEDS_DRIVER,
+  chatApproval,
   type HookInput,
   isGuardCommand,
   type PreToolContext,
@@ -175,5 +177,31 @@ describe("isGuardCommand", () => {
       isGuardCommand("./check.sh"),
       isGuardCommand(3),
     ]).toEqual([true, true, false, false]);
+  });
+});
+
+describe("an approval from the chat (ADR-0077)", () => {
+  const chat = hook("Bash", { command: "metator run approve plan-approval --by maciej --via chat" });
+  test("is the one run-control command an agent may run, and only while a person is attached", () => {
+    expect(chatApproval(chat)).toBe(true);
+    expect(chatApproval(hook("Bash", { command: "metator run approve plan-approval --by maciej" }))).toBe(
+      false,
+    );
+    expect(chatApproval(hook("Bash", { command: "metator run advance pass --via chat" }))).toBe(false);
+    expect(
+      chatApproval(hook("Bash", { command: "metator run approve x --by m --via chat && echo ok" })),
+    ).toBe(false);
+    expect(chatApproval(hook("Read", { file_path: "a" }))).toBe(false);
+    const driven = (driver: "agent" | "human") => ({
+      ...run({}, { driven: true }),
+      run: { id: "r1", approvals: {}, driver },
+    });
+    const nobody = preToolPolicy(chat, driven("agent"));
+    expect([nobody.decision, nobody.reason]).toEqual(["deny", CHAT_APPROVAL_NEEDS_DRIVER]);
+    expect(preToolPolicy(chat, driven("human")).decision).toBe("allow");
+    // Any other run control stays the drive's, attached or not.
+    const advance = hook("Bash", { command: "metator run advance pass" });
+    expect(preToolPolicy(advance, driven("human")).decision).toBe("deny");
+    expect(preToolPolicy(advance, driven("human")).reason).toContain("is the drive's");
   });
 });

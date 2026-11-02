@@ -82,7 +82,15 @@ export class GuardPreTool {
     const decision = preToolPolicy(hook, {
       root: this.root,
       ...(session.driven ? { driven: true } : {}),
-      ...(run.value ? { run: { id: run.value.runId, approvals: run.value.approvals } } : {}),
+      ...(run.value
+        ? {
+            run: {
+              id: run.value.runId,
+              approvals: run.value.approvals,
+              driver: run.value.driver?.by ?? "agent",
+            },
+          }
+        : {}),
       ...(editScope ? { editScope } : {}),
       coordinator: this.role === "coordinator" || (hook.agent !== undefined && coordinators.has(hook.agent)),
     });

@@ -47,18 +47,46 @@ export type AgentEvent =
   | { readonly type: "tool"; readonly name: string; readonly summary: string }
   | { readonly type: "result"; readonly ok: boolean; readonly text: string; readonly usage?: HostUsage };
 
-/** One line of `.metator/runs/<id>/activity.jsonl`: what the drive did, for the live view. */
-export const RunActivitySchema = z.strictObject({
+const ACTIVITY_V1 = [
+  "drive",
+  "stage",
+  "agent",
+  "text",
+  "tool",
+  "question",
+  "answer",
+  "gate",
+  "advance",
+  "error",
+] as const;
+const RunActivityV1Schema = z.strictObject({
   at: z.iso.datetime(),
-  type: z.enum(["drive", "stage", "agent", "text", "tool", "question", "answer", "gate", "advance", "error"]),
+  type: z.enum(ACTIVITY_V1),
   stage: z.string().optional(),
   agent: z.string().optional(),
   text: z.string(),
 });
+
+/**
+ * One line of `.metator/runs/<id>/activity.jsonl`: what happened, for the live view. v2 (D2,
+ * ADR-0077) adds the driver lock, idleness, messages between runs and restarts, and where an
+ * entry came from: a host hook, the PTY, a `metator` command, or the inbox.
+ */
+export const RunActivitySchema = z.strictObject({
+  at: z.iso.datetime(),
+  type: z.enum([...ACTIVITY_V1, "driver", "idle", "message", "restart"]),
+  stage: z.string().optional(),
+  agent: z.string().optional(),
+  text: z.string(),
+  origin: z.enum(["hook", "pty", "run", "inbox"]).optional(),
+});
 export type RunActivity = z.output<typeof RunActivitySchema>;
 
 export const RunActivityDocument = defineDocument("RunActivity", {
+  history: [{ schema: RunActivityV1Schema }],
   latest: RunActivitySchema,
+  // Every v1 type is a v2 type; `origin` is optional.
+  upgrade: (previous) => previous,
   hint: "Written by `metator run drive`; one versioned JSON object per line.",
 });
 
@@ -177,6 +205,8 @@ export interface StagePromptInput {
   readonly retryFrom?: string;
   /** What the agent must know about where it works (dependencies not installed). */
   readonly notes?: readonly string[];
+  /** Messages other runs sent this run, already rendered as data (`messageLines`). */
+  readonly messages?: readonly string[];
 }
 
 /** The message a worker gets: one stage, its artifacts, and how to report back. */
@@ -205,6 +235,7 @@ export function stagePrompt(input: StagePromptInput): string {
     "`metator help` lists every metator command; use no other (a guessed one only asks a person). Never `metator ask`: it starts another agent; read the code yourself.",
     RUN_WITHOUT_ASKING,
     ...(input.notes ?? []),
+    ...(input.messages ?? []),
     ...decisionLines(input),
     ...retryLines(input),
     ...(input.answer ? [`A person answered your question: ${input.answer}`] : []),
