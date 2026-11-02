@@ -32,6 +32,8 @@ export interface RunOverview {
   /** Open questions: what to answer, in order. */
   readonly questions: readonly Question[];
   readonly driving: boolean;
+  /** Active, and its drive process ended without leaving (a restart, a killed process): `run revive` starts it again. */
+  readonly died: boolean;
   /** The host that drives (or drove) the run. */
   readonly host?: string;
   readonly last?: Pick<RunActivity, "at" | "type" | "text" | "stage" | "agent">;
@@ -123,6 +125,7 @@ export class WorkOverview {
         stages,
         questions: open,
         driving,
+        died: active && driver.isOk() && driver.value !== null && !driver.value.alive,
         ...(driver.isOk() && driver.value ? { host: driver.value.host } : r.host ? { host: r.host } : {}),
         ...(last
           ? {

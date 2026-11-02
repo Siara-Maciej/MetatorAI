@@ -137,7 +137,13 @@ async function world() {
     },
     {
       status: async (id) =>
-        ok(id.endsWith("-b") ? { pid: 1, host: "copilot", startedAt: "x", alive: true } : null),
+        ok(
+          id.endsWith("-b")
+            ? { pid: 1, host: "copilot", startedAt: "x", alive: true }
+            : id.endsWith("-a")
+              ? { pid: 2, host: "claude", startedAt: "x", alive: false }
+              : null,
+        ),
     },
     { get: async () => ok({ ports: { from: 41000, count: 20 } }) as never },
     {
@@ -201,6 +207,8 @@ describe("WorkOverview", () => {
       ["a", "you", "claude", 0],
       ["c", "done", undefined, 0],
     ]);
+    // a's drive left its file behind and its process is gone: it died; b's is alive; c is done.
+    expect(o.runs.map((r) => r.died)).toEqual([false, true, false]);
     const a = o.runs[1];
     expect(a?.stages.map((s) => s.state)).toEqual(["done", "done", "waiting", "next"]);
     expect([a?.last?.text, a?.elapsedMs, a?.services]).toEqual(["waits", 3_600_000, []]);

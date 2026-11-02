@@ -53,6 +53,7 @@ function runOf(id: string, over: Partial<RunOverview> = {}): RunOverview {
     ],
     questions: [],
     driving: false,
+    died: false,
     createdAt: "2026-10-28T09:00:00.000Z",
     updatedAt: "2026-10-28T10:00:00.000Z",
     elapsedMs: 3_900_000,
@@ -274,6 +275,9 @@ describe("tui model", () => {
     expect(
       nextStep(runOf("a", { attention: "driving", last: { at: "x", type: "tool", text: "Edit a.ts" } })),
     ).toBe("working: Edit a.ts");
+    expect(nextStep(runOf("a", { attention: "stopped", died: true, stage: "build" }))).toBe(
+      "the drive died at build  (c: continue)",
+    );
     expect(fit("a  b\nc", 10)).toBe("a b c");
     expect(fit("abcdefghijkl", 5)).toBe("abcd…");
   });

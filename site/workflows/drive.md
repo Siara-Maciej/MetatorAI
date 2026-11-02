@@ -113,6 +113,14 @@ metator run drive --host claude --detach  # continue later: the same open questi
 
 A run has at most one live driver. A second `run drive` is refused while the first is alive, and a driver that died does not block a new one.
 
+**A drive that died** (the machine restarted, the process was killed) leaves its `driver.json` behind. `metator status` marks the run `died: true`, `metator ui` says "the drive died at <stage>", and one command starts every such drive again, at the stage it stood and with the host it used:
+
+```bash
+metator run revive              # every run whose drive died; --run <id> for one
+```
+
+A drive that left on purpose (the run finished, `run stop`, the AI host out of capacity) is not revived. `run revive` does nothing when nothing died, so it is safe to schedule, for example `@reboot cd /path/to/repo && metator run revive` in cron.
+
 **An escalated run** (a gate red too often, a worker blocked after three answers) waits for you. Fix the cause, then resume it where it stopped:
 
 ```bash

@@ -249,6 +249,28 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 - [x] H6 `arch plan run` (fala jako runy W3 w osobnych worktree) i `arch plan status` (stan ruchów z runów) (ADR-0065).
 - [x] H7 Ewaluacja: `ArchEvalCase` v1, dwa przypadki w `docs/metator/evals/arch/`, port `Sandbox`, `arch eval list|run|schema` (ADR-0066).
 
+---
+
+## P: Produkt: centrum decyzji, niezawodność runów, droga do pierwszej wartości
+
+Źródła: analiza biznesowa (2026-11-02, część I i II), wnioski z 14 serii testowych runów na repozytoriach OSS i uwagi do analizy. Zasada z analizy: nowe komendy tylko tam, gdzie usuwają zmierzony koszt.
+
+**Niezawodność i wejście (zmierzone w testach)**
+- [ ] P1 Nadzorca runów: drive, który umarł (restart maszyny lub workera), jest widoczny jako `died` w `status` i `ui`; `run revive [--all]` uruchamia go ponownie od etapu, na którym stał.
+- [ ] P2 Gotowość środowiska: `metator doctor` mówi przed runem, czego run nie zrobi (brak zależności, więc testy się nie uruchomią; brak skonfigurowanych bramek; brak hosta AI).
+- [ ] P3 Sprawdzenie zadania: intake kończy run jako „nic do zrobienia” z dowodem, zamiast pytać, gdy zadanie jest już zrobione; deterministyczny lint zadania przy `run init`.
+
+**Centrum decyzji (część II)**
+- [ ] P4 Karta decyzji (`Question` v2: cel, co zrobiono, rekomendacja, skutki opcji, odwracalność, artefakt), `metator inbox` (pytania ze wszystkich runów według pilności), `run brief` (co się stało od ostatniej wizyty, ze zdarzeń).
+- [ ] P5 Polityki odpowiedzi („zawsze X dla Y”, zapamiętane z odpowiedzi) i powiadomienia (komenda lub webhook, gdy pytanie czeka).
+- [ ] P6 Telemetria: tokeny, koszt, czas ścienny i czas czekania na człowieka per run; `metator report` (ROI, przegląd agentów).
+- [ ] P7 Konflikty między sesjami: zmienione pliki runów w osobnych worktree porównane, ostrzeżenie i kolejność scalania.
+
+**Dystrybucja i integracje (część I)**
+- [ ] P8 Złoty zbiór startowy z czystych runów serii 14; akcja GitHub dla review w CI; główna pomoc CLI z czasownikami dla ludzi; przygotowanie paczki npm (F8.8); serwer MCP.
+
+**Wymaga właściciela (poza kodem):** wybór licencji, konto npm i publikacja, repozytorium pilota, złoty zbiór z prawdziwych PR-ów zespołu, drugi język programowania (po pilocie).
+
 ## Role i odpowiedzialności
 
 | Rola | Odpowiada za |

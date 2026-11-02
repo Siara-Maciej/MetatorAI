@@ -96,6 +96,38 @@ export function registerDriveCommands(
     );
 
   runs
+    .command("revive")
+    .description(
+      "Start again every drive that died (a restart, a killed process), at the stage it stood; safe to schedule",
+    )
+    .option("--run <id>", "only this run (default: every run)")
+    .action(
+      action(async (opts: { run?: string }) => {
+        const c = container();
+        const ids = opts.run ? [opts.run] : await c.resolve("runRepository").list();
+        const revived: { runId: string; stage: string; died: number }[] = [];
+        for (const runId of ids) {
+          const record = await c.resolve("runRepository").load(runId);
+          if (record.isErr()) return { result: record };
+          if (record.value.state.status !== "active") continue;
+          const driver = await c.resolve("runDrivers").status(runId);
+          if (driver.isErr()) return { result: driver };
+          // No file: nobody drove it, or its drive left on purpose (done, stopped, a host limit).
+          if (!driver.value || driver.value.alive) continue;
+          const logged = await c.resolve("runJournal").record(runId, {
+            type: "drive",
+            text: `revived: its drive (process ${driver.value.pid}) had died`,
+          });
+          if (logged.isErr()) return { result: logged };
+          const resumed = await resume(c, root(), runId);
+          if (resumed.isErr()) return { result: resumed };
+          revived.push({ runId, stage: resumed.value.stage, died: driver.value.pid });
+        }
+        return { result: ok({ revived }) };
+      }),
+    );
+
+  runs
     .command("stop")
     .description("Stop the process driving the run; the run stays where it is and can continue")
     .option("--run <id>", "run id (default: latest)")

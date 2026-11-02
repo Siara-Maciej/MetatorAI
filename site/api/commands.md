@@ -1748,6 +1748,18 @@ metator run drive [options]
 | `--detach` | keep driving in the background after this command returns |  |
 | `--max-steps <n>` | stop after this many stage transitions | `200` |
 
+### `metator run revive`
+
+Start again every drive that died (a restart, a killed process), at the stage it stood; safe to schedule
+
+```bash
+metator run revive [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | only this run (default: every run) |  |
+
 ### `metator run stop`
 
 Stop the process driving the run; the run stays where it is and can continue

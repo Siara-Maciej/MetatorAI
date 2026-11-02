@@ -2573,6 +2573,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/overview.ts",
+    from: "died: active && driver.isOk() && driver.value !== null && !driver.value.alive,",
+    to: "died: active && driver.isOk() && driver.value !== null,",
+    why: "a live drive has not died",
+  },
+  {
+    file: "packages/core/src/application/overview.ts",
     from: "const open = questions.isOk() ? questions.value.filter((q) => !q.answer) : [];",
     to: "const open = questions.isOk() ? questions.value : [];",
     why: "answered questions are not waiting",
