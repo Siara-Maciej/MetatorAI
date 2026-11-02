@@ -51,7 +51,7 @@ const groups = data.filter((g) => !["version", "help"].includes(g.group));
       </header>
       <ul>
         <li v-for="c in g.commands" :key="c.name">
-          <a :href="withBase(`/api/commands#${anchor(c.name)}`)">{{ c.name }}</a>
+          <a :href="withBase(`/reference/commands#${anchor(c.name)}`)">{{ c.name }}</a>
           <span>{{ c.summary }}</span>
         </li>
       </ul>

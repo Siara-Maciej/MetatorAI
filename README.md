@@ -129,16 +129,16 @@ for GitHub Copilot and Claude Code. Interactive in your editor, headless in CI.
 
 | I want to | Read |
 |---|---|
-| Install it and try it on my repository | [Installation](https://siara-maciej.github.io/MetatorAI/guide/installation) · [Quick start](https://siara-maciej.github.io/MetatorAI/guide/quick-start) |
-| Understand the moving parts | [Concepts](https://siara-maciej.github.io/MetatorAI/guide/concepts) |
-| Run a feature, bug fix, refactor or review | [Workflows](https://siara-maciej.github.io/MetatorAI/workflows/) |
-| Turn conventions into checked rules | [Write and enforce rules](https://siara-maciej.github.io/MetatorAI/how-to/rules) |
-| Put it into CI | [Quality gates and CI](https://siara-maciej.github.io/MetatorAI/how-to/gates-ci) |
-| Look up a command | [Command reference](https://siara-maciej.github.io/MetatorAI/api/commands) |
+| Install it and try it on my repository | [Installation](https://siara-maciej.github.io/MetatorAI/start/installation) · [Quick start](https://siara-maciej.github.io/MetatorAI/start/quick-start) |
+| Understand the moving parts | [Concepts](https://siara-maciej.github.io/MetatorAI/concepts/) |
+| Run a feature, bug fix, refactor or review | [Workflows](https://siara-maciej.github.io/MetatorAI/work/) |
+| Turn conventions into checked rules | [Write and enforce rules](https://siara-maciej.github.io/MetatorAI/knowledge/rules) |
+| Put it into CI | [Quality gates and CI](https://siara-maciej.github.io/MetatorAI/knowledge/gates-ci) |
+| Look up a command | [Command reference](https://siara-maciej.github.io/MetatorAI/reference/commands) |
 
 ## Quick start
 
-MetatorAI works in npm, pnpm, Yarn and Bun projects (it detects yours and runs your scripts with it). It is pre-alpha, runs from a checkout (it is not on npm yet) and needs the [Bun](https://bun.sh) runtime. Per-package-manager steps: [Installation](https://siara-maciej.github.io/MetatorAI/guide/installation).
+MetatorAI works in npm, pnpm, Yarn and Bun projects (it detects yours and runs your scripts with it). It is pre-alpha, runs from a checkout (it is not on npm yet) and needs the [Bun](https://bun.sh) runtime. Per-package-manager steps: [Installation](https://siara-maciej.github.io/MetatorAI/start/installation).
 
 ```bash
 git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
@@ -167,7 +167,7 @@ metator ask "How is the discount computed?"    # a plain question about the code
 metator status                                 # the same overview as JSON, for scripts
 ```
 
-Several repositories? Run `metator setup` in each; from the folder that holds them, `metator ui`, `ask` and `status` cover them all ([Several repositories](https://siara-maciej.github.io/MetatorAI/multi-repo/repositories)).
+Several repositories? Run `metator setup` in each; from the folder that holds them, `metator ui`, `ask` and `status` cover them all ([Several repositories](https://siara-maciej.github.io/MetatorAI/modules/repositories)).
 
 ### What the CLI does today
 

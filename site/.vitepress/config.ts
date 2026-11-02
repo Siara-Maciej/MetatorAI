@@ -3,7 +3,103 @@ import { defineConfig } from "vitepress";
 /**
  * User documentation of MetatorAI, published to GitHub Pages by .github/workflows/pages.yml.
  * The base path comes from Pages (SITE_BASE); locally it defaults to the repository's path.
+ *
+ * The site is divided by what the reader is looking for: Start (begin), Concepts (understand),
+ * Work (do), Knowledge (teach the agents your repository), Modules (extend), Reference (look up).
+ * The top bar holds the six sections; each section has its own sidebar, and the Previous/Next
+ * links at the bottom of a page follow that sidebar from its first page to its last.
  */
+
+export const sections = [
+  {
+    text: "Start",
+    base: "/start/",
+    items: [
+      { text: "Why MetatorAI", link: "why" },
+      { text: "How it works", link: "how-it-works" },
+      { text: "Installation", link: "installation" },
+      { text: "Quick start", link: "quick-start" },
+      { text: "Choose your path", link: "paths" },
+      { text: "FAQ", link: "faq" },
+    ],
+  },
+  {
+    text: "Concepts",
+    base: "/concepts/",
+    items: [
+      { text: "The seven concepts", link: "" },
+      { text: "Run", link: "run" },
+      { text: "Workflow", link: "workflow" },
+      { text: "Gate and approvals", link: "gate" },
+      { text: "Canon", link: "canon" },
+      { text: "Finding", link: "finding" },
+      { text: "Host", link: "host" },
+      { text: "Session", link: "session" },
+    ],
+  },
+  {
+    text: "Work",
+    base: "/work/",
+    items: [
+      { text: "Runs, in chat and in a terminal", link: "" },
+      { text: "Inbox and decisions", link: "inbox" },
+      { text: "Sessions and terminals", link: "sessions" },
+      { text: "Ask about the code", link: "ask" },
+      { text: "Feature (W1)", link: "feature" },
+      { text: "Bug fix (W2)", link: "bugfix" },
+      { text: "Refactor (W3)", link: "refactor" },
+      { text: "Review (W4, W5)", link: "review" },
+      { text: "System change (W13)", link: "system" },
+      { text: "Autonomy and autopilot", link: "autonomy" },
+    ],
+  },
+  {
+    text: "Knowledge",
+    base: "/knowledge/",
+    items: [
+      { text: "Write and enforce rules", link: "rules" },
+      { text: "Keep knowledge true", link: "truth" },
+      { text: "Agents and skills", link: "agents" },
+      { text: "Skills", link: "skills" },
+      { text: "Quality gates and CI", link: "gates-ci" },
+      { text: "Hooks and guardrails", link: "hooks" },
+    ],
+  },
+  {
+    text: "Modules",
+    base: "/modules/",
+    items: [
+      { text: "What a module is", link: "" },
+      { text: "Several repositories", link: "repositories" },
+      { text: "Systems of many applications", link: "systems" },
+      { text: "Package architecture", link: "architecture" },
+      { text: "Start the application", link: "environments" },
+      { text: "Runs in worktrees", link: "worktrees" },
+    ],
+  },
+  {
+    text: "Reference",
+    base: "/reference/",
+    items: [
+      { text: "Overview", link: "" },
+      { text: "Commands for people", link: "commands-people" },
+      { text: "Command reference", link: "commands" },
+      { text: "CLI and envelope", link: "cli" },
+      { text: "Hooks protocol", link: "hooks" },
+      { text: "Documents and schemas", link: "documents" },
+      { text: "Configuration", link: "configuration" },
+      { text: "Extending: ports and plugins", link: "extending" },
+      { text: "Security and governance", link: "security" },
+      { text: "Troubleshooting", link: "troubleshooting" },
+      { text: "Glossary", link: "glossary" },
+      { text: "Changelog", link: "changelog" },
+    ],
+  },
+] as const;
+
+/** The absolute path of a sidebar entry: the section's base plus the entry's link. */
+export const pathOf = (base: string, link: string) => (link === "" ? base : `${base}${link}`);
+
 export default defineConfig({
   title: "MetatorAI",
   description:
@@ -16,97 +112,14 @@ export default defineConfig({
   head: [["link", { rel: "icon", href: `${process.env.SITE_BASE ?? "/MetatorAI/"}logo.svg` }]],
   themeConfig: {
     logo: "/logo.svg",
-    // No links in the top bar: the sidebar is the table of contents, one chapter after another,
-    // and the Previous/Next links at the bottom of each page follow it from the first to the last.
-    nav: [],
-    sidebar: [
-      {
-        text: "Get started",
-        collapsed: false,
-        items: [
-          { text: "The idea", link: "/product/idea" },
-          { text: "How it works", link: "/product/how-it-works" },
-          { text: "Installation", link: "/guide/installation" },
-          { text: "Quick start", link: "/guide/quick-start" },
-        ],
-      },
-      {
-        text: "Concepts",
-        collapsed: true,
-        items: [
-          { text: "Concepts", link: "/guide/concepts" },
-          { text: "Configuration", link: "/guide/configuration" },
-        ],
-      },
-      {
-        text: "Workflows",
-        collapsed: true,
-        items: [
-          { text: "Overview and runs", link: "/workflows/" },
-          { text: "Drive a run from the CLI", link: "/workflows/drive" },
-          { text: "Sessions in the terminal", link: "/workflows/sessions" },
-          { text: "Ask about the code", link: "/workflows/ask" },
-          { text: "Feature (W1)", link: "/workflows/feature" },
-          { text: "Bug fix (W2)", link: "/workflows/bugfix" },
-          { text: "Refactor (W3)", link: "/workflows/refactor" },
-          { text: "Review (W4, W5)", link: "/workflows/review" },
-          { text: "System change (W13)", link: "/workflows/system" },
-        ],
-      },
-      {
-        text: "Agents and skills",
-        collapsed: true,
-        items: [
-          { text: "Agents and delegation", link: "/agents/" },
-          { text: "Skills", link: "/agents/skills" },
-          { text: "Customize and add agents", link: "/agents/customize" },
-        ],
-      },
-      {
-        text: "Guides",
-        collapsed: true,
-        items: [
-          { text: "Write and enforce rules", link: "/how-to/rules" },
-          { text: "Keep knowledge true", link: "/how-to/knowledge" },
-          { text: "Quality gates and CI", link: "/how-to/gates-ci" },
-          { text: "Hooks and guardrails", link: "/how-to/hooks" },
-          { text: "Runs in worktrees", link: "/how-to/worktrees" },
-          { text: "Start the application", link: "/how-to/environments" },
-          { text: "Package architecture", link: "/how-to/architecture" },
-        ],
-      },
-      {
-        text: "Many applications",
-        collapsed: true,
-        items: [
-          { text: "Several repositories", link: "/multi-repo/repositories" },
-          { text: "Systems of many applications", link: "/multi-repo/" },
-        ],
-      },
-      {
-        text: "Enterprise",
-        collapsed: true,
-        items: [{ text: "Security and governance", link: "/product/enterprise" }],
-      },
-      {
-        text: "API reference",
-        collapsed: true,
-        items: [
-          { text: "Overview", link: "/api/" },
-          { text: "CLI and envelope", link: "/api/cli" },
-          { text: "Hooks protocol", link: "/api/hooks" },
-          { text: "Documents and schemas", link: "/api/documents" },
-          { text: "Extending: ports and plugins", link: "/api/extending" },
-          { text: "Command reference", link: "/api/commands" },
-        ],
-      },
-      {
-        text: "Help",
-        collapsed: true,
-        items: [{ text: "Troubleshooting", link: "/guide/troubleshooting" }],
-      },
-    ],
-    docFooter: { prev: "Previous chapter", next: "Next chapter" },
+    nav: sections.map((s) => ({ text: s.text, link: pathOf(s.base, s.items[0].link), activeMatch: s.base })),
+    sidebar: Object.fromEntries(
+      sections.map((s) => [
+        s.base,
+        [{ text: s.text, items: s.items.map((i) => ({ text: i.text, link: pathOf(s.base, i.link) })) }],
+      ]),
+    ),
+    docFooter: { prev: "Previous", next: "Next" },
     search: { provider: "local" },
     socialLinks: [{ icon: "github", link: "https://github.com/Siara-Maciej/MetatorAI" }],
     editLink: {

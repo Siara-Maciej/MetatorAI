@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { defineLoader } from "vitepress";
 
-/** Command groups and their commands, read from the generated reference (site/api/commands.md). */
+/** Command groups and their commands, read from the generated reference (site/reference/commands.md). */
 export interface CommandGroup {
   group: string;
   commands: { name: string; summary: string }[];
@@ -12,7 +12,7 @@ declare const data: CommandGroup[];
 export { data };
 
 export default defineLoader({
-  watch: ["../../api/commands.md"],
+  watch: ["../../reference/commands.md"],
   load([file]: string[]): CommandGroup[] {
     const groups: CommandGroup[] = [];
     const lines = readFileSync(file as string, "utf8").split("\n");
