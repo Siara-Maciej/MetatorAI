@@ -9,6 +9,7 @@ import {
   ClaudeAgentHost,
   type ClaudeQuery,
   declaredCommands,
+  LOCAL_METATOR,
   OUTSIDE_DEFINITION,
   toEvents,
 } from "../src/claude-agent-host.ts";
@@ -135,6 +136,16 @@ describe("ClaudeAgentHost", () => {
     expect((await decide("find / -name x", "mt-review-logic"))?.permissionDecision).toBe("deny");
     // A subagent whose definition grants Bash goes on to the usual question.
     expect(await decide("node -e 'console.log(2)'", "mt-verifier")).toBeUndefined();
+    // `./metator` where there is no such program is refused with the right form, whoever asks.
+    const local = "cd /repo; ./metator findings check-quote a.js --line 1 --quote x || metator findings x";
+    expect(await decide(local, "mt-verifier")).toEqual({
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: LOCAL_METATOR,
+    } as never);
+    // A repository that has its own ./metator program runs it as usual.
+    await Bun.write(join(root, "metator"), "#!/bin/sh\n");
+    expect(await decide(local, "mt-verifier")).toBeUndefined();
     await rm(root, { recursive: true, force: true });
   });
 

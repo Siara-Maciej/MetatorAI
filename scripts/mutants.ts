@@ -308,6 +308,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a declared command whose quoted text holds && asks no one",
   },
   {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: 'return statSync(join(d, "metator")).isFile();',
+    to: "return false;",
+    why: "a repository with its own ./metator program runs it",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: 'return permissionResponse({ decision: "deny", reason: LOCAL_METATOR });',
+    to: "return {};",
+    why: "./metator where there is none is refused with the right form",
+  },
+  {
     file: "packages/core/src/domain/read-only-command.ts",
     from: "i++; // an escaped character is literal",
     to: "",

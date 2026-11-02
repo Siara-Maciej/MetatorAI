@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   type AgentAnswer,
@@ -24,6 +24,21 @@ export type ClaudeQuery = (params: {
   prompt: string;
   options: Record<string, unknown>;
 }) => AsyncIterable<Record<string, unknown>>;
+
+export const LOCAL_METATOR =
+  "There is no ./metator program here: metator is on PATH. Run `metator <command>` on its own, without ./ and without a `||` fallback.";
+
+/** The command runs `./metator`, and no directory it could mean holds a metator program. */
+export function noLocalMetator(command: string, dirs: readonly string[]): boolean {
+  if (!/(^|[\s;&|(])\.\/metator(\s|$)/.test(command)) return false;
+  return !dirs.some((d) => {
+    try {
+      return statSync(join(d, "metator")).isFile();
+    } catch {
+      return false;
+    }
+  });
+}
 
 /** Why a command outside an agent's definition is refused without asking anyone. */
 export const OUTSIDE_DEFINITION = (agent: string, declared: readonly string[]) =>
@@ -229,6 +244,14 @@ export class ClaudeAgentHost implements AgentHost {
       // that reason, never put to a person. The hook names the agent, a subagent's too.
       const agent = typeof call.agent_type === "string" ? call.agent_type : task.agent;
       const command = hook.input.command;
+      // `./metator` where no such program is (the repository's metator/ is a folder of agents and
+      // skills): refused at once with the right form, not put to a person.
+      if (
+        hook.tool === "Bash" &&
+        typeof command === "string" &&
+        noLocalMetator(command, [task.cwd, task.projectRoot])
+      )
+        return permissionResponse({ decision: "deny", reason: LOCAL_METATOR });
       if (hook.tool === "Bash" && typeof command === "string") {
         const file = join(task.projectRoot, ".claude", "agents", `${agent}.md`);
         const tools = agentDefinition(file)?.tools;
