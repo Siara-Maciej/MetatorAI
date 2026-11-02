@@ -46,7 +46,7 @@ describe("telemetry", () => {
           q({ answer: { choices: ["Approve"], by: "alice", at: "2026-11-02T10:10:00.000Z" } }),
           q({
             id: "q002",
-            answer: { choices: ["Approve"], by: "policy:approve-plan", at: "2026-11-02T10:00:00.000Z" },
+            answer: { choices: ["Approve"], by: "policy:approve-plan", at: "2026-11-02T10:30:00.000Z" },
           }),
           q({ id: "q003", source: "permission", agent: "mt-implementer" }),
         ],
