@@ -86,6 +86,62 @@ export interface AgentHost {
   run(task: AgentTask, ask: (q: AgentQuestion) => Promise<AgentAnswer>): AsyncIterable<AgentEvent>;
 }
 
+/** What goes into a pseudo-terminal (D3, ADR-0077): keystrokes, its size, the end. */
+export interface PtyInput {
+  write(data: string): void;
+  resize(cols: number, rows: number): void;
+  kill(): void;
+}
+
+/** What comes out of a pseudo-terminal: bytes, and the exit code once. Listeners return what stops them. */
+export interface PtyOutput {
+  onData(listener: (data: string) => void): () => void;
+  onExit(listener: (code: number) => void): () => void;
+}
+
+/** A pseudo-terminal a host CLI runs in. */
+export interface PtyHandle extends PtyInput, PtyOutput {
+  readonly pid: number;
+}
+
+export interface PtySize {
+  readonly cols: number;
+  readonly rows: number;
+}
+
+/** Spawns a program in a pseudo-terminal (node-pty; ConPTY on Windows). */
+export interface Terminal {
+  spawn(
+    argv: readonly string[],
+    options: {
+      readonly cwd: string;
+      readonly env?: Readonly<Record<string, string>>;
+      readonly size?: PtySize;
+    },
+  ): Result<PtyHandle, MetatorError>;
+}
+
+export interface InteractiveSession {
+  /** The host's own session id, to resume it later (`claude --resume`, `copilot --resume`). */
+  readonly sessionId: string;
+  readonly pty: PtyHandle;
+}
+
+/**
+ * An AI host as an interactive CLI in a PTY (D3, ADR-0077): started with the run's task, resumed
+ * by its session id, observed through its hooks and its terminal output. The agent drives the
+ * PTY unless a person attached.
+ */
+export interface InteractiveHost {
+  readonly id: string;
+  start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>>;
+  resume(
+    sessionId: string,
+    task: AgentTask,
+    size: PtySize,
+  ): Promise<Result<InteractiveSession, MetatorError>>;
+}
+
 /** Waiting without blocking (polling for answers); instant in tests. */
 export interface Timer {
   sleep(ms: number): Promise<void>;

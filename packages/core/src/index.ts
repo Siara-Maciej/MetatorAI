@@ -36,6 +36,7 @@ export * from "./application/paths.ts";
 export * from "./application/patterns.ts";
 export * from "./application/plans.ts";
 export * from "./application/pool.ts";
+export * from "./application/pty-broker.ts";
 export * from "./application/quotes.ts";
 export * from "./application/readiness.ts";
 export * from "./application/report.ts";

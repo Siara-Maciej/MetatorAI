@@ -83,6 +83,7 @@ import {
   InitProject,
   InitRun,
   InstallCanon,
+  type InteractiveHost,
   InventoryMemory,
   JudgeFindings,
   KnowledgeFiles,
@@ -113,6 +114,7 @@ import {
   ProposeSystemPlan,
   ProvideWorktree,
   PruneWorktrees,
+  PtyBroker,
   RecordArchitectureBaseline,
   RefactorPlanStore,
   RemoveWorktree,
@@ -183,7 +185,7 @@ import { DockerComposeRuntime } from "@metator/plugin-docker";
 import { GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
 import { ClaudeAgentHost, ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
 import { CopilotAgentHost, CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
-import { ScenarioAgentHost } from "@metator/plugin-host-scenario";
+import { ScenarioAgentHost, ScenarioInteractiveHost } from "@metator/plugin-host-scenario";
 import {
   GetPortProbe,
   JsonToolBoundariesReader,
@@ -191,6 +193,7 @@ import {
   ManypkgManifestReader,
   ManypkgWorkspaceReader,
   NodePackageManager,
+  NodePtyTerminal,
   WaitOnHealthProbe,
 } from "@metator/plugin-node";
 import { OpenApiContractDetector, OpenApiContractDiffer } from "@metator/plugin-openapi";
@@ -417,6 +420,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       if (options.agentScenario) hosts.set("scenario", new ScenarioAgentHost(options.agentScenario));
       return hosts;
     }).singleton(),
+    terminal: asFunction(() => new NodePtyTerminal()).singleton(),
+    interactiveHosts: asFunction(({ terminal }) => {
+      const hosts = new Map<string, InteractiveHost>();
+      if (options.agentScenario)
+        hosts.set("scenario", new ScenarioInteractiveHost(terminal, options.agentScenario));
+      return hosts;
+    }).singleton(),
+    ptyBroker: asFunction(
+      ({ runRepository, runJournal, interactiveHosts, clock, root }) =>
+        new PtyBroker({ repo: runRepository, journal: runJournal, hosts: interactiveHosts, clock, root }),
+    ).singleton(),
     runDrivers: asFunction(
       ({ fileSystem, runRepository, backgroundProcess, runJournal, clock }) =>
         new RunDrivers(fileSystem, runRepository, backgroundProcess, runJournal, clock),

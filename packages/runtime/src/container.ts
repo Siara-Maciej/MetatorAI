@@ -92,6 +92,7 @@ import {
   type InitProject,
   type InitRun,
   type InstallCanon,
+  type InteractiveHost,
   type InventoryMemory,
   type JudgeFindings,
   type KnowledgeFiles,
@@ -129,6 +130,7 @@ import {
   type ProposeSystemPlan,
   type ProvideWorktree,
   type PruneWorktrees,
+  type PtyBroker,
   type RecordArchitectureBaseline,
   type RefactorPlanStore,
   type RemoveWorktree,
@@ -174,6 +176,7 @@ import {
   type SystemPlanStatus,
   type SystemPlanStore,
   type SystemSources,
+  type Terminal,
   type Timer,
   type ToolBoundariesReader,
   type TreeCopier,
@@ -250,6 +253,9 @@ export interface Cradle {
   answerPolicyStore: AnswerPolicyStore;
   buildReport: BuildReport;
   driverLock: DriverLock;
+  terminal: Terminal;
+  interactiveHosts: ReadonlyMap<string, InteractiveHost>;
+  ptyBroker: PtyBroker;
   runMessages: RunMessages;
   runJournal: RunJournal;
   runDrivers: RunDrivers;

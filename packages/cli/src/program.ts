@@ -40,6 +40,7 @@ import { registerPlanCommands } from "./commands/plan.ts";
 import { registerReposCommands } from "./commands/repos.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
+import { registerServeCommand } from "./commands/serve.ts";
 import { registerSetupCommands } from "./commands/setup.ts";
 import { registerStatusCommand } from "./commands/status.ts";
 import { registerSystemCommands } from "./commands/system.ts";
@@ -161,6 +162,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerReposCommands(program, ctx);
   registerAskCommands(program, ctx);
   registerStatusCommand(program, ctx);
+  registerServeCommand(program, ctx);
 
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).
   program.hook("preAction", (_root, action) => {
@@ -189,6 +191,7 @@ export const FOLDER_COMMANDS: ReadonlySet<string> = new Set([
   "status",
   "inbox",
   "report",
+  "serve",
 ]);
 
 function commandName(cmd: Command): string {

@@ -17,6 +17,8 @@ import {
   type HealthProbe,
   type HealthTarget,
   type HostUsage,
+  type InteractiveHost,
+  type InteractiveSession,
   type MachineState,
   MetatorError,
   matchesAny,
@@ -26,6 +28,7 @@ import {
   type PostgresTarget,
   type ProcessResult,
   type ProcessRunner,
+  type PtyHandle,
   type ResolvedCommand,
   type Result,
   type RuleEngine,
@@ -360,6 +363,62 @@ export class FakeDataIsolator implements DataIsolator {
     const s = this.databases.get(target.port) ?? new Map<string, number[]>();
     this.databases.set(target.port, s);
     return s;
+  }
+}
+
+/** A PTY under the test's control: what the session "prints" and what was typed into it. */
+export class FakePty implements PtyHandle {
+  readonly typed: string[] = [];
+  readonly sizes: { cols: number; rows: number }[] = [];
+  killed = false;
+  private readonly data = new Set<(d: string) => void>();
+  private readonly exits = new Set<(c: number) => void>();
+  constructor(readonly pid = 4242) {}
+
+  write(data: string): void {
+    this.typed.push(data);
+  }
+  resize(cols: number, rows: number): void {
+    this.sizes.push({ cols, rows });
+  }
+  onData(listener: (data: string) => void): () => void {
+    this.data.add(listener);
+    return () => this.data.delete(listener);
+  }
+  onExit(listener: (code: number) => void): () => void {
+    this.exits.add(listener);
+    return () => this.exits.delete(listener);
+  }
+  kill(): void {
+    this.killed = true;
+    this.exit(137);
+  }
+  /** The session prints something. */
+  print(data: string): void {
+    for (const l of this.data) l(data);
+  }
+  exit(code: number): void {
+    for (const l of this.exits) l(code);
+  }
+}
+
+/** InteractiveHost whose sessions are FakePtys the test drives; records every start and resume. */
+export class FakeInteractiveHost implements InteractiveHost {
+  readonly id: string;
+  readonly started: { task: AgentTask; resumed?: string; pty: FakePty }[] = [];
+  private n = 0;
+  constructor(id = "fake") {
+    this.id = id;
+  }
+  async start(task: AgentTask): Promise<Result<InteractiveSession, MetatorError>> {
+    const pty = new FakePty(1000 + ++this.n);
+    this.started.push({ task, pty });
+    return ok({ sessionId: `${this.id}-${this.n}`, pty });
+  }
+  async resume(sessionId: string, task: AgentTask): Promise<Result<InteractiveSession, MetatorError>> {
+    const pty = new FakePty(1000 + ++this.n);
+    this.started.push({ task, resumed: sessionId, pty });
+    return ok({ sessionId, pty });
   }
 }
 

@@ -2615,6 +2615,42 @@ export const MUTANTS: readonly Mutant[] = [
     why: "with a lockfile the install keeps it as it is",
   },
   {
+    file: "packages/core/src/application/pty-broker.ts",
+    from: '    if (driver?.by !== "human" || driver.attachedBy !== input.by)\n',
+    to: "    if (false)\n",
+    why: "only the person who holds the driver lock types into the PTY",
+  },
+  {
+    file: "packages/core/src/application/pty-broker.ts",
+    from: "    if (current?.alive) return ok(this.view(runId, current));\n",
+    to: "",
+    why: "an open session is not started twice",
+  },
+  {
+    file: "packages/core/src/application/pty-broker.ts",
+    from: "        if (questions.isOk() && questions.value.some((q) => !q.answer)) return;\n",
+    to: "",
+    why: "a session waiting on a question is not idle",
+  },
+  {
+    file: "packages/core/src/application/pty-broker.ts",
+    from: "const resumable = record.value.host === host.id ? record.value.hostSession : undefined;",
+    to: "const resumable = undefined;",
+    why: "the next open resumes the session by its id",
+  },
+  {
+    file: "packages/plugin-host-scenario/src/scenario-interactive-host.ts",
+    from: "    const n = Math.max(this.starts.get(task.agent) ?? 0, atLeast);",
+    to: "    const n = 0;",
+    why: "a resumed session plays the next entry",
+  },
+  {
+    file: "packages/plugin-node/src/node-pty-terminal.ts",
+    from: "        if (!closed) loaded.value.resize(term.fd, cols, rows);",
+    to: "",
+    why: "a resize reaches the terminal",
+  },
+  {
     file: "packages/core/src/application/driver-lock.ts",
     from: '    if (current?.by === "human" && current.attachedBy !== input.by)\n',
     to: "    if (false)\n",

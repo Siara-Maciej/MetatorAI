@@ -2181,3 +2181,19 @@ metator report [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--since <time>` | only runs started at or after this ISO time |  |
+
+## serve
+
+### `metator serve`
+
+The local daemon the desktop app talks to: state, inbox, activity and PTY sessions on localhost
+
+```bash
+metator serve [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--port <n>` | port to listen on (0: a free one) | `4310` |
+| `--hostname <host>` | address to listen on | `"127.0.0.1"` |
+| `--poll-ms <n>` | how often sockets look for a change | `1000` |
