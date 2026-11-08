@@ -1,4 +1,6 @@
 import {
+  acceptanceStats,
+  briefOf,
   byUrgency,
   type InboxItem,
   inboxOf,
@@ -25,6 +27,12 @@ export interface ServeOptions {
     c: MetatorContainer,
     runId: string,
   ) => Promise<Result<{ readonly stage: string }, MetatorError>>;
+  /** How a run created from the app is driven at once (`POST /runs` with `drive`), on the given host. */
+  readonly start?: (
+    c: MetatorContainer,
+    runId: string,
+    host: string,
+  ) => Promise<Result<{ readonly stage: string; readonly started: boolean }, MetatorError>>;
 }
 
 export interface Served {
@@ -37,15 +45,25 @@ export interface Served {
 type Json = Record<string, unknown>;
 
 interface Socket {
-  readonly kind: "state" | "activity" | "pty";
+  readonly kind: "state" | "inbox" | "activity" | "pty";
   readonly repo: string | undefined;
   readonly runId?: string | undefined;
   readonly by?: string | undefined;
   stop?: () => void;
 }
 
+/**
+ * The app is another origin (Tauri's webview, or a browser next to the daemon), so every answer
+ * says any origin may read it: the daemon listens on localhost only and has no secrets to guard
+ * beyond what every local process can read anyway (decision 1).
+ */
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+};
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...CORS } });
 
 const fromResult = <T>(r: Result<T, MetatorError>) =>
   r.isOk()
@@ -85,6 +103,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     hostname: opts.hostname,
     async fetch(req, server) {
       const url = new URL(req.url);
+      if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
       const repo = url.searchParams.get("repo") ?? undefined;
       const path = url.pathname.replace(/\/+$/, "") || "/";
       if (path === "/health")
@@ -94,8 +113,9 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           uptimeMs: Date.now() - started,
           folder: folder?.root ?? null,
         });
-      if (path === "/ws/state") {
-        return server.upgrade(req, { data: { kind: "state", repo } }) ? undefined : json({ ok: false }, 400);
+      if (path === "/ws/state" || path === "/ws/inbox") {
+        const kind = path === "/ws/state" ? "state" : "inbox";
+        return server.upgrade(req, { data: { kind, repo } }) ? undefined : json({ ok: false }, 400);
       }
       const ws = /^\/ws\/(activity|pty)\/([^/]+)$/.exec(path);
       if (ws) {
@@ -116,6 +136,55 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       }
       const c = containerFor(repo);
       if (c.isErr()) return json({ ok: false, error: c.error }, 404);
+      if (path === "/workflows") {
+        const scan = await c.value.resolve("workflowCatalog").scan();
+        return json({
+          ok: true,
+          data: {
+            workflows: scan.workflows.map(({ spec, source }) => ({
+              id: spec.id,
+              revision: spec.revision,
+              ...(spec.description ? { description: spec.description } : {}),
+              stages: spec.stages.map((st) => st.id),
+              source,
+            })),
+          },
+        });
+      }
+      if (path === "/report")
+        return fromResult(
+          await c.value.resolve("buildReport").execute(url.searchParams.get("since") ?? undefined),
+        );
+      if (path === "/supervisor") return json(await supervisorView(c.value, repo, folder, started, opts));
+      if (path === "/runs" && req.method === "POST") {
+        const body = (await req.json().catch(() => ({}))) as Json;
+        const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : undefined);
+        const init = await c.value.resolve("initRun").execute({
+          workflow: str("workflow") ?? "",
+          task: str("task") ?? "",
+          ...(str("autonomy") ? { autonomy: str("autonomy") as "L0" | "L1" | "L2" } : {}),
+          ...(body.worktree === true ? { worktree: {} } : {}),
+          ...(str("parent") ? { parent: str("parent") as string } : {}),
+        });
+        if (init.isErr()) return fromResult(init);
+        const runId = init.value.runId;
+        const setup =
+          body.worktree === true && body.setup !== false
+            ? await c.value.resolve("setupWorktree").execute({ run: runId })
+            : undefined;
+        const host = str("drive");
+        const drive = host && opts.start ? await opts.start(c.value, runId, host) : undefined;
+        return json({
+          ok: true,
+          data: {
+            run: init.value,
+            ...(setup ? { setup: setup.isOk() ? setup.value : { error: setup.error.message } } : {}),
+            ...(drive
+              ? { drive: drive.isOk() ? { host, ...drive.value } : { error: drive.error.message } }
+              : {}),
+          },
+        });
+      }
       const run = /^\/runs\/([^/]+)\/([a-z-]+)$/.exec(path);
       if (!run)
         return json(
@@ -132,6 +201,33 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           const a = await c.value.resolve("runJournal").activity(runId);
           return fromResult(a.map((entries) => ({ runId, entries: tail ? entries.slice(-tail) : entries })));
         }
+        case "GET brief": {
+          const journal = c.value.resolve("runJournal");
+          const record = await c.value.resolve("runRepository").load(runId);
+          if (record.isErr()) return fromResult(record);
+          const seen = await journal.seen(runId);
+          if (seen.isErr()) return fromResult(seen);
+          const given = url.searchParams.get("since");
+          const since =
+            given && !Number.isNaN(Date.parse(given))
+              ? new Date(given).toISOString()
+              : (seen.value ?? record.value.createdAt);
+          const activity = await journal.activity(runId);
+          if (activity.isErr()) return fromResult(activity);
+          return json({
+            ok: true,
+            data: {
+              runId,
+              status: record.value.state.status,
+              stage: record.value.state.stage,
+              ...briefOf(activity.value, since),
+            },
+          });
+        }
+        case "POST seen":
+          return fromResult(
+            (await c.value.resolve("runJournal").markSeen(runId)).map((at) => ({ runId, at })),
+          );
         case "GET messages":
           return fromResult(
             (await c.value.resolve("runMessages").list(runId)).map((messages) => ({ runId, messages })),
@@ -153,6 +249,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
               choices: list("choices"),
               ...(str("text") ? { text: str("text") as string } : {}),
               by: str("by") ?? "",
+              // From the decision card, without opening the session: what 11a counts.
+              ...(str("origin") === "inbox" ? { origin: "inbox" as const } : {}),
             }),
           );
         case "POST approve":
@@ -199,10 +297,12 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       async open(ws) {
         sockets.add(ws);
         const d = ws.data;
-        if (d.kind === "state") {
+        if (d.kind === "state" || d.kind === "inbox") {
           let last = "";
           const tick = async () => {
-            const text = JSON.stringify(await state(ctx, folder));
+            const text = JSON.stringify(
+              d.kind === "state" ? await state(ctx, folder) : await inbox(ctx, folder),
+            );
             if (text !== last) {
               last = text;
               ws.send(text);
@@ -354,3 +454,43 @@ export async function inbox(ctx: CommandContext, folder: Folder | null): Promise
 
 const ok = <T>(value: T) => ({ isOk: () => true, isErr: () => false, value }) as unknown as Result<T, never>;
 const err = <E>(error: E) => ({ isOk: () => false, isErr: () => true, error }) as unknown as Result<never, E>;
+
+/**
+ * What the Supervisor screen shows: the daemon, its hosts and policy, the live PTY sessions,
+ * and the acceptance figures (11a, 11b) from the same facts as `metator report`.
+ */
+export async function supervisorView(
+  c: MetatorContainer,
+  repo: string | undefined,
+  folder: Folder | null,
+  startedAt: number,
+  opts: Pick<ServeOptions, "port" | "hostname" | "superviseMs">,
+): Promise<Json> {
+  const policy = c.resolve("config").config.supervisor;
+  const facts = await c.resolve("buildReport").facts();
+  if (facts.isErr()) return { ok: false, error: { code: facts.error.code, message: facts.error.message } };
+  const journal = c.resolve("runJournal");
+  const runs: Parameters<typeof acceptanceStats>[0][number][] = [];
+  for (const f of facts.value) {
+    const a = await journal.activity(f.runId);
+    runs.push({ questions: f.questions, activity: a.isOk() ? [...a.value] : [] });
+  }
+  const dayAgo = new Date(c.resolve("clock").now().getTime() - 24 * 3600 * 1000).toISOString();
+  return {
+    ok: true,
+    data: {
+      daemon: {
+        pid: process.pid,
+        uptimeMs: Date.now() - startedAt,
+        url: `http://${opts.hostname}:${opts.port}`,
+        superviseMs: opts.superviseMs ?? 0,
+        folder: folder?.root ?? null,
+        repo: repo ?? null,
+      },
+      hosts: [...c.resolve("interactiveHosts").keys()],
+      policy,
+      sessions: c.resolve("ptyBroker").list(),
+      acceptance: { since: dayAgo, ...acceptanceStats(runs, dayAgo) },
+    },
+  };
+}

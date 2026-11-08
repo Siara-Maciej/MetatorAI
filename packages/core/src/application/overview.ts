@@ -37,6 +37,9 @@ export interface RunOverview {
   readonly attachedBy?: string | undefined;
   /** Active, and its drive process ended without leaving (a restart, a killed process): `run revive` starts it again. */
   readonly died: boolean;
+  /** The run this one is a step of, and its own steps (linked runs, F7.6). */
+  readonly parent?: string;
+  readonly children?: readonly string[];
   /** The host that drives (or drove) the run. */
   readonly host?: string;
   readonly last?: Pick<RunActivity, "at" | "type" | "text" | "stage" | "agent">;
@@ -131,6 +134,8 @@ export class WorkOverview {
         driver: r.driver?.by ?? "agent",
         ...(r.driver?.by === "human" && r.driver.attachedBy ? { attachedBy: r.driver.attachedBy } : {}),
         died: active && driver.isOk() && driver.value !== null && !driver.value.alive,
+        ...(r.parent ? { parent: r.parent } : {}),
+        ...(r.children && r.children.length > 0 ? { children: r.children } : {}),
         ...(driver.isOk() && driver.value ? { host: driver.value.host } : r.host ? { host: r.host } : {}),
         ...(last
           ? {

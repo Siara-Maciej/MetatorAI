@@ -106,7 +106,7 @@ A question an answer policy answers is not announced. A failing command is logge
 | `wipLimit` | 4 | how many runs may wait for a person at once; `run init` warns past it, the inbox shows the count |
 | `respawn.enabled`, `respawn.maxAttempts` | true, 3 | a drive that died is started again at its stage, this many times; then the run's activity says the supervisor gave up |
 | `idleThresholdMs` | 90000 | an interactive session with no output for this long and no open question is idle: nudged once, then a person is asked |
-| `hostOrder` | copilot, claude, opencode | which interactive host a new session takes first |
+| `hostOrder` | copilot, claude, opencode | which interactive host a new session takes first; see [interactive hosts](../workflows/drive.md#interactive-hosts) |
 | `chatApprovals` | attached-only | an approval said in the chat counts only while the person is attached (the only value today) |
 
 ## Gates

@@ -175,3 +175,63 @@ export function fleetReport(runs: readonly RunFacts[], now: Date): FleetReport {
     ),
   };
 }
+
+/** The acceptance figures of the desktop (spec §9, 11a and 11b), from the same facts as the report. */
+export interface AcceptanceStats {
+  /** Questions a person answered (policies aside). */
+  readonly answered: number;
+  /** The median time from a question to its answer by a person, undefined without an answer. */
+  readonly medianAnswerMs?: number;
+  /** Answers given from the decision card without opening the session, and all answers by a person. */
+  readonly fromInbox: number;
+  /** Restarts the supervisor made and idle nudges it sent since `since`. */
+  readonly restarts: number;
+  readonly nudges: number;
+}
+
+/**
+ * 11a from the questions (how long people take, how many answers came from the card) and 11b
+ * from the activity (restarts and nudges since `since`): deterministic, never from a model.
+ */
+export function acceptanceStats(
+  runs: readonly {
+    readonly questions: readonly AskedQuestion[];
+    readonly activity: readonly {
+      readonly at: string;
+      readonly type: string;
+      readonly origin?: string | undefined;
+    }[];
+  }[],
+  since: string,
+): AcceptanceStats {
+  const delays: number[] = [];
+  let fromInbox = 0;
+  let restarts = 0;
+  let nudges = 0;
+  for (const r of runs) {
+    for (const q of r.questions)
+      if (q.answer && !q.answer.by.startsWith("policy:"))
+        delays.push(Math.max(0, new Date(q.answer.at).getTime() - new Date(q.askedAt).getTime()));
+    for (const a of r.activity) {
+      if (a.type === "answer" && a.origin === "inbox") fromInbox++;
+      if (a.at < since) continue;
+      if (a.type === "restart") restarts++;
+      if (a.type === "idle") nudges++;
+    }
+  }
+  delays.sort((a, b) => a - b);
+  const mid = delays.length >> 1;
+  const median =
+    delays.length === 0
+      ? undefined
+      : delays.length % 2 === 1
+        ? (delays[mid] as number)
+        : ((delays[mid - 1] as number) + (delays[mid] as number)) / 2;
+  return {
+    answered: delays.length,
+    ...(median !== undefined ? { medianAnswerMs: median } : {}),
+    fromInbox,
+    restarts,
+    nudges,
+  };
+}

@@ -166,6 +166,23 @@ metator run brief --run <id>
 
 It covers what happened since your last brief of that run (the first one: since the run started), and remembers that you read it (`.metator/runs/<id>/seen.json`). `--peek` reads without marking; `--since <ISO time>` picks the start yourself. The brief is built from the activity alone, so it is exact and costs nothing.
 
+## Interactive hosts
+
+The daemon (`metator serve`) and the desktop app open a run's session in a real terminal: the host CLI runs in a pseudo-terminal in the run's worktree, started with the task, and the run's hooks write its activity. The hosts, in the order `supervisor.hostOrder` gives (the first is the default of a new session):
+
+| Host | Starts | Resumes | Session id |
+|---|---|---|---|
+| `copilot` | `copilot -i <task> --add-dir <run dir> --deny-tool "shell(git push)"` | `copilot --continue` (or `--resume <id>` when a real id is known) | `continue`: Copilot names its sessions itself; the worktree's last session is the run's |
+| `claude` | `claude <task> --session-id <uuid> --add-dir <run dir> --permission-mode default` | `claude --resume <uuid>` | the UUID MetatorAI chose |
+| `opencode` | `opencode <worktree> --prompt <task>` | `opencode --continue` (or `--session ses_…`) | `continue` |
+| `scenario` | a shell script that plays the scenario's `session` entry | the next entry | `scenario-session-N` |
+
+The run's agent (`--agent <id>`) is passed when the repository has that agent's file for the host (`.github/agents/<id>.agent.md`, `.claude/agents/<id>.md`, `.opencode/agent/<id>.md`). Every session gets `METATOR_RUN`, `METATOR_RUN_DIR` and, in a driven run, `METATOR_DRIVEN=1` in its environment, so the hooks know which run they write to. The binaries come from PATH; `METATOR_COPILOT_BIN`, `METATOR_CLAUDE_BIN` and `METATOR_OPENCODE_BIN` point elsewhere.
+
+```bash
+curl -X POST localhost:4310/runs/<run>/pty-open -d '{"host":"claude","cols":120,"rows":40}'
+```
+
 ## Attach to a session
 
 A session has one driver at a time: the agent, or a person who attached. Attaching takes the keyboard (the daemon routes your input to the session's PTY) and makes your yes in the chat count:

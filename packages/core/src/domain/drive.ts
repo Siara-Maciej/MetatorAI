@@ -28,6 +28,30 @@ export interface AgentTask {
   readonly approved?: readonly string[];
 }
 
+/**
+ * The environment an interactive host session runs with (D6, ADR-0077): the hooks learn which
+ * run the session works for, and that the drive carries it, from these variables.
+ */
+export function sessionEnv(
+  task: Pick<AgentTask, "runDir" | "driven">,
+  base: Readonly<Record<string, string | undefined>> = {},
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(base)) if (v !== undefined) env[k] = v;
+  env.METATOR_RUN =
+    task.runDir
+      .split(/[\\/]/)
+      .filter((s) => s !== "")
+      .at(-1) ?? "";
+  env.METATOR_RUN_DIR = task.runDir;
+  if (task.driven) env.METATOR_DRIVEN = "1";
+  return env;
+}
+
+/** A session id a host made itself (a UUID), as opposed to a sentinel such as `continue`. */
+export const isUuid = (id: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
 export interface AgentQuestion {
   readonly source: "agent" | "permission";
   readonly prompt: string;

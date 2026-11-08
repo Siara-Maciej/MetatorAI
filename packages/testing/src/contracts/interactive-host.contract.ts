@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { AgentTask, InteractiveHost, PtyHandle } from "@metator/core";
 
 export interface InteractiveHostWorld {
@@ -8,6 +10,23 @@ export interface InteractiveHostWorld {
   readonly says: string;
   /** What to type when the session asks, and what it says back. */
   readonly answer: { readonly type: string; readonly echoes: string };
+}
+
+/**
+ * A stand-in for a host CLI (D6): a shell script that prints its arguments on one line
+ * (`args: …`), reads one line from the terminal, echoes it (`typed: …`) and exits 0. The
+ * adapters' contract runs on it in a real PTY where the real CLI is not installed; the argv an
+ * adapter composes is what the test reads.
+ */
+export function standInCli(dir: string, name: string): string {
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, name);
+  writeFileSync(
+    file,
+    `#!/bin/sh\nprintf 'args: %s\\n' "$*"\nread -r line\nprintf 'typed: %s\\n' "$line"\nexit 0\n`,
+  );
+  chmodSync(file, 0o755);
+  return file;
 }
 
 /** Output until `text` appears, or until the deadline. */

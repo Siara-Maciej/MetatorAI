@@ -244,7 +244,13 @@ export class RunJournal {
   async answer(
     runId: string,
     id: string,
-    input: { readonly choices: readonly string[]; readonly text?: string; readonly by: string },
+    input: {
+      readonly choices: readonly string[];
+      readonly text?: string;
+      readonly by: string;
+      /** `inbox`: answered from the decision card, without opening the session (11a). */
+      readonly origin?: "inbox";
+    },
   ): Promise<Result<Question, MetatorError>> {
     const file = this.questionFile(runId, id);
     if (!(await this.fs.exists(file))) return err(MetatorError.notFound(`question ${id} of run ${runId}`));
@@ -280,6 +286,7 @@ export class RunJournal {
       type: "answer",
       stage: q.value.stage,
       text: `${id}: ${choices.join(", ")}${input.text ? ` (${input.text})` : ""} · ${input.by}`,
+      ...(input.origin ? { origin: input.origin } : {}),
     });
     if (logged.isErr()) return err(logged.error);
     return ok(answered);

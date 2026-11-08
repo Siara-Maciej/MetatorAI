@@ -191,8 +191,19 @@ import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { DockerComposeRuntime } from "@metator/plugin-docker";
 import { GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
-import { ClaudeAgentHost, ClaudeGenerator, ClaudeSkillGenerator } from "@metator/plugin-host-claude";
-import { CopilotAgentHost, CopilotGenerator, CopilotSkillGenerator } from "@metator/plugin-host-copilot";
+import {
+  ClaudeAgentHost,
+  ClaudeGenerator,
+  ClaudeInteractiveHost,
+  ClaudeSkillGenerator,
+} from "@metator/plugin-host-claude";
+import {
+  CopilotAgentHost,
+  CopilotGenerator,
+  CopilotInteractiveHost,
+  CopilotSkillGenerator,
+} from "@metator/plugin-host-copilot";
+import { OpencodeInteractiveHost } from "@metator/plugin-host-opencode";
 import { ScenarioAgentHost, ScenarioInteractiveHost } from "@metator/plugin-host-scenario";
 import {
   GetPortProbe,
@@ -228,6 +239,10 @@ export interface BootstrapOptions {
   readonly agentScenario?: string;
   /** The Copilot CLI binary (METATOR_COPILOT_BIN); default `copilot` on PATH. */
   readonly copilotBin?: string;
+  /** The Claude Code binary (METATOR_CLAUDE_BIN); default `claude` on PATH. */
+  readonly claudeBin?: string;
+  /** The OpenCode binary (METATOR_OPENCODE_BIN); default `opencode` on PATH. */
+  readonly opencodeBin?: string;
   /** The Docker CLI (METATOR_DOCKER_BIN); default `docker` on PATH. */
   readonly dockerBin?: string;
   /** Machine-wide state shared by every repository (`machineStateDir`); default from the process env. */
@@ -242,6 +257,18 @@ export function machineStateDir(env: Readonly<Record<string, string | undefined>
   if (env.METATOR_STATE_DIR) return env.METATOR_STATE_DIR;
   if (env.XDG_STATE_HOME) return join(env.XDG_STATE_HOME, "metator");
   return join(env.HOME ?? homedir(), ".local", "state", "metator");
+}
+
+/** The interactive hosts in the configured order (`supervisor.hostOrder`); the ones it does not name last. */
+export function orderedHosts<H extends { readonly id: string }>(
+  order: readonly string[],
+  hosts: readonly H[],
+): H[] {
+  const rank = (h: H) => {
+    const i = order.indexOf(h.id);
+    return i < 0 ? order.length : i;
+  };
+  return [...hosts].sort((a, b) => rank(a) - rank(b));
 }
 
 const systemClock: Clock = { now: () => new Date() };
@@ -438,10 +465,18 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       return hosts;
     }).singleton(),
     terminal: asFunction(() => new NodePtyTerminal()).singleton(),
-    interactiveHosts: asFunction(({ terminal }) => {
+    interactiveHosts: asFunction(({ terminal, config }) => {
       const hosts = new Map<string, InteractiveHost>();
+      // The first host is the default of a new session: the scenario when a test plays one, else
+      // the first of `supervisor.hostOrder`.
       if (options.agentScenario)
         hosts.set("scenario", new ScenarioInteractiveHost(terminal, options.agentScenario));
+      for (const host of orderedHosts(config.config.supervisor.hostOrder, [
+        new CopilotInteractiveHost(terminal, options.copilotBin),
+        new ClaudeInteractiveHost(terminal, options.claudeBin),
+        new OpencodeInteractiveHost(terminal, options.opencodeBin),
+      ]))
+        hosts.set(host.id, host);
       return hosts;
     }).singleton(),
     ptyBroker: asFunction(

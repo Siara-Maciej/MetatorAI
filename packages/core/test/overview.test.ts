@@ -90,9 +90,12 @@ async function world() {
   await runs.save(
     record("20261028-mt-feature-b", "build", "active", {
       worktree: { id: "b", path: ".metator/wt/b", branch: "metator/b" },
+      parent: "20261028-mt-feature-c",
     }) as never,
   );
-  await runs.save(record("20261028-mt-feature-c", "build", "done") as never);
+  await runs.save(
+    record("20261028-mt-feature-c", "build", "done", { children: ["20261028-mt-feature-b"] }) as never,
+  );
   const overview = new WorkOverview(
     runs,
     { get: async () => ok({ spec: { stages: STAGES } }) as never },
@@ -209,6 +212,12 @@ describe("WorkOverview", () => {
     ]);
     // a's drive left its file behind and its process is gone: it died; b's is alive; c is done.
     expect(o.runs.map((r) => r.died)).toEqual([false, true, false]);
+    // Linked runs: a step names its parent, a parent its steps; the rest say nothing.
+    expect(o.runs.map((r) => [r.parent, r.children])).toEqual([
+      ["20261028-mt-feature-c", undefined],
+      [undefined, undefined],
+      [undefined, ["20261028-mt-feature-b"]],
+    ]);
     const a = o.runs[1];
     expect(a?.stages.map((s) => s.state)).toEqual(["done", "done", "waiting", "next"]);
     expect([a?.last?.text, a?.elapsedMs, a?.services]).toEqual(["waits", 3_600_000, []]);

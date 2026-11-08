@@ -30,6 +30,7 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
           announce: true,
           superviseMs: opts.superviseMs,
           restart: (c, runId) => resume(c, root(), runId),
+          start: (c, runId, host) => resume(c, root(), runId, host),
         });
         const where = {
           port: served.port,

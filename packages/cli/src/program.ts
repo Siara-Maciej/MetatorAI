@@ -91,6 +91,8 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
       ...(env.METATOR_CANON ? { canon: env.METATOR_CANON } : {}),
       ...(env.METATOR_AGENT_SCENARIO ? { agentScenario: env.METATOR_AGENT_SCENARIO } : {}),
       ...(env.METATOR_COPILOT_BIN ? { copilotBin: env.METATOR_COPILOT_BIN } : {}),
+      ...(env.METATOR_CLAUDE_BIN ? { claudeBin: env.METATOR_CLAUDE_BIN } : {}),
+      ...(env.METATOR_OPENCODE_BIN ? { opencodeBin: env.METATOR_OPENCODE_BIN } : {}),
       ...(env.METATOR_DOCKER_BIN ? { dockerBin: env.METATOR_DOCKER_BIN } : {}),
       stateDir: machineStateDir(env),
     });

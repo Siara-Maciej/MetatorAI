@@ -15,6 +15,7 @@
     "@metator/plugin-git": "workspace:*",
     "@metator/plugin-host-claude": "workspace:*",
     "@metator/plugin-host-copilot": "workspace:*",
+    "@metator/plugin-host-opencode": "workspace:*",
     "@metator/plugin-host-scenario": "workspace:*",
     "@metator/plugin-node": "workspace:*",
     "@metator/plugin-openapi": "workspace:*",

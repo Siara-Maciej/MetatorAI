@@ -53,6 +53,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["packages/desktop/src/styles.css"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDescendingSpecificity": "off"
+          }
+        }
+      }
     }
   ]
 }

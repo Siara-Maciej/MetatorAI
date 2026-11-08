@@ -284,8 +284,8 @@ Specyfikacja: [design/12](design/12-desktop.md), zatwierdzona 2026-11-02 (decyzj
 - [x] D3 `metator serve`: lokalny demon (localhost, bez uwierzytelniania) z `/state`, `/inbox`, `/activity/<run>`, `/pty/<run>`; broker PTY na node-pty z blokadą kierowcy; port `InteractiveHost` z adapterem `scenario` i zestawem kontraktowym.
 - [x] D4 `SupervisorPolicy` v1 w `MetatorConfig` (limit WIP, restart z resume, próg bezczynności, kolejność hostów, zgody z czatu); `metator supervise` (respawn na `run revive`, nudge przy bezczynności, kolejka ponad limitem WIP, sesje potomne z planu systemowego).
 - [x] D5 Karta decyzji v3 (`soFar`, `proposal`, `evidence`, skutki opcji, `blastRadius`, `costOfDelay`, `group`) i przecięcia `graph affected` między worktree (P7): ostrzeżenie o wspólnym pliku i kolejność scalania.
-- [ ] D6 Adaptery `InteractiveHost`: Copilot CLI (pierwszy), Claude Code, OpenCode, na tym samym kontrakcie.
-- [ ] D7 Aplikacja Tauri + xterm.js: ekrany 1, 2, 7, K, potem 3, 4, 5, 6; powiadomienia systemowe; kryteria 11a i 11b.
+- [x] D6 Adaptery `InteractiveHost`: Copilot CLI (pierwszy), Claude Code, OpenCode, na tym samym kontrakcie.
+- [x] D7 Aplikacja Tauri + xterm.js: ekrany 1, 2, 7, K, potem 3, 4, 5, 6; powiadomienia systemowe; kryteria 11a i 11b liczone na ekranie Supervisora (`packages/desktop`, ADR-0078; pakiet Tauri wymaga Rusta i WebKitGTK/WebView2 na maszynie deweloperskiej).
 
 **Kryterium wyjścia:** 11a (mediana czasu odpowiedzi ≤ 50% bazy, ≥ 80% odpowiedzi bez otwierania sesji) i 11b (sesje utrzymane 8 h bez ręcznego restartu), liczone z tych samych danych, które pokazuje ekran Supervisora.
 

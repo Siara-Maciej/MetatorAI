@@ -29,9 +29,11 @@ import {
   type ProcessResult,
   type ProcessRunner,
   type PtyHandle,
+  type PtySize,
   type ResolvedCommand,
   type Result,
   type RuleEngine,
+  type Terminal,
   type Timer,
   type TreeCopier,
   type Vcs,
@@ -399,6 +401,33 @@ export class FakePty implements PtyHandle {
   }
   exit(code: number): void {
     for (const l of this.exits) l(code);
+  }
+}
+
+/** Terminal whose PTYs are FakePtys; records every spawn (argv, cwd, env, size). */
+export class FakeTerminal implements Terminal {
+  readonly spawned: {
+    argv: readonly string[];
+    cwd: string;
+    env?: Readonly<Record<string, string>>;
+    size?: PtySize;
+    pty: FakePty;
+  }[] = [];
+  private n = 0;
+  constructor(private readonly failing?: MetatorError) {}
+
+  spawn(
+    argv: readonly string[],
+    options: {
+      readonly cwd: string;
+      readonly env?: Readonly<Record<string, string>>;
+      readonly size?: PtySize;
+    },
+  ): Result<PtyHandle, MetatorError> {
+    if (this.failing) return err(this.failing);
+    const pty = new FakePty(5000 + ++this.n);
+    this.spawned.push({ argv, ...options, pty });
+    return ok(pty);
   }
 }
 

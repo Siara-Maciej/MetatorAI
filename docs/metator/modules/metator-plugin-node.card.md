@@ -25,7 +25,7 @@ dir: packages/plugin-node
 
 ## Invariants
 
-- A repository without package.json has no packages, not an error [[cite: packages/plugin-node/src/manypkg-workspace-reader.ts:27 | "if (!existsSync(join(this.root, \"package.json\"))) return ok([]);"]].
+- A repository without package.json has no packages, not an error [[cite: packages/plugin-node/src/manypkg-workspace-reader.ts:41 | "if (!existsSync(join(this.root, \"package.json\"))) return ok([]);"]].
 
 ## Allowed dependencies
 

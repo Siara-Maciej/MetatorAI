@@ -1183,6 +1183,27 @@ describe("RunJournal answers", () => {
   });
 });
 
+describe("RunJournal answer origin", () => {
+  test("an answer from the decision card is noted as such in the activity; one from the CLI is not", async () => {
+    const fs = new InMemoryFileSystem();
+    const j = new RunJournal(fs, new RunRepository(fs, DEFAULT_PATHS), new FixedClock());
+    const ask = () =>
+      j.ask("r1", {
+        stage: "s",
+        source: "gate",
+        prompt: "Approve?",
+        options: [{ label: "Approve" }],
+        multiSelect: false,
+      });
+    const first = (await ask())._unsafeUnwrap();
+    await j.answer("r1", first.id, { choices: ["Approve"], by: "m", origin: "inbox" });
+    const second = (await ask())._unsafeUnwrap();
+    await j.answer("r1", second.id, { choices: ["Approve"], by: "m" });
+    const answers = (await j.activity("r1"))._unsafeUnwrap().filter((a) => a.type === "answer");
+    expect(answers.map((a) => a.origin)).toEqual(["inbox", undefined]);
+  });
+});
+
 describe("RunDrivers", () => {
   const drivers = () => {
     const fs = new InMemoryFileSystem();
