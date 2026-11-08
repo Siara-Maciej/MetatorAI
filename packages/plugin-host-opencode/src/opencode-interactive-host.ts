@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   type AgentTask,
   err,
+  type HostLaunch,
   type InteractiveHost,
   type InteractiveSession,
   type MetatorError,
@@ -31,8 +32,22 @@ export class OpencodeInteractiveHost implements InteractiveHost {
     private readonly env: Readonly<Record<string, string | undefined>> = process.env,
   ) {}
 
+  async launch(task: AgentTask, resume?: string): Promise<Result<HostLaunch, MetatorError>> {
+    const mode =
+      resume === undefined
+        ? ["--prompt", task.prompt]
+        : resume.startsWith("ses_")
+          ? ["--session", resume]
+          : ["--continue"];
+    return ok({
+      argv: opencodeArgv(this.bin, task, mode),
+      sessionId: resume ?? CONTINUE,
+      env: sessionEnv(task),
+    });
+  }
+
   async start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.spawn(task, size, ["--prompt", task.prompt], CONTINUE);
+    return this.spawn(task, size);
   }
 
   async resume(
@@ -40,23 +55,23 @@ export class OpencodeInteractiveHost implements InteractiveHost {
     task: AgentTask,
     size: PtySize,
   ): Promise<Result<InteractiveSession, MetatorError>> {
-    const mode = sessionId.startsWith("ses_") ? ["--session", sessionId] : ["--continue"];
-    return this.spawn(task, size, mode, sessionId);
+    return this.spawn(task, size, sessionId);
   }
 
-  private spawn(
+  private async spawn(
     task: AgentTask,
     size: PtySize,
-    mode: readonly string[],
-    sessionId: string,
-  ): Result<InteractiveSession, MetatorError> {
-    const spawned = this.terminal.spawn(opencodeArgv(this.bin, task, mode), {
+    resume?: string,
+  ): Promise<Result<InteractiveSession, MetatorError>> {
+    const launch = await this.launch(task, resume);
+    if (launch.isErr()) return err(launch.error);
+    const spawned = this.terminal.spawn(launch.value.argv, {
       cwd: task.cwd,
       env: sessionEnv(task, this.env),
       size,
     });
     if (spawned.isErr()) return err(spawned.error);
-    return ok({ sessionId, pty: spawned.value });
+    return ok({ sessionId: launch.value.sessionId, pty: spawned.value });
   }
 }
 

@@ -8,11 +8,14 @@ import {
   type AgentTask,
   CHAT_APPROVAL_NEEDS_DRIVER,
   chatApproval,
+  commandsOf,
   DRIVEN_RUN_CONTROL,
   declaredAfterCd,
   declaredWithDocument,
   deliveryCommand,
+  HERDR_REFUSALS,
   type HostUsage,
+  herdrRefusal,
   permissionResponse,
   RunRecordDocument,
   readOnlyCommand,
@@ -274,6 +277,10 @@ export class ClaudeAgentHost implements AgentHost {
         noLocalMetator(command, [task.cwd, task.projectRoot])
       )
         return permissionResponse({ decision: "deny", reason: LOCAL_METATOR });
+      // herdr (ADR-0079): no typing into another pane, no agents outside a run, no socket.
+      const herdr = typeof command === "string" ? herdrRefusal(commandsOf(command), command) : undefined;
+      if (hook.tool === "Bash" && herdr)
+        return permissionResponse({ decision: "deny", reason: `herdr: ${HERDR_REFUSALS[herdr]}` });
       if (hook.tool === "Bash" && typeof command === "string") {
         const file = join(task.projectRoot, ".claude", "agents", `${agent}.md`);
         const tools = agentDefinition(file)?.tools;

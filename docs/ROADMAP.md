@@ -287,6 +287,16 @@ Specyfikacja: [design/12](design/12-desktop.md), zatwierdzona 2026-11-02 (decyzj
 - [x] D6 Adaptery `InteractiveHost`: Copilot CLI (pierwszy), Claude Code, OpenCode, na tym samym kontrakcie.
 - [x] D7 Aplikacja Tauri + xterm.js: ekrany 1, 2, 7, K, potem 3, 4, 5, 6; powiadomienia systemowe; kryteria 11a i 11b liczone na ekranie Supervisora (`packages/desktop`, ADR-0078; pakiet Tauri wymaga Rusta i WebKitGTK/WebView2 na maszynie deweloperskiej).
 
+## Faza E: herdr jako runtime pod warstwą zabezpieczeń (ADR-0079)
+
+Decyzja właściciela (2026-11-08): terminale, sesje, okna i zdalne maszyny daje herdr; MetatorAI pilnuje agentów w nim. Broker PTY (D3) i aplikacja desktopowa (D7) zostają jako alternatywa bez herdr, bez dalszego rozwoju.
+
+- [x] E1 Strażnik herdr w `pre-tool` i w hoście SDK: bez pisania do cudzych paneli, promptowania agentów, startu agentów poza runem, komend wznowienia, wtyczek, zamykania pracy, `--trust-repository`, gniazda.
+- [x] E2 `HerdrControl` + `HerdrCli`, `InteractiveHost.launch`, `HerdrSessions`, `metator herdr open|sync|close`, `HerdrBinding` v1, indeks `HerdrWorkspaces` v1.
+- [x] E3 Wtyczka herdr (`integrations/herdr`): attach, release, sync, panel inboxa, hook `pane.agent_status_changed`.
+- [ ] E4 Test na prawdziwym herdr (`METATOR_E2E_HERDR`) i poprawki kształtów JSON, jeśli się różnią.
+- [ ] E5 Zgłoszenia do herdr: blokada `send-keys` dla agenta `blocked`, tożsamość wywołującego panelu w API, komendy wznowienia tylko od integracji.
+
 **Kryterium wyjścia:** 11a (mediana czasu odpowiedzi ≤ 50% bazy, ≥ 80% odpowiedzi bez otwierania sesji) i 11b (sesje utrzymane 8 h bez ręcznego restartu), liczone z tych samych danych, które pokazuje ekran Supervisora.
 
 ## Role i odpowiedzialności

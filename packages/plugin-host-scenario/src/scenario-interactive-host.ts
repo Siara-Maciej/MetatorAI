@@ -3,12 +3,14 @@ import {
   type AgentTask,
   err,
   fillScenario,
+  type HostLaunch,
   type InteractiveHost,
   type InteractiveSession,
   MetatorError,
   ok,
   type PtySize,
   type Result,
+  sessionEnv,
   type Terminal,
 } from "@metator/core";
 import { ScenarioAgentHost } from "./scenario-agent-host.ts";
@@ -32,7 +34,7 @@ export class ScenarioInteractiveHost implements InteractiveHost {
   ) {}
 
   async start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.play(task, size, 0);
+    return this.spawn(task, size);
   }
 
   async resume(
@@ -40,15 +42,12 @@ export class ScenarioInteractiveHost implements InteractiveHost {
     task: AgentTask,
     size: PtySize,
   ): Promise<Result<InteractiveSession, MetatorError>> {
-    const n = Number(/-(\d+)$/.exec(sessionId)?.[1] ?? 0);
-    return this.play(task, size, n);
+    return this.spawn(task, size, sessionId);
   }
 
-  private async play(
-    task: AgentTask,
-    size: PtySize,
-    atLeast: number,
-  ): Promise<Result<InteractiveSession, MetatorError>> {
+  /** The script of the agent's next entry (a resumed session: the entry after the one it names). */
+  async launch(task: AgentTask, resume?: string): Promise<Result<HostLaunch, MetatorError>> {
+    const atLeast = resume === undefined ? 0 : Number(/-(\d+)$/.exec(resume)?.[1] ?? 0);
     if (typeof this.source === "string") this.loaded ??= ScenarioAgentHost.load(this.source);
     const scenario = typeof this.source === "string" ? await this.loaded : ok(this.source);
     if (!scenario || scenario.isErr()) return err(scenario?.error ?? MetatorError.notFound("scenario"));
@@ -76,9 +75,23 @@ export class ScenarioInteractiveHost implements InteractiveHost {
         lines.push(`printf '%s\\n' ${quote(`[tool] ${step.tool.name} ${step.tool.summary}`)}`);
       else lines.push(`printf '%s\\n' ${quote(step.fail)}; exit 1`);
     }
-    const spawned = this.terminal.spawn(["sh", "-c", lines.join("\n")], { cwd: task.cwd, size });
+    return ok({
+      argv: ["sh", "-c", lines.join("\n")],
+      sessionId: `scenario-${task.agent}-${n + 1}`,
+      env: sessionEnv(task),
+    });
+  }
+
+  private async spawn(
+    task: AgentTask,
+    size: PtySize,
+    resume?: string,
+  ): Promise<Result<InteractiveSession, MetatorError>> {
+    const launch = await this.launch(task, resume);
+    if (launch.isErr()) return err(launch.error);
+    const spawned = this.terminal.spawn(launch.value.argv, { cwd: task.cwd, size });
     if (spawned.isErr()) return err(spawned.error);
-    return ok({ sessionId: `scenario-${task.agent}-${n + 1}`, pty: spawned.value });
+    return ok({ sessionId: launch.value.sessionId, pty: spawned.value });
   }
 }
 

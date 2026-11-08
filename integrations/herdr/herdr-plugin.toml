@@ -1,0 +1,40 @@
+# MetatorAI for herdr (ADR-0079): herdr owns the terminals and windows, MetatorAI guards the
+# agents in them. Link it once: `herdr plugin link <MetatorAI checkout>/integrations/herdr`.
+# Every command calls `metator`, which must be on PATH; it finds the run of herdr's current
+# workspace from the workspaces `metator herdr open` created.
+id = "metatorai.guard"
+name = "MetatorAI"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Decision inbox, driver lock and run state for MetatorAI runs"
+platforms = ["linux", "macos", "windows"]
+
+[[actions]]
+id = "attach"
+title = "MetatorAI: attach me (I drive this run)"
+contexts = ["workspace"]
+command = ["metator", "herdr", "plugin", "attach"]
+
+[[actions]]
+id = "release"
+title = "MetatorAI: release to the agent"
+contexts = ["workspace"]
+command = ["metator", "herdr", "plugin", "release"]
+
+[[actions]]
+id = "sync"
+title = "MetatorAI: sync run state"
+contexts = ["workspace"]
+command = ["metator", "herdr", "plugin", "sync"]
+
+[[panes]]
+id = "inbox"
+title = "MetatorAI inbox"
+placement = "overlay"
+command = ["metator", "herdr", "plugin", "inbox"]
+
+# herdr's own agent detection feeds the run: a host blocked at a prompt MetatorAI did not ask is
+# noted in the run's activity, and the run's stage is written to herdr's sidebar.
+[[events]]
+on = "pane.agent_status_changed"
+command = ["metator", "herdr", "plugin", "sync"]

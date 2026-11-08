@@ -100,3 +100,23 @@ describe("ClaudeInteractiveHost", () => {
     expect((await host.start(task("/work"), size))._unsafeUnwrapErr().message).toBe("no pty");
   });
 });
+
+describe("ClaudeInteractiveHost.launch", () => {
+  test("a new session gets its UUID in the command; a resume names it; nothing is spawned", async () => {
+    const terminal = new FakeTerminal();
+    const host = new ClaudeInteractiveHost(terminal, "claude", { PATH: "/bin" }, () => ID);
+    const launch = (await host.launch(task("/w")))._unsafeUnwrap();
+    expect([launch.argv.slice(0, 4), launch.sessionId, launch.env.METATOR_DRIVEN]).toEqual([
+      ["claude", "Add discount", "--session-id", ID],
+      ID,
+      "1",
+    ]);
+    expect(launch.env).not.toHaveProperty("PATH");
+    expect((await host.launch(task("/w"), ID))._unsafeUnwrap().argv.slice(0, 3)).toEqual([
+      "claude",
+      "--resume",
+      ID,
+    ]);
+    expect(terminal.spawned).toEqual([]);
+  });
+});

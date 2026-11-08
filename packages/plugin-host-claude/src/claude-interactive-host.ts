@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   type AgentTask,
   err,
+  type HostLaunch,
   type InteractiveHost,
   type InteractiveSession,
   type MetatorError,
@@ -29,9 +30,14 @@ export class ClaudeInteractiveHost implements InteractiveHost {
     private readonly newId: () => string = () => crypto.randomUUID(),
   ) {}
 
+  async launch(task: AgentTask, resume?: string): Promise<Result<HostLaunch, MetatorError>> {
+    const sessionId = resume ?? this.newId();
+    const mode = resume === undefined ? [task.prompt, "--session-id", sessionId] : ["--resume", resume];
+    return ok({ argv: claudeArgv(this.bin, task, mode), sessionId, env: sessionEnv(task) });
+  }
+
   async start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>> {
-    const sessionId = this.newId();
-    return this.spawn(task, size, [task.prompt, "--session-id", sessionId], sessionId);
+    return this.spawn(task, size);
   }
 
   async resume(
@@ -39,22 +45,23 @@ export class ClaudeInteractiveHost implements InteractiveHost {
     task: AgentTask,
     size: PtySize,
   ): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.spawn(task, size, ["--resume", sessionId], sessionId);
+    return this.spawn(task, size, sessionId);
   }
 
-  private spawn(
+  private async spawn(
     task: AgentTask,
     size: PtySize,
-    mode: readonly string[],
-    sessionId: string,
-  ): Result<InteractiveSession, MetatorError> {
-    const spawned = this.terminal.spawn(claudeArgv(this.bin, task, mode), {
+    resume?: string,
+  ): Promise<Result<InteractiveSession, MetatorError>> {
+    const launch = await this.launch(task, resume);
+    if (launch.isErr()) return err(launch.error);
+    const spawned = this.terminal.spawn(launch.value.argv, {
       cwd: task.cwd,
       env: sessionEnv(task, this.env),
       size,
     });
     if (spawned.isErr()) return err(spawned.error);
-    return ok({ sessionId, pty: spawned.value });
+    return ok({ sessionId: launch.value.sessionId, pty: spawned.value });
   }
 }
 
