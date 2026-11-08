@@ -2696,6 +2696,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the next open resumes the session by its id",
   },
   {
+    file: "packages/core/src/domain/herdr.ts",
+    from: "      ? run.questions > 0",
+    to: "      ? false",
+    why: "herdr's sidebar says how many questions wait",
+  },
+  {
     file: "packages/core/src/domain/herdr-guard.ts",
     from: '    "send-keys": "input",\n    "send-input": "input",',
     to: '    "send-input": "input",',

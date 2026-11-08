@@ -231,6 +231,10 @@ describe("metator CLI (process e2e)", () => {
       "inbox",
       "report",
       "serve",
+      "herdr open",
+      "herdr sync",
+      "herdr close",
+      "herdr plugin",
       "supervise",
     ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);
