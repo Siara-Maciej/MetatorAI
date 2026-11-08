@@ -35,6 +35,25 @@ const READ_BYTES = 65_536;
 /** After the exit callback, how long the last output may still arrive. */
 const DRAIN_MS = 250;
 
+/** How long the exit code may arrive after the output ended (the native callback is on its own thread). */
+export const EXIT_WAIT_MS = 2000;
+
+/**
+ * Whether a terminal session is over: its output ended and its exit code arrived (or did not in
+ * EXIT_WAIT_MS), or its exit code arrived and DRAIN_MS passed without the output ending (the exit
+ * callback can come before the last bytes). Under load the callback can also come after the end
+ * of output; finishing then would report a code the process never returned.
+ */
+export function ptyDone(s: {
+  readonly endedAt: number | undefined;
+  readonly exit: number | undefined;
+  readonly exitedAt: number;
+  readonly now: number;
+}): boolean {
+  if (s.endedAt !== undefined) return s.exit !== undefined || s.now - s.endedAt > EXIT_WAIT_MS;
+  return s.exit !== undefined && s.now - s.exitedAt > DRAIN_MS;
+}
+
 /**
  * Terminal on node-pty's native binding (D3, ADR-0077): a real pseudo-terminal, so the host CLI
  * draws its interface as it would for a person. The master side is read with synchronous,
@@ -91,6 +110,7 @@ export class NodePtyTerminal implements Terminal {
         new MetatorError("COMMAND_FAILED", `cannot spawn ${file} in a terminal: ${(e as Error).message}`),
       );
     }
+    let endedAt: number | undefined;
     const finish = () => {
       if (closed) return;
       closed = true;
@@ -98,21 +118,22 @@ export class NodePtyTerminal implements Terminal {
     };
     const pump = () => {
       if (closed) return;
-      try {
-        const n = readSync(term.fd, buffer, 0, READ_BYTES, null);
-        if (n > 0) {
-          const text = decoder.decode(buffer.subarray(0, n), { stream: true });
-          for (const l of data) l(text);
-          setTimeout(pump, 0);
-          return;
+      if (endedAt === undefined)
+        try {
+          const n = readSync(term.fd, buffer, 0, READ_BYTES, null);
+          if (n > 0) {
+            const text = decoder.decode(buffer.subarray(0, n), { stream: true });
+            for (const l of data) l(text);
+            setTimeout(pump, 0);
+            return;
+          }
+          if (n === 0) endedAt = Date.now();
+        } catch (e) {
+          // EAGAIN: nothing yet. EIO: the slave side is gone, so the output is over.
+          if ((e as NodeJS.ErrnoException).code !== "EAGAIN") endedAt = Date.now();
         }
-        if (n === 0) return finish();
-      } catch (e) {
-        // EAGAIN: nothing yet. EIO: the slave side is gone, so the session is over.
-        if ((e as NodeJS.ErrnoException).code !== "EAGAIN") return finish();
-      }
-      // The exit callback comes before the last bytes (and before EIO): drain a little longer.
-      if (exit !== undefined && Date.now() - exitedAt > DRAIN_MS) return finish();
+      const now = Date.now();
+      if (ptyDone({ endedAt, exit, exitedAt, now })) return finish();
       setTimeout(pump, POLL_MS);
     };
     setTimeout(pump, 0);

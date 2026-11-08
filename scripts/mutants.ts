@@ -2696,6 +2696,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the next open resumes the session by its id",
   },
   {
+    file: "packages/plugin-node/src/node-pty-terminal.ts",
+    from: "  if (s.endedAt !== undefined) return s.exit !== undefined || s.now - s.endedAt > EXIT_WAIT_MS;",
+    to: "  if (s.endedAt !== undefined) return true;",
+    why: "a session whose output ended waits for its exit code",
+  },
+  {
     file: "packages/core/src/domain/herdr.ts",
     from: "      ? run.questions > 0",
     to: "      ? false",
@@ -2793,8 +2799,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-copilot/src/copilot-interactive-host.ts",
-    from: '    const mode = isUuid(sessionId) ? ["--resume", sessionId] : ["--continue"];',
-    to: '    const mode = ["--continue"];',
+    from: '      resume === undefined ? ["-i", task.prompt] : isUuid(resume) ? ["--resume", resume] : ["--continue"];',
+    to: '      resume === undefined ? ["-i", task.prompt] : ["--continue"];',
     why: "a real session id is resumed by that id",
   },
   {
@@ -2805,8 +2811,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-interactive-host.ts",
-    from: '    return this.spawn(task, size, ["--resume", sessionId], sessionId);',
-    to: '    return this.spawn(task, size, [task.prompt, "--session-id", sessionId], sessionId);',
+    from: '    const mode = resume === undefined ? [task.prompt, "--session-id", sessionId] : ["--resume", resume];',
+    to: '    const mode = [task.prompt, "--session-id", sessionId];',
     why: "a resume continues the session instead of starting it again",
   },
   {
@@ -2817,8 +2823,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-opencode/src/opencode-interactive-host.ts",
-    from: '    const mode = sessionId.startsWith("ses_") ? ["--session", sessionId] : ["--continue"];',
-    to: '    const mode = ["--continue"];',
+    from: '        : resume.startsWith("ses_")',
+    to: "        : false",
     why: "a real OpenCode session id is resumed by that id",
   },
   {

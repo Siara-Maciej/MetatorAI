@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { tmpdir } from "node:os";
 import { exitOf, outputUntil } from "@metator/testing";
-import { NodePtyTerminal } from "../src/node-pty-terminal.ts";
+import { EXIT_WAIT_MS, NodePtyTerminal, ptyDone } from "../src/node-pty-terminal.ts";
 
 describe("NodePtyTerminal", () => {
   test("a program in a real PTY: it sees a TTY, reads what is typed, resizes, exits with its code", async () => {
@@ -34,4 +34,18 @@ describe("NodePtyTerminal", () => {
     pty.kill();
     expect(await exitOf(pty)).not.toBe(-1);
   }, 20_000);
+});
+
+describe("ptyDone", () => {
+  test("output ended without an exit code yet: wait for it (it comes later under load), then give up", () => {
+    expect(ptyDone({ endedAt: 1000, exit: undefined, exitedAt: 0, now: 1500 })).toBe(false);
+    expect(ptyDone({ endedAt: 1000, exit: 0, exitedAt: 1600, now: 1600 })).toBe(true);
+    expect(ptyDone({ endedAt: 1000, exit: undefined, exitedAt: 0, now: 1000 + EXIT_WAIT_MS + 1 })).toBe(true);
+  });
+
+  test("an exit code before the output ended: drain the last bytes a little before finishing", () => {
+    expect(ptyDone({ endedAt: undefined, exit: 0, exitedAt: 1000, now: 1100 })).toBe(false);
+    expect(ptyDone({ endedAt: undefined, exit: 0, exitedAt: 1000, now: 1300 })).toBe(true);
+    expect(ptyDone({ endedAt: undefined, exit: undefined, exitedAt: 0, now: 99_999 })).toBe(false);
+  });
 });

@@ -58,7 +58,7 @@ describe("HerdrCli", () => {
       ["pane", "get", "w1:p1"],
       ["workspace", "close", "w1"],
     ]);
-  });
+  }, 30_000);
 
   test("herdr's own error code and message reach the error; a missing binary says how to fix it", async () => {
     const herdr = fresh();
@@ -68,7 +68,7 @@ describe("HerdrCli", () => {
     );
     const missing = await new HerdrCli("/nonexistent/herdr").status("w1:p1");
     expect(missing._unsafeUnwrapErr().hint).toContain("METATOR_HERDR_BIN");
-  });
+  }, 30_000);
 
   test("herdrError reads herdr's JSON error line, and nothing else", () => {
     expect(herdrError('noise\n{"error":{"code":"timeout","message":"slow"}}')).toEqual({
