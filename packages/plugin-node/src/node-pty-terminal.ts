@@ -1,4 +1,4 @@
-import { existsSync, readSync, writeSync } from "node:fs";
+import { closeSync, existsSync, readSync, writeSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import {
@@ -114,6 +114,12 @@ export class NodePtyTerminal implements Terminal {
     const finish = () => {
       if (closed) return;
       closed = true;
+      // The master side is ours to close: a session left open holds a pseudo-terminal of the system.
+      try {
+        closeSync(term.fd);
+      } catch {
+        /* already closed */
+      }
       for (const l of exits) l(exit ?? 1);
     };
     const pump = () => {
