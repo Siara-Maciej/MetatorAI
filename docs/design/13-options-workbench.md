@@ -125,14 +125,22 @@ e2e: `layout split w1:p1 --dir vertical` tworzy drzewo i jest widoczne po restar
 
 ## 5c. Makiety do akceptacji (co osoba widzi)
 
-Canvas: <https://claude.ai/artifact/797oXryHh2ncr9mVts8W1B> (prywatny, 7 artboardów 1440×900, wersja 7).
+Canvas: <https://claude.ai/artifact/797oXryHh2ncr9mVts8W1B> (prywatny, 7 artboardów 1440×900, wersja 8).
 
-Zasada: **workbench = herdr, nic więcej na ekranie**. Jedna czcionka (mono), sidebar z numerowanymi workspace'ami i gałęzią, lista agentów ze stanem (✓ idle, ⋮ working, ! blocked, ? pyta), surowe terminale w ramkach z nazwą agenta, status line, jeden toast. Jedyne, co MetatorAI dodaje do głównego ekranu, to kropka uwagi przy workspace i dwie linie `run` w sidebarze (etap i liczba pytań). Wszystko inne jest pod prawym przyciskiem albo na osobnym, cienkim ekranie.
+Zasada: **workbench = herdr, nic więcej na ekranie**. Jedna czcionka (mono), sidebar z numerowanymi workspace'ami i gałęzią, lista agentów ze stanem (✓ idle, ⋮ working, ! blocked, ? pyta), surowe terminale w ramkach z nazwą agenta, status line, jeden toast. Wszystko inne jest pod prawym przyciskiem albo na osobnym, cienkim ekranie.
+
+Model ekranu (zgodny z `Layout` v1 z R1, doprecyzowany):
+
+- **workspace** = repozytorium (sidebar, numer, gałąź bazowa, kropka uwagi zbiorcza);
+- **tab** = zadanie: własny worktree, gałąź i run (`Tab.worktree`, `Tab.runId`, oba opcjonalne; tab bez nich to zwykły shell). Pasek tabów pokazuje nazwę i gałąź. Nowy tab z menu: shell, zadanie w nowym worktree, zadanie z backlogu;
+- **pane** = terminal w tabie (agent albo shell), siatka z podziałem jak w herdr.
+
+Pod paskiem tabów jest **pasek procesu aktywnego taba**: etapy workflow w jednej linii (`intake ✓ · context ✓ · plan ✓ · approval ✓ · build ▸ 2/4 · gates · review · delivery`), po prawej liczba pytań, ścieżka worktree i przycisk **VS Code** (widoczny, gdy tab ma worktree albo gałąź). Klik w etap otwiera ekran Plan. Dla taba bez runu pasek jest pusty poza ścieżką i VS Code.
 
 | Artboard | Co pokazuje |
 |---|---|
-| **Main** | workbench jak herdr; 2×2 terminale Copilot CLI widoczne jak w konsoli; toast z pytaniem hosta (`↵` odpowiedz) |
-| **Menu** | prawy klik na pane: odpowiedz tutaj, przejmij klawiaturę, zoom, podziel, plan runu, zmiany, VS Code, nowe zadanie stąd, zamknij; prawy klik na workspace: plan, zmiany, backlog, VS Code, nowy terminal, zakończ run. Te same akcje pod `prefix` + klawisz |
+| **Main** | workbench jak herdr; taby = zadania (discount · run/discount-10, pdf-cents, shell); pasek procesu pod tabami z VS Code; 2×2 terminale Copilot CLI widoczne jak w konsoli; toast z pytaniem hosta (`↵` odpowiedz) |
+| **Menu** | prawy klik na pane: odpowiedz tutaj, przejmij klawiaturę, zoom, podziel, plan runu, zmiany, VS Code, nowe zadanie stąd, zamknij; prawy klik na tab: nowy tab (shell / zadanie w nowym worktree / zadanie z backlogu), zmień nazwę, zamknij tab i usuń worktree. Te same akcje pod `prefix` + klawisz |
 | **GoTo** | `prefix+g`: jedno pole, lista agentów i terminali po numerach workspace'ów, pytania jako wiersze, filtry `b w i d` |
 | **Plan** | lista kroków po lewej, jeden krok po prawej (plik, testy, wzorzec, reguły, krytyk), pasek etapów w jednej linii, „czeka na ciebie” na dole listy |
 | **Zmiany** (review) | lista plików, diff, uwaga jako linia pod kodem, jeden przycisk „Wyślij N uwag”, „VS Code” |
