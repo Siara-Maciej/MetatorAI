@@ -1,5 +1,5 @@
 /**
- * Writes the CLI reference of the documentation site (site/api/commands.md) from the commander
+ * Writes the CLI reference of the documentation site (site/reference/commands.md) from the commander
  * program itself, so the reference can never drift from the CLI. `--check` fails when it did.
  */
 import { join } from "node:path";
@@ -8,7 +8,7 @@ import { buildProgram } from "../../packages/cli/src/program.ts";
 /** commander is a dependency of the CLI package, not of the repository root. */
 type Command = ReturnType<typeof buildProgram>;
 
-const OUT = join(import.meta.dir, "../../site/api/commands.md");
+const OUT = join(import.meta.dir, "../../site/reference/commands.md");
 
 function leaves(cmd: Command, prefix = ""): { name: string; cmd: Command }[] {
   return cmd.commands.flatMap((sub: Command): { name: string; cmd: Command }[] => {
@@ -75,12 +75,12 @@ if (import.meta.main) {
   const current = (await file.exists()) ? await file.text() : "";
   if (process.argv.includes("--check")) {
     if (current !== next) {
-      console.error("site/api/commands.md is stale: run `bun run site:reference`");
+      console.error("site/reference/commands.md is stale: run `bun run site:reference`");
       process.exit(1);
     }
-    console.log("site/api/commands.md is up to date");
+    console.log("site/reference/commands.md is up to date");
   } else {
     await Bun.write(OUT, next);
-    console.log("wrote site/api/commands.md");
+    console.log("wrote site/reference/commands.md");
   }
 }

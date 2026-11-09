@@ -3,21 +3,21 @@ layout: home
 
 hero:
   name: MetatorAI
-  text: The engineering workflow that makes AI agents right.
-  tagline: Survey the codebase, lay out the rules, prove every claim, then ship. For GitHub Copilot and Claude Code, enforced by scripts and hooks, approved by people.
+  text: Your agents are fast. MetatorAI makes them right.
+  tagline: Survey the codebase, lay out the rules, prove every claim, then ship. Scripts measure, hooks enforce, people approve. For GitHub Copilot and Claude Code.
   image:
     src: /logo.svg
     alt: MetatorAI
   actions:
     - theme: brand
-      text: Get started
-      link: /product/idea
+      text: Quick start · 15 minutes
+      link: /start/quick-start
     - theme: alt
       text: How it works
-      link: /product/how-it-works
+      link: /start/how-it-works
     - theme: alt
-      text: View on GitHub
-      link: https://github.com/Siara-Maciej/MetatorAI
+      text: Why MetatorAI
+      link: /start/why
 ---
 
 <HomeSections />

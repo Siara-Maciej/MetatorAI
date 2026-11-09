@@ -11,44 +11,30 @@
 
 ### Your agents are fast. MetatorAI makes them *right*.
 
-**Survey the codebase. Lay out the rules. Prove every claim. Then ship.**
-
 </div>
 
 ---
 
-In the Roman legion, the **metator** marched ahead of the army. He chose the ground,
-measured it and staked out the camp (streets, walls, a place for every unit), so that
-when the legion arrived, no one had to guess.
+AI coding agents guess. They rewrite a helper that exists two folders away, change a module without knowing who imports it, skip the tests, push on their own, and review with comments that sound right and are wrong. A longer prompt does not fix this: a model cannot be trusted to follow a rule at the moment it matters.
 
-**MetatorAI does that for AI agents working on your code.** Before a single line changes,
-it maps the terrain: dependency graph, module boundaries, existing patterns, the
-decisions in your ADRs. Then it marks out the lines every change must follow, and
-puts gates on them that no agent can skip.
+**MetatorAI moves the rules out of the prompt.** It runs around GitHub Copilot and Claude Code, not instead of them, and splits the work into four roles:
 
-> **No guessing. No reinventing. No unproven review comments.**
+| Role | Done by | Example |
+|---|---|---|
+| **Decide** | the LLM | understand the task, plan, write code, find problems in a diff |
+| **Measure** | the `metator` CLI | which tests a change reaches, which rules apply, is the plan valid, is the quote in a finding real |
+| **Enforce** | hooks the AI host runs | no edit outside the plan, no push without approval, no secrets read |
+| **Approve** | people | the plan, the push, the review comments |
 
----
+> **LLMs decide. Scripts measure. Hooks enforce. Humans approve.**
 
-## The Metator loop
+## The loop
 
 <div align="center">
 <img src="assets/flow.svg" alt="Survey → Plan → Gate → Build → Verify → Ship, with parallel subagents and a bounded feedback loop" width="100%">
 </div>
 
-| | Stage | What really happens |
-|---|---|---|
-| 🧭 | **Survey** | Parallel subagents read *measured facts*: dependency graph, affected modules, pattern index, the rule pack for exactly the files in scope. |
-| 📐 | **Plan** | Every step names a file, a skill, the tests to write first, and **an exemplar from your own codebase (`file:line`)**. A new abstraction requires an ADR. |
-| 🚧 | **Gate** | `plan lint` (deterministic) → plan critic (different model) → **you**. |
-| 🔨 | **Build** | Tests go **RED → GREEN**. Hooks block any edit outside the plan's scope and lint every file the moment it changes. |
-| 🔍 | **Verify** | Review lenses run in parallel. An independent verifier tries to *refute* every finding. Blocking issues loop back to the plan, but only a bounded number of times. |
-| 🚀 | **Ship** | The PR is drafted, but nothing is pushed until a human says go. |
-
-Every stage leaves an **artifact with a schema**. A stage is done when the artifact exists
-and validates, not when the model says so.
-
----
+Survey the code with measured facts, plan every step with an exemplar from your own codebase, gate the plan, build tests first, verify with findings that must prove themselves, and ship only when a person says go. Every stage leaves an artifact with a schema; a stage is done when the artifact validates, not when the model says so.
 
 ## Review that has to prove itself
 
@@ -56,180 +42,49 @@ and validates, not when the model says so.
 <img src="assets/review.svg" alt="PR diff sharded by module, parallel review lenses, verifier refutes findings, judge issues verdict" width="100%">
 </div>
 
-AI code review usually fails in two ways: comments that are confidently wrong, and
-silence on the bug that matters. MetatorAI attacks both:
+Every finding carries an exact quote, a triggering input and a path from a real caller. An independent verifier on another model tries to refute it before you see it. Precision and recall are measured on a golden set, so a prompt change that makes review worse turns CI red.
 
-- **Sharded by module** so every lens sees a diff it can actually reason about, plus that module's card and rules.
-- **Parallel lenses** (logic, contracts, tests, security, behavioral equivalence) give recall.
-- **Every finding must carry evidence:** an exact quote, a triggering input, a reachability path from a real caller. No evidence means it can't block.
-- **An independent verifier**, on a different model and with a clean context, tries to *refute* each one. A failing test beats an argument.
-- **Measured, not vibed:** precision and recall are tracked against a golden set of real PRs. A prompt change that makes review worse turns CI red.
+## Seven concepts
 
----
-
-## Why teams pick MetatorAI
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-### 🧱 Patterns, not reinvention
-Agents start from *how your codebase already solves it*. A structural pattern index
-(ast-grep) ranks real exemplars, so new code looks like your best code, not like the internet's average.
-
-</td>
-<td width="50%" valign="top">
-
-### 🔒 Gates you can't talk your way past
-Workflows are declarative **state machines**. Scripts validate every transition,
-hooks enforce scope and approvals, and the `Stop` hook won't let a run end half-done.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-### 🧠 Memory that stays true
-One canon for rules and decisions, a generated code index, per-run working memory,
-and learned lessons. **Every remembered fact cites `file:line` and is re-validated**
-before it is used.
-
-</td>
-<td valign="top">
-
-### ♻️ Refactors that keep behavior
-Characterization tests first, then public-API diffs and dependency-graph diffs as gates.
-"Nothing changed" becomes something you can **prove**.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-### 🔌 Speaks capabilities, not tools
-Workflows ask for `lint`, `test`, `typecheck`, `rules`, `graph`, never for a specific
-binary. Swap Biome for ESLint or Jest for Vitest in config. Nothing else changes.
-
-</td>
-<td valign="top">
-
-### 🎛️ One canon, every host
-Agents, skills, rules and hooks are written once in a host-neutral format and **generated**
-for GitHub Copilot and Claude Code. Interactive in your editor, headless in CI.
-
-</td>
-</tr>
-</table>
-
----
-
-## Documentation
-
-**📖 [User documentation](https://siara-maciej.github.io/MetatorAI/)**: installation, a 15-minute quick start, every workflow, how-to guides and the full CLI reference. Its source is in [`site/`](site/).
-
-| I want to | Read |
+| Concept | In one sentence |
 |---|---|
-| Install it and try it on my repository | [Installation](https://siara-maciej.github.io/MetatorAI/guide/installation) · [Quick start](https://siara-maciej.github.io/MetatorAI/guide/quick-start) |
-| Understand the moving parts | [Concepts](https://siara-maciej.github.io/MetatorAI/guide/concepts) |
-| Run a feature, bug fix, refactor or review | [Workflows](https://siara-maciej.github.io/MetatorAI/workflows/) |
-| Turn conventions into checked rules | [Write and enforce rules](https://siara-maciej.github.io/MetatorAI/how-to/rules) |
-| Put it into CI | [Quality gates and CI](https://siara-maciej.github.io/MetatorAI/how-to/gates-ci) |
-| Look up a command | [Command reference](https://siara-maciej.github.io/MetatorAI/api/commands) |
+| [Run](https://siara-maciej.github.io/MetatorAI/concepts/run) | one task as a state machine, with an audit log and artifacts on disk |
+| [Workflow](https://siara-maciej.github.io/MetatorAI/concepts/workflow) | the YAML spec a run follows: stages, owners, artifacts, gates, loop limits |
+| [Gate and approvals](https://siara-maciej.github.io/MetatorAI/concepts/gate) | a point in a run only evidence or a named person can open |
+| [Canon](https://siara-maciej.github.io/MetatorAI/concepts/canon) | your rules, patterns, module cards and ADRs, enforced by tools and reviewed like code |
+| [Finding](https://siara-maciej.github.io/MetatorAI/concepts/finding) | a review claim with evidence, verified before it may block |
+| [Host](https://siara-maciej.github.io/MetatorAI/concepts/host) | Copilot or Claude Code, with agents and hooks generated from one canon |
+| [Session](https://siara-maciej.github.io/MetatorAI/concepts/session) | a run with its own worktree, ports, drive and questions, next to other sessions |
 
 ## Quick start
 
-MetatorAI works in npm, pnpm, Yarn and Bun projects (it detects yours and runs your scripts with it). It is pre-alpha, runs from a checkout (it is not on npm yet) and needs the [Bun](https://bun.sh) runtime. Per-package-manager steps: [Installation](https://siara-maciej.github.io/MetatorAI/guide/installation).
+Pre-alpha: runs from a checkout and needs [Bun](https://bun.sh). Works in npm, pnpm, Yarn and Bun projects.
 
 ```bash
 git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
 cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)   # `metator` on your PATH
 
 cd ~/code/your-repo
-metator setup                                  # asks: Claude Code, Copilot or both; workflows; hooks
-metator index build && metator gate full       # measured facts, then your own checks in one report
+metator setup                 # surveys the repo, installs the canon, generates agents and hooks
+metator run                   # a new run, driven in the background and watched live
+metator ui                    # every session, what needs you, applications
+metator ask "How is the discount computed?"
 ```
 
-`metator setup` surveys the repository (package manager, workspaces, scripts, linters, test runners, CI) and writes `metator.config.yml` with the evidence for each gate. It then installs the shipped agents, skills and workflows, generates the host files and checks the result. `metator agents update` later takes a newer canon without undoing your edits. Then, in Copilot Chat or Claude Code:
+In Copilot Chat or Claude Code: `@mt-orchestrator run mt-feature for AB#1234`, `@mt-pr-review review PR #482`.
 
-```text
-@mt-orchestrator run mt-feature for AB#1234     → full loop; you approve the plan and the push
-@mt-orchestrator run mt-bugfix for <bug report>  → regression test first, then the fix
-@mt-orchestrator run mt-refactor for packages/billing → behavior-preserving refactor
-@mt-pr-review review PR #482                      → review with proof
-```
+## Documentation
 
-### Work from the terminal
+**[siara-maciej.github.io/MetatorAI](https://siara-maciej.github.io/MetatorAI/)**
 
-```bash
-metator ui                                     # full screen: every session, its stages, what needs you, apps, settings
-metator run                                    # a new run, driven in the background and watched live
-metator ask "How is the discount computed?"    # a plain question about the code, answered with path:line citations
-metator status                                 # the same overview as JSON, for scripts
-```
-
-Several repositories? Run `metator setup` in each; from the folder that holds them, `metator ui`, `ask` and `status` cover them all ([Several repositories](https://siara-maciej.github.io/MetatorAI/multi-repo/repositories)).
-
-### What the CLI does today
-
-Every command prints one JSON line:
-
-```bash
-metator workflow lint                                          # every workflow against the 16-section anatomy
-metator run init --workflow mt-feature --task "Add combined discount"
-metator run advance pass                                       # next stage
-metator run advance fail --reason "plan lint: step 3 has no exemplar"   # bounded loop back to plan
-metator run approve plan-approval --by maciej                  # human gates accept only an approval
-metator run status                                             # stage, what it expects, recent history
-metator run handoff                                            # handoff.md from the run directory, not the chat
-metator run close                                              # summary.json with the run's final telemetry
-metator changed --base main                                    # files changed on the branch (git)
-metator index build                                            # incremental import index (oxc), cached per file
-metator graph affected --base main                             # files and tests reached by the change
-metator graph dependents src/money.ts --transitive             # who imports this, directly or not
-metator graph cycles                                           # import cycles
-metator graph path apps/web/src/main.ts packages/money/src/currency.ts
-metator workspace list                                         # npm, yarn, pnpm, bun workspaces
-metator rules pack --paths src/billing/invoice.ts              # only the rules that apply, sized for an agent
-metator rules check --base main                                # E1 rules via ast-grep, mapped to rule ids
-metator rules adapters --check                                 # generated Copilot instructions match the canon
-metator rules scaffold MT-CODE-004                             # turn a reviewed rule into a tool rule with a failing test
-metator memory check                                           # every knowledge file mapped, budgets kept, citations true
-metator memory validate --fix                                  # [[cite: file:line | "quote"]] claims follow moved code
-metator cards build                                            # one card per package: generated facts + curated knowledge
-metator similar --file src/orders/customers.queries.ts         # how we already do this: the exemplar to follow, never legacy
-metator gate quick --base main                                 # the repo's own checks on the branch's files, one report
-metator generate                                               # Copilot and Claude Code agents from one canonical source
-metator review plan --base main                                # shards per package with card and rules, lenses per shard
-metator findings validate <dir> --fix                          # invented quotes and unproven blockers never reach a human
-metator findings check-quote src/a.ts --line 41 --quote "..."  # one claimed quote against the code
-metator lessons add --title ... --file ... --line ... --quote ...  # a lesson only with true evidence
-metator debug-tags check --base main                           # no instrumentation left after a diagnosis
-metator owners packages/billing/src/invoice.ts                 # owners from CODEOWNERS (last matching line wins)
-metator docs links                                             # dead relative links and headings in Markdown
-metator docs drift                                             # verified claims about the code, checked again
-metator system show                                            # applications, contracts, consumers and deploy waves
-metator system lint                                            # the system map holds: owners, contracts, kinds, specs
-metator eval run --command "scripts/review.sh {case} {out}"    # precision and recall of the review on a golden set
-```
-
-Every file MetatorAI writes is a versioned document (`kind` + `schemaVersion`), so it is always clear how to parse it
-and older files are migrated on read. Run state lives in `.metator/runs/<id>/state.json` with an append-only `log.md`,
-so any session, CI job or AI host can resume exactly where the last one stopped.
-
-### Planned support
-
-| Layer | |
+| I want to | Read |
 |---|---|
-| **AI hosts** | GitHub Copilot (VS Code, CLI, coding agent) · Claude Code |
-| **Package managers** | npm · yarn · pnpm · bun |
-| **Monorepo tools** | workspaces · Nx · Turborepo |
-| **Quality** | Biome · ESLint · Prettier · tsc · ast-grep |
-| **Tests & coverage** | bun test · Vitest · Jest · Playwright, via **JUnit** & **LCOV** |
-| **Diagnostics** | native JSON or **SARIF**, so one parser covers dozens of tools |
-| **Code hosts & trackers** | GitHub · Azure DevOps · GitLab · Jira |
-| **CI** | GitHub Actions · Azure Pipelines · GitLab CI, including self-hosted runners |
-
----
+| Understand why and how | [Why MetatorAI](https://siara-maciej.github.io/MetatorAI/start/why) · [How it works](https://siara-maciej.github.io/MetatorAI/start/how-it-works) |
+| Install and try it on my repository | [Installation](https://siara-maciej.github.io/MetatorAI/start/installation) · [Quick start](https://siara-maciej.github.io/MetatorAI/start/quick-start) |
+| Run a feature, bug fix, refactor or review | [Work](https://siara-maciej.github.io/MetatorAI/work/) |
+| Turn conventions into rules a tool enforces | [Write and enforce rules](https://siara-maciej.github.io/MetatorAI/knowledge/rules) |
+| Put the gates into CI | [Quality gates and CI](https://siara-maciej.github.io/MetatorAI/knowledge/gates-ci) |
+| Look up a command | [Command reference](https://siara-maciej.github.io/MetatorAI/reference/commands) |
 
 ## Under the hood
 
@@ -237,46 +92,17 @@ so any session, CI job or AI host can resume exactly where the last one stopped.
 <img src="assets/architecture.svg" alt="Architecture: domain inside ports inside application inside runtime; CLI and hooks drive it, plugins implement ports" width="100%">
 </div>
 
-Clean architecture with ports and adapters, built on proven libraries instead of home-grown ones:
-**awilix** (DI, a scope per workflow run), **XState** (run state machine, pure transitions, resumable from JSON),
-**graphlib** (dependency graph: affected files, cycles, paths), **oxc** (import parsing and resolution:
-tsconfig paths, package exports, workspace links), **manypkg** (workspace packages), **simple-git** (git),
-**neverthrow** (errors as values) and **picomatch** (globs).
-New tools arrive as **presets** (a command plus a standard-format parser), so adding one is a few lines of declaration
-rather than new code.
-
----
-
-## Principles
-
-> **LLMs decide. Scripts measure. Hooks enforce. Humans approve.**
-
-1. **Evidence or it didn't happen:** no `file:line`, no claim.
-2. **Paths, not paste:** agents hand each other artifact paths, never walls of text.
-3. **Bounded loops:** every retry has a limit and an escalation.
-4. **Least privilege:** reviewers read, implementers edit only what the plan allows, nobody pushes alone.
-5. **Data is not instructions:** PR text, issues and docs are inputs, never commands.
-6. **Don't reinvent the wheel:** proven packages first; custom code only for what is unique to MetatorAI.
-7. **Prove it works:** every change ships unit and e2e tests against the real entrypoint, and every check must have failed once on purpose.
-
----
+Ports and adapters on proven libraries (awilix, XState, graphlib, oxc, simple-git, zod, neverthrow). Every file MetatorAI reads or writes is a versioned document; every command prints one JSON object. Tools arrive as plugins behind small ports with contract suites.
 
 ## Contributing
 
 ```bash
 bun install
-bun run check        # Biome · TS 7 · ast-grep rules · unit + e2e (CLI, visuals in Chromium) · mutation smoke
-bun run metator help
-bun run site:dev     # the user documentation at http://localhost:5173/MetatorAI/
+bun run check        # Biome · TS 7 · ast-grep rules · unit + e2e · mutation smoke
+bun run site:dev     # the documentation at http://localhost:5173/MetatorAI/
 ```
 
-The codebase enforces its own architecture: `rules/architecture/*.yml` (ast-grep) fails CI if the domain
-imports I/O or a plugin reaches into the runtime. Design docs (in Polish) live in [`docs/`](docs/README.md),
-decisions in [`docs/adr/`](docs/adr/README.md), and agent instructions for this repo in [`AGENTS.md`](AGENTS.md).
-
-## Status
-
-Pre-alpha. The CLI, the workflow engine, the hooks, the review core and the knowledge tools are implemented and tested; the systems-of-many-applications phase (F7) is in progress. The detailed roadmap is in [`docs/ROADMAP.md`](docs/ROADMAP.md) (Polish).
+The codebase enforces its own architecture and canon in CI. Design docs (Polish) live in [`docs/`](docs/README.md), decisions in [`docs/adr/`](docs/adr/README.md), agent instructions for this repo in [`AGENTS.md`](AGENTS.md). Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ---
 
