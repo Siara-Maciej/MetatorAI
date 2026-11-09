@@ -2664,11 +2664,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/pty-broker.ts",
-    from:
-      '    if (record.value.driver?.by === "human")\n      return err(\n        MetatorError.usage(\n          `run $' +
-      "{runId} is driven by $" +
-      "{record.value.driver.attachedBy}: no nudge over a person`,\n        ),\n      );\n",
-    to: "",
+    from: '      if (record.value.driver?.by === "human")\n        return err(',
+    to: "      if (false)\n        return err(",
     why: "no nudge over a person at the keyboard",
   },
   {
@@ -2679,9 +2676,11 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/pty-broker.ts",
-    from: "    if (current?.alive) return ok(this.view(runId, current));\n",
+    from:
+      "    if (current?.alive) return err(MetatorError.usage(`pane $" +
+      "{input.paneId} already has a live terminal`));",
     to: "",
-    why: "an open session is not started twice",
+    why: "a pane has one live terminal at a time",
   },
   {
     file: "packages/core/src/application/pty-broker.ts",
@@ -2690,16 +2689,52 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a session waiting on a question is not idle",
   },
   {
-    file: "packages/core/src/application/pty-broker.ts",
-    from: "const resumable = record.value.host === host.id ? record.value.hostSession : undefined;",
-    to: "const resumable = undefined;",
-    why: "the next open resumes the session by its id",
-  },
-  {
     file: "packages/plugin-node/src/node-pty-terminal.ts",
     from: "  if (s.endedAt !== undefined) return s.exit !== undefined || s.now - s.endedAt > EXIT_WAIT_MS;",
     to: "  if (s.endedAt !== undefined) return true;",
     why: "a session whose output ended waits for its exit code",
+  },
+  {
+    file: "packages/core/src/domain/layout.ts",
+    from: "      const kept = tabs.filter((t) => t.panes.length > 0 || tabs.length === 1);",
+    to: "      const kept = tabs;",
+    why: "an emptied tab goes with its last pane",
+  },
+  {
+    file: "packages/core/src/domain/layout.ts",
+    from: "      next: { ...layout.next, pane: layout.next.pane + 1 },",
+    to: "      next: { ...layout.next },",
+    why: "a pane id is never reused",
+  },
+  {
+    file: "packages/core/src/application/layout-store.ts",
+    from: "    if (!(await this.fs.exists(this.file))) return ok(EMPTY_LAYOUT);",
+    to: "",
+    why: "no layout file is an empty layout, not an error",
+  },
+  {
+    file: "packages/core/src/application/panes.ts",
+    from: "      if (live?.alive) return ok({ ...conductor, live });",
+    to: "",
+    why: "an open conductor pane is reused, not started twice",
+  },
+  {
+    file: "packages/core/src/application/panes.ts",
+    from: "      const started = previous ? await h.resume(previous, task, size) : await h.start(task, size);",
+    to: "      const started = await h.start(task, size);",
+    why: "a pane with a session id resumes it",
+  },
+  {
+    file: "packages/core/src/application/panes.ts",
+    from: "      if (this.d.broker.status(pane.id)?.alive) continue;",
+    to: "",
+    why: "restore leaves live panes alone",
+  },
+  {
+    file: "packages/core/src/application/pty-broker.ts",
+    from: '    } else if (input.by.trim() === "") return err(MetatorError.usage("say who types (`by`)"));',
+    to: "    }",
+    why: "typing into a shell pane needs a name",
   },
   {
     file: "packages/desktop/src/model.ts",

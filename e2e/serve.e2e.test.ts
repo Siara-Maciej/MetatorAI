@@ -132,8 +132,8 @@ describe("metator serve (real daemon)", () => {
       entries: { type: string; origin?: string; text: string }[];
     };
     expect(activity.entries.filter((e) => e.origin === "pty").map((e) => e.text)).toEqual([
-      expect.stringContaining("started session scenario-session-1"),
-      "session scenario-session-1 exited with 0",
+      expect.stringContaining("started session scenario-session-1 in pane w1:p1"),
+      "session scenario-session-1 exited with 0 (pane w1:p1)",
     ]);
     expect((await post(`/runs/${runId}/release`, {})).ok).toBe(true);
   }, 60_000);

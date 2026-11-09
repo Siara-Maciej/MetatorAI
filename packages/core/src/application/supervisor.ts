@@ -96,40 +96,43 @@ export class Supervisor {
     const asked: string[] = [];
     const closed: string[] = [];
     for (const session of this.d.broker.list()) {
-      const episode = this.episodes.get(session.runId);
+      // Only a run's conductor is nudged; workers answer to it, shells to nobody.
+      const runId = session.runId;
+      if (!runId || session.role !== "conductor") continue;
+      const episode = this.episodes.get(runId);
       if (!session.alive) {
-        this.episodes.delete(session.runId);
+        this.episodes.delete(runId);
         continue;
       }
       if (!session.idle) {
         // Output came back after a nudge; a question asked meanwhile is answered below or stays.
-        if (episode && !episode.question) this.episodes.delete(session.runId);
+        if (episode && !episode.question) this.episodes.delete(runId);
         if (episode?.question) {
-          const answer = await this.answered(session.runId, episode.question);
+          const answer = await this.answered(runId, episode.question);
           if (answer === CLOSE_SESSION) {
-            await this.d.broker.close(session.runId);
-            closed.push(session.runId);
-            this.episodes.delete(session.runId);
-          } else if (answer !== undefined) this.episodes.delete(session.runId);
+            await this.d.broker.close(session.paneId);
+            closed.push(runId);
+            this.episodes.delete(runId);
+          } else if (answer !== undefined) this.episodes.delete(runId);
         }
         continue;
       }
       if (!episode) {
-        const r = await this.d.broker.nudge(session.runId, NUDGE);
+        const r = await this.d.broker.nudge(session.paneId, NUDGE);
         if (r.isErr()) continue; // a person drives: nothing to nudge
-        const noted = await this.d.journal.record(session.runId, {
+        const noted = await this.d.journal.record(runId, {
           type: "idle",
           origin: "run",
           agent: session.host,
           text: "nudged: go on with the next step of the plan",
         });
         if (noted.isErr()) return err(noted.error);
-        this.episodes.set(session.runId, { nudged: true });
-        nudged.push(session.runId);
+        this.episodes.set(runId, { nudged: true });
+        nudged.push(runId);
         continue;
       }
       if (!episode.question) {
-        const q = await this.d.journal.ask(session.runId, {
+        const q = await this.d.journal.ask(runId, {
           stage: "session",
           source: "agent",
           agent: session.host,
@@ -142,19 +145,19 @@ export class Supervisor {
         });
         if (q.isErr()) return err(q.error);
         episode.question = q.value.id;
-        asked.push(session.runId);
+        asked.push(runId);
         continue;
       }
-      const answer = await this.answered(session.runId, episode.question);
+      const answer = await this.answered(runId, episode.question);
       if (answer === CLOSE_SESSION) {
-        await this.d.broker.close(session.runId);
-        closed.push(session.runId);
-        this.episodes.delete(session.runId);
+        await this.d.broker.close(session.paneId);
+        closed.push(runId);
+        this.episodes.delete(runId);
       } else if (answer !== undefined) {
         // Nudge again (or any other words): one more nudge, then the question comes back.
-        const r = await this.d.broker.nudge(session.runId, NUDGE);
-        if (r.isOk()) nudged.push(session.runId);
-        this.episodes.set(session.runId, { nudged: true });
+        const r = await this.d.broker.nudge(session.paneId, NUDGE);
+        if (r.isOk()) nudged.push(runId);
+        this.episodes.set(runId, { nudged: true });
       }
     }
 

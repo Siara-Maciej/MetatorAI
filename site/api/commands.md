@@ -2212,6 +2212,43 @@ metator serve [options]
 | `--poll-ms <n>` | how often sockets look for a change | `1000` |
 | `--supervise-ms <n>` | how often the supervisor ticks (0: never) | `5000` |
 
+## pane
+
+### `metator pane list`
+
+Every workspace with its panes and their live state
+
+```bash
+metator pane list [options]
+```
+
+### `metator pane read`
+
+The last lines of a pane's output, without terminal escapes
+
+```bash
+metator pane read [options] <pane>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<pane>` |  | |
+| `--lines <n>` | how many lines | `80` |
+
+### `metator pane wait`
+
+Wait until the pane's terminal is idle or has exited (default: either)
+
+```bash
+metator pane wait [options] <pane>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<pane>` |  | |
+| `--until <state>` | idle or exited; repeat for several | `[]` |
+| `--timeout <ms>` | give up after this long | `60000` |
+
 ## supervise
 
 ### `metator supervise`

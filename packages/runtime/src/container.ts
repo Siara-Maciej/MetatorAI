@@ -97,6 +97,7 @@ import {
   type JudgeFindings,
   type KnowledgeFiles,
   type Launcher,
+  type LayoutStore,
   type LintAdrs,
   type LintAgents,
   type LintPlan,
@@ -122,6 +123,7 @@ import {
   type PackageManager,
   type PackageManagerDetector,
   type PackRules,
+  type Panes,
   type PatternCatalog,
   type PlanReview,
   type PortProbe,
@@ -260,6 +262,8 @@ export interface Cradle {
   terminal: Terminal;
   interactiveHosts: ReadonlyMap<string, InteractiveHost>;
   ptyBroker: PtyBroker;
+  layoutStore: LayoutStore;
+  panes: Panes;
   supervisor: (restart: SupervisorDependencies["restart"]) => Supervisor;
   runMessages: RunMessages;
   runJournal: RunJournal;

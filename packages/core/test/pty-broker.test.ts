@@ -9,7 +9,7 @@ import {
   RunRepository,
   WorkflowCatalog,
 } from "@metator/core";
-import { FakeInteractiveHost, FixedClock, InMemoryFileSystem } from "@metator/testing";
+import { FakePty, FixedClock, InMemoryFileSystem } from "@metator/testing";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -20,14 +20,10 @@ function world() {
   const catalog = new WorkflowCatalog(fs, DEFAULT_PATHS);
   const repo = new RunRepository(fs, DEFAULT_PATHS);
   const journal = new RunJournal(fs, repo, clock);
-  const host = new FakeInteractiveHost("fake");
   const timers: { ms: number; fn: () => void }[] = [];
   const broker = new PtyBroker({
     repo,
     journal,
-    hosts: new Map([["fake", host]]),
-    clock,
-    root: "/repo",
     idleMs: 5000,
     after: (ms, fn) => {
       const t = { ms, fn };
@@ -36,106 +32,121 @@ function world() {
     },
   });
   const init = (task: string) => new InitRun(catalog, repo, clock).execute({ workflow: "demo", task });
-  return { fs, repo, journal, host, broker, timers, init, lock: new DriverLock(repo, journal, clock) };
+  const start = (
+    paneId: string,
+    runId: string | undefined,
+    pty = new FakePty(1001),
+    role: "conductor" | "shell" = "conductor",
+  ) =>
+    broker
+      .start({ paneId, ...(runId ? { runId } : {}), role, host: "fake", sessionId: "fake-1", pty })
+      ._unsafeUnwrap();
+  return { fs, repo, journal, broker, timers, init, start, lock: new DriverLock(repo, journal, clock) };
 }
 
 describe("PtyBroker", () => {
-  test("open starts the host with the run's task in its checkout, remembers the session, fans output out", async () => {
+  test("a started terminal fans its output out, keeps a backlog, and refuses a second live start of the pane", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();
-    const view = (await w.broker.open({ runId: run.runId }))._unsafeUnwrap();
+    const pty = new FakePty(1001);
+    const view = w.start("w1:p1", run.runId, pty);
     expect(view).toEqual({
+      paneId: "w1:p1",
       runId: run.runId,
+      role: "conductor",
       host: "fake",
       sessionId: "fake-1",
       pid: 1001,
       alive: true,
       idle: false,
     });
-    const started = w.host.started[0];
-    expect([started?.task.prompt, started?.task.cwd, started?.task.driven]).toEqual([
-      "Add discount",
-      "/repo",
-      true,
-    ]);
-    expect((await w.repo.load(run.runId))._unsafeUnwrap()).toMatchObject({
-      host: "fake",
-      hostSession: "fake-1",
-    });
     const seen: PtyEvent[] = [];
-    const stop = w.broker.subscribe(run.runId, (e) => seen.push(e));
-    started?.pty.print("hello ");
-    started?.pty.print("world");
-    expect(w.broker.backlog(run.runId)).toBe("hello world");
+    const stop = w.broker.subscribe("w1:p1", (e) => seen.push(e));
+    pty.print("hello ");
+    pty.print("world");
+    expect(w.broker.backlog("w1:p1")).toBe("hello world");
     expect(seen).toEqual([
       { type: "data", data: "hello " },
       { type: "data", data: "world" },
     ]);
     stop();
-    // Opening again while alive is the same session; nothing new starts.
-    expect((await w.broker.open({ runId: run.runId }))._unsafeUnwrap().sessionId).toBe("fake-1");
-    expect(w.host.started.length).toBe(1);
-    const activity = (await w.journal.activity(run.runId))._unsafeUnwrap();
-    expect(activity.map((a) => [a.type, a.origin, a.text])).toEqual([
-      ["agent", "pty", "started session fake-1 (pid 1001)"],
-    ]);
+    expect(
+      w.broker
+        .start({
+          paneId: "w1:p1",
+          runId: run.runId,
+          role: "conductor",
+          host: "fake",
+          sessionId: "x",
+          pty: new FakePty(),
+        })
+        ._unsafeUnwrapErr().message,
+    ).toBe("pane w1:p1 already has a live terminal");
+    expect(w.broker.byRun(run.runId).map((v) => v.paneId)).toEqual(["w1:p1"]);
   });
 
-  test("typing goes to the PTY only from the person who holds the driver lock", async () => {
+  test("typing goes to a run's pane only from the person who holds the driver lock; a shell takes any name", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();
-    await w.broker.open({ runId: run.runId });
-    const pty = w.host.started[0]?.pty;
+    const pty = new FakePty(1001);
+    w.start("w1:p1", run.runId, pty);
     const agentDriven = (
-      await w.broker.write({ runId: run.runId, data: "y\r", by: "maciej" })
+      await w.broker.write({ paneId: "w1:p1", data: "y\r", by: "maciej" })
     )._unsafeUnwrapErr();
     expect(agentDriven.message).toContain("is driven by the agent: attach first");
     await w.lock.attach({ runId: run.runId, by: "maciej" });
-    const other = (await w.broker.write({ runId: run.runId, data: "y\r", by: "alice" }))._unsafeUnwrapErr();
+    const other = (await w.broker.write({ paneId: "w1:p1", data: "y\r", by: "alice" }))._unsafeUnwrapErr();
     expect(other.message).toContain("is driven by maciej: only they may type");
-    expect((await w.broker.write({ runId: run.runId, data: "y\r", by: "maciej" })).isOk()).toBe(true);
-    expect(pty?.typed).toEqual(["y\r"]);
-    expect(w.broker.resize(run.runId, { cols: 100, rows: 30 }).isOk()).toBe(true);
-    expect(pty?.sizes).toEqual([{ cols: 100, rows: 30 }]);
+    expect((await w.broker.write({ paneId: "w1:p1", data: "y\r", by: "maciej" })).isOk()).toBe(true);
+    expect(pty.typed).toEqual(["y\r"]);
+    expect(w.broker.resize("w1:p1", { cols: 100, rows: 30 }).isOk()).toBe(true);
+    expect(pty.sizes).toEqual([{ cols: 100, rows: 30 }]);
+    const shell = new FakePty(1002);
+    w.start("w2:p2", undefined, shell, "shell");
+    expect((await w.broker.write({ paneId: "w2:p2", data: "ls\r", by: "" }))._unsafeUnwrapErr().message).toBe(
+      "say who types (`by`)",
+    );
+    expect((await w.broker.write({ paneId: "w2:p2", data: "ls\r", by: "anyone" })).isOk()).toBe(true);
+    expect(shell.typed).toEqual(["ls\r"]);
   });
 
-  test("an exit is noted and told to viewers; the next open resumes the session by its id", async () => {
+  test("an exit is noted in the run and told to viewers; a dead pane can be started again", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();
-    await w.broker.open({ runId: run.runId });
+    const pty = new FakePty(1001);
+    w.start("w1:p1", run.runId, pty);
     const seen: PtyEvent[] = [];
-    w.broker.subscribe(run.runId, (e) => seen.push(e));
-    w.host.started[0]?.pty.exit(3);
+    w.broker.subscribe("w1:p1", (e) => seen.push(e));
+    pty.exit(3);
     expect(seen).toEqual([{ type: "exit", code: 3 }]);
-    expect(w.broker.status(run.runId)).toMatchObject({ alive: false, exitCode: 3 });
-    expect((await w.broker.write({ runId: run.runId, data: "x", by: "m" }))._unsafeUnwrapErr().code).toBe(
+    expect(w.broker.status("w1:p1")).toMatchObject({ alive: false, exitCode: 3 });
+    expect((await w.broker.write({ paneId: "w1:p1", data: "x", by: "m" }))._unsafeUnwrapErr().code).toBe(
       "NOT_FOUND",
     );
-    const again = (await w.broker.open({ runId: run.runId }))._unsafeUnwrap();
-    expect([again.sessionId, w.host.started[1]?.resumed]).toEqual(["fake-1", "fake-1"]);
+    const again = w.start("w1:p1", run.runId, new FakePty(1002));
+    expect([again.pid, again.alive]).toEqual([1002, true]);
     const activity = (await w.journal.activity(run.runId))._unsafeUnwrap();
-    expect(activity.map((a) => a.text)).toEqual([
-      "started session fake-1 (pid 1001)",
-      "session fake-1 exited with 3",
-      "resumed session fake-1 (pid 1002)",
-    ]);
+    expect(activity.map((a) => a.text)).toEqual(["session fake-1 exited with 3 (pane w1:p1)"]);
   });
 
   test("no output for the threshold with no open question is idleness, once; output ends it", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();
-    await w.broker.open({ runId: run.runId });
+    const pty = new FakePty(1001);
+    w.start("w1:p1", run.runId, pty);
     const seen: PtyEvent[] = [];
-    w.broker.subscribe(run.runId, (e) => seen.push(e));
+    w.broker.subscribe("w1:p1", (e) => seen.push(e));
     expect(w.timers.map((t) => t.ms)).toEqual([5000]);
     w.timers[0]?.fn();
     await Bun.sleep(5);
-    expect(w.broker.status(run.runId)?.idle).toBe(true);
+    expect(w.broker.status("w1:p1")?.idle).toBe(true);
     expect(seen).toEqual([{ type: "idle" }]);
     const idle = (await w.journal.activity(run.runId))._unsafeUnwrap().filter((a) => a.type === "idle");
-    expect(idle.map((a) => [a.origin, a.text])).toEqual([["pty", "no output for 5 s and no open question"]]);
-    w.host.started[0]?.pty.print("…");
-    expect(w.broker.status(run.runId)?.idle).toBe(false);
+    expect(idle.map((a) => [a.origin, a.text])).toEqual([
+      ["pty", "no output for 5 s and no open question (pane w1:p1)"],
+    ]);
+    pty.print("…");
+    expect(w.broker.status("w1:p1")?.idle).toBe(false);
     // An open question means the session waits for a person, not that it idles.
     await w.journal.ask(run.runId, {
       stage: "build",
@@ -146,18 +157,25 @@ describe("PtyBroker", () => {
     });
     w.timers.at(-1)?.fn();
     await Bun.sleep(5);
-    expect(w.broker.status(run.runId)?.idle).toBe(false);
+    expect(w.broker.status("w1:p1")?.idle).toBe(false);
   });
 
-  test("close kills a live session; a finished run and an unknown host are refused", async () => {
+  test("a nudge types into an agent-driven pane and never over a person; close kills and forgets", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();
-    await w.broker.open({ runId: run.runId });
-    expect((await w.broker.close(run.runId))._unsafeUnwrap()).toEqual({ closed: true });
-    expect(w.host.started[0]?.pty.killed).toBe(true);
-    expect((await w.broker.close(run.runId))._unsafeUnwrap()).toEqual({ closed: false });
-    expect((await w.broker.open({ runId: run.runId, host: "nope" }))._unsafeUnwrapErr().message).toContain(
-      "unknown interactive host nope",
+    const pty = new FakePty(1001);
+    w.start("w1:p1", run.runId, pty);
+    expect((await w.broker.nudge("w1:p1", "go on")).isOk()).toBe(true);
+    expect(pty.typed).toEqual(["go on\r"]);
+    await w.lock.attach({ runId: run.runId, by: "maciej" });
+    expect((await w.broker.nudge("w1:p1", "go on"))._unsafeUnwrapErr().message).toContain(
+      "no nudge over a person",
     );
+    expect(w.broker.close("w1:p1")._unsafeUnwrap()).toEqual({ closed: true });
+    expect([pty.killed, w.broker.status("w1:p1"), w.broker.close("w1:p1")._unsafeUnwrap()]).toEqual([
+      true,
+      undefined,
+      { closed: false },
+    ]);
   });
 });

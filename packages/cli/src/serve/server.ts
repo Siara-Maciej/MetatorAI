@@ -1,13 +1,22 @@
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   acceptanceStats,
   briefOf,
   byUrgency,
+  DAEMON_FILE,
+  DaemonInfoDocument,
   type InboxItem,
   inboxOf,
-  type MetatorError,
+  MetatorError,
+  PANE_ROLES,
+  type PaneRole,
+  type PaneState,
   type PtyEvent,
+  type PtyView,
   type Result,
   type Supervisor,
+  serializeJsonDocument,
 } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import type { CommandContext, Folder } from "../context.ts";
@@ -45,9 +54,11 @@ export interface Served {
 type Json = Record<string, unknown>;
 
 interface Socket {
-  readonly kind: "state" | "inbox" | "activity" | "pty";
+  readonly kind: "state" | "inbox" | "activity" | "pty" | "pane";
   readonly repo: string | undefined;
   readonly runId?: string | undefined;
+  /** The pane a `pty` or `pane` socket streams; set once the pane is known. */
+  paneId?: string | undefined;
   readonly by?: string | undefined;
   stop?: () => void;
 }
@@ -117,12 +128,13 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         const kind = path === "/ws/state" ? "state" : "inbox";
         return server.upgrade(req, { data: { kind, repo } }) ? undefined : json({ ok: false }, 400);
       }
-      const ws = /^\/ws\/(activity|pty)\/([^/]+)$/.exec(path);
+      const ws = /^\/ws\/(activity|pty|pane)\/([^/]+)$/.exec(path);
       if (ws) {
+        const kind = ws[1] as "activity" | "pty" | "pane";
         const data: Socket = {
-          kind: ws[1] as "activity" | "pty",
+          kind,
           repo,
-          runId: ws[2] as string,
+          ...(kind === "pane" ? { paneId: decodeURIComponent(ws[2] as string) } : { runId: ws[2] as string }),
           by: url.searchParams.get("by") ?? undefined,
         };
         return server.upgrade(req, { data }) ? undefined : json({ ok: false }, 400);
@@ -156,6 +168,75 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           await c.value.resolve("buildReport").execute(url.searchParams.get("since") ?? undefined),
         );
       if (path === "/supervisor") return json(await supervisorView(c.value, repo, folder, started, opts));
+      if (path === "/layout") return fromResult(await c.value.resolve("panes").view());
+      if (path === "/panes" && req.method === "POST") {
+        const body = (await req.json().catch(() => ({}))) as Json;
+        const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : undefined);
+        const panes = c.value.resolve("panes");
+        // A pane of a run's workspace (made when missing) or of a named workspace.
+        let workspace = str("workspace");
+        if (!workspace && (str("runId") || body.runId === undefined)) {
+          const w = await panes.openWorkspace({
+            ...(str("runId") ? { runId: str("runId") as string } : {}),
+            ...(str("label") && !str("runId") ? { label: str("label") as string } : {}),
+          });
+          if (w.isErr()) return fromResult(w);
+          workspace = w.value.id;
+        }
+        const role = PANE_ROLES.includes(str("role") as PaneRole) ? (str("role") as PaneRole) : "shell";
+        const argv = Array.isArray(body.argv) ? (body.argv as string[]) : undefined;
+        return fromResult(
+          await panes.openPane({
+            workspace: workspace as string,
+            ...(str("tab") ? { tab: str("tab") as string } : {}),
+            role,
+            ...(str("label") ? { label: str("label") as string } : {}),
+            ...(str("cwd") ? { cwd: str("cwd") as string } : {}),
+            process: argv
+              ? { kind: "command", argv }
+              : {
+                  kind: "host",
+                  ...(str("host") ? { host: str("host") as string } : {}),
+                  agent: str("agent") ?? "session",
+                  prompt: str("prompt") ?? "",
+                },
+            ...(typeof body.cols === "number" && typeof body.rows === "number"
+              ? { size: { cols: body.cols as number, rows: body.rows as number } }
+              : {}),
+          }),
+        );
+      }
+      const pane = /^\/panes\/([^/]+)(?:\/([a-z-]+))?$/.exec(path);
+      if (pane) {
+        const [, rawPane, action] = pane as unknown as [string, string, string | undefined];
+        const paneId = decodeURIComponent(rawPane);
+        const panes = c.value.resolve("panes");
+        const broker = c.value.resolve("ptyBroker");
+        if (!action && req.method === "GET") {
+          const lines = Number(url.searchParams.get("lines")) || 80;
+          const view = await panes.pane(paneId);
+          return fromResult(
+            view.map((p) => ({ pane: p, text: panes.read(paneId, lines), backlog: broker.backlog(paneId) })),
+          );
+        }
+        if (action === "wait" && req.method === "GET") {
+          const until = (url.searchParams.get("until") ?? "idle,exited")
+            .split(",")
+            .filter((u): u is PaneState => u === "idle" || u === "exited");
+          const timeoutMs = Number(url.searchParams.get("timeout")) || 60_000;
+          return fromResult(await panes.wait(paneId, { until, timeoutMs }));
+        }
+        if (action === "close" && req.method === "POST") return fromResult(await panes.closePane(paneId));
+        return json(
+          { ok: false, error: { code: "NOT_FOUND", message: `no route ${req.method} ${path}` } },
+          404,
+        );
+      }
+      const workspace = /^\/workspaces\/([^/]+)\/close$/.exec(path);
+      if (workspace && req.method === "POST")
+        return fromResult(
+          await c.value.resolve("panes").closeWorkspace(decodeURIComponent(workspace[1] as string)),
+        );
       if (path === "/runs" && req.method === "POST") {
         const body = (await req.json().catch(() => ({}))) as Json;
         const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : undefined);
@@ -234,9 +315,10 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           );
         case "GET pty": {
           const broker = c.value.resolve("ptyBroker");
+          const conductor = broker.byRun(runId)[0];
           return json({
             ok: true,
-            data: { session: broker.status(runId) ?? null, backlog: broker.backlog(runId) },
+            data: { session: conductor ?? null, backlog: conductor ? broker.backlog(conductor.paneId) : "" },
           });
         }
         case "POST attach":
@@ -276,16 +358,21 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           );
         case "POST pty-open":
           return fromResult(
-            await c.value.resolve("ptyBroker").open({
-              runId,
-              ...(str("host") ? { host: str("host") as string } : {}),
-              ...(typeof body.cols === "number" && typeof body.rows === "number"
-                ? { size: { cols: body.cols as number, rows: body.rows as number } }
-                : {}),
-            }),
+            (
+              await c.value.resolve("panes").openRun({
+                runId,
+                ...(str("host") ? { host: str("host") as string } : {}),
+                ...(typeof body.cols === "number" && typeof body.rows === "number"
+                  ? { size: { cols: body.cols as number, rows: body.rows as number } }
+                  : {}),
+              })
+            ).map((p) => p.live),
           );
-        case "POST pty-close":
-          return fromResult(await c.value.resolve("ptyBroker").close(runId));
+        case "POST pty-close": {
+          const conductor = c.value.resolve("ptyBroker").byRun(runId)[0];
+          if (!conductor) return json({ ok: true, data: { closed: false } });
+          return fromResult(await c.value.resolve("panes").closePane(conductor.paneId));
+        }
         default:
           return json(
             { ok: false, error: { code: "NOT_FOUND", message: `no route ${req.method} ${path}` } },
@@ -334,7 +421,14 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           return;
         }
         const broker = c.value.resolve("ptyBroker");
-        const opened = await broker.open({ runId });
+        const panes = c.value.resolve("panes");
+        // A run's socket opens (or finds) its conductor pane; a pane's socket needs a live pane.
+        const opened =
+          d.kind === "pane"
+            ? (await panes.pane(d.paneId as string)).andThen((p) =>
+                p.live ? ok(p.live) : err(MetatorError.notFound(`a terminal in pane ${d.paneId}`)),
+              )
+            : (await panes.openRun({ runId })).map((p) => p.live as PtyView);
         if (opened.isErr()) {
           ws.send(
             JSON.stringify({
@@ -345,14 +439,15 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           ws.close();
           return;
         }
+        d.paneId = opened.value.paneId;
         ws.send(JSON.stringify({ type: "session", session: opened.value }));
-        const backlog = broker.backlog(runId);
+        const backlog = broker.backlog(opened.value.paneId);
         if (backlog) ws.send(JSON.stringify({ type: "data", data: backlog }));
-        d.stop = broker.subscribe(runId, (event: PtyEvent) => ws.send(JSON.stringify(event)));
+        d.stop = broker.subscribe(opened.value.paneId, (event: PtyEvent) => ws.send(JSON.stringify(event)));
       },
       async message(ws, raw) {
         const d = ws.data;
-        if (d.kind !== "pty") return;
+        if ((d.kind !== "pty" && d.kind !== "pane") || !d.paneId) return;
         const c = containerFor(d.repo);
         if (c.isErr()) return;
         const broker = c.value.resolve("ptyBroker");
@@ -369,10 +464,10 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           return;
         }
         if (msg.type === "input" && typeof msg.data === "string") {
-          const r = await broker.write({ runId: d.runId as string, data: msg.data, by: d.by ?? "" });
+          const r = await broker.write({ paneId: d.paneId, data: msg.data, by: d.by ?? "" });
           if (r.isErr()) ws.send(JSON.stringify({ type: "refused", reason: r.error.message }));
         } else if (msg.type === "resize" && typeof msg.cols === "number" && typeof msg.rows === "number") {
-          broker.resize(d.runId as string, { cols: msg.cols, rows: msg.rows });
+          broker.resize(d.paneId, { cols: msg.cols, rows: msg.rows });
         }
       },
       close(ws) {
@@ -401,12 +496,35 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         }, opts.superviseMs)
       : undefined;
   const port = server.port ?? opts.port;
+  // Where the daemon listens, for the CLI and the clients; and every pane of the layout back.
+  const roots = folder ? folder.repos.map((r) => r.root) : [ctx.container().resolve("root")];
+  const info = serializeJsonDocument(
+    DaemonInfoDocument.stamp({
+      url: `http://${opts.hostname}:${port}`,
+      pid: process.pid,
+      startedAt: new Date(started).toISOString(),
+    }),
+  );
+  for (const root of roots) {
+    mkdirSync(join(root, ".metator"), { recursive: true });
+    writeFileSync(join(root, DAEMON_FILE), info);
+  }
+  const restored: { root: string; paneId: string; ok: boolean; error?: string }[] = [];
+  for (const root of roots) {
+    const c = folder
+      ? containerFor(folder.repos.find((r) => r.root === root)?.name)
+      : containerFor(undefined);
+    if (c.isErr()) continue;
+    const r = await c.value.resolve("panes").restore();
+    if (r.isOk()) restored.push(...r.value.map((x) => ({ root, ...x })));
+  }
   if (opts.announce) {
     const serving = {
       port,
       hostname: opts.hostname,
       pid: process.pid,
       url: `http://${opts.hostname}:${port}`,
+      restored,
     };
     process.stderr.write(`${JSON.stringify({ serving })}\n`);
   }
@@ -416,6 +534,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     pid: process.pid,
     stop: async () => {
       if (superviseTimer) clearInterval(superviseTimer);
+      for (const root of roots) rmSync(join(root, DAEMON_FILE), { force: true });
       for (const ws of sockets) ws.close();
       await server.stop(true);
     },

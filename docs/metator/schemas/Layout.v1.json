@@ -1,0 +1,388 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "Layout",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Layout"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "workspaces": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^w\\d+$"
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "cwd": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runId": {
+              "type": "string"
+            },
+            "group": {
+              "type": "string",
+              "pattern": "^w\\d+$"
+            },
+            "tabs": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^w\\d+:t\\d+$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "panes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^w\\d+:p\\d+$"
+                    }
+                  }
+                },
+                "required": ["id", "label", "panes"],
+                "additionalProperties": false
+              }
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": ["id", "label", "cwd", "tabs", "createdAt"],
+          "additionalProperties": false
+        }
+      },
+      "panes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^w\\d+:p\\d+$"
+            },
+            "tab": {
+              "type": "string",
+              "pattern": "^w\\d+:t\\d+$"
+            },
+            "role": {
+              "type": "string",
+              "enum": ["conductor", "worker", "apps", "gate", "shell"]
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "cwd": {
+              "type": "string",
+              "minLength": 1
+            },
+            "process": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "host"
+                    },
+                    "host": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "agent": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "host", "agent", "prompt"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "command"
+                    },
+                    "argv": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["kind", "argv"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "runId": {
+              "type": "string"
+            },
+            "worker": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "stage": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["name", "stage"],
+              "additionalProperties": false
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": ["id", "tab", "role", "label", "cwd", "process", "createdAt"],
+          "additionalProperties": false
+        }
+      },
+      "next": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "pane": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["workspace", "pane"],
+        "additionalProperties": false
+      }
+    },
+    "required": ["kind", "schemaVersion", "workspaces", "panes", "next"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "Layout"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "workspaces": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^w\\d+$"
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "cwd": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runId": {
+              "type": "string"
+            },
+            "group": {
+              "type": "string",
+              "pattern": "^w\\d+$"
+            },
+            "tabs": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^w\\d+:t\\d+$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "panes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^w\\d+:p\\d+$"
+                    }
+                  }
+                },
+                "required": ["id", "label", "panes"],
+                "additionalProperties": false
+              }
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": ["id", "label", "cwd", "tabs", "createdAt"],
+          "additionalProperties": false
+        }
+      },
+      "panes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^w\\d+:p\\d+$"
+            },
+            "tab": {
+              "type": "string",
+              "pattern": "^w\\d+:t\\d+$"
+            },
+            "role": {
+              "type": "string",
+              "enum": ["conductor", "worker", "apps", "gate", "shell"]
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "cwd": {
+              "type": "string",
+              "minLength": 1
+            },
+            "process": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "host"
+                    },
+                    "host": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "agent": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "host", "agent", "prompt"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "command"
+                    },
+                    "argv": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["kind", "argv"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "runId": {
+              "type": "string"
+            },
+            "worker": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "stage": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["name", "stage"],
+              "additionalProperties": false
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": ["id", "tab", "role", "label", "cwd", "process", "createdAt"],
+          "additionalProperties": false
+        }
+      },
+      "next": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "pane": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["workspace", "pane"],
+        "additionalProperties": false
+      }
+    },
+    "required": ["kind", "schemaVersion", "workspaces", "panes", "next"],
+    "additionalProperties": false
+  }
+}

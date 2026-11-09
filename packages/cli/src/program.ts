@@ -35,6 +35,7 @@ import { registerLessonsCommands } from "./commands/lessons.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
 import { registerOwnersCommand } from "./commands/owners.ts";
+import { registerPaneCommands } from "./commands/pane.ts";
 import { registerPatternsCommands } from "./commands/patterns.ts";
 import { registerPlanCommands } from "./commands/plan.ts";
 import { registerReposCommands } from "./commands/repos.ts";
@@ -166,6 +167,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerAskCommands(program, ctx);
   registerStatusCommand(program, ctx);
   registerServeCommand(program, ctx);
+  registerPaneCommands(program, ctx);
   registerSuperviseCommand(program, ctx);
 
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).

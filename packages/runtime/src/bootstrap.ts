@@ -88,6 +88,7 @@ import {
   InventoryMemory,
   JudgeFindings,
   KnowledgeFiles,
+  LayoutStore,
   LintAdrs,
   LintAgents,
   LintPlan,
@@ -109,6 +110,7 @@ import {
   type MetatorPaths,
   ok,
   PackRules,
+  Panes,
   PatternCatalog,
   PinnedSystemLocation,
   PlannedBreakingChanges,
@@ -480,14 +482,36 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       return hosts;
     }).singleton(),
     ptyBroker: asFunction(
-      ({ runRepository, runJournal, interactiveHosts, clock, root, config }) =>
+      ({ runRepository, runJournal, config }) =>
         new PtyBroker({
           repo: runRepository,
           journal: runJournal,
-          hosts: interactiveHosts,
-          clock,
-          root,
           idleMs: config.config.supervisor.idleThresholdMs,
+        }),
+    ).singleton(),
+    layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
+    panes: asFunction(
+      ({
+        layoutStore,
+        ptyBroker,
+        interactiveHosts,
+        terminal,
+        runRepository,
+        runJournal,
+        clock,
+        timer,
+        root,
+      }) =>
+        new Panes({
+          layout: layoutStore,
+          broker: ptyBroker,
+          hosts: interactiveHosts,
+          terminal,
+          repo: runRepository,
+          journal: runJournal,
+          clock,
+          timer,
+          root,
         }),
     ).singleton(),
     // The supervisor needs a way to start a drive again, which only the CLI process knows (its own

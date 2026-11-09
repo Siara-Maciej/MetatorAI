@@ -26,6 +26,8 @@ export interface AgentTask {
   readonly driven?: boolean;
   /** External actions a person approved in this run (`push` after the delivery gate). */
   readonly approved?: readonly string[];
+  /** More variables for the session (its pane's identity, R1); they join the run's. */
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -33,11 +35,12 @@ export interface AgentTask {
  * run the session works for, and that the drive carries it, from these variables.
  */
 export function sessionEnv(
-  task: Pick<AgentTask, "runDir" | "driven">,
+  task: Pick<AgentTask, "runDir" | "driven" | "env">,
   base: Readonly<Record<string, string | undefined>> = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(base)) if (v !== undefined) env[k] = v;
+  Object.assign(env, task.env ?? {});
   env.METATOR_RUN =
     task.runDir
       .split(/[\\/]/)

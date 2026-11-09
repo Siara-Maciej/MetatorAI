@@ -14,7 +14,7 @@ import {
   SupervisorPolicySchema,
   WorkflowCatalog,
 } from "@metator/core";
-import { FakeInteractiveHost, FixedClock, InMemoryFileSystem } from "@metator/testing";
+import { FakePty, FixedClock, InMemoryFileSystem } from "@metator/testing";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -25,14 +25,12 @@ function world(over: Partial<ReturnType<typeof SupervisorPolicySchema.parse>> = 
   const catalog = new WorkflowCatalog(fs, DEFAULT_PATHS);
   const repo = new RunRepository(fs, DEFAULT_PATHS);
   const journal = new RunJournal(fs, repo, clock);
-  const host = new FakeInteractiveHost("fake");
+  /** The conductor panes started, in order, like a FakeInteractiveHost would record them. */
+  const started: { pty: FakePty }[] = [];
   const timers: { fn: () => void }[] = [];
   const broker = new PtyBroker({
     repo,
     journal,
-    hosts: new Map([["fake", host]]),
-    clock,
-    root: "/repo",
     idleMs: 1000,
     after: (_ms, fn) => {
       const t = { fn };
@@ -74,6 +72,14 @@ function world(over: Partial<ReturnType<typeof SupervisorPolicySchema.parse>> = 
     timers.at(-1)?.fn();
     await Bun.sleep(5);
   };
+  const open = (runId: string) => {
+    const pty = new FakePty(1000 + started.length + 1);
+    started.push({ pty });
+    return broker
+      .start({ paneId: "w1:p1", runId, role: "conductor", host: "fake", sessionId: "fake-1", pty })
+      ._unsafeUnwrap();
+  };
+  const host = { started };
   return {
     fs,
     repo,
@@ -88,6 +94,7 @@ function world(over: Partial<ReturnType<typeof SupervisorPolicySchema.parse>> = 
     init,
     idle,
     lock: new DriverLock(repo, journal, clock),
+    open,
   };
 }
 
@@ -125,13 +132,13 @@ describe("Supervisor", () => {
   test("an idle session is nudged once; still idle, a person is asked; their answer closes it or nudges again", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();
-    await w.broker.open({ runId: run.runId });
+    w.open(run.runId);
     const pty = w.host.started[0]?.pty;
     await w.idle();
     const first = (await w.supervisor.tick())._unsafeUnwrap();
     expect([first.nudged, first.asked]).toEqual([[run.runId], []]);
     expect(pty?.typed).toEqual([`${NUDGE}\r`]);
-    expect(w.broker.status(run.runId)?.idle).toBe(false);
+    expect(w.broker.status("w1:p1")?.idle).toBe(false);
     // Idle again after the nudge: the person is asked, once.
     await w.idle();
     const second = (await w.supervisor.tick())._unsafeUnwrap();
@@ -158,7 +165,7 @@ describe("Supervisor", () => {
   test("a person at the keyboard is never nudged over; output ends the episode", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();
-    await w.broker.open({ runId: run.runId });
+    w.open(run.runId);
     await w.lock.attach({ runId: run.runId, by: "maciej" });
     await w.idle();
     expect((await w.supervisor.tick())._unsafeUnwrap().nudged).toEqual([]);

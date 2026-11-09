@@ -83,3 +83,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0077](0077-desktop-daemon-driver-lock.md) | Desktop: demon lokalny, hosty interaktywne w PTY, blokada kierowcy | Proposed |
 | [0078](0078-desktop-app-tauri-xterm.md) | Aplikacja desktopowa: Tauri, React i xterm.js jako cienki klient demona | Proposed |
 | [0079](0079-herdr-runtime-guard-layer.md) | herdr jako runtime terminali, MetatorAI jako warstwa zabezpieczeń nad nim | Superseded |
+| [0080](0080-own-terminal-runtime.md) | Własny runtime terminali wzorowany na herdr: workspace, pane, dyrygent, sensor | Proposed |
