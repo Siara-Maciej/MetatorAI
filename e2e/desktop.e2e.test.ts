@@ -223,6 +223,13 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     // The grid, the graph, the supervisor and the briefing draw from the same state.
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid`);
     await page.locator(".tile").first().waitFor({ timeout: 20_000 });
+    // The focused run's panes as the tiles (R5): the conductor at least, with its state.
+    const panesButton = page.getByRole("button", { name: /^Panes · \d+$/ });
+    await until("the panes button", async () => ((await panesButton.isEnabled()) ? true : undefined));
+    await panesButton.click();
+    await until("a pane tile", async () =>
+      (await page.locator('.tile[aria-label^="conductor"]').count()) > 0 ? true : undefined,
+    );
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/graph`);
     await page.getByRole("img", { name: "sessions graph" }).waitFor({ timeout: 20_000 });
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/supervisor`);
