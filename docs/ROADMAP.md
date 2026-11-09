@@ -291,9 +291,19 @@ Specyfikacja: [design/12](design/12-desktop.md), zatwierdzona 2026-11-02 (decyzj
 
 Decyzja właściciela (2026-11-09): nie używamy herdr. Budujemy własny runtime o podobnym działaniu na istniejącym demonie: workspace → tab → pane, dyrygent w granicach workflow, delegowanie do pane'ów workerów, sensor stanu agenta z hooków i ekranu, uwaga osoby, klient terminalowy. Faza E (integracja z herdr) została wycofana; przegląd bezpieczeństwa herdr zostaje w ADR-0079 jako uzasadnienie.
 
-- [ ] R1 Layout: dokument `Layout` (workspace, tab, pane z rolą), odtwarzanie po restarcie demona, tożsamość pane'a (`METATOR_PANE_ID`, token), `metator pane list|read|wait`, `.metator/daemon.json`.
+- [x] R1 Layout: dokument `Layout` (workspace, tab, pane z rolą), odtwarzanie po restarcie demona, tożsamość pane'a (`METATOR_PANE_ID`, token), `metator pane list|read|wait`, `.metator/daemon.json`.
 - [x] R2 Dyrygent: `metator run start` otwiera workspace runu z pane'em orkiestratora (Copilot), `run delegate|wait|collect|result`, pane'y workerów, rola `worker` w hookach, definicja mt-orchestrator w trybie dyrygenta.
 - [x] R3 Sensor i uwaga: `HostManifest` v1 dla Copilota (working, blocked, idle z ekranu i hooków), okna zgody hosta w inboxie z akcją attach, powiadomienia.
 - [x] R4 Klienci: aplikacja na modelu workspace/pane (pasek boczny, siatka pane'ów runu), `metator attach <pane>` w terminalu z prefiksem odłączenia.
 - [x] R5 Grupy worktree'ów i zamykanie runu, supervisor nad pane'ami (wznowienie dyrygenta, nudge, budżet uwagi).
 - [ ] Później: Claude Code jako drugi host przez te same porty.
+
+## Faza S: opcje, plan, backlog, przegląd kodu (wzorowane na herdr)
+
+Projekt: [design/13](design/13-options-workbench.md), propozycja z 2026-11-09. Każdy punkt to osobna gałąź i PR do `claude/foundation`, otwierany po zielonym `bun run check`.
+
+- [ ] S1 System opcji: `OptionDefinition` (abstrakcja, podklasy, rejestr), `UserOptions` v1 (`~/.config/metator/options.yml`), `options:` w `MetatorConfig` v8, nałożenie zakresów user/repo/run z diagnostyką zamiast błędu, `metator config get|set|list|schema`, demon `/options` + `/ws/options`, ekran Settings w aplikacji; pierwsza lista opcji (ui, keys, notify, terminal, editor, supervisor, hosts, worktrees, experimental).
+- [ ] S2 Podgląd planu: projekcja `PlanBoard` (etapy, kroki planu ze statusem, pane'y, pytania, artefakty, co dalej), `run board`, ekran Plan w aplikacji z akcjami (zatwierdź, odpowiedz, otwórz pane, dodaj zadanie, komentarz).
+- [ ] S3 Proces: PR per feature, subskrypcja PR, opis PR z „Co / Jak sprawdzić / Ryzyka”.
+- [ ] S4 Lokalne zadania: `Issue` v1 w `.metator/issues/`, `issue propose` (agent) → pytanie w inboxie → zgoda osoby, `issue add|list|show|edit|close|drop|start`, ekran Backlog, MCP do czytania.
+- [ ] S5 Podgląd kodu: `open-editor` (VS Code na worktree/pliku/diffie z `editor.*`), ekran Review z diffem i komentarzami inline (`ReviewNote` v1), „Send to agent” jako `RunMessage` (topic `review`), `addressed` po zmianie; `review notes list|add|send`.
