@@ -153,4 +153,41 @@ describe("the MetatorAI GitHub Action (action.yml)", () => {
       expect([command, help.commands.some((c) => c.name === command)]).toEqual([command, true]);
     }
   });
+
+  test("the desktop workflow builds installers for Windows, macOS (both chips) and Linux, as artifacts and on a tag as a release", async () => {
+    const wf = parse(await Bun.file(join(ROOT, ".github/workflows/desktop.yml")).text()) as {
+      on: { push: { tags: string[]; paths: string[] } };
+      jobs: {
+        build: {
+          strategy: { matrix: { include: { os: string; name: string }[] } };
+          steps: { uses?: string; with?: Record<string, unknown> }[];
+        };
+      };
+    };
+    expect(wf.on.push.tags).toEqual(["desktop-v*"]);
+    expect(wf.jobs.build.strategy.matrix.include.map((m) => m.name)).toEqual([
+      "windows-x64",
+      "macos-arm64",
+      "macos-x64",
+      "linux-x64",
+    ]);
+    const tauri = wf.jobs.build.steps.find((s) => s.uses?.startsWith("tauri-apps/tauri-action"));
+    expect(tauri?.with?.projectPath).toBe("packages/desktop");
+    const upload = wf.jobs.build.steps.find((s) => s.uses?.startsWith("actions/upload-artifact"));
+    expect(String(upload?.with?.path)).toContain("bundle/nsis/*.exe");
+    expect(String(upload?.with?.path)).toContain("bundle/dmg/*.dmg");
+    // Bundling is on, with the icons every platform needs in place.
+    const conf = JSON.parse(
+      await Bun.file(join(ROOT, "packages/desktop/src-tauri/tauri.conf.json")).text(),
+    ) as {
+      bundle: { active: boolean; targets: string[]; icon: string[] };
+    };
+    expect(conf.bundle.active).toBe(true);
+    expect(conf.bundle.targets).toEqual(expect.arrayContaining(["nsis", "msi", "dmg"]));
+    for (const icon of conf.bundle.icon)
+      expect([icon, await Bun.file(join(ROOT, "packages/desktop/src-tauri", icon)).exists()]).toEqual([
+        icon,
+        true,
+      ]);
+  });
 });
