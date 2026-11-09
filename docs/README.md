@@ -23,6 +23,8 @@
 | [design/08-system-landscape.md](design/08-system-landscape.md) | Krajobraz systemu: zmiany w wielu aplikacjach (analiza, roadmapa F7, plan; propozycja) |
 | [design/09-workspaces-sessions.md](design/09-workspaces-sessions.md) | Worktree, środowiska aplikacji i sesje w CLI (analiza, roadmapa F8, plan; propozycja) |
 | [design/00-research-v1.md](design/00-research-v1.md) | Archiwum: pierwotny research i plan v1 |
+| [design/12-desktop.md](design/12-desktop.md) | MetatorAI Desktop: demon, hosty interaktywne w PTY, blokada kierowcy, inbox decyzji, ekrany aplikacji (zatwierdzona 2026-11-02) |
+| [design/13-options-workbench.md](design/13-options-workbench.md) | Faza S: system opcji (`OptionDefinition`, zakresy user/repo/run) wzorowany na konfiguracji herdr, podgląd planu, lokalne zadania za zgodą osoby, otwieranie w VS Code i wewnętrzny przegląd kodu z komentarzami do agenta |
 
 ## Decyzje architektoniczne
 
