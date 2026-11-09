@@ -44,7 +44,8 @@ export function TerminalsScreen({
   const [focus, setFocus] = useState<string | undefined>(tiles[0]?.runId);
   // The focused run's own panes as the tiles (R5): its conductor, workers and shells side by side.
   const [showPanes, setShowPanes] = useState(false);
-  const focused = runs.find((r) => r.runId === focus);
+  // The first tile is the focus until a person picks one (the runs arrive after the first render).
+  const focused = runs.find((r) => r.runId === (focus ?? tiles[0]?.runId));
   const runPanes = focused ? panesOfRun(panes, focused.runId) : [];
   const [lines, setLines] = useState<Record<string, string>>({});
   const [note, setNote] = useState<string>();
