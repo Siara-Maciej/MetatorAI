@@ -268,7 +268,7 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 
 **Dystrybucja i integracje (część I)**
 - [x] P9 Przygotowanie sesji: `run init --worktree` daje worktree zależności (kopia `node_modules` z głównego checkoutu przy zgodnych lockfile, inaczej `install`), `worktree setup [--up]`, `doctor --run`.
-- [ ] P8 Złoty zbiór startowy z czystych runów serii 14; akcja GitHub dla review w CI; główna pomoc CLI z czasownikami dla ludzi; przygotowanie paczki npm (F8.8); serwer MCP.
+- [ ] P8 Złoty zbiór startowy z czystych runów serii 14 (wymaga danych właściciela); [x] akcja GitHub dla review w CI (`action.yml`, workflow `review`); [x] główna pomoc CLI z czasownikami dla ludzi (`metator help --verbs`, goły `metator` w terminalu); przygotowanie paczki npm (F8.8); serwer MCP.
 
 **Wymaga właściciela (poza kodem):** wybór licencji, konto npm i publikacja, repozytorium pilota, złoty zbiór z prawdziwych PR-ów zespołu, drugi język programowania (po pilocie).
 

@@ -1,0 +1,116 @@
+name: MetatorAI check
+description: >-
+  The deterministic review a pull request gets before any agent reads it: canon rules on the
+  changed files, package architecture against the policy (new violations only, as SARIF), the
+  workflow specs, the generated host files, and the repository's quality gate. Every step is a
+  `metator` command a developer runs locally the same way.
+author: MetatorAI
+branding:
+  icon: check-square
+  color: blue
+
+inputs:
+  base:
+    description: The git ref the change is compared against (a pull request's base by default).
+    required: false
+    default: ""
+  gate:
+    description: The quality gate to run (`quick`, `full`); empty runs none.
+    required: false
+    default: ""
+  sarif:
+    description: "Upload the architecture violations to code scanning (needs the security-events: write permission)."
+    required: false
+    default: "false"
+  metator-ref:
+    description: The MetatorAI ref to run when the action is used from another repository.
+    required: false
+    default: claude/foundation
+  working-directory:
+    description: The repository to check (the workspace by default).
+    required: false
+    default: ${{ github.workspace }}
+
+outputs:
+  violations:
+    description: How many canon rule violations the change has.
+    value: ${{ steps.rules.outputs.violations }}
+  arch-added:
+    description: How many architecture violations the change adds.
+    value: ${{ steps.arch.outputs.added }}
+
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.4
+
+    - name: Install MetatorAI
+      shell: bash
+      run: |
+        # The action's own checkout when this repository is MetatorAI; a shallow clone otherwise.
+        if [ -f "${{ github.action_path }}/packages/cli/src/main.ts" ]; then
+          echo "METATOR_HOME=${{ github.action_path }}" >> "$GITHUB_ENV"
+        else
+          git clone --depth 1 --branch "${{ inputs.metator-ref }}" https://github.com/Siara-Maciej/MetatorAI.git "$RUNNER_TEMP/metatorai"
+          echo "METATOR_HOME=$RUNNER_TEMP/metatorai" >> "$GITHUB_ENV"
+        fi
+      env:
+        METATOR_REF: ${{ inputs.metator-ref }}
+    - name: Install MetatorAI's dependencies
+      shell: bash
+      run: cd "$METATOR_HOME" && bun install --frozen-lockfile
+
+    - name: The base ref
+      id: base
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        base="${{ inputs.base }}"
+        if [ -z "$base" ] && [ -n "${{ github.base_ref }}" ]; then
+          git fetch --no-tags --depth 1 origin "${{ github.base_ref }}"
+          base="origin/${{ github.base_ref }}"
+        fi
+        if [ -z "$base" ]; then base="HEAD~1"; fi
+        echo "ref=$base" >> "$GITHUB_OUTPUT"
+
+    - name: Canon rules on the changed files
+      id: rules
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        out="$(bun "$METATOR_HOME/packages/cli/src/main.ts" rules check --base "${{ steps.base.outputs.ref }}")"
+        echo "$out"
+        echo "violations=$(echo "$out" | bun -e 'const d=JSON.parse(await Bun.stdin.text()); console.log(d.ok ? d.data.violations.length : -1)')" >> "$GITHUB_OUTPUT"
+        echo "$out" | bun -e 'const d=JSON.parse(await Bun.stdin.text()); process.exit(d.ok && d.data.violations.length === 0 ? 0 : 1)'
+
+    - name: Package architecture (new violations only)
+      id: arch
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        out="$(bun "$METATOR_HOME/packages/cli/src/main.ts" arch check --base "${{ steps.base.outputs.ref }}" --sarif .metator/arch/check.sarif)"
+        echo "$out"
+        echo "added=$(echo "$out" | bun -e 'const d=JSON.parse(await Bun.stdin.text()); console.log(d.ok ? d.data.added.length : -1)')" >> "$GITHUB_OUTPUT"
+        echo "$out" | bun -e 'const d=JSON.parse(await Bun.stdin.text()); process.exit(d.ok && d.data.added.length === 0 ? 0 : 1)'
+
+    - name: Workflow specs and generated host files
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        bun "$METATOR_HOME/packages/cli/src/main.ts" workflow lint | bun -e 'const d=JSON.parse(await Bun.stdin.text()); console.log(JSON.stringify(d)); process.exit(d.ok && d.data.problems.length === 0 ? 0 : 1)'
+        bun "$METATOR_HOME/packages/cli/src/main.ts" generate --check | bun -e 'const d=JSON.parse(await Bun.stdin.text()); console.log(JSON.stringify(d)); process.exit(d.ok && d.data.stale.length === 0 ? 0 : 1)'
+
+    - name: Quality gate
+      if: inputs.gate != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: bun "$METATOR_HOME/packages/cli/src/main.ts" gate "${{ inputs.gate }}" --base "${{ steps.base.outputs.ref }}"
+
+    - name: Upload architecture violations to code scanning
+      if: inputs.sarif == 'true' && always() && hashFiles(format('{0}/.metator/arch/check.sarif', inputs.working-directory)) != ''
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.working-directory }}/.metator/arch/check.sarif
+        category: metator-arch
