@@ -33,6 +33,7 @@ import { registerGateCommands } from "./commands/gate.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
 import { registerGuardCommands } from "./commands/guard.ts";
 import { registerLessonsCommands } from "./commands/lessons.ts";
+import { registerMcpCommand } from "./commands/mcp.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
 import { registerOwnersCommand } from "./commands/owners.ts";
@@ -170,6 +171,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerServeCommand(program, ctx);
   registerPaneCommands(program, ctx);
   registerAttachCommand(program, ctx);
+  registerMcpCommand(program, ctx);
   registerSuperviseCommand(program, ctx);
 
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).

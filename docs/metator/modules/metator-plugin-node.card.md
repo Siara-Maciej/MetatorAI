@@ -12,8 +12,8 @@ dir: packages/plugin-node
 - Directory: `packages/plugin-node`
 - Depends on: `@metator/core`
 - Test-only dependencies: `@metator/testing`
-- Used by: `@metator/runtime`
-- Imported by other packages: `packages/plugin-node/src/index.ts`
+- Used by: `(root)`, `@metator/runtime`
+- Imported by other packages: `packages/plugin-node/package.json`, `packages/plugin-node/src/index.ts`
 - Third-party: `@friedemannsommer/lcov-parser`, `@manypkg/get-packages`, `get-port`, `package-manager-detector`, `wait-on`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: none

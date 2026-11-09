@@ -38,6 +38,7 @@ describe("the overview by verb (metator help --verbs)", () => {
       "similar",
       "test",
       "workspace",
+      "mcp",
       "config",
       "adr",
       "findings",

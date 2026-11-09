@@ -2358,6 +2358,20 @@ metator attach [options] <pane>
 | `--by <name>` | who attaches (default: $USER) | `""` |
 | `--keep` | keep the run's driver lock after detaching |  |
 
+## mcp
+
+### `metator mcp`
+
+Serve MetatorAI's reading commands as MCP tools over stdio (for IDEs, chats and other agents)
+
+```bash
+metator mcp [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--list` | print the tools instead of serving |  |
+
 ## supervise
 
 ### `metator supervise`

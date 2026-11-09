@@ -241,6 +241,7 @@ describe("metator CLI (process e2e)", () => {
       "pane read",
       "pane wait",
       "attach",
+      "mcp",
       "supervise",
     ]);
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);

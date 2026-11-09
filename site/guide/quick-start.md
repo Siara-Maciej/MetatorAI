@@ -131,7 +131,7 @@ metator run close --aborted --reason "demo finished"
 
 ## Finding your way around
 
-`metator` alone, in a terminal, prints the commands a person reaches for, grouped by what you want to do (set up, work on a task, understand the code, check and review, many repositories, keep it running); `metator help` lists every command (196 and counting) and `metator <command> --help` describes one. Every command prints one JSON line on stdout, so the same output feeds a script or an agent.
+`metator` alone, in a terminal, prints the commands a person reaches for, grouped by what you want to do (set up, work on a task, understand the code, check and review, many repositories, keep it running); `metator help` lists every command (nearly two hundred) and `metator <command> --help` describes one. Every command prints one JSON line on stdout, so the same output feeds a script or an agent.
 
 ## Next steps
 

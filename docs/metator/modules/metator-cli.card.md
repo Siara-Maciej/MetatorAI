@@ -13,8 +13,8 @@ dir: packages/cli
 - Depends on: `@metator/core`, `@metator/runtime`
 - Test-only dependencies: none
 - Used by: `(root)`
-- Imported by other packages: `packages/cli/src/program.ts`
-- Third-party: `@clack/prompts`, `@inkjs/ui`, `commander`, `ink`, `react`
+- Imported by other packages: `packages/cli/package.json`, `packages/cli/src/program.ts`
+- Third-party: `@clack/prompts`, `@inkjs/ui`, `@modelcontextprotocol/sdk`, `commander`, `ink`, `react`, `zod`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: `cli-command-group`
 <!-- metator:generated:end -->
