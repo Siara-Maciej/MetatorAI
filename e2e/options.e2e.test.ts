@@ -49,9 +49,13 @@ describe("metator config (options, real CLI)", () => {
     expect(option(view, "supervisor.wipLimit")).toMatchObject({ value: 3, source: "repo" });
     expect(option(view, "ui.paneBorders")).toMatchObject({ value: "auto", source: "default" });
     expect(view.diagnostics).toEqual([]);
-    const changed = data(await mt("config", "list", "--changed", "--scope", "repo"));
+    const changed = data(await mt("config", "list", "--changed"));
     expect((changed.options as { key: string }[]).map((o) => o.key)).toContain("editor.command");
     expect((changed.options as { key: string }[]).every((o) => !o.key.startsWith("ui."))).toBe(true);
+    const repoOnly = data(await mt("config", "list", "--scope", "repo"));
+    expect(
+      (repoOnly.options as { definition: { scope: string } }[]).every((o) => o.definition.scope === "repo"),
+    ).toBe(true);
   });
 
   test("set --scope user writes ~/.config/metator/options.yml with its header; get reads it back typed", async () => {
@@ -85,8 +89,10 @@ describe("metator config (options, real CLI)", () => {
     const fixed = await mt("config", "set", "issues.requireConsent", "false", "--scope", "repo");
     expect((fixed.json.error as Data).message).toContain("fixed");
     // A hand-edited file with a wrong value: the default applies, the file says so.
-    const text = await readFile(join(configDir, "options.yml"), "utf8");
-    await Bun.write(join(configDir, "options.yml"), `${text}  keys.detach: "ctrl+"\n  ui.nope: 1\n`);
+    await Bun.write(
+      join(configDir, "options.yml"),
+      'kind: UserOptions\nschemaVersion: 1\noptions:\n  keys.zoom: [prefix+f, ctrl+z]\n  keys.detach: "ctrl+"\n  ui.nope: 1\n',
+    );
     const view = data(await mt("config", "list"));
     expect(option(view, "keys.detach")).toMatchObject({ value: ["prefix+q"], source: "default" });
     expect((view.diagnostics as { kind: string; key: string }[]).map((d) => [d.kind, d.key])).toEqual([
@@ -127,10 +133,19 @@ describe("metator config (options, real CLI)", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+    const call = async (path: string, init?: RequestInit) => {
+      const r = await fetch(`${base}${path}`, init);
+      const text = await r.text();
+      try {
+        return JSON.parse(text) as { ok: boolean; data: Data; error: Data };
+      } catch {
+        throw new Error(`${path}: HTTP ${r.status}: ${text.slice(0, 400)}`);
+      }
+    };
+    let base = "";
     try {
       const reader = daemon.stderr.getReader();
       let text = "";
-      let base = "";
       const deadline = Date.now() + 20_000;
       while (!base && Date.now() < deadline) {
         const { value, done } = await reader.read();
@@ -140,36 +155,30 @@ describe("metator config (options, real CLI)", () => {
         if (line) base = (JSON.parse(line) as { serving: { url: string } }).serving.url;
       }
       expect(base).not.toBe("");
-      const view = (await (await fetch(`${base}/options`)).json()) as { ok: boolean; data: Data };
+      const view = await call("/options");
       expect(view.ok).toBe(true);
       expect(option(view.data, "supervisor.wipLimit")).toMatchObject({ value: 2, source: "repo" });
-      const set = (await (
-        await fetch(`${base}/options/ui.density`, {
-          method: "POST",
-          body: JSON.stringify({ scope: "user", value: "compact" }),
-          headers: { "content-type": "application/json" },
-        })
-      ).json()) as { ok: boolean; data: Data };
+      const set = await call("/options/ui.density", {
+        method: "POST",
+        body: JSON.stringify({ scope: "user", value: "compact" }),
+        headers: { "content-type": "application/json" },
+      });
       expect(set.data).toMatchObject({ key: "ui.density", value: "compact", source: "user" });
       expect(parse(await readFile(join(configDir, "options.yml"), "utf8"))).toMatchObject({
         options: { "ui.density": "compact" },
       });
-      const refused = (await (
-        await fetch(`${base}/options/ui.density`, {
-          method: "POST",
-          body: JSON.stringify({ scope: "user", value: "loose" }),
-          headers: { "content-type": "application/json" },
-        })
-      ).json()) as { ok: boolean; error: Data };
+      const refused = await call("/options/ui.density", {
+        method: "POST",
+        body: JSON.stringify({ scope: "user", value: "loose" }),
+        headers: { "content-type": "application/json" },
+      });
       expect(refused.ok).toBe(false);
       expect(refused.error.code).toBe("USAGE");
-      const reset = (await (
-        await fetch(`${base}/options/ui.density`, {
-          method: "POST",
-          body: JSON.stringify({ scope: "user", reset: true }),
-          headers: { "content-type": "application/json" },
-        })
-      ).json()) as { ok: boolean; data: Data };
+      const reset = await call("/options/ui.density", {
+        method: "POST",
+        body: JSON.stringify({ scope: "user", reset: true }),
+        headers: { "content-type": "application/json" },
+      });
       expect(reset.data).toMatchObject({ value: "comfortable", source: "default" });
       // The CLI sees what the daemon wrote.
       expect(data(await mt("config", "get", "ui.density"))).toMatchObject({ source: "default" });

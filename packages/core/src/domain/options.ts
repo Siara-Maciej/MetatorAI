@@ -314,7 +314,7 @@ export function resolveOptions(
       const raw = layer.values[def.key];
       if (def.fixed) {
         diagnostics.push(
-          diag("fixed", layer, def.key, `${def.key} is fixed to ${JSON.stringify(def.defaultValue)}`),
+          diag("fixed", layer, def.key, `${def.key} is fixed to ${showValue(def.defaultValue)}`),
         );
         continue;
       }
@@ -360,6 +360,10 @@ const diag = (
   key,
   message,
 });
+
+/** A value as a message shows it: lists joined, texts quoted, the rest as is. */
+export const showValue = (value: unknown): string =>
+  Array.isArray(value) ? value.join(", ") : typeof value === "string" ? `"${value}"` : String(value);
 
 /** The group an option is shown under: its key's first segment (`ui`, `keys`, …). */
 export const optionGroup = (key: string): string => key.split(".")[0] as string;

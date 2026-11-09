@@ -12,6 +12,7 @@ import {
   optionsJsonSchema,
   type ResolvedOption,
   resolveOptions,
+  showValue,
   UserOptionsDocument,
 } from "../domain/options.ts";
 import { err, ok, type Result } from "../domain/result.ts";
@@ -119,7 +120,7 @@ export class OptionStore {
     if (!def) return err(unknownOption(input.key));
     if (def.fixed)
       return err(
-        MetatorError.usage(`${def.key} is fixed to ${JSON.stringify(def.defaultValue)} and cannot be set`),
+        MetatorError.usage(`${def.key} is fixed to ${showValue(def.defaultValue)} and cannot be set`),
       );
     if (!def.settableAt.includes(input.scope))
       return err(
@@ -250,10 +251,11 @@ export class OptionStore {
   private async writeUser(key: string, value: unknown): Promise<Result<void, MetatorError>> {
     const current = await this.deps.user.read(USER_OPTIONS_FILE);
     if (current.isErr()) return err(current.error);
+    // A fresh file carries the header only, so the map `setIn` creates is a block map, one key per line.
     const text =
       current.value ??
       renderYamlDocument(
-        { ...UserOptionsDocument.stamp({ options: {} }) },
+        { kind: UserOptionsDocument.kind, schemaVersion: UserOptionsDocument.current },
         "Your MetatorAI options (`metator config set <key> <value>`); a wrong value is a warning, not an error.",
       );
     return this.deps.user.write(USER_OPTIONS_FILE, updateYamlPath(text, ["options", key], value));
