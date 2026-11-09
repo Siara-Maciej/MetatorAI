@@ -8,6 +8,7 @@ import type {
   PaneState,
   PaneView,
   Question,
+  ResolvedOption,
   RunOverview,
   StageProgress,
 } from "./api.ts";
@@ -149,6 +150,7 @@ export type Route =
   | { readonly screen: "grid"; readonly group?: string }
   | { readonly screen: "graph" }
   | { readonly screen: "supervisor" }
+  | { readonly screen: "settings" }
   | { readonly screen: "briefing"; readonly runId: string };
 
 export function parseRoute(hash: string): Route {
@@ -174,6 +176,8 @@ export function parseRoute(hash: string): Route {
       return { screen: "graph" };
     case "supervisor":
       return { screen: "supervisor" };
+    case "settings":
+      return { screen: "settings" };
     case "briefing":
       return arg ? { screen: "briefing", runId: decodeURIComponent(arg) } : { screen: "inbox" };
     default:
@@ -236,3 +240,29 @@ export const stateTone = (state: PaneState | undefined): "amber" | "violet" | "r
       : state === "exited"
         ? "red"
         : undefined;
+
+/** The settings sections: one per option group, in the registry's order of first appearance. */
+export function optionSections(
+  options: readonly ResolvedOption[],
+): { readonly id: string; readonly count: number; readonly changed: number }[] {
+  const out = new Map<string, { id: string; count: number; changed: number }>();
+  for (const o of options) {
+    const id = o.key.split(".")[0] as string;
+    const s = out.get(id) ?? { id, count: 0, changed: 0 };
+    s.count += 1;
+    if (o.source !== "default") s.changed += 1;
+    out.set(id, s);
+  }
+  return [...out.values()];
+}
+
+/** The settings search: the key, the title or the description holds the words. */
+export const optionMatches = (o: ResolvedOption, query: string): boolean => {
+  const q = query.trim().toLowerCase();
+  return (
+    q === "" ||
+    o.key.toLowerCase().includes(q) ||
+    o.definition.title.toLowerCase().includes(q) ||
+    o.definition.description.toLowerCase().includes(q)
+  );
+};

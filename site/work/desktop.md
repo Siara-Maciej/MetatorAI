@@ -17,7 +17,7 @@ cd packages/desktop && bun run tauri dev   # the window (needs Rust and the plat
 cd packages/desktop && bun run build && bunx vite preview --open
 ```
 
-The app finds the daemon at `http://127.0.0.1:4310`; `?daemon=http://127.0.0.1:4310` or the ⚙ field in the top bar points it elsewhere. Your name, typed once, signs every answer and attach.
+The app finds the daemon at `http://127.0.0.1:4310`; `?daemon=http://127.0.0.1:4310` or the **Settings** screen (⚙ in the rail, section *app*) points it elsewhere. Your name, typed once, signs every answer and attach.
 
 ## Screens
 

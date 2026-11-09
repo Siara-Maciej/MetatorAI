@@ -224,6 +224,16 @@ export interface MachineState {
   dirExists(path: string): Promise<boolean>;
 }
 
+/**
+ * A person's own MetatorAI files, outside any repository (S1): `$METATOR_CONFIG_DIR`, else
+ * `$XDG_CONFIG_HOME/metator`, else `~/.config/metator`; the runtime picks the directory.
+ */
+export interface UserConfigStore {
+  /** The document's text; undefined when it was never written. */
+  read(name: string): Promise<Result<string | undefined, MetatorError>>;
+  write(name: string, content: string): Promise<Result<void, MetatorError>>;
+}
+
 /** Copies a directory tree, copy-on-write where the file system can (build reuse, F8.7). */
 export interface TreeCopier {
   /** Absolute paths. False, and nothing copied, when `from` is missing or `to` already exists. */

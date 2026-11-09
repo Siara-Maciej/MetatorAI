@@ -1,0 +1,52 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "UserOptions",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "UserOptions"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "options": {
+        "default": {},
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "minLength": 1
+        },
+        "additionalProperties": {}
+      }
+    },
+    "additionalProperties": false,
+    "required": ["kind", "schemaVersion"]
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "UserOptions"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "options": {
+        "default": {},
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "minLength": 1
+        },
+        "additionalProperties": {}
+      }
+    },
+    "required": ["kind", "schemaVersion", "options"],
+    "additionalProperties": false
+  }
+}

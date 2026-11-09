@@ -35,4 +35,5 @@ Only the pure libraries approved in ADR-0010 (enforced by MT-ARCH-003). Never ru
 ## Pitfalls
 
 - Changing a document schema in place breaks files users already have: add a version and an `upgrade` (MT-CODE-003).
+- A new setting is an option in the registry (`domain/option-registry.ts`), not a field of `MetatorConfig`: one definition gives the CLI, the daemon and the app its type, default, scope and description (S1).
 - `Bun` and `process` do not exist here (MT-ARCH-004); take what you need through a port.

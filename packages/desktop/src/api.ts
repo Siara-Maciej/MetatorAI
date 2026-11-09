@@ -242,6 +242,46 @@ export interface SupervisorView {
   };
 }
 
+/** Options (S1): what `/options` says about every setting. */
+export type OptionScope = "user" | "repo" | "run";
+export type OptionSource = OptionScope | "default";
+export interface OptionDescription {
+  readonly key: string;
+  readonly kind: "boolean" | "enum" | "number" | "string" | "list" | "keybinding" | "command";
+  readonly scope: "user" | "repo";
+  readonly title: string;
+  readonly description: string;
+  readonly default: unknown;
+  readonly restart: "none" | "daemon" | "app";
+  readonly since?: string;
+  readonly fixed: boolean;
+  readonly choices?: readonly string[];
+  readonly min?: number;
+  readonly max?: number;
+  readonly unit?: string;
+  readonly runsLocally?: boolean;
+}
+export interface ResolvedOption {
+  readonly key: string;
+  readonly value: unknown;
+  readonly source: OptionSource;
+  readonly definition: OptionDescription;
+  readonly layers: Partial<Record<OptionScope, unknown>>;
+}
+export interface OptionDiagnostic {
+  readonly kind: "unknown-key" | "invalid-value" | "wrong-scope" | "fixed";
+  readonly scope: OptionScope;
+  readonly source: string;
+  readonly key: string;
+  readonly message: string;
+}
+export interface OptionsView {
+  readonly options: readonly ResolvedOption[];
+  readonly diagnostics: readonly OptionDiagnostic[];
+  readonly groups: readonly { readonly id: string; readonly count: number; readonly changed: number }[];
+  readonly files: { readonly user: string; readonly repo: string; readonly run?: string };
+}
+
 export interface Brief {
   readonly runId: string;
   readonly status: string;
@@ -315,6 +355,12 @@ export class DaemonClient {
   inbox = () => this.get<{ decisions: InboxItem[] }>("/inbox");
   supervisor = (repo?: string) => this.get<SupervisorView>("/supervisor", repo);
   workflows = (repo?: string) => this.get<{ workflows: Workflow[] }>("/workflows", repo);
+  options = (repo?: string) => this.get<OptionsView>("/options", repo);
+  setOption = (
+    key: string,
+    body: { scope: OptionScope; value?: unknown; reset?: boolean; runId?: string },
+    repo?: string,
+  ) => this.post<ResolvedOption>(`/options/${encodeURIComponent(key)}`, body, repo);
   conflicts = (repo?: string) => this.get<{ conflicts: Conflict[] }>("/conflicts", repo);
   activity = (runId: string, repo?: string, tail?: number) =>
     this.get<{ entries: Activity[] }>(`/runs/${runId}/activity${tail ? `?tail=${tail}` : ""}`, repo);

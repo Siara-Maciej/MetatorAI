@@ -97,6 +97,33 @@ notify:
 
 A question an answer policy answers is not announced. A failing command is logged in the run's activity and never stops the run; the next drive tries again.
 
+## Options: yours, the repository's, a run's
+
+Besides the fields above, every setting of the terminal workbench, the app and the daemon is an **option**: one key, one type, one default, a description, and the scope it belongs to. `metator config list` prints them all with their effective value and where it comes from.
+
+```bash
+metator config list                                  # every option: value, source (default · user · repo · run), diagnostics
+metator config list --changed                        # only the ones a file sets
+metator config get keys.zoom                         # one option and what each scope holds for it
+metator config set ui.paneBorders always --scope user
+metator config set supervisor.wipLimit 2 --scope repo
+metator config set supervisor.wipLimit 1 --scope run --run <id>
+metator config unset ui.paneBorders --scope user     # back to the next scope down, or the default
+metator config schema --options                      # JSON Schema of the options map
+```
+
+| Scope | File | Holds |
+|---|---|---|
+| `user` | `~/.config/metator/options.yml` (`$METATOR_CONFIG_DIR`, `$XDG_CONFIG_HOME/metator`) | your look and keys: `ui.*`, `keys.*`, `notify.channel`, `terminal.*`, `editor.*` |
+| `repo` | `options:` in `metator.config.yml` | the repository's policy: `supervisor.*`, `hosts.*`, `worktrees.*`, `review.*`, `issues.*`, `notify.command` |
+| `run` | `options` in the run's `state.json` | a repo option for one run (`supervisor.wipLimit`, a host) |
+
+Groups: `ui` (theme, density, pane borders and labels, sidebar, sort order), `keys` (the prefix, as in tmux and herdr, then one key per action: `prefix+c` new shell, `prefix+z` zoom, `prefix+g` go to, `prefix+[` copy mode; typed as `ctrl+b, ctrl+space`), `notify`, `terminal`, `editor`, `supervisor`, `hosts`, `worktrees`, `review`, `issues`. The desktop app's **Settings** screen is the same list with a search box; a change there is written to the same files and is visible to the CLI at once, and the other way round.
+
+A wrong value never stops anything: in a file it is a **diagnostic** (`metator config list` lists it, the app shows it in amber by the option) and the default applies; typed into `config set` it is refused with `USAGE`. An option marked `restart daemon` is read when `metator serve` starts. `issues.requireConsent` is shown and cannot be changed: an agent only proposes a task, a person adds it.
+
+The older fields `editor`, `notify.command` and `supervisor.*` still work and show as the repository's values of `editor.command`, `notify.command` and `supervisor.*`; `options:` wins over them.
+
 ## Supervisor
 
 `supervisor` is the policy `metator supervise` and the daemon follow (ADR-0077):

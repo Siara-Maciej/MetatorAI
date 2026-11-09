@@ -112,6 +112,7 @@ import {
   MetatorError,
   type MetatorPaths,
   Notifier,
+  OptionStore,
   ok,
   PackRules,
   PaneSensor,
@@ -254,6 +255,8 @@ export interface BootstrapOptions {
   readonly dockerBin?: string;
   /** Machine-wide state shared by every repository (`machineStateDir`); default from the process env. */
   readonly stateDir?: string;
+  /** The person's own MetatorAI files (`userConfigDir`); default from the process env. */
+  readonly userConfigDir?: string;
 }
 
 /**
@@ -264,6 +267,16 @@ export function machineStateDir(env: Readonly<Record<string, string | undefined>
   if (env.METATOR_STATE_DIR) return env.METATOR_STATE_DIR;
   if (env.XDG_STATE_HOME) return join(env.XDG_STATE_HOME, "metator");
   return join(env.HOME ?? homedir(), ".local", "state", "metator");
+}
+
+/**
+ * Where a person's own MetatorAI files live (S1): `$METATOR_CONFIG_DIR`, else
+ * `$XDG_CONFIG_HOME/metator`, else `~/.config/metator`.
+ */
+export function userConfigDir(env: Readonly<Record<string, string | undefined>>): string {
+  if (env.METATOR_CONFIG_DIR) return env.METATOR_CONFIG_DIR;
+  if (env.XDG_CONFIG_HOME) return join(env.XDG_CONFIG_HOME, "metator");
+  return join(env.HOME ?? homedir(), ".config", "metator");
 }
 
 /** The interactive hosts in the configured order (`supervisor.hostOrder`); the ones it does not name last. */
@@ -319,6 +332,19 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     timer: asFunction(() => new BunTimer()).singleton(),
     launcher: asFunction(() => new BunLauncher()).singleton(),
     updateConfig: asFunction(({ fileSystem }) => new UpdateConfig(fileSystem)),
+    userConfig: asFunction(
+      () => new BunMachineState(options.userConfigDir ?? userConfigDir(process.env)),
+    ).singleton(),
+    optionStore: asFunction(
+      ({ fileSystem, userConfig, config: loaded, runRepository }) =>
+        new OptionStore({
+          fs: fileSystem,
+          user: userConfig,
+          config: loaded.config,
+          configFile: loaded.source,
+          runs: runRepository,
+        }),
+    ),
     containerRuntime: asFunction(() => new DockerComposeRuntime(options.dockerBin)).singleton(),
     healthProbe: asFunction(() => new WaitOnHealthProbe()).singleton(),
     environmentCatalog: asFunction(({ fileSystem, paths }) => new EnvironmentCatalog(fileSystem, paths)),

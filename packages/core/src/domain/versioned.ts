@@ -215,6 +215,14 @@ export function updateYamlFields(text: string, fields: Record<string, unknown>):
   return doc.toString({ lineWidth: 0 });
 }
 
+/** Sets one field at a path of a YAML document (a key may hold dots) and keeps everything else. */
+export function updateYamlPath(text: string, path: readonly string[], value: unknown): string {
+  const doc = parseDocument(text);
+  if (value === undefined) doc.deleteIn(path);
+  else doc.setIn(path, value);
+  return doc.toString({ lineWidth: 0 });
+}
+
 const FRONT_MATTER = /^---\n([\s\S]*?)\n---\n/;
 
 /** Markdown documents carry their header as YAML front matter. */
