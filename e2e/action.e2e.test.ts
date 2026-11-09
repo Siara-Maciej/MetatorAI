@@ -137,4 +137,20 @@ describe("the MetatorAI GitHub Action (action.yml)", () => {
     expect(specs.code).toBe(1);
     expect(specs.stdout).toContain('"stale":[".github/agents/mt-planner.agent.md"]');
   }, 120_000);
+
+  test("the Copilot coding agent's setup steps: the job GitHub looks for, every metator command real", async () => {
+    const wf = parse(await Bun.file(join(ROOT, ".github/workflows/copilot-setup-steps.yml")).text()) as {
+      jobs: Record<string, { steps: { run?: string }[] }>;
+    };
+    expect(Object.keys(wf.jobs)).toEqual(["copilot-setup-steps"]);
+    const help = (await metator(["help"], repo.root)).json.data as { commands: { name: string }[] };
+    const runs = (wf.jobs["copilot-setup-steps"] as { steps: { run?: string }[] }).steps
+      .map((st) => st.run)
+      .filter((r): r is string => typeof r === "string");
+    expect(runs[0]).toBe("bun install --frozen-lockfile");
+    for (const r of runs.slice(1)) {
+      const command = r.replace(/^bun packages\/cli\/src\/main\.ts /, "");
+      expect([command, help.commands.some((c) => c.name === command)]).toEqual([command, true]);
+    }
+  });
 });

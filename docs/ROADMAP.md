@@ -169,7 +169,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [ ] `.github/workflows/mt-pr-review.yml`: review headless L2 na PR-ach pilota (tylko komentarze `confirmed blocking`, reszta w podsumowaniu).
 - [ ] `.github/workflows/mt-nightly.yml`: W10 knowledge refresh (PR z częścią generowaną + issue z driftem).
 - [ ] `.github/workflows/mt-eval.yml`: W12 dla zmian w agentach.
-- [ ] `copilot-setup-steps.yml` dla coding agenta (`bun install`, `metator index build`).
+- [x] `copilot-setup-steps.yml` dla coding agenta (`bun install`, `metator index build`, `metator doctor`).
 - [ ] Natywny Copilot code review: lekkie instrukcje. Ciężkie mają `excludeAgent: code-review`, żeby nie dublować mt-pr-review.
 - [ ] Telemetria: agregacja `telemetry.jsonl` i reakcji na komentarze (resolved/dismissed) → dashboard.
 
