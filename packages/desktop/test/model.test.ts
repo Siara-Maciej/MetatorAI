@@ -8,10 +8,13 @@ import {
   inboxChips,
   newQuestions,
   nextWaiting,
+  paneLabel,
+  panesOfRun,
   parseRoute,
   questionKind,
   routeHash,
   stageGlyph,
+  stateTone,
   stepLabel,
   wasAway,
 } from "../src/model.ts";
@@ -166,6 +169,7 @@ describe("formatting and routes", () => {
 
   test("routes parse and print both ways; anything unknown is the inbox", () => {
     expect(parseRoute("#/session/2026%2Fa")).toEqual({ screen: "session", runId: "2026/a" });
+    expect(parseRoute("#/session/r/w1%3Ap2")).toEqual({ screen: "session", runId: "r", pane: "w1:p2" });
     expect(parseRoute("#/grid/p")).toEqual({ screen: "grid", group: "p" });
     expect(parseRoute("#/grid")).toEqual({ screen: "grid" });
     expect(parseRoute("#/briefing/r")).toEqual({ screen: "briefing", runId: "r" });
@@ -175,6 +179,7 @@ describe("formatting and routes", () => {
     for (const hash of [
       "#/inbox",
       "#/session/r",
+      "#/session/r/w1%3Ap2",
       "#/grid",
       "#/grid/p",
       "#/graph",
@@ -188,5 +193,46 @@ describe("formatting and routes", () => {
     expect(wasAway(undefined, 1_000_000)).toBe(false);
     expect(wasAway(0, 599_999)).toBe(false);
     expect(wasAway(0, 600_000)).toBe(true);
+  });
+
+  test("a run's panes: the conductor first, workers next, shells last; labels and state tones", () => {
+    const pane = (
+      id: string,
+      role: "conductor" | "worker" | "shell",
+      runId = "r1",
+      extra: Record<string, unknown> = {},
+    ) => ({
+      id,
+      workspace: "w1",
+      tab: "t1",
+      role,
+      label: role,
+      cwd: "/repo",
+      runId,
+      process: {
+        kind: "host" as const,
+        host: "copilot",
+        agent: role === "conductor" ? "mt-orchestrator" : "mt-planner",
+        prompt: "",
+      },
+      ...extra,
+    });
+    const panes = [
+      pane("w1:p3", "shell"),
+      pane("w1:p10", "worker", "r1", { worker: { name: "mt-planner-2", stage: "plan" } }),
+      pane("w1:p2", "worker", "r1", { worker: { name: "mt-planner-1", stage: "plan" } }),
+      pane("w2:p4", "conductor", "r2"),
+      pane("w1:p1", "conductor"),
+    ];
+    expect(panesOfRun(panes, "r1").map((p) => p.id)).toEqual(["w1:p1", "w1:p2", "w1:p10", "w1:p3"]);
+    expect(panesOfRun(panes, "r1").map(paneLabel)).toEqual([
+      "conductor · mt-orchestrator",
+      "mt-planner-1",
+      "mt-planner-2",
+      "shell",
+    ]);
+    expect(
+      ["blocked", "waiting", "working", "idle", "exited", undefined].map((s) => stateTone(s as never)),
+    ).toEqual(["amber", "amber", "violet", undefined, "red", undefined]);
   });
 });

@@ -536,6 +536,23 @@ h3 {
 .tabs .spacer {
   flex: 1;
 }
+.panes {
+  display: flex;
+  gap: 4px;
+  padding: 4px 14px;
+  border-bottom: 1px solid var(--edge);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.panes .pane-tab {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.sessions .pane-row {
+  padding-left: 28px;
+  font-size: 11px;
+}
 .term {
   flex: 1;
   min-height: 0;

@@ -171,7 +171,7 @@ function Shell() {
       </nav>
       <SessionsPanel
         current={current}
-        onOpen={(id) => openSession(id)}
+        onOpen={(id, pane) => (pane ? go({ screen: "session", runId: id, pane }) : openSession(id))}
         onNew={() => setDialog(true)}
         onGrid={(group) => go({ screen: "grid", ...(group ? { group } : {}) })}
       />
@@ -183,7 +183,7 @@ function Shell() {
           />
         ) : null}
         {route.screen === "session" ? (
-          <SessionScreen runId={route.runId} onOpenSession={openSession} />
+          <SessionScreen runId={route.runId} pane={route.pane} onOpenSession={openSession} />
         ) : null}
         {route.screen === "grid" ? (
           <TerminalsScreen

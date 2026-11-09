@@ -4,8 +4,17 @@
  */
 import { useEffect, useState } from "react";
 import { useDaemon } from "../daemon.tsx";
-import { byPanelOrder, duration, groupByFeature, type Run, stepLabel } from "../model.ts";
-import { attentionLabel, Dot } from "./chips.tsx";
+import {
+  byPanelOrder,
+  duration,
+  groupByFeature,
+  paneLabel,
+  panesOfRun,
+  type Run,
+  stateTone,
+  stepLabel,
+} from "../model.ts";
+import { attentionLabel, Chip, Dot } from "./chips.tsx";
 
 type Mode = "app" | "run";
 
@@ -24,11 +33,11 @@ export function SessionsPanel({
   onGrid,
 }: {
   readonly current?: string | undefined;
-  onOpen(runId: string): void;
+  onOpen(runId: string, pane?: string): void;
   onNew(): void;
   onGrid(group?: string): void;
 }) {
-  const { runs, repos } = useDaemon();
+  const { runs, repos, panes } = useDaemon();
   const [mode, setMode] = useState<Mode>(readMode);
   useEffect(() => {
     try {
@@ -41,25 +50,47 @@ export function SessionsPanel({
   const groups = groupByFeature<Run>(ordered);
   const finished = ordered.filter((r) => r.status !== "active");
   const [showFinished, setShowFinished] = useState(false);
+  // A run with more than its conductor shows its panes under it (R4): who works, in what state.
+  const paneRows = (r: Run) => {
+    const own = panesOfRun(panes, r.runId);
+    if (own.length < 2) return null;
+    return own.map((p) => (
+      <button
+        type="button"
+        key={p.id}
+        className="row pane-row"
+        onClick={() => onOpen(r.runId, p.id)}
+        title={p.state?.reason ?? p.id}
+      >
+        <span />
+        <span className="sub">
+          {paneLabel(p)} <span className="dim">· {p.id}</span>
+        </span>
+        <Chip tone={stateTone(p.state?.state)}>{p.state?.state ?? (p.live?.alive ? "live" : "off")}</Chip>
+      </button>
+    ));
+  };
   const row = (r: Run, label?: string) => (
-    <button
-      type="button"
-      key={r.runId}
-      className="row"
-      aria-current={r.runId === current ? "true" : undefined}
-      onClick={() => onOpen(r.runId)}
-    >
-      <Dot attention={r.attention} human={r.driver === "human"} />
-      <span>
-        <div className="title">
-          {label ? <span className="chip blue">{label}</span> : null} {r.task}
-        </div>
-        <div className="sub">
-          {r.stage} · {r.host ?? "no host"} · {attentionLabel(r.attention)} · {duration(r.elapsedMs)}
-        </div>
-      </span>
-      <span className="dim">{r.questions.length > 0 ? `?${r.questions.length}` : ""}</span>
-    </button>
+    <div key={r.runId}>
+      <button
+        type="button"
+        className="row"
+        aria-current={r.runId === current ? "true" : undefined}
+        onClick={() => onOpen(r.runId)}
+      >
+        <Dot attention={r.attention} human={r.driver === "human"} />
+        <span>
+          <div className="title">
+            {label ? <span className="chip blue">{label}</span> : null} {r.task}
+          </div>
+          <div className="sub">
+            {r.stage} · {r.host ?? "no host"} · {attentionLabel(r.attention)} · {duration(r.elapsedMs)}
+          </div>
+        </span>
+        <span className="dim">{r.questions.length > 0 ? `?${r.questions.length}` : ""}</span>
+      </button>
+      {paneRows(r)}
+    </div>
   );
   const active = (list: readonly Run[]) => list.filter((r) => r.status === "active");
   return (

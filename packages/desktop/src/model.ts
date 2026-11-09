@@ -2,7 +2,15 @@
  * The view logic the daemon does not do (D7, ADR-0078): how sessions are ordered and grouped in
  * the panel, how a question becomes an inbox row, how times read. Pure functions, no DOM.
  */
-import type { Attention, InboxItem, Question, RunOverview, StageProgress } from "./api.ts";
+import type {
+  Attention,
+  InboxItem,
+  PaneState,
+  PaneView,
+  Question,
+  RunOverview,
+  StageProgress,
+} from "./api.ts";
 
 /** A run as the app sees it: with the repository it belongs to when the daemon serves a folder. */
 export type Run = RunOverview & { readonly repo?: string | undefined };
@@ -137,7 +145,7 @@ const quote = (s: string) => (/^[\w./-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\
 /** The hash route: `#/inbox`, `#/session/<run>`, `#/grid`, `#/graph`, `#/supervisor`, `#/briefing/<run>`. */
 export type Route =
   | { readonly screen: "inbox" }
-  | { readonly screen: "session"; readonly runId: string }
+  | { readonly screen: "session"; readonly runId: string; readonly pane?: string }
   | { readonly screen: "grid"; readonly group?: string }
   | { readonly screen: "graph" }
   | { readonly screen: "supervisor" }
@@ -150,8 +158,16 @@ export function parseRoute(hash: string): Route {
     .filter((p) => p !== "");
   const [screen, arg] = parts;
   switch (screen) {
-    case "session":
-      return arg ? { screen: "session", runId: decodeURIComponent(arg) } : { screen: "inbox" };
+    case "session": {
+      const pane = parts[2];
+      return arg
+        ? {
+            screen: "session",
+            runId: decodeURIComponent(arg),
+            ...(pane ? { pane: decodeURIComponent(pane) } : {}),
+          }
+        : { screen: "inbox" };
+    }
     case "grid":
       return arg ? { screen: "grid", group: decodeURIComponent(arg) } : { screen: "grid" };
     case "graph":
@@ -168,7 +184,7 @@ export function parseRoute(hash: string): Route {
 export function routeHash(route: Route): string {
   switch (route.screen) {
     case "session":
-      return `#/session/${encodeURIComponent(route.runId)}`;
+      return `#/session/${encodeURIComponent(route.runId)}${route.pane ? `/${encodeURIComponent(route.pane)}` : ""}`;
     case "briefing":
       return `#/briefing/${encodeURIComponent(route.runId)}`;
     case "grid":
@@ -191,3 +207,32 @@ export function newQuestions(
   const seen = new Set(before.map((q) => `${q.runId}/${q.id}`));
   return after.filter((q) => !seen.has(`${q.runId}/${q.id}`));
 }
+
+/** The panes of a run (R4): the conductor first, then workers in order, then the rest. */
+export function panesOfRun<P extends Pick<PaneView, "runId" | "role" | "id">>(
+  panes: readonly P[],
+  runId: string,
+): P[] {
+  const rank: Record<PaneView["role"], number> = { conductor: 0, worker: 1, gate: 2, apps: 3, shell: 4 };
+  return panes
+    .filter((p) => p.runId === runId)
+    .sort((a, b) => rank[a.role] - rank[b.role] || a.id.localeCompare(b.id, undefined, { numeric: true }));
+}
+
+/** What a pane tab says: its worker's name, its agent, or its role. */
+export function paneLabel(pane: Pick<PaneView, "role" | "label" | "worker" | "process">): string {
+  if (pane.worker) return pane.worker.name;
+  if (pane.role === "conductor")
+    return `conductor · ${pane.process.kind === "host" ? pane.process.agent : pane.label}`;
+  return pane.label || pane.role;
+}
+
+/** The chip tone of a pane state: blocked and waiting want a person, working is the agent's, the rest is grey. */
+export const stateTone = (state: PaneState | undefined): "amber" | "violet" | "red" | undefined =>
+  state === "blocked" || state === "waiting"
+    ? "amber"
+    : state === "working"
+      ? "violet"
+      : state === "exited"
+        ? "red"
+        : undefined;

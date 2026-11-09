@@ -4,7 +4,7 @@ export const Chip = ({
   tone,
   children,
 }: {
-  readonly tone?: "amber" | "red" | "green" | "blue" | "violet" | "teal";
+  readonly tone?: "amber" | "red" | "green" | "blue" | "violet" | "teal" | undefined;
   readonly children: React.ReactNode;
 }) => <span className={`chip${tone ? ` ${tone}` : ""}`}>{children}</span>;
 

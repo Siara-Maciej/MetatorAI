@@ -16,6 +16,7 @@ import { registerAgentCommands } from "./commands/agents.ts";
 import { registerApiCommands } from "./commands/api.ts";
 import { registerArchCommands } from "./commands/arch.ts";
 import { registerAskCommands } from "./commands/ask.ts";
+import { registerAttachCommand } from "./commands/attach.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerConfigCommands } from "./commands/config.ts";
@@ -168,6 +169,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerStatusCommand(program, ctx);
   registerServeCommand(program, ctx);
   registerPaneCommands(program, ctx);
+  registerAttachCommand(program, ctx);
   registerSuperviseCommand(program, ctx);
 
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).

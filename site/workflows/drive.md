@@ -231,6 +231,13 @@ metator run attach --by alice            # the lock is yours; another person is 
 metator run release
 ```
 
+`metator attach <pane>` does both in one go, in your terminal: it takes the run's driver lock under your name, puts your terminal in raw mode on the pane's socket (every key goes to the pane, every byte comes back, the size follows your window) and gives the lock back when you detach with `Ctrl-]` (keep it with `--keep`). A run id names its conductor pane; a shell pane of no run takes anyone's keys without a lock.
+
+```bash
+metator attach w1:p2 --by alice           # the worker pane w1:p2 (metator pane list names them)
+metator attach 20261109-feature-x        # the run's conductor pane
+```
+
 An agent that heard you say yes runs `metator run approve <gate> --by alice --via chat`. That command is accepted only while you are attached, only under your name, and never for the push or a PR comment: in a driven session the hook refuses it otherwise, as it refuses every other run control by an agent. Every attach, release and approval from the chat is a line in `log.md` (who, when) and a `driver` entry in the activity. `metator status` shows `driver` and `attachedBy` for each run.
 
 ## Messages between runs

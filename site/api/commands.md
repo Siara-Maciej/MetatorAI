@@ -2336,6 +2336,22 @@ metator pane wait [options] <pane>
 | `--until <state>` | working, blocked, waiting, idle or exited; repeat for several | `[]` |
 | `--timeout <ms>` | give up after this long | `60000` |
 
+## attach
+
+### `metator attach`
+
+This terminal on a pane (or a run's conductor pane); Ctrl-] detaches. A run's pane takes its driver lock
+
+```bash
+metator attach [options] <pane>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<pane>` |  | |
+| `--by <name>` | who attaches (default: $USER) | `""` |
+| `--keep` | keep the run's driver lock after detaching |  |
+
 ## supervise
 
 ### `metator supervise`

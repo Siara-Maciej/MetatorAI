@@ -1,7 +1,7 @@
 /**
- * A terminal on the daemon's PTY of a run (screen 2, screen 7): xterm.js over `/ws/pty/<run>`.
- * Everyone reads; keystrokes go through only while the person is attached (the daemon refuses
- * the rest and says so).
+ * A terminal on one of the daemon's PTYs (screen 2, screen 7): xterm.js over `/ws/pty/<run>` (a
+ * run's conductor pane) or `/ws/pane/<pane>` (any pane, R4). Everyone reads; keystrokes go through
+ * only while the person is attached (the daemon refuses the rest and says so).
  */
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
@@ -15,6 +15,7 @@ export interface TerminalStatus {
   readonly refused?: string | undefined;
 }
 
+/** A run's conductor pane (the daemon opens it when none is live). */
 export function RunTerminal({
   runId,
   repo,
@@ -22,6 +23,53 @@ export function RunTerminal({
   onStatus,
 }: {
   readonly runId: string;
+  readonly repo?: string | undefined;
+  readonly canType: boolean;
+  onStatus?: ((s: TerminalStatus) => void) | undefined;
+}) {
+  return (
+    <SocketTerminal
+      path={`/ws/pty/${encodeURIComponent(runId)}`}
+      testId={`terminal-${runId}`}
+      repo={repo}
+      canType={canType}
+      onStatus={onStatus}
+    />
+  );
+}
+
+/** One pane of the layout (R4): a worker, a shell, a gate; it must be live. */
+export function PaneTerminal({
+  paneId,
+  repo,
+  canType,
+  onStatus,
+}: {
+  readonly paneId: string;
+  readonly repo?: string | undefined;
+  readonly canType: boolean;
+  onStatus?: ((s: TerminalStatus) => void) | undefined;
+}) {
+  return (
+    <SocketTerminal
+      path={`/ws/pane/${encodeURIComponent(paneId)}`}
+      testId={`pane-${paneId}`}
+      repo={repo}
+      canType={canType}
+      onStatus={onStatus}
+    />
+  );
+}
+
+function SocketTerminal({
+  path,
+  testId,
+  repo,
+  canType,
+  onStatus,
+}: {
+  readonly path: string;
+  readonly testId: string;
   readonly repo?: string | undefined;
   readonly canType: boolean;
   onStatus?: ((s: TerminalStatus) => void) | undefined;
@@ -50,7 +98,7 @@ export function RunTerminal({
     term.open(el);
     fit.fit();
     const query = `?by=${encodeURIComponent(me)}${repo ? `&repo=${encodeURIComponent(repo)}` : ""}`;
-    const ws = new WebSocket(wsUrl(url, `/ws/pty/${encodeURIComponent(runId)}${query}`));
+    const ws = new WebSocket(wsUrl(url, `${path}${query}`));
     socket.current = ws;
     const update = (s: TerminalStatus) => {
       status.current = s;
@@ -96,21 +144,26 @@ export function RunTerminal({
       term.dispose();
     };
     // The socket carries the attach state itself: a new `by` means a new socket.
-  }, [runId, repo, url, me]);
-  return <div className="term" ref={host} data-testid={`terminal-${runId}`} />;
+  }, [path, repo, url, me]);
+  return <div className="term" ref={host} data-testid={testId} />;
 }
 
-/** Sends a line the person typed in the composer (with Enter) to the same PTY. */
+/**
+ * Sends a line the person typed in the composer (with Enter) to a run's conductor pane, or to the
+ * pane named (R4).
+ */
 export function sendLine(
   runId: string,
   url: string,
   me: string,
   repo: string | undefined,
   line: string,
+  paneId?: string,
 ): Promise<string | undefined> {
   return new Promise((resolve) => {
     const query = `?by=${encodeURIComponent(me)}${repo ? `&repo=${encodeURIComponent(repo)}` : ""}`;
-    const ws = new WebSocket(wsUrl(url, `/ws/pty/${encodeURIComponent(runId)}${query}`));
+    const path = paneId ? `/ws/pane/${encodeURIComponent(paneId)}` : `/ws/pty/${encodeURIComponent(runId)}`;
+    const ws = new WebSocket(wsUrl(url, `${path}${query}`));
     let done = false;
     const finish = (reason?: string) => {
       if (done) return;

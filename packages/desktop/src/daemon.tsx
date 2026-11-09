@@ -3,7 +3,16 @@
  * fetch when a socket is down; the person's name and the daemon's address from local storage.
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { DaemonClient, daemonUrl, type InboxItem, type RepoState, type StateData, wsUrl } from "./api.ts";
+import {
+  DaemonClient,
+  daemonUrl,
+  type InboxItem,
+  type LayoutView,
+  type PaneView,
+  type RepoState,
+  type StateData,
+  wsUrl,
+} from "./api.ts";
 import type { Run } from "./model.ts";
 
 export interface Daemon {
@@ -15,6 +24,8 @@ export interface Daemon {
   readonly runs: readonly Run[];
   readonly repos: readonly { readonly name: string; readonly path: string }[];
   readonly inbox: readonly InboxItem[];
+  /** Every pane of every repository's layout (R1, R4), each with the repository it belongs to. */
+  readonly panes: readonly (PaneView & { readonly repo?: string | undefined })[];
   readonly me: string;
   setMe(name: string): void;
   setUrl(url: string): void;
@@ -156,6 +167,27 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     },
   );
   const { runs, repos } = useMemo(() => flattenState(state), [state]);
+  const [panes, setPanes] = useState<readonly (PaneView & { readonly repo?: string | undefined })[]>([]);
+  // The layout has no socket: it is read every second, for every repository the daemon serves.
+  useEffect(() => {
+    let closed = false;
+    const names = repos.length > 0 ? repos.map((r) => r.name) : [undefined];
+    const tick = async () => {
+      const all = await Promise.all(
+        names.map(async (repo) => {
+          const r = await client.layout(repo);
+          return r.ok && r.data ? (r.data as LayoutView).panes.map((p) => ({ ...p, repo })) : [];
+        }),
+      );
+      if (!closed) setPanes(all.flat());
+    };
+    void tick();
+    const t = setInterval(() => void tick(), 1000);
+    return () => {
+      closed = true;
+      clearInterval(t);
+    };
+  }, [client, repos]);
   const value: Daemon = {
     client,
     url,
@@ -164,6 +196,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     runs,
     repos,
     inbox,
+    panes,
     me,
     setMe: (name) => {
       write("metator.me", name);

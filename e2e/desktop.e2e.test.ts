@@ -198,6 +198,24 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the answer echoed", async () =>
       (await term.textContent())?.includes("answer: half-up") ? true : undefined,
     );
+    // The run's panes (R4): the conductor's tab with its state; a shell pane opens, streams and closes.
+    const panes = page.getByTestId("panes");
+    await until("the conductor's tab", async () =>
+      (await panes.textContent())?.includes("conductor") ? true : undefined,
+    );
+    await panes.getByRole("button", { name: "+ Shell" }).click();
+    const shellTerm = page.locator('[data-testid^="pane-"]');
+    await shellTerm.first().waitFor({ timeout: 20_000 });
+    await until("the panel's pane rows", async () =>
+      (await page.locator(".sessions .pane-row").count()) >= 2 ? true : undefined,
+    );
+    await until("the shell tab", async () =>
+      (await panes.textContent())?.includes("shell") ? true : undefined,
+    );
+    await panes.getByTitle(/^close w\d+:p\d+$/).click();
+    await until("the shell tab gone", async () =>
+      (await panes.textContent())?.includes("shell") ? undefined : true,
+    );
     await page.getByRole("button", { name: /Events/ }).click();
     await until("the events table", async () =>
       (await page.locator(".events tbody tr").count()) > 0 ? true : undefined,

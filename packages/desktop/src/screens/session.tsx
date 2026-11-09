@@ -3,20 +3,39 @@ import { useCallback, useEffect, useState } from "react";
 import type { Activity, Conflict, RunMessage } from "../api.ts";
 import { Chip } from "../components/chips.tsx";
 import { StageBar } from "../components/stage-bar.tsx";
-import { RunTerminal, sendLine, type TerminalStatus } from "../components/terminal.tsx";
+import { PaneTerminal, RunTerminal, sendLine, type TerminalStatus } from "../components/terminal.tsx";
 import { useDaemon } from "../daemon.tsx";
-import { clock, duration, type Run } from "../model.ts";
+import { clock, duration, paneLabel, panesOfRun, type Run, stateTone } from "../model.ts";
 
 export function SessionScreen({
   runId,
+  pane: wantedPane,
   onOpenSession,
 }: {
   readonly runId: string;
+  /** The pane to show first (from the sessions panel); the conductor otherwise. */
+  readonly pane?: string | undefined;
   onOpenSession(runId: string): void;
 }) {
-  const { client, runs, url, me, setMe } = useDaemon();
+  const { client, runs, panes: allPanes, url, me, setMe } = useDaemon();
   const run = runs.find((r) => r.runId === runId);
   const repo = run?.repo;
+  const panes = panesOfRun(allPanes, runId);
+  const [chosenPane, setChosenPane] = useState<string | undefined>(wantedPane);
+  useEffect(() => setChosenPane(wantedPane), [wantedPane]);
+  // The conductor's tab is the run's own terminal (opened by the daemon when none is live).
+  const conductor = panes.find((p) => p.role === "conductor");
+  const shown = chosenPane && panes.some((p) => p.id === chosenPane) ? chosenPane : conductor?.id;
+  const openShell = async () => {
+    const r = await client.openPane({ runId, role: "shell", label: "shell", argv: [shellOf()] }, repo);
+    if (r.ok && r.data) setChosenPane(r.data.id);
+    else setNote(r.error?.message);
+  };
+  const closePane = async (id: string) => {
+    const r = await client.closePane(id, repo);
+    if (!r.ok) setNote(r.error?.message);
+    else if (chosenPane === id) setChosenPane(undefined);
+  };
   const [tab, setTab] = useState<"terminal" | "events">("terminal");
   const [events, setEvents] = useState<readonly Activity[]>([]);
   const [messages, setMessages] = useState<readonly RunMessage[]>([]);
@@ -60,7 +79,7 @@ export function SessionScreen({
       await attach();
       return;
     }
-    const refused = await sendLine(runId, url, me, repo, line);
+    const refused = await sendLine(runId, url, me, repo, line, shown !== conductor?.id ? shown : undefined);
     setNote(refused);
     if (!refused) setLine("");
   };
@@ -146,7 +165,45 @@ export function SessionScreen({
           <span className="dim">e editor · t events · d diff</span>
         </div>
         {tab === "terminal" ? (
-          <RunTerminal runId={runId} repo={repo} canType={attached} onStatus={setTermStatus} />
+          <>
+            <div className="panes" role="tablist" aria-label="panes" data-testid="panes">
+              {panes.map((p) => (
+                <span key={p.id} className="pane-tab">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={shown === p.id}
+                    onClick={() => setChosenPane(p.id)}
+                    title={`${p.id} · ${p.state?.reason ?? ""}`}
+                  >
+                    {paneLabel(p)}
+                  </button>
+                  <Chip tone={stateTone(p.state?.state)}>
+                    {p.state?.state ?? (p.live?.alive ? "live" : "off")}
+                  </Chip>
+                  {p.role !== "conductor" ? (
+                    <button
+                      type="button"
+                      className="ghost"
+                      title={`close ${p.id}`}
+                      onClick={() => void closePane(p.id)}
+                    >
+                      ✕
+                    </button>
+                  ) : null}
+                </span>
+              ))}
+              <span className="spacer" />
+              <button type="button" onClick={() => void openShell()}>
+                + Shell
+              </button>
+            </div>
+            {shown && shown !== conductor?.id ? (
+              <PaneTerminal key={shown} paneId={shown} repo={repo} canType={attached} />
+            ) : (
+              <RunTerminal runId={runId} repo={repo} canType={attached} onStatus={setTermStatus} />
+            )}
+          </>
         ) : (
           <div className="events">
             <table>
@@ -278,6 +335,15 @@ export function SessionScreen({
     </div>
   );
 }
+
+/** The person's shell for a shell pane: theirs when the app knows it, `sh` otherwise. */
+const shellOf = (): string => {
+  try {
+    return localStorage.getItem("metator.shell") || "sh";
+  } catch {
+    return "sh";
+  }
+};
 
 function QuestionBox({ run, onDone }: { readonly run: Run; onDone(): void }) {
   const { client, me } = useDaemon();

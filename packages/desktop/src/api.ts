@@ -169,6 +169,51 @@ export interface PtySession {
   readonly lastHookAt?: string;
 }
 
+/** A pane's agent state as the daemon senses it (R3). */
+export type PaneState = "working" | "blocked" | "waiting" | "idle" | "exited";
+export type PaneRole = "conductor" | "worker" | "apps" | "gate" | "shell";
+
+/** A pane of the daemon's layout (R1): what it runs, and its live terminal and state when it has one. */
+export interface PaneView {
+  readonly id: string;
+  readonly workspace: string;
+  readonly tab: string;
+  readonly role: PaneRole;
+  readonly label: string;
+  readonly cwd: string;
+  readonly runId?: string;
+  readonly worker?: { readonly name: string; readonly stage: string };
+  readonly process:
+    | {
+        readonly kind: "host";
+        readonly host: string;
+        readonly agent: string;
+        readonly prompt: string;
+        readonly sessionId?: string;
+      }
+    | { readonly kind: "command"; readonly argv: readonly string[] };
+  readonly live?: PtySession & { readonly paneId: string; readonly role: PaneRole };
+  readonly state?: { readonly state: PaneState; readonly reason: string };
+}
+
+export interface WorkspaceView {
+  readonly id: string;
+  readonly label: string;
+  readonly cwd: string;
+  readonly runId?: string;
+  readonly group?: string;
+  readonly tabs: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly panes: readonly string[];
+  }[];
+}
+
+export interface LayoutView {
+  readonly workspaces: readonly WorkspaceView[];
+  readonly panes: readonly PaneView[];
+}
+
 export interface SupervisorView {
   readonly daemon: {
     readonly pid: number;
@@ -319,4 +364,20 @@ export class DaemonClient {
   ptyOpen = (runId: string, host?: string, repo?: string) =>
     this.post<PtySession>(`/runs/${runId}/pty-open`, host ? { host } : {}, repo);
   ptyClose = (runId: string, repo?: string) => this.post(`/runs/${runId}/pty-close`, {}, repo);
+  layout = (repo?: string) => this.get<LayoutView>("/layout", repo);
+  openPane = (
+    input: {
+      runId?: string;
+      workspace?: string;
+      role: PaneRole;
+      label?: string;
+      argv?: string[];
+      host?: string;
+      agent?: string;
+      prompt?: string;
+    },
+    repo?: string,
+  ) => this.post<PaneView>("/panes", input, repo);
+  closePane = (paneId: string, repo?: string) =>
+    this.post<{ closed: boolean }>(`/panes/${encodeURIComponent(paneId)}/close`, {}, repo);
 }
