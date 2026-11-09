@@ -1,4 +1,4 @@
-import type { LayoutView, PaneState } from "@metator/core";
+import { type LayoutView, PANE_STATES, type PaneState } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, findDaemon, paneHeaders } from "../daemon-client.ts";
@@ -49,10 +49,12 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
 
   pane
     .command("wait <pane>")
-    .description("Wait until the pane's terminal is idle or has exited (default: either)")
+    .description(
+      "Wait until the pane is in a state: idle or exited (default: either), blocked, waiting, working",
+    )
     .option(
       "--until <state>",
-      "idle or exited; repeat for several",
+      "working, blocked, waiting, idle or exited; repeat for several",
       (v: string, all: string[]) => [...all, v],
       [] as string[],
     )
@@ -61,8 +63,8 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
       ctx.action(async (id: string, opts: { until: string[]; timeout: number }) => {
         const daemon = findDaemon(root());
         if (daemon.isErr()) return { result: daemon };
-        const until = (opts.until.length > 0 ? opts.until : ["idle", "exited"]).filter(
-          (u): u is PaneState => u === "idle" || u === "exited",
+        const until = (opts.until.length > 0 ? opts.until : ["idle", "exited"]).filter((u): u is PaneState =>
+          (PANE_STATES as readonly string[]).includes(u),
         );
         return {
           result: await callDaemon(

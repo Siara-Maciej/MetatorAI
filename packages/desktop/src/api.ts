@@ -165,6 +165,8 @@ export interface PtySession {
   readonly alive: boolean;
   readonly exitCode?: number;
   readonly idle: boolean;
+  readonly lastOutputAt?: string;
+  readonly lastHookAt?: string;
 }
 
 export interface SupervisorView {

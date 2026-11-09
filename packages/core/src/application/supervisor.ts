@@ -3,6 +3,7 @@ import type { MetatorError } from "../domain/errors.ts";
 import { countAttention } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunJournal } from "./drive.ts";
+import type { HostPrompts, HostPromptsReport } from "./host-prompts.ts";
 import type { WorkOverview } from "./overview.ts";
 import type { PtyBroker } from "./pty-broker.ts";
 import type { RunDrivers } from "./run-drivers.ts";
@@ -17,6 +18,8 @@ export interface SupervisorDependencies {
   readonly overview: Pick<WorkOverview, "execute">;
   /** Starts a run's drive again (the CLI's `run continue`); the stage it stands at. */
   readonly restart: (runId: string) => Promise<Result<{ readonly stage: string }, MetatorError>>;
+  /** Host prompts on pane screens into the inbox (R3); without it, nothing is sensed. */
+  readonly prompts?: Pick<HostPrompts, "tick">;
 }
 
 export interface SupervisorReport {
@@ -32,6 +35,8 @@ export interface SupervisorReport {
   readonly closed: readonly string[];
   /** How many runs wait for a person against the WIP limit. */
   readonly attention: { readonly waiting: number; readonly limit: number; readonly over: boolean };
+  /** Host prompts asked, people attached, prompts that went away (R3). */
+  readonly prompts?: HostPromptsReport;
 }
 
 export const NUDGE =
@@ -161,6 +166,12 @@ export class Supervisor {
       }
     }
 
+    let prompts: HostPromptsReport | undefined;
+    if (this.d.prompts) {
+      const ticked = await this.d.prompts.tick();
+      if (ticked.isErr()) return err(ticked.error);
+      prompts = ticked.value;
+    }
     const overview = await this.d.overview.execute();
     if (overview.isErr()) return err(overview.error);
     const waiting = countAttention(overview.value.runs).you;
@@ -171,6 +182,7 @@ export class Supervisor {
       asked,
       closed,
       attention: { waiting, limit: this.d.policy.wipLimit, over: waiting > this.d.policy.wipLimit },
+      ...(prompts ? { prompts } : {}),
     });
   }
 

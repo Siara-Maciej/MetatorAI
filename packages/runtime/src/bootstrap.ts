@@ -79,6 +79,8 @@ import {
   GuardStop,
   GuardSubagentOutput,
   HandoffRun,
+  HostManifestCatalog,
+  HostPrompts,
   IndexedImportGraphReader,
   InitArchitecturePolicy,
   InitEnvironment,
@@ -109,8 +111,10 @@ import {
   MergeFindingSets,
   MetatorError,
   type MetatorPaths,
+  Notifier,
   ok,
   PackRules,
+  PaneSensor,
   Panes,
   PatternCatalog,
   PinnedSystemLocation,
@@ -483,13 +487,32 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       return hosts;
     }).singleton(),
     ptyBroker: asFunction(
-      ({ runRepository, runJournal, config }) =>
+      ({ runRepository, runJournal, config, clock }) =>
         new PtyBroker({
           repo: runRepository,
           journal: runJournal,
           idleMs: config.config.supervisor.idleThresholdMs,
+          clock,
         }),
     ).singleton(),
+    hostManifests: asFunction(({ fileSystem }) => new HostManifestCatalog(fileSystem)).singleton(),
+    paneSensor: asFunction(
+      ({ ptyBroker, hostManifests, runJournal, clock }) =>
+        new PaneSensor({ broker: ptyBroker, manifests: hostManifests, journal: runJournal, clock }),
+    ).singleton(),
+    notifier: asFunction(
+      ({ runJournal, processRunner, root, config }) =>
+        new Notifier({
+          journal: runJournal,
+          process: processRunner,
+          root,
+          ...(config.config.notify ? { command: config.config.notify.command } : {}),
+        }),
+    ).singleton(),
+    hostPrompts: asFunction(
+      ({ paneSensor, runJournal, driverLock, notifier }) =>
+        new HostPrompts({ sensor: paneSensor, journal: runJournal, lock: driverLock, notify: notifier }),
+    ),
     layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
     conductor: asFunction(
       ({ panes, runRepository, runJournal, workflowCatalog, fileSystem, clock, timer, root }) =>
@@ -515,6 +538,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         clock,
         timer,
         root,
+        paneSensor,
       }) =>
         new Panes({
           layout: layoutStore,
@@ -526,12 +550,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           clock,
           timer,
           root,
+          sensor: paneSensor,
         }),
     ).singleton(),
     // The supervisor needs a way to start a drive again, which only the CLI process knows (its own
     // argv). Not a singleton (its drivers are not): the caller keeps the one instance it ticks.
     supervisor: asFunction(
-      ({ config, runRepository, runDrivers, runJournal, ptyBroker, workOverview }) =>
+      ({ config, runRepository, runDrivers, runJournal, ptyBroker, workOverview, hostPrompts }) =>
         (restart: SupervisorDependencies["restart"]) =>
           new Supervisor({
             policy: config.config.supervisor,
@@ -541,6 +566,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
             broker: ptyBroker,
             overview: workOverview,
             restart,
+            prompts: hostPrompts,
           }),
     ),
     runDrivers: asFunction(
@@ -560,6 +586,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         closeRun,
         agentHosts,
         processRunner,
+        notifier,
         fileSystem,
         timer,
         root,
@@ -587,7 +614,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           messages: (runId) => runMessages.list(runId),
           gatesDir: paths.gates,
           worktrees: worktreeRegistry,
-          ...(config.config.notify ? { notifyCommand: config.config.notify.command } : {}),
+          notifier,
         }),
     ),
     // `.metator/` is MetatorAI's own state: never a change, even before setup gitignores it.

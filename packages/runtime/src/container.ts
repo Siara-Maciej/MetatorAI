@@ -86,6 +86,8 @@ import {
   type HandoffRun,
   type HealthProbe,
   type HostGenerator,
+  type HostManifestCatalog,
+  type HostPrompts,
   type ImportAnalyzer,
   type ImportGraphReader,
   type InitArchitecturePolicy,
@@ -120,10 +122,12 @@ import {
   type MergeFindingSets,
   MetatorError,
   type MetatorPaths,
+  type Notifier,
   ok,
   type PackageManager,
   type PackageManagerDetector,
   type PackRules,
+  type PaneSensor,
   type Panes,
   type PatternCatalog,
   type PlanReview,
@@ -267,6 +271,10 @@ export interface Cradle {
   panes: Panes;
   conductor: Conductor;
   supervisor: (restart: SupervisorDependencies["restart"]) => Supervisor;
+  hostManifests: HostManifestCatalog;
+  paneSensor: PaneSensor;
+  hostPrompts: HostPrompts;
+  notifier: Notifier;
   runMessages: RunMessages;
   runJournal: RunJournal;
   runDrivers: RunDrivers;

@@ -1,7 +1,7 @@
 import { MetatorError } from "../domain/errors.ts";
 import type { PaneRole } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import type { PtyHandle, PtySize } from "../ports/index.ts";
+import type { Clock, PtyHandle, PtySize } from "../ports/index.ts";
 import type { RunJournal } from "./drive.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -15,6 +15,8 @@ export interface PtyBrokerDependencies {
   readonly idleMs?: number;
   /** Schedules a check (setTimeout); returns what cancels it. Injected so tests run without waiting. */
   readonly after?: (ms: number, fn: () => void) => () => void;
+  /** Stamps output and hook calls (the pane sensor reads them); the wall clock by default. */
+  readonly clock?: Clock;
 }
 
 export interface PtyView {
@@ -27,6 +29,10 @@ export interface PtyView {
   readonly alive: boolean;
   readonly exitCode?: number;
   readonly idle: boolean;
+  /** When the terminal last printed (ISO). */
+  readonly lastOutputAt: string;
+  /** When a hook of the pane's session last called in (ISO), if ever (R3). */
+  readonly lastHookAt?: string;
 }
 
 interface Live {
@@ -39,6 +45,8 @@ interface Live {
   alive: boolean;
   exitCode?: number;
   idle: boolean;
+  lastOutputAt: Date;
+  lastHookAt?: Date;
   cancelIdle?: () => void;
   readonly listeners: Set<(event: PtyEvent) => void>;
 }
@@ -80,12 +88,14 @@ export class PtyBroker {
       backlog: "",
       alive: true,
       idle: false,
+      lastOutputAt: this.now(),
       listeners: new Set(),
     };
     this.live.set(input.paneId, entry);
     input.pty.onData((data) => {
       entry.backlog = (entry.backlog + data).slice(-BACKLOG_BYTES);
       entry.idle = false;
+      entry.lastOutputAt = this.now();
       this.armIdle(input.paneId, entry);
       for (const l of entry.listeners) l({ type: "data", data });
     });
@@ -166,6 +176,19 @@ export class PtyBroker {
     return ok(undefined);
   }
 
+  /**
+   * A hook of the pane's session called in (`metator guard …` with the pane's token): the agent
+   * works, whatever the screen shows. Idleness starts over.
+   */
+  heartbeat(paneId: string): Result<void, MetatorError> {
+    const entry = this.live.get(paneId);
+    if (!entry?.alive) return err(MetatorError.notFound(`a live terminal in pane ${paneId}`));
+    entry.lastHookAt = this.now();
+    entry.idle = false;
+    this.armIdle(paneId, entry);
+    return ok(undefined);
+  }
+
   resize(paneId: string, size: PtySize): Result<void, MetatorError> {
     const entry = this.live.get(paneId);
     if (!entry?.alive) return err(MetatorError.notFound(`a live terminal in pane ${paneId}`));
@@ -240,6 +263,12 @@ export class PtyBroker {
       alive: entry.alive,
       ...(entry.exitCode !== undefined ? { exitCode: entry.exitCode } : {}),
       idle: entry.idle,
+      lastOutputAt: entry.lastOutputAt.toISOString(),
+      ...(entry.lastHookAt ? { lastHookAt: entry.lastHookAt.toISOString() } : {}),
     };
+  }
+
+  private now(): Date {
+    return this.d.clock?.now() ?? new Date();
   }
 }

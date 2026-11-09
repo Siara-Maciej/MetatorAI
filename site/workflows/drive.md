@@ -206,6 +206,22 @@ A `blocked` report becomes a question in the inbox under the worker's name; the 
 
 Who may do what is enforced, not asked for: the daemon accepts `start`, `delegate` and `collect` from the run's conductor pane (every pane carries a token in `METATOR_PANE_TOKEN`) or from a person's shell, and answers 403 to any other pane; the hooks of a worker pane (`METATOR_ROLE=worker`) deny every run-control command except its own `run result`; the conductor's hooks, like a coordinator's, deny edits to code.
 
+## What a pane is doing
+
+The daemon reads each pane without asking its agent (`metator pane list`, `GET /panes/<id>/state`, `metator pane wait <pane> --until blocked`):
+
+| State | Read from |
+|---|---|
+| `working` | output in the last `quietMs`, or a hook call from the pane (`metator guard …` carries the pane's token as a heartbeat) |
+| `blocked` | the host's own permission prompt on the screen ("Allow … to run?", "(y/n)"): only a person answers it |
+| `waiting` | a MetatorAI question of the run waits in the inbox |
+| `idle` | the host's prompt line, or quiet for longer than `quietMs` |
+| `exited` | the process ended; `exitCode` says how |
+
+How to read a host is a `HostManifest` v1: the screen patterns of its permission prompt and of its idle prompt, `quietMs`, whether its hooks run `metator guard`. MetatorAI ships one for `copilot`, `claude`, `opencode` and `scenario`; `metator/hosts/<host>.yml` in the repository replaces it (the Copilot patterns are an approximation until calibrated on your terminal: the hooks give a sure `working`, the exit a sure end).
+
+A `blocked` pane of a run is a decision for you: the supervisor puts it in the inbox as a question of the run ("copilot waits for your answer in pane w1:p2: Allow …?") with two choices, *Attach and answer in the pane* (the daemon takes the driver lock under your name, the desktop opens the pane) and *Leave it*. `notify.command` runs for it like for any question. Nothing is ever typed into the host's prompt for you; when the screen moves on, the inbox item is closed as answered in the pane.
+
 ## Attach to a session
 
 A session has one driver at a time: the agent, or a person who attached. Attaching takes the keyboard (the daemon routes your input to the session's PTY) and makes your yes in the chat count:

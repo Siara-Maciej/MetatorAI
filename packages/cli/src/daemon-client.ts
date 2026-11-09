@@ -56,6 +56,7 @@ export async function callDaemon<T>(
   path: string,
   body?: unknown,
   headers: Readonly<Record<string, string>> = {},
+  timeoutMs?: number,
 ): Promise<Result<T, MetatorError>> {
   let response: Response;
   try {
@@ -63,6 +64,7 @@ export async function callDaemon<T>(
       method,
       headers: { "content-type": "application/json", ...headers },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     });
   } catch (e) {
     return err(

@@ -33,6 +33,7 @@ import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
 import { parseJsonDocument, serializeJsonDocument, serializeJsonLine } from "../domain/versioned.ts";
 import type { StageSpec } from "../domain/workflow-spec.ts";
 import type { AgentHost, Clock, FileSystem, ProcessRunner, Timer } from "../ports/index.ts";
+import type { Notifier } from "./notifier.ts";
 import type { CloseRun } from "./run-close.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { AdvanceRun, ApproveRun } from "./runs.ts";
@@ -360,8 +361,8 @@ export interface DriveDependencies {
   readonly notes?: (cwd: string) => Promise<readonly string[]>;
   /** The repository's answer policies (P5): a question one of them answers never waits. */
   readonly policies?: () => Promise<Result<readonly AnswerPolicy[], MetatorError>>;
-  /** A shell command run when a question waits for a person (`notify.command`). */
-  readonly notifyCommand?: string;
+  /** Tells a person a question waits (`notify.command`, the Notifier); none means no notifications. */
+  readonly notifier?: Pick<Notifier, "notify">;
   /** Messages other runs sent this run (D2): its agents read them as data. */
   readonly messages?: (runId: string) => Promise<Result<readonly RunMessage[], MetatorError>>;
   /** Where gate reports are (`paths.gates`); the default when absent. */
@@ -770,33 +771,9 @@ export class DriveRun {
     return asked;
   }
 
-  /** Runs `notify.command` for a question that now waits; a failure is logged, never fatal. */
+  /** Tells a person about a question that now waits; a failure is logged by the Notifier, never fatal. */
   private async notify(q: Question): Promise<void> {
-    if (!this.d.notifyCommand) return;
-    const activity = await this.d.journal.activity(q.runId);
-    const mark = `notified ${q.id}`;
-    if (activity.isOk() && activity.value.some((a) => a.type === "drive" && a.text.startsWith(mark))) return;
-    const r = await this.d.process.run(
-      {
-        argv: ["sh", "-c", this.d.notifyCommand],
-        cwd: this.d.root,
-        env: {
-          METATOR_RUN: q.runId,
-          METATOR_QUESTION_ID: q.id,
-          METATOR_QUESTION_PROMPT: q.prompt,
-          METATOR_QUESTION: serializeJsonDocument(QuestionDocument.stamp(q)),
-        },
-      },
-      { timeoutMs: 30_000 },
-    );
-    await this.d.journal.record(q.runId, {
-      type: r.exitCode === 0 ? "drive" : "error",
-      stage: q.stage,
-      text:
-        r.exitCode === 0
-          ? mark
-          : `notify.command failed for ${q.id} (exit ${r.exitCode}): ${r.stderr.trim().slice(-300)}`,
-    });
+    await this.d.notifier?.notify(q);
   }
 
   /**

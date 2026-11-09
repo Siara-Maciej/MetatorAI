@@ -10,6 +10,7 @@ import {
   inboxOf,
   MetatorError,
   PANE_ROLES,
+  PANE_STATES,
   type PaneRole,
   type PaneState,
   type PtyEvent,
@@ -222,11 +223,27 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         if (action === "wait" && req.method === "GET") {
           const until = (url.searchParams.get("until") ?? "idle,exited")
             .split(",")
-            .filter((u): u is PaneState => u === "idle" || u === "exited");
+            .filter((u): u is PaneState => (PANE_STATES as readonly string[]).includes(u));
           const timeoutMs = Number(url.searchParams.get("timeout")) || 60_000;
           return fromResult(await panes.wait(paneId, { until, timeoutMs }));
         }
         if (action === "close" && req.method === "POST") return fromResult(await panes.closePane(paneId));
+        // A hook of the pane's own session says the agent works (R3): the pane's token, no other.
+        if (action === "heartbeat" && req.method === "POST") {
+          const token = req.headers.get("x-metator-pane");
+          const own = token ? await panes.authorize(token) : undefined;
+          if (!own || own.id !== paneId)
+            return json(
+              {
+                ok: false,
+                error: { code: "FORBIDDEN", message: `only pane ${paneId} itself reports its heartbeat` },
+              },
+              403,
+            );
+          return fromResult(broker.heartbeat(paneId).map(() => ({ paneId, at: new Date().toISOString() })));
+        }
+        if (action === "state" && req.method === "GET")
+          return fromResult(await c.value.resolve("paneSensor").state(paneId));
         return json(
           { ok: false, error: { code: "NOT_FOUND", message: `no route ${req.method} ${path}` } },
           404,
@@ -544,7 +561,12 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
             const s =
               supervisors.get(key) ?? container.resolve("supervisor")((runId) => restart(container, runId));
             supervisors.set(key, s);
-            void s.tick();
+            void s.tick().then((r) => {
+              if (r.isErr())
+                process.stderr.write(
+                  `${JSON.stringify({ supervisor: { repo: key, error: r.error.message } })}\n`,
+                );
+            });
           }
         }, opts.superviseMs)
       : undefined;

@@ -24,6 +24,7 @@ function world() {
   const broker = new PtyBroker({
     repo,
     journal,
+    clock,
     idleMs: 5000,
     after: (ms, fn) => {
       const t = { ms, fn };
@@ -59,6 +60,7 @@ describe("PtyBroker", () => {
       pid: 1001,
       alive: true,
       idle: false,
+      lastOutputAt: "2026-11-02T10:00:00.000Z",
     });
     const seen: PtyEvent[] = [];
     const stop = w.broker.subscribe("w1:p1", (e) => seen.push(e));
@@ -177,5 +179,24 @@ describe("PtyBroker", () => {
       undefined,
       { closed: false },
     ]);
+  });
+
+  test("a hook heartbeat stamps the pane, ends idleness and starts the idle timer over; only a live pane has one", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const pty = new FakePty(1001);
+    w.start("w1:p1", run.runId, pty);
+    expect(w.broker.status("w1:p1")?.lastHookAt).toBeUndefined();
+    w.timers.at(-1)?.fn();
+    await Bun.sleep(5);
+    expect(w.broker.status("w1:p1")?.idle).toBe(true);
+    const armed = w.timers.at(-1);
+    expect(w.broker.heartbeat("w1:p1").isOk()).toBe(true);
+    const view = w.broker.status("w1:p1");
+    expect([view?.idle, view?.lastHookAt]).toEqual([false, "2026-11-02T10:00:00.000Z"]);
+    expect(w.timers.at(-1)).not.toBe(armed);
+    pty.exit(0);
+    expect(w.broker.heartbeat("w1:p1")._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+    expect(w.broker.heartbeat("w9:p9")._unsafeUnwrapErr().code).toBe("NOT_FOUND");
   });
 });

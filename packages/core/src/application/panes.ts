@@ -1,5 +1,6 @@
 import type { AgentTask } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
+import type { PaneState, PaneStateView } from "../domain/host-manifest.ts";
 import {
   addPane,
   addTab,
@@ -21,6 +22,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import type { Clock, InteractiveHost, PtyHandle, PtySize, Terminal, Timer } from "../ports/index.ts";
 import type { RunJournal } from "./drive.ts";
 import type { LayoutStore } from "./layout-store.ts";
+import type { PaneSensor } from "./pane-sensor.ts";
 import type { PtyBroker, PtyView } from "./pty-broker.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -39,6 +41,8 @@ export interface PanesDependencies {
   readonly timer: Timer;
   /** Absolute repository root. */
   readonly root: string;
+  /** Senses what each pane's agent is doing (R3); without it, panes report only alive and idle. */
+  readonly sensor?: Pick<PaneSensor, "state">;
   /** A fresh pane token; random by default. */
   readonly token?: () => string;
 }
@@ -46,6 +50,8 @@ export interface PanesDependencies {
 /** A pane with its terminal's state, as clients see it. */
 export interface PaneView extends Pane {
   readonly live?: PtyView;
+  /** What the pane's agent is doing (R3), when the daemon senses it. */
+  readonly state?: PaneStateView;
 }
 
 export interface LayoutView {
@@ -74,8 +80,6 @@ export interface OpenPaneInput {
     | { readonly kind: "command"; readonly argv: readonly string[] };
   readonly size?: PtySize;
 }
-
-export type PaneState = "idle" | "exited";
 
 /**
  * The daemon's workspaces and panes (R1, ADR-0080). It opens a workspace per run, starts a
@@ -320,11 +324,15 @@ export class Panes {
     if (layout.isErr()) return err(layout.error);
     return ok({
       workspaces: layout.value.workspaces,
-      panes: layout.value.panes.map((p) => {
-        const live = this.d.broker.status(p.id);
-        return live ? { ...p, live } : p;
-      }),
+      panes: await Promise.all(layout.value.panes.map((p) => this.withLive(p))),
     });
+  }
+
+  private async withLive(pane: Pane): Promise<PaneView> {
+    const live = this.d.broker.status(pane.id);
+    if (!live) return pane;
+    const state = this.d.sensor ? await this.d.sensor.state(pane.id) : undefined;
+    return { ...pane, live, ...(state?.isOk() ? { state: state.value } : {}) };
   }
 
   async pane(paneId: string): Promise<Result<PaneView, MetatorError>> {
@@ -332,8 +340,7 @@ export class Panes {
     if (layout.isErr()) return err(layout.error);
     const pane = paneOf(layout.value, paneId);
     if (!pane) return err(MetatorError.notFound(`pane ${paneId}`));
-    const live = this.d.broker.status(paneId);
-    return ok(live ? { ...pane, live } : pane);
+    return ok(await this.withLive(pane));
   }
 
   /** The last lines of the pane's output, without terminal escapes. */
@@ -341,20 +348,30 @@ export class Panes {
     return tailLines(stripAnsi(this.d.broker.backlog(paneId)), lines);
   }
 
-  /** Waits until the pane's terminal is in one of the states (polling), or the time is up. */
+  /**
+   * Waits until the pane is in one of the states (polling), or the time is up. An exit ends the
+   * wait whatever was asked for. `idle` and `exited` come from the broker; `blocked`, `waiting`
+   * and `working` need the sensor.
+   */
   async wait(
     paneId: string,
     input: { readonly until: readonly PaneState[]; readonly timeoutMs: number; readonly pollMs?: number },
-  ): Promise<Result<{ readonly state: PaneState | "timeout"; readonly exitCode?: number }, MetatorError>> {
+  ): Promise<
+    Result<
+      { readonly state: PaneState | "timeout"; readonly exitCode?: number; readonly reason?: string },
+      MetatorError
+    >
+  > {
     const deadline = this.d.clock.now().getTime() + input.timeoutMs;
     for (;;) {
       const live = this.d.broker.status(paneId);
       if (!live) return err(MetatorError.notFound(`a terminal in pane ${paneId}`));
-      if (!live.alive && input.until.includes("exited"))
-        return ok({ state: "exited", ...(live.exitCode !== undefined ? { exitCode: live.exitCode } : {}) });
-      if (live.alive && live.idle && input.until.includes("idle")) return ok({ state: "idle" });
       if (!live.alive)
         return ok({ state: "exited", ...(live.exitCode !== undefined ? { exitCode: live.exitCode } : {}) });
+      if (live.idle && input.until.includes("idle")) return ok({ state: "idle" });
+      const sensed = this.d.sensor ? await this.d.sensor.state(paneId) : undefined;
+      if (sensed?.isOk() && input.until.includes(sensed.value.state))
+        return ok({ state: sensed.value.state, reason: sensed.value.reason });
       if (this.d.clock.now().getTime() >= deadline) return ok({ state: "timeout" });
       await this.d.timer.sleep(input.pollMs ?? 200);
     }

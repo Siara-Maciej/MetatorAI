@@ -2324,7 +2324,7 @@ metator pane read [options] <pane>
 
 ### `metator pane wait`
 
-Wait until the pane's terminal is idle or has exited (default: either)
+Wait until the pane is in a state: idle or exited (default: either), blocked, waiting, working
 
 ```bash
 metator pane wait [options] <pane>
@@ -2333,7 +2333,7 @@ metator pane wait [options] <pane>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<pane>` |  | |
-| `--until <state>` | idle or exited; repeat for several | `[]` |
+| `--until <state>` | working, blocked, waiting, idle or exited; repeat for several | `[]` |
 | `--timeout <ms>` | give up after this long | `60000` |
 
 ## supervise

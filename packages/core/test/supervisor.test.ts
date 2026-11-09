@@ -3,7 +3,9 @@ import {
   CLOSE_SESSION,
   DEFAULT_PATHS,
   DriverLock,
+  err,
   InitRun,
+  MetatorError,
   NUDGE,
   NUDGE_AGAIN,
   ok,
@@ -177,6 +179,34 @@ describe("Supervisor", () => {
     await w.idle();
     // A new episode after output: a nudge again, not the question.
     expect((await w.supervisor.tick())._unsafeUnwrap().nudged).toEqual([run.runId]);
+  });
+
+  test("host prompts (R3) tick with the supervisor: their report rides along, their error is the tick's", async () => {
+    const w = world();
+    const report = { asked: [], attached: [], resolved: ["w1:p1"] };
+    const withPrompts = new Supervisor({
+      policy: SupervisorPolicySchema.parse({}),
+      repo: w.repo,
+      drivers: { status: async () => ok(null) },
+      journal: w.journal,
+      broker: w.broker,
+      overview: { execute: async () => ok({ runs: [], conversations: [], counts: {} }) as never },
+      restart: async () => ok({ stage: "build" }),
+      prompts: { tick: async () => ok(report) },
+    });
+    expect((await withPrompts.tick())._unsafeUnwrap().prompts).toEqual(report);
+    expect((await w.supervisor.tick())._unsafeUnwrap().prompts).toBeUndefined();
+    const failing = new Supervisor({
+      policy: SupervisorPolicySchema.parse({}),
+      repo: w.repo,
+      drivers: { status: async () => ok(null) },
+      journal: w.journal,
+      broker: w.broker,
+      overview: { execute: async () => ok({ runs: [], conversations: [], counts: {} }) as never },
+      restart: async () => ok({ stage: "build" }),
+      prompts: { tick: async () => err(new MetatorError("COMMAND_FAILED", "the screen could not be read")) },
+    });
+    expect((await failing.tick())._unsafeUnwrapErr().message).toBe("the screen could not be read");
   });
 
   test("the attention budget: how many runs wait for a person against the WIP limit", async () => {

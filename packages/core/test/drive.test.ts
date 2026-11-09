@@ -18,6 +18,7 @@ import {
   RunJournal,
   sinceLastAnswer,
 } from "../src/application/drive.ts";
+import { Notifier } from "../src/application/notifier.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { CloseRun } from "../src/application/run-close.ts";
 import { RunDrivers } from "../src/application/run-drivers.ts";
@@ -281,7 +282,7 @@ function world(
   turns: Record<string, FakeAgentTurn[]>,
   person: Person,
   scripts = new ScriptedProcessRunner(),
-  extra: Partial<ConstructorParameters<typeof DriveRun>[0]> = {},
+  extra: Partial<ConstructorParameters<typeof DriveRun>[0]> & { notifyCommand?: string } = {},
 ) {
   const fs = new InMemoryFileSystem({ ".github/metator/workflows/demo.yml": WORKFLOW });
   const clock = new FixedClock(new Date("2026-10-27T10:00:00.000Z"));
@@ -301,7 +302,11 @@ function world(
       if (a) await journal.answer(runId, q.id, { ...a, by: "maciej" });
     }
   });
+  const { notifyCommand, ...rest } = extra;
   const drive = new DriveRun({
+    ...(notifyCommand
+      ? { notifier: new Notifier({ journal, process: scripts, root: "/repo", command: notifyCommand }) }
+      : {}),
     catalog,
     repo,
     journal,
@@ -314,7 +319,7 @@ function world(
     timer,
     root: "/repo",
     metatorCommand: "bun run metator",
-    ...extra,
+    ...rest,
   });
   const start = async (inputs?: Record<string, string>, workflow = "demo", autonomy?: "L0" | "L1" | "L2") => {
     const view = (
