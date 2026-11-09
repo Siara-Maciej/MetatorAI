@@ -38,6 +38,7 @@ import {
   CloseRun,
   CompareEvals,
   ComputeAffected,
+  Conductor,
   ConversationRepository,
   CreateRefactorPlan,
   CreateSystemPlan,
@@ -490,6 +491,19 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         }),
     ).singleton(),
     layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
+    conductor: asFunction(
+      ({ panes, runRepository, runJournal, workflowCatalog, fileSystem, clock, timer, root }) =>
+        new Conductor({
+          panes,
+          repo: runRepository,
+          journal: runJournal,
+          catalog: workflowCatalog,
+          fs: fileSystem,
+          clock,
+          timer,
+          root,
+        }),
+    ),
     panes: asFunction(
       ({
         layoutStore,

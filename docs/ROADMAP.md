@@ -292,7 +292,7 @@ Specyfikacja: [design/12](design/12-desktop.md), zatwierdzona 2026-11-02 (decyzj
 Decyzja właściciela (2026-11-09): nie używamy herdr. Budujemy własny runtime o podobnym działaniu na istniejącym demonie: workspace → tab → pane, dyrygent w granicach workflow, delegowanie do pane'ów workerów, sensor stanu agenta z hooków i ekranu, uwaga osoby, klient terminalowy. Faza E (integracja z herdr) została wycofana; przegląd bezpieczeństwa herdr zostaje w ADR-0079 jako uzasadnienie.
 
 - [ ] R1 Layout: dokument `Layout` (workspace, tab, pane z rolą), odtwarzanie po restarcie demona, tożsamość pane'a (`METATOR_PANE_ID`, token), `metator pane list|read|wait`, `.metator/daemon.json`.
-- [ ] R2 Dyrygent: `metator run start` otwiera workspace runu z pane'em orkiestratora (Copilot), `run delegate|wait|collect|result`, pane'y workerów, rola `worker` w hookach, definicja mt-orchestrator w trybie dyrygenta.
+- [x] R2 Dyrygent: `metator run start` otwiera workspace runu z pane'em orkiestratora (Copilot), `run delegate|wait|collect|result`, pane'y workerów, rola `worker` w hookach, definicja mt-orchestrator w trybie dyrygenta.
 - [ ] R3 Sensor i uwaga: `HostManifest` v1 dla Copilota (working, blocked, idle z ekranu i hooków), okna zgody hosta w inboxie z akcją attach, powiadomienia.
 - [ ] R4 Klienci: aplikacja na modelu workspace/pane (pasek boczny, siatka pane'ów runu), `metator attach <pane>` w terminalu z prefiksem odłączenia.
 - [ ] R5 Grupy worktree'ów i zamykanie runu, supervisor nad pane'ami (wznowienie dyrygenta, nudge, budżet uwagi).

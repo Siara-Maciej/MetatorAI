@@ -52,6 +52,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `RunMessage` | `.metator/runs/<id>/messages/mNNN.json` | `metator run message` |
 | `RunSeen` | `.metator/runs/<id>/seen.json` | `metator run brief` |
 | `Layout` | `.metator/layout.json` | the daemon (`metator serve`): workspaces, tabs and panes, restored after a restart |
+| `WorkerResult` | `.metator/runs/<id>/results/<worker>.json` | `metator run result` (a worker's report; `run collect` reads it) |
 | `DaemonInfo` | `.metator/daemon.json` | `metator serve` while it runs (where it listens) |
 | `EnvState` | `.metator/env/<worktree, main or shared>.json` | `metator env up\|down` |
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |

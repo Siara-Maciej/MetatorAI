@@ -180,6 +180,36 @@ describe("isGuardCommand", () => {
   });
 });
 
+describe("a worker pane (R2, ADR-0080)", () => {
+  test("never steers the run: delegate, collect, start, advance are denied; its report and reading are fine", () => {
+    const worker = run({}, { worker: true });
+    for (const command of [
+      "metator run delegate build --agent mt-implementer --card x",
+      "metator run collect mt-planner-1",
+      "metator run start",
+      "metator run advance pass",
+      "bun run metator run approve plan-approval --by m",
+    ]) {
+      const d = preToolPolicy(hook("Bash", { command }), worker);
+      expect([command, d.decision]).toEqual([command, "deny"]);
+      expect(d.reason).toContain("is the conductor's");
+      expect(d.reason).toContain("metator run result");
+    }
+    expect(
+      decide(
+        hook("Bash", { command: 'metator run result --worker mt-planner-1 --status done --summary "ok"' }),
+        worker,
+      ),
+    ).toBe("allow");
+    expect(decide(hook("Bash", { command: "metator run status" }), worker)).toBe("allow");
+    expect(decide(hook("Read", { file_path: "src/a.ts" }), worker)).toBe("allow");
+    // Not a worker: the same command is the conductor's to run.
+    expect(
+      decide(hook("Bash", { command: "metator run delegate build --agent mt-implementer --card x" }), run()),
+    ).toBe("allow");
+  });
+});
+
 describe("an approval from the chat (ADR-0077)", () => {
   const chat = hook("Bash", { command: "metator run approve plan-approval --by maciej --via chat" });
   test("is the one run-control command an agent may run, and only while a person is attached", () => {

@@ -331,7 +331,7 @@ function retryLines(input: Pick<StagePromptInput, "stage" | "retry" | "retryFrom
 }
 
 /** The skill that lists, for every command people were asked about, the form that needs no one. */
-const RUN_WITHOUT_ASKING =
+export const RUN_WITHOUT_ASKING =
   "Before any shell or metator command, follow the skill mt-run-without-asking (Read `.claude/skills/mt-run-without-asking/SKILL.md`, or `.github/skills/mt-run-without-asking/SKILL.md` on GitHub Copilot; never search for it): it says, for each command a person would be asked about, the form that runs without asking.";
 
 /** The message a critic gets for an LLM gate. */

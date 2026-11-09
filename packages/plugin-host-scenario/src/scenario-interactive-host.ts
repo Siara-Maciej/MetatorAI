@@ -51,10 +51,14 @@ export class ScenarioInteractiveHost implements InteractiveHost {
     if (typeof this.source === "string") this.loaded ??= ScenarioAgentHost.load(this.source);
     const scenario = typeof this.source === "string" ? await this.loaded : ok(this.source);
     if (!scenario || scenario.isErr()) return err(scenario?.error ?? MetatorError.notFound("scenario"));
-    const entries = scenario.value.agents[SESSION_AGENT];
+    // The agent's own entry plays when the scenario has one (a conductor or a worker pane); the
+    // `session` entry stands in for any interactive session otherwise.
+    const entries = scenario.value.agents[task.agent] ?? scenario.value.agents[SESSION_AGENT];
     if (!entries)
       return err(
-        MetatorError.usage(`the scenario has no \`${SESSION_AGENT}\` entry for interactive sessions`),
+        MetatorError.usage(
+          `the scenario has no \`${task.agent}\` or \`${SESSION_AGENT}\` entry for interactive sessions`,
+        ),
       );
     const n = Math.max(this.starts.get(task.agent) ?? 0, atLeast);
     this.starts.set(task.agent, n + 1);

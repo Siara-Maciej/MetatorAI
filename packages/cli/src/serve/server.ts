@@ -276,7 +276,60 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       const body = req.method === "POST" ? ((await req.json().catch(() => ({}))) as Json) : {};
       const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : undefined);
       const list = (k: string) => (Array.isArray(body[k]) ? (body[k] as string[]) : []);
+      // A call from inside a pane carries the pane's token: it may steer its own run only, and
+      // only from the conductor's pane (R2). A call without a token is a person's.
+      const token = req.headers.get("x-metator-pane");
+      if (token && ["start", "delegate", "collect"].includes(action)) {
+        const pane = await c.value.resolve("panes").authorize(token);
+        if (!pane || pane.runId !== runId || pane.role !== "conductor")
+          return json(
+            {
+              ok: false,
+              error: {
+                code: "FORBIDDEN",
+                message: pane
+                  ? `pane ${pane.id} (${pane.role}${pane.runId ? ` of run ${pane.runId}` : ""}) may not steer run ${runId}`
+                  : "unknown pane token",
+                hint: "Only the run's conductor pane delegates and collects; a worker reports with `metator run result`.",
+              },
+            },
+            403,
+          );
+      }
       switch (`${req.method} ${action}`) {
+        case "POST start":
+          return fromResult(
+            await c.value
+              .resolve("conductor")
+              .start({ runId, ...(str("host") ? { host: str("host") as string } : {}) }),
+          );
+        case "POST delegate":
+          return fromResult(
+            await c.value.resolve("conductor").delegate({
+              runId,
+              ...(str("stage") ? { stage: str("stage") as string } : {}),
+              agent: str("agent") ?? "",
+              card: str("card") ?? "",
+              ...(str("name") ? { name: str("name") as string } : {}),
+              ...(str("host") ? { host: str("host") as string } : {}),
+            }),
+          );
+        case "GET workers":
+          return fromResult(
+            (await c.value.resolve("conductor").workers(runId)).map((workers) => ({ runId, workers })),
+          );
+        case "GET wait":
+          return fromResult(
+            await c.value.resolve("conductor").wait({
+              runId,
+              worker: url.searchParams.get("worker") ?? "",
+              timeoutMs: Number(url.searchParams.get("timeout")) || 60_000,
+            }),
+          );
+        case "POST collect":
+          return fromResult(
+            await c.value.resolve("conductor").collect({ runId, worker: str("worker") ?? "" }),
+          );
         case "GET activity": {
           const tail = Number(url.searchParams.get("tail")) || undefined;
           const a = await c.value.resolve("runJournal").activity(runId);

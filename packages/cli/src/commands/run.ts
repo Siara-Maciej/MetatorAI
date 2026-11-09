@@ -23,6 +23,7 @@ import {
 import { Argument, type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
+import { registerConductorCommands } from "./conductor.ts";
 import { registerDriveCommands } from "./drive.ts";
 
 export const EVENTS = ["pass", "fail", "approve", "abort"] as const;
@@ -417,4 +418,5 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .description("List runs, newest first")
     .action(action(async () => ({ result: await container().resolve("listRuns").execute() })));
   registerDriveCommands(program, runs, ctx);
+  registerConductorCommands(program, runs, ctx);
 }

@@ -192,6 +192,8 @@ export class Panes {
     readonly runId?: string;
     readonly host?: string;
     readonly agent?: string;
+    /** The conductor's first message; the run's task when omitted. */
+    readonly prompt?: string;
     readonly size?: PtySize;
   }): Promise<Result<PaneView, MetatorError>> {
     const id = await this.d.repo.resolveId(input.runId);
@@ -226,7 +228,7 @@ export class Panes {
         kind: "host",
         ...(host ? { host } : {}),
         agent: input.agent ?? "session",
-        prompt: record.value.task,
+        prompt: input.prompt ?? record.value.task,
         ...(sessionId ? { sessionId } : {}),
       },
       ...(input.size ? { size: input.size } : {}),
@@ -361,7 +363,12 @@ export class Panes {
   /** Starts the pane's process with the pane's identity in its environment; a host session with an id resumes. */
   private async spawn(pane: Pane, size: PtySize): Promise<Result<PaneView, MetatorError>> {
     const token = (this.d.token ?? (() => crypto.randomUUID()))();
-    const env = { METATOR_PANE_ID: pane.id, METATOR_PANE_TOKEN: token, METATOR_ROLE: pane.role };
+    const env = {
+      METATOR_PANE_ID: pane.id,
+      METATOR_PANE_TOKEN: token,
+      METATOR_ROLE: pane.role,
+      ...(pane.worker ? { METATOR_WORKER: pane.worker.name } : {}),
+    };
     let pty: PtyHandle;
     let sessionId: string;
     let host = pane.label;

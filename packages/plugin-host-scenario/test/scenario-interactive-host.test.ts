@@ -65,6 +65,22 @@ describe("ScenarioInteractiveHost", () => {
   test("a scenario without a session entry cannot start", async () => {
     const host = new ScenarioInteractiveHost(new NodePtyTerminal(), { agents: {} });
     const r = await host.start(task(tmpdir()), { cols: 80, rows: 24 });
-    expect(r._unsafeUnwrapErr().message).toContain("no `session` entry");
+    expect(r._unsafeUnwrapErr().message).toContain("no `session` or `session` entry");
+  });
+
+  test("an agent with its own entry plays it; others fall back to the session entry", async () => {
+    const host = new ScenarioInteractiveHost(new NodePtyTerminal(), {
+      agents: { ...scenario.agents, "mt-planner": [[{ say: "planner here" }]] },
+    });
+    const planner = (await host.launch({ ...task(tmpdir()), agent: "mt-planner" }))._unsafeUnwrap();
+    expect([planner.sessionId, planner.argv[2]]).toEqual([
+      "scenario-mt-planner-1",
+      expect.stringContaining("planner here"),
+    ]);
+    const other = (await host.launch({ ...task(tmpdir()), agent: "mt-implementer" }))._unsafeUnwrap();
+    expect([other.sessionId, other.argv[2]]).toEqual([
+      "scenario-mt-implementer-1",
+      expect.stringContaining("Planning the change"),
+    ]);
   });
 });

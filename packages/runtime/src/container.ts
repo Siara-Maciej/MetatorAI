@@ -42,6 +42,7 @@ import {
   type CloseRun,
   type CompareEvals,
   type ComputeAffected,
+  type Conductor,
   type ContainerRuntime,
   type ContractDetector,
   type ContractDiffer,
@@ -264,6 +265,7 @@ export interface Cradle {
   ptyBroker: PtyBroker;
   layoutStore: LayoutStore;
   panes: Panes;
+  conductor: Conductor;
   supervisor: (restart: SupervisorDependencies["restart"]) => Supervisor;
   runMessages: RunMessages;
   runJournal: RunJournal;

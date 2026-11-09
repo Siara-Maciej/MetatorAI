@@ -1,3 +1,4 @@
+import { WORKER_RUN_CONTROL } from "./conductor.ts";
 import { commandsOf } from "./discovery.ts";
 import { matchesAny } from "./glob.ts";
 import type { Approval } from "./run-record.ts";
@@ -99,6 +100,8 @@ export interface PreToolContext {
   readonly editScope?: readonly string[];
   /** The calling agent is a coordinator (delegates, never edits). */
   readonly coordinator: boolean;
+  /** The calling agent works a worker pane (R2): it reports, the conductor steers the run. */
+  readonly worker?: boolean;
 }
 
 export interface ToolDecision {
@@ -191,6 +194,9 @@ const RUN_CONTROL = new Set([
   "drive",
   "continue",
   "init",
+  "start",
+  "delegate",
+  "collect",
 ]);
 
 /**
@@ -237,6 +243,9 @@ export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecisio
   // Secrets are never read or written, with or without a run (MT-SEC).
   const secret = secretPath(hook, ctx.root);
   if (secret) return deny(`${secret} may hold secrets; agents do not read or write it.`);
+  // A worker pane reports and finishes; the conductor moves the run (R2).
+  const steering = ctx.worker ? runControlCommand(hook) : undefined;
+  if (steering) return deny(WORKER_RUN_CONTROL(steering));
   const control = ctx.driven ? runControlCommand(hook) : undefined;
   if (control) {
     // A person's yes in the chat, carried by the agent: only while that person holds the session.

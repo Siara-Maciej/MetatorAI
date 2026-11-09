@@ -1885,6 +1885,93 @@ metator run activity [options]
 | `--run <id>` | run id (default: latest) |  |
 | `--tail <n>` | only the last n entries |  |
 
+### `metator run start`
+
+Open the run as a conductor pane: an interactive host session that runs the workflow
+
+```bash
+metator run start [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--host <id>` | copilot, claude, opencode (default: the run's host, else supervisor.hostOrder) |  |
+
+### `metator run delegate`
+
+A worker pane for the current stage: one of the stage's agents, with its card as its whole task
+
+```bash
+metator run delegate [options] <stage>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<stage>` |  | |
+| `--agent <id>` | the worker's agent (one the stage lists) **Required.** |  |
+| `--card <text>` | the card: goal, inputs, output, size of the summary |  |
+| `--card-file <path>` | the card from a file |  |
+| `--name <name>` | the worker's name (default: &lt;agent&gt;-&lt;n&gt;) |  |
+| `--host <id>` | the worker's host (default: the run's) |  |
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run wait`
+
+Wait until the worker reported, its pane ended, or it sits idle without a report
+
+```bash
+metator run wait [options] <worker>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<worker>` |  | |
+| `--timeout <ms>` | give up after this long | `600000` |
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run collect`
+
+The worker's result (summary, artifacts, its question when blocked); closes its pane
+
+```bash
+metator run collect [options] <worker>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<worker>` |  | |
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run workers`
+
+The run's workers: their panes, states and results so far
+
+```bash
+metator run workers [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run result`
+
+A worker's report: done, blocked (with its question) or failed, with a summary and artifacts
+
+```bash
+metator run result [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--worker <name>` | the worker's name (METATOR_WORKER in its pane) **Required.** |  |
+| `--status <status>` | done, blocked or failed **Required.** |  |
+| `--summary <text>` | what was done, or why not (a few lines) **Required.** |  |
+| `--artifact <path>` | a file the result rests on; repeat for several | `[]` |
+| `--question <text>` | with blocked: the decision a person must take |  |
+| `--run <id>` | run id (default: latest) |  |
+
 ## policy
 
 ### `metator policy list`

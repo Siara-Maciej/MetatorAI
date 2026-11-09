@@ -175,13 +175,36 @@ The daemon (`metator serve`) and the desktop app open a run's session in a real 
 | `copilot` | `copilot -i <task> --add-dir <run dir> --deny-tool "shell(git push)"` | `copilot --continue` (or `--resume <id>` when a real id is known) | `continue`: Copilot names its sessions itself; the worktree's last session is the run's |
 | `claude` | `claude <task> --session-id <uuid> --add-dir <run dir> --permission-mode default` | `claude --resume <uuid>` | the UUID MetatorAI chose |
 | `opencode` | `opencode <worktree> --prompt <task>` | `opencode --continue` (or `--session ses_…`) | `continue` |
-| `scenario` | a shell script that plays the scenario's `session` entry | the next entry | `scenario-session-N` |
+| `scenario` | a shell script that plays the scenario's entry for the agent, else its `session` entry | the next entry | `scenario-<agent>-N` |
 
 The run's agent (`--agent <id>`) is passed when the repository has that agent's file for the host (`.github/agents/<id>.agent.md`, `.claude/agents/<id>.md`, `.opencode/agent/<id>.md`). Every session gets `METATOR_RUN`, `METATOR_RUN_DIR` and, in a driven run, `METATOR_DRIVEN=1` in its environment, so the hooks know which run they write to. The binaries come from PATH; `METATOR_COPILOT_BIN`, `METATOR_CLAUDE_BIN` and `METATOR_OPENCODE_BIN` point elsewhere.
 
 ```bash
 curl -X POST localhost:4310/runs/<run>/pty-open -d '{"host":"claude","cols":120,"rows":40}'
 ```
+
+## The conductor and its workers
+
+A run can be conducted from a pane instead of driven by `metator run drive`: the orchestrator agent sits in an interactive host session (the conductor pane) and moves the run with `metator run` commands, each worker in a pane of its own. The workflow stays the law (stages, their agents, human gates, loop and parallel limits); within it, the conductor decides what to do and when.
+
+```bash
+metator run start                                            # the run's workspace with the conductor pane (mt-orchestrator)
+metator run delegate plan --agent mt-planner --card "Plan the discount in src/invoice.ts; write plan.json; summary of at most 10 lines"
+metator run workers                                          # who works now, in which pane, with which result so far
+metator run wait mt-planner-1 --timeout 600000               # until it reported, its pane ended, or it sits idle without a report
+metator run collect mt-planner-1                             # its result (summary, artifacts, a question when blocked); closes its pane
+```
+
+The card is the worker's whole task, handed over once; the worker writes its artifacts into the run directory and reports with one command, from its own pane:
+
+```bash
+metator run result --worker mt-planner-1 --status done --summary "plan.json: 4 steps" --artifact plan.json
+metator run result --worker mt-planner-1 --status blocked --question "Round half up or half even?" --summary "two readings of the spec"
+```
+
+A `blocked` report becomes a question in the inbox under the worker's name; the conductor collects it, decides or asks you, and delegates again with the answer in the card. Nobody types into another pane and no result travels through a terminal: the report is a `WorkerResult` file in `.metator/runs/<id>/results/`, the card a file in `work/`, and a worker's name (`<agent>-<n>`) is never reused in a run.
+
+Who may do what is enforced, not asked for: the daemon accepts `start`, `delegate` and `collect` from the run's conductor pane (every pane carries a token in `METATOR_PANE_TOKEN`) or from a person's shell, and answers 403 to any other pane; the hooks of a worker pane (`METATOR_ROLE=worker`) deny every run-control command except its own `run result`; the conductor's hooks, like a coordinator's, deny edits to code.
 
 ## Attach to a session
 
