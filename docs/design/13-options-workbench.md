@@ -1,6 +1,6 @@
 # Faza S: system opcji, podgląd planu, lokalne zadania, przegląd kodu
 
-Status: **propozycja do zatwierdzenia** (2026-11-09). Wzorzec: herdr (konfiguracja, obsługa pane'ów, worktree), przeniesiony na model MetatorAI: workflow jest prawem, agent decyduje w jego granicach, człowiek zatwierdza. Każdy punkt S1–S5 to osobna gałąź i osobny PR do `claude/foundation`, otwierany po zielonym `bun run check` i e2e tego punktu.
+Status: **zaakceptowany** (makiety v9, 2026-11-09). Wzorzec: herdr (konfiguracja, obsługa pane'ów, worktree), przeniesiony na model MetatorAI: workflow jest prawem, agent decyduje w jego granicach, człowiek zatwierdza. Każdy punkt S1–S6 to osobna gałąź i osobny PR do `main`, otwierany po zielonym `bun run check` i e2e tego punktu.
 
 ## 0. Czego nauczyliśmy się z herdr
 
@@ -65,7 +65,7 @@ Widok „gdzie jesteśmy i co zostało”: etapy workflow, kroki planu (`plan.js
 
 ## 3. S3: PR per feature (proces, nie kod)
 
-- Gałąź `claude/s<N>-<slug>` z `claude/foundation`; PR do `claude/foundation` przez GitHub MCP, otwierany przeze mnie, gdy punkt ma: testy jednostkowe, e2e, mutanty, docs w `site/`, zielone `bun run check`; opis PR z sekcjami „Co”, „Jak sprawdzić”, „Ryzyka”, link do tego dokumentu; `review.yml` (akcja MetatorAI) i `ci.yml` biegną na PR.
+- Gałąź `claude/s<N>-<slug>` z `main`; PR do `main` przez GitHub MCP, merge po zielonym CI, otwierany przeze mnie, gdy punkt ma: testy jednostkowe, e2e, mutanty, docs w `site/`, zielone `bun run check`; opis PR z sekcjami „Co”, „Jak sprawdzić”, „Ryzyka”, link do tego dokumentu; `review.yml` (akcja MetatorAI) i `ci.yml` biegną na PR.
 - Subskrypcja PR: po otwarciu pilnuję CI i komentarzy (`subscribe_pr_activity`); merge robisz Ty.
 - Kolejność: S1 → S2 → S4 → S5 (S5 zależy od S1 `editor.*`); S3 obowiązuje od pierwszego.
 

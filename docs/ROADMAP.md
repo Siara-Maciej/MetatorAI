@@ -300,7 +300,7 @@ Decyzja właściciela (2026-11-09): nie używamy herdr. Budujemy własny runtime
 
 ## Faza S: opcje, plan, backlog, przegląd kodu (wzorowane na herdr)
 
-Projekt: [design/13](design/13-options-workbench.md), propozycja z 2026-11-09. Każdy punkt to osobna gałąź i PR do `claude/foundation`, otwierany po zielonym `bun run check`.
+Projekt: [design/13](design/13-options-workbench.md), zaakceptowany 2026-11-09 (makiety v9). Każdy punkt to osobna gałąź i PR do `main`, otwierany i merge'owany po zielonym `bun run check` i CI.
 
 - [ ] S1 System opcji: `OptionDefinition` (abstrakcja, podklasy, rejestr), `UserOptions` v1 (`~/.config/metator/options.yml`), `options:` w `MetatorConfig` v8, nałożenie zakresów user/repo/run z diagnostyką zamiast błędu, `metator config get|set|list|schema`, demon `/options` + `/ws/options`, ekran Settings w aplikacji; pierwsza lista opcji (ui, keys, notify, terminal, editor, supervisor, hosts, worktrees, experimental).
 - [ ] S2 Podgląd planu: projekcja `PlanBoard` (etapy, kroki planu ze statusem, pane'y, pytania, artefakty, co dalej), `run board`, ekran Plan w aplikacji z akcjami (zatwierdź, odpowiedz, otwórz pane, dodaj zadanie, komentarz).
