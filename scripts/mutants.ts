@@ -4643,7 +4643,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/options.ts",
-    from: '      if (!def.settableAt.includes(layer.scope)) {',
+    from: "      if (!def.settableAt.includes(layer.scope)) {",
     to: "      if (false) {",
     why: "an option set in a scope it does not belong to is a diagnostic, not a value",
   },
@@ -4655,8 +4655,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/options.ts",
-    from: '    if (def.fixed)\n      return err(',
-    to: '    if (false)\n      return err(',
+    from: "    if (def.fixed)\n      return err(",
+    to: "    if (false)\n      return err(",
     why: "a fixed option cannot be set",
   },
 ];
