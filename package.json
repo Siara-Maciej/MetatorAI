@@ -19,6 +19,7 @@
     "assets": "bun scripts/assets/generate.ts",
     "test:mutation": "bun scripts/mutation-smoke.ts",
     "schemas:freeze": "bun scripts/freeze-schemas.ts",
+    "pack": "bun scripts/pack.ts",
     "site:reference": "bun scripts/site/cli-reference.ts",
     "site:dev": "vitepress dev site",
     "site:build": "vitepress build site"

@@ -219,7 +219,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] F8.5 `Environment` v1, `env discover|init|up|down|status|logs` (Docker Compose, skrypty, Procfile, Makefile; devcontainer post-MVP; ADR-0053).
 - [x] F8.6 `metator ui`: sesje, skrzynka pytań, aplikacje sesji, edytor (`editor` w `MetatorConfig` v3), powłoka, diff (ADR-0054).
 - [x] F8.7 `env analyze` (`EnvProfile` v1), `Environment` v2, izolacja danych (Postgres template, prefiksy), częściowy start z `affected` (`impact` dojdzie z F7.3), reuse buildu, pula ciepłych worktree (ADR-0055).
-- [ ] F8.8 Dystrybucja: pakiet npm `metator-ai` (CLI zbudowane `bun build`, kanon w paczce), żeby działały `npx|pnpm dlx|yarn dlx|bunx metator` i instalacja jako dev dependency; wymaga konta npm właściciela.
+- [ ] F8.8 Dystrybucja: pakiet npm `metator-ai` (CLI zbudowane `bun build`, kanon w paczce), żeby działały `npx|pnpm dlx|yarn dlx|bunx metator` i instalacja jako dev dependency; wymaga konta npm właściciela. Przygotowane: `bun run pack` buduje `dist/metator-ai` (bundle, kanon, manifest), e2e uruchamia bundle poza checkoutem i instaluje z niego kanon; zostaje publikacja.
 
 **Kryterium wyjścia:** puste repo do zielonych sprawdzeń kanonu i plików hosta jedną komendą; dwie równoległe sesje w osobnych worktree z rozłącznymi portami; drugi worktree aplikacji z wolnym seedem startuje ≥ 10× szybciej niż zimny start (zmierzone).
 
@@ -268,7 +268,7 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 
 **Dystrybucja i integracje (część I)**
 - [x] P9 Przygotowanie sesji: `run init --worktree` daje worktree zależności (kopia `node_modules` z głównego checkoutu przy zgodnych lockfile, inaczej `install`), `worktree setup [--up]`, `doctor --run`.
-- [ ] P8 Złoty zbiór startowy z czystych runów serii 14 (wymaga danych właściciela); [x] akcja GitHub dla review w CI (`action.yml`, workflow `review`); [x] główna pomoc CLI z czasownikami dla ludzi (`metator help --verbs`, goły `metator` w terminalu); przygotowanie paczki npm (F8.8); serwer MCP.
+- [ ] P8 Złoty zbiór startowy z czystych runów serii 14 (wymaga danych właściciela); [x] akcja GitHub dla review w CI (`action.yml`, workflow `review`); [x] główna pomoc CLI z czasownikami dla ludzi (`metator help --verbs`, goły `metator` w terminalu); [x] przygotowanie paczki npm (F8.8, `bun run pack`); serwer MCP.
 
 **Wymaga właściciela (poza kodem):** wybór licencji, konto npm i publikacja, repozytorium pilota, złoty zbiór z prawdziwych PR-ów zespołu, drugi język programowania (po pilocie).
 

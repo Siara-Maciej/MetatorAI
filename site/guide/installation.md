@@ -72,6 +72,17 @@ hosts:
   metatorCommand: bun ~/tools/metatorai/packages/cli/src/main.ts
 ```
 
+## The npm package (prepared, not published)
+
+The repository builds the package `metator-ai` that `npx`, `pnpm dlx`, `yarn dlx` and `bunx` will run once it is published: the CLI bundled with `bun build`, the canon beside it (agents, skills, workflow specs, rules, patterns, schemas), native and optional code as dependencies (`node-pty`, the rule engines, the Claude SDK). Until the owner publishes it, build it yourself:
+
+```bash
+bun run pack                                   # dist/metator-ai
+bun dist/metator-ai/bin/metator.js version     # the bundle runs outside the checkout
+```
+
+The bundle still needs Bun (`#!/usr/bin/env bun`); your project's package manager can be anything.
+
 ## 3. Rule engines in your project
 
 Tool-enforced rules run the engines installed in **your** repository, as dev dependencies:
