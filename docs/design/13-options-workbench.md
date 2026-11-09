@@ -125,18 +125,21 @@ e2e: `layout split w1:p1 --dir vertical` tworzy drzewo i jest widoczne po restar
 
 ## 5c. Makiety do akceptacji (co osoba widzi)
 
-Canvas: <https://claude.ai/artifact/797oXryHh2ncr9mVts8W1B> (prywatny, 6 artboardów 1440×900). Styl: ciemny jak herdr, Inter + JetBrains Mono, jedna kolumna uwagi (bursztyn = czeka na Ciebie, fiolet = agent pracuje, teal = akcja, zieleń = gotowe).
+Canvas: <https://claude.ai/artifact/797oXryHh2ncr9mVts8W1B> (prywatny, 7 artboardów 1440×900, wersja 7).
 
-| Artboard | Wzór z herdr | Co dodaje MetatorAI (komponenty, których herdr nie ma) |
-|---|---|---|
-| **Main** (workbench) | pasek zakładek z numerowanymi workspace'ami, sidebar Spaces/Agents, siatka 2×2 z ramkami, status line, toast | pigułki uwagi na zakładkach („czeka: 1”), sekcja **Run** w sidebarze (etap, krok, gate), etykiety pane'ów ze stanem sensora i rolą (conductor/worker), toast z pytaniem hosta i przyciskiem „Attach i odpowiedz” |
-| **GoTo** (prefix+g) | picker z filtrami a/b/w/i/d, grupowanie po workspace | wiersze pytań z inboxu i gate'ów approval obok agentów; „czeka od” przy każdym |
-| **Plan** | — | pasek etapów runu (kto, ile czasu, werdykty gate'ów), kroki `plan.json` ze statusem na żywo i pane'em, panel „Czeka na Ciebie”, „Co dalej”, artefakty i dowody, oś czasu etapu |
-| **Review** | — | lista zmienionych plików z krokami planu, diff z notatkami inline, podgląd dokładnej wiadomości, jaką dostanie agent (`RunMessage`, topic `review`), „Open in VS Code” na worktree lub linii |
-| **Backlog** | — | propozycje agentów wymagające zgody (Dodaj / Odrzuć), lista `Issue`, karta propozycji z odniesieniami do runu i linii; napis „agent nigdy nie tworzy zadania sam” |
-| **Settings** | sekcje jak w `config.toml` herdr, diagnostyka zamiast błędu | źródło każdej wartości (default / user / repo / run) jako pigułka, „przywróć domyślną”, znacznik „restart demona”, `issues.requireConsent` jako opcja stała |
+Zasada: **workbench = herdr, nic więcej na ekranie**. Jedna czcionka (mono), sidebar z numerowanymi workspace'ami i gałęzią, lista agentów ze stanem (✓ idle, ⋮ working, ! blocked, ? pyta), surowe terminale w ramkach z nazwą agenta, status line, jeden toast. Jedyne, co MetatorAI dodaje do głównego ekranu, to kropka uwagi przy workspace i dwie linie `run` w sidebarze (etap i liczba pytań). Wszystko inne jest pod prawym przyciskiem albo na osobnym, cienkim ekranie.
 
-Implementacja fazy S zaczyna się po akceptacji makiet. Zmiany makiet są tanie: każdy artboard to jeden plik HTML.
+| Artboard | Co pokazuje |
+|---|---|
+| **Main** | workbench jak herdr; 2×2 terminale Copilot CLI widoczne jak w konsoli; toast z pytaniem hosta (`↵` odpowiedz) |
+| **Menu** | prawy klik na pane: odpowiedz tutaj, przejmij klawiaturę, zoom, podziel, plan runu, zmiany, VS Code, nowe zadanie stąd, zamknij; prawy klik na workspace: plan, zmiany, backlog, VS Code, nowy terminal, zakończ run. Te same akcje pod `prefix` + klawisz |
+| **GoTo** | `prefix+g`: jedno pole, lista agentów i terminali po numerach workspace'ów, pytania jako wiersze, filtry `b w i d` |
+| **Plan** | lista kroków po lewej, jeden krok po prawej (plik, testy, wzorzec, reguły, krytyk), pasek etapów w jednej linii, „czeka na ciebie” na dole listy |
+| **Zmiany** (review) | lista plików, diff, uwaga jako linia pod kodem, jeden przycisk „Wyślij N uwag”, „VS Code” |
+| **Backlog** | propozycje agentów i otwarte zadania w jednej liście; po prawej treść i trzy przyciski (Dodaj / Dodaj i zacznij run / Odrzuć) |
+| **Ustawienia** | sekcje po lewej, w sekcji lista „nazwa · wartość · źródło”, zła wartość podpisana na bursztynowo zamiast błędu |
+
+Implementacja fazy S zaczyna się po akceptacji makiet. Każdy artboard to jeden plik HTML, poprawki są tanie.
 
 ## 6. Architektura w kodzie (gdzie co leży)
 
