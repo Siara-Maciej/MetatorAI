@@ -158,4 +158,13 @@ describe("metator run in a terminal", () => {
     const done = await mt("run", "continue", "20991231-demo-nope");
     expect(done.code).not.toBe(0);
   }, 60_000);
+
+  test("a bare `metator` at a terminal shows the verbs a person reaches for, and the one JSON line stays", async () => {
+    const r = await inTerminal([], repo.root, [], 20_000);
+    expect(r.code).toBe(0);
+    expect(r.screen).toContain("MetatorAI 0.0.0: survey first, prove everything.");
+    expect(r.screen).toContain("Work on a task");
+    expect(r.screen).toContain("metator run init");
+    expect((r.json.data as { verbs: unknown[] }).verbs.length).toBe(6);
+  });
 });

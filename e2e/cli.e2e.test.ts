@@ -246,6 +246,27 @@ describe("metator CLI (process e2e)", () => {
     for (const c of commands) expect(c.summary.length).toBeGreaterThan(5);
   });
 
+  test("help --verbs: the commands a person reaches for, by what they want to do; every one of them exists", async () => {
+    const run = await metator(["help", "--verbs"], repo);
+    const all = (await metator(["help"], repo)).json.data as { commands: { name: string }[] };
+    const data = run.json.data as {
+      verbs: { verb: string; commands: { name: string; usage: string }[] }[];
+      total: number;
+    };
+    expect([run.code, run.stderr, data.total]).toEqual([0, "", all.commands.length]);
+    expect(data.verbs.map((v) => v.verb)).toEqual([
+      "Set up a repository",
+      "Work on a task",
+      "Understand the code",
+      "Check and review",
+      "Many repositories",
+      "Keep it running",
+    ]);
+    for (const v of data.verbs)
+      for (const c of v.commands)
+        expect(all.commands.some((x) => x.name === c.name || x.name.startsWith(`${c.name} `))).toBe(true);
+  });
+
   test("unknown command: exit 64 (usage), machine-readable error with a hint", async () => {
     const run = await metator(["definitely-not-a-command", "--flag"], repo);
     expect(run.code).toBe(64);

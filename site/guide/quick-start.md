@@ -129,6 +129,10 @@ metator run close --aborted --reason "demo finished"
 
 `run close` writes `summary.json` with the final telemetry (duration, events, loops, approvals). It refuses to close an active run without `--aborted`, so a half-done run is never closed silently.
 
+## Finding your way around
+
+`metator` alone, in a terminal, prints the commands a person reaches for, grouped by what you want to do (set up, work on a task, understand the code, check and review, many repositories, keep it running); `metator help` lists every command (196 and counting) and `metator <command> --help` describes one. Every command prints one JSON line on stdout, so the same output feeds a script or an agent.
+
 ## Next steps
 
 - Use the agents for real work: [Workflows](../workflows/index.md).

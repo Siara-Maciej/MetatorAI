@@ -20,11 +20,15 @@ metator version [options]
 
 ### `metator help`
 
-List available commands
+List available commands (--verbs: the ones a person reaches for, by what they want to do)
 
 ```bash
 metator help [options]
 ```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--verbs` | the overview by verb instead of the whole list |  |
 
 ## changed
 
