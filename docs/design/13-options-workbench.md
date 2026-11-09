@@ -96,6 +96,48 @@ Z poziomu pane'a lub runu: jeden klik otwiera worktree/branch w VS Code na zmian
 - **Wyślij do agenta**: przycisk „Send to agent” → `metator run message --to <run> --topic review --text <zebrane notatki jako lista: plik:linia, cytat, uwaga>` (`RunMessage` istnieje); dyrygent dostaje wiadomość w kolejnym `run status`/`run messages` (już czyta wiadomości), worker przez kartę przy kolejnej delegacji; opcja `review.sendTo`. Notatki zmieniają status na `sent`; gdy agent odpisze (`run message --topic review-reply`) lub plik się zmieni w tych liniach, aplikacja oznacza `addressed` do potwierdzenia przez Ciebie.
 - CLI: `metator review notes list|add|send` (to samo bez aplikacji), MCP `metator_review_notes_list` (czytanie) dla agenta w innym hoście.
 
+## 5b. S6: siatka terminali jak w herdr (parytet workbencha)
+
+### Cel
+
+Osoba patrzy na sesję Copilot CLI tak, jakby sama uruchomiła ją w konsoli: pełny ekran agenta w kafelku, bez pośrednika. To już działa (R2–R5: PTY + xterm.js). Brakuje tego, co w herdr czyni siatkę wygodną: pisanie wprost w kafelku, zoom, podział i przeciąganie, tryb kopiowania, skróty jak w tmux.
+
+### Co dochodzi
+
+| Element | herdr | MetatorAI dziś | S6 |
+|---|---|---|---|
+| Pisanie w kafelku | zawsze, agent i człowiek dzielą klawiaturę | tylko po `attach` (klawiatura jest agenta albo osoby) | klik w kafelek = fokus; klawisze idą do PTY, jeśli pane ma `owner: human` lub jest shellem; dla pane agenta pierwszy klawisz pyta „Przejąć?” (`ui.attachOnType`: ask / always / never) |
+| Zoom | `prefix+z` kafelek na cały obszar | brak | `Layout.zoom: paneId \| null` w Layout v2 (migracja), `prefix+z`, podwójny klik w ramkę |
+| Podział i układ | split, resize, drag | siatka automatyczna 1/2/4 | `Layout.tree` (binary split tree: `{dir, ratio, a, b}` albo `{paneId}`), `prefix+v` / `prefix+-`, przeciąganie krawędzi; układ zapisany w Layout v2, przywracany po restarcie |
+| Tryb kopiowania | `prefix+[`, wyszukiwanie w scrollbacku, vim-klawisze | zaznaczanie myszą w xterm.js | `prefix+[`: xterm.js SearchAddon, zaznaczanie klawiaturą, `y` kopiuje, `/` szuka; `terminal.scrollback` z S1 |
+| Ramki i etykiety | ramka z nazwą agenta, stanem i gałęzią | nazwa + stan w zakładce | ramka kafelka z `ui.paneBorders` (auto/always/off) i `ui.paneLabels` (agent · rola · stan sensora · gałąź) |
+| Skróty | `[keys]` w TOML, ~60 akcji | stałe w kodzie | wszystkie akcje przez `keys.*` z S1 (`KeybindingOption`), `[[keys.command]]` → `keys.command[]` (popup lub pane) |
+| Go-to picker | `prefix+g`, filtry b/w/i/d | brak | ekran GoTo (makieta): agenci i terminale po workspace'ach, filtry stanu, pytania z inboxu, `↵` skok, `a` attach |
+| Status line | tokeny konfigurowalne | pasek stanu stały | `ui.statusLine[]` (tokeny: zoom, hostname, datetime, text, command) |
+
+### Dane
+
+`Layout` v2 = v1 + `tree` i `zoom`; migracja z v1 buduje drzewo z kolejności pane'ów (podział naprzemienny). Reszta to opcje z S1 i zdarzenia w aplikacji; demon nie wie o zoomie ani fokusie, zapisuje tylko `tree`.
+
+### Kryterium wyjścia
+
+e2e: `layout split w1:p1 --dir vertical` tworzy drzewo i jest widoczne po restarcie demona; w aplikacji (Playwright): klik w shell i wpisanie `echo hi` daje wynik w PTY bez `attach`; `prefix+z` pokazuje jeden kafelek, drugi raz przywraca siatkę; tryb kopiowania znajduje tekst w scrollbacku. Mutanty na migracji Layout v1→v2 i na drzewie podziału.
+
+## 5c. Makiety do akceptacji (co osoba widzi)
+
+Canvas: <https://claude.ai/artifact/797oXryHh2ncr9mVts8W1B> (prywatny, 6 artboardów 1440×900). Styl: ciemny jak herdr, Inter + JetBrains Mono, jedna kolumna uwagi (bursztyn = czeka na Ciebie, fiolet = agent pracuje, teal = akcja, zieleń = gotowe).
+
+| Artboard | Wzór z herdr | Co dodaje MetatorAI (komponenty, których herdr nie ma) |
+|---|---|---|
+| **Main** (workbench) | pasek zakładek z numerowanymi workspace'ami, sidebar Spaces/Agents, siatka 2×2 z ramkami, status line, toast | pigułki uwagi na zakładkach („czeka: 1”), sekcja **Run** w sidebarze (etap, krok, gate), etykiety pane'ów ze stanem sensora i rolą (conductor/worker), toast z pytaniem hosta i przyciskiem „Attach i odpowiedz” |
+| **GoTo** (prefix+g) | picker z filtrami a/b/w/i/d, grupowanie po workspace | wiersze pytań z inboxu i gate'ów approval obok agentów; „czeka od” przy każdym |
+| **Plan** | — | pasek etapów runu (kto, ile czasu, werdykty gate'ów), kroki `plan.json` ze statusem na żywo i pane'em, panel „Czeka na Ciebie”, „Co dalej”, artefakty i dowody, oś czasu etapu |
+| **Review** | — | lista zmienionych plików z krokami planu, diff z notatkami inline, podgląd dokładnej wiadomości, jaką dostanie agent (`RunMessage`, topic `review`), „Open in VS Code” na worktree lub linii |
+| **Backlog** | — | propozycje agentów wymagające zgody (Dodaj / Odrzuć), lista `Issue`, karta propozycji z odniesieniami do runu i linii; napis „agent nigdy nie tworzy zadania sam” |
+| **Settings** | sekcje jak w `config.toml` herdr, diagnostyka zamiast błędu | źródło każdej wartości (default / user / repo / run) jako pigułka, „przywróć domyślną”, znacznik „restart demona”, `issues.requireConsent` jako opcja stała |
+
+Implementacja fazy S zaczyna się po akceptacji makiet. Zmiany makiet są tanie: każdy artboard to jeden plik HTML.
+
 ## 6. Architektura w kodzie (gdzie co leży)
 
 ```
@@ -110,18 +152,23 @@ packages/core/src/application/open-editor.ts OpenEditor (editor.* + ProcessRunne
 packages/cli/src/commands/config.ts          get|set|list|schema (rozszerzenie istniejącego)
 packages/cli/src/commands/issue.ts, review.ts (notes), run.ts (board)
 packages/cli/src/serve/server.ts             /options, /ws/options, /issues, /runs/:id/board, /runs/:id/review/*, open-editor
-packages/desktop/src/screens/settings.tsx, plan.tsx, backlog.tsx, review.tsx
+packages/desktop/src/screens/settings.tsx, plan.tsx, backlog.tsx, review.tsx, goto.tsx
+packages/core/src/domain/layout.ts          Layout v2 (tree, zoom) + migracja z v1 (S6)
+packages/desktop/src/screens/terminals.tsx   drzewo podziału, zoom, pisanie w kafelku, tryb kopiowania (S6)
 ```
 
 Porty: nowy port `UserConfigDir` (ścieżka katalogu użytkownika, w testach pamięciowa) i istniejące `FileSystem`, `ProcessRunner`. Żadna nowa zależność poza CodeMirror 6 (aplikacja, ADR) i ewentualnie `diff` (już w repo? sprawdzić w rejestrze) do dwukolumnowego widoku.
 
 ## 7. Kolejność i kryteria wyjścia
 
+Kolejność: S1 → S6 → S2 → S4 → S5. S6 idzie zaraz po S1, bo zależy od `keys.*` i `ui.*`, a siatka terminali jest funkcją kluczową.
+
 | Punkt | PR | Kryterium wyjścia |
 |---|---|---|
 | S1 | `claude/s1-options` | `config list` pokazuje każdą opcję z wartością i źródłem; zmiana w aplikacji widoczna w CLI bez restartu; zła wartość = ostrzeżenie, nie awaria; schematy zamrożone |
 | S2 | `claude/s2-plan-board` | ekran Plan odświeża się na żywo w e2e (krok `in-progress` → `done` po wyniku workera); `run board` zgadza się z ekranem |
 | S4 | `claude/s4-issues` | agent proponuje → pytanie w inboxie → zgoda tworzy `open`; `issue start` tworzy run powiązany; MCP czyta backlog |
+| S6 | `claude/s6-grid` | pisanie w kafelku bez `attach`; `prefix+z` zoom i powrót; podział zapisany w Layout v2 i przywrócony po restarcie; tryb kopiowania z wyszukiwaniem |
 | S5 | `claude/s5-review` | „Open in VS Code” uruchamia `editor.command` z worktree i `--goto`; notatki inline wysłane jako `RunMessage` i widoczne w `run messages`; `addressed` po zmianie linii |
 
 Poza zakresem fazy S: podpisywanie instalek, remote/SSH jak w herdr, pluginy.

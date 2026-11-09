@@ -306,4 +306,5 @@ Projekt: [design/13](design/13-options-workbench.md), propozycja z 2026-11-09. K
 - [ ] S2 Podgląd planu: projekcja `PlanBoard` (etapy, kroki planu ze statusem, pane'y, pytania, artefakty, co dalej), `run board`, ekran Plan w aplikacji z akcjami (zatwierdź, odpowiedz, otwórz pane, dodaj zadanie, komentarz).
 - [ ] S3 Proces: PR per feature, subskrypcja PR, opis PR z „Co / Jak sprawdzić / Ryzyka”.
 - [ ] S4 Lokalne zadania: `Issue` v1 w `.metator/issues/`, `issue propose` (agent) → pytanie w inboxie → zgoda osoby, `issue add|list|show|edit|close|drop|start`, ekran Backlog, MCP do czytania.
+- [ ] S6 Siatka jak w herdr: pisanie wprost w kafelku (`ui.attachOnType`), zoom, drzewo podziału i przeciąganie zapisane w `Layout` v2, tryb kopiowania z wyszukiwaniem, ramki i etykiety pane'ów, go-to picker (`prefix+g`), wszystkie skróty przez `keys.*`, `ui.statusLine[]`. Kolejność: S1 → S6 → S2 → S4 → S5.
 - [ ] S5 Podgląd kodu: `open-editor` (VS Code na worktree/pliku/diffie z `editor.*`), ekran Review z diffem i komentarzami inline (`ReviewNote` v1), „Send to agent” jako `RunMessage` (topic `review`), `addressed` po zmianie; `review notes list|add|send`.
