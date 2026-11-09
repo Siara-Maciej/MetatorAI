@@ -4,7 +4,7 @@ MetatorAI Desktop is a window over `metator serve`: every decision comes to one 
 
 ## Download it
 
-The `desktop` workflow builds the installers on GitHub for every push that touches the app: open **Actions → desktop → the latest run → Artifacts** and take `metatorai-desktop-windows-x64` (an `.exe` installer and an `.msi`), `metatorai-desktop-macos-arm64` or `metatorai-desktop-macos-x64` (a `.dmg`), or `metatorai-desktop-linux-x64` (`.deb`, `.AppImage`). A tag `desktop-v<version>` publishes the same files on a GitHub Release (as a draft pre-release the owner makes public). The installers are not code-signed yet: Windows SmartScreen and macOS Gatekeeper ask once (macOS: right-click → Open, or `xattr -d com.apple.quarantine` on the app).
+The `desktop` workflow builds the installers on GitHub for every push that touches the app: open **Actions → desktop → the latest run → Artifacts** and take `metatorai-desktop-windows-x64` (an `.exe` installer and an `.msi`), `metatorai-desktop-macos-universal` (one `.dmg` for Apple Silicon and Intel), or `metatorai-desktop-linux-x64` (`.deb`, `.AppImage`). A tag `desktop-v<version>` publishes the same files on a GitHub Release (as a draft pre-release the owner makes public). The installers are not code-signed yet: Windows SmartScreen and macOS Gatekeeper ask once (macOS: right-click → Open, or `xattr -d com.apple.quarantine` on the app).
 
 The app is a window over the daemon: run `metator serve` from the repository first (see below), then point the app at it.
 

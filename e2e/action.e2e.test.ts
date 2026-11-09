@@ -154,7 +154,7 @@ describe("the MetatorAI GitHub Action (action.yml)", () => {
     }
   });
 
-  test("the desktop workflow builds installers for Windows, macOS (both chips) and Linux, as artifacts and on a tag as a release", async () => {
+  test("the desktop workflow builds installers for Windows, macOS (one universal build) and Linux, as artifacts and on a tag as a release", async () => {
     const wf = parse(await Bun.file(join(ROOT, ".github/workflows/desktop.yml")).text()) as {
       on: { push: { tags: string[]; paths: string[] } };
       jobs: {
@@ -167,8 +167,7 @@ describe("the MetatorAI GitHub Action (action.yml)", () => {
     expect(wf.on.push.tags).toEqual(["desktop-v*"]);
     expect(wf.jobs.build.strategy.matrix.include.map((m) => m.name)).toEqual([
       "windows-x64",
-      "macos-arm64",
-      "macos-x64",
+      "macos-universal",
       "linux-x64",
     ]);
     const tauri = wf.jobs.build.steps.find((s) => s.uses?.startsWith("tauri-apps/tauri-action"));
