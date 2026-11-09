@@ -2355,7 +2355,7 @@ metator attach [options] <pane>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<pane>` |  | |
-| `--by <name>` | who attaches (default: $USER) | `""` |
+| `--by <name>` | who attaches (default: $USER) |  |
 | `--keep` | keep the run's driver lock after detaching |  |
 
 ## mcp

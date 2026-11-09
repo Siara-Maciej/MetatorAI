@@ -76,10 +76,12 @@ export function registerAttachCommand(program: Command, ctx: CommandContext): vo
     .description(
       "This terminal on a pane (or a run's conductor pane); Ctrl-] detaches. A run's pane takes its driver lock",
     )
-    .option("--by <name>", "who attaches (default: $USER)", process.env.USER ?? process.env.USERNAME ?? "")
+    .option("--by <name>", "who attaches (default: $USER)")
     .option("--keep", "keep the run's driver lock after detaching")
     .action(
-      ctx.action(async (id: string, opts: { by: string; keep?: boolean }) => {
+      ctx.action(async (id: string, given: { by?: string; keep?: boolean }) => {
+        // Resolved here, not as the option's default: the CLI reference is generated from the options.
+        const opts = { ...given, by: given.by ?? process.env.USER ?? process.env.USERNAME ?? "" };
         if (!process.stdin.isTTY) {
           return {
             result: err(
