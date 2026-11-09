@@ -135,16 +135,6 @@
         "@metator/testing": "workspace:*",
       },
     },
-    "packages/plugin-herdr": {
-      "name": "@metator/plugin-herdr",
-      "version": "0.0.0",
-      "dependencies": {
-        "@metator/core": "workspace:*",
-      },
-      "devDependencies": {
-        "@metator/testing": "workspace:*",
-      },
-    },
     "packages/plugin-host-claude": {
       "name": "@metator/plugin-host-claude",
       "version": "0.0.0",
@@ -248,7 +238,6 @@
         "@metator/plugin-bun": "workspace:*",
         "@metator/plugin-docker": "workspace:*",
         "@metator/plugin-git": "workspace:*",
-        "@metator/plugin-herdr": "workspace:*",
         "@metator/plugin-host-claude": "workspace:*",
         "@metator/plugin-host-copilot": "workspace:*",
         "@metator/plugin-host-opencode": "workspace:*",
@@ -537,8 +526,6 @@
     "@metator/plugin-docker": ["@metator/plugin-docker@workspace:packages/plugin-docker"],
 
     "@metator/plugin-git": ["@metator/plugin-git@workspace:packages/plugin-git"],
-
-    "@metator/plugin-herdr": ["@metator/plugin-herdr@workspace:packages/plugin-herdr"],
 
     "@metator/plugin-host-claude": ["@metator/plugin-host-claude@workspace:packages/plugin-host-claude"],
 

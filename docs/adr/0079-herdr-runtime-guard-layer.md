@@ -1,6 +1,6 @@
 # ADR-0079: herdr jako runtime terminali, MetatorAI jako warstwa zabezpieczeń nad nim
 
-- Status: Proposed
+- Status: Superseded by ADR-0080 (decyzja z 2026-11-09: własny runtime zamiast herdr; przegląd bezpieczeństwa herdr w Kontekście pozostaje aktualny)
 - Data: 2026-11-08
 
 ## Kontekst

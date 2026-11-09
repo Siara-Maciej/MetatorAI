@@ -1,7 +1,5 @@
 # The desktop app
 
-The recommended setup is [herdr with MetatorAI's guard](./herdr.md) (ADR-0079). MetatorAI Desktop stays as the alternative without herdr and is no longer developed.
-
 MetatorAI Desktop is a window over `metator serve`: every decision comes to one inbox with its evidence, every session is visible in a real terminal, and sessions that depend on each other are shown together. The app draws; the daemon decides (ADR-0077, ADR-0078).
 
 ## Start it

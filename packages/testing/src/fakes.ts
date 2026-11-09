@@ -16,8 +16,6 @@ import {
   type FileSystem,
   type HealthProbe,
   type HealthTarget,
-  type HerdrControl,
-  type HerdrPaneStatus,
   type HostLaunch,
   type HostUsage,
   type InteractiveHost,
@@ -458,49 +456,6 @@ export class FakeInteractiveHost implements InteractiveHost {
     const pty = new FakePty(1000 + ++this.n);
     this.started.push({ task, resumed: sessionId, pty });
     return ok({ sessionId, pty });
-  }
-}
-
-/** herdr as a map of panes: records every call; `panes` says which exist and their agent status. */
-export class FakeHerdr implements HerdrControl {
-  readonly calls: { method: string; args: unknown[] }[] = [];
-  readonly panes = new Map<string, { agentStatus?: string }>();
-  private n = 0;
-  constructor(private readonly failing?: { method: string; error: MetatorError }) {}
-
-  private call<T>(method: string, args: unknown[], value: T): Result<T, MetatorError> {
-    this.calls.push({ method, args });
-    return this.failing?.method === method ? err(this.failing.error) : ok(value);
-  }
-  async open(input: {
-    readonly cwd: string;
-    readonly label: string;
-    readonly env: Readonly<Record<string, string>>;
-  }): Promise<Result<{ readonly workspace: string; readonly pane: string }, MetatorError>> {
-    const workspace = `w${++this.n}`;
-    const pane = `${workspace}:p1`;
-    const r = this.call("open", [input], { workspace, pane });
-    if (r.isOk()) this.panes.set(pane, {});
-    return r;
-  }
-  async run(pane: string, commandLine: string): Promise<Result<void, MetatorError>> {
-    return this.call("run", [pane, commandLine], undefined);
-  }
-  async status(pane: string): Promise<Result<HerdrPaneStatus, MetatorError>> {
-    const p = this.panes.get(pane);
-    return this.call("status", [pane], p ? { exists: true, ...p } : { exists: false });
-  }
-  async report(
-    pane: string,
-    metadata: { readonly title: string; readonly tokens: Readonly<Record<string, string>> },
-  ): Promise<Result<void, MetatorError>> {
-    return this.call("report", [pane, metadata], undefined);
-  }
-  async close(workspace: string): Promise<Result<void, MetatorError>> {
-    const r = this.call("close", [workspace], undefined);
-    if (r.isOk())
-      for (const p of [...this.panes.keys()]) if (p.startsWith(`${workspace}:`)) this.panes.delete(p);
-    return r;
   }
 }
 

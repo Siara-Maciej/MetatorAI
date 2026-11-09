@@ -2,7 +2,6 @@ export * from "./contracts/agent-host.contract.ts";
 export * from "./contracts/contract-differ.contract.ts";
 export * from "./contracts/data-isolator.contract.ts";
 export * from "./contracts/file-system.contract.ts";
-export * from "./contracts/herdr-control.contract.ts";
 export * from "./contracts/interactive-host.contract.ts";
 export * from "./contracts/machine-state.contract.ts";
 export * from "./contracts/process-runner.contract.ts";

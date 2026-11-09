@@ -348,24 +348,6 @@ describe("ClaudeAgentHost", () => {
     expect(await decision("Read", { file_path: "/folder/backend/.env.example" })).toBeUndefined();
   });
 
-  test("typing into another herdr pane or reaching herdr's socket is denied in-process; reading herdr is not", async () => {
-    const { query, calls } = fakeQuery(async () => [init, success]);
-    await collect(new ClaudeAgentHost(query), task);
-    type Hook = (input: unknown) => Promise<{
-      hookSpecificOutput?: { permissionDecision: string; permissionDecisionReason: string };
-    }>;
-    const hooks = calls[0]?.options.hooks as { PreToolUse: { hooks: Hook[] }[] };
-    const hook = hooks.PreToolUse[0]?.hooks[0] as Hook;
-    const out = async (command: string) =>
-      (await hook({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }))
-        .hookSpecificOutput;
-    expect(
-      (await out('"$HERDR_BIN_PATH" agent send-keys reviewer y enter'))?.permissionDecisionReason,
-    ).toContain("only a person does that");
-    expect((await out("nc -U $HERDR_SOCKET_PATH"))?.permissionDecision).toBe("deny");
-    expect(await out("herdr agent list")).toBeUndefined();
-  });
-
   test("reading and searching where the session may read, through the shell too, needs no person", async () => {
     const asked: string[] = [];
     const { query } = fakeQuery(async (can) => {

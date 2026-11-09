@@ -2212,58 +2212,6 @@ metator serve [options]
 | `--poll-ms <n>` | how often sockets look for a change | `1000` |
 | `--supervise-ms <n>` | how often the supervisor ticks (0: never) | `5000` |
 
-## herdr
-
-### `metator herdr open`
-
-Open the run's host session in a herdr workspace of its own (or find the open one)
-
-```bash
-metator herdr open [options]
-```
-
-| Argument or option | Description | Default |
-|---|---|---|
-| `--run <id>` | run id (default: latest) |  |
-| `--host <id>` | copilot, claude, opencode (default: the run's host, else supervisor.hostOrder) |  |
-
-### `metator herdr sync`
-
-Write each run's stage to herdr's sidebar and note host prompts herdr sees in the run
-
-```bash
-metator herdr sync [options]
-```
-
-| Argument or option | Description | Default |
-|---|---|---|
-| `--watch` | keep syncing until stopped |  |
-| `--interval-ms <n>` | with --watch: how often | `3000` |
-
-### `metator herdr close`
-
-Close the run's herdr workspace (its processes end) and forget it
-
-```bash
-metator herdr close [options]
-```
-
-| Argument or option | Description | Default |
-|---|---|---|
-| `--run <id>` | run id (default: latest) |  |
-
-### `metator herdr plugin`
-
-What herdr's MetatorAI plugin runs: attach, release, sync, inbox, for the run of herdr's current workspace
-
-```bash
-metator herdr plugin [options] <action>
-```
-
-| Argument or option | Description | Default |
-|---|---|---|
-| `<action>` |  | |
-
 ## supervise
 
 ### `metator supervise`

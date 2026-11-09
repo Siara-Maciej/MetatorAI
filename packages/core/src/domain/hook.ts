@@ -1,6 +1,5 @@
 import { commandsOf } from "./discovery.ts";
 import { matchesAny } from "./glob.ts";
-import { HERDR_REFUSALS, herdrRefusal } from "./herdr-guard.ts";
 import type { Approval } from "./run-record.ts";
 
 /**
@@ -244,10 +243,6 @@ export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecisio
     if (!chatApproval(hook)) return deny(DRIVEN_RUN_CONTROL(control));
     if (ctx.run?.driver !== "human") return deny(CHAT_APPROVAL_NEEDS_DRIVER);
   }
-  // herdr (ADR-0079): one agent never types into another's pane, starts agents outside a run, or
-  // reaches herdr around its CLI; with or without a run.
-  const herdr = herdrRefusal(shell, text(hook.input.command) ?? "");
-  if (herdr) return deny(`herdr: ${HERDR_REFUSALS[herdr]}`);
   for (const argv of shell) {
     const what = destructive(argv);
     if (what) return deny(`${what} is blocked: it can lose work. Ask the user to run it.`);

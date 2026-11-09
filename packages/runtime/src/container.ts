@@ -84,8 +84,6 @@ import {
   type GuardSubagentOutput,
   type HandoffRun,
   type HealthProbe,
-  type HerdrControl,
-  type HerdrSessions,
   type HostGenerator,
   type ImportAnalyzer,
   type ImportGraphReader,
@@ -262,8 +260,6 @@ export interface Cradle {
   terminal: Terminal;
   interactiveHosts: ReadonlyMap<string, InteractiveHost>;
   ptyBroker: PtyBroker;
-  herdrControl: HerdrControl;
-  herdrSessions: HerdrSessions;
   supervisor: (restart: SupervisorDependencies["restart"]) => Supervisor;
   runMessages: RunMessages;
   runJournal: RunJournal;

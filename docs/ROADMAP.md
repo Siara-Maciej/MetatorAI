@@ -287,35 +287,13 @@ Specyfikacja: [design/12](design/12-desktop.md), zatwierdzona 2026-11-02 (decyzj
 - [x] D6 Adaptery `InteractiveHost`: Copilot CLI (pierwszy), Claude Code, OpenCode, na tym samym kontrakcie.
 - [x] D7 Aplikacja Tauri + xterm.js: ekrany 1, 2, 7, K, potem 3, 4, 5, 6; powiadomienia systemowe; kryteria 11a i 11b liczone na ekranie Supervisora (`packages/desktop`, ADR-0078; pakiet Tauri wymaga Rusta i WebKitGTK/WebView2 na maszynie deweloperskiej).
 
-## Faza E: herdr jako runtime pod warstwą zabezpieczeń (ADR-0079)
+## Faza R: własny runtime terminali wzorowany na herdr (ADR-0080)
 
-Decyzja właściciela (2026-11-08): terminale, sesje, okna i zdalne maszyny daje herdr; MetatorAI pilnuje agentów w nim. Broker PTY (D3) i aplikacja desktopowa (D7) zostają jako alternatywa bez herdr, bez dalszego rozwoju.
+Decyzja właściciela (2026-11-09): nie używamy herdr. Budujemy własny runtime o podobnym działaniu na istniejącym demonie: workspace → tab → pane, dyrygent w granicach workflow, delegowanie do pane'ów workerów, sensor stanu agenta z hooków i ekranu, uwaga osoby, klient terminalowy. Faza E (integracja z herdr) została wycofana; przegląd bezpieczeństwa herdr zostaje w ADR-0079 jako uzasadnienie.
 
-- [x] E1 Strażnik herdr w `pre-tool` i w hoście SDK: bez pisania do cudzych paneli, promptowania agentów, startu agentów poza runem, komend wznowienia, wtyczek, zamykania pracy, `--trust-repository`, gniazda.
-- [x] E2 `HerdrControl` + `HerdrCli`, `InteractiveHost.launch`, `HerdrSessions`, `metator herdr open|sync|close`, `HerdrBinding` v1, indeks `HerdrWorkspaces` v1.
-- [x] E3 Wtyczka herdr (`integrations/herdr`): attach, release, sync, panel inboxa, hook `pane.agent_status_changed`.
-- [ ] E4 Test na prawdziwym herdr (`METATOR_E2E_HERDR`) i poprawki kształtów JSON, jeśli się różnią.
-- [ ] E5 Zgłoszenia do herdr: blokada `send-keys` dla agenta `blocked`, tożsamość wywołującego panelu w API, komendy wznowienia tylko od integracji.
-
-**Kryterium wyjścia:** 11a (mediana czasu odpowiedzi ≤ 50% bazy, ≥ 80% odpowiedzi bez otwierania sesji) i 11b (sesje utrzymane 8 h bez ręcznego restartu), liczone z tych samych danych, które pokazuje ekran Supervisora.
-
-## Role i odpowiedzialności
-
-| Rola | Odpowiada za |
-|------|--------------|
-| **AI Platform owner** (CODEOWNERS na `.github/agents|skills|hooks`, `metator`) | agenci, skille, CLI, evale, progi |
-| **Architekci domen** | ADR, akceptacja reguł i wzorców, karty modułów (część kuratorowana) |
-| **Tech leadzi zespołów** | pilotaż, złoty zbiór z ich domeny, feedback z retro |
-| **Security** | soczewka security, polityka MCP i sekretów, przegląd hooków |
-| **Deweloperzy** | używanie workflow, reakcje na komentarze (dane do evali), propozycje lessons |
-
-## Mapowanie na Twój obecny stan
-
-| Masz | Co z tym robimy | Faza |
-|------|-----------------|------|
-| Wstępne ADR | W7: weryfikacja w kodzie, sekcja „Implikacje”, wyciągnięcie reguł `MT-*` | F2 |
-| Minimalistyczne orchestratory | audyt → spec YAML → `metator run` → hooki → podział review | F0 → F1 → F4 |
-| Skrypty ast-grep | przeniesienie do `sgconfig.yml` jako reguły z testami + wykrywanie wzorców | F1–F2 |
-| Biome | bramki (`gate`), `post-edit`, `noRestrictedImports` + GritQL dla reguł E1 | F2–F4 |
-| tsc | graf (TS API), API snapshot/diff, bramka typów | F1 |
-| Bun | runtime CLI, `bun test` (projekt i `metator`), coverage lcov, `--rerun-each` | F1+ |
+- [ ] R1 Layout: dokument `Layout` (workspace, tab, pane z rolą), odtwarzanie po restarcie demona, tożsamość pane'a (`METATOR_PANE_ID`, token), `metator pane list|read|wait`, `.metator/daemon.json`.
+- [ ] R2 Dyrygent: `metator run start` otwiera workspace runu z pane'em orkiestratora (Copilot), `run delegate|wait|collect|result`, pane'y workerów, rola `worker` w hookach, definicja mt-orchestrator w trybie dyrygenta.
+- [ ] R3 Sensor i uwaga: `HostManifest` v1 dla Copilota (working, blocked, idle z ekranu i hooków), okna zgody hosta w inboxie z akcją attach, powiadomienia.
+- [ ] R4 Klienci: aplikacja na modelu workspace/pane (pasek boczny, siatka pane'ów runu), `metator attach <pane>` w terminalu z prefiksem odłączenia.
+- [ ] R5 Grupy worktree'ów i zamykanie runu, supervisor nad pane'ami (wznowienie dyrygenta, nudge, budżet uwagi).
+- [ ] Później: Claude Code jako drugi host przez te same porty.

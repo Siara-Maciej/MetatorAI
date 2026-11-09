@@ -78,7 +78,6 @@ import {
   GuardStop,
   GuardSubagentOutput,
   HandoffRun,
-  HerdrSessions,
   IndexedImportGraphReader,
   InitArchitecturePolicy,
   InitEnvironment,
@@ -192,7 +191,6 @@ import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { DockerComposeRuntime } from "@metator/plugin-docker";
 import { GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
-import { HerdrCli } from "@metator/plugin-herdr";
 import {
   ClaudeAgentHost,
   ClaudeGenerator,
@@ -245,8 +243,6 @@ export interface BootstrapOptions {
   readonly claudeBin?: string;
   /** The OpenCode binary (METATOR_OPENCODE_BIN); default `opencode` on PATH. */
   readonly opencodeBin?: string;
-  /** The herdr binary (METATOR_HERDR_BIN); default `herdr` on PATH. */
-  readonly herdrBin?: string;
   /** The Docker CLI (METATOR_DOCKER_BIN); default `docker` on PATH. */
   readonly dockerBin?: string;
   /** Machine-wide state shared by every repository (`machineStateDir`); default from the process env. */
@@ -483,32 +479,6 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         hosts.set(host.id, host);
       return hosts;
     }).singleton(),
-    herdrControl: asFunction(() => new HerdrCli(options.herdrBin)).singleton(),
-    herdrSessions: asFunction(
-      ({
-        runRepository,
-        runJournal,
-        interactiveHosts,
-        herdrControl,
-        fileSystem,
-        clock,
-        root,
-        workOverview,
-        machineState,
-      }) =>
-        new HerdrSessions({
-          repo: runRepository,
-          journal: runJournal,
-          hosts: interactiveHosts,
-          control: herdrControl,
-          fs: fileSystem,
-          clock,
-          root,
-          overview: workOverview,
-          machine: machineState,
-          ...(process.env.HERDR_SESSION ? { session: process.env.HERDR_SESSION } : {}),
-        }),
-    ),
     ptyBroker: asFunction(
       ({ runRepository, runJournal, interactiveHosts, clock, root, config }) =>
         new PtyBroker({

@@ -51,8 +51,6 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `AgentUsage` | `.metator/runs/<id>/usage.jsonl` | `metator run drive` (one line per agent call) |
 | `RunMessage` | `.metator/runs/<id>/messages/mNNN.json` | `metator run message` |
 | `RunSeen` | `.metator/runs/<id>/seen.json` | `metator run brief` |
-| `HerdrBinding` | `.metator/runs/<id>/herdr.json` | `metator herdr open`, removed by `metator herdr close` |
-| `HerdrWorkspaces` | `~/.local/state/metator/herdr-workspaces.json` (machine-wide) | `metator herdr open\|close` |
 | `EnvState` | `.metator/env/<worktree, main or shared>.json` | `metator env up\|down` |
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |
 | `ArchitectureReport` | `.metator/arch/report.json` (and `report.md`) | `metator arch analyze` |

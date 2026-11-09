@@ -31,7 +31,6 @@ import { registerFlakyCommands } from "./commands/flaky.ts";
 import { registerGateCommands } from "./commands/gate.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
 import { registerGuardCommands } from "./commands/guard.ts";
-import { registerHerdrCommand } from "./commands/herdr.ts";
 import { registerLessonsCommands } from "./commands/lessons.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
@@ -94,7 +93,6 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
       ...(env.METATOR_COPILOT_BIN ? { copilotBin: env.METATOR_COPILOT_BIN } : {}),
       ...(env.METATOR_CLAUDE_BIN ? { claudeBin: env.METATOR_CLAUDE_BIN } : {}),
       ...(env.METATOR_OPENCODE_BIN ? { opencodeBin: env.METATOR_OPENCODE_BIN } : {}),
-      ...(env.METATOR_HERDR_BIN ? { herdrBin: env.METATOR_HERDR_BIN } : {}),
       ...(env.METATOR_DOCKER_BIN ? { dockerBin: env.METATOR_DOCKER_BIN } : {}),
       stateDir: machineStateDir(env),
     });
@@ -168,7 +166,6 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerAskCommands(program, ctx);
   registerStatusCommand(program, ctx);
   registerServeCommand(program, ctx);
-  registerHerdrCommand(program, ctx);
   registerSuperviseCommand(program, ctx);
 
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).

@@ -133,8 +133,8 @@ export interface InteractiveSession {
  * PTY unless a person attached.
  */
 /**
- * The command line of a host session without running it (E2, ADR-0079): what a terminal runtime
- * such as herdr types into its own pane. `env` holds only the run's variables (`sessionEnv`).
+ * The command line of a host session without running it: what a pane's shell types when a
+ * session is started by hand, and what tests read. `env` holds only the run's variables.
  */
 export interface HostLaunch {
   readonly argv: readonly string[];
@@ -152,32 +152,6 @@ export interface InteractiveHost {
     task: AgentTask,
     size: PtySize,
   ): Promise<Result<InteractiveSession, MetatorError>>;
-}
-
-/** What herdr says of a pane: whether it is still there, and the state of the agent in it. */
-export interface HerdrPaneStatus {
-  readonly exists: boolean;
-  /** herdr's agent status (`working`, `blocked`, `idle`, `done`, `unknown`), when an agent is there. */
-  readonly agentStatus?: string;
-}
-
-/**
- * herdr as the terminal runtime (E2, ADR-0079): a workspace per run, a command typed into its
- * pane, the pane's state, display-only metadata in herdr's sidebar, and closing the workspace.
- */
-export interface HerdrControl {
-  open(input: {
-    readonly cwd: string;
-    readonly label: string;
-    readonly env: Readonly<Record<string, string>>;
-  }): Promise<Result<{ readonly workspace: string; readonly pane: string }, MetatorError>>;
-  run(pane: string, commandLine: string): Promise<Result<void, MetatorError>>;
-  status(pane: string): Promise<Result<HerdrPaneStatus, MetatorError>>;
-  report(
-    pane: string,
-    metadata: { readonly title: string; readonly tokens: Readonly<Record<string, string>> },
-  ): Promise<Result<void, MetatorError>>;
-  close(workspace: string): Promise<Result<void, MetatorError>>;
 }
 
 /** Waiting without blocking (polling for answers); instant in tests. */
