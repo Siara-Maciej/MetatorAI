@@ -1,10 +1,17 @@
-import { type Question, QuestionDocument } from "../domain/drive.ts";
+import { type Question, QuestionDocument, type RunActivity } from "../domain/drive.ts";
+import type { MetatorError } from "../domain/errors.ts";
+import type { Result } from "../domain/result.ts";
 import { serializeJsonDocument } from "../domain/versioned.ts";
 import type { ProcessRunner } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
+
+/** The run journal as the notifier needs it (structural, so the journal may depend on the notifier). */
+export interface NotifierJournal {
+  record(runId: string, entry: Omit<RunActivity, "at">): Promise<Result<void, MetatorError>>;
+  activity(runId: string): Promise<Result<readonly RunActivity[], MetatorError>>;
+}
 
 export interface NotifierDependencies {
-  readonly journal: Pick<RunJournal, "record" | "activity">;
+  readonly journal: NotifierJournal;
   readonly process: Pick<ProcessRunner, "run">;
   readonly root: string;
   /** `notify.command` of the configuration; none means no notifications. */
