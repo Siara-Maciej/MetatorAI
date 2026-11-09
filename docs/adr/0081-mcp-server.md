@@ -13,7 +13,7 @@ Agenci w IDE, czatach i innych narzędziach rozmawiają z narzędziami przez Mod
 
 ## Konsekwencje
 - Pozytywne: jedna powierzchnia odpowiedzi dla terminala, demona i MCP; dodanie komendy czytającej do allowlisty to jedna linia; test jednostkowy pilnuje, że każde narzędzie istnieje w drzewie i że komendy piszące nie są narzędziami.
-- Negatywne: argumenty są przekazywane jako lista łańcuchów, nie jako typowany schemat per narzędzie; host MCP musi znać `metator <komenda> --help`. Typowane schematy dla najczęstszych narzędzi mogą dojść później.
+- Negatywne: większość narzędzi przyjmuje argumenty jako listę łańcuchów (`args`), nie jako typowany schemat; host MCP musi znać `metator <komenda> --help`. Najczęstsze narzędzia (graf, symbole, reguły, stan runu, odczyt pane'a) mają pola typowane (`TYPED` w `mcp.ts`); kolejne dochodzą jedną linią.
 
 ## Implikacje dla kodu
 - `packages/cli/src/mcp.ts` (narzędzia, allowlista), `packages/cli/src/commands/mcp.ts` (serwer na stdio), e2e klientem SDK przez stdio.

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { describeCommands } from "../src/commands/meta.ts";
-import { mcpTools, toolArgv } from "../src/mcp.ts";
+import { mcpTools, TYPED, toolArgv } from "../src/mcp.ts";
 import { buildProgram } from "../src/program.ts";
 
 describe("the MCP tools (metator mcp)", () => {
@@ -64,13 +64,46 @@ describe("the MCP tools (metator mcp)", () => {
     expect(tools.length).toBeLessThan(all.length / 2);
   });
 
-  test("a call's command line is the tool's words then the caller's arguments", () => {
-    const t = tools.find((x) => x.command === "graph deps");
-    expect(toolArgv(t as NonNullable<typeof t>, ["src/a.ts", "--transitive"])).toEqual([
+  test("a call's command line: the words, typed positionals and flags, then the raw arguments", () => {
+    const deps = tools.find((x) => x.command === "graph deps") as (typeof tools)[number];
+    expect(toolArgv(deps, { args: ["src/a.ts", "--transitive"] })).toEqual([
       "graph",
       "deps",
       "src/a.ts",
       "--transitive",
     ]);
+    expect(toolArgv(deps, { file: "src/a.ts", transitive: true })).toEqual([
+      "graph",
+      "deps",
+      "src/a.ts",
+      "--transitive",
+    ]);
+    expect(toolArgv(deps, { file: "src/a.ts", transitive: false, args: ["--json"] })).toEqual([
+      "graph",
+      "deps",
+      "src/a.ts",
+      "--json",
+    ]);
+    const pack = tools.find((x) => x.command === "rules pack") as (typeof tools)[number];
+    expect(toolArgv(pack, { paths: ["a.ts", "b.ts"], budget: 2000 })).toEqual([
+      "rules",
+      "pack",
+      "--paths",
+      "a.ts",
+      "b.ts",
+      "--budget",
+      "2000",
+    ]);
+    const path = tools.find((x) => x.command === "graph path") as (typeof tools)[number];
+    expect(toolArgv(path, { from: "a.ts", to: "b.ts" })).toEqual(["graph", "path", "a.ts", "b.ts"]);
+    // A tool without a shape takes args alone; every typed tool is a real command with those options.
+    const version = tools.find((x) => x.command === "version") as (typeof tools)[number];
+    expect([version.shape, toolArgv(version, { file: "ignored" })]).toEqual([undefined, ["version"]]);
+    expect(
+      tools
+        .filter((t) => t.shape)
+        .map((t) => t.command)
+        .sort(),
+    ).toEqual(Object.keys(TYPED).sort());
   });
 });

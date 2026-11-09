@@ -55,6 +55,14 @@ describe("metator mcp (real server over stdio)", () => {
     expect(version?.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
     const schema = (version?.inputSchema ?? {}) as { properties?: Record<string, unknown> };
     expect(schema.properties).toHaveProperty("args");
+    // The tools an agent reaches for most show a form: typed fields besides `args`.
+    const dependents = listed.tools.find((t) => t.name === "metator_graph_dependents");
+    const typed = (dependents?.inputSchema ?? {}) as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+    expect(Object.keys(typed.properties ?? {}).sort()).toEqual(["args", "file", "transitive"]);
+    expect(typed.required).toEqual(["file"]);
     const cli = (await metator(["mcp", "--list"], repo.root)).json.data as { tools: { name: string }[] };
     expect(cli.tools.map((t) => t.name)).toEqual(names);
   });
@@ -64,17 +72,21 @@ describe("metator mcp (real server over stdio)", () => {
     expect(version).toEqual({ ok: true, data: { name: "metator-ai", version: "0.0.0" } });
     const deps = await client.callTool({
       name: "metator_graph_dependents",
-      arguments: { args: ["src/b.ts"] },
+      arguments: { file: "src/b.ts" },
     });
     expect(deps.isError ?? false).toBe(false);
     const dependents = text(deps).data as { dependents?: unknown[]; files?: unknown[] };
     expect(JSON.stringify(dependents)).toContain("src/a.ts");
     const bad = await client.callTool({
-      name: "metator_graph_deps",
+      name: "metator_graph_cycles",
       arguments: { args: ["--no-such-flag"] },
     });
     expect(bad.isError).toBe(true);
     expect(text(bad).ok).toBe(false);
+    // A typed tool without its required field is refused by the schema, before any command runs.
+    const missing = await client.callTool({ name: "metator_graph_deps", arguments: {} });
+    expect(missing.isError).toBe(true);
+    expect(JSON.stringify(missing.content)).toContain("file");
     const status = text(await client.callTool({ name: "metator_run_status", arguments: {} }));
     expect([status.ok, (status.error as Data | undefined)?.code]).toEqual([false, "NOT_FOUND"]);
   });

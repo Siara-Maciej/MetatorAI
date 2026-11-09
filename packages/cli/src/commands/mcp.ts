@@ -5,7 +5,29 @@ import type { Command } from "commander";
 import { z } from "zod";
 import pkg from "../../package.json" with { type: "json" };
 import type { CommandContext } from "../context.ts";
-import { type McpTool, mcpTools, toolArgv } from "../mcp.ts";
+import { type McpTool, mcpTools, type ToolShape, toolArgv } from "../mcp.ts";
+
+/** The zod shape of a tool's input: its typed fields (positionals required) and the raw `args`. */
+function inputShape(shape: ToolShape | undefined): Record<string, z.ZodTypeAny> {
+  const fields: Record<string, z.ZodTypeAny> = {};
+  for (const p of shape?.positionals ?? []) fields[p] = z.string().describe(`the <${p}> argument`);
+  for (const [flag, kind] of Object.entries(shape?.flags ?? {})) {
+    const base =
+      kind === "boolean"
+        ? z.boolean()
+        : kind === "number"
+          ? z.number()
+          : kind === "list"
+            ? z.array(z.string())
+            : z.string();
+    fields[flag] = base.optional().describe(`--${flag}`);
+  }
+  fields.args = z
+    .array(z.string())
+    .optional()
+    .describe("other options and arguments, as on the command line");
+  return fields;
+}
 
 /**
  * `metator mcp` (P8, ADR-0081): MetatorAI as an MCP server over stdio. Each reading command is a
@@ -51,14 +73,12 @@ export async function serve(
       {
         title: `metator ${tool.command}`,
         description: tool.description,
-        inputSchema: {
-          args: z.array(z.string()).optional().describe("options and arguments, as on the command line"),
-        },
+        inputSchema: inputShape(tool.shape),
         annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       },
-      async ({ args }) => {
+      async (input: Record<string, unknown>) => {
         calls++;
-        const r = await invoke(toolArgv(tool, args ?? []));
+        const r = await invoke(toolArgv(tool, input as { readonly args?: readonly string[] }));
         return {
           content: [{ type: "text", text: JSON.stringify(r.envelope) }],
           isError: r.code !== 0,
