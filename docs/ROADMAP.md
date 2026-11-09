@@ -295,5 +295,5 @@ Decyzja właściciela (2026-11-09): nie używamy herdr. Budujemy własny runtime
 - [x] R2 Dyrygent: `metator run start` otwiera workspace runu z pane'em orkiestratora (Copilot), `run delegate|wait|collect|result`, pane'y workerów, rola `worker` w hookach, definicja mt-orchestrator w trybie dyrygenta.
 - [x] R3 Sensor i uwaga: `HostManifest` v1 dla Copilota (working, blocked, idle z ekranu i hooków), okna zgody hosta w inboxie z akcją attach, powiadomienia.
 - [x] R4 Klienci: aplikacja na modelu workspace/pane (pasek boczny, siatka pane'ów runu), `metator attach <pane>` w terminalu z prefiksem odłączenia.
-- [ ] R5 Grupy worktree'ów i zamykanie runu, supervisor nad pane'ami (wznowienie dyrygenta, nudge, budżet uwagi).
+- [x] R5 Grupy worktree'ów i zamykanie runu, supervisor nad pane'ami (wznowienie dyrygenta, nudge, budżet uwagi).
 - [ ] Później: Claude Code jako drugi host przez te same porty.

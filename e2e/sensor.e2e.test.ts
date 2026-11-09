@@ -18,6 +18,8 @@ agents:
     - - say: "conducting"
       - ask: { question: "Go on?", options: [yes, no] }
       - say: "STATUS: done"
+    - - say: "conducting again"
+      - ask: { question: "Still on?", options: [yes] }
 `;
 const CONFIG = `kind: MetatorConfig
 schemaVersion: 6
@@ -159,9 +161,8 @@ describe("pane sensor and host prompts (real daemon, real PTYs)", () => {
   test("a hook call from a pane is its heartbeat: only with the pane's own token; the guard sends it", async () => {
     const shell = await (
       await post("/panes", {
-        runId,
+        label: "tools",
         role: "shell",
-        label: "sh",
         argv: ["sh", "-c", "echo token=$METATOR_PANE_TOKEN; sleep 30"],
       })
     ).json();
@@ -192,5 +193,23 @@ describe("pane sensor and host prompts (real daemon, real PTYs)", () => {
     expect((after as string) > (before as string)).toBe(true);
     const state = (await get(`/panes/${shellId}/state`)).data as { state: string; reason: string };
     expect(state).toEqual({ state: "working", reason: "a hook call just now" });
+  }, 30_000);
+
+  test("the supervisor resumes the conductor whose session ended while the run goes on (R5)", async () => {
+    // The first session exited at the end of the first test; the run is still active.
+    const resumed = await until("the conductor to come back", async () => {
+      const pane = (await get("/panes/w1:p1")).data as {
+        pane: { live: { alive: boolean; sessionId: string } };
+        text: string;
+      };
+      return pane.pane.live.alive && pane.text.includes("conducting again") ? pane : undefined;
+    });
+    expect(resumed.pane.live.sessionId).toBe("scenario-mt-orchestrator-2");
+    const activity = data(await mt("run", "activity")) as { entries: { type: string; text: string }[] };
+    const restarts = activity.entries.filter((e) => e.type === "restart").map((e) => e.text);
+    expect(restarts.length).toBe(1);
+    expect(restarts[0]).toStartWith(
+      "resumed conductor 1 of 3: its session scenario-mt-orchestrator-1 had exited with 0 (pane w1:p1)",
+    );
   }, 30_000);
 });

@@ -5,6 +5,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import type { RunJournal } from "./drive.ts";
 import type { HostPrompts, HostPromptsReport } from "./host-prompts.ts";
 import type { WorkOverview } from "./overview.ts";
+import type { Panes } from "./panes.ts";
 import type { PtyBroker } from "./pty-broker.ts";
 import type { RunDrivers } from "./run-drivers.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -20,6 +21,8 @@ export interface SupervisorDependencies {
   readonly restart: (runId: string) => Promise<Result<{ readonly stage: string }, MetatorError>>;
   /** Host prompts on pane screens into the inbox (R3); without it, nothing is sensed. */
   readonly prompts?: Pick<HostPrompts, "tick">;
+  /** The layout's panes (R5): a dead conductor pane of an active run is resumed, up to the policy's attempts. */
+  readonly panes?: Pick<Panes, "view" | "openRun">;
 }
 
 export interface SupervisorReport {
@@ -37,7 +40,11 @@ export interface SupervisorReport {
   readonly attention: { readonly waiting: number; readonly limit: number; readonly over: boolean };
   /** Host prompts asked, people attached, prompts that went away (R3). */
   readonly prompts?: HostPromptsReport;
+  /** Conductor panes resumed after their session ended while the run went on (R5). */
+  readonly resumed: readonly { readonly runId: string; readonly paneId: string; readonly attempt: number }[];
 }
+
+const RESUMED = "resumed conductor";
 
 export const NUDGE =
   "metator: no output for a while and no question is open. Go on with the next step of your plan, or say what you are waiting for.";
@@ -94,6 +101,49 @@ export class Supervisor {
         const started = await this.d.restart(runId);
         if (started.isErr()) return err(started.error);
         revived.push({ runId, stage: started.value.stage, attempt: attempts + 1 });
+      }
+    }
+
+    // A conductor pane whose session ended while its run is still active comes back (R5): the
+    // session resumes where it was; the attempts count like a drive's restarts.
+    const resumed: SupervisorReport["resumed"][number][] = [];
+    if (this.d.panes && this.d.policy.respawn.enabled) {
+      const view = await this.d.panes.view();
+      if (view.isErr()) return err(view.error);
+      for (const pane of view.value.panes) {
+        if (pane.role !== "conductor" || !pane.runId || !pane.live || pane.live.alive) continue;
+        const record = await this.d.repo.load(pane.runId);
+        if (record.isErr() || record.value.state.status !== "active") continue;
+        // A person holds the session: they ended it, or will go on themselves.
+        if (record.value.driver?.by === "human") continue;
+        const activity = await this.d.journal.activity(pane.runId);
+        if (activity.isErr()) return err(activity.error);
+        const attempts = activity.value.filter(
+          (a) => a.type === "restart" && a.text.startsWith(RESUMED),
+        ).length;
+        if (attempts >= this.d.policy.respawn.maxAttempts) {
+          const said = activity.value.at(-1)?.text.startsWith("gave up");
+          if (!said) {
+            const noted = await this.d.journal.record(pane.runId, {
+              type: "error",
+              origin: "run",
+              text: `gave up: its conductor session ended ${attempts} time(s) while the run went on, the policy allows ${this.d.policy.respawn.maxAttempts} resume(s); start it yourself (metator run start)`,
+            });
+            if (noted.isErr()) return err(noted.error);
+          }
+          if (!gaveUp.includes(pane.runId)) gaveUp.push(pane.runId);
+          continue;
+        }
+        const noted = await this.d.journal.record(pane.runId, {
+          type: "restart",
+          origin: "run",
+          agent: pane.live.host,
+          text: `${RESUMED} ${attempts + 1} of ${this.d.policy.respawn.maxAttempts}: its session ${pane.live.sessionId} had exited with ${pane.live.exitCode ?? "no code"} (pane ${pane.id})`,
+        });
+        if (noted.isErr()) return err(noted.error);
+        const opened = await this.d.panes.openRun({ runId: pane.runId });
+        if (opened.isErr()) return err(opened.error);
+        resumed.push({ runId: pane.runId, paneId: opened.value.id, attempt: attempts + 1 });
       }
     }
 
@@ -183,6 +233,7 @@ export class Supervisor {
       closed,
       attention: { waiting, limit: this.d.policy.wipLimit, over: waiting > this.d.policy.wipLimit },
       ...(prompts ? { prompts } : {}),
+      resumed,
     });
   }
 

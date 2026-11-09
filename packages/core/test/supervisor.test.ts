@@ -5,10 +5,12 @@ import {
   DriverLock,
   err,
   InitRun,
+  LayoutStore,
   MetatorError,
   NUDGE,
   NUDGE_AGAIN,
   ok,
+  Panes,
   PtyBroker,
   RunJournal,
   RunRepository,
@@ -16,7 +18,14 @@ import {
   SupervisorPolicySchema,
   WorkflowCatalog,
 } from "@metator/core";
-import { FakePty, FixedClock, InMemoryFileSystem } from "@metator/testing";
+import {
+  FakeInteractiveHost,
+  FakePty,
+  FakeTerminal,
+  FixedClock,
+  InMemoryFileSystem,
+  InstantTimer,
+} from "@metator/testing";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -219,5 +228,56 @@ describe("Supervisor", () => {
     });
     w.waiting.you = 2;
     expect((await w.supervisor.tick())._unsafeUnwrap().attention.over).toBe(false);
+  });
+
+  test("a conductor pane whose session ended while the run goes on is resumed, up to the policy's attempts; a person's session is left alone", async () => {
+    const w = world({ respawn: { enabled: true, maxAttempts: 1 } });
+    const copilot = new FakeInteractiveHost("copilot");
+    const panes = new Panes({
+      layout: new LayoutStore(w.fs),
+      broker: w.broker,
+      hosts: new Map([["copilot", copilot]]),
+      terminal: new FakeTerminal(),
+      repo: w.repo,
+      journal: w.journal,
+      clock: new FixedClock(new Date("2026-11-09T10:00:00.000Z")),
+      timer: new InstantTimer(),
+      root: "/repo",
+    });
+    const supervisor = new Supervisor({
+      policy: SupervisorPolicySchema.parse({ respawn: { enabled: true, maxAttempts: 1 } }),
+      repo: w.repo,
+      drivers: { status: async () => ok(null) },
+      journal: w.journal,
+      broker: w.broker,
+      overview: { execute: async () => ok({ runs: [], conversations: [], counts: {} }) as never },
+      restart: async () => ok({ stage: "build" }),
+      panes,
+    });
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const pane = (await panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    expect((await supervisor.tick())._unsafeUnwrap().resumed).toEqual([]);
+    copilot.started[0]?.pty.exit(0);
+    const first = (await supervisor.tick())._unsafeUnwrap();
+    expect(first.resumed).toEqual([{ runId: run.runId, paneId: pane.id, attempt: 1 }]);
+    expect(copilot.started[1]?.resumed).toBe("copilot-1");
+    expect((await supervisor.tick())._unsafeUnwrap().resumed).toEqual([]);
+    copilot.started[1]?.pty.exit(1);
+    const second = (await supervisor.tick())._unsafeUnwrap();
+    expect([second.resumed, second.gaveUp]).toEqual([[], [run.runId]]);
+    const texts = (await w.journal.activity(run.runId))._unsafeUnwrap().map((a) => a.text);
+    expect(
+      texts.some((t) =>
+        t.startsWith(`resumed conductor 1 of 1: its session copilot-1 had exited with 0 (pane ${pane.id})`),
+      ),
+    ).toBe(true);
+    expect(texts.at(-1)).toContain("gave up: its conductor session ended 1 time(s) while the run went on");
+    expect(copilot.started.length).toBe(2);
+    // A person holds the session: they ended it, so nothing is resumed for them.
+    const r2 = (await w.init("Second"))._unsafeUnwrap();
+    await panes.openRun({ runId: r2.runId });
+    await w.lock.attach({ runId: r2.runId, by: "maciej" });
+    copilot.started[2]?.pty.exit(0);
+    expect((await supervisor.tick())._unsafeUnwrap().resumed).toEqual([]);
   });
 });

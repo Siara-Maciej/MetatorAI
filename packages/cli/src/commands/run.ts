@@ -22,6 +22,7 @@ import {
 } from "@metator/core";
 import { Argument, type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
+import { callDaemon, findDaemon } from "../daemon-client.ts";
 import { positiveInt } from "../options.ts";
 import { registerConductorCommands } from "./conductor.ts";
 import { registerDriveCommands } from "./drive.ts";
@@ -75,6 +76,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
   const { action, stdin } = ctx;
   // In a worktree, the run is the one of the checkout it came from.
   const container = ctx.runs;
+  const root = () => (program.opts() as { root?: string }).root ?? process.cwd();
   const runs = program.command("run").description("Start and drive workflow runs (state machine)");
 
   runs
@@ -352,19 +354,55 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .option("--run <id>", "run id (default: latest)")
     .option("--aborted", "abort an active run first (needs --reason)", false)
     .option("--reason <text>", "why the run is aborted")
+    .option("--remove-worktree", "remove the run's worktree too (its ports are freed)", false)
+    .option("--force", "remove the worktree even with uncommitted changes", false)
     .action(
-      action(async (opts: { run?: string; aborted: boolean; reason?: string }) => {
-        if (opts.aborted && !opts.reason)
-          return { result: err(MetatorError.usage("--aborted needs --reason <text>")) };
-        return {
-          result: await container()
+      action(
+        async (opts: {
+          run?: string;
+          aborted: boolean;
+          reason?: string;
+          removeWorktree: boolean;
+          force: boolean;
+        }) => {
+          if (opts.aborted && !opts.reason)
+            return { result: err(MetatorError.usage("--aborted needs --reason <text>")) };
+          const closed = await container()
             .resolve("closeRun")
             .execute({
               ...(opts.run ? { runId: opts.run } : {}),
               ...(opts.aborted && opts.reason ? { abortReason: opts.reason } : {}),
+            });
+          if (closed.isErr()) return { result: closed };
+          // The run's panes go with it (R5), when a daemon holds them; its worktree only when asked.
+          const runId = closed.value.runId;
+          const daemon = findDaemon(root());
+          const panes = daemon.isOk()
+            ? await callDaemon<{ closed: number }>(
+                daemon.value,
+                "POST",
+                `/runs/${encodeURIComponent(runId)}/close-panes`,
+                {},
+              )
+            : undefined;
+          const record = await container().resolve("runRepository").load(runId);
+          let worktree: { id: string; path: string; removed: boolean } | undefined;
+          if (opts.removeWorktree && record.isOk() && record.value.worktree) {
+            const removed = await container()
+              .resolve("removeWorktree")
+              .execute({ id: record.value.worktree.id, force: opts.force });
+            if (removed.isErr()) return { result: removed };
+            worktree = { id: removed.value.id, path: removed.value.path, removed: true };
+          }
+          return {
+            result: ok({
+              ...closed.value,
+              ...(panes?.isOk() ? { panes: panes.value } : {}),
+              ...(worktree ? { worktree } : {}),
             }),
-        };
-      }),
+          };
+        },
+      ),
     );
 
   runs

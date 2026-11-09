@@ -230,4 +230,32 @@ describe("Panes", () => {
     expect((await w.panes.closeWorkspace("w1"))._unsafeUnwrap()).toEqual({ closed: 0 });
     expect((await w.panes.view())._unsafeUnwrap().workspaces).toEqual([]);
   });
+
+  test("a run in its own worktree sits under the repository's workspace (made once); run close closes the run's workspace", async () => {
+    const w = world();
+    const r = (await w.init("Add discount"))._unsafeUnwrap();
+    const record = (await w.repo.load(r.runId))._unsafeUnwrap();
+    await w.repo.save({ ...record, worktree: { id: "wt-1", path: ".metator/wt/wt-1", branch: "run/wt-1" } });
+    const ws = (await w.panes.openWorkspace({ runId: r.runId }))._unsafeUnwrap();
+    expect(ws).toMatchObject({ id: "w2", cwd: "/repo/.metator/wt/wt-1", runId: r.runId, group: "w1" });
+    const layout = (await w.layout.load())._unsafeUnwrap();
+    expect(layout.workspaces.map((x) => [x.id, x.label, x.cwd, x.runId ?? null, x.group ?? null])).toEqual([
+      ["w1", "repo", "/repo", null, null],
+      ["w2", r.runId, "/repo/.metator/wt/wt-1", r.runId, "w1"],
+    ]);
+    // A second worktree run joins the same group; a run in the checkout itself stands alone.
+    const r2 = (await w.init("Second"))._unsafeUnwrap();
+    const rec2 = (await w.repo.load(r2.runId))._unsafeUnwrap();
+    await w.repo.save({ ...rec2, worktree: { id: "wt-2", path: ".metator/wt/wt-2", branch: "run/wt-2" } });
+    expect((await w.panes.openWorkspace({ runId: r2.runId }))._unsafeUnwrap().group).toBe("w1");
+    const r3 = (await w.init("Third"))._unsafeUnwrap();
+    expect((await w.panes.openWorkspace({ runId: r3.runId }))._unsafeUnwrap().group).toBeUndefined();
+    await w.panes.openRun({ runId: r.runId });
+    await w.panes.openPane({ workspace: "w2", role: "shell", process: { kind: "command", argv: ["sh"] } });
+    expect((await w.panes.closeRun(r.runId))._unsafeUnwrap()).toEqual({ closed: 2, workspace: "w2" });
+    expect((await w.panes.closeRun(r.runId))._unsafeUnwrap()).toEqual({ closed: 0 });
+    const after = (await w.layout.load())._unsafeUnwrap();
+    expect(after.workspaces.map((x) => x.id)).toEqual(["w1", "w3", "w4"]);
+    expect(after.panes).toEqual([]);
+  });
 });

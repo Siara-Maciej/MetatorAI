@@ -1735,6 +1735,8 @@ metator run close [options]
 | `--run <id>` | run id (default: latest) |  |
 | `--aborted` | abort an active run first (needs --reason) |  |
 | `--reason <text>` | why the run is aborted |  |
+| `--remove-worktree` | remove the run's worktree too (its ports are freed) |  |
+| `--force` | remove the worktree even with uncommitted changes |  |
 
 ### `metator run status`
 

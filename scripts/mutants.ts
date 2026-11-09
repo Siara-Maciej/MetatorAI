@@ -4611,4 +4611,34 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "a failing host-prompt tick is the supervisor's error",
   },
+  {
+    file: "packages/core/src/application/panes.ts",
+    from: "    const inWorktree = runId !== undefined && cwd !== this.d.root;",
+    to: "    const inWorktree = false;",
+    why: "a run in its own worktree is grouped under the repository's workspace",
+  },
+  {
+    file: "packages/core/src/application/panes.ts",
+    from: "    if (!workspace) return ok({ closed: 0 });\n    const closed = await this.closeWorkspace(workspace.id);",
+    to: "    if (!workspace) return ok({ closed: 0 });\n    const closed = ok({ closed: 0 });",
+    why: "run close closes the run's workspace",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: '        if (record.value.driver?.by === "human") continue;',
+    to: "",
+    why: "a session a person holds is not resumed over them",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: "        if (attempts >= this.d.policy.respawn.maxAttempts) {",
+    to: "        if (false) {",
+    why: "a conductor is resumed only up to the policy's attempts",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: '        if (pane.role !== "conductor" || !pane.runId || !pane.live || pane.live.alive) continue;',
+    to: '        if (pane.role !== "conductor" || !pane.runId || !pane.live) continue;',
+    why: "only a dead conductor pane is resumed",
+  },
 ];

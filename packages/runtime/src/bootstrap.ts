@@ -556,7 +556,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     // The supervisor needs a way to start a drive again, which only the CLI process knows (its own
     // argv). Not a singleton (its drivers are not): the caller keeps the one instance it ticks.
     supervisor: asFunction(
-      ({ config, runRepository, runDrivers, runJournal, ptyBroker, workOverview, hostPrompts }) =>
+      ({ config, runRepository, runDrivers, runJournal, ptyBroker, workOverview, hostPrompts, panes }) =>
         (restart: SupervisorDependencies["restart"]) =>
           new Supervisor({
             policy: config.config.supervisor,
@@ -567,6 +567,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
             overview: workOverview,
             restart,
             prompts: hostPrompts,
+            panes,
           }),
     ),
     runDrivers: asFunction(

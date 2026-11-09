@@ -30,3 +30,6 @@ Fundament już istnieje (D3–D7): demon `metator serve`, broker PTY na node-pty
 ## Implikacje dla kodu
 - Nowe dokumenty: `Layout` v1, `DaemonInfo` v1, `WorkerResult` v1, `HostManifest` v1 (zamrożone schematy).
 - `AgentTask.env` dla tożsamości pane'a; `PtyView` z `paneId` i rolą; `Panes` jako use case nad `LayoutStore` i brokerem.
+
+## Stan realizacji (2026-11-09)
+R1–R5 zrealizowane na gałęzi `claude/foundation`: `Layout` v1 i odtwarzanie po restarcie, tożsamość pane'a i `metator pane`, dyrygent (`run start|delegate|wait|collect|workers|result`, `WorkerResult` v1, rola `worker` w hookach), sensor (`HostManifest` v1, stany pane'ów, okna zgody hosta w inboxie z akcją attach, heartbeat z hooków), klienci (`metator attach <pane>`, zakładki pane'ów i ich stany w aplikacji), grupy worktree'ów pod workspace'em repozytorium, `run close` zamykający pane'y runu (i opcjonalnie worktree), supervisor wznawiający dyrygenta. Otwarte: kalibracja wzorców ekranu Copilota na prawdziwym hoście; Claude Code jako drugi host; siatka pane'ów w aplikacji (dziś siatka pokazuje dyrygentów runów).

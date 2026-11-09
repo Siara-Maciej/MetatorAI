@@ -168,4 +168,39 @@ describe("panes (real daemon, real PTYs)", () => {
       activity.entries.some((e) => e.text.startsWith("resumed session scenario-session-2 in pane w1:p1")),
     ).toBe(true);
   }, 60_000);
+
+  test("run close closes the run's panes through the daemon; --remove-worktree takes the worktree with it", async () => {
+    const wt = data(
+      await mt("run", "init", "--workflow", "demo", "--task", "In a worktree", "--worktree"),
+    ) as {
+      runId: string;
+      worktree: { id: string; path: string };
+    };
+    expect((await post(`/runs/${wt.runId}/pty-open`, {})).ok).toBe(true);
+    const layout = (await get("/layout")).data as {
+      workspaces: { id: string; runId?: string; group?: string; cwd: string }[];
+    };
+    const own = layout.workspaces.find((w) => w.runId === wt.runId);
+    const repoWs = layout.workspaces.find((w) => w.id === own?.group);
+    expect([own?.cwd.endsWith(wt.worktree.path), repoWs?.runId ?? null, repoWs?.cwd]).toEqual([
+      true,
+      null,
+      repo.root,
+    ]);
+    await mt("run", "advance", "pass", "--run", wt.runId);
+    const closed = data(await mt("run", "close", "--run", wt.runId, "--remove-worktree", "--force")) as {
+      status: string;
+      panes: { closed: number };
+      worktree: { id: string; path: string; removed: boolean };
+    };
+    expect([closed.status, closed.panes.closed, closed.worktree]).toEqual([
+      "done",
+      1,
+      { id: wt.worktree.id, path: wt.worktree.path, removed: true },
+    ]);
+    const after = (await get("/layout")).data as { workspaces: { runId?: string }[] };
+    expect(after.workspaces.some((w) => w.runId === wt.runId)).toBe(false);
+    expect(existsSync(repo.path(wt.worktree.path))).toBe(false);
+    expect((data(await mt("worktree", "list")) as { worktrees: unknown[] }).worktrees).toEqual([]);
+  }, 60_000);
 });

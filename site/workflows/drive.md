@@ -260,6 +260,14 @@ metator run drive --host claude --detach  # continue later: the same open questi
 
 A run has at most one live driver. A second `run drive` is refused while the first is alive, and a driver that died does not block a new one.
 
+A run conducted from a pane is kept alive the same way: when its conductor's session ends while the run is still active (the host quit, the process was killed), the supervisor in the daemon resumes the session in the same pane, up to `supervisor.respawn.maxAttempts` times, and then says it gave up in the run's activity; a session a person holds (attached) is left alone. Workers are the conductor's to start again.
+
+`metator run close` ends the run's panes too when a daemon holds them (its workspace goes, the repository's workspace stays), and `--remove-worktree` (with `--force` for uncommitted changes) removes the run's worktree and frees its ports:
+
+```bash
+metator run close --run <id> --remove-worktree
+```
+
 **A drive that died** (the machine restarted, the process was killed) leaves its `driver.json` behind. `metator status` marks the run `died: true`, `metator ui` says `the drive died at <stage>`, and one command starts every such drive again, at the stage it stood and with the host it used:
 
 ```bash

@@ -438,6 +438,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
               })
             ).map((p) => p.live),
           );
+        case "POST close-panes":
+          return fromResult(await c.value.resolve("panes").closeRun(runId));
         case "POST pty-close": {
           const conductor = c.value.resolve("ptyBroker").byRun(runId)[0];
           if (!conductor) return json({ ok: true, data: { closed: false } });

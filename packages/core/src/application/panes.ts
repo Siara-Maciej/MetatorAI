@@ -110,18 +110,45 @@ export class Panes {
       if (record.isErr()) return err(record.error);
       cwd = record.value.worktree ? `${this.d.root}/${record.value.worktree.path}` : this.d.root;
     }
+    const inWorktree = runId !== undefined && cwd !== this.d.root;
     return this.d.layout.update((layout) => {
       const existing = runId ? workspaceOfRun(layout, runId) : undefined;
       if (existing) return ok({ layout, value: existing });
-      const made = addWorkspace(layout, {
-        label: input.label ?? runId ?? cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? "workspace",
+      const at = this.d.clock.now().toISOString();
+      // A run in its own worktree sits under the repository's workspace (R5), made when missing.
+      let current = layout;
+      let group = input.group;
+      if (inWorktree && !group) {
+        const repo = current.workspaces.find((w) => w.cwd === this.d.root && !w.runId);
+        if (repo) group = repo.id;
+        else {
+          const made = addWorkspace(current, { label: basename(this.d.root), cwd: this.d.root, at });
+          current = made.layout;
+          group = made.workspace.id;
+        }
+      }
+      const made = addWorkspace(current, {
+        label: input.label ?? runId ?? basename(cwd),
         cwd,
         ...(runId ? { runId } : {}),
-        ...(input.group ? { group: input.group } : {}),
-        at: this.d.clock.now().toISOString(),
+        ...(group ? { group } : {}),
+        at,
       });
       return ok({ layout: made.layout, value: made.workspace });
     });
+  }
+
+  /** Closes the run's workspace with every pane in it (`run close`); nothing when it has none. */
+  async closeRun(
+    runId: string,
+  ): Promise<Result<{ readonly closed: number; readonly workspace?: string }, MetatorError>> {
+    const layout = await this.d.layout.load();
+    if (layout.isErr()) return err(layout.error);
+    const workspace = workspaceOfRun(layout.value, runId);
+    if (!workspace) return ok({ closed: 0 });
+    const closed = await this.closeWorkspace(workspace.id);
+    if (closed.isErr()) return err(closed.error);
+    return ok({ closed: closed.value.closed, workspace: workspace.id });
   }
 
   /** Another tab in a workspace. */
@@ -476,3 +503,5 @@ export function layoutTree(
 }
 
 export const isLayout = (x: unknown): x is Layout => typeof x === "object" && x !== null && "workspaces" in x;
+
+const basename = (path: string): string => path.split(/[\\/]/).filter(Boolean).at(-1) ?? "workspace";
