@@ -125,9 +125,9 @@ e2e: `layout split w1:p1 --dir vertical` tworzy drzewo i jest widoczne po restar
 
 ## 5c. Makiety do akceptacji (co osoba widzi)
 
-Canvas: <https://claude.ai/artifact/797oXryHh2ncr9mVts8W1B> (prywatny, 7 artboardów 1440×900, wersja 8).
+Canvas: <https://claude.ai/artifact/797oXryHh2ncr9mVts8W1B> (prywatny, 7 artboardów 1440×900, wersja 9).
 
-Zasada: **workbench = herdr, nic więcej na ekranie**. Jedna czcionka (mono), sidebar z numerowanymi workspace'ami i gałęzią, lista agentów ze stanem (✓ idle, ⋮ working, ! blocked, ? pyta), surowe terminale w ramkach z nazwą agenta, status line, jeden toast. Wszystko inne jest pod prawym przyciskiem albo na osobnym, cienkim ekranie.
+Zasada: **workbench = herdr, nic więcej na ekranie**. Jedna czcionka (mono), sidebar z numerowanymi workspace'ami i gałęzią, lista agentów ze stanem (✓ idle, ⋮ working, ! blocked, ? pyta), surowe terminale w ramkach z nazwą agenta, status line, jeden toast. Drugi poziom informacji jest na ekranie tylko tam, gdzie oszczędza kliknięcie: stan w ramce pane'a, krok przy agencie, bieżący krok w pasku procesu, opis pod nazwą opcji, liczby `+/−` przy pliku. Akcje są pod prawym przyciskiem albo na osobnym, cienkim ekranie.
 
 Model ekranu (zgodny z `Layout` v1 z R1, doprecyzowany):
 
