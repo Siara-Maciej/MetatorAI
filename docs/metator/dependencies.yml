@@ -25,12 +25,47 @@ packages:
       adr: 0041-gate-checks-coverage.md,
     }
   - { package: "@manypkg/get-packages", need: "workspace packages", adr: 0018-workspaces-manypkg.md }
+  - {
+      package: "@tauri-apps/cli",
+      need: "builds the desktop app (Tauri)",
+      adr: 0078-desktop-app-tauri-xterm.md,
+    }
+  - {
+      package: "@tauri-apps/plugin-notification",
+      need: "system notifications from the desktop app",
+      adr: 0078-desktop-app-tauri-xterm.md,
+    }
+  - {
+      package: "@vitejs/plugin-react",
+      need: "React in the desktop app's Vite build",
+      adr: 0078-desktop-app-tauri-xterm.md,
+    }
+  - {
+      package: "@xterm/addon-fit",
+      need: "terminals that fill their tile",
+      adr: 0078-desktop-app-tauri-xterm.md,
+    }
+  - {
+      package: "@xterm/xterm",
+      need: "terminals in the desktop app over the daemon's PTYs",
+      adr: 0078-desktop-app-tauri-xterm.md,
+    }
   - { package: "@sindresorhus/slugify", need: "ids from titles", adr: 0015-schemas-zod-yaml.md }
   - { package: awilix, need: "dependency injection", adr: 0011-di-awilix.md }
   - { package: commander, need: "CLI arguments", adr: 0014-cli-commander.md }
   - { package: get-port, need: "free ports for worktree port blocks", adr: 0050-run-worktrees.md }
   - { package: github-slugger, need: "Markdown heading anchors", adr: 0020-rule-canon.md }
+  - {
+      package: node-pty,
+      need: "pseudo-terminals for interactive host sessions (ConPTY on Windows)",
+      adr: 0077-desktop-daemon-driver-lock.md,
+    }
   - { package: neverthrow, need: "errors as values", adr: 0010-dependency-policy.md }
+  - {
+      package: react-dom,
+      need: "the desktop app's screens in the webview",
+      adr: 0078-desktop-app-tauri-xterm.md,
+    }
   - { package: oxc-parser, need: "JS/TS imports", adr: 0017-imports-oxc.md }
   - { package: oxc-resolver, need: "import resolution", adr: 0017-imports-oxc.md }
   - { package: package-manager-detector, need: "package manager of a repo", adr: 0028-discovery.md }
@@ -61,6 +96,7 @@ packages:
   - { package: shell-quote, need: "shell script parsing", adr: 0028-discovery.md }
   - { package: simple-git, need: "git", adr: 0019-git-simple-git.md }
   - { package: typescript, need: "typecheck (tsc 7); E1 engine", adr: 0008-typescript-7-graph.md }
+  - { package: vite, need: "the desktop app's build and dev server", adr: 0078-desktop-app-tauri-xterm.md }
   - { package: vitepress, need: "user documentation site (GitHub Pages)", adr: 0048-user-docs-site.md }
   - { package: xstate, need: "run state machine", adr: 0013-state-machine-xstate.md }
   - { package: wait-on, need: "readiness of started services (TCP, HTTP)", adr: 0053-environments.md }
@@ -87,3 +123,8 @@ packages:
       adr: 0060-terminal-ui-ink.md,
     }
   - { package: react, need: "the component model under Ink", adr: 0060-terminal-ui-ink.md }
+  - {
+      package: "@modelcontextprotocol/sdk",
+      need: "MetatorAI as an MCP server over stdio (`metator mcp`)",
+      adr: 0081-mcp-server.md,
+    }

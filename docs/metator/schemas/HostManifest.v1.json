@@ -1,0 +1,129 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "HostManifest",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "HostManifest"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "host": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "screen": {
+        "default": {
+          "blocked": [],
+          "idle": [],
+          "lines": 6
+        },
+        "type": "object",
+        "properties": {
+          "blocked": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "idle": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "lines": {
+            "default": 6,
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "additionalProperties": false
+      },
+      "quietMs": {
+        "default": 15000,
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991
+      },
+      "hooks": {
+        "default": true,
+        "type": "boolean"
+      }
+    },
+    "required": ["kind", "schemaVersion", "host"],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "HostManifest"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "host": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "screen": {
+        "default": {
+          "blocked": [],
+          "idle": [],
+          "lines": 6
+        },
+        "type": "object",
+        "properties": {
+          "blocked": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "idle": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "lines": {
+            "default": 6,
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["blocked", "idle", "lines"],
+        "additionalProperties": false
+      },
+      "quietMs": {
+        "default": 15000,
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991
+      },
+      "hooks": {
+        "default": true,
+        "type": "boolean"
+      }
+    },
+    "required": ["kind", "schemaVersion", "host", "screen", "quietMs", "hooks"],
+    "additionalProperties": false
+  }
+}

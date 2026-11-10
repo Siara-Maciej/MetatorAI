@@ -56,3 +56,18 @@ echo '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | metator guard 
 ```
 
 **Why hooks fail open on their own errors:** a broken hook must not lock you out of your editor. Errors are reported as a system message, and the decision falls back to the host's default.
+
+## MetatorAI as an MCP server
+
+Agents in IDEs, chats and other tools reach MetatorAI's answers through the Model Context Protocol:
+
+```bash
+metator mcp            # serves over stdio; the host starts it
+metator mcp --list     # the tools it would serve
+```
+
+Every reading command is a tool named by its words (`metator_graph_affected`, `metator_run_status`), with `args`, the command's own options and arguments as on the command line (the most used tools, such as `metator_graph_dependents` or `metator_run_status`, also take typed fields: `file`, `transitive`, `run`); the result is the same JSON envelope the terminal prints, flagged as an error when the envelope says so. Nothing that writes, runs your scripts, drives a run, answers a person's question or talks to an AI host is a tool: those stay with the person and the run's hooks. A client configuration, for a host that takes one:
+
+```json
+{ "mcpServers": { "metator": { "command": "metator", "args": ["mcp"], "cwd": "/path/to/your/repo" } } }
+```

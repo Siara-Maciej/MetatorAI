@@ -56,7 +56,9 @@ export interface SessionRow {
   readonly status: string;
   readonly waiting: number;
   readonly driving: boolean;
-  /** waits for you (n) · driving · stopped · done · escalated · aborted */
+  /** Its drive process ended without leaving: `run revive` starts it again. */
+  readonly died: boolean;
+  /** waits for you (n) · driving · died · stopped · done · escalated · aborted */
   readonly state: string;
 }
 
@@ -70,6 +72,7 @@ export async function sessionRows(c: MetatorContainer): Promise<Result<readonly 
     const waiting = open.isOk() ? open.value.filter((q) => !q.answer).length : 0;
     const driver = await c.resolve("runDrivers").status(r.runId);
     const driving = driver.isOk() && driver.value?.alive === true;
+    const died = r.status === "active" && driver.isOk() && driver.value !== null && !driver.value.alive;
     const state =
       r.status !== "active"
         ? r.status
@@ -77,7 +80,9 @@ export async function sessionRows(c: MetatorContainer): Promise<Result<readonly 
           ? `waits for you (${waiting})`
           : driving
             ? "driving"
-            : "stopped";
+            : died
+              ? "died"
+              : "stopped";
     rows.push({
       runId: r.runId,
       workflow: r.workflow,
@@ -85,6 +90,7 @@ export async function sessionRows(c: MetatorContainer): Promise<Result<readonly 
       status: r.status,
       waiting,
       driving,
+      died,
       state,
     });
   }
@@ -116,6 +122,15 @@ export async function newRun(
     ...(answers.worktree ? { worktree: {} } : {}),
   });
   if (run.isErr()) return err(run.error);
+  if (answers.worktree) {
+    // The worktree's dependencies first: the run's tests and gates run there.
+    const setup = await c.resolve("setupWorktree").execute({ run: run.value.runId });
+    terminal.show(
+      setup.isOk()
+        ? `worktree ${setup.value.worktree}: dependencies ${setup.value.dependencies}`
+        : `worktree setup failed: ${setup.error.message}`,
+    );
+  }
   const started = await startDetached(c, root, run.value.runId, answers.host);
   if (started.isErr()) return err(started.error);
   terminal.show(`run ${run.value.runId} · ${answers.host} · Ctrl+C leaves; the run goes on`);

@@ -158,12 +158,41 @@ describe("metator run drive (real CLI, scenario host)", () => {
     expect(s.status).toBe("escalated");
   }, 60_000);
 
+  test("a drive that died shows as died; run revive starts it again at the same stage and question", async () => {
+    const init = await mt("run", "init", "--workflow", "demo", "--task", "Third change");
+    const runId = (init.json.data as { runId: string }).runId;
+    await mt("run", "drive", "--host", "scenario", "--detach");
+    const gate = await openQuestion("approval");
+    const pid = (await activity()).driver?.pid as number;
+    process.kill(pid, "SIGKILL"); // what a restart does: no chance to leave
+    await until("the drive to die", async () =>
+      (await activity()).driver?.alive === false ? true : undefined,
+    );
+    const status = (await mt("status")).json.data as { runs: { runId: string; died: boolean }[] };
+    expect(status.runs.find((r) => r.runId === runId)?.died).toBe(true);
+
+    const revived = await mt("run", "revive");
+    expect(
+      (revived.json.data as { revived: { runId: string; stage: string; died: number }[] }).revived,
+    ).toEqual([{ runId, stage: "approval", died: pid }]);
+    const back = await until("the drive to come back", async () => {
+      const a = await activity();
+      return a.driver?.alive && a.driver.pid !== pid ? a : undefined;
+    });
+    expect(back.entries.some((e) => e.text === `revived: its drive (process ${pid}) had died`)).toBe(true);
+    // Nothing to revive any more: the new drive is alive, the earlier runs ended or left on purpose.
+    expect(((await mt("run", "revive")).json.data as { revived: unknown[] }).revived).toEqual([]);
+    const open = ((await mt("run", "questions", "--run", runId)).json.data as { questions: Q[] }).questions;
+    expect(open.map((q) => q.id)).toEqual([gate.id]);
+    await mt("run", "stop");
+  }, 60_000);
+
   test("every log line of the activity is a versioned document", async () => {
     const runs = ((await mt("run", "list")).json.data as { runId: string }[]).map((r) => r.runId);
     for (const runId of runs) {
       const text = await repo.read(`.metator/runs/${runId}/activity.jsonl`);
       for (const line of text.trim().split("\n"))
-        expect(JSON.parse(line)).toMatchObject({ kind: "RunActivity", schemaVersion: 1 });
+        expect(JSON.parse(line)).toMatchObject({ kind: "RunActivity", schemaVersion: 2 });
     }
     expect(CLI_ENTRY.endsWith("main.ts")).toBe(true);
   });

@@ -1,14 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentQuestion } from "@metator/core";
+import { type AgentQuestion, CHAT_APPROVAL_NEEDS_DRIVER } from "@metator/core";
 import { agentHostContract, collect } from "@metator/testing";
 import {
   agentDefinition,
   ClaudeAgentHost,
   type ClaudeQuery,
   declaredCommands,
+  driverOf,
+  hostUsage,
+  LOCAL_METATOR,
   OUTSIDE_DEFINITION,
   toEvents,
 } from "../src/claude-agent-host.ts";
@@ -77,6 +80,8 @@ describe("ClaudeAgentHost", () => {
       await can("Bash", { command: "metator plan scope x <<'EOF'\nbody\nEOF" });
       // A run artifact written through the shell into the run directory asks no one either.
       await can("Bash", { command: "cat > /repo/.metator/runs/r/findings/x.json <<'EOF'\n{}\nEOF" });
+      // A declared command whose quoted text holds `&&` asks no one; one chained to another asks.
+      await can("Bash", { command: 'metator plan scope x --why "lint && test"' });
       // Removing a file in the isolated worktree or the run directory asks no one either.
       await can("Bash", { command: "rm test/repro.test.js /repo/.metator/runs/r/findings/x.json" });
       return [init, success];
@@ -133,6 +138,16 @@ describe("ClaudeAgentHost", () => {
     expect((await decide("find / -name x", "mt-review-logic"))?.permissionDecision).toBe("deny");
     // A subagent whose definition grants Bash goes on to the usual question.
     expect(await decide("node -e 'console.log(2)'", "mt-verifier")).toBeUndefined();
+    // `./metator` where there is no such program is refused with the right form, whoever asks.
+    const local = "cd /repo; ./metator findings check-quote a.js --line 1 --quote x || metator findings x";
+    expect(await decide(local, "mt-verifier")).toEqual({
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: LOCAL_METATOR,
+    } as never);
+    // A repository that has its own ./metator program runs it as usual.
+    await Bun.write(join(root, "metator"), "#!/bin/sh\n");
+    expect(await decide(local, "mt-verifier")).toBeUndefined();
     await rm(root, { recursive: true, force: true });
   });
 
@@ -276,6 +291,46 @@ describe("ClaudeAgentHost", () => {
     const freeOptions = free.calls[0]?.options as Record<string, unknown>;
     expect((await hookOf(freeOptions)(advance)).hookSpecificOutput).toBeUndefined();
     expect((freeOptions.env as Record<string, string>).METATOR_DRIVEN).toBeUndefined();
+  });
+
+  test("an approval from the chat passes only while state.json says a person is attached", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "metator-driver-"));
+    const stateOf = (driver?: Record<string, unknown>) =>
+      JSON.stringify({
+        kind: "RunRecord",
+        schemaVersion: 6,
+        runId: "20261102-demo-r",
+        workflow: { id: "demo", revision: 1, source: "x" },
+        task: "t",
+        autonomy: "L0",
+        createdAt: "2026-11-02T10:00:00.000Z",
+        updatedAt: "2026-11-02T10:00:00.000Z",
+        state: { workflow: "demo", stage: "approval", status: "active", context: { loops: {}, history: [] } },
+        approvals: {},
+        ...(driver ? { driver } : {}),
+      });
+    const chat = {
+      hook_event_name: "PreToolUse",
+      tool_name: "Bash",
+      tool_input: { command: "metator run approve approval --by maciej --via chat" },
+    };
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(query), { ...task, runDir: dir, driven: true });
+    type Hook = (
+      input: unknown,
+    ) => Promise<{ hookSpecificOutput?: { permissionDecision: string; permissionDecisionReason?: string } }>;
+    const hooks = calls[0]?.options.hooks as { PreToolUse: { hooks: Hook[] }[] };
+    const hook = hooks.PreToolUse[0]?.hooks[0] as Hook;
+    expect(driverOf(dir)).toBe("agent"); // no state.json yet
+    await writeFile(join(dir, "state.json"), stateOf());
+    expect((await hook(chat)).hookSpecificOutput?.permissionDecisionReason).toBe(CHAT_APPROVAL_NEEDS_DRIVER);
+    await writeFile(
+      join(dir, "state.json"),
+      stateOf({ by: "human", attachedBy: "maciej", attachedAt: "2026-11-02T10:01:00.000Z" }),
+    );
+    expect(driverOf(dir)).toBe("human");
+    expect((await hook(chat)).hookSpecificOutput).toBeUndefined();
+    await rm(dir, { recursive: true, force: true });
   });
 
   test("a tool call on a file that may hold secrets is denied in-process, wherever the session works", async () => {
@@ -456,5 +511,30 @@ describe("ClaudeAgentHost", () => {
       { type: "result", ok: false, text: "error_max_turns: too many turns" },
     ]);
     expect([...toEvents({ type: "user" })]).toEqual([]);
+  });
+
+  test("a result's tokens and cost become the call's usage; a result without them has none", () => {
+    const done = {
+      type: "result",
+      subtype: "success",
+      result: "STATUS: done",
+      total_cost_usd: 0.0421,
+      usage: {
+        input_tokens: 120,
+        cache_creation_input_tokens: 30,
+        cache_read_input_tokens: 9000,
+        output_tokens: 410,
+      },
+    };
+    expect([...toEvents(done)]).toEqual([
+      {
+        type: "result",
+        ok: true,
+        text: "STATUS: done",
+        usage: { inputTokens: 150, outputTokens: 410, cachedTokens: 9000, costUsd: 0.0421 },
+      },
+    ]);
+    expect(hostUsage({ type: "result", usage: { input_tokens: -1, output_tokens: "x" } })).toBeUndefined();
+    expect(hostUsage({ type: "result", total_cost_usd: 0.5 })).toEqual({ costUsd: 0.5 });
   });
 });

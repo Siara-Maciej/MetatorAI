@@ -58,6 +58,23 @@ describe("NodePackageManager (real files)", () => {
   });
 });
 
+describe("NodePackageManager install", () => {
+  test.each([
+    ["package-lock.json", ["npm", "ci"]],
+    ["pnpm-lock.yaml", ["pnpm", "i", "--frozen-lockfile"]],
+    ["bun.lock", ["bun", "install", "--frozen-lockfile"]],
+  ])("with %s the install keeps the lockfile: %j", async (lockfile, argv) => {
+    const pm = new NodePackageManager(await repo({ "package.json": "{}", [lockfile]: "" }));
+    const c = (await pm.installCommand("/elsewhere"))._unsafeUnwrap();
+    expect([c.argv, c.cwd]).toEqual([argv, "/elsewhere"]);
+  });
+
+  test("without a lockfile a plain install, with the package manager the manifest names", async () => {
+    const pm = new NodePackageManager(await repo({ "package.json": '{ "packageManager": "pnpm@9.0.0" }' }));
+    expect((await pm.installCommand("/w"))._unsafeUnwrap().argv).toEqual(["pnpm", "i"]);
+  });
+});
+
 describe("NodePackageManager workspaces", () => {
   test.each([
     [{ "package-lock.json": "{}" }, ["npm", "run", "typecheck", "--workspaces", "--if-present"]],

@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   type AgentAnswer,
@@ -6,11 +6,15 @@ import {
   type AgentHost,
   type AgentQuestion,
   type AgentTask,
+  CHAT_APPROVAL_NEEDS_DRIVER,
+  chatApproval,
   DRIVEN_RUN_CONTROL,
   declaredAfterCd,
   declaredWithDocument,
   deliveryCommand,
+  type HostUsage,
   permissionResponse,
+  RunRecordDocument,
   readOnlyCommand,
   removeInside,
   runArtifactWrite,
@@ -24,6 +28,21 @@ export type ClaudeQuery = (params: {
   prompt: string;
   options: Record<string, unknown>;
 }) => AsyncIterable<Record<string, unknown>>;
+
+export const LOCAL_METATOR =
+  "There is no ./metator program here: metator is on PATH. Run `metator <command>` on its own, without ./ and without a `||` fallback.";
+
+/** The command runs `./metator`, and no directory it could mean holds a metator program. */
+export function noLocalMetator(command: string, dirs: readonly string[]): boolean {
+  if (!/(^|[\s;&|(])\.\/metator(\s|$)/.test(command)) return false;
+  return !dirs.some((d) => {
+    try {
+      return statSync(join(d, "metator")).isFile();
+    } catch {
+      return false;
+    }
+  });
+}
 
 /** Why a command outside an agent's definition is refused without asking anyone. */
 export const OUTSIDE_DEFINITION = (agent: string, declared: readonly string[]) =>
@@ -49,6 +68,17 @@ const described = (input: unknown) => {
   if (typeof command === "string") return command.length > 4000 ? `${command.slice(0, 4000)}…` : command;
   return JSON.stringify(input ?? {}).slice(0, 400);
 };
+
+/** Who drives the run whose directory this is, from its state.json; the agent when unreadable. */
+export function driverOf(runDir: string): "agent" | "human" {
+  try {
+    const raw = JSON.parse(readFileSync(join(runDir, "state.json"), "utf8"));
+    const record = RunRecordDocument.parse(raw, "state.json");
+    return record.isOk() && record.value.driver?.by === "human" ? "human" : "agent";
+  } catch {
+    return "agent";
+  }
+}
 
 const WRITES = new Set(["Write", "Edit", "MultiEdit"]);
 const READS = new Set(["Read", "Grep", "Glob"]);
@@ -168,6 +198,8 @@ export class ClaudeAgentHost implements AgentHost {
         return (
           typeof input.command === "string" &&
           (readOnlyCommand(input.command, dirs) ||
+            // The agent's own declared command, alone; its quoted text may hold `&&` or `|`.
+            singleDeclaredCommand(input.command, own) ||
             // After the push is approved: committing and pushing the run's branch in its worktree.
             (isolated &&
               (task.approved ?? []).includes("push") &&
@@ -221,12 +253,27 @@ export class ClaudeAgentHost implements AgentHost {
       // The drive moves a run it carries: an agent that advances it makes the drive's own event
       // land on the next stage, which is then skipped.
       const control = task.driven ? runControlCommand(hook) : undefined;
-      if (control) return permissionResponse({ decision: "deny", reason: DRIVEN_RUN_CONTROL(control) });
+      if (control) {
+        // A person's yes in the chat, carried by the agent: only while that person is attached
+        // (state.json, read now: the lock changes while the session runs).
+        if (!chatApproval(hook))
+          return permissionResponse({ decision: "deny", reason: DRIVEN_RUN_CONTROL(control) });
+        if (driverOf(task.runDir) !== "human")
+          return permissionResponse({ decision: "deny", reason: CHAT_APPROVAL_NEEDS_DRIVER });
+      }
       // An agent whose definition grants no plain Bash (a coordinator, a lens, a planner) runs only
       // the commands it declares and the ones that need no person: anything else is refused with
       // that reason, never put to a person. The hook names the agent, a subagent's too.
       const agent = typeof call.agent_type === "string" ? call.agent_type : task.agent;
       const command = hook.input.command;
+      // `./metator` where no such program is (the repository's metator/ is a folder of agents and
+      // skills): refused at once with the right form, not put to a person.
+      if (
+        hook.tool === "Bash" &&
+        typeof command === "string" &&
+        noLocalMetator(command, [task.cwd, task.projectRoot])
+      )
+        return permissionResponse({ decision: "deny", reason: LOCAL_METATOR });
       if (hook.tool === "Bash" && typeof command === "string") {
         const file = join(task.projectRoot, ".claude", "agents", `${agent}.md`);
         const tools = agentDefinition(file)?.tools;
@@ -290,8 +337,31 @@ export function* toEvents(message: Record<string, unknown>): Generator<AgentEven
       typeof message.result === "string"
         ? message.result
         : `${String(message.subtype)}${Array.isArray(message.errors) ? `: ${message.errors.join("; ")}` : ""}`;
-    yield { type: "result", ok, text };
+    const usage = hostUsage(message);
+    yield { type: "result", ok, text, ...(usage ? { usage } : {}) };
   }
+}
+
+/** Tokens and cost as the SDK's result message reports them; undefined when it reports none. */
+export function hostUsage(message: Record<string, unknown>): HostUsage | undefined {
+  const u = (message.usage ?? {}) as Record<string, unknown>;
+  const n = (v: unknown) =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : undefined;
+  const input = n(u.input_tokens);
+  const output = n(u.output_tokens);
+  const cached = n(u.cache_read_input_tokens);
+  const created = n(u.cache_creation_input_tokens);
+  const cost =
+    typeof message.total_cost_usd === "number" && message.total_cost_usd >= 0
+      ? message.total_cost_usd
+      : undefined;
+  const out: HostUsage = {
+    ...(input !== undefined || created !== undefined ? { inputTokens: (input ?? 0) + (created ?? 0) } : {}),
+    ...(output !== undefined ? { outputTokens: output } : {}),
+    ...(cached !== undefined ? { cachedTokens: cached } : {}),
+    ...(cost !== undefined ? { costUsd: cost } : {}),
+  };
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** AskUserQuestion: each question goes to a person; the answers go back keyed by question text. */

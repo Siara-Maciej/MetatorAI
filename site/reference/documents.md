@@ -47,6 +47,14 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `RunActivity` | `.metator/runs/<id>/activity.jsonl` (one per line) | `metator run drive` |
 | `Question` | `.metator/runs/<id>/questions/qNNN.json` | `metator run drive` asks, `metator run answer` answers |
 | `RunDriver` | `.metator/runs/<id>/driver.json` | `metator run drive` |
+| `AnswerPolicies` | `metator/answer-policies.yml` | `metator run answer … --always`; `metator policy rm` |
+| `AgentUsage` | `.metator/runs/<id>/usage.jsonl` | `metator run drive` (one line per agent call) |
+| `RunMessage` | `.metator/runs/<id>/messages/mNNN.json` | `metator run message` |
+| `RunSeen` | `.metator/runs/<id>/seen.json` | `metator run brief` |
+| `Layout` | `.metator/layout.json` | the daemon (`metator serve`): workspaces, tabs and panes, restored after a restart |
+| `WorkerResult` | `.metator/runs/<id>/results/<worker>.json` | `metator run result` (a worker's report; `run collect` reads it) |
+| `HostManifest` | `metator/hosts/<host>.yml` (optional; MetatorAI ships one per host) | you: how the daemon reads a host's pane (its permission prompt, its idle prompt, quiet) |
+| `DaemonInfo` | `.metator/daemon.json` | `metator serve` while it runs (where it listens) |
 | `EnvState` | `.metator/env/<worktree, main or shared>.json` | `metator env up\|down` |
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |
 | `ArchitectureReport` | `.metator/arch/report.json` (and `report.md`) | `metator arch analyze` |

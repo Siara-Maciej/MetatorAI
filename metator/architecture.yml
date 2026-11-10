@@ -1,0 +1,8 @@
+# The package architecture policy (H2, ADR-0071): what `metator arch check` holds the workspace to.
+kind: ArchitecturePolicy
+schemaVersion: 2
+exceptions:
+  - violation: "unused-dependency:@metator/plugin-node→node-pty"
+    reason: "node-pty is loaded with createRequire at run time (its native binding is picked per platform), so no static import names it."
+    owner: core
+    expires: 2027-06-30

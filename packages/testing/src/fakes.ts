@@ -16,6 +16,10 @@ import {
   type FileSystem,
   type HealthProbe,
   type HealthTarget,
+  type HostLaunch,
+  type HostUsage,
+  type InteractiveHost,
+  type InteractiveSession,
   type MachineState,
   MetatorError,
   matchesAny,
@@ -25,9 +29,12 @@ import {
   type PostgresTarget,
   type ProcessResult,
   type ProcessRunner,
+  type PtyHandle,
+  type PtySize,
   type ResolvedCommand,
   type Result,
   type RuleEngine,
+  type Terminal,
   type Timer,
   type TreeCopier,
   type Vcs,
@@ -204,6 +211,8 @@ export interface FakeAgentTurn {
   readonly ask?: AgentQuestion;
   /** Runs before the result, e.g. to write an artifact. */
   readonly effect?: (task: AgentTask) => Promise<void> | void;
+  /** What the host reports the call cost. */
+  readonly usage?: HostUsage;
 }
 
 /** AgentHost that plays scripted turns per agent (the last repeats) and records every task. */
@@ -228,7 +237,7 @@ export class FakeAgentHost implements AgentHost {
     }
     await turn.effect?.(task);
     yield { type: "text", text };
-    yield { type: "result", ok: turn.ok ?? true, text: "" };
+    yield { type: "result", ok: turn.ok ?? true, text: "", ...(turn.usage ? { usage: turn.usage } : {}) };
   }
 }
 
@@ -357,6 +366,96 @@ export class FakeDataIsolator implements DataIsolator {
     const s = this.databases.get(target.port) ?? new Map<string, number[]>();
     this.databases.set(target.port, s);
     return s;
+  }
+}
+
+/** A PTY under the test's control: what the session "prints" and what was typed into it. */
+export class FakePty implements PtyHandle {
+  readonly typed: string[] = [];
+  readonly sizes: { cols: number; rows: number }[] = [];
+  killed = false;
+  private readonly data = new Set<(d: string) => void>();
+  private readonly exits = new Set<(c: number) => void>();
+  constructor(readonly pid = 4242) {}
+
+  write(data: string): void {
+    this.typed.push(data);
+  }
+  resize(cols: number, rows: number): void {
+    this.sizes.push({ cols, rows });
+  }
+  onData(listener: (data: string) => void): () => void {
+    this.data.add(listener);
+    return () => this.data.delete(listener);
+  }
+  onExit(listener: (code: number) => void): () => void {
+    this.exits.add(listener);
+    return () => this.exits.delete(listener);
+  }
+  kill(): void {
+    this.killed = true;
+    this.exit(137);
+  }
+  /** The session prints something. */
+  print(data: string): void {
+    for (const l of this.data) l(data);
+  }
+  exit(code: number): void {
+    for (const l of this.exits) l(code);
+  }
+}
+
+/** Terminal whose PTYs are FakePtys; records every spawn (argv, cwd, env, size). */
+export class FakeTerminal implements Terminal {
+  readonly spawned: {
+    argv: readonly string[];
+    cwd: string;
+    env?: Readonly<Record<string, string>>;
+    size?: PtySize;
+    pty: FakePty;
+  }[] = [];
+  private n = 0;
+  constructor(private readonly failing?: MetatorError) {}
+
+  spawn(
+    argv: readonly string[],
+    options: {
+      readonly cwd: string;
+      readonly env?: Readonly<Record<string, string>>;
+      readonly size?: PtySize;
+    },
+  ): Result<PtyHandle, MetatorError> {
+    if (this.failing) return err(this.failing);
+    const pty = new FakePty(5000 + ++this.n);
+    this.spawned.push({ argv, ...options, pty });
+    return ok(pty);
+  }
+}
+
+/** InteractiveHost whose sessions are FakePtys the test drives; records every start and resume. */
+export class FakeInteractiveHost implements InteractiveHost {
+  readonly id: string;
+  readonly started: { task: AgentTask; resumed?: string; pty: FakePty }[] = [];
+  private n = 0;
+  constructor(id = "fake") {
+    this.id = id;
+  }
+  async launch(task: AgentTask, resume?: string): Promise<Result<HostLaunch, MetatorError>> {
+    return ok({
+      argv: [this.id, ...(resume ? ["--resume", resume] : [task.prompt])],
+      sessionId: resume ?? `${this.id}-${this.n + 1}`,
+      env: { METATOR_RUN_DIR: task.runDir },
+    });
+  }
+  async start(task: AgentTask): Promise<Result<InteractiveSession, MetatorError>> {
+    const pty = new FakePty(1000 + ++this.n);
+    this.started.push({ task, pty });
+    return ok({ sessionId: `${this.id}-${this.n}`, pty });
+  }
+  async resume(sessionId: string, task: AgentTask): Promise<Result<InteractiveSession, MetatorError>> {
+    const pty = new FakePty(1000 + ++this.n);
+    this.started.push({ task, resumed: sessionId, pty });
+    return ok({ sessionId, pty });
   }
 }
 

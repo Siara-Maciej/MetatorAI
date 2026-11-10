@@ -186,7 +186,49 @@ const ConfigV5Schema = z.strictObject({
   editor: ConfigV4Schema.shape.editor,
 });
 
-export const MetatorConfigSchema = ConfigV5Schema;
+/**
+ * v6 adds `notify` (P5): a command run when a question waits for a person, the question as JSON
+ * in `METATOR_QUESTION`. Every v5 file is a v6 file.
+ */
+const ConfigV6Schema = z.strictObject({
+  ...ConfigV5Schema.shape,
+  notify: z
+    .strictObject({
+      /** A shell command, e.g. `notify-send "$METATOR_QUESTION_PROMPT"` or a curl to a chat webhook. */
+      command: z.string().min(1),
+    })
+    .optional(),
+});
+
+/**
+ * v7 adds `supervisor` (D4, ADR-0077): how the daemon keeps sessions alive and how much a person
+ * is asked at once. Every v6 file is a v7 file (every field has a default).
+ */
+export const SupervisorPolicySchema = z.strictObject({
+  /** How many runs may wait for a person at once before new ones start with a warning. */
+  wipLimit: z.number().int().min(1).default(4),
+  respawn: z
+    .strictObject({
+      enabled: z.boolean().default(true),
+      /** Restarts of one run's drive before the supervisor gives up and says so. */
+      maxAttempts: z.number().int().min(0).default(3),
+    })
+    .default({ enabled: true, maxAttempts: 3 }),
+  /** No terminal output for this long, with no open question, is idleness. */
+  idleThresholdMs: z.number().int().min(1000).default(90_000),
+  /** Which interactive host a new session takes first. */
+  hostOrder: z.array(z.string().min(1)).default(["copilot", "claude", "opencode"]),
+  /** An approval said in the chat counts only while the person is attached. */
+  chatApprovals: z.enum(["attached-only"]).default("attached-only"),
+});
+export type SupervisorPolicy = z.output<typeof SupervisorPolicySchema>;
+
+const ConfigV7Schema = z.strictObject({
+  ...ConfigV6Schema.shape,
+  supervisor: SupervisorPolicySchema.default(SupervisorPolicySchema.parse({})),
+});
+
+export const MetatorConfigSchema = ConfigV7Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -200,9 +242,11 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: configSchema(GateStepV4Schema), fromPrevious: (v1) => v1 },
     { schema: ConfigV3Schema, fromPrevious: (v2) => v2 },
     { schema: ConfigV4Schema, fromPrevious: (v3) => v3 },
+    { schema: ConfigV5Schema, fromPrevious: (v4) => v4 },
+    { schema: ConfigV6Schema, fromPrevious: (v5) => v5 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v4) => v4,
+  upgrade: (v6) => v6,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

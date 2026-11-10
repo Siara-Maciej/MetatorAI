@@ -37,23 +37,31 @@ export function AnswerDialog(props: {
         <TextInput placeholder="…" onSubmit={(text) => props.onAnswer([choice], text.trim() || undefined)} />
       </Frame>
     );
+  const card = q.card;
+  const label = (o: Question["options"][number]) =>
+    `${o.label}${o.label === card?.recommended ? " (recommended)" : ""}${o.description ? ` — ${o.description}` : ""}`;
   return (
     <Frame title={header}>
+      {card ? (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text wrap="truncate-end">
+            <Text dimColor>task </Text>
+            {card.task}
+          </Text>
+          {card.done.length > 0 ? <Text dimColor>done: {card.done.join(" → ")}</Text> : null}
+          {card.artifacts.length > 0 ? <Text dimColor>artifacts: {card.artifacts.join(", ")}</Text> : null}
+          {card.reversible ? null : <Text color="yellow">cannot be taken back once answered</Text>}
+        </Box>
+      ) : null}
       <Text wrap="wrap">{q.prompt}</Text>
       {q.multiSelect ? (
         <MultiSelect
-          options={q.options.map((o) => ({
-            label: o.description ? `${o.label} — ${o.description}` : o.label,
-            value: o.label,
-          }))}
+          options={q.options.map((o) => ({ label: label(o), value: o.label }))}
           onSubmit={(values) => props.onAnswer(values)}
         />
       ) : (
         <Select
-          options={q.options.map((o) => ({
-            label: o.description ? `${o.label} — ${o.description}` : o.label,
-            value: o.label,
-          }))}
+          options={q.options.map((o) => ({ label: label(o), value: o.label }))}
           onChange={(v) => (NEEDS_WORDS.includes(v) ? setChoice(v) : props.onAnswer([v]))}
         />
       )}

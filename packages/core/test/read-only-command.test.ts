@@ -31,6 +31,17 @@ describe("readOnlyCommand", () => {
       ].map(go),
     ).toEqual([false, false, false]);
   });
+  test("a well-known tool printing its version only reads; any other argument does not", () => {
+    expect(["node --version", "bun -v", "ls node_modules 2>&1 | head -2; node --version"].map(ro)).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(
+      ["node -e 1", "node --version x", "./node --version", "npx --version && npx tsx a.ts"].map(ro),
+    ).toEqual([false, false, false, false]);
+  });
+
   test("quotes decide what the shell substitutes: a literal backtick or $( in a pattern only reads", () => {
     expect(
       ['grep -n "^##\\|^\\`\\`\\`" README.md', "grep -n '`code`' README.md", "grep -n '$(x)' README.md"].map(

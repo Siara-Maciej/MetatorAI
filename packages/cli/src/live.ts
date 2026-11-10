@@ -88,10 +88,13 @@ export async function follow(
   }
 
   async function state(): Promise<Omit<FollowResult, "detached">> {
-    const r = await repo.load(runId);
-    return r.isOk()
-      ? { runId, status: r.value.state.status, stage: r.value.state.stage }
-      : { runId, status: "unknown", stage: "unknown" };
+    // The drive rewrites state.json as it moves the run: a read that lands mid-write is retried.
+    for (let attempt = 0; ; attempt++) {
+      const r = await repo.load(runId);
+      if (r.isOk()) return { runId, status: r.value.state.status, stage: r.value.state.stage };
+      if (attempt >= 5) return { runId, status: "unknown", stage: "unknown" };
+      await Bun.sleep(50);
+    }
   }
 }
 

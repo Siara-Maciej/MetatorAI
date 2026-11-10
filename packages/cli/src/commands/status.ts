@@ -1,4 +1,15 @@
-import { type Overview, ok } from "@metator/core";
+import {
+  byUrgency,
+  err,
+  fleetReport,
+  type InboxItem,
+  inboxOf,
+  MetatorError,
+  type Overview,
+  ok,
+  type RunFacts,
+  readinessWarnings,
+} from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 
@@ -55,6 +66,81 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
           }),
           warnings,
         };
+      }),
+    );
+
+  program
+    .command("doctor")
+    .description(
+      "What a run here will and will not do: config, canon, workflows, gates, dependencies, environment, remote",
+    )
+    .option("--worktree <id>", "look at this worktree (a run's session) instead of this checkout")
+    .option("--run <id>", "look at this run's worktree")
+    .action(
+      ctx.action(async (opts: { worktree?: string; run?: string }) => {
+        const c = ctx.container();
+        let worktree = opts.worktree;
+        if (opts.run) {
+          const record = await c.resolve("runRepository").load(opts.run);
+          if (record.isErr()) return { result: record };
+          if (!record.value.worktree)
+            return {
+              result: err(MetatorError.usage(`run ${opts.run} works in this checkout, not in a worktree`)),
+            };
+          worktree = record.value.worktree.id;
+        }
+        const r = await c.resolve("checkReadiness").execute(worktree ? { worktree } : {});
+        return { result: r, warnings: r.isOk() ? readinessWarnings(r.value) : [] };
+      }),
+    );
+
+  program
+    .command("inbox")
+    .description("Every open decision of every run, first the ones a live drive waits on, then the oldest")
+    .action(
+      ctx.action(async () => {
+        const f = ctx.folder();
+        const roots = f ? f.repos.map((r) => ({ name: r.name, root: r.root })) : [{ name: "", root: "" }];
+        const items: (InboxItem & { repo?: string })[] = [];
+        const warnings: string[] = [];
+        for (const r of roots) {
+          const c = r.root ? ctx.containerAt(r.root) : ctx.container();
+          const o = await c.resolve("workOverview").execute();
+          if (o.isErr()) {
+            if (!f) return { result: o };
+            warnings.push(`${r.name}: ${o.error.message}`);
+            continue;
+          }
+          const now = c.resolve("clock").now();
+          for (const item of inboxOf(o.value.runs, now)) items.push(f ? { repo: r.name, ...item } : item);
+        }
+        // One queue across repositories, in the same order as within one.
+        return { result: ok({ decisions: items.sort(byUrgency) }), warnings };
+      }),
+    );
+
+  program
+    .command("report")
+    .description(
+      "What the runs cost and asked of people: tokens, money, agent time, questions, waiting, per agent",
+    )
+    .option("--since <time>", "only runs started at or after this ISO time")
+    .action(
+      ctx.action(async (opts: { since?: string }) => {
+        if (opts.since && Number.isNaN(Date.parse(opts.since)))
+          return { result: err(MetatorError.usage(`--since ${opts.since}: expected an ISO time`)) };
+        const since = opts.since ? new Date(opts.since).toISOString() : undefined;
+        const f = ctx.folder();
+        if (!f) return { result: await ctx.container().resolve("buildReport").execute(since) };
+        // A folder: every repository's runs in one report, each run named with its repository.
+        const facts: RunFacts[] = [];
+        const warnings: string[] = [];
+        for (const r of f.repos) {
+          const got = await ctx.containerAt(r.root).resolve("buildReport").facts(since);
+          if (got.isErr()) warnings.push(`${r.name}: ${got.error.message}`);
+          else facts.push(...got.value.map((x) => ({ ...x, runId: `${r.name}/${x.runId}` })));
+        }
+        return { result: ok(fleetReport(facts, ctx.container().resolve("clock").now())), warnings };
       }),
     );
 }

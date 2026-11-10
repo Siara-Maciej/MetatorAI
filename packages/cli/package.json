@@ -11,9 +11,11 @@
     "@inkjs/ui": "2.0.0",
     "@metator/core": "workspace:*",
     "@metator/runtime": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "commander": "^15.0.0",
     "ink": "8.0.0",
-    "react": "19.3.0"
+    "react": "19.3.1",
+    "zod": "^4.6.7"
   },
   "bin": {
     "metator": "./src/main.ts"

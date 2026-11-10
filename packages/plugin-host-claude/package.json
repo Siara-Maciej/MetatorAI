@@ -12,6 +12,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@metator/plugin-node": "workspace:*",
     "@metator/testing": "workspace:*"
   }
 }

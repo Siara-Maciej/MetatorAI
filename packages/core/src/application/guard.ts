@@ -82,9 +82,21 @@ export class GuardPreTool {
     const decision = preToolPolicy(hook, {
       root: this.root,
       ...(session.driven ? { driven: true } : {}),
-      ...(run.value ? { run: { id: run.value.runId, approvals: run.value.approvals } } : {}),
+      ...(run.value
+        ? {
+            run: {
+              id: run.value.runId,
+              approvals: run.value.approvals,
+              driver: run.value.driver?.by ?? "agent",
+            },
+          }
+        : {}),
       ...(editScope ? { editScope } : {}),
-      coordinator: this.role === "coordinator" || (hook.agent !== undefined && coordinators.has(hook.agent)),
+      coordinator:
+        this.role === "coordinator" ||
+        this.role === "conductor" ||
+        (hook.agent !== undefined && coordinators.has(hook.agent)),
+      ...(this.role === "worker" ? { worker: true } : {}),
     });
     // Only a denial is an answer: "allow" from a PreToolUse hook would skip the host's own
     // permission prompts, so a call the guard does not object to goes to them as usual.

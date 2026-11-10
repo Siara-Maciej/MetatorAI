@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { type Clock, err, type Logger, MetatorError, ok } from "@metator/core";
 import { asFunction, asValue } from "awilix";
-import { checkoutRoots, workNotes } from "../src/bootstrap.ts";
+import { checkoutRoots, orderedHosts, workNotes } from "../src/bootstrap.ts";
 import { createMetatorContainer, resolvePort } from "../src/container.ts";
 
 const fixedClock = (iso: string): Clock => ({ now: () => new Date(iso) });
@@ -108,5 +108,23 @@ describe("checkoutRoots", () => {
       locate: async () => ok(undefined),
     } as unknown as Parameters<typeof checkoutRoots>[0];
     expect(await checkoutRoots(none)).toEqual([]);
+  });
+});
+
+describe("orderedHosts", () => {
+  test("follows supervisor.hostOrder; hosts it does not name come last in their own order", () => {
+    const hosts = [{ id: "opencode" }, { id: "claude" }, { id: "copilot" }, { id: "other" }];
+    expect(orderedHosts(["copilot", "claude", "opencode"], hosts).map((h) => h.id)).toEqual([
+      "copilot",
+      "claude",
+      "opencode",
+      "other",
+    ]);
+    expect(orderedHosts(["claude"], hosts).map((h) => h.id)).toEqual([
+      "claude",
+      "opencode",
+      "copilot",
+      "other",
+    ]);
   });
 });

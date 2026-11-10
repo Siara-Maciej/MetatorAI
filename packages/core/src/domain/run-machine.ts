@@ -49,6 +49,12 @@ function compile(spec: WorkflowSpec) {
     aborted: { type: "final" },
   };
 
+  /** The loops of the stages from `goto` up to (not including) the stage at `index`. */
+  const roundLoops = (index: number, goto: string): string[] => {
+    const from = spec.stages.findIndex((s) => s.id === goto);
+    return spec.stages.slice(Math.max(from, 0), index).flatMap((s) => (s.onFail ? [s.onFail.loop] : []));
+  };
+
   spec.stages.forEach((stage, index) => {
     const next = spec.stages[index + 1]?.id ?? "done";
     const log = assign(({ context, event }: { context: RunContext; event: RunEvent }) => ({
@@ -66,7 +72,15 @@ function compile(spec: WorkflowSpec) {
               log,
               assign(({ context }: { context: RunContext }) => {
                 const loop = (stage.onFail as NonNullable<StageSpec["onFail"]>).loop;
-                return { loops: { ...context.loops, [loop]: (context.loops[loop] ?? 0) + 1 } };
+                // A later stage sending the run back starts a new round: the loops of the stages it
+                // goes back over count from zero again (a plan the review sent back gets its own
+                // plan-gate tries). The loop that sent it back keeps counting, so this ends.
+                const fresh = Object.fromEntries(
+                  roundLoops(index, (stage.onFail as NonNullable<StageSpec["onFail"]>).goto)
+                    .filter((l) => l !== loop)
+                    .map((l) => [l, 0]),
+                );
+                return { loops: { ...context.loops, ...fresh, [loop]: (context.loops[loop] ?? 0) + 1 } };
               }),
             ],
           },

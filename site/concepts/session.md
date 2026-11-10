@@ -49,7 +49,7 @@ $ metator status
 ## What comes next
 
 ::: info Planned
-The next step of sessions, specified and designed, adds a **driver**: the host's CLI runs interactively in a terminal MetatorAI owns, the agent drives until a person attaches, and an approval given in that chat counts only while the person holds the lock. A **supervisor** keeps sessions alive (restart with resume, idle detection, an attention limit), and a feature spanning several applications is one **group** of sessions shown as a tree. See [Sessions and terminals](../work/sessions.md#what-comes-next-terminals-a-driver-and-a-supervisor).
+The next step of sessions, specified and designed, adds a **driver**: the host's CLI runs interactively in a terminal MetatorAI owns, the agent drives until a person attaches, and an approval given in that chat counts only while the person holds the lock. A **supervisor** keeps sessions alive (restart with resume, idle detection, an attention limit), and a feature spanning several applications is one **group** of sessions shown as a tree. See [Sessions and terminals](../work/terminals.md).
 :::
 
 ## Related

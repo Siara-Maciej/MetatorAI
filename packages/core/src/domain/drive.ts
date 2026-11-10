@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { HostUsage } from "./telemetry.ts";
 import { defineDocument } from "./versioned.ts";
 import type { StageSpec } from "./workflow-spec.ts";
 
@@ -25,7 +26,34 @@ export interface AgentTask {
   readonly driven?: boolean;
   /** External actions a person approved in this run (`push` after the delivery gate). */
   readonly approved?: readonly string[];
+  /** More variables for the session (its pane's identity, R1); they join the run's. */
+  readonly env?: Readonly<Record<string, string>>;
 }
+
+/**
+ * The environment an interactive host session runs with (D6, ADR-0077): the hooks learn which
+ * run the session works for, and that the drive carries it, from these variables.
+ */
+export function sessionEnv(
+  task: Pick<AgentTask, "runDir" | "driven" | "env">,
+  base: Readonly<Record<string, string | undefined>> = {},
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(base)) if (v !== undefined) env[k] = v;
+  Object.assign(env, task.env ?? {});
+  env.METATOR_RUN =
+    task.runDir
+      .split(/[\\/]/)
+      .filter((s) => s !== "")
+      .at(-1) ?? "";
+  env.METATOR_RUN_DIR = task.runDir;
+  if (task.driven) env.METATOR_DRIVEN = "1";
+  return env;
+}
+
+/** A session id a host made itself (a UUID), as opposed to a sentinel such as `continue`. */
+export const isUuid = (id: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 export interface AgentQuestion {
   readonly source: "agent" | "permission";
@@ -44,20 +72,48 @@ export type AgentEvent =
   | { readonly type: "session"; readonly id: string }
   | { readonly type: "text"; readonly text: string }
   | { readonly type: "tool"; readonly name: string; readonly summary: string }
-  | { readonly type: "result"; readonly ok: boolean; readonly text: string };
+  | { readonly type: "result"; readonly ok: boolean; readonly text: string; readonly usage?: HostUsage };
 
-/** One line of `.metator/runs/<id>/activity.jsonl`: what the drive did, for the live view. */
-export const RunActivitySchema = z.strictObject({
+const ACTIVITY_V1 = [
+  "drive",
+  "stage",
+  "agent",
+  "text",
+  "tool",
+  "question",
+  "answer",
+  "gate",
+  "advance",
+  "error",
+] as const;
+const RunActivityV1Schema = z.strictObject({
   at: z.iso.datetime(),
-  type: z.enum(["drive", "stage", "agent", "text", "tool", "question", "answer", "gate", "advance", "error"]),
+  type: z.enum(ACTIVITY_V1),
   stage: z.string().optional(),
   agent: z.string().optional(),
   text: z.string(),
 });
+
+/**
+ * One line of `.metator/runs/<id>/activity.jsonl`: what happened, for the live view. v2 (D2,
+ * ADR-0077) adds the driver lock, idleness, messages between runs and restarts, and where an
+ * entry came from: a host hook, the PTY, a `metator` command, or the inbox.
+ */
+export const RunActivitySchema = z.strictObject({
+  at: z.iso.datetime(),
+  type: z.enum([...ACTIVITY_V1, "driver", "idle", "message", "restart"]),
+  stage: z.string().optional(),
+  agent: z.string().optional(),
+  text: z.string(),
+  origin: z.enum(["hook", "pty", "run", "inbox"]).optional(),
+});
 export type RunActivity = z.output<typeof RunActivitySchema>;
 
 export const RunActivityDocument = defineDocument("RunActivity", {
+  history: [{ schema: RunActivityV1Schema }],
   latest: RunActivitySchema,
+  // Every v1 type is a v2 type; `origin` is optional.
+  upgrade: (previous) => previous,
   hint: "Written by `metator run drive`; one versioned JSON object per line.",
 });
 
@@ -66,8 +122,14 @@ export const QuestionOptionSchema = z.strictObject({
   description: z.string().optional(),
 });
 
-/** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
-export const QuestionSchema = z.strictObject({
+const QuestionAnswerSchema = z.strictObject({
+  choices: z.array(z.string()).min(1),
+  text: z.string().optional(),
+  by: z.string().min(1),
+  at: z.iso.datetime(),
+});
+
+const QuestionV1Schema = z.strictObject({
   id: z.string().regex(/^q[0-9]{3,}$/),
   runId: z.string(),
   stage: z.string(),
@@ -78,26 +140,85 @@ export const QuestionSchema = z.strictObject({
   options: z.array(QuestionOptionSchema).min(1),
   multiSelect: z.boolean(),
   askedAt: z.iso.datetime(),
-  answer: z
-    .strictObject({
-      choices: z.array(z.string()).min(1),
-      text: z.string().optional(),
-      by: z.string().min(1),
-      at: z.iso.datetime(),
-    })
+  answer: QuestionAnswerSchema.optional(),
+});
+
+/**
+ * What a person needs to decide without opening the run (P4): the task, what the run has done,
+ * the artifacts to look at, the option the evidence points to, and whether the decision can be
+ * taken back. Composed from the run's own record when the question is asked, never by a model.
+ */
+const DecisionCardV2Schema = z.strictObject({
+  task: z.string(),
+  /** Stages the run passed, in order. */
+  done: z.array(z.string()),
+  /** Run-directory artifacts the decision rests on (plan.json, verdict.json, …). */
+  artifacts: z.array(z.string()),
+  /** The option label the evidence points to, when there is one. */
+  recommended: z.string().optional(),
+  /** false: the answer starts something that cannot be undone here (a push, closing the run). */
+  reversible: z.boolean(),
+});
+
+/**
+ * v3 of the card (D5, ADR-0077), every field optional: what happened since the last answer, the
+ * gates' evidence, what each option does, how far the change reaches, what waiting costs, and the
+ * feature group the run is a step of.
+ */
+export const DecisionCardSchema = z.strictObject({
+  ...DecisionCardV2Schema.shape,
+  /** Transitions and tool calls since a person last answered ("build PASS", "14 tool calls"). */
+  soFar: z.array(z.string()).optional(),
+  /** Gate reports as evidence: "full: passed (lint ✓, rules ✓, test ✓)". */
+  evidence: z.array(z.string()).optional(),
+  /** What each option does, by its label: Approve → the next stage; Reject → back to plan (loop 1 of 2). */
+  consequences: z.record(z.string(), z.string()).optional(),
+  /** How far the change reaches: the plan's files and the top-level areas they are in. */
+  blastRadius: z.strictObject({ files: z.number().int().min(0), areas: z.array(z.string()) }).optional(),
+  /** What waiting costs: the worktree's ports held, loops used, runs blocked. */
+  costOfDelay: z.array(z.string()).optional(),
+  /** The feature group this run is a step of (its parent run), and the step's place. */
+  group: z
+    .strictObject({ parent: z.string(), step: z.number().int().min(1), of: z.number().int().min(1) })
     .optional(),
+});
+export type DecisionCard = z.output<typeof DecisionCardSchema>;
+
+const QuestionV2Schema = z.strictObject({
+  ...QuestionV1Schema.shape,
+  card: DecisionCardV2Schema.optional(),
+});
+
+/** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
+export const QuestionSchema = z.strictObject({
+  ...QuestionV1Schema.shape,
+  /** v2: the decision card; v3 widens it. A v1 question has none. */
+  card: DecisionCardSchema.optional(),
 });
 export type Question = z.output<typeof QuestionSchema>;
 export type QuestionAnswer = NonNullable<Question["answer"]>;
 
 export const QuestionDocument = defineDocument("Question", {
+  history: [
+    { schema: QuestionV1Schema },
+    // `card` is optional: a v1 question is a v2 question asked without one.
+    { schema: QuestionV2Schema, fromPrevious: (previous) => previous },
+  ],
   latest: QuestionSchema,
+  // Every v3 card field is optional: a v2 card is a v3 card that says less.
+  upgrade: (previous) => previous,
   hint: "Answer with `metator run answer <question> --choice <label> --by <name>`.",
 });
 
 /** The drive process of a run (`.metator/runs/<id>/driver.json`), so others can stop or find it. */
 export const RunDriverDocument = defineDocument("RunDriver", {
   latest: z.strictObject({ pid: z.number().int().positive(), host: z.string(), startedAt: z.iso.datetime() }),
+});
+
+/** When a person last read a run's brief (`.metator/runs/<id>/seen.json`): the next brief starts there. */
+export const RunSeenDocument = defineDocument("RunSeen", {
+  latest: z.strictObject({ at: z.iso.datetime() }),
+  hint: "Written by `metator run brief`.",
 });
 
 /** Who works a stage: agents run in order, skills are offered to them, scripts are commands. */
@@ -143,6 +264,8 @@ export interface StagePromptInput {
   readonly retryFrom?: string;
   /** What the agent must know about where it works (dependencies not installed). */
   readonly notes?: readonly string[];
+  /** Messages other runs sent this run, already rendered as data (`messageLines`). */
+  readonly messages?: readonly string[];
 }
 
 /** The message a worker gets: one stage, its artifacts, and how to report back. */
@@ -171,6 +294,7 @@ export function stagePrompt(input: StagePromptInput): string {
     "`metator help` lists every metator command; use no other (a guessed one only asks a person). Never `metator ask`: it starts another agent; read the code yourself.",
     RUN_WITHOUT_ASKING,
     ...(input.notes ?? []),
+    ...(input.messages ?? []),
     ...decisionLines(input),
     ...retryLines(input),
     ...(input.answer ? [`A person answered your question: ${input.answer}`] : []),
@@ -178,6 +302,8 @@ export function stagePrompt(input: StagePromptInput): string {
     "STATUS: done",
     "or, when you cannot continue without a decision from a person:",
     "STATUS: blocked: <the question>",
+    "or, when the task is already done in the code or asks for no change at all (name where, file:line):",
+    "STATUS: nothing to do: <the evidence>",
   ];
   return `${lines.join("\n")}\n`;
 }
@@ -205,7 +331,7 @@ function retryLines(input: Pick<StagePromptInput, "stage" | "retry" | "retryFrom
 }
 
 /** The skill that lists, for every command people were asked about, the form that needs no one. */
-const RUN_WITHOUT_ASKING =
+export const RUN_WITHOUT_ASKING =
   "Before any shell or metator command, follow the skill mt-run-without-asking (Read `.claude/skills/mt-run-without-asking/SKILL.md`, or `.github/skills/mt-run-without-asking/SKILL.md` on GitHub Copilot; never search for it): it says, for each command a person would be asked about, the form that runs without asking.";
 
 /** The message a critic gets for an LLM gate. */
@@ -233,7 +359,9 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
 
 export type WorkerStatus =
   | { readonly kind: "done" }
-  | { readonly kind: "blocked"; readonly question: string };
+  | { readonly kind: "blocked"; readonly question: string }
+  /** The task is already done, or asks for no change: the evidence says where (file:line). */
+  | { readonly kind: "nothing"; readonly evidence: string };
 
 /** The worker's last `STATUS:` line; none at all counts as done when the host said it succeeded. */
 export function parseStatus(text: string): WorkerStatus | undefined {
@@ -241,6 +369,8 @@ export function parseStatus(text: string): WorkerStatus | undefined {
   if (line === undefined) return undefined;
   const blocked = /^blocked:\s*(.+)$/i.exec(line);
   if (blocked) return { kind: "blocked", question: (blocked[1] as string).trim() };
+  const nothing = /^nothing to do:\s*(.+)$/i.exec(line);
+  if (nothing) return { kind: "nothing", evidence: (nothing[1] as string).trim() };
   return /^done\b/i.test(line) ? { kind: "done" } : undefined;
 }
 

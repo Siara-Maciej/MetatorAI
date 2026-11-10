@@ -140,21 +140,9 @@ METATOR_AGENT_SCENARIO=scenario.yml metator run drive --host scenario --detach
 
 Each start of an agent plays its next entry (the last one repeats), so a loop that comes back needs its own entry.
 
-## What comes next: terminals, a driver and a supervisor
+## Terminals, a driver and a supervisor
 
-::: info Planned
-The following is the specified next step of sessions. It is not in the CLI yet; this page will change when it lands. The concept it builds on is [Session](../concepts/session.md).
-:::
-
-- **The host's CLI in a terminal MetatorAI owns.** Instead of a headless drive, Copilot CLI (first), Claude Code and OpenCode run interactively in a terminal per session. The hooks observe what the agent does; the terminal is read-only until you attach.
-- **A driver lock.** *Attach* pauses the agent and gives the terminal your keyboard; an approval you give in that chat counts and is recorded as an approval through the CLI, only while you hold the lock. *Release* gives the terminal back. One terminal, one driver.
-- **Sessions by application or by run.** A feature that spans several applications is one group: its steps numbered in order, with the deploy wave; the same tag marks the steps in every view.
-- **A grid of terminals.** A group, or sessions you pin, side by side: one, two by two or three by three; only the tile you attached to has an input line.
-- **Since you left.** Coming back to a session opens a briefing built from `log.md`, the gate reports and the events: stages passed, decisions and their reasons, files changed, red gates with their output, and what the session needs from you. Nothing in it is written by a model.
-- **A supervisor.** Keeps every session alive: restarts a host process that exited, with resume; nudges a session that went idle with no open question, then escalates; keeps no more than your attention limit of sessions waiting at once.
-- **Links between sessions.** Parent and children, messages one run leaves for another (a contract published, a file shared) delivered as data, and the files two sessions' scopes share, with a suggested merge order.
-
-The decision inbox that goes with it is on [Inbox and decisions](./inbox.md).
+The next step of sessions is in: the host CLI runs in a pane of a terminal MetatorAI owns, a conductor hands work to workers in their own panes, a driver lock says whose keyboard it is, and a supervisor in the daemon keeps every session alive. See [Terminals, panes and the conductor](./terminals.md) and [The desktop app](./desktop.md); the decision inbox that goes with them is on [Inbox and decisions](./inbox.md).
 
 ## Without a terminal
 

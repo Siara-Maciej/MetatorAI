@@ -39,6 +39,44 @@ metator debug-tags check --base main         # no instrumentation left
 
 ## GitHub Actions
 
+### The action: the review before anyone reads
+
+MetatorAI ships a composite action. On a pull request it runs the deterministic review a change gets before any agent or person reads it: the canon rules on the changed files, the package architecture against your policy (new violations only, optionally as SARIF in code scanning), the workflow specs, the generated host files, and, when you ask for it, your quality gate. Each step is a `metator` command you run locally the same way, so a red step reproduces on your machine.
+
+```yaml
+# .github/workflows/review.yml
+name: review
+on: [pull_request]
+permissions:
+  contents: read
+  security-events: write          # only for sarif: "true"
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4   # your runtime, for `gate`
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: Siara-Maciej/MetatorAI@claude/foundation
+        with:
+          gate: full                  # or quick; empty runs no gate
+          sarif: "true"
+```
+
+| Input | Default | What it does |
+|---|---|---|
+| `base` | the pull request's base branch | the ref the change is compared against (`HEAD~1` on a push) |
+| `gate` | none | the quality gate to run after the checks |
+| `sarif` | `false` | upload the new architecture violations to code scanning |
+| `metator-ref` | `claude/foundation` | which MetatorAI to run |
+| `working-directory` | the workspace | the repository to check |
+
+Outputs: `violations` (canon rule violations in the change) and `arch-added` (architecture violations the change adds). The action fails on the first of them that is not zero, on a workflow spec that fails lint, on a generated file edited by hand, and on a red gate.
+
+### Your own job
+
 The gate runs your scripts with the package manager MetatorAI detected, so the job installs your dependencies the way you do locally:
 
 ::: code-group

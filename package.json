@@ -19,6 +19,7 @@
     "assets": "bun scripts/assets/generate.ts",
     "test:mutation": "bun scripts/mutation-smoke.ts",
     "schemas:freeze": "bun scripts/freeze-schemas.ts",
+    "pack": "bun scripts/pack.ts",
     "site:reference": "bun scripts/site/cli-reference.ts",
     "site:dev": "vitepress dev site",
     "site:build": "vitepress build site"
@@ -27,6 +28,7 @@
     "@ast-grep/cli": "^0.51.0",
     "@biomejs/biome": "^2.6.3",
     "@metator/testing": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@types/bun": "^1.4.4",
     "playwright": "1.63.0",
     "typescript": "^7.0.2",
@@ -35,6 +37,7 @@
     "zod": "^4.6.7"
   },
   "trustedDependencies": [
-    "@ast-grep/cli"
+    "@ast-grep/cli",
+    "node-pty"
   ]
 }

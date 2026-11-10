@@ -27,7 +27,7 @@ import {
   renderYamlDocument,
   serializeJsonDocument,
 } from "../domain/versioned.ts";
-import { portVariables, type WorktreeEntry } from "../domain/worktree.ts";
+import { LOCKFILES, portVariables, type WorktreeEntry } from "../domain/worktree.ts";
 import type {
   BackgroundProcess,
   Clock,
@@ -201,7 +201,6 @@ export interface StartTools {
 }
 
 const STEP_TIMEOUT_MS = 30 * 60_000;
-const LOCKFILES = ["bun.lock", "bun.lockb", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"];
 
 /** `env up|down|status|logs`: start, stop and inspect the services of a place. */
 export class EnvironmentServices {

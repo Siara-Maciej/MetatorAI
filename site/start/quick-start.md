@@ -26,6 +26,14 @@ metator setup --host claude --hooks --yes       # the same without questions (sc
 
 **Why:** you edit one canonical source, and GitHub Copilot and Claude Code get the same agents. `metator generate --check` in CI fails when someone edits a generated file by hand. MetatorAI never assumes your tools: it runs **your** `lint`, `typecheck` and `test` scripts, chosen from evidence you can check.
 
+**Before the first run, ask what it will not do here:**
+
+```bash
+metator doctor
+```
+
+It checks the config, the installed canon, the workflows, the gates, whether the dependencies are installed, whether the application's services are running (when the repository declares an environment) and whether there is a git remote. `metator doctor --run <id>` asks the same about one run's worktree. Each check is `ok`, `warn` (a run starts but does less) or `fail` (a run cannot start), and each problem names the command that fixes it. The most common one: with no `node_modules`, a run's tests, type checker and linters cannot run, so its gates check only rules (`fix: bun install`, or the install of your lockfile's package manager). `metator run init` repeats the warnings that matter to a run (gates, dependencies, remote) when it starts one, and says what the task itself leaves open: too few words to act on, a question left in it ("Should it also log timings?"), a `TBD`. Each of those is a question the run would otherwise ask you after it started.
+
 ## 2. Take a newer canon later
 
 ```bash
@@ -120,6 +128,10 @@ metator run close --aborted --reason "demo finished"
 ```
 
 `run close` writes `summary.json` with the final telemetry (duration, events, loops, approvals). It refuses to close an active run without `--aborted`, so a half-done run is never closed silently.
+
+## Finding your way around
+
+`metator` alone, in a terminal, prints the commands a person reaches for, grouped by what you want to do (set up, work on a task, understand the code, check and review, many repositories, keep it running); `metator help` lists every command (nearly two hundred) and `metator <command> --help` describes one. Every command prints one JSON line on stdout, so the same output feeds a script or an agent.
 
 ## Next steps
 

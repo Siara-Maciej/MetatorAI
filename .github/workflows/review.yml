@@ -1,0 +1,21 @@
+name: review
+
+# The deterministic review of a pull request (P8): MetatorAI's own action on its own changes.
+# The agents' review (W4) runs from a terminal or a run; this is what runs before anyone reads.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./
+        with:
+          sarif: "true"

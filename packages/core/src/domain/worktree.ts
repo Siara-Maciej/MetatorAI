@@ -7,6 +7,15 @@ import { defineDocument } from "./versioned.ts";
  */
 export const WORKTREE_ID = /^[a-z0-9][a-z0-9-]{0,79}$/;
 
+/** Lockfiles: equal in both checkouts, the main checkout's node_modules serve a worktree as they are. */
+export const LOCKFILES = [
+  "bun.lock",
+  "bun.lockb",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+] as const;
+
 export const PortBlockSchema = z.strictObject({
   from: z.number().int().min(1024).max(65535),
   count: z.number().int().min(1).max(1000),

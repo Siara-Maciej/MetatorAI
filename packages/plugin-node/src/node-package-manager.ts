@@ -40,6 +40,17 @@ export class NodePackageManager implements PackageManagerDetector, PackageManage
     return ok({ argv: [resolved.command, ...resolved.args], cwd: this.root });
   }
 
+  async installCommand(cwd: string): Promise<Result<ResolvedCommand, MetatorError>> {
+    const pm = await this.detect();
+    if (pm.isErr()) return err(pm.error);
+    const agent = (pm.value?.name ?? "npm") as AgentName;
+    // With a lockfile, the install that changes nothing in it; without one, a plain install.
+    const resolved = resolveCommand(agent, (pm.value?.lockfiles.length ?? 0) > 0 ? "frozen" : "install", []);
+    if (!resolved)
+      return err(new MetatorError("INTERNAL", `No install command for package manager ${agent}`));
+    return ok({ argv: [resolved.command, ...resolved.args], cwd });
+  }
+
   async workspacesCommand(script: string): Promise<Result<ResolvedCommand, MetatorError>> {
     const pm = await this.detect();
     if (pm.isErr()) return err(pm.error);

@@ -1,3 +1,4 @@
+import { WORKER_RUN_CONTROL } from "./conductor.ts";
 import { commandsOf } from "./discovery.ts";
 import { matchesAny } from "./glob.ts";
 import type { Approval } from "./run-record.ts";
@@ -81,16 +82,26 @@ export const SECRET_GLOBS: readonly string[] = [
 export const DRIVEN_RUN_CONTROL = (command: string) =>
   `${command} is the drive's: \`metator run drive\` moves this run when your work is done. End with STATUS: done, or STATUS: blocked: <question>.`;
 
+/** `run approve … --via chat` while nobody is attached: the person's consent in the chat counts only then. */
+export const CHAT_APPROVAL_NEEDS_DRIVER =
+  "an approval from the chat counts only while a person is attached to this session (`metator run attach`): nobody is, so it stays a person's to give (`metator run approve … --by <user>`).";
+
 export interface PreToolContext {
   /** The session is one `metator run drive` started: the drive moves the run, never the agent. */
   readonly driven?: boolean;
   readonly root: string;
-  /** The active run (status active), if any. */
-  readonly run?: { readonly id: string; readonly approvals: Readonly<Record<string, Approval>> };
+  /** The active run (status active), if any, with who drives it (absent: the agent). */
+  readonly run?: {
+    readonly id: string;
+    readonly approvals: Readonly<Record<string, Approval>>;
+    readonly driver?: "agent" | "human";
+  };
   /** Exact files the plan allows to edit (plan-scope.json `edit`). */
   readonly editScope?: readonly string[];
   /** The calling agent is a coordinator (delegates, never edits). */
   readonly coordinator: boolean;
+  /** The calling agent works a worker pane (R2): it reports, the conductor steers the run. */
+  readonly worker?: boolean;
 }
 
 export interface ToolDecision {
@@ -183,6 +194,9 @@ const RUN_CONTROL = new Set([
   "drive",
   "continue",
   "init",
+  "start",
+  "delegate",
+  "collect",
 ]);
 
 /**
@@ -204,6 +218,24 @@ export function runControlCommand(hook: HookInput): string | undefined {
   return undefined;
 }
 
+/**
+ * `metator run approve <gate> --by <who> --via chat`, alone: what an agent runs after a person
+ * said yes in the chat. It counts only while that person is attached (ADR-0077).
+ */
+export function chatApproval(hook: HookInput): boolean {
+  if (!SHELL_TOOL.test(hook.tool)) return false;
+  const commands = commandsOf(text(hook.input.command) ?? "");
+  if (commands.length !== 1) return false;
+  const argv = commands[0] as readonly string[];
+  const at = argv.findIndex(
+    (a) => a === "metator" || a.endsWith("/metator") || a.endsWith("cli/src/main.ts"),
+  );
+  if (at < 0) return false;
+  const rest = argv.slice(at + 1);
+  const via = rest.indexOf("--via");
+  return rest[0] === "run" && rest[1] === "approve" && via > 0 && rest[via + 1] === "chat";
+}
+
 export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecision {
   const paths = touchedPaths(hook);
   const shell = SHELL_TOOL.test(hook.tool) ? commandsOf(text(hook.input.command) ?? "") : [];
@@ -211,8 +243,15 @@ export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecisio
   // Secrets are never read or written, with or without a run (MT-SEC).
   const secret = secretPath(hook, ctx.root);
   if (secret) return deny(`${secret} may hold secrets; agents do not read or write it.`);
+  // A worker pane reports and finishes; the conductor moves the run (R2).
+  const steering = ctx.worker ? runControlCommand(hook) : undefined;
+  if (steering) return deny(WORKER_RUN_CONTROL(steering));
   const control = ctx.driven ? runControlCommand(hook) : undefined;
-  if (control) return deny(DRIVEN_RUN_CONTROL(control));
+  if (control) {
+    // A person's yes in the chat, carried by the agent: only while that person holds the session.
+    if (!chatApproval(hook)) return deny(DRIVEN_RUN_CONTROL(control));
+    if (ctx.run?.driver !== "human") return deny(CHAT_APPROVAL_NEEDS_DRIVER);
+  }
   for (const argv of shell) {
     const what = destructive(argv);
     if (what) return deny(`${what} is blocked: it can lose work. Ask the user to run it.`);

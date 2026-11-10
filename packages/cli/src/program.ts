@@ -16,6 +16,7 @@ import { registerAgentCommands } from "./commands/agents.ts";
 import { registerApiCommands } from "./commands/api.ts";
 import { registerArchCommands } from "./commands/arch.ts";
 import { registerAskCommands } from "./commands/ask.ts";
+import { registerAttachCommand } from "./commands/attach.ts";
 import { registerCardsCommands } from "./commands/cards.ts";
 import { registerChangedCommand } from "./commands/changed.ts";
 import { registerConfigCommands } from "./commands/config.ts";
@@ -32,16 +33,20 @@ import { registerGateCommands } from "./commands/gate.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
 import { registerGuardCommands } from "./commands/guard.ts";
 import { registerLessonsCommands } from "./commands/lessons.ts";
+import { registerMcpCommand } from "./commands/mcp.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
 import { registerOwnersCommand } from "./commands/owners.ts";
+import { registerPaneCommands } from "./commands/pane.ts";
 import { registerPatternsCommands } from "./commands/patterns.ts";
 import { registerPlanCommands } from "./commands/plan.ts";
 import { registerReposCommands } from "./commands/repos.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
+import { registerServeCommand } from "./commands/serve.ts";
 import { registerSetupCommands } from "./commands/setup.ts";
 import { registerStatusCommand } from "./commands/status.ts";
+import { registerSuperviseCommand } from "./commands/supervise.ts";
 import { registerSystemCommands } from "./commands/system.ts";
 import { registerTestCommands } from "./commands/test.ts";
 import { registerUiCommands } from "./commands/ui.ts";
@@ -89,6 +94,8 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
       ...(env.METATOR_CANON ? { canon: env.METATOR_CANON } : {}),
       ...(env.METATOR_AGENT_SCENARIO ? { agentScenario: env.METATOR_AGENT_SCENARIO } : {}),
       ...(env.METATOR_COPILOT_BIN ? { copilotBin: env.METATOR_COPILOT_BIN } : {}),
+      ...(env.METATOR_CLAUDE_BIN ? { claudeBin: env.METATOR_CLAUDE_BIN } : {}),
+      ...(env.METATOR_OPENCODE_BIN ? { opencodeBin: env.METATOR_OPENCODE_BIN } : {}),
       ...(env.METATOR_DOCKER_BIN ? { dockerBin: env.METATOR_DOCKER_BIN } : {}),
       stateDir: machineStateDir(env),
     });
@@ -161,6 +168,11 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerReposCommands(program, ctx);
   registerAskCommands(program, ctx);
   registerStatusCommand(program, ctx);
+  registerServeCommand(program, ctx);
+  registerPaneCommands(program, ctx);
+  registerAttachCommand(program, ctx);
+  registerMcpCommand(program, ctx);
+  registerSuperviseCommand(program, ctx);
 
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).
   program.hook("preAction", (_root, action) => {
@@ -187,6 +199,10 @@ export const FOLDER_COMMANDS: ReadonlySet<string> = new Set([
   "ask",
   "ask list",
   "status",
+  "inbox",
+  "report",
+  "serve",
+  "supervise",
 ]);
 
 function commandName(cmd: Command): string {

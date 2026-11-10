@@ -169,7 +169,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [ ] `.github/workflows/mt-pr-review.yml`: review headless L2 na PR-ach pilota (tylko komentarze `confirmed blocking`, reszta w podsumowaniu).
 - [ ] `.github/workflows/mt-nightly.yml`: W10 knowledge refresh (PR z częścią generowaną + issue z driftem).
 - [ ] `.github/workflows/mt-eval.yml`: W12 dla zmian w agentach.
-- [ ] `copilot-setup-steps.yml` dla coding agenta (`bun install`, `metator index build`).
+- [x] `copilot-setup-steps.yml` dla coding agenta (`bun install`, `metator index build`, `metator doctor`).
 - [ ] Natywny Copilot code review: lekkie instrukcje. Ciężkie mają `excludeAgent: code-review`, żeby nie dublować mt-pr-review.
 - [ ] Telemetria: agregacja `telemetry.jsonl` i reakcji na komentarze (resolved/dismissed) → dashboard.
 
@@ -219,7 +219,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] F8.5 `Environment` v1, `env discover|init|up|down|status|logs` (Docker Compose, skrypty, Procfile, Makefile; devcontainer post-MVP; ADR-0053).
 - [x] F8.6 `metator ui`: sesje, skrzynka pytań, aplikacje sesji, edytor (`editor` w `MetatorConfig` v3), powłoka, diff (ADR-0054).
 - [x] F8.7 `env analyze` (`EnvProfile` v1), `Environment` v2, izolacja danych (Postgres template, prefiksy), częściowy start z `affected` (`impact` dojdzie z F7.3), reuse buildu, pula ciepłych worktree (ADR-0055).
-- [ ] F8.8 Dystrybucja: pakiet npm `metator-ai` (CLI zbudowane `bun build`, kanon w paczce), żeby działały `npx|pnpm dlx|yarn dlx|bunx metator` i instalacja jako dev dependency; wymaga konta npm właściciela.
+- [ ] F8.8 Dystrybucja: pakiet npm `metator-ai` (CLI zbudowane `bun build`, kanon w paczce), żeby działały `npx|pnpm dlx|yarn dlx|bunx metator` i instalacja jako dev dependency; wymaga konta npm właściciela. Przygotowane: `bun run pack` buduje `dist/metator-ai` (bundle, kanon, manifest), e2e uruchamia bundle poza checkoutem i instaluje z niego kanon; zostaje publikacja.
 
 **Kryterium wyjścia:** puste repo do zielonych sprawdzeń kanonu i plików hosta jedną komendą; dwie równoległe sesje w osobnych worktree z rozłącznymi portami; drugi worktree aplikacji z wolnym seedem startuje ≥ 10× szybciej niż zimny start (zmierzone).
 
@@ -249,23 +249,62 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 - [x] H6 `arch plan run` (fala jako runy W3 w osobnych worktree) i `arch plan status` (stan ruchów z runów) (ADR-0065).
 - [x] H7 Ewaluacja: `ArchEvalCase` v1, dwa przypadki w `docs/metator/evals/arch/`, port `Sandbox`, `arch eval list|run|schema` (ADR-0066).
 
-## Role i odpowiedzialności
+---
 
-| Rola | Odpowiada za |
-|------|--------------|
-| **AI Platform owner** (CODEOWNERS na `.github/agents|skills|hooks`, `metator`) | agenci, skille, CLI, evale, progi |
-| **Architekci domen** | ADR, akceptacja reguł i wzorców, karty modułów (część kuratorowana) |
-| **Tech leadzi zespołów** | pilotaż, złoty zbiór z ich domeny, feedback z retro |
-| **Security** | soczewka security, polityka MCP i sekretów, przegląd hooków |
-| **Deweloperzy** | używanie workflow, reakcje na komentarze (dane do evali), propozycje lessons |
+## P: Produkt: centrum decyzji, niezawodność runów, droga do pierwszej wartości
 
-## Mapowanie na Twój obecny stan
+Źródła: analiza biznesowa (2026-11-02, część I i II), wnioski z 14 serii testowych runów na repozytoriach OSS i uwagi do analizy. Zasada z analizy: nowe komendy tylko tam, gdzie usuwają zmierzony koszt.
 
-| Masz | Co z tym robimy | Faza |
-|------|-----------------|------|
-| Wstępne ADR | W7: weryfikacja w kodzie, sekcja „Implikacje”, wyciągnięcie reguł `MT-*` | F2 |
-| Minimalistyczne orchestratory | audyt → spec YAML → `metator run` → hooki → podział review | F0 → F1 → F4 |
-| Skrypty ast-grep | przeniesienie do `sgconfig.yml` jako reguły z testami + wykrywanie wzorców | F1–F2 |
-| Biome | bramki (`gate`), `post-edit`, `noRestrictedImports` + GritQL dla reguł E1 | F2–F4 |
-| tsc | graf (TS API), API snapshot/diff, bramka typów | F1 |
-| Bun | runtime CLI, `bun test` (projekt i `metator`), coverage lcov, `--rerun-each` | F1+ |
+**Niezawodność i wejście (zmierzone w testach)**
+- [x] P1 Nadzorca runów: drive, który umarł (restart maszyny lub workera), jest widoczny jako `died` w `status` i `ui`; `run revive [--all]` uruchamia go ponownie od etapu, na którym stał.
+- [x] P2 Gotowość środowiska: `metator doctor` mówi przed runem, czego run nie zrobi (brak zależności, więc testy się nie uruchomią; brak skonfigurowanych bramek; brak hosta AI).
+- [x] P3 Sprawdzenie zadania: intake kończy run jako „nic do zrobienia” z dowodem, zamiast pytać, gdy zadanie jest już zrobione; deterministyczny lint zadania przy `run init`.
+
+**Centrum decyzji (część II)**
+- [x] P4 Karta decyzji (`Question` v2: cel, co zrobiono, rekomendacja, skutki opcji, odwracalność, artefakt), `metator inbox` (pytania ze wszystkich runów według pilności), `run brief` (co się stało od ostatniej wizyty, ze zdarzeń).
+- [x] P5 Polityki odpowiedzi („zawsze X dla Y”, zapamiętane z odpowiedzi) i powiadomienia (komenda lub webhook, gdy pytanie czeka).
+- [x] P6 Telemetria: tokeny, koszt, czas ścienny i czas czekania na człowieka per run; `metator report` (ROI, przegląd agentów).
+- [x] P7 Konflikty między sesjami: zmienione pliki runów w osobnych worktree porównane, ostrzeżenie i kolejność scalania.
+
+**Dystrybucja i integracje (część I)**
+- [x] P9 Przygotowanie sesji: `run init --worktree` daje worktree zależności (kopia `node_modules` z głównego checkoutu przy zgodnych lockfile, inaczej `install`), `worktree setup [--up]`, `doctor --run`.
+- [ ] P8 Złoty zbiór startowy z czystych runów serii 14 (wymaga danych właściciela); [x] akcja GitHub dla review w CI (`action.yml`, workflow `review`); [x] główna pomoc CLI z czasownikami dla ludzi (`metator help --verbs`, goły `metator` w terminalu); [x] przygotowanie paczki npm (F8.8, `bun run pack`); [x] serwer MCP (`metator mcp`, ADR-0081).
+
+**Wymaga właściciela (poza kodem):** wybór licencji, konto npm i publikacja, repozytorium pilota, złoty zbiór z prawdziwych PR-ów zespołu, drugi język programowania (po pilocie).
+
+---
+
+## D: MetatorAI Desktop: demon, hosty interaktywne w PTY, supervisor, aplikacja
+
+Specyfikacja: [design/12](design/12-desktop.md), zatwierdzona 2026-11-02 (decyzje 1–15). Ten strumień idzie przed dystrybucją i review w CI (decyzja 10). Z fazy P wchodzą bez zmian: skrzynka decyzji (`inbox`), karta decyzji (`Question` v2), odprawa (`run brief`), polityki odpowiedzi, `run revive`, telemetria.
+
+- [ ] D0 Pomiar bazowy z `report` (czas od pytania do odpowiedzi, pytania na run); spike Copilot CLI w PTY z `--resume` i nagrane payloady hooków (wymaga maszyny z Copilot CLI).
+- [x] D1 Blokada kierowcy: `RunRecord` v6 (`driver: agent | human`, `attachedBy`, `attachedAt`), `run attach|release`, `run approve --via chat` tylko przy kierowcy-człowieku (hook i use case), zapis w `log.md`.
+- [x] D2 `RunActivity` v2 (typy `driver`, `idle`, `message`, `restart`; pole `origin`), `RunMessage` v1 i `run message` (dane, nie instrukcje), widoczne w `status` i w odprawie.
+- [x] D3 `metator serve`: lokalny demon (localhost, bez uwierzytelniania) z `/state`, `/inbox`, `/activity/<run>`, `/pty/<run>`; broker PTY na node-pty z blokadą kierowcy; port `InteractiveHost` z adapterem `scenario` i zestawem kontraktowym.
+- [x] D4 `SupervisorPolicy` v1 w `MetatorConfig` (limit WIP, restart z resume, próg bezczynności, kolejność hostów, zgody z czatu); `metator supervise` (respawn na `run revive`, nudge przy bezczynności, kolejka ponad limitem WIP, sesje potomne z planu systemowego).
+- [x] D5 Karta decyzji v3 (`soFar`, `proposal`, `evidence`, skutki opcji, `blastRadius`, `costOfDelay`, `group`) i przecięcia `graph affected` między worktree (P7): ostrzeżenie o wspólnym pliku i kolejność scalania.
+- [x] D6 Adaptery `InteractiveHost`: Copilot CLI (pierwszy), Claude Code, OpenCode, na tym samym kontrakcie.
+- [x] D7 Aplikacja Tauri + xterm.js: ekrany 1, 2, 7, K, potem 3, 4, 5, 6; powiadomienia systemowe; kryteria 11a i 11b liczone na ekranie Supervisora (`packages/desktop`, ADR-0078; pakiet Tauri wymaga Rusta i WebKitGTK/WebView2 na maszynie deweloperskiej).
+
+## Faza R: własny runtime terminali wzorowany na herdr (ADR-0080)
+
+Decyzja właściciela (2026-11-09): nie używamy herdr. Budujemy własny runtime o podobnym działaniu na istniejącym demonie: workspace → tab → pane, dyrygent w granicach workflow, delegowanie do pane'ów workerów, sensor stanu agenta z hooków i ekranu, uwaga osoby, klient terminalowy. Faza E (integracja z herdr) została wycofana; przegląd bezpieczeństwa herdr zostaje w ADR-0079 jako uzasadnienie.
+
+- [x] R1 Layout: dokument `Layout` (workspace, tab, pane z rolą), odtwarzanie po restarcie demona, tożsamość pane'a (`METATOR_PANE_ID`, token), `metator pane list|read|wait`, `.metator/daemon.json`.
+- [x] R2 Dyrygent: `metator run start` otwiera workspace runu z pane'em orkiestratora (Copilot), `run delegate|wait|collect|result`, pane'y workerów, rola `worker` w hookach, definicja mt-orchestrator w trybie dyrygenta.
+- [x] R3 Sensor i uwaga: `HostManifest` v1 dla Copilota (working, blocked, idle z ekranu i hooków), okna zgody hosta w inboxie z akcją attach, powiadomienia.
+- [x] R4 Klienci: aplikacja na modelu workspace/pane (pasek boczny, siatka pane'ów runu), `metator attach <pane>` w terminalu z prefiksem odłączenia.
+- [x] R5 Grupy worktree'ów i zamykanie runu, supervisor nad pane'ami (wznowienie dyrygenta, nudge, budżet uwagi).
+- [ ] Później: Claude Code jako drugi host przez te same porty.
+
+## Faza S: opcje, plan, backlog, przegląd kodu (wzorowane na herdr)
+
+Projekt: [design/13](design/13-options-workbench.md), zaakceptowany 2026-11-09 (makiety v9). Każdy punkt to osobna gałąź i PR do `main`, otwierany i merge'owany po zielonym `bun run check` i CI.
+
+- [ ] S1 System opcji: `OptionDefinition` (abstrakcja, podklasy, rejestr), `UserOptions` v1 (`~/.config/metator/options.yml`), `options:` w `MetatorConfig` v8, nałożenie zakresów user/repo/run z diagnostyką zamiast błędu, `metator config get|set|list|schema`, demon `/options` + `/ws/options`, ekran Settings w aplikacji; pierwsza lista opcji (ui, keys, notify, terminal, editor, supervisor, hosts, worktrees, experimental).
+- [ ] S2 Podgląd planu: projekcja `PlanBoard` (etapy, kroki planu ze statusem, pane'y, pytania, artefakty, co dalej), `run board`, ekran Plan w aplikacji z akcjami (zatwierdź, odpowiedz, otwórz pane, dodaj zadanie, komentarz).
+- [ ] S3 Proces: PR per feature, subskrypcja PR, opis PR z „Co / Jak sprawdzić / Ryzyka”.
+- [ ] S4 Lokalne zadania: `Issue` v1 w `.metator/issues/`, `issue propose` (agent) → pytanie w inboxie → zgoda osoby, `issue add|list|show|edit|close|drop|start`, ekran Backlog, MCP do czytania.
+- [ ] S6 Siatka jak w herdr: pisanie wprost w kafelku (`ui.attachOnType`), zoom, drzewo podziału i przeciąganie zapisane w `Layout` v2, tryb kopiowania z wyszukiwaniem, ramki i etykiety pane'ów, go-to picker (`prefix+g`), wszystkie skróty przez `keys.*`, `ui.statusLine[]`. Kolejność: S1 → S6 → S2 → S4 → S5.
+- [ ] S5 Podgląd kodu: `open-editor` (VS Code na worktree/pliku/diffie z `editor.*`), ekran Review z diffem i komentarzami inline (`ReviewNote` v1), „Send to agent” jako `RunMessage` (topic `review`), `addressed` po zmianie; `review notes list|add|send`.

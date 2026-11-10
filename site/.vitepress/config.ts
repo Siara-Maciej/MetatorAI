@@ -44,6 +44,8 @@ export const sections = [
       { text: "Runs, in chat and in a terminal", link: "" },
       { text: "Inbox and decisions", link: "inbox" },
       { text: "Sessions and terminals", link: "sessions" },
+      { text: "Terminals, panes and the conductor", link: "terminals" },
+      { text: "The desktop app", link: "desktop" },
       { text: "Ask about the code", link: "ask" },
       { text: "Feature (W1)", link: "feature" },
       { text: "Bug fix (W2)", link: "bugfix" },

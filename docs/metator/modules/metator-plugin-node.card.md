@@ -12,8 +12,8 @@ dir: packages/plugin-node
 - Directory: `packages/plugin-node`
 - Depends on: `@metator/core`
 - Test-only dependencies: `@metator/testing`
-- Used by: `@metator/runtime`
-- Imported by other packages: `packages/plugin-node/src/index.ts`
+- Used by: `(root)`, `@metator/runtime`
+- Imported by other packages: `packages/plugin-node/package.json`, `packages/plugin-node/src/index.ts`
 - Third-party: `@friedemannsommer/lcov-parser`, `@manypkg/get-packages`, `get-port`, `package-manager-detector`, `wait-on`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: none
@@ -25,7 +25,7 @@ dir: packages/plugin-node
 
 ## Invariants
 
-- A repository without package.json has no packages, not an error [[cite: packages/plugin-node/src/manypkg-workspace-reader.ts:27 | "if (!existsSync(join(this.root, \"package.json\"))) return ok([]);"]].
+- A repository without package.json has no packages, not an error [[cite: packages/plugin-node/src/manypkg-workspace-reader.ts:41 | "if (!existsSync(join(this.root, \"package.json\"))) return ok([]);"]].
 
 ## Allowed dependencies
 

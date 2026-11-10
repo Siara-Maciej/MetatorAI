@@ -27,6 +27,23 @@ const READERS = new Set([
   "echo", // a separator between readers' output (`echo ---`); a redirection is refused anyway
 ]);
 
+/** Tools whose `--version` (or `-v`) only prints a version. */
+const VERSIONED = new Set([
+  "node",
+  "npm",
+  "npx",
+  "bun",
+  "deno",
+  "pnpm",
+  "yarn",
+  "git",
+  "tsc",
+  "python3",
+  "go",
+  "cargo",
+  "java",
+]);
+
 /** Readers whose first word (or each `-e` value) is a pattern, not a path. */
 const SEARCHES = new Set(["grep", "egrep", "fgrep", "rg"]);
 
@@ -267,6 +284,9 @@ export function readOnlyCommand(command: string, dirs: readonly string[]): boole
       const metator = asMetator(argv);
       if (metator && (metatorHelp(metator) || metatorQuery(metator))) return true;
       if (sedPrint(argv, inside) || gitRead(argv, inside)) return true;
+      // `node --version`: a well-known tool printing its version runs nothing of the repository.
+      if (argv.length === 2 && VERSIONED.has(argv[0] as string) && /^(--version|-v)$/.test(argv[1] as string))
+        return true;
       const [program, ...args] = argv;
       if (!program || !READERS.has(program)) return false;
       const forbidden = WRITES_OR_RUNS[program];

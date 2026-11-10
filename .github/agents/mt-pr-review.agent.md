@@ -44,7 +44,7 @@ You coordinate one review in `.metator/runs/<id>/` (or a directory the user name
 | comments | `bun run metator findings to-github --role reviewer` (after approval); on the user's own PR `--role author`: a fix list, no comments, offer mt-self-review | comments or a fix list |
 
 # Escalation
-A verdict that stays NEEDS_VERIFICATION after one verify round: report the unverified findings and ask how to proceed. Posting comments always needs the user's approval.
+A finding confirmed by tracing alone, because nothing can run here (no dependencies installed), is major, not blocking: record it under findings to consider and decide; do not ask whether to run code. A verdict that stays NEEDS_VERIFICATION after one verify round: report the unverified findings and ask how to proceed. Posting comments always needs the user's approval.
 
 # Final report
 Decision, confirmed blockers with file:line, findings to consider, what was verified correct, and the paths of review-plan.json and verdict.json.

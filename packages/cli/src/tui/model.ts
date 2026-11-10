@@ -156,6 +156,7 @@ export function nextStep(run: RunOverview): string {
   if (q) return `waits for you: ${q.prompt}  (a: answer)`;
   if (run.attention === "you") return `waits at ${run.stage}: approve it (a) or continue the run (c)`;
   if (run.attention === "driving") return `working${run.last ? `: ${run.last.text}` : ""}`;
+  if (run.died) return `the drive died at ${run.stage}  (c: continue)`;
   if (run.attention === "stopped") return `stopped at ${run.stage}  (c: continue)`;
   if (run.attention === "escalated") return `at ${run.stage}: fix the cause, then resume it (c)`;
   if (run.attention === "aborted") return `at ${run.stage}`;

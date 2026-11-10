@@ -1,0 +1,28 @@
+{
+  "kind": "Question",
+  "schemaVersion": 1,
+  "id": "q001",
+  "runId": "20261027-mt-feature-add-discount",
+  "stage": "plan-approval",
+  "source": "gate",
+  "prompt": "The human approves the plan: approve to continue",
+  "options": [
+    {
+      "label": "Approve",
+      "description": "Continue with the next stage"
+    },
+    {
+      "label": "Reject"
+    },
+    {
+      "label": "Other"
+    }
+  ],
+  "multiSelect": false,
+  "askedAt": "2026-10-27T10:00:00.000Z",
+  "answer": {
+    "choices": ["Approve"],
+    "by": "alice",
+    "at": "2026-10-27T10:05:00.000Z"
+  }
+}

@@ -116,6 +116,24 @@ describe("GuardPreTool", () => {
     expect(decision((await byEnv.preTool.execute(edit("src/a.ts")))._unsafeUnwrap()).permissionDecision).toBe(
       "deny",
     );
+    // A conductor pane (METATOR_ROLE=conductor) coordinates too; a worker pane edits but never steers the run.
+    const conductor = world({}, "conductor");
+    await conductor.init();
+    expect(
+      decision((await conductor.preTool.execute(edit("src/a.ts")))._unsafeUnwrap()).permissionDecision,
+    ).toBe("deny");
+    const worker = world({}, "worker");
+    await worker.init();
+    expect(
+      decision((await worker.preTool.execute(edit("src/a.ts")))._unsafeUnwrap()).permissionDecision,
+    ).toBe("none");
+    const steer = await worker.preTool.execute({
+      tool_name: "Bash",
+      tool_input: { command: "metator run collect mt-planner-1" },
+    });
+    const denied = decision(steer._unsafeUnwrap());
+    expect(denied.permissionDecision).toBe("deny");
+    expect(denied.permissionDecisionReason).toContain("is the conductor's");
   });
 
   test("a broken plan-scope.json or state.json is an error value, not a silent allow", async () => {

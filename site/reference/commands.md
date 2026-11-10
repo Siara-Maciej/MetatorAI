@@ -20,11 +20,15 @@ metator version [options]
 
 ### `metator help`
 
-List available commands
+List available commands (--verbs: the ones a person reaches for, by what they want to do)
 
 ```bash
 metator help [options]
 ```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--verbs` | the overview by verb instead of the whole list |  |
 
 ## changed
 
@@ -1581,6 +1585,7 @@ metator run init [options]
 | `--autonomy <level>` | L0 all gates, L1 skip plan approval, L2 headless (one of: L0, L1, L2) | `"L0"` |
 | `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
 | `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
+| `--no-setup` | with --worktree: leave the worktree without its dependencies (metator worktree setup later) |  |
 | `--parent <run>` | the run this one is a child of (a system run, possibly in another repository) |  |
 | `--input <name=value>` | a workflow input its scripts read as {name} (repeatable), e.g. base=main | `[]` |
 
@@ -1613,6 +1618,61 @@ metator run approve [options] <gate>
 | `<gate>` | current HITL stage id, or push / comment | |
 | `--by <name>` | who approved **Required.** |  |
 | `--choice <value>` | selected option |  |
+| `--run <id>` | run id (default: latest) |  |
+| `--via <channel>` | chat: the person said yes in the session's chat; counts only while they are attached (one of: chat) |  |
+
+### `metator run attach`
+
+Take the session's keyboard: your input goes to its PTY and your yes in the chat counts
+
+```bash
+metator run attach [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--by <name>` | who attaches **Required.** |  |
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run release`
+
+Give the session back to the agent
+
+```bash
+metator run release [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run message`
+
+Send another run a message (data for its agents, never instructions)
+
+```bash
+metator run message [options] <to>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<to>` | the receiving run id | |
+| `--from <run>` | the sending run id **Required.** |  |
+| `--topic <topic>` | what it is about (one of: info, contract, shared-file, done) | `"info"` |
+| `--text <text>` | the message **Required.** |  |
+| `--ref <ref>` | a file, run or URL it points at (repeatable) | `[]` |
+| `--by <name>` | who sends: an agent of the run, or a person **Required.** |  |
+
+### `metator run messages`
+
+Messages other runs sent this run
+
+```bash
+metator run messages [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
 | `--run <id>` | run id (default: latest) |  |
 
 ### `metator run checkpoint`
@@ -1679,6 +1739,8 @@ metator run close [options]
 | `--run <id>` | run id (default: latest) |  |
 | `--aborted` | abort an active run first (needs --reason) |  |
 | `--reason <text>` | why the run is aborted |  |
+| `--remove-worktree` | remove the run's worktree too (its ports are freed) |  |
+| `--force` | remove the worktree even with uncommitted changes |  |
 
 ### `metator run status`
 
@@ -1748,6 +1810,18 @@ metator run drive [options]
 | `--detach` | keep driving in the background after this command returns |  |
 | `--max-steps <n>` | stop after this many stage transitions | `200` |
 
+### `metator run revive`
+
+Start again every drive that died (a restart, a killed process), at the stage it stood; safe to schedule
+
+```bash
+metator run revive [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | only this run (default: every run) |  |
+
 ### `metator run stop`
 
 Stop the process driving the run; the run stays where it is and can continue
@@ -1788,6 +1862,21 @@ metator run answer [options] <question>
 | `--choice <labels...>` | the option label(s) chosen |  |
 | `--text <text>` | your own words (with Other, or a reason with Reject) |  |
 | `--by <name>` | who answers **Required.** |  |
+| `--always` | also answer every such question this way from now on (an answer policy in metator/answer-policies.yml) |  |
+
+### `metator run brief`
+
+What happened in a run since you last looked: transitions, files, answers, questions, errors
+
+```bash
+metator run brief [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--since <time>` | from this ISO time (default: your last brief of the run, else its start) |  |
+| `--peek` | do not mark the run as read |  |
 
 ### `metator run activity`
 
@@ -1801,6 +1890,115 @@ metator run activity [options]
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
 | `--tail <n>` | only the last n entries |  |
+
+### `metator run start`
+
+Open the run as a conductor pane: an interactive host session that runs the workflow
+
+```bash
+metator run start [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--host <id>` | copilot, claude, opencode (default: the run's host, else supervisor.hostOrder) |  |
+
+### `metator run delegate`
+
+A worker pane for the current stage: one of the stage's agents, with its card as its whole task
+
+```bash
+metator run delegate [options] <stage>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<stage>` |  | |
+| `--agent <id>` | the worker's agent (one the stage lists) **Required.** |  |
+| `--card <text>` | the card: goal, inputs, output, size of the summary |  |
+| `--card-file <path>` | the card from a file |  |
+| `--name <name>` | the worker's name (default: &lt;agent&gt;-&lt;n&gt;) |  |
+| `--host <id>` | the worker's host (default: the run's) |  |
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run wait`
+
+Wait until the worker reported, its pane ended, or it sits idle without a report
+
+```bash
+metator run wait [options] <worker>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<worker>` |  | |
+| `--timeout <ms>` | give up after this long | `600000` |
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run collect`
+
+The worker's result (summary, artifacts, its question when blocked); closes its pane
+
+```bash
+metator run collect [options] <worker>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<worker>` |  | |
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run workers`
+
+The run's workers: their panes, states and results so far
+
+```bash
+metator run workers [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator run result`
+
+A worker's report: done, blocked (with its question) or failed, with a summary and artifacts
+
+```bash
+metator run result [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--worker <name>` | the worker's name (METATOR_WORKER in its pane) **Required.** |  |
+| `--status <status>` | done, blocked or failed **Required.** |  |
+| `--summary <text>` | what was done, or why not (a few lines) **Required.** |  |
+| `--artifact <path>` | a file the result rests on; repeat for several | `[]` |
+| `--question <text>` | with blocked: the decision a person must take |  |
+| `--run <id>` | run id (default: latest) |  |
+
+## policy
+
+### `metator policy list`
+
+Every answer policy in metator/answer-policies.yml
+
+```bash
+metator policy list [options]
+```
+
+### `metator policy rm`
+
+Remove an answer policy: such questions ask a person again
+
+```bash
+metator policy rm [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | policy id | |
 
 ## worktree
 
@@ -1818,6 +2016,33 @@ metator worktree new [options] <id>
 | `--base <ref>` | ref to branch from | `"HEAD"` |
 | `--run <id>` | the run that works in it |  |
 | `--ports <count>` | how many ports to lease | `20` |
+
+### `metator worktree setup`
+
+Make a run's worktree able to run tests: its dependencies (the main checkout's, or an install), and --up its services
+
+```bash
+metator worktree setup [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--worktree <id>` | the worktree (default: the run's) |  |
+| `--run <id>` | the run whose worktree to set up (default: the latest run) |  |
+| `--up` | also start the worktree's services (metator env up --worktree) |  |
+
+### `metator worktree conflicts`
+
+Files two active runs changed in their own worktrees, and which to merge first
+
+```bash
+metator worktree conflicts [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--notify` | tell both runs of each conflict (a shared-file message each way) |  |
+| `--by <name>` | who sends the messages (with --notify) | `"metator"` |
 
 ### `metator worktree list`
 
@@ -2023,3 +2248,141 @@ The work at a glance: each run's stages, who must act, questions, services; conv
 ```bash
 metator status [options]
 ```
+
+## doctor
+
+### `metator doctor`
+
+What a run here will and will not do: config, canon, workflows, gates, dependencies, environment, remote
+
+```bash
+metator doctor [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--worktree <id>` | look at this worktree (a run's session) instead of this checkout |  |
+| `--run <id>` | look at this run's worktree |  |
+
+## inbox
+
+### `metator inbox`
+
+Every open decision of every run, first the ones a live drive waits on, then the oldest
+
+```bash
+metator inbox [options]
+```
+
+## report
+
+### `metator report`
+
+What the runs cost and asked of people: tokens, money, agent time, questions, waiting, per agent
+
+```bash
+metator report [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--since <time>` | only runs started at or after this ISO time |  |
+
+## serve
+
+### `metator serve`
+
+The local daemon the desktop app talks to: state, inbox, activity and PTY sessions on localhost
+
+```bash
+metator serve [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--port <n>` | port to listen on (0: a free one) | `4310` |
+| `--hostname <host>` | address to listen on | `"127.0.0.1"` |
+| `--poll-ms <n>` | how often sockets look for a change | `1000` |
+| `--supervise-ms <n>` | how often the supervisor ticks (0: never) | `5000` |
+
+## pane
+
+### `metator pane list`
+
+Every workspace with its panes and their live state
+
+```bash
+metator pane list [options]
+```
+
+### `metator pane read`
+
+The last lines of a pane's output, without terminal escapes
+
+```bash
+metator pane read [options] <pane>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<pane>` |  | |
+| `--lines <n>` | how many lines | `80` |
+
+### `metator pane wait`
+
+Wait until the pane is in a state: idle or exited (default: either), blocked, waiting, working
+
+```bash
+metator pane wait [options] <pane>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<pane>` |  | |
+| `--until <state>` | working, blocked, waiting, idle or exited; repeat for several | `[]` |
+| `--timeout <ms>` | give up after this long | `60000` |
+
+## attach
+
+### `metator attach`
+
+This terminal on a pane (or a run's conductor pane); Ctrl-] detaches. A run's pane takes its driver lock
+
+```bash
+metator attach [options] <pane>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<pane>` |  | |
+| `--by <name>` | who attaches (default: $USER) |  |
+| `--keep` | keep the run's driver lock after detaching |  |
+
+## mcp
+
+### `metator mcp`
+
+Serve MetatorAI's reading commands as MCP tools over stdio (for IDEs, chats and other agents)
+
+```bash
+metator mcp [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--list` | print the tools instead of serving |  |
+
+## supervise
+
+### `metator supervise`
+
+Keep sessions alive: restart drives that died, nudge idle sessions, watch the attention budget
+
+```bash
+metator supervise [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--once` | one tick, then the report |  |
+| `--interval-ms <n>` | how often to tick | `5000` |

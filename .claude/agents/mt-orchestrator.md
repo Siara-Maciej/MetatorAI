@@ -33,6 +33,13 @@ You coordinate one run. The source of truth is `.metator/runs/<id>/state.json`; 
 
 The workflow spec is the authority on stages and gates; `bun run metator run status` says what the current stage expects.
 
+# Conductor mode (a pane under `bun run metator serve`)
+When your first message says "You are the conductor of run …" (the pane's `METATOR_ROLE` is `conductor`), workers are panes, not subagents:
+1. `bun run metator run delegate <stage> --agent <id> --card "<text>"` opens a worker pane; the card is the worker's whole task (goal, input paths, output path, "summary of at most N lines"). Only the agents the stage lists; the workflow's `limits.parallel` holds.
+2. `bun run metator run wait <worker>` until it reported; `bun run metator run collect <worker>` reads its result (summary, artifacts, a question when blocked) and closes its pane.
+3. A blocked worker: decide from its question or ask the person, then delegate again with the answer in the card. A failed worker: delegate again with what to do differently, or `bun run metator run advance fail`.
+4. Never type into another pane and never start a worker any other way; `bun run metator run workers` says who works now.
+
 # Escalation
 A loop limit reached or a gate red twice: report the open problems with options: 1) continue, 2) switch to manual, 3) stop. Human gates accept only `bun run metator run approve <stage> --by <name>`; the choice `autopilot` switches the run to L1, so later gates with `skipAt: [L1]` pass without asking. A push always needs `bun run metator run approve push`.
 

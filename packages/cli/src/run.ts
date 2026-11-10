@@ -34,7 +34,9 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
     return 0;
   }
   try {
-    await program.parseAsync(argv.length === 0 ? ["help"] : [...argv], { from: "user" });
+    // No command: the whole list for a script, the verbs a person reaches for at a terminal.
+    const bare = options.terminal ? ["help", "--verbs"] : ["help"];
+    await program.parseAsync(argv.length === 0 ? bare : [...argv], { from: "user" });
     outcome ??= { result: ok(describeCommands(program)) }; // a command group without subcommand → help
   } catch (e) {
     outcome = { result: err(e instanceof CommanderError ? fromCommander(e, program) : fromUnknown(e)) };

@@ -7,6 +7,7 @@ import type { PackageManager, ProcessRunner } from "../src/ports/index.ts";
 
 const npm: PackageManager = {
   scriptCommand: async (s, a) => ok({ argv: ["npm", "run", s, "--", ...a], cwd: "/r" }),
+  installCommand: async (cwd) => ok({ argv: ["npm", "ci"], cwd }),
   workspacesCommand: async (s) => ok({ argv: ["npm", "run", s, "--workspaces"], cwd: "/r" }),
 };
 const sequence = (codes: number[]): ProcessRunner & { argv: string[][] } => {
@@ -52,6 +53,7 @@ describe("CheckFlaky", () => {
   test("a missing script is an error value", async () => {
     const none: PackageManager = {
       scriptCommand: async () => err(new MetatorError("INTERNAL", "no run command")),
+      installCommand: async () => err(new MetatorError("INTERNAL", "no install command")),
       workspacesCommand: async () => err(new MetatorError("INTERNAL", "no run command")),
     };
     expect(

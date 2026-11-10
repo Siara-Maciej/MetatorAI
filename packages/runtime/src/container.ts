@@ -6,6 +6,7 @@ import {
   type AnalyzeArchitecture,
   type AnalyzeEnvironment,
   type AnalyzeSystem,
+  type AnswerPolicyStore,
   type ApiSnapshots,
   type ApproveRefactorPlan,
   type ApproveRun,
@@ -22,6 +23,7 @@ import {
   type BranchPublication,
   type BuildImportGraph,
   type BuildModuleCards,
+  type BuildReport,
   type CalibrateFinding,
   type ChangeHistory,
   type ChangePatch,
@@ -33,12 +35,14 @@ import {
   type CheckPublished,
   type CheckpointRun,
   type CheckQuote,
+  type CheckReadiness,
   type CheckRules,
   type Clock,
   type CloneCache,
   type CloseRun,
   type CompareEvals,
   type ComputeAffected,
+  type Conductor,
   type ContainerRuntime,
   type ContractDetector,
   type ContractDiffer,
@@ -58,6 +62,7 @@ import {
   type DocsInventory,
   type DocsLinks,
   type DriveRun,
+  type DriverLock,
   type EnvironmentCatalog,
   type EnvironmentServices,
   type EvalCatalog,
@@ -81,6 +86,8 @@ import {
   type HandoffRun,
   type HealthProbe,
   type HostGenerator,
+  type HostManifestCatalog,
+  type HostPrompts,
   type ImportAnalyzer,
   type ImportGraphReader,
   type InitArchitecturePolicy,
@@ -88,10 +95,12 @@ import {
   type InitProject,
   type InitRun,
   type InstallCanon,
+  type InteractiveHost,
   type InventoryMemory,
   type JudgeFindings,
   type KnowledgeFiles,
   type Launcher,
+  type LayoutStore,
   type LintAdrs,
   type LintAgents,
   type LintPlan,
@@ -113,10 +122,13 @@ import {
   type MergeFindingSets,
   MetatorError,
   type MetatorPaths,
+  type Notifier,
   ok,
   type PackageManager,
   type PackageManagerDetector,
   type PackRules,
+  type PaneSensor,
+  type Panes,
   type PatternCatalog,
   type PlanReview,
   type PortProbe,
@@ -125,6 +137,7 @@ import {
   type ProposeSystemPlan,
   type ProvideWorktree,
   type PruneWorktrees,
+  type PtyBroker,
   type RecordArchitectureBaseline,
   type RefactorPlanStore,
   type RemoveWorktree,
@@ -143,6 +156,7 @@ import {
   type RunEvals,
   type RunGate,
   type RunJournal,
+  type RunMessages,
   type RunRefactorPlan,
   type RunRepository,
   type RunSystemEvals,
@@ -152,6 +166,7 @@ import {
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
+  type SetupWorktree,
   type ShowChangeDiff,
   type ShowSystem,
   type SimulateArchitecture,
@@ -159,6 +174,8 @@ import {
   type SkillCatalog,
   type SkillGenerator,
   type SourceFiles,
+  type Supervisor,
+  type SupervisorDependencies,
   type SymbolAnalyzer,
   type SymbolQueries,
   type SyncRefactorPlan,
@@ -168,6 +185,7 @@ import {
   type SystemPlanStatus,
   type SystemPlanStore,
   type SystemSources,
+  type Terminal,
   type Timer,
   type ToolBoundariesReader,
   type TreeCopier,
@@ -179,6 +197,7 @@ import {
   type WorkflowCatalog,
   type WorkOverview,
   type WorkspaceReader,
+  type WorktreeConflicts,
   type WorktreeManager,
   type WorktreeRegistry,
   type WriteRunArtifact,
@@ -239,6 +258,24 @@ export interface Cradle {
   conversationRepository: ConversationRepository;
   askQuestion: AskQuestion;
   workOverview: WorkOverview;
+  checkReadiness: CheckReadiness;
+  setupWorktree: SetupWorktree;
+  worktreeConflicts: WorktreeConflicts;
+  answerPolicyStore: AnswerPolicyStore;
+  buildReport: BuildReport;
+  driverLock: DriverLock;
+  terminal: Terminal;
+  interactiveHosts: ReadonlyMap<string, InteractiveHost>;
+  ptyBroker: PtyBroker;
+  layoutStore: LayoutStore;
+  panes: Panes;
+  conductor: Conductor;
+  supervisor: (restart: SupervisorDependencies["restart"]) => Supervisor;
+  hostManifests: HostManifestCatalog;
+  paneSensor: PaneSensor;
+  hostPrompts: HostPrompts;
+  notifier: Notifier;
+  runMessages: RunMessages;
   runJournal: RunJournal;
   runDrivers: RunDrivers;
   driveRun: DriveRun;

@@ -1,0 +1,26 @@
+name: Copilot setup steps
+
+# What GitHub Copilot's coding agent runs before it starts on this repository: the dependencies
+# and the import index, so `metator graph …`, the rules and the gates answer at once. GitHub
+# looks for the job named `copilot-setup-steps`.
+on:
+  workflow_dispatch:
+  push:
+    paths: [.github/workflows/copilot-setup-steps.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - name: The import index
+        run: bun packages/cli/src/main.ts index build
+      - name: Readiness
+        run: bun packages/cli/src/main.ts doctor
