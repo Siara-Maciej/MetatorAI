@@ -96,13 +96,10 @@ export class RunJournal {
 
   /** One agent call's usage, appended to `usage.jsonl`. */
   async recordUsage(runId: string, entry: Omit<AgentUsage, "at">): Promise<Result<void, MetatorError>> {
-    const file = this.usageFile(runId);
-    const before = (await this.fs.exists(file)) ? await this.fs.read(file) : ok("");
-    if (before.isErr()) return err(before.error);
     const line = serializeJsonLine(
       AgentUsageDocument.stamp({ at: this.clock.now().toISOString(), ...entry }),
     );
-    return this.fs.write(file, `${before.value}${line}`);
+    return this.fs.append(this.usageFile(runId), line);
   }
 
   async usage(runId: string): Promise<Result<readonly AgentUsage[], MetatorError>> {
@@ -151,14 +148,12 @@ export class RunJournal {
     return `${this.repo.runDir(runId)}/questions/${id}.json`;
   }
 
+  /** One line appended in one step: hooks, the daemon and the CLI record at once without losing a line. */
   async record(runId: string, entry: ActivityInput): Promise<Result<void, MetatorError>> {
-    const file = this.activityFile(runId);
-    const before = (await this.fs.exists(file)) ? await this.fs.read(file) : ok("");
-    if (before.isErr()) return err(before.error);
     const line = serializeJsonLine(
       RunActivityDocument.stamp({ at: this.clock.now().toISOString(), ...entry }),
     );
-    return this.fs.write(file, `${before.value}${line}`);
+    return this.fs.append(this.activityFile(runId), line);
   }
 
   async activity(runId: string): Promise<Result<readonly RunActivity[], MetatorError>> {
