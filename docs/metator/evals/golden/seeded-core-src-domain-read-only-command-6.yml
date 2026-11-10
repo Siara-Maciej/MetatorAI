@@ -3,7 +3,7 @@ kind: EvalCase
 schemaVersion: 2
 id: seeded-core-src-domain-read-only-command-6
 type: seeded
-base: fd12dbb8fa75f75eeecadc4de1655a7c7be79622
+base: c433177510a6fab48de85199a666695d7903fc06
 head: golden/seeded-core-src-domain-read-only-command-6
 patch: docs/metator/evals/golden/patches/seeded-core-src-domain-read-only-command-6.patch
 origin: "scripts/mutants.ts: metator version only prints"

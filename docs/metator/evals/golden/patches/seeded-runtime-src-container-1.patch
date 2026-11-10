@@ -1,7 +1,7 @@
 diff --git a/packages/runtime/src/container.ts b/packages/runtime/src/container.ts
 --- a/packages/runtime/src/container.ts
 +++ b/packages/runtime/src/container.ts
-@@ -448,7 +448,7 @@
+@@ -450,7 +450,7 @@
      return ok(container.resolve(name));
    } catch (e) {
      if (!(e instanceof AwilixResolutionError)) throw e;

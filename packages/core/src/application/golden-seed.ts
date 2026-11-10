@@ -215,8 +215,11 @@ export class SeedGoldenSet {
         skipped.push(`${culprit.slice(0, 12)}: no parent`);
         continue;
       }
-      seen.add(culprit);
       const culpritSubject = (await this.git(["log", "-1", "--format=%s", culprit])).unwrapOr("");
+      // The same fix cherry-picked onto two branches repairs the same subject: one case is enough.
+      if (seen.has(`subject:${culpritSubject}`)) continue;
+      seen.add(culprit);
+      seen.add(`subject:${culpritSubject}`);
       out.push({
         id: `bug-${culprit.slice(0, 10)}`,
         type: "bug",
@@ -243,10 +246,16 @@ export class SeedGoldenSet {
     const log = await this.git(["log", `-n${history}`, "--format=%H%x00%s", "--no-merges"]);
     if (log.isErr()) return err(log.error);
     const fix = new RegExp(fixPattern, "i");
+    // The same change cherry-picked onto two branches has one subject: one case is enough.
+    const subjects = new Set<string>();
     for (const line of log.value.split("\n").filter((l) => l !== "")) {
       if (out.length >= count) break;
       const [sha, subject = ""] = line.split("\0") as [string, string];
       if (fix.test(subject) || exclude.has(sha)) continue;
+      if (subjects.has(subject)) {
+        skipped.push(`${sha.slice(0, 12)} ${subject}: the same subject is already a case`);
+        continue;
+      }
       const files = await this.git(["show", "--format=", "--name-only", sha]);
       if (files.isErr()) continue;
       const code = files.value.split("\n").filter((f) => f !== "" && !NOT_CODE.test(f));
@@ -258,6 +267,7 @@ export class SeedGoldenSet {
       }
       const parent = await this.git(["rev-parse", `${sha}^`]);
       if (parent.isErr()) continue;
+      subjects.add(subject);
       out.push({
         id: `clean-${sha.slice(0, 10)}`,
         type: "clean",

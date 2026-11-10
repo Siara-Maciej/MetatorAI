@@ -3,7 +3,7 @@ kind: EvalCase
 schemaVersion: 2
 id: seeded-plugin-host-claude-src-claude-agent-host-2
 type: seeded
-base: fd12dbb8fa75f75eeecadc4de1655a7c7be79622
+base: c433177510a6fab48de85199a666695d7903fc06
 head: golden/seeded-plugin-host-claude-src-claude-agent-host-2
 patch: docs/metator/evals/golden/patches/seeded-plugin-host-claude-src-claude-agent-host-2.patch
 origin: "scripts/mutants.ts: a declared command fed a quoted here-document asks no one"

@@ -3,14 +3,14 @@ kind: EvalCase
 schemaVersion: 2
 id: seeded-runtime-src-container-1
 type: seeded
-base: fd12dbb8fa75f75eeecadc4de1655a7c7be79622
+base: c433177510a6fab48de85199a666695d7903fc06
 head: golden/seeded-runtime-src-container-1
 patch: docs/metator/evals/golden/patches/seeded-runtime-src-container-1.patch
 origin: "scripts/mutants.ts: dependency cycles must be reported as such"
 description: dependency cycles must be reported as such
 expected:
   - file: packages/runtime/src/container.ts
-    line: 451
+    line: 453
     tolerance: 3
     severity: blocking
     note: dependency cycles must be reported as such
