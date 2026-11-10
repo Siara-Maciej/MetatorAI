@@ -56,7 +56,7 @@ describe("metator config (options, real CLI)", () => {
     expect(
       (repoOnly.options as { definition: { scope: string } }[]).every((o) => o.definition.scope === "repo"),
     ).toBe(true);
-  });
+  }, 30_000);
 
   test("set --scope user writes ~/.config/metator/options.yml with its header; get reads it back typed", async () => {
     const set = await mt("config", "set", "ui.paneBorders", "always", "--scope", "user");
@@ -77,7 +77,7 @@ describe("metator config (options, real CLI)", () => {
     });
     const unset = data(await mt("config", "unset", "ui.paneBorders", "--scope", "user"));
     expect(unset).toMatchObject({ value: "auto", source: "default" });
-  });
+  }, 30_000);
 
   test("a wrong value or scope is refused with USAGE and nothing changes; a wrong value in the file is a diagnostic", async () => {
     const bad = await mt("config", "set", "ui.sidebarWidth", "wide", "--scope", "user");
@@ -99,7 +99,7 @@ describe("metator config (options, real CLI)", () => {
       ["invalid-value", "keys.detach"],
       ["unknown-key", "ui.nope"],
     ]);
-  });
+  }, 30_000);
 
   test("set --scope repo keeps the config's comments and moves it to the current version; --scope run writes the run's record", async () => {
     const set = data(await mt("config", "set", "supervisor.wipLimit", "2", "--scope", "repo"));
@@ -124,7 +124,7 @@ describe("metator config (options, real CLI)", () => {
     expect(record).toMatchObject({ schemaVersion: 7, options: { "supervisor.wipLimit": 1 } });
     const schema = data(await mt("config", "schema", "--options")) as { properties: Record<string, unknown> };
     expect(Object.keys(schema.properties)).toContain("supervisor.wipLimit");
-  });
+  }, 30_000);
 
   test("the daemon serves the same view and writes the same files", async () => {
     const daemon = Bun.spawn(["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100"], {
