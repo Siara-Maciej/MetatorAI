@@ -219,13 +219,23 @@ export function sendLine(
       ws.close();
       resolve(reason);
     };
-    ws.onopen = () => {
+    // The line goes once the daemon has found the pane (its "session" message), so nothing is
+    // typed into a socket that is still opening.
+    let sent = false;
+    const send = () => {
+      if (sent) return;
+      sent = true;
       ws.send(JSON.stringify({ type: "input", data: `${line}\r` }));
       setTimeout(() => finish(), 300);
     };
+    ws.onopen = () => {
+      setTimeout(send, 2000);
+    };
     ws.onmessage = (m) => {
       const e = JSON.parse(String(m.data)) as { type: string; reason?: string };
+      if (e.type === "session") send();
       if (e.type === "refused") finish(e.reason);
+      if (e.type === "error") finish(e.reason ?? "the daemon refused the terminal");
     };
     ws.onerror = () => finish("the daemon is unreachable");
   });

@@ -65,6 +65,8 @@ interface Socket {
   paneId?: string | undefined;
   readonly by?: string | undefined;
   stop?: () => void;
+  /** Resolves once a `pty` or `pane` socket has found its pane: input waits for it. */
+  ready?: Promise<void>;
 }
 
 /**
@@ -631,6 +633,11 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         }
         const broker = c.value.resolve("ptyBroker");
         const panes = c.value.resolve("panes");
+        // Input can arrive before the pane is found: `message` waits for this open to finish.
+        let ready: () => void = () => {};
+        d.ready = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
         // A run's socket opens (or finds) its conductor pane; a pane's socket needs a live pane.
         const opened =
           d.kind === "pane"
@@ -645,10 +652,12 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
               error: { code: opened.error.code, message: opened.error.message },
             }),
           );
+          ready();
           ws.close();
           return;
         }
         d.paneId = opened.value.paneId;
+        ready();
         ws.send(JSON.stringify({ type: "session", session: opened.value }));
         const backlog = broker.backlog(opened.value.paneId);
         if (backlog) ws.send(JSON.stringify({ type: "data", data: backlog }));
@@ -656,7 +665,9 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       },
       async message(ws, raw) {
         const d = ws.data;
-        if ((d.kind !== "pty" && d.kind !== "pane") || !d.paneId) return;
+        if (d.kind !== "pty" && d.kind !== "pane") return;
+        if (d.ready) await d.ready;
+        if (!d.paneId) return;
         const c = containerFor(d.repo);
         if (c.isErr()) return;
         const broker = c.value.resolve("ptyBroker");
