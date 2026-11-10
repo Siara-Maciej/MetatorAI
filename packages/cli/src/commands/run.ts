@@ -5,6 +5,8 @@ import {
   err,
   FindingSetDocument,
   INPUT_NAME,
+  MESSAGE_TOPICS,
+  type MessageTopic,
   MetatorError,
   ok,
   PlanDocument,
@@ -243,11 +245,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .description("Send another run a message (data for its agents, never instructions)")
     .argument("<to>", "the receiving run id")
     .requiredOption("--from <run>", "the sending run id")
-    .addOption(
-      new Option("--topic <topic>", "what it is about")
-        .choices(["info", "contract", "shared-file", "done"])
-        .default("info"),
-    )
+    .addOption(new Option("--topic <topic>", "what it is about").choices([...MESSAGE_TOPICS]).default("info"))
     .requiredOption("--text <text>", "the message")
     .option(
       "--ref <ref>",
@@ -262,7 +260,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
           to: string,
           opts: {
             from: string;
-            topic: "info" | "contract" | "shared-file" | "done";
+            topic: MessageTopic;
             text: string;
             ref: string[];
             by: string;

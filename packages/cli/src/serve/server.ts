@@ -8,6 +8,7 @@ import {
   DaemonInfoDocument,
   type InboxItem,
   inboxOf,
+  type MessageTopic,
   MetatorError,
   OPTION_SCOPES,
   type OptionScope,
@@ -65,6 +66,8 @@ interface Socket {
   paneId?: string | undefined;
   readonly by?: string | undefined;
   stop?: () => void;
+  /** Resolves once a `pty` or `pane` socket has found its pane: input waits for it. */
+  ready?: Promise<void>;
 }
 
 /**
@@ -324,6 +327,17 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           return fromResult(await panes.wait(paneId, { until, timeoutMs }));
         }
         if (action === "close" && req.method === "POST") return fromResult(await panes.closePane(paneId));
+        // The editor on the pane's directory (S5), at a file and line when given.
+        if (action === "open-editor" && req.method === "POST") {
+          const body = (await req.json().catch(() => ({}))) as Json;
+          return fromResult(
+            await c.value.resolve("openEditor").execute({
+              paneId,
+              ...(typeof body.file === "string" ? { file: body.file } : {}),
+              ...(typeof body.line === "number" ? { line: body.line } : {}),
+            }),
+          );
+        }
         // Split (S6): a shell (the person's `terminal.shell`, else $SHELL) beside or below the pane.
         if (action === "split" && req.method === "POST") {
           const body = (await req.json().catch(() => ({}))) as Json;
@@ -471,6 +485,48 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           return fromResult(
             await c.value.resolve("conductor").collect({ runId, worker: str("worker") ?? "" }),
           );
+        // The editor, the change and the notes on it (S5).
+        case "POST open-editor":
+          return fromResult(
+            await c.value.resolve("openEditor").execute({
+              runId,
+              ...(str("file") ? { file: str("file") as string } : {}),
+              ...(typeof body.line === "number" ? { line: body.line as number } : {}),
+            }),
+          );
+        case "GET review":
+          return fromResult(
+            await c.value.resolve("runChanges").execute({
+              runId,
+              ...(url.searchParams.get("file") ? { file: url.searchParams.get("file") as string } : {}),
+            }),
+          );
+        case "GET review-notes":
+          return fromResult(await c.value.resolve("reviewNotes").list(runId));
+        case "POST review-notes":
+          return fromResult(
+            await c.value.resolve("reviewNotes").add(runId, {
+              ...(str("file") ? { file: str("file") as string } : {}),
+              ...(typeof body.line === "number" ? { line: body.line as number } : {}),
+              ...(str("side") === "old" || str("side") === "new"
+                ? { side: str("side") as "old" | "new" }
+                : {}),
+              text: str("text") ?? "",
+              by: str("by") ?? "",
+            }),
+          );
+        case "POST review-send":
+          return fromResult(await c.value.resolve("reviewNotes").send(runId, { by: str("by") ?? "" }));
+        case "POST review-note-status":
+          return fromResult(
+            await c.value
+              .resolve("reviewNotes")
+              .setStatus(
+                runId,
+                str("id") ?? "",
+                (str("status") ?? "addressed") as "draft" | "sent" | "addressed",
+              ),
+          );
         case "GET board":
           return fromResult(
             await c.value.resolve("planBoard").execute({
@@ -553,7 +609,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
             await c.value.resolve("runMessages").send({
               from: str("from") ?? "",
               to: runId,
-              topic: (str("topic") ?? "info") as "info" | "contract" | "shared-file" | "done",
+              topic: (str("topic") ?? "info") as MessageTopic,
               text: str("text") ?? "",
               refs: list("refs"),
               by: str("by") ?? "",
@@ -631,6 +687,11 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         }
         const broker = c.value.resolve("ptyBroker");
         const panes = c.value.resolve("panes");
+        // Input can arrive before the pane is found: `message` waits for this open to finish.
+        let ready: () => void = () => {};
+        d.ready = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
         // A run's socket opens (or finds) its conductor pane; a pane's socket needs a live pane.
         const opened =
           d.kind === "pane"
@@ -645,10 +706,12 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
               error: { code: opened.error.code, message: opened.error.message },
             }),
           );
+          ready();
           ws.close();
           return;
         }
         d.paneId = opened.value.paneId;
+        ready();
         ws.send(JSON.stringify({ type: "session", session: opened.value }));
         const backlog = broker.backlog(opened.value.paneId);
         if (backlog) ws.send(JSON.stringify({ type: "data", data: backlog }));
@@ -656,7 +719,9 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       },
       async message(ws, raw) {
         const d = ws.data;
-        if ((d.kind !== "pty" && d.kind !== "pane") || !d.paneId) return;
+        if (d.kind !== "pty" && d.kind !== "pane") return;
+        if (d.ready) await d.ready;
+        if (!d.paneId) return;
         const c = containerFor(d.repo);
         if (c.isErr()) return;
         const broker = c.value.resolve("ptyBroker");

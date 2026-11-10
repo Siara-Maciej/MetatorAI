@@ -1,0 +1,12 @@
+{
+  "kind": "RunMessage",
+  "schemaVersion": 1,
+  "id": "m001",
+  "fromRun": "20261109-feature-discount",
+  "toRun": "20261109-feature-pdf",
+  "at": "2026-11-09T22:40:00.000Z",
+  "topic": "contract",
+  "text": "invoice.total is now rounded to cents",
+  "refs": ["src/invoice.ts"],
+  "by": "mt-implementer-1"
+}

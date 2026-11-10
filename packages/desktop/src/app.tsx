@@ -14,6 +14,7 @@ import { GraphScreen } from "./screens/graph.tsx";
 import { InboxScreen } from "./screens/inbox.tsx";
 import { NewSessionDialog } from "./screens/new-session.tsx";
 import { PlanScreen } from "./screens/plan.tsx";
+import { ReviewScreen } from "./screens/review.tsx";
 import { SessionScreen } from "./screens/session.tsx";
 import { SettingsScreen } from "./screens/settings.tsx";
 import { SupervisorScreen } from "./screens/supervisor.tsx";
@@ -111,7 +112,10 @@ function Shell() {
     escalated: d.runs.filter((r) => r.attention === "escalated").length,
   };
   const current =
-    route.screen === "session" || route.screen === "briefing" || route.screen === "plan"
+    route.screen === "session" ||
+    route.screen === "briefing" ||
+    route.screen === "plan" ||
+    route.screen === "review"
       ? route.runId
       : undefined;
   return (
@@ -169,15 +173,29 @@ function Shell() {
           />
         ) : null}
         {route.screen === "session" ? (
-          <SessionScreen runId={route.runId} pane={route.pane} onOpenSession={openSession} />
+          <SessionScreen
+            runId={route.runId}
+            pane={route.pane}
+            onOpenSession={openSession}
+            onOpenReview={(runId) => go({ screen: "review", runId })}
+          />
         ) : null}
         {route.screen === "grid" ? (
           <WorkbenchScreen
             onNewTask={() => setDialog(true)}
             onOpenSettings={() => go({ screen: "settings" })}
             onOpenPlan={(runId) => go({ screen: "plan", runId })}
+            onOpenReview={(runId) => go({ screen: "review", runId })}
             onOpenBacklog={(draft) => go({ screen: "backlog", ...(draft ? { draft } : {}) })}
             {...(route.pane ? { showPane: route.pane } : {})}
+          />
+        ) : null}
+        {route.screen === "review" ? (
+          <ReviewScreen
+            runId={route.runId}
+            file={route.file}
+            onOpenFile={(runId, file) => go({ screen: "review", runId, ...(file ? { file } : {}) })}
+            onOpenSession={openSession}
           />
         ) : null}
         {route.screen === "backlog" ? (
