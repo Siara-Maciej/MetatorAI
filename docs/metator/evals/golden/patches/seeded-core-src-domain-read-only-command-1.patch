@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/domain/read-only-command.ts b/packages/core/src/domain/read-only-command.ts
+--- a/packages/core/src/domain/read-only-command.ts
++++ b/packages/core/src/domain/read-only-command.ts
+@@ -443,7 +443,7 @@
+   const inside =
+     !dir.split("/").includes("..") &&
+     dirs.some((d) => dir === d.replace(/\/$/, "") || dir.startsWith(`${d.replace(/\/$/, "")}/`));
+-  return inside && declared.some((p) => rest === p || rest.startsWith(`${p} `));
++  return declared.some((p) => rest === p || rest.startsWith(`${p} `));
+ }
+ 
+ /**

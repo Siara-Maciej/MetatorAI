@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-c433177510
+type: clean
+base: 5846efcc9b967c6f51b3d7de293159766bc6e5eb
+head: c433177510a6fab48de85199a666695d7903fc06
+origin: history
+description: "F3: the golden set's patches are not knowledge; the schema e2e pins EvalCase v2"
+expected: []

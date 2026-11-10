@@ -1,0 +1,10 @@
+diff --git a/packages/core/src/domain/glob.ts b/packages/core/src/domain/glob.ts
+--- a/packages/core/src/domain/glob.ts
++++ b/packages/core/src/domain/glob.ts
+@@ -26,5 +26,5 @@
+   if (positives.length === 0) return false;
+   const negatives = patterns.filter((p) => p.startsWith("!")).map((p) => p.slice(1));
+   const p = normalizePath(path);
+-  return matcher(positives)(p) && !(negatives.length > 0 && matcher(negatives)(p));
++  return matcher(positives)(p) ;
+ }

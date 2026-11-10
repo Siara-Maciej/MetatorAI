@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/domain/plan.ts b/packages/core/src/domain/plan.ts
+--- a/packages/core/src/domain/plan.ts
++++ b/packages/core/src/domain/plan.ts
+@@ -116,7 +116,7 @@
+   // A repository with no test at all (no runner either, most likely): a plan cannot write tests
+   // first without adding a test setup the task may forbid, so a missing testsFirst only warns.
+   const untested =
+-    !(facts.hasTests ?? [...facts.files].some(isTest)) &&
++    
+     !plan.steps.some((s) => s.action !== "delete" && isTest(s.path));
+ 
+   for (const s of plan.steps) {

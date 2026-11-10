@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-31b3f69b92
+type: clean
+base: bc65e60d310e7e6169100d5d2ecd8ec268d04dea
+head: 31b3f69b92a7bee061b15d46f8db492c1f0a3f77
+origin: history
+description: A line typed into a session waits for the daemon to find the pane
+expected: []

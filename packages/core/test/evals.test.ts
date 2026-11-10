@@ -208,7 +208,7 @@ describe("RunEvals", () => {
     });
     const runner = new ScriptedProcessRunner([{ argvPrefix: [], result: { exitCode: 0 } }]);
     const result = (
-      await new RunEvals(new EvalCatalog(fs, DEFAULT_PATHS), bins, runner).execute({
+      await new RunEvals(new EvalCatalog(fs, DEFAULT_PATHS), bins, runner, "/repo").execute({
         command: "review.sh {case} {base}..{head} --out '{out}'",
         runsDir: "runs",
         repeat: 2,
@@ -228,11 +228,77 @@ describe("RunEvals", () => {
     expect(result.runs).toHaveLength(2);
   });
 
+  test("a seeded case's patch is applied on the base in a worktree and committed; the review gets that commit", async () => {
+    const fs = new InMemoryFileSystem({
+      "docs/metator/evals/golden/seeded.yml": stringify({
+        kind: "EvalCase",
+        schemaVersion: 2,
+        id: "seeded",
+        type: "bug",
+        base: "a1",
+        head: "golden-seeded",
+        patch: "docs/metator/evals/golden/seeded.patch",
+        expected: [{ file: "x", line: 1 }],
+      }),
+    });
+    const runner = new ScriptedProcessRunner([
+      { argvPrefix: ["git", "rev-parse"], result: { exitCode: 0, stdout: "c3\n" } },
+      { argvPrefix: [], result: { exitCode: 0 } },
+    ]);
+    const result = (
+      await new RunEvals(new EvalCatalog(fs, DEFAULT_PATHS), bins, runner, "/repo").execute({
+        command: "review.sh {base}..{head}",
+        runsDir: "runs",
+        repeat: 1,
+        timeoutMs: 1000,
+      })
+    )._unsafeUnwrap();
+    expect(result.runs).toHaveLength(1);
+    expect(runner.calls.map((c) => [c.cwd, ...c.argv])).toEqual([
+      ["/repo", "git", "worktree", "remove", "--force", "runs/worktrees/seeded"],
+      ["/repo", "git", "worktree", "add", "--detach", "runs/worktrees/seeded", "a1"],
+      ["/repo/runs/worktrees/seeded", "git", "apply", "/repo/docs/metator/evals/golden/seeded.patch"],
+      [
+        "/repo/runs/worktrees/seeded",
+        "git",
+        "-c",
+        "user.name=metator",
+        "-c",
+        "user.email=metator@localhost",
+        "commit",
+        "-aqm",
+        "golden seeded",
+      ],
+      ["/repo/runs/worktrees/seeded", "git", "rev-parse", "HEAD"],
+      ["/repo", "git", "worktree", "remove", "--force", "runs/worktrees/seeded"],
+      ["/repo", "review.sh", "a1..c3"],
+    ]);
+    // A patch that does not apply stops the run with the case named.
+    const failing = new ScriptedProcessRunner([
+      { argvPrefix: ["git", "apply"], result: { exitCode: 1, stderr: "patch does not apply" } },
+      { argvPrefix: [], result: { exitCode: 0 } },
+    ]);
+    const error = (
+      await new RunEvals(new EvalCatalog(fs, DEFAULT_PATHS), bins, failing, "/repo").execute({
+        command: "review.sh {base}..{head}",
+        runsDir: "runs",
+        repeat: 1,
+        timeoutMs: 1000,
+      })
+    )._unsafeUnwrapErr();
+    expect(error.message).toBe("git apply for seeded: patch does not apply");
+  });
+
   test("shell operators are refused", async () => {
     const fs = new InMemoryFileSystem({
       "docs/metator/evals/golden/rate.yml": caseFile({ id: "rate", type: "clean", base: "a", head: "b" }),
     });
-    const run = new RunEvals(new EvalCatalog(fs, DEFAULT_PATHS), bins, new ScriptedProcessRunner([]));
+    const run = new RunEvals(
+      new EvalCatalog(fs, DEFAULT_PATHS),
+      bins,
+      new ScriptedProcessRunner([]),
+      "/repo",
+    );
     expect(
       (
         await run.execute({ command: "review.sh {case} | tee log", runsDir: "r", repeat: 1, timeoutMs: 1 })

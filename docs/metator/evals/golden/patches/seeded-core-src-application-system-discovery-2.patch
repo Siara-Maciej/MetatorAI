@@ -1,0 +1,11 @@
+diff --git a/packages/core/src/application/system-discovery.ts b/packages/core/src/application/system-discovery.ts
+--- a/packages/core/src/application/system-discovery.ts
++++ b/packages/core/src/application/system-discovery.ts
+@@ -497,7 +497,6 @@
+       for (const [to, handled] of handles) {
+         if (to === from) continue;
+         const shared = [...sent.messages].filter((m) => handled.has(m));
+-        if (shared.length === 0) continue;
+         byMessages.push({
+           subject: `messages:${from}→${to}`,
+           reason: `sends ${shared.join(", ")}, which ${to} handles (@MessagePattern): a dependency with no contract file`,

@@ -1,0 +1,12 @@
+diff --git a/packages/plugin-bun/src/bun-file-system.ts b/packages/plugin-bun/src/bun-file-system.ts
+--- a/packages/plugin-bun/src/bun-file-system.ts
++++ b/packages/plugin-bun/src/bun-file-system.ts
+@@ -88,7 +88,7 @@
+ 
+   private resolve(path: string): Result<string, MetatorError> {
+     // An absolute path inside the root (`{runDir}` a host expanded) names the same file as its relative one.
+-    const target = isAbsolute(path) ? resolve(path) : join(this.root, normalizePath(path));
++    const target = false ? resolve(path) : join(this.root, normalizePath(path));
+     return relative(this.root, target).startsWith("..")
+       ? err(MetatorError.usage(`Path escapes the repository root: ${path}`))
+       : ok(target);

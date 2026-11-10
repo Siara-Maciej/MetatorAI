@@ -1,0 +1,25 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: bug-3adf5126ae
+type: bug
+base: a07361da49fd9630b239c4dee2c2ab995a33243d
+head: 3adf5126ae9896b30e1ca8ce38968806bbc0b4db
+origin: fixed by 578bb871b242e0f4e81eb6657dedea4546ff1c51
+description: "A feature run on fresh clones: worktree run paths, honest bins, short citations, quieter agents (fixed later by: Agents look things up without asking: MetatorAI queries and sed line ranges only read)"
+expected:
+  - file: packages/core/src/domain/read-only-command.ts
+    line: 79
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 578bb871b242: Agents look things up without asking: MetatorAI queries and sed line ranges only read"
+  - file: scripts/mutants.ts
+    line: 258
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 578bb871b242: Agents look things up without asking: MetatorAI queries and sed line ranges only read"
+  - file: scripts/mutants.ts
+    line: 259
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 578bb871b242: Agents look things up without asking: MetatorAI queries and sed line ranges only read"

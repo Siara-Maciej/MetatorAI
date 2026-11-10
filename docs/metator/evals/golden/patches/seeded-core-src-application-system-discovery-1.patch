@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/application/system-discovery.ts b/packages/core/src/application/system-discovery.ts
+--- a/packages/core/src/application/system-discovery.ts
++++ b/packages/core/src/application/system-discovery.ts
+@@ -164,7 +164,7 @@
+     const rootListed = root !== undefined && manifests.value.packages.some((m) => m.dir === ".");
+     const rootRuns = rootListed && kinds.get(root.name) === "app";
+     const rootApp =
+-      root && (docker(".") || rootRuns)
++      root && docker(".")
+         ? [
+             {
+               name: root.name && root.name !== "(root)" ? root.name : this.name,

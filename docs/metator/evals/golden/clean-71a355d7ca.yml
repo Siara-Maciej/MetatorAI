@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-71a355d7ca
+type: clean
+base: 69650c9f393ff10bf5ecc240d0ef22b1ecd1f0be
+head: 71a355d7ca52979b8847d2ea603c5b82ad8d7f92
+origin: history
+description: "The run journal appends a line in one step: concurrent records no longer lose one"
+expected: []

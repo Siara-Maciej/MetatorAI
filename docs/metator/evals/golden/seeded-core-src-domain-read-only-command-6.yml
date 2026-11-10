@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-domain-read-only-command-6
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-core-src-domain-read-only-command-6
+patch: docs/metator/evals/golden/patches/seeded-core-src-domain-read-only-command-6.patch
+origin: "scripts/mutants.ts: metator version only prints"
+description: metator version only prints
+expected:
+  - file: packages/core/src/domain/read-only-command.ts
+    line: 142
+    tolerance: 3
+    severity: blocking
+    note: metator version only prints

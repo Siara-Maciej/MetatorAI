@@ -1,0 +1,11 @@
+diff --git a/packages/plugin-git/src/git-worktree-manager.ts b/packages/plugin-git/src/git-worktree-manager.ts
+--- a/packages/plugin-git/src/git-worktree-manager.ts
++++ b/packages/plugin-git/src/git-worktree-manager.ts
+@@ -16,7 +16,6 @@
+   ): Promise<Result<void, MetatorError>> {
+     return this.attempt(`git worktree add ${path}`, async () => {
+       await simpleGit(this.root).raw(["worktree", "add", "-b", branch, path, base]);
+-      await this.linkSetup(path, setup, shared);
+       if (shared.length === 0) return;
+       // The links are not work: git ignores them (info/exclude is shared by every worktree), so a
+       // worktree stays clean and `git add -A` never commits one.

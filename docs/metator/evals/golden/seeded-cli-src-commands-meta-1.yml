@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-cli-src-commands-meta-1
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-cli-src-commands-meta-1
+patch: docs/metator/evals/golden/patches/seeded-cli-src-commands-meta-1.patch
+origin: "scripts/mutants.ts: --help describes the command the words before it name"
+description: --help describes the command the words before it name
+expected:
+  - file: packages/cli/src/commands/meta.ts
+    line: 46
+    tolerance: 3
+    severity: blocking
+    note: --help describes the command the words before it name

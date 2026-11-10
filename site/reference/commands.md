@@ -1492,6 +1492,31 @@ metator eval run [options]
 | `--repeat <n>` | runs per case (stability) | `3` |
 | `--timeout-ms <ms>` | per run | `1800000` |
 
+### `metator eval list`
+
+The golden set: every case with its type, base and head
+
+```bash
+metator eval list [options]
+```
+
+### `metator eval seed`
+
+Write golden cases from the unit suite's mutants (seeded), the commits later fixes repaired (bug) and ordinary commits (clean)
+
+```bash
+metator eval seed [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--mutants <file>` | a JSON array of {file, from, to, why} (scripts/golden-seed.ts writes it from scripts/mutants.ts) |  |
+| `--seeded <n>` | how many seeded cases | `30` |
+| `--bugs <n>` | how many bug cases | `10` |
+| `--clean <n>` | how many clean cases | `10` |
+| `--base <ref>` | the ref seeded cases are planted on | `"HEAD"` |
+| `--history <n>` | how many commits back fixes and clean changes are looked for | `500` |
+
 ### `metator eval score`
 
 Precision, recall, blocking precision, false blocks and decision variance from run outputs

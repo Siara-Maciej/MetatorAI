@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-domain-read-only-command-5
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-core-src-domain-read-only-command-5
+patch: docs/metator/evals/golden/patches/seeded-core-src-domain-read-only-command-5.patch
+origin: "scripts/mutants.ts: ls-remote --upload-pack runs a program"
+description: ls-remote --upload-pack runs a program
+expected:
+  - file: packages/core/src/domain/read-only-command.ts
+    line: 123
+    tolerance: 3
+    severity: blocking
+    note: ls-remote --upload-pack runs a program
