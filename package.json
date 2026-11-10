@@ -22,7 +22,8 @@
     "pack": "bun scripts/pack.ts",
     "site:reference": "bun scripts/site/cli-reference.ts",
     "site:dev": "vitepress dev site",
-    "site:build": "vitepress build site"
+    "site:build": "vitepress build site",
+    "golden:seed": "bun scripts/golden-seed.ts"
   },
   "devDependencies": {
     "@ast-grep/cli": "^0.51.0",

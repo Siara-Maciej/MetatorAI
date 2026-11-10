@@ -1,0 +1,45 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: bug-efa191ea2b
+type: bug
+base: 62e15b36436b33ef4c272de546e25d3abc328b17
+head: efa191ea2b5e7e7e7a9ecc0b13c7f4769ed50c9a
+origin: fixed by 8dc4219382a1090fce57fecb0f01253cb94c1a75
+description: "F2: rule canon with lint, pack, host adapters and ast-grep checks (fixed later by: F2: memory map with inventory, budgets, citations and CI guard)"
+expected:
+  - file: package.json
+    line: 15
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 8dc4219382a1: F2: memory map with inventory, budgets, citations and CI guard"
+  - file: packages/core/src/application/rules.ts
+    line: 16
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 8dc4219382a1: F2: memory map with inventory, budgets, citations and CI guard"
+  - file: packages/core/src/application/rules.ts
+    line: 17
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 8dc4219382a1: F2: memory map with inventory, budgets, citations and CI guard"
+  - file: packages/core/src/application/rules.ts
+    line: 18
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 8dc4219382a1: F2: memory map with inventory, budgets, citations and CI guard"
+  - file: packages/core/src/application/rules.ts
+    line: 19
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 8dc4219382a1: F2: memory map with inventory, budgets, citations and CI guard"
+  - file: packages/core/src/application/rules.ts
+    line: 20
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 8dc4219382a1: F2: memory map with inventory, budgets, citations and CI guard"
+  - file: packages/core/src/application/rules.ts
+    line: 21
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 8dc4219382a1: F2: memory map with inventory, budgets, citations and CI guard"

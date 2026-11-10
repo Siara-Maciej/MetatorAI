@@ -1,0 +1,11 @@
+id: mt-pattern-desktop-screen
+language: Tsx
+severity: hint
+message: "Pattern desktop-screen: one screen of the desktop app, a function component the router renders by route."
+files:
+  - packages/desktop/src/screens/**
+rule:
+  kind: function_declaration
+  has:
+    field: name
+    regex: Screen$

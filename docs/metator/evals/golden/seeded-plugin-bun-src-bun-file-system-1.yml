@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-plugin-bun-src-bun-file-system-1
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-plugin-bun-src-bun-file-system-1
+patch: docs/metator/evals/golden/patches/seeded-plugin-bun-src-bun-file-system-1.patch
+origin: "scripts/mutants.ts: paths must not escape the repository root"
+description: paths must not escape the repository root
+expected:
+  - file: packages/plugin-bun/src/bun-file-system.ts
+    line: 92
+    tolerance: 3
+    severity: blocking
+    note: paths must not escape the repository root

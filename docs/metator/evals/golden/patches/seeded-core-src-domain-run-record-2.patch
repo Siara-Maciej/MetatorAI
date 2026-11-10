@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/domain/run-record.ts b/packages/core/src/domain/run-record.ts
+--- a/packages/core/src/domain/run-record.ts
++++ b/packages/core/src/domain/run-record.ts
+@@ -179,7 +179,7 @@
+   const missing: string[] = [];
+   // `@{u}` or `HEAD@{1}` is git's revision syntax, not an input.
+   const filled = script.replace(
+-    /(?<!@)\{([a-z][a-z0-9_]*)(?:\|([^{}]*))?\}/g,
++    /\{([a-z][a-z0-9_]*)(?:\|([^{}]*))?\}/g,
+     (whole, name: string, fallback?: string) => {
+       if (name === "runDir") return whole; // the drive's own placeholder
+       const value = inputs[name] ?? fallback;

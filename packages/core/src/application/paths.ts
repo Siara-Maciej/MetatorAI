@@ -12,6 +12,8 @@ export interface MetatorPaths {
   readonly adr: string;
   readonly discovery: string;
   readonly gates: string;
+  /** Quarterly reviews (`meta quarterly`). */
+  readonly reviews: string;
   /** Canonical agents (host-neutral sources of generated host agents). */
   readonly agents: string;
   /** The golden set of review evals. */
@@ -72,6 +74,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   adr: "docs/adr",
   discovery: ".metator/discovery.json",
   gates: ".metator/gates",
+  reviews: ".metator/reviews",
   agents: "metator/agents",
   evals: "docs/metator/evals/golden",
   skills: "metator/skills",

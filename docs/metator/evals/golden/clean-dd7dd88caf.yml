@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-dd7dd88caf
+type: clean
+base: 71a355d7ca52979b8847d2ea603c5b82ad8d7f92
+head: dd7dd88cafb2e41157519571e209ba8eb50a5a41
+origin: history
+description: "S4: the proposal-cannot-start test fails for the right reason only"
+expected: []

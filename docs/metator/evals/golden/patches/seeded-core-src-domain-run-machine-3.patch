@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/domain/run-machine.ts b/packages/core/src/domain/run-machine.ts
+--- a/packages/core/src/domain/run-machine.ts
++++ b/packages/core/src/domain/run-machine.ts
+@@ -154,7 +154,7 @@
+       );
+     }
+     const snapshot = this.machine.resolveState({ value: state.stage, context: state.context as RunContext });
+-    if (!snapshot.can(event)) {
++    if (false) {
+       return err(
+         new MetatorError(
+           "TRANSITION_DENIED",

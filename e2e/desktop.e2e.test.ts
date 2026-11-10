@@ -109,7 +109,8 @@ beforeAll(async () => {
   });
   const b = await browser();
   page = await b.newPage({ viewport: { width: 1440, height: 900 } });
-  page.on("pageerror", (e) => errors.push(e.message));
+  // The stack names the code that threw; on CI it is the only trace of a page error.
+  page.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
   page.on("console", (m) => {
     if (m.type() === "error") errors.push(m.text());
   });
@@ -254,6 +255,17 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the echo", async () =>
       (await shellFrame.textContent())?.includes("hello-from-the-workbench") ? true : undefined,
     );
+    // Leaving the workbench while a pane still streams must not leave an error behind: xterm's
+    // pending frames run after the terminal is gone.
+    for (let i = 0; i < 3; i++) {
+      await shellFrame.locator(".xterm").click();
+      await page.keyboard.type("seq 1 400");
+      await page.keyboard.press("Enter");
+      await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
+      await page.getByTestId("connection").waitFor({ timeout: 20_000 });
+      await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid`);
+      await shellFrame.waitFor({ timeout: 20_000 });
+    }
     // prefix+z zooms the focused pane and back; prefix+g opens the go-to picker.
     await page.keyboard.press("Control+b");
     await page.keyboard.press("z");

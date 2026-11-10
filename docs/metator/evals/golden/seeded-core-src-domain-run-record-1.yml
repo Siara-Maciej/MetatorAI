@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-domain-run-record-1
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-core-src-domain-run-record-1
+patch: docs/metator/evals/golden/patches/seeded-core-src-domain-run-record-1.patch
+origin: "scripts/mutants.ts: a script reads the run's input before its default"
+description: a script reads the run's input before its default
+expected:
+  - file: packages/core/src/domain/run-record.ts
+    line: 185
+    tolerance: 3
+    severity: blocking
+    note: a script reads the run's input before its default

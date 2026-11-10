@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-domain-read-only-command-4
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-core-src-domain-read-only-command-4
+patch: docs/metator/evals/golden/patches/seeded-core-src-domain-read-only-command-4.patch
+origin: "scripts/mutants.ts: a chain or pipe before the here-document is not the declared command"
+description: a chain or pipe before the here-document is not the declared command
+expected:
+  - file: packages/core/src/domain/read-only-command.ts
+    line: 458
+    tolerance: 3
+    severity: blocking
+    note: a chain or pipe before the here-document is not the declared command

@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-domain-run-machine-2
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-core-src-domain-run-machine-2
+patch: docs/metator/evals/golden/patches/seeded-core-src-domain-run-machine-2.patch
+origin: "scripts/mutants.ts: human gates must not accept PASS"
+description: human gates must not accept PASS
+expected:
+  - file: packages/core/src/domain/run-machine.ts
+    line: 93
+    tolerance: 3
+    severity: blocking
+    note: human gates must not accept PASS

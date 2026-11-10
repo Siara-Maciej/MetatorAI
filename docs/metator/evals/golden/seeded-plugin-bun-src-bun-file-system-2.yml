@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-plugin-bun-src-bun-file-system-2
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-plugin-bun-src-bun-file-system-2
+patch: docs/metator/evals/golden/patches/seeded-plugin-bun-src-bun-file-system-2.patch
+origin: "scripts/mutants.ts: an absolute path inside the root names the same file"
+description: an absolute path inside the root names the same file
+expected:
+  - file: packages/plugin-bun/src/bun-file-system.ts
+    line: 91
+    tolerance: 3
+    severity: blocking
+    note: an absolute path inside the root names the same file

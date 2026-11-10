@@ -14,6 +14,9 @@ knowledge:
     - "metator/skills/**"
     - ".github/skills/**"
     - ".claude/skills/**"
+  # Patches of the golden set are code to apply, not knowledge to read.
+  exclude:
+    - "docs/metator/evals/golden/patches/**"
 tierBudgets:
   T0: { chars: 4000 }
 items:
@@ -190,6 +193,22 @@ items:
     writers: [human, "metator system discover (proposal, after approval)"]
     readers: [mt-system-scout, mt-system-planner, "metator system"]
     description: The system map (applications, contracts, policies); `system lint` keeps it true.
+  - id: t1.review-evals
+    tier: T1
+    kind: canon
+    paths: ["docs/metator/evals/golden/**"]
+    load: "query:metator eval list"
+    writers: [human, "metator eval seed (from mutants and history)"]
+    readers: ["metator eval run", "metator eval score"]
+    description: The golden set of review evals (EvalCase); seeded cases carry a patch planted on their base, bug cases the commit a later fix repaired, clean cases ordinary commits.
+  - id: t1.audits
+    tier: T1
+    kind: derived
+    paths: ["docs/audit/*.md"]
+    load: explicit
+    writers: [human, "metator meta audit (numbers)"]
+    readers: [human]
+    description: "Audit reports (F0) of a repository: inventory, call graph, orchestrator compliance; one file per repository and date."
   - id: t1.arch-evals
     tier: T1
     kind: canon

@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-application-runs-1
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-core-src-application-runs-1
+patch: docs/metator/evals/golden/patches/seeded-core-src-application-runs-1.patch
+origin: "scripts/mutants.ts: an input the workflow does not declare is refused"
+description: an input the workflow does not declare is refused
+expected:
+  - file: packages/core/src/application/runs.ts
+    line: 105
+    tolerance: 3
+    severity: blocking
+    note: an input the workflow does not declare is refused

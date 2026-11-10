@@ -1,7 +1,7 @@
 import { AgentDocument, err, MetatorError, ok, SkillDocument } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
-import { positiveInt } from "../options.ts";
+import { positiveInt, ratio } from "../options.ts";
 
 /** What `meta check-all` runs: every lint and drift check of the knowledge layer (04-commands §I). */
 export const CHECK_ALL: readonly (readonly string[])[] = [
@@ -103,6 +103,30 @@ export function registerAgentCommands(program: Command, { action, container, inv
           };
         }
         return { result: ok({ checks }) };
+      }),
+    );
+
+  meta
+    .command("quarterly")
+    .description(
+      "The quarterly review (F6): rule coverage and dead rules, memory budgets, stale documents, unpromoted lessons, review evals against a baseline; written to .metator/reviews/",
+    )
+    .option("--stale-days <days>", "a document or lesson untouched this long is stale", positiveInt, 90)
+    .option("--baseline <file>", "EvalReport of the baseline (from `metator eval score`)")
+    .option("--report <file>", "EvalReport of the current state to compare with the baseline")
+    .option("--tolerance <ratio>", "allowed drop per eval number", ratio, 0.02)
+    .action(
+      action(async (opts: { staleDays: number; baseline?: string; report?: string; tolerance: number }) => {
+        const review = await container()
+          .resolve("quarterlyReview")
+          .execute({
+            staleDays: opts.staleDays,
+            tolerance: opts.tolerance,
+            ...(opts.baseline ? { baseline: opts.baseline } : {}),
+            ...(opts.report ? { report: opts.report } : {}),
+          });
+        if (review.isErr()) return { result: review };
+        return { result: ok(review.value), warnings: review.value.actions };
       }),
     );
 

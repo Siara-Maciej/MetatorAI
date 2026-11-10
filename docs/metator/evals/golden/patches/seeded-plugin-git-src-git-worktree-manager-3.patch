@@ -1,0 +1,12 @@
+diff --git a/packages/plugin-git/src/git-worktree-manager.ts b/packages/plugin-git/src/git-worktree-manager.ts
+--- a/packages/plugin-git/src/git-worktree-manager.ts
++++ b/packages/plugin-git/src/git-worktree-manager.ts
+@@ -72,7 +72,7 @@
+       `${inherited ? `${readFileSync(inherited, "utf8").trimEnd()}\n` : ""}${ignored.join("\n")}\n`,
+     );
+     await git.raw(["config", "extensions.worktreeConfig", "true"]);
+-    await wt.raw(["config", "--worktree", "core.excludesFile", excludes]);
++    
+   }
+ 
+   async remove(path: string, force: boolean): Promise<Result<void, MetatorError>> {

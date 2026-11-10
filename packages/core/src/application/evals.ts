@@ -163,7 +163,38 @@ export class RunEvals {
     private readonly catalog: EvalCatalog,
     private readonly bins: BinResolver,
     private readonly runner: ProcessRunner,
+    /** The repository's absolute root: where a seeded case's patch is turned into a commit. */
+    private readonly root: string,
   ) {}
+
+  /**
+   * A seeded case names a patch instead of a commit: the patch is applied on the base in a
+   * temporary worktree and committed there, so the review gets a real `head` to diff against.
+   * The commit stays in the repository's objects (unreachable) once the worktree is removed.
+   */
+  private async materialize(c: EvalCase, runsDir: string): Promise<Result<string, MetatorError>> {
+    if (!c.patch) return ok(c.head);
+    const dir = `${runsDir.replace(/\/$/, "")}/worktrees/${c.id}`;
+    const git = async (args: readonly string[], cwd = this.root) => {
+      const r = await this.runner.run({ argv: ["git", ...args], cwd }, { timeoutMs: 120_000 });
+      return r.exitCode === 0
+        ? ok(r.stdout.trim())
+        : err(new MetatorError("INTERNAL", `git ${args[0]} for ${c.id}: ${r.stderr.trim() || r.exitCode}`));
+    };
+    await git(["worktree", "remove", "--force", dir]);
+    const added = await git(["worktree", "add", "--detach", dir, c.base]);
+    if (added.isErr()) return err(added.error);
+    const applied = await git(["apply", `${this.root}/${c.patch}`], `${this.root}/${dir}`);
+    if (applied.isErr()) return err(applied.error);
+    const committed = await git(
+      ["-c", "user.name=metator", "-c", "user.email=metator@localhost", "commit", "-aqm", `golden ${c.id}`],
+      `${this.root}/${dir}`,
+    );
+    if (committed.isErr()) return err(committed.error);
+    const head = await git(["rev-parse", "HEAD"], `${this.root}/${dir}`);
+    await git(["worktree", "remove", "--force", dir]);
+    return head;
+  }
 
   async execute(input: {
     readonly command: string;
@@ -180,12 +211,14 @@ export class RunEvals {
     if (cases.isErr()) return err(cases.error);
     const runs: { case: string; run: number; exitCode: number; durationMs: number }[] = [];
     for (const c of cases.value) {
+      const head = await this.materialize(c, input.runsDir);
+      if (head.isErr()) return err(head.error);
       for (let run = 1; run <= input.repeat; run++) {
         const out = `${input.runsDir.replace(/\/$/, "")}/${c.id}/${run}`;
         const values: Record<string, string> = {
           case: c.id,
           base: c.base,
-          head: c.head,
+          head: head.value,
           out,
           run: String(run),
         };
@@ -209,7 +242,7 @@ export class RunEvals {
             env: {
               METATOR_EVAL_CASE: c.id,
               METATOR_EVAL_BASE: c.base,
-              METATOR_EVAL_HEAD: c.head,
+              METATOR_EVAL_HEAD: head.value,
               METATOR_EVAL_OUT: out,
             },
           },

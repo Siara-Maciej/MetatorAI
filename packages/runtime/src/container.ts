@@ -163,6 +163,7 @@ import {
   type RunGate,
   type RunJournal,
   type RunMessages,
+  type RunQuarterlyReview,
   type RunRefactorPlan,
   type RunRepository,
   type RunSystemEvals,
@@ -172,6 +173,7 @@ import {
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
+  type SeedGoldenSet,
   type SetupWorktree,
   type ShowChangeDiff,
   type ShowSystem,
@@ -259,6 +261,8 @@ export interface Cradle {
   issues: Issues;
   planBoard: PlanBoard;
   openEditor: OpenEditor;
+  seedGoldenSet: SeedGoldenSet;
+  quarterlyReview: RunQuarterlyReview;
   reviewNotes: ReviewNotes;
   runChanges: RunChanges;
   containerRuntime: ContainerRuntime;

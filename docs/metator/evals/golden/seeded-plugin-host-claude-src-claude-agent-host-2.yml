@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-plugin-host-claude-src-claude-agent-host-2
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-plugin-host-claude-src-claude-agent-host-2
+patch: docs/metator/evals/golden/patches/seeded-plugin-host-claude-src-claude-agent-host-2.patch
+origin: "scripts/mutants.ts: a declared command fed a quoted here-document asks no one"
+description: a declared command fed a quoted here-document asks no one
+expected:
+  - file: packages/plugin-host-claude/src/claude-agent-host.ts
+    line: 208
+    tolerance: 3
+    severity: blocking
+    note: a declared command fed a quoted here-document asks no one

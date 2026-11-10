@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-57ed5acd15
+type: clean
+base: 37be84da5839576182f4e9743a1fd5645eb86154
+head: 57ed5acd151bbd749b79be97777ebcf1f687fec5
+origin: history
+description: "S2: the plan board: stages with who worked them, steps with their live state, workers, what waits, artifacts, gates"
+expected: []

@@ -1,0 +1,9 @@
+{
+  "kind": "EvalCase",
+  "schemaVersion": 1,
+  "id": "rate-undefined",
+  "type": "bug",
+  "base": "main~1",
+  "head": "main",
+  "expected": [{ "file": "src/pay.ts", "line": 3, "lens": "logic" }]
+}

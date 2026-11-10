@@ -1212,6 +1212,21 @@ metator meta check-all [options]
 |---|---|---|
 | `--min-e1 <percent>` | rules coverage floor: percent of rules a tool enforces | `40` |
 
+### `metator meta quarterly`
+
+The quarterly review (F6): rule coverage and dead rules, memory budgets, stale documents, unpromoted lessons, review evals against a baseline; written to .metator/reviews/
+
+```bash
+metator meta quarterly [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--stale-days <days>` | a document or lesson untouched this long is stale | `90` |
+| `--baseline <file>` | EvalReport of the baseline (from `metator eval score`) |  |
+| `--report <file>` | EvalReport of the current state to compare with the baseline |  |
+| `--tolerance <ratio>` | allowed drop per eval number | `0.02` |
+
 ### `metator meta agents-schema`
 
 Print the JSON Schema of a canonical agent's front matter
@@ -1476,6 +1491,31 @@ metator eval run [options]
 | `--runs-dir <dir>` | where each run writes &lt;case&gt;/&lt;run&gt;/ | `".metator/evals"` |
 | `--repeat <n>` | runs per case (stability) | `3` |
 | `--timeout-ms <ms>` | per run | `1800000` |
+
+### `metator eval list`
+
+The golden set: every case with its type, base and head
+
+```bash
+metator eval list [options]
+```
+
+### `metator eval seed`
+
+Write golden cases from the unit suite's mutants (seeded), the commits later fixes repaired (bug) and ordinary commits (clean)
+
+```bash
+metator eval seed [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--mutants <file>` | a JSON array of {file, from, to, why} (scripts/golden-seed.ts writes it from scripts/mutants.ts) |  |
+| `--seeded <n>` | how many seeded cases | `30` |
+| `--bugs <n>` | how many bug cases | `10` |
+| `--clean <n>` | how many clean cases | `10` |
+| `--base <ref>` | the ref seeded cases are planted on | `"HEAD"` |
+| `--history <n>` | how many commits back fixes and clean changes are looked for | `500` |
 
 ### `metator eval score`
 

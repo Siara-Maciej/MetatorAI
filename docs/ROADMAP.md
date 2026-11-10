@@ -34,7 +34,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 
 **Stan:** wszystko, co da się zrobić w kodzie tego repo, jest zrobione.
 
-**Wymaga repo pilota lub ludzi (nie da się zamknąć w tym repo):** lub ludzi (nie da się zamknąć w tym repo):** F0 (inwentarz, spike platformy, baseline), złoty zbiór ≥ 50 PR-ów, 10–15 wzorców pilota, W7 na ADR pilota, rename agentów pilota, kryteria wyjścia faz mierzone na zadaniach pilota. W F6: procesy ciągłe (retro po runach, przegląd kwartalny, rozszerzanie na domeny), polityka Copilot Memory i opcjonalne integracje (MCP, StrykerJS, Semgrep).
+**Wymaga repo pilota lub ludzi (nie da się zamknąć w tym repo):** F0 na pilocie (inwentarz, spike platformy w ADR-0009, baseline z realnych PR-ów), złoty zbiór z PR-ów pilota (w tym repo: 56 przypadków z własnej historii), 10–15 wzorców pilota (w tym repo: 10 wzorców MetatorAI), W7 na ADR pilota, rename agentów pilota, kryteria wyjścia faz mierzone na zadaniach pilota, publikacja npm (konto właściciela), rozszerzanie na kolejne domeny. Narzędzia i procesy F6 (retro, przegląd kwartalny, polityka Copilot Memory) są gotowe i przećwiczone na tym repo; opcjonalne integracje MCP `metator-knowledge` i StrykerJS odłożone (poniżej).
 
 **Odłożone decyzją:** F5.
 
@@ -45,7 +45,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 **Cel:** wiedzieć, co macie, co działa w Waszej wersji Copilota, i mieć baseline.
 
 **Zadania**
-- [ ] Inwentarz: agenci, prompty, skille, instrukcje, ADR (ręcznie albo pierwsza wersja `metator meta audit` + `metator memory inventory`). Narzędzia gotowe (`meta audit`, `memory inventory`, `docs inventory`); uruchomienie w repo pilota.
+- [ ] Inwentarz: agenci, prompty, skille, instrukcje, ADR (ręcznie albo pierwsza wersja `metator meta audit` + `metator memory inventory`). Narzędzia gotowe (`meta audit`, `memory inventory`, `docs inventory`); uruchomienie w repo pilota. Dogfood na MetatorAI: [docs/audit/2026-11-10-metatorai.md](audit/2026-11-10-metatorai.md).
 - [ ] Karta zgodności dla każdego orchestratora ([workflows §4](design/02-workflows.md#4-audyt-istniejących-orchestratorów)). Narzędzie gotowe (`workflow lint`, 16 sekcji); uruchomienie na orchestratorach pilota.
 - [ ] Graf wywołań agent → agent/skill. Szukamy cykli, martwych elementów i zagnieżdżeń > 2. Narzędzie gotowe (`meta audit`); uruchomienie na agentach pilota.
 - [ ] **Spike platformy** na wersji VS Code i CLI używanej w organizacji, z wynikami zapisanymi w ADR-0009:
@@ -54,7 +54,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
   - [ ] hooki: nagranie realnych payloadów stdin dla `PreToolUse`, `PostToolUse`, `SubagentStop`, `Stop`, `PreCompact`. Który format decyzji działa (`hookSpecificOutput.permissionDecision` vs inne), zachowanie exit code,
   - [ ] skille ze skryptami: VS Code, Copilot CLI (`--agent`), coding agent,
   - [ ] polityki org: hooki (preview), MCP allowlist, dostępne modele (≥ 2 rodziny).
-- [ ] Baseline: 3–5 realnych zadań i 10 PR-ów zrobionych obecnym workflow. Mierzymy czas, liczbę poprawek człowieka, błędy znalezione później i oceny trafności komentarzy review.
+- [ ] Baseline: 3–5 realnych zadań i 10 PR-ów zrobionych obecnym workflow. Mierzymy czas, liczbę poprawek człowieka, błędy znalezione później i oceny trafności komentarzy review. **Wymaga pilota:** realnych PR-ów i ludzi; narzędzia pomiaru gotowe (`metator report`, `findings react`).
 
 **Produkty:** `docs/metator/audit/AUDIT-<data>.md`, `docs/adr/0009-host-platform.md`, nagrane payloady hooków w `packages/testing/fixtures/hooks/`, baseline metryk.
 
@@ -134,7 +134,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] `findings validate [--fix]|merge|schema` ([ADR-0031](adr/0031-findings.md)): `FindingSet`, polityka blocking, cytaty sprawdzane w kodzie, scalanie przyczyn między soczewkami.
 - [x] Subflow review ([ADR-0032](adr/0032-review-core.md)): `review plan`, `findings verdict`, `findings to-github --format natural|labeled`, agenci `mt-pr-review`, `mt-review-{logic,contracts,conventions,tests,security}`, `mt-verifier`, `mt-judge`.
 - [x] Hook `SubagentStop` → `guard subagent-output` (ADR-0038).
-- [ ] **Złoty zbiór v1:** ≥ 50 PR-ów: z prawdziwymi bugami (z hotfixów i revertów), z zasianymi bugami (mutacje w kopii PR-a) i czyste (kontrola FP). Format w `docs/metator/evals/golden/`.
+- [x] **Złoty zbiór v1:** ≥ 50 przypadków w `docs/metator/evals/golden/` (`EvalCase` v2): `metator eval seed` pisze je z tego, co repozytorium już wie: zasiane (mutanty z `scripts/mutants.ts` jako łatki nakładane na bazę; `eval run` robi z łatki commit w tymczasowym worktree), prawdziwe bugi (commit, który późniejszy fix naprawił, wskazany przez `git blame` usuniętych linii) i czyste (zwykłe commity). Na MetatorAI: 36 zasianych, 4 bugi, 14 czystych (`bun run golden:seed`). Przypadki z PR-ów pilota dojdą, gdy będzie pilot.
 - [x] `eval run|score|compare|schema` ([ADR-0033](adr/0033-review-evals.md)): `EvalCase`, precision/recall, blocking precision, fałszywe blokady, wariancja decyzji, bramka regresji; host jako szablon komendy (np. `copilot -p … --agent mt-pr-review --no-ask-user -s`).
 - [x] Zachowanie trybów eq: Author/Reviewer flow (`findings to-github --role author|reviewer`), format naturalny/etykietowany, autopilot (`--choice autopilot` → L1, bramki `skipAt` zatwierdzane przez poziom autonomii, `neverSkip` i push zawsze przez człowieka; ADR-0046).
 
@@ -180,11 +180,11 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 ## F6: Uczenie się i skalowanie (ciągle)
 
 **Zadania**
-- [ ] W11 `mt-retro` po każdym większym runie. Lessons z cytatami, awans lekcji do reguł (i do E1). Narzędzia gotowe (`mt-retro`, `lessons add`, `rules scaffold`, `run close`); proces ciągły.
-- [ ] Polityka Copilot Memory (co wolno, przegląd konfliktów z canon).
-- [ ] Rozszerzenie na kolejne domeny monorepo: karty, wzorce, reguły per domena, złoty zbiór per domena.
-- [ ] Opcjonalnie: MCP `metator-knowledge` (indeks dostępny dla wielu repo i powierzchni), StrykerJS (mutation score jako bramka), Semgrep (soczewka security).
-- [ ] Kwartalny przegląd: evale, progi, budżety, martwe reguły (`rules coverage`), nieużywane lessons. Narzędzia gotowe (`eval compare`, `memory budget`, `rules coverage`, `docs inventory` z wiekiem plików); proces ciągły.
+- [x] W11 `mt-retro` po każdym większym runie. Lessons z cytatami, awans lekcji do reguł (i do E1). Narzędzia gotowe (`mt-retro`, `lessons add`, `rules scaffold`, `run close`); pierwsze retro po fazie S: 3 lekcje w `docs/metator/lessons/` z cytatami `plik:linia`. Proces ciągły: `meta quarterly` wylicza lekcje starsze niż 90 dni, których canon nie cytuje.
+- [x] Polityka Copilot Memory (co wolno, przegląd konfliktów z canon): [ADR-0082](adr/0082-copilot-memory-policy.md) (Proposed).
+- [ ] Rozszerzenie na kolejne domeny monorepo: karty, wzorce, reguły per domena, złoty zbiór per domena. **Wymaga pilota** (domen poza MetatorAI); w tym repo katalog wzorców ma 10 wzorców (`patterns scan --check`).
+- [ ] Opcjonalnie: MCP `metator-knowledge` (indeks dostępny dla wielu repo i powierzchni), StrykerJS (mutation score jako bramka), Semgrep (soczewka security). Odłożone: `metator mcp` już serwuje wiedzę jednego repo; StrykerJS nie wspiera `bun:test` (smoke mutacyjny `scripts/mutants.ts` pełni tę rolę); Semgrep wymaga binarki, której CI nie ma, a ast-grep pokrywa reguły E1.
+- [x] Kwartalny przegląd: `metator meta quarterly [--stale-days 90] [--baseline <EvalReport> --report <EvalReport>]` składa `QuarterlyReview` v1 (pokrycie i martwe reguły, budżety pamięci, dokumenty bez zmian od sezonu, lekcje bez awansu, regresje evali) i listę działań do `.metator/reviews/`. Proces ciągły: raz na kwartał, decyzje podejmują właściciele.
 
 **KPI programu:** precision i recall review (eval + produkcja), dismissed rate, % reguł E1, naruszenia architektury wykryte po merge (→ 0), lead time zadania, poprawki człowieka na zadanie, koszt tokenów na zadanie/PR, liczba eskalacji na run.
 
@@ -296,7 +296,7 @@ Decyzja właściciela (2026-11-09): nie używamy herdr. Budujemy własny runtime
 - [x] R3 Sensor i uwaga: `HostManifest` v1 dla Copilota (working, blocked, idle z ekranu i hooków), okna zgody hosta w inboxie z akcją attach, powiadomienia.
 - [x] R4 Klienci: aplikacja na modelu workspace/pane (pasek boczny, siatka pane'ów runu), `metator attach <pane>` w terminalu z prefiksem odłączenia.
 - [x] R5 Grupy worktree'ów i zamykanie runu, supervisor nad pane'ami (wznowienie dyrygenta, nudge, budżet uwagi).
-- [ ] Później: Claude Code jako drugi host przez te same porty.
+- [x] Później: Claude Code jako drugi host przez te same porty (D6/R3: `ClaudeInteractiveHost`, wbudowany `HostManifest` dla `claude`, hooki w `.claude/settings.json`, `run start --host claude`; e2e `interactive-hosts`). Kalibracja wzorców ekranu na prawdziwym Claude Code czeka na maszynę z hostem.
 
 ## Faza S: opcje, plan, backlog, przegląd kodu (wzorowane na herdr)
 
@@ -304,7 +304,7 @@ Projekt: [design/13](design/13-options-workbench.md), zaakceptowany 2026-11-09 (
 
 - [x] S1 System opcji: `OptionDefinition` (abstrakcja, podklasy, rejestr), `UserOptions` v1 (`~/.config/metator/options.yml`), `options:` w `MetatorConfig` v8, nałożenie zakresów user/repo/run z diagnostyką zamiast błędu, `metator config get|set|list|schema`, demon `/options` + `/ws/options`, ekran Settings w aplikacji; pierwsza lista opcji (ui, keys, notify, terminal, editor, supervisor, hosts, worktrees, experimental).
 - [x] S2 Podgląd planu: projekcja `PlanBoard` (etapy, kroki planu ze statusem, pane'y, pytania, artefakty, co dalej), `run board`, ekran Plan w aplikacji z akcjami (zatwierdź, odpowiedz, otwórz pane, dodaj zadanie, komentarz).
-- [ ] S3 Proces: PR per feature, subskrypcja PR, opis PR z „Co / Jak sprawdzić / Ryzyka”.
+- [x] S3 Proces: PR per feature, subskrypcja PR, opis PR z „Co / Jak sprawdzić / Ryzyka”. Zastosowane od S1 (PR #10, #13, #14); S6 i S2 weszły na `main` razem z S4 przez PR #13, bo ich osobne PR-y (#11, #12) były od niego zależne i dzieliły poprawki CI.
 - [x] S4 Lokalne zadania: `Issue` v1 w `.metator/issues/`, `issue propose` (agent) → pytanie w inboxie → zgoda osoby, `issue add|list|show|edit|close|drop|start`, ekran Backlog, MCP do czytania.
 - [x] S6 Siatka jak w herdr: pisanie wprost w kafelku (`ui.attachOnType`), zoom, drzewo podziału i przeciąganie zapisane w `Layout` v2, tryb kopiowania z wyszukiwaniem, ramki i etykiety pane'ów, go-to picker (`prefix+g`), menu kontekstowe, pasek etapów runu pod tabami, wszystkie skróty przez `keys.*`. Kolejność: S1 → S6 → S2 → S4 → S5.
 - [x] S5 Podgląd kodu: `open-editor` (VS Code na worktree/pliku/diffie z `editor.*`), ekran Review z diffem i komentarzami inline (`ReviewNote` v1), „Send to agent” jako `RunMessage` (topic `review`), `addressed` po zmianie; `review notes list|add|send`.

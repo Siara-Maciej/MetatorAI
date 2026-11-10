@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-dd3b9a127f
+type: clean
+base: 781c6a469a10e27bb692ef007b8b5171b697beda
+head: dd3b9a127fa5fc5d3e49784832eb9e9d4aa2fbc8
+origin: history
+description: "S1: the worktrees test follows RunRecord v7"
+expected: []

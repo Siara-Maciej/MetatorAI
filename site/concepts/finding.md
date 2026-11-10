@@ -13,7 +13,8 @@ AI review fails in two ways: comments that are confidently wrong, and silence on
 | `.metator/runs/<id>/review-plan.json` | the diff sharded by package, each shard with its module card and rule pack |
 | `.metator/runs/<id>/findings/<lens>-<shard>.json` | a `FindingSet` per lens and shard: logic, contracts, conventions, tests, security, equivalence |
 | `.metator/runs/<id>/verdict.json` | the judge's decision after verification: what blocks, what was verified correct |
-| `docs/metator/evals/` | the golden set and the scores |
+| `docs/metator/evals/golden/` | the golden set: `EvalCase` files, seeded cases with their patches under `patches/` |
+| `.metator/evals/` | the scores of a run of the set |
 
 ## How a review runs
 
@@ -31,9 +32,15 @@ metator review plan --base main                       # shards with card and rul
 metator findings validate <dir> --fix                 # invented quotes and unproven blockers never reach a human
 metator findings check-quote src/a.ts --line 41 --quote "…"   # one claimed quote against the code
 metator findings verdict                              # merge, calibrate, decide
+metator eval seed --mutants mutants.json --seeded 30 --bugs 10 --clean 10   # the golden set from what the repo knows
+metator eval list                                              # the cases by type
 metator eval run --command "scripts/review.sh {case} {out}"   # precision and recall on the golden set
 metator eval compare                                  # fails CI when review got worse
 ```
+
+## Where the golden set comes from
+
+`metator eval seed` writes cases from what the repository already knows, so the set reaches fifty cases before anyone hand-writes one. **Seeded** cases plant the unit suite's mutants (`scripts/mutants.ts`, the bugs the tests are proven to catch) on the base commit as a patch: a review must find the planted bug at the planted line. **Bug** cases are the commits a later fix repaired: the lines the fix removed are blamed, and when they come from one commit, that commit against its parent is the case and the removed lines are what a review had to find. **Clean** cases are ordinary commits that touch code and look like no fix: a review must not block them. `eval run` turns a seeded case's patch into a commit in a temporary worktree, so the reviewer sees a real `{head}`. In MetatorAI `bun run golden:seed` does it from `scripts/mutants.ts`.
 
 ## What enforces it
 

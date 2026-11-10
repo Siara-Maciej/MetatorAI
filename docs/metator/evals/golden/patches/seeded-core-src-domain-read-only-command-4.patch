@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/domain/read-only-command.ts b/packages/core/src/domain/read-only-command.ts
+--- a/packages/core/src/domain/read-only-command.ts
++++ b/packages/core/src/domain/read-only-command.ts
+@@ -455,7 +455,7 @@
+   const m = /^\s*([^\n]*?)\s*<<-?\s*(['"])([A-Za-z_]\w*)\2[ \t]*\n[\s\S]*?\n\3[ \t]*\n?$/.exec(command);
+   if (!m) return false;
+   const head = (m[1] as string).trim();
+-  if (/[`;|&<>]|\$/.test(head)) return false;
++  
+   return declared.some((p) => head === p || head.startsWith(`${p} `));
+ }
+ 

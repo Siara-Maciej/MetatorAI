@@ -1,0 +1,15 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: bug-8dc4219382
+type: bug
+base: efa191ea2b5e7e7e7a9ecc0b13c7f4769ed50c9a
+head: 8dc4219382a1090fce57fecb0f01253cb94c1a75
+origin: fixed by 626ff2274ba04d5ac1bd14e75c1129756ce9ff51
+description: "F2: memory map with inventory, budgets, citations and CI guard (fixed later by: F2: module cards with generated facts and curated knowledge)"
+expected:
+  - file: package.json
+    line: 15
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 626ff2274ba0: F2: module cards with generated facts and curated knowledge"
