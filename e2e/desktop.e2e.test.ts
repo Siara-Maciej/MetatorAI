@@ -109,7 +109,8 @@ beforeAll(async () => {
   });
   const b = await browser();
   page = await b.newPage({ viewport: { width: 1440, height: 900 } });
-  page.on("pageerror", (e) => errors.push(e.message));
+  // The stack names the code that threw; on CI it is the only trace of a page error.
+  page.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
   page.on("console", (m) => {
     if (m.type() === "error") errors.push(m.text());
   });
