@@ -7,7 +7,7 @@ import { defineDocument } from "./versioned.ts";
  * changed, a file both touch, or that it is done. Delivered to the receiving run's agents as
  * data, under a header that says so; hooks never read its text.
  */
-export const RunMessageSchema = z.strictObject({
+const RunMessageV1Schema = z.strictObject({
   id: z.string().regex(/^m[0-9]{3,}$/),
   fromRun: z.string().regex(RUN_ID),
   toRun: z.string().regex(RUN_ID),
@@ -20,10 +20,18 @@ export const RunMessageSchema = z.strictObject({
   /** Who sent it: an agent of the sending run, or a person. */
   by: z.string().min(1),
 });
+
+/** v2 (S5) adds the review topics: a person's notes on the change, and the agents' reply to them. */
+export const MESSAGE_TOPICS = ["info", "contract", "shared-file", "done", "review", "review-reply"] as const;
+export type MessageTopic = (typeof MESSAGE_TOPICS)[number];
+export const RunMessageSchema = RunMessageV1Schema.extend({ topic: z.enum(MESSAGE_TOPICS) });
 export type RunMessage = z.output<typeof RunMessageSchema>;
 
 export const RunMessageDocument = defineDocument("RunMessage", {
   latest: RunMessageSchema,
+  history: [{ schema: RunMessageV1Schema }],
+  // Every v1 topic is a v2 topic.
+  upgrade: (previous) => previous,
   hint: "Send one with `metator run message <to> --from <run> --topic <topic> --text <text> --by <who>`.",
 });
 

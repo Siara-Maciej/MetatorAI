@@ -124,6 +124,7 @@ import {
   MetatorError,
   type MetatorPaths,
   type Notifier,
+  type OpenEditor,
   type OptionStore,
   ok,
   type PackageManager,
@@ -149,12 +150,14 @@ import {
   type RepositoryRuns,
   type Result,
   type ResumeRun,
+  type ReviewNotes,
   type RevisionReader,
   type RuleCatalog,
   type RuleEngine,
   type RuleScaffolder,
   type RunAffectedTests,
   type RunArchEvals,
+  type RunChanges,
   type RunDrivers,
   type RunEvals,
   type RunGate,
@@ -255,6 +258,9 @@ export interface Cradle {
   optionStore: OptionStore;
   issues: Issues;
   planBoard: PlanBoard;
+  openEditor: OpenEditor;
+  reviewNotes: ReviewNotes;
+  runChanges: RunChanges;
   containerRuntime: ContainerRuntime;
   healthProbe: HealthProbe;
   environmentCatalog: EnvironmentCatalog;

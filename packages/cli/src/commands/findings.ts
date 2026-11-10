@@ -214,7 +214,7 @@ export function registerFindingsCommands(program: Command, { action, container }
     .action(action(() => ({ result: ok(FindingSetDocument.jsonSchema("input")) })));
 }
 
-export function registerReviewCommands(program: Command, { action, container }: CommandContext): void {
+export function registerReviewCommands(program: Command, { action, container, runs }: CommandContext): void {
   const review = program.command("review").description("Plan a review of the change and describe it");
   review
     .command("metadata")
@@ -243,6 +243,83 @@ export function registerReviewCommands(program: Command, { action, container }: 
             ...(files.length > 0 ? { files: files.map(normalizePath) } : {}),
             ...(opts.out ? { out: normalizePath(opts.out) } : {}),
           }),
+      })),
+    );
+  // The change of a run and a person's notes on it (S5, design/13 §5).
+  review
+    .command("changes")
+    .description("The files a run changed, with their line counts; --file adds that file's diff as hunks")
+    .option("--run <id>", "run id (default: latest)")
+    .option("--file <path>", "one file's diff, as hunks and numbered lines")
+    .action(
+      action(async (opts: { run?: string; file?: string }) => ({
+        result: await runs()
+          .resolve("runChanges")
+          .execute({ ...(opts.run ? { runId: opts.run } : {}), ...(opts.file ? { file: opts.file } : {}) }),
+      })),
+    );
+  const notes = review
+    .command("notes")
+    .description("A person's notes on a run's change, sent to its agents as one message");
+  notes
+    .command("list")
+    .description("The notes with their status (draft, sent, addressed)")
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (opts: { run?: string }) => ({
+        result: await runs().resolve("reviewNotes").list(opts.run),
+      })),
+    );
+  notes
+    .command("add")
+    .description("A note on a file and line (or on the whole change); it waits as a draft until `notes send`")
+    .argument("<text>", "the note")
+    .option("--run <id>", "run id (default: latest)")
+    .option("--file <path>", "the file it is about (repo-relative)")
+    .option("--line <n>", "the line in it", (v: string) => Number(v))
+    .addOption(new Option("--side <side>", "the old or the new side of the diff").choices(["old", "new"]))
+    .requiredOption("--by <name>", "who writes it")
+    .action(
+      action(
+        async (
+          text: string,
+          opts: { run?: string; file?: string; line?: number; side?: "old" | "new"; by: string },
+        ) => ({
+          result: await runs()
+            .resolve("reviewNotes")
+            .add(opts.run, {
+              text,
+              by: opts.by,
+              ...(opts.file ? { file: opts.file } : {}),
+              ...(opts.line ? { line: opts.line } : {}),
+              ...(opts.side ? { side: opts.side } : {}),
+            }),
+        }),
+      ),
+    );
+  notes
+    .command("send")
+    .description("The draft notes go to the run's agents as one message (topic review)")
+    .option("--run <id>", "run id (default: latest)")
+    .requiredOption("--by <name>", "who sends")
+    .action(
+      action(async (opts: { run?: string; by: string }) => ({
+        result: await runs().resolve("reviewNotes").send(opts.run, { by: opts.by }),
+      })),
+    );
+  notes
+    .command("status")
+    .description("Mark a note addressed, or reopen it as a draft")
+    .argument("<id>", "the note id (n001)")
+    .addOption(
+      new Option("--set <status>", "the new status")
+        .choices(["draft", "sent", "addressed"])
+        .default("addressed"),
+    )
+    .option("--run <id>", "run id (default: latest)")
+    .action(
+      action(async (id: string, opts: { run?: string; set: "draft" | "sent" | "addressed" }) => ({
+        result: await runs().resolve("reviewNotes").setStatus(opts.run, id, opts.set),
       })),
     );
   review

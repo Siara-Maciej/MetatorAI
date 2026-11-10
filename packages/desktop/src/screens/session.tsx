@@ -11,11 +11,14 @@ export function SessionScreen({
   runId,
   pane: wantedPane,
   onOpenSession,
+  onOpenReview,
 }: {
   readonly runId: string;
   /** The pane to show first (from the sessions panel); the conductor otherwise. */
   readonly pane?: string | undefined;
   onOpenSession(runId: string): void;
+  /** The run's change with the notes on it (S5). */
+  onOpenReview(runId: string): void;
 }) {
   const { client, runs, panes: allPanes, url, me, setMe } = useDaemon();
   const run = runs.find((r) => r.runId === runId);
@@ -276,6 +279,14 @@ export function SessionScreen({
         </div>
         <div className="box">
           <h3>Changes</h3>
+          <div className="row">
+            <button type="button" className="ghost" onClick={() => onOpenReview(runId)}>
+              Review
+            </button>
+            <button type="button" className="ghost" onClick={() => void client.openEditor(runId, {}, repo)}>
+              Open in editor
+            </button>
+          </div>
           {run.worktree ? (
             <div className="muted">
               {run.worktree.branch} · <code>{run.worktree.path}</code>

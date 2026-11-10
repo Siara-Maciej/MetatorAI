@@ -145,7 +145,7 @@ export interface RunMessage {
   readonly fromRun: string;
   readonly toRun: string;
   readonly at: string;
-  readonly topic: "info" | "contract" | "shared-file" | "done";
+  readonly topic: "info" | "contract" | "shared-file" | "done" | "review" | "review-reply";
   readonly text: string;
   readonly refs: readonly string[];
   readonly by: string;
@@ -337,6 +337,43 @@ export interface Issue {
   readonly runId?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+/** A person's note on a run's change (ReviewNotes v1). */
+export interface ReviewNote {
+  readonly id: string;
+  readonly file?: string;
+  readonly line?: number;
+  readonly side?: "old" | "new";
+  readonly text: string;
+  readonly by: string;
+  readonly at: string;
+  readonly status: "draft" | "sent" | "addressed";
+  readonly sentIn?: string;
+}
+export interface DiffLine {
+  readonly kind: "context" | "add" | "del";
+  readonly old?: number;
+  readonly new?: number;
+  readonly text: string;
+}
+export interface FileDiff {
+  readonly path: string;
+  readonly status: "modified" | "added" | "deleted" | "renamed";
+  readonly added: number;
+  readonly removed: number;
+  readonly hunks: readonly { readonly header: string; readonly lines: readonly DiffLine[] }[];
+}
+export interface RunChangesView {
+  readonly runId: string;
+  readonly dir: string;
+  readonly base: string;
+  readonly files: readonly {
+    readonly path: string;
+    readonly added: number;
+    readonly removed: number;
+    readonly status: FileDiff["status"];
+  }[];
+  readonly diff?: FileDiff;
 }
 export interface PlanBoardView {
   readonly runId: string;
@@ -533,6 +570,23 @@ export class DaemonClient {
     this.post<TabView>(`/tabs/${encodeURIComponent(tabId)}/tree`, { tree }, repo);
   closeWorkspace = (workspace: string, repo?: string) =>
     this.post<{ closed: number }>(`/workspaces/${encodeURIComponent(workspace)}/close`, {}, repo);
+  openEditor = (runId: string, body: { file?: string; line?: number } = {}, repo?: string) =>
+    this.post<{ argv: string[]; dir: string }>(`/runs/${runId}/open-editor`, body, repo);
+  openPaneEditor = (paneId: string, repo?: string) =>
+    this.post<{ argv: string[]; dir: string }>(`/panes/${encodeURIComponent(paneId)}/open-editor`, {}, repo);
+  reviewChanges = (runId: string, file?: string, repo?: string) =>
+    this.get<RunChangesView>(`/runs/${runId}/review${file ? `?file=${encodeURIComponent(file)}` : ""}`, repo);
+  reviewNotes = (runId: string, repo?: string) =>
+    this.get<{ runId: string; notes: ReviewNote[] }>(`/runs/${runId}/review-notes`, repo);
+  addNote = (
+    runId: string,
+    body: { file?: string; line?: number; side?: "old" | "new"; text: string; by: string },
+    repo?: string,
+  ) => this.post<ReviewNote>(`/runs/${runId}/review-notes`, body, repo);
+  sendNotes = (runId: string, by: string, repo?: string) =>
+    this.post<{ message: RunMessage; notes: ReviewNote[] }>(`/runs/${runId}/review-send`, { by }, repo);
+  setNoteStatus = (runId: string, id: string, status: ReviewNote["status"], repo?: string) =>
+    this.post<ReviewNote>(`/runs/${runId}/review-note-status`, { id, status }, repo);
   issues = (repo?: string) => this.get<{ issues: Issue[] }>("/issues", repo);
   addIssue = (
     body: {

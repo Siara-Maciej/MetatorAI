@@ -168,6 +168,7 @@ export type Route =
       readonly screen: "backlog";
       readonly draft?: { readonly title?: string; readonly refs?: readonly IssueRef[] };
     }
+  | { readonly screen: "review"; readonly runId: string; readonly file?: string }
   | { readonly screen: "briefing"; readonly runId: string };
 
 export function parseRoute(hash: string): Route {
@@ -201,6 +202,12 @@ export function parseRoute(hash: string): Route {
       return { screen: "settings" };
     case "backlog":
       return { screen: "backlog" };
+    case "review": {
+      const file = parts.slice(2).map(decodeURIComponent).join("/");
+      return arg
+        ? { screen: "review", runId: decodeURIComponent(arg), ...(file ? { file } : {}) }
+        : { screen: "inbox" };
+    }
     case "briefing":
       return arg ? { screen: "briefing", runId: decodeURIComponent(arg) } : { screen: "inbox" };
     case "plan":
@@ -220,6 +227,8 @@ export function routeHash(route: Route): string {
       return `#/plan/${encodeURIComponent(route.runId)}`;
     case "backlog":
       return "#/backlog";
+    case "review":
+      return `#/review/${encodeURIComponent(route.runId)}${route.file ? `/${route.file.split("/").map(encodeURIComponent).join("/")}` : ""}`;
     case "grid":
       return route.pane
         ? `#/grid/pane:${encodeURIComponent(route.pane)}`

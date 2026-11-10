@@ -41,3 +41,33 @@ export function preferredEditor(
 ): string | undefined {
   return configured || env.VISUAL || env.EDITOR || undefined;
 }
+
+/** Editors that take `--goto file:line` and `-r` (reuse the window): VS Code and its forks. */
+const GOTO_EDITORS = new Set(["code", "code-insiders", "cursor", "windsurf"]);
+
+/**
+ * The command that opens a directory, or a file at a line, in the editor (S5): VS Code and its
+ * forks get the directory, then `--goto file:line`; other editors get the file (or the directory).
+ * `reuse` adds `-r` for the VS Code family, so one window follows the run.
+ */
+export function editorArgv(
+  editor: string,
+  target: { readonly dir: string; readonly file?: string; readonly line?: number; readonly reuse?: boolean },
+): string[] {
+  const words = editor
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w !== "");
+  const base = (words[0] ?? "").split("/").pop() ?? "";
+  const file = target.file ? `${target.dir}/${target.file}` : undefined;
+  if (GOTO_EDITORS.has(base))
+    return [
+      ...words,
+      ...(target.reuse ? ["-r"] : []),
+      target.dir,
+      ...(file ? ["--goto", `${file}${target.line ? `:${target.line}` : ""}`] : []),
+    ];
+  if (!file) return [...words, target.dir];
+  const known = KNOWN_EDITORS.find((e) => e.command === base);
+  return known?.terminal && target.line ? [...words, `+${target.line}`, file] : [...words, file];
+}

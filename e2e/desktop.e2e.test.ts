@@ -334,6 +334,34 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
       ["i001", "open"],
       ["i002", "dropped"],
     ]);
+    // The change (S5): a file written in the checkout shows as added with its lines; a note on a
+    // line is a draft until "Send to agent" makes it one review message of the run.
+    await Bun.write(
+      join(repo.root, "src/discount.ts"),
+      "export const discount = 0.1;\nexport const cap = 100;\n",
+    );
+    await page.goto(
+      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/review/${runId}`,
+    );
+    await page.getByTestId("review").waitFor({ timeout: 20_000 });
+    await page.getByTestId("file-src/discount.ts").waitFor({ timeout: 20_000 });
+    expect(await page.getByTestId("file-src/discount.ts").textContent()).toContain("+2");
+    await page.getByTestId("file-src/discount.ts").click();
+    await page.locator(".review .line.add").first().waitFor({ timeout: 20_000 });
+    await page.locator(".review .line.add").nth(1).click();
+    await page.getByLabel("note on line 2").fill("cap in cents?");
+    await page.getByRole("button", { name: "Add note" }).click();
+    await page.locator(".review .inline-note").waitFor({ timeout: 20_000 });
+    await page.getByTestId("send-notes").click();
+    await until("the note sent", async () =>
+      (await page.locator(".review .inline-note.sent").count()) === 1 ? true : undefined,
+    );
+    const sentMessages = (await api(`/runs/${runId}/messages`)).data.messages as {
+      topic: string;
+      text: string;
+    }[];
+    expect(sentMessages.map((m) => m.topic)).toEqual(["review"]);
+    expect(sentMessages[0]?.text).toContain("- src/discount.ts:2: cap in cents?");
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/graph`);
     await page.getByRole("img", { name: "sessions graph" }).waitFor({ timeout: 20_000 });
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/supervisor`);

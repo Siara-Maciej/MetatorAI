@@ -32,6 +32,7 @@ export function WorkbenchScreen({
   onNewTask,
   onOpenSettings,
   onOpenPlan,
+  onOpenReview,
   onOpenBacklog,
   showPane,
 }: {
@@ -39,6 +40,8 @@ export function WorkbenchScreen({
   onNewTask(): void;
   onOpenSettings(): void;
   onOpenPlan(runId: string): void;
+  /** The run's change with the notes on it (S5). */
+  onOpenReview(runId: string): void;
   /** The backlog; with a draft, its form opens for a task that points at a pane's run. */
   onOpenBacklog(draft?: {
     readonly title?: string;
@@ -113,6 +116,17 @@ export function WorkbenchScreen({
   }
   const focused = tabPanes.find((p) => p.id === focus) ?? tabPanes[0];
   const [zoom, setZoom] = useState<string>();
+  /** The editor on a pane's directory, or on the tab's run (its worktree), else the focused pane. */
+  const openEditor = async (p?: PaneView) => {
+    const r = p
+      ? await client.openPaneEditor(p.id, repoName)
+      : tab?.runId
+        ? await client.openEditor(tab.runId, {}, repoName)
+        : focused
+          ? await client.openPaneEditor(focused.id, repoName)
+          : undefined;
+    if (r) setNote(r.ok ? `opened in the editor: ${r.data?.dir ?? ""}` : r.error?.message);
+  };
   // The zoom is the tab's: a tab change drops it.
   const zoomTab = useRef<string | undefined>(undefined);
   if (zoomTab.current !== tab?.key) {
@@ -331,6 +345,9 @@ export function WorkbenchScreen({
         case "backlog":
           onOpenBacklog();
           break;
+        case "changes":
+          if (tab?.runId) onOpenReview(tab.runId);
+          break;
         case "help":
           setNote(
             Object.entries(keymap)
@@ -382,8 +399,13 @@ export function WorkbenchScreen({
         disabled: !p.runId,
         onSelect: () => p.runId && onOpenPlan(p.runId),
       },
-      { label: "Changes", key: key(keymap, "changes"), disabled: true },
-      { label: "Open in VS Code", disabled: true },
+      {
+        label: "Changes",
+        key: key(keymap, "changes"),
+        disabled: !p.runId,
+        onSelect: () => p.runId && onOpenReview(p.runId),
+      },
+      { label: "Open in editor", onSelect: () => void openEditor(p) },
       {
         label: "New task from here…",
         onSelect: () => onOpenBacklog(p.runId ? { refs: [{ run: p.runId }] } : {}),
@@ -556,6 +578,17 @@ export function WorkbenchScreen({
           <span className="amber">? asks {run.questions.length}</span>
         ) : null}
         {tab?.worktree ? <span className="dim mono">{tab.worktree}</span> : null}
+        {tab ? (
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => void openEditor()}
+            title="open in your editor (editor.command)"
+            data-testid="open-editor"
+          >
+            editor
+          </button>
+        ) : null}
       </div>
       <div className="body">
         <aside className="sidebar">

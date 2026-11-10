@@ -1375,6 +1375,75 @@ metator review diff [options] [files...]
 | `--base <ref>` | the branch the change goes into | `"HEAD"` |
 | `--out <path>` | write the patch to this file as plain text (read it with your Read tool) |  |
 
+### `metator review changes`
+
+The files a run changed, with their line counts; --file adds that file's diff as hunks
+
+```bash
+metator review changes [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--file <path>` | one file's diff, as hunks and numbered lines |  |
+
+### `metator review notes list`
+
+The notes with their status (draft, sent, addressed)
+
+```bash
+metator review notes list [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+
+### `metator review notes add`
+
+A note on a file and line (or on the whole change); it waits as a draft until `notes send`
+
+```bash
+metator review notes add [options] <text>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<text>` | the note | |
+| `--run <id>` | run id (default: latest) |  |
+| `--file <path>` | the file it is about (repo-relative) |  |
+| `--line <n>` | the line in it |  |
+| `--side <side>` | the old or the new side of the diff (one of: old, new) |  |
+| `--by <name>` | who writes it **Required.** |  |
+
+### `metator review notes send`
+
+The draft notes go to the run's agents as one message (topic review)
+
+```bash
+metator review notes send [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--by <name>` | who sends **Required.** |  |
+
+### `metator review notes status`
+
+Mark a note addressed, or reopen it as a draft
+
+```bash
+metator review notes status [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the note id (n001) | |
+| `--set <status>` | the new status (one of: draft, sent, addressed) | `"addressed"` |
+| `--run <id>` | run id (default: latest) |  |
+
 ### `metator review plan`
 
 Shards per package with card and rules; lenses run per shard
@@ -1718,7 +1787,7 @@ metator run message [options] <to>
 |---|---|---|
 | `<to>` | the receiving run id | |
 | `--from <run>` | the sending run id **Required.** |  |
-| `--topic <topic>` | what it is about (one of: info, contract, shared-file, done) | `"info"` |
+| `--topic <topic>` | what it is about (one of: info, contract, shared-file, done, review, review-reply) | `"info"` |
 | `--text <text>` | the message **Required.** |  |
 | `--ref <ref>` | a file, run or URL it points at (repeatable) | `[]` |
 | `--by <name>` | who sends: an agent of the run, or a person **Required.** |  |
@@ -2565,6 +2634,23 @@ metator issue start [options] <id>
 | `--workflow <id>` | the workflow to run **Required.** |  |
 | `--no-worktree` | work in the main checkout |  |
 | `--autonomy <level>` | L0 asks at every gate (one of: L0, L1, L2) |  |
+
+## open
+
+### `metator open`
+
+Open a run's worktree (or a pane's directory) in your editor, at a file and line when given
+
+```bash
+metator open [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | the run whose worktree opens (default: latest) |  |
+| `--pane <id>` | a pane: its working directory opens |  |
+| `--file <path>` | a file in it (repo-relative) |  |
+| `--line <n>` | a line of the file |  |
 
 ## attach
 

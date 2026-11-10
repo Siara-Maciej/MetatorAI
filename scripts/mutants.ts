@@ -4696,6 +4696,37 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a proposal cannot start a run: a person adds it first",
   },
   {
+    file: "packages/core/src/domain/review-note.ts",
+    from: '      } else if (raw.startsWith("-")) {\n        hunk.lines.push({ kind: "del", old: oldLine++, text: raw.slice(1) });\n        current.removed++;',
+    to: '      } else if (raw.startsWith("-")) {\n        hunk.lines.push({ kind: "del", old: oldLine++, text: raw.slice(1) });',
+    why: "a deleted line counts as removed",
+  },
+  {
+    file: "packages/core/src/domain/editors.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
+    from: '      ...(file ? ["--goto", `${file}${target.line ? `:${target.line}` : ""}`] : []),',
+    to: '      ...(file ? ["--goto", file] : []),',
+    why: "VS Code opens the file at the line",
+  },
+  {
+    file: "packages/core/src/application/review-notes.ts",
+    from: '      n.status === "draft" ? { ...n, status: "sent" as const, sentIn: message.value.id } : n,',
+    to: "      n,",
+    why: "sent notes remember the message that carried them",
+  },
+  {
+    file: "packages/core/src/application/open-editor.ts",
+    from: '    if (command === "")\n      return err(',
+    to: "    if (false)\n      return err(",
+    why: "no editor set is a usage error, not a launch of nothing",
+  },
+  {
+    file: "packages/core/src/application/run-changes.ts",
+    from: "      .filter((f) => !OWN.some((p) => f.path.startsWith(p)))\n",
+    to: "",
+    why: "MetatorAI's own files are not the change",
+  },
+  {
     file: "packages/core/src/domain/issue.ts",
     from: '  if (choice === PROPOSAL_DROP) return "dropped";',
     to: '  if (choice === PROPOSAL_DROP) return "added";',

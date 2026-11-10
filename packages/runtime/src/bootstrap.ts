@@ -113,6 +113,7 @@ import {
   MetatorError,
   type MetatorPaths,
   Notifier,
+  OpenEditor,
   OptionStore,
   ok,
   PackRules,
@@ -136,9 +137,11 @@ import {
   type RepositoryRuns,
   type Result,
   ResumeRun,
+  ReviewNotes,
   RuleCatalog,
   RunAffectedTests,
   RunArchEvals,
+  RunChanges,
   RunDrivers,
   RunEvals,
   RunGate,
@@ -566,6 +569,30 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           catalog: workflowCatalog,
           conductor,
           paths,
+        }),
+    ),
+    openEditor: asFunction(
+      ({ root, runRepository, panes, optionStore, launcher, runJournal }) =>
+        new OpenEditor({
+          root,
+          repo: runRepository,
+          panes,
+          options: optionStore,
+          launcher,
+          journal: runJournal,
+        }),
+    ),
+    reviewNotes: asFunction(
+      ({ fileSystem, runRepository, runMessages, clock }) =>
+        new ReviewNotes({ fs: fileSystem, repo: runRepository, messages: runMessages, clock }),
+    ),
+    runChanges: asFunction(
+      ({ root, runRepository, processRunner }) =>
+        new RunChanges({
+          root,
+          repo: runRepository,
+          changesAt: (dir) => new GitVcs(dir, [".metator/"]),
+          runner: processRunner,
         }),
     ),
     conductor: asFunction(

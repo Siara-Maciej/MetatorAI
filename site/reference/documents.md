@@ -49,7 +49,8 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `RunDriver` | `.metator/runs/<id>/driver.json` | `metator run drive` |
 | `AnswerPolicies` | `metator/answer-policies.yml` | `metator run answer … --always`; `metator policy rm` |
 | `AgentUsage` | `.metator/runs/<id>/usage.jsonl` | `metator run drive` (one line per agent call) |
-| `RunMessage` | `.metator/runs/<id>/messages/mNNN.json` | `metator run message` |
+| `RunMessage` | `.metator/runs/<id>/messages/mNNN.json` | `metator run message`; v2 adds the `review` and `review-reply` topics |
+| `ReviewNotes` | `.metator/runs/<id>/review/notes.json` | `metator review notes …` and the app's Changes screen: a person's notes on the change, draft, sent or addressed |
 | `RunSeen` | `.metator/runs/<id>/seen.json` | `metator run brief` |
 | `UserOptions` | `~/.config/metator/options.yml` | `metator config set … --scope user`, the app's Settings screen |
 | `Issue` | `.metator/issues/iNNN.json` | `metator issue …`: one task of the backlog, who proposed it and who decided |
