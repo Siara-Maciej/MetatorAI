@@ -180,13 +180,22 @@ function SocketTerminal({
       }
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "input", data }));
     });
+    // A resize observed as the terminal is torn down (a route change) must not reach a disposed
+    // renderer; the fit addon has no size either while the element is detached or hidden.
+    let disposed = false;
     const observer = new ResizeObserver(() => {
-      fit.fit();
+      if (disposed || !el.isConnected || el.clientWidth === 0) return;
+      try {
+        fit.fit();
+      } catch {
+        return;
+      }
       if (ws.readyState === WebSocket.OPEN)
         ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
     });
     observer.observe(el);
     return () => {
+      disposed = true;
       observer.disconnect();
       ws.close();
       term.dispose();
