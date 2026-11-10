@@ -86,3 +86,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0080](0080-own-terminal-runtime.md) | Własny runtime terminali wzorowany na herdr: workspace, pane, dyrygent, sensor | Proposed |
 | [0081](0081-mcp-server.md) | MetatorAI jako serwer MCP (tylko komendy czytające) | Proposed |
 | [0082](0082-copilot-memory-policy.md) | Polityka Copilot Memory: co wolno zapamiętać, co jest kanonem | Proposed |
+| [0083](0083-agent-cli-entry-and-event-intake.md) | CLI agenta jako punkt wejścia; issue i review z zewnątrz jako drugie wejście do tej samej ścieżki | Proposed |
