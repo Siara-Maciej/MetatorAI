@@ -146,6 +146,14 @@ metator report                      # every run; --since 2026-11-01 for the runs
  "agents":[{"agent":"mt-pr-review","calls":12,"costUsd":14.1,"agentMs":1500000,"failed":0,"questions":0},{"agent":"mt-implementer","…":"…"}]}
 ```
 
+```bash
+metator findings react LOGIC-007 --pr 42 --state resolved --by maciej --lens logic   # what people did with a review comment
+metator findings react TESTS-003 --pr 42 --state dismissed --by maciej --reason "intended"
+metator report --html report.html   # the dashboard: the report and the reactions as one page
+```
+
+What people did with the review's comments is telemetry too: `findings react` records each comment's fate (`resolved`: fixed; `dismissed`: noise; `open`) in `.metator/telemetry/reactions.jsonl` (`ReviewReaction`), the report adds `reactions` (the last reaction per comment counts; the dismissed share is among the decided ones, by lens and by pull request), and `--html` writes the dashboard with the 15% dismissed line the review is judged by. A CI job or a script that reads the PR's threads can record the same.
+
 Every agent call leaves one line in `.metator/runs/<id>/usage.jsonl` (`AgentUsage`): its stage, agent, outcome, wall time and, when the host reports them, tokens, cached tokens and cost (Claude Code does; the Copilot CLI and the scenario host report none, so their calls count time only). The report adds what the runs asked of people: questions asked, how many an [answer policy](./inbox.md) took, how long people's answers were waited for, and how often a gate or review sent a run back (`failures`). `agents` ranks the agents by cost, with their failed calls and the questions they stopped for: the ones to tune first. In a folder of repositories the report spans them all, each run named `<repo>/<run>`.
 
 `metator ui` needs one; in a script it fails with `USAGE`. Use `metator status` for the overview, and the commands `ui` is made of: `run continue`, `run questions`, `run answer`, `env up|down|status|logs`, `worktree list`.

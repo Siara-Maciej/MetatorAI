@@ -1346,6 +1346,23 @@ Print the JSON Schema of a findings file
 metator findings schema [options]
 ```
 
+### `metator findings react`
+
+Record what happened to a review comment on a PR: resolved (fixed), dismissed (noise) or open (F5 telemetry)
+
+```bash
+metator findings react [options] <finding>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<finding>` | the finding id the comment carried (LOGIC-007) | |
+| `--pr <ref>` | the pull request (42, owner/repo#42) **Required.** |  |
+| `--state <state>` | what people did with it (one of: resolved, dismissed, open) **Required.** |  |
+| `--by <who>` | who reacted **Required.** |  |
+| `--lens <lens>` | the lens that raised it (one of: logic, contracts, conventions, tests, security, equivalence) |  |
+| `--reason <text>` | why, in a few words |  |
+
 ## review
 
 ### `metator review metadata`
@@ -2429,6 +2446,7 @@ metator report [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--since <time>` | only runs started at or after this ISO time |  |
+| `--html <file>` | also write the dashboard: the report and the reactions to review comments as one page |  |
 
 ## serve
 

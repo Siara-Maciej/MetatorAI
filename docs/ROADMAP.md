@@ -171,7 +171,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [ ] `.github/workflows/mt-eval.yml`: W12 dla zmian w agentach.
 - [x] `copilot-setup-steps.yml` dla coding agenta (`bun install`, `metator index build`, `metator doctor`).
 - [ ] Natywny Copilot code review: lekkie instrukcje. Ciężkie mają `excludeAgent: code-review`, żeby nie dublować mt-pr-review.
-- [ ] Telemetria: agregacja `telemetry.jsonl` i reakcji na komentarze (resolved/dismissed) → dashboard.
+- [x] Telemetria: `metator findings react` zapisuje reakcje na komentarze review (`ReviewReaction` w `.metator/telemetry/reactions.jsonl`: resolved / dismissed / open), `metator report` dolicza je (udział dismissed wśród rozstrzygniętych, per soczewka i per PR) do `usage.jsonl` runów, `report --html` renderuje dashboard z linią 15%. Zapis z GitHuba (rozwiązane wątki) wymaga skryptu w CI pilota.
 
 **Kryterium wyjścia:** review w CI na 100% PR-ów pilota przez 2 tygodnie, odsetek dismissed ≤ 15%, nightly zielony.
 

@@ -133,10 +133,12 @@ import {
   RecordArchitectureBaseline,
   RefactorPlanStore,
   RemoveWorktree,
+  RenderReport,
   RepositoryDiscoverySource,
   type RepositoryRuns,
   type Result,
   ResumeRun,
+  ReviewFeedback,
   ReviewNotes,
   RuleCatalog,
   RunAffectedTests,
@@ -407,6 +409,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     buildReport: asFunction(
       ({ runRepository, runJournal, clock }) => new BuildReport(runRepository, runJournal, clock),
+    ),
+    reviewFeedback: asFunction(
+      ({ fileSystem, paths, clock }) => new ReviewFeedback(fileSystem, paths, clock),
+    ),
+    renderReport: asFunction(
+      ({ buildReport, reviewFeedback, fileSystem, clock }) =>
+        new RenderReport(buildReport, reviewFeedback, fileSystem, clock),
     ),
     worktreeConflicts: asFunction(
       ({ runRepository, worktreeRegistry, processRunner, runMessages, root }) =>

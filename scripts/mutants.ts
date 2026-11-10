@@ -4727,6 +4727,30 @@ export const MUTANTS: readonly Mutant[] = [
     why: "MetatorAI's own files are not the change",
   },
   {
+    file: "packages/core/src/domain/review-feedback.ts",
+    from: "    dismissedShare: decided === 0 ? 0 : Math.round((dismissed / decided) * 1000) / 1000,",
+    to: "    dismissedShare: list.length === 0 ? 0 : Math.round((dismissed / list.length) * 1000) / 1000,",
+    why: "the dismissed share is among the decided comments, open ones do not dilute it",
+  },
+  {
+    file: "packages/core/src/domain/review-feedback.ts",
+    from: "[...reactions].sort((a, b) => a.at.localeCompare(b.at))",
+    to: "reactions",
+    why: "the last reaction in time wins, whatever order the lines were written in",
+  },
+  {
+    file: "packages/core/src/application/review-feedback.ts",
+    from: "    const appended = await this.fs.append(this.file(), serializeJsonLine(ReviewReactionDocument.stamp(parsed.value)));",
+    to: "    const appended = await this.fs.write(this.file(), serializeJsonLine(ReviewReactionDocument.stamp(parsed.value)));",
+    why: "a reaction is appended: the earlier ones stay",
+  },
+  {
+    file: "packages/core/src/domain/report-render.ts",
+    from: '  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");',
+    to: "  s;",
+    why: "an agent name or a task is never markup on the dashboard",
+  },
+  {
     file: "packages/core/src/domain/issue.ts",
     from: '  if (choice === PROPOSAL_DROP) return "dropped";',
     to: '  if (choice === PROPOSAL_DROP) return "added";',

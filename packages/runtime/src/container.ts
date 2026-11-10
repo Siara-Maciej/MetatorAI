@@ -145,11 +145,13 @@ import {
   type RecordArchitectureBaseline,
   type RefactorPlanStore,
   type RemoveWorktree,
+  type RenderReport,
   type RepositoryCloner,
   type RepositoryDiscoverySource,
   type RepositoryRuns,
   type Result,
   type ResumeRun,
+  type ReviewFeedback,
   type ReviewNotes,
   type RevisionReader,
   type RuleCatalog,
@@ -259,6 +261,8 @@ export interface Cradle {
   issues: Issues;
   planBoard: PlanBoard;
   openEditor: OpenEditor;
+  reviewFeedback: ReviewFeedback;
+  renderReport: RenderReport;
   reviewNotes: ReviewNotes;
   runChanges: RunChanges;
   containerRuntime: ContainerRuntime;

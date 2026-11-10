@@ -158,6 +158,7 @@ describe("metator CLI (process e2e)", () => {
       "findings verdict",
       "findings to-github",
       "findings schema",
+      "findings react",
       "review metadata",
       "review diff",
       "review changes",
