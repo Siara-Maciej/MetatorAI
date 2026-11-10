@@ -31,10 +31,15 @@ const SYMBOL: Record<string, string> = { working: "⋮", blocked: "!", waiting: 
 export function WorkbenchScreen({
   onNewTask,
   onOpenSettings,
+  onOpenPlan,
+  showPane,
 }: {
   /** Opens the new-session dialog for a task in a new worktree (a new tab). */
   onNewTask(): void;
   onOpenSettings(): void;
+  onOpenPlan(runId: string): void;
+  /** A pane to show first (from the plan screen): its tab is selected and it gets the focus. */
+  readonly showPane?: string | undefined;
 }) {
   const { client, repos: daemonRepos, runs, panes, inbox, me, setMe } = useDaemon();
   const repoName = daemonRepos[0]?.name;
@@ -89,6 +94,17 @@ export function WorkbenchScreen({
     .filter((p): p is PaneView => !!p);
   const tree: SplitNode | undefined = tab ? (tab.tree ?? evenTree(tab.panes)) : undefined;
   const [focus, setFocus] = useState<string>();
+  // A pane asked for by the route: once the layout knows it, its tab and focus.
+  const shown = useRef<string | undefined>(undefined);
+  if (showPane && shown.current !== showPane) {
+    const t = repos.flatMap((r) => r.tabs).find((x) => x.panes.includes(showPane));
+    if (t) {
+      shown.current = showPane;
+      setRepoId(repos.find((r) => r.tabs.includes(t))?.id);
+      setTabKey(t.key);
+      setFocus(showPane);
+    }
+  }
   const focused = tabPanes.find((p) => p.id === focus) ?? tabPanes[0];
   const [zoom, setZoom] = useState<string>();
   // The zoom is the tab's: a tab change drops it.
@@ -303,6 +319,9 @@ export function WorkbenchScreen({
         case "closePane":
           void closePane(focused);
           break;
+        case "plan":
+          if (tab?.runId) onOpenPlan(tab.runId);
+          break;
         case "help":
           setNote(
             Object.entries(keymap)
@@ -347,7 +366,13 @@ export function WorkbenchScreen({
       { label: "Split right", key: key(keymap, "splitRight"), onSelect: () => void split(p, "right") },
       { label: "Split down", key: key(keymap, "splitDown"), onSelect: () => void split(p, "down") },
       { label: "Copy mode", key: key(keymap, "copyMode"), onSelect: () => setCopyMode(p.id) },
-      { label: "Plan of the run", key: key(keymap, "plan"), separator: true, disabled: true },
+      {
+        label: "Plan of the run",
+        key: key(keymap, "plan"),
+        separator: true,
+        disabled: !p.runId,
+        onSelect: () => p.runId && onOpenPlan(p.runId),
+      },
       { label: "Changes", key: key(keymap, "changes"), disabled: true },
       { label: "Open in VS Code", disabled: true },
       { label: "New task from here…", disabled: true },
@@ -498,12 +523,19 @@ export function WorkbenchScreen({
       </div>
       <div className="procstrip" data-testid="procstrip">
         {strip.length > 0 ? (
-          strip.map((s, i) => (
-            <span key={s.id} className={`stage ${s.state}`}>
-              {i > 0 ? <span className="dim"> · </span> : null}
-              {s.id} {s.glyph}
-            </span>
-          ))
+          <button
+            type="button"
+            className="stages"
+            title="the plan of this run"
+            onClick={() => tab?.runId && onOpenPlan(tab.runId)}
+          >
+            {strip.map((s, i) => (
+              <span key={s.id} className={`stage ${s.state}`}>
+                {i > 0 ? <span className="dim"> · </span> : null}
+                {s.id} {s.glyph}
+              </span>
+            ))}
+          </button>
         ) : (
           <span className="dim">{tab?.kind === "shell" ? "a shell tab: no run" : "no tab"}</span>
         )}

@@ -197,6 +197,10 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the lock", async () =>
       (await page.getByTestId("driverbar").textContent())?.includes("maciej") ? true : undefined,
     );
+    // The scenario asks before it reads: send the answer once the question is on the screen.
+    await until("the question on the screen", async () =>
+      (await term.textContent())?.includes("Which rounding?") ? true : undefined,
+    );
     await page.getByLabel("message to the session").fill("half-up");
     await page.getByRole("button", { name: "Send" }).click();
     await until("the answer echoed", async () =>
@@ -286,6 +290,13 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await page.keyboard.press("Control+b");
     await page.keyboard.press("f");
     await workbench.locator(".split.zoomed").waitFor({ timeout: 5000 });
+    // The plan (S2): the run's stages and what waits, from the board.
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/plan/${runId}`);
+    await page.getByTestId("plan").waitFor({ timeout: 20_000 });
+    await until("the plan's stages", async () =>
+      (await page.getByTestId("plan-stages").textContent())?.includes("build") ? true : undefined,
+    );
+    expect(await page.getByTestId("plan").textContent()).toContain("no plan yet");
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/graph`);
     await page.getByRole("img", { name: "sessions graph" }).waitFor({ timeout: 20_000 });
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/supervisor`);

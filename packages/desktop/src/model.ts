@@ -150,10 +150,11 @@ const quote = (s: string) => (/^[\w./-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\
 export type Route =
   | { readonly screen: "inbox" }
   | { readonly screen: "session"; readonly runId: string; readonly pane?: string }
-  | { readonly screen: "grid"; readonly group?: string }
+  | { readonly screen: "grid"; readonly group?: string; readonly pane?: string }
   | { readonly screen: "graph" }
   | { readonly screen: "supervisor" }
   | { readonly screen: "settings" }
+  | { readonly screen: "plan"; readonly runId: string }
   | { readonly screen: "briefing"; readonly runId: string };
 
 export function parseRoute(hash: string): Route {
@@ -174,7 +175,11 @@ export function parseRoute(hash: string): Route {
         : { screen: "inbox" };
     }
     case "grid":
-      return arg ? { screen: "grid", group: decodeURIComponent(arg) } : { screen: "grid" };
+      return arg
+        ? arg.startsWith("pane:")
+          ? { screen: "grid", pane: decodeURIComponent(arg.slice("pane:".length)) }
+          : { screen: "grid", group: decodeURIComponent(arg) }
+        : { screen: "grid" };
     case "graph":
       return { screen: "graph" };
     case "supervisor":
@@ -183,6 +188,8 @@ export function parseRoute(hash: string): Route {
       return { screen: "settings" };
     case "briefing":
       return arg ? { screen: "briefing", runId: decodeURIComponent(arg) } : { screen: "inbox" };
+    case "plan":
+      return arg ? { screen: "plan", runId: decodeURIComponent(arg) } : { screen: "grid" };
     default:
       return { screen: "inbox" };
   }
@@ -194,8 +201,14 @@ export function routeHash(route: Route): string {
       return `#/session/${encodeURIComponent(route.runId)}${route.pane ? `/${encodeURIComponent(route.pane)}` : ""}`;
     case "briefing":
       return `#/briefing/${encodeURIComponent(route.runId)}`;
+    case "plan":
+      return `#/plan/${encodeURIComponent(route.runId)}`;
     case "grid":
-      return route.group ? `#/grid/${encodeURIComponent(route.group)}` : "#/grid";
+      return route.pane
+        ? `#/grid/pane:${encodeURIComponent(route.pane)}`
+        : route.group
+          ? `#/grid/${encodeURIComponent(route.group)}`
+          : "#/grid";
     default:
       return `#/${route.screen}`;
   }

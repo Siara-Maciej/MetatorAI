@@ -119,6 +119,7 @@ import {
   Panes,
   PatternCatalog,
   PinnedSystemLocation,
+  PlanBoard,
   PlannedBreakingChanges,
   PlanReview,
   type ProcessRunner,
@@ -540,6 +541,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new HostPrompts({ sensor: paneSensor, journal: runJournal, lock: driverLock, notify: notifier }),
     ),
     layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
+    planBoard: asFunction(
+      ({ fileSystem, runRepository, runJournal, workflowCatalog, conductor, paths }) =>
+        new PlanBoard({
+          fs: fileSystem,
+          repo: runRepository,
+          journal: runJournal,
+          catalog: workflowCatalog,
+          conductor,
+          paths,
+        }),
+    ),
     conductor: asFunction(
       ({ panes, runRepository, runJournal, workflowCatalog, fileSystem, clock, timer, root }) =>
         new Conductor({

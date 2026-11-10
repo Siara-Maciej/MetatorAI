@@ -1054,6 +1054,16 @@ h3 {
   gap: 6px;
   font-size: 12px;
 }
+.workbench .procstrip .stages {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  display: inline-flex;
+  gap: 6px;
+  cursor: pointer;
+}
 .workbench .tabbar .ico {
   width: 26px;
   height: 16px;
@@ -1468,4 +1478,156 @@ kbd {
   padding: 8px 14px;
   border-top: 1px solid var(--edge);
   font-size: 11px;
+}
+
+/* plan (S2) */
+.plan {
+  display: grid;
+  grid-template-rows: 34px 1fr;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.plan .top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--edge);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.plan .spacer {
+  flex: 1;
+}
+.plan .strip .stage.done {
+  color: var(--green);
+}
+.plan .strip .stage.current {
+  color: var(--teal);
+}
+.plan .strip .stage.waiting {
+  color: var(--amber);
+}
+.plan .strip .stage.next,
+.plan .strip .stage.stopped {
+  color: var(--dim);
+}
+.plan .body {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  min-height: 0;
+}
+.plan .steps {
+  border-right: 1px solid var(--edge);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+  overflow: auto;
+}
+.plan .sec {
+  padding: 4px 20px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+}
+.plan .step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 6px 20px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+}
+.plan .step.sel {
+  background: var(--hover);
+}
+.plan .step .n {
+  flex: 1;
+  min-width: 0;
+}
+.plan .step .sub {
+  display: block;
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan .g.done {
+  color: var(--green);
+}
+.plan .g.in-progress {
+  color: var(--violet);
+}
+.plan .g.blocked,
+.plan .g.waiting {
+  color: var(--amber);
+}
+.plan .g.todo {
+  color: var(--dim);
+}
+.plan .detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 28px;
+  overflow: auto;
+  min-width: 0;
+}
+.plan .detail h2 {
+  font-size: 13px;
+}
+.plan .ask {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-left: 2px solid var(--amber);
+  padding: 6px 12px;
+}
+.plan .facts .row {
+  display: flex;
+  gap: 12px;
+  padding: 3px 0;
+}
+.plan .facts .row > span:first-child {
+  width: 90px;
+  flex: none;
+}
+.plan .actions {
+  display: flex;
+  gap: 8px;
+}
+.plan .actions .go {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+.plan .cols {
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.plan .cols .sec {
+  padding: 0 0 4px;
+}
+.plan .text {
+  font-size: 12.5px;
+  max-width: 640px;
+}
+.plan .timeline {
+  border-left: 0;
+  margin: 0;
+}
+.plan .timeline li::before {
+  display: none;
+}
+.plan .timeline li {
+  padding-left: 0;
 }

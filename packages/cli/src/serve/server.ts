@@ -410,6 +410,15 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           return fromResult(
             await c.value.resolve("conductor").collect({ runId, worker: str("worker") ?? "" }),
           );
+        case "GET board":
+          return fromResult(
+            await c.value.resolve("planBoard").execute({
+              runId,
+              ...(Number(url.searchParams.get("timeline"))
+                ? { timeline: Number(url.searchParams.get("timeline")) }
+                : {}),
+            }),
+          );
         case "GET activity": {
           const tail = Number(url.searchParams.get("tail")) || undefined;
           const a = await c.value.resolve("runJournal").activity(runId);

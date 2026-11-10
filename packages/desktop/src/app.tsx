@@ -12,6 +12,7 @@ import { BriefingScreen } from "./screens/briefing.tsx";
 import { GraphScreen } from "./screens/graph.tsx";
 import { InboxScreen } from "./screens/inbox.tsx";
 import { NewSessionDialog } from "./screens/new-session.tsx";
+import { PlanScreen } from "./screens/plan.tsx";
 import { SessionScreen } from "./screens/session.tsx";
 import { SettingsScreen } from "./screens/settings.tsx";
 import { SupervisorScreen } from "./screens/supervisor.tsx";
@@ -107,7 +108,10 @@ function Shell() {
     driving: d.runs.filter((r) => r.attention === "driving").length,
     escalated: d.runs.filter((r) => r.attention === "escalated").length,
   };
-  const current = route.screen === "session" || route.screen === "briefing" ? route.runId : undefined;
+  const current =
+    route.screen === "session" || route.screen === "briefing" || route.screen === "plan"
+      ? route.runId
+      : undefined;
   return (
     <div className="shell">
       <header className="topbar">
@@ -169,6 +173,15 @@ function Shell() {
           <WorkbenchScreen
             onNewTask={() => setDialog(true)}
             onOpenSettings={() => go({ screen: "settings" })}
+            onOpenPlan={(runId) => go({ screen: "plan", runId })}
+            {...(route.pane ? { showPane: route.pane } : {})}
+          />
+        ) : null}
+        {route.screen === "plan" ? (
+          <PlanScreen
+            runId={route.runId}
+            onOpenPane={(pane) => go({ screen: "grid", pane })}
+            onOpenSession={openSession}
           />
         ) : null}
         {route.screen === "graph" ? <GraphScreen /> : null}

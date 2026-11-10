@@ -131,6 +131,7 @@ import {
   type PaneSensor,
   type Panes,
   type PatternCatalog,
+  type PlanBoard,
   type PlanReview,
   type PortProbe,
   type ProcessRunner,
@@ -251,6 +252,7 @@ export interface Cradle {
   updateConfig: UpdateConfig;
   userConfig: UserConfigStore;
   optionStore: OptionStore;
+  planBoard: PlanBoard;
   containerRuntime: ContainerRuntime;
   healthProbe: HealthProbe;
   environmentCatalog: EnvironmentCatalog;

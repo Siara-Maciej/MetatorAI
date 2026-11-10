@@ -4677,4 +4677,10 @@ export const MUTANTS: readonly Mutant[] = [
     to: "    if (false) {",
     why: "an agent's pane of a run takes keys only from the driver",
   },
+  {
+    file: "packages/core/src/domain/plan-board.ts",
+    from: '  if (done) return { ...base, state: "done",',
+    to: '  if (false) return { ...base, state: "done",',
+    why: "a worker's done result marks the plan steps it names done",
+  },
 ];

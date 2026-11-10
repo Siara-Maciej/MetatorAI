@@ -418,6 +418,21 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     );
 
   runs
+    .command("board")
+    .description(
+      "The plan board (S2): stages with who worked them, the plan's steps with their state, workers, what waits for you, artifacts, gates, the last events",
+    )
+    .option("--run <id>", "run id (default: latest)")
+    .option("--timeline <n>", "how many events to keep", (v: string) => Number(v), 30)
+    .action(
+      action(async (opts: { run?: string; timeline: number }) => ({
+        result: await container()
+          .resolve("planBoard")
+          .execute({ ...(opts.run ? { runId: opts.run } : {}), timeline: opts.timeline }),
+      })),
+    );
+
+  runs
     .command("published")
     .description(
       "Whether the run's work is published: nothing uncommitted, and origin's branch at the checked-out commit (the publish gate)",

@@ -46,6 +46,7 @@ export const sections = [
       { text: "Sessions and terminals", link: "sessions" },
       { text: "Terminals, panes and the conductor", link: "terminals" },
       { text: "The desktop app", link: "desktop" },
+      { text: "The plan of a run", link: "plan" },
       { text: "Ask about the code", link: "ask" },
       { text: "Feature (W1)", link: "feature" },
       { text: "Bug fix (W2)", link: "bugfix" },
