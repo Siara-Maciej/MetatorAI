@@ -1,7 +1,8 @@
 ---
 kind: InstructionsAdapter
-schemaVersion: 1
+schemaVersion: 2
 applyTo: packages/cli/src/**,packages/core/src/**,packages/core/src/application/**,packages/core/src/domain/**,packages/core/src/ports/**,packages/plugin-*/src/**,packages/runtime/src/**
+excludeAgent: code-review
 description: Clean architecture boundaries of MetatorAI (ports and adapters, dependencies point inward).
 generatedFrom: docs/metator/rules/arch.yml
 ---

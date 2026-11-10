@@ -166,11 +166,11 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 > **Decyzja 2026-10-25:** na teraz tylko tryb interaktywny w VS Code. F5 jest odłożone. Do tego czasu tryb auto istnieje jako demo lokalne ([running, część B](design/06-running.md#część-b-tryb-auto-copilot-cli--skrypty-demonstracja)).
 
 **Zadania**
-- [ ] `.github/workflows/mt-pr-review.yml`: review headless L2 na PR-ach pilota (tylko komentarze `confirmed blocking`, reszta w podsumowaniu).
-- [ ] `.github/workflows/mt-nightly.yml`: W10 knowledge refresh (PR z częścią generowaną + issue z driftem).
-- [ ] `.github/workflows/mt-eval.yml`: W12 dla zmian w agentach.
+- [x] `.github/workflows/mt-pr-review.yml`: na każdym PR tego repo akcja MetatorAI (reguły kanonu, architektura, specyfikacje, pliki generowane) i jeden komentarz z podsumowaniem: na liście tylko `confirmed blocking`, reszta liczbą. Review agentów (soczewki, weryfikator, sędzia) z terminala: `metator run --workflow mt-pr-review`; na PR-ach pilota po podpięciu pilota.
+- [x] `.github/workflows/mt-nightly.yml`: W10 co noc (`index build`, `cards build`, `patterns scan`, `memory validate --fix`, `generate`, `rules adapters`) → PR „Knowledge refresh (nightly)” z częścią generowaną; `docs drift`, `rules coverage`, `memory check` → issue „Knowledge drift (nightly)” aktualizowane w miejscu.
+- [x] `.github/workflows/mt-eval.yml`: W12 na PR-ach dotykających agentów, skilli, instrukcji, workflowów i złotego zbioru: linty i `generate --check` zawsze; `eval run` ×3 i `eval compare` z `docs/metator/evals/baseline.json`, gdy zmienna repozytorium `METATOR_EVAL_COMMAND` nazywa recenzenta headless.
 - [x] `copilot-setup-steps.yml` dla coding agenta (`bun install`, `metator index build`, `metator doctor`).
-- [ ] Natywny Copilot code review: lekkie instrukcje. Ciężkie mają `excludeAgent: code-review`, żeby nie dublować mt-pr-review.
+- [x] Natywny Copilot code review: lekka warstwa w `.github/copilot-instructions.md` (T0 w mapie pamięci); ciężka (kanon w `.github/instructions/mt-*`) ma `excludeAgent: code-review` (`InstructionsAdapter` v2), więc natywne review nie dubluje mt-pr-review.
 - [ ] Telemetria: agregacja `telemetry.jsonl` i reakcji na komentarze (resolved/dismissed) → dashboard.
 
 **Kryterium wyjścia:** review w CI na 100% PR-ów pilota przez 2 tygodnie, odsetek dismissed ≤ 15%, nightly zielony.
@@ -268,7 +268,7 @@ Plan: [design/11](design/11-package-architecture.md); użytkownik zlecił realiz
 
 **Dystrybucja i integracje (część I)**
 - [x] P9 Przygotowanie sesji: `run init --worktree` daje worktree zależności (kopia `node_modules` z głównego checkoutu przy zgodnych lockfile, inaczej `install`), `worktree setup [--up]`, `doctor --run`.
-- [ ] P8 Złoty zbiór startowy z czystych runów serii 14 (wymaga danych właściciela); [x] akcja GitHub dla review w CI (`action.yml`, workflow `review`); [x] główna pomoc CLI z czasownikami dla ludzi (`metator help --verbs`, goły `metator` w terminalu); [x] przygotowanie paczki npm (F8.8, `bun run pack`); [x] serwer MCP (`metator mcp`, ADR-0081).
+- [ ] P8 Złoty zbiór startowy z czystych runów serii 14 (wymaga danych właściciela); [x] akcja GitHub dla review w CI (`action.yml`, workflow `mt-pr-review`); [x] główna pomoc CLI z czasownikami dla ludzi (`metator help --verbs`, goły `metator` w terminalu); [x] przygotowanie paczki npm (F8.8, `bun run pack`); [x] serwer MCP (`metator mcp`, ADR-0081).
 
 **Wymaga właściciela (poza kodem):** wybór licencji, konto npm i publikacja, repozytorium pilota, złoty zbiór z prawdziwych PR-ów zespołu, drugi język programowania (po pilocie).
 

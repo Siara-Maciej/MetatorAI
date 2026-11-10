@@ -44,8 +44,8 @@ metator debug-tags check --base main         # no instrumentation left
 MetatorAI ships a composite action. On a pull request it runs the deterministic review a change gets before any agent or person reads it: the canon rules on the changed files, the package architecture against your policy (new violations only, optionally as SARIF in code scanning), the workflow specs, the generated host files, and, when you ask for it, your quality gate. Each step is a `metator` command you run locally the same way, so a red step reproduces on your machine.
 
 ```yaml
-# .github/workflows/review.yml
-name: review
+# .github/workflows/mt-pr-review.yml
+name: mt-pr-review
 on: [pull_request]
 permissions:
   contents: read

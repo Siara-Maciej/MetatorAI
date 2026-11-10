@@ -1,0 +1,77 @@
+name: mt-pr-review
+
+# The review every pull request gets before anyone reads it (F5, W4 in CI): MetatorAI's own
+# action runs the deterministic part (canon rules on the changed files, package architecture
+# against the policy, workflow specs, generated files) and one comment on the PR carries the
+# summary: only confirmed blocking findings are listed, the rest is a count. The agents' review
+# (lenses, verifier, judge) runs from a terminal or a run: `metator run --workflow mt-pr-review`.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+concurrency:
+  group: mt-pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        uses: ./
+        continue-on-error: true
+        with:
+          sarif: "true"
+      - name: The summary on the pull request
+        uses: actions/github-script@v7
+        env:
+          OUTCOME: ${{ steps.check.outcome }}
+          VIOLATIONS: ${{ steps.check.outputs.violations }}
+          ARCH_ADDED: ${{ steps.check.outputs.arch-added }}
+        with:
+          script: |
+            const fs = require("node:fs");
+            const marker = "<!-- mt-pr-review -->";
+            const violations = Number(process.env.VIOLATIONS ?? -1);
+            const added = Number(process.env.ARCH_ADDED ?? -1);
+            const ok = process.env.OUTCOME === "success";
+            // Confirmed blocking: what a deterministic check found is confirmed by definition.
+            const blocking = [];
+            try {
+              const sarif = JSON.parse(fs.readFileSync(".metator/arch/check.sarif", "utf8"));
+              for (const run of sarif.runs ?? [])
+                for (const r of run.results ?? []) {
+                  const loc = r.locations?.[0]?.physicalLocation;
+                  blocking.push(`- \`${loc?.artifactLocation?.uri ?? "?"}:${loc?.region?.startLine ?? "?"}\` ${r.message?.text ?? r.ruleId}`);
+                }
+            } catch {}
+            const lines = [
+              marker,
+              `## MetatorAI review: ${ok ? "nothing blocks" : "changes required"}`,
+              "",
+              `| Check | Result |`,
+              `|---|---|`,
+              `| Canon rules on the changed files | ${violations < 0 ? "did not run" : violations === 0 ? "clean" : `${violations} violation(s), see the job log`} |`,
+              `| Package architecture (new violations) | ${added < 0 ? "did not run" : added === 0 ? "none" : `${added} added`} |`,
+              `| Workflow specs and generated files | ${ok || violations > 0 || added > 0 ? "see the job log" : "failed, see the job log"} |`,
+              "",
+              ...(blocking.length > 0 ? ["### Confirmed blocking", "", ...blocking.slice(0, 20), ""] : []),
+              "The agents' review (lenses, verifier, judge) runs from a terminal: `metator run --workflow mt-pr-review`. Deterministic checks are the same ones `bun run check` runs locally.",
+            ];
+            const body = lines.join("\n");
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const mine = comments.find((c) => c.body?.startsWith(marker));
+            if (mine) await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+      - name: Fail the job when the review found something
+        if: steps.check.outcome != 'success'
+        run: exit 1

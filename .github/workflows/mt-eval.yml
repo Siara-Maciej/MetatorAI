@@ -1,0 +1,65 @@
+name: mt-eval
+
+# W12 (F5): a change to the agents, skills, instructions or workflows is a change to prompts, and
+# prompts are code. The lints run on every such pull request; the review evals run when the
+# repository variable METATOR_EVAL_COMMAND names the headless reviewer to run per golden case
+# (e.g. `scripts/review-case.sh {case} {base} {head} {out}`), and the scores must not regress
+# against the baseline report committed at docs/metator/evals/baseline.json.
+on:
+  pull_request:
+    paths:
+      - "metator/agents/**"
+      - "metator/skills/**"
+      - "metator/workflows/**"
+      - ".github/agents/**"
+      - ".github/skills/**"
+      - ".github/instructions/**"
+      - ".claude/agents/**"
+      - "docs/metator/evals/golden/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - name: Agents, skills and workflows lint; the generated host files are current
+        run: |
+          set -e
+          bun run metator meta agents-lint
+          bun run metator meta skills-lint
+          bun run metator workflow lint | bun -e 'const d=JSON.parse(await Bun.stdin.text()); console.log(JSON.stringify(d)); process.exit(d.ok && d.data.problems.length === 0 ? 0 : 1)'
+          bun run metator generate --check | bun -e 'const d=JSON.parse(await Bun.stdin.text()); console.log(JSON.stringify(d)); process.exit(d.ok && d.data.stale.length === 0 ? 0 : 1)'
+      - name: The golden set
+        run: bun run metator eval list
+
+  evals:
+    runs-on: ubuntu-latest
+    needs: lint
+    if: vars.METATOR_EVAL_COMMAND != ''
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - name: Run the reviewer on every golden case, three times
+        env:
+          METATOR_EVAL_COMMAND: ${{ vars.METATOR_EVAL_COMMAND }}
+        run: bun run metator eval run --command "$METATOR_EVAL_COMMAND" --repeat 3 --runs-dir .metator/evals/after
+      - name: No regression against the baseline
+        run: |
+          if [ -f docs/metator/evals/baseline.json ]; then
+            bun run metator eval compare docs/metator/evals/baseline.json .metator/evals/after/report.json
+          else
+            echo "no baseline at docs/metator/evals/baseline.json: commit one from a green run to gate regressions"
+          fi

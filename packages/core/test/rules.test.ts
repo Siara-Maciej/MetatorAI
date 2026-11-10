@@ -279,7 +279,8 @@ describe("GenerateRuleAdapters", () => {
       ".github/instructions/mt-arch.instructions.md",
     ]);
     const text = (await w.fs.read(".github/instructions/mt-arch.instructions.md"))._unsafeUnwrap();
-    expect(text).toStartWith("---\nkind: InstructionsAdapter\nschemaVersion: 1\n");
+    expect(text).toStartWith("---\nkind: InstructionsAdapter\nschemaVersion: 2\n");
+    expect(text).toContain("\nexcludeAgent: code-review\n");
     expect(text).toContain("applyTo: packages/*/src/**,packages/cli/**,packages/core/src/domain/**\n");
     expect(text).toContain("## MT-ARCH-002: Rule MT-ARCH-002 title");
     expect(text).toContain("- Don't: `new BunFileSystem() in a use case`");
