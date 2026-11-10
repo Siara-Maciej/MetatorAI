@@ -1,0 +1,11 @@
+id: mt-pattern-conformance-test
+language: TypeScript
+severity: hint
+message: "Pattern conformance-test: a canon rule decided by a bun test over the repository (the test engine)."
+files:
+  - rules/conformance/**/*.test.ts
+rule:
+  pattern: describe($NAME, $$$BODY)
+constraints:
+  NAME:
+    regex: ^"MT-

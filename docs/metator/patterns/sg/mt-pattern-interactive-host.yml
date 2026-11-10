@@ -1,0 +1,11 @@
+id: mt-pattern-interactive-host
+language: TypeScript
+severity: hint
+message: "Pattern interactive-host: an AI host CLI run in a PTY behind the InteractiveHost port."
+files:
+  - packages/plugin-host-*/src/**
+rule:
+  kind: class_declaration
+  has:
+    kind: class_heritage
+    regex: implements InteractiveHost

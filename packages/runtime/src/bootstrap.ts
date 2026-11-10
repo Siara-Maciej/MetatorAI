@@ -149,6 +149,7 @@ import {
   RunGate,
   RunJournal,
   RunMessages,
+  RunQuarterlyReview,
   RunRefactorPlan,
   RunRepository,
   RunSystemEvals,
@@ -1162,6 +1163,18 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     evalCatalog: asFunction(({ fileSystem, paths }) => new EvalCatalog(fileSystem, paths)).singleton(),
     scoreEvals: asFunction(({ evalCatalog, fileSystem }) => new ScoreEvals(evalCatalog, fileSystem)),
     compareEvals: asFunction(({ fileSystem }) => new CompareEvals(fileSystem)),
+    quarterlyReview: asFunction(
+      ({ measureRuleCoverage, memoryBudget, docsInventory, compareEvals, fileSystem, paths, clock }) =>
+        new RunQuarterlyReview({
+          coverage: measureRuleCoverage,
+          budget: memoryBudget,
+          inventory: docsInventory,
+          compare: compareEvals,
+          fs: fileSystem,
+          paths,
+          clock,
+        }),
+    ),
     runEvals: asFunction(
       ({ evalCatalog, binResolver, processRunner }) => new RunEvals(evalCatalog, binResolver, processRunner),
     ),

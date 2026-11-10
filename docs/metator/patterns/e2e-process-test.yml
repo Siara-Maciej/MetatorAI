@@ -1,0 +1,10 @@
+kind: Pattern
+schemaVersion: 1
+id: e2e-process-test
+title: End-to-end test on the real process
+intent: A user-facing behavior is proven by running the real metator process (the metator helper) on a scratch git repository and reading its JSON envelope; the daemon is a real process too.
+when: every new command or daemon route (MT-TEST-001)
+whenNot: a pure function or a use case with fake ports (that is a unit test)
+detection: ast-grep:mt-pattern-e2e-process-test
+exemplar: e2e/cli.e2e.test.ts
+rules: [MT-TEST-001]

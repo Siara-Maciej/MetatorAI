@@ -1,0 +1,436 @@
+{
+  "kind": "SchemaSnapshot",
+  "schemaVersion": 1,
+  "document": "QuarterlyReview",
+  "version": 1,
+  "input": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "QuarterlyReview"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "generatedAt": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+      },
+      "staleDays": {
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991
+      },
+      "rules": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "e1": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "e1Percent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "dead": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "e1WithoutTest": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "e1Disabled": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["active", "e1", "e1Percent", "dead", "e1WithoutTest", "e1Disabled"],
+        "additionalProperties": false
+      },
+      "memory": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "overBudget": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "over": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["item", "path", "over"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["items", "overBudget"],
+        "additionalProperties": false
+      },
+      "docs": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "stale": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "ageDays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["path", "ageDays"],
+              "additionalProperties": false
+            }
+          },
+          "deadLinks": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["total", "stale", "deadLinks"],
+        "additionalProperties": false
+      },
+      "lessons": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "unpromoted": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "ageDays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["id", "ageDays"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["total", "unpromoted"],
+        "additionalProperties": false
+      },
+      "evals": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "compared"
+              },
+              "regressions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["status", "regressions"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "no-baseline"
+              },
+              "hint": {
+                "type": "string"
+              }
+            },
+            "required": ["status", "hint"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "actions": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "generatedAt",
+      "staleDays",
+      "rules",
+      "memory",
+      "docs",
+      "lessons",
+      "evals",
+      "actions"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "const": "QuarterlyReview"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "generatedAt": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+      },
+      "staleDays": {
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991
+      },
+      "rules": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "e1": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "e1Percent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "dead": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "e1WithoutTest": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "e1Disabled": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["active", "e1", "e1Percent", "dead", "e1WithoutTest", "e1Disabled"],
+        "additionalProperties": false
+      },
+      "memory": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "overBudget": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "over": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["item", "path", "over"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["items", "overBudget"],
+        "additionalProperties": false
+      },
+      "docs": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "stale": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "ageDays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["path", "ageDays"],
+              "additionalProperties": false
+            }
+          },
+          "deadLinks": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["total", "stale", "deadLinks"],
+        "additionalProperties": false
+      },
+      "lessons": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "unpromoted": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "ageDays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["id", "ageDays"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["total", "unpromoted"],
+        "additionalProperties": false
+      },
+      "evals": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "compared"
+              },
+              "regressions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["status", "regressions"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "no-baseline"
+              },
+              "hint": {
+                "type": "string"
+              }
+            },
+            "required": ["status", "hint"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "actions": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "generatedAt",
+      "staleDays",
+      "rules",
+      "memory",
+      "docs",
+      "lessons",
+      "evals",
+      "actions"
+    ],
+    "additionalProperties": false
+  }
+}

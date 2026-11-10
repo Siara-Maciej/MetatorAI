@@ -1,0 +1,5 @@
+id: mt-pattern-e2e-process-test
+valid:
+  - "await run(['a'])"
+invalid:
+  - 'await metator(["issue", "list"], repo.root)'

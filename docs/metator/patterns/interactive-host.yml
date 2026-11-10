@@ -1,0 +1,10 @@
+kind: Pattern
+schemaVersion: 1
+id: interactive-host
+title: Interactive host adapter
+intent: A plugin that runs an AI host CLI in a pseudo-terminal behind the InteractiveHost port (launch, start, resume), with the run's environment and the host's own hooks.
+when: a new AI host (a CLI that talks to a model) should run as a run's session or a worker pane
+whenNot: a headless agent host (AgentHost) or a tool that is not a model
+detection: ast-grep:mt-pattern-interactive-host
+exemplar: packages/plugin-host-claude/src/claude-interactive-host.ts
+rules: [MT-ARCH-005]

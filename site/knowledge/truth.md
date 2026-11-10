@@ -84,6 +84,30 @@ metator lessons add --title "Guard negative totals" \
 
 **Why the citation is required:** a lesson without evidence is an opinion. `lessons add` refuses a quote that is not in the code, and `memory validate` keeps checking it.
 
+## The quarterly review
+
+Once a quarter, one command gathers what the checks above know and turns it into a short list of decisions for the owners:
+
+```bash
+metator meta quarterly                                   # 90 days counts as stale
+metator meta quarterly --stale-days 60 \
+  --baseline evals/q3/report.json --report evals/q4/report.json   # also compare the review evals
+```
+
+```json
+{"rules":{"active":20,"e1":20,"e1Percent":100,"dead":[],"e1WithoutTest":[],"e1Disabled":[]},
+ "memory":{"items":24,"overBudget":[]},
+ "docs":{"total":304,"stale":[],"deadLinks":0},
+ "lessons":{"total":3,"unpromoted":[]},
+ "evals":{"status":"no-baseline","hint":"pass --baseline <EvalReport> and --report <EvalReport> from `metator eval run`"},
+ "actions":["commit an eval baseline so the next quarter compares against it"],
+ "output":".metator/reviews/quarterly-2026-11-10.json"}
+```
+
+The review is a versioned `QuarterlyReview` document under `.metator/reviews/`. Each number comes from a command you can run alone (`rules coverage`, `memory budget`, `docs inventory`, `eval compare`), and each action names what to retire, raise or promote: rules that apply to no file, knowledge files over budget, documents nobody touched for a season, lessons older than the threshold that no rule cites, eval regressions against the baseline. The actions are also printed as warnings, so a nightly job can post them.
+
+**Why deterministic:** the review decides nothing. It lists the facts a person needs to decide, with the same numbers CI gates on, so the quarter's decisions are about the code, not about who remembered what.
+
 ## Owners
 
 ```bash

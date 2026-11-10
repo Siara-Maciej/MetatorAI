@@ -1212,6 +1212,21 @@ metator meta check-all [options]
 |---|---|---|
 | `--min-e1 <percent>` | rules coverage floor: percent of rules a tool enforces | `40` |
 
+### `metator meta quarterly`
+
+The quarterly review (F6): rule coverage and dead rules, memory budgets, stale documents, unpromoted lessons, review evals against a baseline; written to .metator/reviews/
+
+```bash
+metator meta quarterly [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--stale-days <days>` | a document or lesson untouched this long is stale | `90` |
+| `--baseline <file>` | EvalReport of the baseline (from `metator eval score`) |  |
+| `--report <file>` | EvalReport of the current state to compare with the baseline |  |
+| `--tolerance <ratio>` | allowed drop per eval number | `0.02` |
+
 ### `metator meta agents-schema`
 
 Print the JSON Schema of a canonical agent's front matter

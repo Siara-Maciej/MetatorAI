@@ -14,6 +14,8 @@ export interface MetatorPaths {
   readonly gates: string;
   /** Telemetry beyond the runs: reactions to review comments (`findings react`). */
   readonly telemetry: string;
+  /** Quarterly reviews (`meta quarterly`). */
+  readonly reviews: string;
   /** Canonical agents (host-neutral sources of generated host agents). */
   readonly agents: string;
   /** The golden set of review evals. */
@@ -75,6 +77,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   discovery: ".metator/discovery.json",
   gates: ".metator/gates",
   telemetry: ".metator/telemetry",
+  reviews: ".metator/reviews",
   agents: "metator/agents",
   evals: "docs/metator/evals/golden",
   skills: "metator/skills",

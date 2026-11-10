@@ -1,0 +1,11 @@
+id: mt-pattern-domain-projection
+language: TypeScript
+severity: hint
+message: "Pattern domain-projection: a pure function that turns a run's facts into a view (named *Of)."
+files:
+  - packages/core/src/domain/**
+rule:
+  kind: function_declaration
+  has:
+    field: name
+    regex: Of$

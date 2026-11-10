@@ -4756,4 +4756,16 @@ export const MUTANTS: readonly Mutant[] = [
     to: '  if (choice === PROPOSAL_DROP) return "added";',
     why: "the Drop answer in the inbox drops the proposal",
   },
+  {
+    file: "packages/core/src/domain/quarterly-review.ts",
+    from: '  if (out.length === 0) out.push("nothing to retire, raise or promote this quarter");',
+    to: '  out.push("nothing to retire, raise or promote this quarter");',
+    why: "the quarterly review says nothing to do only when nothing is to do",
+  },
+  {
+    file: "packages/core/src/application/quarterly-review.ts",
+    from: "      if (ageDays >= staleDays && !canon.includes(id)) unpromoted.push({ id, ageDays });",
+    to: "      if (ageDays >= staleDays) unpromoted.push({ id, ageDays });",
+    why: "a lesson the canon cites is promoted, not pending",
+  },
 ];
