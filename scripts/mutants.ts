@@ -4679,8 +4679,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/plan-board.ts",
-    from: '  if (done) return { ...base, state: "done",',
-    to: '  if (false) return { ...base, state: "done",',
+    from: '  if (done)\n    return {\n      ...base,\n      state: "done",',
+    to: '  if (false)\n    return {\n      ...base,\n      state: "done",',
     why: "a worker's done result marks the plan steps it names done",
   },
   {
