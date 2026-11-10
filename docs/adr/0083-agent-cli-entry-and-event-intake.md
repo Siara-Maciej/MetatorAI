@@ -1,9 +1,11 @@
 # ADR-0083: CLI agenta jako punkt wejścia; zdarzenia z zewnątrz (issue, review) jako drugie wejście do tej samej ścieżki
 
-- Status: Accepted (właściciel, 2026-11-10)
+- Status: Accepted
 - Data: 2026-11-10
 
 ## Kontekst
+Zaakceptowany przez właściciela 2026-11-10 (odpowiedzi na pytania projektu w design/14 §0).
+
 Od fazy R dyrygent (`mt-orchestrator`) biegnie w PTY Copilot CLI i sam woła `metator run init|advance|delegate`; aplikacja pokazuje ten terminal 1:1 (ADR-0080, design/13). Mimo to człowiek zaczyna zadanie z formularza „New session” (workflow, autonomia, host, worktree), a potem patrzy na agenta. Właściciel (2026-11-10) rozstrzygnął, że to odwrócony porządek: każde zadanie ma zaczynać się od rozmowy w CLI agenta, a formularz jest potrzebny tylko automatowi. Drugi brak: MetatorAI recenzuje cudze zmiany (`mt-pr-review`, `findings to-github`), ale nie reaguje na recenzje własnych MR-ów, choć analiza review i plan poprawek to najczęstsza powtarzalna czynność autora.
 
 ## Decyzja
