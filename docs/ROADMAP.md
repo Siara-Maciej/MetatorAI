@@ -296,7 +296,7 @@ Decyzja właściciela (2026-11-09): nie używamy herdr. Budujemy własny runtime
 - [x] R3 Sensor i uwaga: `HostManifest` v1 dla Copilota (working, blocked, idle z ekranu i hooków), okna zgody hosta w inboxie z akcją attach, powiadomienia.
 - [x] R4 Klienci: aplikacja na modelu workspace/pane (pasek boczny, siatka pane'ów runu), `metator attach <pane>` w terminalu z prefiksem odłączenia.
 - [x] R5 Grupy worktree'ów i zamykanie runu, supervisor nad pane'ami (wznowienie dyrygenta, nudge, budżet uwagi).
-- [ ] Później: Claude Code jako drugi host przez te same porty.
+- [x] Później: Claude Code jako drugi host przez te same porty (D6/R3: `ClaudeInteractiveHost`, wbudowany `HostManifest` dla `claude`, hooki w `.claude/settings.json`, `run start --host claude`; e2e `interactive-hosts`). Kalibracja wzorców ekranu na prawdziwym Claude Code czeka na maszynę z hostem.
 
 ## Faza S: opcje, plan, backlog, przegląd kodu (wzorowane na herdr)
 
