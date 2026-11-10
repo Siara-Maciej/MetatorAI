@@ -502,6 +502,8 @@ function renderAdapter(entry: RuleSetEntry, active: readonly Rule[]): string {
   const globs = [...new Set(active.flatMap((r) => r.applyTo.filter((g) => !g.startsWith("!"))))].sort();
   const header = InstructionsAdapterDocument.stamp({
     applyTo: globs.join(","),
+    // The canon is the heavy review: Copilot's native review skips it, mt-pr-review runs it.
+    excludeAgent: "code-review",
     description: entry.set.description ?? `${entry.set.area} rules`,
     generatedFrom: entry.source,
   });

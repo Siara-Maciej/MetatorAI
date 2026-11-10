@@ -131,6 +131,15 @@ items:
     load: "skill:mt-*"
     writers: ["metator generate"]
     readers: [copilot, claude]
+  - id: t1.copilot-instructions
+    tier: T1
+    kind: canon
+    paths: [".github/copilot-instructions.md"]
+    load: always
+    writers: [human]
+    readers: [copilot]
+    budget: { chars: 3000, lines: 40 }
+    description: The light layer Copilot loads on its own (chat, coding agent, native review), beside AGENTS.md; the heavy rules stay in the generated instructions with excludeAgent code-review.
   - id: t1.host-agents
     tier: T1
     kind: derived
