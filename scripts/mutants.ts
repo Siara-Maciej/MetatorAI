@@ -4847,4 +4847,34 @@ export const MUTANTS: readonly Mutant[] = [
     to: '() => ""',
     why: "a variable reference in an MCP server's env is resolved from the environment",
   },
+  {
+    file: "packages/core/src/domain/review-thread.ts",
+    from: "      if (!h.resolved) fresh.push(h.id);",
+    to: "      fresh.push(h.id);",
+    why: "a thread that arrives resolved does not start an answering run",
+  },
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: "      const mine = listed.value.filter((p) => !source.author || p.author === source.author);",
+    to: "      const mine = listed.value;",
+    why: "only my own requests are watched when the source names an author",
+  },
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: "        if (merged.fresh.length > 0 && !busy) {",
+    to: "        if (merged.fresh.length > 0) {",
+    why: "a request has one answering run at a time",
+  },
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: '      if (!t.reply || t.repliedAt || t.state === "resolved") continue;',
+    to: '      if (!t.reply || t.state === "resolved") continue;',
+    why: "a proposed reply is sent to the host once",
+  },
+  {
+    file: "packages/plugin-codehost-mcp/src/mcp-review-host.ts",
+    from: "    if (!id || body === undefined || first.system === true) continue;",
+    to: "    if (!id || body === undefined) continue;",
+    why: "a system note of a merge request is not a thread to answer",
+  },
 ];

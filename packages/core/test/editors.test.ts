@@ -40,7 +40,7 @@ describe("UpdateConfig", () => {
     expect([config.editor, config.hosts.targets, parse(text).schemaVersion]).toEqual([
       "cursor",
       ["claude"],
-      10,
+      11,
     ]);
   });
 
@@ -51,7 +51,7 @@ describe("UpdateConfig", () => {
     await new UpdateConfig(json).execute({ editor: "zed" });
     expect(JSON.parse((await json.read("metator.config.json"))._unsafeUnwrap())).toEqual({
       kind: "MetatorConfig",
-      schemaVersion: 10,
+      schemaVersion: 11,
       editor: "zed",
     });
     const none = new InMemoryFileSystem();
@@ -99,6 +99,6 @@ describe("UpdateConfig", () => {
       { kind: "MetatorConfig", schemaVersion: 2, hosts: { targets: ["copilot"] } },
       "c",
     );
-    expect([v2._unsafeUnwrap().editor, MetatorConfigDocument.current]).toEqual([undefined, 10]);
+    expect([v2._unsafeUnwrap().editor, MetatorConfigDocument.current]).toEqual([undefined, 11]);
   });
 });

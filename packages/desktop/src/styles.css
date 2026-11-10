@@ -259,6 +259,13 @@ h3 {
   padding: 8px;
   border-top: 1px solid var(--edge);
 }
+.sessions .footer button {
+  white-space: nowrap;
+  padding-inline: 10px;
+}
+.sessions .footer .primary {
+  flex: 1;
+}
 .dot {
   width: 8px;
   height: 8px;
@@ -1972,4 +1979,34 @@ kbd {
 .review .empty {
   padding: 40px;
   color: var(--dim);
+}
+
+/* Open MRs (T3): the backlog's layout, with review threads as quoted blocks. */
+.mrs .threads {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+.mrs .thread {
+  border-left: 2px solid var(--line, #2a2f3a);
+  padding: 2px 0 2px 12px;
+}
+.mrs .thread.open {
+  border-left-color: var(--amber, #f5b942);
+}
+.mrs .thread.resolved,
+.mrs .thread.fixed {
+  opacity: 0.6;
+}
+.mrs .thread blockquote {
+  margin: 6px 0;
+  white-space: pre-wrap;
+}
+.mrs .thread .reply {
+  margin: 4px 0 6px;
+  padding: 6px 10px;
+  background: rgba(45, 212, 191, 0.08);
+  border-radius: 6px;
+  white-space: pre-wrap;
 }

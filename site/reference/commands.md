@@ -2505,6 +2505,7 @@ metator serve [options]
 | `--poll-ms <n>` | how often sockets look for a change | `1000` |
 | `--supervise-ms <n>` | how often the supervisor ticks (0: never) | `5000` |
 | `--intake-ms <n>` | how often the intake rules are scanned (0: never; default: the rules' `everyMs`) |  |
+| `--reviews-ms <n>` | how often reviews of my requests are read (0: never; default: the config's `reviews.everyMs`) |  |
 
 ## pane
 
@@ -2724,6 +2725,79 @@ What intake holds: its issues by rule and status, and the runs it started
 ```bash
 metator intake status [options]
 ```
+
+## mrs
+
+### `metator mrs list`
+
+My reviewed requests with their open threads and the answering run
+
+```bash
+metator mrs list [options]
+```
+
+### `metator mrs show`
+
+One request's threads: who said what where, its kind, the proposed reply, its state
+
+```bash
+metator mrs show [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the request, as `mrs list` names it (github-acme-shop-45) | |
+
+### `metator mrs scan`
+
+Read the hosts now: keep the threads, start the answering run for new ones
+
+```bash
+metator mrs scan [options]
+```
+
+### `metator mrs triage`
+
+Record what was made of a thread: its kind, a proposed reply, whether the plan covers it
+
+```bash
+metator mrs triage [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the request | |
+| `--thread <thread>` | the thread's id **Required.** |  |
+| `--kind <kind>` | what the thread is (one of: unsorted, question, change, nit, praise) |  |
+| `--reply <text>` | the reply to propose (sent only by `mrs send`) |  |
+| `--state <state>` | where the thread stands (one of: open, answered, planned, fixed, resolved) |  |
+
+### `metator mrs send`
+
+Post every proposed reply that was not sent yet to the host
+
+```bash
+metator mrs send [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the request | |
+| `--by <name>` | the person who decides to send them **Required.** |  |
+
+### `metator mrs resolve`
+
+Close a thread at the host
+
+```bash
+metator mrs resolve [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the request | |
+| `--thread <thread>` | the thread's id **Required.** |  |
+| `--by <name>` | the person who decides to close it **Required.** |  |
 
 ## open
 

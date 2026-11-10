@@ -45,7 +45,8 @@ function world(threads: () => HostThread[] | MetatorError) {
           { number: 46, title: "Someone else's", author: "ola" },
         ]),
       listThreads: async (_s, n) => {
-        const t = n === 45 ? threads() : [];
+        // The other author's request is reviewed too: only the author filter keeps it out.
+        const t = n === 45 ? threads() : [thread("other")];
         return t instanceof MetatorError ? err(t) : ok(t);
       },
       reply: async (_s, n, id, text) => {

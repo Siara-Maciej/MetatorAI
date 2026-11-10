@@ -68,6 +68,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `WorktreeRegistry` | `.metator/worktrees.json` | `metator worktree *`, `metator run init --worktree` |
 | `EvalReport` | `<runs-dir>/report.json` | `metator eval run` |
 | `QuarterlyReview` | `.metator/reviews/quarterly-<date>.json` | `metator meta quarterly` |
+| `PullRequestReview` | `.metator/mrs/<host>-<repo>-<number>.json` | the daemon and `metator mrs …`: the review threads of my request and what was made of each |
 
 ## Run artifacts (written by agents, validated by hooks)
 

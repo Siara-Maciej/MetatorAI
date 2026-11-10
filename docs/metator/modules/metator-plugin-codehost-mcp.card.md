@@ -21,7 +21,7 @@ dir: packages/plugin-codehost-mcp
 
 ## Responsibility
 
-The `CodeHost` port over MCP (T2, design/14 §3, ADR-0083): lists the items of an intake source (GitHub or GitLab issues, Jira) through the MCP server configured under `mcp:`. It maps a source to one tool call (`listCall`) and the server's JSON to `IntakeItem`s (`itemsFromResult`); `SdkToolCaller` is the only part that talks to a server. It decides nothing about issues, runs or limits (that is core's `ScanIntake`) and never writes to a source.
+The `CodeHost` and `ReviewHost` ports over MCP (T2, T3, design/14 §3–4, ADR-0083): lists the items of an intake source (GitHub or GitLab issues, Jira) and the review threads of pull (merge) requests through the MCP server configured under `mcp:`; replies to a thread and resolves it when core says so (`McpReviewHost`). It maps a source to one tool call (`listCall`) and the server's JSON to `IntakeItem`s (`itemsFromResult`); `SdkToolCaller` is the only part that talks to a server. It decides nothing about issues, runs or limits (that is core's `ScanIntake` and `MyReviews`); it writes to a host only through `reply` and `resolve`, which core calls after a person's decision.
 
 ## Invariants
 

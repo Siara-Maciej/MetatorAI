@@ -319,6 +319,31 @@ export interface IssueRef {
   readonly line?: number;
   readonly note?: string;
 }
+/** One review thread on my request, with what the agent made of it. */
+export interface ReviewThreadView {
+  readonly id: string;
+  readonly author: string;
+  readonly file?: string;
+  readonly line?: number;
+  readonly body: string;
+  readonly kind: "unsorted" | "question" | "change" | "nit" | "praise";
+  readonly state: "open" | "answered" | "planned" | "fixed" | "resolved";
+  readonly reply?: string;
+  readonly repliedAt?: string;
+}
+
+/** My reviewed request (`PullRequestReview`), by the id `metator mrs` names it. */
+export interface ReviewedRequest {
+  readonly id: string;
+  readonly number: number;
+  readonly title: string;
+  readonly branch?: string;
+  readonly url?: string;
+  readonly threads: readonly ReviewThreadView[];
+  readonly runId?: string;
+  readonly updatedAt: string;
+}
+
 export interface Issue {
   readonly id: string;
   readonly title: string;
@@ -587,6 +612,12 @@ export class DaemonClient {
     this.post<{ message: RunMessage; notes: ReviewNote[] }>(`/runs/${runId}/review-send`, { by }, repo);
   setNoteStatus = (runId: string, id: string, status: ReviewNote["status"], repo?: string) =>
     this.post<ReviewNote>(`/runs/${runId}/review-note-status`, { id, status }, repo);
+  /** Reviews of my open requests (T3): one entry per request with its threads. */
+  mrs = (repo?: string) => this.get<{ requests: ReviewedRequest[] }>("/mrs", repo);
+  sendMrReplies = (id: string, by: string, repo?: string) =>
+    this.post<{ sent: string[] }>(`/mrs/${encodeURIComponent(id)}/send`, { by }, repo);
+  resolveMrThread = (id: string, thread: string, by: string, repo?: string) =>
+    this.post<ReviewedRequest>(`/mrs/${encodeURIComponent(id)}/resolve`, { by, thread }, repo);
   issues = (repo?: string) => this.get<{ issues: Issue[] }>("/issues", repo);
   addIssue = (
     body: {
