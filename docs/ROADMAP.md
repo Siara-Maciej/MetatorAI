@@ -171,7 +171,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] `.github/workflows/mt-eval.yml`: W12 na PR-ach dotykających agentów, skilli, instrukcji, workflowów i złotego zbioru: linty i `generate --check` zawsze; `eval run` ×3 i `eval compare` z `docs/metator/evals/baseline.json`, gdy zmienna repozytorium `METATOR_EVAL_COMMAND` nazywa recenzenta headless.
 - [x] `copilot-setup-steps.yml` dla coding agenta (`bun install`, `metator index build`, `metator doctor`).
 - [x] Natywny Copilot code review: lekka warstwa w `.github/copilot-instructions.md` (T0 w mapie pamięci); ciężka (kanon w `.github/instructions/mt-*`) ma `excludeAgent: code-review` (`InstructionsAdapter` v2), więc natywne review nie dubluje mt-pr-review.
-- [ ] Telemetria: agregacja `telemetry.jsonl` i reakcji na komentarze (resolved/dismissed) → dashboard.
+- [x] Telemetria: `metator findings react` zapisuje reakcje na komentarze review (`ReviewReaction` w `.metator/telemetry/reactions.jsonl`: resolved / dismissed / open), `metator report` dolicza je (udział dismissed wśród rozstrzygniętych, per soczewka i per PR) do `usage.jsonl` runów, `report --html` renderuje dashboard z linią 15%. Zapis z GitHuba (rozwiązane wątki) wymaga skryptu w CI pilota.
 
 **Kryterium wyjścia:** review w CI na 100% PR-ów pilota przez 2 tygodnie, odsetek dismissed ≤ 15%, nightly zielony.
 

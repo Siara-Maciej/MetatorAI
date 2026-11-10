@@ -5,6 +5,7 @@ import {
   type InboxItem,
   inboxOf,
   MetatorError,
+  normalizePath,
   type Overview,
   ok,
   type RunFacts,
@@ -125,13 +126,34 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
       "What the runs cost and asked of people: tokens, money, agent time, questions, waiting, per agent",
     )
     .option("--since <time>", "only runs started at or after this ISO time")
+    .option(
+      "--html <file>",
+      "also write the dashboard: the report and the reactions to review comments as one page",
+    )
     .action(
-      ctx.action(async (opts: { since?: string }) => {
+      ctx.action(async (opts: { since?: string; html?: string }) => {
         if (opts.since && Number.isNaN(Date.parse(opts.since)))
           return { result: err(MetatorError.usage(`--since ${opts.since}: expected an ISO time`)) };
         const since = opts.since ? new Date(opts.since).toISOString() : undefined;
         const f = ctx.folder();
-        if (!f) return { result: await ctx.container().resolve("buildReport").execute(since) };
+        if (opts.html) {
+          if (f)
+            return {
+              result: err(MetatorError.usage("--html renders one repository: run it inside the repository")),
+            };
+          return {
+            result: await ctx
+              .container()
+              .resolve("renderReport")
+              .execute({ out: normalizePath(opts.html), ...(since ? { since } : {}) }),
+          };
+        }
+        if (!f) {
+          const report = await ctx.container().resolve("buildReport").execute(since);
+          if (report.isErr()) return { result: report };
+          const reactions = await ctx.container().resolve("reviewFeedback").stats();
+          return { result: reactions.map((r) => ({ ...report.value, reactions: r })) };
+        }
         // A folder: every repository's runs in one report, each run named with its repository.
         const facts: RunFacts[] = [];
         const warnings: string[] = [];

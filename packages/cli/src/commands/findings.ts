@@ -7,11 +7,15 @@ import {
   MetatorError,
   normalizePath,
   ok,
+  REACTION_STATES,
+  type ReactionState,
   SEVERITIES,
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
+
+type Lens = (typeof LENSES)[number];
 
 interface CalibrateOptions {
   readonly id: string;
@@ -212,6 +216,40 @@ export function registerFindingsCommands(program: Command, { action, container }
     .command("schema")
     .description("Print the JSON Schema of a findings file")
     .action(action(() => ({ result: ok(FindingSetDocument.jsonSchema("input")) })));
+  findings
+    .command("react")
+    .description(
+      "Record what happened to a review comment on a PR: resolved (fixed), dismissed (noise) or open (F5 telemetry)",
+    )
+    .argument("<finding>", "the finding id the comment carried (LOGIC-007)")
+    .requiredOption("--pr <ref>", "the pull request (42, owner/repo#42)")
+    .addOption(
+      new Option("--state <state>", "what people did with it")
+        .choices([...REACTION_STATES])
+        .makeOptionMandatory(),
+    )
+    .requiredOption("--by <who>", "who reacted")
+    .addOption(new Option("--lens <lens>", "the lens that raised it").choices([...LENSES]))
+    .option("--reason <text>", "why, in a few words")
+    .action(
+      action(
+        async (
+          finding: string,
+          opts: { pr: string; state: ReactionState; by: string; lens?: Lens; reason?: string },
+        ) => ({
+          result: await container()
+            .resolve("reviewFeedback")
+            .record({
+              finding,
+              pr: opts.pr,
+              state: opts.state,
+              by: opts.by,
+              ...(opts.lens ? { lens: opts.lens } : {}),
+              ...(opts.reason ? { reason: opts.reason } : {}),
+            }),
+        }),
+      ),
+    );
 }
 
 export function registerReviewCommands(program: Command, { action, container, runs }: CommandContext): void {
