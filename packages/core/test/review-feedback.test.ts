@@ -31,8 +31,9 @@ describe("reaction stats", () => {
   test("the last reaction per finding counts; dismissed share is among the decided; by lens and by PR", () => {
     const stats = reactionStats([
       reaction({ lens: "logic" }),
-      reaction({ finding: "LOGIC-002", lens: "logic", state: "dismissed", at: at(41) }),
+      // Written out of time order: the later reaction decides, not the later line.
       reaction({ finding: "LOGIC-002", lens: "logic", state: "resolved", at: at(42) }),
+      reaction({ finding: "LOGIC-002", lens: "logic", state: "dismissed", at: at(41) }),
       reaction({ finding: "TESTS-001", lens: "tests", state: "dismissed" }),
       reaction({ finding: "SEC-001", lens: "security", state: "open", pr: "43" }),
     ]);
