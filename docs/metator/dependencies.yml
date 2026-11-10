@@ -26,10 +26,6 @@ packages:
     }
   - { package: "@manypkg/get-packages", need: "workspace packages", adr: 0018-workspaces-manypkg.md }
   - {
-      need: "the desktop app's window and system notifications (Tauri)",
-      adr: 0078-desktop-app-tauri-xterm.md,
-    }
-  - {
       package: "@tauri-apps/cli",
       need: "builds the desktop app (Tauri)",
       adr: 0078-desktop-app-tauri-xterm.md,
