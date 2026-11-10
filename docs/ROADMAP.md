@@ -171,7 +171,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 - [x] `.github/workflows/mt-eval.yml`: W12 na PR-ach dotykających agentów, skilli, instrukcji, workflowów i złotego zbioru: linty i `generate --check` zawsze; `eval run` ×3 i `eval compare` z `docs/metator/evals/baseline.json`, gdy zmienna repozytorium `METATOR_EVAL_COMMAND` nazywa recenzenta headless.
 - [x] `copilot-setup-steps.yml` dla coding agenta (`bun install`, `metator index build`, `metator doctor`).
 - [x] Natywny Copilot code review: lekka warstwa w `.github/copilot-instructions.md` (T0 w mapie pamięci); ciężka (kanon w `.github/instructions/mt-*`) ma `excludeAgent: code-review` (`InstructionsAdapter` v2), więc natywne review nie dubluje mt-pr-review.
-- [ ] Telemetria: agregacja `telemetry.jsonl` i reakcji na komentarze (resolved/dismissed) → dashboard.
+- [x] Telemetria: `metator findings react` zapisuje reakcje na komentarze review (`ReviewReaction` w `.metator/telemetry/reactions.jsonl`: resolved / dismissed / open), `metator report` dolicza je (udział dismissed wśród rozstrzygniętych, per soczewka i per PR) do `usage.jsonl` runów, `report --html` renderuje dashboard z linią 15%. Zapis z GitHuba (rozwiązane wątki) wymaga skryptu w CI pilota.
 
 **Kryterium wyjścia:** review w CI na 100% PR-ów pilota przez 2 tygodnie, odsetek dismissed ≤ 15%, nightly zielony.
 
@@ -308,3 +308,17 @@ Projekt: [design/13](design/13-options-workbench.md), zaakceptowany 2026-11-09 (
 - [x] S4 Lokalne zadania: `Issue` v1 w `.metator/issues/`, `issue propose` (agent) → pytanie w inboxie → zgoda osoby, `issue add|list|show|edit|close|drop|start`, ekran Backlog, MCP do czytania.
 - [x] S6 Siatka jak w herdr: pisanie wprost w kafelku (`ui.attachOnType`), zoom, drzewo podziału i przeciąganie zapisane w `Layout` v2, tryb kopiowania z wyszukiwaniem, ramki i etykiety pane'ów, go-to picker (`prefix+g`), menu kontekstowe, pasek etapów runu pod tabami, wszystkie skróty przez `keys.*`. Kolejność: S1 → S6 → S2 → S4 → S5.
 - [x] S5 Podgląd kodu: `open-editor` (VS Code na worktree/pliku/diffie z `editor.*`), ekran Review z diffem i komentarzami inline (`ReviewNote` v1), „Send to agent” jako `RunMessage` (topic `review`), `addressed` po zmianie; `review notes list|add|send`.
+
+---
+
+## Faza T: wejście przez CLI agenta, automat zadań, odpowiedź na review (ADR-0083)
+
+Projekt: [design/14](design/14-intake-and-review.md). Decyzje właściciela z 2026-11-10 (§0 projektu). Każdy punkt to osobna gałąź i PR do `main`; kryteria wyjścia w design/14 §6.
+
+- [x] T0 Projekt (design/14) i ADR-0083, zaakceptowane przez właściciela 2026-11-10.
+- [ ] T1 Rozmowa zamiast formularza: `mt-orchestrator` w trybie intake (pytanie o repo → odpowiedź z cytatami; zadanie → `mt-grill` → `run init` w tym samym pane), „+ New session” otwiera pane hosta, formularz pod „zaawansowane”; `mcp:` w `MetatorConfig` (nowa wersja) i `UserOptions` v2, `metator generate` wpisuje MCP do hosta, `doctor` sprawdza serwery. E2e na hoście scenariuszowym.
+- [ ] T2 `metator intake`: port `CodeHost` z adapterem przez MCP (GitHub, GitLab, Jira), `IntakeRule` w konfiguracji (źródło, filtr, repo z `metator.repos.yml`, workflow, autonomia gated|full, worktree), pętla demona co 120 s, klucz źródła w `Issue` v2 (idempotencja), limity `maxActive` i kosztu, `intake scan|rules|status`. E2e z fake MCP; `full` dochodzi do bramki push.
+- [ ] T3 `mt-review-response`: `ReviewThread` v1, agent `mt-review-responder` (triage, odpowiedzi z diffu), plan poprawek w `plan.json`, bramka HITL „Napraw / Tylko odpowiedz / Pomiń”, build w worktree gałęzi MR, odpowiedzi i resolve przez `CodeHost`; zakładka **Open MRs** (`#/mrs`), `metator mrs list|show`, powiadomienie przez `notify`. E2e z fake MCP i przebieg na prawdziwym PR MetatorAI ze zrzutami.
+- [ ] T4 Dokumentacja użytkownika w `site/` (start z agenta, automat, odpowiedź na review), karty, kontrakt adaptera, mutanty, `bun run check`.
+
+**Wymaga właściciela:** tokeny/MCP do GitHub, GitLab i Jira w środowisku demona; wybór repozytorium testowego dla T2; akceptacja ADR-0083.
