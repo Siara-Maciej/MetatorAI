@@ -196,17 +196,25 @@ export interface PaneView {
   readonly state?: { readonly state: PaneState; readonly reason: string };
 }
 
+/** A tab's split tree (S6): a pane, or two parts along a direction at a ratio. */
+export type SplitNode =
+  | { readonly pane: string }
+  | { readonly dir: "row" | "column"; readonly ratio: number; readonly a: SplitNode; readonly b: SplitNode };
+
+export interface TabView {
+  readonly id: string;
+  readonly label: string;
+  readonly panes: readonly string[];
+  readonly tree?: SplitNode;
+}
+
 export interface WorkspaceView {
   readonly id: string;
   readonly label: string;
   readonly cwd: string;
   readonly runId?: string;
   readonly group?: string;
-  readonly tabs: readonly {
-    readonly id: string;
-    readonly label: string;
-    readonly panes: readonly string[];
-  }[];
+  readonly tabs: readonly TabView[];
 }
 
 export interface LayoutView {
@@ -415,6 +423,9 @@ export class DaemonClient {
     input: {
       runId?: string;
       workspace?: string;
+      /** An existing tab of the workspace; `newTab` opens a fresh one named `label` instead. */
+      tab?: string;
+      newTab?: boolean;
       role: PaneRole;
       label?: string;
       argv?: string[];
@@ -426,4 +437,14 @@ export class DaemonClient {
   ) => this.post<PaneView>("/panes", input, repo);
   closePane = (paneId: string, repo?: string) =>
     this.post<{ closed: boolean }>(`/panes/${encodeURIComponent(paneId)}/close`, {}, repo);
+  splitPane = (paneId: string, dir: "right" | "down", repo?: string, argv?: string[]) =>
+    this.post<PaneView>(
+      `/panes/${encodeURIComponent(paneId)}/split`,
+      { dir, ...(argv ? { argv } : {}) },
+      repo,
+    );
+  setTree = (tabId: string, tree: SplitNode, repo?: string) =>
+    this.post<TabView>(`/tabs/${encodeURIComponent(tabId)}/tree`, { tree }, repo);
+  closeWorkspace = (workspace: string, repo?: string) =>
+    this.post<{ closed: number }>(`/workspaces/${encodeURIComponent(workspace)}/close`, {}, repo);
 }

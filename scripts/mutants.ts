@@ -4665,4 +4665,16 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "issues.requireConsent is fixed: an agent never adds a task on its own",
   },
+  {
+    file: "packages/core/src/domain/layout.ts",
+    from: "  if (!a) return b;\n  if (!b) return a;",
+    to: "  if (!a || !b) return undefined;",
+    why: "removing a pane from a split hands its area to its sibling",
+  },
+  {
+    file: "packages/core/src/application/pty-broker.ts",
+    from: '    if (entry.runId && entry.role !== "shell") {',
+    to: "    if (false) {",
+    why: "an agent's pane of a run takes keys only from the driver",
+  },
 ];

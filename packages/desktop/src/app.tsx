@@ -15,11 +15,11 @@ import { NewSessionDialog } from "./screens/new-session.tsx";
 import { SessionScreen } from "./screens/session.tsx";
 import { SettingsScreen } from "./screens/settings.tsx";
 import { SupervisorScreen } from "./screens/supervisor.tsx";
-import { TerminalsScreen } from "./screens/terminals.tsx";
+import { WorkbenchScreen } from "./screens/workbench.tsx";
 
 const RAIL: { route: Route; label: string; glyph: string }[] = [
   { route: { screen: "inbox" }, label: "Inbox", glyph: "☰" },
-  { route: { screen: "grid" }, label: "Grid", glyph: "▦" },
+  { route: { screen: "grid" }, label: "Work", glyph: "▦" },
   { route: { screen: "graph" }, label: "Graph", glyph: "⌘" },
   { route: { screen: "supervisor" }, label: "Super", glyph: "◎" },
   { route: { screen: "settings" }, label: "Settings", glyph: "⚙" },
@@ -166,10 +166,9 @@ function Shell() {
           <SessionScreen runId={route.runId} pane={route.pane} onOpenSession={openSession} />
         ) : null}
         {route.screen === "grid" ? (
-          <TerminalsScreen
-            {...(route.group ? { group: route.group } : {})}
-            onOpenSession={openSession}
-            onNew={() => setDialog(true)}
+          <WorkbenchScreen
+            onNewTask={() => setDialog(true)}
+            onOpenSettings={() => go({ screen: "settings" })}
           />
         ) : null}
         {route.screen === "graph" ? <GraphScreen /> : null}

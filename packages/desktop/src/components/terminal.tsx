@@ -4,6 +4,7 @@
  * only while the person is attached (the daemon refuses the rest and says so).
  */
 import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon } from "@xterm/addon-search";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import { wsUrl } from "../api.ts";
@@ -13,6 +14,17 @@ export interface TerminalStatus {
   readonly alive?: boolean | undefined;
   readonly exitCode?: number | undefined;
   readonly refused?: string | undefined;
+}
+
+/** What copy mode (S6) does on a terminal: search its scrollback, copy the selection, focus it. */
+export interface TerminalHandle {
+  findNext(query: string): boolean;
+  findPrevious(query: string): boolean;
+  /** The selected text, copied to the clipboard when the browser allows; the text either way. */
+  copySelection(): string;
+  clearSearch(): void;
+  focus(): void;
+  scrollToBottom(): void;
 }
 
 /** A run's conductor pane (the daemon opens it when none is live). */
@@ -44,11 +56,18 @@ export function PaneTerminal({
   repo,
   canType,
   onStatus,
+  onBlockedKey,
+  onReady,
+  scrollback,
 }: {
   readonly paneId: string;
   readonly repo?: string | undefined;
   readonly canType: boolean;
   onStatus?: ((s: TerminalStatus) => void) | undefined;
+  /** A key typed while the agent holds the keyboard (S6): the caller decides whether to take it. */
+  onBlockedKey?: ((data: string) => void) | undefined;
+  onReady?: ((handle: TerminalHandle) => void) | undefined;
+  readonly scrollback?: number | undefined;
 }) {
   return (
     <SocketTerminal
@@ -57,6 +76,9 @@ export function PaneTerminal({
       repo={repo}
       canType={canType}
       onStatus={onStatus}
+      onBlockedKey={onBlockedKey}
+      onReady={onReady}
+      scrollback={scrollback}
     />
   );
 }
@@ -67,12 +89,18 @@ function SocketTerminal({
   repo,
   canType,
   onStatus,
+  onBlockedKey,
+  onReady,
+  scrollback,
 }: {
   readonly path: string;
   readonly testId: string;
   readonly repo?: string | undefined;
   readonly canType: boolean;
   onStatus?: ((s: TerminalStatus) => void) | undefined;
+  onBlockedKey?: ((data: string) => void) | undefined;
+  onReady?: ((handle: TerminalHandle) => void) | undefined;
+  readonly scrollback?: number | undefined;
 }) {
   const { url, me } = useDaemon();
   const host = useRef<HTMLDivElement>(null);
@@ -80,6 +108,10 @@ function SocketTerminal({
   const status = useRef<TerminalStatus>({});
   const report = useRef(onStatus);
   report.current = onStatus;
+  const blocked = useRef(onBlockedKey);
+  blocked.current = onBlockedKey;
+  const ready = useRef(onReady);
+  ready.current = onReady;
   const typing = useRef(canType);
   typing.current = canType;
   useEffect(() => {
@@ -91,12 +123,27 @@ function SocketTerminal({
       lineHeight: 1.25,
       theme: { background: "#0b0e13", foreground: "#e6e9ef", cursor: "#2dd4bf" },
       convertEol: false,
-      scrollback: 5000,
+      scrollback: scrollback ?? 5000,
     });
     const fit = new FitAddon();
+    const search = new SearchAddon();
     term.loadAddon(fit);
+    term.loadAddon(search);
     term.open(el);
     fit.fit();
+    ready.current?.({
+      findNext: (q) => search.findNext(q, { incremental: true }),
+      findPrevious: (q) => search.findPrevious(q),
+      copySelection: () => {
+        const text = term.getSelection();
+        if (text && typeof navigator !== "undefined" && navigator.clipboard)
+          navigator.clipboard.writeText(text).catch(() => undefined);
+        return text;
+      },
+      clearSearch: () => search.clearDecorations(),
+      focus: () => term.focus(),
+      scrollToBottom: () => term.scrollToBottom(),
+    });
     const query = `?by=${encodeURIComponent(me)}${repo ? `&repo=${encodeURIComponent(repo)}` : ""}`;
     const ws = new WebSocket(wsUrl(url, `${path}${query}`));
     socket.current = ws;
@@ -128,6 +175,7 @@ function SocketTerminal({
     term.onData((data) => {
       if (!typing.current) {
         update({ ...status.current, refused: "attach first: the agent drives this session" });
+        blocked.current?.(data);
         return;
       }
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "input", data }));
@@ -144,7 +192,7 @@ function SocketTerminal({
       term.dispose();
     };
     // The socket carries the attach state itself: a new `by` means a new socket.
-  }, [path, repo, url, me]);
+  }, [path, repo, url, me, scrollback]);
   return <div className="term" ref={host} data-testid={testId} />;
 }
 

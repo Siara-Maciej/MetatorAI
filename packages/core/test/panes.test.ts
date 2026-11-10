@@ -258,4 +258,43 @@ describe("Panes", () => {
     expect(after.workspaces.map((x) => x.id)).toEqual(["w1", "w3", "w4"]);
     expect(after.panes).toEqual([]);
   });
+
+  test("splitPane opens a shell beside the pane and the tab's tree remembers it; setTree accepts only the tab's panes", async () => {
+    const w = world();
+    const r = (await w.init("Split"))._unsafeUnwrap();
+    const ws = (await w.panes.openWorkspace({ runId: r.runId }))._unsafeUnwrap();
+    const first = (
+      await w.panes.openPane({ workspace: ws.id, role: "shell", process: { kind: "command", argv: ["sh"] } })
+    )._unsafeUnwrap();
+    const right = (await w.panes.splitPane(first.id, { dir: "right" }))._unsafeUnwrap();
+    expect([right.id, right.tab, right.role, right.cwd]).toEqual(["w1:p2", first.tab, "shell", first.cwd]);
+    const below = (
+      await w.panes.splitPane(right.id, { dir: "down", process: { kind: "command", argv: ["top"] } })
+    )._unsafeUnwrap();
+    expect(below.process).toEqual({ kind: "command", argv: ["top"] });
+    const tab = (await w.layout.load())._unsafeUnwrap().workspaces[0]?.tabs[0];
+    expect(tab?.panes).toEqual(["w1:p1", "w1:p2", "w1:p3"]);
+    expect(tab?.tree).toEqual({
+      dir: "row",
+      ratio: 0.5,
+      a: { pane: "w1:p1" },
+      b: { dir: "column", ratio: 0.5, a: { pane: "w1:p2" }, b: { pane: "w1:p3" } },
+    });
+    const resized = (
+      await w.panes.setTree(tab?.id as string, {
+        dir: "row",
+        ratio: 0.3,
+        a: { pane: "w1:p1" },
+        b: { dir: "column", ratio: 0.6, a: { pane: "w1:p2" }, b: { pane: "w1:p3" } },
+      })
+    )._unsafeUnwrap();
+    expect(resized.tree && "ratio" in resized.tree ? resized.tree.ratio : 0).toBe(0.3);
+    const wrong = await w.panes.setTree(tab?.id as string, { pane: "w1:p1" });
+    expect(wrong.isErr() && wrong.error.code).toBe("USAGE");
+    expect((await w.panes.splitPane("w1:p9", { dir: "right" })).isErr()).toBe(true);
+    // Closing a pane prunes it from the tree.
+    (await w.panes.closePane("w1:p2"))._unsafeUnwrap();
+    const after = (await w.layout.load())._unsafeUnwrap().workspaces[0]?.tabs[0];
+    expect(after?.tree).toEqual({ dir: "row", ratio: 0.3, a: { pane: "w1:p1" }, b: { pane: "w1:p3" } });
+  });
 });

@@ -173,7 +173,7 @@ describe("conductor (real daemon, real PTYs)", () => {
     ) as { worker: string };
     expect(again.worker).toBe("mt-planner-2");
     const activity = await mt("run", "activity");
-    expect(activity.json.ok).toBe(true);
+    expect(activity.json.error ?? null).toBeNull();
     const texts = (data(activity) as { entries: { text: string }[] }).entries.map((e) => e.text);
     expect(texts).toContain("delegated plan to worker mt-planner-1 in pane w1:p2");
     expect(texts).toContain("worker mt-planner-1 reported done: plan.md written");

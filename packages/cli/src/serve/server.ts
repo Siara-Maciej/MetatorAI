@@ -18,6 +18,7 @@ import {
   type PtyEvent,
   type PtyView,
   type Result,
+  SplitNodeSchema,
   type Supervisor,
   serializeJsonDocument,
 } from "@metator/core";
@@ -213,10 +214,17 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         }
         const role = PANE_ROLES.includes(str("role") as PaneRole) ? (str("role") as PaneRole) : "shell";
         const argv = Array.isArray(body.argv) ? (body.argv as string[]) : undefined;
+        // A fresh tab for the pane (S6): named after the pane's label.
+        let tab = str("tab");
+        if (body.newTab === true && workspace) {
+          const opened = await panes.openTab(workspace, str("label") ?? "tab");
+          if (opened.isErr()) return fromResult(opened);
+          tab = opened.value;
+        }
         return fromResult(
           await panes.openPane({
             workspace: workspace as string,
-            ...(str("tab") ? { tab: str("tab") as string } : {}),
+            ...(tab ? { tab } : {}),
             role,
             ...(str("label") ? { label: str("label") as string } : {}),
             ...(str("cwd") ? { cwd: str("cwd") as string } : {}),
@@ -255,6 +263,24 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           return fromResult(await panes.wait(paneId, { until, timeoutMs }));
         }
         if (action === "close" && req.method === "POST") return fromResult(await panes.closePane(paneId));
+        // Split (S6): a shell (the person's `terminal.shell`, else $SHELL) beside or below the pane.
+        if (action === "split" && req.method === "POST") {
+          const body = (await req.json().catch(() => ({}))) as Json;
+          const dir = body.dir === "down" ? "down" : "right";
+          const argv = Array.isArray(body.argv) && body.argv.length > 0 ? (body.argv as string[]) : undefined;
+          const shell = await c.value.resolve("optionStore").get("terminal.shell");
+          const configured = shell.isOk() && typeof shell.value.value === "string" ? shell.value.value : "";
+          const fallback = configured !== "" ? configured : (process.env.SHELL ?? "sh");
+          return fromResult(
+            await panes.splitPane(paneId, {
+              dir,
+              process: { kind: "command", argv: argv ?? [fallback] },
+              ...(typeof body.cols === "number" && typeof body.rows === "number"
+                ? { size: { cols: body.cols as number, rows: body.rows as number } }
+                : {}),
+            }),
+          );
+        }
         // A hook of the pane's own session says the agent works (R3): the pane's token, no other.
         if (action === "heartbeat" && req.method === "POST") {
           const token = req.headers.get("x-metator-pane");
@@ -274,6 +300,16 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         return json(
           { ok: false, error: { code: "NOT_FOUND", message: `no route ${req.method} ${path}` } },
           404,
+        );
+      }
+      const tabTree = /^\/tabs\/([^/]+)\/tree$/.exec(path);
+      if (tabTree && req.method === "POST") {
+        const body = (await req.json().catch(() => ({}))) as Json;
+        const tree = SplitNodeSchema.safeParse(body.tree);
+        if (!tree.success)
+          return json({ ok: false, error: { code: "USAGE", message: "body.tree is not a split tree" } }, 400);
+        return fromResult(
+          await c.value.resolve("panes").setTree(decodeURIComponent(tabTree[1] as string), tree.data),
         );
       }
       const workspace = /^\/workspaces\/([^/]+)\/close$/.exec(path);

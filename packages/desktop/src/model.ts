@@ -10,7 +10,10 @@ import type {
   Question,
   ResolvedOption,
   RunOverview,
+  SplitNode,
   StageProgress,
+  TabView,
+  WorkspaceView,
 } from "./api.ts";
 
 /** A run as the app sees it: with the repository it belongs to when the daemon serves a folder. */
@@ -266,3 +269,302 @@ export const optionMatches = (o: ResolvedOption, query: string): boolean => {
     o.definition.description.toLowerCase().includes(q)
   );
 };
+
+/* ---------- the workbench (S6): tabs are tasks, keys are chords ---------- */
+
+/** A tab of the workbench: the repository's own tab (a shell), or a run (a task in its worktree). */
+export interface WorkbenchTab {
+  /** Stable across renders: the daemon's tab id. */
+  readonly key: string;
+  readonly label: string;
+  readonly kind: "task" | "shell";
+  readonly workspaceId: string;
+  readonly tabId: string;
+  readonly panes: readonly string[];
+  readonly tree?: SplitNode | undefined;
+  readonly runId?: string | undefined;
+  readonly run?: RunOverview | undefined;
+  readonly branch?: string | undefined;
+  readonly worktree?: string | undefined;
+  readonly attention?: Attention | undefined;
+}
+
+/** A repository as the sidebar shows it: its workspace (or a stand-in) and its tabs. */
+export interface WorkbenchRepo {
+  readonly id: string;
+  readonly label: string;
+  readonly cwd: string;
+  readonly tabs: readonly WorkbenchTab[];
+  /** The strongest attention among its tabs: amber beats violet beats grey. */
+  readonly attention?: Attention | undefined;
+}
+
+const ATTENTION_WEIGHT: Record<Attention, number> = {
+  you: 3,
+  escalated: 3,
+  driving: 2,
+  stopped: 1,
+  done: 0,
+  aborted: 0,
+};
+
+/**
+ * The daemon's workspaces regrouped the way the workbench shows them: a repository per
+ * workspace without a run, and under it, as tabs, its own tabs and every run workspace that sits
+ * in it (grouped under it, or made in its directory). Run workspaces nobody groups stand alone.
+ */
+export function workbenchRepos(
+  workspaces: readonly WorkspaceView[],
+  runs: readonly RunOverview[],
+  fallbackLabel = "this repository",
+): WorkbenchRepo[] {
+  const runOf = (id: string | undefined) => (id ? runs.find((r) => r.runId === id) : undefined);
+  const taskTab = (w: WorkspaceView): WorkbenchTab => {
+    const run = runOf(w.runId);
+    const first = w.tabs[0] as TabView;
+    return {
+      key: first.id,
+      label: run?.task ?? w.label,
+      kind: "task",
+      workspaceId: w.id,
+      tabId: first.id,
+      panes: first.panes,
+      tree: first.tree,
+      runId: w.runId,
+      run,
+      branch: run?.worktree?.branch,
+      worktree: run?.worktree?.path ?? (w.cwd !== undefined ? w.cwd : undefined),
+      attention: run?.attention,
+    };
+  };
+  const shellTab = (w: WorkspaceView, t: TabView): WorkbenchTab => ({
+    key: t.id,
+    label: t.label,
+    kind: "shell",
+    workspaceId: w.id,
+    tabId: t.id,
+    panes: t.panes,
+    tree: t.tree,
+  });
+  const repos = workspaces.filter((w) => !w.runId);
+  const runWorkspaces = workspaces.filter((w) => w.runId);
+  const taken = new Set<string>();
+  const out: WorkbenchRepo[] = repos.map((w) => {
+    const own = w.tabs.filter((t) => t.panes.length > 0 || w.tabs.length === 1).map((t) => shellTab(w, t));
+    const mine = runWorkspaces.filter((r) => r.group === w.id || (!r.group && r.cwd === w.cwd));
+    for (const r of mine) taken.add(r.id);
+    const tabs = [...mine.map(taskTab), ...own];
+    return { id: w.id, label: w.label, cwd: w.cwd, tabs, attention: strongest(tabs) };
+  });
+  const loose = runWorkspaces.filter((r) => !taken.has(r.id));
+  if (loose.length > 0) {
+    const tabs = loose.map(taskTab);
+    out.push({
+      id: "repo",
+      label: fallbackLabel,
+      cwd: loose[0]?.cwd ?? "",
+      tabs,
+      attention: strongest(tabs),
+    });
+  }
+  return out;
+}
+
+const strongest = (tabs: readonly WorkbenchTab[]): Attention | undefined =>
+  tabs
+    .map((t) => t.attention)
+    .filter((a): a is Attention => a !== undefined)
+    .sort((a, b) => ATTENTION_WEIGHT[b] - ATTENTION_WEIGHT[a])[0];
+
+/** A keyboard event as a chord the options spell: `ctrl+b`, `shift+enter`, `[`, `f5`. */
+export function chordOf(
+  e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey">,
+): string {
+  const named: Record<string, string> = {
+    " ": "space",
+    Enter: "enter",
+    Escape: "escape",
+    Tab: "tab",
+    Backspace: "backspace",
+    Delete: "delete",
+    ArrowUp: "up",
+    ArrowDown: "down",
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    Home: "home",
+    End: "end",
+    PageUp: "pageup",
+    PageDown: "pagedown",
+  };
+  const key = named[e.key] ?? e.key.toLowerCase();
+  if (["control", "alt", "shift", "meta"].includes(key)) return "";
+  const mods = [
+    e.ctrlKey ? "ctrl" : "",
+    e.altKey ? "alt" : "",
+    e.shiftKey && key.length > 1 ? "shift" : "",
+    e.metaKey ? "meta" : "",
+  ].filter((m) => m !== "");
+  return [...mods, key].join("+");
+}
+
+/** The keymap: action → chords, from the `keys.*` options (`prefix+z` means after the prefix). */
+export type KeyMap = Readonly<Record<string, readonly string[]>>;
+
+/** The registry's defaults (`keys.*`), so the keys work before the options arrive from the daemon. */
+export const DEFAULT_KEYS: KeyMap = {
+  prefix: ["ctrl+b"],
+  newShell: ["prefix+c"],
+  newTab: ["prefix+t"],
+  splitRight: ["prefix+v"],
+  splitDown: ["prefix+-"],
+  zoom: ["prefix+z"],
+  focusLeft: ["prefix+h", "prefix+left"],
+  focusDown: ["prefix+j", "prefix+down"],
+  focusUp: ["prefix+k", "prefix+up"],
+  focusRight: ["prefix+l", "prefix+right"],
+  goto: ["prefix+g"],
+  nextWaiting: ["prefix+n"],
+  attach: ["prefix+a"],
+  release: ["prefix+escape"],
+  copyMode: ["prefix+["],
+  closePane: ["prefix+x"],
+  detach: ["prefix+q"],
+  plan: ["prefix+p"],
+  changes: ["prefix+r"],
+  backlog: ["prefix+b"],
+  help: ["prefix+?"],
+};
+
+/** The keymap from the options; the defaults where the options say nothing (or are not here yet). */
+export const keyMapOf = (options: readonly Pick<ResolvedOption, "key" | "value">[]): KeyMap => ({
+  ...DEFAULT_KEYS,
+  ...Object.fromEntries(
+    options
+      .filter((o) => o.key.startsWith("keys.") && Array.isArray(o.value))
+      .map((o) => [o.key.slice("keys.".length), (o.value as string[]).map((c) => c.toLowerCase())]),
+  ),
+});
+
+/**
+ * What a chord does: with the prefix pressed before, the actions bound to `prefix+<chord>`;
+ * without, the ones bound to the bare chord (the prefix itself is `prefix`).
+ */
+export function actionOf(map: KeyMap, chord: string, prefixed: boolean): string | undefined {
+  const wanted = prefixed ? `prefix+${chord}` : chord;
+  for (const [action, chords] of Object.entries(map)) if (chords.includes(wanted)) return action;
+  return undefined;
+}
+
+/** The pane after or before one in a tree's order (focus moves by the leaves' order). */
+export function neighborPane(
+  tree: SplitNode | undefined,
+  current: string | undefined,
+  step: 1 | -1,
+): string | undefined {
+  if (!tree) return undefined;
+  const leaves = treeLeavesOf(tree);
+  if (leaves.length === 0) return undefined;
+  const i = current ? leaves.indexOf(current) : -1;
+  if (i < 0) return leaves[0];
+  return leaves[(i + step + leaves.length) % leaves.length];
+}
+
+export const treeLeavesOf = (node: SplitNode): string[] =>
+  "pane" in node ? [node.pane] : [...treeLeavesOf(node.a), ...treeLeavesOf(node.b)];
+
+/** Panes of a tab as an even tree when the daemon kept none. */
+export function evenTree(panes: readonly string[], dir: "row" | "column" = "row"): SplitNode | undefined {
+  if (panes.length === 0) return undefined;
+  if (panes.length === 1) return { pane: panes[0] as string };
+  const half = Math.ceil(panes.length / 2);
+  const next = dir === "row" ? "column" : "row";
+  return {
+    dir,
+    ratio: half / panes.length,
+    a: evenTree(panes.slice(0, half), next) as SplitNode,
+    b: evenTree(panes.slice(half), next) as SplitNode,
+  };
+}
+
+/** The tree with the ratio at a path replaced (a drag of a divider). */
+export function withRatio(node: SplitNode, path: readonly ("a" | "b")[], ratio: number): SplitNode {
+  if ("pane" in node) return node;
+  const clamped = Math.min(0.9, Math.max(0.1, ratio));
+  if (path.length === 0) return { ...node, ratio: clamped };
+  const [step, ...rest] = path;
+  return step === "a"
+    ? { ...node, a: withRatio(node.a, rest, ratio) }
+    : { ...node, b: withRatio(node.b, rest, ratio) };
+}
+
+export type GotoFilter = "all" | "blocked" | "working" | "idle" | "done";
+
+export interface GotoRow {
+  readonly kind: "pane" | "question";
+  readonly id: string;
+  readonly tab: WorkbenchTab;
+  readonly label: string;
+  readonly detail: string;
+  readonly state: PaneState | "question" | undefined;
+  readonly paneId?: string | undefined;
+  readonly questionId?: string | undefined;
+}
+
+/** The go-to picker's rows: every pane of every tab, then the open questions; filtered by state or text. */
+export function gotoRows(
+  repos: readonly WorkbenchRepo[],
+  panes: readonly PaneView[],
+  filter: GotoFilter,
+  query: string,
+): GotoRow[] {
+  const q = query.trim().toLowerCase();
+  const rows: GotoRow[] = [];
+  for (const repo of repos)
+    for (const tab of repo.tabs) {
+      for (const id of tab.panes) {
+        const p = panes.find((x) => x.id === id);
+        if (!p) continue;
+        const state = p.state?.state ?? (p.live?.alive ? "working" : "exited");
+        rows.push({
+          kind: "pane",
+          id: p.id,
+          tab,
+          label: paneLabel(p),
+          detail: p.state?.reason ?? `${tab.label}`,
+          state,
+          paneId: p.id,
+        });
+      }
+      for (const question of tab.run?.questions ?? [])
+        rows.push({
+          kind: "question",
+          id: `${tab.runId}/${question.id}`,
+          tab,
+          label: question.prompt,
+          detail: `${tab.label} · ${question.agent ?? question.source}`,
+          state: "question",
+          questionId: question.id,
+        });
+    }
+  return rows.filter((r) => {
+    if (q !== "" && !`${r.label} ${r.detail} ${r.tab.label}`.toLowerCase().includes(q)) return false;
+    switch (filter) {
+      case "blocked":
+        return r.state === "blocked" || r.state === "waiting" || r.state === "question";
+      case "working":
+        return r.state === "working";
+      case "idle":
+        return r.state === "idle";
+      case "done":
+        return r.state === "exited";
+      default:
+        return true;
+    }
+  });
+}
+
+/** The process strip's text for a run: `intake ✓ · plan ⟳ · gates ·`, each stage once. */
+export const stripStages = (
+  run: RunOverview | undefined,
+): { id: string; glyph: string; state: StageProgress["state"] }[] =>
+  (run?.stages ?? []).map((s) => ({ id: s.id, glyph: stageGlyph(s), state: s.state }));
