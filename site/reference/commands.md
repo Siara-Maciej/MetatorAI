@@ -1071,7 +1071,7 @@ metator config list [options]
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `--scope <scope>` | which file holds the value (one of: user, repo, run) **Required.** |  |
+| `--scope <scope>` | which file holds the value (one of: user, repo, run) |  |
 | `--changed` | only the options a file sets |  |
 | `--run <id>` | with this run's overrides |  |
 

@@ -4659,4 +4659,10 @@ export const MUTANTS: readonly Mutant[] = [
     to: "    if (false)\n      return err(",
     why: "a fixed option cannot be set",
   },
+  {
+    file: "packages/core/src/domain/option-registry.ts",
+    from: "    fixed: true,",
+    to: "",
+    why: "issues.requireConsent is fixed: an agent never adds a task on its own",
+  },
 ];

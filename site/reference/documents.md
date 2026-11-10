@@ -51,6 +51,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `AgentUsage` | `.metator/runs/<id>/usage.jsonl` | `metator run drive` (one line per agent call) |
 | `RunMessage` | `.metator/runs/<id>/messages/mNNN.json` | `metator run message` |
 | `RunSeen` | `.metator/runs/<id>/seen.json` | `metator run brief` |
+| `UserOptions` | `~/.config/metator/options.yml` | `metator config set … --scope user`, the app's Settings screen |
 | `Layout` | `.metator/layout.json` | the daemon (`metator serve`): workspaces, tabs and panes, restored after a restart |
 | `WorkerResult` | `.metator/runs/<id>/results/<worker>.json` | `metator run result` (a worker's report; `run collect` reads it) |
 | `HostManifest` | `metator/hosts/<host>.yml` (optional; MetatorAI ships one per host) | you: how the daemon reads a host's pane (its permission prompt, its idle prompt, quiet) |
