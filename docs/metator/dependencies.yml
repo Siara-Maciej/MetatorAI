@@ -130,6 +130,6 @@ packages:
   - { package: react, need: "the component model under Ink", adr: 0060-terminal-ui-ink.md }
   - {
       package: "@modelcontextprotocol/sdk",
-      need: "MetatorAI as an MCP server over stdio (`metator mcp`)",
+      need: "MetatorAI as an MCP server over stdio (`metator mcp`); the MCP client that reads code hosts for intake (ADR-0083)",
       adr: 0081-mcp-server.md,
     }

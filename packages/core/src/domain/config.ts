@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ModelTierSchema } from "./agent.ts";
+import { IntakeConfigSchema } from "./intake.ts";
 import { McpServersSchema } from "./mcp.ts";
 import { defineDocument } from "./versioned.ts";
 
@@ -248,7 +249,16 @@ const ConfigV9Schema = z.strictObject({
   mcp: McpServersSchema,
 });
 
-export const MetatorConfigSchema = ConfigV9Schema;
+/**
+ * v10 adds `intake` (T2, design/14 §3): the rules that turn outside items into issues and runs.
+ * Every v9 file is a v10 file.
+ */
+const ConfigV10Schema = z.strictObject({
+  ...ConfigV9Schema.shape,
+  intake: IntakeConfigSchema.default(IntakeConfigSchema.parse({})),
+});
+
+export const MetatorConfigSchema = ConfigV10Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -266,9 +276,10 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: ConfigV6Schema, fromPrevious: (v5) => v5 },
     { schema: ConfigV7Schema, fromPrevious: (v6) => v6 },
     { schema: ConfigV8Schema, fromPrevious: (v7) => v7 },
+    { schema: ConfigV9Schema, fromPrevious: (v8) => v8 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v8) => v8,
+  upgrade: (v9) => v9,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

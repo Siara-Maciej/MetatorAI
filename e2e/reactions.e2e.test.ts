@@ -87,6 +87,6 @@ describe("metator findings react and report (real CLI)", () => {
     const page = await repo.read("report.html");
     expect(page).toContain("<title>MetatorAI report</title>");
     expect(page).toContain("50%");
-    expect(page).toContain("Add the discount".slice(0, 0) + "demo");
+    expect(page).toContain("demo");
   }, 60_000);
 });

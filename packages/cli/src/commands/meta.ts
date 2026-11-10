@@ -89,6 +89,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["inbox", "every question waiting for you, the most urgent first"],
       ["run answer", "answer a question; --always makes it a policy"],
       ["issue list", "the backlog: agents' proposals that wait for you, then the open tasks"],
+      ["intake scan", "outside issues (GitHub, GitLab, Jira) become tasks and runs under the intake rules"],
       ["issue start", "a run on a task of the backlog, in a new worktree"],
       ["review changes", "what a run changed, file by file, with one file's diff"],
       ["review notes add", "a note on a line of the change; `review notes send` hands them to the agent"],

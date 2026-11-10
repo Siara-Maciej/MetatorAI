@@ -1,0 +1,16 @@
+{
+  "name": "@metator/plugin-codehost-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@metator/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  },
+  "devDependencies": {
+    "@metator/testing": "workspace:*"
+  }
+}

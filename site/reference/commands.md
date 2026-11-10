@@ -2504,6 +2504,7 @@ metator serve [options]
 | `--hostname <host>` | address to listen on | `"127.0.0.1"` |
 | `--poll-ms <n>` | how often sockets look for a change | `1000` |
 | `--supervise-ms <n>` | how often the supervisor ticks (0: never) | `5000` |
+| `--intake-ms <n>` | how often the intake rules are scanned (0: never; default: the rules' `everyMs`) |  |
 
 ## pane
 
@@ -2692,6 +2693,37 @@ metator issue start [options] <id>
 | `--workflow <id>` | the workflow to run **Required.** |  |
 | `--no-worktree` | work in the main checkout |  |
 | `--autonomy <level>` | L0 asks at every gate (one of: L0, L1, L2) |  |
+
+## intake
+
+### `metator intake rules`
+
+The intake rules of this repository: source, filter, workflow, autonomy
+
+```bash
+metator intake rules [options]
+```
+
+### `metator intake scan`
+
+One pass over every rule: new items become issues and runs (at most `maxActive` at once)
+
+```bash
+metator intake scan [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--dry-run` | only say what is new; write nothing and start nothing |  |
+| `--drive [host]` | also drive each started run in the background (on this host, or the default) |  |
+
+### `metator intake status`
+
+What intake holds: its issues by rule and status, and the runs it started
+
+```bash
+metator intake status [options]
+```
 
 ## open
 

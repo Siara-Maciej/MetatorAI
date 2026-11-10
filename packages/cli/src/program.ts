@@ -32,6 +32,7 @@ import { registerFlakyCommands } from "./commands/flaky.ts";
 import { registerGateCommands } from "./commands/gate.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
 import { registerGuardCommands } from "./commands/guard.ts";
+import { registerIntakeCommands } from "./commands/intake.ts";
 import { registerIssueCommands } from "./commands/issue.ts";
 import { registerLessonsCommands } from "./commands/lessons.ts";
 import { registerMcpCommand } from "./commands/mcp.ts";
@@ -173,6 +174,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerServeCommand(program, ctx);
   registerPaneCommands(program, ctx);
   registerIssueCommands(program, ctx);
+  registerIntakeCommands(program, ctx);
   registerOpenCommands(program, ctx);
   registerAttachCommand(program, ctx);
   registerMcpCommand(program, ctx);

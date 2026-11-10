@@ -24,7 +24,7 @@ export const IssueRefSchema = z.strictObject({
 });
 export type IssueRef = z.output<typeof IssueRefSchema>;
 
-export const IssueSchema = z.strictObject({
+const IssueV1Schema = z.strictObject({
   id: z.string().regex(ISSUE_ID, "an issue id: i001"),
   title: z.string().min(1).max(200),
   /** What and why, with the acceptance criterion; Markdown. */
@@ -51,10 +51,22 @@ export const IssueSchema = z.strictObject({
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
+/**
+ * v2 (T2) adds `source`: the outside item an intake rule made the issue from, by the key that
+ * item has for good (`github:acme/shop#12`), so a later scan does not add it again.
+ */
+export const IssueSchema = z.strictObject({
+  ...IssueV1Schema.shape,
+  source: z
+    .strictObject({ key: z.string().min(1), rule: z.string().min(1), url: z.string().optional() })
+    .optional(),
+});
 export type Issue = z.output<typeof IssueSchema>;
 
 export const IssueDocument = defineDocument("Issue", {
+  history: [{ schema: IssueV1Schema }],
   latest: IssueSchema,
+  upgrade: (v1) => v1,
   hint: "Written by `metator issue …`; do not edit by hand.",
 });
 

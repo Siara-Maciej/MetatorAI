@@ -77,7 +77,12 @@ export class Issues {
 
   /** A person adds a task: open at once, decided by them. */
   async add(
-    input: IssuePatch & { readonly title: string; readonly by: string },
+    input: IssuePatch & {
+      readonly title: string;
+      readonly by: string;
+      /** The outside item an intake rule made it from (T2). */
+      readonly source?: NonNullable<Issue["source"]>;
+    },
   ): Promise<Result<Issue, MetatorError>> {
     if (input.by.trim() === "") return err(MetatorError.usage("say who adds the task: --by <name>"));
     if (input.title.trim() === "") return err(MetatorError.usage("a task needs a title"));
@@ -93,6 +98,7 @@ export class Issues {
       labels: [...(input.labels ?? [])],
       refs: [...(input.refs ?? [])],
       decidedBy: { by: input.by, at: now, decision: "added" },
+      ...(input.source ? { source: input.source } : {}),
       createdAt: now,
       updatedAt: now,
     };
