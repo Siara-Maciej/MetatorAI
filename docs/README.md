@@ -26,6 +26,7 @@
 | [design/11-package-architecture.md](design/11-package-architecture.md) | Architektura pakietów dużego monorepo: graf pakietów, polityka, metryki, ruchy jako dane, plany refaktoryzacji, evale |
 | [design/12-desktop.md](design/12-desktop.md) | MetatorAI Desktop: demon, hosty interaktywne w PTY, blokada kierowcy, inbox decyzji, ekrany aplikacji (zatwierdzona 2026-11-02) |
 | [design/13-options-workbench.md](design/13-options-workbench.md) | Faza S: system opcji (`OptionDefinition`, zakresy user/repo/run) wzorowany na konfiguracji herdr, podgląd planu, lokalne zadania za zgodą osoby, otwieranie w VS Code i wewnętrzny przegląd kodu z komentarzami do agenta |
+| [design/14-intake-and-review.md](design/14-intake-and-review.md) | Faza T: CLI agenta jako punkt wejścia (rozmowa zamiast formularza), automat zadań z GitHub/GitLab/Jira przez MCP (`metator intake`), odpowiedź na review mojego MR (`mt-review-response`, zakładka Open MRs); decyzje właściciela z 2026-11-10 |
 | [design/00-research-v1.md](design/00-research-v1.md) | Archiwum: pierwotny research i plan v1 |
 
 ## Decyzje architektoniczne
