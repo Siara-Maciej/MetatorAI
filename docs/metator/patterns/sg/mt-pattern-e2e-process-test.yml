@@ -1,0 +1,8 @@
+id: mt-pattern-e2e-process-test
+language: TypeScript
+severity: hint
+message: "Pattern e2e-process-test: a test that runs the real metator process on a scratch repository."
+files:
+  - e2e/**/*.e2e.test.ts
+rule:
+  pattern: await metator($$$ARGS)

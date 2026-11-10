@@ -1,0 +1,5 @@
+id: mt-pattern-conformance-test
+valid:
+  - 'describe("helpers", () => {})'
+invalid:
+  - 'describe("MT-CODE-003", () => { test("x", () => {}) })'

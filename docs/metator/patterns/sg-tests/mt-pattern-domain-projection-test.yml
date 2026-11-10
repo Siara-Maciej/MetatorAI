@@ -1,0 +1,5 @@
+id: mt-pattern-domain-projection
+valid:
+  - "export function render(x: number) { return x; }"
+invalid:
+  - "export function planBoardOf(input: PlanBoardInput): PlanBoardView { return view; }"
