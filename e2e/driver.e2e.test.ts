@@ -127,7 +127,7 @@ describe("driver lock and messages (real CLI)", () => {
     expect(listed.messages.map((m) => [m.id, m.refs])).toEqual([["m001", ["src/invoice.ts"]]]);
     expect(JSON.parse(await repo.read(`.metator/runs/${b.runId}/messages/m001.json`))).toMatchObject({
       kind: "RunMessage",
-      schemaVersion: 1,
+      schemaVersion: 2,
       topic: "shared-file",
     });
 
