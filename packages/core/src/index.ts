@@ -125,6 +125,7 @@ export * from "./domain/issue.ts";
 export * from "./domain/layout.ts";
 export * from "./domain/lesson.ts";
 export * from "./domain/markdown.ts";
+export * from "./domain/mcp.ts";
 export * from "./domain/memory.ts";
 export * from "./domain/module-card.ts";
 export * from "./domain/option-registry.ts";

@@ -33,6 +33,10 @@ agents:
       - say: "STATUS: done"
   mt-implementer:
     - - say: "STATUS: done"
+  mt-orchestrator:
+    - - say: "Ask about the repository, or describe a task and I start the run."
+      - ask: { question: "What do you need?", options: [a question, a task] }
+      - say: "src/invoice.ts:1 total() sums the lines; the discount is not applied there."
 `;
 
 let repo: ScratchRepo;
@@ -84,6 +88,11 @@ beforeAll(async () => {
   configDir = await mkdtemp(join(tmpdir(), "metator-desktop-config-"));
   repo = await ScratchRepo.create();
   await repo.write(".gitignore", ".metator/\n");
+  // The entry point opens its pane on the first host of `hostOrder` (as the form would pick).
+  await repo.write(
+    "metator.config.yml",
+    "kind: MetatorConfig\nschemaVersion: 9\nsupervisor:\n  hostOrder: [scenario]\n",
+  );
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
   await repo.write("scenario.yml", SCENARIO);
   await repo.commit("init");
@@ -128,10 +137,44 @@ afterAll(async () => {
 });
 
 describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
-  test("connects, shows inbox zero, and creates a driven session from the dialog", async () => {
+  test("+ New session opens a pane with the agent as the entry point (T1); the form sits under Advanced", async () => {
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
     await expect(page.getByText("Inbox zero")).toBeTruthy();
     await page.getByRole("button", { name: "+ New session" }).click();
+    const workbench = page.getByTestId("workbench");
+    const intake = workbench.locator('.pane-frame[aria-label^="intake"]').first();
+    await intake.waitFor({ timeout: 20_000 });
+    await until("the agent's greeting", async () =>
+      (await intake.textContent())?.includes("describe a task and I start the run") ? true : undefined,
+    );
+    // The pane belongs to the "intake" workspace, not to a run; the host got the entry-point prompt.
+    const layout = (await api("/layout")).data as {
+      workspaces: { id: string; label: string; runId?: string }[];
+      panes: { id: string; role: string; label: string; runId?: string; process: { prompt?: string } }[];
+    };
+    const pane = layout.panes.find((p) => p.label === "intake");
+    expect(pane).toMatchObject({ role: "apps" });
+    expect(pane?.runId).toBeUndefined();
+    expect(pane?.process.prompt).toContain("entry point");
+    expect(layout.workspaces.find((w) => w.label === "intake")?.runId).toBeUndefined();
+    // A second click reuses the workspace: one "intake" workspace, two panes.
+    await page.getByRole("button", { name: "+ New session" }).click();
+    await until("the second pane", async () => {
+      const l = (await api("/layout")).data as {
+        panes: { label: string }[];
+        workspaces: { label: string }[];
+      };
+      return l.panes.filter((p) => p.label === "intake").length === 2 ? l : undefined;
+    });
+    const again = (await api("/layout")).data as { workspaces: { label: string }[] };
+    expect(again.workspaces.filter((w) => w.label === "intake")).toHaveLength(1);
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
+    await page.getByTestId("connection").waitFor({ timeout: 20_000 });
+  }, 60_000);
+
+  test("connects, shows inbox zero, and creates a driven session from the dialog", async () => {
+    await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
+    await page.getByRole("button", { name: "Advanced…" }).click();
     const dialog = page.getByRole("dialog", { name: "new session" });
     await dialog.getByLabel("Task").fill("Add the discount to the invoice");
     await dialog.getByLabel("Host").selectOption("scenario");

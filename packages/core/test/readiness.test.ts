@@ -20,6 +20,8 @@ const gated = {
   gates: { quick: [], full: [{ id: "rules", run: "rules check" }] },
 } as never;
 
+const present_ = present;
+
 describe("CheckReadiness", () => {
   test("a set-up repository with its dependencies, gates and a remote is ready without warnings", async () => {
     const r = await new CheckReadiness(
@@ -39,9 +41,41 @@ describe("CheckReadiness", () => {
       "gates:ok",
       "dependencies:ok",
       "environment:ok",
+      "mcp:ok",
       "remote:ok",
     ]);
     expect(readinessWarnings(v)).toEqual([]);
+  });
+
+  test("MCP servers (T1): named when configured; a command missing from the PATH is a warning with the fix", async () => {
+    const ready = (servers: Record<string, { command?: string; url?: string }>, present: string[]) =>
+      new CheckReadiness(
+        present_("metator/install.lock.json", "package.json"),
+        DEFAULT_PATHS,
+        { config: gated, source: "metator.config.yml" },
+        catalog("mt-feature"),
+        new FakeVcs([], [], "git@example.com:a/b.git"),
+        async () => true,
+        undefined,
+        undefined,
+        {
+          servers: async () =>
+            ok(Object.fromEntries(Object.entries(servers).map(([k, v]) => [k, { args: [], env: {}, ...v }]))),
+          hasCommand: async (bin) => present.includes(bin),
+        },
+      ).execute();
+    const mcp = async (...a: Parameters<typeof ready>) =>
+      (await ready(...a))._unsafeUnwrap().checks.find((c) => c.id === "mcp");
+    expect(
+      await mcp({ github: { command: "gh-mcp" }, jira: { url: "https://j" } }, ["gh-mcp"]),
+    ).toMatchObject({
+      status: "ok",
+      message: "MCP servers configured: github, jira",
+    });
+    expect(await mcp({ github: { command: "gh-mcp" } }, [])).toMatchObject({
+      status: "warn",
+      message: "MCP server command(s) not found: github (gh-mcp); the agents start without them",
+    });
   });
 
   test("what a run will not do: no dependencies (with the lockfile's install), no gates, no remote", async () => {

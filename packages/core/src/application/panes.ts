@@ -93,6 +93,13 @@ export interface OpenPaneInput {
  * pane back after a restart, and closes panes and workspaces. The layout on disk is the only
  * memory; the broker holds the live terminals.
  */
+/**
+ * What an agent opened from "+ New session" is told (T1, design/14 §2): a person talks to it before
+ * any run exists; it answers questions about the repository and starts a run only for a task.
+ */
+export const INTAKE_PROMPT =
+  "You are MetatorAI's entry point: a person is talking to you before any run exists. Answer questions about this repository with file:line citations; when the person asks for a change, ask only what the repository cannot tell you, then start the run from this pane (`metator run init`, then `metator run drive --detach`) and say its id.";
+
 export class Panes {
   /** Pane tokens, in memory only: a restarted daemon gives new ones to the panes it restarts. */
   private readonly tokens = new Map<string, string>();
@@ -118,7 +125,12 @@ export class Panes {
     }
     const inWorktree = runId !== undefined && cwd !== this.d.root;
     return this.d.layout.update((layout) => {
-      const existing = runId ? workspaceOfRun(layout, runId) : undefined;
+      // A run has one workspace; so has a label without a run (the "intake" workspace, T1).
+      const existing = runId
+        ? workspaceOfRun(layout, runId)
+        : input.label
+          ? layout.workspaces.find((w) => !w.runId && w.label === input.label && w.cwd === cwd)
+          : undefined;
       if (existing) return ok({ layout, value: existing });
       const at = this.d.clock.now().toISOString();
       // A run in its own worktree sits under the repository's workspace (R5), made when missing.
@@ -239,7 +251,8 @@ export class Panes {
             kind: "host",
             host: hostId as string,
             agent: input.process.agent,
-            prompt: input.process.prompt,
+            // A host pane with no task yet is the entry point: it gets the intake prompt.
+            prompt: input.process.prompt || INTAKE_PROMPT,
             ...(input.process.sessionId ? { sessionId: input.process.sessionId } : {}),
           }
         : { kind: "command", argv: [...input.process.argv] };

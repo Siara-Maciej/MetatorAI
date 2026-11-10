@@ -1,0 +1,8 @@
+{
+  "kind": "UserOptions",
+  "schemaVersion": 1,
+  "options": {
+    "ui.paneBorders": "always",
+    "terminal.scrollbackLines": 8000
+  }
+}

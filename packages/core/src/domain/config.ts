@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ModelTierSchema } from "./agent.ts";
+import { McpServersSchema } from "./mcp.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -238,7 +239,16 @@ const ConfigV8Schema = z.strictObject({
   options: z.record(z.string().min(1), z.unknown()).default({}),
 });
 
-export const MetatorConfigSchema = ConfigV8Schema;
+/**
+ * v9 adds `mcp` (T1, design/14 §2): the MCP servers the agents may use in this repository, by
+ * name; `metator generate` writes them into the hosts' `.mcp.json`. Every v8 file is a v9 file.
+ */
+const ConfigV9Schema = z.strictObject({
+  ...ConfigV8Schema.shape,
+  mcp: McpServersSchema,
+});
+
+export const MetatorConfigSchema = ConfigV9Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -255,9 +265,10 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: ConfigV5Schema, fromPrevious: (v4) => v4 },
     { schema: ConfigV6Schema, fromPrevious: (v5) => v5 },
     { schema: ConfigV7Schema, fromPrevious: (v6) => v6 },
+    { schema: ConfigV8Schema, fromPrevious: (v7) => v7 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v7) => v7,
+  upgrade: (v8) => v8,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

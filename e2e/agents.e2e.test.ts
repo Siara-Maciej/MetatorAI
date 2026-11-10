@@ -1,8 +1,12 @@
 /** Canonical agents → host files end to end: the real `metator` process on a real repository. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
+
+/** `${NAME}`: a reference the host resolves at start (never a token in a test or a file). */
+const envRef = (name: string) => `\${${name}}`;
 
 const SELF = join(import.meta.dir, "..");
 type Data = Record<string, unknown>;
@@ -43,6 +47,50 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await repo.dispose();
+});
+
+describe("metator generate writes the MCP servers (T1)", () => {
+  test("the repository's `mcp:` goes to .mcp.json by name; entries nobody configured stay; doctor names the servers", async () => {
+    await repo.write(
+      "metator.config.yml",
+      `kind: MetatorConfig
+schemaVersion: 9
+hosts:
+  metatorCommand: npx metator
+mcp:
+  jira:
+    url: https://mcp.example.com/jira
+  notes:
+    command: sh
+    args: ["-c", "echo mcp"]
+    env:
+      NOTES_TOKEN: "\${NOTES_TOKEN}"
+`,
+    );
+    await repo.write(".mcp.json", JSON.stringify({ mcpServers: { theirs: { command: "x" } } }));
+    const r = await metator(["generate"], repo.root);
+    expect(data(r).written).toContain(".mcp.json");
+    expect(JSON.parse(await repo.read(".mcp.json"))).toEqual({
+      mcpServers: {
+        theirs: { command: "x" },
+        jira: { url: "https://mcp.example.com/jira" },
+        notes: { command: "sh", args: ["-c", "echo mcp"], env: { NOTES_TOKEN: envRef("NOTES_TOKEN") } },
+      },
+    });
+    expect(data(await metator(["generate", "--check"], repo.root)).stale).toEqual([]);
+    const doctor = await metator(["doctor"], repo.root);
+    const mcp = (data(doctor).checks as { id: string; status: string; message: string }[]).find(
+      (c) => c.id === "mcp",
+    );
+    expect(mcp).toMatchObject({ status: "ok", message: "MCP servers configured: jira, notes" });
+    // The repository as the next tests expect it: the first config, no generated files yet.
+    await repo.write(
+      "metator.config.yml",
+      "kind: MetatorConfig\nschemaVersion: 1\nhosts:\n  metatorCommand: npx metator\n  models:\n    fast:\n      copilot: fast-model\n",
+    );
+    for (const f of [".mcp.json", ".claude/agents/mt-checker.md", ".github/agents/mt-checker.agent.md"])
+      await rm(repo.path(f), { force: true });
+  });
 });
 
 describe("metator meta agents-lint / generate", () => {

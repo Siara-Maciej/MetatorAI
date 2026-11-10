@@ -9,6 +9,9 @@ import { MetatorError } from "../src/domain/errors.ts";
 import { err, ok } from "../src/domain/result.ts";
 import type { HostAgentContext, HostGenerator } from "../src/ports/index.ts";
 
+/** `${NAME}`: a reference the host resolves at start (never a token in a test or a file). */
+const envRef = (name: string) => `\${${name}}`;
+
 const WORKER_BODY =
   "# Input\nx\n\n# Procedure\n1. `metator graph deps a.ts`\n\n# Output\nx\n\n# Stop conditions\nx\n";
 const COORD_BODY = "# Role\nx\n# Rules\nx\n# Stages\nx\n# Escalation\nx\n# Final report\nx\n";
@@ -115,6 +118,46 @@ describe("GenerateHosts", () => {
     );
     return { fs, run };
   };
+
+  test("the MCP servers go to .mcp.json by name, the person's over the repository's, entries nobody configured kept", async () => {
+    const fs = new InMemoryFileSystem({
+      ...files,
+      ".mcp.json": JSON.stringify({ mcpServers: { theirs: { command: "x" }, jira: { command: "old" } } }),
+    });
+    const run = new GenerateHosts(
+      new AgentCatalog(fs, DEFAULT_PATHS),
+      [new FakeGenerator("claude")],
+      fs,
+      MetatorConfigSchema.parse({
+        hosts: { targets: ["claude"] },
+        mcp: {
+          jira: { url: "https://mcp.example.com/jira" },
+          github: { command: "gh-mcp", env: { T: envRef("TOKEN") } },
+        },
+      }),
+      async () =>
+        ok({
+          github: { command: "gh-mcp", args: [], env: { T: envRef("TOKEN") } },
+          jira: { url: "https://mcp.example.com/jira", args: [], env: {} },
+          notes: { command: "notes-mcp", args: [], env: {} },
+        }),
+    );
+    const report = (await run.execute({ check: false }))._unsafeUnwrap();
+    expect(report.written).toEqual([".mcp.json", "host/claude-mt-a.md"]);
+    expect(JSON.parse((await fs.read(".mcp.json"))._unsafeUnwrap())).toEqual({
+      mcpServers: {
+        theirs: { command: "x" },
+        jira: { url: "https://mcp.example.com/jira" },
+        github: { command: "gh-mcp", env: { T: envRef("TOKEN") } },
+        notes: { command: "notes-mcp" },
+      },
+    });
+    // Nothing configured: the file is not touched.
+    const bare = gen({ hosts: { targets: ["claude"] } });
+    expect((await bare.run.execute({ check: false }))._unsafeUnwrap().written).toEqual([
+      "host/claude-mt-a.md",
+    ]);
+  });
 
   test("one file per agent per configured host; models per tier; the repo's metator command", async () => {
     const w = gen({

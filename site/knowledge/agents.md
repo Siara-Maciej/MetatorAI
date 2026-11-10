@@ -39,6 +39,35 @@ metator generate --check    # CI: fail when a generated file was edited or is st
 
 Edit only the canonical files. Every generated file starts with a comment that names its source.
 
+## MCP servers for the agents
+
+The servers your agents may use are configured in MetatorAI and written into the host's file, so the entry point, the workers and any automation get the same ones:
+
+```yaml
+# metator.config.yml (the repository)
+mcp:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env: { GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}" }
+  jira:
+    url: https://mcp.example.com/jira
+```
+
+```yaml
+# ~/.config/metator/options.yml (you; layered over the repository's by name)
+mcp:
+  notes:
+    command: notes-mcp
+```
+
+```bash
+metator generate     # writes .mcp.json (read by Claude Code and Copilot CLI); other entries in it stay
+metator doctor       # "mcp": the servers by name, or which command is not on the PATH
+```
+
+`env` values are literals or `${VAR}` references the host resolves at start; a token never goes into the file. A server you remove from the configuration stays in `.mcp.json` until you delete it there.
+
 ## A canonical agent
 
 ```markdown

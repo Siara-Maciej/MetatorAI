@@ -16,6 +16,7 @@ import {
   InMemoryFileSystem,
   InstantTimer,
 } from "@metator/testing";
+import { INTAKE_PROMPT } from "../src/application/panes.ts";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -128,6 +129,27 @@ describe("Panes", () => {
       "session copilot-1 exited with 0 (pane w1:p1)",
       "resumed session copilot-1 in pane w1:p1 (pid 1002)",
     ]);
+  });
+
+  test("the entry point (T1): a labeled workspace without a run is reused; a host pane with no prompt gets the intake prompt", async () => {
+    const w = world();
+    const first = (await w.panes.openWorkspace({ label: "intake" }))._unsafeUnwrap();
+    expect((await w.panes.openWorkspace({ label: "intake" }))._unsafeUnwrap().id).toBe(first.id);
+    expect((await w.panes.openWorkspace({ label: "other" }))._unsafeUnwrap().id).not.toBe(first.id);
+    const pane = (
+      await w.panes.openPane({
+        workspace: first.id,
+        role: "apps",
+        label: "intake",
+        process: { kind: "host", host: "copilot", agent: "mt-orchestrator", prompt: "" },
+      })
+    )._unsafeUnwrap();
+    expect(pane).toMatchObject({ role: "apps", label: "intake" });
+    expect(pane.runId).toBeUndefined();
+    expect(w.copilot.started[0]?.task).toMatchObject({ agent: "mt-orchestrator", prompt: INTAKE_PROMPT });
+    expect(w.copilot.started[0]?.task.runDir).toBe(
+      `${w.copilot.started[0]?.task.cwd}/.metator/panes/${pane.id}`,
+    );
   });
 
   test("a worker pane on another host, in another tab, with its worker named", async () => {

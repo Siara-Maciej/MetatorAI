@@ -4762,4 +4762,28 @@ export const MUTANTS: readonly Mutant[] = [
     to: "      if (ageDays >= staleDays) unpromoted.push({ id, ageDays });",
     why: "a lesson the canon cites is promoted, not pending",
   },
+  {
+    file: "packages/core/src/domain/mcp.ts",
+    from: "mcpServers: { ...theirs, ...ours }",
+    to: "mcpServers: { ...ours }",
+    why: ".mcp.json keeps the servers nobody configured in MetatorAI",
+  },
+  {
+    file: "packages/core/src/application/readiness.ts",
+    from: "      if (command !== undefined && !(await this.mcp.hasCommand(command)))\n",
+    to: "      if (false)\n",
+    why: "doctor warns about an MCP server whose command is not on the PATH",
+  },
+  {
+    file: "packages/core/src/application/panes.ts",
+    from: "          ? layout.workspaces.find((w) => !w.runId && w.label === input.label && w.cwd === cwd)\n          : undefined;",
+    to: "          ? undefined\n          : undefined;",
+    why: "the entry point reuses its labeled workspace instead of opening one per click",
+  },
+  {
+    file: "packages/core/src/application/agents.ts",
+    from: "    if (Object.keys(servers.value).length > 0) {",
+    to: "    if (true) {",
+    why: ".mcp.json is written only when a server is configured",
+  },
 ];

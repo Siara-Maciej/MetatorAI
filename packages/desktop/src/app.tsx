@@ -81,6 +81,28 @@ function Shell() {
       window.removeEventListener("mousedown", touch);
     };
   }, [route, go]);
+  /**
+   * "+ New session" (T1, design/14 §2): a pane with the orchestrator as the entry point in the
+   * "intake" workspace; the person talks, the agent starts the run. The host is the first of the
+   * repository's `hostOrder` that is installed, as the form would pick.
+   */
+  const openIntake = useCallback(async () => {
+    const s = await d.client.supervisor(d.repos[0]?.name);
+    const host = s.ok
+      ? (s.data?.policy.hostOrder.find((h) => s.data?.hosts.includes(h)) ?? s.data?.hosts[0])
+      : undefined;
+    const p = await d.client.openPane(
+      {
+        label: "intake",
+        newTab: true,
+        role: "apps",
+        agent: "mt-orchestrator",
+        ...(host ? { host } : {}),
+      },
+      d.repos[0]?.name,
+    );
+    if (p.ok && p.data) go({ screen: "grid", pane: p.data.id });
+  }, [d.client, d.repos, go]);
   const openSession = useCallback(
     (runId: string, attach = false) => {
       go({ screen: "session", runId });
@@ -100,12 +122,12 @@ function Shell() {
         const next = nextWaiting(d.runs, route.screen === "session" ? route.runId : undefined);
         if (next) openSession(next.runId);
       }
-      if (e.key === "n" && !dialog) setDialog(true);
+      if (e.key === "n" && !dialog) void openIntake();
       if (e.key === "Escape") setDialog(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [route, d.runs, dialog, openSession]);
+  }, [route, d.runs, dialog, openSession, openIntake]);
   const counts = {
     you: d.runs.filter((r) => r.attention === "you").length,
     driving: d.runs.filter((r) => r.attention === "driving").length,
@@ -162,7 +184,8 @@ function Shell() {
       <SessionsPanel
         current={current}
         onOpen={(id, pane) => (pane ? go({ screen: "session", runId: id, pane }) : openSession(id))}
-        onNew={() => setDialog(true)}
+        onNew={() => void openIntake()}
+        onAdvanced={() => setDialog(true)}
         onGrid={(group) => go({ screen: "grid", ...(group ? { group } : {}) })}
       />
       <main className="content">
@@ -182,7 +205,7 @@ function Shell() {
         ) : null}
         {route.screen === "grid" ? (
           <WorkbenchScreen
-            onNewTask={() => setDialog(true)}
+            onNewTask={() => void openIntake()}
             onOpenSettings={() => go({ screen: "settings" })}
             onOpenPlan={(runId) => go({ screen: "plan", runId })}
             onOpenReview={(runId) => go({ screen: "review", runId })}
@@ -210,7 +233,7 @@ function Shell() {
         ) : null}
         {route.screen === "graph" ? <GraphScreen /> : null}
         {route.screen === "supervisor" ? (
-          <SupervisorScreen onOpenSession={openSession} onNew={() => setDialog(true)} />
+          <SupervisorScreen onOpenSession={openSession} onNew={() => void openIntake()} />
         ) : null}
         {route.screen === "settings" ? <SettingsScreen /> : null}
         {route.screen === "briefing" ? (
