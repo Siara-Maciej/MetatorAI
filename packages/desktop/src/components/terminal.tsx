@@ -199,11 +199,13 @@ function SocketTerminal({
       observer.disconnect();
       ws.onmessage = null;
       ws.close();
-      // xterm 5.5 schedules its viewport refresh in animation frames that dispose() does not
-      // cancel; a frame that runs after dispose() reads the dimensions of a renderer that is
-      // gone ("Cannot read properties of undefined (reading 'dimensions')"). Two frames drain
-      // that chain (sync, then refresh) before the terminal goes.
-      requestAnimationFrame(() => requestAnimationFrame(() => term.dispose()));
+      // xterm 5.5 syncs its viewport from a 0 ms timer set when the terminal opens and from
+      // animation frames, and dispose() cancels neither; one that runs after dispose() reads
+      // the dimensions of a renderer that is gone ("Cannot read properties of undefined
+      // (reading 'dimensions')"). Chromium runs frames ahead of timers under load, so the
+      // terminal goes only after a timer queued behind xterm's and two frames queued behind
+      // its sync-then-refresh chain.
+      setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => term.dispose())));
     };
     // The socket carries the attach state itself: a new `by` means a new socket.
   }, [path, repo, url, me, scrollback]);
