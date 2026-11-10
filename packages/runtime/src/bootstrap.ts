@@ -147,6 +147,7 @@ import {
   RunGate,
   RunJournal,
   RunMessages,
+  RunQuarterlyReview,
   RunRefactorPlan,
   RunRepository,
   RunSystemEvals,
@@ -1157,6 +1158,18 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     seedGoldenSet: asFunction(
       ({ fileSystem, paths, processRunner, root }) =>
         new SeedGoldenSet({ fs: fileSystem, paths, runner: processRunner, root }),
+    ),
+    quarterlyReview: asFunction(
+      ({ measureRuleCoverage, memoryBudget, docsInventory, compareEvals, fileSystem, paths, clock }) =>
+        new RunQuarterlyReview({
+          coverage: measureRuleCoverage,
+          budget: memoryBudget,
+          inventory: docsInventory,
+          compare: compareEvals,
+          fs: fileSystem,
+          paths,
+          clock,
+        }),
     ),
     runEvals: asFunction(
       ({ evalCatalog, binResolver, processRunner, root }) =>

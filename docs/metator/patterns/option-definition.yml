@@ -1,0 +1,10 @@
+kind: Pattern
+schemaVersion: 1
+id: option-definition
+title: Option definition
+intent: A setting is one entry in the option registry (kind, scope, title, description, default, since), read through the OptionStore; never a loose config field.
+when: any new user-, repo- or run-level setting
+whenNot: a value only the code sets (a constant) or a per-run artifact
+detection: ast-grep:mt-pattern-option-definition
+exemplar: packages/core/src/domain/option-registry.ts
+rules: [MT-CODE-003]

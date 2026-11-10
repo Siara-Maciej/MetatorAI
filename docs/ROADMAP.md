@@ -34,7 +34,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 
 **Stan:** wszystko, co da się zrobić w kodzie tego repo, jest zrobione.
 
-**Wymaga repo pilota lub ludzi (nie da się zamknąć w tym repo):** lub ludzi (nie da się zamknąć w tym repo):** F0 (inwentarz, spike platformy, baseline), złoty zbiór ≥ 50 PR-ów, 10–15 wzorców pilota, W7 na ADR pilota, rename agentów pilota, kryteria wyjścia faz mierzone na zadaniach pilota. W F6: procesy ciągłe (retro po runach, przegląd kwartalny, rozszerzanie na domeny), polityka Copilot Memory i opcjonalne integracje (MCP, StrykerJS, Semgrep).
+**Wymaga repo pilota lub ludzi (nie da się zamknąć w tym repo):** F0 na pilocie (inwentarz, spike platformy w ADR-0009, baseline z realnych PR-ów), złoty zbiór z PR-ów pilota (w tym repo: 56 przypadków z własnej historii), 10–15 wzorców pilota (w tym repo: 10 wzorców MetatorAI), W7 na ADR pilota, rename agentów pilota, kryteria wyjścia faz mierzone na zadaniach pilota, publikacja npm (konto właściciela), rozszerzanie na kolejne domeny. Narzędzia i procesy F6 (retro, przegląd kwartalny, polityka Copilot Memory) są gotowe i przećwiczone na tym repo; opcjonalne integracje MCP `metator-knowledge` i StrykerJS odłożone (poniżej).
 
 **Odłożone decyzją:** F5.
 
@@ -45,7 +45,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 **Cel:** wiedzieć, co macie, co działa w Waszej wersji Copilota, i mieć baseline.
 
 **Zadania**
-- [ ] Inwentarz: agenci, prompty, skille, instrukcje, ADR (ręcznie albo pierwsza wersja `metator meta audit` + `metator memory inventory`). Narzędzia gotowe (`meta audit`, `memory inventory`, `docs inventory`); uruchomienie w repo pilota.
+- [ ] Inwentarz: agenci, prompty, skille, instrukcje, ADR (ręcznie albo pierwsza wersja `metator meta audit` + `metator memory inventory`). Narzędzia gotowe (`meta audit`, `memory inventory`, `docs inventory`); uruchomienie w repo pilota. Dogfood na MetatorAI: [docs/audit/2026-11-10-metatorai.md](audit/2026-11-10-metatorai.md).
 - [ ] Karta zgodności dla każdego orchestratora ([workflows §4](design/02-workflows.md#4-audyt-istniejących-orchestratorów)). Narzędzie gotowe (`workflow lint`, 16 sekcji); uruchomienie na orchestratorach pilota.
 - [ ] Graf wywołań agent → agent/skill. Szukamy cykli, martwych elementów i zagnieżdżeń > 2. Narzędzie gotowe (`meta audit`); uruchomienie na agentach pilota.
 - [ ] **Spike platformy** na wersji VS Code i CLI używanej w organizacji, z wynikami zapisanymi w ADR-0009:
@@ -54,7 +54,7 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
   - [ ] hooki: nagranie realnych payloadów stdin dla `PreToolUse`, `PostToolUse`, `SubagentStop`, `Stop`, `PreCompact`. Który format decyzji działa (`hookSpecificOutput.permissionDecision` vs inne), zachowanie exit code,
   - [ ] skille ze skryptami: VS Code, Copilot CLI (`--agent`), coding agent,
   - [ ] polityki org: hooki (preview), MCP allowlist, dostępne modele (≥ 2 rodziny).
-- [ ] Baseline: 3–5 realnych zadań i 10 PR-ów zrobionych obecnym workflow. Mierzymy czas, liczbę poprawek człowieka, błędy znalezione później i oceny trafności komentarzy review.
+- [ ] Baseline: 3–5 realnych zadań i 10 PR-ów zrobionych obecnym workflow. Mierzymy czas, liczbę poprawek człowieka, błędy znalezione później i oceny trafności komentarzy review. **Wymaga pilota:** realnych PR-ów i ludzi; narzędzia pomiaru gotowe (`metator report`, `findings react`).
 
 **Produkty:** `docs/metator/audit/AUDIT-<data>.md`, `docs/adr/0009-host-platform.md`, nagrane payloady hooków w `packages/testing/fixtures/hooks/`, baseline metryk.
 
@@ -180,11 +180,11 @@ Porównanie roadmapy i katalogu komend ([04-commands §4](design/04-commands.md#
 ## F6: Uczenie się i skalowanie (ciągle)
 
 **Zadania**
-- [ ] W11 `mt-retro` po każdym większym runie. Lessons z cytatami, awans lekcji do reguł (i do E1). Narzędzia gotowe (`mt-retro`, `lessons add`, `rules scaffold`, `run close`); proces ciągły.
-- [ ] Polityka Copilot Memory (co wolno, przegląd konfliktów z canon).
-- [ ] Rozszerzenie na kolejne domeny monorepo: karty, wzorce, reguły per domena, złoty zbiór per domena.
-- [ ] Opcjonalnie: MCP `metator-knowledge` (indeks dostępny dla wielu repo i powierzchni), StrykerJS (mutation score jako bramka), Semgrep (soczewka security).
-- [ ] Kwartalny przegląd: evale, progi, budżety, martwe reguły (`rules coverage`), nieużywane lessons. Narzędzia gotowe (`eval compare`, `memory budget`, `rules coverage`, `docs inventory` z wiekiem plików); proces ciągły.
+- [x] W11 `mt-retro` po każdym większym runie. Lessons z cytatami, awans lekcji do reguł (i do E1). Narzędzia gotowe (`mt-retro`, `lessons add`, `rules scaffold`, `run close`); pierwsze retro po fazie S: 3 lekcje w `docs/metator/lessons/` z cytatami `plik:linia`. Proces ciągły: `meta quarterly` wylicza lekcje starsze niż 90 dni, których canon nie cytuje.
+- [x] Polityka Copilot Memory (co wolno, przegląd konfliktów z canon): [ADR-0082](adr/0082-copilot-memory-policy.md) (Proposed).
+- [ ] Rozszerzenie na kolejne domeny monorepo: karty, wzorce, reguły per domena, złoty zbiór per domena. **Wymaga pilota** (domen poza MetatorAI); w tym repo katalog wzorców ma 10 wzorców (`patterns scan --check`).
+- [ ] Opcjonalnie: MCP `metator-knowledge` (indeks dostępny dla wielu repo i powierzchni), StrykerJS (mutation score jako bramka), Semgrep (soczewka security). Odłożone: `metator mcp` już serwuje wiedzę jednego repo; StrykerJS nie wspiera `bun:test` (smoke mutacyjny `scripts/mutants.ts` pełni tę rolę); Semgrep wymaga binarki, której CI nie ma, a ast-grep pokrywa reguły E1.
+- [x] Kwartalny przegląd: `metator meta quarterly [--stale-days 90] [--baseline <EvalReport> --report <EvalReport>]` składa `QuarterlyReview` v1 (pokrycie i martwe reguły, budżety pamięci, dokumenty bez zmian od sezonu, lekcje bez awansu, regresje evali) i listę działań do `.metator/reviews/`. Proces ciągły: raz na kwartał, decyzje podejmują właściciele.
 
 **KPI programu:** precision i recall review (eval + produkcja), dismissed rate, % reguł E1, naruszenia architektury wykryte po merge (→ 0), lead time zadania, poprawki człowieka na zadanie, koszt tokenów na zadanie/PR, liczba eskalacji na run.
 

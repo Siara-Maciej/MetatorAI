@@ -1,0 +1,5 @@
+id: mt-pattern-desktop-screen
+valid:
+  - "function helper() { return 1; }"
+invalid:
+  - "export function BacklogScreen({ onOpenSession }: { onOpenSession(id: string): void }) { return <div />; }"

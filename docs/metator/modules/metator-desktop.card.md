@@ -16,7 +16,7 @@ dir: packages/desktop
 - Imported by other packages: none
 - Third-party: `@tauri-apps/plugin-notification`, `@vitejs/plugin-react`, `@xterm/addon-fit`, `@xterm/addon-search`, `@xterm/xterm`, `react`, `react-dom`, `vite`
 - Owners: `@Siara-Maciej`
-- Patterns with their exemplar here: none
+- Patterns with their exemplar here: `desktop-screen`
 <!-- metator:generated:end -->
 
 ## Responsibility
