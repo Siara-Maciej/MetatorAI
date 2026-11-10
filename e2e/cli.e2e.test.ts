@@ -243,6 +243,7 @@ describe("metator CLI (process e2e)", () => {
       "serve",
       "pane list",
       "pane read",
+      "pane split",
       "pane wait",
       "attach",
       "mcp",
