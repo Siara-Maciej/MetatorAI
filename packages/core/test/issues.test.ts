@@ -167,7 +167,8 @@ describe("Issues", () => {
     expect(questions.map((q) => [q.id, q.source, q.agent])).toEqual([["q001", "agent", "mt-implementer-1"]]);
     // Still a proposal until someone answers; a run on it is refused.
     expect((await w.issues.list())._unsafeUnwrap()[0]?.status).toBe("proposed");
-    expect((await w.issues.start("i001", { workflow: "demo" })).isErr()).toBe(true);
+    const refusedStart = await w.issues.start("i001", { workflow: "demo", worktree: false });
+    expect(refusedStart.isErr() && refusedStart.error.message).toContain("a proposal");
     (
       await w.journal.answer(run.runId, "q001", { choices: [PROPOSAL_ADD], by: "maciej", origin: "inbox" })
     )._unsafeUnwrap();
