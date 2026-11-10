@@ -88,6 +88,8 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["run status", "the stage the run stands at and what it expects"],
       ["inbox", "every question waiting for you, the most urgent first"],
       ["run answer", "answer a question; --always makes it a policy"],
+      ["issue list", "the backlog: agents' proposals that wait for you, then the open tasks"],
+      ["issue start", "a run on a task of the backlog, in a new worktree"],
       ["attach", "your terminal on a pane (or a run's conductor); Ctrl-] detaches"],
       ["status", "every run at a glance: who waits for you, who works, who stopped"],
       ["ui", "the full-screen view of every session"],

@@ -89,6 +89,7 @@ import {
   InstallCanon,
   type InteractiveHost,
   InventoryMemory,
+  Issues,
   JudgeFindings,
   KnowledgeFiles,
   LayoutStore,
@@ -541,6 +542,21 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new HostPrompts({ sensor: paneSensor, journal: runJournal, lock: driverLock, notify: notifier }),
     ),
     layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
+    issues: asFunction(
+      ({ fileSystem, paths, clock, runJournal, runRepository, initRun, optionStore }) =>
+        new Issues({
+          fs: fileSystem,
+          paths,
+          clock,
+          journal: runJournal,
+          repo: runRepository,
+          initRun,
+          proposalsAllowed: async () => {
+            const o = await optionStore.get("issues.proposeFromAgents");
+            return o.isOk() ? o.value.value !== false : true;
+          },
+        }),
+    ),
     planBoard: asFunction(
       ({ fileSystem, runRepository, runJournal, workflowCatalog, conductor, paths }) =>
         new PlanBoard({

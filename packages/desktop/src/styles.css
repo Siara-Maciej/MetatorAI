@@ -1631,3 +1631,157 @@ kbd {
 .plan .timeline li {
   padding-left: 0;
 }
+
+/* The backlog: proposals and open tasks on the left, the chosen one on the right. */
+.backlog {
+  display: grid;
+  grid-template-rows: 34px 1fr;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.backlog .top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--edge);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.backlog .spacer {
+  flex: 1;
+}
+.backlog .body {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 0;
+}
+.backlog .list {
+  border-right: 1px solid var(--edge);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+  overflow: auto;
+}
+.backlog .sec {
+  padding: 4px 20px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+}
+.backlog .item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 6px 20px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+}
+.backlog .item:hover {
+  background: var(--hover);
+}
+.backlog .item.sel {
+  background: var(--hover);
+}
+.backlog .item .g {
+  width: 12px;
+  flex: none;
+}
+.backlog .item .n {
+  flex: 1;
+  min-width: 0;
+}
+.backlog .item .sub {
+  display: block;
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.backlog .g.proposed,
+.backlog .pr.high {
+  color: var(--amber);
+}
+.backlog .g.in-progress {
+  color: var(--violet);
+}
+.backlog .g.done {
+  color: var(--green);
+}
+.backlog .g.open,
+.backlog .pr.normal {
+  color: var(--text);
+}
+.backlog .g.dropped,
+.backlog .pr.low {
+  color: var(--dim);
+}
+.backlog .pr {
+  flex: none;
+  font-size: 11px;
+}
+.backlog .detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 28px;
+  overflow: auto;
+  min-width: 0;
+}
+.backlog .detail h2 {
+  font-size: 13px;
+}
+.backlog .text {
+  font-size: 12.5px;
+  max-width: 640px;
+  white-space: pre-wrap;
+}
+.backlog .row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.backlog .actions {
+  display: flex;
+  gap: 8px;
+}
+.backlog .actions .go {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+.backlog .form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 640px;
+}
+.backlog .form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.backlog .form .row label {
+  flex: 1;
+}
+.backlog .form input,
+.backlog .form textarea,
+.backlog .form select {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 5px 8px;
+}
+.backlog .empty {
+  padding: 40px;
+  color: var(--dim);
+}

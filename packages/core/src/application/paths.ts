@@ -56,6 +56,8 @@ export interface MetatorPaths {
   readonly systemEvals: string;
   /** Clones of other repositories at pinned commits (F7.3). */
   readonly systemCache: string;
+  /** Local tasks, one `Issue` per file (S4). */
+  readonly issues: string;
 }
 
 export const DEFAULT_PATHS: MetatorPaths = {
@@ -92,6 +94,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   systemPlans: "metator/system/plans",
   systemEvals: "docs/metator/evals/system",
   systemCache: ".metator/system",
+  issues: ".metator/issues",
 };
 
 /** Files the import graph never looks at, even when not git-ignored. */

@@ -5,6 +5,7 @@
 import type {
   Attention,
   InboxItem,
+  IssueRef,
   PaneState,
   PaneView,
   Question,
@@ -101,6 +102,14 @@ export function inboxChips(item: Pick<InboxItem, "question" | "driving">): strin
 }
 
 /** `3s`, `4 min`, `2 h 05`, `3 d`: how long something took or has waited. */
+/** `src/invoice.ts:10`, `run 2026…/S2`, a note: what a backlog task points at. */
+export const issueRefText = (r: IssueRef): string =>
+  r.file
+    ? `${r.file}${r.line ? `:${r.line}` : ""}`
+    : r.run
+      ? `run ${r.run}${r.step ? `/${r.step}` : ""}`
+      : (r.note ?? "");
+
 export function duration(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
   if (s < 60) return `${s}s`;
@@ -155,6 +164,10 @@ export type Route =
   | { readonly screen: "supervisor" }
   | { readonly screen: "settings" }
   | { readonly screen: "plan"; readonly runId: string }
+  | {
+      readonly screen: "backlog";
+      readonly draft?: { readonly title?: string; readonly refs?: readonly IssueRef[] };
+    }
   | { readonly screen: "briefing"; readonly runId: string };
 
 export function parseRoute(hash: string): Route {
@@ -186,6 +199,8 @@ export function parseRoute(hash: string): Route {
       return { screen: "supervisor" };
     case "settings":
       return { screen: "settings" };
+    case "backlog":
+      return { screen: "backlog" };
     case "briefing":
       return arg ? { screen: "briefing", runId: decodeURIComponent(arg) } : { screen: "inbox" };
     case "plan":
@@ -203,6 +218,8 @@ export function routeHash(route: Route): string {
       return `#/briefing/${encodeURIComponent(route.runId)}`;
     case "plan":
       return `#/plan/${encodeURIComponent(route.runId)}`;
+    case "backlog":
+      return "#/backlog";
     case "grid":
       return route.pane
         ? `#/grid/pane:${encodeURIComponent(route.pane)}`

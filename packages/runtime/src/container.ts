@@ -97,6 +97,7 @@ import {
   type InstallCanon,
   type InteractiveHost,
   type InventoryMemory,
+  type Issues,
   type JudgeFindings,
   type KnowledgeFiles,
   type Launcher,
@@ -252,6 +253,7 @@ export interface Cradle {
   updateConfig: UpdateConfig;
   userConfig: UserConfigStore;
   optionStore: OptionStore;
+  issues: Issues;
   planBoard: PlanBoard;
   containerRuntime: ContainerRuntime;
   healthProbe: HealthProbe;

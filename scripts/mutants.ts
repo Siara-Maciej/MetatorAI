@@ -4683,4 +4683,22 @@ export const MUTANTS: readonly Mutant[] = [
     to: '  if (false) return { ...base, state: "done",',
     why: "a worker's done result marks the plan steps it names done",
   },
+  {
+    file: "packages/core/src/application/plan-board.ts",
+    from: '      state: w.alive ? (w.idle ? "idle" : "working") : "exited",',
+    to: '      state: w.alive ? "working" : "exited",',
+    why: "an idle worker shows as idle on the board",
+  },
+  {
+    file: "packages/core/src/application/issues.ts",
+    from: '    if (issue.value.status === "proposed")\n      return err(',
+    to: "    if (false)\n      return err(",
+    why: "a proposal cannot start a run: a person adds it first",
+  },
+  {
+    file: "packages/core/src/domain/issue.ts",
+    from: '  if (choice === PROPOSAL_DROP) return "dropped";',
+    to: '  if (choice === PROPOSAL_DROP) return "added";',
+    why: "the Drop answer in the inbox drops the proposal",
+  },
 ];

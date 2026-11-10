@@ -32,12 +32,18 @@ export function WorkbenchScreen({
   onNewTask,
   onOpenSettings,
   onOpenPlan,
+  onOpenBacklog,
   showPane,
 }: {
   /** Opens the new-session dialog for a task in a new worktree (a new tab). */
   onNewTask(): void;
   onOpenSettings(): void;
   onOpenPlan(runId: string): void;
+  /** The backlog; with a draft, its form opens for a task that points at a pane's run. */
+  onOpenBacklog(draft?: {
+    readonly title?: string;
+    readonly refs?: readonly { run?: string; step?: string }[];
+  }): void;
   /** A pane to show first (from the plan screen): its tab is selected and it gets the focus. */
   readonly showPane?: string | undefined;
 }) {
@@ -322,6 +328,9 @@ export function WorkbenchScreen({
         case "plan":
           if (tab?.runId) onOpenPlan(tab.runId);
           break;
+        case "backlog":
+          onOpenBacklog();
+          break;
         case "help":
           setNote(
             Object.entries(keymap)
@@ -375,7 +384,10 @@ export function WorkbenchScreen({
       },
       { label: "Changes", key: key(keymap, "changes"), disabled: true },
       { label: "Open in VS Code", disabled: true },
-      { label: "New task from here…", disabled: true },
+      {
+        label: "New task from here…",
+        onSelect: () => onOpenBacklog(p.runId ? { refs: [{ run: p.runId }] } : {}),
+      },
       {
         label: "Close pane",
         key: key(keymap, "closePane"),
@@ -391,7 +403,7 @@ export function WorkbenchScreen({
     const items: MenuItem[] = [
       { label: "New tab: shell", key: key(keymap, "newShell"), onSelect: () => void newShellTab() },
       { label: "New tab: task in a new worktree…", key: key(keymap, "newTab"), onSelect: onNewTask },
-      { label: "New tab: task from the backlog…", disabled: true },
+      { label: "Backlog…", key: key(keymap, "backlog"), onSelect: () => onOpenBacklog() },
       ...(t
         ? [
             { label: "New shell pane here", separator: true, onSelect: () => void newShell() },

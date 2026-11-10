@@ -80,10 +80,18 @@ const workspaceFields = {
   runId: z.string().optional(),
   /** The workspace this one belongs under (a run's worktree under its repository). */
   group: WorkspaceId.optional(),
-  createdAt: z.iso.datetime(),
 };
-const WorkspaceV1Schema = z.strictObject({ ...workspaceFields, tabs: z.array(TabV1Schema).min(1) });
-export const WorkspaceSchema = z.strictObject({ ...workspaceFields, tabs: z.array(TabSchema).min(1) });
+// `createdAt` after `tabs`, as v1 was frozen: the snapshot compares the field order too.
+const WorkspaceV1Schema = z.strictObject({
+  ...workspaceFields,
+  tabs: z.array(TabV1Schema).min(1),
+  createdAt: z.iso.datetime(),
+});
+export const WorkspaceSchema = z.strictObject({
+  ...workspaceFields,
+  tabs: z.array(TabSchema).min(1),
+  createdAt: z.iso.datetime(),
+});
 export type Workspace = z.output<typeof WorkspaceSchema>;
 
 const NextSchema = z.strictObject({

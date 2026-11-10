@@ -14,7 +14,7 @@ dir: packages/desktop
 - Test-only dependencies: none
 - Used by: none
 - Imported by other packages: none
-- Third-party: `@tauri-apps/plugin-notification`, `@vitejs/plugin-react`, `@xterm/addon-fit`, `@xterm/xterm`, `react`, `react-dom`, `vite`
+- Third-party: `@tauri-apps/plugin-notification`, `@vitejs/plugin-react`, `@xterm/addon-fit`, `@xterm/addon-search`, `@xterm/xterm`, `react`, `react-dom`, `vite`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: none
 <!-- metator:generated:end -->

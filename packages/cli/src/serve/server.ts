@@ -183,6 +183,67 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         );
       if (path === "/options/schema")
         return json({ ok: true, data: c.value.resolve("optionStore").schema() });
+      // The backlog (S4): read, add (a person), decide, edit, close, drop, start.
+      if (path === "/issues" && req.method === "GET")
+        return fromResult(
+          (
+            await c.value.resolve("issues").list({
+              ...(url.searchParams.get("run") ? { runId: url.searchParams.get("run") as string } : {}),
+            })
+          ).map((issues) => ({ issues })),
+        );
+      if (path === "/issues" && req.method === "POST") {
+        const body = (await req.json().catch(() => ({}))) as Json;
+        const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : undefined);
+        return fromResult(
+          await c.value.resolve("issues").add({
+            title: str("title") ?? "",
+            ...(str("body") !== undefined ? { body: str("body") as string } : {}),
+            ...(str("priority") ? { priority: str("priority") as "low" | "normal" | "high" } : {}),
+            ...(Array.isArray(body.labels) ? { labels: body.labels as string[] } : {}),
+            ...(Array.isArray(body.refs) ? { refs: body.refs as never[] } : {}),
+            by: str("by") ?? "",
+          }),
+        );
+      }
+      const issueRoute = /^\/issues\/([^/]+)\/(decide|edit|close|drop|start)$/.exec(path);
+      if (issueRoute && req.method === "POST") {
+        const [, id, what] = issueRoute as unknown as [string, string, string];
+        const body = (await req.json().catch(() => ({}))) as Json;
+        const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : undefined);
+        const issues = c.value.resolve("issues");
+        const patch = {
+          ...(str("title") !== undefined ? { title: str("title") as string } : {}),
+          ...(str("body") !== undefined ? { body: str("body") as string } : {}),
+          ...(str("priority") ? { priority: str("priority") as "low" | "normal" | "high" } : {}),
+          ...(Array.isArray(body.labels) ? { labels: body.labels as string[] } : {}),
+          ...(Array.isArray(body.refs) ? { refs: body.refs as never[] } : {}),
+        };
+        switch (what) {
+          case "decide":
+            return fromResult(
+              await issues.decide(id, {
+                by: str("by") ?? "",
+                decision: body.decision === "drop" ? "drop" : "add",
+                ...patch,
+              }),
+            );
+          case "edit":
+            return fromResult(await issues.edit(id, patch));
+          case "close":
+            return fromResult(await issues.close(id, { by: str("by") ?? "" }));
+          case "drop":
+            return fromResult(await issues.drop(id, { by: str("by") ?? "" }));
+          default:
+            return fromResult(
+              await issues.start(id, {
+                workflow: str("workflow") ?? "",
+                ...(body.worktree === false ? { worktree: false } : {}),
+                ...(str("autonomy") ? { autonomy: str("autonomy") as "L0" | "L1" | "L2" } : {}),
+              }),
+            );
+        }
+      }
       const option = /^\/options\/(.+)$/.exec(path);
       if (option && req.method === "POST") {
         const body = (await req.json().catch(() => ({}))) as Json;

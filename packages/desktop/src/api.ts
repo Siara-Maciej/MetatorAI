@@ -311,6 +311,33 @@ export interface BoardStage extends StageProgress {
   readonly endedAt?: string;
   readonly verdict?: string;
 }
+/** A backlog task (Issue v1): proposed by an agent, or added by a person. */
+export interface IssueRef {
+  readonly run?: string;
+  readonly step?: string;
+  readonly file?: string;
+  readonly line?: number;
+  readonly note?: string;
+}
+export interface Issue {
+  readonly id: string;
+  readonly title: string;
+  readonly body: string;
+  readonly status: "proposed" | "open" | "in-progress" | "done" | "dropped";
+  readonly priority: "low" | "normal" | "high";
+  readonly labels: readonly string[];
+  readonly refs: readonly IssueRef[];
+  readonly proposedBy?: {
+    readonly agent: string;
+    readonly runId?: string;
+    readonly at: string;
+    readonly questionId?: string;
+  };
+  readonly decidedBy?: { readonly by: string; readonly at: string; readonly decision: "added" | "dropped" };
+  readonly runId?: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
 export interface PlanBoardView {
   readonly runId: string;
   readonly task: string;
@@ -506,4 +533,24 @@ export class DaemonClient {
     this.post<TabView>(`/tabs/${encodeURIComponent(tabId)}/tree`, { tree }, repo);
   closeWorkspace = (workspace: string, repo?: string) =>
     this.post<{ closed: number }>(`/workspaces/${encodeURIComponent(workspace)}/close`, {}, repo);
+  issues = (repo?: string) => this.get<{ issues: Issue[] }>("/issues", repo);
+  addIssue = (
+    body: {
+      title: string;
+      body?: string;
+      priority?: Issue["priority"];
+      labels?: readonly string[];
+      refs?: readonly IssueRef[];
+      by: string;
+    },
+    repo?: string,
+  ) => this.post<Issue>("/issues", body, repo);
+  decideIssue = (id: string, body: { by: string; decision: "add" | "drop" }, repo?: string) =>
+    this.post<Issue>(`/issues/${encodeURIComponent(id)}/decide`, body, repo);
+  startIssue = (id: string, body: { workflow: string; worktree?: boolean }, repo?: string) =>
+    this.post<{ issue: Issue; runId: string }>(`/issues/${encodeURIComponent(id)}/start`, body, repo);
+  closeIssue = (id: string, by: string, repo?: string) =>
+    this.post<Issue>(`/issues/${encodeURIComponent(id)}/close`, { by }, repo);
+  dropIssue = (id: string, by: string, repo?: string) =>
+    this.post<Issue>(`/issues/${encodeURIComponent(id)}/drop`, { by }, repo);
 }

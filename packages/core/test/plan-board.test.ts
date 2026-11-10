@@ -1,14 +1,23 @@
 import { describe, expect, test } from "bun:test";
 import {
   type BoardWorker,
+  DEFAULT_PATHS,
+  InitRun,
+  ok,
   type Plan,
+  PlanBoard,
   type PlanBoardInput,
   planBoardOf,
   type Question,
   type RunActivity,
+  RunJournal,
+  RunRepository,
+  serializeJsonDocument,
   type WorkerResult,
+  WorkflowCatalog,
   withLiveWorker,
 } from "@metator/core";
+import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 
 const T = (m: number) => `2026-11-09T22:${String(m).padStart(2, "0")}:00.000Z`;
 const plan: Plan = {
@@ -232,5 +241,75 @@ describe("planBoardOf", () => {
     const done = planBoardOf({ ...base, status: "done", stage: "review" });
     expect(done.stages.every((s) => s.state === "done")).toBe(true);
     expect(done.next).toEqual([]);
+  });
+});
+
+describe("PlanBoard (the use case)", () => {
+  test("reads the run's files: the gate report, the workers with their state, the live step", async () => {
+    const WORKFLOW =
+      "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
+    const fs = new InMemoryFileSystem({ ".github/metator/workflows/demo.yml": WORKFLOW });
+    const clock = new FixedClock(new Date("2026-11-09T22:40:00.000Z"));
+    const repo = new RunRepository(fs, DEFAULT_PATHS);
+    const journal = new RunJournal(fs, repo, clock);
+    const catalog = new WorkflowCatalog(fs, DEFAULT_PATHS);
+    const run = (
+      await new InitRun(catalog, repo, clock).execute({ workflow: "demo", task: "Add the discount" })
+    )._unsafeUnwrap();
+    await fs.write(
+      `${DEFAULT_PATHS.gates}/quick.json`,
+      serializeJsonDocument({
+        kind: "GateReport",
+        schemaVersion: 1,
+        gate: "quick",
+        files: null,
+        startedAt: T(37),
+        passed: true,
+        steps: [{ id: "lint", status: "pass", durationMs: 12 }],
+      }),
+    );
+    const workers = [
+      {
+        name: "mt-implementer-1",
+        stage: "build",
+        agent: "mt-implementer",
+        paneId: "w1:p2",
+        alive: true,
+        idle: true,
+      },
+      {
+        name: "mt-implementer-2",
+        stage: "build",
+        agent: "mt-implementer",
+        paneId: "w1:p3",
+        alive: true,
+        idle: false,
+      },
+      {
+        name: "mt-test-author-1",
+        stage: "build",
+        agent: "mt-test-author",
+        paneId: "w1:p4",
+        alive: false,
+        idle: false,
+      },
+    ];
+    const board = new PlanBoard({
+      fs,
+      repo,
+      journal,
+      catalog,
+      conductor: { workers: async () => ok(workers) },
+      paths: DEFAULT_PATHS,
+    });
+    const view = (await board.execute({ runId: run.runId }))._unsafeUnwrap();
+    expect(view.workers.map((w) => [w.name, w.state])).toEqual([
+      ["mt-implementer-1", "idle"],
+      ["mt-implementer-2", "working"],
+      ["mt-test-author-1", "exited"],
+    ]);
+    expect(view.gates).toEqual([expect.objectContaining({ gate: "quick", passed: true })]);
+    expect(view.stages.map((s) => [s.id, s.owners])).toEqual([["build", ["mt-implementer"]]]);
+    expect((await board.execute({ runId: "nope" })).isErr()).toBe(true);
   });
 });

@@ -1814,6 +1814,19 @@ metator run status [options]
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
 
+### `metator run board`
+
+The plan board (S2): stages with who worked them, the plan's steps with their state, workers, what waits for you, artifacts, gates, the last events
+
+```bash
+metator run board [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--timeline <n>` | how many events to keep | `30` |
+
 ### `metator run published`
 
 Whether the run's work is published: nothing uncommitted, and origin's branch at the checked-out commit (the publish gate)
@@ -2388,6 +2401,20 @@ metator pane read [options] <pane>
 | `<pane>` |  | |
 | `--lines <n>` | how many lines | `80` |
 
+### `metator pane split`
+
+Split a pane's area: a shell (or a command) to the right of it or below it (S6)
+
+```bash
+metator pane split [options] <pane>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<pane>` |  | |
+| `--dir <dir>` | right or down | `"right"` |
+| `--argv <argv...>` | the command to run in the new pane (default: your shell) |  |
+
 ### `metator pane wait`
 
 Wait until the pane is in a state: idle or exited (default: either), blocked, waiting, working
@@ -2401,6 +2428,143 @@ metator pane wait [options] <pane>
 | `<pane>` |  | |
 | `--until <state>` | working, blocked, waiting, idle or exited; repeat for several | `[]` |
 | `--timeout <ms>` | give up after this long | `60000` |
+
+## issue
+
+### `metator issue list`
+
+The backlog, the most pressing first
+
+```bash
+metator issue list [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--status <status>` | only these (one of: proposed, open, in-progress, done, dropped) |  |
+| `--run <id>` | only the tasks of this run (proposed from it, started as it, or pointing at it) |  |
+
+### `metator issue show`
+
+One task with everything attached
+
+```bash
+metator issue show [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` |  | |
+
+### `metator issue add`
+
+A person adds a task: open at once
+
+```bash
+metator issue add [options] <title>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<title>` |  | |
+| `--body <text>` | what and why, with the acceptance criterion |  |
+| `--priority <level>` | how urgent (one of: low, normal, high) |  |
+| `--labels <a,b>` | labels, comma-separated |  |
+| `--ref <ref...>` | what it points at: &lt;file&gt;[:line], run:&lt;id&gt;[/&lt;step&gt;] |  |
+| `--by <name>` | who adds it **Required.** |  |
+
+### `metator issue propose`
+
+An agent proposes a task: it becomes a question in the inbox; a person decides
+
+```bash
+metator issue propose [options] <title>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<title>` |  | |
+| `--body <text>` | what and why, with the acceptance criterion |  |
+| `--priority <level>` | how urgent (one of: low, normal, high) |  |
+| `--labels <a,b>` | labels, comma-separated |  |
+| `--ref <ref...>` | what it points at: &lt;file&gt;[:line], run:&lt;id&gt;[/&lt;step&gt;] |  |
+| `--agent <id>` | the proposing agent (or worker) **Required.** |  |
+| `--run <id>` | the run it comes from (default: latest) |  |
+
+### `metator issue decide`
+
+A person decides a proposal outside the inbox: --add or --drop
+
+```bash
+metator issue decide [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` |  | |
+| `--add` | add it to the backlog |  |
+| `--drop` | drop it |  |
+| `--priority <level>` | how urgent (one of: low, normal, high) |  |
+| `--labels <a,b>` | labels, comma-separated |  |
+| `--by <name>` | who decides **Required.** |  |
+
+### `metator issue edit`
+
+Change a task's title, body, priority, labels or refs
+
+```bash
+metator issue edit [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` |  | |
+| `--title <text>` |  |  |
+| `--body <text>` |  |  |
+| `--priority <level>` | how urgent (one of: low, normal, high) |  |
+| `--labels <a,b>` | labels, comma-separated |  |
+| `--ref <ref...>` | replaces the refs |  |
+
+### `metator issue close`
+
+The task is done
+
+```bash
+metator issue close [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` |  | |
+| `--by <name>` | who closes it **Required.** |  |
+
+### `metator issue drop`
+
+The task is not going to be done
+
+```bash
+metator issue drop [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` |  | |
+| `--by <name>` | who drops it **Required.** |  |
+
+### `metator issue start`
+
+A run on the task (its title and body are the task), in its own worktree unless --no-worktree
+
+```bash
+metator issue start [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` |  | |
+| `--workflow <id>` | the workflow to run **Required.** |  |
+| `--no-worktree` | work in the main checkout |  |
+| `--autonomy <level>` | L0 asks at every gate (one of: L0, L1, L2) |  |
 
 ## attach
 

@@ -297,6 +297,43 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
       (await page.getByTestId("plan-stages").textContent())?.includes("build") ? true : undefined,
     );
     expect(await page.getByTestId("plan").textContent()).toContain("no plan yet");
+    // The backlog (S4): a task added from the form is open; an agent's proposal waits for the decision.
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/backlog`);
+    await page.getByTestId("backlog").waitFor({ timeout: 20_000 });
+    await page.getByRole("button", { name: "+ task" }).click();
+    await page.getByLabel("title").fill("Flaky checkout.spec");
+    await page.getByLabel("what and why").fill("Fails one run in five.");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await page.getByTestId("issue-i001").waitFor({ timeout: 20_000 });
+    expect(await page.getByTestId("backlog").textContent()).toContain("i001 · open");
+    const proposed = Bun.spawnSync(
+      [
+        "bun",
+        CLI_ENTRY,
+        "issue",
+        "propose",
+        "Edge test 1000.00",
+        "--agent",
+        "mt-implementer-1",
+        "--run",
+        runId,
+      ],
+      { cwd: repo.root, env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR } },
+    );
+    expect(proposed.exitCode).toBe(0);
+    await page.getByTestId("issue-i002").waitFor({ timeout: 20_000 });
+    await page.getByTestId("issue-i002").click();
+    expect(await page.getByTestId("backlog").textContent()).toContain("1 proposal waits for you");
+    await page.getByRole("button", { name: "Drop", exact: true }).click();
+    await until("the proposal dropped", async () =>
+      (await page.getByTestId("backlog").textContent())?.includes("proposal waits") ? undefined : true,
+    );
+    expect(
+      ((await api("/issues")).data.issues as { id: string; status: string }[]).map((i) => [i.id, i.status]),
+    ).toEqual([
+      ["i001", "open"],
+      ["i002", "dropped"],
+    ]);
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/graph`);
     await page.getByRole("img", { name: "sessions graph" }).waitFor({ timeout: 20_000 });
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/supervisor`);
