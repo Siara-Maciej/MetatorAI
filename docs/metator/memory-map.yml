@@ -14,6 +14,9 @@ knowledge:
     - "metator/skills/**"
     - ".github/skills/**"
     - ".claude/skills/**"
+  # Patches of the golden set are code to apply, not knowledge to read.
+  exclude:
+    - "docs/metator/evals/golden/patches/**"
 tierBudgets:
   T0: { chars: 4000 }
 items:
