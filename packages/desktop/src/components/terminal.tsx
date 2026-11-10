@@ -197,8 +197,13 @@ function SocketTerminal({
     return () => {
       disposed = true;
       observer.disconnect();
+      ws.onmessage = null;
       ws.close();
-      term.dispose();
+      // xterm 5.5 schedules its viewport refresh in animation frames that dispose() does not
+      // cancel; a frame that runs after dispose() reads the dimensions of a renderer that is
+      // gone ("Cannot read properties of undefined (reading 'dimensions')"). Two frames drain
+      // that chain (sync, then refresh) before the terminal goes.
+      requestAnimationFrame(() => requestAnimationFrame(() => term.dispose()));
     };
     // The socket carries the attach state itself: a new `by` means a new socket.
   }, [path, repo, url, me, scrollback]);
