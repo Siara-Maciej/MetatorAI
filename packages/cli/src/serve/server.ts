@@ -38,6 +38,8 @@ export interface ServeOptions {
   readonly superviseMs?: number;
   /** Scan the intake rules this often (0 or unset: never); the rules' own `everyMs` when `true`. */
   readonly intakeMs?: number | true;
+  /** Look for reviews of my requests this often (0 or unset: never); the config's `everyMs` when `true`. */
+  readonly reviewsMs?: number | true;
   /** How the supervisor starts a drive again. */
   readonly restart?: (
     c: MetatorContainer,
@@ -263,6 +265,25 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
             ? await store.unset({ key, scope, ...(runId ? { runId } : {}) })
             : await store.set({ key, scope, value: body.value, ...(runId ? { runId } : {}) }),
         );
+      }
+      if (path === "/mrs" && req.method === "GET") {
+        const all = await c.value.resolve("myReviews").list();
+        return fromResult(all.map((requests) => ({ requests })));
+      }
+      const mr = /^\/mrs\/([^/]+)(?:\/(send|resolve))?$/.exec(path);
+      if (mr) {
+        const [, rawId, verb] = mr as unknown as [string, string, string | undefined];
+        const id = decodeURIComponent(rawId);
+        const reviews = c.value.resolve("myReviews");
+        if (!verb && req.method === "GET") return fromResult(await reviews.show(id));
+        if (verb && req.method === "POST") {
+          const body = (await req.json().catch(() => ({}))) as Json;
+          const by = typeof body.by === "string" ? body.by : "";
+          if (verb === "send") return fromResult(await reviews.send(id, { by }));
+          return fromResult(
+            await reviews.resolve(id, typeof body.thread === "string" ? body.thread : "", { by }),
+          );
+        }
       }
       if (path === "/panes" && req.method === "POST") {
         const body = (await req.json().catch(() => ({}))) as Json;
@@ -803,6 +824,39 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         .finally(() => scanning.delete(key));
     }
   };
+  // Reviews of my requests (T3): one scan per interval for every repository with sources.
+  const reviewing = new Set<string>();
+  const reviewsTick = () => {
+    const repos = folder ? folder.repos.map((r) => r.name) : [undefined];
+    for (const repo of repos) {
+      const c = containerFor(repo);
+      if (c.isErr()) continue;
+      const key = repo ?? ".";
+      const container = c.value;
+      if (container.resolve("config").config.reviews.sources.length === 0 || reviewing.has(key)) continue;
+      reviewing.add(key);
+      void container
+        .resolve("myReviews")
+        .scan()
+        .then(async (r) => {
+          const say = (o: object) =>
+            process.stderr.write(`${JSON.stringify({ reviews: { repo: key, ...o } })}\n`);
+          if (r.isErr()) return say({ error: r.error.message });
+          for (const e of r.value.errors) say({ error: e });
+          for (const q of r.value.requests) {
+            if (!q.started) continue;
+            say({ started: q.started, request: q.id, threads: q.fresh.length });
+            if (opts.start) await opts.start(container, q.started, "");
+          }
+        })
+        .finally(() => reviewing.delete(key));
+    }
+  };
+  const reviewsEvery =
+    opts.reviewsMs === true
+      ? ctx.container().resolve("config").config.reviews.everyMs
+      : (opts.reviewsMs ?? 0);
+  const reviewsTimer = reviewsEvery > 0 ? setInterval(reviewsTick, reviewsEvery) : undefined;
   const intakeEvery =
     opts.intakeMs === true ? ctx.container().resolve("config").config.intake.everyMs : (opts.intakeMs ?? 0);
   const intakeTimer = intakeEvery > 0 ? setInterval(intakeTick, intakeEvery) : undefined;
@@ -846,6 +900,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     stop: async () => {
       if (superviseTimer) clearInterval(superviseTimer);
       if (intakeTimer) clearInterval(intakeTimer);
+      if (reviewsTimer) clearInterval(reviewsTimer);
       for (const root of roots) rmSync(join(root, DAEMON_FILE), { force: true });
       for (const ws of sockets) ws.close();
       await server.stop(true);

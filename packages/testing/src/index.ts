@@ -6,6 +6,7 @@ export * from "./contracts/file-system.contract.ts";
 export * from "./contracts/interactive-host.contract.ts";
 export * from "./contracts/machine-state.contract.ts";
 export * from "./contracts/process-runner.contract.ts";
+export * from "./contracts/review-host.contract.ts";
 export * from "./contracts/tree-copier.contract.ts";
 export * from "./contracts/worktree-manager.contract.ts";
 export * from "./fakes.ts";

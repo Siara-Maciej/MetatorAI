@@ -15,6 +15,7 @@ import type { Edge } from "../domain/graph.ts";
 import type { IntakeItem, IntakeSource } from "../domain/intake.ts";
 import type { PublishedBranch } from "../domain/publication.ts";
 import type { Result } from "../domain/result.ts";
+import type { HostPullRequest, HostThread, ReviewSource } from "../domain/review-thread.ts";
 import type { Skill } from "../domain/skill.ts";
 import type { ModuleSymbols } from "../domain/symbols.ts";
 
@@ -553,4 +554,20 @@ export interface HostGenerator {
  */
 export interface CodeHost {
   listItems(source: IntakeSource): Promise<Result<readonly IntakeItem[], MetatorError>>;
+}
+
+/**
+ * Reviews of pull (merge) requests at a code host (T3, design/14 §4). Reading is free; `reply`
+ * and `resolve` change the host and are called only after a person's decision.
+ */
+export interface ReviewHost {
+  listPullRequests(source: ReviewSource): Promise<Result<readonly HostPullRequest[], MetatorError>>;
+  listThreads(source: ReviewSource, number: number): Promise<Result<readonly HostThread[], MetatorError>>;
+  reply(
+    source: ReviewSource,
+    number: number,
+    threadId: string,
+    text: string,
+  ): Promise<Result<void, MetatorError>>;
+  resolve(source: ReviewSource, number: number, threadId: string): Promise<Result<void, MetatorError>>;
 }

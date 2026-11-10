@@ -1,0 +1,61 @@
+# W14: answer a review of my own pull request (design/14 §4, ADR-0083).
+kind: Workflow
+schemaVersion: 3
+id: mt-review-response
+revision: 1
+description: Sort the reviewers' threads, answer what the diff answers, plan the fixes, fix after a person's yes
+entry: { prompt: mt-review-response }
+input:
+  oneOf: [task_text]
+preconditions: [index-fresh]
+limits: { parallel: 4 }
+stages:
+  - id: triage
+    description: Each open thread gets a kind and, where the code answers it, a proposed reply
+    owner: mt-review-responder
+    produces: [triage.md]
+  - id: plan
+    description: A step per thread that asks for a change, with the thread quoted; nothing for threads the code already satisfies
+    owner: mt-planner
+    produces: [plan.json, plan-scope.json]
+    gate: { script: "metator plan lint {runDir}/plan.json" }
+    onFail: { goto: plan, loop: plan }
+  - id: approval
+    description: The person decides - fix as planned, only send the replies, or leave the review alone
+    hitl: true
+    neverSkip: true
+    onFail: { goto: plan, loop: plan }
+  - id: build
+    owner: [mt-test-author, mt-implementer]
+    produces: [build-log.md]
+  - id: gates
+    owner: mt-gatekeeper
+    produces: [gates.md]
+    gate: { script: metator gate full }
+    onFail: { goto: build, loop: build }
+  - id: delivery
+    description: Push to the request's branch and send the replies
+    hitl: true
+    neverSkip: true
+    grants: [push]
+  - id: publish
+    owner: mt-pr-author
+    produces: [pr.md]
+    # Done only when the change is committed and origin's branch is at the checked-out commit.
+    gate: { script: metator run published }
+    onFail: { goto: publish, loop: publish }
+loops: { plan: 3, build: 2, publish: 1 }
+escalation:
+  onLoopExhausted: report what is still open, thread by thread
+  onAmbiguity: stop and ask
+autonomy: [L0]
+permissions: { edit: plan-scope, external: [push, comment] }
+done:
+  - every open thread has a kind
+  - every thread that asks for a change is covered by the plan or left out by the person's decision
+  - the gates pass
+  - push and replies approved by a person
+recovery: [skill mt-diagnose on a failed gate, retry a tool once, then escalate]
+resume: metator run status, then metator mrs show <review>, then continue at the last approved stage
+telemetry: [stage_duration, tokens, loops, escalations, outcome, threads_by_kind]
+report: per thread - its kind, the reply or the plan step, what was pushed; links to triage.md, plan.json and gates.md

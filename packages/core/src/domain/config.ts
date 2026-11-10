@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ModelTierSchema } from "./agent.ts";
 import { IntakeConfigSchema } from "./intake.ts";
 import { McpServersSchema } from "./mcp.ts";
+import { ReviewsConfigSchema } from "./review-thread.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -258,7 +259,16 @@ const ConfigV10Schema = z.strictObject({
   intake: IntakeConfigSchema.default(IntakeConfigSchema.parse({})),
 });
 
-export const MetatorConfigSchema = ConfigV10Schema;
+/**
+ * v11 adds `reviews` (T3, design/14 §4): where to look for reviews of my own requests and the
+ * workflow that answers them. Every v10 file is a v11 file.
+ */
+const ConfigV11Schema = z.strictObject({
+  ...ConfigV10Schema.shape,
+  reviews: ReviewsConfigSchema.default(ReviewsConfigSchema.parse({})),
+});
+
+export const MetatorConfigSchema = ConfigV11Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -277,9 +287,10 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: ConfigV7Schema, fromPrevious: (v6) => v6 },
     { schema: ConfigV8Schema, fromPrevious: (v7) => v7 },
     { schema: ConfigV9Schema, fromPrevious: (v8) => v8 },
+    { schema: ConfigV10Schema, fromPrevious: (v9) => v9 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v9) => v9,
+  upgrade: (v10) => v10,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

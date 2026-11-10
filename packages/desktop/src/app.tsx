@@ -12,6 +12,7 @@ import { BacklogScreen } from "./screens/backlog.tsx";
 import { BriefingScreen } from "./screens/briefing.tsx";
 import { GraphScreen } from "./screens/graph.tsx";
 import { InboxScreen } from "./screens/inbox.tsx";
+import { MrsScreen } from "./screens/mrs.tsx";
 import { NewSessionDialog } from "./screens/new-session.tsx";
 import { PlanScreen } from "./screens/plan.tsx";
 import { ReviewScreen } from "./screens/review.tsx";
@@ -24,6 +25,7 @@ const RAIL: { route: Route; label: string; glyph: string }[] = [
   { route: { screen: "inbox" }, label: "Inbox", glyph: "☰" },
   { route: { screen: "grid" }, label: "Work", glyph: "▦" },
   { route: { screen: "backlog" }, label: "Backlog", glyph: "☷" },
+  { route: { screen: "mrs" }, label: "MRs", glyph: "⇄" },
   { route: { screen: "graph" }, label: "Graph", glyph: "⌘" },
   { route: { screen: "supervisor" }, label: "Super", glyph: "◎" },
   { route: { screen: "settings" }, label: "Settings", glyph: "⚙" },
@@ -229,6 +231,14 @@ function Shell() {
             runId={route.runId}
             onOpenPane={(pane) => go({ screen: "grid", pane })}
             onOpenSession={openSession}
+          />
+        ) : null}
+        {route.screen === "mrs" ? (
+          <MrsScreen
+            id={route.id}
+            onOpen={(id) => go({ screen: "mrs", id })}
+            onOpenSession={openSession}
+            onOpenPlan={(runId) => go({ screen: "plan", runId })}
           />
         ) : null}
         {route.screen === "graph" ? <GraphScreen /> : null}

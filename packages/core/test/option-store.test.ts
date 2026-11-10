@@ -155,7 +155,7 @@ describe("OptionStore", () => {
     const created = parse((await fresh.fs.read("metator.config.yml"))._unsafeUnwrap());
     expect(created).toEqual({
       kind: "MetatorConfig",
-      schemaVersion: 10,
+      schemaVersion: 11,
       options: { "review.sendTo": "worker" },
     });
     expect(MetatorConfigSchema.safeParse({ options: created.options }).success).toBe(true);

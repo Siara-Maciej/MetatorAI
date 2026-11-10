@@ -112,6 +112,7 @@ import {
   MergeFindingSets,
   MetatorError,
   type MetatorPaths,
+  MyReviews,
   Notifier,
   OpenEditor,
   OptionStore,
@@ -207,7 +208,7 @@ export { findChildRepos, findFolderRoot, findRepoRoot, runsRootOf } from "@metat
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
-import { McpCodeHost, SdkToolCaller } from "@metator/plugin-codehost-mcp";
+import { McpCodeHost, McpReviewHost, SdkToolCaller } from "@metator/plugin-codehost-mcp";
 import { DockerComposeRuntime } from "@metator/plugin-docker";
 import { GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
 import {
@@ -586,6 +587,24 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     codeHost: asFunction(
       ({ optionStore, root }) => new McpCodeHost(() => optionStore.mcp(), new SdkToolCaller(root)),
+    ),
+    reviewHost: asFunction(
+      ({ optionStore, root }) => new McpReviewHost(() => optionStore.mcp(), new SdkToolCaller(root)),
+    ),
+    myReviews: asFunction(
+      ({ config, fileSystem, paths, clock, reviewHost, initRun, runRepository }) =>
+        new MyReviews({
+          config: config.config.reviews,
+          fs: fileSystem,
+          paths,
+          clock,
+          host: reviewHost,
+          initRun,
+          runActive: async (runId) => {
+            const record = await runRepository.load(runId);
+            return record.isOk() && record.value.state.status === "active";
+          },
+        }),
     ),
     scanIntake: asFunction(
       ({ config, issues, codeHost, runRepository }) =>

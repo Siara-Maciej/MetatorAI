@@ -1,0 +1,67 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 10,
+  "editor": "code",
+  "gates": {
+    "full": [
+      {
+        "id": "graph",
+        "run": {
+          "metator": "graph diff"
+        }
+      },
+      {
+        "id": "workspaces",
+        "run": {
+          "workspaces": "typecheck"
+        }
+      }
+    ]
+  },
+  "hosts": {
+    "targets": ["claude"],
+    "metatorCommand": "bun run metator"
+  },
+  "system": {
+    "map": {
+      "path": "docs/metator/system.yml"
+    },
+    "roots": {
+      "web": "../web"
+    }
+  },
+  "notify": {
+    "command": "notify-send MetatorAI \"$METATOR_QUESTION_PROMPT\""
+  },
+  "supervisor": {
+    "wipLimit": 2,
+    "hostOrder": ["claude", "copilot"]
+  },
+  "options": {
+    "review.sendTo": "worker",
+    "ui.attachOnType": true
+  },
+  "mcp": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  },
+  "intake": {
+    "maxActive": 1,
+    "rules": [
+      {
+        "id": "gh-bugs",
+        "source": {
+          "kind": "github",
+          "repo": "acme/shop",
+          "labels": ["bug"]
+        },
+        "workflow": "mt-bugfix"
+      }
+    ]
+  }
+}

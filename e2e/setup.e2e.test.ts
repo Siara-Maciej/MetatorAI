@@ -53,6 +53,7 @@ describe("metator setup (real CLI)", () => {
       "mt-feature",
       "mt-pr-review",
       "mt-refactor",
+      "mt-review-response",
       "mt-self-review",
       "mt-system-change",
     ]);
@@ -157,7 +158,7 @@ describe("metator setup (real CLI)", () => {
         0,
         ["copilot"],
         false,
-        5,
+        6,
       ]);
       expect(r.screen).toContain("MetatorAI setup");
       expect(await fresh.exists(".github/agents/mt-scout.agent.md")).toBe(true);

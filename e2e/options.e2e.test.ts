@@ -107,7 +107,7 @@ describe("metator config (options, real CLI)", () => {
     const text = await repo.read("metator.config.yml");
     expect(text).toContain("# the person's editor");
     expect(parse(text)).toMatchObject({
-      schemaVersion: 10,
+      schemaVersion: 11,
       editor: "cursor",
       options: { "supervisor.wipLimit": 2 },
     });

@@ -124,6 +124,7 @@ import {
   type MergeFindingSets,
   MetatorError,
   type MetatorPaths,
+  type MyReviews,
   type Notifier,
   type OpenEditor,
   type OptionStore,
@@ -153,6 +154,7 @@ import {
   type Result,
   type ResumeRun,
   type ReviewFeedback,
+  type ReviewHost,
   type ReviewNotes,
   type RevisionReader,
   type RuleCatalog,
@@ -265,6 +267,8 @@ export interface Cradle {
   issues: Issues;
   codeHost: CodeHost;
   scanIntake: ScanIntake;
+  reviewHost: ReviewHost;
+  myReviews: MyReviews;
   planBoard: PlanBoard;
   openEditor: OpenEditor;
   reviewFeedback: ReviewFeedback;

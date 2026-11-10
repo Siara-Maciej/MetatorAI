@@ -25,6 +25,11 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
       "how often the intake rules are scanned (0: never; default: the rules' `everyMs`)",
       (v: string) => Number(v),
     )
+    .option(
+      "--reviews-ms <n>",
+      "how often reviews of my requests are read (0: never; default: the config's `reviews.everyMs`)",
+      (v: string) => Number(v),
+    )
     .action(
       ctx.action(
         async (opts: {
@@ -33,6 +38,7 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
           pollMs: number;
           superviseMs: number;
           intakeMs?: number;
+          reviewsMs?: number;
         }) => {
           const root = () => (program.opts() as { root?: string }).root;
           const served = await startServer(ctx, {
@@ -42,6 +48,7 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
             announce: true,
             superviseMs: opts.superviseMs,
             intakeMs: opts.intakeMs ?? true,
+            reviewsMs: opts.reviewsMs ?? true,
             restart: (c, runId) => resume(c, root(), runId),
             start: (c, runId, host) => resume(c, root(), runId, host || undefined),
           });

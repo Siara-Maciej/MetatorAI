@@ -48,6 +48,7 @@ export const sections = [
       { text: "The desktop app", link: "desktop" },
       { text: "The plan of a run", link: "plan" },
       { text: "The backlog", link: "backlog" },
+      { text: "Answer a review", link: "reviews" },
       { text: "The change and your notes", link: "changes" },
       { text: "Ask about the code", link: "ask" },
       { text: "Feature (W1)", link: "feature" },
