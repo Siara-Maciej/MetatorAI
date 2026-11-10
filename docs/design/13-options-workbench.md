@@ -65,7 +65,7 @@ Widok „gdzie jesteśmy i co zostało”: etapy workflow, kroki planu (`plan.js
 
 ## 3. S3: PR per feature (proces, nie kod)
 
-- Gałąź `claude/s<N>-<slug>` z `main`; PR do `main` przez GitHub MCP, merge po zielonym CI, otwierany przeze mnie, gdy punkt ma: testy jednostkowe, e2e, mutanty, docs w `site/`, zielone `bun run check`; opis PR z sekcjami „Co”, „Jak sprawdzić”, „Ryzyka”, link do tego dokumentu; `review.yml` (akcja MetatorAI) i `ci.yml` biegną na PR.
+- Gałąź `claude/s<N>-<slug>` z `main`; PR do `main` przez GitHub MCP, merge po zielonym CI, otwierany przeze mnie, gdy punkt ma: testy jednostkowe, e2e, mutanty, docs w `site/`, zielone `bun run check`; opis PR z sekcjami „Co”, „Jak sprawdzić”, „Ryzyka”, link do tego dokumentu; `mt-pr-review.yml` (akcja MetatorAI z komentarzem podsumowania) i `ci.yml` biegną na PR.
 - Subskrypcja PR: po otwarciu pilnuję CI i komentarzy (`subscribe_pr_activity`); merge robisz Ty.
 - Kolejność: S1 → S2 → S4 → S5 (S5 zależy od S1 `editor.*`); S3 obowiązuje od pierwszego.
 

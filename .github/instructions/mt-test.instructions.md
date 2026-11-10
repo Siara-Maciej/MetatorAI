@@ -1,7 +1,8 @@
 ---
 kind: InstructionsAdapter
-schemaVersion: 1
+schemaVersion: 2
 applyTo: e2e/**,packages/cli/src/**,packages/core/src/**,packages/plugin-*/src/**,packages/plugin-*/test/**,packages/runtime/src/**,packages/testing/src/contracts/**,scripts/mutants.ts
+excludeAgent: code-review
 description: How MetatorAI proves that work actually works.
 generatedFrom: docs/metator/rules/test.yml
 ---

@@ -1,7 +1,8 @@
 ---
 kind: InstructionsAdapter
-schemaVersion: 1
+schemaVersion: 2
 applyTo: docs/metator/dependencies.yml,docs/metator/schemas/**,e2e/**/*.ts,package.json,packages/**/*.ts,packages/*/package.json,packages/cli/src/**,packages/core/src/**,packages/core/src/domain/**,packages/plugin-*/src/**,scripts/**/*.ts
+excludeAgent: code-review
 description: Coding conventions of MetatorAI.
 generatedFrom: docs/metator/rules/code.yml
 ---

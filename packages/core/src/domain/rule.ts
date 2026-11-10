@@ -106,11 +106,20 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/** Generated host instruction file (front matter keeps the host's `applyTo`). */
+const InstructionsAdapterV1Schema = z.object({
+  applyTo: z.string(),
+  description: z.string(),
+  generatedFrom: z.string(),
+});
+
+/**
+ * Generated host instruction file (front matter keeps the host's `applyTo`). v2 (F5) adds
+ * `excludeAgent`: the canon's rules are the heavy review, so Copilot's native code review
+ * (`code-review`) leaves them to `mt-pr-review` instead of repeating them in its own comments.
+ */
 export const InstructionsAdapterDocument = defineDocument("InstructionsAdapter", {
-  latest: z.object({
-    applyTo: z.string(),
-    description: z.string(),
-    generatedFrom: z.string(),
-  }),
+  history: [{ schema: InstructionsAdapterV1Schema }],
+  latest: InstructionsAdapterV1Schema.extend({ excludeAgent: z.string().optional() }),
+  // A v1 file is a v2 file without an exclusion.
+  upgrade: (previous) => previous,
 });

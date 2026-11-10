@@ -1,0 +1,7 @@
+{
+  "kind": "InstructionsAdapter",
+  "schemaVersion": 1,
+  "applyTo": "packages/**/*.ts",
+  "description": "Coding conventions of MetatorAI.",
+  "generatedFrom": "docs/metator/rules/code.yml"
+}
