@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/application/runs.ts b/packages/core/src/application/runs.ts
+--- a/packages/core/src/application/runs.ts
++++ b/packages/core/src/application/runs.ts
+@@ -102,7 +102,7 @@
+     if (resolved.isErr()) return err(resolved.error);
+     const { machine, source } = resolved.value;
+     const declared = workflowInputs(machine.workflow);
+-    const unknown = Object.keys(input.inputs ?? {}).filter((k) => !declared.includes(k));
++    const unknown = Object.keys(input.inputs ?? {}).filter((k) => !declared.includes(k) && false);
+     if (unknown.length > 0)
+       return err(
+         MetatorError.usage(

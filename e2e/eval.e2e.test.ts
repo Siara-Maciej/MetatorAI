@@ -123,3 +123,80 @@ describe("metator eval", () => {
     expect((await metator(["eval", "run"], repo.root)).code).toBe(64);
   });
 });
+
+describe("metator eval seed (real git history)", () => {
+  test("mutants become seeded cases with patches, a fix's culprit a bug case, an ordinary commit a clean case; run materializes the patch", async () => {
+    const r = await ScratchRepo.create();
+    try {
+      await r.write("README.md", "# shop\n");
+      await r.commit("init");
+      await r.write(
+        "src/invoice.ts",
+        "export function round2(n: number) {\n  return Math.round(n * 100) / 100;\n}\n",
+      );
+      await r.commit("Round to cents");
+      await r.write(
+        "src/invoice.ts",
+        "export function round2(n: number) {\n  const s = n < 0 ? -1 : 1;\n  return (s * Math.round(Math.abs(n) * 100)) / 100;\n}\n",
+      );
+      await r.commit("Fix rounding of negatives");
+      await r.write("src/discount.ts", "export const discount = 0.1;\n");
+      await r.commit("Add the discount");
+      await r.write(
+        "mutants.json",
+        JSON.stringify([
+          { file: "src/invoice.ts", from: "/ 100", to: "/ 10", why: "cents, not tenths" },
+          { file: "src/invoice.ts", from: "n < 0", to: "n <= 0", why: "zero is positive" },
+        ]),
+      );
+      await r.write(
+        "fake-review.sh",
+        `#!/bin/sh\nmkdir -p "$3/findings"\n` +
+          `git -C "$(pwd)" show --format= "$2" > "$3/head.diff"\n` +
+          `echo '{"kind":"FindingSet","schemaVersion":1,"lens":"merged","findings":[]}' > "$3/findings/merged.json"\n` +
+          `echo '{"kind":"Verdict","schemaVersion":1,"decision":"APPROVE","blocking":[],"unverified":[],"consider":[],"verifiedCorrect":[]}' > "$3/verdict.json"\n`,
+      );
+      await chmod(r.path("fake-review.sh"), 0o755);
+      const seeded = await metator(
+        ["eval", "seed", "--mutants", "mutants.json", "--seeded", "5", "--bugs", "3", "--clean", "3"],
+        r.root,
+      );
+      expect(seeded.code).toBe(0);
+      const written = (data(seeded).written as { id: string; type: string }[]).map(
+        (w) => `${w.type}:${w.id.replace(/-[0-9a-f]{10}$/, "")}`,
+      );
+      expect(written).toEqual([
+        "seeded:seeded-src-invoice-1",
+        "seeded:seeded-src-invoice-2",
+        "bug:bug",
+        "clean:clean",
+      ]);
+      const list = data(await metator(["eval", "list"], r.root)) as {
+        byType: Record<string, number>;
+        cases: { patch?: string }[];
+      };
+      expect(list.byType).toEqual({ seeded: 2, bug: 1, clean: 1 });
+      expect(list.cases.filter((c) => c.patch)).toHaveLength(2);
+      // The seeded case's patch is committed on the base in a worktree: the review sees a real diff.
+      const run = await metator(
+        [
+          "eval",
+          "run",
+          "--command",
+          "./fake-review.sh {case} {head} {out}",
+          "--repeat",
+          "1",
+          "--runs-dir",
+          ".metator/evals/seeded",
+        ],
+        r.root,
+      );
+      expect(run.code).toBe(0);
+      expect(data(run)).toMatchObject({ cases: 4, runs: 4, missing: [] });
+      expect(await r.read(".metator/evals/seeded/seeded-src-invoice-1/1/head.diff")).toContain(") / 10;");
+      expect((await r.git("worktree", "list")).split("\n").filter((l) => l !== "")).toHaveLength(1);
+    } finally {
+      await r.dispose();
+    }
+  }, 60_000);
+});

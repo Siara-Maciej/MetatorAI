@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-domain-read-only-command-7
+type: seeded
+base: fd12dbb8fa75f75eeecadc4de1655a7c7be79622
+head: golden/seeded-core-src-domain-read-only-command-7
+patch: docs/metator/evals/golden/patches/seeded-core-src-domain-read-only-command-7.patch
+origin: "scripts/mutants.ts: git -C names a directory the agent works in"
+description: git -C names a directory the agent works in
+expected:
+  - file: packages/core/src/domain/read-only-command.ts
+    line: 400
+    tolerance: 3
+    severity: blocking
+    note: git -C names a directory the agent works in

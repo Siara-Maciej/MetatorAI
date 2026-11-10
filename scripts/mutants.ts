@@ -4727,6 +4727,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "MetatorAI's own files are not the change",
   },
   {
+    file: "packages/core/src/application/golden-seed.ts",
+    from: "      if (hits !== 1) {",
+    to: "      if (hits === 0) {",
+    why: "a mutant whose text occurs twice is not planted: the patch would be ambiguous",
+  },
+  {
+    file: "packages/core/src/domain/unified-diff.ts",
+    from: "  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {",
+    to: "  while (false) {",
+    why: "the hunk covers only the changed lines, not the whole tail of the file",
+  },
+  {
+    file: "packages/core/src/application/evals.ts",
+    from: "    if (!c.patch) return ok(c.head);",
+    to: "    return ok(c.head);",
+    why: "a seeded case's patch is committed so the review gets a real head",
+  },
+  {
     file: "packages/core/src/domain/issue.ts",
     from: '  if (choice === PROPOSAL_DROP) return "dropped";',
     to: '  if (choice === PROPOSAL_DROP) return "added";',

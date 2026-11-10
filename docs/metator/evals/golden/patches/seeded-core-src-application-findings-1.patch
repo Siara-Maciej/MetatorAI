@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/application/findings.ts b/packages/core/src/application/findings.ts
+--- a/packages/core/src/application/findings.ts
++++ b/packages/core/src/application/findings.ts
+@@ -189,7 +189,7 @@
+     const verified = await this.verifications(output);
+     const findings = merged.map((f) => {
+       const v = verified.get(sameFinding(f));
+-      return v && !f.verification ? { ...f, verification: v } : f;
++      return f;
+     });
+     const saved = await this.fs.write(
+       output,

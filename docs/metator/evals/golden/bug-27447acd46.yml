@@ -1,0 +1,20 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: bug-27447acd46
+type: bug
+base: bed68f38bac047d3a247af0ceaefc71999c2445a
+head: 27447acd46cc8d2880529000e46a9c475e8a86bd
+origin: fixed by 2463431a24c1218369573d824eb6fffd438698ac
+description: "Enterprise documentation site: idea, how it works, API, agents, multi-repo, animated workflows (fixed later by: Docs site: fixed-height terminal and system caption, so scrolling never jumps)"
+expected:
+  - file: site/.vitepress/theme/components/SystemDiagram.vue
+    line: 229
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 2463431a24c1: Docs site: fixed-height terminal and system caption, so scrolling never jumps"
+  - file: site/.vitepress/theme/components/TerminalDemo.vue
+    line: 123
+    tolerance: 3
+    severity: blocking
+    note: "fixed by 2463431a24c1: Docs site: fixed-height terminal and system caption, so scrolling never jumps"

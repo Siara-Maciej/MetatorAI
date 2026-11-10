@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/domain/run-record.ts b/packages/core/src/domain/run-record.ts
+--- a/packages/core/src/domain/run-record.ts
++++ b/packages/core/src/domain/run-record.ts
+@@ -182,7 +182,7 @@
+     /(?<!@)\{([a-z][a-z0-9_]*)(?:\|([^{}]*))?\}/g,
+     (whole, name: string, fallback?: string) => {
+       if (name === "runDir") return whole; // the drive's own placeholder
+-      const value = inputs[name] ?? fallback;
++      const value = fallback ?? inputs[name];
+       if (value === undefined || value === "") {
+         missing.push(name);
+         return whole;

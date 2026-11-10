@@ -1,0 +1,12 @@
+diff --git a/packages/plugin-git/src/git-worktree-manager.ts b/packages/plugin-git/src/git-worktree-manager.ts
+--- a/packages/plugin-git/src/git-worktree-manager.ts
++++ b/packages/plugin-git/src/git-worktree-manager.ts
+@@ -50,7 +50,7 @@
+       setup.length === 0
+         ? []
+         : // Ignored ones too: a repository may gitignore `.claude/` and still use its agents.
+-          (await git.raw(["ls-files", "--others", "--", ...setup]))
++          (await git.raw(["ls-files", "--others", "--exclude-standard", "--", ...setup]))
+             .split("\n")
+             .filter((f) => f !== "" && !existsSync(join(this.root, path, f)));
+     for (const file of untracked) {

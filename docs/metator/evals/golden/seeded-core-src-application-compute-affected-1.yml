@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-application-compute-affected-1
+type: seeded
+base: fd12dbb8fa75f75eeecadc4de1655a7c7be79622
+head: golden/seeded-core-src-application-compute-affected-1
+patch: docs/metator/evals/golden/patches/seeded-core-src-application-compute-affected-1.patch
+origin: "scripts/mutants.ts: only test files are selected as tests"
+description: only test files are selected as tests
+expected:
+  - file: packages/core/src/application/compute-affected.ts
+    line: 37
+    tolerance: 3
+    severity: blocking
+    note: only test files are selected as tests

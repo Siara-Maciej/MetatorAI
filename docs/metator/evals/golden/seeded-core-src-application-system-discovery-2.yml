@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-application-system-discovery-2
+type: seeded
+base: fd12dbb8fa75f75eeecadc4de1655a7c7be79622
+head: golden/seeded-core-src-application-system-discovery-2
+patch: docs/metator/evals/golden/patches/seeded-core-src-application-system-discovery-2.patch
+origin: "scripts/mutants.ts: a service that handles nothing a sender sends is no dependency"
+description: a service that handles nothing a sender sends is no dependency
+expected:
+  - file: packages/core/src/application/system-discovery.ts
+    line: 500
+    tolerance: 3
+    severity: blocking
+    note: a service that handles nothing a sender sends is no dependency

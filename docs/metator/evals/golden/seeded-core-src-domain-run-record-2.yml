@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-domain-run-record-2
+type: seeded
+base: fd12dbb8fa75f75eeecadc4de1655a7c7be79622
+head: golden/seeded-core-src-domain-run-record-2
+patch: docs/metator/evals/golden/patches/seeded-core-src-domain-run-record-2.patch
+origin: "scripts/mutants.ts: git's @{u} is no workflow input"
+description: git's @{u} is no workflow input
+expected:
+  - file: packages/core/src/domain/run-record.ts
+    line: 182
+    tolerance: 3
+    severity: blocking
+    note: git's @{u} is no workflow input

@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-domain-read-only-command-8
+type: seeded
+base: fd12dbb8fa75f75eeecadc4de1655a7c7be79622
+head: golden/seeded-core-src-domain-read-only-command-8
+patch: docs/metator/evals/golden/patches/seeded-core-src-domain-read-only-command-8.patch
+origin: "scripts/mutants.ts: git remote reads URLs, never sets or adds one"
+description: git remote reads URLs, never sets or adds one
+expected:
+  - file: packages/core/src/domain/read-only-command.ts
+    line: 88
+    tolerance: 3
+    severity: blocking
+    note: git remote reads URLs, never sets or adds one

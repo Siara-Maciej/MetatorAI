@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-c2da62945d
+type: clean
+base: dd7dd88cafb2e41157519571e209ba8eb50a5a41
+head: c2da62945d343f4fe9a72fd5345f0c8ab75dca36
+origin: history
+description: The terminal ignores a resize observed as it is torn down
+expected: []

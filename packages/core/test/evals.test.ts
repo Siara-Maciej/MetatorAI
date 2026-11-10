@@ -208,7 +208,7 @@ describe("RunEvals", () => {
     });
     const runner = new ScriptedProcessRunner([{ argvPrefix: [], result: { exitCode: 0 } }]);
     const result = (
-      await new RunEvals(new EvalCatalog(fs, DEFAULT_PATHS), bins, runner).execute({
+      await new RunEvals(new EvalCatalog(fs, DEFAULT_PATHS), bins, runner, "/repo").execute({
         command: "review.sh {case} {base}..{head} --out '{out}'",
         runsDir: "runs",
         repeat: 2,
@@ -232,7 +232,12 @@ describe("RunEvals", () => {
     const fs = new InMemoryFileSystem({
       "docs/metator/evals/golden/rate.yml": caseFile({ id: "rate", type: "clean", base: "a", head: "b" }),
     });
-    const run = new RunEvals(new EvalCatalog(fs, DEFAULT_PATHS), bins, new ScriptedProcessRunner([]));
+    const run = new RunEvals(
+      new EvalCatalog(fs, DEFAULT_PATHS),
+      bins,
+      new ScriptedProcessRunner([]),
+      "/repo",
+    );
     expect(
       (
         await run.execute({ command: "review.sh {case} | tee log", runsDir: "r", repeat: 1, timeoutMs: 1 })

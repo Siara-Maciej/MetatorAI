@@ -1,0 +1,12 @@
+diff --git a/packages/cli/src/commands/meta.ts b/packages/cli/src/commands/meta.ts
+--- a/packages/cli/src/commands/meta.ts
++++ b/packages/cli/src/commands/meta.ts
+@@ -43,7 +43,7 @@
+   const path: string[] = [];
+   for (const word of words) {
+     const sub = cmd.commands.find((c) => c.name() === word || c.aliases().includes(word));
+-    if (!sub) break;
++    if (!sub) return undefined;
+     cmd = sub;
+     path.push(sub.name());
+   }
