@@ -47,6 +47,20 @@ export function fileSystemContract(name: string, make: FileSystemFactory): void 
       expect((await fs.read("out/report.json"))._unsafeUnwrap()).toBe("{}");
     });
 
+    test("append creates the file, then adds to its end; concurrent appends all land", async () => {
+      const fs = await make(seed);
+      expect((await fs.append("out/log.jsonl", "a\n")).isOk()).toBe(true);
+      expect((await fs.append("out/log.jsonl", "b\n")).isOk()).toBe(true);
+      expect((await fs.read("out/log.jsonl"))._unsafeUnwrap()).toBe("a\nb\n");
+      await Promise.all(Array.from({ length: 20 }, (_, i) => fs.append("out/many.jsonl", `${i}\n`)));
+      expect(
+        (await fs.read("out/many.jsonl"))
+          ._unsafeUnwrap()
+          .split("\n")
+          .filter((l) => l !== ""),
+      ).toHaveLength(20);
+    });
+
     test("remove deletes a file; removing a missing file is not an error", async () => {
       const fs = await make(seed);
       expect((await fs.remove("README.md")).isOk()).toBe(true);
