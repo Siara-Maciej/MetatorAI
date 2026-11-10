@@ -1,0 +1,10 @@
+kind: Pattern
+schemaVersion: 1
+id: conformance-test
+title: Conformance test of a canon rule
+intent: A canon rule no linter can express is decided by a bun test in rules/conformance named after the rule; the test engine runs it as an E1 rule and the test also proves it rejects a violation.
+when: a rule needs the repository's own files or history to decide (versions frozen, e2e per command, mutants per module)
+whenNot: a rule ast-grep or Biome can decide on one file
+detection: ast-grep:mt-pattern-conformance-test
+exemplar: rules/conformance/mt-code-003.test.ts
+rules: [MT-TEST-003]

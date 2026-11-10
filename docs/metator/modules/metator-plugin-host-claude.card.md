@@ -16,7 +16,7 @@ dir: packages/plugin-host-claude
 - Imported by other packages: `packages/plugin-host-claude/package.json`, `packages/plugin-host-claude/src/index.ts`
 - Third-party: `@anthropic-ai/claude-agent-sdk`, `yaml`
 - Owners: `@Siara-Maciej`
-- Patterns with their exemplar here: none
+- Patterns with their exemplar here: `interactive-host`
 <!-- metator:generated:end -->
 
 ## Responsibility

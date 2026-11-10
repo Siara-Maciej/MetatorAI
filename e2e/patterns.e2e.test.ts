@@ -139,6 +139,12 @@ describe("dogfood: MetatorAI's pattern catalog", () => {
     expect(r.code).toBe(0);
     expect((data(r).patterns as Data[]).map((p) => p.id)).toEqual([
       "cli-command-group",
+      "conformance-test",
+      "desktop-screen",
+      "domain-projection",
+      "e2e-process-test",
+      "interactive-host",
+      "option-definition",
       "port-adapter",
       "use-case",
       "versioned-document",

@@ -11,6 +11,7 @@ A handful of commands cover what a person does with MetatorAI. Everything else i
 | `metator status` | the same overview as JSON, for scripts | [Sessions and terminals](../work/sessions.md) |
 | `metator gate full` | the repository's own checks, one report | [Quality gates and CI](../knowledge/gates-ci.md) |
 | `metator meta check-all` | the canon's checks: agents, skills, workflows, rules, memory, docs | [Keep knowledge true](../knowledge/truth.md) |
+| `metator meta quarterly` | the quarterly review: dead rules, budgets, stale docs, unpromoted lessons, eval regressions, as actions | [Keep knowledge true](../knowledge/truth.md#the-quarterly-review) |
 | `metator agents update` | take a newer canon; files you changed are kept | [Agents and skills](../knowledge/agents.md) |
 
 ```bash

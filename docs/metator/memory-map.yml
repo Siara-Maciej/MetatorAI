@@ -181,6 +181,14 @@ items:
     writers: [human, "metator system discover (proposal, after approval)"]
     readers: [mt-system-scout, mt-system-planner, "metator system"]
     description: The system map (applications, contracts, policies); `system lint` keeps it true.
+  - id: t1.audits
+    tier: T1
+    kind: derived
+    paths: ["docs/audit/*.md"]
+    load: explicit
+    writers: [human, "metator meta audit (numbers)"]
+    readers: [human]
+    description: "Audit reports (F0) of a repository: inventory, call graph, orchestrator compliance; one file per repository and date."
   - id: t1.arch-evals
     tier: T1
     kind: canon

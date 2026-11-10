@@ -1,0 +1,10 @@
+kind: Pattern
+schemaVersion: 1
+id: domain-projection
+title: Domain projection
+intent: What a screen or a report shows is computed by a pure domain function (*Of) from the facts the files hold, never written by a model; the use case only gathers the facts.
+when: a new view of a run (a board, a report, a brief) or a derived list
+whenNot: anything that reads a file or runs a process (that is the use case's job)
+detection: ast-grep:mt-pattern-domain-projection
+exemplar: packages/core/src/domain/plan-board.ts
+rules: [MT-ARCH-001]

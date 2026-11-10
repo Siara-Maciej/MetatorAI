@@ -147,6 +147,7 @@ describe("metator CLI (process e2e)", () => {
       "meta agents-lint",
       "meta audit",
       "meta check-all",
+      "meta quarterly",
       "meta agents-schema",
       "meta skills-lint",
       "meta skills-schema",

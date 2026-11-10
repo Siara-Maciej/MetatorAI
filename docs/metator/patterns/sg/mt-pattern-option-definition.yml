@@ -1,0 +1,16 @@
+id: mt-pattern-option-definition
+language: TypeScript
+severity: hint
+message: "Pattern option-definition: a setting declared once as an OptionDefinition kind and listed in the option registry."
+files:
+  - packages/core/src/domain/**
+rule:
+  any:
+    - kind: new_expression
+      has:
+        field: constructor
+        regex: ^(Boolean|Enum|Number|String|List|Keybinding|Command)Option$
+    - kind: class_declaration
+      has:
+        kind: class_heritage
+        regex: extends OptionDefinition

@@ -1,0 +1,7 @@
+id: mt-pattern-option-definition
+valid:
+  - "new Map()"
+  - "class Plain { }"
+invalid:
+  - 'new BooleanOption({ key: "ui.attachOnType", scope: "user", title: "x", description: "y", defaultValue: true, since: "S1" })'
+  - "export class PathOption extends OptionDefinition<string> { }"

@@ -1,0 +1,5 @@
+id: mt-pattern-interactive-host
+valid:
+  - "class Helper { run() {} }"
+invalid:
+  - "export class ZedInteractiveHost implements InteractiveHost { readonly id = 'zed'; }"
