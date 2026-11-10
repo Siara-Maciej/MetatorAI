@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-5c368c878c
+type: clean
+base: dd3b9a127fa5fc5d3e49784832eb9e9d4aa2fbc8
+head: 5c368c878caaf866536a3fad448c94bbf159efa6
+origin: history
+description: "S1: the options e2e tests get the time several real processes need"
+expected: []

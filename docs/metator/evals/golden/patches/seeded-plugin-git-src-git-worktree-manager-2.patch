@@ -1,0 +1,12 @@
+diff --git a/packages/plugin-git/src/git-worktree-manager.ts b/packages/plugin-git/src/git-worktree-manager.ts
+--- a/packages/plugin-git/src/git-worktree-manager.ts
++++ b/packages/plugin-git/src/git-worktree-manager.ts
+@@ -58,7 +58,7 @@
+       mkdirSync(dirname(link), { recursive: true });
+       symlinkSync(join(this.root, file), link, "file");
+     }
+-    const ignored = [...new Set(shared.map((d) => `/${d.split("/")[0]}/`)), ...untracked.map((f) => `/${f}`)];
++    const ignored = [ ...untracked.map((f) => `/${f}`)];
+     if (ignored.length === 0) return;
+     const wt = simpleGit(join(this.root, path));
+     const gitDir = (await wt.revparse(["--absolute-git-dir"])).trim();

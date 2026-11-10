@@ -169,6 +169,8 @@ describe("metator CLI (process e2e)", () => {
       "review notes status",
       "review plan",
       "eval run",
+      "eval list",
+      "eval seed",
       "eval score",
       "eval compare",
       "eval schema",

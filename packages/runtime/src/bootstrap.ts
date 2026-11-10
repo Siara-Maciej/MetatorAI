@@ -158,6 +158,7 @@ import {
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  SeedGoldenSet,
   SetupWorktree,
   ShowChangeDiff,
   ShowSystem,
@@ -1163,6 +1164,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     evalCatalog: asFunction(({ fileSystem, paths }) => new EvalCatalog(fileSystem, paths)).singleton(),
     scoreEvals: asFunction(({ evalCatalog, fileSystem }) => new ScoreEvals(evalCatalog, fileSystem)),
     compareEvals: asFunction(({ fileSystem }) => new CompareEvals(fileSystem)),
+    seedGoldenSet: asFunction(
+      ({ fileSystem, paths, processRunner, root }) =>
+        new SeedGoldenSet({ fs: fileSystem, paths, runner: processRunner, root }),
+    ),
     quarterlyReview: asFunction(
       ({ measureRuleCoverage, memoryBudget, docsInventory, compareEvals, fileSystem, paths, clock }) =>
         new RunQuarterlyReview({
@@ -1176,7 +1181,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         }),
     ),
     runEvals: asFunction(
-      ({ evalCatalog, binResolver, processRunner }) => new RunEvals(evalCatalog, binResolver, processRunner),
+      ({ evalCatalog, binResolver, processRunner, root }) =>
+        new RunEvals(evalCatalog, binResolver, processRunner, root),
     ),
     runAffectedTests: asFunction(
       ({ computeAffected, packageManager, processRunner }) =>

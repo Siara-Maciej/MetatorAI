@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/domain/read-only-command.ts b/packages/core/src/domain/read-only-command.ts
+--- a/packages/core/src/domain/read-only-command.ts
++++ b/packages/core/src/domain/read-only-command.ts
+@@ -85,7 +85,7 @@
+   "remote",
+ ]);
+ /** `git remote get-url` with its read options and one remote name. */
+-const REMOTE_URL = /^get-url( --push| --all)* [\w.-]+$/;
++const REMOTE_URL = /./;
+ /** `git branch` lists only with these options; any other (a name, `-d`, `-m`) changes branches. */
+ const BRANCH_LISTS = /^(--show-current|--list|-a|--all|-r|--remotes|-v|-vv|--verbose)$/;
+ /** Options that make a reading git command write a file or run a program. */

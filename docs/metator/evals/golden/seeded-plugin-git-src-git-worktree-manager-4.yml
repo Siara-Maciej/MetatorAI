@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-plugin-git-src-git-worktree-manager-4
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-plugin-git-src-git-worktree-manager-4
+patch: docs/metator/evals/golden/patches/seeded-plugin-git-src-git-worktree-manager-4.patch
+origin: "scripts/mutants.ts: a gitignored .claude/ still reaches the worktree"
+description: a gitignored .claude/ still reaches the worktree
+expected:
+  - file: packages/plugin-git/src/git-worktree-manager.ts
+    line: 53
+    tolerance: 3
+    severity: blocking
+    note: a gitignored .claude/ still reaches the worktree

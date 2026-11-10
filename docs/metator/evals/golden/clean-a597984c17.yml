@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-a597984c17
+type: clean
+base: 00b04029066b2319f0bea601aa44344fd115f1ae
+head: a597984c17db9d75b74b3cca612a9f5ab0770fb8
+origin: history
+description: "dependencies: the whole @tauri-apps/api entry removed from the register"
+expected: []

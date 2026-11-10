@@ -1,0 +1,12 @@
+diff --git a/packages/plugin-host-claude/src/claude-agent-host.ts b/packages/plugin-host-claude/src/claude-agent-host.ts
+--- a/packages/plugin-host-claude/src/claude-agent-host.ts
++++ b/packages/plugin-host-claude/src/claude-agent-host.ts
+@@ -204,7 +204,7 @@
+             (isolated &&
+               (task.approved ?? []).includes("push") &&
+               deliveryCommand(input.command, [task.cwd])) ||
+-            declaredAfterCd(input.command, own, dirs) ||
++            false ||
+             declaredWithDocument(input.command, own) ||
+             runArtifactWrite(input.command, runDirs, task.cwd) ||
+             // Removing a file where Edit and Write need no person: the run directory, an isolated worktree.

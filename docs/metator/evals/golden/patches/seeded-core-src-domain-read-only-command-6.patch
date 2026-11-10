@@ -1,0 +1,11 @@
+diff --git a/packages/core/src/domain/read-only-command.ts b/packages/core/src/domain/read-only-command.ts
+--- a/packages/core/src/domain/read-only-command.ts
++++ b/packages/core/src/domain/read-only-command.ts
+@@ -139,7 +139,6 @@
+ 
+ /** MetatorAI commands that only read and print: what any agent may look up without asking. */
+ const METATOR_QUERIES = new Set([
+-  "version",
+   "symbols find",
+   "graph deps",
+   "graph dependents",

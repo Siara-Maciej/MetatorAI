@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-69650c9f39
+type: clean
+base: 31b3f69b92a7bee061b15d46f8db492c1f0a3f77
+head: 69650c9f393ff10bf5ecc240d0ef22b1ecd1f0be
+origin: history
+description: "S2: the plan-board mutant matches the formatted source"
+expected: []

@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-781c6a469a
+type: clean
+base: 10861c6fbccd34b9c95e42695ff96e5411e5a012
+head: 781c6a469a10e27bb692ef007b8b5171b697beda
+origin: history
+description: "S1: tests follow RunRecord v7 and MetatorConfig v8; a mutant for the registry; UserOptions on the documents page"
+expected: []

@@ -1,0 +1,11 @@
+diff --git a/packages/core/src/domain/finding.ts b/packages/core/src/domain/finding.ts
+--- a/packages/core/src/domain/finding.ts
++++ b/packages/core/src/domain/finding.ts
+@@ -156,6 +156,6 @@
+   const problems = policyProblems(updated);
+   if (problems.length > 0) return { problems };
+   return {
+-    findings: findings.filter((f) => !folded.includes(f)).map((f) => (f.id === change.id ? updated : f)),
++    findings: findings.map((f) => (f.id === change.id ? updated : f)),
+   };
+ }

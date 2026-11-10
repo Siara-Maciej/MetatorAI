@@ -1,0 +1,16 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: seeded-core-src-domain-read-only-command-3
+type: seeded
+base: c433177510a6fab48de85199a666695d7903fc06
+head: golden/seeded-core-src-domain-read-only-command-3
+patch: docs/metator/evals/golden/patches/seeded-core-src-domain-read-only-command-3.patch
+origin: "scripts/mutants.ts: git ls-remote only reads"
+description: git ls-remote only reads
+expected:
+  - file: packages/core/src/domain/read-only-command.ts
+    line: 84
+    tolerance: 3
+    severity: blocking
+    note: git ls-remote only reads

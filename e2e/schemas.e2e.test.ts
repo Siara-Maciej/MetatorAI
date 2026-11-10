@@ -20,7 +20,7 @@ const CASES: readonly { argv: string[]; kind: string; fields: string[]; version?
   { argv: ["patterns", "schema"], kind: "Pattern", fields: ["id", "detection", "exemplar"] },
   { argv: ["config", "schema"], kind: "MetatorConfig", fields: ["gates", "paths"], version: 8 },
   { argv: ["meta", "agents-schema"], kind: "Agent", fields: ["id", "role", "delegates"] },
-  { argv: ["eval", "schema"], kind: "EvalCase", fields: ["id"] },
+  { argv: ["eval", "schema"], kind: "EvalCase", fields: ["id", "patch"], version: 2 },
 ];
 
 describe("metator * schema (real CLI)", () => {

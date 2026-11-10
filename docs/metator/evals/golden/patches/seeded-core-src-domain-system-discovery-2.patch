@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/domain/system-discovery.ts b/packages/core/src/domain/system-discovery.ts
+--- a/packages/core/src/domain/system-discovery.ts
++++ b/packages/core/src/domain/system-discovery.ts
+@@ -315,7 +315,7 @@
+ 
+ /** Message patterns a file sends through a microservice client (`client.send('task_create', …)`). */
+ export function sentMessages(text: string): string[] {
+-  if (!/\bClient(?:Proxy|Kafka|RMQ|Redis|Nats|Grpc)\b/.test(text)) return [];
++  
+   const out = new Set<string>();
+   for (const m of text.matchAll(/\.(?:send|emit)\(\s*['"`]([\w.:-]+)['"`]/g)) out.add(m[1] as string);
+   return [...out].sort();

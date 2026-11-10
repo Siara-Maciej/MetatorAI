@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-727acfc870
+type: clean
+base: 227e24060921589ec34a6de9f028a1b5f6ffdc05
+head: 727acfc87097cc807a671e2e9e29ba308852ec7d
+origin: history
+description: "S5: the driver e2e pins RunMessage v2"
+expected: []

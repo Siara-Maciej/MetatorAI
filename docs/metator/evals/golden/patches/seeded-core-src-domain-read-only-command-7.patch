@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/domain/read-only-command.ts b/packages/core/src/domain/read-only-command.ts
+--- a/packages/core/src/domain/read-only-command.ts
++++ b/packages/core/src/domain/read-only-command.ts
+@@ -397,7 +397,7 @@
+   const writes = (argv: readonly string[]): boolean => {
+     // `git -C <the worktree> add -A`: the same command, aimed at a directory the agent works in.
+     const at = argv[1] === "-C" ? 3 : 1;
+-    if (at === 3 && !(inside(argv[2] ?? "/") && argv[2] !== undefined)) return false;
++    
+     const [git] = argv;
+     const [sub, ...args] = argv.slice(at);
+     if (git !== "git") return false;

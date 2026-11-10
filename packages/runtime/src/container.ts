@@ -175,6 +175,7 @@ import {
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
+  type SeedGoldenSet,
   type SetupWorktree,
   type ShowChangeDiff,
   type ShowSystem,
@@ -264,6 +265,7 @@ export interface Cradle {
   openEditor: OpenEditor;
   reviewFeedback: ReviewFeedback;
   renderReport: RenderReport;
+  seedGoldenSet: SeedGoldenSet;
   quarterlyReview: RunQuarterlyReview;
   reviewNotes: ReviewNotes;
   runChanges: RunChanges;

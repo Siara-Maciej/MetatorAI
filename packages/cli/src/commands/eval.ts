@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { EvalCaseDocument, err, MetatorError, normalizePath, ok } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
@@ -24,6 +25,79 @@ export function registerEvalCommands(program: Command, { action, container }: Co
           .map((r) => `${r.case}/${r.run} exited ${r.exitCode}`);
         return { result: score.map((s) => ({ ...s, executions: runs.value.runs })), warnings: failed };
       }),
+    );
+
+  evals
+    .command("list")
+    .description("The golden set: every case with its type, base and head")
+    .action(
+      action(async () => ({
+        result: (await container().resolve("evalCatalog").scan()).map((cases) => ({
+          cases: cases.map((c) => ({
+            id: c.id,
+            type: c.type,
+            base: c.base,
+            head: c.head,
+            ...(c.patch ? { patch: c.patch } : {}),
+            expected: c.expected.length,
+          })),
+          byType: {
+            seeded: cases.filter((c) => c.type === "seeded").length,
+            bug: cases.filter((c) => c.type === "bug").length,
+            clean: cases.filter((c) => c.type === "clean").length,
+          },
+        })),
+      })),
+    );
+
+  evals
+    .command("seed")
+    .description(
+      "Write golden cases from the unit suite's mutants (seeded), the commits later fixes repaired (bug) and ordinary commits (clean)",
+    )
+    .option(
+      "--mutants <file>",
+      "a JSON array of {file, from, to, why} (scripts/golden-seed.ts writes it from scripts/mutants.ts)",
+    )
+    .option("--seeded <n>", "how many seeded cases", positiveInt, 30)
+    .option("--bugs <n>", "how many bug cases", positiveInt, 10)
+    .option("--clean <n>", "how many clean cases", positiveInt, 10)
+    .option("--base <ref>", "the ref seeded cases are planted on", "HEAD")
+    .option("--history <n>", "how many commits back fixes and clean changes are looked for", positiveInt, 500)
+    .action(
+      action(
+        async (opts: {
+          mutants?: string;
+          seeded: number;
+          bugs: number;
+          clean: number;
+          base: string;
+          history: number;
+        }) => {
+          let mutants: { file: string; from: string; to: string; why: string }[] = [];
+          if (opts.mutants) {
+            try {
+              mutants = JSON.parse(readFileSync(normalizePath(opts.mutants), "utf8")) as typeof mutants;
+            } catch (e) {
+              return {
+                result: err(MetatorError.usage(`--mutants ${opts.mutants}: ${(e as Error).message}`)),
+              };
+            }
+          }
+          return {
+            result: await container()
+              .resolve("seedGoldenSet")
+              .execute({
+                mutants,
+                seeded: opts.mutants ? opts.seeded : 0,
+                bugs: opts.bugs,
+                clean: opts.clean,
+                base: opts.base,
+                history: opts.history,
+              }),
+          };
+        },
+      ),
     );
 
   evals

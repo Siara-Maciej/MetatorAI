@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-3d85f02385
+type: clean
+base: 4f3be19d0776a8c1135b0e989c4cd9d19a79e03c
+head: 3d85f023856b078e3b48c912416da24591ce9199
+origin: history
+description: "S2: cards rebuilt; run board in the help list"
+expected: []

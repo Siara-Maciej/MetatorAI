@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-9f4af54e85
+type: clean
+base: 37be84da5839576182f4e9743a1fd5645eb86154
+head: 9f4af54e8506b99456d2892f3bf25719f253ca8e
+origin: history
+description: "S6: the desktop card rebuilt; pane split in the help list"
+expected: []

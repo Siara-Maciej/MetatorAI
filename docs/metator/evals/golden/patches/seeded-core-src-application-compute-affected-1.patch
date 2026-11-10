@@ -1,0 +1,12 @@
+diff --git a/packages/core/src/application/compute-affected.ts b/packages/core/src/application/compute-affected.ts
+--- a/packages/core/src/application/compute-affected.ts
++++ b/packages/core/src/application/compute-affected.ts
+@@ -34,7 +34,7 @@
+     return ok({
+       changed: [...new Set(changed.value)].sort(),
+       files,
+-      tests: files.filter((file) => matchesAny(file, this.testGlobs)),
++      tests: files.filter((file) => true),
+     });
+   }
+ }

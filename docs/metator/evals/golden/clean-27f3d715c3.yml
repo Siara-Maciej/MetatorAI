@@ -1,0 +1,10 @@
+# Written by `metator eval seed`; edit the expected findings, never the ids.
+kind: EvalCase
+schemaVersion: 2
+id: clean-27f3d715c3
+type: clean
+base: 57ed5acd151bbd749b79be97777ebcf1f687fec5
+head: 27f3d715c31a71943dd57a70a4f95ec0c537b4ea
+origin: history
+description: "S4: the backlog: Issue v1, agents propose and a person decides, issue list|show|add|propose|decide|edit|close|drop|start, the Backlog screen"
+expected: []

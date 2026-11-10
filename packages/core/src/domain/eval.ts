@@ -7,7 +7,7 @@ import { defineDocument } from "./versioned.ts";
  * (and clean changes it must not block), scored for precision and recall. Prompts are code:
  * a change to agents must not make the scores worse.
  */
-export const EvalCaseSchema = z.strictObject({
+const EvalCaseV1Schema = z.strictObject({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
   /** bug: a real bug (hotfix, revert); seeded: a mutation planted on purpose; clean: nothing to find. */
   type: z.enum(["bug", "seeded", "clean"]),
@@ -28,13 +28,26 @@ export const EvalCaseSchema = z.strictObject({
     )
     .default([]),
 });
+
+/**
+ * v2 (F3) adds a seeded case's `patch`: a repo-relative patch file applied on `base` to make the
+ * change under review, so a planted bug needs no commit in the repository's history; `head` is
+ * then the name the materialized commit gets. `origin` says where the case came from.
+ */
+export const EvalCaseSchema = EvalCaseV1Schema.extend({
+  patch: z.string().min(1).optional(),
+  origin: z.string().optional(),
+});
 export type EvalCase = z.output<typeof EvalCaseSchema>;
 
+const cleanExpectsNothing = (c: { type: string; expected: readonly unknown[] }) =>
+  c.type !== "clean" || c.expected.length === 0;
+
 export const EvalCaseDocument = defineDocument("EvalCase", {
-  latest: EvalCaseSchema.refine(
-    (c) => c.type !== "clean" || c.expected.length === 0,
-    "a clean case expects no findings",
-  ),
+  history: [{ schema: EvalCaseV1Schema.refine(cleanExpectsNothing, "a clean case expects no findings") }],
+  latest: EvalCaseSchema.refine(cleanExpectsNothing, "a clean case expects no findings"),
+  // Every v1 case is a v2 case without a patch.
+  upgrade: (previous) => previous,
   errorCode: "INVALID_CONFIG",
 });
 
