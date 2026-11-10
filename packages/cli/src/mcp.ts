@@ -45,6 +45,8 @@ const READING: readonly string[] = [
   "memory matrix",
   "docs inventory",
   "docs links",
+  "issue list",
+  "issue show",
   "docs drift",
   "similar",
   "adr lint",

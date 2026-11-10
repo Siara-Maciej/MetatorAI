@@ -26,6 +26,8 @@ export interface ReadonlyFileSystem {
 
 export interface FileSystem extends ReadonlyFileSystem {
   write(path: string, content: string): Promise<Result<void, MetatorError>>;
+  /** Adds to the end of a file (created when missing) in one step: two writers never lose a line. */
+  append(path: string, content: string): Promise<Result<void, MetatorError>>;
   /** Deletes a file; a missing file is not an error. */
   remove(path: string): Promise<Result<void, MetatorError>>;
 }

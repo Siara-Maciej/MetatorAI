@@ -8,18 +8,21 @@ import { SessionsPanel } from "./components/sessions-panel.tsx";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
 import { newQuestions, nextWaiting, parseRoute, type Route, routeHash, wasAway } from "./model.ts";
 import { systemNotifier } from "./notify.ts";
+import { BacklogScreen } from "./screens/backlog.tsx";
 import { BriefingScreen } from "./screens/briefing.tsx";
 import { GraphScreen } from "./screens/graph.tsx";
 import { InboxScreen } from "./screens/inbox.tsx";
 import { NewSessionDialog } from "./screens/new-session.tsx";
+import { PlanScreen } from "./screens/plan.tsx";
 import { SessionScreen } from "./screens/session.tsx";
 import { SettingsScreen } from "./screens/settings.tsx";
 import { SupervisorScreen } from "./screens/supervisor.tsx";
-import { TerminalsScreen } from "./screens/terminals.tsx";
+import { WorkbenchScreen } from "./screens/workbench.tsx";
 
 const RAIL: { route: Route; label: string; glyph: string }[] = [
   { route: { screen: "inbox" }, label: "Inbox", glyph: "☰" },
-  { route: { screen: "grid" }, label: "Grid", glyph: "▦" },
+  { route: { screen: "grid" }, label: "Work", glyph: "▦" },
+  { route: { screen: "backlog" }, label: "Backlog", glyph: "☷" },
   { route: { screen: "graph" }, label: "Graph", glyph: "⌘" },
   { route: { screen: "supervisor" }, label: "Super", glyph: "◎" },
   { route: { screen: "settings" }, label: "Settings", glyph: "⚙" },
@@ -107,7 +110,10 @@ function Shell() {
     driving: d.runs.filter((r) => r.attention === "driving").length,
     escalated: d.runs.filter((r) => r.attention === "escalated").length,
   };
-  const current = route.screen === "session" || route.screen === "briefing" ? route.runId : undefined;
+  const current =
+    route.screen === "session" || route.screen === "briefing" || route.screen === "plan"
+      ? route.runId
+      : undefined;
   return (
     <div className="shell">
       <header className="topbar">
@@ -166,10 +172,22 @@ function Shell() {
           <SessionScreen runId={route.runId} pane={route.pane} onOpenSession={openSession} />
         ) : null}
         {route.screen === "grid" ? (
-          <TerminalsScreen
-            {...(route.group ? { group: route.group } : {})}
+          <WorkbenchScreen
+            onNewTask={() => setDialog(true)}
+            onOpenSettings={() => go({ screen: "settings" })}
+            onOpenPlan={(runId) => go({ screen: "plan", runId })}
+            onOpenBacklog={(draft) => go({ screen: "backlog", ...(draft ? { draft } : {}) })}
+            {...(route.pane ? { showPane: route.pane } : {})}
+          />
+        ) : null}
+        {route.screen === "backlog" ? (
+          <BacklogScreen onOpenSession={openSession} initialDraft={route.draft} />
+        ) : null}
+        {route.screen === "plan" ? (
+          <PlanScreen
+            runId={route.runId}
+            onOpenPane={(pane) => go({ screen: "grid", pane })}
             onOpenSession={openSession}
-            onNew={() => setDialog(true)}
           />
         ) : null}
         {route.screen === "graph" ? <GraphScreen /> : null}

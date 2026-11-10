@@ -12,10 +12,14 @@ import {
   paneOf,
   removePane,
   removeWorkspace,
+  type SplitNode,
   stripAnsi,
+  type Tab,
   tailLines,
+  treeFits,
   updatePane,
   type Workspace,
+  workspaceOfPane,
   workspaceOfRun,
 } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
@@ -68,6 +72,8 @@ export interface OpenPaneInput {
   readonly cwd?: string;
   readonly runId?: string;
   readonly worker?: Pane["worker"];
+  /** Beside this pane of the same tab, in this direction (S6); the tab is the target's then. */
+  readonly split?: { readonly target: string; readonly dir: "row" | "column" };
   readonly process:
     | {
         readonly kind: "host";
@@ -151,6 +157,61 @@ export class Panes {
     return ok({ closed: closed.value.closed, workspace: workspace.id });
   }
 
+  /**
+   * The pane's area split in two (S6): a new pane (a shell by default) takes the second half,
+   * and the tab's tree remembers it. `right` puts it beside, `down` below.
+   */
+  async splitPane(
+    paneId: string,
+    input: {
+      readonly dir: "right" | "down";
+      readonly process?: OpenPaneInput["process"];
+      readonly label?: string;
+      readonly size?: PtySize;
+    },
+  ): Promise<Result<PaneView, MetatorError>> {
+    const layout = await this.d.layout.load();
+    if (layout.isErr()) return err(layout.error);
+    const pane = paneOf(layout.value, paneId);
+    if (!pane) return err(MetatorError.notFound(`pane ${paneId}`));
+    return this.openPane({
+      workspace: workspaceOfPane(pane),
+      tab: pane.tab,
+      role: input.process && input.process.kind === "host" ? "apps" : "shell",
+      ...(input.label ? { label: input.label } : {}),
+      cwd: pane.cwd,
+      process: input.process ?? { kind: "command", argv: ["sh"] },
+      split: { target: paneId, dir: input.dir === "right" ? "row" : "column" },
+      ...(input.size ? { size: input.size } : {}),
+    });
+  }
+
+  /** A tab's split tree as a client arranged it (ratios, drags); its leaves must be the tab's panes. */
+  async setTree(tabId: string, tree: SplitNode): Promise<Result<Tab, MetatorError>> {
+    return this.d.layout.update((layout) => {
+      const workspace = layout.workspaces.find((w) => w.tabs.some((t) => t.id === tabId));
+      const tab = workspace?.tabs.find((t) => t.id === tabId);
+      if (!workspace || !tab) return err(MetatorError.notFound(`tab ${tabId}`));
+      if (!treeFits(tree, tab.panes))
+        return err(
+          MetatorError.usage(
+            `the tree's panes are not tab ${tabId}'s panes (${tab.panes.join(", ")})`,
+            "Send a tree whose leaves are exactly the tab's panes.",
+          ),
+        );
+      const next = { ...tab, tree };
+      return ok({
+        layout: {
+          ...layout,
+          workspaces: layout.workspaces.map((w) =>
+            w.id === workspace.id ? { ...w, tabs: w.tabs.map((t) => (t.id === tabId ? next : t)) } : w,
+          ),
+        },
+        value: next,
+      });
+    });
+  }
+
   /** Another tab in a workspace. */
   async openTab(workspace: string, label: string): Promise<Result<string, MetatorError>> {
     return this.d.layout.update((layout) => {
@@ -192,16 +253,17 @@ export class Panes {
         role: input.role,
         label:
           input.label ??
-          (input.process.kind === "host" ? input.process.agent : (input.process.argv[0] ?? "shell")),
+          (input.process.kind === "host" ? input.process.agent : basename(input.process.argv[0] ?? "shell")),
         cwd: input.cwd ?? workspace.cwd,
         process,
         ...(runId ? { runId } : {}),
         ...(input.worker ? { worker: input.worker } : {}),
+        ...(input.split ? { split: input.split } : {}),
         at: this.d.clock.now().toISOString(),
       });
       return made
         ? ok({ layout: made.layout, value: made.pane })
-        : err(MetatorError.notFound(`tab ${input.tab}`));
+        : err(MetatorError.notFound(input.split ? `pane ${input.split.target}` : `tab ${input.tab}`));
     });
     if (added.isErr()) return err(added.error);
     const started = await this.spawn(added.value, input.size ?? DEFAULT_SIZE);
@@ -415,7 +477,8 @@ export class Panes {
     };
     let pty: PtyHandle;
     let sessionId: string;
-    let host = pane.label;
+    // A command pane's "host" is its program, as a host id (`/bin/bash` → `bash`).
+    let host = hostIdOf(pane.label);
     let resumed = false;
     if (pane.process.kind === "host") {
       const h = this.d.hosts.get(pane.process.host);
@@ -505,3 +568,13 @@ export function layoutTree(
 export const isLayout = (x: unknown): x is Layout => typeof x === "object" && x !== null && "workspaces" in x;
 
 const basename = (path: string): string => path.split(/[\\/]/).filter(Boolean).at(-1) ?? "workspace";
+
+/** A label as a host id: lowercase letters, digits and dashes, starting with a letter. */
+export function hostIdOf(label: string): string {
+  const id = basename(label)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^[^a-z]+/, "")
+    .replace(/-+$/, "");
+  return id === "" ? "shell" : id;
+}

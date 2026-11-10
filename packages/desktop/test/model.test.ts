@@ -1,11 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import type { InboxItem, RunOverview } from "../src/api.ts";
 import {
+  actionOf,
   answerCommand,
   byPanelOrder,
+  chordOf,
+  DEFAULT_KEYS,
   duration,
+  evenTree,
+  gotoRows,
   groupByFeature,
   inboxChips,
+  keyMapOf,
+  neighborPane,
   newQuestions,
   nextWaiting,
   optionMatches,
@@ -18,7 +25,10 @@ import {
   stageGlyph,
   stateTone,
   stepLabel,
+  treeLeavesOf,
   wasAway,
+  withRatio,
+  workbenchRepos,
 } from "../src/model.ts";
 
 const run = (runId: string, extra: Partial<RunOverview> = {}): RunOverview =>
@@ -267,5 +277,127 @@ describe("settings view logic (S1)", () => {
     expect(optionMatches(opt("ui.sidebarWidth"), "wide")).toBe(true);
     expect(optionMatches(opt("ui.sidebarWidth"), "zoom")).toBe(false);
     expect(optionMatches(opt("ui.sidebarWidth"), "  ")).toBe(true);
+  });
+});
+
+describe("workbench view logic (S6)", () => {
+  const ws = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    label: id,
+    cwd: "/repo",
+    tabs: [{ id: `${id}:t1`, label: "main", panes: [`${id}:p1`] }],
+    ...extra,
+  });
+  test("repositories get their run workspaces as task tabs; a loose run workspace stands alone", () => {
+    const repos = workbenchRepos(
+      [
+        ws("w1"),
+        ws("w2", { runId: "r1", group: "w1", cwd: "/repo/.metator/wt/r1" }),
+        ws("w3", { runId: "r2", cwd: "/repo" }),
+        ws("w4", { runId: "r3", cwd: "/elsewhere" }),
+      ] as never,
+      [
+        run("r1", { attention: "you", worktree: { id: "r1", path: ".metator/wt/r1", branch: "metator/r1" } }),
+        run("r2"),
+      ],
+      "shop",
+    );
+    expect(repos.map((r) => [r.id, r.tabs.map((t) => `${t.kind}:${t.label}`), r.attention])).toEqual([
+      ["w1", ["task:r1", "task:r2", "shell:main"], "you"],
+      ["repo", ["task:w4"], undefined],
+    ]);
+    expect(repos[0]?.tabs[0]).toMatchObject({
+      branch: "metator/r1",
+      worktree: ".metator/wt/r1",
+      runId: "r1",
+    });
+  });
+  test("chords read like the options spell them; the keymap falls back to the defaults", () => {
+    expect(chordOf({ key: "b", ctrlKey: true, altKey: false, shiftKey: false, metaKey: false })).toBe(
+      "ctrl+b",
+    );
+    expect(chordOf({ key: "Enter", ctrlKey: false, altKey: false, shiftKey: true, metaKey: false })).toBe(
+      "shift+enter",
+    );
+    expect(chordOf({ key: "[", ctrlKey: false, altKey: false, shiftKey: false, metaKey: false })).toBe("[");
+    expect(chordOf({ key: "Shift", ctrlKey: false, altKey: false, shiftKey: true, metaKey: false })).toBe("");
+    const map = keyMapOf([
+      { key: "keys.zoom", value: ["prefix+F"] },
+      { key: "ui.theme", value: "dark" },
+    ]);
+    expect(actionOf(map, "f", true)).toBe("zoom");
+    expect(actionOf(map, "z", true)).toBeUndefined();
+    expect(actionOf(map, "ctrl+b", false)).toBe("prefix");
+    expect(actionOf(DEFAULT_KEYS, "v", true)).toBe("splitRight");
+  });
+  test("focus moves along the tree's leaves and wraps; an even tree splits panes in halves", () => {
+    const tree = evenTree(["a", "b", "c"]);
+    expect(treeLeavesOf(tree as never)).toEqual(["a", "b", "c"]);
+    expect(neighborPane(tree, "c", 1)).toBe("a");
+    expect(neighborPane(tree, "a", -1)).toBe("c");
+    expect(neighborPane(tree, undefined, 1)).toBe("a");
+    expect(neighborPane(undefined, "a", 1)).toBeUndefined();
+    const resized = withRatio(tree as never, [], 0.95);
+    expect("ratio" in resized && resized.ratio).toBe(0.9);
+  });
+  test("go-to rows: every pane and open question, filtered by state or text", () => {
+    const repos = workbenchRepos(
+      [
+        ws("w1"),
+        ws("w2", {
+          runId: "r1",
+          group: "w1",
+          tabs: [{ id: "w2:t1", label: "run", panes: ["w2:p1", "w2:p2"] }],
+        }),
+      ] as never,
+      [
+        run("r1", {
+          questions: [
+            {
+              id: "q1",
+              runId: "r1",
+              stage: "plan",
+              source: "agent",
+              prompt: "Round how?",
+              options: [],
+              multiSelect: false,
+              askedAt: "",
+            },
+          ],
+        }),
+      ],
+    );
+    const panes = [
+      {
+        id: "w2:p1",
+        tab: "w2:t1",
+        role: "conductor",
+        label: "session",
+        cwd: "/",
+        runId: "r1",
+        process: { kind: "host", host: "copilot", agent: "mt-orchestrator", prompt: "" },
+        live: { alive: true },
+        state: { state: "blocked", reason: "Allow?" },
+      },
+      {
+        id: "w2:p2",
+        tab: "w2:t1",
+        role: "shell",
+        label: "sh",
+        cwd: "/",
+        process: { kind: "command", argv: ["sh"] },
+        live: { alive: true },
+        state: { state: "idle", reason: "" },
+      },
+    ] as never[];
+    const all = gotoRows(repos, panes as never, "all", "");
+    expect(all.map((r) => [r.kind, r.label])).toEqual([
+      ["pane", "conductor · mt-orchestrator"],
+      ["pane", "sh"],
+      ["question", "Round how?"],
+    ]);
+    expect(gotoRows(repos, panes as never, "blocked", "").map((r) => r.id)).toEqual(["w2:p1", "r1/q1"]);
+    expect(gotoRows(repos, panes as never, "idle", "").map((r) => r.id)).toEqual(["w2:p2"]);
+    expect(gotoRows(repos, panes as never, "all", "round").map((r) => r.id)).toEqual(["r1/q1"]);
   });
 });

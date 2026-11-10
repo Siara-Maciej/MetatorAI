@@ -40,35 +40,82 @@ export const PaneSchema = z.strictObject({
 export type Pane = z.output<typeof PaneSchema>;
 export type PaneProcess = Pane["process"];
 
-export const TabSchema = z.strictObject({
+const TabV1Schema = z.strictObject({
   id: TabId,
   label: z.string().min(1),
   panes: z.array(PaneId),
 });
+
+/**
+ * How a tab's panes share its area (S6, herdr's splits): a leaf is a pane, a node splits its
+ * area in two along a direction at a ratio (the first part's share). Without a tree a client
+ * lays the panes out as an even grid.
+ */
+export type SplitNode =
+  | { readonly pane: string }
+  | { readonly dir: "row" | "column"; readonly ratio: number; readonly a: SplitNode; readonly b: SplitNode };
+export const SplitNodeSchema: z.ZodType<SplitNode> = z.lazy(() =>
+  z.union([
+    z.strictObject({ pane: PaneId }),
+    z.strictObject({
+      dir: z.enum(["row", "column"]),
+      ratio: z.number().min(0.1).max(0.9),
+      a: SplitNodeSchema,
+      b: SplitNodeSchema,
+    }),
+  ]),
+);
+
+/** v2 (S6) adds the optional split tree. Never change v1. */
+export const TabSchema = z.strictObject({
+  ...TabV1Schema.shape,
+  tree: SplitNodeSchema.optional(),
+});
 export type Tab = z.output<typeof TabSchema>;
 
-export const WorkspaceSchema = z.strictObject({
+const workspaceFields = {
   id: WorkspaceId,
   label: z.string().min(1),
   cwd: z.string().min(1),
   runId: z.string().optional(),
   /** The workspace this one belongs under (a run's worktree under its repository). */
   group: WorkspaceId.optional(),
+};
+// `createdAt` after `tabs`, as v1 was frozen: the snapshot compares the field order too.
+const WorkspaceV1Schema = z.strictObject({
+  ...workspaceFields,
+  tabs: z.array(TabV1Schema).min(1),
+  createdAt: z.iso.datetime(),
+});
+export const WorkspaceSchema = z.strictObject({
+  ...workspaceFields,
   tabs: z.array(TabSchema).min(1),
   createdAt: z.iso.datetime(),
 });
 export type Workspace = z.output<typeof WorkspaceSchema>;
 
+const NextSchema = z.strictObject({
+  workspace: z.number().int().positive(),
+  pane: z.number().int().positive(),
+});
+const LayoutV1Schema = z.strictObject({
+  workspaces: z.array(WorkspaceV1Schema),
+  panes: z.array(PaneSchema),
+  next: NextSchema,
+});
 export const LayoutSchema = z.strictObject({
   workspaces: z.array(WorkspaceSchema),
   panes: z.array(PaneSchema),
   /** Counters, so an id is never reused after a close. */
-  next: z.strictObject({ workspace: z.number().int().positive(), pane: z.number().int().positive() }),
+  next: NextSchema,
 });
 export type Layout = z.output<typeof LayoutSchema>;
 
 export const LayoutDocument = defineDocument("Layout", {
+  history: [{ schema: LayoutV1Schema }],
   latest: LayoutSchema,
+  // Every tab field of v2 is optional: a v1 layout is a v2 layout with even grids.
+  upgrade: (previous) => previous,
   hint: "Written by the daemon (`metator serve`); do not edit by hand.",
 });
 
@@ -145,11 +192,18 @@ export function addPane(
     readonly runId?: string;
     readonly worker?: Pane["worker"];
     readonly at: string;
+    /** Where the pane goes in the tab's split tree: beside this pane, in this direction (S6). */
+    readonly split?: { readonly target: string; readonly dir: "row" | "column" };
   },
 ): { readonly layout: Layout; readonly pane: Pane } | undefined {
   const w = layout.workspaces.find((x) => x.id === input.workspace);
-  const tab = input.tab ? w?.tabs.find((t) => t.id === input.tab) : w?.tabs[0];
+  const tab = input.tab
+    ? w?.tabs.find((t) => t.id === input.tab)
+    : input.split
+      ? w?.tabs.find((t) => t.panes.includes(input.split?.target ?? ""))
+      : w?.tabs[0];
   if (!w || !tab) return undefined;
+  if (input.split && !tab.panes.includes(input.split.target)) return undefined;
   const pane: Pane = {
     id: `${w.id}:p${layout.next.pane}`,
     tab: tab.id,
@@ -166,7 +220,14 @@ export function addPane(
       ...layout,
       workspaces: layout.workspaces.map((x) =>
         x.id === w.id
-          ? { ...x, tabs: x.tabs.map((t) => (t.id === tab.id ? { ...t, panes: [...t.panes, pane.id] } : t)) }
+          ? {
+              ...x,
+              tabs: x.tabs.map((t) =>
+                t.id === tab.id
+                  ? { ...t, panes: [...t.panes, pane.id], ...treeAfterAdd(t, pane.id, input.split) }
+                  : t,
+              ),
+            }
           : x,
       ),
       panes: [...layout.panes, pane],
@@ -192,7 +253,7 @@ export function removePane(layout: Layout, id: string): Layout {
     workspaces: layout.workspaces.map((w) => {
       if (!pane.tab.startsWith(`${w.id}:`)) return w;
       const tabs = w.tabs.map((t) =>
-        t.id === pane.tab ? { ...t, panes: t.panes.filter((p) => p !== id) } : t,
+        t.id === pane.tab ? { ...t, panes: t.panes.filter((p) => p !== id), ...treeAfterRemove(t, id) } : t,
       );
       const kept = tabs.filter((t) => t.panes.length > 0 || tabs.length === 1);
       return { ...w, tabs: kept.length > 0 ? kept : [tabs[0] as Tab] };
@@ -219,3 +280,85 @@ export const stripAnsi = (text: string): string => text.replace(ANSI, "");
 
 /** The last `lines` lines of a text. */
 export const tailLines = (text: string, lines: number): string => text.split("\n").slice(-lines).join("\n");
+
+/** The panes of a split tree, left to right, top to bottom. */
+export const treeLeaves = (node: SplitNode): string[] =>
+  "pane" in node ? [node.pane] : [...treeLeaves(node.a), ...treeLeaves(node.b)];
+
+/** A tab's tree, or an even one built from its pane order (columns first, then rows). */
+export function treeOf(tab: Pick<Tab, "panes" | "tree">): SplitNode | undefined {
+  if (tab.tree) return tab.tree;
+  return balanced(tab.panes, "row");
+}
+
+function balanced(panes: readonly string[], dir: "row" | "column"): SplitNode | undefined {
+  if (panes.length === 0) return undefined;
+  if (panes.length === 1) return { pane: panes[0] as string };
+  const half = Math.ceil(panes.length / 2);
+  const next = dir === "row" ? "column" : "row";
+  return {
+    dir,
+    ratio: half / panes.length,
+    a: balanced(panes.slice(0, half), next) as SplitNode,
+    b: balanced(panes.slice(half), next) as SplitNode,
+  };
+}
+
+/** The tree with `target`'s area split in two: `target` keeps the first half, `added` takes the second. */
+export function splitInTree(
+  node: SplitNode,
+  target: string,
+  added: string,
+  dir: "row" | "column",
+): SplitNode {
+  if ("pane" in node) return node.pane === target ? { dir, ratio: 0.5, a: node, b: { pane: added } } : node;
+  return { ...node, a: splitInTree(node.a, target, added, dir), b: splitInTree(node.b, target, added, dir) };
+}
+
+/** The tree without a pane; its sibling takes the whole area. Undefined when it was the last pane. */
+export function removeFromTree(node: SplitNode, pane: string): SplitNode | undefined {
+  if ("pane" in node) return node.pane === pane ? undefined : node;
+  const a = removeFromTree(node.a, pane);
+  const b = removeFromTree(node.b, pane);
+  if (!a) return b;
+  if (!b) return a;
+  return { ...node, a, b };
+}
+
+/** The ratio of the node at a path (`a`/`b` steps from the root) changed; out of range is clamped. */
+export function resizeInTree(node: SplitNode, path: readonly ("a" | "b")[], ratio: number): SplitNode {
+  if ("pane" in node) return node;
+  const clamped = Math.min(0.9, Math.max(0.1, ratio));
+  if (path.length === 0) return { ...node, ratio: clamped };
+  const [step, ...rest] = path;
+  return step === "a"
+    ? { ...node, a: resizeInTree(node.a, rest, ratio) }
+    : { ...node, b: resizeInTree(node.b, rest, ratio) };
+}
+
+/** A tree fits a tab when its leaves are exactly the tab's panes. */
+export const treeFits = (tree: SplitNode, panes: readonly string[]): boolean => {
+  const leaves = treeLeaves(tree);
+  return leaves.length === panes.length && panes.every((p) => leaves.includes(p));
+};
+
+function treeAfterAdd(
+  tab: Tab,
+  pane: string,
+  split: { readonly target: string; readonly dir: "row" | "column" } | undefined,
+): { tree?: SplitNode } {
+  if (split) {
+    const base = treeOf(tab) as SplitNode;
+    return { tree: splitInTree(base, split.target, pane, split.dir) };
+  }
+  // A pane added without a place: an explicit tree gets it beside everything, an even grid stays even.
+  if (!tab.tree) return {};
+  const n = tab.panes.length + 1;
+  return { tree: { dir: "row", ratio: Math.max(0.1, Math.min(0.9, (n - 1) / n)), a: tab.tree, b: { pane } } };
+}
+
+function treeAfterRemove(tab: Tab, pane: string): { tree?: SplitNode } {
+  if (!tab.tree) return {};
+  const tree = removeFromTree(tab.tree, pane);
+  return tree ? { tree } : {};
+}

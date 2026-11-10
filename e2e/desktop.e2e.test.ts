@@ -39,6 +39,7 @@ let repo: ScratchRepo;
 let daemon: Bun.Subprocess<"ignore", "pipe", "pipe">;
 let daemonUrl = "";
 let dist: string;
+let configDir: string;
 let site: ReturnType<typeof Bun.serve>;
 let page: Page;
 const errors: string[] = [];
@@ -79,7 +80,8 @@ beforeAll(async () => {
         : new Response(Bun.file(join(dist, "index.html")));
     },
   });
-  // The daemon on a scratch repository with the scenario host.
+  // The daemon on a scratch repository with the scenario host; the person's options in a temp dir.
+  configDir = await mkdtemp(join(tmpdir(), "metator-desktop-config-"));
   repo = await ScratchRepo.create();
   await repo.write(".gitignore", ".metator/\n");
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
@@ -90,6 +92,7 @@ beforeAll(async () => {
     env: {
       ...process.env,
       METATOR_STATE_DIR: E2E_STATE_DIR,
+      METATOR_CONFIG_DIR: configDir,
       METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
     },
     stdout: "pipe",
@@ -120,6 +123,7 @@ afterAll(async () => {
   site.stop(true);
   await repo.dispose();
   await rm(dist, { recursive: true, force: true });
+  await rm(configDir, { recursive: true, force: true });
 });
 
 describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
@@ -193,6 +197,10 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the lock", async () =>
       (await page.getByTestId("driverbar").textContent())?.includes("maciej") ? true : undefined,
     );
+    // The scenario asks before it reads: send the answer once the question is on the screen.
+    await until("the question on the screen", async () =>
+      (await term.textContent())?.includes("Which rounding?") ? true : undefined,
+    );
     await page.getByLabel("message to the session").fill("half-up");
     await page.getByRole("button", { name: "Send" }).click();
     await until("the answer echoed", async () =>
@@ -220,16 +228,112 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the events table", async () =>
       (await page.locator(".events tbody tr").count()) > 0 ? true : undefined,
     );
-    // The grid, the graph, the supervisor and the briefing draw from the same state.
+    // The workbench (S6): the run is a tab, its stages a strip, its conductor a framed pane.
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid`);
-    await page.locator(".tile").first().waitFor({ timeout: 20_000 });
-    // The focused run's panes as the tiles (R5): the conductor at least, with its state.
-    const panesButton = page.getByRole("button", { name: /^Panes · \d+$/ });
-    await until("the panes button", async () => ((await panesButton.isEnabled()) ? true : undefined));
-    await panesButton.click();
-    await until("a pane tile", async () =>
-      (await page.locator('.tile[aria-label^="conductor"]').count()) > 0 ? true : undefined,
+    const workbench = page.getByTestId("workbench");
+    await workbench.locator(".pane-frame").first().waitFor({ timeout: 20_000 });
+    await until("the run's tab", async () =>
+      (await workbench.locator(".tabbar").textContent())?.includes("Round the totals") ? true : undefined,
     );
+    expect(await page.getByTestId("procstrip").textContent()).toContain("build");
+    // prefix+v splits the focused pane: a shell beside it, in the daemon's tree.
+    await page.mouse.click(700, 400);
+    await page.keyboard.press("Control+b");
+    await page.keyboard.press("v");
+    await until("two frames", async () =>
+      (await workbench.locator(".pane-frame").count()) === 2 ? true : undefined,
+    );
+    const layout = (await api("/layout")).data as { workspaces: { tabs: { tree?: unknown }[] }[] };
+    expect(layout.workspaces.some((w) => w.tabs.some((t) => t.tree !== undefined))).toBe(true);
+    // The new shell takes anyone's keys: typed text comes back from the PTY.
+    const shellFrame = workbench.locator('.pane-frame:not([aria-label^="conductor"])').first();
+    await shellFrame.waitFor({ timeout: 20_000 });
+    await shellFrame.locator(".xterm").click();
+    await page.keyboard.type("echo hello-from-the-workbench");
+    await page.keyboard.press("Enter");
+    await until("the echo", async () =>
+      (await shellFrame.textContent())?.includes("hello-from-the-workbench") ? true : undefined,
+    );
+    // prefix+z zooms the focused pane and back; prefix+g opens the go-to picker.
+    await page.keyboard.press("Control+b");
+    await page.keyboard.press("z");
+    await workbench.locator(".split.zoomed").waitFor({ timeout: 5000 });
+    await page.keyboard.press("Control+b");
+    await page.keyboard.press("z");
+    await until("unzoomed", async () =>
+      (await workbench.locator(".split.zoomed").count()) === 0 ? true : undefined,
+    );
+    await page.keyboard.press("Control+b");
+    await page.keyboard.press("g");
+    const picker = page.getByRole("dialog", { name: "Go to" });
+    await picker.waitFor({ timeout: 5000 });
+    expect(await picker.textContent()).toContain("conductor");
+    await page.keyboard.press("Escape");
+    await until("the picker closed", async () => ((await picker.count()) === 0 ? true : undefined));
+    // A right click on a pane is the menu with the splits.
+    await shellFrame.click({ button: "right" });
+    const menu = page.getByRole("menu");
+    await menu.waitFor({ timeout: 5000 });
+    expect(await menu.textContent()).toContain("Split right");
+    await page.keyboard.press("Escape");
+    // A key rebound in the options works at once: keys.zoom → prefix+f.
+    await fetch(`${daemonUrl}/options/keys.zoom`, {
+      method: "POST",
+      body: JSON.stringify({ scope: "user", value: ["prefix+f"] }),
+      headers: { "content-type": "application/json" },
+    });
+    await until(
+      "the app to read the new key",
+      async () => ((await workbench.getAttribute("data-zoom-key")) === "prefix+f" ? true : undefined),
+      20_000,
+    );
+    await page.keyboard.press("Control+b");
+    await page.keyboard.press("f");
+    await workbench.locator(".split.zoomed").waitFor({ timeout: 5000 });
+    // The plan (S2): the run's stages and what waits, from the board.
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/plan/${runId}`);
+    await page.getByTestId("plan").waitFor({ timeout: 20_000 });
+    await until("the plan's stages", async () =>
+      (await page.getByTestId("plan-stages").textContent())?.includes("build") ? true : undefined,
+    );
+    expect(await page.getByTestId("plan").textContent()).toContain("no plan yet");
+    // The backlog (S4): a task added from the form is open; an agent's proposal waits for the decision.
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/backlog`);
+    await page.getByTestId("backlog").waitFor({ timeout: 20_000 });
+    await page.getByRole("button", { name: "+ task" }).click();
+    await page.getByLabel("title").fill("Flaky checkout.spec");
+    await page.getByLabel("what and why").fill("Fails one run in five.");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await page.getByTestId("issue-i001").waitFor({ timeout: 20_000 });
+    expect(await page.getByTestId("backlog").textContent()).toContain("i001 · open");
+    const proposed = Bun.spawnSync(
+      [
+        "bun",
+        CLI_ENTRY,
+        "issue",
+        "propose",
+        "Edge test 1000.00",
+        "--agent",
+        "mt-implementer-1",
+        "--run",
+        runId,
+      ],
+      { cwd: repo.root, env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR } },
+    );
+    expect(proposed.exitCode).toBe(0);
+    await page.getByTestId("issue-i002").waitFor({ timeout: 20_000 });
+    await page.getByTestId("issue-i002").click();
+    expect(await page.getByTestId("backlog").textContent()).toContain("1 proposal waits for you");
+    await page.getByRole("button", { name: "Drop", exact: true }).click();
+    await until("the proposal dropped", async () =>
+      (await page.getByTestId("backlog").textContent())?.includes("proposal waits") ? undefined : true,
+    );
+    expect(
+      ((await api("/issues")).data.issues as { id: string; status: string }[]).map((i) => [i.id, i.status]),
+    ).toEqual([
+      ["i001", "open"],
+      ["i002", "dropped"],
+    ]);
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/graph`);
     await page.getByRole("img", { name: "sessions graph" }).waitFor({ timeout: 20_000 });
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/supervisor`);

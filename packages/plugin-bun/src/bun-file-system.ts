@@ -1,4 +1,4 @@
-import { mkdir, rm } from "node:fs/promises";
+import { appendFile, mkdir, rm } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   err,
@@ -52,6 +52,23 @@ export class BunFileSystem implements FileSystem {
     } catch (e) {
       return err(
         new MetatorError("INTERNAL", `Cannot write ${path}: ${(e as Error).message}`, { details: { path } }),
+      );
+    }
+  }
+
+  async append(path: string, content: string): Promise<Result<void, MetatorError>> {
+    const target = this.resolve(path);
+    if (target.isErr()) return err(target.error);
+    try {
+      await mkdir(dirname(target.value), { recursive: true });
+      // O_APPEND: the kernel places each write at the end, whoever else writes meanwhile.
+      await appendFile(target.value, content);
+      return ok(undefined);
+    } catch (e) {
+      return err(
+        new MetatorError("INTERNAL", `Cannot append to ${path}: ${(e as Error).message}`, {
+          details: { path },
+        }),
       );
     }
   }

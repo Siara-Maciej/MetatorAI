@@ -48,6 +48,27 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
     );
 
   pane
+    .command("split <pane>")
+    .description("Split a pane's area: a shell (or a command) to the right of it or below it (S6)")
+    .option("--dir <dir>", "right or down", "right")
+    .option("--argv <argv...>", "the command to run in the new pane (default: your shell)")
+    .action(
+      ctx.action(async (id: string, opts: { dir: string; argv?: string[] }) => {
+        const daemon = findDaemon(root());
+        if (daemon.isErr()) return { result: daemon };
+        return {
+          result: await callDaemon(
+            daemon.value,
+            "POST",
+            `/panes/${encodeURIComponent(id)}/split`,
+            { dir: opts.dir === "down" ? "down" : "right", ...(opts.argv ? { argv: opts.argv } : {}) },
+            paneHeaders(),
+          ),
+        };
+      }),
+    );
+
+  pane
     .command("wait <pane>")
     .description(
       "Wait until the pane is in a state: idle or exited (default: either), blocked, waiting, working",

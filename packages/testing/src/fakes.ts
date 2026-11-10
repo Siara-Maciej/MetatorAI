@@ -66,6 +66,12 @@ export class InMemoryFileSystem implements FileSystem {
     return ok(undefined);
   }
 
+  async append(path: string, content: string): Promise<Result<void, MetatorError>> {
+    const key = normalizePath(path);
+    this.files.set(key, `${this.files.get(key) ?? ""}${content}`);
+    return ok(undefined);
+  }
+
   async remove(path: string): Promise<Result<void, MetatorError>> {
     this.files.delete(normalizePath(path));
     return ok(undefined);

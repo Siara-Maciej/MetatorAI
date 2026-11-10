@@ -129,8 +129,9 @@ export class PtyBroker {
   }
 
   /**
-   * Keystrokes from a person. A run's pane takes them only from the one who holds the run's
-   * driver lock; a pane of no run (a shell) from anyone who gives a name.
+   * Keystrokes from a person. An agent's pane of a run takes them only from the one who holds the
+   * run's driver lock; a shell pane (of a run or of none) from anyone who gives a name (S6): the
+   * lock guards the agent's keyboard, not a person's own shell.
    */
   async write(input: {
     readonly paneId: string;
@@ -139,7 +140,7 @@ export class PtyBroker {
   }): Promise<Result<void, MetatorError>> {
     const entry = this.live.get(input.paneId);
     if (!entry?.alive) return err(MetatorError.notFound(`a live terminal in pane ${input.paneId}`));
-    if (entry.runId) {
+    if (entry.runId && entry.role !== "shell") {
       const record = await this.d.repo.load(entry.runId);
       if (record.isErr()) return err(record.error);
       const driver = record.value.driver;

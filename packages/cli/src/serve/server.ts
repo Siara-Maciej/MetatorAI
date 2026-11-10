@@ -18,6 +18,7 @@ import {
   type PtyEvent,
   type PtyView,
   type Result,
+  SplitNodeSchema,
   type Supervisor,
   serializeJsonDocument,
 } from "@metator/core";
@@ -64,6 +65,8 @@ interface Socket {
   paneId?: string | undefined;
   readonly by?: string | undefined;
   stop?: () => void;
+  /** Resolves once a `pty` or `pane` socket has found its pane: input waits for it. */
+  ready?: Promise<void>;
 }
 
 /**
@@ -182,6 +185,67 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         );
       if (path === "/options/schema")
         return json({ ok: true, data: c.value.resolve("optionStore").schema() });
+      // The backlog (S4): read, add (a person), decide, edit, close, drop, start.
+      if (path === "/issues" && req.method === "GET")
+        return fromResult(
+          (
+            await c.value.resolve("issues").list({
+              ...(url.searchParams.get("run") ? { runId: url.searchParams.get("run") as string } : {}),
+            })
+          ).map((issues) => ({ issues })),
+        );
+      if (path === "/issues" && req.method === "POST") {
+        const body = (await req.json().catch(() => ({}))) as Json;
+        const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : undefined);
+        return fromResult(
+          await c.value.resolve("issues").add({
+            title: str("title") ?? "",
+            ...(str("body") !== undefined ? { body: str("body") as string } : {}),
+            ...(str("priority") ? { priority: str("priority") as "low" | "normal" | "high" } : {}),
+            ...(Array.isArray(body.labels) ? { labels: body.labels as string[] } : {}),
+            ...(Array.isArray(body.refs) ? { refs: body.refs as never[] } : {}),
+            by: str("by") ?? "",
+          }),
+        );
+      }
+      const issueRoute = /^\/issues\/([^/]+)\/(decide|edit|close|drop|start)$/.exec(path);
+      if (issueRoute && req.method === "POST") {
+        const [, id, what] = issueRoute as unknown as [string, string, string];
+        const body = (await req.json().catch(() => ({}))) as Json;
+        const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : undefined);
+        const issues = c.value.resolve("issues");
+        const patch = {
+          ...(str("title") !== undefined ? { title: str("title") as string } : {}),
+          ...(str("body") !== undefined ? { body: str("body") as string } : {}),
+          ...(str("priority") ? { priority: str("priority") as "low" | "normal" | "high" } : {}),
+          ...(Array.isArray(body.labels) ? { labels: body.labels as string[] } : {}),
+          ...(Array.isArray(body.refs) ? { refs: body.refs as never[] } : {}),
+        };
+        switch (what) {
+          case "decide":
+            return fromResult(
+              await issues.decide(id, {
+                by: str("by") ?? "",
+                decision: body.decision === "drop" ? "drop" : "add",
+                ...patch,
+              }),
+            );
+          case "edit":
+            return fromResult(await issues.edit(id, patch));
+          case "close":
+            return fromResult(await issues.close(id, { by: str("by") ?? "" }));
+          case "drop":
+            return fromResult(await issues.drop(id, { by: str("by") ?? "" }));
+          default:
+            return fromResult(
+              await issues.start(id, {
+                workflow: str("workflow") ?? "",
+                ...(body.worktree === false ? { worktree: false } : {}),
+                ...(str("autonomy") ? { autonomy: str("autonomy") as "L0" | "L1" | "L2" } : {}),
+              }),
+            );
+        }
+      }
       const option = /^\/options\/(.+)$/.exec(path);
       if (option && req.method === "POST") {
         const body = (await req.json().catch(() => ({}))) as Json;
@@ -213,10 +277,17 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         }
         const role = PANE_ROLES.includes(str("role") as PaneRole) ? (str("role") as PaneRole) : "shell";
         const argv = Array.isArray(body.argv) ? (body.argv as string[]) : undefined;
+        // A fresh tab for the pane (S6): named after the pane's label.
+        let tab = str("tab");
+        if (body.newTab === true && workspace) {
+          const opened = await panes.openTab(workspace, str("label") ?? "tab");
+          if (opened.isErr()) return fromResult(opened);
+          tab = opened.value;
+        }
         return fromResult(
           await panes.openPane({
             workspace: workspace as string,
-            ...(str("tab") ? { tab: str("tab") as string } : {}),
+            ...(tab ? { tab } : {}),
             role,
             ...(str("label") ? { label: str("label") as string } : {}),
             ...(str("cwd") ? { cwd: str("cwd") as string } : {}),
@@ -255,6 +326,24 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           return fromResult(await panes.wait(paneId, { until, timeoutMs }));
         }
         if (action === "close" && req.method === "POST") return fromResult(await panes.closePane(paneId));
+        // Split (S6): a shell (the person's `terminal.shell`, else $SHELL) beside or below the pane.
+        if (action === "split" && req.method === "POST") {
+          const body = (await req.json().catch(() => ({}))) as Json;
+          const dir = body.dir === "down" ? "down" : "right";
+          const argv = Array.isArray(body.argv) && body.argv.length > 0 ? (body.argv as string[]) : undefined;
+          const shell = await c.value.resolve("optionStore").get("terminal.shell");
+          const configured = shell.isOk() && typeof shell.value.value === "string" ? shell.value.value : "";
+          const fallback = configured !== "" ? configured : (process.env.SHELL ?? "sh");
+          return fromResult(
+            await panes.splitPane(paneId, {
+              dir,
+              process: { kind: "command", argv: argv ?? [fallback] },
+              ...(typeof body.cols === "number" && typeof body.rows === "number"
+                ? { size: { cols: body.cols as number, rows: body.rows as number } }
+                : {}),
+            }),
+          );
+        }
         // A hook of the pane's own session says the agent works (R3): the pane's token, no other.
         if (action === "heartbeat" && req.method === "POST") {
           const token = req.headers.get("x-metator-pane");
@@ -274,6 +363,16 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         return json(
           { ok: false, error: { code: "NOT_FOUND", message: `no route ${req.method} ${path}` } },
           404,
+        );
+      }
+      const tabTree = /^\/tabs\/([^/]+)\/tree$/.exec(path);
+      if (tabTree && req.method === "POST") {
+        const body = (await req.json().catch(() => ({}))) as Json;
+        const tree = SplitNodeSchema.safeParse(body.tree);
+        if (!tree.success)
+          return json({ ok: false, error: { code: "USAGE", message: "body.tree is not a split tree" } }, 400);
+        return fromResult(
+          await c.value.resolve("panes").setTree(decodeURIComponent(tabTree[1] as string), tree.data),
         );
       }
       const workspace = /^\/workspaces\/([^/]+)\/close$/.exec(path);
@@ -373,6 +472,15 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         case "POST collect":
           return fromResult(
             await c.value.resolve("conductor").collect({ runId, worker: str("worker") ?? "" }),
+          );
+        case "GET board":
+          return fromResult(
+            await c.value.resolve("planBoard").execute({
+              runId,
+              ...(Number(url.searchParams.get("timeline"))
+                ? { timeline: Number(url.searchParams.get("timeline")) }
+                : {}),
+            }),
           );
         case "GET activity": {
           const tail = Number(url.searchParams.get("tail")) || undefined;
@@ -525,6 +633,11 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         }
         const broker = c.value.resolve("ptyBroker");
         const panes = c.value.resolve("panes");
+        // Input can arrive before the pane is found: `message` waits for this open to finish.
+        let ready: () => void = () => {};
+        d.ready = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
         // A run's socket opens (or finds) its conductor pane; a pane's socket needs a live pane.
         const opened =
           d.kind === "pane"
@@ -539,10 +652,12 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
               error: { code: opened.error.code, message: opened.error.message },
             }),
           );
+          ready();
           ws.close();
           return;
         }
         d.paneId = opened.value.paneId;
+        ready();
         ws.send(JSON.stringify({ type: "session", session: opened.value }));
         const backlog = broker.backlog(opened.value.paneId);
         if (backlog) ws.send(JSON.stringify({ type: "data", data: backlog }));
@@ -550,7 +665,9 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       },
       async message(ws, raw) {
         const d = ws.data;
-        if ((d.kind !== "pty" && d.kind !== "pane") || !d.paneId) return;
+        if (d.kind !== "pty" && d.kind !== "pane") return;
+        if (d.ready) await d.ready;
+        if (!d.paneId) return;
         const c = containerFor(d.repo);
         if (c.isErr()) return;
         const broker = c.value.resolve("ptyBroker");

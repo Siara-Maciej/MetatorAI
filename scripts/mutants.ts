@@ -4665,4 +4665,40 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "issues.requireConsent is fixed: an agent never adds a task on its own",
   },
+  {
+    file: "packages/core/src/domain/layout.ts",
+    from: "  if (!a) return b;\n  if (!b) return a;",
+    to: "  if (!a || !b) return undefined;",
+    why: "removing a pane from a split hands its area to its sibling",
+  },
+  {
+    file: "packages/core/src/application/pty-broker.ts",
+    from: '    if (entry.runId && entry.role !== "shell") {',
+    to: "    if (false) {",
+    why: "an agent's pane of a run takes keys only from the driver",
+  },
+  {
+    file: "packages/core/src/domain/plan-board.ts",
+    from: '  if (done)\n    return {\n      ...base,\n      state: "done",',
+    to: '  if (false)\n    return {\n      ...base,\n      state: "done",',
+    why: "a worker's done result marks the plan steps it names done",
+  },
+  {
+    file: "packages/core/src/application/plan-board.ts",
+    from: '      state: w.alive ? (w.idle ? "idle" : "working") : "exited",',
+    to: '      state: w.alive ? "working" : "exited",',
+    why: "an idle worker shows as idle on the board",
+  },
+  {
+    file: "packages/core/src/application/issues.ts",
+    from: '    if (issue.value.status === "proposed")\n      return err(',
+    to: "    if (false)\n      return err(",
+    why: "a proposal cannot start a run: a person adds it first",
+  },
+  {
+    file: "packages/core/src/domain/issue.ts",
+    from: '  if (choice === PROPOSAL_DROP) return "dropped";',
+    to: '  if (choice === PROPOSAL_DROP) return "added";',
+    why: "the Drop answer in the inbox drops the proposal",
+  },
 ];

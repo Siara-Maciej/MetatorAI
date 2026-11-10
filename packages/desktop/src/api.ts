@@ -196,17 +196,25 @@ export interface PaneView {
   readonly state?: { readonly state: PaneState; readonly reason: string };
 }
 
+/** A tab's split tree (S6): a pane, or two parts along a direction at a ratio. */
+export type SplitNode =
+  | { readonly pane: string }
+  | { readonly dir: "row" | "column"; readonly ratio: number; readonly a: SplitNode; readonly b: SplitNode };
+
+export interface TabView {
+  readonly id: string;
+  readonly label: string;
+  readonly panes: readonly string[];
+  readonly tree?: SplitNode;
+}
+
 export interface WorkspaceView {
   readonly id: string;
   readonly label: string;
   readonly cwd: string;
   readonly runId?: string;
   readonly group?: string;
-  readonly tabs: readonly {
-    readonly id: string;
-    readonly label: string;
-    readonly panes: readonly string[];
-  }[];
+  readonly tabs: readonly TabView[];
 }
 
 export interface LayoutView {
@@ -280,6 +288,91 @@ export interface OptionsView {
   readonly diagnostics: readonly OptionDiagnostic[];
   readonly groups: readonly { readonly id: string; readonly count: number; readonly changed: number }[];
   readonly files: { readonly user: string; readonly repo: string; readonly run?: string };
+}
+
+/** The plan board (S2): where a run stands and what is left, from `GET /runs/:id/board`. */
+export interface BoardStep {
+  readonly id: string;
+  readonly action: "create" | "modify" | "delete";
+  readonly path: string;
+  readonly intent: string;
+  readonly state: "todo" | "in-progress" | "done" | "blocked";
+  readonly testsFirst: readonly string[];
+  readonly rules: readonly string[];
+  readonly exemplar?: string;
+  readonly dependsOn: readonly string[];
+  readonly worker?: { readonly name: string; readonly paneId?: string };
+  readonly evidence?: string;
+}
+export interface BoardStage extends StageProgress {
+  readonly owners: readonly string[];
+  readonly workedBy: readonly string[];
+  readonly startedAt?: string;
+  readonly endedAt?: string;
+  readonly verdict?: string;
+}
+/** A backlog task (Issue v1): proposed by an agent, or added by a person. */
+export interface IssueRef {
+  readonly run?: string;
+  readonly step?: string;
+  readonly file?: string;
+  readonly line?: number;
+  readonly note?: string;
+}
+export interface Issue {
+  readonly id: string;
+  readonly title: string;
+  readonly body: string;
+  readonly status: "proposed" | "open" | "in-progress" | "done" | "dropped";
+  readonly priority: "low" | "normal" | "high";
+  readonly labels: readonly string[];
+  readonly refs: readonly IssueRef[];
+  readonly proposedBy?: {
+    readonly agent: string;
+    readonly runId?: string;
+    readonly at: string;
+    readonly questionId?: string;
+  };
+  readonly decidedBy?: { readonly by: string; readonly at: string; readonly decision: "added" | "dropped" };
+  readonly runId?: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+export interface PlanBoardView {
+  readonly runId: string;
+  readonly task: string;
+  readonly workflow: string;
+  readonly status: string;
+  readonly stage: string;
+  readonly stages: readonly BoardStage[];
+  readonly plan?: {
+    readonly scope: readonly string[];
+    readonly steps: readonly BoardStep[];
+    readonly done: number;
+  };
+  readonly workers: readonly {
+    readonly name: string;
+    readonly stage: string;
+    readonly agent: string;
+    readonly paneId: string;
+    readonly alive: boolean;
+    readonly state?: string;
+    readonly result?: { readonly status: string; readonly summary: string; readonly at: string };
+  }[];
+  readonly waiting: readonly Question[];
+  readonly artifacts: readonly {
+    readonly name: string;
+    readonly present: boolean;
+    readonly stage?: string;
+  }[];
+  readonly gates: readonly {
+    readonly gate: string;
+    readonly passed: boolean;
+    readonly at: string;
+    readonly steps: readonly { readonly id: string; readonly ok: boolean }[];
+  }[];
+  readonly next: readonly { readonly id: string; readonly owners: readonly string[] }[];
+  readonly timeline: readonly Activity[];
 }
 
 export interface Brief {
@@ -366,6 +459,7 @@ export class DaemonClient {
     this.get<{ entries: Activity[] }>(`/runs/${runId}/activity${tail ? `?tail=${tail}` : ""}`, repo);
   messages = (runId: string, repo?: string) =>
     this.get<{ messages: RunMessage[] }>(`/runs/${runId}/messages`, repo);
+  board = (runId: string, repo?: string) => this.get<PlanBoardView>(`/runs/${runId}/board`, repo);
   brief = (runId: string, repo?: string, since?: string) =>
     this.get<Brief>(`/runs/${runId}/brief${since ? `?since=${encodeURIComponent(since)}` : ""}`, repo);
   seen = (runId: string, repo?: string) => this.post<{ at: string }>(`/runs/${runId}/seen`, {}, repo);
@@ -415,6 +509,9 @@ export class DaemonClient {
     input: {
       runId?: string;
       workspace?: string;
+      /** An existing tab of the workspace; `newTab` opens a fresh one named `label` instead. */
+      tab?: string;
+      newTab?: boolean;
       role: PaneRole;
       label?: string;
       argv?: string[];
@@ -426,4 +523,34 @@ export class DaemonClient {
   ) => this.post<PaneView>("/panes", input, repo);
   closePane = (paneId: string, repo?: string) =>
     this.post<{ closed: boolean }>(`/panes/${encodeURIComponent(paneId)}/close`, {}, repo);
+  splitPane = (paneId: string, dir: "right" | "down", repo?: string, argv?: string[]) =>
+    this.post<PaneView>(
+      `/panes/${encodeURIComponent(paneId)}/split`,
+      { dir, ...(argv ? { argv } : {}) },
+      repo,
+    );
+  setTree = (tabId: string, tree: SplitNode, repo?: string) =>
+    this.post<TabView>(`/tabs/${encodeURIComponent(tabId)}/tree`, { tree }, repo);
+  closeWorkspace = (workspace: string, repo?: string) =>
+    this.post<{ closed: number }>(`/workspaces/${encodeURIComponent(workspace)}/close`, {}, repo);
+  issues = (repo?: string) => this.get<{ issues: Issue[] }>("/issues", repo);
+  addIssue = (
+    body: {
+      title: string;
+      body?: string;
+      priority?: Issue["priority"];
+      labels?: readonly string[];
+      refs?: readonly IssueRef[];
+      by: string;
+    },
+    repo?: string,
+  ) => this.post<Issue>("/issues", body, repo);
+  decideIssue = (id: string, body: { by: string; decision: "add" | "drop" }, repo?: string) =>
+    this.post<Issue>(`/issues/${encodeURIComponent(id)}/decide`, body, repo);
+  startIssue = (id: string, body: { workflow: string; worktree?: boolean }, repo?: string) =>
+    this.post<{ issue: Issue; runId: string }>(`/issues/${encodeURIComponent(id)}/start`, body, repo);
+  closeIssue = (id: string, by: string, repo?: string) =>
+    this.post<Issue>(`/issues/${encodeURIComponent(id)}/close`, { by }, repo);
+  dropIssue = (id: string, by: string, repo?: string) =>
+    this.post<Issue>(`/issues/${encodeURIComponent(id)}/drop`, { by }, repo);
 }

@@ -46,6 +46,11 @@ packages:
       adr: 0078-desktop-app-tauri-xterm.md,
     }
   - {
+      package: "@xterm/addon-search",
+      need: "search in a pane's scrollback (copy mode)",
+      adr: 0078-desktop-app-tauri-xterm.md,
+    }
+  - {
       package: "@xterm/xterm",
       need: "terminals in the desktop app over the daemon's PTYs",
       adr: 0078-desktop-app-tauri-xterm.md,

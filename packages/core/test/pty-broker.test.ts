@@ -110,6 +110,11 @@ describe("PtyBroker", () => {
     );
     expect((await w.broker.write({ paneId: "w2:p2", data: "ls\r", by: "anyone" })).isOk()).toBe(true);
     expect(shell.typed).toEqual(["ls\r"]);
+    // A shell pane of a run is a person's own: the agent's lock does not guard it (S6).
+    const runShell = new FakePty(1003);
+    w.start("w1:p3", run.runId, runShell, "shell");
+    expect((await w.broker.write({ paneId: "w1:p3", data: "pwd\r", by: "alice" })).isOk()).toBe(true);
+    expect(runShell.typed).toEqual(["pwd\r"]);
   });
 
   test("an exit is noted in the run and told to viewers; a dead pane can be started again", async () => {
