@@ -38,6 +38,7 @@ import { registerLessonsCommands } from "./commands/lessons.ts";
 import { registerMcpCommand } from "./commands/mcp.ts";
 import { registerMemoryCommands } from "./commands/memory.ts";
 import { describeCommands, registerMetaCommands } from "./commands/meta.ts";
+import { registerMrsCommands } from "./commands/mrs.ts";
 import { registerOpenCommands } from "./commands/open.ts";
 import { registerOwnersCommand } from "./commands/owners.ts";
 import { registerPaneCommands } from "./commands/pane.ts";
@@ -175,6 +176,7 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   registerPaneCommands(program, ctx);
   registerIssueCommands(program, ctx);
   registerIntakeCommands(program, ctx);
+  registerMrsCommands(program, ctx);
   registerOpenCommands(program, ctx);
   registerAttachCommand(program, ctx);
   registerMcpCommand(program, ctx);

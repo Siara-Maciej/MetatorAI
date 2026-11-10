@@ -16,6 +16,8 @@ export interface MetatorPaths {
   readonly telemetry: string;
   /** Quarterly reviews (`meta quarterly`). */
   readonly reviews: string;
+  /** Reviews of my own pull requests, one document per request (`metator mrs`). */
+  readonly mrs: string;
   /** Canonical agents (host-neutral sources of generated host agents). */
   readonly agents: string;
   /** The golden set of review evals. */
@@ -78,6 +80,7 @@ export const DEFAULT_PATHS: MetatorPaths = {
   gates: ".metator/gates",
   telemetry: ".metator/telemetry",
   reviews: ".metator/reviews",
+  mrs: ".metator/mrs",
   agents: "metator/agents",
   evals: "docs/metator/evals/golden",
   skills: "metator/skills",

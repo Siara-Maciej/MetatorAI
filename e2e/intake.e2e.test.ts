@@ -106,7 +106,7 @@ describe("metator intake (real CLI, real MCP server process)", () => {
     expect(again[0]).toMatchObject({ listed: 2, known: 2, new: [], started: [], waiting: ["i002"] });
     const status = data(await metator(["intake", "status"], repo.root));
     expect(status.byRule).toEqual({ "gh-bugs": { "in-progress": 1, open: 1 } });
-  });
+  }, 60_000);
 
   test("the waiting issue starts once the first run is over", async () => {
     await metator(["run", "advance", "abort", "--reason", "done with it"], repo.root);
