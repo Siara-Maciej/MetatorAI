@@ -315,7 +315,7 @@ Projekt: [design/13](design/13-options-workbench.md), zaakceptowany 2026-11-09 (
 
 Projekt: [design/14](design/14-intake-and-review.md). Decyzje właściciela z 2026-11-10 (§0 projektu). Każdy punkt to osobna gałąź i PR do `main`; kryteria wyjścia w design/14 §6.
 
-- [ ] T0 Projekt i ADR-0083 (ten dokument, Proposed) do akceptacji właściciela.
+- [x] T0 Projekt (design/14) i ADR-0083, zaakceptowane przez właściciela 2026-11-10.
 - [ ] T1 Rozmowa zamiast formularza: `mt-orchestrator` w trybie intake (pytanie o repo → odpowiedź z cytatami; zadanie → `mt-grill` → `run init` w tym samym pane), „+ New session” otwiera pane hosta, formularz pod „zaawansowane”; `mcp:` w `MetatorConfig` (nowa wersja) i `UserOptions` v2, `metator generate` wpisuje MCP do hosta, `doctor` sprawdza serwery. E2e na hoście scenariuszowym.
 - [ ] T2 `metator intake`: port `CodeHost` z adapterem przez MCP (GitHub, GitLab, Jira), `IntakeRule` w konfiguracji (źródło, filtr, repo z `metator.repos.yml`, workflow, autonomia gated|full, worktree), pętla demona co 120 s, klucz źródła w `Issue` v2 (idempotencja), limity `maxActive` i kosztu, `intake scan|rules|status`. E2e z fake MCP; `full` dochodzi do bramki push.
 - [ ] T3 `mt-review-response`: `ReviewThread` v1, agent `mt-review-responder` (triage, odpowiedzi z diffu), plan poprawek w `plan.json`, bramka HITL „Napraw / Tylko odpowiedz / Pomiń”, build w worktree gałęzi MR, odpowiedzi i resolve przez `CodeHost`; zakładka **Open MRs** (`#/mrs`), `metator mrs list|show`, powiadomienie przez `notify`. E2e z fake MCP i przebieg na prawdziwym PR MetatorAI ze zrzutami.

@@ -1,6 +1,6 @@
 # 14. Wejście przez CLI agenta, automat zadań i odpowiedź na review
 
-Status: **propozycja** (decyzje właściciela z 2026-11-10 spisane poniżej, do akceptacji po przeczytaniu). ADR: [0083](../adr/0083-agent-cli-entry-and-event-intake.md). Wzorzec: herdr (terminal jest pierwszy, konfiguracja plikiem), przeniesiony na model MetatorAI: workflow jest prawem, agent decyduje w jego granicach, osoba dostaje decyzje w inboxie.
+Status: **zaakceptowany** (właściciel, 2026-11-10; decyzje spisane w §0). ADR: [0083](../adr/0083-agent-cli-entry-and-event-intake.md). Wzorzec: herdr (terminal jest pierwszy, konfiguracja plikiem), przeniesiony na model MetatorAI: workflow jest prawem, agent decyduje w jego granicach, osoba dostaje decyzje w inboxie.
 
 ## 0. Decyzje właściciela (grill, 2026-11-10)
 

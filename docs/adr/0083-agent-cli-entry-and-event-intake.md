@@ -1,6 +1,6 @@
 # ADR-0083: CLI agenta jako punkt wejścia; zdarzenia z zewnątrz (issue, review) jako drugie wejście do tej samej ścieżki
 
-- Status: Proposed
+- Status: Accepted (właściciel, 2026-11-10)
 - Data: 2026-11-10
 
 ## Kontekst
@@ -19,6 +19,7 @@ Od fazy R dyrygent (`mt-orchestrator`) biegnie w PTY Copilot CLI i sam woła `me
 - Negatywne: demon dostaje proces cykliczny i tokeny do hostów kodu; każde nowe źródło to adapter i reguły; recenzja obcej osoby staje się wejściem do agenta, stąd bramka przed zmianą kodu i traktowanie treści jako danych.
 
 ## Implikacje dla kodu
+- Reguły kanonu, które to wiążą: `CodeHost` jest portem z adapterem w pluginie, wstrzykiwanym przez konstruktor (MT-ARCH-005, MT-ARCH-006, MT-ARCH-007, MT-ARCH-008); `IntakeRule`, `ReviewThread` i `Issue` v2 to wersjonowane dokumenty z migracją i zamrożonym schematem (MT-CODE-002, MT-CODE-003); błędy hosta kodu wracają jako wartości (MT-CODE-001); `metator intake`, `metator mrs` i tryb intake mają e2e na prawdziwym procesie (MT-TEST-001), adapter MCP przechodzi kontrakt portu (MT-TEST-002), nowe moduły mają zabite mutanty (MT-TEST-003); klient MCP jako zależność wymaga wpisu w rejestrze (MT-CODE-005).
 - `core`: port `CodeHost`, dokumenty `IntakeRule` (w `MetatorConfig`), `ReviewThread` v1, use case'y `ScanIntake`, `RespondToReview`; `Issue` dostaje `source`.
 - `plugin-codehost-mcp` (GitHub, GitLab, Jira przez MCP hosta); `runtime`: rejestracja, pętla `intake` w demonie; `cli`: `metator intake scan|rules|run`, `metator mrs`; workflow `mt-review-response`; `mt-orchestrator`: sekcja *intake*; `metator generate`: konfiguracja MCP hosta.
 - `desktop`: „+ New session” otwiera pane z orkiestratorem; zakładka **Open MRs**; formularz pod „zaawansowane”.
