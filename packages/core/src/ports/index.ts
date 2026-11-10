@@ -12,6 +12,7 @@ import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domai
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
+import type { IntakeItem, IntakeSource } from "../domain/intake.ts";
 import type { PublishedBranch } from "../domain/publication.ts";
 import type { Result } from "../domain/result.ts";
 import type { Skill } from "../domain/skill.ts";
@@ -544,4 +545,12 @@ export interface HostGenerator {
   readonly hooksFile: string;
   /** Hook configuration running `metator guard *`, merged into `existing` (the file as it is). */
   hooks(metatorCommand: string, existing: string | undefined): Result<GeneratedFile, MetatorError>;
+}
+
+/**
+ * An outside source of work (T2, design/14 §3): GitHub or GitLab issues, Jira. Read only here;
+ * the text of an item is data for a task, never instructions.
+ */
+export interface CodeHost {
+  listItems(source: IntakeSource): Promise<Result<readonly IntakeItem[], MetatorError>>;
 }

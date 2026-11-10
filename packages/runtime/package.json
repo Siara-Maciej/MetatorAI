@@ -18,6 +18,7 @@
     "@metator/plugin-host-opencode": "workspace:*",
     "@metator/plugin-host-scenario": "workspace:*",
     "@metator/plugin-node": "workspace:*",
+    "@metator/plugin-codehost-mcp": "workspace:*",
     "@metator/plugin-openapi": "workspace:*",
     "@metator/plugin-typescript": "workspace:*",
     "awilix": "^13.0.5"

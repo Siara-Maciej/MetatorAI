@@ -4810,4 +4810,41 @@ export const MUTANTS: readonly Mutant[] = [
     to: "    if (true) {",
     why: ".mcp.json is written only when a server is configured",
   },
+  {
+    file: "packages/core/src/application/intake.ts",
+    from: "      .filter((x) => !held.has(x.key));",
+    to: "      .filter(() => true);",
+    why: "an item the backlog already holds is not added again",
+  },
+  {
+    file: "packages/core/src/application/intake.ts",
+    from: "      if (started.length >= free) {",
+    to: "      if (false) {",
+    why: "intake starts at most maxActive runs; the rest wait",
+  },
+  {
+    file: "packages/core/src/domain/intake.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
+    from: '  if (source.kind === "jira") return `jira:${ref}`;',
+    to: "",
+    why: "a Jira item's key is the Jira key alone",
+  },
+  {
+    file: "packages/plugin-codehost-mcp/src/mcp-code-host.ts",
+    from: "    if (entry.pull_request !== undefined) continue;",
+    to: "",
+    why: "a pull request listed among issues is not a task",
+  },
+  {
+    file: "packages/plugin-codehost-mcp/src/mcp-code-host.ts",
+    from: "    const name = source.mcp ?? source.kind;",
+    to: "    const name = source.kind;",
+    why: "a rule may name the MCP server that reaches its source",
+  },
+  {
+    file: "packages/plugin-codehost-mcp/src/sdk-tool-caller.ts",
+    from: '(_, name: string) => env[name] ?? ""',
+    to: '() => ""',
+    why: "a variable reference in an MCP server's env is resolved from the environment",
+  },
 ];

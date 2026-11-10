@@ -155,6 +155,7 @@ import {
   RunSystemEvals,
   RunSystemPlan,
   ScaffoldRule,
+  ScanIntake,
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
@@ -206,6 +207,7 @@ export { findChildRepos, findFolderRoot, findRepoRoot, runsRootOf } from "@metat
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
+import { McpCodeHost, SdkToolCaller } from "@metator/plugin-codehost-mcp";
 import { DockerComposeRuntime } from "@metator/plugin-docker";
 import { GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
 import {
@@ -579,6 +581,29 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           proposalsAllowed: async () => {
             const o = await optionStore.get("issues.proposeFromAgents");
             return o.isOk() ? o.value.value !== false : true;
+          },
+        }),
+    ),
+    codeHost: asFunction(
+      ({ optionStore, root }) => new McpCodeHost(() => optionStore.mcp(), new SdkToolCaller(root)),
+    ),
+    scanIntake: asFunction(
+      ({ config, issues, codeHost, runRepository }) =>
+        new ScanIntake({
+          config: config.config.intake,
+          issues,
+          codeHost,
+          // Runs intake started that are still active: its issues in progress whose run goes on.
+          activeRuns: async () => {
+            const backlog = await issues.list({ status: "in-progress" });
+            if (backlog.isErr()) return err(backlog.error);
+            let active = 0;
+            for (const i of backlog.value) {
+              if (!i.source || !i.runId) continue;
+              const record = await runRepository.load(i.runId);
+              if (record.isOk() && record.value.state.status === "active") active++;
+            }
+            return ok(active);
           },
         }),
     ),

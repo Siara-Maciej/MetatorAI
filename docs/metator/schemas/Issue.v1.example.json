@@ -1,0 +1,23 @@
+{
+  "kind": "Issue",
+  "schemaVersion": 1,
+  "id": "i001",
+  "title": "Flaky checkout.spec",
+  "body": "Fails one run in five.",
+  "status": "open",
+  "priority": "normal",
+  "labels": ["tests"],
+  "refs": [
+    {
+      "file": "e2e/checkout.spec.ts",
+      "line": 12
+    }
+  ],
+  "decidedBy": {
+    "by": "maciej",
+    "at": "2026-11-09T10:00:00.000Z",
+    "decision": "added"
+  },
+  "createdAt": "2026-11-09T10:00:00.000Z",
+  "updatedAt": "2026-11-09T10:00:00.000Z"
+}

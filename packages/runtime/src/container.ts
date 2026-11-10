@@ -40,6 +40,7 @@ import {
   type Clock,
   type CloneCache,
   type CloseRun,
+  type CodeHost,
   type CompareEvals,
   type ComputeAffected,
   type Conductor,
@@ -172,6 +173,7 @@ import {
   type RunSystemPlan,
   type Sandbox,
   type ScaffoldRule,
+  type ScanIntake,
   type ScanPatterns,
   type ScopePlan,
   type ScoreEvals,
@@ -261,6 +263,8 @@ export interface Cradle {
   userConfig: UserConfigStore;
   optionStore: OptionStore;
   issues: Issues;
+  codeHost: CodeHost;
+  scanIntake: ScanIntake;
   planBoard: PlanBoard;
   openEditor: OpenEditor;
   reviewFeedback: ReviewFeedback;

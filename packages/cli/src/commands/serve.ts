@@ -20,30 +20,44 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
     .option("--hostname <host>", "address to listen on", "127.0.0.1")
     .option("--poll-ms <n>", "how often sockets look for a change", positiveInt, 1000)
     .option("--supervise-ms <n>", "how often the supervisor ticks (0: never)", (v: string) => Number(v), 5000)
+    .option(
+      "--intake-ms <n>",
+      "how often the intake rules are scanned (0: never; default: the rules' `everyMs`)",
+      (v: string) => Number(v),
+    )
     .action(
-      ctx.action(async (opts: { port: number; hostname: string; pollMs: number; superviseMs: number }) => {
-        const root = () => (program.opts() as { root?: string }).root;
-        const served = await startServer(ctx, {
-          port: opts.port,
-          hostname: opts.hostname,
-          pollMs: opts.pollMs,
-          announce: true,
-          superviseMs: opts.superviseMs,
-          restart: (c, runId) => resume(c, root(), runId),
-          start: (c, runId, host) => resume(c, root(), runId, host),
-        });
-        const where = {
-          port: served.port,
-          hostname: served.hostname,
-          pid: served.pid,
-          url: `http://${served.hostname}:${served.port}`,
-        };
-        await new Promise<void>((resolve) => {
-          const stop = () => void served.stop().then(resolve);
-          process.once("SIGINT", stop);
-          process.once("SIGTERM", stop);
-        });
-        return { result: ok({ ...where, stopped: true }) };
-      }),
+      ctx.action(
+        async (opts: {
+          port: number;
+          hostname: string;
+          pollMs: number;
+          superviseMs: number;
+          intakeMs?: number;
+        }) => {
+          const root = () => (program.opts() as { root?: string }).root;
+          const served = await startServer(ctx, {
+            port: opts.port,
+            hostname: opts.hostname,
+            pollMs: opts.pollMs,
+            announce: true,
+            superviseMs: opts.superviseMs,
+            intakeMs: opts.intakeMs ?? true,
+            restart: (c, runId) => resume(c, root(), runId),
+            start: (c, runId, host) => resume(c, root(), runId, host || undefined),
+          });
+          const where = {
+            port: served.port,
+            hostname: served.hostname,
+            pid: served.pid,
+            url: `http://${served.hostname}:${served.port}`,
+          };
+          await new Promise<void>((resolve) => {
+            const stop = () => void served.stop().then(resolve);
+            process.once("SIGINT", stop);
+            process.once("SIGTERM", stop);
+          });
+          return { result: ok({ ...where, stopped: true }) };
+        },
+      ),
     );
 }

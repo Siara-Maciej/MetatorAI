@@ -115,6 +115,17 @@
         "@metator/testing": "workspace:*",
       },
     },
+    "packages/plugin-codehost-mcp": {
+      "name": "@metator/plugin-codehost-mcp",
+      "version": "0.0.0",
+      "dependencies": {
+        "@metator/core": "workspace:*",
+        "@modelcontextprotocol/sdk": "^1.32.2",
+      },
+      "devDependencies": {
+        "@metator/testing": "workspace:*",
+      },
+    },
     "packages/plugin-docker": {
       "name": "@metator/plugin-docker",
       "version": "0.0.0",
@@ -239,6 +250,7 @@
         "@metator/plugin-astgrep": "workspace:*",
         "@metator/plugin-biome": "workspace:*",
         "@metator/plugin-bun": "workspace:*",
+        "@metator/plugin-codehost-mcp": "workspace:*",
         "@metator/plugin-docker": "workspace:*",
         "@metator/plugin-git": "workspace:*",
         "@metator/plugin-host-claude": "workspace:*",
@@ -525,6 +537,8 @@
     "@metator/plugin-biome": ["@metator/plugin-biome@workspace:packages/plugin-biome"],
 
     "@metator/plugin-bun": ["@metator/plugin-bun@workspace:packages/plugin-bun"],
+
+    "@metator/plugin-codehost-mcp": ["@metator/plugin-codehost-mcp@workspace:packages/plugin-codehost-mcp"],
 
     "@metator/plugin-docker": ["@metator/plugin-docker@workspace:packages/plugin-docker"],
 

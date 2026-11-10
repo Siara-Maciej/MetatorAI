@@ -36,6 +36,8 @@ export interface ServeOptions {
   readonly announce?: boolean;
   /** Run the supervisor's tick this often (0: not at all). */
   readonly superviseMs?: number;
+  /** Scan the intake rules this often (0 or unset: never); the rules' own `everyMs` when `true`. */
+  readonly intakeMs?: number | true;
   /** How the supervisor starts a drive again. */
   readonly restart?: (
     c: MetatorContainer,
@@ -774,6 +776,36 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           }
         }, opts.superviseMs)
       : undefined;
+  // Intake (T2): one scan per interval for every repository with rules; started runs are driven.
+  const scanning = new Set<string>();
+  const intakeTick = () => {
+    const repos = folder ? folder.repos.map((r) => r.name) : [undefined];
+    for (const repo of repos) {
+      const c = containerFor(repo);
+      if (c.isErr()) continue;
+      const key = repo ?? ".";
+      const container = c.value;
+      if (container.resolve("config").config.intake.rules.length === 0 || scanning.has(key)) continue;
+      scanning.add(key);
+      void container
+        .resolve("scanIntake")
+        .execute()
+        .then(async (r) => {
+          const say = (o: object) =>
+            process.stderr.write(`${JSON.stringify({ intake: { repo: key, ...o } })}\n`);
+          if (r.isErr()) return say({ error: r.error.message });
+          for (const rule of r.value.rules) if (rule.error) say({ rule: rule.rule, error: rule.error });
+          for (const s of r.value.rules.flatMap((x) => x.started)) {
+            say({ started: s.runId, issue: s.issue });
+            if (opts.start) await opts.start(container, s.runId, "");
+          }
+        })
+        .finally(() => scanning.delete(key));
+    }
+  };
+  const intakeEvery =
+    opts.intakeMs === true ? ctx.container().resolve("config").config.intake.everyMs : (opts.intakeMs ?? 0);
+  const intakeTimer = intakeEvery > 0 ? setInterval(intakeTick, intakeEvery) : undefined;
   const port = server.port ?? opts.port;
   // Where the daemon listens, for the CLI and the clients; and every pane of the layout back.
   const roots = folder ? folder.repos.map((r) => r.root) : [ctx.container().resolve("root")];
@@ -813,6 +845,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     pid: process.pid,
     stop: async () => {
       if (superviseTimer) clearInterval(superviseTimer);
+      if (intakeTimer) clearInterval(intakeTimer);
       for (const root of roots) rmSync(join(root, DAEMON_FILE), { force: true });
       for (const ws of sockets) ws.close();
       await server.stop(true);
