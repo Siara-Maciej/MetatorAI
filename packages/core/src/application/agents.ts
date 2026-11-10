@@ -10,6 +10,7 @@ import {
 import type { MetatorConfig } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { DependencyGraph } from "../domain/graph.ts";
+import { type McpServers, mcpJson } from "../domain/mcp.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { readFrontMatter } from "../domain/versioned.ts";
 import type { FileSystem, HostGenerator, ReadonlyFileSystem } from "../ports/index.ts";
@@ -157,12 +158,17 @@ export interface GenerateReport {
 }
 
 /** `metator generate [--check]`: host files from the canon; never a hand-kept copy. */
+/** Read by Claude Code and Copilot CLI alike (design/14 §2). */
+export const MCP_FILE = ".mcp.json";
+
 export class GenerateHosts {
   constructor(
     private readonly catalog: AgentCatalog,
     private readonly generators: readonly HostGenerator[],
     private readonly fs: FileSystem,
     private readonly config: MetatorConfig,
+    /** The MCP servers to write into the hosts' file (repository and person); none when omitted. */
+    private readonly mcp: () => Promise<Result<McpServers, MetatorError>> = async () => ok({}),
   ) {}
 
   /** `hooks`: also write each host's hook configuration (opt-in: it changes what the host runs). */
@@ -206,6 +212,16 @@ export class GenerateHosts {
       const hooks = g.hooks(this.config.hosts.metatorCommand, current.isOk() ? current.value : undefined);
       if (hooks.isErr()) return err(hooks.error);
       expected.set(hooks.value.path, hooks.value.content);
+    }
+
+    // The MCP servers, when any is configured: set by name, entries nobody configured kept.
+    const servers = await this.mcp();
+    if (servers.isErr()) return err(servers.error);
+    if (Object.keys(servers.value).length > 0) {
+      const current = await this.fs.read(MCP_FILE);
+      const rendered = mcpJson(current.isOk() ? current.value : undefined, servers.value);
+      if (rendered.isErr()) return err(rendered.error);
+      expected.set(MCP_FILE, rendered.value);
     }
 
     const written: string[] = [];

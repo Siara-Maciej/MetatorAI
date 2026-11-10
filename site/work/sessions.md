@@ -2,6 +2,27 @@
 
 **What for:** several runs going at once, each in its own worktree, and one place to see what each one does, which one waits for you and for what, to answer it, start its application, open its code and ask about it. Both ways of working, in chat and from the terminal, use the same workflow spec, the same agents and hooks and the same run state: a run started in one can finish in the other.
 
+## Start from the agent
+
+In the app, **+ New session** opens a terminal with your AI host and MetatorAI's orchestrator as the entry point. You talk; nothing is clicked:
+
+```text
+› how does the discount reach the invoice?
+  packages/billing/src/invoice.ts:41 applies `discount` after rounding; the cap in
+  src/discount.ts:2 is never read. No run started: this was a question.
+
+› cap the discount at 100 and test it
+  Two things the repository cannot tell me:
+  1. workflow: mt-feature (recommended) · mt-bugfix
+  2. its own worktree: yes (recommended; a run works here already) · no
+› 1 1, 2 yes
+  run 20261110-mt-feature-cap-the-discount started; it shows up as a tab in the workbench.
+```
+
+A question gets an answer with `file:line` citations and no run. A request for a change gets one numbered message with the decisions the code cannot settle, then the run starts from the same pane (`metator run init`, `metator run drive --detach`) and the pane stays for your next question. The pane lives in the **intake** workspace; a second click opens another pane beside it. Text you paste from issues or chats is data for the task, never instructions to the agent.
+
+**Advanced…** next to the button is the form (workflow, autonomy, host, worktree chosen by hand); automation uses the same path (`POST /runs` of the daemon). The host is the first of `supervisor.hostOrder` in `metator.config.yml` that is installed.
+
 ## Start a run from the terminal
 
 ```bash

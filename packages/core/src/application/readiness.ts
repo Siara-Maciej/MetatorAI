@@ -1,5 +1,6 @@
 import type { MetatorConfig } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
+import type { McpServers } from "../domain/mcp.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { FileSystem, Vcs } from "../ports/index.ts";
 import type { EnvironmentServices } from "./environments.ts";
@@ -11,7 +12,7 @@ import type { WorktreeRegistry } from "./worktrees.ts";
 export type ReadinessStatus = "ok" | "warn" | "fail";
 
 export interface ReadinessCheck {
-  readonly id: "config" | "canon" | "workflows" | "gates" | "dependencies" | "environment" | "remote";
+  readonly id: "config" | "canon" | "workflows" | "gates" | "dependencies" | "environment" | "remote" | "mcp";
   readonly status: ReadinessStatus;
   /** What this means for a run, in one sentence. */
   readonly message: string;
@@ -60,6 +61,11 @@ export class CheckReadiness {
     private readonly services: Pick<EnvironmentServices, "status"> = {
       status: async () => err(MetatorError.notFound("environment")),
     },
+    /** The MCP servers the agents get here and whether a command is on the PATH (T1). */
+    private readonly mcp: {
+      readonly servers: () => Promise<Result<McpServers, MetatorError>>;
+      readonly hasCommand: (bin: string) => Promise<boolean>;
+    } = { servers: async () => ok({}), hasCommand: async () => true },
   ) {}
 
   async execute(input: ReadinessInput = {}): Promise<Result<Readiness, MetatorError>> {
@@ -119,6 +125,7 @@ export class CheckReadiness {
     );
     checks.push(await this.dependencies(place));
     checks.push(await this.environment(input.worktree));
+    checks.push(await this.mcpServers());
     const remote = await this.vcs.remoteUrl();
     checks.push(
       remote.isOk() && remote.value
@@ -152,6 +159,28 @@ export class CheckReadiness {
       message: `dependencies are not installed${where(place)}: in a run, tests, the type checker and linters cannot run, so gates check only rules`,
       // A worktree gets them from the main checkout or the package manager in one command.
       fix: place === "." ? fix : "metator worktree setup --worktree <id>",
+    };
+  }
+
+  /** Every configured MCP server starts from a command on the PATH or a URL (design/14 §2). */
+  private async mcpServers(): Promise<ReadinessCheck> {
+    const servers = await this.mcp.servers();
+    if (servers.isErr()) return { id: "mcp", status: "warn", message: servers.error.message };
+    const names = Object.keys(servers.value);
+    if (names.length === 0) return { id: "mcp", status: "ok", message: "no MCP servers configured" };
+    const missing: string[] = [];
+    for (const name of names) {
+      const command = servers.value[name]?.command;
+      if (command !== undefined && !(await this.mcp.hasCommand(command)))
+        missing.push(`${name} (${command})`);
+    }
+    if (missing.length === 0)
+      return { id: "mcp", status: "ok", message: `MCP servers configured: ${names.join(", ")}` };
+    return {
+      id: "mcp",
+      status: "warn",
+      message: `MCP server command(s) not found: ${missing.join(", ")}; the agents start without them`,
+      fix: "install the command, or fix `mcp:` in metator.config.yml or ~/.config/metator/options.yml",
     };
   }
 

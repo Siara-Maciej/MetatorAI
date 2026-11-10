@@ -429,7 +429,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         ),
     ),
     checkReadiness: asFunction(
-      ({ fileSystem, paths, config, workflowCatalog, vcs, root, worktreeRegistry, environmentServices }) =>
+      ({
+        fileSystem,
+        paths,
+        config,
+        workflowCatalog,
+        vcs,
+        root,
+        worktreeRegistry,
+        environmentServices,
+        optionStore,
+      }) =>
         new CheckReadiness(
           fileSystem,
           paths,
@@ -439,6 +449,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           async (p) => isDirectory(join(root, p)),
           worktreeRegistry,
           environmentServices,
+          { servers: () => optionStore.mcp(), hasCommand: async (bin) => Bun.which(bin) !== null },
         ),
     ),
     setupWorktree: asFunction(
@@ -1142,8 +1153,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     agentCatalog: asFunction(({ fileSystem, paths }) => new AgentCatalog(fileSystem, paths)).singleton(),
     lintAgents: asFunction(({ agentCatalog }) => new LintAgents(agentCatalog, "mt-")),
     generateHosts: asFunction(
-      ({ agentCatalog, hostGenerators, fileSystem, config }) =>
-        new GenerateHosts(agentCatalog, hostGenerators, fileSystem, config.config),
+      ({ agentCatalog, hostGenerators, fileSystem, config, optionStore }) =>
+        new GenerateHosts(agentCatalog, hostGenerators, fileSystem, config.config, () => optionStore.mcp()),
     ),
     validateFindings: asFunction(({ fileSystem }) => new ValidateFindings(fileSystem)),
     mergeFindings: asFunction(

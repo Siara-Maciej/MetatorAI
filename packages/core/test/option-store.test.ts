@@ -80,7 +80,7 @@ describe("OptionStore", () => {
     expect(file.startsWith("# Your MetatorAI options")).toBe(true);
     expect(parse(file)).toEqual({
       kind: "UserOptions",
-      schemaVersion: 1,
+      schemaVersion: 2,
       options: { "ui.paneBorders": "always" },
     });
     const zoom = (
@@ -155,7 +155,7 @@ describe("OptionStore", () => {
     const created = parse((await fresh.fs.read("metator.config.yml"))._unsafeUnwrap());
     expect(created).toEqual({
       kind: "MetatorConfig",
-      schemaVersion: 8,
+      schemaVersion: 9,
       options: { "review.sendTo": "worker" },
     });
     expect(MetatorConfigSchema.safeParse({ options: created.options }).success).toBe(true);

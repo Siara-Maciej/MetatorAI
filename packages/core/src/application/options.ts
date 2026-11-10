@@ -1,5 +1,6 @@
 import { CONFIG_FILES, type MetatorConfig, MetatorConfigDocument } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { type McpServers, mergeMcpServers } from "../domain/mcp.ts";
 import { OPTIONS, optionByKey } from "../domain/option-registry.ts";
 import {
   EXPERIMENTAL_PREFIX,
@@ -194,6 +195,20 @@ export class OptionStore {
       };
     }
     return { config: this.deps.config, source: this.deps.configFile ?? "metator.config.yml" };
+  }
+
+  /** The MCP servers the agents get in this repository: the repository's, the person's over them (T1). */
+  async mcp(): Promise<Result<McpServers, MetatorError>> {
+    const user = await this.deps.user.read(USER_OPTIONS_FILE);
+    if (user.isErr()) return err(user.error);
+    let mine: McpServers = {};
+    if (user.value !== undefined) {
+      const parsed = parseYamlDocument(user.value, USER_OPTIONS_FILE).andThen((raw) =>
+        UserOptionsDocument.parse(raw, USER_OPTIONS_FILE),
+      );
+      if (parsed.isOk()) mine = parsed.value.mcp;
+    }
+    return ok(mergeMcpServers((await this.repoConfig()).config.mcp, mine));
   }
 
   private async layers(

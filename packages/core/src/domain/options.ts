@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { MetatorConfig } from "./config.ts";
+import { McpServersSchema } from "./mcp.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**
@@ -372,12 +373,19 @@ export const optionGroup = (key: string): string => key.split(".")[0] as string;
  * `~/.config/metator/options.yml` (v1): a person's options, by key. Values are checked per key
  * when read, so an unknown key or a wrong value is a diagnostic, not an invalid document.
  */
-export const UserOptionsSchema = z.strictObject({
+const UserOptionsV1Schema = z.strictObject({
   options: z.record(z.string().min(1), z.unknown()).default({}),
+});
+/** v2 adds `mcp` (T1): the person's MCP servers, layered over the repository's by name. */
+export const UserOptionsSchema = z.strictObject({
+  ...UserOptionsV1Schema.shape,
+  mcp: McpServersSchema,
 });
 export type UserOptions = z.output<typeof UserOptionsSchema>;
 export const UserOptionsDocument = defineDocument("UserOptions", {
+  history: [{ schema: UserOptionsV1Schema }],
   latest: UserOptionsSchema,
+  upgrade: (v1) => v1,
   errorCode: "INVALID_CONFIG",
   hint: "The file holds `options:` with one entry per option key; `metator config list` shows the keys.",
 });

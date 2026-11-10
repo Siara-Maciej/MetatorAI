@@ -18,7 +18,7 @@ afterAll(async () => {
 
 const CASES: readonly { argv: string[]; kind: string; fields: string[]; version?: number }[] = [
   { argv: ["patterns", "schema"], kind: "Pattern", fields: ["id", "detection", "exemplar"] },
-  { argv: ["config", "schema"], kind: "MetatorConfig", fields: ["gates", "paths"], version: 8 },
+  { argv: ["config", "schema"], kind: "MetatorConfig", fields: ["gates", "paths"], version: 9 },
   { argv: ["meta", "agents-schema"], kind: "Agent", fields: ["id", "role", "delegates"] },
   { argv: ["eval", "schema"], kind: "EvalCase", fields: ["id", "patch"], version: 2 },
 ];

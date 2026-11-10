@@ -67,7 +67,7 @@ describe("metator config (options, real CLI)", () => {
     const file = parse(await readFile(join(configDir, "options.yml"), "utf8"));
     expect(file).toEqual({
       kind: "UserOptions",
-      schemaVersion: 1,
+      schemaVersion: 2,
       options: { "ui.paneBorders": "always", "keys.zoom": ["prefix+f", "ctrl+z"] },
     });
     expect(data(await mt("config", "get", "keys.zoom"))).toMatchObject({
@@ -107,7 +107,7 @@ describe("metator config (options, real CLI)", () => {
     const text = await repo.read("metator.config.yml");
     expect(text).toContain("# the person's editor");
     expect(parse(text)).toMatchObject({
-      schemaVersion: 8,
+      schemaVersion: 9,
       editor: "cursor",
       options: { "supervisor.wipLimit": 2 },
     });

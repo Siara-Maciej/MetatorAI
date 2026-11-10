@@ -53,7 +53,7 @@ Every file MetatorAI reads or writes is a versioned document: it starts with `ki
 | `ReviewReaction` | `.metator/telemetry/reactions.jsonl` | `metator findings react`: what people did with a review comment (resolved, dismissed, open), one line each; `metator report` sums them |
 | `ReviewNotes` | `.metator/runs/<id>/review/notes.json` | `metator review notes …` and the app's Changes screen: a person's notes on the change, draft, sent or addressed |
 | `RunSeen` | `.metator/runs/<id>/seen.json` | `metator run brief` |
-| `UserOptions` | `~/.config/metator/options.yml` | `metator config set … --scope user`, the app's Settings screen |
+| `UserOptions` | `~/.config/metator/options.yml` | `metator config set … --scope user`, the app's Settings screen; `mcp:` by hand |
 | `Issue` | `.metator/issues/iNNN.json` | `metator issue …`: one task of the backlog, who proposed it and who decided |
 | `Layout` | `.metator/layout.json` | the daemon (`metator serve`): workspaces, tabs and panes, restored after a restart |
 | `WorkerResult` | `.metator/runs/<id>/results/<worker>.json` | `metator run result` (a worker's report; `run collect` reads it) |

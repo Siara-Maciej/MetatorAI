@@ -30,11 +30,15 @@ export function SessionsPanel({
   current,
   onOpen,
   onNew,
+  onAdvanced,
   onGrid,
 }: {
   readonly current?: string | undefined;
   onOpen(runId: string, pane?: string): void;
+  /** Opens a pane with the agent as the entry point (design/14 §2): the conversation starts the task. */
   onNew(): void;
+  /** The form: workflow, autonomy, host and worktree chosen by hand. */
+  onAdvanced(): void;
   onGrid(group?: string): void;
 }) {
   const { runs, repos, panes } = useDaemon();
@@ -150,8 +154,16 @@ export function SessionsPanel({
         ) : null}
       </div>
       <div className="footer">
-        <button type="button" className="primary" onClick={onNew}>
+        <button
+          type="button"
+          className="primary"
+          title="Talk to the agent; it starts the run"
+          onClick={onNew}
+        >
           + New session
+        </button>
+        <button type="button" title="The form: workflow, autonomy, host, worktree" onClick={onAdvanced}>
+          Advanced…
         </button>
         <button
           type="button"
