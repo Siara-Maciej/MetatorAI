@@ -4740,8 +4740,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/review-feedback.ts",
-    from: "    const appended = await this.fs.append(this.file(), serializeJsonLine(ReviewReactionDocument.stamp(parsed.value)));",
-    to: "    const appended = await this.fs.write(this.file(), serializeJsonLine(ReviewReactionDocument.stamp(parsed.value)));",
+    from: "this.fs.append(",
+    to: "this.fs.write(",
     why: "a reaction is appended: the earlier ones stay",
   },
   {
