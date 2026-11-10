@@ -9,6 +9,8 @@ import {
   type InboxItem,
   inboxOf,
   MetatorError,
+  OPTION_SCOPES,
+  type OptionScope,
   PANE_ROLES,
   PANE_STATES,
   type PaneRole,
@@ -55,7 +57,7 @@ export interface Served {
 type Json = Record<string, unknown>;
 
 interface Socket {
-  readonly kind: "state" | "inbox" | "activity" | "pty" | "pane";
+  readonly kind: "state" | "inbox" | "options" | "activity" | "pty" | "pane";
   readonly repo: string | undefined;
   readonly runId?: string | undefined;
   /** The pane a `pty` or `pane` socket streams; set once the pane is known. */
@@ -125,8 +127,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           uptimeMs: Date.now() - started,
           folder: folder?.root ?? null,
         });
-      if (path === "/ws/state" || path === "/ws/inbox") {
-        const kind = path === "/ws/state" ? "state" : "inbox";
+      if (path === "/ws/state" || path === "/ws/inbox" || path === "/ws/options") {
+        const kind = path === "/ws/state" ? "state" : path === "/ws/inbox" ? "inbox" : "options";
         return server.upgrade(req, { data: { kind, repo } }) ? undefined : json({ ok: false }, 400);
       }
       const ws = /^\/ws\/(activity|pty|pane)\/([^/]+)$/.exec(path);
@@ -170,6 +172,31 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         );
       if (path === "/supervisor") return json(await supervisorView(c.value, repo, folder, started, opts));
       if (path === "/layout") return fromResult(await c.value.resolve("panes").view());
+      // Options (S1): every option with its value and source; a set writes the scope's file.
+      if (path === "/options" && req.method === "GET")
+        return fromResult(
+          await c.value.resolve("optionStore").list({
+            ...(url.searchParams.get("run") ? { runId: url.searchParams.get("run") as string } : {}),
+            changed: url.searchParams.get("changed") === "true",
+          }),
+        );
+      if (path === "/options/schema")
+        return json({ ok: true, data: c.value.resolve("optionStore").schema() });
+      const option = /^\/options\/(.+)$/.exec(path);
+      if (option && req.method === "POST") {
+        const body = (await req.json().catch(() => ({}))) as Json;
+        const key = decodeURIComponent(option[1] as string);
+        const scope = OPTION_SCOPES.includes(body.scope as OptionScope)
+          ? (body.scope as OptionScope)
+          : "user";
+        const runId = typeof body.runId === "string" ? (body.runId as string) : undefined;
+        const store = c.value.resolve("optionStore");
+        return fromResult(
+          body.reset === true
+            ? await store.unset({ key, scope, ...(runId ? { runId } : {}) })
+            : await store.set({ key, scope, value: body.value, ...(runId ? { runId } : {}) }),
+        );
+      }
       if (path === "/panes" && req.method === "POST") {
         const body = (await req.json().catch(() => ({}))) as Json;
         const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : undefined);
@@ -456,11 +483,15 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       async open(ws) {
         sockets.add(ws);
         const d = ws.data;
-        if (d.kind === "state" || d.kind === "inbox") {
+        if (d.kind === "state" || d.kind === "inbox" || d.kind === "options") {
           let last = "";
           const tick = async () => {
             const text = JSON.stringify(
-              d.kind === "state" ? await state(ctx, folder) : await inbox(ctx, folder),
+              d.kind === "state"
+                ? await state(ctx, folder)
+                : d.kind === "inbox"
+                  ? await inbox(ctx, folder)
+                  : await optionsView(containerFor(d.repo)),
             );
             if (text !== last) {
               last = text;
@@ -619,7 +650,16 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
 }
 
 /** The same overview `metator status` prints: one repository, or each repository of a folder. */
-export async function state(ctx: CommandContext, folder: Folder | null): Promise<Json> {
+export /** `/ws/options`: the options view as an envelope, so the app refreshes when a file changes. */
+async function optionsView(c: Result<MetatorContainer, { code: string; message: string }>): Promise<unknown> {
+  if (c.isErr()) return { ok: false, error: c.error };
+  const view = await c.value.resolve("optionStore").list({});
+  return view.isOk()
+    ? { ok: true, data: view.value }
+    : { ok: false, error: { code: view.error.code, message: view.error.message } };
+}
+
+async function state(ctx: CommandContext, folder: Folder | null): Promise<Json> {
   if (!folder) {
     const o = await ctx.container().resolve("workOverview").execute();
     return o.isOk()

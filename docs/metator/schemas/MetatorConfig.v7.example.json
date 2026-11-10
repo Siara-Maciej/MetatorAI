@@ -1,0 +1,40 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 7,
+  "editor": "code",
+  "gates": {
+    "full": [
+      {
+        "id": "graph",
+        "run": {
+          "metator": "graph diff"
+        }
+      },
+      {
+        "id": "workspaces",
+        "run": {
+          "workspaces": "typecheck"
+        }
+      }
+    ]
+  },
+  "hosts": {
+    "targets": ["claude"],
+    "metatorCommand": "bun run metator"
+  },
+  "system": {
+    "map": {
+      "path": "docs/metator/system.yml"
+    },
+    "roots": {
+      "web": "../web"
+    }
+  },
+  "notify": {
+    "command": "notify-send MetatorAI \"$METATOR_QUESTION_PROMPT\""
+  },
+  "supervisor": {
+    "wipLimit": 2,
+    "hostOrder": ["claude", "copilot"]
+  }
+}

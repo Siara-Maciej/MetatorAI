@@ -116,8 +116,16 @@ export type Driver = z.output<typeof DriverSchema>;
  * v6 (D1, ADR-0077) adds, optionally, the driver lock: a person attached to the session takes the
  * keyboard and may approve from the chat; absent, the agent drives. Never change v1–v5.
  */
-export const RunRecordSchema = RunRecordV5Schema.extend({
+const RunRecordV6Schema = RunRecordV5Schema.extend({
   driver: DriverSchema.optional(),
+}).strict();
+
+/**
+ * v7 (S1, design/13) adds, optionally, the run's option overrides by dotted key (a host, a
+ * waiting limit for this run alone). Never change v1–v6.
+ */
+export const RunRecordSchema = RunRecordV6Schema.extend({
+  options: z.record(z.string().min(1), z.unknown()).optional(),
 }).strict();
 
 export type RunRecord = z.infer<typeof RunRecordSchema>;
@@ -142,9 +150,11 @@ export const RunRecordDocument = defineDocument("RunRecord", {
     { schema: RunRecordV4Schema, fromPrevious: (previous) => previous },
     // `inputs` is optional: a v4 record is a v5 record started without inputs.
     { schema: RunRecordV5Schema, fromPrevious: (previous) => previous },
+    // `driver` is optional: a v5 record is a v6 record the agent drives.
+    { schema: RunRecordV6Schema, fromPrevious: (previous) => previous },
   ],
   latest: RunRecordSchema,
-  // `driver` is optional: a v5 record is a v6 record the agent drives.
+  // `options` is optional: a v6 record is a v7 record with no overrides.
   upgrade: (previous) => previous,
   hint: "Do not edit state.json by hand; use `metator run advance` or `metator run approve`.",
 });

@@ -4641,4 +4641,28 @@ export const MUTANTS: readonly Mutant[] = [
     to: '        if (pane.role !== "conductor" || !pane.runId || !pane.live) continue;',
     why: "only a dead conductor pane is resumed",
   },
+  {
+    file: "packages/core/src/domain/options.ts",
+    from: "      if (!def.settableAt.includes(layer.scope)) {",
+    to: "      if (false) {",
+    why: "an option set in a scope it does not belong to is a diagnostic, not a value",
+  },
+  {
+    file: "packages/core/src/domain/options.ts",
+    from: "      if (!p.ok) {\n        diagnostics.push(",
+    to: "      if (false) {\n        diagnostics.push(",
+    why: "a value that fails the option's type is a diagnostic and the default",
+  },
+  {
+    file: "packages/core/src/application/options.ts",
+    from: "    if (def.fixed)\n      return err(",
+    to: "    if (false)\n      return err(",
+    why: "a fixed option cannot be set",
+  },
+  {
+    file: "packages/core/src/domain/option-registry.ts",
+    from: "    fixed: true,",
+    to: "",
+    why: "issues.requireConsent is fixed: an agent never adds a task on its own",
+  },
 ];

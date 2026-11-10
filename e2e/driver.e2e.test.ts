@@ -91,7 +91,7 @@ describe("driver lock and messages (real CLI)", () => {
     const released = data(await mt("run", "release", "--run", id)) as { driver: { by: string } };
     expect(released.driver.by).toBe("agent");
     const state = JSON.parse(await repo.read(`.metator/runs/${id}/state.json`));
-    expect([state.schemaVersion, state.driver]).toEqual([6, { by: "agent" }]);
+    expect([state.schemaVersion, state.driver]).toEqual([7, { by: "agent" }]);
     const activity = (
       data(await mt("run", "activity", "--run", id)) as { entries: { type: string; origin?: string }[] }
     ).entries;

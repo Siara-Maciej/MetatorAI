@@ -1051,11 +1051,71 @@ metator config show [options]
 
 ### `metator config schema`
 
-Print the JSON Schema of metator.config
+Print the JSON Schema of metator.config (--options: of the options map, one property per option)
 
 ```bash
 metator config schema [options]
 ```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--options` | the schema of the options instead |  |
+
+### `metator config list`
+
+Every option with its effective value and source (default, user, repo, run), and the diagnostics
+
+```bash
+metator config list [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--scope <scope>` | which file holds the value (one of: user, repo, run) |  |
+| `--changed` | only the options a file sets |  |
+| `--run <id>` | with this run's overrides |  |
+
+### `metator config get`
+
+One option: its value, where it comes from and what each scope holds
+
+```bash
+metator config get [options] <key>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<key>` |  | |
+| `--run <id>` | with this run's overrides |  |
+
+### `metator config set`
+
+Set an option in your file (user), the repository's config (repo) or a run (run); lists as a, b, c; a bad value is refused
+
+```bash
+metator config set [options] <key> <value>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<key>` |  | |
+| `<value>` |  | |
+| `--scope <scope>` | which file holds the value (one of: user, repo, run) **Required.** |  |
+| `--run <id>` | the run, for --scope run |  |
+
+### `metator config unset`
+
+Remove an option from a scope's file, so the next scope down or the default applies
+
+```bash
+metator config unset [options] <key>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<key>` |  | |
+| `--scope <scope>` | which file holds the value (one of: user, repo, run) **Required.** |  |
+| `--run <id>` | the run, for --scope run |  |
 
 ## agents
 

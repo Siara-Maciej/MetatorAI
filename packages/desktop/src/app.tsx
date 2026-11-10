@@ -13,6 +13,7 @@ import { GraphScreen } from "./screens/graph.tsx";
 import { InboxScreen } from "./screens/inbox.tsx";
 import { NewSessionDialog } from "./screens/new-session.tsx";
 import { SessionScreen } from "./screens/session.tsx";
+import { SettingsScreen } from "./screens/settings.tsx";
 import { SupervisorScreen } from "./screens/supervisor.tsx";
 import { TerminalsScreen } from "./screens/terminals.tsx";
 
@@ -21,6 +22,7 @@ const RAIL: { route: Route; label: string; glyph: string }[] = [
   { route: { screen: "grid" }, label: "Grid", glyph: "▦" },
   { route: { screen: "graph" }, label: "Graph", glyph: "⌘" },
   { route: { screen: "supervisor" }, label: "Super", glyph: "◎" },
+  { route: { screen: "settings" }, label: "Settings", glyph: "⚙" },
 ];
 
 export const App = () => (
@@ -35,7 +37,6 @@ function Shell() {
   const d = useDaemon();
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
   const [dialog, setDialog] = useState(false);
-  const [settings, setSettings] = useState(false);
   const go = useCallback((r: Route) => {
     window.location.hash = routeHash(r);
   }, []);
@@ -126,27 +127,6 @@ function Shell() {
         <span className={`chip ${d.connected ? "green" : "red"}`} data-testid="connection">
           {d.connected ? "connected" : d.error ? `daemon: ${d.error}` : "connecting…"}
         </span>
-        <button
-          type="button"
-          className="ghost"
-          aria-pressed={settings}
-          onClick={() => setSettings(!settings)}
-          title="daemon address and your name"
-        >
-          ⚙
-        </button>
-        {settings ? (
-          <span className="settings">
-            <input aria-label="daemon url" defaultValue={d.url} onBlur={(e) => d.setUrl(e.target.value)} />
-            <input
-              aria-label="your name"
-              placeholder="your name"
-              defaultValue={d.me}
-              onBlur={(e) => d.setMe(e.target.value)}
-              style={{ width: 120 }}
-            />
-          </span>
-        ) : null}
       </header>
       <nav className="rail" aria-label="screens">
         {RAIL.map((r) => (
@@ -196,6 +176,7 @@ function Shell() {
         {route.screen === "supervisor" ? (
           <SupervisorScreen onOpenSession={openSession} onNew={() => setDialog(true)} />
         ) : null}
+        {route.screen === "settings" ? <SettingsScreen /> : null}
         {route.screen === "briefing" ? (
           <BriefingScreen runId={route.runId} onOpenSession={openSession} />
         ) : null}

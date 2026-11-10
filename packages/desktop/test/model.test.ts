@@ -8,6 +8,8 @@ import {
   inboxChips,
   newQuestions,
   nextWaiting,
+  optionMatches,
+  optionSections,
   paneLabel,
   panesOfRun,
   parseRoute,
@@ -234,5 +236,36 @@ describe("formatting and routes", () => {
     expect(
       ["blocked", "waiting", "working", "idle", "exited", undefined].map((s) => stateTone(s as never)),
     ).toEqual(["amber", "amber", "violet", undefined, "red", undefined]);
+  });
+});
+
+describe("settings view logic (S1)", () => {
+  const opt = (key: string, source: "default" | "user" | "repo" | "run" = "default") => ({
+    key,
+    value: 1,
+    source,
+    definition: {
+      key,
+      kind: "number" as const,
+      scope: "user" as const,
+      title: `${key} title`,
+      description: "how wide the sidebar is",
+      default: 1,
+      restart: "none" as const,
+      fixed: false,
+    },
+    layers: {},
+  });
+  test("sections are the key groups in order, counting the options a file sets", () => {
+    expect(optionSections([opt("ui.a", "user"), opt("ui.b"), opt("keys.c", "repo")])).toEqual([
+      { id: "ui", count: 2, changed: 1 },
+      { id: "keys", count: 1, changed: 1 },
+    ]);
+  });
+  test("search matches the key, the title or the description, ignoring case", () => {
+    expect(optionMatches(opt("ui.sidebarWidth"), "SIDEBAR")).toBe(true);
+    expect(optionMatches(opt("ui.sidebarWidth"), "wide")).toBe(true);
+    expect(optionMatches(opt("ui.sidebarWidth"), "zoom")).toBe(false);
+    expect(optionMatches(opt("ui.sidebarWidth"), "  ")).toBe(true);
   });
 });

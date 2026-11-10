@@ -123,6 +123,7 @@ import {
   MetatorError,
   type MetatorPaths,
   type Notifier,
+  type OptionStore,
   ok,
   type PackageManager,
   type PackageManagerDetector,
@@ -190,6 +191,7 @@ import {
   type ToolBoundariesReader,
   type TreeCopier,
   type UpdateConfig,
+  type UserConfigStore,
   type ValidateCitations,
   type ValidateFindings,
   type Vcs,
@@ -247,6 +249,8 @@ export interface Cradle {
   dataIsolator: DataIsolator;
   treeCopier: TreeCopier;
   updateConfig: UpdateConfig;
+  userConfig: UserConfigStore;
+  optionStore: OptionStore;
   containerRuntime: ContainerRuntime;
   healthProbe: HealthProbe;
   environmentCatalog: EnvironmentCatalog;

@@ -228,7 +228,17 @@ const ConfigV7Schema = z.strictObject({
   supervisor: SupervisorPolicySchema.default(SupervisorPolicySchema.parse({})),
 });
 
-export const MetatorConfigSchema = ConfigV7Schema;
+/**
+ * v8 adds `options` (S1, design/13): repository-scope options by dotted key (`supervisor.wipLimit`,
+ * `review.sendTo`), checked per key when read so a wrong value is a diagnostic, not an invalid
+ * config. Every v7 file is a v8 file.
+ */
+const ConfigV8Schema = z.strictObject({
+  ...ConfigV7Schema.shape,
+  options: z.record(z.string().min(1), z.unknown()).default({}),
+});
+
+export const MetatorConfigSchema = ConfigV8Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -244,9 +254,10 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: ConfigV4Schema, fromPrevious: (v3) => v3 },
     { schema: ConfigV5Schema, fromPrevious: (v4) => v4 },
     { schema: ConfigV6Schema, fromPrevious: (v5) => v5 },
+    { schema: ConfigV7Schema, fromPrevious: (v6) => v6 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v6) => v6,
+  upgrade: (v7) => v7,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });
