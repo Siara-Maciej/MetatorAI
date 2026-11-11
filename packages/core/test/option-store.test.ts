@@ -47,29 +47,27 @@ describe("OptionStore", () => {
   test("every option lists with its default until a file sets it; groups count the changed ones", async () => {
     const w = world();
     const view = (await w.store.list())._unsafeUnwrap();
-    expect(view.options.length).toBeGreaterThan(40);
+    expect(view.options.length).toBeGreaterThan(30);
     expect(view.options.every((o) => o.source === "default" || o.source === "repo")).toBe(true);
     expect(view.groups.map((g) => g.id)).toEqual([
       "editor",
-      "hosts",
       "issues",
       "keys",
       "notify",
-      "review",
       "supervisor",
       "terminal",
       "ui",
-      "worktrees",
     ]);
     expect(view.diagnostics).toEqual([]);
-    expect((await w.store.list({ changed: true }))._unsafeUnwrap().options.map((o) => o.key)).toEqual([
-      // Legacy config fields count as set by the repository, with their defaults.
-      "supervisor.hostOrder",
-      "supervisor.idleThresholdMs",
-      "supervisor.respawn",
-      "supervisor.respawnAttempts",
-      "supervisor.wipLimit",
-    ]);
+    // No file sets anything: a legacy field's own default is not a change.
+    expect((await w.store.list({ changed: true }))._unsafeUnwrap().options).toEqual([]);
+    // Every option on the list is read by some code; these were listed while nothing read them.
+    for (const gone of ["ui.theme", "worktrees.directory", "hosts.default", "supervisor.startupDelayMs"])
+      expect(view.options.find((o) => o.key === gone)).toBeUndefined();
+    expect(view.options.find((o) => o.key === "notify.command")).toMatchObject({
+      value: "",
+      source: "default",
+    });
   });
 
   test("set at user scope writes the person's file (created with its header) and the value is read back typed", async () => {
@@ -90,13 +88,18 @@ describe("OptionStore", () => {
     expect(parse(w.user.files.get(USER_OPTIONS_FILE) as string)).toMatchObject({
       options: { "ui.paneBorders": "always", "keys.zoom": ["prefix+f", "ctrl+z"] },
     });
-    const width = (await w.store.set({ key: "ui.sidebarWidth", scope: "user", value: 300 }))._unsafeUnwrap();
+    const width = (
+      await w.store.set({ key: "terminal.scrollbackLines", scope: "user", value: 300 })
+    )._unsafeUnwrap();
     expect(width.value).toBe(300);
+    // Unsetting a key the scope does not hold writes no file (a repository without a config stays so).
+    (await w.store.unset({ key: "supervisor.wipLimit", scope: "repo" }))._unsafeUnwrap();
+    expect((await w.fs.read("metator.config.yml")).isErr()).toBe(true);
     // Unset puts the default back and removes the key.
     const unset = (await w.store.unset({ key: "ui.paneBorders", scope: "user" }))._unsafeUnwrap();
     expect(unset).toMatchObject({ value: "auto", source: "default" });
     expect(parse(w.user.files.get(USER_OPTIONS_FILE) as string)).toMatchObject({
-      options: { "keys.zoom": ["prefix+f", "ctrl+z"], "ui.sidebarWidth": 300 },
+      options: { "keys.zoom": ["prefix+f", "ctrl+z"], "terminal.scrollbackLines": 300 },
     });
   });
 
@@ -151,12 +154,12 @@ describe("OptionStore", () => {
     });
     // No config at all: a small one is created.
     const fresh = world();
-    (await fresh.store.set({ key: "review.sendTo", scope: "repo", text: "worker" }))._unsafeUnwrap();
+    (await fresh.store.set({ key: "supervisor.wipLimit", scope: "repo", text: "2" }))._unsafeUnwrap();
     const created = parse((await fresh.fs.read("metator.config.yml"))._unsafeUnwrap());
     expect(created).toEqual({
       kind: "MetatorConfig",
       schemaVersion: 11,
-      options: { "review.sendTo": "worker" },
+      options: { "supervisor.wipLimit": 2 },
     });
     expect(MetatorConfigSchema.safeParse({ options: created.options }).success).toBe(true);
   });
@@ -184,16 +187,16 @@ describe("OptionStore", () => {
     const w = world();
     await w.user.write(
       USER_OPTIONS_FILE,
-      "kind: UserOptions\nschemaVersion: 1\noptions:\n  keys.detach: ctrl+\n  ui.nope: 1\n  ui.paneBorders: always\n",
+      "kind: UserOptions\nschemaVersion: 1\noptions:\n  keys.help: ctrl+\n  ui.nope: 1\n  ui.paneBorders: always\n",
     );
     const view = (await w.store.list())._unsafeUnwrap();
-    expect(view.options.find((o) => o.key === "keys.detach")).toMatchObject({
-      value: ["prefix+q"],
+    expect(view.options.find((o) => o.key === "keys.help")).toMatchObject({
+      value: ["prefix+?"],
       source: "default",
     });
     expect(view.options.find((o) => o.key === "ui.paneBorders")?.value).toBe("always");
     expect(view.diagnostics.map((d) => [d.kind, d.key])).toEqual([
-      ["invalid-value", "keys.detach"],
+      ["invalid-value", "keys.help"],
       ["unknown-key", "ui.nope"],
     ]);
     await w.user.write(USER_OPTIONS_FILE, "options: [\n");

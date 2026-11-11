@@ -144,6 +144,11 @@ export class OptionStore {
   }): Promise<Result<ResolvedOption, MetatorError>> {
     const def = this.definition(input.key);
     if (!def) return err(unknownOption(input.key));
+    // Nothing to remove: no file is written (or created) for a key the scope does not hold.
+    const layers = await this.layers(input.runId);
+    if (layers.isErr()) return err(layers.error);
+    const held = layers.value.layers.some((l) => l.scope === input.scope && def.key in l.values);
+    if (!held) return this.get(def.key, { ...(input.runId ? { runId: input.runId } : {}) });
     const written = await this.write(input.scope, def.key, undefined, input.runId);
     if (written.isErr()) return err(written.error);
     return this.get(def.key, { ...(input.runId ? { runId: input.runId } : {}) });

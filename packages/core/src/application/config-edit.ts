@@ -19,7 +19,7 @@ export interface ConfigChanges {
 
 /**
  * Saves settings in metator.config. A YAML file keeps its comments and its other settings; the
- * file becomes v3, which every v2 file already is; without a config, a small one is created. The
+ * file is written at the current version, which every older file already is; without a config, a small one is created. The
  * result is validated before it is written.
  */
 export class UpdateConfig {

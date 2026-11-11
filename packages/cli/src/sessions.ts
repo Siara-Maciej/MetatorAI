@@ -5,10 +5,14 @@ import type { MetatorContainer } from "@metator/runtime";
 import { type FollowResult, follow, person } from "./live.ts";
 import type { Terminal } from "./terminal.ts";
 
-export const HOSTS = ["claude", "copilot", "scenario"] as const;
+/**
+ * The AI hosts that drive agents without a terminal, as the help names them. Which hosts exist is
+ * the runtime's knowledge (`agentHosts`): a `--host` it does not hold is refused there, with the
+ * list it does hold (a test's scenario host is one only while a scenario is given).
+ */
+export const HOSTS = ["claude", "copilot"] as const;
 const HOST_OF: Record<string, (typeof HOSTS)[number]> = { claude: "claude", copilot: "copilot" };
 
-/** The host a new run uses: the first of hosts.targets. */
 /** The host a new run or question uses: `$METATOR_HOST` when it names a host, else the first of hosts.targets. */
 export const defaultHost = (
   c: MetatorContainer,
