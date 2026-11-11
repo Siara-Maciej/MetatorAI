@@ -205,4 +205,23 @@ describe("OptionStore", () => {
     expect(broken.diagnostics[0]?.message).toContain("ignored");
     expect(broken.options.find((o) => o.key === "ui.paneBorders")?.value).toBe("auto");
   });
+
+  test("the repository's MCP servers are its own: the person's join them only for MetatorAI itself", async () => {
+    const w = world({
+      "metator.config.yml":
+        "kind: MetatorConfig\nschemaVersion: 9\nmcp:\n  jira:\n    url: https://mcp.example.com/jira\n  notes:\n    command: repo-notes\n",
+    });
+    await w.user.write(
+      USER_OPTIONS_FILE,
+      "kind: UserOptions\nschemaVersion: 2\noptions: {}\nmcp:\n  notes:\n    command: my-notes\n  private:\n    command: private-mcp\n",
+    );
+    // What MetatorAI itself uses (intake, reviews, doctor): both, the person's over the repository's.
+    const all = (await w.store.mcp())._unsafeUnwrap();
+    expect(Object.keys(all)).toEqual(["jira", "notes", "private"]);
+    expect(all.notes?.command).toBe("my-notes");
+    // What a committed file may hold: the repository's servers, as the repository wrote them.
+    const repo = (await w.store.repoMcp())._unsafeUnwrap();
+    expect(Object.keys(repo)).toEqual(["jira", "notes"]);
+    expect(repo.notes?.command).toBe("repo-notes");
+  });
 });

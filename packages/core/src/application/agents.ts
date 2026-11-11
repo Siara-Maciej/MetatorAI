@@ -167,7 +167,10 @@ export class GenerateHosts {
     private readonly generators: readonly HostGenerator[],
     private readonly fs: FileSystem,
     private readonly config: MetatorConfig,
-    /** The MCP servers to write into the hosts' file (repository and person); none when omitted. */
+    /**
+     * The MCP servers to write into the hosts' file: the repository's only (the file is committed,
+     * a person's own servers stay in their options file); none when omitted.
+     */
     private readonly mcp: () => Promise<Result<McpServers, MetatorError>> = async () => ok({}),
   ) {}
 
