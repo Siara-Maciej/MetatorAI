@@ -1,5 +1,5 @@
 import { briefOf, err, MetatorError, ok, policyFrom, policyRefusal } from "@metator/core";
-import { type Command, Option } from "commander";
+import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 import { follow, person } from "../live.ts";
 import { positiveInt } from "../options.ts";
@@ -34,7 +34,7 @@ export function registerDriveCommands(
     .command("continue")
     .description("Continue a run: pick one that waits for you or stopped, drive it again and watch it")
     .argument("[run]", "run id (default: pick in a terminal, else the latest active run)")
-    .addOption(new Option("--host <host>", "AI host (default: the one the run used)").choices(HOSTS))
+    .option("--host <host>", `AI host: ${HOSTS.join(", ")} (default: the one the run used)`)
     .action(
       action(async (given: string | undefined, opts: { host?: string }) => {
         const c = container();
@@ -67,9 +67,7 @@ export function registerDriveCommands(
     .command("drive")
     .description("Carry the run stage by stage: scripts, agents through an AI host, questions to people")
     .option("--run <id>", "run id (default: latest)")
-    .addOption(
-      new Option("--host <host>", "AI host for the agents (default: first of hosts.targets)").choices(HOSTS),
-    )
+    .option("--host <host>", `AI host for the agents: ${HOSTS.join(", ")} (default: first of hosts.targets)`)
     .option("--detach", "keep driving in the background after this command returns", false)
     .option("--max-steps <n>", "stop after this many stage transitions", positiveInt, 200)
     .action(

@@ -1,7 +1,9 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { CONFIG_FILES } from "@metator/core";
 
-const MARKERS = [".git", "metator.config.ts", "metator.config.json", "metator.config.yml"];
+/** What marks a repository's root: git, or any config file MetatorAI loads. */
+const MARKERS = [".git", ...CONFIG_FILES];
 const FOLDER_FILE = "metator.repos.yml";
 const isRepo = (dir: string) => MARKERS.some((m) => existsSync(join(dir, m)));
 

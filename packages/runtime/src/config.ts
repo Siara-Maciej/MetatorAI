@@ -12,6 +12,7 @@ import {
   ok,
   parseYamlDocument,
   type Result,
+  withRepoOptions,
 } from "@metator/core";
 
 export interface LoadedConfig {
@@ -33,7 +34,8 @@ export function loadConfig(root: string): Result<LoadedConfig, MetatorError> {
       continue;
     }
     const parsed = parseYamlDocument(text, file).andThen((raw) => MetatorConfigDocument.parse(raw, file));
-    return parsed.isOk() ? ok({ config: parsed.value, source: file }) : err(parsed.error);
+    // The repository's options win over the older fields they replaced (`supervisor`, `notify`).
+    return parsed.isOk() ? ok({ config: withRepoOptions(parsed.value), source: file }) : err(parsed.error);
   }
   return ok({ config: DEFAULT_CONFIG, source: undefined });
 }

@@ -472,7 +472,6 @@ export const DEFAULT_KEYS: KeyMap = {
   release: ["prefix+escape"],
   copyMode: ["prefix+["],
   closePane: ["prefix+x"],
-  detach: ["prefix+q"],
   plan: ["prefix+p"],
   changes: ["prefix+r"],
   backlog: ["prefix+b"],
