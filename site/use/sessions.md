@@ -1,46 +1,87 @@
 # Sessions and worktrees
 
-A session is a run together with the place it works in. This page shows how to give each run its own checkout, see what every session does, stop and continue one, and clean up afterwards.
+A session is a run together with the place it works in. This page shows how to watch a session in the app and take its keyboard, what a worktree gives a run, and the commands that stop, continue, hand over and clean up sessions.
 
-## Give a run its own worktree
+## The Session screen
 
-A run that edits your working tree blocks you, and two runs in one tree disturb each other. A git worktree gives a run its own checkout on its own branch.
+A click on a run in the sessions panel opens its **Session** screen.
+
+![A session while the agent drives: the stages, the driver bar, the terminal, and the boxes on the right](../public/screens/session.png)
+
+The head shows the task, the run id and chips for the workflow, the autonomy level, the host, the worktree's ports and the time since the run started. Under them is the line of stages, with the current one marked.
+
+The driver bar says who types. With **Driver: agent** you watch. Type your name and click **Attach** (key `a`) to take the keyboard. **Release to agent** (key `c`) gives it back. While you are attached, your yes in the chat counts as an approval ([Workbench and terminals](./desktop.md#who-types-in-a-session)).
+
+Below the driver bar:
+
+- **Terminal** shows the run's main pane. The row above it lists the run's panes, each with its state. Click one to see it. **+ Shell** opens a shell pane of your own in this run.
+- **Events** (key `t` switches) lists the run's activity: the time, the type, the source and what happened.
+- The line at the bottom sends one line of text to the session. A click into it attaches you first.
+
+The boxes on the right:
+
+| Box | Shows |
+|---|---|
+| **Question** | the run's open question with a button per option; empty when nothing waits |
+| **Apps** | the services of the worktree's environment, with their state and ports |
+| **Changes** | **Review** opens the run's change ([Read the change](./changes.md)); **Open in editor** opens the worktree; below are the branch and the path |
+| **Links** | the parent run and the steps, files this run shares with another run (with which to merge first), and messages from other runs |
+
+The **Work** screen shows the same panes side by side ([Workbench and terminals](./desktop.md)). A run whose drive process died shows the chip **drive died** here.
+
+## What a worktree gives a run
+
+A run that edits your working tree blocks you, and two runs in one tree disturb each other. A git worktree gives a run its own checkout on its own branch. The agent's intake conversation offers it, and the **Advanced…** form has it ticked by default ([Start a task](./start.md)).
+
+For a run with a worktree, MetatorAI:
+
+1. creates a worktree at `.metator/wt/<run>` on a new branch `metator/<run>`, branched from `HEAD` (or from `--base`);
+2. reserves a block of 20 ports for it that no other worktree holds;
+3. links the run directory into the worktree, so agents and hooks find the run at the same path;
+4. sets up dependencies, so tests and linters can run there.
+
+For the dependencies, the main checkout's `node_modules` are copied when the lockfiles match. Otherwise your package manager installs in the worktree. A failed install is a warning and the run still starts.
+
+### Ports
+
+Each worktree gets its block from the range 41000 to 48999. When MetatorAI starts your application in a worktree (`metator env up`), every process gets these variables:
+
+| Variable | Value |
+|---|---|
+| `METATOR_WORKTREE` | the worktree's id |
+| `METATOR_PORT_BASE` | the first port of the block |
+| `METATOR_PORT_COUNT` | the size of the block |
+
+Base your port settings on `METATOR_PORT_BASE`, for example `PORT=$((METATOR_PORT_BASE + 0))` for the API and `+ 1` for the web app. Two copies of your application then never share a port. See [Run the application](../repo/environments.md).
+
+## From a terminal
+
+### Start a run in a worktree
 
 ```bash
 metator run init --workflow mt-feature --task "Add combined discount" --worktree
 metator run init --workflow mt-bugfix --task "Fix rounding" --worktree --base main
 ```
 
-With `--worktree`, MetatorAI:
-
-1. creates a worktree at `.metator/wt/<run>` on a new branch `metator/<run>`, branched from `--base` (default `HEAD`);
-2. reserves a block of 20 ports for it that no other worktree holds;
-3. links the run directory into the worktree, so agents and hooks find the run at the same path;
-4. sets up dependencies, so tests and linters can run there.
-
-For the dependencies, the main checkout's `node_modules` are copied when the lockfiles match. Otherwise your package manager installs in the worktree. A failed install is a warning and the run still starts. `--no-setup` skips this step, and you can run it later:
+`--no-setup` skips the dependencies, and you can set them up later:
 
 ```bash
 metator worktree setup --run <id>
 metator doctor --run <id>        # what this run can and cannot do in its worktree
 ```
 
-Inside a worktree, `metator run ...` without `--run` means that worktree's run.
+Inside a worktree, `metator run ...` without `--run` means that worktree's run. `metator run` and `metator issue start` offer a worktree too.
 
-`metator run`, the agent's intake conversation and `metator issue start` all offer a worktree too.
-
-## See every session
+### See every session
 
 ```bash
 metator status      # every run: its stage, what waits for you, its driver
 metator ui          # the same as a full-screen view in the terminal
 ```
 
-`metator ui` lists the sessions on the left, the ones that need you first, followed by your [`metator ask`](./ask.md) conversations. The right side shows the selected session: what it needs now, its stages, and three tabs for the overview, the live activity and the worktree's applications. The footer names the keys. `metator ui` needs a terminal. In a script, use `metator status`.
+`metator ui` lists the sessions on the left, the ones that need you first, followed by your [`metator ask`](./ask.md) conversations. The right side shows the selected session. The footer names the keys. `metator ui` needs a terminal. In a script, use `metator status`.
 
-The [desktop app](./desktop.md) shows the same sessions with their terminals.
-
-## Watch, stop and continue
+### Watch, stop and continue
 
 ```bash
 metator run activity --tail 8     # the last events: stages, agents, tools, questions, gates
@@ -58,14 +99,14 @@ metator run revive
 
 It does nothing when no drive died, so you can schedule it at boot.
 
-## Hand a run over
+### Hand a run over
 
 ```bash
 metator run handoff       # writes handoff.md: stage, approvals, artifacts, recent log, how to resume
 metator run brief         # what happened since you last looked
 ```
 
-## Close a run
+### Close a run
 
 ```bash
 metator run close --run <id>
@@ -75,7 +116,7 @@ metator run close --run <id> --aborted --reason "superseded"
 
 `run close` writes `summary.json`. `--remove-worktree` also removes the run's worktree and frees its ports. `--aborted` ends a run that is still active.
 
-## Manage worktrees
+### Manage worktrees
 
 ```bash
 metator worktree list                     # branch, ports, run status, uncommitted work
@@ -91,9 +132,9 @@ Removing a worktree keeps its `metator/<id>` branch, so committed work stays. `p
 `metator worktree rm <id> --force` and `metator run close --remove-worktree --force` delete uncommitted work in that worktree. Without `--force` both refuse.
 :::
 
-## Conflicts between sessions
+### Conflicts between sessions
 
-Two runs that change the same file clash when their branches merge. Check before that happens:
+Two runs that change the same file clash when their branches merge. The app shows such a pair in the **Links** box of both sessions and on the **Graph** screen. From a terminal:
 
 ```bash
 metator worktree conflicts
@@ -110,15 +151,3 @@ metator run messages --run <to>
 ```
 
 The receiving run's agents read the message as data about another run's work. They do not treat it as an instruction.
-
-## Ports
-
-Each worktree gets its block from the range 41000 to 48999. When MetatorAI starts your application in a worktree (`metator env up`), every process gets these variables:
-
-| Variable | Value |
-|---|---|
-| `METATOR_WORKTREE` | the worktree's id |
-| `METATOR_PORT_BASE` | the first port of the block |
-| `METATOR_PORT_COUNT` | the size of the block |
-
-Base your port settings on `METATOR_PORT_BASE`, for example `PORT=$((METATOR_PORT_BASE + 0))` for the API and `+ 1` for the web app. Two copies of your application then never share a port. See [Run the application](../repo/environments.md).

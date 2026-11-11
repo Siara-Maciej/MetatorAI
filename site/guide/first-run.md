@@ -1,8 +1,6 @@
 # First run
 
-This page sets MetatorAI up in a repository and walks one run by hand, so you see the stages, a gate and a blocked push before an agent does the work for you. It takes about ten minutes and needs the [`metator` command](./install.md).
-
-Every `metator` command prints one JSON object. The examples show it trimmed.
+This page sets MetatorAI up in a repository and takes one task from start to delivery in the desktop app. You describe the task, approve the plan, watch the agents work, read the change and approve the push. It needs the [`metator` command](./install.md), the app, and Claude Code or GitHub Copilot installed.
 
 ## Set up the repository
 
@@ -35,58 +33,61 @@ Setup does four things:
 
 Commit the result. `--host` takes `claude`, `copilot` or both.
 
-## Check what a run can do here
+`metator doctor` then tells you what a run can do here. Each check is `ok`, `warn` (a run starts but does less) or `fail` (a run cannot start), and each problem names the command that fixes it.
+
+## Start the daemon and open the app
 
 ```bash
-metator doctor
+metator serve
 ```
 
-```json
-{"ok":true,"data":{"ready":true,"checks":[
- {"id":"gates","status":"ok","message":"gates: 3 full and 1 quick step(s)"},
- {"id":"dependencies","status":"warn","message":"dependencies are not installed: in a run, tests, the type checker and linters cannot run, so gates check only rules","fix":"npm install"},
- {"id":"remote","status":"warn","message":"no git remote: a run's publish stage cannot push its branch","fix":"git remote add origin <url>"}]}}
+The daemon listens on `http://127.0.0.1:4310`. Leave it running and open the desktop app ([The app](../use/index.md#start-it) says where the installers are). The chip at the top right reads **connected**, and the **Inbox** is empty.
+
+## Describe the task
+
+Click **+ New session** at the bottom of the sessions panel. The **Work** screen opens with a pane in which the agent `mt-orchestrator` runs on your AI tool. Write the task there:
+
+```text
+Add a subtract function next to add, with a test
 ```
 
-Each check is `ok`, `warn` (a run starts but does less) or `fail` (a run cannot start). Each problem names the command that fixes it.
+The agent answers with one numbered message that asks what the code cannot settle, for example which workflow to use and whether the run gets its own worktree. Each point has options, with the recommended one first. Answer, for example `1 1, 2 yes`. The agent starts the run and names it. The run appears in the sessions panel and as a tab on **Work**.
 
-## Run the quality gate
+## Approve the plan
+
+The run surveys the code, writes a plan and checks it. Then it stops, and the counter **need you** in the top bar goes to 1. Open the **Inbox**.
+
+![A gate's decision card in the Inbox, with Approve recommended](../public/screens/inbox.png)
+
+The decision card shows the task, what was done so far and the options. To read the plan first, go to **Work** and click the stages under the tabs: the **Plan** screen lists every step with its file and the tests that come first.
+
+Back in the **Inbox**, choose **Approve**, type your name in the last field and click the **Approve** button. To send the plan back, choose **Reject** and write the reason in the note field.
+
+## Watch the work
+
+After your approval the run builds. On **Work**, the run's tab shows the agents in panes, each with its state. You can watch without touching anything. When an agent needs you (a question, or a tool it may not run on its own), the question arrives in the **Inbox** like the gate did.
+
+The build is followed by the gates (your own `lint`, `typecheck` and `test` scripts) and by the review agents.
+
+## Read the change and approve delivery
+
+Click the run in the sessions panel to open its **Session** screen, then **Review** in the box **Changes**. The **Changes** screen lists the files and their diffs. Click a line to leave a note. The button **Send 1 to agent** (with the number of your notes) hands them to the run.
+
+At the `delivery` stage the run stops again. Nothing is pushed until you approve this gate in the **Inbox**, at any autonomy level.
+
+## The same run from a terminal
+
+Every step above is also a command, and the app, the agents and CI call the same ones.
 
 ```bash
-metator gate full
+metator run                                          # asks for the workflow, the task and the host, then drives the run
+metator inbox                                        # what waits for you
+metator run answer q001 --choice Approve --by alice  # answer a question
+metator run board                                    # the plan and where the run stands
+metator review changes --run <id>                    # what the run changed
 ```
 
-```json
-{"ok":true,"data":{"gate":"full","passed":true,"steps":[
- {"id":"lint","command":["npm","run","lint"],"exitCode":0,"status":"pass"},
- {"id":"typecheck","command":["npm","run","typecheck"],"exitCode":0,"status":"pass"},
- {"id":"test","command":["npm","run","test"],"exitCode":0,"status":"pass"}]}}
-```
-
-These are your own scripts, run with your package manager. Agents run the same command during a run, and the report is saved to `.metator/gates/full.json`. To change the steps, edit `gates` in `metator.config.yml` (see [Gates and CI](../repo/gates-ci.md)).
-
-## Walk a run by hand
-
-In daily use an agent sends these commands. Sending them yourself shows what the agent is allowed to do.
-
-Start a run of the feature workflow:
-
-```bash
-metator run init --workflow mt-feature --task "Add a subtract function next to add, with a test"
-```
-
-```json
-{"ok":true,"data":{"runId":"20261111-mt-feature-add-a-subtract-function-next-to-add-with",
- "stage":"setup","status":"active","expects":["PASS","FAIL","ABORT"]}}
-```
-
-The run is at its first stage. Report four stages as done, one command each:
-
-```bash
-metator run advance pass
-```
-
-The run moves through `intake`, `context`, `plan` and `plan-gate` and arrives at `plan-approval`. Send `pass` again:
+Every `metator` command prints one JSON object. A gate does not open on an agent's word. This is what a run answers when an agent reports the plan approval as passed:
 
 ```json
 {"ok":false,"error":{"code":"TRANSITION_DENIED",
@@ -94,40 +95,7 @@ The run moves through `intake`, `context`, `plan` and `plan-gate` and arrives at
  "hint":"This gate needs a human decision: APPROVE, FAIL, ABORT."}}
 ```
 
-This stage accepts only an approval with a name on it:
-
-```bash
-metator run approve plan-approval --by alice
-```
-
-The run is now at `build`. With the hooks installed, your AI tool asks MetatorAI before every tool call. Ask the same question an agent's `git push` would trigger:
-
-```bash
-echo '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | metator guard pre-tool
-```
-
-```json
-{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny",
- "permissionDecisionReason":"push needs the user's approval: show the report and options, then `metator run approve push --by <user>`."}}
-```
-
-The push is denied until the run reaches its `delivery` stage and you approve it. End the demo run:
-
-```bash
-metator run close --aborted --reason "demo finished"
-```
-
-The run's directory, `.metator/runs/<run id>/`, keeps `state.json`, `log.md` with every transition, and `summary.json`.
-
-## Start a real task
-
-In Claude Code or Copilot Chat, ask the coordinator agent:
-
-```text
-@mt-orchestrator run mt-feature for "Add a subtract function next to add, with a test"
-```
-
-Or run `metator run` in a terminal. It asks for the workflow, the task and the AI tool, then drives the run and stops at each decision that is yours. [Start a task](../use/index.md) covers both ways.
+[Start a task](../use/start.md#from-a-terminal) and the [command reference](../reference/commands.md) have the details.
 
 ## Update the shipped files
 
@@ -142,6 +110,6 @@ A file that both you and the new version changed is reported as a conflict and y
 
 ## Next
 
-- [Runs and workflows](./runs.md): what the stages are and what a run leaves on disk.
+- [The app](../use/index.md): every screen and what it is for.
 - [Gates and approvals](./gates.md): where a run stops and who can open each gate.
-- [Rules](../repo/index.md): turn your team's conventions into checks.
+- [Your settings](../use/settings.md): your keys, editor and look.
