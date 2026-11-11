@@ -24,6 +24,8 @@ export interface MyReviewsDependencies {
   readonly initRun: Pick<InitRun, "execute">;
   /** Whether a run still goes on (a request has one answering run at a time). */
   readonly runActive: (runId: string) => Promise<boolean>;
+  /** Whether a run finished as done: its change is committed and pushed (the publish gate). */
+  readonly runDone: (runId: string) => Promise<boolean>;
 }
 
 export interface ReviewScanReport {
@@ -35,6 +37,8 @@ export interface ReviewScanReport {
     readonly fresh: readonly string[];
     /** The run this scan started for the request. */
     readonly started?: string;
+    /** Planned threads this scan marked fixed: the run that answered them is done. */
+    readonly fixed?: readonly string[];
   }[];
   /** Sources or requests that could not be read; the others are scanned all the same. */
   readonly errors: readonly string[];
@@ -71,13 +75,19 @@ export class MyReviews {
         const merged = mergeThreads(kept?.threads ?? [], threads.value, now);
         // A request nobody reviewed is not kept.
         if (!kept && merged.threads.length === 0) continue;
+        // What the plan covered is fixed once the answering run is done: its change is pushed.
+        const pushed = kept?.runId !== undefined && (await this.d.runDone(kept.runId));
+        const fixed = pushed ? merged.threads.filter((t) => t.state === "planned").map((t) => t.id) : [];
+        const settled = merged.threads.map((t) =>
+          fixed.includes(t.id) ? { ...t, state: "fixed" as const } : t,
+        );
         let review: PullRequestReview = {
           source,
           number: pr.number,
           title: pr.title,
           ...(pr.branch ? { branch: pr.branch } : {}),
           ...(pr.url ? { url: pr.url } : {}),
-          threads: merged.threads,
+          threads: settled,
           ...(kept?.runId ? { runId: kept.runId } : {}),
           updatedAt: now,
         };
@@ -104,6 +114,7 @@ export class MyReviews {
           open: review.threads.filter((t) => t.state === "open").length,
           fresh: merged.fresh,
           ...(started ? { started } : {}),
+          ...(fixed.length > 0 ? { fixed } : {}),
         });
       }
     }
