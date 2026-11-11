@@ -105,12 +105,13 @@ describe("metator attach (real daemon, real PTYs)", () => {
 
   test("a run names its conductor pane: the lock is taken, the answer typed reaches the session, the exit ends it and releases", async () => {
     await mt("run", "start");
+    // No --by: the person is $METATOR_USER, as everywhere else.
     const r = await inTerminal(
-      ["attach", runId, "--by", "maciej"],
+      ["attach", runId],
       repo.root,
       [{ waitFor: "Go on? [yes / no]", keys: "yes\r" }],
       30_000,
-      env,
+      { ...env, METATOR_USER: "maciej" },
     );
     expect(r.screen).toContain(`attached to w1:p2 (conductor of run ${runId})`);
     expect(r.screen).toContain("answer: yes");
@@ -136,6 +137,16 @@ describe("metator attach (real daemon, real PTYs)", () => {
     const r = await inTerminal(["attach", "w9:p9", "--by", "maciej"], repo.root, [], 20_000, env);
     expect((r.json.error as Data).code).toBe("NOT_FOUND");
     const dead = await inTerminal(["attach", "w1:p2", "--by", "maciej"], repo.root, [], 20_000, env);
-    expect((dead.json.error as Data).message).toBe("pane w1:p2 has no live terminal");
+    expect([(dead.json.error as Data).code, (dead.json.error as Data).message]).toEqual([
+      "NOT_FOUND",
+      "pane w1:p2 has no live terminal",
+    ]);
+    // A run without a live conductor pane is not found either (not a usage error).
+    const none = await inTerminal(["attach", runId, "--by", "maciej"], repo.root, [], 20_000, env);
+    expect([none.code, (none.json.error as Data).code, (none.json.error as Data).message]).toEqual([
+      1,
+      "NOT_FOUND",
+      `run ${runId} has no live conductor pane`,
+    ]);
   }, 60_000);
 });

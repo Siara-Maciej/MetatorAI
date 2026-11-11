@@ -75,6 +75,11 @@ describe("pane split (real daemon)", () => {
     const first = await post("/panes", { runId, role: "shell", argv: ["sh"] });
     expect(first.ok).toBe(true);
     const firstId = first.data.id as string;
+    const sideways = await mt("pane", "split", firstId, "--dir", "up");
+    expect([sideways.code, (sideways.json.error as Data).message]).toEqual([
+      64,
+      expect.stringContaining("Allowed choices are right, down"),
+    ]);
     const split = data(await mt("pane", "split", firstId, "--dir", "down"));
     expect([split.tab, split.role, split.process]).toEqual([
       first.data.tab,

@@ -1,9 +1,11 @@
 import {
+  err,
   ISSUE_PRIORITIES,
   ISSUE_STATUSES,
   type IssuePriority,
   type IssueRef,
   type IssueStatus,
+  MetatorError,
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
@@ -127,7 +129,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
   issue
     .command("decide <id>")
     .description("A person decides a proposal outside the inbox: --add or --drop")
-    .option("--add", "add it to the backlog", false)
+    .addOption(new Option("--add", "add it to the backlog").default(false).conflicts("drop"))
     .option("--drop", "drop it", false)
     .addOption(priority)
     .option("--labels <a,b>", "labels, comma-separated")
@@ -137,16 +139,20 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
         async (
           id: string,
           opts: { add: boolean; drop: boolean; priority?: IssuePriority; labels?: string; by: string },
-        ) => ({
-          result: await runs()
-            .resolve("issues")
-            .decide(id, {
-              by: opts.by,
-              decision: opts.drop ? "drop" : "add",
-              ...(opts.priority ? { priority: opts.priority } : {}),
-              ...(labels(opts.labels) ? { labels: labels(opts.labels) as string[] } : {}),
-            }),
-        }),
+        ) => {
+          if (!opts.add && !opts.drop)
+            return { result: err(MetatorError.usage("say what you decide: --add or --drop")) };
+          return {
+            result: await runs()
+              .resolve("issues")
+              .decide(id, {
+                by: opts.by,
+                decision: opts.drop ? "drop" : "add",
+                ...(opts.priority ? { priority: opts.priority } : {}),
+                ...(labels(opts.labels) ? { labels: labels(opts.labels) as string[] } : {}),
+              }),
+          };
+        },
       ),
     );
 

@@ -302,6 +302,44 @@ describe("metator CLI (process e2e)", () => {
         expect(all.commands.some((x) => x.name === c.name || x.name.startsWith(`${c.name} `))).toBe(true);
   });
 
+  test("--help after -C <dir> is the command's help; a bare group is the group's help, exit 0", async () => {
+    for (const root of [
+      ["-C", repo],
+      ["--root", repo],
+    ]) {
+      const help = await metator([...root, "serve", "--help"], repo);
+      const data = help.json.data as { name: string; options: { flags: string }[] };
+      expect([help.code, data.name]).toEqual([0, "serve"]);
+      expect(data.options.map((o) => o.flags)).toContain("--port <n>");
+    }
+    for (const group of ["repos", "worktree", "env", "system", "graph"]) {
+      const bare = await metator([group], repo);
+      const data = bare.json.data as { name: string; commands: { name: string }[] };
+      expect([bare.code, bare.json.ok, data.name]).toEqual([0, true, group]);
+      expect(data.commands.every((c) => c.name.startsWith(`${group} `))).toBe(true);
+    }
+  }, 30_000);
+
+  test("a number option that is not a number is a usage error (64), never an internal one", async () => {
+    const bad: string[][] = [
+      ["serve", "--port", "abc"],
+      ["serve", "--supervise-ms", "-1"],
+      ["serve", "--intake-ms", "x"],
+      ["serve", "--reviews-ms", "1.5"],
+      ["run", "board", "--timeline", "many"],
+      ["open", "--file", "a.ts", "--line", "abc"],
+      ["review", "notes", "add", "note", "--by", "m", "--line", "abc"],
+    ];
+    for (const argv of bad) {
+      const r = await metator(argv, repo);
+      expect([argv.join(" "), r.code, (r.json.error as { code: string }).code]).toEqual([
+        argv.join(" "),
+        64,
+        "USAGE",
+      ]);
+    }
+  }, 30_000);
+
   test("unknown command: exit 64 (usage), machine-readable error with a hint", async () => {
     const run = await metator(["definitely-not-a-command", "--flag"], repo);
     expect(run.code).toBe(64);

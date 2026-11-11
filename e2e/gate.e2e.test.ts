@@ -114,12 +114,16 @@ describe("metator gate", () => {
     ]);
   });
 
-  test("unknown gate names are usage errors; an empty gate says how to fill it", async () => {
+  test("unknown gate names are usage errors; an empty gate is a config problem and says how to fill it", async () => {
     expect((await metator(["gate", "slow"], repo.root)).code).toBe(64);
     const empty = await ScratchRepo.create();
     try {
       const r = await metator(["gate", "quick"], empty.root);
-      expect([r.code, (r.json.error as Data).hint]).toEqual([64, expect.stringContaining("metator init")]);
+      expect([r.code, (r.json.error as Data).code, (r.json.error as Data).hint]).toEqual([
+        1,
+        "INVALID_CONFIG",
+        expect.stringContaining("metator init"),
+      ]);
     } finally {
       await empty.dispose();
     }

@@ -421,7 +421,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       "The plan board (S2): stages with who worked them, the plan's steps with their state, workers, what waits for you, artifacts, gates, the last events",
     )
     .option("--run <id>", "run id (default: latest)")
-    .option("--timeline <n>", "how many events to keep", (v: string) => Number(v), 30)
+    .option("--timeline <n>", "how many events to keep", positiveInt, 30)
     .action(
       action(async (opts: { run?: string; timeline: number }) => ({
         result: await container()

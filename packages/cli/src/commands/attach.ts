@@ -11,6 +11,7 @@ import type { Command } from "commander";
 import { type AttachIo, type AttachOutcome, type AttachSocket, attachPane, isPaneId } from "../attach.ts";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, findDaemon } from "../daemon-client.ts";
+import { person } from "../live.ts";
 
 /** The person's own terminal as the attach client's IO (raw mode on stdin, bytes on stdout). */
 export function processIo(
@@ -76,12 +77,12 @@ export function registerAttachCommand(program: Command, ctx: CommandContext): vo
     .description(
       "This terminal on a pane (or a run's conductor pane); Ctrl-] detaches. A run's pane takes its driver lock",
     )
-    .option("--by <name>", "who attaches (default: $USER)")
+    .option("--by <name>", "who attaches (default: $METATOR_USER, else your login name)")
     .option("--keep", "keep the run's driver lock after detaching")
     .action(
       ctx.action(async (id: string, given: { by?: string; keep?: boolean }) => {
         // Resolved here, not as the option's default: the CLI reference is generated from the options.
-        const opts = { ...given, by: given.by ?? process.env.USER ?? process.env.USERNAME ?? "" };
+        const opts = { ...given, by: given.by ?? person() };
         if (!process.stdin.isTTY) {
           return {
             result: err(
@@ -133,7 +134,9 @@ async function resolvePane(
     if (pane.isErr()) return err(pane.error);
     if (!pane.value.pane.live?.alive)
       return err(
-        MetatorError.usage(`pane ${id} has no live terminal`, "`metator pane list` shows the live panes."),
+        new MetatorError("NOT_FOUND", `pane ${id} has no live terminal`, {
+          hint: "`metator pane list` shows the live panes.",
+        }),
       );
     return ok({ paneId: id, ...(pane.value.pane.runId ? { runId: pane.value.pane.runId } : {}) });
   }
@@ -144,6 +147,10 @@ async function resolvePane(
   );
   if (pty.isErr()) return err(pty.error);
   if (!pty.value.session?.alive || pty.value.session.role !== "conductor")
-    return err(MetatorError.usage(`run ${id} has no live conductor pane`, "`metator run start` opens one."));
+    return err(
+      new MetatorError("NOT_FOUND", `run ${id} has no live conductor pane`, {
+        hint: "`metator run start` opens one.",
+      }),
+    );
   return ok({ paneId: pty.value.session.paneId, runId: id });
 }
