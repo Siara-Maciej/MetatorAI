@@ -12,6 +12,7 @@ import {
 } from "../domain/review-thread.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem, ReviewHost } from "../ports/index.ts";
+import type { Notifier } from "./notifier.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { InitRun } from "./runs.ts";
 
@@ -24,6 +25,8 @@ export interface MyReviewsDependencies {
   readonly initRun: Pick<InitRun, "execute">;
   /** Whether a run still goes on (a request has one answering run at a time). */
   readonly runActive: (runId: string) => Promise<boolean>;
+  /** Tells the person about a review with new threads; none means no notifications. */
+  readonly notifier?: Pick<Notifier, "review">;
   /** Whether a run finished as done: its change is committed and pushed (the publish gate). */
   readonly runDone: (runId: string) => Promise<boolean>;
 }
@@ -108,6 +111,17 @@ export class MyReviews {
         }
         const saved = await this.write(id, review);
         if (saved.isErr()) return err(saved.error);
+        if (merged.fresh.length > 0 && this.d.notifier) {
+          // Once per thread: a thread is new in one scan only.
+          const failed = await this.d.notifier.review({
+            id,
+            number: pr.number,
+            title: pr.title,
+            ...(pr.url ? { url: pr.url } : {}),
+            fresh: merged.fresh.length,
+          });
+          if (failed) errors.push(failed);
+        }
         requests.push({
           id,
           number: pr.number,

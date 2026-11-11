@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
+import { Notifier } from "../src/application/notifier.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { MyReviews } from "../src/application/review-watch.ts";
 import { MetatorConfigDocument } from "../src/domain/config.ts";
@@ -23,12 +24,24 @@ const thread = (id: string, extra: Partial<HostThread> = {}): HostThread => ({
   ...extra,
 });
 
-function world(threads: () => HostThread[] | MetatorError) {
+function world(threads: () => HostThread[] | MetatorError, notifyExit = 0) {
   const fs = new InMemoryFileSystem();
   const started: { workflow: string; task: string; base?: string }[] = [];
   const sent: string[] = [];
+  const notified: Record<string, string>[] = [];
   const done = new Set<string>();
   const reviews = new MyReviews({
+    notifier: new Notifier({
+      journal: { record: async () => ok(undefined), activity: async () => ok([]) },
+      process: {
+        run: async (spec) => {
+          notified.push({ argv: spec.argv.join(" "), ...spec.env });
+          return { exitCode: notifyExit, stdout: "", stderr: "no display", timedOut: false, durationMs: 1 };
+        },
+      },
+      root: "/repo",
+      command: "notify-send hi",
+    }),
     config: ReviewsConfigSchema.parse({ sources: [{ kind: "github", repo: "acme/shop", author: "maciej" }] }),
     fs,
     paths: DEFAULT_PATHS,
@@ -72,7 +85,7 @@ function world(threads: () => HostThread[] | MetatorError) {
     runActive: async (runId) => runId === "run-1" && !done.has(runId),
     runDone: async (runId) => done.has(runId),
   });
-  return { fs, reviews, started, sent, done };
+  return { fs, reviews, started, sent, notified, done };
 }
 
 describe("reviews of my requests (T3, design/14 §4)", () => {
@@ -166,6 +179,34 @@ describe("reviews of my requests (T3, design/14 §4)", () => {
     const r = (await w.reviews.scan())._unsafeUnwrap();
     expect(r.errors).toEqual(["github:acme/shop#45: no MCP"]);
     expect(w.started).toEqual([]);
+  });
+
+  test("a review with new threads is announced once through notify.command; a failing command is reported, not fatal", async () => {
+    let listed = [thread("t1"), thread("t2")];
+    const w = world(() => listed);
+    await w.reviews.scan();
+    expect(w.notified).toEqual([
+      {
+        argv: "sh -c notify-send hi",
+        METATOR_EVENT: "review",
+        METATOR_NOTIFY_TEXT: "Review on #45 Cap the discount: 2 new threads",
+        METATOR_QUESTION_PROMPT: "Review on #45 Cap the discount: 2 new threads",
+        METATOR_REVIEW_ID: "github-acme-shop-45",
+        METATOR_REVIEW_NUMBER: "45",
+        METATOR_REVIEW_TITLE: "Cap the discount",
+        METATOR_REVIEW_URL: "https://x/45",
+      },
+    ]);
+    // Nothing new: nothing said. One more thread while the run goes on: said, though no run starts.
+    await w.reviews.scan();
+    expect(w.notified).toHaveLength(1);
+    listed = [...listed, thread("t3")];
+    await w.reviews.scan();
+    expect(w.notified[1]?.METATOR_NOTIFY_TEXT).toBe("Review on #45 Cap the discount: 1 new thread");
+    const broken = world(() => [thread("t1")], 3);
+    const report = (await broken.reviews.scan())._unsafeUnwrap();
+    expect(report.requests).toHaveLength(1);
+    expect(report.errors).toEqual(["notify.command failed for github-acme-shop-45 (exit 3): no display"]);
   });
 
   test("planned threads are fixed once the answering run is done, not before; other threads keep their state", async () => {
