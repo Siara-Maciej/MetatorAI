@@ -108,6 +108,7 @@ export * from "./domain/docs.ts";
 export * from "./domain/drive.ts";
 export * from "./domain/dupes.ts";
 export * from "./domain/editors.ts";
+export * from "./domain/effective-config.ts";
 export * from "./domain/environment.ts";
 export * from "./domain/environment-discovery.ts";
 export * from "./domain/environment-profile.ts";

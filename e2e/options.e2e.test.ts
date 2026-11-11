@@ -44,7 +44,7 @@ afterAll(async () => {
 describe("metator config (options, real CLI)", () => {
   test("list shows every option with its source; legacy config fields count as the repository's values", async () => {
     const view = data(await mt("config", "list"));
-    expect((view.options as unknown[]).length).toBeGreaterThan(40);
+    expect((view.options as unknown[]).length).toBeGreaterThan(30);
     expect(option(view, "editor.command")).toMatchObject({ value: "cursor", source: "repo" });
     expect(option(view, "supervisor.wipLimit")).toMatchObject({ value: 3, source: "repo" });
     expect(option(view, "ui.paneBorders")).toMatchObject({ value: "auto", source: "default" });
@@ -80,7 +80,7 @@ describe("metator config (options, real CLI)", () => {
   }, 30_000);
 
   test("a wrong value or scope is refused with USAGE and nothing changes; a wrong value in the file is a diagnostic", async () => {
-    const bad = await mt("config", "set", "ui.sidebarWidth", "wide", "--scope", "user");
+    const bad = await mt("config", "set", "terminal.scrollbackLines", "wide", "--scope", "user");
     expect(bad.code).not.toBe(0);
     expect(bad.json.error).toMatchObject({ code: "USAGE" });
     const scope = await mt("config", "set", "ui.paneBorders", "off", "--scope", "repo");
@@ -91,12 +91,12 @@ describe("metator config (options, real CLI)", () => {
     // A hand-edited file with a wrong value: the default applies, the file says so.
     await Bun.write(
       join(configDir, "options.yml"),
-      'kind: UserOptions\nschemaVersion: 1\noptions:\n  keys.zoom: [prefix+f, ctrl+z]\n  keys.detach: "ctrl+"\n  ui.nope: 1\n',
+      'kind: UserOptions\nschemaVersion: 1\noptions:\n  keys.zoom: [prefix+f, ctrl+z]\n  keys.help: "ctrl+"\n  ui.nope: 1\n',
     );
     const view = data(await mt("config", "list"));
-    expect(option(view, "keys.detach")).toMatchObject({ value: ["prefix+q"], source: "default" });
+    expect(option(view, "keys.help")).toMatchObject({ value: ["prefix+?"], source: "default" });
     expect((view.diagnostics as { kind: string; key: string }[]).map((d) => [d.kind, d.key])).toEqual([
-      ["invalid-value", "keys.detach"],
+      ["invalid-value", "keys.help"],
       ["unknown-key", "ui.nope"],
     ]);
   }, 30_000);
@@ -158,30 +158,33 @@ describe("metator config (options, real CLI)", () => {
       const view = await call("/options");
       expect(view.ok).toBe(true);
       expect(option(view.data, "supervisor.wipLimit")).toMatchObject({ value: 2, source: "repo" });
-      const set = await call("/options/ui.density", {
+      // The option is what the supervisor runs with, not only what the list shows.
+      const supervisor = await call("/supervisor");
+      expect((supervisor.data.policy as Data).wipLimit).toBe(2);
+      const set = await call("/options/ui.paneBorders", {
         method: "POST",
-        body: JSON.stringify({ scope: "user", value: "compact" }),
+        body: JSON.stringify({ scope: "user", value: "always" }),
         headers: { "content-type": "application/json" },
       });
-      expect(set.data).toMatchObject({ key: "ui.density", value: "compact", source: "user" });
+      expect(set.data).toMatchObject({ key: "ui.paneBorders", value: "always", source: "user" });
       expect(parse(await readFile(join(configDir, "options.yml"), "utf8"))).toMatchObject({
-        options: { "ui.density": "compact" },
+        options: { "ui.paneBorders": "always" },
       });
-      const refused = await call("/options/ui.density", {
+      const refused = await call("/options/ui.paneBorders", {
         method: "POST",
         body: JSON.stringify({ scope: "user", value: "loose" }),
         headers: { "content-type": "application/json" },
       });
       expect(refused.ok).toBe(false);
       expect(refused.error.code).toBe("USAGE");
-      const reset = await call("/options/ui.density", {
+      const reset = await call("/options/ui.paneBorders", {
         method: "POST",
         body: JSON.stringify({ scope: "user", reset: true }),
         headers: { "content-type": "application/json" },
       });
-      expect(reset.data).toMatchObject({ value: "comfortable", source: "default" });
+      expect(reset.data).toMatchObject({ value: "auto", source: "default" });
       // The CLI sees what the daemon wrote.
-      expect(data(await mt("config", "get", "ui.density"))).toMatchObject({ source: "default" });
+      expect(data(await mt("config", "get", "ui.paneBorders"))).toMatchObject({ source: "default" });
     } finally {
       daemon.kill("SIGTERM");
       await daemon.exited;

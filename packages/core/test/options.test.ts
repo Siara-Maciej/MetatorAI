@@ -153,7 +153,8 @@ describe("resolveOptions", () => {
     ];
     const config = MetatorConfigSchema.parse({ supervisor: { wipLimit: 7 } });
     expect(resolveOptions(d, [], config).options[0]).toMatchObject({ value: 7, source: "repo" });
-    expect(resolveOptions(d, [], DEFAULT_CONFIG).options[0]).toMatchObject({ value: 4, source: "repo" });
+    // The field's own default is not something the repository set.
+    expect(resolveOptions(d, [], DEFAULT_CONFIG).options[0]).toMatchObject({ value: 4, source: "default" });
     expect(
       resolveOptions(d, [{ scope: "repo", source: "c", values: { "supervisor.wipLimit": 2 } }], config)
         .options[0],
