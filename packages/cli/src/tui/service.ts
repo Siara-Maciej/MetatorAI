@@ -285,11 +285,11 @@ export function tuiService(ctx: ServiceContext): TuiService {
         }
         return { argv: ["git", "diff", base], cwd: dir };
       }
-      // The same editor `metator open` and the app use: the `editor.command` option when a file
-      // sets it (yours, or the repository's `editor`), else $VISUAL or $EDITOR.
+      // The same editor `metator open` and the app use: your `editor.command` option, else the
+      // repository's `editor`, else $VISUAL or $EDITOR.
       const option = await c.resolve("optionStore").get("editor.command");
-      const chosen =
-        option.isOk() && option.value.source !== "default" ? String(option.value.value) : undefined;
+      const mine = option.isOk() ? (option.value.layers.user as string | undefined) : undefined;
+      const chosen = mine ?? c.resolve("config").config.editor;
       const editor = preferredEditor(chosen, ctx.env);
       if (!editor) return "No editor is set: choose one in the settings (,).";
       const l = editorLaunch(editor, dir);
