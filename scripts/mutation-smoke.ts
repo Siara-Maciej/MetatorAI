@@ -7,7 +7,10 @@
  * never touched (an interrupted run cannot leave a bug behind). A worker proves its copy first: the
  * unmutated suite must pass there.
  *
- * Usage: bun scripts/mutation-smoke.ts [file filter] [--jobs N]
+ * Each mutant is tried on its own package's tests first and on the whole suite only when those pass
+ * (`--full` runs the whole suite for every mutant).
+ *
+ * Usage: bun scripts/mutation-smoke.ts [file filter] [--jobs N] [--full]
  */
 import { lstatSync, readdirSync, readlinkSync } from "node:fs";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
@@ -19,6 +22,7 @@ const ROOT = join(import.meta.dir, "..");
 const args = process.argv.slice(2);
 const jobsAt = args.indexOf("--jobs");
 const jobs = Math.max(1, jobsAt >= 0 ? Number(args[jobsAt + 1]) : availableParallelism());
+const full = args.includes("--full");
 const filter = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--jobs");
 const selected = filter ? MUTANTS.filter((m) => m.file.includes(filter)) : MUTANTS;
 
@@ -76,8 +80,24 @@ async function prepare(files: readonly string[]): Promise<string> {
   return dir;
 }
 
-const suite = (cwd: string) =>
-  Bun.spawn(["bun", "test", "--bail", "packages"], { cwd, stdout: "ignore", stderr: "ignore" }).exited;
+const suite = (cwd: string, path = "packages") =>
+  Bun.spawn(["bun", "test", "--bail", path], { cwd, stdout: "ignore", stderr: "ignore" }).exited;
+
+/** The mutated file's own package (`packages/<name>`): its tests are the first to ask. */
+function ownPackage(file: string): string | undefined {
+  return /^packages\/[^/]+/.exec(file)?.[0];
+}
+
+/**
+ * Whether the tests catch the mutant in `cwd`. The package's own tests run first: a failure there
+ * is a failure of the whole suite, at a fraction of its time. Only a mutant they let through is
+ * put to the whole suite, so a mutant survives exactly when it survived before.
+ */
+async function killedIn(cwd: string, m: Mutant): Promise<boolean> {
+  const own = full ? undefined : ownPackage(m.file);
+  if (own !== undefined && (await suite(cwd, own)) !== 0) return true;
+  return (await suite(cwd)) !== 0;
+}
 
 const files = sourceFiles();
 const dirs: string[] = [];
@@ -104,7 +124,7 @@ try {
         const path = join(dir, m.file);
         const original = await Bun.file(path).text();
         await Bun.write(path, original.replace(m.from, m.to));
-        const killed = (await suite(dir)) !== 0;
+        const killed = await killedIn(dir, m);
         await Bun.write(path, original);
         console.log(`${killed ? "KILLED " : "SURVIVED"} ${m.file}: ${m.why}`);
         if (!killed) failures++;
