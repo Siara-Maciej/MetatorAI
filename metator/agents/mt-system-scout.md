@@ -25,7 +25,8 @@ output: { artifact: system analysis, summaryLines: 15 }
 # Output
 - The analysis file, with every contract's change decided where the facts allow it, and the files and notes of every application.
 - A summary of at most 15 lines: the contracts and their change, the applications and why each is touched.
+- In a run (stage `analyze`): `system-analysis.md` in the run directory, with the path of the analysis file and that summary.
 
 # Stop conditions
-- Edit only the analysis file. Never change code, the map or a plan.
+- Edit only the analysis file (in a run, also write `system-analysis.md`). Never change code, the map or a plan.
 - A contract's change cannot be decided from the facts: leave it `unknown` and say what a person must decide.

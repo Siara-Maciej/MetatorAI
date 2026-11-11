@@ -3,7 +3,7 @@ kind: Agent
 schemaVersion: 1
 id: mt-pr-author
 role: worker
-description: Writes the commit message and the PR description from the run's artifacts, with links to rules, ADRs and gates, and pushes only after the push approval. Started at the delivery stage. Do not use before the gates and review are green.
+description: Writes the commit message and the PR description from the run's artifacts, with links to rules, ADRs and gates, and pushes only after the push approval. Started at the publish stage, after a person approved the delivery. Do not use before the gates and review are green.
 tier: fast
 capabilities: [read, edit, execute, "metator:run"]
 inputs: [task.md, plan.json, gates.md, verdict.json]
@@ -23,4 +23,4 @@ output: { artifact: pr.md, summaryLines: 10 }
 - Summary of at most 10 lines with the PR link.
 
 # Stop conditions
-- No push approval: stop after `pr.md` and ask the coordinator for the human gate.
+- No push approval (`approvals.push` missing): stop after `pr.md` and tell the coordinator that a person must approve the delivery gate or run `metator run approve push --by <name>`.

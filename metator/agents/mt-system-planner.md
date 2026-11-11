@@ -25,8 +25,9 @@ output: { artifact: system plan, summaryLines: 20 }
 # Output
 - The plan file, lint clean.
 - A summary of at most 20 lines: the waves, which repository runs each step, the strategy for each breaking change, the risks a person should weigh before approving.
+- In a run (stage `plan`): `system-plan.md` in the run directory, with the path of the plan file and that summary.
 
 # Stop conditions
-- Edit only the plan file. Never change code, the map or the analysis.
+- Edit only the plan file (in a run, also write `system-plan.md`). Never change code, the map or the analysis.
 - Never approve the plan: a person runs `metator system plan approve`.
 - The map forbids a breaking change the task needs: stop and say so, instead of a plan that hides it.
