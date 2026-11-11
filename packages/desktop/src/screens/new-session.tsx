@@ -21,7 +21,6 @@ export function NewSessionDialog({
   const [autonomy, setAutonomy] = useState("L0");
   const [worktree, setWorktree] = useState(true);
   const [parent, setParent] = useState("");
-  const [attach, setAttach] = useState(false);
   const [name, setName] = useState(me);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -71,7 +70,7 @@ export function NewSessionDialog({
       return;
     }
     if (r.data.drive?.error) setError(`created, but the drive did not start: ${r.data.drive.error}`);
-    onCreated(r.data.run.runId, andAttach || attach);
+    onCreated(r.data.run.runId, andAttach);
   };
   return (
     <div className="backdrop">
@@ -147,15 +146,6 @@ export function NewSessionDialog({
                 </option>
               ))}
           </select>
-        </label>
-        <label className="field">
-          <span>Start actions</span>
-          <span>
-            <label>
-              <input type="checkbox" checked={attach} onChange={(e) => setAttach(e.target.checked)} /> attach
-              me when it first asks
-            </label>
-          </span>
         </label>
         <label className="field">
           <span>Your name</span>

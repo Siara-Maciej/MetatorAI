@@ -4949,4 +4949,10 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "unsetting a key a scope does not hold writes no file",
   },
+  {
+    file: "packages/core/src/application/options.ts",
+    from: "return (await this.repoMcp()).map((repo) => mergeMcpServers(repo, mine));",
+    to: "return this.repoMcp();",
+    why: "MetatorAI itself uses the person's MCP servers too; only the committed host file leaves them out",
+  },
 ];

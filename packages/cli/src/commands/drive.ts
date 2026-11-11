@@ -162,7 +162,9 @@ export function registerDriveCommands(
 
   runs
     .command("answer")
-    .description("Answer a question; the drive waiting for it continues")
+    .description(
+      "Record the answer to a question; the run continues when a drive is waiting for it (with none, `metator run continue` starts one)",
+    )
     .argument("<question>", "question id, e.g. q001")
     .option("--run <id>", "run id (default: latest)")
     .option("--choice <labels...>", "the option label(s) chosen")

@@ -1206,7 +1206,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     lintAgents: asFunction(({ agentCatalog }) => new LintAgents(agentCatalog, "mt-")),
     generateHosts: asFunction(
       ({ agentCatalog, hostGenerators, fileSystem, config, optionStore }) =>
-        new GenerateHosts(agentCatalog, hostGenerators, fileSystem, config.config, () => optionStore.mcp()),
+        new GenerateHosts(agentCatalog, hostGenerators, fileSystem, config.config, () =>
+          // The repository's servers only: `.mcp.json` is committed, a person's servers are not the team's.
+          optionStore.repoMcp(),
+        ),
     ),
     validateFindings: asFunction(({ fileSystem }) => new ValidateFindings(fileSystem)),
     mergeFindings: asFunction(

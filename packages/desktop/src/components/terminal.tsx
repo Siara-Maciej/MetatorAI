@@ -248,10 +248,15 @@ export function sendLine(
       setTimeout(send, 2000);
     };
     ws.onmessage = (m) => {
-      const e = JSON.parse(String(m.data)) as { type: string; reason?: string };
+      const e = JSON.parse(String(m.data)) as {
+        type: string;
+        reason?: string;
+        error?: { message?: string };
+      };
       if (e.type === "session") send();
       if (e.type === "refused") finish(e.reason);
-      if (e.type === "error") finish(e.reason ?? "the daemon refused the terminal");
+      // An error carries the daemon's own message (`{type: "error", error: {code, message}}`).
+      if (e.type === "error") finish(e.error?.message ?? "the daemon refused the terminal");
     };
     ws.onerror = () => finish("the daemon is unreachable");
   });
