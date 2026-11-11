@@ -4,6 +4,8 @@ MetatorAI is a workflow layer around GitHub Copilot and Claude Code. Your AI too
 
 It does not replace your AI tool, your linter or your tests. It runs them.
 
+You work in the MetatorAI desktop app: you describe a task there, answer the questions a run has for you, watch the agents in their terminals and read the change. The `metator` command is what the app, the agents and CI call. Everything the app does can also be done from a terminal with that command.
+
 ## Who does what
 
 The work is split four ways, and each part is done by whoever can be held to it.
@@ -47,6 +49,6 @@ Run state goes to `.metator/`, which setup adds to `.gitignore`.
 
 ## Where to go next
 
-- [Install](./install.md) the CLI.
-- [First run](./first-run.md): set up a repository and walk one run by hand.
-- [Start a task](../use/index.md) when the repository is set up.
+- [Install](./install.md) the `metator` command.
+- [First run](./first-run.md): set up a repository and take one task through the app.
+- [The app](../use/index.md): its screens, and how to start it.
