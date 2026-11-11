@@ -101,7 +101,6 @@ export function inboxChips(item: Pick<InboxItem, "question" | "driving">): strin
   return chips;
 }
 
-/** `3s`, `4 min`, `2 h 05`, `3 d`: how long something took or has waited. */
 /** `src/invoice.ts:10`, `run 2026…/S2`, a note: what a backlog task points at. */
 export const issueRefText = (r: IssueRef): string =>
   r.file
@@ -110,6 +109,7 @@ export const issueRefText = (r: IssueRef): string =>
       ? `run ${r.run}${r.step ? `/${r.step}` : ""}`
       : (r.note ?? "");
 
+/** `3s`, `4 min`, `2 h 05`, `3 d`: how long something took or has waited. */
 export function duration(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
   if (s < 60) return `${s}s`;
@@ -141,21 +141,22 @@ export function stageGlyph(s: Pick<StageProgress, "state">): string {
   }
 }
 
-/** The command the card's footer shows: what answering writes. */
-export function answerCommand(
-  q: Pick<Question, "id" | "runId" | "source" | "stage">,
-  choice: string,
-  by: string,
-): string {
+/**
+ * The command the card's footer shows: what the button does. The card answers the question
+ * (`POST /runs/:id/answer`), a gate's question too, so the command is `run answer` for every source.
+ */
+export function answerCommand(q: Pick<Question, "id" | "runId">, choice: string, by: string): string {
   const who = by ? quote(by) : "<you>";
-  return q.source === "gate"
-    ? `metator run approve ${q.stage} --run ${q.runId} --choice ${quote(choice)} --by ${who}`
-    : `metator run answer ${q.id} --run ${q.runId} --choice ${quote(choice)} --by ${who}`;
+  return `metator run answer ${q.id} --run ${q.runId} --choice ${quote(choice)} --by ${who}`;
 }
 
 const quote = (s: string) => (/^[\w./-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\"')}"`);
 
-/** The hash route: `#/inbox`, `#/session/<run>`, `#/grid`, `#/graph`, `#/supervisor`, `#/briefing/<run>`. */
+/**
+ * The hash route, one per screen: `#/inbox`, `#/session/<run>[/<pane>]`, `#/grid[/<group>|/pane:<pane>]`,
+ * `#/graph`, `#/supervisor`, `#/mrs[/<id>]`, `#/settings`, `#/plan/<run>`, `#/backlog`,
+ * `#/review/<run>[/<file>]`, `#/briefing/<run>`.
+ */
 export type Route =
   | { readonly screen: "inbox" }
   | { readonly screen: "session"; readonly runId: string; readonly pane?: string }
@@ -165,10 +166,7 @@ export type Route =
   | { readonly screen: "mrs"; readonly id?: string }
   | { readonly screen: "settings" }
   | { readonly screen: "plan"; readonly runId: string }
-  | {
-      readonly screen: "backlog";
-      readonly draft?: { readonly title?: string; readonly refs?: readonly IssueRef[] };
-    }
+  | { readonly screen: "backlog" }
   | { readonly screen: "review"; readonly runId: string; readonly file?: string }
   | { readonly screen: "briefing"; readonly runId: string };
 
@@ -259,6 +257,10 @@ export function newQuestions(
   return after.filter((q) => !seen.has(`${q.runId}/${q.id}`));
 }
 
+/** Whether the app may announce a question (its toast, the system notification): `notify.channel` is not `off`. */
+export const notifies = (options: readonly Pick<ResolvedOption, "key" | "value">[]): boolean =>
+  options.find((o) => o.key === "notify.channel")?.value !== "off";
+
 /** The panes of a run (R4): the conductor first, then workers in order, then the rest. */
 export function panesOfRun<P extends Pick<PaneView, "runId" | "role" | "id">>(
   panes: readonly P[],
@@ -287,21 +289,6 @@ export const stateTone = (state: PaneState | undefined): "amber" | "violet" | "r
       : state === "exited"
         ? "red"
         : undefined;
-
-/** The settings sections: one per option group, in the registry's order of first appearance. */
-export function optionSections(
-  options: readonly ResolvedOption[],
-): { readonly id: string; readonly count: number; readonly changed: number }[] {
-  const out = new Map<string, { id: string; count: number; changed: number }>();
-  for (const o of options) {
-    const id = o.key.split(".")[0] as string;
-    const s = out.get(id) ?? { id, count: 0, changed: 0 };
-    s.count += 1;
-    if (o.source !== "default") s.changed += 1;
-    out.set(id, s);
-  }
-  return [...out.values()];
-}
 
 /** The settings search: the key, the title or the description holds the words. */
 export const optionMatches = (o: ResolvedOption, query: string): boolean => {

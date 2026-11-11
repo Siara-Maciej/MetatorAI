@@ -32,7 +32,7 @@ Jedno miejsce definicji każdej opcji (typ, domyślna, opis, zakres, czy wymaga 
 ### Model
 - **`OptionDefinition<T>`** (domena, `packages/core/src/domain/options.ts`): abstrakcyjna klasa z `key` (kropkowana, np. `ui.paneBorders`), `scope` (`user | repo | run`), `schema` (zod), `default`, `title`, `description`, `restart` (`none | daemon | app`), `since` (wersja). Podklasy: `BooleanOption`, `EnumOption`, `NumberOption` (min/max, jednostka), `StringOption`, `ListOption`, `KeybindingOption` (walidacja akordu), `CommandOption` (komenda powłoki, z adnotacją „uruchamiana lokalnie”). Rejestr `OPTIONS` jest listą definicji; test pilnuje unikalności kluczy i tego, że każda opcja ma opis i domyślną.
 - **Dokumenty**: `UserOptions` v1 w `~/.config/metator/options.yml` (zakres `user`: wygląd, skróty, powiadomienia, edytor, powłoka), `RepoOptions` jako sekcja `options:` w `metator.config.yml` v8 (zakres `repo`: supervisor, hosty, worktree'y; dzisiejsze pola zostają, nowe idą do `options`), nadpisania runu w `RunRecord` (`options`, zakres `run`, np. host, autonomy, bez wersji nowej: pole opcjonalne w v7? nie: `RunRecord` v8 z migracją). Każdy plik: `kind` + `schemaVersion`, zamrożony schemat.
-- **Nałożenie** (`application/options.ts`, `OptionStore`): `resolve(key, {runId?})` → `{value, source: default|user|repo|run, definition}`; `set(key, value, scope)`; `list(scope?)` z efektywnymi wartościami i źródłem; `diagnostics()` jak w herdr: nieznany klucz, zła wartość → ostrzeżenie, wartość domyślna, nic nie blokuje startu. Zmiana zapisuje plik i emituje zdarzenie `options.changed` w demonie (WS `/ws/options`), klienci odświeżają; opcje `restart: daemon` są oznaczone w UI.
+- **Nałożenie** (`application/options.ts`, `OptionStore`): `resolve(key, {runId?})` → `{value, source: default|user|repo|run, definition}`; `set(key, value, scope)`; `list(scope?)` z efektywnymi wartościami i źródłem; `diagnostics()` jak w herdr: nieznany klucz, zła wartość → ostrzeżenie, wartość domyślna, nic nie blokuje startu. Zmiana zapisuje plik; klienci odczytują `/options` cyklicznie (bez osobnego gniazda); opcje `restart: daemon` są oznaczone w UI.
 - **Powierzchnie**: `metator config get <key> [--run]`, `metator config set <key> <value> --scope user|repo|run`, `metator config list [--scope] [--changed]`, `metator config schema` (JSON Schema złożony z rejestru); demon `GET /options`, `PUT /options/:key`; aplikacja: ekran **Settings** (szukajka, grupy wg prefiksu, wartość, źródło, „przywróć domyślną”, znacznik „wymaga restartu”); TUI `metator ui` czyta te same opcje.
 
 ### Opcje do wdrożenia w S1 (pierwsza lista, każda z domyślną)
@@ -162,7 +162,7 @@ packages/core/src/application/review-notes.ts ReviewNotes (list/add/send → Run
 packages/core/src/application/open-editor.ts OpenEditor (editor.* + ProcessRunner; worktree/plik/diff)
 packages/cli/src/commands/config.ts          get|set|list|schema (rozszerzenie istniejącego)
 packages/cli/src/commands/issue.ts, review.ts (notes), run.ts (board)
-packages/cli/src/serve/server.ts             /options, /ws/options, /issues, /runs/:id/board, /runs/:id/review/*, open-editor
+packages/cli/src/serve/server.ts             /options, /issues, /runs/:id/board, /runs/:id/review/*, open-editor
 packages/desktop/src/screens/settings.tsx, plan.tsx, backlog.tsx, review.tsx, goto.tsx
 packages/core/src/domain/layout.ts          Layout v2 (tree, zoom) + migracja z v1 (S6)
 packages/desktop/src/screens/terminals.tsx   drzewo podziału, zoom, pisanie w kafelku, tryb kopiowania (S6)

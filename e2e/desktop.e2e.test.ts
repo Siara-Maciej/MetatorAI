@@ -198,9 +198,15 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await expect(await item.locator(".kind").textContent()).toBe("GATE");
     const card = page.getByLabel("decision card");
     await expect(await card.locator("h1").textContent()).toContain("approval");
-    await expect(await card.locator(".footer-cmd").textContent()).toContain("metator run approve approval");
     await card.getByLabel("your name").fill("maciej");
-    await card.locator(".actions .primary").click();
+    // The footer is the command that does what the button does: the answer to the gate's question.
+    const runOfCard = ((await api("/state")).data.runs as { runId: string }[])[0]?.runId as string;
+    await expect(await card.locator(".footer-cmd").textContent()).toMatch(
+      new RegExp(`metator run answer q\\d+ --run ${runOfCard} --choice Approve --by maciej`),
+    );
+    // The ⏎ on the button is a key: Enter outside a field sends the selected answer.
+    await card.locator("h1").click();
+    await page.keyboard.press("Enter");
     await until("the inbox to empty", async () =>
       (await page.locator(".needs .item").count()) === 0 ? true : undefined,
     );
@@ -331,6 +337,23 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await menu.waitFor({ timeout: 5000 });
     expect(await menu.textContent()).toContain("Split right");
     await page.keyboard.press("Escape");
+    // "New task from here…" opens the backlog's form with the pane's run as what the task points at.
+    await workbench.locator('.pane-frame[aria-label^="conductor"]').first().click({ button: "right" });
+    await page.getByRole("menu").getByText("New task from here…").click();
+    await page.getByTestId("backlog").waitFor({ timeout: 20_000 });
+    await until("the draft in the form", async () =>
+      (await page.getByTestId("backlog").textContent())?.includes(`points at: run ${runId}`)
+        ? true
+        : undefined,
+    );
+    // Left and opened again, the backlog has no draft: the form is closed.
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid`);
+    await shellFrame.waitFor({ timeout: 20_000 });
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/backlog`);
+    await page.getByTestId("backlog").waitFor({ timeout: 20_000 });
+    expect(await page.getByTestId("backlog").textContent()).not.toContain("points at:");
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid`);
+    await shellFrame.waitFor({ timeout: 20_000 });
     // A key rebound in the options works at once: keys.zoom → prefix+f.
     await fetch(`${daemonUrl}/options/keys.zoom`, {
       method: "POST",

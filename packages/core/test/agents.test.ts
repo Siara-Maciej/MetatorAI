@@ -119,7 +119,7 @@ describe("GenerateHosts", () => {
     return { fs, run };
   };
 
-  test("the MCP servers go to .mcp.json by name, the person's over the repository's, entries nobody configured kept", async () => {
+  test("the MCP servers it is given go to .mcp.json by name, entries nobody configured kept", async () => {
     const fs = new InMemoryFileSystem({
       ...files,
       ".mcp.json": JSON.stringify({ mcpServers: { theirs: { command: "x" }, jira: { command: "old" } } }),

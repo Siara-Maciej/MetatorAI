@@ -161,6 +161,27 @@ describe("metator config (options, real CLI)", () => {
       // The option is what the supervisor runs with, not only what the list shows.
       const supervisor = await call("/supervisor");
       expect((supervisor.data.policy as Data).wipLimit).toBe(2);
+      // The daemon was asked for port 0: the view names the port it is bound to.
+      expect((supervisor.data.daemon as Data).url).toBe(base);
+      // A shell pane asked for without a command runs the person's `terminal.shell`; a split too.
+      const shell = await call("/options/terminal.shell", {
+        method: "POST",
+        body: JSON.stringify({ scope: "user", value: "/bin/sh" }),
+        headers: { "content-type": "application/json" },
+      });
+      expect(shell.data).toMatchObject({ value: "/bin/sh", source: "user" });
+      const pane = await call("/panes", {
+        method: "POST",
+        body: JSON.stringify({ role: "shell", label: "shell" }),
+      });
+      expect(pane.data.process).toEqual({ kind: "command", argv: ["/bin/sh"] });
+      const beside = await call(`/panes/${encodeURIComponent(pane.data.id as string)}/split`, {
+        method: "POST",
+        body: JSON.stringify({ dir: "right" }),
+      });
+      expect(beside.data.process).toEqual({ kind: "command", argv: ["/bin/sh"] });
+      for (const id of [beside.data.id, pane.data.id])
+        await call(`/panes/${encodeURIComponent(id as string)}/close`, { method: "POST", body: "{}" });
       const set = await call("/options/ui.paneBorders", {
         method: "POST",
         body: JSON.stringify({ scope: "user", value: "always" }),

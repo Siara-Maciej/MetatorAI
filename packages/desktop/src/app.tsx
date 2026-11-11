@@ -4,9 +4,10 @@
  * live here too.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { IssueRef } from "./api.ts";
 import { SessionsPanel } from "./components/sessions-panel.tsx";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
-import { newQuestions, nextWaiting, parseRoute, type Route, routeHash, wasAway } from "./model.ts";
+import { newQuestions, nextWaiting, notifies, parseRoute, type Route, routeHash, wasAway } from "./model.ts";
 import { systemNotifier } from "./notify.ts";
 import { BacklogScreen } from "./screens/backlog.tsx";
 import { BriefingScreen } from "./screens/briefing.tsx";
@@ -43,11 +44,17 @@ function Shell() {
   const d = useDaemon();
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
   const [dialog, setDialog] = useState(false);
+  // The draft of "New task from here…": held here, not in the hash, until the backlog is left.
+  const [backlogDraft, setBacklogDraft] = useState<{ readonly refs?: readonly IssueRef[] }>();
   const go = useCallback((r: Route) => {
     window.location.hash = routeHash(r);
   }, []);
   useEffect(() => {
-    const onHash = () => setRoute(parseRoute(window.location.hash));
+    const onHash = () => {
+      const next = parseRoute(window.location.hash);
+      setRoute(next);
+      if (next.screen !== "backlog") setBacklogDraft(undefined);
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -55,10 +62,15 @@ function Shell() {
   const known = useRef<{ id: string; runId: string }[] | undefined>(undefined);
   useEffect(() => {
     const now = d.inbox.map((i) => i.question);
-    if (known.current)
-      for (const q of newQuestions(known.current, now)) void notifier.notify("MetatorAI needs you", q.prompt);
+    const fresh = known.current ? newQuestions(known.current, now) : [];
     known.current = now.map((q) => ({ id: q.id, runId: q.runId }));
-  }, [d.inbox]);
+    if (fresh.length === 0) return;
+    // `notify.channel: off` silences the system notification as it hides the workbench's toast.
+    void d.client.options(d.repos[0]?.name).then((r) => {
+      if (!notifies(r.data?.options ?? [])) return;
+      for (const q of fresh) void notifier.notify("MetatorAI needs you", q.prompt);
+    });
+  }, [d.inbox, d.client, d.repos]);
   // Back after ten minutes: the briefing of a session opened first (spec §6.8).
   const lastSeen = useRef<number>(Date.now());
   useEffect(() => {
@@ -211,7 +223,10 @@ function Shell() {
             onOpenSettings={() => go({ screen: "settings" })}
             onOpenPlan={(runId) => go({ screen: "plan", runId })}
             onOpenReview={(runId) => go({ screen: "review", runId })}
-            onOpenBacklog={(draft) => go({ screen: "backlog", ...(draft ? { draft } : {}) })}
+            onOpenBacklog={(draft) => {
+              setBacklogDraft(draft);
+              go({ screen: "backlog" });
+            }}
             {...(route.pane ? { showPane: route.pane } : {})}
           />
         ) : null}
@@ -224,7 +239,7 @@ function Shell() {
           />
         ) : null}
         {route.screen === "backlog" ? (
-          <BacklogScreen onOpenSession={openSession} initialDraft={route.draft} />
+          <BacklogScreen onOpenSession={openSession} initialDraft={backlogDraft} />
         ) : null}
         {route.screen === "plan" ? (
           <PlanScreen
