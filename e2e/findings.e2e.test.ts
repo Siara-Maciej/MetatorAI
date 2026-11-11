@@ -252,4 +252,26 @@ describe("metator findings", () => {
     ).toBe("FindingSet");
     expect((await metator(["findings", "validate"], repo.root)).code).toBe(64);
   });
+
+  test("review metadata: MetatorAI's own state is neither a changed file nor uncommitted work", async () => {
+    const own = await ScratchRepo.create();
+    try {
+      await own.write("src/a.ts", "export const a = 1;\n");
+      await own.commit("init");
+      // A run's artifact under .metator/ is the only thing that differs from the commit.
+      await own.write(".metator/runs/r1/task.json", "{}");
+      const meta = await metator(
+        ["review", "metadata", "--base", "main", "--out", ".metator/runs/r1/pr.json"],
+        own.root,
+      );
+      expect(data(meta)).toMatchObject({ branch: "main", files: [], uncommitted: false });
+      await own.write("src/a.ts", "export const a = 2;\n");
+      expect(data(await metator(["review", "metadata", "--base", "main"], own.root))).toMatchObject({
+        files: ["src/a.ts"],
+        uncommitted: true,
+      });
+    } finally {
+      await own.dispose();
+    }
+  }, 30_000);
 });

@@ -36,7 +36,7 @@ Ports and adapters; dependencies point inward: `core` (domain → ports → appl
 Nothing is done until it is proven:
 1. Unit tests for every behavior (happy path, edges, errors as values); a bug gets a failing test first.
 2. An e2e test for every user-facing change: the real `metator` process on a real temp repo (`e2e/`).
-3. Every port adapter passes its contract suite (`packages/testing/src/contracts`).
+3. An adapter of a port that has a contract suite runs it (`packages/testing/src/contracts`, MT-TEST-002).
 4. Test the tests: make a new check fail once on purpose; every core and plugin module with behavior has a mutant (MT-TEST-003).
 5. Run the command yourself; `bun run check` is green; report what you ran and saw.
 

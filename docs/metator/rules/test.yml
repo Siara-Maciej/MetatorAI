@@ -14,11 +14,17 @@ rules:
     do:
       - 'const r = await metator(["rules", "lint"], repo.root)'
   - id: MT-TEST-002
-    title: Every port adapter passes its contract suite
-    applyTo: ["packages/plugin-*/src/**", "packages/plugin-*/test/**", "packages/testing/src/contracts/**"]
+    title: An adapter of a port with a contract suite runs it
+    applyTo:
+      [
+        "packages/plugin-*/src/**",
+        "packages/plugin-*/test/**",
+        "packages/testing/src/**",
+        "packages/testing/test/**",
+      ]
     enforcement: E1
     implementation: test:mt-test-002
-    summary: An adapter for a port that has a contract suite in packages/testing/src/contracts calls that suite from its own test.
+    summary: An adapter for a port that has a contract suite in packages/testing/src/contracts calls that suite from its own test; a fake in packages/testing does too.
     do:
       - 'fileSystemContract("BunFileSystem", (files) => makeBunFileSystem(files));'
     dont:

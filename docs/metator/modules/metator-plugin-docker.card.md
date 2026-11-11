@@ -30,7 +30,7 @@ dir: packages/plugin-docker
 
 ## Allowed dependencies
 
-`@metator/core` only (MT-ARCH-006); the Docker CLI is called as a process.
+`@metator/core` only (MT-ARCH-005); the Docker CLI is called as a process.
 
 ## Pitfalls
 

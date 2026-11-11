@@ -21,11 +21,11 @@ dir: packages/testing
 
 ## Responsibility
 
-Fakes for every port, port contract suites, shared fixtures (the Bun-workspaces monorepo) and a throwaway real Postgres (`startPostgres`, `postgresScript`) used by unit and e2e tests.
+Fakes of the ports that tests need in memory, contract suites for the ports that have one, shared fixtures (the Bun-workspaces monorepo) and a throwaway real Postgres (`startPostgres`, `postgresScript`) used by unit and e2e tests.
 
 ## Invariants
 
-- Adapters prove they honor a port by running its contract suite [[cite: packages/testing/src/contracts/file-system.contract.ts:10 | "export function fileSystemContract(name: string, make: FileSystemFactory): void {"]].
+- An adapter of a port that has a contract suite runs it; a fake of such a port runs it too (MT-TEST-002), except a double that only replays scripted answers [[cite: packages/testing/src/contracts/file-system.contract.ts:10 | "export function fileSystemContract(name: string, make: FileSystemFactory): void {"]].
 
 ## Allowed dependencies
 

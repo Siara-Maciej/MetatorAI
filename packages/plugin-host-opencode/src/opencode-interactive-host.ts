@@ -3,7 +3,6 @@ import { join } from "node:path";
 import {
   type AgentTask,
   err,
-  type HostLaunch,
   type InteractiveHost,
   type InteractiveSession,
   type MetatorError,
@@ -32,18 +31,18 @@ export class OpencodeInteractiveHost implements InteractiveHost {
     private readonly env: Readonly<Record<string, string | undefined>> = process.env,
   ) {}
 
-  async launch(task: AgentTask, resume?: string): Promise<Result<HostLaunch, MetatorError>> {
+  /** The session's command line and id; with `resume`, the one that continues that session. */
+  private async launch(
+    task: AgentTask,
+    resume?: string,
+  ): Promise<Result<{ argv: string[]; sessionId: string }, MetatorError>> {
     const mode =
       resume === undefined
         ? ["--prompt", task.prompt]
         : resume.startsWith("ses_")
           ? ["--session", resume]
           : ["--continue"];
-    return ok({
-      argv: opencodeArgv(this.bin, task, mode),
-      sessionId: resume ?? CONTINUE,
-      env: sessionEnv(task),
-    });
+    return ok({ argv: opencodeArgv(this.bin, task, mode), sessionId: resume ?? CONTINUE });
   }
 
   async start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>> {

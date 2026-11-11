@@ -67,7 +67,6 @@ Hook commands always exit `0`.
 | `COMMAND_FAILED` | a tool MetatorAI ran failed in a way it could not report | 1 |
 | `BIN_NOT_FOUND` | a tool such as ast-grep is not installed in the repository | 1 |
 | `TRANSITION_DENIED` | a state change the workflow does not allow | 1 |
-| `BINDING_MISSING` | a capability has no provider configured | 1 |
 | `PARSE_FAILED` | a tool's output could not be parsed | 1 |
 | `INTERNAL` | a bug in MetatorAI; please report it | 1 |
 

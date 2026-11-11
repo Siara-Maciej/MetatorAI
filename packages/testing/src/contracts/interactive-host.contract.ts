@@ -71,14 +71,6 @@ export function interactiveHostContract(name: string, make: () => Promise<Intera
       expect(await exitOf(session.pty)).toBe(0);
     }, 30_000);
 
-    test("launch gives the command line without running it: argv, a session id, the run's variables", async () => {
-      const w = await make();
-      const launch = (await w.host.launch(w.task))._unsafeUnwrap();
-      expect(launch.argv.length).toBeGreaterThan(0);
-      expect(launch.sessionId.length).toBeGreaterThan(0);
-      expect(launch.env.METATOR_RUN_DIR).toBe(w.task.runDir);
-    });
-
     test("a session resumed by its id is a session again, with its own PTY", async () => {
       const w = await make();
       const first = (await w.host.start(w.task, { cols: 80, rows: 24 }))._unsafeUnwrap();

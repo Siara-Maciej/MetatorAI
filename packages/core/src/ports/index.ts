@@ -136,20 +136,8 @@ export interface InteractiveSession {
  * by its session id, observed through its hooks and its terminal output. The agent drives the
  * PTY unless a person attached.
  */
-/**
- * The command line of a host session without running it: what a pane's shell types when a
- * session is started by hand, and what tests read. `env` holds only the run's variables.
- */
-export interface HostLaunch {
-  readonly argv: readonly string[];
-  readonly sessionId: string;
-  readonly env: Readonly<Record<string, string>>;
-}
-
 export interface InteractiveHost {
   readonly id: string;
-  /** The session's command line; with `resume`, the one that continues that session. */
-  launch(task: AgentTask, resume?: string): Promise<Result<HostLaunch, MetatorError>>;
   start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>>;
   resume(
     sessionId: string,
@@ -251,12 +239,6 @@ export interface HealthProbe {
 
 export interface Clock {
   now(): Date;
-}
-
-export interface Logger {
-  debug(message: string, data?: unknown): void;
-  info(message: string, data?: unknown): void;
-  warn(message: string, data?: unknown): void;
 }
 
 export interface Vcs {

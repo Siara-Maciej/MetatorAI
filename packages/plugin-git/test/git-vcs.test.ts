@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BunProcessRunner } from "@metator/plugin-bun";
@@ -333,6 +333,25 @@ describe("GitVcs.branch (real git)", () => {
     await sh(dir, "add", ".");
     await sh(dir, "commit", "-q", "-m", "init");
     expect((await new GitVcs(dir).branch("HEAD"))._unsafeUnwrap().uncommitted).toBe(false);
+  });
+
+  test("MetatorAI's own state is not uncommitted work, with or without commits", async () => {
+    const own = [".metator/"];
+    const empty = await repo();
+    await mkdir(join(empty, ".metator"));
+    await writeFile(join(empty, ".metator/state.json"), "{}");
+    expect((await new GitVcs(empty, own).branch("main"))._unsafeUnwrap().uncommitted).toBe(false);
+    const dir = await repo();
+    await writeFile(join(dir, "a.ts"), "a");
+    await sh(dir, "add", ".");
+    await sh(dir, "commit", "-q", "-m", "init");
+    await mkdir(join(dir, ".metator/runs"), { recursive: true });
+    await writeFile(join(dir, ".metator/runs/pr.json"), "{}");
+    expect((await new GitVcs(dir, own).branch("HEAD"))._unsafeUnwrap().uncommitted).toBe(false);
+    // Without the list it is a change like any other; next to real work the answer stays true.
+    expect((await new GitVcs(dir).branch("HEAD"))._unsafeUnwrap().uncommitted).toBe(true);
+    await writeFile(join(dir, "a.ts"), "b");
+    expect((await new GitVcs(dir, own).branch("HEAD"))._unsafeUnwrap().uncommitted).toBe(true);
   });
 });
 

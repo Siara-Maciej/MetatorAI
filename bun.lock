@@ -132,9 +132,6 @@
       "dependencies": {
         "@metator/core": "workspace:*",
       },
-      "devDependencies": {
-        "@metator/testing": "workspace:*",
-      },
     },
     "packages/plugin-git": {
       "name": "@metator/plugin-git",
@@ -210,7 +207,6 @@
         "wait-on": "9.5.1",
       },
       "devDependencies": {
-        "@metator/plugin-bun": "workspace:*",
         "@metator/testing": "workspace:*",
       },
     },

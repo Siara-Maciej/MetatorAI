@@ -21,7 +21,7 @@ dir: packages/plugin-host-scenario
 
 ## Responsibility
 
-`AgentHost` that plays an `AgentScenario` instead of calling a model (ADR-0051): `run drive --host scenario` with `METATOR_AGENT_SCENARIO=<file>`. It drives whole workflows in tests, demos and workflow CI; it is not a model and decides nothing.
+`AgentHost` that plays an `AgentScenario` instead of calling a model (ADR-0051): `run drive --host scenario` with `METATOR_AGENT_SCENARIO=<file>`. It drives whole workflows in tests, demos and workflow CI; it is not a model and decides nothing. `ScenarioInteractiveHost` (`InteractiveHost`) plays the same scenario as a shell script in a PTY through the `Terminal` port (ADR-0077): it says each `say` line, reads a line for each `ask` and exits 0, or 1 on `fail`.
 
 ## Invariants
 
@@ -30,7 +30,7 @@ dir: packages/plugin-host-scenario
 
 ## Allowed dependencies
 
-`@metator/core` and `yaml`, like every plugin (MT-ARCH-006).
+`@metator/core` (MT-ARCH-005) and `yaml`; `@metator/plugin-node` and `@metator/testing` in tests.
 
 ## Pitfalls
 

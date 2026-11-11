@@ -1,7 +1,7 @@
 ---
 kind: InstructionsAdapter
 schemaVersion: 2
-applyTo: e2e/**,packages/cli/src/**,packages/core/src/**,packages/plugin-*/src/**,packages/plugin-*/test/**,packages/runtime/src/**,packages/testing/src/contracts/**,scripts/mutants.ts
+applyTo: e2e/**,packages/cli/src/**,packages/core/src/**,packages/plugin-*/src/**,packages/plugin-*/test/**,packages/runtime/src/**,packages/testing/src/**,packages/testing/test/**,scripts/mutants.ts
 excludeAgent: code-review
 description: How MetatorAI proves that work actually works.
 generatedFrom: docs/metator/rules/test.yml
@@ -18,5 +18,5 @@ How MetatorAI proves that work actually works.
 CI fails on these; no need to re-check them by hand.
 
 - MT-TEST-001: Every user-facing change has an e2e test on the real CLI (`test:mt-test-001`)
-- MT-TEST-002: Every port adapter passes its contract suite (`test:mt-test-002`)
+- MT-TEST-002: An adapter of a port with a contract suite runs it (`test:mt-test-002`)
 - MT-TEST-003: Every module with behavior is guarded by a killed mutant (`test:mt-test-003`)
