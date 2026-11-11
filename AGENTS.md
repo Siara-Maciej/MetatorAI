@@ -16,7 +16,6 @@ Before working in a package, read its `packages/<pkg>/AGENTS.md` and its card in
 | Architecture rules | `bun run arch` |
 | Canon and memory | `bun run canon` (`meta check-all --min-e1 100`) |
 | Freeze schemas | `bun run schemas:freeze` |
-| README visuals | `bun run assets` (never hand-edit `assets/*.svg`) |
 | The CLI | `bun run metator <command>` |
 
 ## Architecture (enforced)
@@ -39,7 +38,7 @@ Nothing is done until it is proven:
 2. An e2e test for every user-facing change: the real `metator` process on a real temp repo (`e2e/`).
 3. Every port adapter passes its contract suite (`packages/testing/src/contracts`).
 4. Test the tests: make a new check fail once on purpose; every core and plugin module with behavior has a mutant (MT-TEST-003).
-5. Run the command or render the asset yourself; `bun run check` is green; report what you ran and saw.
+5. Run the command yourself; `bun run check` is green; report what you ran and saw.
 
 ## Develop MetatorAI with MetatorAI
 

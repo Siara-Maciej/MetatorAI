@@ -95,7 +95,7 @@ packages:
   - { package: "@types/semver", need: "types for semver", adr: 0069-contract-diff.md }
   - {
       package: playwright,
-      need: "README visuals rendered in a real browser (e2e)",
+      need: "the documentation site and the desktop app rendered in a real browser (e2e)",
       adr: 0034-conformance-tests.md,
     }
   - { package: shell-quote, need: "shell script parsing", adr: 0028-discovery.md }

@@ -82,7 +82,8 @@ export const pathOf = (base: string, link: string) => (link === "" ? base : `${b
 
 export default defineConfig({
   title: "MetatorAI",
-  description: "A workflow for AI coding agents: plans, gates and approvals around GitHub Copilot and Claude Code.",
+  description:
+    "A workflow for AI coding agents: plans, gates and approvals around GitHub Copilot and Claude Code.",
   base: process.env.SITE_BASE ?? "/MetatorAI/",
   lang: "en-US",
   cleanUrls: true,

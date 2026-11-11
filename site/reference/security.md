@@ -1,87 +1,93 @@
-# Security and governance
+# Security
 
-MetatorAI is built on one assumption: **an instruction in a prompt is a wish, a check in a script is a guarantee.** Everything on this page is enforced by code you can read and test, not by asking the model nicely.
+This page lists what MetatorAI enforces with code, what it records, and where your data goes. An instruction in a prompt can be ignored by a model. The controls here are commands and hooks that you can read and test.
 
-## What is enforced, always
+## What is enforced
 
 | Control | Enforced by | Applies |
 |---|---|---|
-| Secrets are never read or written (`.env*`, keys, `.npmrc`, `.netrc`) | `guard pre-tool` | always |
-| Destructive commands are blocked (`git push --force`, `git reset --hard`, `git clean -f`, `rm -r` of a root) | `guard pre-tool` | always |
-| Edits stay inside the plan (`plan-scope.json`) and inside the repository | `guard pre-tool` | during a run |
-| Coordinator agents delegate and never edit code | `guard pre-tool` | during a run |
-| Push, PR creation and PR comments need a human approval | `guard pre-tool` + `metator run approve` | during a run |
-| A run cannot stop half-done | `guard stop` | during a run |
-| Every artifact an agent writes must match its schema | `guard subagent-output` | during a run |
+| Files that may hold secrets (`.env`, `.env.*`, `*.pem`, `*.key`, SSH keys, `.npmrc`, `.netrc`) are never read or written by an agent | `metator guard pre-tool` | always |
+| Destructive commands are blocked (`git push --force`, `git reset --hard`, `git clean -f`, `rm -r` of a root) | `metator guard pre-tool` | always |
+| An agent cannot approve an architecture plan or a system plan | `metator guard pre-tool` | always |
+| Edits stay inside the repository and inside the files the plan lists (`plan-scope.json`) | `metator guard pre-tool` | during a run |
+| Coordinators delegate and do not edit files | `metator guard pre-tool` | during a run |
+| A push, a pull request and a comment each need a person's approval | `metator guard pre-tool` and `metator run approve` | during a run |
+| An agent cannot stop while the run is at a stage it must finish | `metator guard stop` | during a run |
+| Every JSON artifact an agent writes matches its schema | `metator guard subagent-output` | during a run |
 
-Hooks fail open on their own errors: a broken hook reports a system message instead of locking you out of your editor. The decisions are covered by unit and end-to-end tests, including real hook payloads.
+The exact order of the decisions is in [Hooks protocol](./hooks.md#decision-order-of-pre-tool). The hooks are installed with `metator generate --hooks`.
 
-## Human control
+::: warning
+The hooks protect a session only where they are installed. Without them, the controls marked `metator guard` do not apply, and the host's own permission prompts are all you have.
+:::
 
-- **Gates you configure.** Any workflow stage can be `hitl: true`; only `metator run approve <stage> --by <name>` moves it on.
-- **Gates that cannot be automated away.** A stage marked `neverSkip` waits for a person at every autonomy level.
-- **External actions are separate approvals.** `push` and `comment` are approved explicitly, even in autopilot.
-- **Bounded loops.** When a loop limit is reached, the run is `escalated` with the open problems and options. It never retries forever.
+A guard that fails on its own error exits `0` and shows you a message. It does not block your editor, and it does not deny the call.
+
+## Approvals
+
+A workflow marks the stages where a person decides. See [Gates and approvals](../guide/gates.md).
+
+- A stage with `hitl: true` waits for `metator run approve <stage> --by <name>`.
+- A stage with `skipAt` passes without a person at the listed autonomy levels. A stage with `neverSkip: true` waits at every level.
+- `push` and `comment` are separate approvals: `metator run approve push --by <name>`. No autonomy level skips them.
+- Each loop has a limit in the workflow. When a run reaches it, the run ends as `escalated` and a person takes over. It does not retry forever.
+- An approval said in the chat counts only while that person is attached to the session.
 
 ## Audit trail
 
-Every run keeps:
+Each run keeps its history in `.metator/runs/<id>/`:
 
 | File | Contents |
 |---|---|
-| `state.json` | current stage, loops used, approvals with who and when (written only by `metator run`) |
-| `log.md` | append-only: every transition, approval, autopilot switch, checkpoint and close |
-| `summary.json` | final telemetry: status, duration, events per type, approvals, artifacts |
-| artifacts | the plan, its scope, gate reports, findings and the verdict, each a versioned document |
+| `state.json` | the current stage, loops used, approvals with who and when; written only by `metator run` |
+| `log.md` | append-only: every transition, approval, checkpoint and the close |
+| `activity.jsonl` | what the drive did: agent calls, questions, errors |
+| `questions/` | every question, its options and the answer |
+| `summary.json` | written at close: status, duration, events, approvals, artifacts |
+| artifacts | the plan, its scope, findings and the verdict, each a versioned document |
 
-```text
-- 2026-10-26T22:25:16Z · setup · PASS → intake
-- 2026-10-26T22:25:25Z · plan-approval · APPROVE · by maciej · choice autopilot → build
-- 2026-10-26T22:25:25Z · autopilot · autonomy L1
-- 2026-10-26T22:25:25Z · approved push · by maciej
-- 2026-10-26T22:25:30Z · closed · aborted
-```
+`metator run status` prints the stage and the recent history. `metator report` sums cost, agent time, questions and waiting across runs.
 
-## Least privilege for agents
+## Agent permissions
 
-Each canonical agent declares its capabilities, and the generated host files turn them into tool allowlists:
+Each agent definition lists its capabilities. `metator generate` turns them into the host's tool allowlist.
 
 ```yaml
 # metator/agents/mt-scout.md (front matter)
-capabilities: [read, search, "metator:graph", "metator:workspace", "metator:cards", "metator:owners"]
+capabilities: [read, search, edit, "metator:graph", "metator:workspace", "metator:cards", "metator:owners"]
 ```
 
-```text
-# generated .claude/agents/mt-scout.md
-tools: Read, Glob, Grep, Bash(metator graph:*), Bash(metator workspace:*), Bash(metator cards:*), Bash(metator owners:*)
-```
+A `metator:<group>` capability lets the agent run that command group and nothing else from the CLI. A coordinator may start only the workers it names, never a general-purpose agent with every tool.
 
-A coordinator gets `Agent(<its workers>)`, never a plain `Agent`: it can start only the workers it delegates to, not a general-purpose agent with every tool its own definition withholds. Review lenses read with Read, Glob and Grep and run only their `metator` commands; the verifier gets a shell to run the test that refutes a finding.
+An agent may run a shell command without asking only when every part of it reads: `grep`, `rg`, `find`, `ls`, `cat`, `git log`, `git diff` and the like, with no option that writes or executes, no redirection to a file, and paths inside its own directories. Anything else goes to a person.
 
-**Searching without a person, never writing.** An agent searches through the shell where its host has no search tools. A command counts as a search only when every part of it reads: a pipeline or chain of `grep`, `rg`, `find`, `ls`, `cat`, `head`, `readlink`, `sed -n '<lines>p'` and similar, git that only reads (`status`, `log`, `show`, `diff`, `blame`, `grep`, `rev-parse`, `merge-base`, `ls-files`, `describe`, `branch` that lists; no `-c`, `--output`, `--ext-diff`, `--textconv` or `git grep -O`), with no option that writes or runs something (`find -exec`, `-delete`, `rg --pre`, `sort -o`, `sed -i`), no redirection other than to `/dev/null` or `2>&1`, no substitution, and paths inside the agent's directories. MetatorAI's own queries count too (`metator symbols find`, `graph deps`, `rules show`, `run status`, `review diff`, `help`, `--help`), unless an option writes a file (`--out`, `--write`, `--fix`). Such a search runs without asking; anything else goes to a person. Files that may hold secrets are denied in-process by MetatorAI's own hook, so the denial holds even where the repository's settings do not apply.
+`metator meta agents-lint` checks every delegation: the agent exists, its coordinator allows it, and there are no cycles.
 
-`metator meta agents-lint` checks every delegation: the agent is known, its coordinator allows it, and there are no cycles. `metator meta audit` finds dead agents and nesting deeper than two levels.
+## Text from outside
 
-## Trustworthy review
+Issue text, review comments and the content of other repositories are data for a task. MetatorAI quotes them as the reporter's words and the agent instructions say to treat them as data. The hooks above do not depend on the model following that instruction.
 
-- A blocking finding must carry a quote that exists in the code, a trigger and the path by which it is reached; `findings validate` drops the rest.
-- An independent verifier tries to refute each blocking finding; only confirmed blockers block.
-- Review quality is measured on a golden set (precision, recall, false blocks, decision variance). `metator eval compare` fails CI when a change to prompts or agents makes it worse.
+## Review findings
 
-## Change control for the canon
+- A blocking finding must carry a quote that exists in the code, a trigger and the path by which it is reached. `metator findings validate` checks the quote against the code.
+- A second agent, `mt-verifier`, tries to refute each blocking finding. Only confirmed findings block.
+- `metator eval run` scores the review on recorded cases. `metator eval compare` fails when a change to agents, skills or instructions makes the scores worse.
 
-| What changes | Gate in CI |
+## Checks on the repository's knowledge
+
+`metator meta check-all` runs these in one pass. Run it in CI ([Gates and CI](../repo/gates-ci.md)).
+
+| What changes | Check |
 |---|---|
-| Rules | `rules lint`, `rules coverage --min-e1 <n>`, generated instructions up to date |
-| Agents and skills | `meta agents-lint`, `meta skills-lint`, `generate --check` |
-| Workflows | `workflow validate`, `workflow lint` (16-section anatomy) |
-| Knowledge | `memory check` (mapped, budgets, citations), `docs links`, `docs drift`, `cards build --check` |
-| Decisions | `adr lint`; agents may only draft ADRs as `Proposed`, people accept them |
+| Rules | `metator rules lint`, `metator rules coverage --min-e1 <percent>`, generated instructions up to date |
+| Agents and skills | `metator meta agents-lint`, `metator meta skills-lint`, `metator generate --check` |
+| Workflows | `metator workflow validate`, `metator workflow lint` |
+| Knowledge | `metator memory check`, `metator docs links`, `metator docs drift`, `metator cards build --check` |
+| Decisions | `metator adr lint` |
 
-All of it runs in one command: `metator meta check-all`.
+## Where data goes
 
-## Data handling
-
-- MetatorAI runs locally or in your CI runner. The CLI itself sends nothing anywhere; your AI host's own data policy applies to the chat.
-- Text from issues, PRs, comments and other repositories is treated as data. The agent instructions say so, and the hooks do not depend on it.
-- Run state lives in `.metator/`, which is git-ignored. Canon files are committed and reviewed like code.
+- MetatorAI runs on your machine or in your CI runner. Its state and its reports are files: run state under `.metator/` (git-ignored), everything else committed.
+- The conversation with the model goes through your host (GitHub Copilot or Claude Code). The host's data policy applies to it.
+- MetatorAI reaches outside services only through what you configure: git remotes, the MCP servers under `mcp`, and your `notify.command`.
+- Tokens do not belong in `metator.config.yml`. Write `${VAR}` in an MCP server's `env`; the host fills it from your environment.

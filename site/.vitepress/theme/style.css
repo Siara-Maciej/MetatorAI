@@ -19,8 +19,3 @@
 .vp-doc li {
   max-width: 46rem;
 }
-
-.vp-doc table {
-  display: table;
-  width: 100%;
-}

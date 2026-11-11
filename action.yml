@@ -25,7 +25,7 @@ inputs:
   metator-ref:
     description: The MetatorAI ref to run when the action is used from another repository.
     required: false
-    default: claude/foundation
+    default: main
   working-directory:
     description: The repository to check (the workspace by default).
     required: false
