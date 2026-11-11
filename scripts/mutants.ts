@@ -4877,4 +4877,16 @@ export const MUTANTS: readonly Mutant[] = [
     to: "    if (!id || body === undefined) continue;",
     why: "a system note of a merge request is not a thread to answer",
   },
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: "const pushed = kept?.runId !== undefined && (await this.d.runDone(kept.runId));",
+    to: "const pushed = kept?.runId !== undefined;",
+    why: "a planned thread is fixed only when the answering run is done",
+  },
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: 'merged.threads.filter((t) => t.state === "planned").map((t) => t.id)',
+    to: "merged.threads.map((t) => t.id)",
+    why: "only planned threads become fixed when the run is done",
+  },
 ];
