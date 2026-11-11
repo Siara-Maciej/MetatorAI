@@ -19,10 +19,9 @@ export function registerGateCommands(program: Command, { action, container }: Co
         if (steps.length === 0) {
           return {
             result: err(
-              MetatorError.usage(
-                `Gate "${gate}" has no steps`,
-                "Add gates.quick / gates.full to metator.config (`metator init` proposes them).",
-              ),
+              new MetatorError("INVALID_CONFIG", `Gate "${gate}" has no steps`, {
+                hint: "Add gates.quick / gates.full to metator.config (`metator init` proposes them).",
+              }),
             ),
           };
         }

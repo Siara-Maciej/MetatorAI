@@ -1,5 +1,5 @@
 import type { WaitOutcome, WorkerResult } from "@metator/core";
-import type { Command } from "commander";
+import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, findDaemon, paneHeaders } from "../daemon-client.ts";
 import { positiveInt } from "../options.ts";
@@ -120,7 +120,11 @@ export function registerConductorCommands(program: Command, runs: Command, ctx: 
       "A worker's report: done, blocked (with its question) or failed, with a summary and artifacts",
     )
     .requiredOption("--worker <name>", "the worker's name (METATOR_WORKER in its pane)")
-    .requiredOption("--status <status>", "done, blocked or failed")
+    .addOption(
+      new Option("--status <status>", "how the work ended")
+        .choices(["done", "blocked", "failed"])
+        .makeOptionMandatory(),
+    )
     .requiredOption("--summary <text>", "what was done, or why not (a few lines)")
     .option(
       "--artifact <path>",
@@ -134,18 +138,12 @@ export function registerConductorCommands(program: Command, runs: Command, ctx: 
       ctx.action(
         async (opts: {
           worker: string;
-          status: string;
+          status: "done" | "blocked" | "failed";
           summary: string;
           artifact: string[];
           question?: string;
           run?: string;
         }) => {
-          if (!["done", "blocked", "failed"].includes(opts.status))
-            return {
-              result: (await import("@metator/core")).err(
-                (await import("@metator/core")).MetatorError.usage("--status is done, blocked or failed"),
-              ),
-            };
           return {
             result: await ctx
               .runs()
@@ -153,7 +151,7 @@ export function registerConductorCommands(program: Command, runs: Command, ctx: 
               .report({
                 ...(opts.run ? { runId: opts.run } : {}),
                 worker: opts.worker,
-                status: opts.status as "done" | "blocked" | "failed",
+                status: opts.status,
                 summary: opts.summary,
                 artifacts: opts.artifact,
                 ...(opts.question ? { question: opts.question } : {}),

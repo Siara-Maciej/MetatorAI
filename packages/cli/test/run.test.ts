@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { nonNegativeInt } from "../src/options.ts";
 import { run } from "../src/run.ts";
 
 async function invoke(...argv: string[]): Promise<{ code: number; json: Record<string, unknown> }> {
@@ -34,6 +35,30 @@ describe("metator CLI", () => {
     expect(group.commands.map((c) => c.name)).toContain("findings verdict");
   });
 
+  test("--help after -C <dir> or --root <dir> is still that command's help", async () => {
+    for (const root of [["-C", "/nowhere"], ["--root", "/nowhere"], ["--root=/nowhere"]]) {
+      const { code, json } = await invoke(...root, "serve", "--help");
+      expect([code, (json.data as { name: string }).name]).toEqual([0, "serve"]);
+    }
+    const nested = (await invoke("-C", "/nowhere", "run", "answer", "-h")).json.data as { name: string };
+    expect(nested.name).toBe("run answer");
+  });
+
+  test("a bare command group is that group's help, not a usage error with every command", async () => {
+    for (const group of ["repos", "worktree", "env", "system", "graph"]) {
+      const { code, json } = await invoke(group);
+      const data = json.data as { name: string; commands: { name: string }[] };
+      expect([code, json.ok, data.name]).toEqual([0, true, group]);
+      expect(data.commands.length).toBeGreaterThan(0);
+      expect(data.commands.every((c) => c.name.startsWith(`${group} `))).toBe(true);
+    }
+    const nested = (await invoke("-C", "/nowhere", "system", "plan")).json.data as { name: string };
+    expect(nested.name).toBe("system plan");
+    // A wrong word after the group is still a usage error.
+    expect((await invoke("repos", "bogus")).code).toBe(64);
+    expect((await invoke("repos", "--bogus")).code).toBe(64);
+  });
+
   test("unknown command is a usage error with a hint and exit code 64", async () => {
     const { code, json } = await invoke("frobnicate");
     expect(code).toBe(64);
@@ -48,6 +73,13 @@ describe("metator CLI", () => {
     const stdout = await new Response(proc.stdout).text();
     expect(await proc.exited).toBe(0);
     expect(JSON.parse(stdout).data.name).toBe("metator-ai");
+  });
+});
+
+describe("option parsers", () => {
+  test("nonNegativeInt takes 0 and whole numbers, nothing else", () => {
+    expect([nonNegativeInt("0"), nonNegativeInt("4310")]).toEqual([0, 4310]);
+    for (const bad of ["abc", "-1", "1.5", "", " "]) expect(() => nonNegativeInt(bad)).toThrow("0 or more");
   });
 });
 
@@ -89,6 +121,31 @@ describe("metator CLI usage errors (fail before touching the repository)", () =>
 
   test("missing required option", async () => {
     expect(await usage("run", "init", "--task", "t")).toContain("--workflow");
+  });
+
+  test("a number that is not one", async () => {
+    expect(await usage("review", "notes", "add", "x", "--by", "m", "--line", "abc")).toContain("--line");
+    expect(await usage("open", "--file", "a.ts", "--line", "0")).toContain("--line");
+    expect(await usage("run", "board", "--timeline", "many")).toContain("--timeline");
+    for (const option of ["--port", "--supervise-ms", "--intake-ms", "--reviews-ms"]) {
+      expect(await usage("serve", option, "abc")).toContain(option);
+      expect(await usage("serve", option, "-1")).toContain(option);
+      expect(await usage("serve", option, "1.5")).toContain(option);
+    }
+  });
+
+  test("issue decide without a decision, or with both", async () => {
+    expect(await usage("issue", "decide", "i001", "--by", "m")).toContain("--add or --drop");
+    const both = await usage("issue", "decide", "i001", "--add", "--drop", "--by", "m");
+    expect(both).toContain("cannot be used with");
+  });
+
+  test("a value outside an option's choices", async () => {
+    expect(await usage("pane", "split", "w1:p1", "--dir", "up")).toContain("Allowed choices are right, down");
+    expect(await usage("run", "result", "--worker", "w", "--status", "finished", "--summary", "s")).toContain(
+      "Allowed choices are done, blocked, failed",
+    );
+    expect(await usage("run", "result", "--worker", "w", "--summary", "s")).toContain("--status");
   });
 
   test("unknown option", async () => {

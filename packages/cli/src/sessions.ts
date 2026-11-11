@@ -148,7 +148,10 @@ export async function resume(
   if (record.isErr()) return err(record.error);
   if (record.value.state.status !== "active") {
     return err(
-      MetatorError.usage(`run ${runId} is ${record.value.state.status}; there is nothing to continue`),
+      new MetatorError(
+        "TRANSITION_DENIED",
+        `run ${runId} is ${record.value.state.status}; there is nothing to continue`,
+      ),
     );
   }
   const driver = await c.resolve("runDrivers").status(runId);

@@ -1,4 +1,5 @@
-import { briefOf, err, MetatorError, ok, policyFrom, policyRefusal } from "@metator/core";
+import { briefOf, err, MetatorError, ok, policyFrom, policyRefusal, type Result } from "@metator/core";
+import type { MetatorContainer } from "@metator/runtime";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { follow, person } from "../live.ts";
@@ -6,6 +7,17 @@ import { positiveInt } from "../options.ts";
 import { defaultHost, HOSTS, newRun, resume, sessionRows, startDetached } from "../sessions.ts";
 
 /** `run drive|stop|questions|answer|activity|continue` (F8.3, F8.4): the CLI carries a run, people answer. */
+/** The run a command is about; an id that names no run is NOT_FOUND, as `run status` answers. */
+async function knownRun(
+  c: MetatorContainer,
+  given: string | undefined,
+): Promise<Result<string, MetatorError>> {
+  const repo = c.resolve("runRepository");
+  const id = await repo.resolveId(given);
+  if (id.isErr()) return id;
+  return (await repo.load(id.value)).map(() => id.value);
+}
+
 export function registerDriveCommands(
   program: Command,
   runs: Command,
@@ -43,7 +55,8 @@ export function registerDriveCommands(
           const rows = await sessionRows(c);
           if (rows.isErr()) return { result: rows };
           const active = rows.value.filter((r) => r.status === "active");
-          if (active.length === 0) return { result: err(MetatorError.usage("no active run to continue")) };
+          if (active.length === 0)
+            return { result: err(new MetatorError("NOT_FOUND", "no active run to continue")) };
           if (terminal) {
             const picked = await terminal.pickRun(
               active.map((r) => ({ runId: r.runId, label: `${r.runId} · ${r.stage}`, hint: r.state })),
@@ -134,7 +147,7 @@ export function registerDriveCommands(
     .action(
       action(async (opts: { run?: string }) => {
         const c = container();
-        const id = await c.resolve("runRepository").resolveId(opts.run);
+        const id = await knownRun(c, opts.run);
         if (id.isErr()) return { result: id };
         return {
           result: (await c.resolve("runDrivers").stop(id.value)).map((r) => ({ runId: id.value, ...r })),
@@ -151,7 +164,9 @@ export function registerDriveCommands(
       action(async (opts: { run?: string; all: boolean }) => {
         const c = container();
         const repo = c.resolve("runRepository");
-        const ids = opts.run ? [opts.run] : await repo.list();
+        const known = opts.run ? await knownRun(c, opts.run) : undefined;
+        if (known?.isErr()) return { result: known };
+        const ids = known?.isOk() ? [known.value] : await repo.list();
         const out = [];
         for (const runId of ids) {
           const qs = await c.resolve("runJournal").questions(runId);
@@ -265,7 +280,7 @@ export function registerDriveCommands(
     .action(
       action(async (opts: { run?: string; tail?: number }) => {
         const c = container();
-        const id = await c.resolve("runRepository").resolveId(opts.run);
+        const id = await knownRun(c, opts.run);
         if (id.isErr()) return { result: id };
         const activity = await c.resolve("runJournal").activity(id.value);
         if (activity.isErr()) return { result: activity };

@@ -1,3 +1,4 @@
+import { err, MetatorError, ok, type Result } from "@metator/core";
 import type { Command } from "commander";
 import { describeCommands } from "./commands/meta.ts";
 
@@ -56,7 +57,6 @@ const READING: readonly string[] = [
   "review diff",
   "review plan",
   "plan lint",
-  "plan scope",
   "debug-tags check",
   "workflow list",
   "workflow lint",
@@ -83,6 +83,28 @@ const READING: readonly string[] = [
   "pane list",
   "pane read",
 ];
+
+/**
+ * The options of a reading command that write a file, change files, clone a repository or send a
+ * message: a tool call that carries one is refused, so a tool marked read-only stays read-only.
+ */
+export const REFUSED: Readonly<Record<string, readonly string[]>> = {
+  "system lint": ["--fetch"],
+  "system sources": ["--fetch"],
+  "arch check": ["--sarif"],
+  "memory validate": ["--fix"],
+  "docs drift": ["--fix"],
+  "review metadata": ["--out"],
+  "review diff": ["--out"],
+  "review plan": ["--out"],
+  "worktree conflicts": ["--notify"],
+  report: ["--html"],
+};
+
+/** Options a tool always passes, so the command leaves no trace (`run brief` marks the run as read). */
+export const ALWAYS: Readonly<Record<string, readonly string[]>> = {
+  "run brief": ["--peek"],
+};
 
 /** How a tool's typed fields become a command line: positionals in order, then flags. */
 export interface ToolShape {
@@ -126,10 +148,11 @@ export function mcpTools(program: Command): McpTool[] {
     .commands.filter((c) => READING.some((r) => c.name === r || c.name.startsWith(`${r} `)))
     .map((c) => {
       const shape = TYPED[c.name];
+      const refused = REFUSED[c.name];
       return {
         name: `metator_${c.name.replaceAll(" ", "_").replaceAll("-", "_")}`,
         command: c.name,
-        description: `${c.summary}. Usage: ${c.usage}; ${shape ? "the typed fields are the command's own arguments and options; anything else goes" : "pass the command's own options and arguments"} in \`args\` (\`metator ${c.name} --help\` lists them). The result is MetatorAI's JSON envelope.`,
+        description: `${c.summary}. Usage: ${c.usage}; ${shape ? "the typed fields are the command's own arguments and options; anything else goes" : "pass the command's own options and arguments"} in \`args\` (\`metator ${c.name} --help\` lists them). The result is MetatorAI's JSON envelope.${refused ? ` The tool only reads: ${refused.join(", ")} is refused.` : ""}`,
         ...(shape ? { shape } : {}),
       };
     });
@@ -153,5 +176,25 @@ export function toolArgv(tool: McpTool, input: ToolInput): string[] {
     } else if (kind === "list") argv.push(`--${flag}`, ...(Array.isArray(v) ? v.map(String) : [String(v)]));
     else argv.push(`--${flag}`, String(v));
   }
-  return [...argv, ...(input.args ?? [])];
+  const always = (ALWAYS[tool.command] ?? []).filter((f) => !(input.args ?? []).includes(f));
+  return [...argv, ...always, ...(input.args ?? [])];
+}
+
+/**
+ * The command line of a tool call, or USAGE naming the option when the call carries one that
+ * writes (`--out f`, `--out=f`). Words after `--` are arguments, not options.
+ */
+export function toolCall(tool: McpTool, input: ToolInput): Result<string[], MetatorError> {
+  const argv = toolArgv(tool, input);
+  const end = argv.indexOf("--");
+  const options = (end === -1 ? argv : argv.slice(0, end)).map((a) => a.split("=")[0] as string);
+  const refused = (REFUSED[tool.command] ?? []).find((f) => options.includes(f));
+  if (refused)
+    return err(
+      MetatorError.usage(
+        `the tool ${tool.name} only reads: ${refused} is refused`,
+        `Run \`metator ${tool.command} ${refused}\` in a terminal instead.`,
+      ),
+    );
+  return ok(argv);
 }
