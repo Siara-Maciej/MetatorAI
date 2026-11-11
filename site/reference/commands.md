@@ -317,7 +317,7 @@ metator system plan propose [options] <task...>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<task>` | the task | |
-| `--host <host>` | the AI host that plans: claude, copilot, scenario |  |
+| `--host <host>` | the AI host that plans: claude, copilot |  |
 | `--base <ref>` | the files changed since the merge base with this ref | `"HEAD"` |
 | `--files <files...>` | these files instead of git |  |
 | `--contracts <ids...>` | contracts the task changes |  |
@@ -429,7 +429,7 @@ metator system eval run [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--case <id>` | only this case |  |
-| `--host <host>` | refine with mt-system-scout and mt-system-planner on this AI host: claude, copilot, scenario |  |
+| `--host <host>` | refine with mt-system-scout and mt-system-planner on this AI host: claude, copilot |  |
 | `--min <score>` | fail below this mean score (0 to 1) |  |
 
 ### `metator system eval schema`
@@ -586,7 +586,7 @@ metator arch plan propose [options] <title...>
 |---|---|---|
 | `<title>` | what the refactor is for | |
 | `--goal <goal>` | what the plan must reach (one of: no-cycles, no-errors, fewer-violations) | `"no-cycles"` |
-| `--host <host>` | the AI host that plans: claude, copilot, scenario |  |
+| `--host <host>` | the AI host that plans: claude, copilot |  |
 
 ### `metator arch plan list`
 
@@ -697,7 +697,7 @@ metator arch eval run [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--case <id>` | only this case |  |
-| `--host <host>` | the AI host that plans: claude, copilot, scenario |  |
+| `--host <host>` | the AI host that plans: claude, copilot |  |
 | `--min <score>` | fail below this mean score (0 to 1) |  |
 
 ### `metator arch eval schema`
@@ -1992,7 +1992,7 @@ metator run continue [options] [run]
 | Argument or option | Description | Default |
 |---|---|---|
 | `[run]` | run id (default: pick in a terminal, else the latest active run) | |
-| `--host <host>` | AI host (default: the one the run used) (one of: claude, copilot, scenario) |  |
+| `--host <host>` | AI host: claude, copilot (default: the one the run used) |  |
 
 ### `metator run drive`
 
@@ -2005,7 +2005,7 @@ metator run drive [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
-| `--host <host>` | AI host for the agents (default: first of hosts.targets) (one of: claude, copilot, scenario) |  |
+| `--host <host>` | AI host for the agents: claude, copilot (default: first of hosts.targets) |  |
 | `--detach` | keep driving in the background after this command returns |  |
 | `--max-steps <n>` | stop after this many stage transitions | `200` |
 
@@ -2101,7 +2101,7 @@ metator run start [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
-| `--host <id>` | copilot, claude, opencode (default: the run's host, else supervisor.hostOrder) |  |
+| `--host <id>` | an interactive host: copilot, claude, opencode (default: the run's host, else the first of supervisor.hostOrder that is installed) |  |
 
 ### `metator run delegate`
 

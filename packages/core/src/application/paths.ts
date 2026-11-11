@@ -1,4 +1,4 @@
-/** Repo-relative locations used by MetatorAI (overridable through metator.config later). */
+/** Repo-relative locations used by MetatorAI; `paths` in metator.config overrides the ones `PathOverrides` lists. */
 export interface MetatorPaths {
   readonly workflows: string;
   readonly runs: string;
