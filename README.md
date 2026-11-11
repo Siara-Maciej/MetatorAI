@@ -28,7 +28,15 @@ cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)   # puts `m
 
 ```bash
 cd ~/code/your-repo
-metator setup                                  # reads the repository, installs rules, generates agents and hooks
+metator setup     # reads the repository, installs rules, generates agents and hooks
+metator serve     # the local daemon the desktop app talks to
+```
+
+Then open the desktop app, click **+ New session** and describe the task. The app shows the agents at work in their terminals, the questions that wait for you in its **Inbox**, and the plan and the change of every run. The installers are built by the `desktop` workflow of this repository. From a clone, `cd packages/desktop && bun run tauri dev` runs the window.
+
+Everything the app does is also a command:
+
+```bash
 metator run                                    # starts a task and shows it live
 metator ui                                     # every session and every question that waits for you
 metator ask "How is the discount computed?"    # an answer with file:line citations
@@ -53,7 +61,7 @@ The full documentation is at **[siara-maciej.github.io/MetatorAI](https://siara-
 |---|---|
 | Install and run a first task | [Install](https://siara-maciej.github.io/MetatorAI/guide/install), [First run](https://siara-maciej.github.io/MetatorAI/guide/first-run) |
 | Understand runs, gates and approvals | [Runs and workflows](https://siara-maciej.github.io/MetatorAI/guide/runs), [Gates and approvals](https://siara-maciej.github.io/MetatorAI/guide/gates) |
-| Do the daily work | [Use](https://siara-maciej.github.io/MetatorAI/use/) |
+| Work in the desktop app | [The app](https://siara-maciej.github.io/MetatorAI/use/), [Your settings](https://siara-maciej.github.io/MetatorAI/use/settings) |
 | Write rules a tool enforces | [Rules](https://siara-maciej.github.io/MetatorAI/repo/) |
 | Put the gates into CI | [Gates and CI](https://siara-maciej.github.io/MetatorAI/repo/gates-ci) |
 | Look up a command or an option | [Reference](https://siara-maciej.github.io/MetatorAI/reference/) |
