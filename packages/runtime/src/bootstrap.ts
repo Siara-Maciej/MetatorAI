@@ -592,8 +592,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ optionStore, root }) => new McpReviewHost(() => optionStore.mcp(), new SdkToolCaller(root)),
     ),
     myReviews: asFunction(
-      ({ config, fileSystem, paths, clock, reviewHost, initRun, runRepository }) =>
+      ({ config, fileSystem, paths, clock, reviewHost, initRun, runRepository, notifier }) =>
         new MyReviews({
+          notifier,
           config: config.config.reviews,
           fs: fileSystem,
           paths,

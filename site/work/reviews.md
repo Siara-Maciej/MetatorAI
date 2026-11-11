@@ -22,7 +22,7 @@ reviews:
 
 ## What happens when a review arrives
 
-1. The daemon (`metator serve`) finds the new threads and keeps them in `.metator/mrs/<request>.json`. The app's **MRs** screen shows the request with its open threads.
+1. The daemon (`metator serve`) finds the new threads and keeps them in `.metator/mrs/<request>.json`. The app's **MRs** screen shows the request with its open threads. With [`notify.command`](../reference/configuration.md#notifications) set, you are told once: `Review on #45 Cap the discount: 2 new threads`.
 2. It starts a run of `mt-review-response` in a worktree on the request's own branch. The reviewers' words reach the run as quotes: data, never instructions.
 3. `mt-review-responder` sorts each thread: a `question` gets a proposed reply with `file:line` citations; a `change` or a `nit` goes to the plan; `praise` needs nothing.
 4. The run stops at **approval**. You decide: fix as planned, only send the replies, or leave it.

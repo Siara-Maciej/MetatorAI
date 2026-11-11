@@ -4879,6 +4879,30 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/review-watch.ts",
+    from: "if (merged.fresh.length > 0 && this.d.notifier) {",
+    to: "if (this.d.notifier) {",
+    why: "a scan that found no new thread announces nothing",
+  },
+  {
+    file: "packages/core/src/application/review-watch.ts",
+    from: "          if (failed) errors.push(failed);",
+    to: "",
+    why: "a failing notify.command is reported by the scan",
+  },
+  {
+    file: "packages/core/src/application/notifier.ts",
+    from: 'n.fresh === 1 ? "thread" : "threads"',
+    to: '"threads"',
+    why: "one new thread reads as one thread",
+  },
+  {
+    file: "packages/core/src/application/notifier.ts",
+    from: "    return r.exitCode === 0\n      ? undefined",
+    to: "    return r.exitCode !== 0\n      ? undefined",
+    why: "a review notification that failed says why",
+  },
+  {
+    file: "packages/core/src/application/review-watch.ts",
     from: "const pushed = kept?.runId !== undefined && (await this.d.runDone(kept.runId));",
     to: "const pushed = kept?.runId !== undefined;",
     why: "a planned thread is fixed only when the answering run is done",

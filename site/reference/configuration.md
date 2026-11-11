@@ -78,14 +78,19 @@ Older files (`schemaVersion` 1 to 6) still load: MetatorAI upgrades them in memo
 
 ## Notifications
 
-`notify.command` runs (through `sh -c`, in the repository) each time a question starts waiting for a person, once per question, so a run does not stand still while nobody looks at the terminal. It gets:
+`notify.command` runs (through `sh -c`, in the repository) each time a question starts waiting for a person, once per question, so a run does not stand still while nobody looks at the terminal. It also runs when a [review of your own request](../work/reviews.md) brings new threads, once per scan that found some. It gets:
 
 | Variable | Value |
 |---|---|
+| `METATOR_EVENT` | `question` or `review` |
+| `METATOR_NOTIFY_TEXT` | one readable line: the question's text, or `Review on #45 Cap the discount: 2 new threads` |
 | `METATOR_RUN` | the run id |
 | `METATOR_QUESTION_ID` | `q001`, … |
 | `METATOR_QUESTION_PROMPT` | the question's text |
 | `METATOR_QUESTION` | the whole question as JSON, its decision card included |
+| `METATOR_REVIEW_ID`, `METATOR_REVIEW_NUMBER`, `METATOR_REVIEW_TITLE`, `METATOR_REVIEW_URL` | for a review: the request (`metator mrs show <id>`) |
+
+For a review `METATOR_QUESTION_PROMPT` carries the same line as `METATOR_NOTIFY_TEXT`, so a command written for questions shows it; the other `METATOR_QUESTION*` variables and `METATOR_RUN` are not set.
 
 ```yaml
 notify:
@@ -95,7 +100,7 @@ notify:
   # command: curl -s -X POST -H 'Content-Type: application/json' -d "{\"text\": \"$METATOR_RUN: $METATOR_QUESTION_PROMPT\"}" "$CHAT_WEBHOOK"
 ```
 
-A question an answer policy answers is not announced. A failing command is logged in the run's activity and never stops the run; the next drive tries again.
+A question an answer policy answers is not announced. A failing command is logged in the run's activity and never stops the run; the next drive tries again. For a review, a failing command is listed under `errors` of `metator mrs scan`.
 
 ## Options: yours, the repository's, a run's
 
