@@ -15,8 +15,8 @@ import {
   neighborPane,
   newQuestions,
   nextWaiting,
+  notifies,
   optionMatches,
-  optionSections,
   paneLabel,
   panesOfRun,
   parseRoute,
@@ -140,14 +140,21 @@ describe("inbox rows and the card", () => {
     expect(inboxChips(item({}))).toEqual([]);
   });
 
-  test("the footer command is what answering writes: approve for a gate, answer otherwise", () => {
-    const q = { id: "q002", runId: "20261102-mt-feature-a", source: "gate" as const, stage: "plan-approval" };
-    expect(answerCommand(q, "Approve", "alice")).toBe(
-      "metator run approve plan-approval --run 20261102-mt-feature-a --choice Approve --by alice",
+  test("the footer command is what the button does: the answer to the question, a gate's too", () => {
+    const q = { id: "q002", runId: "20261102-mt-feature-a" };
+    // A gate's card answers its question as any other: Reject must not read as an approval.
+    expect(answerCommand(q, "Reject", "alice")).toBe(
+      "metator run answer q002 --run 20261102-mt-feature-a --choice Reject --by alice",
     );
-    expect(answerCommand({ ...q, source: "agent" }, "half even", "")).toBe(
+    expect(answerCommand(q, "half even", "")).toBe(
       'metator run answer q002 --run 20261102-mt-feature-a --choice "half even" --by <you>',
     );
+  });
+
+  test("notify.channel off silences every announcement; anything else, or no options yet, does not", () => {
+    expect(notifies([{ key: "notify.channel", value: "off" }])).toBe(false);
+    expect(notifies([{ key: "notify.channel", value: "app" }])).toBe(true);
+    expect(notifies([])).toBe(true);
   });
 
   test("new questions are the ones not seen before", () => {
@@ -173,7 +180,7 @@ describe("formatting and routes", () => {
 
   test("stage glyphs", () => {
     expect(
-      ["done", "current", "waiting", "stopped", "pending"]
+      ["done", "current", "waiting", "stopped", "next"]
         .map((state) => stageGlyph({ state: state as never }))
         .join(""),
     ).toBe("✓⟳?✕·");
@@ -265,12 +272,6 @@ describe("settings view logic (S1)", () => {
       fixed: false,
     },
     layers: {},
-  });
-  test("sections are the key groups in order, counting the options a file sets", () => {
-    expect(optionSections([opt("ui.a", "user"), opt("ui.b"), opt("keys.c", "repo")])).toEqual([
-      { id: "ui", count: 2, changed: 1 },
-      { id: "keys", count: 1, changed: 1 },
-    ]);
   });
   test("search matches the key, the title or the description, ignoring case", () => {
     expect(optionMatches(opt("ui.paneBorders"), "SIDEBAR")).toBe(true);

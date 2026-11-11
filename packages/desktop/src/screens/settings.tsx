@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OptionDiagnostic, OptionScope, OptionsView, ResolvedOption } from "../api.ts";
 import { useDaemon } from "../daemon.tsx";
-import { optionMatches, optionSections } from "../model.ts";
+import { optionMatches } from "../model.ts";
 
 export function SettingsScreen() {
   const { client, repos, url, me, setMe, setUrl } = useDaemon();
@@ -27,7 +27,8 @@ export function SettingsScreen() {
     const t = setInterval(() => void load(), 3000);
     return () => clearInterval(t);
   }, [load]);
-  const sections = useMemo(() => optionSections(view?.options ?? []), [view]);
+  // The sections are the daemon's groups: one per option group, in the registry's order.
+  const sections = view?.groups ?? [];
   const shown = useMemo(() => {
     const all = view?.options ?? [];
     return query.trim() !== ""

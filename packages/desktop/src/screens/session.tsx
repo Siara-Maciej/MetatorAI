@@ -30,7 +30,7 @@ export function SessionScreen({
   const conductor = panes.find((p) => p.role === "conductor");
   const shown = chosenPane && panes.some((p) => p.id === chosenPane) ? chosenPane : conductor?.id;
   const openShell = async () => {
-    const r = await client.openPane({ runId, role: "shell", label: "shell", argv: [shellOf()] }, repo);
+    const r = await client.openPane({ runId, role: "shell", label: "shell" }, repo);
     if (r.ok && r.data) setChosenPane(r.data.id);
     else setNote(r.error?.message);
   };
@@ -38,6 +38,11 @@ export function SessionScreen({
     const r = await client.closePane(id, repo);
     if (!r.ok) setNote(r.error?.message);
     else if (chosenPane === id) setChosenPane(undefined);
+  };
+  /** The run's directory in the person's editor (`editor.command`); a refusal is said on the screen. */
+  const openEditor = async () => {
+    const r = await client.openEditor(runId, {}, repo);
+    setNote(r.ok ? undefined : r.error?.message);
   };
   const [tab, setTab] = useState<"terminal" | "events">("terminal");
   const [events, setEvents] = useState<readonly Activity[]>([]);
@@ -92,6 +97,8 @@ export function SessionScreen({
       if (e.key === "a" && !attached) void attach();
       if (e.key === "c" && attached) void release();
       if (e.key === "t") setTab(tab === "terminal" ? "events" : "terminal");
+      if (e.key === "e") void openEditor();
+      if (e.key === "d") onOpenReview(runId);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -283,7 +290,7 @@ export function SessionScreen({
             <button type="button" className="ghost" onClick={() => onOpenReview(runId)}>
               Review
             </button>
-            <button type="button" className="ghost" onClick={() => void client.openEditor(runId, {}, repo)}>
+            <button type="button" className="ghost" onClick={() => void openEditor()}>
               Open in editor
             </button>
           </div>
@@ -346,15 +353,6 @@ export function SessionScreen({
     </div>
   );
 }
-
-/** The person's shell for a shell pane: theirs when the app knows it, `sh` otherwise. */
-const shellOf = (): string => {
-  try {
-    return localStorage.getItem("metator.shell") || "sh";
-  } catch {
-    return "sh";
-  }
-};
 
 function QuestionBox({ run, onDone }: { readonly run: Run; onDone(): void }) {
   const { client, me } = useDaemon();

@@ -76,7 +76,12 @@ const key = (name: string, title: string, description: string, defaultValue: rea
 const keys: OptionDefinition[] = [
   key("prefix", "Prefix", "The command key: press the prefix, then one key.", ["ctrl+b"]),
   key("newShell", "New shell", "A shell pane in the tab's directory.", ["prefix+c"]),
-  key("newTab", "New tab", "A tab for a task: a shell, or a run in a new worktree.", ["prefix+t"]),
+  key(
+    "newTab",
+    "New tab",
+    "A tab with the agent that starts a task: you say what to do, it starts the run.",
+    ["prefix+t"],
+  ),
   key("splitRight", "Split right", "Split the pane to the right.", ["prefix+v"]),
   key("splitDown", "Split down", "Split the pane downward.", ["prefix+-"]),
   key("zoom", "Zoom", "The pane fills the grid, and back.", ["prefix+z"]),

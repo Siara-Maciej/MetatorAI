@@ -4,7 +4,7 @@
  */
 
 export type Attention = "you" | "driving" | "stopped" | "done" | "escalated" | "aborted";
-export type StageState = "done" | "current" | "waiting" | "pending" | "stopped";
+export type StageState = "done" | "current" | "waiting" | "next" | "stopped";
 
 export interface QuestionOption {
   readonly label: string;
@@ -157,15 +157,19 @@ export interface Conflict {
   readonly mergeFirst: string;
 }
 
+/** A live terminal of a pane, as the daemon's broker describes it (core's `PtyView`). */
 export interface PtySession {
-  readonly runId: string;
+  readonly paneId: string;
+  /** The run the pane belongs to; a pane of no run (a shell of the repository) has none. */
+  readonly runId?: string;
+  readonly role: PaneRole;
   readonly host: string;
   readonly sessionId: string;
   readonly pid: number;
   readonly alive: boolean;
   readonly exitCode?: number;
   readonly idle: boolean;
-  readonly lastOutputAt?: string;
+  readonly lastOutputAt: string;
   readonly lastHookAt?: string;
 }
 
@@ -192,7 +196,7 @@ export interface PaneView {
         readonly sessionId?: string;
       }
     | { readonly kind: "command"; readonly argv: readonly string[] };
-  readonly live?: PtySession & { readonly paneId: string; readonly role: PaneRole };
+  readonly live?: PtySession;
   readonly state?: { readonly state: PaneState; readonly reason: string };
 }
 
@@ -541,8 +545,6 @@ export class DaemonClient {
       { question, choices, by, ...(text ? { text } : {}), ...(origin ? { origin } : {}) },
       repo,
     );
-  approve = (runId: string, gate: string, by: string, choice?: string, repo?: string) =>
-    this.post(`/runs/${runId}/approve`, { gate, by, ...(choice ? { choice } : {}) }, repo);
   message = (
     to: string,
     from: string,
@@ -563,9 +565,6 @@ export class DaemonClient {
     },
     repo?: string,
   ) => this.post<{ run: { runId: string }; drive?: { error?: string } }>("/runs", input, repo);
-  ptyOpen = (runId: string, host?: string, repo?: string) =>
-    this.post<PtySession>(`/runs/${runId}/pty-open`, host ? { host } : {}, repo);
-  ptyClose = (runId: string, repo?: string) => this.post(`/runs/${runId}/pty-close`, {}, repo);
   layout = (repo?: string) => this.get<LayoutView>("/layout", repo);
   openPane = (
     input: {

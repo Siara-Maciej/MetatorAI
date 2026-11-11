@@ -22,7 +22,7 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
     .option("--supervise-ms <n>", "how often the supervisor ticks (0: never)", nonNegativeInt, 5000)
     .option(
       "--intake-ms <n>",
-      "how often the intake rules are scanned (0: never; default: the rules' `everyMs`)",
+      "how often the intake rules are scanned (0: never; default: the config's `intake.everyMs`)",
       nonNegativeInt,
     )
     .option(

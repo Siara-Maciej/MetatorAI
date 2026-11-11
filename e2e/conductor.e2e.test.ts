@@ -234,7 +234,7 @@ describe("conductor (real daemon, real PTYs)", () => {
       ...env,
       METATOR_PANE_TOKEN: token,
     });
-    expect(error(cliSteer).code).toBe("FORBIDDEN");
+    expect(error(cliSteer).code).toBe("TRANSITION_DENIED");
   }, 30_000);
 
   test("a worker's hook denies run control and allows its report", async () => {

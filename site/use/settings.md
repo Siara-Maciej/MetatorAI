@@ -126,11 +126,11 @@ mcp:
     url: https://mcp.example.com/mcp     # or reached by URL
 ```
 
-Your servers are added to the repository's. When both name a server the same, yours is used. `metator doctor` warns when a server's command is not installed.
+MetatorAI itself uses your servers together with the repository's (for automatic intake, for reviews of your requests and in `metator doctor`). When both name a server the same, yours is used. `metator doctor` warns when a server's command is not installed.
 
-::: warning
-Write `${VAR}` in `env`, never a token. `metator generate` writes the combined servers into the repository's `.mcp.json`, which is committed. The host fills `${VAR}` from your environment when it starts the server.
-:::
+Your servers stay in your file. `metator generate` writes only the repository's servers into `.mcp.json`, which is committed. For an agent in Copilot CLI or Claude Code to use one of your own servers, add it to that host's own user configuration.
+
+Write `${VAR}` in `env`, never a token.
 
 ## Daemon address and your name
 

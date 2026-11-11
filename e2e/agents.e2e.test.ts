@@ -1,6 +1,7 @@
 /** Canonical agents → host files end to end: the real `metator` process on a real repository. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
@@ -50,7 +51,14 @@ afterAll(async () => {
 });
 
 describe("metator generate writes the MCP servers (T1)", () => {
-  test("the repository's `mcp:` goes to .mcp.json by name; entries nobody configured stay; doctor names the servers", async () => {
+  test("the repository's `mcp:` goes to .mcp.json by name; entries nobody configured stay; the person's own servers stay out of the committed file; doctor names the servers", async () => {
+    // The person's own options file: a server of theirs, and their own command for `notes`.
+    const configDir = await mkdtemp(join(tmpdir(), "metator-e2e-config-"));
+    await writeFile(
+      join(configDir, "options.yml"),
+      'kind: UserOptions\nschemaVersion: 2\noptions: {}\nmcp:\n  private:\n    command: sh\n    args: ["-c", "echo mine"]\n  notes:\n    command: sh\n    args: ["-c", "echo my-notes"]\n',
+    );
+    const env = { METATOR_CONFIG_DIR: configDir };
     await repo.write(
       "metator.config.yml",
       `kind: MetatorConfig
@@ -68,7 +76,7 @@ mcp:
 `,
     );
     await repo.write(".mcp.json", JSON.stringify({ mcpServers: { theirs: { command: "x" } } }));
-    const r = await metator(["generate"], repo.root);
+    const r = await metator(["generate"], repo.root, env);
     expect(data(r).written).toContain(".mcp.json");
     expect(JSON.parse(await repo.read(".mcp.json"))).toEqual({
       mcpServers: {
@@ -77,12 +85,14 @@ mcp:
         notes: { command: "sh", args: ["-c", "echo mcp"], env: { NOTES_TOKEN: envRef("NOTES_TOKEN") } },
       },
     });
-    expect(data(await metator(["generate", "--check"], repo.root)).stale).toEqual([]);
-    const doctor = await metator(["doctor"], repo.root);
+    expect(data(await metator(["generate", "--check"], repo.root, env)).stale).toEqual([]);
+    // MetatorAI itself still uses the person's servers.
+    const doctor = await metator(["doctor"], repo.root, env);
     const mcp = (data(doctor).checks as { id: string; status: string; message: string }[]).find(
       (c) => c.id === "mcp",
     );
-    expect(mcp).toMatchObject({ status: "ok", message: "MCP servers configured: jira, notes" });
+    expect(mcp).toMatchObject({ status: "ok", message: "MCP servers configured: jira, notes, private" });
+    await rm(configDir, { recursive: true, force: true });
     // The repository as the next tests expect it: the first config, no generated files yet.
     await repo.write(
       "metator.config.yml",

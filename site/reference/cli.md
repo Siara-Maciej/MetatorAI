@@ -38,7 +38,7 @@ metator run answer --help
 ```
 
 ```json
-{"ok":true,"data":{"name":"run answer","summary":"Answer a question; the drive waiting for it continues",
+{"ok":true,"data":{"name":"run answer","summary":"Record the answer to a question; the run continues when a drive is waiting for it (with none, `metator run continue` starts one)",
  "usage":"metator run answer [options] <question>",
  "options":[{"flags":"--run <id>","description":"run id (default: latest)"}, ...]}}
 ```

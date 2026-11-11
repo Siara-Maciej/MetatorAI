@@ -157,6 +157,8 @@ describe("metator serve (real daemon)", () => {
       by: "maciej",
     });
     expect(answered.ok).toBe(true);
+    // The drive is alive and reads the answer itself: the daemon starts nothing.
+    expect(answered.data.drive).toBeUndefined();
     await until("the run to end", async () => {
       const s = (await mt("run", "status", "--run", runId)).json.data as { status: string };
       return s.status === "done" ? true : undefined;
@@ -165,5 +167,33 @@ describe("metator serve (real daemon)", () => {
       seen.some((e) => (e.entry as { type: string })?.type === "answer") ? true : undefined,
     );
     ws.close();
+  }, 60_000);
+
+  test("an answer through the API to a run nothing drives starts its drive again, as the TUI does", async () => {
+    const runId = data(await mt("run", "init", "--workflow", "demo", "--task", "Round the totals"))
+      .runId as string;
+    await mt("run", "drive", "--run", runId, "--host", "scenario", "--detach");
+    const q = await until("the gate", async () => {
+      const inbox = (await get("/inbox")).data as {
+        decisions: { runId: string; question: { id: string } }[];
+      };
+      return inbox.decisions.find((d) => d.runId === runId)?.question;
+    });
+    // The drive is stopped: the question stays open with nobody to carry its answer out.
+    expect((await mt("run", "stop", "--run", runId)).json.ok).toBe(true);
+    await until("the drive to end", async () => {
+      const runs = (await get("/state")).data.runs as { runId: string; driving: boolean }[];
+      return runs.find((r) => r.runId === runId)?.driving === false ? true : undefined;
+    });
+    const answered = await post(`/runs/${runId}/answer`, {
+      question: q.id,
+      choices: ["Approve"],
+      by: "maciej",
+    });
+    expect([answered.ok, answered.data.drive]).toEqual([true, { started: true }]);
+    await until("the run to end", async () => {
+      const s = (await mt("run", "status", "--run", runId)).json.data as { status: string };
+      return s.status === "done" ? true : undefined;
+    });
   }, 60_000);
 });
