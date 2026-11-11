@@ -33,7 +33,7 @@ export type ReviewNotesData = z.output<typeof ReviewNotesSchema>;
 
 export const ReviewNotesDocument = defineDocument("ReviewNotes", {
   latest: ReviewNotesSchema,
-  hint: "Written by `metator review notes …` and the app's Review screen; do not edit by hand.",
+  hint: "Written by `metator review notes …` and the app's Changes screen; do not edit by hand.",
 });
 
 /** `n001`, `n002`, …: the next free id after the ones taken. */

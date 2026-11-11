@@ -4949,4 +4949,22 @@ export const MUTANTS: readonly Mutant[] = [
     to: "return this.repoMcp();",
     why: "MetatorAI itself uses the person's MCP servers too; only the committed host file leaves them out",
   },
+  {
+    file: "packages/core/src/domain/run-record.ts",
+    from: 'file.endsWith(".jsonl") ||',
+    to: "",
+    why: "a run's journals are its bookkeeping, not artifacts",
+  },
+  {
+    file: "packages/core/src/domain/run-record.ts",
+    from: 'file.startsWith("questions/") ||',
+    to: "",
+    why: "a run's questions are its bookkeeping, not artifacts",
+  },
+  {
+    file: "packages/core/src/domain/run-record.ts",
+    from: "RUN_BOOKKEEPING_FILES.has(file) ||",
+    to: "",
+    why: "a run's record, log and summary are its bookkeeping, not artifacts",
+  },
 ];

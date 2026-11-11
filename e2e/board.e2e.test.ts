@@ -116,6 +116,9 @@ describe("metator run board (real CLI)", () => {
     const present = Object.fromEntries(board.artifacts.map((a) => [a.name, a.present]));
     expect(present).toMatchObject({ "plan.json": true, "build-log.md": false, "task.md": false });
     expect(board.artifacts.find((a) => a.name === "build-log.md")?.stage).toBe("build");
+    // The run's own bookkeeping is not an artifact of the work.
+    for (const own of ["state.json", "log.md", "summary.json", "activity.jsonl"])
+      expect(board.artifacts.find((a) => a.name === own)).toBeUndefined();
     expect(board.gates).toEqual([expect.objectContaining({ gate: "quick", passed: true })]);
     expect(board.next).toEqual([{ id: "review", owners: ["mt-pr-review"] }]);
     expect(board.waiting).toEqual([]);
