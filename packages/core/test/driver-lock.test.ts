@@ -39,7 +39,7 @@ function world() {
     journal,
     init: (task: string) => new InitRun(catalog, repo, clock).execute({ workflow: "demo", task }),
     advance,
-    approve: new ApproveRun(advance, repo, clock),
+    approve: new ApproveRun(advance, repo, clock, catalog),
     lock: new DriverLock(repo, journal, clock),
     messages: new RunMessages(fs, repo, journal, clock),
   };

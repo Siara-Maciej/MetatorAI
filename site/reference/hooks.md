@@ -67,7 +67,7 @@ echo '{"tool_name":"Read","tool_input":{"file_path":".env"}}' | metator guard pr
 `stop` and `subagent-output` keep the agent working and say what is missing:
 
 ```json
-{"decision":"block","reason":"Run <id> is at stage build (expects PASS, FAIL, ABORT). Finish the stage and `metator run advance pass|fail`, or `metator run advance abort --reason …` to escalate."}
+{"decision":"block","reason":"Run <id> is at stage build (expects PASS, FAIL, ABORT). Finish the stage and `metator run advance pass`, or `metator run advance fail --reason …` when it cannot pass (the run loops back or escalates to a person); `metator run advance abort --reason …` ends the run."}
 ```
 
 `stop` lets the agent stop when there is no active run, when the run waits for a person's approval, or when `metator run drive` drives the session.

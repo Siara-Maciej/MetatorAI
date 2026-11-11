@@ -86,7 +86,8 @@ function compile(spec: WorkflowSpec) {
           },
           { target: "escalated", actions: log },
         ]
-      : { target: "escalated", actions: log };
+      : // An optional stage that fails is skipped: the run goes on without what it would have added.
+        { target: stage.optional ? next : "escalated", actions: log };
 
     states[stage.id] = {
       on: {
@@ -136,6 +137,12 @@ export class RunStateMachine {
     if (state.status !== "active") return false;
     const stage = this.spec.stages.find((s) => s.id === state.stage);
     return !!stage?.hitl && !stage.neverSkip && (stage.skipAt ?? []).some((level) => level === autonomy);
+  }
+
+  /** True when a FAIL at this stage skips it (an optional stage with no `onFail` to loop on). */
+  skipsOnFail(stageId: string): boolean {
+    const stage = this.spec.stages.find((s) => s.id === stageId);
+    return !!stage?.optional && !stage.onFail;
   }
 
   start(): RunState {

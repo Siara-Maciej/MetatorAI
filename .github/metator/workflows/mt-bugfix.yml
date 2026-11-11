@@ -2,12 +2,11 @@
 kind: Workflow
 schemaVersion: 3
 id: mt-bugfix
-revision: 2
+revision: 3
 description: Reproduce, diagnose, fix behind a regression test, verify
 entry: { prompt: mt-bugfix }
 input:
   oneOf: [task_ref, task_text]
-  optional: [autonomy]
 preconditions: [clean-tree, index-fresh, branch-ok]
 limits: { parallel: 6 }
 stages:
@@ -20,7 +19,7 @@ stages:
   - id: context
     description: Survey plus a feedback loop that reproduces the bug
     parallel: [mt-scout, mt-rule-curator, mt-diagnostician]
-    produces: [analysis.json, rulepack.md, repro.json]
+    produces: [analysis.json, rulepack.md, diagnosis.md]
   - id: plan
     description: First step is the regression test that fails before the fix
     owner: mt-planner
@@ -67,11 +66,11 @@ escalation:
 autonomy: [L0, L1]
 permissions: { edit: plan-scope, external: [push, comment] }
 done:
-  - repro.json fails before and passes after
+  - the repro command in diagnosis.md fails before and passes after
   - the gates pass
   - no blocking findings
   - push approved
 recovery: [skill mt-diagnose on a failed gate, retry a tool once, then escalate]
 resume: metator run status, then continue at the last approved stage
 telemetry: [stage_duration, tokens, loops, escalations, outcome]
-report: root cause, the regression test, links to repro.json, gates.md and verdict.json
+report: root cause, the regression test, links to diagnosis.md, gates.md and verdict.json

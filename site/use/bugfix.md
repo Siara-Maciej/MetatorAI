@@ -25,7 +25,7 @@ The stages are those of [Feature](./feature.md), with the same two approvals. Th
 
 | Stage | Difference |
 |---|---|
-| `context` | `mt-diagnostician` works beside `mt-scout` and `mt-rule-curator`. It reproduces the bug and narrows the cause with hypotheses it can disprove. It writes `repro.json`: the command that fails before the fix. |
+| `context` | `mt-diagnostician` works beside `mt-scout` and `mt-rule-curator`. It reproduces the bug and narrows the cause with hypotheses it can disprove. It writes `diagnosis.md`: the command that fails before the fix, the hypotheses it tested and the cause. |
 | `plan` | the first step is the regression test |
 | `gates` | the gates also check that the fix adds no new import edges |
 
@@ -53,7 +53,7 @@ The command runs the test several times. Mixed results mean it is flaky, and the
 
 ## Done
 
-- `repro.json` fails before the fix and passes after it;
+- the repro command in `diagnosis.md` fails before the fix and passes after it;
 - the gates pass;
 - the review has no blocking findings;
 - you approved the push.

@@ -27,8 +27,8 @@ metator run drive --host claude
 | `find` | one lens per shard, at most 6 at once | `findings/` | each lens writes its findings; `metator findings validate --fix` then drops findings with invented quotes and blockers without proof |
 | `verify` | `metator findings merge`, then `mt-verifier` | `findings/merged.json` | duplicates across lenses are merged; an independent agent tries to refute each blocking finding |
 | `judge` | `mt-judge` | `verdict.json` | the decision, from what survived |
-| `approval` | you | | which comments are published, and in which format |
-| `publish` | `metator findings to-github` | `comments.json` | the comments are posted |
+| `approval` | you | | which comments are published, and in which format; approving also approves posting them |
+| `publish` | `metator findings to-github` | | the inline comments and the summary are formatted from the verdict and printed; `mt-pr-review` posts them through the code host |
 
 A lens sees one package at a time, with that package's module card and rules. This works better than one pass over a large diff. The verifier starts with a clean context, and a failing test counts for more than an argument.
 
@@ -83,7 +83,7 @@ metator findings to-github .metator/runs/<id>/verdict.json --format labeled
 
 As a reviewer, the default, you get inline comments only for confirmed blockers. Everything else goes into the summary. With `--role author`, on your own pull request, the blockers come back as a fix list instead of comments.
 
-Posting needs your approval: the `approval` gate of the run, or `metator run approve comment --by <name>`. The hooks deny posting without it. In CI at autonomy `L2` the gate is skipped and only confirmed blockers are published ([Gates and CI](../repo/gates-ci.md)).
+`findings to-github` only formats the comments; it posts nothing and writes no file. Posting needs your approval: approving the `approval` gate of the run grants it, and `metator run approve comment --by <name>` grants it at any other time. The hooks deny posting without it. In CI at autonomy `L2` the gate is skipped and only confirmed blockers are published ([Gates and CI](../repo/gates-ci.md)).
 
 ## Self-review
 

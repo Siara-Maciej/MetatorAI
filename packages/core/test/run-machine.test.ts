@@ -119,6 +119,43 @@ describe("RunStateMachine (XState)", () => {
     expect(drive(machine().start(), { type: "FAIL" }).status).toBe("escalated");
   });
 
+  test("an optional stage that fails without onFail is skipped: the run goes on", () => {
+    const spec: WorkflowSpec = {
+      id: "opt",
+      stages: [{ id: "build" }, { id: "learn", optional: true }, { id: "wrap" }],
+    };
+    const m = RunStateMachine.create(spec)._unsafeUnwrap();
+    const atLearn = m.send(m.start(), { type: "PASS" })._unsafeUnwrap();
+    const skipped = m.send(atLearn, { type: "FAIL", reason: "nothing to learn" })._unsafeUnwrap();
+    expect([skipped.stage, skipped.status]).toEqual(["wrap", "active"]);
+    expect(skipped.context.history.at(-1)).toEqual({
+      stage: "learn",
+      event: "FAIL",
+      detail: "nothing to learn",
+    });
+    expect(m.skipsOnFail("learn")).toBe(true);
+    expect(m.skipsOnFail("build")).toBe(false);
+    // The last stage optional: a failure there ends the run done, not escalated.
+    const last = RunStateMachine.create({
+      id: "opt",
+      stages: [{ id: "build" }, { id: "learn", optional: true }],
+    })._unsafeUnwrap();
+    const end = last.send(last.send(last.start(), { type: "PASS" })._unsafeUnwrap(), { type: "FAIL" });
+    expect(end._unsafeUnwrap().status).toBe("done");
+    // With onFail the stage loops as any other; optional changes nothing then.
+    const looping = RunStateMachine.create({
+      id: "opt",
+      stages: [{ id: "build" }, { id: "learn", optional: true, onFail: { goto: "build", loop: "l" } }],
+      loops: { l: 1 },
+    })._unsafeUnwrap();
+    expect(looping.skipsOnFail("learn")).toBe(false);
+    expect(
+      looping
+        .send(looping.send(looping.start(), { type: "PASS" })._unsafeUnwrap(), { type: "FAIL" })
+        ._unsafeUnwrap().stage,
+    ).toBe("build");
+  });
+
   test("ABORT works from any active stage", () => {
     const aborted = drive(
       machine().start(),

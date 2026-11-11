@@ -87,9 +87,10 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .requiredOption("--workflow <id>", "workflow id")
     .requiredOption("--task <text>", "task description or work item reference")
     .addOption(
-      new Option("--autonomy <level>", "L0 all gates, L1 skip plan approval, L2 headless")
-        .choices(AutonomySchema.options)
-        .default("L0"),
+      new Option(
+        "--autonomy <level>",
+        "L0 all gates, L1 skip plan approval, L2 headless; one the workflow lists (default: L0 when it lists it)",
+      ).choices(AutonomySchema.options),
     )
     .option("--worktree", "work in a new git worktree with its own ports (.metator/wt/<run>)", false)
     .option("--base <ref>", "with --worktree: the ref to branch from", "HEAD")
@@ -109,7 +110,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
         async (opts: {
           workflow: string;
           task: string;
-          autonomy: (typeof AutonomySchema.options)[number];
+          autonomy?: (typeof AutonomySchema.options)[number];
           worktree: boolean;
           base: string;
           setup: boolean;
@@ -132,7 +133,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
             ...(Object.keys(inputs).length > 0 ? { inputs } : {}),
             workflow: opts.workflow,
             task,
-            autonomy: opts.autonomy,
+            ...(opts.autonomy ? { autonomy: opts.autonomy } : {}),
             ...(opts.worktree ? { worktree: { base: opts.base } } : {}),
             ...(opts.parent ? { parent: opts.parent } : {}),
           };

@@ -40,7 +40,7 @@ function world(files: Record<string, string> = { ".github/metator/workflows/feat
     repo,
     init: new InitRun(catalog, repo, clock),
     advance: new AdvanceRun(catalog, repo, clock),
-    approve: new ApproveRun(new AdvanceRun(catalog, repo, clock), repo, clock),
+    approve: new ApproveRun(new AdvanceRun(catalog, repo, clock), repo, clock, catalog),
     status: new GetRunStatus(catalog, repo),
     list: new ListRuns(repo),
   };
@@ -388,13 +388,122 @@ describe("autonomy: skipped gates and autopilot", () => {
   });
 
   test("an L2 run does not use gates skipped only at L1", async () => {
-    const w = gated();
+    const w = gated(GATED.replace("autonomy: [L0, L1]", "autonomy: [L0, L1, L2]"));
     const run = (await w.init.execute({ workflow: "gated", task: "t", autonomy: "L2" }))._unsafeUnwrap();
     expect([run.stage, run.autonomy]).toEqual(["approval", "L2"]);
     const approved = (
       await w.advance.execute({ event: { type: "APPROVE", by: "m", choice: "autopilot" } })
     )._unsafeUnwrap();
     expect(approved.autonomy).toBe("L2"); // autopilot only raises L0
+  });
+
+  test("init refuses an autonomy level the workflow does not list and starts no run", async () => {
+    const w = gated();
+    const e = (await w.init.execute({ workflow: "gated", task: "t", autonomy: "L2" }))._unsafeUnwrapErr();
+    expect([e.code, e.message, e.hint]).toEqual([
+      "USAGE",
+      "workflow gated does not support autonomy L2",
+      "Supported autonomy levels: L0, L1.",
+    ]);
+    expect(await w.repo.list()).toEqual([]);
+    // A workflow without an autonomy list takes any level.
+    const open = gated(GATED.replace("autonomy: [L0, L1]\n", ""));
+    expect(
+      (await open.init.execute({ workflow: "gated", task: "t", autonomy: "L2" }))._unsafeUnwrap().autonomy,
+    ).toBe("L2");
+  });
+
+  test("without a level the run starts at L0 when the workflow lists it, else at its first level", async () => {
+    const l0 = gated(GATED.replace("autonomy: [L0, L1]", "autonomy: [L0]"));
+    expect((await l0.init.execute({ workflow: "gated", task: "t" }))._unsafeUnwrap().autonomy).toBe("L0");
+    const both = gated(GATED.replace("autonomy: [L0, L1]", "autonomy: [L1, L0]"));
+    expect((await both.init.execute({ workflow: "gated", task: "t" }))._unsafeUnwrap().autonomy).toBe("L0");
+    const l1 = gated(GATED.replace("autonomy: [L0, L1]", "autonomy: [L1, L2]"));
+    const run = (await l1.init.execute({ workflow: "gated", task: "t" }))._unsafeUnwrap();
+    expect([run.autonomy, run.stage]).toEqual(["L1", "plan"]);
+  });
+});
+
+describe("what the workflow declares holds: required inputs, external actions, optional stages", () => {
+  const DECLARED = `
+kind: Workflow
+schemaVersion: 2
+id: declared
+input:
+  oneOf: [task_ref, task_text]
+  required: [scope, owner]
+  optional: [base]
+permissions: { edit: plan-scope, external: [comment] }
+stages:
+  - id: build
+  - id: learn
+    optional: true
+  - id: wrap
+`;
+  const declared = (spec = DECLARED) => world({ ".github/metator/workflows/declared.yml": spec });
+
+  test("init refuses a run without a required input and names every missing one", async () => {
+    const w = declared();
+    const e = (
+      await w.init.execute({ workflow: "declared", task: "t", inputs: { base: "main" } })
+    )._unsafeUnwrapErr();
+    expect([e.code, e.message, e.hint]).toEqual([
+      "USAGE",
+      "workflow declared needs the input `scope`, `owner`",
+      "Pass each with `--input <name>=<value>`, e.g. `--input scope=<value>`.",
+    ]);
+    expect(await w.repo.list()).toEqual([]);
+    const one = (
+      await w.init.execute({ workflow: "declared", task: "t", inputs: { scope: "packages/a" } })
+    )._unsafeUnwrapErr();
+    expect(one.message).toBe("workflow declared needs the input `owner`");
+    const run = await w.init.execute({
+      workflow: "declared",
+      task: "t",
+      inputs: { scope: "packages/a", owner: "m" },
+    });
+    expect(run._unsafeUnwrap().stage).toBe("build");
+  });
+
+  test("an external action the workflow does not permit is not approved", async () => {
+    const w = declared();
+    const run = (
+      await w.init.execute({ workflow: "declared", task: "t", inputs: { scope: "a", owner: "m" } })
+    )._unsafeUnwrap();
+    const e = (await w.approve.execute({ gate: "push", by: "maciej" }))._unsafeUnwrapErr();
+    expect([e.code, e.message, e.hint]).toEqual([
+      "USAGE",
+      "workflow declared does not permit push",
+      "External actions it permits: comment.",
+    ]);
+    expect((await w.repo.load(run.runId))._unsafeUnwrap().approvals).toEqual({});
+    expect((await w.approve.execute({ gate: "comment", by: "maciej" }))._unsafeUnwrap()).toMatchObject({
+      approvals: { comment: { by: "maciej" } },
+    });
+    // A workflow that permits none says so.
+    const none = declared(DECLARED.replace("external: [comment]", "external: []"));
+    await none.init.execute({ workflow: "declared", task: "t", inputs: { scope: "a", owner: "m" } });
+    expect((await none.approve.execute({ gate: "comment", by: "m" }))._unsafeUnwrapErr().hint).toBe(
+      "It permits no external action.",
+    );
+  });
+
+  test("a failed optional stage is skipped and the log says so", async () => {
+    const w = declared();
+    const run = (
+      await w.init.execute({ workflow: "declared", task: "t", inputs: { scope: "a", owner: "m" } })
+    )._unsafeUnwrap();
+    await w.advance.execute({ event: { type: "PASS" } });
+    const next = (await w.advance.execute({ event: { type: "FAIL", reason: "no lessons" } }))._unsafeUnwrap();
+    expect([next.stage, next.status]).toEqual(["wrap", "active"]);
+    expect((await w.repo.readLog(run.runId))._unsafeUnwrap()).toContain(
+      "2026-10-25T09:00:00.000Z · learn · FAIL · no lessons → wrap (optional stage skipped)",
+    );
+    // A stage that is not optional escalates, and its log line says nothing of skipping.
+    await w.advance.execute({ event: { type: "FAIL", reason: "broken" } });
+    expect((await w.repo.readLog(run.runId))._unsafeUnwrap()).toContain(
+      "2026-10-25T09:00:00.000Z · wrap · FAIL · broken → escalated",
+    );
   });
 });
 

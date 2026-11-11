@@ -16,6 +16,7 @@ import {
   describeMove,
   goalMet,
   lintRefactorPlan,
+  moveScope,
   nextWave,
   orderedMoves,
   planDigest,
@@ -141,6 +142,14 @@ describe("plan basics", () => {
       "Invert the dependency @x/a → @x/b: a port in @x/a, its implementation in @x/b",
     );
     expect(describeMove({ type: "declare", package: "@x/a", dependency: "zod" })).toBe("Declare zod in @x/a");
+    // What a move touches is the scope of its refactor run.
+    expect([
+      moveScope({ type: "move", files: ["a/x.ts", "a/y.ts"], to: "@x/b" }),
+      moveScope({ type: "merge", from: "@x/a", into: "@x/b" }),
+      moveScope({ type: "extract", files: ["a/x.ts"], package: { name: "@x/n", dir: "packages/n" } }),
+      moveScope({ type: "invert", from: "@x/a", to: "@x/b" }),
+      moveScope({ type: "declare", package: "@x/a", dependency: "zod" }),
+    ]).toEqual(["a/x.ts, a/y.ts, @x/b", "@x/a, @x/b", "a/x.ts, packages/n", "@x/a, @x/b", "@x/a"]);
     const prompt = plannerPrompt({
       plan: "metator/arch/plans/p.yml",
       goal: "no-cycles",
@@ -504,6 +513,7 @@ describe("plan use cases", () => {
         workflow: "mt-refactor",
         task: "Move packages/pricing/src/rules.ts to @x/cart. Why: Cart rules belong to cart. (refactor plan break-cycle, move m1; evidence: packages/pricing/src/rules.ts:1)",
         worktree: { base: "main" },
+        inputs: { scope: "packages/pricing/src/rules.ts, @x/cart" },
       },
     ]);
     // Nothing pending in the running wave: nothing more starts.

@@ -1,5 +1,6 @@
+import { WorkerResultDocument } from "../domain/conductor.ts";
 import { AnalysisDocument, ResearchDocument } from "../domain/context.ts";
-import { QuestionDocument, RunDriverDocument } from "../domain/drive.ts";
+import { QuestionDocument, RunDriverDocument, RunSeenDocument } from "../domain/drive.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { EvalReportDocument } from "../domain/eval.ts";
 import { FindingSetDocument } from "../domain/finding.ts";
@@ -17,7 +18,9 @@ import {
 import { PlanDocument, PlanScopeDocument } from "../domain/plan.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { ReviewMetadataDocument } from "../domain/review-metadata.ts";
+import { ReviewNotesDocument } from "../domain/review-note.ts";
 import { ReviewPlanDocument } from "../domain/review-plan.ts";
+import { RunMessageDocument } from "../domain/run-message.ts";
 import { RunPointerDocument, RunRecordDocument } from "../domain/run-record.ts";
 import { RunHandoffDocument, RunSummaryDocument } from "../domain/run-report.ts";
 import { VerdictDocument } from "../domain/verdict.ts";
@@ -152,7 +155,8 @@ export class GuardStop {
     return ok(
       blockResponse(
         `Run ${run.value.runId} is at stage ${run.value.stage} (expects ${run.value.expects.join(", ")}). ` +
-          "Finish the stage and `metator run advance pass|fail`, or `metator run advance abort --reason …` to escalate.",
+          "Finish the stage and `metator run advance pass`, or `metator run advance fail --reason …` when it cannot pass " +
+          "(the run loops back or escalates to a person); `metator run advance abort --reason …` ends the run.",
       ),
     );
   }
@@ -178,6 +182,10 @@ const ARTIFACTS: ReadonlyMap<string, VersionedDocument<unknown>> = new Map(
     RunDriverDocument,
     ReviewMetadataDocument,
     RunHandoffDocument,
+    RunMessageDocument,
+    RunSeenDocument,
+    WorkerResultDocument,
+    ReviewNotesDocument,
   ].map((d) => [d.kind, d as VersionedDocument<unknown>]),
 );
 

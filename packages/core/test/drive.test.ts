@@ -311,7 +311,7 @@ function world(
     repo,
     journal,
     advance,
-    approve: new ApproveRun(advance, repo, clock),
+    approve: new ApproveRun(advance, repo, clock, catalog),
     close: new CloseRun(advance, repo, fs, clock),
     hosts: new Map([["fake", host]]),
     process: scripts,
