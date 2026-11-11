@@ -59,4 +59,4 @@ The CLI has more than two hundred commands. Most of them are called by agents, h
 | [`metator intake scan`](./commands.md#metator-intake-scan) | turns new issues from GitHub, GitLab or Jira into tasks and runs, by your intake rules |
 | [`metator mrs list`](./commands.md#metator-mrs-list) | reviews of your open pull requests, with proposed replies |
 
-Each of these has a how-to page: [First run](../guide/first-run.md), [Start a task](../use/index.md), [Answer questions](../use/inbox.md).
+Each of these has a how-to page: [First run](../guide/first-run.md), [Start a task](../use/start.md), [Answer questions](../use/inbox.md).
