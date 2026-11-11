@@ -36,7 +36,7 @@ const state = (threads: object[]) =>
 let repo: ScratchRepo;
 beforeAll(async () => {
   repo = await ScratchRepo.create();
-  await repo.write(".gitignore", ".metator/\npulls.json\nmcp.log\n");
+  await repo.write(".gitignore", ".metator/\npulls.json\nmcp.log\nnotified.txt\n");
   await repo.write("src/discount.ts", "export const discount = 0.1;\nexport const cap = 100;\n");
   await repo.write(
     ".github/metator/workflows/mt-review-response.yml",
@@ -56,6 +56,8 @@ mcp:
 reviews:
   sources:
     - { kind: github, repo: acme/shop, author: maciej }
+notify:
+  command: echo "$METATOR_EVENT $METATOR_REVIEW_ID $METATOR_NOTIFY_TEXT" >> notified.txt
 `,
   );
   await repo.commit("init");
@@ -108,6 +110,10 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
     const again = data(await metator(["mrs", "scan"], repo.root)).requests as Data[];
     expect(again[0]).toMatchObject({ open: 1, fresh: [] });
     expect(again[0]?.started).toBeUndefined();
+    // The person was told once, by `notify.command`; the second scan found nothing new to say.
+    expect(await Bun.file(repo.path("notified.txt")).text()).toBe(
+      `review ${ID} Review on #45 Cap the discount: 1 new thread\n`,
+    );
   }, 60_000);
 
   test("triage records the kind and a proposed reply; nothing reaches the host until a person sends it", async () => {
