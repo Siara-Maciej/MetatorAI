@@ -7,7 +7,7 @@ description: Snapshot the API, pin behavior, small steps, prove equivalence
 entry: { prompt: mt-refactor }
 input:
   oneOf: [task_ref, task_text]
-  required: [scope]
+  optional: [scope]
 preconditions: [clean-tree, index-fresh, branch-ok, tests-green]
 limits: { parallel: 6 }
 stages:
