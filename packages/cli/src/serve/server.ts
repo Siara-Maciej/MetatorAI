@@ -6,6 +6,7 @@ import {
   byUrgency,
   DAEMON_FILE,
   DaemonInfoDocument,
+  type ErrorCode,
   type InboxItem,
   inboxOf,
   type MessageTopic,
@@ -36,7 +37,7 @@ export interface ServeOptions {
   readonly announce?: boolean;
   /** Run the supervisor's tick this often (0: not at all). */
   readonly superviseMs?: number;
-  /** Scan the intake rules this often (0 or unset: never); the rules' own `everyMs` when `true`. */
+  /** Scan the intake rules this often (0 or unset: never); the config's `intake.everyMs` when `true`. */
   readonly intakeMs?: number | true;
   /** Look for reviews of my requests this often (0 or unset: never); the config's `everyMs` when `true`. */
   readonly reviewsMs?: number | true;
@@ -63,7 +64,7 @@ export interface Served {
 type Json = Record<string, unknown>;
 
 interface Socket {
-  readonly kind: "state" | "inbox" | "options" | "activity" | "pty" | "pane";
+  readonly kind: "state" | "inbox" | "activity" | "pty" | "pane";
   readonly repo: string | undefined;
   readonly runId?: string | undefined;
   /** The pane a `pty` or `pane` socket streams; set once the pane is known. */
@@ -135,8 +136,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           uptimeMs: Date.now() - started,
           folder: folder?.root ?? null,
         });
-      if (path === "/ws/state" || path === "/ws/inbox" || path === "/ws/options") {
-        const kind = path === "/ws/state" ? "state" : path === "/ws/inbox" ? "inbox" : "options";
+      if (path === "/ws/state" || path === "/ws/inbox") {
+        const kind = path === "/ws/state" ? "state" : "inbox";
         return server.upgrade(req, { data: { kind, repo } }) ? undefined : json({ ok: false }, 400);
       }
       const ws = /^\/ws\/(activity|pty|pane)\/([^/]+)$/.exec(path);
@@ -178,7 +179,11 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         return fromResult(
           await c.value.resolve("buildReport").execute(url.searchParams.get("since") ?? undefined),
         );
-      if (path === "/supervisor") return json(await supervisorView(c.value, repo, folder, started, opts));
+      if (path === "/supervisor")
+        return json(
+          // The port the daemon is bound to: with `--port 0` that is not the one it was asked for.
+          await supervisorView(c.value, repo, folder, started, { ...opts, port: server.port ?? opts.port }),
+        );
       if (path === "/layout") return fromResult(await c.value.resolve("panes").view());
       // Options (S1): every option with its value and source; a set writes the scope's file.
       if (path === "/options" && req.method === "GET")
@@ -300,7 +305,12 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           workspace = w.value.id;
         }
         const role = PANE_ROLES.includes(str("role") as PaneRole) ? (str("role") as PaneRole) : "shell";
-        const argv = Array.isArray(body.argv) ? (body.argv as string[]) : undefined;
+        // A shell pane asked for without a command runs the person's shell, as a split does.
+        const argv = Array.isArray(body.argv)
+          ? (body.argv as string[])
+          : str("role") === "shell" && !str("host") && !str("agent")
+            ? [await defaultShell(c.value)]
+            : undefined;
         // A fresh tab for the pane (S6): named after the pane's label.
         let tab = str("tab");
         if (body.newTab === true && workspace) {
@@ -366,13 +376,10 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           const body = (await req.json().catch(() => ({}))) as Json;
           const dir = body.dir === "down" ? "down" : "right";
           const argv = Array.isArray(body.argv) && body.argv.length > 0 ? (body.argv as string[]) : undefined;
-          const shell = await c.value.resolve("optionStore").get("terminal.shell");
-          const configured = shell.isOk() && typeof shell.value.value === "string" ? shell.value.value : "";
-          const fallback = configured !== "" ? configured : (process.env.SHELL ?? "sh");
           return fromResult(
             await panes.splitPane(paneId, {
               dir,
-              process: { kind: "command", argv: argv ?? [fallback] },
+              process: { kind: "command", argv: argv ?? [await defaultShell(c.value)] },
               ...(typeof body.cols === "number" && typeof body.rows === "number"
                 ? { size: { cols: body.cols as number, rows: body.rows as number } }
                 : {}),
@@ -387,7 +394,10 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
             return json(
               {
                 ok: false,
-                error: { code: "FORBIDDEN", message: `only pane ${paneId} itself reports its heartbeat` },
+                error: {
+                  code: DENIED,
+                  message: `only pane ${paneId} itself reports its heartbeat`,
+                },
               },
               403,
             );
@@ -464,7 +474,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
             {
               ok: false,
               error: {
-                code: "FORBIDDEN",
+                code: DENIED,
                 message: pane
                   ? `pane ${pane.id} (${pane.role}${pane.runId ? ` of run ${pane.runId}` : ""}) may not steer run ${runId}`
                   : "unknown pane token",
@@ -607,16 +617,19 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           return fromResult(await c.value.resolve("driverLock").attach({ runId, by: str("by") ?? "" }));
         case "POST release":
           return fromResult(await c.value.resolve("driverLock").release({ runId }));
-        case "POST answer":
-          return fromResult(
-            await c.value.resolve("runJournal").answer(runId, str("question") ?? "", {
-              choices: list("choices"),
-              ...(str("text") ? { text: str("text") as string } : {}),
-              by: str("by") ?? "",
-              // From the decision card, without opening the session: what 11a counts.
-              ...(str("origin") === "inbox" ? { origin: "inbox" as const } : {}),
-            }),
-          );
+        case "POST answer": {
+          const answered = await c.value.resolve("runJournal").answer(runId, str("question") ?? "", {
+            choices: list("choices"),
+            ...(str("text") ? { text: str("text") as string } : {}),
+            by: str("by") ?? "",
+            // From the decision card, without opening the session: what 11a counts.
+            ...(str("origin") === "inbox" ? { origin: "inbox" as const } : {}),
+          });
+          if (answered.isErr()) return fromResult(answered);
+          // An answer is carried out by a drive (as in the TUI): with none alive, the run is driven again.
+          const drive = await continueAnswered(c.value, runId, opts.start);
+          return json({ ok: true, data: { ...answered.value, ...(drive ? { drive } : {}) } });
+        }
         case "POST approve":
           return fromResult(
             await c.value.resolve("approveRun").execute({
@@ -668,15 +681,11 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       async open(ws) {
         sockets.add(ws);
         const d = ws.data;
-        if (d.kind === "state" || d.kind === "inbox" || d.kind === "options") {
+        if (d.kind === "state" || d.kind === "inbox") {
           let last = "";
           const tick = async () => {
             const text = JSON.stringify(
-              d.kind === "state"
-                ? await state(ctx, folder)
-                : d.kind === "inbox"
-                  ? await inbox(ctx, folder)
-                  : await optionsView(containerFor(d.repo)),
+              d.kind === "state" ? await state(ctx, folder) : await inbox(ctx, folder),
             );
             if (text !== last) {
               last = text;
@@ -908,16 +917,43 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   };
 }
 
-/** The same overview `metator status` prints: one repository, or each repository of a folder. */
-export /** `/ws/options`: the options view as an envelope, so the app refreshes when a file changes. */
-async function optionsView(c: Result<MetatorContainer, { code: string; message: string }>): Promise<unknown> {
-  if (c.isErr()) return { ok: false, error: c.error };
-  const view = await c.value.resolve("optionStore").list({});
-  return view.isOk()
-    ? { ok: true, data: view.value }
-    : { ok: false, error: { code: view.error.code, message: view.error.message } };
+/** A pane that steers a run or reports a heartbeat that is not its own: a change it may not make. */
+const DENIED: ErrorCode = "TRANSITION_DENIED";
+
+/** The shell of a new shell pane: the person's `terminal.shell`, else `$SHELL`, else `sh`. */
+async function defaultShell(c: MetatorContainer): Promise<string> {
+  const shell = await c.resolve("optionStore").get("terminal.shell");
+  const configured = shell.isOk() && typeof shell.value.value === "string" ? shell.value.value : "";
+  return configured !== "" ? configured : (process.env.SHELL ?? "sh");
 }
 
+/**
+ * After an answer: the drive of an active run that nothing drives is started again, on the host
+ * that drove it. Nothing is started for a run with a live drive (it reads the answer itself) or a
+ * live terminal in a pane (the session there carries on), or when the daemon cannot start drives.
+ */
+async function continueAnswered(
+  c: MetatorContainer,
+  runId: string,
+  start: ServeOptions["start"],
+): Promise<{ readonly started: boolean } | { readonly error: string } | undefined> {
+  if (!start) return undefined;
+  const record = await c.resolve("runRepository").load(runId);
+  if (record.isErr() || record.value.state.status !== "active") return undefined;
+  const driver = await c.resolve("runDrivers").status(runId);
+  if (driver.isOk() && driver.value?.alive) return undefined;
+  if (
+    c
+      .resolve("ptyBroker")
+      .byRun(runId)
+      .some((s) => s.alive)
+  )
+    return undefined;
+  const started = await start(c, runId, "");
+  return started.isOk() ? { started: started.value.started } : { error: started.error.message };
+}
+
+/** The same overview `metator status` prints: one repository, or each repository of a folder. */
 async function state(ctx: CommandContext, folder: Folder | null): Promise<Json> {
   if (!folder) {
     const o = await ctx.container().resolve("workOverview").execute();

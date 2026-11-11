@@ -19,6 +19,7 @@ import {
   type KeyMap,
   keyMapOf,
   neighborPane,
+  notifies,
   paneLabel,
   stripStages,
   type WorkbenchRepo,
@@ -36,7 +37,7 @@ export function WorkbenchScreen({
   onOpenBacklog,
   showPane,
 }: {
-  /** Opens the new-session dialog for a task in a new worktree (a new tab). */
+  /** Opens a tab with the agent that starts a task: the person says what to do, the agent starts the run. */
   onNewTask(): void;
   onOpenSettings(): void;
   onOpenPlan(runId: string): void;
@@ -193,7 +194,6 @@ export function WorkbenchScreen({
         tab: tab.tabId,
         role: "shell",
         label: "shell",
-        argv: [shellOf(opt("terminal.shell", ""))],
       },
       repoName,
     );
@@ -207,7 +207,6 @@ export function WorkbenchScreen({
         ...(repo.id === "repo" ? {} : { workspace: repo.id }),
         label: "shell",
         role: "shell",
-        argv: [shellOf(opt("terminal.shell", ""))],
         newTab: true,
       },
       repoName,
@@ -219,24 +218,21 @@ export function WorkbenchScreen({
     const r = await client.setTree(tab.tabId, t, repoName);
     if (!r.ok) setNote(r.error?.message);
   };
-  const pick = (row: GotoRow, take: boolean) => {
+  const pick = (row: GotoRow) => {
     setGoto(false);
     setRepoId(repos.find((r) => r.tabs.some((t) => t.key === row.tab.key))?.id);
     setTabKey(row.tab.key);
     if (row.paneId) {
       setFocus(row.paneId);
-      const p = panes.find((x) => x.id === row.paneId);
-      if (take && p) void attach(p);
     } else {
       const conductor = panes.find((p) => p.runId === row.tab.runId && p.role === "conductor");
       if (conductor) setFocus(conductor.id);
     }
   };
   // One toast: the newest question of the tabs shown here (notify.channel app).
-  const toast: InboxItem | undefined =
-    opt<string>("notify.channel", "app") === "off"
-      ? undefined
-      : inbox.find((i) => repos.some((r) => r.tabs.some((t) => t.runId === i.runId)));
+  const toast: InboxItem | undefined = !notifies(options?.options ?? [])
+    ? undefined
+    : inbox.find((i) => repos.some((r) => r.tabs.some((t) => t.runId === i.runId)));
   const blockedKey = (p: PaneView) => {
     const mode = opt<"ask" | "always" | "never">("ui.attachOnType", "ask");
     if (mode === "never") return;
@@ -424,7 +420,11 @@ export function WorkbenchScreen({
     e.preventDefault();
     const items: MenuItem[] = [
       { label: "New tab: shell", key: key(keymap, "newShell"), onSelect: () => void newShellTab() },
-      { label: "New tab: task in a new worktree…", key: key(keymap, "newTab"), onSelect: onNewTask },
+      {
+        label: "New tab: tell the agent a task (it starts the run)…",
+        key: key(keymap, "newTab"),
+        onSelect: onNewTask,
+      },
       { label: "Backlog…", key: key(keymap, "backlog"), onSelect: () => onOpenBacklog() },
       ...(t
         ? [
@@ -672,8 +672,8 @@ export function WorkbenchScreen({
               <h2>{tab ? "No pane in this tab" : "No tab"}</h2>
               <p>
                 {key(keymap, "newShell") ?? "prefix+c"} opens a shell here;{" "}
-                {key(keymap, "newTab") ?? "prefix+t"} starts a task in a new worktree; right-click the tab bar
-                for the menu.
+                {key(keymap, "newTab") ?? "prefix+t"} opens a conversation with the agent that starts a task;
+                right-click the tab bar for the menu.
               </p>
             </div>
           )}
@@ -711,12 +711,3 @@ export function WorkbenchScreen({
 }
 
 const key = (map: KeyMap, action: string): string | undefined => map[action]?.[0];
-
-const shellOf = (configured: string): string => {
-  if (configured) return configured;
-  try {
-    return localStorage.getItem("metator.shell") || "sh";
-  } catch {
-    return "sh";
-  }
-};

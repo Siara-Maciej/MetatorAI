@@ -2048,7 +2048,7 @@ metator run questions [options]
 
 ### `metator run answer`
 
-Answer a question; the drive waiting for it continues
+Record the answer to a question; the run continues when a drive is waiting for it (with none, `metator run continue` starts one)
 
 ```bash
 metator run answer [options] <question>
@@ -2504,7 +2504,7 @@ metator serve [options]
 | `--hostname <host>` | address to listen on | `"127.0.0.1"` |
 | `--poll-ms <n>` | how often sockets look for a change | `1000` |
 | `--supervise-ms <n>` | how often the supervisor ticks (0: never) | `5000` |
-| `--intake-ms <n>` | how often the intake rules are scanned (0: never; default: the rules' `everyMs`) |  |
+| `--intake-ms <n>` | how often the intake rules are scanned (0: never; default: the config's `intake.everyMs`) |  |
 | `--reviews-ms <n>` | how often reviews of my requests are read (0: never; default: the config's `reviews.everyMs`) |  |
 
 ## pane

@@ -52,6 +52,25 @@ export function DecisionCard({
     if (!r.ok) setError(r.error?.message ?? "the answer was refused");
     else onAnswered();
   };
+  // Enter sends the selected answer (the ⏎ on the button), unless a field or a button has the key.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || e.repeat || busy || !choice) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLButtonElement ||
+        e.target instanceof HTMLAnchorElement
+      )
+        return;
+      e.preventDefault();
+      void send(choice);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   const others = q.options.filter((o) => o.label !== choice);
   return (
     <article className="card" aria-label="decision card">

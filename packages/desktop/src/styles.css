@@ -1120,7 +1120,7 @@ h3 {
 .workbench .stage.waiting {
   color: var(--amber);
 }
-.workbench .stage.pending,
+.workbench .stage.next,
 .workbench .stage.stopped {
   color: var(--dim);
 }
