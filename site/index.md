@@ -30,14 +30,20 @@ cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)
 
 cd ~/code/your-repo
 metator setup     # reads the repository, installs rules, generates agents and hooks
-metator run       # starts a task and shows it live
+metator serve     # the local daemon the desktop app talks to
 ```
 
-[Install](./guide/install.md) has the details, and [First run](./guide/first-run.md) walks through one task.
+Then open the desktop app, click **+ New session** and describe the task. The app shows the agents at work, and the questions that wait for you arrive in its **Inbox**.
+
+![The Inbox of the desktop app with a gate's decision card](./public/screens/inbox.png)
+
+[Install](./guide/install.md) has the details, [First run](./guide/first-run.md) walks through one task, and [The app](./use/index.md) describes every screen.
+
+Everything the app does is also a command: `metator run` starts a task in a terminal, and `metator inbox` lists what waits for you. See the [command reference](./reference/commands.md).
 
 ## Documentation
 
 - [Guide](./guide/index.md): what MetatorAI is, how to install it, how a run works.
-- [Use](./use/index.md): start a task, answer its questions, review a change, answer a review.
+- [Use](./use/index.md): the app, starting a task, answering its questions, reading the change, your settings.
 - [Repository](./repo/index.md): rules, agents, gates and hooks for your own repository.
 - [Reference](./reference/index.md): commands, configuration, file formats, troubleshooting.
