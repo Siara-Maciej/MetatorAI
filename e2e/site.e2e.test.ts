@@ -70,11 +70,11 @@ describe("documentation site", () => {
   });
 
   test("every shipped agent, skill and document kind is on the site", async () => {
-    // The gallery is rendered from metator/agents at build time: every agent must be in the HTML.
-    const gallery = await Bun.file(join(out, "knowledge/agents.html")).text();
+    // The table is rendered from metator/agents at build time: every agent must be in the HTML.
+    const gallery = await Bun.file(join(out, "repo/agents.html")).text();
     for await (const file of new Bun.Glob("metator/agents/*.md").scan({ cwd: ROOT }))
       expect(gallery).toContain(`data-agent="${file.slice("metator/agents/".length, -3)}"`);
-    const skills = await read("site/knowledge/skills.md");
+    const skills = await read("site/repo/agents.md");
     for await (const file of new Bun.Glob("metator/skills/*/SKILL.md").scan({ cwd: ROOT }))
       expect(skills).toContain(`\`${file.split("/")[2]}\``);
     const documents = await read("site/reference/documents.md");
@@ -87,11 +87,12 @@ describe("documentation site", () => {
 
   test("workflow diagrams show exactly the stages of the shipped specs", async () => {
     const pages: Record<string, string> = {
-      "mt-feature": "work/feature.html",
-      "mt-bugfix": "work/bugfix.html",
-      "mt-refactor": "work/refactor.html",
-      "mt-pr-review": "work/review.html",
-      "mt-self-review": "work/review.html",
+      "mt-feature": "use/feature.html",
+      "mt-bugfix": "use/bugfix.html",
+      "mt-refactor": "use/refactor.html",
+      "mt-pr-review": "use/review.html",
+      "mt-self-review": "use/review.html",
+      "mt-system-change": "use/system.html",
     };
     for (const [id, page] of Object.entries(pages)) {
       const spec = parse(await read(`.github/metator/workflows/${id}.yml`)) as { stages: { id: string }[] };
@@ -104,7 +105,7 @@ describe("documentation site", () => {
     }
   });
 
-  test("the built site renders every section in a real browser, animated and without errors", async () => {
+  test("the built site renders every section in a real browser without errors, and nothing on it moves", async () => {
     const page = await (await browser()).newPage();
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
@@ -112,73 +113,45 @@ describe("documentation site", () => {
       if (m.type() === "error") errors.push(m.text());
     });
     const base = `http://localhost:${server.port}`;
+    const { sections, pathOf } = await import("../site/.vitepress/config.ts");
+    // The home page is a plain document that leads into the four sections.
     await page.goto(`${base}/`);
-    expect(await page.locator(".VPHero .name").textContent()).toBe("MetatorAI");
-    // The numbers on the landing page come from the canon.
-    const agents = [...new Bun.Glob("metator/agents/*.md").scanSync({ cwd: ROOT })].length;
-    expect(await page.locator(".mx-stats strong").first().textContent()).toBe(String(agents));
-    // The landing page leads: the loop, three paths, the seven concepts, the modules.
-    expect(await page.locator(".mx-loop li").count()).toBe(6);
-    expect(await page.locator(".mx-paths a").count()).toBe(3);
-    expect(await page.locator(".mx-concepts a").count()).toBe(7);
-    expect(await page.locator(".mx-modules a").count()).toBe(4);
-    for (const [path, title] of [
-      ["/start/why", "Why MetatorAI"],
-      ["/start/how-it-works", "How it works"],
-      ["/start/quick-start", "Quick start"],
-      ["/start/paths", "Choose your path"],
-      ["/concepts/", "Concepts"],
-      ["/concepts/gate", "Gate and approvals"],
-      ["/work/", "Work"],
-      ["/work/feature", "Feature (W1 mt-feature)"],
-      ["/work/sessions", "Sessions and terminals"],
-      ["/knowledge/agents", "Agents and skills"],
-      ["/knowledge/rules", "Write and enforce rules"],
-      ["/modules/", "Modules"],
-      ["/modules/systems", "Systems of many applications"],
-      ["/reference/", "API overview"],
-      ["/reference/commands-people", "Commands for people"],
-      ["/reference/commands", "Command reference"],
-      ["/reference/hooks", "Hooks protocol"],
-      ["/reference/security", "Security and governance"],
-    ]) {
-      const response = await page.goto(`${base}${path}`);
-      expect(response?.status()).toBe(200);
-      // VitePress adds a heading anchor with a zero-width space.
-      const heading = (await page.locator("main h1").first().textContent()) ?? "";
-      expect(heading.replace(/[\s​]+/g, " ").trim()).toBe(title as string);
+    const heading = async () =>
+      ((await page.locator("main h1").first().textContent()) ?? "").replace(/[\s\u200b]+/g, " ").trim();
+    expect(await heading()).toBe("MetatorAI");
+    for (const s of sections)
+      expect(await page.locator("main li a", { hasText: new RegExp(`^${s.text}$`) }).count()).toBe(1);
+    // Every page of every section answers, and its heading is its name in the sidebar.
+    for (const s of sections)
+      for (const item of s.items) {
+        const response = await page.goto(`${base}${pathOf(s.base, item.link)}`);
+        expect([item.text, response?.status()]).toEqual([item.text, 200]);
+        expect(await heading()).toBe(item.text);
+      }
+    // On a phone no page is wider than the screen: wide tables and code scroll inside themselves.
+    await page.setViewportSize({ width: 390, height: 844 });
+    const wide: string[] = [];
+    for (const s of sections)
+      for (const item of s.items) {
+        await page.goto(`${base}${pathOf(s.base, item.link)}`);
+        if ((await page.evaluate(() => document.documentElement.scrollWidth)) > 390) wide.push(item.text);
+      }
+    expect(wide).toEqual([]);
+    // Nothing moves on its own: no page carries an endless animation.
+    for (const path of ["/", "/use/feature", "/repo/agents"]) {
+      await page.goto(`${base}${path}`);
+      // A transition after a click ends on its own; an endless animation is what must not exist.
+      const endless = await page.evaluate(
+        () =>
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getComputedTiming().iterations === Number.POSITIVE_INFINITY).length,
+      );
+      expect([path, endless]).toEqual([path, 0]);
     }
-    // The run token moves: the active stage of the workflow diagram changes over time.
-    await page.goto(`${base}/work/feature`);
-    const active = () => page.locator(".mx-wf-stage.active").getAttribute("data-stage");
-    const first = await active();
-    await page.waitForTimeout(1700);
-    expect(await active()).not.toBe(first);
-    // The reference overview lists every command group, linked into the reference.
-    await page.goto(`${base}/reference/`);
-    expect(await page.locator(".mx-cmd").count()).toBeGreaterThanOrEqual(30);
     expect(errors).toEqual([]);
     await page.close();
-  }, 90_000);
-
-  test("animations never change the page height, so scrolling does not jump (desktop and phone)", async () => {
-    const base = `http://localhost:${server.port}`;
-    const pages = ["/", "/modules/systems", "/work/feature", "/knowledge/agents"];
-    // One full terminal cycle (~20 s), every page and width at once.
-    const sample = async (width: number, path: string) => {
-      const page = await (await browser()).newPage({ viewport: { width, height: 900 } });
-      await page.goto(`${base}${path}`);
-      const heights = new Set<number>();
-      for (let i = 0; i < 44; i++) {
-        heights.add(await page.evaluate(() => document.documentElement.scrollHeight));
-        await page.waitForTimeout(500);
-      }
-      await page.close();
-      return [width, path, heights.size];
-    };
-    const runs = await Promise.all([1280, 390].flatMap((w) => pages.map((p) => sample(w, p))));
-    expect(runs).toEqual([1280, 390].flatMap((w) => pages.map((p) => [w, p, 1])));
-  }, 90_000);
+  }, 120_000);
 
   test("every package-manager code group offers npm, pnpm, yarn and bun, in that order", async () => {
     const groups: string[][] = [];
@@ -192,7 +165,7 @@ describe("documentation site", () => {
         if (labels.some((l) => ["npm", "pnpm", "yarn", "bun"].includes(l))) groups.push(labels);
       }
     }
-    expect(groups.length).toBeGreaterThanOrEqual(6);
+    expect(groups.length).toBeGreaterThanOrEqual(3);
     for (const labels of groups) expect(labels).toEqual(["npm", "pnpm", "yarn", "bun"]);
   });
 
@@ -217,7 +190,7 @@ describe("documentation site", () => {
           })
           .filter((g) => ["npm", "pnpm", "yarn", "bun"].includes(g.label as string)),
       );
-    await page.goto(`${base}/start/installation`);
+    await page.goto(`${base}/guide/install`);
     expect((await shown()).every((g) => g.label === "npm" && g.matches)).toBe(true);
     // A tab in one block switches all of them, and the tab stays where the reader clicked it.
     const tab = page.locator(".vp-code-group label", { hasText: /^pnpm$/ }).first();
@@ -231,20 +204,20 @@ describe("documentation site", () => {
     ]);
     expect(Math.abs(((await tab.boundingBox())?.y ?? 0) - before)).toBeLessThan(2);
     // The choice holds on the next page; the switch in the navigation bar changes it again.
-    await page.goto(`${base}/knowledge/gates-ci`);
+    await page.goto(`${base}/repo/gates-ci`);
     expect((await shown()).every((g) => g.label === "pnpm" && g.matches)).toBe(true);
     await page.locator(".VPNavBar .mx-pm-select select").selectOption("bun");
     expect((await shown()).every((g) => g.label === "bun" && g.matches)).toBe(true);
-    // The switch fits in the navigation bar next to the six sections.
+    // The switch fits in the navigation bar next to the sections.
     const box = await page.locator(".VPNavBar .mx-pm-select").boundingBox();
     expect(box !== null && box.x + box.width <= 1280).toBe(true);
     // The buttons on the installation page show the same choice.
-    await page.goto(`${base}/start/installation`);
+    await page.goto(`${base}/guide/install`);
     expect(await page.locator('.vp-doc .mx-pm button[aria-checked="true"]').textContent()).toContain("bun");
     await page.close();
   }, 60_000);
 
-  test("six sections in the top bar, each sidebar covers its pages, and Next leads through each section", async () => {
+  test("four sections in the top bar, each sidebar covers its pages, and Next leads through each section", async () => {
     const { sections, pathOf } = await import("../site/.vitepress/config.ts");
     const config = (await import("../site/.vitepress/config.ts")).default as {
       themeConfig: { nav: { text: string; link: string }[]; sidebar: Record<string, unknown> };
@@ -255,22 +228,15 @@ describe("documentation site", () => {
       .filter((f) => f !== "index.md")
       .map((f) => `/${f.replace(/(^|\/)index\.md$/, "$1").replace(/\.md$/, "")}`);
     expect([...inSidebars].sort()).toEqual(pages.sort());
-    expect(config.themeConfig.nav.map((n) => n.text)).toEqual([
-      "Start",
-      "Concepts",
-      "Work",
-      "Knowledge",
-      "Modules",
-      "Reference",
-    ]);
+    expect(config.themeConfig.nav.map((n) => n.text)).toEqual(["Guide", "Use", "Repository", "Reference"]);
     expect(Object.keys(config.themeConfig.sidebar).sort()).toEqual(sections.map((s) => s.base).sort());
 
     const base = `http://localhost:${server.port}`;
     const page = await (await browser()).newPage({ viewport: { width: 1280, height: 900 } });
-    // The hero leads into Start; from there Next walks the section to its last page.
+    // The home page leads into the guide; from there Next walks each section to its last page.
     await page.goto(`${base}/`);
-    await page.locator(".VPHero a", { hasText: "Quick start" }).click();
-    await page.waitForURL((u) => u.pathname === "/start/quick-start");
+    await page.locator("main a", { hasText: "First run" }).click();
+    await page.waitForURL((u) => u.pathname === "/guide/first-run");
     for (const section of sections) {
       const order = section.items.map((i) => pathOf(section.base, i.link));
       await page.goto(`${base}${order[0]}`);
@@ -294,8 +260,8 @@ describe("documentation site", () => {
       expect([section.text, visited]).toEqual([section.text, order]);
     }
     // The top bar marks the open section.
-    await page.goto(`${base}/modules/worktrees`);
-    expect(await page.locator(".VPNavBarMenuLink.active").textContent()).toContain("Modules");
+    await page.goto(`${base}/repo/systems`);
+    expect(await page.locator(".VPNavBarMenuLink.active").textContent()).toContain("Repository");
     await page.close();
   }, 180_000);
 });

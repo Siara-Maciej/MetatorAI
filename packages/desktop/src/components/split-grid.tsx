@@ -1,5 +1,5 @@
 /**
- * A tab's panes laid out by its split tree (S6, herdr's splits): each node is a flex row or
+ * A tab's panes laid out by its split tree (S6): each node is a flex row or
  * column at its ratio, with a divider a person drags; a leaf is whatever the caller renders for
  * the pane. A zoomed pane fills the whole area.
  */

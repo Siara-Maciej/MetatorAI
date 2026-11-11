@@ -16,7 +16,6 @@
     "metator": "bun packages/cli/src/main.ts",
     "test:unit": "bun test packages",
     "test:e2e": "bun test e2e",
-    "assets": "bun scripts/assets/generate.ts",
     "test:mutation": "bun scripts/mutation-smoke.ts",
     "schemas:freeze": "bun scripts/freeze-schemas.ts",
     "pack": "bun scripts/pack.ts",

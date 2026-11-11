@@ -2,7 +2,7 @@ import { z } from "zod";
 import { defineDocument } from "./versioned.ts";
 
 /**
- * The terminal runtime's layout (R1, ADR-0080), modelled on herdr: a workspace per run (or per
+ * The terminal runtime's layout (R1, ADR-0080): a workspace per run (or per
  * repository), tabs inside it, panes inside tabs. A pane is a real terminal with a role; the
  * daemon keeps this document in `.metator/layout.json` and brings every pane back after a restart.
  */
@@ -47,7 +47,7 @@ const TabV1Schema = z.strictObject({
 });
 
 /**
- * How a tab's panes share its area (S6, herdr's splits): a leaf is a pane, a node splits its
+ * How a tab's panes share its area (S6): a leaf is a pane, a node splits its
  * area in two along a direction at a ratio (the first part's share). Without a tree a client
  * lays the panes out as an even grid.
  */

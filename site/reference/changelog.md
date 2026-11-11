@@ -1,21 +1,28 @@
 # Changelog
 
-MetatorAI is pre-alpha and installed from a checkout, so there are no numbered releases yet. This page lists what changed on the default branch, newest first, in terms a user sees. Every file MetatorAI writes carries a `schemaVersion`; a new version of a document is named here when it appears.
+What changed on the default branch, newest first, in terms a user sees. MetatorAI is pre-alpha and installed from a checkout, so there are no numbered releases yet.
+
+Every file MetatorAI writes carries a `schemaVersion`. When a document gets a new version, it is named here. Older files keep loading.
 
 ## November 2026
 
-- **Documentation reorganised** around the seven concepts: Start, Concepts, Work, Knowledge, Modules, Reference. Old addresses under `/guide/`, `/workflows/`, `/how-to/`, `/agents/`, `/multi-repo/`, `/product/` and `/api/` moved; the README links point at the new ones.
-- **Sessions and terminals** (in progress): the host's CLI runs in a terminal MetatorAI owns, with a driver lock, a decision inbox, a terminal grid for groups of sessions and a supervisor. `Question` v2 (decision card), `RunMessage` v1 and `SupervisorPolicy` v1 are the new documents.
+- Documentation rebuilt in four sections: Guide, Use, Repository, Reference. Old addresses changed.
+- Automatic intake: rules under `intake` turn issues from GitHub, GitLab or Jira into tasks and runs (`metator intake rules`, `scan`, `status`).
+- Reviews of your own pull requests: `metator mrs list`, `show`, `scan`, `triage`, `send`, `resolve`, and the `mt-review-response` workflow. New document: `PullRequestReview`.
+- MCP servers in the configuration (`mcp`), written to `.mcp.json` by `metator generate`. `metator mcp` serves MetatorAI's reading commands as MCP tools.
+- Options with three scopes (user, repository, run): `metator config list`, `get`, `set`, `unset`. New document: `UserOptions`.
+- A backlog of tasks: `metator issue list`, `add`, `propose`, `decide`, `start`. New document: `Issue`.
+- Notes on a change: `metator review changes` and `metator review notes`. New document: `ReviewNotes`.
+- Sessions in terminals that the daemon owns (`metator serve`, `metator attach`, `metator pane`), the inbox (`metator inbox`), a supervisor (`metator supervise`) and the desktop app.
+- `MetatorConfig` is at version 11: `notify` (6), `supervisor` (7), `options` (8), `mcp` (9), `intake` (10), `reviews` (11).
 
 ## October 2026
 
-- `metator setup`, `agents install|update` with an install lock (ADR-0049).
-- Worktrees per run with port blocks (`RunRecord` v3, ADR-0050); `run drive`, `run continue`, questions and answers from the terminal (ADR-0051, ADR-0052).
-- Application environments: `env discover|init|up|down|status|logs`, fast start with shared databases and a warm pool (ADR-0053, ADR-0055).
-- `metator ui` on Ink, `metator ask` with citations, `metator status`, a folder of repositories (ADR-0056 to ADR-0060).
-- Package architecture: `arch analyze|check|simulate|plan|eval` (ADR-0061 to ADR-0066).
-- Systems of many applications: system map, `system discover|impact|analyze|plan`, `contract diff`, linked runs (ADR-0047, ADR-0067 to ADR-0073).
-- Review with proof: findings, verification, the judge, evals on a golden set (ADR-0031 to ADR-0034).
-- The rule canon with E1 engines (ast-grep, Biome, tsc), patterns, module cards, the memory map (ADR-0020 to ADR-0027).
-
-The decisions behind each change are in the repository's `docs/adr/`.
+- `metator setup`, and `metator agents install` and `agents update` with an install lock.
+- A worktree per run with its own ports; `metator run drive`, `run continue`, questions and answers from the terminal.
+- Application environments: `metator env discover`, `init`, `up`, `down`, `status`, `logs`.
+- `metator ui`, `metator ask` with citations, `metator status`, and a folder of several repositories.
+- Package architecture: `metator arch analyze`, `check`, `simulate`, `plan`, `eval`.
+- Systems of several applications: the system map, `metator system discover`, `impact`, `analyze`, `plan`, and `metator contract diff`.
+- Review with verified findings, a verdict, and scoring on recorded cases (`metator eval`).
+- Rules enforced by tools (ast-grep, Biome, tsc), patterns, module cards and the memory map.

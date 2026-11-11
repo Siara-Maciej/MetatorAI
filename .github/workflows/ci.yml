@@ -31,7 +31,7 @@ jobs:
           bunx playwright install --with-deps chromium
       - name: Unit tests
         run: bun run test:unit
-      - name: E2E tests (CLI process, README visuals in Chromium)
+      - name: E2E tests (CLI process, the site and the desktop app in Chromium)
         run: bun run test:e2e
       - name: Mutation smoke (tests must catch injected bugs)
         run: bun run test:mutation
