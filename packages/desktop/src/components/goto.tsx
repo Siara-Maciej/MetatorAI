@@ -19,8 +19,7 @@ export function GotoPicker({
 }: {
   readonly repos: readonly WorkbenchRepo[];
   readonly panes: readonly PaneView[];
-  /** `attach` is true when the person pressed `a`: the pane's keyboard is wanted too. */
-  onPick(row: GotoRow, attach: boolean): void;
+  onPick(row: GotoRow): void;
   onClose(): void;
 }) {
   const [query, setQuery] = useState("");
@@ -35,7 +34,7 @@ export function GotoPicker({
     const pick = rows[index];
     if (e.key === "ArrowDown") setIndex((i) => Math.min(rows.length - 1, i + 1));
     else if (e.key === "ArrowUp") setIndex((i) => Math.max(0, i - 1));
-    else if (e.key === "Enter" && pick) onPick(pick, false);
+    else if (e.key === "Enter" && pick) onPick(pick);
     else if (e.key === "Escape") onClose();
     // With an empty query the filter letters are keys.
     else if (query === "" && e.key.length === 1) {
@@ -92,7 +91,7 @@ export function GotoPicker({
               className={`row${i === index ? " sel" : ""}`}
               aria-current={i === index ? "true" : undefined}
               onMouseEnter={() => setIndex(i)}
-              onClick={() => onPick(r, false)}
+              onClick={() => onPick(r)}
             >
               <span className={`glyph ${r.state ?? ""}`}>{glyph(r.state)}</span>
               <span className="n">
@@ -104,8 +103,7 @@ export function GotoPicker({
           {rows.length === 0 ? <div className="empty">Nothing matches.</div> : null}
         </div>
         <div className="hint dim">
-          <kbd>↑↓</kbd> <kbd>j k</kbd> choose · <kbd>↵</kbd> go · <kbd>a</kbd> take the keyboard ·{" "}
-          <kbd>b w i d</kbd> filter · <kbd>esc</kbd>
+          <kbd>↑↓</kbd> <kbd>j k</kbd> choose · <kbd>↵</kbd> go · <kbd>a b w i d</kbd> filter · <kbd>esc</kbd>
         </div>
       </div>
     </div>

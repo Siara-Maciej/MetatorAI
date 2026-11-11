@@ -202,7 +202,18 @@ export class OptionStore {
     return { config: this.deps.config, source: this.deps.configFile ?? "metator.config.yml" };
   }
 
-  /** The MCP servers the agents get in this repository: the repository's, the person's over them (T1). */
+  /**
+   * The repository's own MCP servers (`mcp:` in its config): what a committed file such as
+   * `.mcp.json` may hold. A person's servers never go there: they are theirs, not the team's.
+   */
+  async repoMcp(): Promise<Result<McpServers, MetatorError>> {
+    return ok((await this.repoConfig()).config.mcp);
+  }
+
+  /**
+   * The MCP servers MetatorAI itself uses in this repository (intake, reviews, doctor): the
+   * repository's, the person's own over them (T1).
+   */
   async mcp(): Promise<Result<McpServers, MetatorError>> {
     const user = await this.deps.user.read(USER_OPTIONS_FILE);
     if (user.isErr()) return err(user.error);
@@ -213,7 +224,7 @@ export class OptionStore {
       );
       if (parsed.isOk()) mine = parsed.value.mcp;
     }
-    return ok(mergeMcpServers((await this.repoConfig()).config.mcp, mine));
+    return (await this.repoMcp()).map((repo) => mergeMcpServers(repo, mine));
   }
 
   private async layers(

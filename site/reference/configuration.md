@@ -191,7 +191,7 @@ mcp:
 Write `${VAR}` in `env`, never a token. `metator.config.yml` and `.mcp.json` are committed. The host fills `${VAR}` from your environment when it starts the server.
 :::
 
-Entries of `.mcp.json` that MetatorAI did not write are kept. A server you remove from `mcp` stays in `.mcp.json` until you delete it there. Servers under `mcp:` in your own options file (see [Options](#options)) are added to the repository's, and win when the names match.
+Entries of `.mcp.json` that MetatorAI did not write are kept. A server you remove from `mcp` stays in `.mcp.json` until you delete it there. Servers under `mcp:` in your own options file (see [Options](#options)) are yours alone: MetatorAI uses them for intake, reviews of your requests and `metator doctor`, where they are added to the repository's and win when the names match. `metator generate` does not write them into `.mcp.json`, because that file is committed. To give your own server to the agents of a host, add it to that host's own user configuration.
 
 ## Intake
 
