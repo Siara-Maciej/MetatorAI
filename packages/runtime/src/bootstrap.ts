@@ -605,6 +605,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
             const record = await runRepository.load(runId);
             return record.isOk() && record.value.state.status === "active";
           },
+          runDone: async (runId) => {
+            const record = await runRepository.load(runId);
+            return record.isOk() && record.value.state.status === "done";
+          },
         }),
     ),
     scanIntake: asFunction(

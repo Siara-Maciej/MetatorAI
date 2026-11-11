@@ -142,6 +142,24 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
     expect(data(await metator(["mrs", "send", ID, "--by", "maciej"], repo.root)).sent).toEqual([]);
   }, 60_000);
 
+  test("a thread the plan covers is fixed by the scan that follows the end of the answering run, not before", async () => {
+    const runId = (data(await metator(["mrs", "list"], repo.root)).requests as Data[])[0]?.runId as string;
+    expect(
+      (await metator(["mrs", "triage", ID, "--thread", "T1", "--state", "planned"], repo.root)).code,
+    ).toBe(0);
+    const during = data(await metator(["mrs", "scan"], repo.root)).requests as Data[];
+    expect(during[0]?.fixed).toBeUndefined();
+    expect((await metator(["run", "advance", "pass", "--run", runId], repo.root)).code).toBe(0);
+    expect(
+      (await metator(["run", "approve", "approval", "--run", runId, "--by", "maciej"], repo.root)).code,
+    ).toBe(0);
+    const after = data(await metator(["mrs", "scan"], repo.root)).requests as Data[];
+    expect(after[0]).toMatchObject({ fixed: ["T1"], fresh: [] });
+    expect(((data(await metator(["mrs", "show", ID], repo.root)).threads as Data[])[0] as Data).state).toBe(
+      "fixed",
+    );
+  }, 60_000);
+
   test("resolve closes the thread at the host; an unknown thread or request is NOT_FOUND", async () => {
     const r = await metator(["mrs", "resolve", ID, "--thread", "T1", "--by", "maciej"], repo.root);
     expect(r.code).toBe(0);

@@ -29,6 +29,7 @@ function world(threads: () => HostThread[] | MetatorError, notifyExit = 0) {
   const started: { workflow: string; task: string; base?: string }[] = [];
   const sent: string[] = [];
   const notified: Record<string, string>[] = [];
+  const done = new Set<string>();
   const reviews = new MyReviews({
     notifier: new Notifier({
       journal: { record: async () => ok(undefined), activity: async () => ok([]) },
@@ -81,9 +82,10 @@ function world(threads: () => HostThread[] | MetatorError, notifyExit = 0) {
         return ok({ runId: `run-${started.length}` } as never);
       },
     },
-    runActive: async (runId) => runId === "run-1",
+    runActive: async (runId) => runId === "run-1" && !done.has(runId),
+    runDone: async (runId) => done.has(runId),
   });
-  return { fs, reviews, started, sent, notified };
+  return { fs, reviews, started, sent, notified, done };
 }
 
 describe("reviews of my requests (T3, design/14 §4)", () => {
@@ -205,5 +207,31 @@ describe("reviews of my requests (T3, design/14 §4)", () => {
     const report = (await broken.reviews.scan())._unsafeUnwrap();
     expect(report.requests).toHaveLength(1);
     expect(report.errors).toEqual(["notify.command failed for github-acme-shop-45 (exit 3): no display"]);
+  });
+
+  test("planned threads are fixed once the answering run is done, not before; other threads keep their state", async () => {
+    const w = world(() => [thread("t1"), thread("t2"), thread("t3")]);
+    await w.reviews.scan();
+    const id = "github-acme-shop-45";
+    await w.reviews.triage(id, "t1", { kind: "change", state: "planned" });
+    await w.reviews.triage(id, "t2", { kind: "nit", state: "planned" });
+    await w.reviews.triage(id, "t3", { kind: "question", reply: "Cents." });
+    const during = (await w.reviews.scan())._unsafeUnwrap();
+    expect(during.requests[0]?.fixed).toBeUndefined();
+    expect((await w.reviews.show(id))._unsafeUnwrap().threads.map((t) => t.state)).toEqual([
+      "planned",
+      "planned",
+      "open",
+    ]);
+    w.done.add("run-1");
+    const after = (await w.reviews.scan())._unsafeUnwrap();
+    expect(after.requests[0]).toMatchObject({ open: 1, fresh: [], fixed: ["t1", "t2"] });
+    expect((await w.reviews.show(id))._unsafeUnwrap().threads.map((t) => [t.id, t.state])).toEqual([
+      ["t1", "fixed"],
+      ["t2", "fixed"],
+      ["t3", "open"],
+    ]);
+    // Said once: the next scan has nothing left to mark.
+    expect((await w.reviews.scan())._unsafeUnwrap().requests[0]?.fixed).toBeUndefined();
   });
 });

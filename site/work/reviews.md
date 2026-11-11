@@ -46,7 +46,7 @@ metator mrs resolve github-acme-shop-45 --thread T1 --by maciej
   "threads":2,"open":1,"proposed":1,"runId":"20261110-mt-review-response-answer-the-review-of-request-45"}]}
 ```
 
-A thread is `open` until a reply is sent (`answered`), the plan covers it (`planned`), the change is pushed (`fixed`) or it is closed at the host (`resolved`). A request has one answering run at a time; threads that arrive while it runs are kept and wait for the next one.
+A thread is `open` until a reply is sent (`answered`), the plan covers it (`planned`), the change is pushed (`fixed`) or it is closed at the host (`resolved`). The daemon marks the planned threads `fixed` on its next look after the answering run finished (its last gate, `metator run published`, proves the push). A request has one answering run at a time; threads that arrive while it runs are kept and wait for the next one.
 
 ## In the app
 
