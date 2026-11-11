@@ -1,23 +1,43 @@
 ---
-layout: home
-
-hero:
-  name: MetatorAI
-  text: Your agents are fast. MetatorAI makes them right.
-  tagline: Survey the codebase, lay out the rules, prove every claim, then ship. Scripts measure, hooks enforce, people approve. For GitHub Copilot and Claude Code.
-  image:
-    src: /logo.svg
-    alt: MetatorAI
-  actions:
-    - theme: brand
-      text: Quick start · 15 minutes
-      link: /start/quick-start
-    - theme: alt
-      text: How it works
-      link: /start/how-it-works
-    - theme: alt
-      text: Why MetatorAI
-      link: /start/why
+sidebar: false
+aside: false
+editLink: false
+lastUpdated: false
 ---
 
-<HomeSections />
+# MetatorAI
+
+MetatorAI is a workflow for AI coding agents. It works with GitHub Copilot and Claude Code and gives every task the same path: read the code, plan, write tests, build, check, review, and push after you approve.
+
+The agent still writes the code. MetatorAI decides what the agent is allowed to take on trust:
+
+| Job | Who does it | Example |
+|---|---|---|
+| Decide | the model | understand the task, write the plan and the code, find problems in a diff |
+| Measure | the `metator` command | which tests a change reaches, which rules apply to a file, whether a plan is valid |
+| Enforce | hooks your AI host runs | no edit outside the plan, no push before approval, no reading of secrets |
+| Approve | you | the plan, the push, the review comments |
+
+A step is finished when its result passes a check, not when the model says so.
+
+## Try it
+
+MetatorAI runs from a checkout and needs [Bun](https://bun.sh). Your own project can use npm, pnpm, Yarn or Bun.
+
+```bash
+git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
+cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)
+
+cd ~/code/your-repo
+metator setup     # reads the repository, installs rules, generates agents and hooks
+metator run       # starts a task and shows it live
+```
+
+[Install](./guide/install.md) has the details, and [First run](./guide/first-run.md) walks through one task.
+
+## Documentation
+
+- [Guide](./guide/index.md): what MetatorAI is, how to install it, how a run works.
+- [Use](./use/index.md): start a task, answer its questions, review a change, answer a review.
+- [Repository](./repo/index.md): rules, agents, gates and hooks for your own repository.
+- [Reference](./reference/index.md): commands, configuration, file formats, troubleshooting.

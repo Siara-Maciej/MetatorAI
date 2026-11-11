@@ -1,5 +1,5 @@
 /**
- * The workbench (S6, design/13 §5b, mockups v9): herdr's shape over MetatorAI's runs. Tabs are
+ * The workbench (S6, design/13 §5b, mockups v9): terminals over MetatorAI's runs. Tabs are
  * tasks (a run in its worktree) or shells; under them the run's stages; the panes of the active
  * tab in their split tree; a sidebar of repositories and agents. Everything else is a right
  * click or a key after the prefix. The daemon owns the layout; this screen only draws and asks.

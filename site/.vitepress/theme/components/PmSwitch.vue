@@ -48,7 +48,7 @@ const onSelect = (e: Event) => choosePackageManager((e.target as HTMLSelectEleme
   appearance: none;
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
-  color: var(--mx-teal);
+  color: var(--vp-c-text-1);
   cursor: pointer;
 }
 .sr-only {
@@ -72,11 +72,10 @@ const onSelect = (e: Event) => choosePackageManager((e.target as HTMLSelectEleme
   font-family: var(--vp-font-family-mono);
   font-size: 13px;
   color: var(--vp-c-text-2);
-  transition: background 0.2s ease, color 0.2s ease;
 }
 .mx-pm button.on {
-  background: var(--mx-teal-soft);
-  color: var(--mx-teal);
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-1);
   font-weight: 600;
 }
 </style>

@@ -4,98 +4,72 @@ import { defineConfig } from "vitepress";
  * User documentation of MetatorAI, published to GitHub Pages by .github/workflows/pages.yml.
  * The base path comes from Pages (SITE_BASE); locally it defaults to the repository's path.
  *
- * The site is divided by what the reader is looking for: Start (begin), Concepts (understand),
- * Work (do), Knowledge (teach the agents your repository), Modules (extend), Reference (look up).
- * The top bar holds the six sections; each section has its own sidebar, and the Previous/Next
- * links at the bottom of a page follow that sidebar from its first page to its last.
+ * Four sections, by what the reader came for: Guide (understand and install), Use (do the work),
+ * Repository (teach MetatorAI your repository), Reference (look up). The top bar holds the
+ * sections; each has its own sidebar, and Previous/Next at the bottom of a page follow it.
  */
 
 export const sections = [
   {
-    text: "Start",
-    base: "/start/",
+    text: "Guide",
+    base: "/guide/",
     items: [
-      { text: "Why MetatorAI", link: "why" },
-      { text: "How it works", link: "how-it-works" },
-      { text: "Installation", link: "installation" },
-      { text: "Quick start", link: "quick-start" },
-      { text: "Choose your path", link: "paths" },
+      { text: "What MetatorAI is", link: "" },
+      { text: "Install", link: "install" },
+      { text: "First run", link: "first-run" },
+      { text: "Runs and workflows", link: "runs" },
+      { text: "Gates and approvals", link: "gates" },
+      { text: "Copilot and Claude Code", link: "hosts" },
       { text: "FAQ", link: "faq" },
     ],
   },
   {
-    text: "Concepts",
-    base: "/concepts/",
+    text: "Use",
+    base: "/use/",
     items: [
-      { text: "The seven concepts", link: "" },
-      { text: "Run", link: "run" },
-      { text: "Workflow", link: "workflow" },
-      { text: "Gate and approvals", link: "gate" },
-      { text: "Canon", link: "canon" },
-      { text: "Finding", link: "finding" },
-      { text: "Host", link: "host" },
-      { text: "Session", link: "session" },
-    ],
-  },
-  {
-    text: "Work",
-    base: "/work/",
-    items: [
-      { text: "Runs, in chat and in a terminal", link: "" },
-      { text: "Inbox and decisions", link: "inbox" },
-      { text: "Sessions and terminals", link: "sessions" },
-      { text: "Terminals, panes and the conductor", link: "terminals" },
-      { text: "The desktop app", link: "desktop" },
-      { text: "The plan of a run", link: "plan" },
-      { text: "The backlog", link: "backlog" },
-      { text: "Answer a review", link: "reviews" },
-      { text: "The change and your notes", link: "changes" },
+      { text: "Start a task", link: "" },
+      { text: "Answer questions", link: "inbox" },
+      { text: "Sessions and worktrees", link: "sessions" },
+      { text: "Desktop app and terminals", link: "desktop" },
+      { text: "Plan and backlog", link: "plan" },
+      { text: "Read the change", link: "changes" },
       { text: "Ask about the code", link: "ask" },
-      { text: "Feature (W1)", link: "feature" },
-      { text: "Bug fix (W2)", link: "bugfix" },
-      { text: "Refactor (W3)", link: "refactor" },
-      { text: "Review (W4, W5)", link: "review" },
-      { text: "System change (W13)", link: "system" },
-      { text: "Autonomy and autopilot", link: "autonomy" },
+      { text: "Automatic intake", link: "intake" },
+      { text: "Answer a review", link: "reviews" },
+      { text: "Feature", link: "feature" },
+      { text: "Bug fix", link: "bugfix" },
+      { text: "Refactor", link: "refactor" },
+      { text: "Review a change", link: "review" },
+      { text: "Change across applications", link: "system" },
     ],
   },
   {
-    text: "Knowledge",
-    base: "/knowledge/",
+    text: "Repository",
+    base: "/repo/",
     items: [
-      { text: "Write and enforce rules", link: "rules" },
-      { text: "Keep knowledge true", link: "truth" },
+      { text: "Rules", link: "" },
+      { text: "Keep knowledge true", link: "knowledge" },
       { text: "Agents and skills", link: "agents" },
-      { text: "Skills", link: "skills" },
-      { text: "Quality gates and CI", link: "gates-ci" },
+      { text: "Gates and CI", link: "gates-ci" },
       { text: "Hooks and guardrails", link: "hooks" },
-    ],
-  },
-  {
-    text: "Modules",
-    base: "/modules/",
-    items: [
-      { text: "What a module is", link: "" },
-      { text: "Several repositories", link: "repositories" },
-      { text: "Systems of many applications", link: "systems" },
       { text: "Package architecture", link: "architecture" },
-      { text: "Start the application", link: "environments" },
-      { text: "Runs in worktrees", link: "worktrees" },
+      { text: "Several repositories", link: "repositories" },
+      { text: "Systems of applications", link: "systems" },
+      { text: "Run the application", link: "environments" },
     ],
   },
   {
     text: "Reference",
     base: "/reference/",
     items: [
-      { text: "Overview", link: "" },
-      { text: "Commands for people", link: "commands-people" },
+      { text: "Reference", link: "" },
       { text: "Command reference", link: "commands" },
-      { text: "CLI and envelope", link: "cli" },
-      { text: "Hooks protocol", link: "hooks" },
-      { text: "Documents and schemas", link: "documents" },
+      { text: "Output and exit codes", link: "cli" },
       { text: "Configuration", link: "configuration" },
-      { text: "Extending: ports and plugins", link: "extending" },
-      { text: "Security and governance", link: "security" },
+      { text: "Documents and schemas", link: "documents" },
+      { text: "Hooks protocol", link: "hooks" },
+      { text: "Ports and plugins", link: "extending" },
+      { text: "Security", link: "security" },
       { text: "Troubleshooting", link: "troubleshooting" },
       { text: "Glossary", link: "glossary" },
       { text: "Changelog", link: "changelog" },
@@ -108,13 +82,11 @@ export const pathOf = (base: string, link: string) => (link === "" ? base : `${b
 
 export default defineConfig({
   title: "MetatorAI",
-  description:
-    "Survey the codebase, lay out the rules, prove every claim, then ship. Documentation for users.",
+  description: "A workflow for AI coding agents: plans, gates and approvals around GitHub Copilot and Claude Code.",
   base: process.env.SITE_BASE ?? "/MetatorAI/",
   lang: "en-US",
   cleanUrls: true,
   lastUpdated: true,
-  appearance: "dark",
   head: [["link", { rel: "icon", href: `${process.env.SITE_BASE ?? "/MetatorAI/"}logo.svg` }]],
   themeConfig: {
     logo: "/logo.svg",
@@ -129,13 +101,9 @@ export default defineConfig({
     search: { provider: "local" },
     socialLinks: [{ icon: "github", link: "https://github.com/Siara-Maciej/MetatorAI" }],
     editLink: {
-      pattern: "https://github.com/Siara-Maciej/MetatorAI/edit/claude/foundation/site/:path",
+      pattern: "https://github.com/Siara-Maciej/MetatorAI/edit/main/site/:path",
       text: "Edit this page on GitHub",
     },
     outline: { level: [2, 3] },
-    footer: {
-      message: "Pre-alpha. Commands and file formats may still change between versions.",
-      copyright: "MetatorAI",
-    },
   },
 });

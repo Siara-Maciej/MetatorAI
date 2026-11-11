@@ -7,7 +7,7 @@ import { defineDocument } from "./versioned.ts";
  * Options (S1, design/13): one definition per setting, in one registry, with a type, a default, a
  * description and the scope it may be set at. Every surface (CLI, daemon, app) answers "what is
  * the value here" the same way: the layers are laid over the default, a bad value is a diagnostic
- * and the default, never a failure. Modelled on herdr's config, with scopes added.
+ * and the default, never a failure.
  */
 export const OPTION_SCOPES = ["user", "repo", "run"] as const;
 export type OptionScope = (typeof OPTION_SCOPES)[number];
@@ -209,7 +209,7 @@ const splitList = (text: string): string[] =>
     .filter((s) => s !== "");
 
 /**
- * A key chord as herdr writes it: modifiers joined with `+` before one key (`ctrl+b`, `prefix+z`,
+ * A key chord: modifiers joined with `+` before one key (`ctrl+b`, `prefix+z`,
  * `shift+enter`, `f5`, `[`). `prefix+` means "after the prefix chord".
  */
 const KEY =

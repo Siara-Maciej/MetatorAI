@@ -1,4 +1,4 @@
-/** The go-to picker (S6, herdr's prefix+g): every pane and question, filtered by state or text. */
+/** The go-to picker (S6, prefix+g): every pane and question, filtered by state or text. */
 import { useMemo, useState } from "react";
 import type { PaneView } from "../api.ts";
 import { type GotoFilter, type GotoRow, gotoRows, type WorkbenchRepo } from "../model.ts";
@@ -37,7 +37,7 @@ export function GotoPicker({
     else if (e.key === "ArrowUp") setIndex((i) => Math.max(0, i - 1));
     else if (e.key === "Enter" && pick) onPick(pick, false);
     else if (e.key === "Escape") onClose();
-    // With an empty query the filter letters are keys, as in herdr.
+    // With an empty query the filter letters are keys.
     else if (query === "" && e.key.length === 1) {
       const f = FILTERS.find((x) => x.key === e.key);
       if (f) {
