@@ -234,7 +234,12 @@ export class KeybindingOption extends OptionDefinition<readonly string[]> {
 /** A shell command run on the person's machine (an editor, a notifier). */
 export class CommandOption extends OptionDefinition<string> {
   readonly kind = "command" as const;
-  readonly schema: z.ZodType<string> = z.string().min(1, "expected a command");
+  readonly schema: z.ZodType<string>;
+  /** `allowEmpty`: an empty command means "none" (the option is off). */
+  constructor(spec: OptionSpec<string>, rules: { readonly allowEmpty?: boolean } = {}) {
+    super(spec);
+    this.schema = rules.allowEmpty ? z.string() : z.string().min(1, "expected a command");
+  }
   protected override details(): Partial<OptionDescription> {
     return { runsLocally: true };
   }
@@ -306,7 +311,9 @@ export function resolveOptions(
       const p = def.parse(fromLegacy);
       if (p.ok) {
         value = p.value;
-        source = "repo";
+        // A legacy field always has a value (its schema's default): only one that differs from
+        // the option's default was set by the repository.
+        if (!sameValue(p.value, def.defaultValue)) source = "repo";
       }
     }
     const held: Partial<Record<OptionScope, unknown>> = {};
@@ -348,6 +355,9 @@ export function resolveOptions(
       if (!defs.has(key)) diagnostics.push(diag("unknown-key", layer, key, `unknown option ${key}`));
   return { options: options.sort((a, b) => a.key.localeCompare(b.key)), diagnostics };
 }
+
+const sameValue = (a: unknown, b: unknown): boolean =>
+  Array.isArray(a) && Array.isArray(b) ? a.length === b.length && a.every((x, i) => x === b[i]) : a === b;
 
 const diag = (
   kind: OptionDiagnosticKind,

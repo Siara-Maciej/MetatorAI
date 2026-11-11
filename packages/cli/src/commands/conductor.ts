@@ -25,7 +25,10 @@ export function registerConductorCommands(program: Command, runs: Command, ctx: 
     .command("start")
     .description("Open the run as a conductor pane: an interactive host session that runs the workflow")
     .option("--run <id>", "run id (default: latest)")
-    .option("--host <id>", "copilot, claude, opencode (default: the run's host, else supervisor.hostOrder)")
+    .option(
+      "--host <id>",
+      "an interactive host: copilot, claude, opencode (default: the run's host, else the first of supervisor.hostOrder that is installed)",
+    )
     .action(
       ctx.action(async (opts: { run?: string; host?: string }) => {
         const path = await runPath(opts.run, "start");

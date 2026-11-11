@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
+  CONFIG_FILES,
   err,
   MetatorError,
   ok,
@@ -13,8 +14,6 @@ import { findChildRepos } from "@metator/runtime";
 import type { Command } from "commander";
 import type { CommandContext, Folder } from "../context.ts";
 import { sessionRows } from "../sessions.ts";
-
-const CONFIGS = ["metator.config.yml", "metator.config.yaml", "metator.config.json", "metator.config.ts"];
 
 /** `repos *` (G2, ADR-0057): a folder of repositories, each with its own MetatorAI. */
 export function registerReposCommands(program: Command, ctx: CommandContext): void {
@@ -73,7 +72,7 @@ export function registerReposCommands(program: Command, ctx: CommandContext): vo
             file: f.value.file,
             repos: f.value.repos.map((r) => ({
               ...r,
-              setUp: CONFIGS.some((c) => existsSync(join(r.root, c))),
+              setUp: CONFIG_FILES.some((c) => existsSync(join(r.root, c))),
             })),
           }),
         };

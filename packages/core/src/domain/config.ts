@@ -7,7 +7,8 @@ import { defineDocument } from "./versioned.ts";
 
 /**
  * `metator.config.yml` / `.json` (ADR-0004, ADR-0029): the repository's choices layered over
- * MetatorAI's defaults. Version 1 covers paths, project globs and gates.
+ * MetatorAI's defaults. Version 1 covered paths, project globs and gates; each later version below
+ * says what it added.
  */
 /** MetatorAI checks a gate step may run in process (v2; v1 knew only `rules check`). */
 export type MetatorStep =

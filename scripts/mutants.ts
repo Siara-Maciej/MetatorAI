@@ -4949,4 +4949,34 @@ export const MUTANTS: readonly Mutant[] = [
     to: "n < -1",
     why: "a negative number is not a port or an interval",
   },
+  {
+    file: "packages/core/src/domain/effective-config.ts",
+    from: 'wipLimit: set<number>("supervisor.wipLimit") ?? config.supervisor.wipLimit,',
+    to: "wipLimit: config.supervisor.wipLimit,",
+    why: "a supervisor option of the repository is what the supervisor runs with",
+  },
+  {
+    file: "packages/core/src/domain/effective-config.ts",
+    from: 'command === "" ? undefined : { command }',
+    to: "{ command }",
+    why: "an empty notify.command turns the command off",
+  },
+  {
+    file: "packages/core/src/domain/effective-config.ts",
+    from: "return parsed?.ok ? (parsed.value as T) : undefined;",
+    to: "return config.options[key] as T;",
+    why: "an option value its definition refuses does not reach the configuration",
+  },
+  {
+    file: "packages/core/src/domain/options.ts",
+    from: 'if (!sameValue(p.value, def.defaultValue)) source = "repo";',
+    to: 'source = "repo";',
+    why: "a legacy field's own default is not a value the repository set",
+  },
+  {
+    file: "packages/core/src/application/options.ts",
+    from: "if (!held) return this.get(def.key, { ...(input.runId ? { runId: input.runId } : {}) });",
+    to: "",
+    why: "unsetting a key a scope does not hold writes no file",
+  },
 ];

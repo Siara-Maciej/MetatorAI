@@ -273,10 +273,10 @@ describe("settings view logic (S1)", () => {
     ]);
   });
   test("search matches the key, the title or the description, ignoring case", () => {
-    expect(optionMatches(opt("ui.sidebarWidth"), "SIDEBAR")).toBe(true);
-    expect(optionMatches(opt("ui.sidebarWidth"), "wide")).toBe(true);
-    expect(optionMatches(opt("ui.sidebarWidth"), "zoom")).toBe(false);
-    expect(optionMatches(opt("ui.sidebarWidth"), "  ")).toBe(true);
+    expect(optionMatches(opt("ui.paneBorders"), "SIDEBAR")).toBe(true);
+    expect(optionMatches(opt("ui.paneBorders"), "wide")).toBe(true);
+    expect(optionMatches(opt("ui.paneBorders"), "zoom")).toBe(false);
+    expect(optionMatches(opt("ui.paneBorders"), "  ")).toBe(true);
   });
 });
 
@@ -323,7 +323,7 @@ describe("workbench view logic (S6)", () => {
     expect(chordOf({ key: "Shift", ctrlKey: false, altKey: false, shiftKey: true, metaKey: false })).toBe("");
     const map = keyMapOf([
       { key: "keys.zoom", value: ["prefix+F"] },
-      { key: "ui.theme", value: "dark" },
+      { key: "ui.paneLabels", value: true },
     ]);
     expect(actionOf(map, "f", true)).toBe("zoom");
     expect(actionOf(map, "z", true)).toBeUndefined();

@@ -248,7 +248,7 @@ An option is one key with a type, a default and a scope. Options cover the deskt
 |---|---|---|
 | `user` | `~/.config/metator/options.yml` | your look, keys and editor, on every repository |
 | `repo` | `options:` in `metator.config.yml` | the repository's policy |
-| `run` | `options` in the run's `state.json` | a repository option for one run |
+| `run` | `options` in the run's `state.json` | a value recorded with one run (`--scope run --run <id>`); the options shipped today are read for the whole repository, so a run's value shows in `config get --run <id>` and changes nothing else |
 
 ```bash
 metator config list                                    # every option: value and where it comes from
@@ -256,31 +256,28 @@ metator config list --changed                          # only the ones a file se
 metator config get keys.zoom                           # one option, its description and default
 metator config set ui.paneBorders always --scope user
 metator config set supervisor.wipLimit 2 --scope repo
-metator config set supervisor.wipLimit 1 --scope run --run <id>
 metator config unset ui.paneBorders --scope user       # back to the next scope, or the default
 metator config schema --options                        # the JSON Schema of the options
 ```
 
 | Group | Scope | Keys |
 |---|---|---|
-| `ui` | user | `theme`, `density`, `paneBorders`, `paneLabels`, `sidebarWidth`, `sidebarStartCollapsed`, `panelSort`, `statusIndicators`, `confirmClosePane`, `windowTitle`, `openOnStart`, `attachOnType` |
-| `keys` | user | `prefix` (default `ctrl+b`), then one key per action: `newShell`, `newTab`, `splitRight`, `splitDown`, `zoom`, `focusLeft`, `focusDown`, `focusUp`, `focusRight`, `goto`, `nextWaiting`, `attach`, `release`, `copyMode`, `closePane`, `detach`, `plan`, `changes`, `backlog`, `help` |
-| `notify` | user | `channel` (`off`, `app`, `system`, `command`), `delaySeconds`, `sound` |
-| `notify` | repo | `command` |
-| `terminal` | user | `shell`, `shellMode`, `newPaneCwd`, `scrollbackLines`, `cols`, `rows` |
-| `editor` | user | `command`, `openWith`, `diffTool` |
-| `review` | user | `autoOpenEditor` |
-| `review` | repo | `sendTo` (`conductor` or `worker`) |
-| `supervisor` | repo | `wipLimit`, `respawn`, `respawnAttempts`, `idleThresholdMs`, `hostOrder`, `resumeConductors`, `startupDelayMs` |
-| `hosts` | repo | `default`, `manifestsDir`, `models.copilot`, `models.claude` |
-| `worktrees` | repo | `directory`, `removeOnClose`, `installDependencies` |
+| `ui` | user | `paneBorders`, `paneLabels`, `statusIndicators`, `confirmClosePane`, `attachOnType` |
+| `keys` | user | `prefix` (default `ctrl+b`), then one key per action: `newShell`, `newTab`, `splitRight`, `splitDown`, `zoom`, `focusLeft`, `focusDown`, `focusUp`, `focusRight`, `goto`, `nextWaiting`, `attach`, `release`, `copyMode`, `closePane`, `plan`, `changes`, `backlog`, `help` |
+| `notify` | user | `channel` (`app` or `off`: whether the app shows a toast for a waiting question) |
+| `notify` | repo | `command` (empty by default: no command runs) |
+| `terminal` | user | `shell`, `scrollbackLines` |
+| `editor` | user | `command` |
+| `supervisor` | repo | `wipLimit`, `respawn`, `respawnAttempts`, `idleThresholdMs`, `hostOrder` |
 | `issues` | repo | `requireConsent`, `proposeFromAgents` |
+
+Every option on this list changes what MetatorAI does. `metator config list` prints the same list with each option's description and default.
 
 A key binding is written as the prefix and one key, for example `prefix+z` for zoom: press the prefix, then `z`.
 
 The desktop app's **Settings** screen shows the same list. A change there is written to the same files.
 
-A wrong value in a file stops nothing: the default applies and `metator config list` reports the value as a diagnostic. A wrong value typed into `config set` is refused with `USAGE`. `supervisor.hostOrder`, `supervisor.resumeConductors`, `supervisor.startupDelayMs` and `hosts.manifestsDir` are read when `metator serve` starts, so restart the daemon after you change them. `issues.requireConsent` is always on: an agent proposes a task and a person adds it.
+A wrong value in a file stops nothing: the default applies and `metator config list` reports the value as a diagnostic. A wrong value typed into `config set` is refused with `USAGE`. The `supervisor.*` options and `notify.command` are read when `metator serve` starts, so restart the daemon after you change them. `issues.requireConsent` is always on: an agent proposes a task and a person adds it.
 
 The top-level fields `editor`, `notify.command` and `supervisor` count as the repository's values of `editor.command`, `notify.command` and the `supervisor.*` options. A value under `options:` wins over them.
 
