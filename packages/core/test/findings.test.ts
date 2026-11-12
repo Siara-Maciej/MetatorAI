@@ -160,7 +160,10 @@ describe("mergeFindings / MergeFindingSets", () => {
   });
 
   test("a missing directory, or one with no lens file, is NOT_FOUND and nothing is written", async () => {
-    for (const files of [{}, { "f/merged.json": setFile("merged", []) }] as Record<string, string>[]) {
+    for (const files of [
+      {},
+      { "f/merged.json": JSON.stringify(FindingSetDocument.stamp({ lens: "merged", findings: [] })) },
+    ] as Record<string, string>[]) {
       const w = world(files);
       const before = await w.fs.glob(["**/*"]);
       const error = (await w.merge.execute({ dir: "f" }))._unsafeUnwrapErr();

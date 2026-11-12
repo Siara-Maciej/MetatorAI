@@ -133,6 +133,32 @@ describe("CheckReadiness", () => {
     expect(v.checks.find((c) => c.id === "remote")?.status).toBe("warn");
   });
 
+  test("a repository with no commit is not ready: a run's worktree needs one", async () => {
+    const vcs = (commits: boolean) => ({
+      remoteUrl: async () => ok("git@example.com:a/b.git"),
+      hasCommits: async () => ok(commits),
+    });
+    const check = (commits: boolean) =>
+      new CheckReadiness(
+        present_("metator/install.lock.json"),
+        DEFAULT_PATHS,
+        { config: gated, source: "metator.config.yml" },
+        catalog("mt-feature"),
+        vcs(commits),
+        async () => true,
+      ).execute();
+    const v = (await check(false))._unsafeUnwrap();
+    expect(v.ready).toBe(false);
+    expect(v.checks.find((c) => c.id === "commits")).toEqual({
+      id: "commits",
+      status: "fail",
+      message: "the repository has no commit yet: a run's worktree and its diff need one",
+      fix: "git commit --allow-empty -m init",
+    });
+    const fine = (await check(true))._unsafeUnwrap();
+    expect([fine.ready, fine.checks.some((c) => c.id === "commits")]).toEqual([true, false]);
+  });
+
   test("a worktree: its own package.json and node_modules, its own services; the fix is worktree setup", async () => {
     const wt = ".metator/wt/20261102-mt-feature-a";
     const entry = { id: "20261102-mt-feature-a", path: wt };

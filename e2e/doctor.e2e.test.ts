@@ -77,6 +77,34 @@ describe("metator doctor (real CLI)", () => {
     expect(deps?.status).toBe("ok");
   });
 
+  test("a repository with no commit: doctor is not ready and names the fix, as worktree new and run init --worktree do", async () => {
+    const fresh = await ScratchRepo.create();
+    try {
+      await fresh.write(".github/metator/workflows/demo.yml", WORKFLOW);
+      const FIX = "git commit --allow-empty -m init";
+      const r = await metator(["doctor"], fresh.root);
+      const data = r.json.data as { ready: boolean; checks: Check[] };
+      expect(data.ready).toBe(false);
+      expect(data.checks.find((c) => c.id === "commits")).toMatchObject({ status: "fail", fix: FIX });
+      for (const args of [
+        ["worktree", "new", "x"],
+        ["run", "init", "--workflow", "demo", "--task", "x", "--worktree"],
+      ]) {
+        const failed = await metator(args, fresh.root);
+        expect([args[0], failed.code]).toEqual([args[0], 1]);
+        expect([args[0], (failed.json.error as { hint: string }).hint]).toEqual([
+          args[0],
+          expect.stringContaining(FIX),
+        ]);
+      }
+      // The fix works.
+      await fresh.git("commit", "-q", "--allow-empty", "-m", "init");
+      expect((await metator(["worktree", "new", "x"], fresh.root)).code).toBe(0);
+    } finally {
+      await fresh.dispose();
+    }
+  }, 60_000);
+
   test("without any workflow the repository is not ready", async () => {
     const empty = await ScratchRepo.create();
     try {

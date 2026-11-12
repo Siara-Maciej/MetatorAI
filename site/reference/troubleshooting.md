@@ -114,6 +114,18 @@ Comments on pull requests and issues need `metator run approve comment --by alic
 
 During a run, agents may edit only the files the approved plan lists. If the task needs another file, the plan must change: the agent goes back to planning, or you answer its question about the scope.
 
+## The repository has no commit yet
+
+Right after `git init` there is nothing to branch from, so `metator doctor` reports `commits` as `fail`, and `metator worktree new` and `metator run init --worktree` stop. Make the first commit:
+
+```bash
+git commit --allow-empty -m init
+```
+
+## Base ref shares no history with HEAD: this clone is shallow
+
+The base ref exists, but the commits between it and `HEAD` were not fetched, as in a CI checkout of depth 1. Fetch the history with `git fetch --unshallow`, or set `fetch-depth: 0` on `actions/checkout` ([Gates and CI](../repo/gates-ci.md#your-own-job)).
+
 ## A --check command fails in CI
 
 `metator cards build --check` or `metator generate --check` fails when the code or the agent definitions changed and the generated files did not. Regenerate and commit:

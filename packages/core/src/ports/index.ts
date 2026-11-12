@@ -248,6 +248,8 @@ export interface Vcs {
   listFiles(): Promise<Result<readonly string[], MetatorError>>;
   /** URL of the `origin` remote (or the first one); undefined when there is none. */
   remoteUrl(): Promise<Result<string | undefined, MetatorError>>;
+  /** Whether there is a commit yet (a worktree and a merge base need one); assumed when absent. */
+  hasCommits?(): Promise<Result<boolean, MetatorError>>;
 }
 
 export interface BranchPublication {

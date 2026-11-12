@@ -41,7 +41,7 @@ export class GitVcs
       const status = await git.value.status();
       // No commits yet: everything staged or untracked is new.
       const mine = (f: string) => !this.own.some((p) => f.startsWith(p));
-      if (!(await this.hasCommits(git.value)))
+      if (!(await this.committed(git.value)))
         return ok(sortedUnique(status.files.map((f) => f.path)).filter(mine));
       const ref = await this.mergeBase(git.value, base);
       if (ref.isErr()) return err(ref.error);
@@ -55,7 +55,7 @@ export class GitVcs
     const git = await this.repo();
     if (git.isErr()) return err(git.error);
     return this.attempt(async () => {
-      if (!(await this.hasCommits(git.value))) return ok(undefined);
+      if (!(await this.committed(git.value))) return ok(undefined);
       const ref = await this.mergeBase(git.value, base);
       if (ref.isErr()) return err(ref.error);
       const object = `${ref.value}:${path}`;
@@ -73,7 +73,7 @@ export class GitVcs
     return this.attempt(async () => {
       const out = new Map<string, number[]>();
       const status = await git.value.status();
-      if (await this.hasCommits(git.value)) {
+      if (await this.committed(git.value)) {
         const ref = await this.mergeBase(git.value, base);
         if (ref.isErr()) return err(ref.error);
         for (const file of parseDiff(await git.value.raw(["diff", "--no-renames", "-U0", ref.value]))) {
@@ -114,7 +114,7 @@ export class GitVcs
     if (git.isErr()) return err(git.error);
     return this.attempt(async () => {
       const out = new Map<string, string>();
-      if (!(await this.hasCommits(git.value))) return ok(out);
+      if (!(await this.committed(git.value))) return ok(out);
       // Newest commit first: the first date seen for a path is its last change.
       let date = "";
       for (const line of (
@@ -131,7 +131,7 @@ export class GitVcs
     const git = await this.repo();
     if (git.isErr()) return err(git.error);
     return this.attempt(async () => {
-      if (!(await this.hasCommits(git.value))) return ok([]);
+      if (!(await this.committed(git.value))) return ok([]);
       const out: string[][] = [];
       for (const line of (
         await git.value.raw([
@@ -156,7 +156,7 @@ export class GitVcs
       const status = await git.value.status();
       const wanted = (f: string) => (!files || files.includes(f)) && !this.own.some((p) => f.startsWith(p));
       const parts: string[] = [];
-      if (await this.hasCommits(git.value)) {
+      if (await this.committed(git.value)) {
         const ref = await this.mergeBase(git.value, base);
         if (ref.isErr()) return err(ref.error);
         const paths = files ? [...files] : [];
@@ -200,7 +200,7 @@ export class GitVcs
       // MetatorAI's own state is not the person's work: the same answer as changedFiles().
       const uncommitted = status.files.some((f) => !this.own.some((p) => f.path.startsWith(p)));
       const branch = status.detached ? null : status.current;
-      if (!(await this.hasCommits(git.value)))
+      if (!(await this.committed(git.value)))
         return ok({ branch, head: null, mergeBase: null, commits: [] as BranchCommit[], uncommitted });
       const head = (await git.value.revparse(["HEAD"])).trim();
       const ref = await this.mergeBase(git.value, base);
@@ -246,6 +246,12 @@ export class GitVcs
       const remote = remotes.find((r) => r.name === "origin") ?? remotes[0];
       return ok(remote?.refs.fetch || undefined);
     });
+  }
+
+  async hasCommits(): Promise<Result<boolean, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return ok(await this.committed(git.value));
   }
 
   private async repo(): Promise<Result<SimpleGit, MetatorError>> {
@@ -301,7 +307,7 @@ export class GitVcs
     );
   }
 
-  private async hasCommits(git: SimpleGit): Promise<boolean> {
+  private async committed(git: SimpleGit): Promise<boolean> {
     // Not `--quiet`: git would then fail without stderr, which simple-git reports as success.
     return git
       .revparse(["--verify", "HEAD"])
