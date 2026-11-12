@@ -5,20 +5,23 @@
  * click or a key after the prefix. The daemon owns the layout; this screen only draws and asks.
  */
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { InboxItem, OptionsView, PaneView, SplitNode } from "../api.ts";
+import type { InboxItem, PaneView, SplitNode } from "../api.ts";
+import { Notice, RepoSelect } from "../components/common.tsx";
 import { ContextMenu, type MenuItem } from "../components/context-menu.tsx";
 import { GotoPicker } from "../components/goto.tsx";
 import { SplitGrid } from "../components/split-grid.tsx";
 import { PaneTerminal, type TerminalHandle } from "../components/terminal.tsx";
-import { useDaemon } from "../daemon.tsx";
+import { useDaemon, usePolled } from "../daemon.tsx";
 import {
   actionOf,
   chordOf,
   evenTree,
   type GotoRow,
+  hostChoice,
   type KeyMap,
   keyMapOf,
   neighborPane,
+  noHostText,
   notifies,
   paneLabel,
   stripStages,
@@ -34,6 +37,7 @@ export function WorkbenchScreen({
   onOpenSettings,
   onOpenPlan,
   onOpenReview,
+  onOpenInbox,
   onOpenBacklog,
   showPane,
 }: {
@@ -43,6 +47,8 @@ export function WorkbenchScreen({
   onOpenPlan(runId: string): void;
   /** The run's change with the notes on it (S5). */
   onOpenReview(runId: string): void;
+  /** The decision card of a question (`<run>/<question>`) in the Inbox. */
+  onOpenInbox(pick: string): void;
   /** The backlog; with a draft, its form opens for a task that points at a pane's run. */
   onOpenBacklog(draft?: {
     readonly title?: string;
@@ -51,38 +57,22 @@ export function WorkbenchScreen({
   /** A pane to show first (from the plan screen): its tab is selected and it gets the focus. */
   readonly showPane?: string | undefined;
 }) {
-  const { client, repos: daemonRepos, runs, panes, inbox, me, setMe } = useDaemon();
-  const repoName = daemonRepos[0]?.name;
-  // The layout: workspaces with their tabs and trees, read every second like the panes.
-  const [workspaces, setWorkspaces] = useState<Parameters<typeof workbenchRepos>[0]>([]);
-  useEffect(() => {
-    let closed = false;
-    const tick = async () => {
-      const r = await client.layout(repoName);
-      if (!closed && r.ok && r.data) setWorkspaces(r.data.workspaces);
-    };
-    void tick();
-    const t = setInterval(() => void tick(), 1000);
-    return () => {
-      closed = true;
-      clearInterval(t);
-    };
-  }, [client, repoName]);
+  const d = useDaemon();
+  const { client, runs, inbox, me, who } = d;
+  // The repository this screen shows (D10): the one chosen in a folder, the daemon's own otherwise.
+  const repoName = d.repo;
+  // The layout comes with the daemon's state (read every second, once for the whole app); in a
+  // folder two repositories may use the same pane ids, so only this repository's count.
+  const panes = useMemo(
+    () => d.panes.filter((p) => (p.repo ?? "") === (repoName ?? "")),
+    [d.panes, repoName],
+  );
+  const workspaces = useMemo(
+    () => d.workspaces.filter((w) => (w.repo ?? "") === (repoName ?? "")),
+    [d.workspaces, repoName],
+  );
   // Options: the keys and the look, refreshed when they change.
-  const [options, setOptions] = useState<OptionsView>();
-  useEffect(() => {
-    let closed = false;
-    const tick = async () => {
-      const r = await client.options(repoName);
-      if (!closed && r.ok && r.data) setOptions(r.data);
-    };
-    void tick();
-    const t = setInterval(() => void tick(), 5000);
-    return () => {
-      closed = true;
-      clearInterval(t);
-    };
-  }, [client, repoName]);
+  const { data: options } = usePolled(`options:${repoName ?? ""}`, () => client.options(repoName), 5000);
   const opt = useCallback(
     <T,>(key: string, fallback: T): T => {
       const o = options?.options.find((x) => x.key === key);
@@ -151,10 +141,9 @@ export function WorkbenchScreen({
   const canType = (p: PaneView) => !p.runId || p.role === "shell" || attached(p);
   const attach = async (p: PaneView) => {
     if (!p.runId) return;
-    const who = me || window.prompt("your name") || "";
-    if (!who) return;
-    setMe(who);
-    const r = await client.attach(p.runId, who, repoName);
+    const by = await who();
+    if (!by) return;
+    const r = await client.attach(p.runId, by, repoName);
     setNote(r.ok ? undefined : r.error?.message);
     setFocus(p.id);
     handles.current.get(p.id)?.focus();
@@ -181,10 +170,59 @@ export function WorkbenchScreen({
     const r = await client.closePane(p.id, repoName);
     if (!r.ok) setNote(r.error?.message);
   };
-  const closeTab = async (t: WorkbenchTab) => {
-    if (!window.confirm(`Close ${t.label} and its ${t.panes.length} pane(s)?`)) return;
-    const r = await client.closeWorkspace(t.workspaceId, repoName);
-    if (!r.ok) setNote(r.error?.message);
+  const closeTab = async (t: WorkbenchTab, ask = true) => {
+    if (ask && !window.confirm(`Close ${t.label} and its ${t.panes.length} pane(s)?`)) return;
+    // A run's tab is its whole workspace, and so is the last tab of any workspace; a tab that
+    // shares its workspace with others loses only its own panes.
+    const alone = repos.flatMap((r) => r.tabs).filter((x) => x.workspaceId === t.workspaceId).length === 1;
+    if (t.kind === "task" || alone) {
+      const r = await client.closeWorkspace(t.workspaceId, repoName);
+      if (!r.ok) setNote(r.error?.message);
+      return;
+    }
+    for (const id of t.panes) {
+      const r = await client.closePane(id, repoName);
+      if (!r.ok) setNote(r.error?.message);
+    }
+  };
+  /**
+   * A pane whose process ended, started again (D1): a run's conductor is resumed in place; any
+   * other pane gets a new one beside it with the same program, and the dead one goes.
+   */
+  const retryPane = async (p: PaneView) => {
+    if (p.role === "conductor" && p.runId) {
+      const r = await client.post(`/runs/${p.runId}/pty-open`, {}, repoName);
+      setNote(r.ok ? undefined : `The session did not start: ${r.error?.message ?? "the daemon refused"}`);
+      return;
+    }
+    let process: { argv: string[] } | { host: string; agent: string; prompt: string };
+    if (p.process.kind === "command") process = { argv: [...p.process.argv] };
+    else {
+      // The host the pane had, when it is installed; else the first installed one of the order.
+      const s = await client.supervisor(repoName);
+      const status = s.data?.hostStatus;
+      const wanted = p.process.host;
+      const host =
+        !status || status.some((h) => h.id === wanted && h.installed)
+          ? wanted
+          : hostChoice(s.data?.policy.hostOrder ?? [], status);
+      if (!host) {
+        setNote(noHostText(status ?? []));
+        return;
+      }
+      process = { host, agent: p.process.agent, prompt: p.process.prompt };
+    }
+    const r = await client.openPane(
+      { workspace: p.workspace, tab: p.tab, role: p.role, label: p.label, ...process },
+      repoName,
+    );
+    if (!r.ok || !r.data) {
+      setNote(`The pane did not start: ${r.error?.message ?? "the daemon refused"}`);
+      return;
+    }
+    setNote(undefined);
+    setFocus(r.data.id);
+    await client.closePane(p.id, repoName);
   };
   const newShell = async () => {
     if (!tab) return;
@@ -229,10 +267,19 @@ export function WorkbenchScreen({
       if (conductor) setFocus(conductor.id);
     }
   };
-  // One toast: the newest question of the tabs shown here (notify.channel app).
+  // One toast: the newest question of the tabs shown here (notify.channel app) that the person
+  // has not closed.
+  const [dismissed, setDismissed] = useState<readonly string[]>([]);
   const toast: InboxItem | undefined = !notifies(options?.options ?? [])
     ? undefined
-    : inbox.find((i) => repos.some((r) => r.tabs.some((t) => t.runId === i.runId)));
+    : inbox.find(
+        (i) =>
+          !dismissed.includes(`${i.runId}/${i.question.id}`) &&
+          repos.some((r) => r.tabs.some((t) => t.runId === i.runId)),
+      );
+  /** The host's own prompt is answered in its pane; every other question on its card. */
+  const inPane = toast?.question.source === "permission";
+  const waitingForYou = runs.filter((r) => r.attention === "you").length;
   const blockedKey = (p: PaneView) => {
     const mode = opt<"ask" | "always" | "never">("ui.attachOnType", "ask");
     if (mode === "never") return;
@@ -474,17 +521,45 @@ export function WorkbenchScreen({
             {attached(p) ? <span className="teal"> · yours</span> : null}
           </button>
         ) : null}
-        {p.live?.alive ? (
+        {p.live ? (
           <PaneTerminal
+            // A new session in the same pane (Retry on a conductor) is a new terminal.
+            key={p.live.sessionId}
             paneId={p.id}
             repo={repoName}
-            canType={canType(p)}
+            canType={p.live.alive && canType(p)}
             scrollback={opt("terminal.scrollbackLines", 5000)}
-            onBlockedKey={() => blockedKey(p)}
+            onBlockedKey={() => (p.live?.alive ? blockedKey(p) : undefined)}
             onReady={(h) => handles.current.set(p.id, h)}
           />
         ) : (
-          <div className="empty">no live terminal in {p.id}</div>
+          <div className="empty" />
+        )}
+        {p.live?.alive ? null : (
+          <div
+            className="pane-ended"
+            role="status"
+            data-testid={`ended-${p.id}`}
+            title={p.live ? "The pane keeps the last output of the process." : undefined}
+          >
+            <span className="msg">
+              {p.live
+                ? `The process ended${p.live.exitCode !== undefined ? ` with code ${p.live.exitCode}` : ""}.`
+                : "Nothing runs in this pane: its process did not start, or the daemon was restarted."}
+            </span>
+            <button type="button" className="primary" onClick={() => void retryPane(p)}>
+              Retry
+            </button>
+            {tab && tabPanes.length === 1 ? (
+              <button type="button" onClick={() => void closeTab(tab, false)}>
+                Close tab
+              </button>
+            ) : (
+              <button type="button" onClick={() => void client.closePane(p.id, repoName)}>
+                Close pane
+              </button>
+            )}
+          </div>
         )}
         {attachAsk === p.id ? (
           <div className="ask" role="alert">
@@ -536,8 +611,10 @@ export function WorkbenchScreen({
             }}
           >
             <span className={`mark ${t.attention ?? "none"}`}>▪</span>
-            {t.label}
-            {t.branch ? <span className="dim"> {t.branch}</span> : null}
+            <span className="name" title={t.label}>
+              {t.label}
+            </span>
+            {t.branch ? <span className="dim branch"> {t.branch}</span> : null}
           </button>
         ))}
         <button
@@ -549,7 +626,8 @@ export function WorkbenchScreen({
           +
         </button>
         <span className="spacer" />
-        {inbox.length > 0 ? <span className="amber">● waits for you {inbox.length}</span> : null}
+        {waitingForYou > 0 ? <span className="amber waits">● waits for you {waitingForYou}</span> : null}
+        <RepoSelect />
         {prefixed ? <span className="chip teal">prefix</span> : null}
         <button type="button" className="ghost" onClick={onOpenSettings} title="settings">
           ⚙
@@ -657,14 +735,7 @@ export function WorkbenchScreen({
           })}
         </aside>
         <main className="grid-area">
-          {note ? (
-            <div className="banner" role="status">
-              {note}{" "}
-              <button type="button" className="ghost" onClick={() => setNote(undefined)}>
-                ✕
-              </button>
-            </div>
-          ) : null}
+          <Notice text={note} tone="info" onClose={() => setNote(undefined)} />
           {tree ? (
             <SplitGrid tree={tree} zoom={zoom} renderPane={renderPane} onResize={(t) => void resize(t)} />
           ) : (
@@ -679,28 +750,46 @@ export function WorkbenchScreen({
           )}
         </main>
       </div>
-      {toast && (!tab || toast.runId !== tab.runId || true) ? (
-        <button
-          type="button"
-          className="toast"
-          data-testid="toast"
-          onClick={() => {
-            const conductor = panes.find((p) => p.runId === toast.runId && p.role === "conductor");
-            const t = repos.flatMap((r) => r.tabs).find((x) => x.runId === toast.runId);
-            if (t) {
-              setRepoId(repos.find((r) => r.tabs.includes(t))?.id);
-              setTabKey(t.key);
-            }
-            if (conductor) {
-              setFocus(conductor.id);
-              void attach(conductor);
-            }
-          }}
-        >
-          <span className="amber">?</span> {toast.question.agent ?? toast.question.source} asks:{" "}
-          {toast.question.prompt}
-          <kbd>↵</kbd> <span className="dim">answer in the pane</span>
-        </button>
+      {toast ? (
+        <div className="toast" role="status">
+          <button
+            type="button"
+            className="open"
+            data-testid="toast"
+            title={toast.question.prompt}
+            onClick={() => {
+              if (!inPane) {
+                onOpenInbox(`${toast.runId}/${toast.question.id}`);
+                return;
+              }
+              const conductor = panes.find((p) => p.runId === toast.runId && p.role === "conductor");
+              const t = repos.flatMap((r) => r.tabs).find((x) => x.runId === toast.runId);
+              if (t) {
+                setRepoId(repos.find((r) => r.tabs.includes(t))?.id);
+                setTabKey(t.key);
+              }
+              if (conductor) {
+                setFocus(conductor.id);
+                void attach(conductor);
+              }
+            }}
+          >
+            <span className="q">
+              <span className="amber">?</span> {toast.question.agent ?? toast.question.source} asks:{" "}
+              {toast.question.prompt}
+            </span>
+            <span className="dim how">{inPane ? "answer in the pane ›" : "open the card ›"}</span>
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            aria-label="dismiss"
+            title="hide this; the question stays in the Inbox"
+            onClick={() => setDismissed([...dismissed, `${toast.runId}/${toast.question.id}`])}
+          >
+            ✕
+          </button>
+        </div>
       ) : null}
       {menu ? (
         <ContextMenu at={menu} items={menu.items} label={menu.label} onClose={() => setMenu(undefined)} />

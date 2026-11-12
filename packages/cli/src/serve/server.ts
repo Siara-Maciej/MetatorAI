@@ -1019,6 +1019,8 @@ export async function supervisorView(
         repo: repo ?? null,
       },
       hosts: [...c.resolve("interactiveHosts").keys()],
+      // Which of them can start on this machine: the app offers only those (D1).
+      hostStatus: c.resolve("hostStatus")(),
       policy,
       sessions: c.resolve("ptyBroker").list(),
       acceptance: { since: dayAgo, ...acceptanceStats(runs, dayAgo) },

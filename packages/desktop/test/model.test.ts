@@ -3,32 +3,42 @@ import type { InboxItem, RunOverview } from "../src/api.ts";
 import {
   actionOf,
   answerCommand,
+  autonomyLabel,
   byPanelOrder,
+  canAnswer,
   chordOf,
   DEFAULT_KEYS,
   duration,
   evenTree,
   gotoRows,
   groupByFeature,
+  hostChoice,
   inboxChips,
   keyMapOf,
+  needsReason,
   neighborPane,
   newQuestions,
   nextWaiting,
+  noHostText,
   notifies,
   optionMatches,
   paneLabel,
   panesOfRun,
   parseRoute,
+  plainKey,
   questionKind,
+  repoChoice,
   routeHash,
   stageGlyph,
   stateTone,
   stepLabel,
+  toggleChoice,
   treeLeavesOf,
   wasAway,
   withRatio,
+  withTerminalAsks,
   workbenchRepos,
+  workflowChoice,
 } from "../src/model.ts";
 
 const run = (runId: string, extra: Partial<RunOverview> = {}): RunOverview =>
@@ -79,7 +89,7 @@ describe("panel order and groups", () => {
       { parent: "p", steps: [runs[2] as RunOverview, runs[1] as RunOverview], done: 1 },
     ]);
     expect(g.standalone.map((r) => r.runId)).toEqual(["x", "q"]);
-    expect(stepLabel(runs[1] as RunOverview, g.groups)).toBe("F · 2/2");
+    expect(stepLabel(runs[1] as RunOverview, g.groups)).toBe("step 2/2");
     expect(stepLabel(runs[3] as RunOverview, g.groups)).toBeUndefined();
   });
 
@@ -136,7 +146,7 @@ describe("inbox rows and the card", () => {
           true,
         ),
       ),
-    ).toEqual(["not reversible", "blast 3 files", "policy candidate", "blocks wave", "agent idle"]);
+    ).toEqual(["not reversible", "touches 3 files", "can be allowed always", "blocks wave", "agent idle"]);
     expect(inboxChips(item({}))).toEqual([]);
   });
 
@@ -149,6 +159,14 @@ describe("inbox rows and the card", () => {
     expect(answerCommand(q, "half even", "")).toBe(
       'metator run answer q002 --run 20261102-mt-feature-a --choice "half even" --by <you>',
     );
+    // Several choices of a multi-select question, and the reason Reject carries.
+    expect(answerCommand(q, ["unit", "e2e"], "alice")).toBe(
+      "metator run answer q002 --run 20261102-mt-feature-a --choice unit e2e --by alice",
+    );
+    expect(answerCommand(q, ["Reject"], "alice", " cap in cents ")).toBe(
+      'metator run answer q002 --run 20261102-mt-feature-a --choice Reject --text "cap in cents" --by alice',
+    );
+    expect(answerCommand(q, [], "alice")).toContain("--choice … --by alice");
   });
 
   test("notify.channel off silences every announcement; anything else, or no options yet, does not", () => {
@@ -197,6 +215,7 @@ describe("formatting and routes", () => {
     expect(parseRoute("#/nope")).toEqual({ screen: "inbox" });
     for (const hash of [
       "#/inbox",
+      "#/inbox/r%2Fq001",
       "#/session/r",
       "#/session/r/w1%3Ap2",
       "#/grid",
@@ -400,5 +419,133 @@ describe("workbench view logic (S6)", () => {
     expect(gotoRows(repos, panes as never, "blocked", "").map((r) => r.id)).toEqual(["w2:p1", "r1/q1"]);
     expect(gotoRows(repos, panes as never, "idle", "").map((r) => r.id)).toEqual(["w2:p2"]);
     expect(gotoRows(repos, panes as never, "all", "round").map((r) => r.id)).toEqual(["r1/q1"]);
+  });
+});
+
+describe("what waits for a person (D2)", () => {
+  const pane = (id: string, runId: string | undefined, state: string, repo?: string) => ({
+    id,
+    ...(runId ? { runId } : {}),
+    ...(repo ? { repo } : {}),
+    state: { state, reason: "the screen shows a question" },
+  });
+
+  test("a run whose agent asks in its terminal waits for you, with the pane to open", () => {
+    const runs = [
+      run("asks", { attention: "driving" }),
+      run("works", { attention: "driving" }),
+      run("card", { attention: "you", questions: [{ id: "q001" }] as never }),
+      run("over", { attention: "done", status: "done" }),
+    ];
+    const out = withTerminalAsks(runs, [
+      pane("w1:p1", "asks", "blocked"),
+      pane("w2:p1", "works", "working"),
+      pane("w3:p1", "card", "blocked"),
+      pane("w4:p1", "over", "blocked"),
+      pane("w5:p1", undefined, "blocked"),
+    ] as never);
+    expect(out.map((r) => [r.runId, r.attention, r.terminalAsk])).toEqual([
+      ["asks", "you", "w1:p1"],
+      ["works", "driving", undefined],
+      // A question that already has a card is answered there: no second row.
+      ["card", "you", undefined],
+      ["over", "done", undefined],
+    ]);
+    // The next waiting session (the g key) and the panel's order see it as any other.
+    expect(nextWaiting(out, undefined)?.runId).toBe("asks");
+  });
+
+  test("in a folder a pane counts only for the run of its own repository", () => {
+    const runs = [{ ...run("r", { attention: "driving" }), repo: "be" }];
+    expect(withTerminalAsks(runs, [pane("w1:p1", "r", "blocked", "fe")] as never)[0]?.terminalAsk).toBe(
+      undefined,
+    );
+    expect(withTerminalAsks(runs, [pane("w1:p1", "r", "blocked", "be")] as never)[0]?.terminalAsk).toBe(
+      "w1:p1",
+    );
+  });
+});
+
+describe("keys (D7)", () => {
+  const key = (k: string, extra: Record<string, unknown> = {}) =>
+    ({ key: k, ctrlKey: false, metaKey: false, altKey: false, target: null, ...extra }) as never;
+
+  test("a single-letter shortcut is the bare key: no Ctrl, Cmd or Alt, and not while typing in a field", () => {
+    expect(plainKey(key("g"))).toBe("g");
+    expect(plainKey(key("r", { ctrlKey: true }))).toBeUndefined();
+    expect(plainKey(key("r", { metaKey: true }))).toBeUndefined();
+    expect(plainKey(key("d", { altKey: true }))).toBeUndefined();
+    for (const tagName of ["INPUT", "TEXTAREA", "SELECT"])
+      expect(plainKey(key("a", { target: { tagName } }))).toBeUndefined();
+    expect(plainKey(key("a", { target: { tagName: "DIV", isContentEditable: true } }))).toBeUndefined();
+    expect(plainKey(key("a", { target: { tagName: "BUTTON" } }))).toBe("a");
+  });
+});
+
+describe("answers (D8)", () => {
+  test("a multi-select question toggles choices; a single-select one replaces the choice", () => {
+    expect(toggleChoice(["a"], "b", true)).toEqual(["a", "b"]);
+    expect(toggleChoice(["a", "b"], "a", true)).toEqual(["b"]);
+    expect(toggleChoice(["a"], "b", false)).toEqual(["b"]);
+    expect(toggleChoice(["a"], "a", false)).toEqual(["a"]);
+  });
+
+  test("Reject and Other need the reason they promise; nothing chosen is no answer", () => {
+    expect([needsReason(["Approve"]), needsReason(["Reject"]), needsReason(["a", "Other"])]).toEqual([
+      false,
+      true,
+      true,
+    ]);
+    expect(canAnswer([], "")).toBe(false);
+    expect(canAnswer(["Approve"], "")).toBe(true);
+    expect(canAnswer(["Reject"], "  ")).toBe(false);
+    expect(canAnswer(["Reject"], "the cap is wrong")).toBe(true);
+  });
+});
+
+describe("hosts, workflows and repositories (D1, D5, D10)", () => {
+  const status = [
+    { id: "copilot", command: "copilot", installed: false },
+    { id: "claude", command: "claude", installed: true },
+    { id: "opencode", command: "opencode", installed: false },
+  ];
+
+  test("a new session starts on the first host of the order that is installed", () => {
+    expect(hostChoice(["copilot", "claude", "opencode"], status)).toBe("claude");
+    expect(hostChoice(["opencode"], status)).toBe("claude");
+    expect(hostChoice(["copilot"], [status[0] as (typeof status)[number]])).toBeUndefined();
+    // A daemon that does not say what is installed (an older one): the order decides, as before.
+    expect(hostChoice(["copilot", "claude"], undefined, ["claude", "copilot"])).toBe("copilot");
+  });
+
+  test("with no host installed the app says what was looked for and where the guide is", () => {
+    expect(noHostText(status.map((h) => ({ ...h, installed: false })))).toBe(
+      "No AI host is installed. The daemon looked for copilot, claude and opencode and found none. " +
+        'Install one of them (the guide page "Copilot and Claude Code", site/guide/hosts.md, says how), ' +
+        "then try again.",
+    );
+  });
+
+  test("a run from the backlog starts on a workflow the repository has", () => {
+    expect(workflowChoice(["mt-bugfix", "mt-feature"], undefined)).toBe("mt-feature");
+    expect(workflowChoice(["demo", "other"], undefined)).toBe("demo");
+    expect(workflowChoice(["demo", "other"], "other")).toBe("other");
+    expect(workflowChoice(["demo"], "gone")).toBe("demo");
+    expect(workflowChoice([], "gone")).toBeUndefined();
+  });
+
+  test("the repository of the list screens: the remembered one while it exists, else the first", () => {
+    const repos = [{ name: "be" }, { name: "fe" }];
+    expect(repoChoice(repos, "fe")).toBe("fe");
+    expect(repoChoice(repos, "gone")).toBe("be");
+    expect(repoChoice(repos, null)).toBe("be");
+    expect(repoChoice([], "fe")).toBeUndefined();
+  });
+
+  test("an autonomy level reads with words beside it", () => {
+    expect(autonomyLabel("L0")).toBe("L0: asks at every gate");
+    expect(autonomyLabel("L1")).toBe("L1: skips the gates the workflow allows");
+    expect(autonomyLabel("L2")).toBe("L2: runs without a person");
+    expect(autonomyLabel("L9")).toBe("L9");
   });
 });

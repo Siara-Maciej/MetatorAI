@@ -37,7 +37,7 @@ export function GotoPicker({
     else if (e.key === "Enter" && pick) onPick(pick);
     else if (e.key === "Escape") onClose();
     // With an empty query the filter letters are keys.
-    else if (query === "" && e.key.length === 1) {
+    else if (query === "" && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       const f = FILTERS.find((x) => x.key === e.key);
       if (f) {
         e.preventDefault();

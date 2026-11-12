@@ -21,7 +21,7 @@ Each row is one option: its name, what it does, its value, and where the value c
 | **repo** | the repository's `metator.config.yml` sets it |
 | **run** | a run overrides it for itself |
 
-Change a value in place: tick a box, pick from a list, or type and leave the field. The change is saved at once. A row whose value is not the default has a button, **default**, which removes the value from the file. A chip **restart** marks an option that the daemon reads only when it starts.
+Change a value in place: tick a box, pick from a list, or type and leave the field. The change is saved at once. A value the daemon refuses is not kept: the field goes back to the value that holds, and the reason stays at the top of the list until you close it. A row whose value is not the default has a button, **default**, which removes the value from the file and shows the default in the field. A chip **restart** marks an option that the daemon reads only when it starts.
 
 The app writes your own options to your file and the repository's options to `metator.config.yml`. The bottom of the left column names both files.
 
@@ -141,6 +141,6 @@ The group **app** on the Settings screen holds two values that belong to this wi
 | **daemon url** | the address of the `metator serve` this app talks to; `http://127.0.0.1:4310` by default |
 | **your name** | who attaches, answers and approves from this app |
 
-The app also asks for your name the first time you answer, attach, add a note or decide a task, and remembers it. The name goes into the run's log next to every decision. From a terminal the same name is the `--by` option.
+The app also asks for your name, in a dialog, the first time you answer, attach, add a note or decide a task, and remembers it. The top bar shows it as **you: alice**; a click there changes it. The name goes into the run's log next to every decision. From a terminal the same name is the `--by` option.
 
 To open the app on another daemon once, add `?daemon=http://127.0.0.1:4310` to the app's address.

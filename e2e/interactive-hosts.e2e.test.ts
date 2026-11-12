@@ -5,7 +5,7 @@
  * and a session opened again on the same host is resumed.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmodSync } from "node:fs";
+import { chmodSync, rmSync } from "node:fs";
 import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
@@ -129,5 +129,26 @@ describe("interactive hosts through the daemon (real processes)", () => {
     expect(r.ok).toBe(false);
     expect(String(r.error?.message)).toContain("unknown interactive host nope");
     expect(String(r.error?.hint)).toContain("copilot, claude, opencode");
+  });
+
+  test("the supervisor view says which hosts can start here, looked up at each request", async () => {
+    const status = async () =>
+      (
+        (await get("/supervisor")).data as {
+          hostStatus: { id: string; command?: string; installed: boolean }[];
+        }
+      ).hostStatus;
+    expect(await status()).toEqual([
+      { id: "copilot", command: repo.path("bin/copilot"), installed: true },
+      { id: "claude", command: repo.path("bin/claude"), installed: true },
+      { id: "opencode", command: repo.path("bin/opencode"), installed: true },
+    ]);
+    // A program that is gone is reported as not installed without a restart of the daemon.
+    rmSync(repo.path("bin/opencode"));
+    expect((await status()).map((h) => [h.id, h.installed])).toEqual([
+      ["copilot", true],
+      ["claude", true],
+      ["opencode", false],
+    ]);
   });
 });

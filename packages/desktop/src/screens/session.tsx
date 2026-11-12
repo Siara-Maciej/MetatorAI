@@ -1,11 +1,12 @@
 /** Screen 2: one session, its terminal or its events, the driver lock, the question and the links. */
-import { useCallback, useEffect, useState } from "react";
-import type { Activity, Conflict, RunMessage } from "../api.ts";
+import { useEffect, useState } from "react";
+import { QuickAnswer } from "../components/answer.tsx";
 import { Chip } from "../components/chips.tsx";
+import { Notice } from "../components/common.tsx";
 import { StageBar } from "../components/stage-bar.tsx";
 import { PaneTerminal, RunTerminal, sendLine, type TerminalStatus } from "../components/terminal.tsx";
-import { useDaemon } from "../daemon.tsx";
-import { clock, duration, paneLabel, panesOfRun, type Run, stateTone } from "../model.ts";
+import { useDaemon, usePolled } from "../daemon.tsx";
+import { autonomyLabel, clock, duration, paneLabel, panesOfRun, plainKey, stateTone } from "../model.ts";
 
 export function SessionScreen({
   runId,
@@ -20,10 +21,14 @@ export function SessionScreen({
   /** The run's change with the notes on it (S5). */
   onOpenReview(runId: string): void;
 }) {
-  const { client, runs, panes: allPanes, url, me, setMe } = useDaemon();
+  const { client, runs, panes: allPanes, url, me, who } = useDaemon();
   const run = runs.find((r) => r.runId === runId);
   const repo = run?.repo;
-  const panes = panesOfRun(allPanes, runId);
+  // In a folder two repositories may use the same pane ids: only the run's repository counts.
+  const panes = panesOfRun(
+    allPanes.filter((p) => (p.repo ?? "") === (repo ?? "")),
+    runId,
+  );
   const [chosenPane, setChosenPane] = useState<string | undefined>(wantedPane);
   useEffect(() => setChosenPane(wantedPane), [wantedPane]);
   // The conductor's tab is the run's own terminal (opened by the daemon when none is live).
@@ -45,37 +50,36 @@ export function SessionScreen({
     setNote(r.ok ? undefined : r.error?.message);
   };
   const [tab, setTab] = useState<"terminal" | "events">("terminal");
-  const [events, setEvents] = useState<readonly Activity[]>([]);
-  const [messages, setMessages] = useState<readonly RunMessage[]>([]);
-  const [conflicts, setConflicts] = useState<readonly Conflict[]>([]);
   const [line, setLine] = useState("");
   const [note, setNote] = useState<string>();
   const [termStatus, setTermStatus] = useState<TerminalStatus>({});
-  const [name, setName] = useState(me);
   const attached = run?.driver === "human" && run.attachedBy === me && me !== "";
-  const refresh = useCallback(async () => {
-    const [a, m, c] = await Promise.all([
-      client.activity(runId, repo),
-      client.messages(runId, repo),
-      client.conflicts(repo),
-    ]);
-    if (a.ok && a.data) setEvents(a.data.entries);
-    if (m.ok && m.data) setMessages(m.data.messages);
-    if (c.ok && c.data) setConflicts(c.data.conflicts.filter((x) => x.runs.includes(runId)));
-  }, [client, runId, repo]);
-  useEffect(() => {
-    void refresh();
-    const t = setInterval(() => void refresh(), 2000);
-    return () => clearInterval(t);
-  }, [refresh]);
+  const { data, reload: refresh } = usePolled(
+    `session:${repo ?? ""}:${runId}`,
+    async () => {
+      const [a, m, c] = await Promise.all([
+        client.activity(runId, repo),
+        client.messages(runId, repo),
+        client.conflicts(repo),
+      ]);
+      return {
+        ok: true,
+        data: {
+          events: a.data?.entries ?? [],
+          messages: m.data?.messages ?? [],
+          conflicts: (c.data?.conflicts ?? []).filter((x) => x.runs.includes(runId)),
+        },
+      };
+    },
+    2000,
+  );
+  const events = data?.events ?? [];
+  const messages = data?.messages ?? [];
+  const conflicts = data?.conflicts ?? [];
   const attach = async () => {
-    const who = name.trim();
-    if (!who) {
-      setNote("say who you are first");
-      return;
-    }
-    setMe(who);
-    const r = await client.attach(runId, who, repo);
+    const by = await who();
+    if (!by) return;
+    const r = await client.attach(runId, by, repo);
     setNote(r.ok ? undefined : r.error?.message);
   };
   const release = async () => {
@@ -93,12 +97,12 @@ export function SessionScreen({
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === "a" && !attached) void attach();
-      if (e.key === "c" && attached) void release();
-      if (e.key === "t") setTab(tab === "terminal" ? "events" : "terminal");
-      if (e.key === "e") void openEditor();
-      if (e.key === "d") onOpenReview(runId);
+      const k = plainKey(e);
+      if (k === "a" && !attached) void attach();
+      if (k === "c" && attached) void release();
+      if (k === "t") setTab(tab === "terminal" ? "events" : "terminal");
+      if (k === "e") void openEditor();
+      if (k === "d") onOpenReview(runId);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -109,12 +113,14 @@ export function SessionScreen({
     <div className="session">
       <div className="main">
         <div className="head">
-          <h2>{run.task}</h2>
+          <h2 className="clip" title={run.task}>
+            {run.task}
+          </h2>
           <div className="id mono">{run.runId}</div>
           <div className="chips" style={{ marginTop: 4 }}>
             {repo ? <Chip>{repo}</Chip> : null}
             <Chip>{run.workflow}</Chip>
-            <Chip>{run.autonomy}</Chip>
+            <Chip>{autonomyLabel(run.autonomy)}</Chip>
             <Chip tone="violet">{run.host ?? "no host"}</Chip>
             {run.worktree?.ports ? (
               <Chip>
@@ -144,26 +150,29 @@ export function SessionScreen({
               Release to agent · c
             </button>
           ) : (
-            <>
-              <input
-                aria-label="your name"
-                placeholder="your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={{ width: 120 }}
-              />
-              <button
-                type="button"
-                className="primary"
-                onClick={() => void attach()}
-                disabled={run.driver === "human"}
-              >
-                Attach · a
-              </button>
-            </>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => void attach()}
+              disabled={run.driver === "human"}
+            >
+              Attach · a
+            </button>
           )}
         </div>
-        {note ? <div className="banner">{note}</div> : null}
+        <Notice text={note} onClose={() => setNote(undefined)} />
+        {run.terminalAsk ? (
+          <div className="banner ask-banner" data-testid="terminal-ask">
+            <span className="msg">
+              The agent asks in its terminal{attached ? ": type your answer there." : ". Attach to answer."}
+            </span>
+            {run.terminalAsk !== shown ? (
+              <button type="button" onClick={() => setChosenPane(run.terminalAsk)}>
+                Show the pane
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="tabs">
           <button type="button" aria-pressed={tab === "terminal"} onClick={() => setTab("terminal")}>
             Terminal
@@ -172,7 +181,7 @@ export function SessionScreen({
             Events · {events.length}
           </button>
           <span className="spacer" />
-          <span className="dim">e editor · t events · d diff</span>
+          <span className="dim">e editor · t events · d changes</span>
         </div>
         {tab === "terminal" ? (
           <>
@@ -267,7 +276,20 @@ export function SessionScreen({
         <div className="box">
           <h3>Question</h3>
           {question ? (
-            <QuestionBox run={run} onDone={refresh} />
+            <>
+              <div className="clamp" title={question.prompt}>
+                {question.prompt}
+              </div>
+              <QuickAnswer question={question} repo={repo} onDone={() => void refresh()} />
+              {question.source === "permission" ? (
+                <div className="dim" style={{ marginTop: 4 }}>
+                  The host asks in its terminal. To give the same answer every time, answer with{" "}
+                  <code>metator run answer --always</code>.
+                </div>
+              ) : null}
+            </>
+          ) : run.terminalAsk ? (
+            <div className="muted">the agent asks in its terminal: answer there</div>
           ) : (
             <div className="muted">nothing waits for you here</div>
           )}
@@ -350,36 +372,6 @@ export function SessionScreen({
           </ul>
         </div>
       </aside>
-    </div>
-  );
-}
-
-function QuestionBox({ run, onDone }: { readonly run: Run; onDone(): void }) {
-  const { client, me } = useDaemon();
-  const q = run.questions[0];
-  const [error, setError] = useState<string>();
-  if (!q) return null;
-  const answer = async (label: string) => {
-    const r = await client.answer(q.runId, q.id, [label], me || "me", undefined, undefined, run.repo);
-    setError(r.ok ? undefined : r.error?.message);
-    if (r.ok) onDone();
-  };
-  return (
-    <div>
-      <div>{q.prompt}</div>
-      <div className="chips" style={{ marginTop: 6 }}>
-        {q.options.map((o) => (
-          <button type="button" key={o.label} onClick={() => void answer(o.label)}>
-            {o.label}
-          </button>
-        ))}
-      </div>
-      {q.source === "permission" ? (
-        <div className="dim" style={{ marginTop: 4 }}>
-          Allow once · Always for this run · Make it a policy (`metator run answer --always`) · Deny
-        </div>
-      ) : null}
-      {error ? <div className="banner">{error}</div> : null}
     </div>
   );
 }

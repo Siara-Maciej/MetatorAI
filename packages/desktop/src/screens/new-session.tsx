@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { Workflow } from "../api.ts";
 import { useDaemon } from "../daemon.tsx";
+import { type HostStatus, hostChoice, noHostText } from "../model.ts";
 
 export function NewSessionDialog({
   onClose,
@@ -10,10 +11,10 @@ export function NewSessionDialog({
   onClose(): void;
   onCreated(runId: string, attach: boolean): void;
 }) {
-  const { client, repos, runs, me, setMe } = useDaemon();
-  const [repo, setRepo] = useState(repos[0]?.name ?? "");
+  const { client, repos, repo: listRepo, runs } = useDaemon();
+  const [repo, setRepo] = useState(listRepo ?? "");
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [hosts, setHosts] = useState<string[]>([]);
+  const [hosts, setHosts] = useState<readonly HostStatus[]>();
   const [wipLimit, setWipLimit] = useState(4);
   const [workflow, setWorkflow] = useState("");
   const [task, setTask] = useState("");
@@ -21,7 +22,6 @@ export function NewSessionDialog({
   const [autonomy, setAutonomy] = useState("L0");
   const [worktree, setWorktree] = useState(true);
   const [parent, setParent] = useState("");
-  const [name, setName] = useState(me);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   useEffect(() => {
@@ -35,10 +35,15 @@ export function NewSessionDialog({
         setWorkflow((cur) => cur || w.data?.workflows[0]?.id || "");
       }
       if (s.ok && s.data) {
-        setHosts([...s.data.hosts]);
+        // An older daemon does not say what is installed: every host it knows is offered.
+        const status = s.data.hostStatus ?? s.data.hosts.map((id) => ({ id, installed: true }));
+        setHosts(status);
+        // The first host of the order that is installed (D1); none installed: create only.
         setHost(
           (cur) =>
-            cur || s.data?.policy.hostOrder.find((h) => s.data?.hosts.includes(h)) || s.data?.hosts[0] || "",
+            (status.some((h) => h.id === cur && h.installed) ? cur : "") ||
+            hostChoice(s.data?.policy.hostOrder ?? [], status) ||
+            "",
         );
         setWipLimit(s.data.policy.wipLimit);
       }
@@ -52,7 +57,6 @@ export function NewSessionDialog({
       return;
     }
     setBusy(true);
-    if (name.trim()) setMe(name.trim());
     const r = await client.createRun(
       {
         workflow,
@@ -69,7 +73,13 @@ export function NewSessionDialog({
       setError(r.error?.message ?? "the run was not created");
       return;
     }
-    if (r.data.drive?.error) setError(`created, but the drive did not start: ${r.data.drive.error}`);
+    // The run exists but nothing drives it: the dialog stays to say so (the run is in the panel).
+    if (r.data.drive?.error) {
+      setError(
+        `The run was created, but its agent did not start: ${r.data.drive.error} Open it from the sessions panel.`,
+      );
+      return;
+    }
     onCreated(r.data.run.runId, andAttach);
   };
   return (
@@ -111,18 +121,24 @@ export function NewSessionDialog({
           <span>Host</span>
           <select value={host} onChange={(e) => setHost(e.target.value)}>
             <option value="">create only, drive later</option>
-            {hosts.map((h) => (
-              <option key={h} value={h}>
-                {h}
+            {(hosts ?? []).map((h) => (
+              <option key={h.id} value={h.id} disabled={!h.installed}>
+                {h.id}
+                {h.installed ? "" : " (not installed)"}
               </option>
             ))}
           </select>
         </label>
+        {hosts && !hosts.some((h) => h.installed) ? (
+          <div className="warn" data-testid="no-host">
+            {noHostText(hosts)} Until then the run can only be created, not driven.
+          </div>
+        ) : null}
         <label className="field">
           <span>Autonomy</span>
           <select value={autonomy} onChange={(e) => setAutonomy(e.target.value)}>
-            <option value="L0">L0 · every gate asks</option>
-            <option value="L1">L1 · gates pass on green</option>
+            <option value="L0">L0: asks at every gate</option>
+            <option value="L1">L1: skips the gates the workflow allows</option>
           </select>
         </label>
         <label className="field">
@@ -146,10 +162,6 @@ export function NewSessionDialog({
                 </option>
               ))}
           </select>
-        </label>
-        <label className="field">
-          <span>Your name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="who approves" />
         </label>
         {waiting >= wipLimit ? (
           <div className="warn">

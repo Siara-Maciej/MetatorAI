@@ -3,9 +3,10 @@
  * line counts, one file's diff on the right; a click on a line opens a note there; the notes go
  * to the run's agents as one message with "Send to agent". Nothing here edits the code.
  */
-import { useCallback, useEffect, useState } from "react";
-import type { DiffLine, ReviewNote, RunChangesView } from "../api.ts";
-import { useDaemon } from "../daemon.tsx";
+import { useState } from "react";
+import type { DiffLine, ReviewNote } from "../api.ts";
+import { Notice } from "../components/common.tsx";
+import { useDaemon, usePolled } from "../daemon.tsx";
 
 const STATUS_GLYPH: Record<ReviewNote["status"], string> = { draft: "✎", sent: "→", addressed: "✓" };
 
@@ -20,38 +21,25 @@ export function ReviewScreen({
   onOpenFile(runId: string, file?: string): void;
   onOpenSession(runId: string): void;
 }) {
-  const { client, repos, runs, me, setMe } = useDaemon();
-  const repo = repos[0]?.name;
+  const { client, runs, who } = useDaemon();
   const run = runs.find((r) => r.runId === runId);
-  const [view, setView] = useState<RunChangesView>();
-  const [notes, setNotes] = useState<readonly ReviewNote[]>([]);
+  // The run's own repository (D10): in a folder the change is read where the run lives.
+  const repo = run?.repo;
+  const key = `review:${repo ?? ""}:${runId}:${file ?? ""}`;
+  const changes = usePolled(key, () => client.reviewChanges(runId, file, repo), 3000);
+  const noted = usePolled(`notes:${repo ?? ""}:${runId}`, () => client.reviewNotes(runId, repo), 3000);
+  const view = changes.data;
+  const notes = noted.data?.notes ?? [];
+  const load = async () => {
+    await Promise.all([changes.reload(), noted.reload()]);
+  };
+  // What an action answered stays until closed: a refresh never clears it (D5).
   const [error, setError] = useState<string>();
   const [draft, setDraft] = useState<{ line?: number; side?: "old" | "new"; text: string }>();
   const [note, setNote] = useState<string>();
-  const load = useCallback(async () => {
-    const [c, n] = await Promise.all([
-      client.reviewChanges(runId, file, repo),
-      client.reviewNotes(runId, repo),
-    ]);
-    if (c.ok && c.data) {
-      setView(c.data);
-      setError(undefined);
-    } else setError(c.error?.message ?? "no change");
-    if (n.ok && n.data) setNotes(n.data.notes);
-  }, [client, runId, file, repo]);
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 3000);
-    return () => clearInterval(t);
-  }, [load]);
-  const who = () => {
-    const name = me || window.prompt("your name") || "";
-    if (name) setMe(name);
-    return name;
-  };
   const add = async () => {
     if (!draft || draft.text.trim() === "") return;
-    const by = who();
+    const by = await who();
     if (!by) return;
     const r = await client.addNote(
       runId,
@@ -69,7 +57,7 @@ export function ReviewScreen({
     } else setError(r.error?.message);
   };
   const send = async () => {
-    const by = who();
+    const by = await who();
     if (!by) return;
     const r = await client.sendNotes(runId, by, repo);
     if (r.ok && r.data)
@@ -100,7 +88,12 @@ export function ReviewScreen({
     <div className="review" data-testid="review">
       <div className="top">
         <b>Changes</b>
-        <button type="button" className="ghost mono" onClick={() => onOpenSession(runId)} title="the session">
+        <button
+          type="button"
+          className="ghost mono clip"
+          onClick={() => onOpenSession(runId)}
+          title={`${run?.task ?? runId} (opens the session)`}
+        >
           {run?.task ?? runId}
         </button>
         {view ? <span className="dim mono">against {view.base.slice(0, 12)}</span> : null}
@@ -213,7 +206,8 @@ export function ReviewScreen({
           ) : null}
         </aside>
         <main className="diff">
-          {error ? <div className="banner">{error}</div> : null}
+          <Notice text={error} onClose={() => setError(undefined)} />
+          {changes.error && !view ? <div className="banner">{changes.error}</div> : null}
           {!file ? (
             <div className="empty">
               <h2>{view?.files.length ? "Pick a file" : "No change"}</h2>
