@@ -68,6 +68,22 @@ describe("metator test affected (real CLI, real bun test)", () => {
     }
   });
 
+  test("a deleted module: its importers' tests are affected and run (they fail on the missing import)", async () => {
+    await repo.git("rm", "-q", "packages/billing/src/tax.ts");
+    try {
+      const affected = await metator(["graph", "affected"], repo.root);
+      expect((affected.json.data as Data).changed).toEqual(["packages/billing/src/tax.ts"]);
+      expect((affected.json.data as Data).tests).toEqual([TAX]);
+      const r = await metator(["test", "affected"], repo.root);
+      expect(r.code).toBe(1);
+      const details = (r.json.error as { details: Data }).details;
+      expect([details.passed, details.tests]).toEqual([false, [TAX]]);
+    } finally {
+      await repo.git("reset", "-q", "HEAD", "--", "packages/billing/src/tax.ts");
+      await repo.git("checkout", "--", "packages/billing/src/tax.ts");
+    }
+  });
+
   test("explicit files and an unknown script", async () => {
     const r = await metator(["test", "affected", "--files", "packages/billing/src/tax.ts"], repo.root);
     expect((r.json.data as Data).tests).toContain(TAX);

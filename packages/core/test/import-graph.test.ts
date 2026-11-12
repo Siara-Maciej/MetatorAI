@@ -76,6 +76,49 @@ describe("BuildImportGraph", () => {
     expect(report.unresolved).toEqual([{ from: "apps/app/src/main.ts", specifier: "./missing" }]);
   });
 
+  test("a workspace package imported by name is an edge to its entry, linked or not (no install)", async () => {
+    const files = {
+      "packages/core/src/index.ts": "export const a = 1;",
+      "apps/app/src/main.ts": "// import @a/core\n// import @a/core/sub\n// import @a/app-like",
+      "apps/app/src/other.ts": "// import @a/bare",
+    };
+    const unlinked: Record<string, Resolution> = {
+      "apps/app/src/main.ts->@a/core": { type: "external", name: "@a/core" },
+      "apps/app/src/main.ts->@a/core/sub": { type: "external", name: "@a/core" },
+      "apps/app/src/main.ts->@a/app-like": { type: "external", name: "@a/app-like" },
+      "apps/app/src/other.ts->@a/bare": { type: "external", name: "@a/bare" },
+      // From inside the package: its own name finds `exports`, a path under it finds the file.
+      "packages/core/package.json->@a/core": { type: "file", path: "packages/core/src/index.ts" },
+      "packages/core/package.json->./sub": { type: "file", path: "packages/core/sub.ts" },
+    };
+    const fs = new InMemoryFileSystem(files);
+    const reader: WorkspaceReader = {
+      packages: async () =>
+        ok([
+          { name: "@a/core", dir: "packages/core" },
+          { name: "@a/app", dir: "apps/app" },
+          { name: "@a/bare", dir: "packages/bare" },
+        ]),
+    };
+    const build = new BuildImportGraph(
+      new SourceFiles(new FakeVcs(Object.keys(files)), fs, []),
+      fs,
+      new FakeAnalyzer(unlinked),
+      reader,
+      DEFAULT_PATHS,
+      "fake@1",
+    );
+    const report = (await build.execute())._unsafeUnwrap();
+    expect(report.edges).toEqual([
+      { from: "apps/app/src/main.ts", to: "packages/core/src/index.ts", kind: "cross-package" },
+      { from: "apps/app/src/main.ts", to: "packages/core/sub.ts", kind: "cross-package" },
+      // A manifest that names no entry: the package itself is the dependency.
+      { from: "apps/app/src/other.ts", to: "packages/bare/package.json", kind: "cross-package" },
+    ]);
+    // A name that only starts like a workspace package stays a package to install.
+    expect(report.externals).toEqual(["@a/app-like"]);
+  });
+
   test("second build reuses cached parses; only changed files are parsed again", async () => {
     const w = world(FILES, TABLE);
     expect((await w.build.execute())._unsafeUnwrap().stats).toEqual({ parsed: 3, reused: 0, failed: 0 });

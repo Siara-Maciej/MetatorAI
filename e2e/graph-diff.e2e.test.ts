@@ -78,6 +78,16 @@ describe("metator graph diff (real CLI, real git)", () => {
     });
   });
 
+  test("a deleted module: the edge of a file that still imports it is removed", async () => {
+    await repo.git("rm", "-q", "packages/billing/src/round.ts");
+    const data = (await metator(["graph", "diff", "--base", "main"], repo.root)).json.data as Data;
+    expect(data.removed).toContainEqual({
+      from: "packages/billing/src/tax.ts",
+      to: "packages/billing/src/round.ts",
+      kind: "internal",
+    });
+  });
+
   test("an unknown base is a usage error (exit 64)", async () => {
     const r = await metator(["graph", "diff", "--base", "no-such-branch"], repo.root);
     expect([r.code, (r.json.error as Data).code]).toEqual([64, "USAGE"]);

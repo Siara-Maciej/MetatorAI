@@ -6,7 +6,6 @@ import {
   CheckArchitecture,
   InitArchitecturePolicy,
   RecordArchitectureBaseline,
-  resolveAmong,
 } from "../src/application/architecture.ts";
 import {
   type ArchitectureInput,
@@ -26,6 +25,7 @@ import {
 } from "../src/domain/architecture-check.ts";
 import { ArchitecturePolicySchema, EMPTY_POLICY } from "../src/domain/architecture-policy.ts";
 import { MetatorError } from "../src/domain/errors.ts";
+import { resolveAmong } from "../src/domain/import-index.ts";
 import { err, ok } from "../src/domain/result.ts";
 import type { ImportAnalyzer } from "../src/ports/index.ts";
 

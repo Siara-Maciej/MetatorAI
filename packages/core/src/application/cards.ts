@@ -2,7 +2,7 @@ import slugify from "@sindresorhus/slugify";
 import { type ArchModule, analyzeModules, type ModulesReport } from "../domain/architecture-modules.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
-import { packageOf } from "../domain/import-index.ts";
+import { manifestPath, packageOf } from "../domain/import-index.ts";
 import { cardSkeleton, renderCard, splitCard } from "../domain/module-card.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { parseConsumes, type SystemMap } from "../domain/system-map.ts";
@@ -55,7 +55,7 @@ export class BuildModuleCards {
     if (report.isErr()) return err(report.error);
     const r = report.value;
     // A file at the package root stands for the package: CODEOWNERS decides per path.
-    const probe = (dir: string) => (dir === "" || dir === "." ? "package.json" : `${dir}/package.json`);
+    const probe = manifestPath;
     const owned = await this.owners.execute({ paths: r.packages.map((p) => probe(p.dir)) });
     if (owned.isErr()) return err(owned.error);
     const exemplars = (await this.patterns.scan()).patterns.map((p) => ({

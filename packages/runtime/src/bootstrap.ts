@@ -1121,8 +1121,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     docsDrift: asFunction(({ fileSystem, paths }) => new DocsDrift(fileSystem, paths.claims)),
     addLesson: asFunction(({ fileSystem, clock, paths }) => new AddLesson(fileSystem, clock, paths.lessons)),
     symbolQueries: asFunction(
-      ({ sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer }) =>
-        new SymbolQueries(sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer),
+      ({ sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer, workspaceReader }) =>
+        new SymbolQueries(sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer, workspaceReader),
     ),
     diffImportGraph: asFunction(
       ({ vcs, revisionReader, buildImportGraph, importAnalyzer }) =>
@@ -1255,7 +1255,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new RunAffectedTests(computeAffected, packageManager, processRunner),
     ),
     computeAffected: asFunction(
-      ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),
+      ({ vcs, importGraphReader, testGlobs, importAnalyzer }) =>
+        new ComputeAffected(vcs, importGraphReader, testGlobs, importAnalyzer.extensions),
     ),
     lintWorkflows: asFunction(
       ({ workflowCatalog, agentCatalog, skillCatalog }) =>
