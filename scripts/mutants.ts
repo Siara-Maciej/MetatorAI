@@ -5352,6 +5352,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a move does not declare a dependency its package never declared (an import by name resolves without an install)",
   },
   {
+    file: "packages/plugin-bun/src/bun-file-lock.ts",
+    from: 'if (relative(this.root, target).startsWith(".."))',
+    to: "if (false)",
+    why: "a lock is never taken outside the repository",
+  },
+  {
     file: "packages/core/src/application/drive.ts",
     from: 'if (run.isOk() && (run.value.state.status !== "active" || run.value.state.stage !== q.value.stage))',
     to: "if (false)",

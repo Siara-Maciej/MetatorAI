@@ -111,3 +111,15 @@ describe("BunFileLock on the file system", () => {
     expect(await Bun.file(join(root, "counter.txt")).text()).toBe("75");
   }, 30_000);
 });
+
+test("a path outside the repository is refused and its work never runs", async () => {
+  const root = await scratch();
+  let ran = false;
+  const result = await new BunFileLock(root).hold("../outside.json", async () => {
+    ran = true;
+    return ok(undefined);
+  });
+  expect(result.isErr() && result.error.code).toBe("USAGE");
+  expect(ran).toBe(false);
+  expect(await readdir(join(root, ".."))).not.toContain("outside.json.lock");
+});
