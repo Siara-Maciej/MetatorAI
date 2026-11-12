@@ -1,5 +1,4 @@
 import { err, type HealthProbe, type HealthTarget, MetatorError, ok, type Result } from "@metator/core";
-import waitOn from "wait-on";
 
 /**
  * HealthProbe on wait-on (ADR-0053): TCP accepts a connection, HTTP answers 2xx to a GET (wait-on's
@@ -12,6 +11,8 @@ export class WaitOnHealthProbe implements HealthProbe {
         ? `tcp:${target.tcp.host}:${target.tcp.port}`
         : target.http.replace(/^http(s?):\/\//, "http$1-get://");
     try {
+      // Loaded when a probe runs: the import costs every command about 0.2 s of start otherwise.
+      const { default: waitOn } = await import("wait-on");
       await waitOn({
         resources: [resource],
         timeout: timeoutMs,

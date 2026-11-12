@@ -1,5 +1,18 @@
 import { expect, test } from "bun:test";
+import { join } from "node:path";
 import { WaitOnHealthProbe } from "../src/wait-on-health-probe.ts";
+
+test("wait-on is loaded by the first probe, not by the import: commands that probe nothing do not pay for it", async () => {
+  const main = join(import.meta.dir, "../src/wait-on-health-probe.ts");
+  const script = `
+    const { WaitOnHealthProbe } = await import(${JSON.stringify(main)});
+    const loaded = () => Object.keys(require.cache).some((k) => k.includes("/wait-on/"));
+    const before = loaded();
+    await new WaitOnHealthProbe().waitFor({ tcp: { host: "127.0.0.1", port: 1 } }, 1);
+    console.log(JSON.stringify([before, loaded()]));`;
+  const proc = Bun.spawnSync(["bun", "-e", script], { cwd: import.meta.dir });
+  expect(proc.stdout.toString().trim()).toBe("[false,true]");
+});
 
 test("TCP: ready once something listens", async () => {
   const server = Bun.listen({ hostname: "127.0.0.1", port: 0, socket: { data() {} } });
