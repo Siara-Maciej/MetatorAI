@@ -10,14 +10,14 @@ Run this in the root of a git repository:
 metator setup
 ```
 
-In a terminal it asks which AI tools you use, which workflows to install and whether to install the hooks. To skip the questions:
+Setup picks the AI tools itself: the ones this repository already has files for (a `.claude/` folder or `CLAUDE.md`; Copilot's instructions, agents, skills or prompts under `.github/`), or else the ones whose command (`claude`, `copilot`) is on your machine. In a terminal it asks one question, whether to install the hooks. It asks about the AI tools only when nothing says which, or when the repository and the machine point at different ones. Every workflow is installed; `--workflows` installs fewer. To skip the questions:
 
 ```bash
 metator setup --host claude --hooks --yes
 ```
 
 ```json
-{"ok":true,"data":{"config":"metator.config.yml","hosts":["claude"],
+{"ok":true,"data":{"config":"metator.config.yml","hosts":["claude"],"hostsFrom":"option",
  "workflows":["mt-bugfix","mt-feature","mt-pr-review","mt-refactor","mt-review-response","mt-self-review","mt-system-change"],
  "hooks":true,"generated":38,"gitignore":"added",
  "checks":[{"command":"meta agents-lint","passed":true},{"command":"meta skills-lint","passed":true},
@@ -31,7 +31,7 @@ Setup does four things:
 3. It generates the files your AI tool reads (`.claude/` for Claude Code, `.github/agents/` and `.github/skills/` for Copilot), and the hooks when you pass `--hooks`.
 4. It lints what it installed.
 
-Commit the result. `--host` takes `claude`, `copilot` or both.
+Commit the result. `--host` takes `claude`, `copilot` or both, and wins over what setup found. `hostsFrom` in the result says where the choice came from: `option`, `config` (an existing `metator.config.yml`), `found`, `asked`, or `default` (nothing said, so both).
 
 `metator doctor` then tells you what a run can do here. Each check is `ok`, `warn` (a run starts but does less) or `fail` (a run cannot start), and each problem names the command that fixes it.
 
@@ -61,7 +61,7 @@ The run surveys the code, writes a plan and checks it. Then it stops, and the co
 
 The decision card shows the task, what was done so far and the options. To read the plan first, go to **Work** and click the stages under the tabs: the **Plan** screen lists every step with its file and the tests that come first.
 
-Back in the **Inbox**, choose **Approve**, type your name in the last field and click the **Approve** button. To send the plan back, choose **Reject** and write the reason in the note field.
+Back in the **Inbox**, choose **Approve** and click the **Approve** button. The first time, the app asks for your name. To send the plan back, choose **Reject** and write the reason in the field under the options; the answer is sent only with a reason.
 
 ## Watch the work
 

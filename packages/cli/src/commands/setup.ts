@@ -3,11 +3,13 @@ import {
   type FileSystem,
   HOST_TARGETS,
   type HostTarget,
+  hostsFromEvidence,
   type InstallReport,
   type InstallStep,
   MetatorError,
   ok,
   type Result,
+  repositoryHosts,
   writesFile,
 } from "@metator/core";
 import { type Command, Option } from "commander";
@@ -19,6 +21,14 @@ export const SETUP_CHECKS: readonly (readonly string[])[] = [
   ["meta", "skills-lint"],
   ["workflow", "lint"],
   ["generate", "--check"],
+];
+
+/** Where a host leaves its files in a repository (`repositoryHosts` reads the matches). */
+const HOST_SIGNS = [
+  ".claude/**",
+  "CLAUDE.md",
+  ".github/copilot*",
+  ".github/{agents,skills,prompts,instructions}/**",
 ];
 
 interface InstallOptions {
@@ -93,11 +103,14 @@ export function registerSetupCommands(
       "Set MetatorAI up here in one step: config, hosts, agents, skills, workflows, host files, checks",
     )
     .addOption(
-      new Option("--host <hosts...>", "AI hosts to generate for (default: all)").choices(HOST_TARGETS),
+      new Option(
+        "--host <hosts...>",
+        "AI hosts to generate for (default: the config's, else those the repository or this machine has)",
+      ).choices(HOST_TARGETS),
     )
     .option("--workflows <ids...>", "workflows to install (default: all)")
     .option("--hooks", "also install the hooks (`metator guard`) for each host", false)
-    .option("--yes", "do not ask; take the options and the defaults", false)
+    .option("--yes", "do not ask; take the options and what was found", false)
     .action(
       action(async (opts: { host?: HostTarget[]; workflows?: string[]; hooks: boolean; yes: boolean }) => {
         const root = (program.opts() as { root?: string }).root;
@@ -109,16 +122,33 @@ export function registerSetupCommands(
 
         const preview = await c.resolve("installCanon").execute({ mode, theirs: false, dryRun: true });
         if (preview.isErr()) return { result: preview };
+        // The hosts: the option, else the config, else what the repository and the machine show.
+        let hosts: readonly HostTarget[];
+        let hostsFrom: "option" | "config" | "found" | "asked" | "default";
+        let askHosts = false;
+        if (opts.host) [hosts, hostsFrom] = [opts.host, "option"];
+        else if (configured.source !== undefined)
+          [hosts, hostsFrom] = [configured.config.hosts.targets, "config"];
+        else {
+          const onPath = c.resolve("launcher").available(HOST_TARGETS);
+          const found = hostsFromEvidence({
+            repository: repositoryHosts(await c.resolve("fileSystem").glob(HOST_SIGNS)),
+            machine: HOST_TARGETS.filter((h) => onPath.includes(h)),
+          });
+          [hosts, hostsFrom, askHosts] = [found.hosts, found.ask ? "default" : "found", found.ask];
+        }
         let answers = {
-          hosts: opts.host ?? configured.config.hosts.targets,
+          hosts,
+          // Every workflow: unused ones cost nothing, and --workflows narrows.
           workflows: opts.workflows ?? preview.value.workflows,
           hooks: opts.hooks,
         };
-        const ask = !opts.yes && opts.host === undefined && opts.workflows === undefined ? terminal : null;
-        if (ask) {
-          const given = await ask.setup({ available: preview.value.available, defaults: answers });
+        const ask = opts.yes ? null : terminal;
+        if (ask && (askHosts || !opts.hooks)) {
+          const given = await ask.setup({ askHosts, defaults: { hosts, hooks: opts.hooks } });
           if (!given) return { result: err(MetatorError.usage("setup cancelled", "Nothing was written.")) };
-          answers = { hosts: [...given.hosts], workflows: [...given.workflows], hooks: given.hooks };
+          answers = { ...answers, hosts: [...given.hosts], hooks: given.hooks };
+          if (askHosts) hostsFrom = "asked";
         }
 
         const warnings: string[] = [];
@@ -155,6 +185,7 @@ export function registerSetupCommands(
         const summary = {
           config: configured.source ?? "metator.config.yml",
           hosts: answers.hosts,
+          hostsFrom,
           workflows: report.workflows,
           hooks: answers.hooks,
           canon: { mode, version: report.version, lock: report.lock, steps: count(report.steps) },

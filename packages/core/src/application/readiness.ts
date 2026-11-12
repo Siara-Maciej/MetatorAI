@@ -4,6 +4,7 @@ import type { McpServers } from "../domain/mcp.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { FileSystem, Vcs } from "../ports/index.ts";
 import type { EnvironmentServices } from "./environments.ts";
+import { emptyGateHint } from "./gate.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
@@ -16,6 +17,7 @@ export interface ReadinessCheck {
   readonly id:
     | "config"
     | "canon"
+    | "commits"
     | "workflows"
     | "gates"
     | "dependencies"
@@ -62,7 +64,7 @@ export class CheckReadiness {
     private readonly paths: Pick<MetatorPaths, "installLock">,
     private readonly config: { readonly config: MetatorConfig; readonly source?: string | undefined },
     private readonly catalog: Pick<WorkflowCatalog, "scan">,
-    private readonly vcs: Pick<Vcs, "remoteUrl">,
+    private readonly vcs: Pick<Vcs, "remoteUrl" | "hasCommits">,
     /** Whether a repo-relative directory exists (`FileSystem` sees files only). */
     private readonly isDirectory: (path: string) => Promise<boolean>,
     private readonly worktrees: Pick<WorktreeRegistry, "get"> = {
@@ -106,6 +108,15 @@ export class CheckReadiness {
             fix: "metator setup",
           },
     ];
+    // Only said when it fails: a repository right after `git init`.
+    const commits = await this.vcs.hasCommits?.();
+    if (commits?.isOk() && !commits.value)
+      checks.push({
+        id: "commits",
+        status: "fail",
+        message: "the repository has no commit yet: a run's worktree and its diff need one",
+        fix: "git commit --allow-empty -m init",
+      });
     const scan = await this.catalog.scan();
     checks.push(
       scan.workflows.length > 0
@@ -133,7 +144,9 @@ export class CheckReadiness {
             id: "gates",
             status: "warn",
             message: "no gates configured: a run's gates stage checks nothing",
-            fix: "metator init (it proposes gates from the repository's scripts)",
+            fix: this.config.source
+              ? emptyGateHint("full", this.config.source)
+              : "metator init (it proposes gates from the repository's scripts)",
           },
     );
     checks.push(await this.dependencies(place));

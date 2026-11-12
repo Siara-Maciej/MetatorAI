@@ -210,11 +210,17 @@ describe("JudgeFindings / FormatReviewComments", () => {
         await new FormatReviewComments(fs).execute({ verdict: "run/verdict.json", format: "labeled" })
       )._unsafeUnwrapErr().code,
     ).toBe("USAGE");
+    // Lens files not merged yet: merge first. No lens file at all: most often a wrong directory.
+    const unmerged = new InMemoryFileSystem({ "x/logic.json": "{}" });
     expect(
-      (
-        await new JudgeFindings(new InMemoryFileSystem({})).execute({ dir: "x", verifiedCorrect: [] })
-      )._unsafeUnwrapErr().hint,
+      (await new JudgeFindings(unmerged).execute({ dir: "x", verifiedCorrect: [] }))._unsafeUnwrapErr().hint,
     ).toContain("findings merge");
+    const nowhere = new InMemoryFileSystem({});
+    const missing = (
+      await new JudgeFindings(nowhere).execute({ dir: "x", verifiedCorrect: [] })
+    )._unsafeUnwrapErr();
+    expect([missing.code, missing.hint]).toEqual(["NOT_FOUND", expect.stringContaining("<run>/findings")]);
+    expect(await nowhere.glob(["**/*"])).toEqual([]);
   });
 });
 

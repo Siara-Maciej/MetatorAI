@@ -3,10 +3,17 @@
  * open tasks in one list; the chosen one on the right with its text, priority, labels, where it
  * points, and the decision. An agent only proposes; the task exists after your "Add".
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Issue } from "../api.ts";
-import { useDaemon } from "../daemon.tsx";
-import { duration, issueRefText } from "../model.ts";
+import { Notice, RepoSelect } from "../components/common.tsx";
+import { useDaemon, usePolled } from "../daemon.tsx";
+import { duration, issueRefText, workflowChoice } from "../model.ts";
+
+const NO_ISSUES: readonly Issue[] = [];
+const NO_WORKFLOW = {
+  ok: false,
+  error: { message: "This repository has no workflow to start a run on. `metator setup` installs them." },
+};
 
 const GLYPH: Record<Issue["status"], string> = {
   proposed: "?",
@@ -24,9 +31,15 @@ export function BacklogScreen({
   /** A task started from a pane or a step: the form opens with these refs. */
   readonly initialDraft?: { readonly title?: string; readonly refs?: Issue["refs"] } | undefined;
 }) {
-  const { client, repos, runs, me, setMe } = useDaemon();
-  const repo = repos[0]?.name;
-  const [issues, setIssues] = useState<readonly Issue[]>([]);
+  const { client, repo, runs, who } = useDaemon();
+  const list = usePolled(`issues:${repo ?? ""}`, () => client.issues(repo), 2000);
+  const issues = list.data?.issues ?? NO_ISSUES;
+  const load = list.reload;
+  // The workflows this repository has (D5): a run is started on one of them, never on a guess.
+  const known = usePolled(`workflows:${repo ?? ""}`, () => client.workflows(repo), 30_000);
+  const workflows = (known.data?.workflows ?? []).map((w) => w.id);
+  const [wanted, setWanted] = useState<string>();
+  // What an action answered stays until closed: the list's refresh never clears it (D5).
   const [error, setError] = useState<string>();
   const [chosen, setChosen] = useState<string>();
   const [adding, setAdding] = useState<boolean>(initialDraft !== undefined);
@@ -37,18 +50,6 @@ export function BacklogScreen({
     labels: "",
   });
   const [showDone, setShowDone] = useState(false);
-  const load = useCallback(async () => {
-    const r = await client.issues(repo);
-    if (r.ok && r.data) {
-      setIssues(r.data.issues);
-      setError(undefined);
-    } else setError(r.error?.message ?? "no backlog");
-  }, [client, repo]);
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 2000);
-    return () => clearInterval(t);
-  }, [load]);
   const proposals = useMemo(() => issues.filter((i) => i.status === "proposed"), [issues]);
   const open = useMemo(
     () => issues.filter((i) => i.status === "open" || i.status === "in-progress"),
@@ -59,33 +60,34 @@ export function BacklogScreen({
     [issues],
   );
   const current = issues.find((i) => i.id === chosen) ?? proposals[0] ?? open[0];
-  const who = () => {
-    const name = me || window.prompt("your name") || "";
-    if (name) setMe(name);
-    return name;
-  };
   const act = async (fn: (by: string) => Promise<{ ok: boolean; error?: { message: string } }>) => {
-    const by = who();
+    const by = await who();
     if (!by) return;
     const r = await fn(by);
-    if (!r.ok) setError(r.error?.message);
-    else await load();
+    if (!r.ok) setError(r.error?.message ?? "the daemon refused");
+    else {
+      setError(undefined);
+      await load();
+    }
   };
+  /** The workflow a run on the task starts with: the chosen one, else the proposing run's, else the default. */
+  const workflowOf = (issue: Issue | undefined): string | undefined =>
+    workflowChoice(workflows, wanted ?? runs.find((r) => r.runId === issue?.proposedBy?.runId)?.workflow);
   const decide = (issue: Issue, decision: "add" | "drop") =>
     act((by) => client.decideIssue(issue.id, { by, decision }, repo));
   const addAndStart = (issue: Issue) =>
     act(async (by) => {
       const d = await client.decideIssue(issue.id, { by, decision: "add" }, repo);
       if (!d.ok) return d;
-      return client.startIssue(
-        issue.id,
-        { workflow: runs.find((r) => r.runId === issue.proposedBy?.runId)?.workflow ?? "mt-feature" },
-        repo,
-      );
+      const workflow = workflowOf(issue);
+      if (!workflow) return NO_WORKFLOW;
+      return client.startIssue(issue.id, { workflow }, repo);
     });
   const start = (issue: Issue) =>
     act(async () => {
-      const r = await client.startIssue(issue.id, { workflow: runs[0]?.workflow ?? "mt-feature" }, repo);
+      const workflow = workflowOf(issue);
+      if (!workflow) return NO_WORKFLOW;
+      const r = await client.startIssue(issue.id, { workflow }, repo);
       if (r.ok && r.data) onOpenSession(r.data.runId);
       return r;
     });
@@ -148,6 +150,7 @@ export function BacklogScreen({
           </span>
         ) : null}
         <span className="spacer" />
+        <RepoSelect />
         <button type="button" onClick={() => setAdding(true)}>
           + task
         </button>
@@ -177,7 +180,8 @@ export function BacklogScreen({
           ) : null}
         </aside>
         <main className="detail">
-          {error ? <div className="banner">{error}</div> : null}
+          <Notice text={error} onClose={() => setError(undefined)} />
+          {list.error && !list.data ? <div className="banner">{list.error}</div> : null}
           {adding ? (
             <form
               className="form"
@@ -245,7 +249,7 @@ export function BacklogScreen({
                   ? `proposal · ${current.proposedBy.agent}${current.proposedBy.runId ? ` · ${taskOf(current.proposedBy.runId)}` : ""}`
                   : `${current.id} · ${current.status}${current.decidedBy ? ` · ${current.decidedBy.decision} by ${current.decidedBy.by}` : ""}`}
               </div>
-              <h2>{current.title}</h2>
+              <h2 title={current.title}>{current.title}</h2>
               {current.body ? <p className="text">{current.body}</p> : null}
               <div className="row">
                 <span className="dim">priority</span>{" "}
@@ -296,6 +300,25 @@ export function BacklogScreen({
                       Drop
                     </button>
                   </>
+                ) : null}
+                {current.status === "proposed" || current.status === "open" ? (
+                  <label className="wf">
+                    <span className="dim">a run starts on</span>
+                    <select
+                      aria-label="workflow"
+                      value={workflowOf(current) ?? ""}
+                      onChange={(e) => setWanted(e.target.value)}
+                    >
+                      {workflows.length === 0 ? (
+                        <option value="">no workflow in this repository</option>
+                      ) : null}
+                      {workflows.map((w) => (
+                        <option key={w} value={w}>
+                          {w}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 ) : null}
                 {current.status === "in-progress" ? (
                   <button type="button" onClick={() => act((by) => client.closeIssue(current.id, by, repo))}>

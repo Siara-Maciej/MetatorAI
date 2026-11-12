@@ -17,6 +17,7 @@ import {
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { BranchHistory, ChangePatch, FileSystem, Vcs, WorkspaceReader } from "../ports/index.ts";
 import { cardFile } from "./cards.ts";
+import { lensFiles, noFindingsFile } from "./findings.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RuleCatalog } from "./rules.ts";
 
@@ -97,6 +98,7 @@ export class JudgeFindings {
     const source = `${input.dir.replace(/\/$/, "")}/merged.json`;
     const text = await this.fs.read(source);
     if (text.isErr()) {
+      if ((await lensFiles(this.fs, input.dir)).length === 0) return err(noFindingsFile(input.dir));
       return err(
         new MetatorError("NOT_FOUND", `${source} not found`, {
           hint: `Run \`metator findings merge ${input.dir}\` first.`,

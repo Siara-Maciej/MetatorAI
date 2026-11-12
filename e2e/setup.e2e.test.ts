@@ -1,6 +1,6 @@
 /** `setup` and `agents install|update` end to end: real `metator` processes on real git repositories. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { chmod, cp, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { metator } from "./helpers/cli.ts";
@@ -15,12 +15,26 @@ const GRILL = "metator/skills/mt-grill/SKILL.md";
 interface Setup {
   gitignore: string;
   hosts: string[];
+  hostsFrom: string;
   workflows: string[];
   canon: { mode: string; steps: Record<string, number> };
   checks: { command: string; passed: boolean }[];
 }
 type Steps = { steps: { path: string; action: string }[] };
 const actionOf = (data: unknown, path: string) => (data as Steps).steps.find((s) => s.path === path)?.action;
+
+/** A PATH with bun and git only, plus stand-ins for the named host commands: what the machine shows. */
+async function pathWith(...commands: string[]): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "metator-path-"));
+  paths.push(dir);
+  for (const tool of ["bun", "git"]) await symlink(Bun.which(tool) as string, join(dir, tool));
+  for (const command of commands) {
+    await Bun.write(join(dir, command), "#!/bin/sh\n");
+    await chmod(join(dir, command), 0o755);
+  }
+  return dir;
+}
+const paths: string[] = [];
 
 let repo: ScratchRepo;
 /** A copy of the shipped canon that the tests change, as a newer MetatorAI version would. */
@@ -41,6 +55,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await repo.dispose();
   await rm(newer, { recursive: true, force: true });
+  await Promise.all(paths.map((p) => rm(p, { recursive: true, force: true })));
 });
 
 describe("metator setup (real CLI)", () => {
@@ -144,33 +159,131 @@ describe("metator setup (real CLI)", () => {
     }
   });
 
-  test("in a terminal it asks: hosts, workflows, hooks", async () => {
+  test("nothing says which host: in a terminal it asks the hosts and the hooks, never the workflows", async () => {
     const fresh = await ScratchRepo.create();
     try {
       await fresh.write("package.json", '{"name":"w","private":true}');
-      const r = await inTerminal(["setup"], fresh.root, [
-        { waitFor: "Which AI hosts", keys: `${KEY.space}${KEY.enter}` }, // Claude Code is first: drop it
-        { waitFor: "Which workflows", keys: `${KEY.space}${KEY.enter}` }, // drop mt-bugfix
-        { waitFor: "Install the hooks", keys: KEY.enter },
-      ]);
+      const r = await inTerminal(
+        ["setup"],
+        fresh.root,
+        [
+          { waitFor: "Which AI hosts", keys: `${KEY.space}${KEY.enter}` }, // Claude Code is first: drop it
+          { waitFor: "Install the hooks", keys: KEY.enter },
+        ],
+        20_000,
+        { PATH: await pathWith() },
+      );
       const data = r.json.data as Setup;
-      expect([r.code, data.hosts, data.workflows.includes("mt-bugfix"), data.workflows.length]).toEqual([
+      expect([r.code, data.hosts, data.hostsFrom, data.workflows.length]).toEqual([
         0,
         ["copilot"],
-        false,
-        6,
+        "asked",
+        7,
       ]);
       expect(r.screen).toContain("MetatorAI setup");
+      expect(r.screen).not.toContain("Which workflows");
       expect(await fresh.exists(".github/agents/mt-scout.agent.md")).toBe(true);
     } finally {
       await fresh.dispose();
     }
   }, 60_000);
 
+  test("the hosts come from what is there: the repository's folders, else the commands on the machine", async () => {
+    const cases: [string, Record<string, string>, string[], string[], string][] = [
+      ["a .claude folder", { ".claude/settings.json": "{}" }, [], ["claude"], "found"],
+      ["only copilot on PATH", {}, ["copilot"], ["copilot"], "found"],
+      [
+        "Copilot's instructions, both commands",
+        { ".github/copilot-instructions.md": "# x\n" },
+        ["claude", "copilot"],
+        ["copilot"],
+        "found",
+      ],
+      ["nothing: every host", {}, [], ["copilot", "claude"], "default"],
+      // The repository says one host, the machine has only the other: both, a question in a terminal.
+      ["two ways", { "CLAUDE.md": "# x\n" }, ["copilot"], ["copilot", "claude"], "default"],
+    ];
+    for (const [name, files, commands, hosts, from] of cases) {
+      const fresh = await ScratchRepo.create();
+      try {
+        await fresh.write("package.json", '{"name":"w","private":true}');
+        for (const [path, content] of Object.entries(files)) await fresh.write(path, content);
+        const r = await metator(["setup", "--yes"], fresh.root, { PATH: await pathWith(...commands) });
+        const data = r.json.data as Setup;
+        expect([name, r.code, data.hosts, data.hostsFrom]).toEqual([name, 0, hosts, from]);
+      } finally {
+        await fresh.dispose();
+      }
+    }
+  }, 120_000);
+
+  test("hosts that are found are not asked: the terminal says them and asks only the hooks", async () => {
+    const fresh = await ScratchRepo.create();
+    try {
+      await fresh.write("package.json", '{"name":"w","private":true}');
+      await fresh.write("CLAUDE.md", "# notes\n");
+      const r = await inTerminal(
+        ["setup"],
+        fresh.root,
+        [{ waitFor: "Install the hooks", keys: `y` }],
+        20_000,
+        { PATH: await pathWith() },
+      );
+      const data = r.json.data as Setup & { hooks: boolean };
+      expect([r.code, data.hosts, data.hostsFrom, data.hooks]).toEqual([0, ["claude"], "found", true]);
+      expect(r.screen).toContain("AI hosts: Claude Code");
+      expect(r.screen).not.toContain("Which AI hosts");
+    } finally {
+      await fresh.dispose();
+    }
+  }, 60_000);
+
+  test("after setup the repository's own documents are what memory and docs commands read, not the generated host files", async () => {
+    const generated = (paths: string[]) => paths.filter((p) => p.startsWith(".claude/"));
+    const dupes = (await metator(["memory", "dupes"], repo.root)).json.data as {
+      groups: { occurrences: { file: string }[] }[];
+    };
+    expect(generated(dupes.groups.flatMap((g) => g.occurrences.map((o) => o.file)))).toEqual([]);
+    const paths = async (...args: string[]) =>
+      (
+        (await metator(args, repo.root)).json.data as {
+          documents?: { path: string }[];
+          files?: { path: string }[];
+        }
+      )[args[0] === "docs" ? "documents" : "files"]?.map((d) => d.path) ?? [];
+    expect(generated(await paths("docs", "inventory"))).toEqual([]);
+    expect(generated(await paths("memory", "inventory"))).toEqual([]);
+    expect(generated(await paths("docs", "inventory", "--generated")).length).toBeGreaterThan(20);
+    expect(generated(await paths("memory", "inventory", "--generated")).length).toBeGreaterThan(20);
+    const links = async (...extra: string[]) =>
+      ((await metator(["docs", "links", ...extra], repo.root)).json.data as { documents: number }).documents;
+    expect((await links("--generated")) - (await links())).toBeGreaterThan(20);
+  }, 60_000);
+
+  test("a reading command before setup leaves nothing for git to show: its local state is excluded in this clone", async () => {
+    const fresh = await ScratchRepo.create();
+    try {
+      await fresh.write("src/a.ts", "export const a = 1;\n");
+      await fresh.commit("init");
+      expect((await metator(["graph", "cycles"], fresh.root)).code).toBe(0);
+      expect(await fresh.exists(".metator/index/imports.json")).toBe(true);
+      expect(await fresh.git("status", "--porcelain")).toBe("");
+      expect(await fresh.exists(".gitignore")).toBe(false);
+    } finally {
+      await fresh.dispose();
+    }
+  });
+
   test("cancelling the wizard writes nothing", async () => {
     const fresh = await ScratchRepo.create();
     try {
-      const r = await inTerminal(["setup"], fresh.root, [{ waitFor: "Which AI hosts", keys: KEY.ctrlC }]);
+      const r = await inTerminal(
+        ["setup"],
+        fresh.root,
+        [{ waitFor: "Which AI hosts", keys: KEY.ctrlC }],
+        20_000,
+        { PATH: await pathWith() },
+      );
       expect([r.code, (r.json.error as { message: string }).message]).toEqual([64, "setup cancelled"]);
       expect(await fresh.exists("metator.config.yml")).toBe(false);
       expect(await fresh.exists("metator")).toBe(false);

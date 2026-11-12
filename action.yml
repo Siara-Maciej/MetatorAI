@@ -69,7 +69,9 @@ runs:
       run: |
         base="${{ inputs.base }}"
         if [ -z "$base" ] && [ -n "${{ github.base_ref }}" ]; then
-          git fetch --no-tags --depth 1 origin "${{ github.base_ref }}"
+          # The merge base needs the history between the base and HEAD: a shallow checkout gets it here.
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then depth="--unshallow"; else depth=""; fi
+          git fetch --no-tags $depth origin "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
           base="origin/${{ github.base_ref }}"
         fi
         if [ -z "$base" ]; then base="HEAD~1"; fi

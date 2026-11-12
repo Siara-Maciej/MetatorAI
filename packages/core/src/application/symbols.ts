@@ -7,7 +7,8 @@ import {
   type SymbolCaller,
   type SymbolDefinition,
 } from "../domain/symbols.ts";
-import type { FileSystem, ImportAnalyzer, SymbolAnalyzer } from "../ports/index.ts";
+import type { FileSystem, ImportAnalyzer, SymbolAnalyzer, WorkspaceReader } from "../ports/index.ts";
+import { resolveImport } from "./import-graph.ts";
 import type { SourceFiles } from "./source-files.ts";
 
 /** `symbols find` and `graph callers` (ADR-0040): every source module's names, resolved to files. */
@@ -17,6 +18,8 @@ export class SymbolQueries {
     private readonly fs: FileSystem,
     private readonly imports: ImportAnalyzer,
     private readonly symbols: SymbolAnalyzer,
+    /** To follow a workspace package imported by name that nothing links (no install). */
+    private readonly workspace?: WorkspaceReader,
   ) {}
 
   async find(name: string): Promise<
@@ -78,6 +81,8 @@ export class SymbolQueries {
   async resolvedModules(): Promise<Result<Map<string, ResolvedModule>, MetatorError>> {
     const files = await this.sources.list(this.imports.extensions);
     if (files.isErr()) return err(files.error);
+    const packages = this.workspace ? await this.workspace.packages() : ok([]);
+    if (packages.isErr()) return err(packages.error);
     const out = new Map<string, ResolvedModule>();
     for (const file of files.value) {
       const text = await this.fs.read(file);
@@ -85,7 +90,7 @@ export class SymbolQueries {
       const parsed = this.symbols.symbols(file, text.value);
       if (parsed.isErr()) continue; // a file that does not parse has no usable names
       const target = (specifier: string) => {
-        const r = this.imports.resolve(file, specifier);
+        const r = resolveImport(this.imports, packages.value, file, specifier);
         return r.type === "file" ? r.path : undefined;
       };
       const withTarget = <T extends { readonly specifier: string }>(items: readonly T[]) =>

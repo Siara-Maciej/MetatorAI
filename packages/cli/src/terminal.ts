@@ -3,12 +3,13 @@ import type { Autonomy, HostTarget, Question } from "@metator/core";
 
 export interface SetupAnswers {
   readonly hosts: readonly HostTarget[];
-  readonly workflows: readonly string[];
   readonly hooks: boolean;
 }
 
 export interface SetupQuestions {
-  readonly available: readonly string[];
+  /** Ask which hosts: nothing in the repository or on the machine says, or they point two ways. */
+  readonly askHosts: boolean;
+  /** The hosts found (preselected when asked, said when not) and whether `--hooks` was given. */
   readonly defaults: SetupAnswers;
 }
 
@@ -70,35 +71,35 @@ const HOST_LABELS: Record<string, string> = {
 
 /** The terminal on @clack/prompts. */
 export const clackTerminal: Terminal = {
-  async setup({ available, defaults }) {
+  async setup({ askHosts, defaults }) {
     intro("MetatorAI setup", io);
-    const hosts = await multiselect<HostTarget>({
-      ...io,
-      message: "Which AI hosts should get the agents, skills and hooks?",
-      options: (["claude", "copilot"] as HostTarget[]).map((h) => ({
-        value: h,
-        label: HOST_LABELS[h] as string,
-      })),
-      initialValues: [...defaults.hosts],
-      required: true,
-    });
-    if (isCancel(hosts)) return cancelled("Setup cancelled; nothing was written.");
-    const workflows = await multiselect<string>({
-      ...io,
-      message: "Which workflows should this repository run?",
-      options: available.map((w) => ({ value: w, label: w })),
-      initialValues: [...defaults.workflows],
-      required: true,
-    });
-    if (isCancel(workflows)) return cancelled("Setup cancelled; nothing was written.");
-    const hooks = await confirm({
-      ...io,
-      message: "Install the hooks (`metator guard`) that enforce scope and approvals?",
-      initialValue: defaults.hooks,
-    });
-    if (isCancel(hooks)) return cancelled("Setup cancelled; nothing was written.");
+    let hosts: readonly HostTarget[] = defaults.hosts;
+    if (askHosts) {
+      const chosen = await multiselect<HostTarget>({
+        ...io,
+        message: "Which AI hosts should get the agents, skills and hooks?",
+        options: (["claude", "copilot"] as HostTarget[]).map((h) => ({
+          value: h,
+          label: HOST_LABELS[h] as string,
+        })),
+        initialValues: [...defaults.hosts],
+        required: true,
+      });
+      if (isCancel(chosen)) return cancelled("Setup cancelled; nothing was written.");
+      hosts = chosen;
+    } else log.info(`AI hosts: ${hosts.map((h) => HOST_LABELS[h]).join(", ")} (--host changes it)`, io);
+    let hooks = defaults.hooks;
+    if (!hooks) {
+      const wanted = await confirm({
+        ...io,
+        message: "Install the hooks (`metator guard`) that enforce scope and approvals?",
+        initialValue: false,
+      });
+      if (isCancel(wanted)) return cancelled("Setup cancelled; nothing was written.");
+      hooks = wanted;
+    }
     outro("Installing…", io);
-    return { hosts, workflows, hooks };
+    return { hosts, hooks };
   },
 
   async newRun({ workflows, hosts, defaultHost }) {

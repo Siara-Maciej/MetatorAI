@@ -20,7 +20,7 @@ A change made in `.claude/agents/`, `.github/agents/` or the generated skills is
 
 ## Choose the hosts
 
-`hosts.targets` in `metator.config.yml` lists the hosts that get files. Without it, both do.
+`hosts.targets` in `metator.config.yml` lists the hosts that get files. Without it, both do. The first `metator setup` writes it from what it finds: the hosts the repository already has files for, or else the hosts whose command is on your machine ([First run](./first-run.md#set-up-the-repository)).
 
 ```yaml
 hosts:

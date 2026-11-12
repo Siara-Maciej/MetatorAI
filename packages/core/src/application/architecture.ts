@@ -28,6 +28,7 @@ import {
 } from "../domain/architecture-policy.ts";
 import { renderArchitectureHtml, renderArchitectureMarkdown } from "../domain/architecture-render.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { manifestPath, resolveAmong } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { stylePackages } from "../domain/style-imports.ts";
 import {
@@ -47,7 +48,7 @@ import type {
   ToolBoundariesReader,
   Vcs,
 } from "../ports/index.ts";
-import type { BuildImportGraph } from "./import-graph.ts";
+import { type BuildImportGraph, resolveImport } from "./import-graph.ts";
 import type { FindOwners } from "./owners.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { SourceFiles } from "./source-files.ts";
@@ -124,7 +125,7 @@ export class ArchitectureFacts {
     if (this.extra.owners) {
       const pkgs = manifests.value.packages;
       const found = await this.extra.owners.execute({
-        paths: pkgs.map((m) => (m.dir === "." ? "package.json" : `${m.dir}/package.json`)),
+        paths: pkgs.map((m) => manifestPath(m.dir)),
       });
       if (found.isErr()) return err(found.error);
       // No CODEOWNERS file: nothing to say about teams.
@@ -270,7 +271,7 @@ export class BaseArchitectureFacts {
       const parsed = this.analyzer.parse(file, text);
       if (parsed.isErr()) continue; // unparsable at the base: nothing to compare against
       for (const imp of parsed.value) {
-        const target = this.analyzer.resolve(file, imp.specifier);
+        const target = resolveImport(this.analyzer, current.manifests.packages, file, imp.specifier);
         const atBase =
           target.type === "file"
             ? undefined
@@ -286,7 +287,7 @@ export class BaseArchitectureFacts {
     const manifestAt = async (
       m: PackageManifest,
     ): Promise<Result<PackageManifest | undefined, MetatorError>> => {
-      const file = m.dir === "." ? "package.json" : `${m.dir}/package.json`;
+      const file = manifestPath(m.dir);
       if (!touched.has(file)) return ok(m);
       const text = await this.history.readAt(base, file);
       if (text.isErr()) return err(text.error);
@@ -473,29 +474,4 @@ export class SimulateArchitecture {
     const simulated = simulateMoves(facts.value, input.moves);
     return ok({ moves: input.moves, effect: simulated.effect, cycles: simulated.report.cycles });
   }
-}
-
-/** A relative specifier resolved among `files` (with an extension, `.js` written for `.ts`, or `index`). */
-export function resolveAmong(
-  from: string,
-  specifier: string,
-  files: ReadonlySet<string>,
-  extensions: readonly string[],
-): string | undefined {
-  if (!specifier.startsWith(".")) return undefined;
-  const parts = from.split("/").slice(0, -1);
-  for (const segment of specifier.split("/")) {
-    if (segment === "" || segment === ".") continue;
-    if (segment === "..") parts.pop();
-    else parts.push(segment);
-  }
-  const path = parts.join("/");
-  const stem = path.replace(/\.[cm]?jsx?$/, "");
-  const candidates = [
-    path,
-    ...extensions.map((e) => `${stem}${e}`),
-    ...extensions.map((e) => `${path}${e}`),
-    ...extensions.map((e) => `${path}/index${e}`),
-  ];
-  return candidates.find((c) => files.has(c));
 }

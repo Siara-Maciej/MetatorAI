@@ -236,6 +236,8 @@ export interface Cradle {
   /** The one git adapter of the repository; the git ports below resolve to it. */
   git: Vcs & RevisionReader & ChangeHistory & BranchHistory & ChangePatch & BranchPublication;
   vcs: Vcs;
+  /** The Vcs of another checkout (a worktree's directory): one reading of "changed files" everywhere. */
+  vcsAt: (dir: string) => Vcs;
   revisionReader: RevisionReader;
   changeHistory: ChangeHistory;
   sandbox: Sandbox;
@@ -294,6 +296,12 @@ export interface Cradle {
   driverLock: DriverLock;
   terminal: Terminal;
   interactiveHosts: ReadonlyMap<string, InteractiveHost>;
+  /** Every interactive host with the program it starts and whether that program is on this machine. */
+  hostStatus: () => readonly {
+    readonly id: string;
+    readonly command?: string;
+    readonly installed: boolean;
+  }[];
   ptyBroker: PtyBroker;
   layoutStore: LayoutStore;
   panes: Panes;

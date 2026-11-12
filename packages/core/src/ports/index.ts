@@ -267,6 +267,8 @@ export interface Vcs {
   listFiles(): Promise<Result<readonly string[], MetatorError>>;
   /** URL of the `origin` remote (or the first one); undefined when there is none. */
   remoteUrl(): Promise<Result<string | undefined, MetatorError>>;
+  /** Whether there is a commit yet (a worktree and a merge base need one); assumed when absent. */
+  hasCommits?(): Promise<Result<boolean, MetatorError>>;
 }
 
 export interface BranchPublication {
@@ -331,6 +333,16 @@ export interface CoverageReader {
 
 export interface ImportGraphReader {
   read(): Promise<Result<readonly Edge[], MetatorError>>;
+  /** The edges with the imports that resolve to no file (what a deleted module leaves in its importers). */
+  graph?(): Promise<
+    Result<
+      {
+        readonly edges: readonly Edge[];
+        readonly unresolved: readonly { readonly from: string; readonly specifier: string }[];
+      },
+      MetatorError
+    >
+  >;
 }
 
 export interface WorkspacePackage {

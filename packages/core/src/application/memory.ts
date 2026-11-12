@@ -19,7 +19,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import { parseYamlDocument, readFrontMatter } from "../domain/versioned.ts";
 import type { FileSystem, ReadonlyFileSystem } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
-import type { SourceFiles } from "./source-files.ts";
+import { generatedHostFiles, type SourceFiles } from "./source-files.ts";
 
 export interface LoadedMemoryMap {
   readonly map: MemoryMap;
@@ -86,11 +86,14 @@ export class InventoryMemory {
     private readonly fs: ReadonlyFileSystem,
   ) {}
 
-  async execute(): Promise<Result<MemoryInventory, MetatorError>> {
+  /** `generated`: also the host files `metator generate` wrote (copies of the canon). */
+  async execute(
+    input: { readonly generated?: boolean } = {},
+  ): Promise<Result<MemoryInventory, MetatorError>> {
     const loaded = await this.reader.optional();
     if (loaded.isErr()) return err(loaded.error);
     const map = loaded.value?.map;
-    const files = await this.knowledge.list(map);
+    const files = await this.knowledge.list(map, this.fs, input.generated ?? false);
     if (files.isErr()) return err(files.error);
 
     const entries: InventoryEntry[] = [];
@@ -140,12 +143,22 @@ function hostFrontMatter(text: string, path: string): Record<string, unknown> | 
 export class KnowledgeFiles {
   constructor(private readonly sources: SourceFiles) {}
 
-  async list(map: MemoryMap | undefined): Promise<Result<readonly string[], MetatorError>> {
+  /** With `fs` and not `generated`: without the host files `metator generate` wrote. */
+  async list(
+    map: MemoryMap | undefined,
+    fs?: ReadonlyFileSystem,
+    generated = true,
+  ): Promise<Result<readonly string[], MetatorError>> {
     const include = map?.knowledge.include ?? DEFAULT_KNOWLEDGE_GLOBS;
     const exclude = map?.knowledge.exclude ?? [];
-    return (await this.sources.list()).map((files) =>
-      files.filter((f) => matchesAny(f, include) && !(exclude.length > 0 && matchesAny(f, exclude))).sort(),
-    );
+    const listed = await this.sources.list();
+    if (listed.isErr()) return err(listed.error);
+    const files = listed.value
+      .filter((f) => matchesAny(f, include) && !(exclude.length > 0 && matchesAny(f, exclude)))
+      .sort();
+    if (!fs || generated) return ok(files);
+    const skip = await generatedHostFiles(fs, files);
+    return ok(files.filter((f) => !skip.has(f)));
   }
 }
 
@@ -419,11 +432,13 @@ export class FindMemoryDupes {
   async execute(input: {
     readonly minWords: number;
     readonly threshold: number;
+    /** Also the host files `metator generate` wrote: duplicates of the canon by design. */
+    readonly generated?: boolean;
   }): Promise<Result<DupesReport, MetatorError>> {
     const loaded = await this.reader.optional();
     if (loaded.isErr()) return err(loaded.error);
     const map = loaded.value?.map;
-    const files = await this.knowledge.list(map);
+    const files = await this.knowledge.list(map, this.fs, input.generated ?? false);
     if (files.isErr()) return err(files.error);
 
     const sentences: Sentence[] = [];

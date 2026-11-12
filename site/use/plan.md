@@ -42,13 +42,13 @@ The **Backlog** screen lists **agents' proposals** first, then the **open** task
 | Button | On | Does |
 |---|---|---|
 | **+ task** | the top bar | opens a form: title, what and why, priority, labels |
-| **Start a run** | an open task | starts a run with the task's title and text, in a new worktree, and opens its session |
+| **Start a run** | an open task | starts a run with the task's title and text, in a new worktree, and opens its session. The select **a run starts on** beside the buttons names the workflow: `mt-feature` when the repository has it, else its first one |
 | **Done**, **Drop** | an open task | closes it as done, or as not going to be done |
 | **Add** | a proposal | makes it a task |
 | **Add and start a run** | a proposal | makes it a task and starts a run on it |
 | **Drop** | a proposal | discards it |
 
-The app asks for your name the first time. Every change to the backlog carries it.
+The app asks for your name the first time. Every change to the backlog carries it. When the daemon refuses an action, the reason stays at the top of the task until you close it.
 
 ### Proposals from agents
 

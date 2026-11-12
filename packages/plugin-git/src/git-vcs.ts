@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, isAbsolute, join } from "node:path";
 import {
   type BranchCommit,
   type BranchHistory,
@@ -41,7 +41,7 @@ export class GitVcs
       const status = await git.value.status();
       // No commits yet: everything staged or untracked is new.
       const mine = (f: string) => !this.own.some((p) => f.startsWith(p));
-      if (!(await this.hasCommits(git.value)))
+      if (!(await this.committed(git.value)))
         return ok(sortedUnique(status.files.map((f) => f.path)).filter(mine));
       const ref = await this.mergeBase(git.value, base);
       if (ref.isErr()) return err(ref.error);
@@ -55,7 +55,7 @@ export class GitVcs
     const git = await this.repo();
     if (git.isErr()) return err(git.error);
     return this.attempt(async () => {
-      if (!(await this.hasCommits(git.value))) return ok(undefined);
+      if (!(await this.committed(git.value))) return ok(undefined);
       const ref = await this.mergeBase(git.value, base);
       if (ref.isErr()) return err(ref.error);
       const object = `${ref.value}:${path}`;
@@ -73,7 +73,7 @@ export class GitVcs
     return this.attempt(async () => {
       const out = new Map<string, number[]>();
       const status = await git.value.status();
-      if (await this.hasCommits(git.value)) {
+      if (await this.committed(git.value)) {
         const ref = await this.mergeBase(git.value, base);
         if (ref.isErr()) return err(ref.error);
         for (const file of parseDiff(await git.value.raw(["diff", "--no-renames", "-U0", ref.value]))) {
@@ -114,7 +114,7 @@ export class GitVcs
     if (git.isErr()) return err(git.error);
     return this.attempt(async () => {
       const out = new Map<string, string>();
-      if (!(await this.hasCommits(git.value))) return ok(out);
+      if (!(await this.committed(git.value))) return ok(out);
       // Newest commit first: the first date seen for a path is its last change.
       let date = "";
       for (const line of (
@@ -131,7 +131,7 @@ export class GitVcs
     const git = await this.repo();
     if (git.isErr()) return err(git.error);
     return this.attempt(async () => {
-      if (!(await this.hasCommits(git.value))) return ok([]);
+      if (!(await this.committed(git.value))) return ok([]);
       const out: string[][] = [];
       for (const line of (
         await git.value.raw([
@@ -156,7 +156,7 @@ export class GitVcs
       const status = await git.value.status();
       const wanted = (f: string) => (!files || files.includes(f)) && !this.own.some((p) => f.startsWith(p));
       const parts: string[] = [];
-      if (await this.hasCommits(git.value)) {
+      if (await this.committed(git.value)) {
         const ref = await this.mergeBase(git.value, base);
         if (ref.isErr()) return err(ref.error);
         const paths = files ? [...files] : [];
@@ -200,7 +200,7 @@ export class GitVcs
       // MetatorAI's own state is not the person's work: the same answer as changedFiles().
       const uncommitted = status.files.some((f) => !this.own.some((p) => f.path.startsWith(p)));
       const branch = status.detached ? null : status.current;
-      if (!(await this.hasCommits(git.value)))
+      if (!(await this.committed(git.value)))
         return ok({ branch, head: null, mergeBase: null, commits: [] as BranchCommit[], uncommitted });
       const head = (await git.value.revparse(["HEAD"])).trim();
       const ref = await this.mergeBase(git.value, base);
@@ -248,6 +248,12 @@ export class GitVcs
     });
   }
 
+  async hasCommits(): Promise<Result<boolean, MetatorError>> {
+    const git = await this.repo();
+    if (git.isErr()) return err(git.error);
+    return ok(await this.committed(git.value));
+  }
+
   private async repo(): Promise<Result<SimpleGit, MetatorError>> {
     const notFound = () =>
       err(
@@ -270,18 +276,38 @@ export class GitVcs
   private async mergeBase(git: SimpleGit, base: string): Promise<Result<string, MetatorError>> {
     if (base === "HEAD") return ok("HEAD");
     const mergeBase = await git.raw(["merge-base", base, "HEAD"]).catch(() => undefined);
-    if (!mergeBase?.trim()) {
+    if (mergeBase?.trim()) return ok(mergeBase.trim());
+    // Not `--quiet`: git would then fail without stderr, which simple-git reports as success.
+    const exists = await git.raw(["rev-parse", "--verify", `${base}^{commit}`]).then(
+      (out) => out.trim() !== "",
+      () => false,
+    );
+    if (!exists)
       return err(
         MetatorError.usage(
           `Unknown base ref "${base}"`,
           "Use a branch, tag or commit that shares history with HEAD.",
         ),
       );
-    }
-    return ok(mergeBase.trim());
+    const shallow = await git.raw(["rev-parse", "--is-shallow-repository"]).then(
+      (out) => out.trim() === "true",
+      () => false,
+    );
+    // The ref is there, the commits between it and HEAD are not: a depth-1 clone, as CI makes by default.
+    return err(
+      shallow
+        ? MetatorError.usage(
+            `Base ref "${base}" shares no history with HEAD: this clone is shallow`,
+            "Fetch the history: `git fetch --unshallow` (GitHub Actions: `fetch-depth: 0` on actions/checkout).",
+          )
+        : MetatorError.usage(
+            `Base ref "${base}" shares no history with HEAD`,
+            "Use a branch, tag or commit that shares history with HEAD.",
+          ),
+    );
   }
 
-  private async hasCommits(git: SimpleGit): Promise<boolean> {
+  private async committed(git: SimpleGit): Promise<boolean> {
     // Not `--quiet`: git would then fail without stderr, which simple-git reports as success.
     return git
       .revparse(["--verify", "HEAD"])
@@ -308,4 +334,25 @@ function splitZ(out: string): string[] {
 
 function sortedUnique(paths: readonly string[]): readonly string[] {
   return [...new Set(paths)].sort();
+}
+
+/**
+ * Keeps a directory of local state out of `git status` in this clone only: a line in the
+ * repository's `info/exclude` (shared by its worktrees), never in a tracked file. Nothing happens
+ * outside a repository or when git already ignores the directory.
+ */
+export function excludeLocally(root: string, dir: string): void {
+  const git = (...args: string[]) => Bun.spawnSync(["git", "-C", root, ...args], { stderr: "ignore" });
+  const common = git("rev-parse", "--git-common-dir");
+  if (common.exitCode !== 0) return;
+  const ignored = git("check-ignore", "-q", join(dir, "x")).exitCode === 0;
+  if (ignored) return;
+  const gitDir = common.stdout.toString().trim();
+  const file = join(isAbsolute(gitDir) ? gitDir : join(root, gitDir), "info", "exclude");
+  const known = existsSync(file) ? readFileSync(file, "utf8") : "";
+  mkdirSync(dirname(file), { recursive: true });
+  appendFileSync(
+    file,
+    `${known === "" || known.endsWith("\n") ? "" : "\n"}# MetatorAI: local state (index, runs, worktrees)\n/${dir}/\n`,
+  );
 }

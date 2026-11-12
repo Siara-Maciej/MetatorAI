@@ -19,6 +19,16 @@ import type { MetatorPaths } from "./paths.ts";
 export type GateName = "quick" | "full";
 
 /**
+ * What to do about a gate with no steps. With a config the answer is the key to edit (`init`
+ * refuses an existing config); without one, `init` proposes the gates.
+ */
+export function emptyGateHint(gate: GateName, source: string | undefined): string {
+  return source
+    ? `Add a step under \`gates.${gate}:\` in ${source}, e.g. \`- { id: test, run: { script: test } }\` (a package.json script; \`run: { metator: rules check }\` is a MetatorAI check).`
+    : "Run `metator init`: it writes metator.config.yml with gates proposed from the repository's scripts.";
+}
+
+/**
  * Runs a gate's steps from the config (ADR-0029): package.json scripts through the repo's
  * package manager, binaries from node_modules/.bin, MetatorAI checks in process. Every step
  * runs (no bail), so one report shows everything that is red.

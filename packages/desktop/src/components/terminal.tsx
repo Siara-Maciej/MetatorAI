@@ -27,6 +27,10 @@ export interface TerminalHandle {
   scrollToBottom(): void;
 }
 
+/** How often, and how many times, a dropped terminal socket is opened again. */
+const RECONNECT_MS = 2000;
+const RECONNECT_TRIES = 30;
+
 /** A run's conductor pane (the daemon opens it when none is live). */
 export function RunTerminal({
   runId,
@@ -104,7 +108,6 @@ function SocketTerminal({
 }) {
   const { url, me } = useDaemon();
   const host = useRef<HTMLDivElement>(null);
-  const socket = useRef<WebSocket>(null);
   const status = useRef<TerminalStatus>({});
   const report = useRef(onStatus);
   report.current = onStatus;
@@ -145,44 +148,70 @@ function SocketTerminal({
       scrollToBottom: () => term.scrollToBottom(),
     });
     const query = `?by=${encodeURIComponent(me)}${repo ? `&repo=${encodeURIComponent(repo)}` : ""}`;
-    const ws = new WebSocket(wsUrl(url, `${path}${query}`));
-    socket.current = ws;
     const update = (s: TerminalStatus) => {
       status.current = s;
       report.current?.(s);
     };
-    ws.onopen = () => ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
-    ws.onmessage = (m) => {
-      const e = JSON.parse(String(m.data)) as {
-        type: string;
-        data?: string;
-        code?: number;
-        reason?: string;
-        session?: { alive: boolean };
-        error?: { message: string };
+    // The socket is opened again when it drops (D4): the daemon was restarted, or the network
+    // blinked. A session that ended, or a pane the daemon never knew, is not asked for again.
+    let disposed = false;
+    let ws: WebSocket | undefined;
+    let ended = false;
+    let lost = false;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const connect = () => {
+      const s = new WebSocket(wsUrl(url, `${path}${query}`));
+      ws = s;
+      s.onopen = () => s.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+      s.onmessage = (m) => {
+        const e = JSON.parse(String(m.data)) as {
+          type: string;
+          data?: string;
+          code?: number;
+          reason?: string;
+          session?: { alive: boolean; exitCode?: number };
+          error?: { message: string };
+        };
+        if (e.type === "data" && typeof e.data === "string") term.write(e.data);
+        else if (e.type === "session") {
+          // The daemon sends the whole backlog after this: a reconnected terminal starts clean.
+          if (lost) term.reset();
+          lost = false;
+          tries = 0;
+          update({ alive: e.session?.alive, exitCode: e.session?.exitCode });
+        } else if (e.type === "exit") {
+          ended = true;
+          term.write(`\r\n\x1b[90m[session ended with ${e.code}]\x1b[0m\r\n`);
+          update({ alive: false, exitCode: e.code });
+        } else if (e.type === "refused") update({ ...status.current, refused: e.reason });
+        else if (e.type === "error") {
+          // After a restart the daemon may still be bringing the pane back: ask a few more times.
+          if (lost && tries < RECONNECT_TRIES) return;
+          ended = true;
+          term.write(`\r\n\x1b[31m${e.error?.message ?? "error"}\x1b[0m\r\n`);
+          update({ alive: false });
+        }
       };
-      if (e.type === "data" && typeof e.data === "string") term.write(e.data);
-      else if (e.type === "session") update({ alive: e.session?.alive });
-      else if (e.type === "exit") {
-        term.write(`\r\n\x1b[90m[session ended with ${e.code}]\x1b[0m\r\n`);
-        update({ alive: false, exitCode: e.code });
-      } else if (e.type === "refused") update({ ...status.current, refused: e.reason });
-      else if (e.type === "error") {
-        term.write(`\r\n\x1b[31m${e.error?.message ?? "error"}\x1b[0m\r\n`);
-        update({ alive: false });
-      }
+      s.onclose = () => {
+        if (disposed || ended || ws !== s) return;
+        if (!lost) term.write("\r\n\x1b[90m[connection to the daemon lost; reconnecting…]\x1b[0m\r\n");
+        lost = true;
+        tries++;
+        timer = setTimeout(connect, RECONNECT_MS);
+      };
     };
+    connect();
     term.onData((data) => {
       if (!typing.current) {
         update({ ...status.current, refused: "attach first: the agent drives this session" });
         blocked.current?.(data);
         return;
       }
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "input", data }));
+      if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "input", data }));
     });
     // A resize observed as the terminal is torn down (a route change) must not reach a disposed
     // renderer; the fit addon has no size either while the element is detached or hidden.
-    let disposed = false;
     const observer = new ResizeObserver(() => {
       if (disposed || !el.isConnected || el.clientWidth === 0) return;
       try {
@@ -190,15 +219,18 @@ function SocketTerminal({
       } catch {
         return;
       }
-      if (ws.readyState === WebSocket.OPEN)
+      if (ws?.readyState === WebSocket.OPEN)
         ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
     });
     observer.observe(el);
     return () => {
       disposed = true;
       observer.disconnect();
-      ws.onmessage = null;
-      ws.close();
+      if (timer) clearTimeout(timer);
+      if (ws) {
+        ws.onmessage = null;
+        ws.close();
+      }
       // xterm 5.5 syncs its viewport from a 0 ms timer set when the terminal opens and from
       // animation frames, and dispose() cancels neither; one that runs after dispose() reads
       // the dimensions of a renderer that is gone ("Cannot read properties of undefined

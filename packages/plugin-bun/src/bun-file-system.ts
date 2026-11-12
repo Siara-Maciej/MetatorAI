@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { appendFile, chmod, mkdir, realpath, rename, rm, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
@@ -39,7 +40,20 @@ const DEFAULT_IGNORES = ["!**/node_modules/**", "!.git/**"];
 
 /** FileSystem adapter on Bun APIs. Paths in and out are repo-relative with forward slashes; absolute paths inside the root are accepted. */
 export class BunFileSystem implements FileSystem {
-  constructor(private readonly root: string) {}
+  /**
+   * `watch`: told right before the first file is written under `watch.dir` while that directory
+   * does not exist yet (the composition root uses it to keep local state out of `git status`).
+   */
+  constructor(
+    private readonly root: string,
+    private readonly watch?: { readonly dir: string; readonly created: () => void },
+  ) {}
+
+  private announce(target: string): void {
+    if (!this.watch) return;
+    const dir = join(this.root, this.watch.dir);
+    if (!relative(dir, target).startsWith("..") && !existsSync(dir)) this.watch.created();
+  }
 
   async read(path: string): Promise<Result<string, MetatorError>> {
     const target = this.resolve(path);
@@ -71,6 +85,7 @@ export class BunFileSystem implements FileSystem {
     const target = this.resolve(path);
     if (target.isErr()) return err(target.error);
     try {
+      this.announce(target.value);
       await mkdir(dirname(target.value), { recursive: true });
       await writeWhole(target.value, content);
       return ok(undefined);
@@ -85,6 +100,7 @@ export class BunFileSystem implements FileSystem {
     const target = this.resolve(path);
     if (target.isErr()) return err(target.error);
     try {
+      this.announce(target.value);
       await mkdir(dirname(target.value), { recursive: true });
       // O_APPEND: the kernel places each write at the end, whoever else writes meanwhile.
       await appendFile(target.value, content);

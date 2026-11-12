@@ -17,8 +17,32 @@ import type {
   WorkspaceView,
 } from "./api.ts";
 
-/** A run as the app sees it: with the repository it belongs to when the daemon serves a folder. */
-export type Run = RunOverview & { readonly repo?: string | undefined };
+/**
+ * A run as the app sees it: with the repository it belongs to when the daemon serves a folder,
+ * and the pane in which its agent asks when the question is on the terminal and not on a card.
+ */
+export type Run = RunOverview & {
+  readonly repo?: string | undefined;
+  readonly terminalAsk?: string | undefined;
+};
+
+/**
+ * Runs with what their terminals say (D2): an active run with no question on a card whose pane is
+ * blocked (the agent asks on its screen) waits for you like any other, and names the pane to open.
+ * Every count and order of the app reads `attention`, so they all see it.
+ */
+export function withTerminalAsks(
+  runs: readonly Run[],
+  panes: readonly (Pick<PaneView, "id" | "runId" | "state"> & { readonly repo?: string | undefined })[],
+): Run[] {
+  return runs.map((r) => {
+    if (r.status !== "active" || r.questions.length > 0) return r;
+    const asking = panes.find(
+      (p) => p.runId === r.runId && (p.repo ?? "") === (r.repo ?? "") && p.state?.state === "blocked",
+    );
+    return asking ? { ...r, attention: "you" as const, terminalAsk: asking.id } : r;
+  });
+}
 
 /** The panel's order (spec §5.2): waits for you → working → stopped → escalated → finished. */
 const ATTENTION_RANK: Record<Attention, number> = {
@@ -64,7 +88,7 @@ export function groupByFeature<R extends RunOverview>(
   return { groups, standalone };
 }
 
-/** The step label of a run in its feature group (`F · 2/3`), when it is one. */
+/** The step label of a run in its feature group (`step 2/3`), when it is one. */
 export function stepLabel(
   run: Pick<RunOverview, "runId" | "parent">,
   groups: readonly FeatureGroup<RunOverview>[],
@@ -72,7 +96,7 @@ export function stepLabel(
   const g = run.parent ? groups.find((x) => x.parent === run.parent) : undefined;
   if (!g) return undefined;
   const i = g.steps.findIndex((s) => s.runId === run.runId);
-  return i < 0 ? undefined : `F · ${i + 1}/${g.steps.length}`;
+  return i < 0 ? undefined : `step ${i + 1}/${g.steps.length}`;
 }
 
 /** The next session that waits for a person after `current` (the `g` key), wrapping around. */
@@ -89,13 +113,13 @@ export function nextWaiting<R extends Pick<RunOverview, "runId" | "attention">>(
 export const questionKind = (q: Pick<Question, "source">): "GATE" | "PERMISSION" | "QUESTION" =>
   q.source === "gate" ? "GATE" : q.source === "permission" ? "PERMISSION" : "QUESTION";
 
-/** The chips of an inbox row (spec §6.3): reversible, blast radius, policy candidate, blocks a wave. */
+/** The chips of an inbox row (spec §6.3): reversible, how many files it touches, whether the answer can be remembered, blocks a wave. */
 export function inboxChips(item: Pick<InboxItem, "question" | "driving">): string[] {
   const card = item.question.card;
   const chips: string[] = [];
   if (card) chips.push(card.reversible ? "reversible" : "not reversible");
-  if (card?.blastRadius && card.blastRadius.files > 0) chips.push(`blast ${card.blastRadius.files} files`);
-  if (item.question.source === "permission") chips.push("policy candidate");
+  if (card?.blastRadius && card.blastRadius.files > 0) chips.push(`touches ${card.blastRadius.files} files`);
+  if (item.question.source === "permission") chips.push("can be allowed always");
   if (card?.costOfDelay?.some((c) => /blocks/.test(c))) chips.push("blocks wave");
   if (item.driving) chips.push("agent idle");
   return chips;
@@ -145,20 +169,27 @@ export function stageGlyph(s: Pick<StageProgress, "state">): string {
  * The command the card's footer shows: what the button does. The card answers the question
  * (`POST /runs/:id/answer`), a gate's question too, so the command is `run answer` for every source.
  */
-export function answerCommand(q: Pick<Question, "id" | "runId">, choice: string, by: string): string {
+export function answerCommand(
+  q: Pick<Question, "id" | "runId">,
+  choice: string | readonly string[],
+  by: string,
+  text = "",
+): string {
   const who = by ? quote(by) : "<you>";
-  return `metator run answer ${q.id} --run ${q.runId} --choice ${quote(choice)} --by ${who}`;
+  const choices = (typeof choice === "string" ? [choice] : choice).map(quote).join(" ");
+  const words = text.trim() ? ` --text ${quote(text.trim())}` : "";
+  return `metator run answer ${q.id} --run ${q.runId} --choice ${choices || "…"}${words} --by ${who}`;
 }
 
 const quote = (s: string) => (/^[\w./-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\"')}"`);
 
 /**
- * The hash route, one per screen: `#/inbox`, `#/session/<run>[/<pane>]`, `#/grid[/<group>|/pane:<pane>]`,
+ * The hash route, one per screen: `#/inbox[/<run>%2F<question>]`, `#/session/<run>[/<pane>]`, `#/grid[/<group>|/pane:<pane>]`,
  * `#/graph`, `#/supervisor`, `#/mrs[/<id>]`, `#/settings`, `#/plan/<run>`, `#/backlog`,
  * `#/review/<run>[/<file>]`, `#/briefing/<run>`.
  */
 export type Route =
-  | { readonly screen: "inbox" }
+  | { readonly screen: "inbox"; readonly pick?: string }
   | { readonly screen: "session"; readonly runId: string; readonly pane?: string }
   | { readonly screen: "grid"; readonly group?: string; readonly pane?: string }
   | { readonly screen: "graph" }
@@ -213,6 +244,8 @@ export function parseRoute(hash: string): Route {
       return arg ? { screen: "briefing", runId: decodeURIComponent(arg) } : { screen: "inbox" };
     case "plan":
       return arg ? { screen: "plan", runId: decodeURIComponent(arg) } : { screen: "grid" };
+    case "inbox":
+      return arg ? { screen: "inbox", pick: decodeURIComponent(arg) } : { screen: "inbox" };
     default:
       return { screen: "inbox" };
   }
@@ -222,6 +255,8 @@ export function routeHash(route: Route): string {
   switch (route.screen) {
     case "session":
       return `#/session/${encodeURIComponent(route.runId)}${route.pane ? `/${encodeURIComponent(route.pane)}` : ""}`;
+    case "inbox":
+      return `#/inbox${route.pick ? `/${encodeURIComponent(route.pick)}` : ""}`;
     case "briefing":
       return `#/briefing/${encodeURIComponent(route.runId)}`;
     case "plan":
@@ -598,3 +633,92 @@ export const stripStages = (
   run: RunOverview | undefined,
 ): { id: string; glyph: string; state: StageProgress["state"] }[] =>
   (run?.stages ?? []).map((s) => ({ id: s.id, glyph: stageGlyph(s), state: s.state }));
+
+/* ---------- keys, answers, hosts, repositories: the small decisions every screen shares ---------- */
+
+/**
+ * The key of a single-letter shortcut (D7): the bare key, or nothing when Ctrl, Cmd or Alt is
+ * held (the browser's and the system's own chords) or the person is typing in a field.
+ */
+export function plainKey(e: {
+  readonly key: string;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly altKey: boolean;
+  readonly target: unknown;
+}): string | undefined {
+  if (e.ctrlKey || e.metaKey || e.altKey) return undefined;
+  const t = e.target as { tagName?: string; isContentEditable?: boolean } | null;
+  if (t && (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName ?? "") || t.isContentEditable === true))
+    return undefined;
+  return e.key;
+}
+
+/** The choices after a click on one (D8): a multi-select question toggles it, any other takes it alone. */
+export const toggleChoice = (selected: readonly string[], label: string, multi: boolean): string[] =>
+  !multi ? [label] : selected.includes(label) ? selected.filter((c) => c !== label) : [...selected, label];
+
+/** Reject and Other promise the person's own words: the answer waits for them. */
+export const needsReason = (choices: readonly string[]): boolean =>
+  choices.some((c) => c === "Reject" || c === "Other");
+
+/** Whether an answer can be sent: something is chosen, and the reason is there when one is promised. */
+export const canAnswer = (choices: readonly string[], text: string): boolean =>
+  choices.length > 0 && (!needsReason(choices) || text.trim() !== "");
+
+/** An interactive host as `/supervisor` reports it: the program it starts, and whether it is there. */
+export interface HostStatus {
+  readonly id: string;
+  readonly command?: string | undefined;
+  readonly installed: boolean;
+}
+
+/**
+ * The host of a new session (D1): the first of `hostOrder` that is installed, else any installed
+ * one, else none. A daemon that does not report what is installed leaves the order to decide.
+ */
+export function hostChoice(
+  hostOrder: readonly string[],
+  status: readonly HostStatus[] | undefined,
+  hosts: readonly string[] = [],
+): string | undefined {
+  if (!status) return hostOrder.find((h) => hosts.includes(h)) ?? hosts[0];
+  const installed = status.filter((h) => h.installed).map((h) => h.id);
+  return hostOrder.find((h) => installed.includes(h)) ?? installed[0];
+}
+
+const listed = (words: readonly string[]): string =>
+  words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+
+/** What the app says when no host can start: what was looked for and where the guide is. */
+export const noHostText = (status: readonly HostStatus[]): string =>
+  `No AI host is installed. The daemon looked for ${listed(status.map((h) => h.command ?? h.id))} and found none. ` +
+  'Install one of them (the guide page "Copilot and Claude Code", site/guide/hosts.md, says how), ' +
+  "then try again.";
+
+/** The workflow of a run started from the backlog (D5): the wanted one when the repository has it, `mt-feature`, else its first. */
+export const workflowChoice = (
+  workflows: readonly string[],
+  wanted: string | undefined,
+): string | undefined =>
+  wanted && workflows.includes(wanted)
+    ? wanted
+    : workflows.includes("mt-feature")
+      ? "mt-feature"
+      : workflows[0];
+
+/** The repository the list screens show in a folder (D10): the remembered one while it is served, else the first. */
+export const repoChoice = (
+  repos: readonly { readonly name: string }[],
+  saved: string | null | undefined,
+): string | undefined => (repos.some((r) => r.name === saved) ? (saved as string) : repos[0]?.name);
+
+/** An autonomy level with words beside it: `L0: asks at every gate`. */
+export const autonomyLabel = (level: string): string =>
+  level === "L0"
+    ? "L0: asks at every gate"
+    : level === "L1"
+      ? "L1: skips the gates the workflow allows"
+      : level === "L2"
+        ? "L2: runs without a person"
+        : level;

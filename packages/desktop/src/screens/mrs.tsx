@@ -4,9 +4,12 @@
  * what the agent made of it (kind, proposed reply), and the decisions that are a person's:
  * send the replies, resolve a thread, open the answering run or its plan.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReviewedRequest, ReviewThreadView } from "../api.ts";
-import { useDaemon } from "../daemon.tsx";
+import { Notice, RepoSelect } from "../components/common.tsx";
+import { useDaemon, usePolled } from "../daemon.tsx";
+
+const NO_REQUESTS: readonly ReviewedRequest[] = [];
 
 const GLYPH: Record<ReviewThreadView["state"], string> = {
   open: "○",
@@ -27,38 +30,21 @@ export function MrsScreen({
   onOpenSession(runId: string): void;
   onOpenPlan(runId: string): void;
 }) {
-  const { client, repos, runs, me, setMe } = useDaemon();
-  const repo = repos[0]?.name;
-  const [requests, setRequests] = useState<readonly ReviewedRequest[]>([]);
-  const [error, setError] = useState<string>();
+  const { client, repo, runs, who } = useDaemon();
+  const list = usePolled(`mrs:${repo ?? ""}`, () => client.mrs(repo), 2000);
+  const requests = list.data?.requests ?? NO_REQUESTS;
+  // What an action answered stays until closed (D5).
   const [note, setNote] = useState<string>();
-  const [name, setName] = useState(me);
-  const load = useCallback(async () => {
-    const r = await client.mrs(repo);
-    if (r.ok && r.data) {
-      setRequests(r.data.requests);
-      setError(undefined);
-    } else setError(r.error?.message ?? "no reviews");
-  }, [client, repo]);
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 2000);
-    return () => clearInterval(t);
-  }, [load]);
   const current = requests.find((r) => r.id === id) ?? requests[0];
   const open = (r: ReviewedRequest) => r.threads.filter((t) => t.state === "open").length;
   const proposed = (r: ReviewedRequest) => r.threads.filter((t) => t.reply && !t.repliedAt).length;
   const run = current?.runId ? runs.find((r) => r.runId === current.runId) : undefined;
   const act = async (what: (by: string) => Promise<{ ok: boolean; error?: { message: string } }>) => {
-    const by = name.trim();
-    if (!by) {
-      setNote("your name decides: type it first");
-      return;
-    }
-    setMe(by);
+    const by = await who();
+    if (!by) return;
     const r = await what(by);
-    setNote(r.ok ? undefined : r.error?.message);
-    await load();
+    setNote(r.ok ? undefined : (r.error?.message ?? "the daemon refused"));
+    await list.reload();
   };
   return (
     <div className="backlog mrs" data-testid="mrs">
@@ -68,12 +54,7 @@ export function MrsScreen({
           {requests.length} reviewed · {requests.reduce((n, r) => n + open(r), 0)} open thread(s)
         </span>
         <span className="spacer" />
-        <input
-          aria-label="your name"
-          placeholder="your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+        <RepoSelect />
       </div>
       <div className="body">
         <aside className="list">
@@ -104,8 +85,8 @@ export function MrsScreen({
           ) : null}
         </aside>
         <main className="detail">
-          {error ? <div className="banner">{error}</div> : null}
-          {note ? <div className="banner">{note}</div> : null}
+          {list.error && !list.data ? <div className="banner">{list.error}</div> : null}
+          <Notice text={note} onClose={() => setNote(undefined)} />
           {current ? (
             <>
               <div className="dim mono">

@@ -6,7 +6,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem, ReadonlyFileSystem, RevisionReader } from "../ports/index.ts";
 import type { FindOwners } from "./owners.ts";
-import type { SourceFiles } from "./source-files.ts";
+import { generatedHostFiles, type SourceFiles } from "./source-files.ts";
 
 export interface DeadLink {
   readonly file: string;
@@ -33,9 +33,11 @@ export class DocsLinks {
     private readonly fs: ReadonlyFileSystem,
   ) {}
 
-  async execute(): Promise<Result<LinksReport, MetatorError>> {
+  /** `generated`: also the host files `metator generate` wrote (their links are the canon's). */
+  async execute(input: { readonly generated?: boolean } = {}): Promise<Result<LinksReport, MetatorError>> {
     const listed = await this.sources.list();
     if (listed.isErr()) return err(listed.error);
+    const skip = input.generated ? new Set<string>() : await generatedHostFiles(this.fs, listed.value);
     // A link may point at a file or at a directory that holds files.
     const paths = new Set(listed.value);
     for (const f of listed.value)
@@ -54,7 +56,7 @@ export class DocsLinks {
     const dead: DeadLink[] = [];
     let documents = 0;
     let links = 0;
-    for (const file of listed.value.filter(isMarkdown)) {
+    for (const file of listed.value.filter((f) => isMarkdown(f) && !skip.has(f))) {
       const text = await this.fs.read(file);
       if (text.isErr()) continue;
       documents++;
@@ -100,17 +102,20 @@ export class DocsInventory {
     private readonly clock: Clock,
   ) {}
 
-  async execute(): Promise<
+  async execute(
+    input: { readonly generated?: boolean } = {},
+  ): Promise<
     Result<{ readonly codeowners?: string; readonly documents: readonly InventoryRow[] }, MetatorError>
   > {
     const listed = await this.sources.list();
     if (listed.isErr()) return err(listed.error);
-    const docs = listed.value.filter(isMarkdown);
+    const skip = input.generated ? new Set<string>() : await generatedHostFiles(this.fs, listed.value);
+    const docs = listed.value.filter((f) => isMarkdown(f) && !skip.has(f));
     const changed = await this.revisions.lastChanged();
     if (changed.isErr()) return err(changed.error);
     const owners = await this.owners.execute({ paths: docs });
     if (owners.isErr()) return err(owners.error);
-    const links = await this.links.execute();
+    const links = await this.links.execute(input);
     if (links.isErr()) return err(links.error);
 
     const dead = new Map<string, number>();

@@ -173,6 +173,8 @@ export class MergeFindingSets {
   ) {}
 
   async execute(input: { readonly dir: string }): Promise<Result<MergeReport, MetatorError>> {
+    // A wrong directory holds no lens file: merging it would write an empty set, which reads as approval.
+    if ((await lensFiles(this.fs, input.dir)).length === 0) return err(noFindingsFile(input.dir));
     const report = await this.validate.execute({ dir: input.dir, fix: true });
     if (report.isErr()) return err(report.error);
     const invalid = new Set(
@@ -218,6 +220,20 @@ export class MergeFindingSets {
 
 const sameFinding = (f: Finding) => `${f.id}\u0000${f.location.file}\u0000${f.quote}`;
 
+/** The files the lenses wrote in `dir` (every `*.json` but the merged set). */
+export async function lensFiles(fs: FileSystem, dir: string): Promise<string[]> {
+  return (await fs.glob([`${dir.replace(/\/$/, "")}/*.json`]))
+    .filter((f) => !f.endsWith(`/${MERGED}`))
+    .sort();
+}
+
+/** The directory is missing or no lens wrote there: most often a wrong path. */
+export function noFindingsFile(dir: string): MetatorError {
+  return new MetatorError("NOT_FOUND", `no findings file in ${dir.replace(/\/$/, "")}`, {
+    hint: "Pass the directory the lenses wrote to: .metator/runs/<run>/findings (one `<lens>.json` per lens, with `findings: []` when it found nothing).",
+  });
+}
+
 async function loadSets(
   fs: FileSystem,
   dir: string,
@@ -225,9 +241,7 @@ async function loadSets(
   sets: { source: string; set: FindingSet }[];
   unreadable: { source: string; message: string }[];
 }> {
-  const files = (await fs.glob([`${dir.replace(/\/$/, "")}/*.json`]))
-    .filter((f) => !f.endsWith(`/${MERGED}`))
-    .sort();
+  const files = await lensFiles(fs, dir);
   const sets: { source: string; set: FindingSet }[] = [];
   const unreadable: { source: string; message: string }[] = [];
   for (const source of files) {

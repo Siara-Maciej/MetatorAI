@@ -204,17 +204,6 @@ export function applyMoves(
   const declared: { package: string; dependency: string }[] = [];
   const touched = new Set(placement.keys());
   const byName = new Map(manifests.map((p) => [p.name, p]));
-  for (const i of imports) {
-    if (!touched.has(i.from) && !touched.has(i.to) && !synthetic.includes(i)) continue;
-    const a = owner(i.from);
-    const b = owner(i.to);
-    const pa = byName.get(a);
-    if (a === b || !pa || b === ROOT_PACKAGE || !byName.has(b)) continue;
-    if (DEPENDENCY_FIELDS.some((f) => pa[f][b] !== undefined)) continue;
-    byName.set(a, withDependency(pa, b));
-    declared.push({ package: a, dependency: b });
-  }
-  // External packages the moved files import go with them, from the package they were in before.
   const earlier = [...input.manifests.packages, ...(input.extraPackages ?? [])];
   const ownerBefore = (file: string) =>
     input.placement?.get(file) ??
@@ -222,6 +211,29 @@ export function applyMoves(
       file,
       earlier.map((p) => ({ name: p.name, dir: p.dir })),
     )?.name;
+  for (const i of imports) {
+    if (!touched.has(i.from) && !touched.has(i.to) && !synthetic.includes(i)) continue;
+    const a = owner(i.from);
+    const b = owner(i.to);
+    const pa = byName.get(a);
+    if (a === b || !pa || b === ROOT_PACKAGE || !byName.has(b)) continue;
+    // An import by a package's name that its package never declared (it resolves with or without
+    // an install) is a missing declaration already: it goes with the file, still missing.
+    const before = earlier.find((p) => p.name === ownerBefore(i.from));
+    const dependency = ownerBefore(i.to);
+    const missing =
+      !i.specifier.startsWith(".") &&
+      !synthetic.includes(i) &&
+      before !== undefined &&
+      dependency !== undefined &&
+      dependency !== before.name &&
+      DEPENDENCY_FIELDS.every((f) => before[f][dependency] === undefined);
+    if (missing && !touched.has(i.to)) continue;
+    if (DEPENDENCY_FIELDS.some((f) => pa[f][b] !== undefined)) continue;
+    byName.set(a, withDependency(pa, b));
+    declared.push({ package: a, dependency: b });
+  }
+  // External packages the moved files import go with them, from the package they were in before.
   for (const x of externals) {
     if (!touched.has(x.from)) continue;
     const pa = byName.get(owner(x.from));

@@ -19,3 +19,24 @@
 .vp-doc li {
   max-width: 46rem;
 }
+
+/* Screenshots of the app: framed, so a dark picture reads as a picture on either theme. */
+.vp-doc img {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}
+
+/* The home page shows the app, so its pictures get the room a text column does not need. */
+.mx-home .VPDoc .container,
+.mx-home .VPDoc .content,
+.mx-home .VPDoc .content-container {
+  max-width: 1040px !important;
+}
+.mx-home .vp-doc h1 {
+  font-size: 40px;
+  line-height: 1.15;
+}
+.mx-home .vp-doc h1 + p {
+  font-size: 19px;
+  line-height: 1.6;
+}

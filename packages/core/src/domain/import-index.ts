@@ -51,3 +51,33 @@ export function classifyEdge(from: string, to: string, packages: readonly Packag
   // Two files outside every workspace package both belong to the repository root.
   return a?.dir === b?.dir ? "internal" : "cross-package";
 }
+
+/** A package's manifest, repo-relative (`package.json` for the root package, `dir: "."`). */
+export function manifestPath(dir: string): string {
+  return dir === "." || dir === "" ? "package.json" : `${dir}/package.json`;
+}
+
+/** A relative specifier resolved among `files` (with an extension, `.js` written for `.ts`, or `index`). */
+export function resolveAmong(
+  from: string,
+  specifier: string,
+  files: ReadonlySet<string>,
+  extensions: readonly string[],
+): string | undefined {
+  if (!specifier.startsWith(".")) return undefined;
+  const parts = from.split("/").slice(0, -1);
+  for (const segment of specifier.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") parts.pop();
+    else parts.push(segment);
+  }
+  const path = parts.join("/");
+  const stem = path.replace(/\.[cm]?jsx?$/, "");
+  const candidates = [
+    path,
+    ...extensions.map((e) => `${stem}${e}`),
+    ...extensions.map((e) => `${path}${e}`),
+    ...extensions.map((e) => `${path}/index${e}`),
+  ];
+  return candidates.find((c) => files.has(c));
+}

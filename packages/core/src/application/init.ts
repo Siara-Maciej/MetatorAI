@@ -56,12 +56,17 @@ export class InitProject {
         ...(st.files === "append" ? { files: st.files } : {}),
         ...(st.match ? { match: st.match } : {}),
       }));
+    const gates = {
+      ...(proposal.gates.quick.length > 0 ? { quick: minimal(proposal.gates.quick) } : {}),
+      ...(proposal.gates.full.length > 0 ? { full: minimal(proposal.gates.full) } : {}),
+    };
     const adr = discovery.value.docs.adr;
     const header = MetatorConfigDocument.stamp(DEFAULT_CONFIG);
     const body = {
       kind: header.kind,
       schemaVersion: header.schemaVersion,
-      gates: { quick: minimal(proposal.gates.quick), full: minimal(proposal.gates.full) },
+      // A gate with nothing proposed is left out: `quick: []` reads as a choice nobody made.
+      ...(gates.quick || gates.full ? { gates } : {}),
       // ADRs found where MetatorAI would not look for them: `adr lint` reads them there.
       ...(adr && adr !== this.paths.adr ? { paths: { adr } } : {}),
       ...(input.hosts ? { hosts: { targets: [...input.hosts] } } : {}),

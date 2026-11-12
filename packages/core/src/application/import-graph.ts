@@ -1,13 +1,21 @@
 import type { ResolvedImport } from "../domain/architecture.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { DependencyGraph, type Edge } from "../domain/graph.ts";
-import { classifyEdge, type ImportIndex, ImportIndexDocument, packageOf } from "../domain/import-index.ts";
+import {
+  classifyEdge,
+  type ImportIndex,
+  ImportIndexDocument,
+  manifestPath,
+  type PackageRef,
+  packageOf,
+} from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type {
   FileSystem,
   ImportAnalyzer,
   ImportGraphReader,
+  Resolution,
   WorkspacePackage,
   WorkspaceReader,
 } from "../ports/index.ts";
@@ -37,6 +45,30 @@ export interface ImportGraphReport {
   /** What made resolution approximate, from the analyzer. */
   readonly notes?: readonly string[];
   readonly parseErrors: readonly { readonly file: string; readonly message: string }[];
+}
+
+/**
+ * Where an import leads. A workspace package imported by name is that package's entry whether
+ * or not `node_modules` links it (no install yet, or a package manager that links nothing):
+ * the entry its manifest names (`exports`, then `main`), or the manifest itself when it names none.
+ */
+export function resolveImport(
+  analyzer: Pick<ImportAnalyzer, "resolve">,
+  packages: readonly PackageRef[],
+  from: string,
+  specifier: string,
+): Resolution {
+  const target = analyzer.resolve(from, specifier);
+  if (target.type !== "external") return target;
+  const pkg = packages.find((p) => p.name === target.name);
+  if (!pkg || !(specifier === pkg.name || specifier.startsWith(`${pkg.name}/`))) return target;
+  const manifest = manifestPath(pkg.dir);
+  // From inside the package: its own name (`exports`), then the path under its directory (`main`).
+  for (const inside of [specifier, `.${specifier.slice(pkg.name.length)}`]) {
+    const entry = analyzer.resolve(manifest, inside);
+    if (entry.type === "file") return entry;
+  }
+  return { type: "file", path: manifest };
 }
 
 /**
@@ -95,7 +127,7 @@ export class BuildImportGraph {
     const unresolved: UnresolvedImport[] = [];
     for (const [from, entry] of Object.entries(next.files)) {
       for (const imp of entry.imports) {
-        const target = this.analyzer.resolve(from, imp.specifier);
+        const target = resolveImport(this.analyzer, packages.value, from, imp.specifier);
         if (target.type === "file") {
           edges.push({ from, to: target.path, kind: classifyEdge(from, target.path, packages.value) });
           imports.push({ from, to: target.path, specifier: imp.specifier, typeOnly: imp.typeOnly });
@@ -157,6 +189,10 @@ export class IndexedImportGraphReader implements ImportGraphReader {
 
   async read(): Promise<Result<readonly Edge[], MetatorError>> {
     return (await this.build.execute()).map((report) => report.edges);
+  }
+
+  async graph() {
+    return (await this.build.execute()).map(({ edges, unresolved }) => ({ edges, unresolved }));
   }
 }
 

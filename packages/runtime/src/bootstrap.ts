@@ -211,7 +211,7 @@ import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { McpCodeHost, McpReviewHost, SdkToolCaller } from "@metator/plugin-codehost-mcp";
 import { DockerComposeRuntime } from "@metator/plugin-docker";
-import { GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
+import { excludeLocally, GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
 import {
   ClaudeAgentHost,
   ClaudeGenerator,
@@ -242,6 +242,9 @@ import { asFunction, asValue } from "awilix";
 import { resolveCanon } from "./canon.ts";
 import { type LoadedConfig, loadConfig, resolvePaths } from "./config.ts";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
+
+/** Where a repository's local state lives (the defaults of `paths` are all under it). */
+const LOCAL_STATE_DIR = ".metator";
 
 export interface BootstrapOptions {
   readonly root: string;
@@ -342,7 +345,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     sourceIgnores: asValue(config.config.project.sourceIgnores ?? DEFAULT_SOURCE_IGNORES),
     testGlobs: asValue(config.config.project.testGlobs ?? DEFAULT_TEST_GLOBS),
     clock: asValue(pinned && !Number.isNaN(pinned.getTime()) ? { now: () => new Date(pinned) } : systemClock),
-    fileSystem: asFunction(({ root }: { root: string }) => new BunFileSystem(root)).singleton(),
+    // Local state appears with the first command that writes it (an index, a report), setup or
+    // not: it stays out of `git status` from that moment.
+    fileSystem: asFunction(
+      ({ root }: { root: string }) =>
+        new BunFileSystem(root, {
+          dir: LOCAL_STATE_DIR,
+          created: () => excludeLocally(root, LOCAL_STATE_DIR),
+        }),
+    ).singleton(),
     fileLock: asFunction(({ root }: { root: string }) => new BunFileLock(root)).singleton(),
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
     timer: asFunction(() => new BunTimer()).singleton(),
@@ -548,6 +559,22 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         hosts.set(host.id, host);
       return hosts;
     }).singleton(),
+    // Which interactive hosts can start here: the program each one runs, looked up when asked
+    // (a host installed while the daemon runs is found without a restart).
+    hostStatus: asFunction(({ interactiveHosts }) => () => {
+      const commands: Readonly<Record<string, string>> = {
+        copilot: options.copilotBin ?? "copilot",
+        claude: options.claudeBin ?? "claude",
+        opencode: options.opencodeBin ?? "opencode",
+      };
+      return [...interactiveHosts.keys()].map((id) => {
+        const command = commands[id];
+        // A host with no program of its own (the scenario a test plays) is always there.
+        return command === undefined
+          ? { id, installed: true }
+          : { id, command, installed: commandExists(command) };
+      });
+    }).singleton(),
     ptyBroker: asFunction(
       ({ runRepository, runJournal, config, clock }) =>
         new PtyBroker({
@@ -666,11 +693,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ReviewNotes({ fs: fileSystem, repo: runRepository, messages: runMessages, clock }),
     ),
     runChanges: asFunction(
-      ({ root, runRepository, processRunner }) =>
+      ({ root, runRepository, processRunner, vcsAt }) =>
         new RunChanges({
           root,
           repo: runRepository,
-          changesAt: (dir) => new GitVcs(dir, OWN_STATE),
+          changesAt: vcsAt,
           runner: processRunner,
         }),
     ),
@@ -781,6 +808,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     // One GitVcs behind every git port, so they all agree on what a change is.
     git: asFunction(({ root }) => new GitVcs(root, OWN_STATE)).singleton(),
     vcs: asFunction(({ git }) => git).singleton(),
+    // The same reading of a change in another checkout (a worktree).
+    vcsAt: asFunction(() => (dir: string) => new GitVcs(dir, OWN_STATE)).singleton(),
     revisionReader: asFunction(({ git }) => git).singleton(),
     changeHistory: asFunction(({ git }) => git).singleton(),
     branchHistory: asFunction(({ git }) => git).singleton(),
@@ -1127,8 +1156,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     docsDrift: asFunction(({ fileSystem, paths }) => new DocsDrift(fileSystem, paths.claims)),
     addLesson: asFunction(({ fileSystem, clock, paths }) => new AddLesson(fileSystem, clock, paths.lessons)),
     symbolQueries: asFunction(
-      ({ sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer }) =>
-        new SymbolQueries(sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer),
+      ({ sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer, workspaceReader }) =>
+        new SymbolQueries(sourceFiles, fileSystem, importAnalyzer, symbolAnalyzer, workspaceReader),
     ),
     diffImportGraph: asFunction(
       ({ vcs, revisionReader, buildImportGraph, importAnalyzer }) =>
@@ -1261,7 +1290,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new RunAffectedTests(computeAffected, packageManager, processRunner),
     ),
     computeAffected: asFunction(
-      ({ vcs, importGraphReader, testGlobs }) => new ComputeAffected(vcs, importGraphReader, testGlobs),
+      ({ vcs, importGraphReader, testGlobs, importAnalyzer }) =>
+        new ComputeAffected(vcs, importGraphReader, testGlobs, importAnalyzer.extensions),
     ),
     lintWorkflows: asFunction(
       ({ workflowCatalog, agentCatalog, skillCatalog }) =>
@@ -1421,6 +1451,10 @@ async function worktreeChanges(
     .filter(Boolean);
   return ok([...new Set(files)].sort());
 }
+
+/** Whether a program can be started: a path that exists, or a name found on PATH. */
+const commandExists = (command: string): boolean =>
+  command.includes("/") ? existsSync(command) : Bun.which(command) !== null;
 
 const isDirectory = (path: string): boolean => {
   try {

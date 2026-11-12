@@ -20,6 +20,7 @@ import {
 import { type EnvironmentProposal, proposeEnvironment } from "../domain/environment-discovery.ts";
 import type { Phase } from "../domain/environment-profile.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { manifestPath } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   parseJsonDocument,
@@ -106,7 +107,7 @@ export class DiscoverEnvironment {
       : ["."];
     const scripts = [];
     for (const dir of dirs) {
-      const file = dir === "." ? "package.json" : `${dir}/package.json`;
+      const file = manifestPath(dir);
       if (!(await this.fs.exists(file))) continue;
       const text = await this.fs.read(file);
       if (text.isErr()) continue;

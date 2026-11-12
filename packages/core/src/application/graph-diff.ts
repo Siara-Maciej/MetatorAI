@@ -1,10 +1,10 @@
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
 import { diffGraphs, type GraphDiff } from "../domain/graph-diff.ts";
-import { classifyEdge } from "../domain/import-index.ts";
+import { classifyEdge, resolveAmong } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { ImportAnalyzer, RevisionReader, Vcs } from "../ports/index.ts";
-import type { BuildImportGraph } from "./import-graph.ts";
+import { type BuildImportGraph, resolveImport } from "./import-graph.ts";
 
 export interface GraphDiffReport extends GraphDiff {
   readonly base: string;
@@ -33,21 +33,32 @@ export class DiffImportGraph {
     const sources = changed.value.filter((f) => this.analyzer.extensions.some((ext) => f.endsWith(ext)));
     const touched = new Set(sources);
     const base: Edge[] = current.value.edges.filter((e) => !touched.has(e.from));
+    const packages = current.value.packages;
+    const texts = new Map<string, string>();
     for (const file of sources) {
       const text = await this.history.readAt(input.base, file);
       if (text.isErr()) return err(text.error);
-      if (text.value === undefined) continue; // added on the branch: no edges at the base
-      const imports = this.analyzer.parse(file, text.value);
+      if (text.value !== undefined) texts.set(file, text.value); // else added on the branch: no edges at the base
+    }
+    // Files only the base has (deleted or renamed on the branch): a base import of one resolves
+    // to nothing in the current tree, and is still an edge the branch removed.
+    const present = new Set(current.value.files);
+    const baseOnly = new Set([...texts.keys()].filter((f) => !present.has(f)));
+    const toDeleted = (from: string, specifier: string) =>
+      resolveAmong(from, specifier, baseOnly, this.analyzer.extensions);
+    for (const [file, text] of texts) {
+      const imports = this.analyzer.parse(file, text);
       if (imports.isErr()) continue; // unparsable at the base: nothing to compare against
       for (const { specifier } of imports.value) {
-        const target = this.analyzer.resolve(file, specifier);
-        if (target.type === "file")
-          base.push({
-            from: file,
-            to: target.path,
-            kind: classifyEdge(file, target.path, current.value.packages),
-          });
+        const target = resolveImport(this.analyzer, packages, file, specifier);
+        const to = target.type === "file" ? target.path : toDeleted(file, specifier);
+        if (to) base.push({ from: file, to, kind: classifyEdge(file, to, packages) });
       }
+    }
+    // An unchanged importer of a deleted file had that edge at the base too.
+    for (const u of current.value.unresolved) {
+      const to = touched.has(u.from) ? undefined : toDeleted(u.from, u.specifier);
+      if (to) base.push({ from: u.from, to, kind: classifyEdge(u.from, to, packages) });
     }
     return ok({
       base: input.base,

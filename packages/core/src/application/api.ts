@@ -1,6 +1,7 @@
 import { type ApiDiff, type ApiSnapshot, ApiSnapshotDocument, apiSurface, diffApi } from "../domain/api.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
+import { manifestPath } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { DeclarationEmitter, FileSystem, WorkspaceReader } from "../ports/index.ts";
@@ -63,7 +64,7 @@ export class ApiSnapshots {
     const found = packages.value.find((p) => p.name === pkg);
     if (!found)
       return err(MetatorError.notFound(`package ${pkg}`, { known: packages.value.map((p) => p.name) }));
-    const manifestFile = found.dir === "." ? "package.json" : `${found.dir}/package.json`;
+    const manifestFile = manifestPath(found.dir);
     const text = await this.fs.read(manifestFile);
     if (text.isErr()) return err(text.error);
     const manifest = parseJsonDocument(text.value, manifestFile);

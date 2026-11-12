@@ -9,6 +9,7 @@ import {
 } from "../domain/discovery.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
+import { manifestPath } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem, PackageManagerDetector, Vcs, WorkspaceReader } from "../ports/index.ts";
@@ -61,7 +62,7 @@ export class Discover {
     const scripts: Discovery["scripts"][number][] = [];
     const manifests: { dir: string; manifest: Manifest }[] = [];
     for (const { name, dir } of dirs) {
-      const file = dir === "." ? "package.json" : `${dir}/package.json`;
+      const file = manifestPath(dir);
       const manifest = await this.manifest(file);
       if (!manifest) continue;
       manifests.push({ dir, manifest });
