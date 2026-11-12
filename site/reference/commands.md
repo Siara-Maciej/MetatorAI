@@ -836,6 +836,10 @@ Every knowledge file with its size and memory map item (works without a map)
 metator memory inventory [options]
 ```
 
+| Argument or option | Description | Default |
+|---|---|---|
+| `--generated` | include the host files `metator generate` wrote (copies of the canon) |  |
+
 ### `metator memory budget`
 
 File and tier sizes against the memory map budgets
@@ -877,6 +881,7 @@ metator memory dupes [options]
 | `--min-words <n>` | shortest sentence that counts | `8` |
 | `--threshold <ratio>` | similarity for near duplicates (Jaccard on word 3-grams) | `0.8` |
 | `--check` | fail when duplicates exist |  |
+| `--generated` | include the host files `metator generate` wrote (copies of the canon) |  |
 
 ### `metator memory matrix`
 
@@ -924,6 +929,10 @@ Every Markdown document with lines, last change, age, owners and links
 metator docs inventory [options]
 ```
 
+| Argument or option | Description | Default |
+|---|---|---|
+| `--generated` | include the host files `metator generate` wrote (copies of the canon) |  |
+
 ### `metator docs links`
 
 Relative links in Markdown that point at a missing file, directory or heading
@@ -931,6 +940,10 @@ Relative links in Markdown that point at a missing file, directory or heading
 ```bash
 metator docs links [options]
 ```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--generated` | include the host files `metator generate` wrote (copies of the canon) |  |
 
 ### `metator docs drift`
 
@@ -1161,10 +1174,10 @@ metator setup [options]
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `--host <hosts...>` | AI hosts to generate for (default: all) (one of: copilot, claude) |  |
+| `--host <hosts...>` | AI hosts to generate for (default: the config's, else those the repository or this machine has) (one of: copilot, claude) |  |
 | `--workflows <ids...>` | workflows to install (default: all) |  |
 | `--hooks` | also install the hooks (`metator guard`) for each host |  |
-| `--yes` | do not ask; take the options and the defaults |  |
+| `--yes` | do not ask; take the options and what was found |  |
 
 ## gate
 

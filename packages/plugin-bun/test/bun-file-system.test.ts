@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,4 +35,31 @@ describe("BunFileSystem specifics", () => {
     expect(await fs.exists("../outside.txt")).toBe(false);
     expect((await fs.write("../outside.txt", "x")).isErr()).toBe(true);
   });
+});
+
+test("the first write under a watched directory is announced before the directory exists, and only then", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "metator-fs-"));
+  try {
+    const seen: boolean[] = [];
+    const fs = new BunFileSystem(dir, {
+      dir: ".metator",
+      created: () => seen.push(existsSync(join(dir, ".metator"))),
+    });
+    await fs.write("src/a.ts", "a");
+    await fs.read(".metator/index/imports.json");
+    expect(seen).toEqual([]);
+    await fs.write(".metator/index/imports.json", "{}");
+    await fs.append(".metator/log.jsonl", "{}\n");
+    await fs.write(join(dir, ".metator/abs.json"), "{}");
+    expect(seen).toEqual([false]);
+    // A directory that was already there (another process made it) is not announced again.
+    const again: string[] = [];
+    await new BunFileSystem(dir, { dir: ".metator", created: () => again.push("x") }).append(
+      ".metator/y",
+      "y",
+    );
+    expect(again).toEqual([]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

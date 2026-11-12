@@ -289,4 +289,6 @@ Add the working state to `.gitignore`:
 .metator/
 ```
 
+`metator setup` adds this line. Before that, the first command that writes there (an index, a report) adds `/.metator/` to `.git/info/exclude`, which hides it from `git status` in your clone only and changes no tracked file.
+
 Everything else MetatorAI writes (rules, cards, agents, generated host files) is meant to be committed and reviewed.

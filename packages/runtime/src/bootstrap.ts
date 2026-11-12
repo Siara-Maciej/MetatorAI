@@ -210,7 +210,7 @@ import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
 import { McpCodeHost, McpReviewHost, SdkToolCaller } from "@metator/plugin-codehost-mcp";
 import { DockerComposeRuntime } from "@metator/plugin-docker";
-import { GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
+import { excludeLocally, GitRepositoryCloner, GitVcs, GitWorktreeManager } from "@metator/plugin-git";
 import {
   ClaudeAgentHost,
   ClaudeGenerator,
@@ -241,6 +241,9 @@ import { asFunction, asValue } from "awilix";
 import { resolveCanon } from "./canon.ts";
 import { type LoadedConfig, loadConfig, resolvePaths } from "./config.ts";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
+
+/** Where a repository's local state lives (the defaults of `paths` are all under it). */
+const LOCAL_STATE_DIR = ".metator";
 
 export interface BootstrapOptions {
   readonly root: string;
@@ -341,7 +344,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     sourceIgnores: asValue(config.config.project.sourceIgnores ?? DEFAULT_SOURCE_IGNORES),
     testGlobs: asValue(config.config.project.testGlobs ?? DEFAULT_TEST_GLOBS),
     clock: asValue(pinned && !Number.isNaN(pinned.getTime()) ? { now: () => new Date(pinned) } : systemClock),
-    fileSystem: asFunction(({ root }: { root: string }) => new BunFileSystem(root)).singleton(),
+    // Local state appears with the first command that writes it (an index, a report), setup or
+    // not: it stays out of `git status` from that moment.
+    fileSystem: asFunction(
+      ({ root }: { root: string }) =>
+        new BunFileSystem(root, {
+          dir: LOCAL_STATE_DIR,
+          created: () => excludeLocally(root, LOCAL_STATE_DIR),
+        }),
+    ).singleton(),
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
     timer: asFunction(() => new BunTimer()).singleton(),
     launcher: asFunction(() => new BunLauncher()).singleton(),

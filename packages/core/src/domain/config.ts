@@ -93,6 +93,36 @@ export type GateStep = z.output<typeof GateStepSchema>;
 export const HOST_TARGETS = ["copilot", "claude"] as const;
 export type HostTarget = (typeof HOST_TARGETS)[number];
 
+/** The hosts whose files a repository already holds (`paths`: its files, repo-relative). */
+export function repositoryHosts(paths: readonly string[]): HostTarget[] {
+  const signs: Record<HostTarget, RegExp> = {
+    copilot: /^\.github\/(copilot[^/]*|(agents|skills|prompts|instructions)\/.+)$/,
+    claude: /^(\.claude\/.+|CLAUDE\.md)$/,
+  };
+  return HOST_TARGETS.filter((h) => paths.some((p) => signs[h].test(p)));
+}
+
+/**
+ * The hosts `metator setup` generates for, from what is there: the hosts the repository already
+ * has files of, else the hosts whose command is on this machine. `ask` when nothing says (every
+ * host is a candidate) or the two point at different hosts (both are).
+ */
+export function hostsFromEvidence(evidence: {
+  readonly repository: readonly HostTarget[];
+  readonly machine: readonly HostTarget[];
+}): { readonly hosts: HostTarget[]; readonly ask: boolean } {
+  const { repository, machine } = evidence;
+  const ordered = (hosts: readonly HostTarget[]) => HOST_TARGETS.filter((h) => hosts.includes(h));
+  if (repository.length === 0)
+    return machine.length === 0
+      ? { hosts: [...HOST_TARGETS], ask: true }
+      : { hosts: ordered(machine), ask: false };
+  const disjoint = machine.length > 0 && !machine.some((h) => repository.includes(h));
+  return disjoint
+    ? { hosts: ordered([...repository, ...machine]), ask: true }
+    : { hosts: ordered(repository), ask: false };
+}
+
 const PathOverrides = z
   .strictObject({
     workflows: z.string(),

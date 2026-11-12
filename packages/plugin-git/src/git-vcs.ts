@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, isAbsolute, join } from "node:path";
 import {
   type BranchCommit,
   type BranchHistory,
@@ -334,4 +334,24 @@ function splitZ(out: string): string[] {
 
 function sortedUnique(paths: readonly string[]): readonly string[] {
   return [...new Set(paths)].sort();
+}
+
+/**
+ * Keeps a directory of local state out of `git status` in this clone only: a line in the
+ * repository's `info/exclude` (shared by its worktrees), never in a tracked file. Nothing happens
+ * outside a repository or when git already ignores the directory.
+ */
+export function excludeLocally(root: string, dir: string): void {
+  const git = (...args: string[]) => Bun.spawnSync(["git", "-C", root, ...args], { stderr: "ignore" });
+  const common = git("rev-parse", "--git-common-dir");
+  if (common.exitCode !== 0) return;
+  if (git("check-ignore", "-q", `${dir}/x`).exitCode === 0) return;
+  const gitDir = common.stdout.toString().trim();
+  const file = join(isAbsolute(gitDir) ? gitDir : join(root, gitDir), "info", "exclude");
+  const known = existsSync(file) ? readFileSync(file, "utf8") : "";
+  mkdirSync(dirname(file), { recursive: true });
+  appendFileSync(
+    file,
+    `${known === "" || known.endsWith("\n") ? "" : "\n"}# MetatorAI: local state (index, runs, worktrees)\n/${dir}/\n`,
+  );
 }
