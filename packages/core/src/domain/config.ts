@@ -299,7 +299,31 @@ const ConfigV11Schema = z.strictObject({
   reviews: ReviewsConfigSchema.default(ReviewsConfigSchema.parse({})),
 });
 
-export const MetatorConfigSchema = ConfigV11Schema;
+/**
+ * v12 takes the local state out of `paths` (`runs`, `index`, `discovery`, `gates`): it always lives
+ * under `.metator/`, which git, the hooks and a run's worktree treat as MetatorAI's own. An
+ * override moved the files and nothing else, so a run's change then counted them and the edit
+ * guard refused to write them. The migration drops the four keys; the canon's paths stay.
+ */
+export const LOCAL_STATE_PATHS = ["runs", "index", "discovery", "gates"] as const;
+/** The same keys as paths into a config file, for a rewrite that keeps the file's comments. */
+export const RETIRED_CONFIG_KEYS: readonly (readonly string[])[] = LOCAL_STATE_PATHS.map((k) => ["paths", k]);
+const ConfigV12Schema = z.strictObject({
+  ...ConfigV11Schema.shape,
+  paths: PathOverrides.omit({ runs: true, index: true, discovery: true, gates: true }).default({}),
+});
+
+/** A config body as the current version holds it: an older file's keys that are gone are left out. */
+export function withoutLocalStatePaths(v11: unknown): unknown {
+  const config = v11 as { paths?: Record<string, unknown> };
+  if (!config.paths) return v11;
+  const paths = Object.fromEntries(
+    Object.entries(config.paths).filter(([key]) => !(LOCAL_STATE_PATHS as readonly string[]).includes(key)),
+  );
+  return { ...config, paths };
+}
+
+export const MetatorConfigSchema = ConfigV12Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -319,9 +343,10 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: ConfigV8Schema, fromPrevious: (v7) => v7 },
     { schema: ConfigV9Schema, fromPrevious: (v8) => v8 },
     { schema: ConfigV10Schema, fromPrevious: (v9) => v9 },
+    { schema: ConfigV11Schema, fromPrevious: (v10) => v10 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v10) => v10,
+  upgrade: withoutLocalStatePaths,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

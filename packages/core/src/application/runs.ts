@@ -103,6 +103,8 @@ export interface InitRunInput {
     /** Start although tracked files have uncommitted changes: the run starts from the last commit. */
     readonly allowDirty?: boolean;
   };
+  /** In the checkout: start although the workflow's `clean-tree` precondition does not hold. */
+  readonly allowDirty?: boolean;
   /** The run this one is a child of (F7.6), possibly in another repository. */
   readonly parent?: string;
   /** The system plan step this run carries out (F7.6). */
@@ -155,11 +157,15 @@ export class InitRun {
     const autonomy = input.autonomy ?? (!levels || levels.includes("L0") ? "L0" : (levels[0] as Autonomy));
 
     if (this.readiness) {
-      const ready = await this.readiness.execute({});
+      const preconditions = machine.workflow.preconditions ?? [];
+      const ready = await this.readiness.execute(
+        preconditions.includes("tests-green") ? { gates: true } : {},
+      );
       if (ready.isErr()) return err(ready.error);
       const refusal = startRefusal(ready.value, {
         worktree: input.worktree !== undefined,
-        allowDirty: input.worktree?.allowDirty,
+        allowDirty: input.allowDirty ?? input.worktree?.allowDirty,
+        preconditions,
       });
       if (refusal) return err(refusal);
     }

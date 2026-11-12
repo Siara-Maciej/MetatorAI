@@ -2,16 +2,16 @@
 kind: Workflow
 schemaVersion: 3
 id: mt-feature
-revision: 3
+revision: 4
 description: Survey, plan, gate, build, verify, ship
 entry: { prompt: mt-feature }
 input:
   oneOf: [task_ref, task_text]
-preconditions: [clean-tree, index-fresh, branch-ok]
+preconditions: [clean-tree, branch-ok]
 limits: { parallel: 6 }
 stages:
   - id: setup
-    description: Branch and preconditions (clean tree, fresh index)
+    description: Build the index the next stages read
     owner: "script:metator index build"
   - id: intake
     description: Task and acceptance criteria; ask when ambiguous

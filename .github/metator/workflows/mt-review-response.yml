@@ -2,12 +2,12 @@
 kind: Workflow
 schemaVersion: 3
 id: mt-review-response
-revision: 1
+revision: 2
 description: Sort the reviewers' threads, answer what the diff answers, plan the fixes, fix after a person's yes
 entry: { prompt: mt-review-response }
 input:
   oneOf: [task_text]
-preconditions: [index-fresh]
+preconditions: []
 limits: { parallel: 4 }
 stages:
   - id: triage

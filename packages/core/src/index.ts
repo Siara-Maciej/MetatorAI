@@ -142,6 +142,7 @@ export * from "./domain/owners.ts";
 export * from "./domain/pattern.ts";
 export * from "./domain/plan.ts";
 export * from "./domain/plan-board.ts";
+export * from "./domain/preconditions.ts";
 export * from "./domain/proposal.ts";
 export * from "./domain/publication.ts";
 export * from "./domain/quarterly-review.ts";

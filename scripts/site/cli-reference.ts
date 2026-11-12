@@ -44,7 +44,7 @@ export function renderCliReference(): string {
       out.push(`### \`metator ${name}\``, "", prose(cmd.description()), "");
       out.push("```bash", `metator ${name} ${cmd.usage()}`.trimEnd(), "```", "");
       const args = cmd.registeredArguments;
-      const options = cmd.options;
+      const options = cmd.options.filter((o) => !o.hidden);
       if (args.length + options.length > 0) {
         out.push("| Argument or option | Description | Default |", "|---|---|---|");
         for (const a of args) {

@@ -1,7 +1,7 @@
 ---
 kind: InstructionsAdapter
 schemaVersion: 2
-applyTo: packages/cli/src/**,packages/core/src/**,packages/core/src/application/**,packages/core/src/domain/**,packages/core/src/ports/**,packages/plugin-*/src/**,packages/runtime/src/**
+applyTo: e2e/**/*.ts,packages/**/*.ts,packages/cli/src/**,packages/core/src/**,packages/core/src/application/**,packages/core/src/domain/**,packages/core/src/ports/**,packages/plugin-*/src/**,packages/runtime/src/**,scripts/**/*.ts
 excludeAgent: code-review
 description: Clean architecture boundaries of MetatorAI (ports and adapters, dependencies point inward).
 generatedFrom: docs/metator/rules/arch.yml
@@ -25,3 +25,4 @@ CI fails on these; no need to re-check them by hand.
 - MT-ARCH-006: Use cases receive ports through the constructor (`ast-grep:mt-arch-006`)
 - MT-ARCH-007: Only the runtime knows concrete adapters (`ast-grep:mt-arch-007`)
 - MT-ARCH-008: Small ports split by axis of change (`ast-grep:mt-arch-008`)
+- MT-ARCH-009: No import cycles, type-only ones included (`test:mt-arch-009`)

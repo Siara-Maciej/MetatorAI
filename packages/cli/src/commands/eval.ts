@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { EvalCaseDocument, err, MetatorError, normalizePath, ok } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
-import { positiveInt, ratio } from "../options.ts";
+import { positiveInt, ratio, renamedOption } from "../options.ts";
 
 export function registerEvalCommands(program: Command, { action, container }: CommandContext): void {
   const evals = program.command("eval").description("Review evals on the golden set: run, score, compare");
@@ -13,18 +13,32 @@ export function registerEvalCommands(program: Command, { action, container }: Co
     .requiredOption("--command <template>", "e.g. 'scripts/review-case.sh {case} {base} {head} {out}'")
     .option("--runs-dir <dir>", "where each run writes <case>/<run>/", ".metator/evals")
     .option("--repeat <n>", "runs per case (stability)", positiveInt, 3)
-    .option("--timeout-ms <ms>", "per run", positiveInt, 1_800_000)
+    .option("--timeout <ms>", "time limit for one run", positiveInt, 1_800_000)
+    .addOption(renamedOption("--timeout-ms <ms>", "--timeout").argParser(positiveInt))
     .action(
-      action(async (opts: { command: string; runsDir: string; repeat: number; timeoutMs: number }) => {
-        const c = container();
-        const runs = await c.resolve("runEvals").execute({ ...opts, runsDir: normalizePath(opts.runsDir) });
-        if (runs.isErr()) return { result: runs };
-        const score = await c.resolve("scoreEvals").execute({ runsDir: normalizePath(opts.runsDir) });
-        const failed = runs.value.runs
-          .filter((r) => r.exitCode !== 0)
-          .map((r) => `${r.case}/${r.run} exited ${r.exitCode}`);
-        return { result: score.map((s) => ({ ...s, executions: runs.value.runs })), warnings: failed };
-      }),
+      action(
+        async (opts: {
+          command: string;
+          runsDir: string;
+          repeat: number;
+          timeout: number;
+          timeoutMs?: number;
+        }) => {
+          const c = container();
+          const runs = await c.resolve("runEvals").execute({
+            command: opts.command,
+            repeat: opts.repeat,
+            timeoutMs: opts.timeoutMs ?? opts.timeout,
+            runsDir: normalizePath(opts.runsDir),
+          });
+          if (runs.isErr()) return { result: runs };
+          const score = await c.resolve("scoreEvals").execute({ runsDir: normalizePath(opts.runsDir) });
+          const failed = runs.value.runs
+            .filter((r) => r.exitCode !== 0)
+            .map((r) => `${r.case}/${r.run} exited ${r.exitCode}`);
+          return { result: score.map((s) => ({ ...s, executions: runs.value.runs })), warnings: failed };
+        },
+      ),
     );
 
   evals

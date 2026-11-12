@@ -461,6 +461,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         runRepository,
         processRunner,
         driveHostProblem,
+        runGate,
       }) =>
         new CheckReadiness(
           fileSystem,
@@ -477,6 +478,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
             hosts: () =>
               config.config.hosts.targets.map((id: string) => ({ id, problem: driveHostProblem(id) })),
             modified: () => modifiedTracked(processRunner, root),
+            detached: () => detachedHead(processRunner, root),
+            quickGate: () => runGate.execute({ gate: "quick" }),
           },
         ),
     ),
@@ -1482,6 +1485,13 @@ async function modifiedTracked(runner: ProcessRunner, root: string): Promise<rea
     .filter((l) => l.length > 3)
     .map((l) => l.slice(3))
     .filter((f) => !f.startsWith(".metator/"));
+}
+
+/** Whether HEAD is on no branch; undefined when git cannot say (not a repository). */
+async function detachedHead(runner: ProcessRunner, root: string): Promise<boolean | undefined> {
+  const head = await runner.run({ argv: ["git", "symbolic-ref", "-q", "HEAD"], cwd: root });
+  if (head.exitCode === 0) return false;
+  return head.exitCode === 1 ? true : undefined;
 }
 
 /** Whether a program can be started: a path that exists, or a name found on PATH. */

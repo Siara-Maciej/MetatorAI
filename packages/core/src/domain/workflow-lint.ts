@@ -1,3 +1,4 @@
+import { preconditionKinds, uncheckablePreconditions } from "./preconditions.ts";
 import type { WorkflowSpec } from "./workflow-spec.ts";
 
 /**
@@ -52,6 +53,12 @@ export function lintWorkflow(spec: WorkflowSpec, ctx: WorkflowLintContext): Work
   if (!spec.input) missing("input", "declare the input contract (input.oneOf / required / optional)");
   if (!spec.preconditions)
     missing("preconditions", "list what must hold before it starts (an empty list is a choice)");
+  for (const p of uncheckablePreconditions(spec.preconditions ?? []))
+    problems.push({
+      section: "preconditions",
+      severity: "error",
+      message: `preconditions: \`${p}\` cannot be checked when a run starts (checked: ${preconditionKinds()})`,
+    });
   const working = spec.stages.filter((s) => !s.hitl);
   for (const s of working)
     if (owners(s.owner).length === 0 && !s.parallel)

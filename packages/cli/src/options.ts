@@ -1,4 +1,19 @@
-import { InvalidArgumentError } from "commander";
+import { InvalidArgumentError, Option } from "commander";
+
+/**
+ * One name per meaning across the CLI (B12): a list of files is `--files`, a time limit in
+ * milliseconds is `--timeout`. The spellings on the left are never a visible option of a command;
+ * where one existed it stays as a hidden alias (`renamedOption`), so old command lines still work.
+ */
+export const FLAG_NAMES: Readonly<Record<string, string>> = {
+  "--paths": "--files",
+  "--timeout-ms": "--timeout",
+};
+
+/** The old spelling of a flag: parsed as before, absent from the help and the reference. */
+export function renamedOption(flags: string, now: string): Option {
+  return new Option(flags, `the old name of ${now}`).hideHelp();
+}
 
 /** Commander argParser for counts and budgets (MT-CODE-004: validate with commander). */
 export function positiveInt(value: string): number {
