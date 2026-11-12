@@ -4,6 +4,7 @@ import type { McpServers } from "../domain/mcp.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { FileSystem, Vcs } from "../ports/index.ts";
 import type { EnvironmentServices } from "./environments.ts";
+import { emptyGateHint } from "./gate.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { WorktreeRegistry } from "./worktrees.ts";
@@ -138,7 +139,9 @@ export class CheckReadiness {
             id: "gates",
             status: "warn",
             message: "no gates configured: a run's gates stage checks nothing",
-            fix: "metator init (it proposes gates from the repository's scripts)",
+            fix: this.config.source
+              ? emptyGateHint("full", this.config.source)
+              : "metator init (it proposes gates from the repository's scripts)",
           },
     );
     checks.push(await this.dependencies(place));

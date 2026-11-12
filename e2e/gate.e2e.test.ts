@@ -124,6 +124,26 @@ describe("metator gate", () => {
         "INVALID_CONFIG",
         expect.stringContaining("metator init"),
       ]);
+      // With a config, `init` would refuse: the hint names the key to add and a step to copy.
+      await empty.write("metator.config.yml", "kind: MetatorConfig\nschemaVersion: 1\ngates:\n  quick: []\n");
+      const configured = await metator(["gate", "quick"], empty.root);
+      const hint = String((configured.json.error as Data).hint);
+      expect((configured.json.error as Data).code).toBe("INVALID_CONFIG");
+      expect(hint).toContain("`gates.quick:` in metator.config.yml");
+      expect(hint).toContain("- { id: test, run: { script: test } }");
+      expect(hint).not.toContain("metator init");
+      const doctor = await metator(["doctor"], empty.root);
+      const gates = (doctor.json.data as { checks: { id: string; fix?: string }[] }).checks.find(
+        (c) => c.id === "gates",
+      );
+      expect(gates?.fix).toContain("`gates.full:` in metator.config.yml");
+      // The step from the hint is a valid one.
+      await empty.write("package.json", '{ "name": "x", "scripts": { "test": "true" } }\n');
+      await empty.write(
+        "metator.config.yml",
+        "kind: MetatorConfig\nschemaVersion: 1\ngates:\n  quick:\n    - { id: test, run: { script: test } }\n",
+      );
+      expect((await metator(["gate", "quick"], empty.root)).code).toBe(0);
     } finally {
       await empty.dispose();
     }

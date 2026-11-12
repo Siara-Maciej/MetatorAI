@@ -3,6 +3,7 @@ import {
   CheckReadiness,
   DEFAULT_CONFIG,
   DEFAULT_PATHS,
+  emptyGateHint,
   err,
   MetatorError,
   ok,
@@ -131,6 +132,24 @@ describe("CheckReadiness", () => {
     expect(v.checks.find((c) => c.id === "workflows")?.status).toBe("fail");
     expect(v.checks.find((c) => c.id === "dependencies")?.fix).toBe("npm install");
     expect(v.checks.find((c) => c.id === "remote")?.status).toBe("warn");
+  });
+
+  test("no gates with a config: the fix names the key to edit, never init (it refuses an existing config)", async () => {
+    const v = (
+      await new CheckReadiness(
+        present_(),
+        DEFAULT_PATHS,
+        { config: DEFAULT_CONFIG, source: "metator.config.yml" },
+        catalog("mt-feature"),
+        new FakeVcs([]),
+        async () => false,
+      ).execute()
+    )._unsafeUnwrap();
+    const fix = v.checks.find((c) => c.id === "gates")?.fix ?? "";
+    expect(fix).toContain("`gates.full:` in metator.config.yml");
+    expect(fix).toContain("- { id: test, run: { script: test } }");
+    expect(fix).not.toContain("metator init");
+    expect(emptyGateHint("quick", undefined)).toContain("metator init");
   });
 
   test("a repository with no commit is not ready: a run's worktree needs one", async () => {
