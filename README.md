@@ -1,6 +1,12 @@
 # MetatorAI
 
-MetatorAI is a workflow for AI coding agents. It works with GitHub Copilot and Claude Code and gives every task the same path: read the code, plan, write tests, build, check, review, and push after you approve.
+MetatorAI is a desktop app for working with AI coding agents. You describe a task. Agents plan it, write the tests and the code, and review the result in terminals you can watch. The app stops them where the decision is yours: the plan, the push, the comments on a pull request. It works with GitHub Copilot and Claude Code.
+
+![The workbench of the app: a run in its own tab, its stages, the agent's terminal and a shell beside it](site/public/screens/workbench.png)
+
+Every task takes the same path: read the code, plan, write tests, build, check, review, and push after you approve. The Inbox collects the decisions that wait for you:
+
+![The Inbox: a run asks for approval and shows the options with their consequences](site/public/screens/inbox.png)
 
 The agent still writes the code. MetatorAI decides what the agent is allowed to take on trust:
 

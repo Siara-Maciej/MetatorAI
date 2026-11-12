@@ -228,7 +228,7 @@ describe("documentation site", () => {
       .filter((f) => f !== "index.md")
       .map((f) => `/${f.replace(/(^|\/)index\.md$/, "$1").replace(/\.md$/, "")}`);
     expect([...inSidebars].sort()).toEqual(pages.sort());
-    expect(config.themeConfig.nav.map((n) => n.text)).toEqual(["Guide", "Use", "Repository", "Reference"]);
+    expect(config.themeConfig.nav.map((n) => n.text)).toEqual(["Guide", "App", "Repository", "Reference"]);
     expect(Object.keys(config.themeConfig.sidebar).sort()).toEqual(sections.map((s) => s.base).sort());
 
     const base = `http://localhost:${server.port}`;
