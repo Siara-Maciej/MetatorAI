@@ -1900,7 +1900,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/run-close.ts",
-    from: ".filter((f) => !own.has(f))",
+    from: ".filter((f) => !isRunBookkeeping(f))",
     to: "",
     why: "the run's own bookkeeping is not an artifact",
   },
