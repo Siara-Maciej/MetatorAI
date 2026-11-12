@@ -6,6 +6,10 @@ It does not replace your AI tool, your linter or your tests. It runs them.
 
 You work in the MetatorAI desktop app: you describe a task there, answer the questions a run has for you, watch the agents in their terminals and read the change. The `metator` command is what the app, the agents and CI call. Everything the app does can also be done from a terminal with that command.
 
+![The workbench of the app: a run in its own tab, its stages under the tab bar, the agent's terminal and a shell beside it](../public/screens/workbench.png)
+
+[The app](../use/index.md) shows every screen.
+
 ## Who does what
 
 The work is split four ways, and each part is done by whoever can be held to it.

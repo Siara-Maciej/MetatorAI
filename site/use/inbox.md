@@ -18,7 +18,7 @@ An agent works without asking when it runs the MetatorAI commands its definition
 
 ![The Inbox with a gate's decision card: the goal, the evidence, three options and the answer buttons](../public/screens/inbox.png)
 
-Each row shows the kind (`GATE`, `PERMISSION` or `QUESTION`), how long the question has waited, its text and its run. A click on a row opens its decision card on the right:
+Each row shows the kind (`GATE`, `PERMISSION` or `QUESTION`), how long the question has waited, the first two lines of its text and its run. A click on a row opens its decision card on the right:
 
 | Part | What it tells you |
 |---|---|
@@ -33,16 +33,21 @@ The card is assembled from the run's files when the question is asked. No model 
 
 To answer:
 
-1. Click an option. The recommended one is chosen when the card opens.
-2. With Reject or Other, write your reason or your answer in the field **a note for the log (optional)**.
-3. Type your name in the last field, once. The app remembers it.
-4. Click the first button. It carries the name of the option you chose, such as **Approve**. The button next to it sends the first of the other options in one click.
+1. Click an option. The recommended one is chosen when the card opens. A question that allows several answers says **choose one or more**: each click adds or removes an option, and nothing is chosen for you.
+2. The field under the options is **Note (optional)**. With Reject or Other it becomes **Reason for Reject (required)**, and the answer cannot be sent until you have written it.
+3. Click the first button, or press `Enter`. The button carries the options you chose, such as **Approve**. The button next to it sends the first of the other options in one click; when that option is Reject, it chooses it and puts the cursor in the reason field.
 
-The line under the buttons shows the command your answer amounts to. **Open session** (or the key `o`) opens the run's **Session** screen when you want to see the terminal first. The key `g` moves to the next item of the queue.
+The first time you answer, the app asks for your name in a dialog and remembers it.
+
+The line under the buttons shows the command your answer amounts to. **Changes** opens the run's change ([Read the change](./changes.md)) and **Open session** (or the key `o`) the run's **Session** screen, when you want to look before you decide. The key `g` moves to the next item of the queue.
 
 The daemon carries out the answer. If no drive is running, it starts one again on the host the run used. What you write in your own words is passed to every later agent of the run as a decision to follow.
 
-With nothing open the screen reads **Inbox zero**.
+With nothing open the screen reads **Inbox zero**. It says so only while the daemon answers.
+
+## Questions asked in the terminal
+
+An agent can also stop at a question it wrote on its own screen, without a card. Such a run still counts in **need you**. The Inbox lists it under the queue as a row marked `TERMINAL`, with the task and **answers in its terminal**. A click opens the run's **Session** screen on the pane that asks. Attach and type the answer there ([Sessions and worktrees](./sessions.md)).
 
 ## Permission prompts of the host
 

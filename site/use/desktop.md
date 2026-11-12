@@ -10,6 +10,10 @@ Each run in its worktree is a tab, and a shell can have a tab of its own. The **
 
 The tab's area is split into panes: the agents' terminals and your own shells. A pane's frame names the agent or the command, its host and its state, and says **yours** when you hold its keyboard. Drag a divider to resize. Double-click a pane's title to zoom it.
 
+A pane whose process ended keeps its last output. A line under it gives the exit code, with **Retry**, which starts the same program again, and **Close tab** (or **Close pane** when the tab has other panes).
+
+When the daemon is restarted, the terminals reconnect by themselves once it answers again.
+
 The column on the left lists the repositories, and under them the panes of each tab with their state. A click on a pane focuses it.
 
 A right click on a pane opens its menu: **Take the keyboard**, **Zoom**, **Split right**, **Split down**, **Copy mode**, **Plan of the run**, **Changes**, **Open in editor**, **New task from here…** (the backlog's form, pointing at this run) and **Close pane**. A right click on a tab or the tab bar offers **New tab: shell**, **New tab: task in a new worktree…**, **Backlog…**, **New shell pane here** and **Close tab**. Closing a task's tab closes its panes. The worktree stays.

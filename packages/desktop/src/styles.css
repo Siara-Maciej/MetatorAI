@@ -457,9 +457,8 @@ h3 {
   margin-top: 12px;
   flex-wrap: wrap;
 }
-.actions input {
+.actions .spacer {
   flex: 1;
-  min-width: 180px;
 }
 .footer-cmd {
   margin-top: 10px;
@@ -494,6 +493,9 @@ h3 {
 }
 .stagebar {
   display: flex;
+  list-style: none;
+  padding: 0;
+  margin-bottom: 0;
   gap: 4px;
   flex-wrap: wrap;
   margin-top: 6px;
@@ -1306,6 +1308,14 @@ h3 {
   font-size: 12px;
   color: var(--dim);
   cursor: default;
+  /* A button is 28px tall by default: the title must not cover the terminal's first line, in a
+     narrow pane either. */
+  min-height: 0;
+  line-height: 16px;
+  max-width: calc(100% - 28px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pane-frame.focus .title {
   color: #e8825a;
@@ -2009,4 +2019,403 @@ kbd {
   background: rgba(45, 212, 191, 0.08);
   border-radius: 6px;
   white-space: pre-wrap;
+}
+
+/* shared pieces: notices, the repository select, clamped text */
+.clip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.banner.notice,
+.banner.ask-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.banner.notice .msg,
+.banner.ask-banner .msg {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.banner.notice button {
+  min-height: 0;
+  padding: 0 6px;
+  color: inherit;
+}
+.banner.notice.info {
+  background: rgba(96, 165, 250, 0.08);
+  color: var(--muted);
+}
+.banner.ask-banner {
+  background: rgba(240, 180, 41, 0.1);
+  color: var(--amber);
+  align-items: center;
+}
+.repo-select {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  flex: none;
+}
+.repo-select select {
+  min-height: 24px;
+  padding: 2px 6px;
+  max-width: 180px;
+}
+
+/* the top bar's own buttons */
+.topbar .who {
+  color: var(--muted);
+  font-size: 11.5px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar .panel-toggle {
+  display: none;
+}
+
+/* no daemon (D3): one panel instead of a screen */
+.no-daemon {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 48px 24px;
+}
+.no-daemon .panel {
+  width: 560px;
+  max-width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  padding: 22px 24px;
+}
+.no-daemon h1 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.no-daemon h3 {
+  margin-top: 18px;
+}
+.no-daemon p {
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+.no-daemon .cmd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 4px 6px 4px 12px;
+}
+.no-daemon .cmd code {
+  font-size: 13px;
+  color: var(--teal);
+}
+.no-daemon .addr {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.no-daemon .addr input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+}
+
+/* the name dialog */
+.name-dialog {
+  width: 420px;
+}
+.name-dialog p {
+  margin: 8px 0 12px;
+}
+.dialog .foot .spacer {
+  flex: 1;
+}
+
+/* inbox: sessions that ask in their terminal; long questions */
+.needs .title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.needs .ask-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  border-top: 1px solid var(--edge);
+}
+.needs .ask-row:hover {
+  background: var(--hover);
+}
+.needs .kind.TERMINAL {
+  color: var(--amber);
+}
+.needs .ask-row .open {
+  float: right;
+  color: var(--teal);
+  font-size: 11px;
+}
+.inbox > .empty .primary {
+  margin-top: 12px;
+}
+.card h1 {
+  overflow-wrap: anywhere;
+}
+.card .reason {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 14px;
+  font-size: 11px;
+}
+.card .reason input {
+  font-size: 12.5px;
+}
+
+/* answering in the session's side box and on the plan */
+.quick-answer .reason {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+.quick-answer .reason input {
+  flex: 1;
+  min-width: 0;
+}
+.quick-answer .banner {
+  margin-top: 6px;
+  border: 0;
+  border-radius: 6px;
+}
+.session .side .box .clamp {
+  margin-bottom: 6px;
+}
+.session .head h2.clip {
+  max-width: 100%;
+}
+.plan .ask .clamp {
+  flex: 1 1 260px;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.plan .top .clip {
+  max-width: 40%;
+}
+.review .top .clip {
+  max-width: 45%;
+}
+.backlog .wf {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: 8px;
+}
+
+/* workbench: long tab names, a pane whose process ended, the toast */
+.workbench .tabbar {
+  min-width: 0;
+}
+.workbench .tab {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.workbench .tab .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.workbench .tab .branch {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+.workbench .tabbar .waits,
+.workbench .tabbar > button,
+.workbench .tabbar .chip {
+  flex: none;
+  white-space: nowrap;
+}
+.workbench .ag .n,
+.workbench .agents .sec {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pane-frame .pane-ended {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-top: 1px solid var(--edge);
+  background: var(--panel);
+  font-size: 12px;
+}
+.pane-frame .pane-ended .msg {
+  flex: 1 1 200px;
+  color: var(--amber);
+}
+.pane-frame .pane-ended button {
+  min-height: 26px;
+}
+.workbench .toast {
+  padding: 0;
+  gap: 0;
+  align-items: stretch;
+  max-width: min(520px, 60%);
+}
+.workbench .toast .open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 8px 4px 8px 12px;
+  min-width: 0;
+}
+.workbench .toast .q {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.workbench .toast .ghost {
+  align-self: flex-start;
+  margin: 4px 4px 0 0;
+  min-height: 0;
+  padding: 2px 6px;
+  color: var(--dim);
+}
+
+/* narrow windows (D12): the sessions panel becomes a drawer behind a button of the top bar */
+@media (max-width: 1000px) {
+  .shell {
+    grid-template-columns: 52px 1fr;
+  }
+  .sessions {
+    display: none;
+  }
+  .shell.panel-open .sessions {
+    display: flex;
+    position: fixed;
+    top: 44px;
+    bottom: 0;
+    left: 52px;
+    width: 280px;
+    z-index: 8;
+    box-shadow: 12px 0 30px rgba(0, 0, 0, 0.5);
+  }
+  .topbar {
+    gap: 8px;
+  }
+  .topbar .panel-toggle {
+    display: inline-block;
+    white-space: nowrap;
+    min-height: 26px;
+  }
+  .topbar .counters {
+    gap: 4px;
+  }
+  .session {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+  .session .side {
+    border-left: 0;
+    border-top: 1px solid var(--edge);
+  }
+  .inbox {
+    grid-template-columns: 220px 1fr;
+  }
+  .workbench .sidebar {
+    display: none;
+  }
+  .workbench .body {
+    grid-template-columns: 1fr;
+  }
+  .session .main {
+    min-height: 70vh;
+  }
+  .supervisor {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+}
+@media (max-width: 700px) {
+  .topbar .logo + .dim,
+  .topbar .who {
+    display: none;
+  }
+  .inbox {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    overflow: auto;
+  }
+  .needs {
+    border-right: 0;
+    border-bottom: 1px solid var(--edge);
+    max-height: 40vh;
+  }
+}
+.sessions .row .text {
+  min-width: 0;
+}
+.sessions .group .head .clip {
+  flex: 1;
+}
+/* the decision card: a long question reads as text, not as a headline; the options need no frame */
+.card h1.long {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  max-height: 34vh;
+  overflow: auto;
+  padding-right: 6px;
+}
+.card fieldset.options {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.card fieldset.options legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.workbench .toast {
+  bottom: 56px;
 }

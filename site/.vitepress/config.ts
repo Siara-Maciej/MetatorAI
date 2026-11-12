@@ -4,7 +4,7 @@ import { defineConfig } from "vitepress";
  * User documentation of MetatorAI, published to GitHub Pages by .github/workflows/pages.yml.
  * The base path comes from Pages (SITE_BASE); locally it defaults to the repository's path.
  *
- * Four sections, by what the reader came for: Guide (understand and install), Use (do the work),
+ * Four sections, by what the reader came for: Guide (understand and install), App (do the work),
  * Repository (teach MetatorAI your repository), Reference (look up). The top bar holds the
  * sections; each has its own sidebar, and Previous/Next at the bottom of a page follow it.
  */
@@ -24,7 +24,7 @@ export const sections = [
     ],
   },
   {
-    text: "Use",
+    text: "App",
     base: "/use/",
     items: [
       { text: "The app", link: "" },

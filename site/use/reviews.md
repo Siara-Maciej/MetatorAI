@@ -15,7 +15,7 @@ The chosen request on the right shows:
 - every thread: its state, its kind, who wrote it and where, the reviewer's words, and the proposed reply;
 - **Resolve** on each thread, which closes it at the code host.
 
-Type your name in the field at the top right first. Both buttons refuse to act without it, so nothing reaches the code host without a person's name on it.
+Both buttons need your name, so nothing reaches the code host without a person's name on it. The app asks for it in a dialog the first time; if you cancel the dialog, nothing is sent.
 
 The approval of the answering run waits in your [Inbox](./inbox.md).
 

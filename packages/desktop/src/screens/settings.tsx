@@ -3,30 +3,23 @@
  * value, where it comes from (default, user, repo, run) and a way to change it or go back to the
  * default. The app draws; the daemon validates and writes the scope's file.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { OptionDiagnostic, OptionScope, OptionsView, ResolvedOption } from "../api.ts";
-import { useDaemon } from "../daemon.tsx";
+import { useMemo, useState } from "react";
+import type { OptionDiagnostic, OptionScope, ResolvedOption } from "../api.ts";
+import { Notice, RepoSelect } from "../components/common.tsx";
+import { useDaemon, usePolled } from "../daemon.tsx";
 import { optionMatches } from "../model.ts";
 
 export function SettingsScreen() {
-  const { client, repos, url, me, setMe, setUrl } = useDaemon();
-  const repo = repos[0]?.name;
-  const [view, setView] = useState<OptionsView>();
+  const { client, repo, url, me, setMe, setUrl } = useDaemon();
+  const options = usePolled(`options:${repo ?? ""}`, () => client.options(repo), 3000);
+  const view = options.data;
+  const load = options.reload;
+  // What a change answered stays until closed: the refresh never clears a refusal (D5).
   const [error, setError] = useState<string>();
   const [section, setSection] = useState<string>("ui");
   const [query, setQuery] = useState("");
-  const load = useCallback(async () => {
-    const r = await client.options(repo);
-    if (r.ok && r.data) {
-      setView(r.data);
-      setError(undefined);
-    } else setError(r.error?.message ?? "no options");
-  }, [client, repo]);
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 3000);
-    return () => clearInterval(t);
-  }, [load]);
+  // Counts refusals: a field whose value was refused is drawn again with the value that holds.
+  const [refused, setRefused] = useState(0);
   // The sections are the daemon's groups: one per option group, in the registry's order.
   const sections = view?.groups ?? [];
   const shown = useMemo(() => {
@@ -40,15 +33,17 @@ export function SettingsScreen() {
   const change = async (o: ResolvedOption, value: unknown, reset = false) => {
     const scope: OptionScope = o.definition.scope === "user" ? "user" : "repo";
     const r = await client.setOption(o.key, reset ? { scope, reset: true } : { scope, value }, repo);
-    if (!r.ok) setError(r.error?.message ?? `cannot set ${o.key}`);
-    else {
-      setError(undefined);
-      await load();
-    }
+    setError(r.ok ? undefined : `${o.key} was not changed: ${r.error?.message ?? "the daemon refused"}`);
+    // Read again either way: a refused value must not stay in the field (D6).
+    setRefused((n) => (r.ok ? n : n + 1));
+    await load();
   };
   return (
     <div className="settings-screen">
       <aside className="sections">
+        <div style={{ padding: "8px 12px 0" }}>
+          <RepoSelect />
+        </div>
         <label htmlFor="settings-q" className="dim" style={{ padding: "8px 12px 2px", display: "block" }}>
           search
         </label>
@@ -95,7 +90,8 @@ export function SettingsScreen() {
         </div>
       </aside>
       <section className="options-list">
-        {error ? <div className="banner">{error}</div> : null}
+        <Notice text={error} onClose={() => setError(undefined)} />
+        {options.error && !view ? <div className="banner">{options.error}</div> : null}
         {section === "app" && query === "" ? (
           <>
             <div className="dim" style={{ marginBottom: 10 }}>
@@ -105,7 +101,14 @@ export function SettingsScreen() {
               <div className="k">
                 daemon url<div className="d dim">The address of `metator serve` this app talks to.</div>
               </div>
-              <input aria-label="daemon url" defaultValue={url} onBlur={(e) => setUrl(e.target.value)} />
+              <input
+                key={url}
+                aria-label="daemon url"
+                defaultValue={url}
+                onBlur={(e) => {
+                  if (e.target.value.trim() !== "" && e.target.value !== url) setUrl(e.target.value);
+                }}
+              />
               <span className="src dim">this window</span>
               <span />
             </div>
@@ -113,7 +116,12 @@ export function SettingsScreen() {
               <div className="k">
                 your name<div className="d dim">Who attaches, answers and approves from this app.</div>
               </div>
-              <input aria-label="your name" defaultValue={me} onBlur={(e) => setMe(e.target.value)} />
+              <input
+                key={me}
+                aria-label="your name"
+                defaultValue={me}
+                onBlur={(e) => setMe(e.target.value.trim())}
+              />
               <span className="src dim">this window</span>
               <span />
             </div>
@@ -126,7 +134,14 @@ export function SettingsScreen() {
                 : `${section} · a change applies at once; "restart" marks the ones the daemon reads at start`}
             </div>
             {shown.map((o) => (
-              <OptionRow key={o.key} option={o} diagnostics={diagnosticsOf(o.key)} onChange={change} />
+              <OptionRow
+                // The row is the option at its value: a reset or a refused change draws the field
+                // again with what holds, instead of leaving what was typed (D6).
+                key={`${o.key}:${JSON.stringify(o.value)}:${String(refused)}`}
+                option={o}
+                diagnostics={diagnosticsOf(o.key)}
+                onChange={change}
+              />
             ))}
             {shown.length === 0 ? <div className="empty">No option matches.</div> : null}
           </>

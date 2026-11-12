@@ -4,7 +4,11 @@ You start work by telling the agent what you want. It answers questions about th
 
 ## In the app
 
-Click **+ New session** at the bottom of the sessions panel, or press `n`. The app opens the **Work** screen with a new tab named `intake`. Its pane runs the agent `mt-orchestrator` on your AI host: the first host of the option `supervisor.hostOrder` that is installed on this machine.
+Click **+ New session** at the bottom of the sessions panel, or press `n`. The app opens the **Work** screen with a new tab named `intake`. Its pane runs the agent `mt-orchestrator` on your AI host: the first host of the option `supervisor.hostOrder` that is installed on the daemon's machine.
+
+When no host is installed, no tab opens. The app says so at the top of the screen, names the programs the daemon looked for, and points to the guide page [Copilot and Claude Code](../guide/hosts.md). Install one and click **+ New session** again; the daemon needs no restart.
+
+If the host's program starts and exits at once, for example because you are not logged in, the pane stays with its last output and a line such as "The process ended with code 3." **Retry** starts it again and **Close tab** removes the tab.
 
 Write what you need in the pane. A conversation can look like this:
 
@@ -36,20 +40,18 @@ Text you paste from an issue, a pull request or a chat is data for the task. The
 | **Repository** | which repository the run belongs to; shown only when the daemon serves a folder of repositories |
 | **Workflow** | one of the repository's workflows ([the table below](#pick-a-workflow)) |
 | **Task** | what to do, in one or two sentences |
-| **Host** | the AI host that drives the run, or **create only, drive later** |
-| **Autonomy** | **L0 · every gate asks** or **L1 · gates pass on green** ([Gates and approvals](../guide/gates.md#autonomy)) |
+| **Host** | the AI host that drives the run: the first installed one of `supervisor.hostOrder` is chosen, a host that is not installed is greyed out; or **create only, drive later** |
+| **Autonomy** | **L0: asks at every gate** or **L1: skips the gates the workflow allows** ([Gates and approvals](../guide/gates.md#autonomy)) |
 | **Workspace** | a worktree with its own ports (ticked by default), or the main checkout ([Sessions and worktrees](./sessions.md#what-a-worktree-gives-a-run)) |
 | **Parent run** | an active run this one is a step of, or **none (standalone)** |
-| **Start actions** | **attach me when it first asks** opens the session with you at the keyboard |
-| **Your name** | who approves; the app remembers it |
 
-The bottom line of the form shows the `metator run init` command your choices amount to. **Create in background** starts the run and leaves you where you are. **Create and attach** starts it, opens its **Session** screen and gives you its keyboard.
+The bottom line of the form shows the `metator run init` command your choices amount to. **Create in background** starts the run and leaves you where you are. **Create and attach** starts it, opens its **Session** screen and gives you its keyboard; the app asks for your name first if it does not know it yet. `Esc` closes the form.
 
 When as many sessions already wait for you as `supervisor.wipLimit` allows (default 4), the form warns that the new one queues behind them.
 
 ### From the backlog
 
-On the **Backlog** screen, **Start a run** on an open task starts a run with the task's title and text ([Plan and backlog](./plan.md#backlog)).
+On the **Backlog** screen, **Start a run** on an open task starts a run with the task's title and text, on the workflow chosen beside the button ([Plan and backlog](./plan.md#backlog)).
 
 ## In Copilot Chat or Claude Code
 

@@ -5,9 +5,21 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { IssueRef } from "./api.ts";
+import { NoDaemon, Notice } from "./components/common.tsx";
 import { SessionsPanel } from "./components/sessions-panel.tsx";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
-import { newQuestions, nextWaiting, notifies, parseRoute, type Route, routeHash, wasAway } from "./model.ts";
+import {
+  hostChoice,
+  newQuestions,
+  nextWaiting,
+  noHostText,
+  notifies,
+  parseRoute,
+  plainKey,
+  type Route,
+  routeHash,
+  wasAway,
+} from "./model.ts";
 import { systemNotifier } from "./notify.ts";
 import { BacklogScreen } from "./screens/backlog.tsx";
 import { BriefingScreen } from "./screens/briefing.tsx";
@@ -28,7 +40,7 @@ const RAIL: { route: Route; label: string; glyph: string }[] = [
   { route: { screen: "backlog" }, label: "Backlog", glyph: "☷" },
   { route: { screen: "mrs" }, label: "MRs", glyph: "⇄" },
   { route: { screen: "graph" }, label: "Graph", glyph: "⌘" },
-  { route: { screen: "supervisor" }, label: "Super", glyph: "◎" },
+  { route: { screen: "supervisor" }, label: "Daemon", glyph: "◎" },
   { route: { screen: "settings" }, label: "Settings", glyph: "⚙" },
 ];
 
@@ -44,6 +56,10 @@ function Shell() {
   const d = useDaemon();
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
   const [dialog, setDialog] = useState(false);
+  // What an action of the shell answered (a session that could not open): it stays until closed.
+  const [notice, setNotice] = useState<string>();
+  // Below about 1000 px the sessions panel is a drawer behind a button of the top bar.
+  const [panelOpen, setPanelOpen] = useState(false);
   // The draft of "New task from here…": held here, not in the hash, until the backlog is left.
   const [backlogDraft, setBacklogDraft] = useState<{ readonly refs?: readonly IssueRef[] }>();
   const go = useCallback((r: Route) => {
@@ -53,6 +69,7 @@ function Shell() {
     const onHash = () => {
       const next = parseRoute(window.location.hash);
       setRoute(next);
+      setPanelOpen(false);
       if (next.screen !== "backlog") setBacklogDraft(undefined);
     };
     window.addEventListener("hashchange", onHash);
@@ -66,11 +83,11 @@ function Shell() {
     known.current = now.map((q) => ({ id: q.id, runId: q.runId }));
     if (fresh.length === 0) return;
     // `notify.channel: off` silences the system notification as it hides the workbench's toast.
-    void d.client.options(d.repos[0]?.name).then((r) => {
+    void d.client.options(d.repo).then((r) => {
       if (!notifies(r.data?.options ?? [])) return;
       for (const q of fresh) void notifier.notify("MetatorAI needs you", q.prompt);
     });
-  }, [d.inbox, d.client, d.repos]);
+  }, [d.inbox, d.client, d.repo]);
   // Back after ten minutes: the briefing of a session opened first (spec §6.8).
   const lastSeen = useRef<number>(Date.now());
   useEffect(() => {
@@ -98,46 +115,53 @@ function Shell() {
   /**
    * "+ New session" (T1, design/14 §2): a pane with the orchestrator as the entry point in the
    * "intake" workspace; the person talks, the agent starts the run. The host is the first of the
-   * repository's `hostOrder` that is installed, as the form would pick.
+   * repository's `hostOrder` that is installed (D1); with none installed, or when the daemon
+   * refuses, the app says so instead of opening a tab that cannot work.
    */
+  const { client, repo, down } = d;
   const openIntake = useCallback(async () => {
-    const s = await d.client.supervisor(d.repos[0]?.name);
-    const host = s.ok
-      ? (s.data?.policy.hostOrder.find((h) => s.data?.hosts.includes(h)) ?? s.data?.hosts[0])
-      : undefined;
-    const p = await d.client.openPane(
-      {
-        label: "intake",
-        newTab: true,
-        role: "apps",
-        agent: "mt-orchestrator",
-        ...(host ? { host } : {}),
-      },
-      d.repos[0]?.name,
+    if (down) return;
+    const s = await client.supervisor(repo);
+    if (!s.ok || !s.data) {
+      setNotice(`No session was opened: ${s.error?.message ?? "the daemon did not answer"}`);
+      return;
+    }
+    const host = hostChoice(s.data.policy.hostOrder, s.data.hostStatus, s.data.hosts);
+    if (!host) {
+      setNotice(noHostText(s.data.hostStatus ?? []));
+      return;
+    }
+    const p = await client.openPane(
+      { label: "intake", newTab: true, role: "apps", agent: "mt-orchestrator", host },
+      repo,
     );
-    if (p.ok && p.data) go({ screen: "grid", pane: p.data.id });
-  }, [d.client, d.repos, go]);
+    if (p.ok && p.data) {
+      setNotice(undefined);
+      go({ screen: "grid", pane: p.data.id });
+    } else setNotice(`No session was opened: ${p.error?.message ?? "the daemon refused"}`);
+  }, [client, repo, down, go]);
   const openSession = useCallback(
-    (runId: string, attach = false) => {
-      go({ screen: "session", runId });
-      if (attach && d.me) void d.client.attach(runId, d.me, d.runs.find((r) => r.runId === runId)?.repo);
+    (runId: string, attach = false, pane?: string) => {
+      go({ screen: "session", runId, ...(pane ? { pane } : {}) });
+      const run = d.runs.find((r) => r.runId === runId);
+      if (attach) void d.who().then((by) => (by ? d.client.attach(runId, by, run?.repo) : undefined));
     },
     [go, d],
   );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      )
+      // Escape closes the dialog from anywhere, a focused field included (D7).
+      if (e.key === "Escape") {
+        setDialog(false);
+        setPanelOpen(false);
         return;
-      if (e.key === "g" && route.screen !== "inbox") {
-        const next = nextWaiting(d.runs, route.screen === "session" ? route.runId : undefined);
-        if (next) openSession(next.runId);
       }
-      if (e.key === "n" && !dialog) void openIntake();
-      if (e.key === "Escape") setDialog(false);
+      const key = plainKey(e);
+      if (key === "g" && route.screen !== "inbox") {
+        const next = nextWaiting(d.runs, route.screen === "session" ? route.runId : undefined);
+        if (next) openSession(next.runId, false, next.terminalAsk);
+      }
+      if (key === "n" && !dialog) void openIntake();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -154,24 +178,112 @@ function Shell() {
     route.screen === "review"
       ? route.runId
       : undefined;
+  // The screen the route names: an expression, not a component, so a render keeps its state.
+  const screen = (
+    <>
+      {route.screen === "inbox" ? (
+        <InboxScreen
+          pick={route.pick}
+          onOpenSession={(id, pane) => openSession(id, false, pane)}
+          onOpenChanges={(runId) => go({ screen: "review", runId })}
+          onBriefing={(id) => go({ screen: "briefing", runId: id })}
+        />
+      ) : null}
+      {route.screen === "session" ? (
+        <SessionScreen
+          runId={route.runId}
+          pane={route.pane}
+          onOpenSession={openSession}
+          onOpenReview={(runId) => go({ screen: "review", runId })}
+        />
+      ) : null}
+      {route.screen === "grid" ? (
+        <WorkbenchScreen
+          onNewTask={() => void openIntake()}
+          onOpenSettings={() => go({ screen: "settings" })}
+          onOpenPlan={(runId) => go({ screen: "plan", runId })}
+          onOpenReview={(runId) => go({ screen: "review", runId })}
+          onOpenInbox={(pick) => go({ screen: "inbox", pick })}
+          onOpenBacklog={(draft) => {
+            setBacklogDraft(draft);
+            go({ screen: "backlog" });
+          }}
+          {...(route.pane ? { showPane: route.pane } : {})}
+        />
+      ) : null}
+      {route.screen === "review" ? (
+        <ReviewScreen
+          runId={route.runId}
+          file={route.file}
+          onOpenFile={(runId, file) => go({ screen: "review", runId, ...(file ? { file } : {}) })}
+          onOpenSession={openSession}
+        />
+      ) : null}
+      {route.screen === "backlog" ? (
+        <BacklogScreen onOpenSession={openSession} initialDraft={backlogDraft} />
+      ) : null}
+      {route.screen === "plan" ? (
+        <PlanScreen
+          runId={route.runId}
+          onOpenPane={(pane) => go({ screen: "grid", pane })}
+          onOpenSession={openSession}
+        />
+      ) : null}
+      {route.screen === "mrs" ? (
+        <MrsScreen
+          id={route.id}
+          onOpen={(id) => go({ screen: "mrs", id })}
+          onOpenSession={openSession}
+          onOpenPlan={(runId) => go({ screen: "plan", runId })}
+        />
+      ) : null}
+      {route.screen === "graph" ? <GraphScreen /> : null}
+      {route.screen === "supervisor" ? (
+        <SupervisorScreen onOpenSession={openSession} onNew={() => void openIntake()} />
+      ) : null}
+      {route.screen === "settings" ? <SettingsScreen /> : null}
+      {route.screen === "briefing" ? (
+        <BriefingScreen runId={route.runId} onOpenSession={openSession} />
+      ) : null}
+    </>
+  );
   return (
-    <div className="shell">
+    <div className={`shell${panelOpen ? " panel-open" : ""}`}>
       <header className="topbar">
         <span className="logo">MetatorAI</span>
         <span className="dim">
           {d.repos.length > 0 ? `${d.repos.length} repositories` : "this repository"}
         </span>
         <span className="counters" data-testid="counters">
-          <span className="chip amber">need you {counts.you}</span>
-          <span className="chip violet">driving {counts.driving}</span>
-          <span className="chip red">escalated {counts.escalated}</span>
+          <span className="chip amber" title="sessions that wait for your answer">
+            need you {counts.you}
+          </span>
+          <span className="chip violet" title="sessions an agent works on">
+            driving {counts.driving}
+          </span>
+          <span className="chip red" title="sessions that stopped and need work from you">
+            escalated {counts.escalated}
+          </span>
         </span>
-        <span className="chip" title="attention budget">
-          {counts.you} waiting
-        </span>
+        <button
+          type="button"
+          className="panel-toggle"
+          aria-expanded={panelOpen}
+          onClick={() => setPanelOpen(!panelOpen)}
+        >
+          Sessions · {d.runs.filter((r) => r.status === "active").length}
+        </button>
         <span className="spacer" />
+        <button
+          type="button"
+          className="ghost who"
+          title="Your name goes next to every answer you give. Click to change it."
+          onClick={d.changeName}
+        >
+          {d.me ? `you: ${d.me}` : "set your name"}
+        </button>
         <span className={`chip ${d.connected ? "green" : "red"}`} data-testid="connection">
-          {d.connected ? "connected" : d.error ? `daemon: ${d.error}` : "connecting…"}
+          {d.connected ? "connected" : d.down ? "no daemon" : "connecting…"}
         </span>
       </header>
       <nav className="rail" aria-label="screens">
@@ -197,75 +309,15 @@ function Shell() {
       </nav>
       <SessionsPanel
         current={current}
-        onOpen={(id, pane) => (pane ? go({ screen: "session", runId: id, pane }) : openSession(id))}
+        onOpen={(id, pane) => openSession(id, false, pane)}
         onNew={() => void openIntake()}
         onAdvanced={() => setDialog(true)}
-        onGrid={(group) => go({ screen: "grid", ...(group ? { group } : {}) })}
       />
       <main className="content">
-        {route.screen === "inbox" ? (
-          <InboxScreen
-            onOpenSession={openSession}
-            onBriefing={(id) => go({ screen: "briefing", runId: id })}
-          />
-        ) : null}
-        {route.screen === "session" ? (
-          <SessionScreen
-            runId={route.runId}
-            pane={route.pane}
-            onOpenSession={openSession}
-            onOpenReview={(runId) => go({ screen: "review", runId })}
-          />
-        ) : null}
-        {route.screen === "grid" ? (
-          <WorkbenchScreen
-            onNewTask={() => void openIntake()}
-            onOpenSettings={() => go({ screen: "settings" })}
-            onOpenPlan={(runId) => go({ screen: "plan", runId })}
-            onOpenReview={(runId) => go({ screen: "review", runId })}
-            onOpenBacklog={(draft) => {
-              setBacklogDraft(draft);
-              go({ screen: "backlog" });
-            }}
-            {...(route.pane ? { showPane: route.pane } : {})}
-          />
-        ) : null}
-        {route.screen === "review" ? (
-          <ReviewScreen
-            runId={route.runId}
-            file={route.file}
-            onOpenFile={(runId, file) => go({ screen: "review", runId, ...(file ? { file } : {}) })}
-            onOpenSession={openSession}
-          />
-        ) : null}
-        {route.screen === "backlog" ? (
-          <BacklogScreen onOpenSession={openSession} initialDraft={backlogDraft} />
-        ) : null}
-        {route.screen === "plan" ? (
-          <PlanScreen
-            runId={route.runId}
-            onOpenPane={(pane) => go({ screen: "grid", pane })}
-            onOpenSession={openSession}
-          />
-        ) : null}
-        {route.screen === "mrs" ? (
-          <MrsScreen
-            id={route.id}
-            onOpen={(id) => go({ screen: "mrs", id })}
-            onOpenSession={openSession}
-            onOpenPlan={(runId) => go({ screen: "plan", runId })}
-          />
-        ) : null}
-        {route.screen === "graph" ? <GraphScreen /> : null}
-        {route.screen === "supervisor" ? (
-          <SupervisorScreen onOpenSession={openSession} onNew={() => void openIntake()} />
-        ) : null}
-        {route.screen === "settings" ? <SettingsScreen /> : null}
-        {route.screen === "briefing" ? (
-          <BriefingScreen runId={route.runId} onOpenSession={openSession} />
-        ) : null}
+        <Notice text={d.down ? undefined : notice} onClose={() => setNotice(undefined)} />
+        {d.down ? <NoDaemon /> : screen}
       </main>
-      {dialog ? (
+      {dialog && !d.down ? (
         <NewSessionDialog
           onClose={() => setDialog(false)}
           onCreated={(runId, attach) => {

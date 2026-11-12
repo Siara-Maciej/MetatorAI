@@ -2,60 +2,43 @@
  * The decision card (screen 1, spec §6.3): everything a person needs to answer without opening
  * the session, composed by the daemon; the app only draws it and sends the answer back.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { InboxItem } from "../api.ts";
 import { useDaemon } from "../daemon.tsx";
-import { answerCommand, duration, questionKind } from "../model.ts";
+import { answerCommand, duration, needsReason, questionKind } from "../model.ts";
+import { useAnswer } from "./answer.tsx";
 import { Chip } from "./chips.tsx";
+import { Notice } from "./common.tsx";
 
 export function DecisionCard({
   item,
   onAnswered,
   onOpenSession,
+  onOpenChanges,
 }: {
   readonly item: InboxItem;
   onAnswered(): void;
   onOpenSession(runId: string): void;
+  /** The run's change, straight from the card: what the decision is about. */
+  onOpenChanges(runId: string): void;
 }) {
-  const { client, me, setMe } = useDaemon();
+  const { me } = useDaemon();
   const q = item.question;
   const card = q.card;
-  const [choice, setChoice] = useState<string | undefined>(card?.recommended ?? q.options[0]?.label);
-  const [note, setNote] = useState("");
-  const [name, setName] = useState(me);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  useEffect(() => {
-    setChoice(card?.recommended ?? q.options[0]?.label);
-    setNote("");
-    setError(undefined);
-  }, [card?.recommended, q.options[0]?.label]);
-  const send = async (label: string | undefined) => {
-    if (!label) return;
-    if (!name.trim()) {
-      setError("say who you are first");
-      return;
-    }
-    setBusy(true);
-    setMe(name.trim());
-    // From the card, without opening the session: the daemon notes the origin for 11a.
-    const r = await client.answer(
-      q.runId,
-      q.id,
-      [label],
-      name.trim(),
-      note.trim() || undefined,
-      "inbox",
-      item.repo,
-    );
-    setBusy(false);
-    if (!r.ok) setError(r.error?.message ?? "the answer was refused");
-    else onAnswered();
-  };
+  // The recommended option is chosen first; a multi-select question starts with nothing chosen.
+  const first = card?.recommended ?? q.options[0]?.label;
+  const a = useAnswer(q, item.repo, {
+    initial: q.multiSelect || !first ? [] : [first],
+    // From the card, without opening the session: the daemon notes the origin.
+    origin: "inbox",
+    onDone: onAnswered,
+  });
+  const choice = a.choices[0];
+  const reasonField = useRef<HTMLInputElement>(null);
   // Enter sends the selected answer (the ⏎ on the button), unless a field or a button has the key.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Enter" || e.repeat || busy || !choice) return;
+      if (e.key !== "Enter" || e.repeat || !a.ready) return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
       if (
         e.target instanceof HTMLInputElement ||
@@ -66,12 +49,13 @@ export function DecisionCard({
       )
         return;
       e.preventDefault();
-      void send(choice);
+      void a.send();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
-  const others = q.options.filter((o) => o.label !== choice);
+  const others = q.multiSelect ? [] : q.options.filter((o) => o.label !== choice);
+  const second = others[0];
   return (
     <article className="card" aria-label="decision card">
       <div className="ctx">
@@ -82,7 +66,7 @@ export function DecisionCard({
         <span className="mono">{q.runId}</span>
         {q.agent ? <span>{q.agent}</span> : null}
       </div>
-      <h1>{q.prompt}</h1>
+      <h1 className={q.prompt.length > 160 ? "long" : undefined}>{q.prompt}</h1>
       <div className="chips">
         {card ? (
           <Chip tone={card.reversible ? "green" : "red"}>
@@ -91,7 +75,7 @@ export function DecisionCard({
         ) : null}
         {card?.blastRadius ? (
           <Chip tone="violet">
-            blast radius {card.blastRadius.files} files
+            touches {card.blastRadius.files} file{card.blastRadius.files === 1 ? "" : "s"}
             {card.blastRadius.areas.length > 0 ? ` · ${card.blastRadius.areas.join(", ")}` : ""}
           </Chip>
         ) : null}
@@ -102,7 +86,7 @@ export function DecisionCard({
         ))}
         {card?.group ? (
           <Chip tone="blue">
-            feature step {card.group.step}/{card.group.of}
+            step {card.group.step} of {card.group.of}
           </Chip>
         ) : null}
       </div>
@@ -144,7 +128,7 @@ export function DecisionCard({
         </section>
       ) : null}
       <section>
-        <h3>Options</h3>
+        <h3>Options{q.multiSelect ? " · choose one or more" : ""}</h3>
         <fieldset className="options">
           <legend className="dim">options</legend>
           {q.options.map((o) => (
@@ -152,8 +136,8 @@ export function DecisionCard({
               type="button"
               key={o.label}
               className="option"
-              aria-pressed={choice === o.label}
-              onClick={() => setChoice(o.label)}
+              aria-pressed={a.choices.includes(o.label)}
+              onClick={() => a.toggle(o.label)}
             >
               <div className="label">
                 <span>{o.label}</span>
@@ -167,39 +151,58 @@ export function DecisionCard({
           ))}
         </fieldset>
       </section>
+      <label className="reason">
+        <span className={a.reason ? "amber" : "dim"}>
+          {a.reason
+            ? `Reason for ${a.choices.find((c) => needsReason([c])) ?? "this answer"} (required)`
+            : "Note (optional)"}
+        </span>
+        <input
+          ref={reasonField}
+          aria-label={a.reason ? "reason (required)" : "note"}
+          placeholder={a.reason ? "the run gets your words; say what must change" : "a note for the log"}
+          value={a.text}
+          onChange={(e) => a.setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && a.ready) void a.send();
+          }}
+        />
+      </label>
       <div className="actions">
         <button
           type="button"
           className="primary"
-          disabled={busy || !choice}
-          onClick={() => void send(choice)}
+          disabled={!a.ready}
+          title={a.reason && !a.ready ? "write the reason first" : undefined}
+          onClick={() => void a.send()}
         >
-          {choice ?? "choose"} ⏎
+          {a.choices.length > 0 ? a.choices.join(", ") : "choose"} ⏎
         </button>
-        {others[0] ? (
-          <button type="button" disabled={busy} onClick={() => void send(others[0]?.label)}>
-            {others[0].label}
+        {second ? (
+          <button
+            type="button"
+            disabled={a.busy}
+            onClick={() => {
+              // An answer that needs a reason is chosen, and the cursor goes to the reason.
+              if (needsReason([second.label]) && a.text.trim() === "") {
+                a.toggle(second.label);
+                reasonField.current?.focus();
+              } else void a.send([second.label]);
+            }}
+          >
+            {second.label}
           </button>
         ) : null}
+        <span className="spacer" />
+        <button type="button" onClick={() => onOpenChanges(q.runId)}>
+          Changes
+        </button>
         <button type="button" onClick={() => onOpenSession(q.runId)}>
           Open session · o
         </button>
-        <input
-          aria-label="note"
-          placeholder="a note for the log (optional)"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-        <input
-          aria-label="your name"
-          placeholder="your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={{ maxWidth: 140 }}
-        />
       </div>
-      {error ? <div className="banner">{error}</div> : null}
-      <div className="footer-cmd mono">writes: {answerCommand(q, choice ?? "…", name.trim())}</div>
+      <Notice text={a.error} onClose={a.clearError} />
+      <div className="footer-cmd mono">writes: {answerCommand(q, a.choices, me, a.text)}</div>
     </article>
   );
 }
