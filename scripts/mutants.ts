@@ -5627,4 +5627,46 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "plan scope --dry-run (the MCP tool) writes no file",
   },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: "...Object.fromEntries(grantsOf(machine, stage).map((g) => [g, { by, at: now }])),",
+    to: "",
+    why: "a gate skipped by autonomy grants what approving it grants (CI review at L2 may comment)",
+  },
+  {
+    file: "packages/core/src/domain/workflow-lint.ts",
+    from: 'if (s.skipAt && (s.grants ?? []).includes("push"))',
+    to: "if (false)",
+    why: "a gate that grants push can never be skipped",
+  },
+  {
+    file: "packages/core/src/domain/workflow-lint.ts",
+    from: "if (spec.permissions && !spec.permissions.external.includes(g))",
+    to: "if (false)",
+    why: "what a gate grants is an external action the workflow permits",
+  },
+  {
+    file: "packages/core/src/application/compute-affected.ts",
+    from: "const named = (u.candidates ?? []).flatMap((c) => filesAtCandidate(c, changedSet, this.extensions));",
+    to: "const named: string[] = [];",
+    why: "a deleted module imported by an alias or a package name affects its importers (C1)",
+  },
+  {
+    file: "packages/core/src/domain/import-index.ts",
+    from: 'if (candidate.endsWith("/")) return [...files].filter((f) => f.startsWith(candidate));',
+    to: "",
+    why: "a package imported by name whose entry is gone is affected by a change under its directory (C1)",
+  },
+  {
+    file: "packages/core/src/application/import-graph.ts",
+    from: "missingEntries.push({ from, specifier: imp.specifier, candidates: [dir] });",
+    to: "",
+    why: "an import of a workspace package that led to its manifest is reported as a missing entry (C1)",
+  },
+  {
+    file: "packages/plugin-typescript/src/oxc-import-analyzer.ts",
+    from: '? { type: "unresolved", candidates: targets }',
+    to: '? { type: "unresolved" }',
+    why: "an alias that resolves to nothing says where it leads (C1)",
+  },
 ];

@@ -84,6 +84,31 @@ describe("metator test affected (real CLI, real bun test)", () => {
     }
   });
 
+  test("a deleted module imported by a tsconfig alias or by a package name: its importers are affected (C1)", async () => {
+    const affectedBy = async (file: string) => {
+      await repo.git("rm", "-q", file);
+      try {
+        const r = await metator(["graph", "affected"], repo.root);
+        return r.json.data as { changed: string[]; files: string[]; tests: string[] };
+      } finally {
+        await repo.git("reset", "-q", "HEAD", "--", file);
+        await repo.git("checkout", "--", file);
+      }
+    };
+    // `import { util } from "@app/util"` in apps/web/src/main.ts (tsconfig paths).
+    const alias = await affectedBy("apps/web/src/util.ts");
+    expect(alias.changed).toEqual(["apps/web/src/util.ts"]);
+    expect(alias.files).toContain("apps/web/src/main.ts");
+    // `import { add } from "@acme/money"` in packages/billing/src/invoice.ts (the package's entry).
+    const entry = await affectedBy("packages/money/src/index.ts");
+    expect(entry.files).toContain("packages/billing/src/invoice.ts");
+    // And through it, what imports billing.
+    expect(entry.files).toContain("apps/web/src/main.ts");
+    // With nothing deleted the alias and the package name are ordinary edges, as before.
+    const none = (await metator(["graph", "affected"], repo.root)).json.data as { files: string[] };
+    expect(none.files).toEqual([]);
+  }, 60_000);
+
   test("explicit files and an unknown script", async () => {
     const r = await metator(["test", "affected", "--files", "packages/billing/src/tax.ts"], repo.root);
     expect((r.json.data as Data).tests).toContain(TAX);

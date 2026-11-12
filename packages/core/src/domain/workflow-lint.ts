@@ -98,6 +98,17 @@ export function lintWorkflow(spec: WorkflowSpec, ctx: WorkflowLintContext): Work
   if (!spec.telemetry) missing("telemetry", "list what is measured");
   if (!spec.report) missing("report", "describe the final report");
 
+  // What a gate grants is an external action the workflow permits: the two lists agree.
+  for (const s of spec.stages)
+    for (const g of s.grants ?? [])
+      if (spec.permissions && !spec.permissions.external.includes(g))
+        problems.push({
+          section: "permissions",
+          stage: s.id,
+          severity: "error",
+          message: `permissions: ${s.id} grants ${g}, which permissions.external does not list`,
+        });
+
   for (const s of spec.stages) {
     for (const o of [...owners(s.owner), ...(s.parallel ?? []), ...(s.gate?.llm ? [s.gate.llm] : [])]) {
       if (o.startsWith("script:")) continue;
@@ -114,6 +125,12 @@ export function lintWorkflow(spec: WorkflowSpec, ctx: WorkflowLintContext): Work
         stage: s.id,
         severity: "error",
         message: `${s.id}: skipAt only applies to a human gate (hitl)`,
+      });
+    if (s.skipAt && (s.grants ?? []).includes("push"))
+      problems.push({
+        stage: s.id,
+        severity: "error",
+        message: `${s.id}: a gate that grants push cannot be skipped (skipAt): a push always asks a person`,
       });
     if (s.skipAt && s.neverSkip)
       problems.push({

@@ -67,8 +67,8 @@ export class OxcImportAnalyzer implements ImportAnalyzer, SymbolAnalyzer {
   readonly extensions = EXTENSIONS;
   /** By tsconfig file ("" for none). */
   private readonly resolvers = new Map<string, ResolverFactory>();
-  /** Each tsconfig's `paths` keys, to tell a missing aliased file from a package. */
-  private readonly aliasKeys = new Map<string, string[]>();
+  /** Each tsconfig's `paths`, to tell a missing aliased file from a package and say where it would be. */
+  private readonly aliases = new Map<string, Record<string, string[]>>();
   /** By directory: the nearest tsconfig.json up to the root, or "". */
   private readonly nearest = new Map<string, string>();
   private readonly degraded: string[] = [];
@@ -97,16 +97,30 @@ export class OxcImportAnalyzer implements ImportAnalyzer, SymbolAnalyzer {
     return found;
   }
 
-  private aliased(tsconfig: string, specifier: string): boolean {
-    if (!tsconfig) return false;
-    let keys = this.aliasKeys.get(tsconfig);
-    if (!keys) {
-      keys = Object.keys(pathAliases(tsconfig));
-      this.aliasKeys.set(tsconfig, keys);
+  /**
+   * Where the tsconfig's `paths` map a specifier (repo-relative, extension unknown); undefined
+   * when no alias claims it. `@app/util` under `@app/*: [src/*]` is `src/util`.
+   */
+  private aliasTargets(tsconfig: string, specifier: string): string[] | undefined {
+    if (!tsconfig) return undefined;
+    let aliases = this.aliases.get(tsconfig);
+    if (!aliases) {
+      aliases = pathAliases(tsconfig);
+      this.aliases.set(tsconfig, aliases);
     }
-    return keys.some((k) =>
-      k.endsWith("$") ? specifier === k.slice(0, -1) : specifier === k || specifier.startsWith(`${k}/`),
-    );
+    let claimed = false;
+    const out: string[] = [];
+    for (const [key, targets] of Object.entries(aliases)) {
+      const exact = key.endsWith("$");
+      const name = exact ? key.slice(0, -1) : key;
+      if (exact ? specifier !== name : specifier !== name && !specifier.startsWith(`${name}/`)) continue;
+      claimed = true;
+      for (const target of targets) {
+        const rel = normalizePath(relative(this.root, `${target}${specifier.slice(name.length)}`));
+        if (!rel.startsWith("..") && !isAbsolute(rel)) out.push(rel);
+      }
+    }
+    return claimed ? out : undefined;
   }
 
   private resolverFor(tsconfig: string): ResolverFactory {
@@ -225,10 +239,13 @@ export class OxcImportAnalyzer implements ImportAnalyzer, SymbolAnalyzer {
     const result = this.resolverFor(tsconfig).sync(dir, specifier);
     // A bare specifier the tsconfig's `paths` claim (`module/users/x`) that resolves to nothing
     // is a missing file of this repository, not a package to declare.
-    if (!result.path)
-      return bare && !this.aliased(tsconfig, specifier)
-        ? { type: "external", name: packageName(specifier) }
+    if (!result.path) {
+      const targets = bare ? this.aliasTargets(tsconfig, specifier) : undefined;
+      if (bare && !targets) return { type: "external", name: packageName(specifier) };
+      return targets && targets.length > 0
+        ? { type: "unresolved", candidates: targets }
         : { type: "unresolved" };
+    }
     const rel = normalizePath(relative(this.root, result.path));
     const outside = rel.startsWith("../") || rel === ".." || isAbsolute(rel);
     if (outside || rel.startsWith("node_modules/") || rel.includes("/node_modules/")) {

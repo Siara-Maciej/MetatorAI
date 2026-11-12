@@ -11,6 +11,7 @@ import {
   MetatorError,
   ok,
   PRECONDITIONS,
+  parseWorkflowYaml,
   type Readiness,
   type ReadinessCheck,
   RunRepository,
@@ -325,5 +326,88 @@ stages:
       await world("[index-fresh]").init.execute({ workflow: "w", task: "t" })
     )._unsafeUnwrapErr();
     expect(refused.message).toContain("`index-fresh`, which nothing can check");
+  });
+});
+
+/** Round-1 owner item: the CI review at L2 skips the approval gate, and the gate grants `comment`. */
+describe("a gate skipped by autonomy grants what approving it grants", () => {
+  const REVIEW = `
+kind: Workflow
+schemaVersion: 3
+id: review
+stages:
+  - id: approval
+    hitl: true
+    skipAt: [L2]
+    grants: [comment]
+  - id: publish
+autonomy: [L0, L2]
+permissions: { edit: none, external: [comment] }
+`;
+  const start = async (autonomy: "L0" | "L2") => {
+    const fs = new InMemoryFileSystem({ ".github/metator/workflows/review.yml": REVIEW });
+    const repo = new RunRepository(fs, DEFAULT_PATHS);
+    const init = new InitRun(
+      new WorkflowCatalog(fs, DEFAULT_PATHS),
+      repo,
+      new FixedClock(new Date("2026-11-12T09:00:00.000Z")),
+    );
+    const run = (await init.execute({ workflow: "review", task: "t", autonomy }))._unsafeUnwrap();
+    return {
+      run,
+      record: (await repo.load(run.runId))._unsafeUnwrap(),
+      log: await fs.read(`.metator/runs/${run.runId}/log.md`),
+    };
+  };
+
+  test("at L2 the run is at publish with comment approved by the level, and the log says which gate granted it", async () => {
+    const { run, record, log } = await start("L2");
+    const by = { by: "autonomy L2", at: "2026-11-12T09:00:00.000Z" };
+    expect([run.stage, record.approvals]).toEqual(["publish", { approval: by, comment: by }]);
+    expect(log._unsafeUnwrap()).toContain("approved comment · by autonomy L2 (granted by approval)");
+  });
+
+  test("at L0 nothing is granted until a person approves", async () => {
+    const { run, record } = await start("L0");
+    expect([run.stage, record.approvals]).toEqual(["approval", {}]);
+  });
+
+  test("the shipped mt-pr-review: the approval gate is skipped at L2 and grants the comment its permissions list", async () => {
+    const text = await Bun.file(
+      new URL("../../../.github/metator/workflows/mt-pr-review.yml", import.meta.url),
+    ).text();
+    const spec = parseWorkflowYaml(text, "mt-pr-review.yml")._unsafeUnwrap();
+    const gate = spec.stages.find((s) => s.id === "approval");
+    expect([gate?.hitl, gate?.skipAt, gate?.grants]).toEqual([true, ["L2"], ["comment"]]);
+    expect([spec.autonomy?.includes("L2"), spec.permissions?.external, spec.entry?.ci]).toEqual([
+      true,
+      ["comment"],
+      true,
+    ]);
+    // The stage that posts comes after the gate that grants.
+    const ids = spec.stages.map((s) => s.id);
+    expect(ids.indexOf("publish")).toBeGreaterThan(ids.indexOf("approval"));
+  });
+
+  test("workflow lint: a gate that grants push cannot be skipped, and a grant is an action the workflow permits", () => {
+    const lint = (stage: object, external: string[]) =>
+      lintWorkflow(
+        WorkflowSpecSchema.parse({
+          id: "w",
+          stages: [{ id: "gate", hitl: true, ...stage }],
+          autonomy: ["L0", "L1", "L2"],
+          permissions: { edit: "none", external },
+        }),
+        { agents: new Set(), skills: new Set(), maxParallel: 6 },
+      )
+        .filter((p) => p.stage === "gate")
+        .map((p) => p.message);
+    expect(lint({ skipAt: ["L1"], grants: ["push"] }, ["push"])).toEqual([
+      "gate: a gate that grants push cannot be skipped (skipAt): a push always asks a person",
+    ]);
+    expect(lint({ skipAt: ["L2"], grants: ["comment"] }, ["comment"])).toEqual([]);
+    expect(lint({ grants: ["comment"] }, [])).toEqual([
+      "permissions: gate grants comment, which permissions.external does not list",
+    ]);
   });
 });

@@ -71,7 +71,11 @@ export function resolveAmong(
     if (segment === "..") parts.pop();
     else parts.push(segment);
   }
-  const path = parts.join("/");
+  return fileAt(parts.join("/"), files, extensions);
+}
+
+/** The file of `files` a path written as in an import names: itself, with an extension, or its `index`. */
+function fileAt(path: string, files: ReadonlySet<string>, extensions: readonly string[]): string | undefined {
   const stem = path.replace(/\.[cm]?jsx?$/, "");
   const candidates = [
     path,
@@ -80,4 +84,19 @@ export function resolveAmong(
     ...extensions.map((e) => `${path}/index${e}`),
   ];
   return candidates.find((c) => files.has(c));
+}
+
+/**
+ * The files of `files` a candidate of an unresolved import names: a path as an import writes it
+ * (`src/util`, from a tsconfig alias), or every file under a directory (`packages/money/`, a
+ * workspace package imported by name whose file is gone).
+ */
+export function filesAtCandidate(
+  candidate: string,
+  files: ReadonlySet<string>,
+  extensions: readonly string[],
+): string[] {
+  if (candidate.endsWith("/")) return [...files].filter((f) => f.startsWith(candidate));
+  const file = fileAt(candidate, files, extensions);
+  return file ? [file] : [];
 }

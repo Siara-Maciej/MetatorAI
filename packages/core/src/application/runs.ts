@@ -373,8 +373,12 @@ export const AUTOPILOT_CHOICE = "autopilot";
 
 /**
  * Approves every human gate the run's autonomy may skip, one after another, and returns the
- * log lines. External actions (push, comment) are not stages: they still need `run approve`.
+ * log lines. A skipped gate grants what approving it grants (mt-pr-review at L2: `comment`), the
+ * workflow having allowed both; `workflow lint` refuses a gate that grants a push and can be skipped.
  */
+const grantsOf = (machine: RunStateMachine, stage: string) =>
+  machine.workflow.stages.find((s) => s.id === stage)?.grants ?? [];
+
 function skipGates(
   machine: RunStateMachine,
   record: RunRecord,
@@ -390,9 +394,16 @@ function skipGates(
     current = {
       ...current,
       state: next.value,
-      approvals: { ...current.approvals, [stage]: { by, at: now } },
+      approvals: {
+        ...current.approvals,
+        [stage]: { by, at: now },
+        ...Object.fromEntries(grantsOf(machine, stage).map((g) => [g, { by, at: now }])),
+      },
     };
-    lines.push(`${now} · ${stage} · skipped at ${current.autonomy} → ${next.value.stage}`);
+    lines.push(
+      `${now} · ${stage} · skipped at ${current.autonomy} → ${next.value.stage}`,
+      ...grantsOf(machine, stage).map((g) => `${now} · approved ${g} · by ${by} (granted by ${stage})`),
+    );
   }
   return { record: current, lines };
 }

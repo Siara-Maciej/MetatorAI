@@ -145,6 +145,11 @@ describe("metator system discover in a monorepo (real CLI)", () => {
     );
     await repo.write("apps/admin/src/main.ts", "export const admin = 1;\n");
     await repo.git("add", "-A");
+    // Without --check what the map lacks is a warning, said once: in the envelope, not in the data too (C11).
+    const plain = await mt("system", "discover");
+    expect(plain.code).toBe(0);
+    expect((plain.json.data as Partial<Discovery>).drift).toBeUndefined();
+    expect(plain.json.warnings).toEqual([expect.stringContaining("admin")]);
     const check = await mt("system", "discover", "--check");
     expect([check.code, (check.json.error as { details: { drift: string[] } }).details.drift]).toEqual([
       1,
