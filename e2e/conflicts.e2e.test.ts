@@ -78,8 +78,16 @@ describe("worktree conflicts (real CLI)", () => {
     };
     expect(notified.notified).toEqual([`m001→${a.runId}`, `m001→${b.runId}`]);
     const messages = data(await mt("run", "messages", "--run", b.runId as string)) as {
-      messages: { topic: string; refs: string[] }[];
+      messages: { topic: string; refs: string[]; by: string }[];
     };
-    expect(messages.messages.map((m) => [m.topic, m.refs])).toEqual([["shared-file", ["src/invoice.ts"]]]);
+    expect(messages.messages.map((m) => [m.topic, m.refs, m.by])).toEqual([
+      ["shared-file", ["src/invoice.ts"], "alice"],
+    ]);
+    // Without --by the sender is the person, as everywhere: $METATOR_USER, else the login name.
+    await metator(["worktree", "conflicts", "--notify"], repo.root, { METATOR_USER: "bob" });
+    const again = data(await mt("run", "messages", "--run", b.runId as string)) as {
+      messages: { by: string }[];
+    };
+    expect(again.messages.map((m) => m.by)).toEqual(["alice", "bob"]);
   }, 60_000);
 });

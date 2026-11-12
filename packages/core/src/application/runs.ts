@@ -365,7 +365,12 @@ export class ApproveRun {
       );
     }
     if (record.value.state.status !== "active")
-      return err(MetatorError.usage(`run ${id.value} is ${record.value.state.status}; nothing to approve`));
+      return err(
+        new MetatorError(
+          "TRANSITION_DENIED",
+          `run ${id.value} is ${record.value.state.status}; nothing to approve`,
+        ),
+      );
 
     const now = this.clock.now().toISOString();
     const approvals = { ...record.value.approvals, [input.gate]: approval(decision, now) };

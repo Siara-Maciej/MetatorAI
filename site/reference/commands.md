@@ -2171,7 +2171,7 @@ metator run result [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--worker <name>` | the worker's name (METATOR_WORKER in its pane) **Required.** |  |
-| `--status <status>` | done, blocked or failed **Required.** |  |
+| `--status <status>` | how the work ended (one of: done, blocked, failed) **Required.** |  |
 | `--summary <text>` | what was done, or why not (a few lines) **Required.** |  |
 | `--artifact <path>` | a file the result rests on; repeat for several | `[]` |
 | `--question <text>` | with blocked: the decision a person must take |  |
@@ -2241,7 +2241,7 @@ metator worktree conflicts [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--notify` | tell both runs of each conflict (a shared-file message each way) |  |
-| `--by <name>` | who sends the messages (with --notify) | `"metator"` |
+| `--by <name>` | who sends the messages (with --notify; default: $METATOR_USER, else your login name) |  |
 
 ### `metator worktree list`
 
@@ -2541,7 +2541,7 @@ metator pane split [options] <pane>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<pane>` |  | |
-| `--dir <dir>` | right or down | `"right"` |
+| `--dir <dir>` | where the new pane goes (one of: right, down) | `"right"` |
 | `--argv <argv...>` | the command to run in the new pane (default: your shell) |  |
 
 ### `metator pane wait`
@@ -2829,7 +2829,7 @@ metator attach [options] <pane>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<pane>` |  | |
-| `--by <name>` | who attaches (default: $USER) |  |
+| `--by <name>` | who attaches (default: $METATOR_USER, else your login name) |  |
 | `--keep` | keep the run's driver lock after detaching |  |
 
 ## mcp

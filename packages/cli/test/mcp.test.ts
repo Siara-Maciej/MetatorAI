@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { describeCommands } from "../src/commands/meta.ts";
-import { mcpTools, TYPED, toolArgv } from "../src/mcp.ts";
+import { ALWAYS, mcpTools, REFUSED, TYPED, toolArgv, toolCall } from "../src/mcp.ts";
 import { buildProgram } from "../src/program.ts";
 
 describe("the MCP tools (metator mcp)", () => {
@@ -62,6 +62,78 @@ describe("the MCP tools (metator mcp)", () => {
     }
     expect(tools.length).toBeGreaterThan(50);
     expect(tools.length).toBeLessThan(all.length / 2);
+  });
+
+  const optionsOf = (command: string) => {
+    let cmd = program;
+    for (const word of command.split(" "))
+      cmd = cmd.commands.find((c) => c.name() === word) as typeof program;
+    return cmd.options;
+  };
+  const tool = (command: string) => tools.find((x) => x.command === command) as (typeof tools)[number];
+
+  test("a reading tool cannot write: an option that writes or reaches outside is refused by name", () => {
+    const refused = (command: string, args: string[]) => {
+      const e = toolCall(tool(command), { args })._unsafeUnwrapErr();
+      return [e.code, e.message];
+    };
+    expect(refused("review metadata", ["--out", "f.json"])).toEqual([
+      "USAGE",
+      "the tool metator_review_metadata only reads: --out is refused",
+    ]);
+    expect(refused("review diff", ["--base", "main", "--out=f.patch"])[1]).toContain("--out is refused");
+    expect(refused("review plan", ["--out", "p.json"])[0]).toBe("USAGE");
+    expect(refused("arch check", ["--sarif", "a.sarif"])[1]).toContain("--sarif");
+    expect(refused("memory validate", ["--fix"])[1]).toContain("--fix");
+    expect(refused("docs drift", ["--fix"])[1]).toContain("--fix");
+    expect(refused("system lint", ["--fetch"])[1]).toContain("--fetch");
+    expect(refused("system sources", ["--fetch"])[1]).toContain("--fetch");
+    expect(refused("worktree conflicts", ["--notify"])[1]).toContain("--notify");
+    expect(refused("report", ["--html", "r.html"])[1]).toContain("--html");
+    // The same words as an argument (after `--`), or on a tool where they do not write, pass.
+    expect(toolCall(tool("review diff"), { args: ["--base", "main"] })._unsafeUnwrap()).toEqual([
+      "review",
+      "diff",
+      "--base",
+      "main",
+    ]);
+    expect(toolCall(tool("symbols find"), { name: "x", args: ["--", "--out"] }).isOk()).toBe(true);
+    expect(tool("review diff").description).toContain("--out is refused");
+    // A command that always writes is not a tool at all.
+    expect(tools.some((t) => t.command === "plan scope")).toBe(false);
+  });
+
+  test("the refused and the added options are real options of their commands; no other option of a tool writes", () => {
+    for (const [command, flags] of [...Object.entries(REFUSED), ...Object.entries(ALWAYS)]) {
+      expect([command, tools.some((t) => t.command === command)]).toEqual([command, true]);
+      for (const flag of flags)
+        expect([command, flag, optionsOf(command).some((o) => o.long === flag)]).toEqual([
+          command,
+          flag,
+          true,
+        ]);
+    }
+    const writes = /\b(write|rewrite|clone|tell|send|save|fix|fetch|notify)\b/i;
+    const open = tools.flatMap((t) =>
+      optionsOf(t.command)
+        .filter((o) => writes.test(`${o.long} ${o.description}`))
+        .filter((o) => !(REFUSED[t.command] ?? []).includes(o.long as string))
+        .map((o) => `${t.command} ${o.long}`),
+    );
+    // `similar --file` names a file the caller is about to write; `--by` of worktree conflicts
+    // only names the sender of what `--notify` (refused) sends.
+    expect(open).toEqual(["similar --file", "worktree conflicts --by"]);
+  });
+
+  test("run brief as a tool never marks the run as read", () => {
+    expect(toolCall(tool("run brief"), {})._unsafeUnwrap()).toEqual(["run", "brief", "--peek"]);
+    expect(toolCall(tool("run brief"), { args: ["--peek", "--run", "r1"] })._unsafeUnwrap()).toEqual([
+      "run",
+      "brief",
+      "--peek",
+      "--run",
+      "r1",
+    ]);
   });
 
   test("a call's command line: the words, typed positionals and flags, then the raw arguments", () => {

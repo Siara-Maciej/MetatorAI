@@ -115,6 +115,12 @@ describe("metator issue (real CLI)", () => {
     const second = data(
       await mt("issue", "propose", "Edge test 1000.00", "--agent", "mt-plan-critic", "--run", runId),
     ) as { issue: Data };
+    // A decision is said, never assumed: neither flag, or both, is a usage error and decides nothing.
+    const undecided = await mt("issue", "decide", second.issue.id as string, "--by", "maciej");
+    expect([undecided.code, (undecided.json.error as Data).code]).toEqual([64, "USAGE"]);
+    const both = await mt("issue", "decide", second.issue.id as string, "--add", "--drop", "--by", "maciej");
+    expect([both.code, (both.json.error as Data).code]).toEqual([64, "USAGE"]);
+    expect(data(await mt("issue", "show", second.issue.id as string)).status).toBe("proposed");
     expect(
       data(await mt("issue", "decide", second.issue.id as string, "--drop", "--by", "maciej")),
     ).toMatchObject({ status: "dropped" });
@@ -209,4 +215,13 @@ describe("metator issue (real CLI)", () => {
       await daemon.exited;
     }
   }, 60_000);
+
+  test("a proposal decided from the CLI as added is open", async () => {
+    const proposal = data(await mt("issue", "propose", "Edge test 0.005", "--agent", "mt-plan-critic")) as {
+      issue: Data;
+    };
+    expect(
+      data(await mt("issue", "decide", proposal.issue.id as string, "--add", "--by", "maciej")),
+    ).toMatchObject({ status: "open", decidedBy: { by: "maciej", decision: "added" } });
+  }, 30_000);
 });

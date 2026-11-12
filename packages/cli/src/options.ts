@@ -7,6 +7,14 @@ export function positiveInt(value: string): number {
   return n;
 }
 
+/** Commander argParser for a number where 0 has a meaning of its own (a free port, "never"). */
+export function nonNegativeInt(value: string): number {
+  const n = Number(value);
+  if (value.trim() === "" || !Number.isInteger(n) || n < 0)
+    throw new InvalidArgumentError("expected an integer, 0 or more");
+  return n;
+}
+
 /** Commander argParser for a ratio in (0, 1], e.g. a similarity threshold. */
 export function ratio(value: string): number {
   const n = Number(value);

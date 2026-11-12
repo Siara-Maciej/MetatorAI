@@ -90,4 +90,36 @@ describe("metator mcp (real server over stdio)", () => {
     const status = text(await client.callTool({ name: "metator_run_status", arguments: {} }));
     expect([status.ok, (status.error as Data | undefined)?.code]).toEqual([false, "NOT_FOUND"]);
   });
+
+  test("a reading tool writes nothing: an option that writes is refused by name and no file appears", async () => {
+    const refused = async (name: string, args: string[]) => {
+      const r = await client.callTool({ name, arguments: { args } });
+      return [r.isError, text(r).error?.code, text(r).error?.message];
+    };
+    expect(await refused("metator_review_metadata", ["--base", "HEAD", "--out", "meta.json"])).toEqual([
+      true,
+      "USAGE",
+      "the tool metator_review_metadata only reads: --out is refused",
+    ]);
+    expect(await refused("metator_review_diff", ["--base", "HEAD", "--out=change.patch"])).toEqual([
+      true,
+      "USAGE",
+      "the tool metator_review_diff only reads: --out is refused",
+    ]);
+    expect(await refused("metator_arch_check", ["--sarif", "arch.sarif"])).toEqual([
+      true,
+      "USAGE",
+      "the tool metator_arch_check only reads: --sarif is refused",
+    ]);
+    for (const file of ["meta.json", "change.patch", "arch.sarif"])
+      expect([file, await Bun.file(repo.path(file)).exists()]).toEqual([file, false]);
+    // The same tool without the option still answers.
+    const metadata = await client.callTool({
+      name: "metator_review_metadata",
+      arguments: { args: ["--base", "HEAD"] },
+    });
+    expect(metadata.isError ?? false).toBe(false);
+    const names = (await client.listTools()).tools.map((t) => t.name);
+    expect(names).not.toContain("metator_plan_scope");
+  });
 });
