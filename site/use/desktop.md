@@ -49,7 +49,7 @@ A shell pane takes your keys at once. In an agent's pane the app asks before it 
 
 ## Who types in a session
 
-A session has one driver at a time: the agent, or a person who attached. Attaching takes the keyboard and puts your name on the session. In the app you attach with **Take the keyboard**, the prefix and `a`, or **Attach** on the **Session** screen.
+One at a time types in a session: the agent, or a person who attached. Attaching takes the keyboard and puts your name on the session. In the app you attach with **Take the keyboard**, the prefix and `a`, or **Attach** on the **Session** screen.
 
 While you are attached, your yes in the chat counts: the agent records it with your name. This never applies to a push or a pull request comment. Those are always approved outside the chat. While you hold a session, another person is refused.
 
@@ -64,7 +64,7 @@ metator attach w1:p2 --by alice                  # one pane; `metator pane list`
 
 ## Agents in panes
 
-Under the daemon, a run's coordinator sits in a pane of its own, the conductor pane, and starts each worker agent in another pane. You see every agent work.
+Under the daemon, the agent that coordinates a run sits in a pane of its own, labelled **agent**, and starts each worker agent in another pane. You see every agent work.
 
 The workflow still sets the stages, their agents, the gates and the limits. A worker gets its whole task once, as a card, and reports with a result file. Agents do not type into each other's panes. A worker that is blocked becomes a question in your inbox under the worker's name.
 
@@ -78,14 +78,14 @@ The daemon reads each pane's state from the screen and the hooks, without asking
 | `idle` | the host's prompt line, or silence |
 | `exited` | the process ended |
 
-If a conductor's session ends while its run is active, the supervisor in the daemon resumes it in the same pane, a limited number of times. A session a person holds is left alone.
+If the coordinating agent's session ends while its run is active, the supervisor in the daemon resumes it in the same pane, a limited number of times. A session a person holds is left alone.
 
 A tab remembers its layout, so the panes come back the same way after the daemon restarts. The daemon starts host sessions and plain shells again. A pane that ran a command (a test run, a script) is not run a second time: it shows how it ended, with **Retry**. The session of a run that is done, aborted or escalated is not started again either.
 
 ## From a terminal
 
 ```bash
-metator run start        # open the run with its conductor pane
+metator run start        # open the run with its agent's pane
 metator run workers      # who works now, in which pane, with which result so far
 metator pane list        # every pane with its state
 ```

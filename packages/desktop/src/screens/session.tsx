@@ -137,7 +137,7 @@ export function SessionScreen({
         </div>
         <div className={`driverbar ${run.driver}`} data-testid="driverbar">
           <strong>
-            Driver:{" "}
+            Working:{" "}
             {run.driver === "human" ? `${run.attachedBy ?? "a person"}${attached ? " (you)" : ""}` : "agent"}
           </strong>
           <span className="note">

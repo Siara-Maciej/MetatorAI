@@ -14,9 +14,34 @@ export interface SetupQuestions {
 }
 
 export interface NewRunQuestions {
-  readonly workflows: readonly { readonly id: string; readonly description?: string }[];
+  /** The workflows installed here; `autonomy` lists the levels each one supports (all, when it does not say). */
+  readonly workflows: readonly {
+    readonly id: string;
+    readonly description?: string;
+    readonly autonomy?: readonly Autonomy[];
+  }[];
+  /** The AI hosts that can run agents on this machine. */
   readonly hosts: readonly string[];
   readonly defaultHost: string;
+}
+
+/** The workflow a new run starts with unless the person picks another: a feature, else the first. */
+export const FIRST_WORKFLOW = "mt-feature";
+export function firstWorkflow(workflows: readonly { readonly id: string }[]): string | undefined {
+  return (workflows.find((w) => w.id === FIRST_WORKFLOW) ?? workflows[0])?.id;
+}
+
+const AUTONOMY_HINTS: Record<Autonomy, string> = {
+  L0: "every approval waits for you",
+  L1: "the approvals the workflow lets this level skip are skipped",
+  L2: "no person at the terminal: only the approvals that are never skipped wait for you",
+};
+
+/** The autonomy levels a workflow can run at, each with what it means; all three when it does not say. */
+export function autonomyChoices(levels: readonly Autonomy[] | undefined): readonly Choice<Autonomy>[] {
+  return (["L0", "L1", "L2"] as const)
+    .filter((level) => !levels || levels.includes(level))
+    .map((level) => ({ value: level, label: level, hint: AUTONOMY_HINTS[level] }));
 }
 
 export interface NewRunAnswers {
@@ -104,39 +129,59 @@ export const clackTerminal: Terminal = {
 
   async newRun({ workflows, hosts, defaultHost }) {
     intro("New MetatorAI run", io);
-    const workflow = await select<string>({
-      ...io,
-      message: "Which workflow?",
-      options: workflows.map((w) => ({
-        value: w.id,
-        label: w.id,
-        ...(w.description ? { hint: w.description } : {}),
-      })),
-    });
+    // A question with one answer is not asked: the answer is said instead.
+    const first = firstWorkflow(workflows);
+    if (first === undefined) return cancelled("No run started.");
+    const workflow =
+      workflows.length > 1
+        ? await select<string>({
+            ...io,
+            message: "Which workflow?",
+            options: workflows.map((w) => ({
+              value: w.id,
+              label: w.id,
+              ...(w.description ? { hint: w.description } : {}),
+            })),
+            initialValue: first,
+          })
+        : first;
     if (isCancel(workflow)) return cancelled("No run started.");
+    if (workflows.length === 1) log.info(`Workflow: ${workflow}`, io);
     const task = await text({
       ...io,
       message: "What is the task? (issue text or a work item reference)",
       validate: (v) => (v?.trim() ? undefined : "The task must not be empty"),
     });
     if (isCancel(task)) return cancelled("No run started.");
-    const autonomy = await select<Autonomy>({
-      ...io,
-      message: "Autonomy",
-      options: [
-        { value: "L0", label: "L0", hint: "you approve every gate" },
-        { value: "L1", label: "L1", hint: "the plan approval is skipped" },
-        { value: "L2", label: "L2", hint: "headless: only gates that never skip ask you" },
-      ],
-    });
+    const levels = autonomyChoices(workflows.find((w) => w.id === workflow)?.autonomy);
+    const only = levels[0] ?? { value: "L0" as const, label: "L0" };
+    const autonomy =
+      levels.length > 1
+        ? await select<Autonomy>({
+            ...io,
+            message: "Autonomy: how many approvals wait for you?",
+            options: levels.map((l) => ({
+              value: l.value,
+              label: l.label,
+              ...(l.hint ? { hint: l.hint } : {}),
+            })),
+          })
+        : only.value;
     if (isCancel(autonomy)) return cancelled("No run started.");
-    const host = await select<string>({
-      ...io,
-      message: "Which AI host runs the agents?",
-      options: hosts.map((h) => ({ value: h, label: HOST_LABELS[h] ?? h })),
-      initialValue: defaultHost,
-    });
+    if (levels.length <= 1) log.info(`Autonomy: ${autonomy} (the only level ${workflow} runs at)`, io);
+    const preferred = hosts.includes(defaultHost) ? defaultHost : (hosts[0] ?? defaultHost);
+    const host =
+      hosts.length > 1
+        ? await select<string>({
+            ...io,
+            message: "Which AI host runs the agents?",
+            options: hosts.map((h) => ({ value: h, label: HOST_LABELS[h] ?? h })),
+            initialValue: preferred,
+          })
+        : preferred;
     if (isCancel(host)) return cancelled("No run started.");
+    if (hosts.length <= 1)
+      log.info(`AI host: ${HOST_LABELS[host] ?? host} (the only one installed here)`, io);
     const worktree = await confirm({
       ...io,
       message: "Work in its own git worktree (your working tree stays untouched)?",

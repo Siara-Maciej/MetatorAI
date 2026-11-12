@@ -11,9 +11,7 @@ import { tuiService } from "../tui/service.ts";
 export function registerUiCommands(program: Command, ctx: CommandContext): void {
   program
     .command("ui")
-    .description(
-      "The full-screen view: every session, its progress and questions, apps, conversations, settings",
-    )
+    .description("The full-screen view: every run, its progress and questions, apps, conversations, settings")
     .action(
       ctx.action(async () => {
         if (!ctx.terminal) {

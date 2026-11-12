@@ -1,20 +1,20 @@
 # Sessions and worktrees
 
-A session is a run together with the place it works in. This page shows how to watch a session in the app and take its keyboard, what a worktree gives a run, and the commands that stop, continue, hand over and clean up sessions.
+A session is a conversation in an AI host's terminal, and a run has one for its agent. This page shows how to watch a run's session in the app and take its keyboard, what a worktree gives a run, and the commands that stop, continue, hand over and clean up runs.
 
 ## The Session screen
 
-A click on a run in the sessions panel opens its **Session** screen.
+A click on a run in the runs panel opens its **Session** screen.
 
-![A session while the agent drives: the stages, the driver bar, the terminal, and the boxes on the right](../public/screens/session.png)
+![The Session screen while the agent works: the stages, the bar that says who works, the terminal, and the boxes on the right](../public/screens/session.png)
 
-The head shows the task, the run id and chips for the workflow, the autonomy level with what it means (**L0: asks at every gate**), the host, the worktree's ports and the time since the run started. Under them is the line of stages, with the current one marked.
+The head shows the task, the run id and chips for the workflow, the autonomy level with what it means (**L0: every approval waits for you**), the AI host, the worktree's ports and the time since the run started. Under them is the line of stages, with the current one marked.
 
-The driver bar says who types. With **Driver: agent** you watch. Click **Attach** (key `a`) to take the keyboard; the app asks for your name the first time. **Release to agent** (key `c`) gives it back.
+The bar under the head says who types. With **Working: agent** you watch. Click **Attach** (key `a`) to take the keyboard; the app asks for your name the first time. **Release to agent** (key `c`) gives it back.
 
 When the agent asks on its own screen, with no card in the Inbox, a line above the terminal says **The agent asks in its terminal**, with **Show the pane** when another pane is the one that asks. Attach and type the answer. While you are attached, your yes in the chat counts as an approval ([Workbench and terminals](./desktop.md#who-types-in-a-session)).
 
-Below the driver bar:
+Below that bar:
 
 - **Terminal** shows the run's main pane. The row above it lists the run's panes, each with its state. Click one to see it. **+ Shell** opens a shell pane of your own in this run.
 - **Events** (key `t` switches) lists the run's activity: the time, the type, the source and what happened.
@@ -33,7 +33,7 @@ The **Work** screen shows the same panes side by side ([Workbench and terminals]
 
 ## What a worktree gives a run
 
-A run that edits your working tree blocks you, and two runs in one tree disturb each other. A git worktree gives a run its own checkout on its own branch. The agent's intake conversation offers it, and the **Advanced…** form has it ticked by default ([Start a task](./start.md)).
+A run that edits your working tree blocks you, and two runs in one tree disturb each other. A git worktree gives a run its own checkout on its own branch. The agent offers it when you start a task, and the **Advanced…** form has it ticked by default ([Start a task](./start.md)).
 
 For a run with a worktree, MetatorAI:
 
@@ -76,14 +76,14 @@ metator doctor --run <id>        # what this run can and cannot do in its worktr
 
 Inside a worktree, `metator run ...` without `--run` means that worktree's run. `metator run` and `metator issue start` offer a worktree too.
 
-### See every session
+### See every run
 
 ```bash
-metator status      # every run: its stage, what waits for you, its driver
+metator status      # every run: its stage, what waits for you, whether an agent works on it
 metator ui          # the same as a full-screen view in the terminal
 ```
 
-`metator ui` lists the sessions on the left, the ones that need you first, followed by your [`metator ask`](./ask.md) conversations. The right side shows the selected session. The footer names the keys. `metator ui` needs a terminal. In a script, use `metator status`.
+`metator ui` lists the runs on the left, the ones that need you first, followed by your [`metator ask`](./ask.md) conversations. The right side shows the selected run. The footer names the keys. `metator ui` needs a terminal. In a script, use `metator status`.
 
 ### Watch, stop and continue
 
@@ -138,9 +138,9 @@ Removing a worktree keeps its `metator/<id>` branch, so committed work stays. `p
 `metator worktree rm <id> --force` and `metator run close --remove-worktree --force` delete uncommitted work in that worktree. Without `--force` both refuse.
 :::
 
-### Conflicts between sessions
+### Conflicts between runs
 
-Two runs that change the same file clash when their branches merge. The app shows such a pair in the **Links** box of both sessions and on the **Graph** screen. From a terminal:
+Two runs that change the same file clash when their branches merge. The app shows such a pair in the **Links** box of both runs and on the **Graph** screen. From a terminal:
 
 ```bash
 metator worktree conflicts

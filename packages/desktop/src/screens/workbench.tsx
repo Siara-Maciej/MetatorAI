@@ -20,6 +20,7 @@ import {
   hostChoice,
   type KeyMap,
   keyMapOf,
+  keyText,
   neighborPane,
   noHostText,
   notifies,
@@ -742,9 +743,9 @@ export function WorkbenchScreen({
             <div className="empty">
               <h2>{tab ? "No pane in this tab" : "No tab"}</h2>
               <p>
-                {key(keymap, "newShell") ?? "prefix+c"} opens a shell here;{" "}
-                {key(keymap, "newTab") ?? "prefix+t"} opens a conversation with the agent that starts a task;
-                right-click the tab bar for the menu.
+                {keyText(keymap, "newShell") ?? "The tab bar's menu"} opens a shell here;{" "}
+                {keyText(keymap, "newTab") ?? "+ New session"} opens a conversation with the agent that starts
+                a task; right-click the tab bar for the menu.
               </p>
             </div>
           )}

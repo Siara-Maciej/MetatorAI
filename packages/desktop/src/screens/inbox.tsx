@@ -145,9 +145,7 @@ export function InboxScreen({
         />
       ) : inTerminal.length > 0 ? (
         <div className="empty">
-          <h2>
-            {inTerminal.length === 1 ? "1 session asks" : `${inTerminal.length} sessions ask`} in the terminal
-          </h2>
+          <h2>{inTerminal.length === 1 ? "1 run asks" : `${inTerminal.length} runs ask`} in the terminal</h2>
           <p>
             There is no card to answer from: the agent wrote its question on its own screen. Open the session,
             take the keyboard and answer there.
@@ -163,7 +161,7 @@ export function InboxScreen({
       ) : (
         <div className="empty">
           <h2>Inbox zero</h2>
-          <p>Every session is working or finished. Open a session from the panel, or start a new one.</p>
+          <p>Every run is working or finished. Open a run from the panel, or start a new session.</p>
         </div>
       )}
     </div>

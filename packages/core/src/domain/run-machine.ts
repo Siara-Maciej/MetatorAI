@@ -221,7 +221,7 @@ export class RunStateMachine {
     if (state.status !== "active") return `The run is ${state.status}; start a new run.`;
     const accepted = this.expects(state);
     return accepted.includes("APPROVE")
-      ? `This gate needs a human decision: ${accepted.join(", ")}.`
+      ? `This approval needs a person's decision: ${accepted.join(", ")}.`
       : `Send ${accepted.join(", ")}.`;
   }
 

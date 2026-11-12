@@ -123,7 +123,7 @@ mcp:
 
 Servers that only you use go in `~/.config/metator/options.yml` under the same `mcp:` key. Write secrets as `${VAR}` references, never as values: the file is committed.
 
-## Take a newer version of the shipped agents
+## Take a newer version of the shipped files
 
 When you update MetatorAI, pull its agents, skills and workflows into your repository:
 

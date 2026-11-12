@@ -10,6 +10,7 @@ import {
 } from "@metator/testing";
 import {
   CLOSE_RUN,
+  cardLine,
   consequencesOf,
   DO_IT,
   DriveRun,
@@ -31,6 +32,7 @@ import {
   blockedPrompt,
   gatePrompt,
   hostLimit,
+  labelFor,
   nextQuestionId,
   parseCriticVerdict,
   parseStatus,
@@ -92,6 +94,11 @@ describe("drive domain", () => {
     ];
     expect(sinceLastAnswer(activity)).toEqual(["approval APPROVE", "2 tool call(s)"]);
     expect(sinceLastAnswer(activity.slice(0, 2))).toEqual(["plan PASS", "1 tool call(s)"]);
+    // A failure's reason is one line of the card: its first line, cut at 240 characters; never a dump.
+    const dump = `FAIL: \`bun test\` failed: ${"x".repeat(400)}\n{"ok":false,"error":{"code":"CHECK_FAILED"}}\n  at stack`;
+    const [line] = sinceLastAnswer([{ at, type: "advance" as const, stage: "gates", text: dump }]);
+    expect([line?.length, line?.endsWith("…"), line?.includes("{")]).toEqual([246, true, false]);
+    expect(cardLine("\n\n  FAIL: lint  \nmore")).toBe("FAIL: lint");
     const stages = [
       { id: "plan" },
       { id: "plan-approval", hitl: true, onFail: { goto: "plan", loop: "plan" } },
@@ -1282,6 +1289,35 @@ describe("RunJournal activity", () => {
 });
 
 describe("RunJournal answers", () => {
+  test("a choice typed in another case is the one label it names; two such labels name nothing", async () => {
+    expect(
+      ["Approve", "approve", " REJECT ", "other", "appro"].map((t) =>
+        labelFor(["Approve", "Reject", "Other"], t),
+      ),
+    ).toEqual(["Approve", "Approve", "Reject", "Other", "appro"]);
+    // The exact label wins; with two labels that differ only in case, another spelling picks neither.
+    expect(["yes", "YES", "Yes"].map((t) => labelFor(["yes", "YES"], t))).toEqual(["yes", "YES", "Yes"]);
+    const fs = new InMemoryFileSystem();
+    const j = new RunJournal(fs, new RunRepository(fs, DEFAULT_PATHS), new FixedClock());
+    const ask = async () =>
+      (
+        await j.ask("r1", {
+          stage: "s",
+          source: "gate",
+          prompt: "Go?",
+          options: [{ label: "Approve" }, { label: "Reject" }],
+          multiSelect: false,
+        })
+      )._unsafeUnwrap();
+    const first = await ask();
+    const answered = (await j.answer("r1", first.id, { choices: ["approve"], by: "m" }))._unsafeUnwrap();
+    expect(answered.answer?.choices).toEqual(["Approve"]);
+    const second = await ask();
+    expect((await j.answer("r1", second.id, { choices: ["appr"], by: "m" }))._unsafeUnwrapErr().message).toBe(
+      "choose from: Approve, Reject, Other",
+    );
+  });
+
   test("choices must be listed options; Other needs text; one choice unless multi-select", async () => {
     const fs = new InMemoryFileSystem();
     const repo = new RunRepository(fs, DEFAULT_PATHS);

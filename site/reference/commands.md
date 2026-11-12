@@ -1143,7 +1143,7 @@ metator agents install [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--workflows <ids...>` | workflows to install (default: all, or the installed ones on update) |  |
-| `--theirs` | resolve conflicts with the canon's version |  |
+| `--theirs` | resolve conflicts with the shipped version |  |
 | `--dry-run` | report what would change without writing |  |
 | `--no-generate` | leave the host files (.claude/agents, .github/agents, skills) as they are |  |
 
@@ -1158,7 +1158,7 @@ metator agents update [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--workflows <ids...>` | workflows to install (default: all, or the installed ones on update) |  |
-| `--theirs` | resolve conflicts with the canon's version |  |
+| `--theirs` | resolve conflicts with the shipped version |  |
 | `--dry-run` | report what would change without writing |  |
 | `--no-generate` | leave the host files (.claude/agents, .github/agents, skills) as they are |  |
 
@@ -1781,7 +1781,7 @@ metator run init [options]
 |---|---|---|
 | `--workflow <id>` | workflow id **Required.** |  |
 | `--task <text>` | task description or work item reference **Required.** |  |
-| `--autonomy <level>` | L0 all gates, L1 skip plan approval, L2 headless; one the workflow lists (default: L0 when it lists it) (one of: L0, L1, L2) |  |
+| `--autonomy <level>` | L0 every approval waits for you, L1 skips the approvals the workflow lets it skip, L2 no person at hand; one the workflow lists (default: L0 when it lists it) (one of: L0, L1, L2) |  |
 | `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
 | `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
 | `--no-setup` | with --worktree: leave the worktree without its dependencies (metator worktree setup later) |  |
@@ -1803,11 +1803,11 @@ metator run advance [options] <event>
 | `--run <id>` | run id (default: latest) |  |
 | `--reason <text>` | why (fail, abort) |  |
 | `--by <name>` | who decided (required for approve) |  |
-| `--choice <value>` | selected option at a gate |  |
+| `--choice <value>` | selected option at an approval |  |
 
 ### `metator run approve`
 
-Record a human approval: the HITL stage the run waits at, or an action (push, comment)
+Record a person's approval: the approval stage the run waits at, or an action (push, comment)
 
 ```bash
 metator run approve [options] <gate>
@@ -1815,7 +1815,7 @@ metator run approve [options] <gate>
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `<gate>` | current HITL stage id, or push / comment | |
+| `<gate>` | the approval stage the run waits at, or push / comment | |
 | `--by <name>` | who approved **Required.** |  |
 | `--choice <value>` | selected option |  |
 | `--run <id>` | run id (default: latest) |  |
@@ -1897,7 +1897,7 @@ metator run resume [options]
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `--by <name>` | who resumes it (recorded in log.md) **Required.** |  |
+| `--by <name>` | who resumes it, recorded in log.md (default: $METATOR_USER, else git's user.name) |  |
 | `--run <id>` | run id (default: latest) |  |
 | `--drive` | also start a drive in the background, as `run continue` does |  |
 | `--host <host>` | with --drive: the AI host (claude, copilot; default: the one the run used) |  |
@@ -2051,7 +2051,7 @@ metator run stop [options]
 
 ### `metator run questions`
 
-Questions waiting for a person: HITL gates, agents asking, tool permissions
+Questions waiting for a person: approvals, agents asking, tool permissions
 
 ```bash
 metator run questions [options]
@@ -2076,7 +2076,7 @@ metator run answer [options] <question>
 | `--run <id>` | run id (default: latest) |  |
 | `--choice <labels...>` | the option label(s) chosen |  |
 | `--text <text>` | your own words (with Other, or a reason with Reject) |  |
-| `--by <name>` | who answers **Required.** |  |
+| `--by <name>` | who answers (default: $METATOR_USER, else git's user.name) |  |
 | `--always` | also answer every such question this way from now on (an answer policy in metator/answer-policies.yml) |  |
 
 ### `metator run brief`
@@ -2408,7 +2408,7 @@ metator env schema [options]
 
 ### `metator ui`
 
-The full-screen view: every session, its progress and questions, apps, conversations, settings
+The full-screen view: every run, its progress and questions, apps, conversations, settings
 
 ```bash
 metator ui [options]
@@ -2476,7 +2476,7 @@ metator doctor [options]
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `--worktree <id>` | look at this worktree (a run's session) instead of this checkout |  |
+| `--worktree <id>` | look at this worktree (a run's) instead of this checkout |  |
 | `--run <id>` | look at this run's worktree |  |
 
 ## inbox
@@ -2616,7 +2616,7 @@ metator issue add [options] <title>
 | `--priority <level>` | how urgent (one of: low, normal, high) |  |
 | `--labels <a,b>` | labels, comma-separated |  |
 | `--ref <ref...>` | what it points at: &lt;file&gt;[:line], run:&lt;id&gt;[/&lt;step&gt;] |  |
-| `--by <name>` | who adds it **Required.** |  |
+| `--by <name>` | who adds it (default: $METATOR_USER, else git's user.name) |  |
 
 ### `metator issue propose`
 
@@ -2651,7 +2651,7 @@ metator issue decide [options] <id>
 | `--drop` | drop it |  |
 | `--priority <level>` | how urgent (one of: low, normal, high) |  |
 | `--labels <a,b>` | labels, comma-separated |  |
-| `--by <name>` | who decides **Required.** |  |
+| `--by <name>` | who decides (default: $METATOR_USER, else git's user.name) |  |
 
 ### `metator issue edit`
 
@@ -2681,7 +2681,7 @@ metator issue close [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` |  | |
-| `--by <name>` | who closes it **Required.** |  |
+| `--by <name>` | who closes it (default: $METATOR_USER, else git's user.name) |  |
 
 ### `metator issue drop`
 
@@ -2694,7 +2694,7 @@ metator issue drop [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` |  | |
-| `--by <name>` | who drops it **Required.** |  |
+| `--by <name>` | who drops it (default: $METATOR_USER, else git's user.name) |  |
 
 ### `metator issue start`
 
@@ -2710,7 +2710,7 @@ metator issue start [options] <id>
 | `--workflow <id>` | the workflow to run **Required.** |  |
 | `--no-worktree` | work in the main checkout |  |
 | `--allow-dirty` | start although tracked files have uncommitted changes (the worktree starts from the last commit, without them) |  |
-| `--autonomy <level>` | L0 asks at every gate (one of: L0, L1, L2) |  |
+| `--autonomy <level>` | L0: every approval waits for you (one of: L0, L1, L2) |  |
 
 ## intake
 
@@ -2867,7 +2867,7 @@ metator mcp [options]
 
 ### `metator supervise`
 
-Keep sessions alive: restart drives that died, nudge idle sessions, watch the attention budget
+Keep runs alive: restart drives that died, nudge idle agents, watch the attention budget
 
 ```bash
 metator supervise [options]

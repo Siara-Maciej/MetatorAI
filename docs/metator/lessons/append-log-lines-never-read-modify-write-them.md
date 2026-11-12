@@ -12,4 +12,4 @@ tags:
 
 A journal file that several processes write (hooks, the daemon, the CLI) must be appended in one step; reading the file and writing it back with one more line loses the other writer's line under load. The FileSystem port has append for this.
 
-Evidence: [[cite: packages/core/src/application/drive.ts:156 | "return this.fs.append(this.activityFile(runId), line);"]]
+Evidence: [[cite: packages/core/src/application/drive.ts:157 | "return this.fs.append(this.activityFile(runId), line);"]]

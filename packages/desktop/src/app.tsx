@@ -116,7 +116,7 @@ function Shell() {
   }, [route, go]);
   /**
    * "+ New session" (T1, design/14 §2): a pane with the orchestrator as the entry point in the
-   * "intake" workspace; the person talks, the agent starts the run. The host is the first of the
+   * "chat" workspace; the person talks, the agent starts the run. The host is the first of the
    * repository's `hostOrder` that is installed (D1); with none installed, or when the daemon
    * refuses, the app says so instead of opening a tab that cannot work.
    */
@@ -134,7 +134,7 @@ function Shell() {
       return;
     }
     const p = await client.openPane(
-      { label: "intake", newTab: true, role: "apps", agent: "mt-orchestrator", host },
+      { label: "chat", newTab: true, role: "apps", agent: "mt-orchestrator", host },
       repo,
     );
     if (p.ok && p.data) {
@@ -257,13 +257,13 @@ function Shell() {
           {d.repos.length > 0 ? `${d.repos.length} repositories` : "this repository"}
         </span>
         <span className="counters" data-testid="counters">
-          <span className="chip amber" title="sessions that wait for your answer">
+          <span className="chip amber" title="runs that wait for your answer">
             need you {counts.you}
           </span>
-          <span className="chip violet" title="sessions an agent works on">
-            driving {counts.driving}
+          <span className="chip violet" title="runs an agent works on">
+            working {counts.driving}
           </span>
-          <span className="chip red" title="sessions that stopped and need work from you">
+          <span className="chip red" title="runs that stopped and need work from you">
             escalated {counts.escalated}
           </span>
         </span>
@@ -273,7 +273,7 @@ function Shell() {
           aria-expanded={panelOpen}
           onClick={() => setPanelOpen(!panelOpen)}
         >
-          Sessions · {d.runs.filter((r) => !isFinished(r)).length}
+          Runs · {d.runs.filter((r) => !isFinished(r)).length}
         </button>
         <span className="spacer" />
         <button

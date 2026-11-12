@@ -594,6 +594,26 @@ describe("the current run and its artifacts", () => {
     );
   });
 
+  test("a run is named by its id or by the start of it; a start two runs share is refused with both", async () => {
+    const w = world();
+    const first = (await w.init.execute({ workflow: "feature", task: "alpha one" }))._unsafeUnwrap().runId;
+    const second = (await w.init.execute({ workflow: "feature", task: "beta two" }))._unsafeUnwrap().runId;
+    const shared = first.slice(0, first.indexOf("feature") + "feature".length);
+    expect(second.startsWith(shared)).toBe(true);
+    const start = first.slice(0, shared.length + 3);
+    expect([first.startsWith(start), second.startsWith(start)]).toEqual([true, false]);
+    expect((await w.repo.resolveId(start))._unsafeUnwrap()).toBe(first);
+    expect((await w.repo.resolveId(first))._unsafeUnwrap()).toBe(first);
+    const both = (await w.repo.resolveId(shared))._unsafeUnwrapErr();
+    expect([both.code, both.message, both.hint]).toEqual([
+      "USAGE",
+      `2 runs start with "${shared}"`,
+      `Type more of the id: ${[first, second].sort().join(", ")}.`,
+    ]);
+    // A name no run starts with stays as typed: the caller says it was not found.
+    expect((await w.repo.resolveId("nope"))._unsafeUnwrap()).toBe("nope");
+  });
+
   test("run write: only what the current stage produces, never empty", async () => {
     const w = world({
       ".github/metator/workflows/feature.yml":

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { RunActivity } from "@metator/core";
-import { formatActivity, person } from "../src/live.ts";
+import { formatActivity, formatWatched, person } from "../src/live.ts";
 
 const at = "2026-10-27T10:00:00.000Z";
 const e = (entry: Omit<RunActivity, "at">): RunActivity => ({ at, ...entry });
@@ -34,6 +34,13 @@ describe("live view", () => {
 
   test("questions are asked in place, not printed", () => {
     expect(formatActivity(e({ type: "question", stage: "approval", text: "q001: approve?" }))).toBeNull();
+  });
+
+  test("a drive watched from its own terminal says a question with the command that answers it", () => {
+    expect(formatWatched(e({ type: "question", stage: "approval", text: "q001: approve?" }))).toBe(
+      "  ? q001: approve? · answer in the app's Inbox, or from another terminal: metator run answer q001 --choice <label>",
+    );
+    expect(formatWatched(e({ type: "advance", stage: "build", text: "PASS" }))).toBe("  ✓ PASS");
   });
 
   test("who answers: METATOR_USER, else the login name", () => {

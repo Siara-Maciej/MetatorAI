@@ -3,7 +3,16 @@ import { useEffect, useState } from "react";
 import type { Workflow } from "../api.ts";
 import { Notice } from "../components/common.tsx";
 import { useDaemon } from "../daemon.tsx";
-import { type HostStatus, hostChoice, noHostText, refusedForDirtyTree, START_FROM_COMMIT } from "../model.ts";
+import {
+  autonomyLabel,
+  autonomyLevels,
+  type HostStatus,
+  hostChoice,
+  noHostText,
+  refusedForDirtyTree,
+  START_FROM_COMMIT,
+  workflowChoice,
+} from "../model.ts";
 
 export function NewSessionDialog({
   onClose,
@@ -35,7 +44,9 @@ export function NewSessionDialog({
       ]);
       if (w.ok && w.data) {
         setWorkflows(w.data.workflows);
-        setWorkflow((cur) => cur || w.data?.workflows[0]?.id || "");
+        // A feature is what a first task usually is: the form starts there, not at the first of the alphabet.
+        const ids = w.data.workflows.map((x) => x.id);
+        setWorkflow((cur) => workflowChoice(ids, cur || undefined) ?? "");
       }
       if (s.ok && s.data) {
         // An older daemon does not say what is installed: every host it knows is offered.
@@ -53,6 +64,11 @@ export function NewSessionDialog({
     })();
   }, [client, repo]);
   const waiting = runs.filter((r) => r.attention === "you").length;
+  // Only the levels the chosen workflow runs at are offered; a level it does not list gives way to its first.
+  const levels = autonomyLevels(workflows.find((w) => w.id === workflow));
+  useEffect(() => {
+    if (!levels.includes(autonomy)) setAutonomy(levels[0] ?? "L0");
+  }, [levels, autonomy]);
   const command = `metator run init --workflow ${workflow || "<workflow>"} --task ${JSON.stringify(task || "<task>")}${autonomy !== "L0" ? ` --autonomy ${autonomy}` : ""}${worktree ? " --worktree" : ""}${parent ? ` --parent ${parent}` : ""}${host ? ` && metator run drive --host ${host} --detach` : ""}`;
   const create = async (andAttach: boolean, allowDirty = false) => {
     setDirty(undefined);
@@ -82,7 +98,7 @@ export function NewSessionDialog({
     // The run exists but nothing drives it: the dialog stays to say so (the run is in the panel).
     if (r.data.drive?.error) {
       setError(
-        `The run was created, but its agent did not start: ${r.data.drive.error} Open it from the sessions panel.`,
+        `The run was created, but its agent did not start: ${r.data.drive.error} Open it from the panel on the left.`,
       );
       return;
     }
@@ -120,13 +136,13 @@ export function NewSessionDialog({
           <textarea
             value={task}
             onChange={(e) => setTask(e.target.value)}
-            placeholder="what to do, in one or two sentences; intake asks (mt-grill) when it is ambiguous"
+            placeholder="what to do, in one or two sentences; the agent asks when it is ambiguous"
           />
         </label>
         <label className="field">
-          <span>Host</span>
+          <span>AI host</span>
           <select value={host} onChange={(e) => setHost(e.target.value)}>
-            <option value="">create only, drive later</option>
+            <option value="">create only, start the agent later</option>
             {(hosts ?? []).map((h) => (
               <option key={h.id} value={h.id} disabled={!h.installed}>
                 {h.id}
@@ -137,18 +153,21 @@ export function NewSessionDialog({
         </label>
         {hosts && !hosts.some((h) => h.installed) ? (
           <div className="warn" data-testid="no-host">
-            {noHostText(hosts)} Until then the run can only be created, not driven.
+            {noHostText(hosts)} Until then the run can only be created; no agent works on it.
           </div>
         ) : null}
         <label className="field">
           <span>Autonomy</span>
           <select value={autonomy} onChange={(e) => setAutonomy(e.target.value)}>
-            <option value="L0">L0: asks at every gate</option>
-            <option value="L1">L1: skips the gates the workflow allows</option>
+            {levels.map((level) => (
+              <option key={level} value={level}>
+                {autonomyLabel(level)}
+              </option>
+            ))}
           </select>
         </label>
         <label className="field">
-          <span>Workspace</span>
+          <span>Worktree</span>
           <span>
             <label>
               <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} /> a
@@ -171,8 +190,8 @@ export function NewSessionDialog({
         </label>
         {waiting >= wipLimit ? (
           <div className="warn">
-            Attention budget: {waiting} sessions already wait for you (limit {wipLimit}). A new one queues
-            behind them.
+            Attention budget: {waiting} runs already wait for you (limit {wipLimit}). A new one queues behind
+            them.
           </div>
         ) : null}
         <Notice

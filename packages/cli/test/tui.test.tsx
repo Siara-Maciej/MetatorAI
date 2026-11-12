@@ -223,7 +223,7 @@ describe("tui model", () => {
     expect(totals(s)).toMatchObject({ you: 1, stopped: 0 });
   });
 
-  test("finished sessions fold into one line after the others, unless their repository is open", () => {
+  test("finished runs fold into one line after the others, unless their repository is open", () => {
     const s = snap([
       runOf("done", { attention: "done", status: "done" }),
       runOf("live", { attention: "driving" }),
@@ -331,14 +331,14 @@ describe("metator ui (components)", () => {
     await shows(r, "Questions for you (1)");
     const f = r.lastFrame() ?? "";
     expect(f).toContain("MetatorAI · shop");
-    expect(f).toContain("1 need you · 1 driving");
+    expect(f).toContain("1 need you · 1 working");
     expect(f.indexOf("Task rounding")).toBeLessThan(f.indexOf("Task docs"));
     expect(f).toContain("waits for you: Which rounding?");
     expect(f).toContain("plan ✓ ─ [build ⟳] ─ review ·");
     r.unmount();
   });
 
-  test("finished sessions are folded; Enter on the line shows them, f hides them again", async () => {
+  test("finished runs are folded; Enter on the line shows them, f hides them again", async () => {
     const s = new FakeService([
       snap([
         runOf("live", { attention: "you", questions: [ASKED.question] }),
@@ -350,13 +350,13 @@ describe("metator ui (components)", () => {
     await shows(r, "2 finished · ⏎ to show");
     expect(r.lastFrame()).not.toContain("Task shipped");
     r.stdin.write(KEY.down);
-    await shows(r, "2 finished sessions");
+    await shows(r, "2 finished runs");
     r.stdin.write(KEY.enter);
     await shows(r, "Task shipped");
     expect(r.lastFrame()).toContain("Task old");
     expect(r.lastFrame()).toContain("f: hide them");
     r.stdin.write("f");
-    await until("the finished sessions folded again", () => !(r.lastFrame() ?? "").includes("Task shipped"));
+    await until("the finished runs folded again", () => !(r.lastFrame() ?? "").includes("Task shipped"));
     r.unmount();
   });
 

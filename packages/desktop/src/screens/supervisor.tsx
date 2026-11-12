@@ -27,7 +27,7 @@ export function SupervisorScreen({
           <h2>Daemon</h2>
           <span className={`chip ${view ? "green" : "red"}`}>{view ? "running" : "no answer"}</span>
           <span className="dim">
-            {active.length} session{active.length === 1 ? "" : "s"} · {installed.length} of {hosts.length}{" "}
+            {active.length} run{active.length === 1 ? "" : "s"} · {installed.length} of {hosts.length} AI
             hosts installed · up {view ? duration(view.daemon.uptimeMs) : "—"} ·{" "}
             <code>{view?.daemon.url ?? url}</code>
           </span>
@@ -53,7 +53,7 @@ export function SupervisorScreen({
           </div>
           <div className="kpi" data-testid="kpi-restarts">
             <div className="v">{a?.restarts ?? 0}</div>
-            <div className="l">sessions the daemon started again, last 24 h</div>
+            <div className="l">runs the daemon started again, last 24 h</div>
           </div>
           <div className="kpi" data-testid="kpi-nudges">
             <div className="v">{a?.nudges ?? 0}</div>
@@ -63,10 +63,10 @@ export function SupervisorScreen({
         <table className="fleet">
           <thead>
             <tr>
-              <th>session</th>
+              <th>run</th>
               <th>repo</th>
-              <th>host</th>
-              <th>driver</th>
+              <th>AI host</th>
+              <th>working</th>
               <th>state</th>
               <th>uptime</th>
               <th>terminal</th>
@@ -94,16 +94,16 @@ export function SupervisorScreen({
             })}
           </tbody>
         </table>
-        {active.length === 0 ? <div className="empty">No active session.</div> : null}
+        {active.length === 0 ? <div className="empty">No active run.</div> : null}
       </div>
       <aside className="side policy">
         <div className="box">
-          <h3>How the daemon looks after sessions</h3>
+          <h3>How the daemon looks after runs</h3>
           {view ? (
             <dl>
-              <dt>sessions waiting for you at most</dt>
+              <dt>runs waiting for you at most</dt>
               <dd>{view.policy.wipLimit}</dd>
-              <dt>start a dead session again</dt>
+              <dt>start a run again when its agent died</dt>
               <dd>
                 {view.policy.respawn.enabled ? "on" : "off"} · {view.policy.respawn.maxAttempts} attempts
               </dd>

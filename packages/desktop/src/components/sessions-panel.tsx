@@ -114,7 +114,7 @@ export function SessionsPanel({
           type="button"
           role="tab"
           aria-selected={mode === "app"}
-          title="The active sessions of each repository"
+          title="The active runs of each repository"
           onClick={() => setMode("app")}
         >
           By repository

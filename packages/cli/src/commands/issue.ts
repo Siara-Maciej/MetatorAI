@@ -9,6 +9,7 @@ import {
 } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
+import { BY_DEFAULT, who } from "../who.ts";
 
 /**
  * `metator issue` (S4, design/13 §4): the repository's backlog. A person adds, edits, closes,
@@ -68,24 +69,28 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
     .addOption(priority)
     .option("--labels <a,b>", "labels, comma-separated")
     .option("--ref <ref...>", "what it points at: <file>[:line], run:<id>[/<step>]")
-    .requiredOption("--by <name>", "who adds it")
+    .option("--by <name>", `who adds it${BY_DEFAULT}`)
     .action(
       action(
         async (
           title: string,
-          opts: { body?: string; priority?: IssuePriority; labels?: string; ref?: string[]; by: string },
-        ) => ({
-          result: await runs()
-            .resolve("issues")
-            .add({
-              title,
-              ...(opts.body !== undefined ? { body: opts.body } : {}),
-              ...(opts.priority ? { priority: opts.priority } : {}),
-              ...(labels(opts.labels) ? { labels: labels(opts.labels) as string[] } : {}),
-              refs: refs(opts.ref),
-              by: opts.by,
-            }),
-        }),
+          opts: { body?: string; priority?: IssuePriority; labels?: string; ref?: string[]; by?: string },
+        ) => {
+          const by = await who(runs(), opts.by);
+          if (by.isErr()) return { result: by };
+          return {
+            result: await runs()
+              .resolve("issues")
+              .add({
+                title,
+                ...(opts.body !== undefined ? { body: opts.body } : {}),
+                ...(opts.priority ? { priority: opts.priority } : {}),
+                ...(labels(opts.labels) ? { labels: labels(opts.labels) as string[] } : {}),
+                refs: refs(opts.ref),
+                by: by.value,
+              }),
+          };
+        },
       ),
     );
 
@@ -133,20 +138,22 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
     .option("--drop", "drop it", false)
     .addOption(priority)
     .option("--labels <a,b>", "labels, comma-separated")
-    .requiredOption("--by <name>", "who decides")
+    .option("--by <name>", `who decides${BY_DEFAULT}`)
     .action(
       action(
         async (
           id: string,
-          opts: { add: boolean; drop: boolean; priority?: IssuePriority; labels?: string; by: string },
+          opts: { add: boolean; drop: boolean; priority?: IssuePriority; labels?: string; by?: string },
         ) => {
           if (!opts.add && !opts.drop)
             return { result: err(MetatorError.usage("say what you decide: --add or --drop")) };
+          const by = await who(runs(), opts.by);
+          if (by.isErr()) return { result: by };
           return {
             result: await runs()
               .resolve("issues")
               .decide(id, {
-                by: opts.by,
+                by: by.value,
                 decision: opts.drop ? "drop" : "add",
                 ...(opts.priority ? { priority: opts.priority } : {}),
                 ...(labels(opts.labels) ? { labels: labels(opts.labels) as string[] } : {}),
@@ -186,21 +193,23 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
   issue
     .command("close <id>")
     .description("The task is done")
-    .requiredOption("--by <name>", "who closes it")
+    .option("--by <name>", `who closes it${BY_DEFAULT}`)
     .action(
-      action(async (id: string, opts: { by: string }) => ({
-        result: await runs().resolve("issues").close(id, opts),
-      })),
+      action(async (id: string, opts: { by?: string }) => {
+        const by = await who(runs(), opts.by);
+        return { result: by.isErr() ? by : await runs().resolve("issues").close(id, { by: by.value }) };
+      }),
     );
 
   issue
     .command("drop <id>")
     .description("The task is not going to be done")
-    .requiredOption("--by <name>", "who drops it")
+    .option("--by <name>", `who drops it${BY_DEFAULT}`)
     .action(
-      action(async (id: string, opts: { by: string }) => ({
-        result: await runs().resolve("issues").drop(id, opts),
-      })),
+      action(async (id: string, opts: { by?: string }) => {
+        const by = await who(runs(), opts.by);
+        return { result: by.isErr() ? by : await runs().resolve("issues").drop(id, { by: by.value }) };
+      }),
     );
 
   issue
@@ -215,7 +224,9 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       "start although tracked files have uncommitted changes (the worktree starts from the last commit, without them)",
       false,
     )
-    .addOption(new Option("--autonomy <level>", "L0 asks at every gate").choices(["L0", "L1", "L2"]))
+    .addOption(
+      new Option("--autonomy <level>", "L0: every approval waits for you").choices(["L0", "L1", "L2"]),
+    )
     .action(
       action(
         async (

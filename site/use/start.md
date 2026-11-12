@@ -4,7 +4,7 @@ You start work by telling the agent what you want. It answers questions about th
 
 ## In the app
 
-Click **+ New session** at the bottom of the sessions panel, or press `n`. The app opens the **Work** screen with a new tab named `intake`. Its pane runs the agent `mt-orchestrator` on your AI host: the first host of the option `supervisor.hostOrder` that is installed on the daemon's machine.
+Click **+ New session** at the bottom of the runs panel, or press `n`. The app opens the **Work** screen with a new tab named `chat`, the conversation in which you say what you want. Its pane runs the agent `mt-orchestrator` on your AI host: the first host of the option `supervisor.hostOrder` that is installed on the daemon's machine.
 
 When no host is installed, no tab opens. The app says so at the top of the screen, names the programs the daemon looked for, and points to the guide page [Copilot and Claude Code](../guide/hosts.md). Install one and click **+ New session** again; the daemon needs no restart.
 
@@ -27,7 +27,7 @@ Write what you need in the pane. A conversation can look like this:
 
 A question gets an answer with `file:line` citations and no run.
 
-A request for a change gets one numbered message. It asks only what the code cannot settle: the workflow, the autonomy, whether the run gets its own worktree, and in a folder of repositories which one. Each point has options, with the recommended one first. After your answer the agent starts the run and tells you the run id. The run appears in the sessions panel and as a tab on **Work**. The pane stays open for your next question.
+A request for a change gets one numbered message. It asks only what the code cannot settle: the workflow, the autonomy, whether the run gets its own worktree, and in a folder of repositories which one. Each point has options, with the recommended one first. After your answer the agent starts the run and tells you the run id. The run appears in the runs panel and as a tab on **Work**. The pane stays open for your next question.
 
 Text you paste from an issue, a pull request or a chat is data for the task. The agent does not follow instructions found in it.
 
@@ -38,16 +38,16 @@ Text you paste from an issue, a pull request or a chat is data for the task. The
 | Field | What you choose |
 |---|---|
 | **Repository** | which repository the run belongs to; shown only when the daemon serves a folder of repositories |
-| **Workflow** | one of the repository's workflows ([the table below](#pick-a-workflow)) |
+| **Workflow** | one of the repository's workflows, `mt-feature` to begin with ([the table below](#pick-a-workflow)) |
 | **Task** | what to do, in one or two sentences |
-| **Host** | the AI host that drives the run: the first installed one of `supervisor.hostOrder` is chosen, a host that is not installed is greyed out; or **create only, drive later** |
-| **Autonomy** | **L0: asks at every gate** or **L1: skips the gates the workflow allows** ([Gates and approvals](../guide/gates.md#autonomy)) |
-| **Workspace** | a worktree with its own ports (ticked by default), or the main checkout ([Sessions and worktrees](./sessions.md#what-a-worktree-gives-a-run)) |
+| **AI host** | the AI host whose agents work on the run: the first installed one of `supervisor.hostOrder` is chosen, a host that is not installed is greyed out; or **create only, start the agent later** |
+| **Autonomy** | the levels the chosen workflow runs at, for example **L0: every approval waits for you** and **L1: skips the approvals the workflow lets it skip** ([Gates and approvals](../guide/gates.md#autonomy)) |
+| **Worktree** | a worktree with its own ports (ticked by default), or the main checkout ([Sessions and worktrees](./sessions.md#what-a-worktree-gives-a-run)) |
 | **Parent run** | an active run this one is a step of, or **none (standalone)** |
 
 The bottom line of the form shows the `metator run init` command your choices amount to. **Create in background** starts the run and leaves you where you are. **Create and attach** starts it, opens its **Session** screen and gives you its keyboard; the app asks for your name first if it does not know it yet. `Esc` closes the form.
 
-When as many sessions already wait for you as `supervisor.wipLimit` allows (default 4), the form warns that the new one queues behind them.
+When as many runs already wait for you as `supervisor.wipLimit` allows (default 4), the form warns that the new one queues behind them.
 
 ### From the backlog
 
@@ -75,7 +75,7 @@ A run started this way shows up in the app like any other, as long as the daemon
 metator run
 ```
 
-This asks five things: the workflow, the task, the autonomy level, the AI host and whether the run works in its own git worktree. Then it drives the run in the background and shows it live. Ctrl+C leaves the view. The run goes on and waits for you.
+This asks for the workflow (starting at `mt-feature`), the task, the autonomy level (only the levels the workflow runs at), the AI host (only the ones installed) and whether the run works in its own git worktree. A question with one possible answer is not asked; the answer is shown instead. Then it drives the run in the background and shows it live. Ctrl+C leaves the view. The run goes on and waits for you.
 
 ```bash
 metator run continue          # pick a run that waits for you or stopped, and watch it again

@@ -4,6 +4,7 @@ import {
   actionOf,
   answerCommand,
   autonomyLabel,
+  autonomyLevels,
   byPanelOrder,
   canAnswer,
   chordOf,
@@ -17,6 +18,7 @@ import {
   inboxChips,
   isFinished,
   keyMapOf,
+  keyText,
   needsReason,
   neighborPane,
   newQuestions,
@@ -132,7 +134,7 @@ describe("inbox rows and the card", () => {
       questionKind({ source: "gate" }),
       questionKind({ source: "permission" }),
       questionKind({ source: "agent" }),
-    ]).toEqual(["GATE", "PERMISSION", "QUESTION"]);
+    ]).toEqual(["APPROVAL", "PERMISSION", "QUESTION"]);
     expect(
       inboxChips(
         item(
@@ -268,7 +270,7 @@ describe("formatting and routes", () => {
     ];
     expect(panesOfRun(panes, "r1").map((p) => p.id)).toEqual(["w1:p1", "w1:p2", "w1:p10", "w1:p3"]);
     expect(panesOfRun(panes, "r1").map(paneLabel)).toEqual([
-      "conductor · mt-orchestrator",
+      "agent · mt-orchestrator",
       "mt-planner-1",
       "mt-planner-2",
       "shell",
@@ -416,7 +418,7 @@ describe("workbench view logic (S6)", () => {
     ] as never[];
     const all = gotoRows(repos, panes as never, "all", "");
     expect(all.map((r) => [r.kind, r.label])).toEqual([
-      ["pane", "conductor · mt-orchestrator"],
+      ["pane", "agent · mt-orchestrator"],
       ["pane", "sh"],
       ["question", "Round how?"],
     ]);
@@ -547,10 +549,26 @@ describe("hosts, workflows and repositories (D1, D5, D10)", () => {
   });
 
   test("an autonomy level reads with words beside it", () => {
-    expect(autonomyLabel("L0")).toBe("L0: asks at every gate");
-    expect(autonomyLabel("L1")).toBe("L1: skips the gates the workflow allows");
-    expect(autonomyLabel("L2")).toBe("L2: runs without a person");
+    expect(autonomyLabel("L0")).toBe("L0: every approval waits for you");
+    expect(autonomyLabel("L1")).toBe("L1: skips the approvals the workflow lets it skip");
+    expect(autonomyLabel("L2")).toBe("L2: no person at hand; only the approvals that are never skipped wait");
     expect(autonomyLabel("L9")).toBe("L9");
+  });
+
+  test("a key reads as it is pressed: the prefix key first, then the letter", () => {
+    expect(keyText(DEFAULT_KEYS, "newShell")).toBe("ctrl+b then c");
+    expect(keyText({ ...DEFAULT_KEYS, prefix: ["ctrl+a"] }, "goto")).toBe("ctrl+a then g");
+    expect(keyText({ newShell: ["ctrl+shift+s"] }, "newShell")).toBe("ctrl+shift+s");
+    expect(keyText({ newShell: ["prefix+c"] }, "newShell")).toBe("the prefix key then c");
+    expect(keyText(DEFAULT_KEYS, "nothing")).toBeUndefined();
+  });
+
+  test("the form offers the autonomy levels the workflow runs at; L0 and L1 when the daemon does not say", () => {
+    expect(autonomyLevels({ autonomy: ["L0"] })).toEqual(["L0"]);
+    expect(autonomyLevels({ autonomy: ["L0", "L1", "L2"] })).toEqual(["L0", "L1", "L2"]);
+    expect(autonomyLevels({})).toEqual(["L0", "L1"]);
+    expect(autonomyLevels({ autonomy: [] })).toEqual(["L0", "L1"]);
+    expect(autonomyLevels(undefined)).toEqual(["L0", "L1"]);
   });
 });
 
@@ -569,7 +587,7 @@ describe("escalated runs (F1, D9)", () => {
     expect(resumeNotice("r1", { started: true })).toBeUndefined();
     expect(resumeNotice("r1", undefined)).toBeUndefined();
     expect(resumeNotice("r1", { error: "AI host copilot cannot start here", hint: "Install it." })).toBe(
-      "Run r1 is resumed, but nothing drives it: AI host copilot cannot start here Install it.",
+      "Run r1 is resumed, but no agent works on it: AI host copilot cannot start here Install it.",
     );
   });
 });

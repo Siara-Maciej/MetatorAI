@@ -63,7 +63,7 @@ export function registerSetupCommands(
           : "Take the canon of this MetatorAI version; files changed here are kept unless --theirs",
       )
       .option("--workflows <ids...>", "workflows to install (default: all, or the installed ones on update)")
-      .option("--theirs", "resolve conflicts with the canon's version", false)
+      .option("--theirs", "resolve conflicts with the shipped version", false)
       .option("--dry-run", "report what would change without writing", false)
       .option("--no-generate", "leave the host files (.claude/agents, .github/agents, skills) as they are")
       .action(
@@ -192,7 +192,8 @@ export function registerSetupCommands(
           generated: (generated.envelope.data as { written: string[] }).written.length,
           gitignore: ignored.value,
           checks,
-          next: ["metator workflow list", 'metator run init --workflow mt-feature --task "…"'],
+          // What the guide says comes next: what a run cannot do here yet, then the daemon the app talks to.
+          next: ["metator doctor", "metator serve"],
         };
         const failed = checks.filter((k) => !k.passed);
         if (failed.length > 0) {

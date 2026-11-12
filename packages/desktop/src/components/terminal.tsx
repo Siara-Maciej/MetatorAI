@@ -204,7 +204,7 @@ function SocketTerminal({
     connect();
     term.onData((data) => {
       if (!typing.current) {
-        update({ ...status.current, refused: "attach first: the agent drives this session" });
+        update({ ...status.current, refused: "attach first: the agent is working in this session" });
         blocked.current?.(data);
         return;
       }

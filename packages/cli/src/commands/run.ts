@@ -28,6 +28,7 @@ import type { CommandContext } from "../context.ts";
 import { callDaemon, findDaemon } from "../daemon-client.ts";
 import { positiveInt } from "../options.ts";
 import { HOSTS, resume } from "../sessions.ts";
+import { BY_DEFAULT, who } from "../who.ts";
 import { registerConductorCommands } from "./conductor.ts";
 import { registerDriveCommands } from "./drive.ts";
 
@@ -63,7 +64,7 @@ export function toEvent(name: EventName, opts: AdvanceOptions): Result<RunEvent,
       return ok(opts.reason ? { type: "FAIL", reason: opts.reason } : { type: "FAIL" });
     case "approve":
       if (!opts.by?.trim()) {
-        return err(MetatorError.usage("approve requires --by <name>", "Gates record who made the decision."));
+        return err(MetatorError.usage("approve requires --by <name>", "An approval records who gave it."));
       }
       return ok(
         opts.choice
@@ -91,7 +92,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .addOption(
       new Option(
         "--autonomy <level>",
-        "L0 all gates, L1 skip plan approval, L2 headless; one the workflow lists (default: L0 when it lists it)",
+        "L0 every approval waits for you, L1 skips the approvals the workflow lets it skip, L2 no person at hand; one the workflow lists (default: L0 when it lists it)",
       ).choices(AutonomySchema.options),
     )
     .option("--worktree", "work in a new git worktree with its own ports (.metator/wt/<run>)", false)
@@ -189,7 +190,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .option("--run <id>", "run id (default: latest)")
     .option("--reason <text>", "why (fail, abort)")
     .option("--by <name>", "who decided (required for approve)")
-    .option("--choice <value>", "selected option at a gate")
+    .option("--choice <value>", "selected option at an approval")
     .action(
       action(async (name: EventName, opts: AdvanceOptions) => {
         const event = toEvent(name, opts);
@@ -201,8 +202,10 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
 
   runs
     .command("approve")
-    .description("Record a human approval: the HITL stage the run waits at, or an action (push, comment)")
-    .argument("<gate>", "current HITL stage id, or push / comment")
+    .description(
+      "Record a person's approval: the approval stage the run waits at, or an action (push, comment)",
+    )
+    .argument("<gate>", "the approval stage the run waits at, or push / comment")
     .requiredOption("--by <name>", "who approved")
     .option("--choice <value>", "selected option")
     .option("--run <id>", "run id (default: latest)")
@@ -319,16 +322,18 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .description(
       "Resume an escalated run at the stage it escalated from, once the cause is fixed; --drive carries it on at once",
     )
-    .requiredOption("--by <name>", "who resumes it (recorded in log.md)")
+    .option("--by <name>", `who resumes it, recorded in log.md${BY_DEFAULT}`)
     .option("--run <id>", "run id (default: latest)")
     .option("--drive", "also start a drive in the background, as `run continue` does", false)
     .option("--host <host>", `with --drive: the AI host (${HOSTS.join(", ")}; default: the one the run used)`)
     .action(
-      action(async (opts: { by: string; run?: string; drive: boolean; host?: string }) => {
+      action(async (opts: { by?: string; run?: string; drive: boolean; host?: string }) => {
         const c = container();
+        const by = await who(c, opts.by);
+        if (by.isErr()) return { result: by };
         const resumed = await c
           .resolve("resumeRun")
-          .execute({ by: opts.by, ...(opts.run ? { runId: opts.run } : {}) });
+          .execute({ by: by.value, ...(opts.run ? { runId: opts.run } : {}) });
         if (resumed.isErr() || !opts.drive) return { result: resumed };
         const driven = await resume(c, root(), resumed.value.runId, opts.host);
         if (driven.isErr())

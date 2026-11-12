@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { nonNegativeInt } from "../src/options.ts";
-import { run } from "../src/run.ts";
+import { asksForTheList, run } from "../src/run.ts";
+import type { Terminal } from "../src/terminal.ts";
+import { whoFrom } from "../src/who.ts";
 
 async function invoke(...argv: string[]): Promise<{ code: number; json: Record<string, unknown> }> {
   const lines: string[] = [];
@@ -20,6 +22,47 @@ describe("metator CLI", () => {
     const { code, json } = await invoke();
     expect(code).toBe(0);
     expect(JSON.stringify(json)).toContain('"name":"version"');
+  });
+
+  test("--help with no command is the list of commands, an answer and not a usage error", async () => {
+    for (const argv of [["--help"], ["-h"], ["-C", "/nowhere", "--help"], ["--root=/nowhere", "-h"]]) {
+      const { code, json } = await invoke(...argv);
+      expect([argv.join(" "), code, json.ok]).toEqual([argv.join(" "), 0, true]);
+      expect((json.data as { commands: { name: string }[] }).commands.map((c) => c.name)).toContain(
+        "version",
+      );
+    }
+    expect([asksForTheList([]), asksForTheList(["-C", "x"]), asksForTheList(["run", "--help"])]).toEqual([
+      true,
+      true,
+      false,
+    ]);
+    // At a terminal the same question is answered with the verbs a person reaches for.
+    const shown: string[] = [];
+    const lines: string[] = [];
+    const terminal = { raw: (text: string) => shown.push(text) } as unknown as Terminal;
+    expect(await run(["--help"], { out: (t) => lines.push(t) }, { terminal })).toBe(0);
+    expect(shown.join("")).toContain("Work on a task");
+    expect((JSON.parse(lines[0] as string).data as { verbs: unknown[] }).verbs.length).toBeGreaterThan(0);
+  });
+
+  test("a group's help names each of its commands with the group in the usage", async () => {
+    const group = (await invoke("worktree", "--help")).json.data as {
+      commands: { name: string; usage: string }[];
+    };
+    expect(group.commands.find((c) => c.name === "worktree new")?.usage).toBe(
+      "metator worktree new [options] <id>",
+    );
+    expect(group.commands.every((c) => c.usage.startsWith("metator worktree "))).toBe(true);
+  });
+
+  test("who acts without --by: $METATOR_USER, else git's user.name; with neither, a usage error that says how", () => {
+    expect(whoFrom("ada", { METATOR_USER: "env" }, "Git Name")._unsafeUnwrap()).toBe("ada");
+    expect(whoFrom(undefined, { METATOR_USER: "env" }, "Git Name")._unsafeUnwrap()).toBe("env");
+    expect(whoFrom("  ", {}, " Git Name\n")._unsafeUnwrap()).toBe("Git Name");
+    const none = whoFrom(undefined, {}, "\n")._unsafeUnwrapErr();
+    expect([none.code, none.message]).toEqual(["USAGE", "say who you are: --by <name>"]);
+    expect(none.hint).toContain("git config user.name");
   });
 
   test("--help on a command describes that command and its options, not every command", async () => {

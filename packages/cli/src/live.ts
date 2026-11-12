@@ -31,6 +31,56 @@ export function formatActivity(e: RunActivity): string | null {
   }
 }
 
+/**
+ * A line of a drive watched from its own terminal (`run drive` in the foreground): the live view's
+ * line, and a question said with the command that answers it, since nothing asks in place there.
+ */
+export function formatWatched(e: RunActivity): string | null {
+  if (e.type !== "question") return formatActivity(e);
+  const id = e.text.split(":")[0] ?? "";
+  return `  ? ${e.text} · answer in the app's Inbox, or from another terminal: metator run answer ${id} --choice <label>`;
+}
+
+/**
+ * Prints a run's new activity to the terminal while something else in this process drives it;
+ * `stop()` prints what is left and ends it.
+ */
+export function watch(
+  c: MetatorContainer,
+  runId: string,
+  terminal: Pick<Terminal, "show">,
+  pollMs = 300,
+): { stop(): Promise<void> } {
+  const journal = c.resolve("runJournal");
+  let shown = 0;
+  let stopped = false;
+  const print = async () => {
+    const activity = await journal.activity(runId);
+    if (activity.isErr()) return;
+    for (const e of activity.value.slice(shown)) {
+      const line = formatWatched(e);
+      if (line !== null) terminal.show(line);
+    }
+    shown = activity.value.length;
+  };
+  const loop = (async () => {
+    // What was there before this drive is history, not news.
+    const before = await journal.activity(runId);
+    shown = before.isOk() ? before.value.length : 0;
+    while (!stopped) {
+      await print();
+      await Bun.sleep(pollMs);
+    }
+    await print();
+  })();
+  return {
+    stop: async () => {
+      stopped = true;
+      await loop;
+    },
+  };
+}
+
 export interface FollowResult {
   readonly runId: string;
   readonly status: string;

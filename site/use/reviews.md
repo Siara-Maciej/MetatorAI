@@ -102,4 +102,4 @@ metator mrs send github-acme-shop-45 --by maciej
 metator mrs resolve github-acme-shop-45 --thread T1 --by maciej
 ```
 
-Both commands refuse to run without `--by`.
+Both commands refuse to run without `--by`: what leaves your machine is sent under a name you typed.

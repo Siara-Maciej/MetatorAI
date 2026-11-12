@@ -1,6 +1,7 @@
 import {
   briefOf,
   err,
+  labelFor,
   MetatorError,
   ok,
   policyFrom,
@@ -11,9 +12,10 @@ import {
 import type { MetatorContainer } from "@metator/runtime";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
-import { follow, person } from "../live.ts";
+import { follow, person, watch } from "../live.ts";
 import { positiveInt } from "../options.ts";
 import { defaultHost, HOSTS, newRun, resume, sessionRows, startDetached } from "../sessions.ts";
+import { BY_DEFAULT, who } from "../who.ts";
 
 /** `run drive|stop|questions|answer|activity|continue` (F8.3, F8.4): the CLI carries a run, people answer. */
 /** The run a command is about; an id that names no run is NOT_FOUND, as `run status` answers. */
@@ -127,11 +129,14 @@ export function registerDriveCommands(
         }
         const claimed = await drivers.claim(id.value, process.pid, host);
         if (claimed.isErr()) return { result: claimed };
+        // At a terminal the drive says what it does as it does it; a script gets the one JSON line.
+        const watched = terminal ? watch(c, id.value, terminal) : undefined;
         try {
           return {
             result: await c.resolve("driveRun").execute({ runId: id.value, host, maxSteps: opts.maxSteps }),
           };
         } finally {
+          await watched?.stop();
           await drivers.release(id.value, process.pid);
         }
       }),
@@ -198,7 +203,7 @@ export function registerDriveCommands(
 
   runs
     .command("questions")
-    .description("Questions waiting for a person: HITL gates, agents asking, tool permissions")
+    .description("Questions waiting for a person: approvals, agents asking, tool permissions")
     .option("--run <id>", "only this run (default: every run)")
     .option("--all", "include answered questions", false)
     .action(
@@ -227,7 +232,7 @@ export function registerDriveCommands(
     .option("--run <id>", "run id (default: latest)")
     .option("--choice <labels...>", "the option label(s) chosen")
     .option("--text <text>", "your own words (with Other, or a reason with Reject)")
-    .requiredOption("--by <name>", "who answers")
+    .option("--by <name>", `who answers${BY_DEFAULT}`)
     .option(
       "--always",
       "also answer every such question this way from now on (an answer policy in metator/answer-policies.yml)",
@@ -237,26 +242,31 @@ export function registerDriveCommands(
       action(
         async (
           question: string,
-          opts: { run?: string; choice?: string[]; text?: string; by: string; always: boolean },
+          opts: { run?: string; choice?: string[]; text?: string; by?: string; always: boolean },
         ) => {
           const c = container();
           const id = await c.resolve("runRepository").resolveId(opts.run);
           if (id.isErr()) return { result: id };
+          const by = await who(c, opts.by);
+          if (by.isErr()) return { result: by };
           if (!opts.choice && !opts.text) {
             return { result: err(MetatorError.usage("give --choice <label> or --text <answer>")) };
           }
-          const input = { choices: opts.choice ?? [], ...(opts.text ? { text: opts.text } : {}) };
+          let input = { choices: opts.choice ?? [], ...(opts.text ? { text: opts.text } : {}) };
           const journal = c.resolve("runJournal");
           if (opts.always) {
             const all = await journal.questions(id.value);
             if (all.isErr()) return { result: all };
             const q = all.value.find((x) => x.id === question);
             if (!q) return { result: err(MetatorError.notFound(`question ${question} of run ${id.value}`)) };
+            // The policy is judged and written with the labels the question has, however they were typed.
+            const labels = q.options.map((o) => o.label);
+            input = { ...input, choices: input.choices.map((choice) => labelFor(labels, choice)) };
             const refused = policyRefusal(q, input.choices.length > 0 ? input.choices : ["Other"]);
             if (refused)
               return { result: err(MetatorError.usage(`no policy: ${refused}`, "Answer without --always.")) };
           }
-          const answered = await journal.answer(id.value, question, { ...input, by: opts.by });
+          const answered = await journal.answer(id.value, question, { ...input, by: by.value });
           if (answered.isErr() || !opts.always) return { result: answered };
           const store = c.resolve("answerPolicyStore");
           const taken = await store.list();
@@ -264,7 +274,7 @@ export function registerDriveCommands(
           const policy = policyFrom(
             answered.value,
             input,
-            opts.by,
+            by.value,
             c.resolve("clock").now().toISOString(),
             taken.value.map((p) => p.id),
           );

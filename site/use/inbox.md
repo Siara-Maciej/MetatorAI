@@ -6,7 +6,7 @@ A run stops when a decision belongs to you. Every open question of every run is 
 
 | Source | When | What your answer does |
 |---|---|---|
-| `gate` | a stage that needs a person: plan approval, delivery, publishing review comments | Approve continues; Reject sends the run back with your reason |
+| `gate` | an approval, a stage that needs a person: plan approval, delivery, publishing review comments | Approve continues; Reject sends the run back with your reason |
 | `agent` | an agent cannot decide from the code and asks | the answer goes back to the same agent, which continues |
 | `permission` | an agent wants to run a tool that is not pre-approved | Allow runs the call; Deny refuses it, with your reason |
 
@@ -16,9 +16,9 @@ An agent works without asking when it runs the MetatorAI commands its definition
 
 **Inbox** is the first screen of the app. The column **Needs you** lists the open decisions. Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
 
-![The Inbox with a gate's decision card: the goal, the evidence, three options and the answer buttons](../public/screens/inbox.png)
+![The Inbox with the decision card of an approval: the goal, what happened since you left, three options and the answer buttons](../public/screens/inbox.png)
 
-Each row shows the kind (`GATE`, `PERMISSION` or `QUESTION`), how long the question has waited, the first two lines of its text and its run. A click on a row opens its decision card on the right:
+Each row shows the kind (`APPROVAL`, `PERMISSION` or `QUESTION`), how long the question has waited, the first two lines of its text and its run. A click on a row opens its decision card on the right:
 
 | Part | What it tells you |
 |---|---|
@@ -29,7 +29,7 @@ Each row shows the kind (`GATE`, `PERMISSION` or `QUESTION`), how long the quest
 | **Proposal and evidence** | the stages done so far, the artifacts to read, the checks that ran |
 | **Options** | each option with what it leads to; one may be marked **RECOMMENDED** |
 
-The card is assembled from the run's files when the question is asked. No model writes it. The recommendation comes from a fixed rule: for example, Approve is recommended at a gate when the stage before it passed.
+The card is assembled from the run's files when the question is asked. No model writes it. The recommendation comes from a fixed rule: for example, Approve is recommended at an approval when the stage before it passed.
 
 To answer:
 
@@ -55,7 +55,7 @@ Sometimes the AI host shows its own permission prompt in the terminal ("Allow ..
 
 ## Escalated runs
 
-A run that reaches a loop limit, or whose agent stays blocked, becomes `escalated`. It needs work from you and a yes or no is not enough. Escalated runs count in the heading **Needs you** and are listed in the queue as rows marked `ESCALATED`, with the task and the stage the run stopped at. In the sessions panel a click on an escalated run opens the same card.
+A run that reaches a loop limit, or whose agent stays blocked, becomes `escalated`. It needs work from you and a yes or no is not enough. Escalated runs count in the heading **Needs you** and are listed in the queue as rows marked `ESCALATED`, with the task and the stage the run stopped at. In the runs panel a click on an escalated run opens the same card.
 
 The card shows why the run stopped (the failure its last stage recorded) and has four buttons:
 
@@ -88,7 +88,7 @@ metator run answer q001 --choice Approve --by alice
 metator run answer q002 --choice Reject --text "split step 3 into two" --by alice
 ```
 
-`--choice` is the label of an option. `--text` carries your own words: the reason with Reject, or the answer with Other. `--by` is your name, which goes into the run's log.
+`--choice` is the label of an option; upper and lower case do not matter, so `approve` is Approve. `--text` carries your own words: the reason with Reject, or the answer with Other. `--by` is your name, which goes into the run's log. Without it the name comes from `$METATOR_USER`, or else from `git config user.name`. `--run` takes a run id or the start of one, as long as only one run starts that way.
 
 The run's drive carries out the answer. If no drive is running, `metator run continue <run>` starts it again. `metator ui` shows the same queue as a full-screen view in the terminal.
 
