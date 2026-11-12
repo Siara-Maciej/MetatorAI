@@ -43,6 +43,14 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
           const root = () => (program.opts() as { root?: string }).root;
           const taken = daemonInTheWay(servedRoots(ctx));
           if (taken) return { result: err(taken) };
+          // The signals are heard before daemon.json is written: one that comes while the daemon
+          // starts stops it as soon as it has started, and its file goes with it.
+          let stopNow: () => void = () => undefined;
+          const signalled = new Promise<void>((resolve) => {
+            stopNow = resolve;
+          });
+          process.once("SIGINT", () => stopNow());
+          process.once("SIGTERM", () => stopNow());
           const served = await startServer(ctx, {
             port: opts.port,
             hostname: opts.hostname,
@@ -60,11 +68,8 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
             pid: served.pid,
             url: `http://${served.hostname}:${served.port}`,
           };
-          await new Promise<void>((resolve) => {
-            const stop = () => void served.stop().then(resolve);
-            process.once("SIGINT", stop);
-            process.once("SIGTERM", stop);
-          });
+          await signalled;
+          await served.stop();
           return { result: ok({ ...where, stopped: true }) };
         },
       ),

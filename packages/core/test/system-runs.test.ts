@@ -116,6 +116,29 @@ function world(steps: SystemPlan["steps"], roots: Record<string, string> = { web
 }
 
 describe("RunSystemPlan and SystemPlanStatus", () => {
+  test("a child is added to the parent's record as it is now: one another process added meanwhile stays", async () => {
+    const w = world([step("billing-bump", "billing")]);
+    await w.save();
+    const parent = (
+      await w.platform.init.execute({ workflow: "mt-feature", task: "Rename refunds" })
+    )._unsafeUnwrap();
+    // Another process links a child of its own while this one starts the step's run.
+    const runs = w.platform.runs;
+    const init = w.platform.init.execute.bind(w.platform.init);
+    w.platform.init.execute = async (input) => {
+      const started = await init(input);
+      await runs.update(parent.runId, (r) =>
+        ok({ ...r, children: [...(r.children ?? []), "20261029-other"] }),
+      );
+      return started;
+    };
+    const first = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    expect((await runs.load(parent.runId))._unsafeUnwrap().children).toEqual([
+      "20261029-other",
+      first.started[0]?.run as string,
+    ]);
+  });
+
   test("the ready steps start in their repositories, linked to the parent; status reads them back", async () => {
     const w = world([step("billing-bump", "billing"), step("web-migrate", "web", ["billing-bump"])]);
     await w.save();

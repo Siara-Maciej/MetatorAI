@@ -38,7 +38,7 @@ export class RunSystemPlan {
     private readonly sources: Pick<SystemSources, "locate" | "location">,
     private readonly at: (root: string) => RepositoryRuns,
     private readonly clock: Clock,
-    private readonly parents: Pick<RunRepository, "load" | "save" | "appendLog">,
+    private readonly parents: Pick<RunRepository, "load" | "update" | "appendLog">,
   ) {}
 
   async execute(input: {
@@ -109,15 +109,18 @@ export class RunSystemPlan {
       const saved = await this.store.save(plan);
       if (saved.isErr()) return err(saved.error);
       if (parent?.isOk()) {
-        const record = { ...parent.value, children: [...(parent.value.children ?? []), run.value.runId] };
-        const kept = await this.parents.save(record);
+        // On the record as it is now: a child another process added meanwhile stays (R5).
+        const child = run.value.runId;
+        const kept = await this.parents.update(parent.value.runId, (current) =>
+          ok({ ...current, children: [...(current.children ?? []).filter((c) => c !== child), child] }),
+        );
         if (kept.isErr()) return err(kept.error);
         const logged = await this.parents.appendLog(
-          record.runId,
-          `${this.clock.now().toISOString()} · child · ${run.value.runId} (${step.id} in ${step.app})`,
+          kept.value.runId,
+          `${this.clock.now().toISOString()} · child · ${child} (${step.id} in ${step.app})`,
         );
         if (logged.isErr()) return err(logged.error);
-        parent = ok(record);
+        parent = ok(kept.value);
       }
     }
     return ok({ plan, started });

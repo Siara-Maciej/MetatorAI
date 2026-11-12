@@ -16,6 +16,7 @@ import type { Clock } from "../ports/index.ts";
 import type { ConversationRepository } from "./ask.ts";
 import type { RunJournal } from "./drive.ts";
 import type { EnvironmentServices, ServiceReport } from "./environments.ts";
+import type { PtyBroker, PtyView } from "./pty-broker.ts";
 import type { RunDrivers } from "./run-drivers.ts";
 import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
@@ -37,6 +38,12 @@ export interface RunOverview {
   /** Open questions: what to answer, in order. */
   readonly questions: readonly Question[];
   readonly driving: boolean;
+  /**
+   * A host session of the run that is alive in a pane of the daemon (an interactive agent): its
+   * pane, its host, and whether it printed lately. A working one counts the run as working, though
+   * no background drive carries it (`driving` stays false).
+   */
+  readonly session?: { readonly paneId: string; readonly host: string; readonly working: boolean };
   /** Who drives the session: a person attached (with their name), or the agent. */
   readonly driver: "agent" | "human";
   readonly attachedBy?: string | undefined;
@@ -78,6 +85,21 @@ export interface Overview {
 }
 
 /**
+ * The run's host session that is alive in a pane, the conductor first: working while it printed
+ * within the idle threshold (the broker's `idle`), the same cue the supervisor nudges on. A pane
+ * running a plain command (a shell, the app) is no agent and does not count.
+ */
+export function liveSession(
+  views: readonly Pick<PtyView, "paneId" | "host" | "alive" | "idle" | "role">[],
+): RunOverview["session"] {
+  const agents = views.filter(
+    (v) => v.alive && v.host !== "" && (v.role === "conductor" || v.role === "worker"),
+  );
+  const pick = agents.find((v) => !v.idle) ?? agents[0];
+  return pick ? { paneId: pick.paneId, host: pick.host, working: !pick.idle } : undefined;
+}
+
+/**
  * `metator status` (G4, ADR-0059): every run with its stages, who must act, the questions to
  * answer, the last thing that happened, its worktree and services; and the conversations.
  */
@@ -91,6 +113,8 @@ export class WorkOverview {
     private readonly services: Pick<EnvironmentServices, "status">,
     private readonly conversations: Pick<ConversationRepository, "list">,
     private readonly clock: Clock,
+    /** The terminals the daemon holds; a process without them (the CLI) sees no session. */
+    private readonly sessions?: Pick<PtyBroker, "byRun">,
   ) {}
 
   async execute(): Promise<Result<Overview, MetatorError>> {
@@ -104,6 +128,7 @@ export class WorkOverview {
       const open = questions.isOk() && active ? questions.value.filter((q) => !q.answer) : [];
       const driver = await this.drivers.status(runId);
       const driving = driver.isOk() && driver.value?.alive === true;
+      const session = active ? liveSession(this.sessions?.byRun(runId) ?? []) : undefined;
       const spec = await this.workflows.get(r.workflow.id);
       const stage = stoppedAt(r.state.stage, r.state.status, r.state.context.history);
       const declared = spec.isOk() ? spec.value.spec.stages : [{ id: stage }];
@@ -144,10 +169,11 @@ export class WorkOverview {
               ),
             }
           : {}),
-        attention: attentionOf(r.state.status, open.length, driving, atGate),
+        attention: attentionOf(r.state.status, open.length, driving || session?.working === true, atGate),
         stages,
         questions: open,
         driving,
+        ...(session ? { session } : {}),
         driver: r.driver?.by ?? "agent",
         ...(r.driver?.by === "human" && r.driver.attachedBy ? { attachedBy: r.driver.attachedBy } : {}),
         died: active && driver.isOk() && driver.value !== null && !driver.value.alive,

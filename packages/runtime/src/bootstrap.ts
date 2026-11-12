@@ -524,6 +524,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         environmentServices,
         conversationRepository,
         clock,
+        ptyBroker,
       }) =>
         new WorkOverview(
           runRepository,
@@ -534,6 +535,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           environmentServices,
           conversationRepository,
           clock,
+          ptyBroker,
         ),
     ),
     conversationRepository: asFunction(

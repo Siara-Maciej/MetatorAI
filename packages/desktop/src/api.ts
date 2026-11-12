@@ -65,6 +65,8 @@ export interface RunOverview {
   readonly stages: readonly StageProgress[];
   readonly questions: readonly Question[];
   readonly driving: boolean;
+  /** An agent's session alive in a pane of the daemon; working while it printed lately. */
+  readonly session?: { readonly paneId: string; readonly host: string; readonly working: boolean };
   readonly driver: "agent" | "human";
   readonly attachedBy?: string;
   readonly died: boolean;
