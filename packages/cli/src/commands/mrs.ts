@@ -1,11 +1,12 @@
 import { err, ok, THREAD_KINDS, THREAD_STATES, type ThreadKind, type ThreadState } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
+import { BY_DEFAULT, who } from "../who.ts";
 
 /**
  * `metator mrs` (T3, design/14 §4): reviews of my own pull (merge) requests. The daemon keeps
  * them current (`serve --reviews-ms`); the agent of `mt-review-response` records what it made
- * of each thread (`triage`); `send` and `resolve` change the host and need a person's name.
+ * of each thread (`triage`); `send` and `resolve` change the host and record the person who ran them.
  */
 export function registerMrsCommands(program: Command, { action, container }: CommandContext): void {
   const mrs = program
@@ -82,18 +83,26 @@ export function registerMrsCommands(program: Command, { action, container }: Com
     .command("send")
     .description("Post every proposed reply that was not sent yet to the host")
     .argument("<id>", "the request")
-    .requiredOption("--by <name>", "the person who decides to send them")
-    .action(action(async (id: string, opts: { by: string }) => ({ result: await reviews().send(id, opts) })));
+    .option("--by <name>", `the person who decides to send them${BY_DEFAULT}`)
+    .action(
+      action(async (id: string, opts: { by?: string }) => {
+        const by = await who(container(), opts.by);
+        if (by.isErr()) return { result: by };
+        return { result: await reviews().send(id, { by: by.value }) };
+      }),
+    );
 
   mrs
     .command("resolve")
     .description("Close a thread at the host")
     .argument("<id>", "the request")
     .requiredOption("--thread <thread>", "the thread's id")
-    .requiredOption("--by <name>", "the person who decides to close it")
+    .option("--by <name>", `the person who decides to close it${BY_DEFAULT}`)
     .action(
-      action(async (id: string, opts: { thread: string; by: string }) => ({
-        result: await reviews().resolve(id, opts.thread, { by: opts.by }),
-      })),
+      action(async (id: string, opts: { thread: string; by?: string }) => {
+        const by = await who(container(), opts.by);
+        if (by.isErr()) return { result: by };
+        return { result: await reviews().resolve(id, opts.thread, { by: by.value }) };
+      }),
     );
 }

@@ -7,6 +7,7 @@
 import { useState } from "react";
 import type { BoardStep, PlanBoardView } from "../api.ts";
 import { QuickAnswer } from "../components/answer.tsx";
+import { Artifacts } from "../components/artifacts.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { clock, duration, stageGlyph } from "../model.ts";
 
@@ -208,17 +209,12 @@ export function PlanScreen({
             </div>
             <div>
               <div className="sec">artifacts</div>
-              <div className="text mono">
-                {board.artifacts.map((a) => (
-                  <span
-                    key={a.name}
-                    className={a.present ? "" : "dim"}
-                    title={a.stage ? `from ${a.stage}` : undefined}
-                  >
-                    {a.present ? "✓" : "○"} {a.name}{" "}
-                  </span>
-                ))}
-              </div>
+              <Artifacts
+                runId={runId}
+                repo={run?.repo}
+                names={board.artifacts.filter((a) => a.present).map((a) => a.name)}
+                missing={board.artifacts.filter((a) => !a.present).map((a) => a.name)}
+              />
             </div>
             {board.resumes && board.resumes.length > 0 ? (
               <div>

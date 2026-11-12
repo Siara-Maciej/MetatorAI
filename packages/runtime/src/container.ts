@@ -141,6 +141,7 @@ import type {
   ProvideWorktree,
   PruneWorktrees,
   PtyBroker,
+  ReadRunArtifact,
   RecordArchitectureBaseline,
   RefactorPlanStore,
   RemoveWorktree,
@@ -340,6 +341,7 @@ export interface Cradle {
   guardSessionStart: GuardSessionStart;
   checkpointRun: CheckpointRun;
   writeRunArtifact: WriteRunArtifact;
+  readRunArtifact: ReadRunArtifact;
   resumeRun: ResumeRun;
   handoffRun: HandoffRun;
   closeRun: CloseRun;

@@ -6,6 +6,7 @@ import {
   blockedPrompt,
   type DecisionCard,
   gatePrompt,
+  gateQuestion,
   hostLimit,
   labelFor,
   nextQuestionId,
@@ -599,7 +600,7 @@ export class DriveRun {
       {
         stage: ctx.stage.id,
         source: "gate",
-        prompt: `${ctx.stage.description ?? ctx.stage.id}: approve to continue`,
+        prompt: gateQuestion(ctx.stage, ctx.task, ctx.done.at(-1)),
         options: [
           { label: "Approve", description: "Continue with the next stage" },
           { label: "Reject", description: "Send the run back, with your reason" },
@@ -940,8 +941,8 @@ export class DriveRun {
     const out: string[] = [];
     if (ctx.ports)
       out.push(`its worktree keeps ports ${ctx.ports.from}–${ctx.ports.from + ctx.ports.count - 1} busy`);
-    for (const [loop, used] of Object.entries(ctx.loops))
-      if (used > 0) out.push(`loop ${loop}: ${used} of ${ctx.loopLimits[loop] ?? "?"} used`);
+    // A gate's Reject already says how far its own loop is: the card counts it once (F9).
+    out.push(...loopCosts(ctx.loops, ctx.loopLimits, ctx.stage.hitl ? ctx.stage.onFail?.loop : undefined));
     if (ctx.children.length > 0) out.push(`${ctx.children.length} child run(s) depend on this run`);
     return out;
   }
@@ -1230,6 +1231,20 @@ export function sinceLastAnswer(activity: readonly RunActivity[]): string[] {
   const tools = after.filter((a) => a.type === "tool").length;
   if (tools > 0) out.push(`${tools} tool call(s)`);
   return out;
+}
+
+/**
+ * The loops already used, as costs of waiting on a card: one line each. The loop a gate's own
+ * Reject consequence counts (`stated`) is left out, so the card says that number once.
+ */
+export function loopCosts(
+  loops: Readonly<Record<string, number>>,
+  limits: Readonly<Record<string, number>>,
+  stated?: string,
+): string[] {
+  return Object.entries(loops)
+    .filter(([loop, used]) => used > 0 && loop !== stated)
+    .map(([loop, used]) => `loop ${loop}: ${used} of ${limits[loop] ?? "?"} used`);
 }
 
 /** What each answer to a gate does, from the workflow: the next stage, or where a FAIL sends the run. */

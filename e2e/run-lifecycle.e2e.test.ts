@@ -135,7 +135,13 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
     expect(pass.json.error).toMatchObject({ code: "TRANSITION_DENIED" });
     expect((pass.json.error as { hint: string }).hint).toContain("APPROVE");
 
-    const anonymous = await mt("run", "advance", "approve");
+    // No --by, and no name in the environment or in git's config: nobody approved.
+    const anonymous = await metator(["run", "advance", "approve"], repo.root, {
+      ...NOW,
+      METATOR_USER: "",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    });
     expect(anonymous.code).toBe(64);
     expect((anonymous.json.error as { message: string }).message).toContain("--by");
 
@@ -148,7 +154,9 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
     expect(push.json.data).toMatchObject({ runId, approvals: { push: { by: "maciej" } } });
     const wrong = await mt("run", "approve", "build", "--by", "maciej");
     expect([wrong.code, (wrong.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
-    expect((await mt("run", "approve", "push")).code).toBe(64); // --by is required
+    // With no --by and no name in the environment or git's config, nothing is approved.
+    const nobody = { ...NOW, METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    expect((await metator(["run", "approve", "push"], repo.root, nobody)).code).toBe(64);
 
     const approved = await mt("run", "approve", "approval", "--by", "maciej", "--choice", "1");
     expect(approved.json.data).toMatchObject({
@@ -156,7 +164,7 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
       approvals: { approval: { by: "maciej", choice: "1" }, push: { by: "maciej" } },
     });
     const state = JSON.parse(await repo.read(`.metator/runs/${runId}/state.json`));
-    expect([state.schemaVersion, Object.keys(state.approvals).sort()]).toEqual([7, ["approval", "push"]]);
+    expect([state.schemaVersion, Object.keys(state.approvals).sort()]).toEqual([8, ["approval", "push"]]);
   });
 
   test("finishing the last stage completes the run", async () => {
@@ -250,11 +258,69 @@ describe("a run's files stay readable (R1, R2)", () => {
     const before = await repo.read(file);
     const refused = await mt("run", "approve", "push", "--by", "", "--run", run.runId);
     expect([refused.code, (refused.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
-    expect((refused.json.error as { message: string }).message).toBe("say who approves: --by <name>");
+    expect((refused.json.error as { message: string }).message).toBe("say who you are: --by <name>");
     expect(await repo.read(file)).toBe(before);
     expect((await mt("run", "status", "--run", run.runId)).code).toBe(0);
     expect((await mt("run", "list")).code).toBe(0);
   }, 30_000);
+
+  test("without --by the name is $METATOR_USER, else git's user.name; with neither the command is refused and nothing is approved", async () => {
+    const start = async (task: string) =>
+      ((await mt("run", "init", "--workflow", "feature", "--task", task)).json.data as { runId: string })
+        .runId;
+    type Approved = { approvals: Record<string, { by: string }> };
+    // No name anywhere: git reads no global or system config, and the repository sets none.
+    const nobody = { ...NOW, METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const runId = await start("who speaks");
+    const file = `.metator/runs/${runId}/state.json`;
+    const before = await repo.read(file);
+    for (const argv of [
+      ["run", "approve", "push", "--run", runId],
+      ["run", "advance", "approve", "--run", runId],
+    ]) {
+      const refused = await metator(argv, repo.root, nobody);
+      expect([argv[1], refused.code, refused.json.error]).toEqual([
+        argv[1],
+        64,
+        {
+          code: "USAGE",
+          message: "say who you are: --by <name>",
+          hint: 'Without --by the name comes from $METATOR_USER, else from `git config user.name`; set one (`git config user.name "Your Name"`) or give --by.',
+        },
+      ]);
+    }
+    expect(await repo.read(file)).toBe(before);
+    // A name is who speaks, never the decision: the command without its action still does nothing.
+    const named = { ...nobody, METATOR_USER: "ola" };
+    const bare = await metator(["run", "approve", "--run", runId], repo.root, named);
+    expect([bare.code, (bare.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+    expect(await repo.read(file)).toBe(before);
+    // An approval relayed from the chat always names the person: the environment is not asked.
+    const chat = await metator(["run", "approve", "push", "--via", "chat", "--run", runId], repo.root, named);
+    expect((chat.json.error as { message: string }).message).toBe(
+      "an approval from the chat names who gave it: --by <name>",
+    );
+    expect(await repo.read(file)).toBe(before);
+
+    // $METATOR_USER names the person; --by still wins over it.
+    const push = await metator(["run", "approve", "push", "--run", runId], repo.root, named);
+    expect((push.json.data as Approved).approvals.push?.by).toBe("ola");
+    const typed = await metator(
+      ["run", "approve", "comment", "--by", "ada", "--run", runId],
+      repo.root,
+      named,
+    );
+    expect((typed.json.data as Approved).approvals.comment?.by).toBe("ada");
+    // Else the name git signs this repository's commits with.
+    Bun.spawnSync(["git", "config", "user.name", "Git Name"], { cwd: repo.root });
+    try {
+      for (let i = 0; i < 3; i++) await mt("run", "advance", "pass", "--run", runId);
+      const gate = await metator(["run", "advance", "approve", "--run", runId], repo.root, nobody);
+      expect([gate.code, (gate.json.data as Approved).approvals.approval?.by]).toEqual([0, "Git Name"]);
+    } finally {
+      Bun.spawnSync(["git", "config", "--unset", "user.name"], { cwd: repo.root });
+    }
+  }, 60_000);
 
   test("one truncated state.json: list, status, inbox, revive and doctor go on and name the file", async () => {
     const run = (await mt("run", "init", "--workflow", "feature", "--task", "torn record")).json.data as {

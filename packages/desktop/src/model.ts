@@ -61,6 +61,25 @@ export const escalatedKey = (r: { readonly runId: string; readonly repo?: string
   `escalated:${r.repo ?? ""}:${r.runId}`;
 
 /**
+ * An artifact as the viewer shows it: JSON indented so a person can read it, anything else (and
+ * JSON that does not parse) as it is written.
+ */
+export function artifactText(name: string, content: string): string {
+  if (!name.endsWith(".json")) return content;
+  try {
+    return JSON.stringify(JSON.parse(content), null, 2);
+  } catch {
+    return content;
+  }
+}
+
+/**
+ * Whether the card shows the task under Goal: only when its title does not already carry the
+ * whole task (a gate's title names the task; a long or multi-line one is cut there).
+ */
+export const goalShown = (prompt: string, task: string): boolean => !prompt.includes(task.trim());
+
+/**
  * The stages the ESCALATED card offers a resume at: what the daemon says the run already worked,
  * and always the stage it escalated from (an older daemon names none).
  */

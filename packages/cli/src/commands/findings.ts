@@ -14,6 +14,7 @@ import {
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
+import { BY_DEFAULT, who } from "../who.ts";
 
 type Lens = (typeof LENSES)[number];
 
@@ -228,26 +229,30 @@ export function registerFindingsCommands(program: Command, { action, container }
         .choices([...REACTION_STATES])
         .makeOptionMandatory(),
     )
-    .requiredOption("--by <who>", "who reacted")
+    .option("--by <who>", `who reacted${BY_DEFAULT}`)
     .addOption(new Option("--lens <lens>", "the lens that raised it").choices([...LENSES]))
     .option("--reason <text>", "why, in a few words")
     .action(
       action(
         async (
           finding: string,
-          opts: { pr: string; state: ReactionState; by: string; lens?: Lens; reason?: string },
-        ) => ({
-          result: await container()
-            .resolve("reviewFeedback")
-            .record({
-              finding,
-              pr: opts.pr,
-              state: opts.state,
-              by: opts.by,
-              ...(opts.lens ? { lens: opts.lens } : {}),
-              ...(opts.reason ? { reason: opts.reason } : {}),
-            }),
-        }),
+          opts: { pr: string; state: ReactionState; by?: string; lens?: Lens; reason?: string },
+        ) => {
+          const by = await who(container(), opts.by);
+          if (by.isErr()) return { result: by };
+          return {
+            result: await container()
+              .resolve("reviewFeedback")
+              .record({
+                finding,
+                pr: opts.pr,
+                state: opts.state,
+                by: by.value,
+                ...(opts.lens ? { lens: opts.lens } : {}),
+                ...(opts.reason ? { reason: opts.reason } : {}),
+              }),
+          };
+        },
       ),
     );
 }
@@ -316,34 +321,40 @@ export function registerReviewCommands(program: Command, { action, container, ru
     .option("--file <path>", "the file it is about (repo-relative)")
     .option("--line <n>", "the line in it", positiveInt)
     .addOption(new Option("--side <side>", "the old or the new side of the diff").choices(["old", "new"]))
-    .requiredOption("--by <name>", "who writes it")
+    .option("--by <name>", `who writes it${BY_DEFAULT}`)
     .action(
       action(
         async (
           text: string,
-          opts: { run?: string; file?: string; line?: number; side?: "old" | "new"; by: string },
-        ) => ({
-          result: await runs()
-            .resolve("reviewNotes")
-            .add(opts.run, {
-              text,
-              by: opts.by,
-              ...(opts.file ? { file: opts.file } : {}),
-              ...(opts.line ? { line: opts.line } : {}),
-              ...(opts.side ? { side: opts.side } : {}),
-            }),
-        }),
+          opts: { run?: string; file?: string; line?: number; side?: "old" | "new"; by?: string },
+        ) => {
+          const by = await who(runs(), opts.by);
+          if (by.isErr()) return { result: by };
+          return {
+            result: await runs()
+              .resolve("reviewNotes")
+              .add(opts.run, {
+                text,
+                by: by.value,
+                ...(opts.file ? { file: opts.file } : {}),
+                ...(opts.line ? { line: opts.line } : {}),
+                ...(opts.side ? { side: opts.side } : {}),
+              }),
+          };
+        },
       ),
     );
   notes
     .command("send")
     .description("The draft notes go to the run's agents as one message (topic review)")
     .option("--run <id>", "run id (default: latest)")
-    .requiredOption("--by <name>", "who sends")
+    .option("--by <name>", `who sends${BY_DEFAULT}`)
     .action(
-      action(async (opts: { run?: string; by: string }) => ({
-        result: await runs().resolve("reviewNotes").send(opts.run, { by: opts.by }),
-      })),
+      action(async (opts: { run?: string; by?: string }) => {
+        const by = await who(runs(), opts.by);
+        if (by.isErr()) return { result: by };
+        return { result: await runs().resolve("reviewNotes").send(opts.run, { by: by.value }) };
+      }),
     );
   notes
     .command("status")

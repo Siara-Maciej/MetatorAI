@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, sep } from "node:path";
 import {
   AddLesson,
   AdvanceRun,
@@ -132,6 +132,7 @@ import {
   ProvideWorktree,
   PruneWorktrees,
   PtyBroker,
+  ReadRunArtifact,
   RecordArchitectureBaseline,
   RefactorPlanStore,
   RemoveWorktree,
@@ -1412,6 +1413,26 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     writeRunArtifact: asFunction(
       ({ workflowCatalog, runRepository, fileSystem }) =>
         new WriteRunArtifact(workflowCatalog, runRepository, fileSystem),
+    ),
+    readRunArtifact: asFunction(
+      ({
+        runRepository,
+        fileSystem,
+        root,
+      }: {
+        runRepository: RunRepository;
+        fileSystem: FileSystem;
+        root: string;
+      }) =>
+        new ReadRunArtifact(runRepository, fileSystem, (dir, file) => {
+          // Links followed: a link in the run directory that points elsewhere is not inside it.
+          try {
+            const within = realpathSync(join(root, dir));
+            return realpathSync(join(root, file)).startsWith(`${within}${sep}`);
+          } catch {
+            return false;
+          }
+        }),
     ),
     checkpointRun: asFunction(
       ({ getRunStatus, runRepository, clock }) =>

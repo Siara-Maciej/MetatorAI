@@ -189,10 +189,17 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .addArgument(new Argument("<event>", "event to send").choices(EVENTS))
     .option("--run <id>", "run id (default: latest)")
     .option("--reason <text>", "why (fail, abort)")
-    .option("--by <name>", "who decided (required for approve)")
+    .option("--by <name>", `who decided, recorded with an approve${BY_DEFAULT}`)
     .option("--choice <value>", "selected option at an approval")
     .action(
-      action(async (name: EventName, opts: AdvanceOptions) => {
+      action(async (name: EventName, given: AdvanceOptions) => {
+        // Only who speaks is filled in; the approval itself is the event the person typed.
+        let opts = given;
+        if (name === "approve") {
+          const by = await who(container(), given.by);
+          if (by.isErr()) return { result: by };
+          opts = { ...given, by: by.value };
+        }
         const event = toEvent(name, opts);
         if (event.isErr()) return { result: err(event.error) };
         const input = opts.run ? { runId: opts.run, event: event.value } : { event: event.value };
@@ -206,7 +213,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       "Record a person's approval: the approval stage the run waits at, or an action (push, comment)",
     )
     .argument("<gate>", "the approval stage the run waits at, or push / comment")
-    .requiredOption("--by <name>", "who approved")
+    .option("--by <name>", `who approved${BY_DEFAULT}; always given with --via chat`)
     .option("--choice <value>", "selected option")
     .option("--run <id>", "run id (default: latest)")
     .addOption(
@@ -216,17 +223,31 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       ).choices(["chat"]),
     )
     .action(
-      action(async (gate: string, opts: { by: string; choice?: string; run?: string; via?: "chat" }) => ({
-        result: await container()
-          .resolve("approveRun")
-          .execute({
-            gate,
-            by: opts.by,
-            ...(opts.choice ? { choice: opts.choice } : {}),
-            ...(opts.run ? { runId: opts.run } : {}),
-            ...(opts.via ? { via: opts.via } : {}),
-          }),
-      })),
+      action(async (gate: string, opts: { by?: string; choice?: string; run?: string; via?: "chat" }) => {
+        // An approval relayed from the chat names the person who gave it: nobody is assumed.
+        if (opts.via === "chat" && !opts.by?.trim())
+          return {
+            result: err(
+              MetatorError.usage(
+                "an approval from the chat names who gave it: --by <name>",
+                "The name must be the person attached to the session; it is never taken from the environment.",
+              ),
+            ),
+          };
+        const by = await who(container(), opts.by);
+        if (by.isErr()) return { result: by };
+        return {
+          result: await container()
+            .resolve("approveRun")
+            .execute({
+              gate,
+              by: by.value,
+              ...(opts.choice ? { choice: opts.choice } : {}),
+              ...(opts.run ? { runId: opts.run } : {}),
+              ...(opts.via ? { via: opts.via } : {}),
+            }),
+        };
+      }),
     );
 
   runs
@@ -267,7 +288,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       (v: string, all: string[]) => [...all, v],
       [] as string[],
     )
-    .requiredOption("--by <name>", "who sends: an agent of the run, or a person")
+    .option("--by <name>", `who sends: an agent of the run, or a person${BY_DEFAULT}`)
     .action(
       action(
         async (
@@ -277,13 +298,22 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
             topic: MessageTopic;
             text: string;
             ref: string[];
-            by: string;
+            by?: string;
           },
-        ) => ({
-          result: await container()
-            .resolve("runMessages")
-            .send({ from: opts.from, to, topic: opts.topic, text: opts.text, refs: opts.ref, by: opts.by }),
-        }),
+        ) => {
+          const by = await who(container(), opts.by);
+          if (by.isErr()) return { result: by };
+          return {
+            result: await container().resolve("runMessages").send({
+              from: opts.from,
+              to,
+              topic: opts.topic,
+              text: opts.text,
+              refs: opts.ref,
+              by: by.value,
+            }),
+          };
+        },
       ),
     );
 

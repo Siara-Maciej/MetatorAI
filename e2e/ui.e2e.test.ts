@@ -86,7 +86,7 @@ describe("metator ui (real CLI, full screen)", () => {
       repo.root,
       [
         { waitFor: "1 need you", keys: KEY.enter }, // the waiting session is selected: answer it
-        { waitFor: "approve to continue", keys: KEY.enter }, // Approve
+        { waitFor: "to go on?", keys: KEY.enter }, // Approve
         { waitFor: "Answered q001", keys: "e" }, // no editor yet
         { waitFor: "No editor is set", keys: "," },
         { waitFor: "Settings ·", keys: KEY.enter }, // Editor

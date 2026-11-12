@@ -3,14 +3,17 @@ import type { MetatorContainer } from "@metator/runtime";
 
 /**
  * Who acts, when the command was not told: `--by`, else `$METATOR_USER`, else the name git signs
- * this repository's commits with. No name anywhere is a usage error that says where to set one.
+ * this repository's commits with. No name anywhere, or an empty `--by`, is a usage error that says
+ * where to set one. This is only who speaks: the command a person ran is still the whole decision.
  */
 export function whoFrom(
   given: string | undefined,
   env: Readonly<Record<string, string | undefined>>,
   gitName: string | undefined,
 ): Result<string, MetatorError> {
-  const name = [given, env.METATOR_USER, gitName].map((n) => n?.trim()).find((n) => n);
+  // A name given and left empty is nobody: it is refused, never filled in from somewhere else.
+  const name =
+    given === undefined ? [env.METATOR_USER, gitName].map((n) => n?.trim()).find((n) => n) : given.trim();
   if (name) return ok(name);
   return err(
     MetatorError.usage(
@@ -28,7 +31,7 @@ export async function who(
   c: MetatorContainer,
   given: string | undefined,
 ): Promise<Result<string, MetatorError>> {
-  if (given?.trim() || process.env.METATOR_USER?.trim()) return whoFrom(given, process.env, undefined);
+  if (given !== undefined || process.env.METATOR_USER?.trim()) return whoFrom(given, process.env, undefined);
   const git = await c
     .resolve("processRunner")
     .run({ argv: ["git", "config", "user.name"], cwd: c.resolve("root") });

@@ -4,7 +4,7 @@
  * WebSocket, lets only the attached person type, and answers a question through its API.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { realpath, rm } from "node:fs/promises";
+import { realpath, rm, symlink } from "node:fs/promises";
 import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
@@ -230,6 +230,52 @@ describe("metator serve (real daemon)", () => {
       return s.status === "done" ? true : undefined;
     });
   }, 60_000);
+
+  test("a run artifact is read through the API: only a file inside the run directory, never a path or a link out of it", async () => {
+    const runId = data(await mt("run", "init", "--workflow", "demo", "--task", "Read the plan"))
+      .runId as string;
+    const dir = `.metator/runs/${runId}`;
+    await repo.write(`${dir}/plan.md`, "# Plan\n\n1. round the totals\n");
+    await repo.write(`${dir}/results/w1.json`, '{"status":"done"}\n');
+    await repo.write("secret.txt", "not an artifact\n");
+    await symlink(repo.path("secret.txt"), repo.path(`${dir}/link.md`));
+    const read = (path: string) => get(`/runs/${runId}/artifact?path=${encodeURIComponent(path)}`);
+    expect((await read("plan.md")).data).toEqual({
+      runId,
+      path: "plan.md",
+      content: "# Plan\n\n1. round the totals\n",
+      truncated: false,
+    });
+    expect((await read("results/w1.json")).data.content).toBe('{"status":"done"}\n');
+    const refused = async (path: string) => {
+      const r = await read(path);
+      const e = r.error as { code: string; message: string };
+      return [r.ok, e.code, e.message.replace(`not an artifact of run ${runId}: `, "")];
+    };
+    expect(await refused("../../../secret.txt")).toEqual([
+      false,
+      "USAGE",
+      "../../../secret.txt does not stay inside the run directory",
+    ]);
+    expect(await refused(repo.path("secret.txt"))).toEqual([
+      false,
+      "USAGE",
+      `${repo.path("secret.txt")} is an absolute path`,
+    ]);
+    // A link a stage (or anyone) left in the run directory does not open what it points at.
+    expect(await refused("link.md")).toEqual([false, "USAGE", "link.md leads outside the run directory"]);
+    expect(await refused("state.json")).toEqual([false, "USAGE", "state.json is the run's own bookkeeping"]);
+    expect(await refused("nope.md")).toEqual([
+      false,
+      "NOT_FOUND",
+      `artifact nope.md of run ${runId} not found`,
+    ]);
+    expect(await refused("")).toEqual([false, "USAGE", "no path given"]);
+    // The route only reads: a POST to it is no route at all.
+    const posted = await fetch(`${base}/runs/${runId}/artifact?path=plan.md`, { method: "POST", body: "{}" });
+    expect(posted.status).toBe(404);
+    await post(`/runs/${runId}/close`, { aborted: true, reason: "the test ends it" });
+  });
 
   test("an escalated run through the API: in the inbox, resumed and driven on, stopped, or closed as aborted (R9)", async () => {
     const escalate = async (task: string) => {

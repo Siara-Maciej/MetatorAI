@@ -10,9 +10,12 @@ import {
 import {
   AdvanceRun,
   ApproveRun,
+  ARTIFACT_VIEW_BYTES,
+  artifactPathProblem,
   GetRunStatus,
   InitRun,
   ListRuns,
+  ReadRunArtifact,
   ResumeRun,
   WriteRunArtifact,
 } from "../src/application/runs.ts";
@@ -637,6 +640,86 @@ describe("the current run and its artifacts", () => {
     expect((await write.execute({ artifact: "plan.json", content: "x" }))._unsafeUnwrapErr().hint).toBe(
       "This stage produces no artifact; its workers write theirs.",
     );
+  });
+});
+
+describe("reading a run artifact", () => {
+  test("a file inside the run directory is returned; a long one is cut and said so", async () => {
+    const w = world();
+    const runId = (await w.init.execute({ workflow: "feature", task: "read me" }))._unsafeUnwrap().runId;
+    const dir = `.metator/runs/${runId}`;
+    await w.fs.write(`${dir}/plan.json`, '{"steps":[]}');
+    await w.fs.write(`${dir}/results/w1.json`, "{}");
+    await w.fs.write(`${dir}/big.md`, "x".repeat(ARTIFACT_VIEW_BYTES + 5));
+    const read = new ReadRunArtifact(w.repo, w.fs, () => true);
+    expect((await read.execute({ path: " plan.json " }))._unsafeUnwrap()).toEqual({
+      runId,
+      path: "plan.json",
+      content: '{"steps":[]}',
+      truncated: false,
+    });
+    expect((await read.execute({ runId, path: "results/w1.json" }))._unsafeUnwrap().content).toBe("{}");
+    const big = (await read.execute({ path: "big.md" }))._unsafeUnwrap();
+    expect([big.content.length, big.truncated]).toEqual([ARTIFACT_VIEW_BYTES, true]);
+    const missing = (await read.execute({ path: "nope.md" }))._unsafeUnwrapErr();
+    expect([missing.code, missing.message]).toEqual([
+      "NOT_FOUND",
+      `artifact nope.md of run ${runId} not found`,
+    ]);
+    expect((await read.execute({ runId: "20260101-nope", path: "plan.json" }))._unsafeUnwrapErr().code).toBe(
+      "NOT_FOUND",
+    );
+  });
+
+  test("a path that leaves the run directory, an absolute one, a link elsewhere and the bookkeeping are refused", async () => {
+    const w = world({
+      ".github/metator/workflows/feature.yml": FEATURE,
+      "secret.txt": "token",
+    });
+    const runId = (await w.init.execute({ workflow: "feature", task: "stay in" }))._unsafeUnwrap().runId;
+    await w.fs.write(`.metator/runs/${runId}/link.md`, "points elsewhere");
+    const reads: string[] = [];
+    const fs = {
+      exists: (p: string) => w.fs.exists(p),
+      read: (p: string) => {
+        reads.push(p);
+        return w.fs.read(p);
+      },
+    };
+    const read = new ReadRunArtifact(w.repo, fs, (_dir, file) => !file.endsWith("link.md"));
+    const refused = async (path: string) => {
+      const e = (await read.execute({ path }))._unsafeUnwrapErr();
+      return [e.code, e.message.replace(`not an artifact of run ${runId}: `, "")];
+    };
+    expect(await refused("../../../secret.txt")).toEqual([
+      "USAGE",
+      "../../../secret.txt does not stay inside the run directory",
+    ]);
+    expect(await refused("results/../../x")).toEqual([
+      "USAGE",
+      "results/../../x does not stay inside the run directory",
+    ]);
+    expect(await refused("./plan.json")).toEqual([
+      "USAGE",
+      "./plan.json does not stay inside the run directory",
+    ]);
+    expect(await refused("a//b")).toEqual(["USAGE", "a//b does not stay inside the run directory"]);
+    expect(await refused("/etc/passwd")).toEqual(["USAGE", "/etc/passwd is an absolute path"]);
+    expect(await refused("C:/x")).toEqual(["USAGE", "C:/x is an absolute path"]);
+    expect(await refused("..\\..\\secret.txt")).toEqual([
+      "USAGE",
+      '"..\\\\..\\\\secret.txt" is not a plain path',
+    ]);
+    expect(await refused("")).toEqual(["USAGE", "no path given"]);
+    expect(await refused("state.json")).toEqual(["USAGE", "state.json is the run's own bookkeeping"]);
+    expect(await refused("questions/q001.json")).toEqual([
+      "USAGE",
+      "questions/q001.json is the run's own bookkeeping",
+    ]);
+    // A link in the run directory that resolves outside it: refused before anything is read.
+    expect(await refused("link.md")).toEqual(["USAGE", "link.md leads outside the run directory"]);
+    expect(reads).toEqual([]);
+    expect(artifactPathProblem("plan.json")).toBeUndefined();
   });
 });
 

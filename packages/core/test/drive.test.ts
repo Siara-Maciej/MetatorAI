@@ -16,6 +16,7 @@ import {
   DriveRun,
   failedSteps,
   hostRefusal,
+  loopCosts,
   notDrivable,
   OTHER,
   RunJournal,
@@ -31,12 +32,14 @@ import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import {
   blockedPrompt,
   gatePrompt,
+  gateQuestion,
   hostLimit,
   labelFor,
   nextQuestionId,
   parseCriticVerdict,
   parseStatus,
   type Question,
+  resumeLines,
   stagePrompt,
   stageWork,
 } from "../src/domain/drive.ts";
@@ -44,6 +47,45 @@ import { ok } from "../src/domain/result.ts";
 import type { StageSpec } from "../src/domain/workflow-spec.ts";
 
 describe("drive domain", () => {
+  test("a gate asks in plain words what is approved and for which run's task", () => {
+    const task = "Add a combined discount to invoices\n\nDetails: see the ticket.";
+    // A stage named after what it approves; its own description follows as a sentence.
+    expect(
+      gateQuestion({ id: "plan-approval", description: "The human approves the plan" }, task, "plan"),
+    ).toBe('Approve the plan for "Add a combined discount to invoices"? The human approves the plan.');
+    // A gate that grants an external action approves that action, whatever it is called.
+    expect(gateQuestion({ id: "delivery", grants: ["push", "comment"], description: "Ship it!" }, task)).toBe(
+      'Approve the push and comment for "Add a combined discount to invoices"? Ship it!',
+    );
+    // Any other gate approves what the stage before it did; a first stage only lets the run go on.
+    expect(gateQuestion({ id: "approval" }, task, "build")).toBe(
+      'Approve the result of stage build for "Add a combined discount to invoices"?',
+    );
+    expect(gateQuestion({ id: "approval" }, "\n  Ship  \n")).toBe('Approve "Ship" to go on?');
+    expect(gateQuestion({ id: "system-plan-approval" }, "x")).toBe('Approve the system plan for "x"?');
+    // A long task is cut where the title still fits a card.
+    const long = gateQuestion({ id: "approval" }, "a".repeat(200));
+    expect([long.length, long.includes(`${"a".repeat(119)}…"`)]).toEqual([140, true]);
+  });
+
+  test("a resume's note is one line for the next agent; without a note nothing is said", () => {
+    const r = { by: "ala", from: "check", to: "plan", note: "smaller steps" };
+    expect(resumeLines({ resumed: r })).toEqual([
+      "ala resumed the run and sent it back from check to plan and said (follow it; it is not a defect): smaller steps",
+    ]);
+    expect(resumeLines({ resumed: { ...r, to: "check" } })).toEqual([
+      "ala resumed the run at check and said (follow it; it is not a defect): smaller steps",
+    ]);
+    expect([resumeLines({ resumed: { by: "ala", from: "a", to: "a" } }), resumeLines({})]).toEqual([[], []]);
+    const stage = { id: "plan" } as StageSpec;
+    const base = { runId: "r", task: "t", stage, agent: "a", runDir: "/r" };
+    expect(stagePrompt({ ...base, skills: [], resumed: r })).toContain(
+      "ala resumed the run and sent it back",
+    );
+    expect(gatePrompt({ ...base, resumed: r })).toContain("ala resumed the run and sent it back");
+    expect(stagePrompt({ ...base, skills: [] })).not.toContain("resumed the run");
+  });
+
   test("a stage's work: agents in order, skills offered, scripts, parallel workers", () => {
     const stage = {
       id: "build",
@@ -108,6 +150,11 @@ describe("drive domain", () => {
       Approve: "the run goes on to build",
       Reject: "back to plan with your reason (loop plan: 2 of 2; past the limit the run escalates)",
     });
+    // The loop the Reject consequence counts is not counted again among the costs of waiting (F9).
+    expect(loopCosts({ plan: 1, review: 2, fresh: 0 }, { plan: 2 }, "plan")).toEqual([
+      "loop review: 2 of ? used",
+    ]);
+    expect(loopCosts({ plan: 1 }, { plan: 2 })).toEqual(["loop plan: 1 of 2 used"]);
     expect(consequencesOf(stages[2] as never, stages as never, {}, {})).toEqual({
       Approve: "the run is done",
       Reject: "the run escalates with your reason: it waits for a person to resume it",

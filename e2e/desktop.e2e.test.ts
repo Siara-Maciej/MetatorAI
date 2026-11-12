@@ -33,6 +33,8 @@ agents:
       - say: "STATUS: done"
   mt-implementer:
     - - ask: { question: "Which currencies to support?", options: [PLN, EUR, USD], multiSelect: true }
+      - write: { path: "{runDir}/build-log.md", text: "# Build log\\n\\nThe cap is applied in cents.\\n" }
+      - write: { path: "{runDir}/numbers.json", text: '{"cap":{"cents":500}}' }
       - say: "STATUS: done"
   mt-orchestrator:
     - - say: "Ask about the repository, or describe a task and I start the run."
@@ -260,7 +262,22 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await item.waitFor({ timeout: 40_000 });
     await expect(await item.locator(".kind").textContent()).toBe("APPROVAL");
     const card = page.getByLabel("decision card");
-    await expect(await card.locator("h1").textContent()).toContain("approval");
+    // The title says what is approved and for which run's task, in plain words.
+    await expect(await card.locator("h1").textContent()).toMatch(
+      /^Approve the result of stage build for ".+"\?$/,
+    );
+    // The stage's artifacts are read on the card: Markdown as written, JSON indented.
+    await card.getByRole("button", { name: "build-log.md" }).click();
+    const viewer = card.getByLabel("artifact build-log.md");
+    await viewer.waitFor({ timeout: 20_000 });
+    expect(await viewer.locator("pre").textContent()).toBe("# Build log\n\nThe cap is applied in cents.\n");
+    await card.getByRole("button", { name: "numbers.json" }).click();
+    await card.getByLabel("artifact numbers.json").waitFor({ timeout: 20_000 });
+    expect(await card.getByLabel("artifact numbers.json").locator("pre").textContent()).toBe(
+      '{\n  "cap": {\n    "cents": 500\n  }\n}',
+    );
+    await card.getByRole("button", { name: "close the artifact" }).click();
+    expect(await card.locator(".artifact-view").count()).toBe(0);
     // Reject promises a reason (D8): without it neither the button nor Enter sends the answer.
     await card.locator(".option", { hasText: "Reject" }).click();
     expect(await card.locator(".reason span").textContent()).toBe("Reason for Reject (required)");

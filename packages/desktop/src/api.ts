@@ -552,6 +552,12 @@ export class DaemonClient {
   messages = (runId: string, repo?: string) =>
     this.get<{ messages: RunMessage[] }>(`/runs/${runId}/messages`, repo);
   board = (runId: string, repo?: string) => this.get<PlanBoardView>(`/runs/${runId}/board`, repo);
+  /** A run artifact's content: a file a stage left in the run directory, by its path there. */
+  artifact = (runId: string, path: string, repo?: string) =>
+    this.get<{ runId: string; path: string; content: string; truncated: boolean }>(
+      `/runs/${runId}/artifact?path=${encodeURIComponent(path)}`,
+      repo,
+    );
   brief = (runId: string, repo?: string, since?: string) =>
     this.get<Brief>(`/runs/${runId}/brief${since ? `?since=${encodeURIComponent(since)}` : ""}`, repo);
   seen = (runId: string, repo?: string) => this.post<{ at: string }>(`/runs/${runId}/seen`, {}, repo);

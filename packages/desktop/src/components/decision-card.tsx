@@ -5,8 +5,9 @@
 import { useEffect, useRef } from "react";
 import type { InboxItem } from "../api.ts";
 import { useDaemon } from "../daemon.tsx";
-import { answerCommand, duration, needsReason, questionKind } from "../model.ts";
+import { answerCommand, duration, goalShown, needsReason, questionKind } from "../model.ts";
 import { useAnswer } from "./answer.tsx";
+import { Artifacts } from "./artifacts.tsx";
 import { Chip } from "./chips.tsx";
 import { Notice } from "./common.tsx";
 
@@ -90,7 +91,7 @@ export function DecisionCard({
           </Chip>
         ) : null}
       </div>
-      {card ? (
+      {card && goalShown(q.prompt, card.task) ? (
         <section>
           <h3>Goal</h3>
           <div>{card.task}</div>
@@ -111,12 +112,7 @@ export function DecisionCard({
           <h3>Proposal and evidence</h3>
           {card.done.length > 0 ? <div className="muted">done: {card.done.join(" → ")}</div> : null}
           {card.artifacts.length > 0 ? (
-            <div className="muted">
-              see:{" "}
-              {card.artifacts.map((a) => (
-                <code key={a}>{a} </code>
-              ))}
-            </div>
+            <Artifacts runId={q.runId} repo={item.repo} names={card.artifacts} />
           ) : null}
           {card.evidence?.length ? (
             <ul>

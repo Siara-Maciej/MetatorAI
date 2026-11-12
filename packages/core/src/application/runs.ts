@@ -8,6 +8,7 @@ import {
   APPROVAL_ACTIONS,
   type Approval,
   type Autonomy,
+  isRunBookkeeping,
   pendingResume,
   type RunRecord,
   type RunResume,
@@ -633,6 +634,82 @@ export class WriteRunArtifact {
     if (written.isErr()) return err(written.error);
     return ok({ runId: id.value, file, bytes: input.content.length });
   }
+}
+
+/** The most of an artifact a reader gets at once; the rest is cut and said so. */
+export const ARTIFACT_VIEW_BYTES = 256 * 1024;
+
+export interface RunArtifactView {
+  readonly runId: string;
+  /** The file, relative to the run directory. */
+  readonly path: string;
+  readonly content: string;
+  /** The file is longer than the view: `content` is its beginning. */
+  readonly truncated: boolean;
+}
+
+/**
+ * A run artifact's content, to read (`GET /runs/:id/artifact?path=…`): a file a stage left in
+ * the run directory, never anything outside it and never the run's own bookkeeping. The path is
+ * relative to the run directory; one that climbs out, is absolute, or is a link that resolves
+ * elsewhere is refused.
+ */
+export class ReadRunArtifact {
+  constructor(
+    private readonly repo: RunRepository,
+    private readonly fs: Pick<FileSystem, "read" | "exists">,
+    /** Whether a file, links followed, is inside a directory (both repo-relative). */
+    private readonly inside: (dir: string, file: string) => boolean,
+  ) {}
+
+  async execute(input: {
+    readonly runId?: string;
+    readonly path: string;
+  }): Promise<Result<RunArtifactView, MetatorError>> {
+    const id = await this.repo.resolveId(input.runId);
+    if (id.isErr()) return err(id.error);
+    const path = input.path.trim();
+    const refused = artifactPathProblem(path);
+    if (refused)
+      return err(
+        MetatorError.usage(
+          `not an artifact of run ${id.value}: ${refused}`,
+          "Name a file a stage left in the run directory, relative to it: plan.json, results/w1.json.",
+        ),
+      );
+    const dir = this.repo.runDir(id.value);
+    const file = `${dir}/${path}`;
+    if (!(await this.fs.exists(file)))
+      return err(MetatorError.notFound(`artifact ${path} of run ${id.value}`));
+    if (!this.inside(dir, file))
+      return err(
+        MetatorError.usage(
+          `not an artifact of run ${id.value}: ${path} leads outside the run directory`,
+          "Only files inside the run directory are shown.",
+        ),
+      );
+    const text = await this.fs.read(file);
+    if (text.isErr()) return err(text.error);
+    const truncated = text.value.length > ARTIFACT_VIEW_BYTES;
+    return ok({
+      runId: id.value,
+      path,
+      content: truncated ? text.value.slice(0, ARTIFACT_VIEW_BYTES) : text.value,
+      truncated,
+    });
+  }
+}
+
+/** Why a path names no artifact of a run directory; undefined when it may. */
+export function artifactPathProblem(path: string): string | undefined {
+  if (path === "") return "no path given";
+  if (path.includes("\0") || path.includes("\\")) return `${JSON.stringify(path)} is not a plain path`;
+  if (path.startsWith("/") || /^[A-Za-z]:/.test(path)) return `${path} is an absolute path`;
+  const parts = path.split("/");
+  if (parts.some((p) => p === ".." || p === "." || p === ""))
+    return `${path} does not stay inside the run directory`;
+  if (isRunBookkeeping(path)) return `${path} is the run's own bookkeeping`;
+  return undefined;
 }
 
 export class ListRuns {

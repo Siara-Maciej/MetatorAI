@@ -656,6 +656,13 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
                 (str("status") ?? "addressed") as "draft" | "sent" | "addressed",
               ),
           );
+        // A run artifact's content, to read: only a file inside the run directory (F9).
+        case "GET artifact":
+          return fromResult(
+            await c.value
+              .resolve("readRunArtifact")
+              .execute({ runId, path: url.searchParams.get("path") ?? "" }),
+          );
         case "GET board":
           return fromResult(
             await c.value.resolve("planBoard").execute({
