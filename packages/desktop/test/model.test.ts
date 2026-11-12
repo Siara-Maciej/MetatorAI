@@ -29,6 +29,7 @@ import {
   parseRoute,
   plainKey,
   questionKind,
+  refusedForDirtyTree,
   repoChoice,
   resumeNotice,
   routeHash,
@@ -570,5 +571,14 @@ describe("escalated runs (F1, D9)", () => {
     expect(resumeNotice("r1", { error: "AI host copilot cannot start here", hint: "Install it." })).toBe(
       "Run r1 is resumed, but nothing drives it: AI host copilot cannot start here Install it.",
     );
+  });
+});
+
+describe("a start refused for uncommitted changes", () => {
+  test("only the tree check offers the start from the last commit", () => {
+    expect(refusedForDirtyTree({ details: { check: "tree" } })).toBe(true);
+    expect(refusedForDirtyTree({ details: { check: "git" } })).toBe(false);
+    expect(refusedForDirtyTree({})).toBe(false);
+    expect(refusedForDirtyTree(undefined)).toBe(false);
   });
 });

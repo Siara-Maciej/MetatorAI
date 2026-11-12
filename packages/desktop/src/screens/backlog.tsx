@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import type { Issue } from "../api.ts";
 import { Notice, RepoSelect } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { duration, issueRefText, workflowChoice } from "../model.ts";
+import { duration, issueRefText, refusedForDirtyTree, START_FROM_COMMIT, workflowChoice } from "../model.ts";
 
 const NO_ISSUES: readonly Issue[] = [];
 const NO_WORKFLOW = {
@@ -60,12 +60,23 @@ export function BacklogScreen({
     [issues],
   );
   const current = issues.find((i) => i.id === chosen) ?? proposals[0] ?? open[0];
-  const act = async (fn: (by: string) => Promise<{ ok: boolean; error?: { message: string } }>) => {
+  /** The last start was refused for uncommitted changes: the same start, from the last commit. */
+  const [retry, setRetry] = useState<() => void>();
+  const act = async (
+    fn: (by: string) => Promise<{
+      ok: boolean;
+      error?: { message: string; details?: Readonly<Record<string, unknown>> } | undefined;
+    }>,
+    again?: () => void,
+  ) => {
+    setRetry(undefined);
     const by = await who();
     if (!by) return;
     const r = await fn(by);
-    if (!r.ok) setError(r.error?.message ?? "the daemon refused");
-    else {
+    if (!r.ok) {
+      setError(r.error?.message ?? "the daemon refused");
+      if (again && refusedForDirtyTree(r.error)) setRetry(() => again);
+    } else {
       setError(undefined);
       await load();
     }
@@ -75,22 +86,34 @@ export function BacklogScreen({
     workflowChoice(workflows, wanted ?? runs.find((r) => r.runId === issue?.proposedBy?.runId)?.workflow);
   const decide = (issue: Issue, decision: "add" | "drop") =>
     act((by) => client.decideIssue(issue.id, { by, decision }, repo));
+  // Added and started in one click; refused for uncommitted changes, the issue stays added and
+  // the retry is the plain start.
   const addAndStart = (issue: Issue) =>
-    act(async (by) => {
-      const d = await client.decideIssue(issue.id, { by, decision: "add" }, repo);
-      if (!d.ok) return d;
-      const workflow = workflowOf(issue);
-      if (!workflow) return NO_WORKFLOW;
-      return client.startIssue(issue.id, { workflow }, repo);
-    });
-  const start = (issue: Issue) =>
-    act(async () => {
-      const workflow = workflowOf(issue);
-      if (!workflow) return NO_WORKFLOW;
-      const r = await client.startIssue(issue.id, { workflow }, repo);
-      if (r.ok && r.data) onOpenSession(r.data.runId);
-      return r;
-    });
+    act(
+      async (by) => {
+        const d = await client.decideIssue(issue.id, { by, decision: "add" }, repo);
+        if (!d.ok) return d;
+        const workflow = workflowOf(issue);
+        if (!workflow) return NO_WORKFLOW;
+        return client.startIssue(issue.id, { workflow }, repo);
+      },
+      () => void start(issue, true),
+    );
+  const start = (issue: Issue, allowDirty = false): Promise<void> =>
+    act(
+      async () => {
+        const workflow = workflowOf(issue);
+        if (!workflow) return NO_WORKFLOW;
+        const r = await client.startIssue(
+          issue.id,
+          { workflow, ...(allowDirty ? { allowDirty: true } : {}) },
+          repo,
+        );
+        if (r.ok && r.data) onOpenSession(r.data.runId);
+        return r;
+      },
+      () => void start(issue, true),
+    );
   const add = () =>
     act(async (by) => {
       const r = await client.addIssue(
@@ -180,7 +203,14 @@ export function BacklogScreen({
           ) : null}
         </aside>
         <main className="detail">
-          <Notice text={error} onClose={() => setError(undefined)} />
+          <Notice
+            text={error}
+            action={retry ? { label: START_FROM_COMMIT, run: retry } : undefined}
+            onClose={() => {
+              setError(undefined);
+              setRetry(undefined);
+            }}
+          />
           {list.error && !list.data ? <div className="banner">{list.error}</div> : null}
           {adding ? (
             <form

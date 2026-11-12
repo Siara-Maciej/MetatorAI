@@ -121,7 +121,7 @@ To give it up: `metator run close --run <id> --aborted --reason "<why>"`. In the
 
 ## A run cannot start here
 
-`metator run init` fails with `a run cannot start here` when the directory is not a git repository, and with `--worktree` when the repository has no commit. The hint names the command. With `--worktree` it also fails with `the run would start without your changes` when tracked files have uncommitted changes: commit them, stash them, or pass `--allow-dirty`.
+`metator run init` fails with `a run cannot start here` when the directory is not a git repository, and with `--worktree` when the repository has no commit. The hint names the command. With `--worktree` it also fails with `the run would start without your changes` when tracked files have uncommitted changes: commit them, stash them, or pass `--allow-dirty` (in the app: **Start from the last commit**).
 
 ## The AI host cannot start
 

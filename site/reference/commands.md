@@ -2709,6 +2709,7 @@ metator issue start [options] <id>
 | `<id>` |  | |
 | `--workflow <id>` | the workflow to run **Required.** |  |
 | `--no-worktree` | work in the main checkout |  |
+| `--allow-dirty` | start although tracked files have uncommitted changes (the worktree starts from the last commit, without them) |  |
 | `--autonomy <level>` | L0 asks at every gate (one of: L0, L1, L2) |  |
 
 ## intake

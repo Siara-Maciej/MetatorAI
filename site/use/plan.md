@@ -78,7 +78,7 @@ metator issue close i001 --by maciej     # done
 metator issue drop i002 --by maciej      # not going to be done
 ```
 
-Commands that change a task take `--by <name>`. `issue start` makes the issue `in-progress` and remembers the run. A task whose run is still active is not started a second time: the command is refused and names the run. The run works in a new worktree unless you pass `--no-worktree`. `metator issue list --run <id>` lists the tasks tied to a run: started from it, proposed in it, or pointing at it.
+Commands that change a task take `--by <name>`. `issue start` makes the issue `in-progress` and remembers the run. A task whose run is still active is not started a second time: the command is refused and names the run. The run works in a new worktree unless you pass `--no-worktree`. When tracked files have uncommitted changes, the start is refused and names them: commit or stash them, or pass `--allow-dirty` to start from the last commit without them. In the app, the refusal comes with the button **Start from the last commit**, which does the same. `metator issue list --run <id>` lists the tasks tied to a run: started from it, proposed in it, or pointing at it.
 
 ```bash
 metator issue decide i002 --add --by maciej

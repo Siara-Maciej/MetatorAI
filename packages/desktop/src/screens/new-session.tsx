@@ -1,8 +1,9 @@
 /** Screen 6: the new-session dialog over the inbox; the footer shows the `metator run init` it amounts to. */
 import { useEffect, useState } from "react";
 import type { Workflow } from "../api.ts";
+import { Notice } from "../components/common.tsx";
 import { useDaemon } from "../daemon.tsx";
-import { type HostStatus, hostChoice, noHostText } from "../model.ts";
+import { type HostStatus, hostChoice, noHostText, refusedForDirtyTree, START_FROM_COMMIT } from "../model.ts";
 
 export function NewSessionDialog({
   onClose,
@@ -24,6 +25,8 @@ export function NewSessionDialog({
   const [parent, setParent] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  /** The last start was refused for uncommitted changes: how to start without them. */
+  const [dirty, setDirty] = useState<{ andAttach: boolean }>();
   useEffect(() => {
     void (async () => {
       const [w, s] = await Promise.all([
@@ -51,7 +54,8 @@ export function NewSessionDialog({
   }, [client, repo]);
   const waiting = runs.filter((r) => r.attention === "you").length;
   const command = `metator run init --workflow ${workflow || "<workflow>"} --task ${JSON.stringify(task || "<task>")}${autonomy !== "L0" ? ` --autonomy ${autonomy}` : ""}${worktree ? " --worktree" : ""}${parent ? ` --parent ${parent}` : ""}${host ? ` && metator run drive --host ${host} --detach` : ""}`;
-  const create = async (andAttach: boolean) => {
+  const create = async (andAttach: boolean, allowDirty = false) => {
+    setDirty(undefined);
     if (!workflow || !task.trim()) {
       setError("a workflow and a task are needed");
       return;
@@ -65,12 +69,14 @@ export function NewSessionDialog({
         worktree,
         ...(parent ? { parent } : {}),
         ...(host ? { drive: host } : {}),
+        ...(allowDirty ? { allowDirty: true } : {}),
       },
       repo || undefined,
     );
     setBusy(false);
     if (!r.ok || !r.data) {
       setError(r.error?.message ?? "the run was not created");
+      if (refusedForDirtyTree(r.error)) setDirty({ andAttach });
       return;
     }
     // The run exists but nothing drives it: the dialog stays to say so (the run is in the panel).
@@ -169,7 +175,16 @@ export function NewSessionDialog({
             behind them.
           </div>
         ) : null}
-        {error ? <div className="banner">{error}</div> : null}
+        <Notice
+          text={error}
+          action={
+            dirty ? { label: START_FROM_COMMIT, run: () => void create(dirty.andAttach, true) } : undefined
+          }
+          onClose={() => {
+            setError(undefined);
+            setDirty(undefined);
+          }}
+        />
         <div className="foot">
           <code>{command}</code>
           <button type="button" onClick={onClose}>

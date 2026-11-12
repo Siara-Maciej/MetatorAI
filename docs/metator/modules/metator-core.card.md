@@ -31,7 +31,7 @@ The product's inside: domain model (versioned documents, rules, memory map, impo
 - One unreadable run never hides the others: overviews read runs through `RunRepository.loadAll` and name what they left out.
 - An escalated run is not finished: it is counted apart (`countAttention`), listed by `escalatedOf`, refused by `DriveRun` (`notDrivable`), put back by `ResumeRun` with the escalating stage's loop at zero, and ended by `CloseRun` with a reason. A run that is not active has no open questions: `WorkOverview`, `inboxOf` and `RunJournal.answer` agree on that.
 - A wait for a person (`RunJournal.waitFor`) ends without an answer when the run left the question's stage or ended; the drive then looks at the run again instead of waiting for ever.
-- A run starts only where it can work: `InitRun` asks `CheckReadiness` and refuses through `startRefusal` (no git repository; for a worktree run, no commit or a dirty tree).
+- A run starts only where it can work: `InitRun` asks `CheckReadiness` and refuses through `startRefusal` (no git repository; for a worktree run, no commit or a dirty tree, unless `allowDirty`, which `Issues.start` passes on and intake always sets).
 - Errors cross layers as one type [[cite: packages/core/src/domain/errors.ts:20 | "export class MetatorError extends Error {"]].
 
 ## Allowed dependencies

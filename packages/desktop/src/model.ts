@@ -48,6 +48,14 @@ export function withTerminalAsks(
 export const isFinished = (r: Pick<RunOverview, "status">): boolean =>
   r.status === "done" || r.status === "aborted";
 
+/** The button of a start refused for uncommitted changes. */
+export const START_FROM_COMMIT = "Start from the last commit";
+
+/** A start refused because tracked files have uncommitted changes: the app offers to start without them. */
+export const refusedForDirtyTree = (
+  error: { readonly details?: Readonly<Record<string, unknown>> } | undefined,
+): boolean => error?.details?.check === "tree";
+
 /** The key of an escalated run in the inbox's selection, apart from a question's `<run>/<question>`. */
 export const escalatedKey = (r: { readonly runId: string; readonly repo?: string | undefined }): string =>
   `escalated:${r.repo ?? ""}:${r.runId}`;

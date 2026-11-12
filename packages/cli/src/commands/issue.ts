@@ -210,15 +210,24 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
     )
     .requiredOption("--workflow <id>", "the workflow to run")
     .option("--no-worktree", "work in the main checkout")
+    .option(
+      "--allow-dirty",
+      "start although tracked files have uncommitted changes (the worktree starts from the last commit, without them)",
+      false,
+    )
     .addOption(new Option("--autonomy <level>", "L0 asks at every gate").choices(["L0", "L1", "L2"]))
     .action(
       action(
-        async (id: string, opts: { workflow: string; worktree: boolean; autonomy?: "L0" | "L1" | "L2" }) => ({
+        async (
+          id: string,
+          opts: { workflow: string; worktree: boolean; allowDirty: boolean; autonomy?: "L0" | "L1" | "L2" },
+        ) => ({
           result: await runs()
             .resolve("issues")
             .start(id, {
               workflow: opts.workflow,
               worktree: opts.worktree,
+              ...(opts.allowDirty ? { allowDirty: true } : {}),
               ...(opts.autonomy ? { autonomy: opts.autonomy } : {}),
             }),
         }),

@@ -5507,4 +5507,16 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const noLockfile: string[] = [];",
     why: "an install without a lockfile writes none into the run's change (F5)",
   },
+  {
+    file: "packages/core/src/application/issues.ts",
+    from: "worktree: input.allowDirty ? { allowDirty: true } : {}",
+    to: "worktree: {}",
+    why: "a start of an issue passes --allow-dirty on to the run",
+  },
+  {
+    file: "packages/core/src/application/intake.ts",
+    from: "allowDirty: true,",
+    to: "",
+    why: "an intake run starts from the last commit whatever is uncommitted",
+  },
 ];

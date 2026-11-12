@@ -177,6 +177,11 @@ describe("metator doctor (real CLI)", () => {
       const here = await mt("run", "init", "--workflow", "demo", "--task", "Start here from a dirty tree");
       expect(here.code).toBe(0);
       expect((here.json.warnings as string[]).some((w) => w.startsWith("tree: "))).toBe(true);
+      // An issue's run starts in a worktree by default: the same refusal, the same way past it.
+      await mt("issue", "add", "Tidy the flags", "--by", "ola");
+      const issue = await mt("issue", "start", "i001", "--workflow", "demo");
+      expect((issue.json.error as { code: string }).code).toBe("CHECK_FAILED");
+      expect((await mt("issue", "start", "i001", "--workflow", "demo", "--allow-dirty")).code).toBe(0);
       const allowed = await mt(...args, "--allow-dirty");
       expect(allowed.code).toBe(0);
       const wt = (allowed.json.data as { worktree: { path: string } }).worktree.path;

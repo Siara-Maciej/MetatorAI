@@ -344,6 +344,60 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(errors).toEqual([]);
   }, 120_000);
 
+  test("a start refused for uncommitted changes offers Start from the last commit, in the form and the Backlog (F3)", async () => {
+    // The daemon of the test before: scenario hosts only. A tracked file is changed and not committed.
+    const scenario = { METATOR_AGENT_SCENARIO: repo.path("scenario.yml"), METATOR_HOST: "scenario" };
+    await repo.write("scenario.yml", `${SCENARIO}# changed, not committed\n`);
+    const runsNow = async () =>
+      ((await api("/state")).data.runs as { runId: string; task: string; worktree?: { path: string } }[]) ??
+      [];
+    try {
+      await page.goto(app("inbox"));
+      await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
+      await page.getByRole("button", { name: "Advanced…" }).click();
+      const dialog = page.getByRole("dialog", { name: "new session" });
+      await dialog.getByLabel("Workflow", { exact: true }).selectOption("demo");
+      await dialog.getByLabel("Task").fill("Start from a dirty tree");
+      await dialog.getByLabel("Host").selectOption("scenario");
+      await dialog.getByRole("button", { name: "Create in background" }).click();
+      const notice = dialog.locator(".notice");
+      await notice.waitFor({ timeout: 20_000 });
+      expect(await notice.textContent()).toContain(
+        "the run would start without your changes: 1 tracked file(s)",
+      );
+      expect((await runsNow()).some((r) => r.task === "Start from a dirty tree")).toBe(false);
+      await notice.getByRole("button", { name: "Start from the last commit" }).click();
+      const run = await until("the run from the form", async () =>
+        (await runsNow()).find((r) => r.task === "Start from a dirty tree"),
+      );
+      // It works in a worktree at the last commit: the uncommitted line is not there.
+      expect(await repo.read(`${run.worktree?.path}/scenario.yml`)).toBe(SCENARIO);
+
+      // The Backlog: the same refusal, the same button, and the issue's run starts.
+      await metator(["issue", "add", "Tidy the totals", "--by", "maciej"], repo.root, scenario);
+      await page.goto(app("backlog"));
+      await page.getByTestId("issue-i001").click();
+      await page.getByRole("button", { name: "Start a run" }).click();
+      const refused = page.locator(".backlog .notice");
+      await refused.waitFor({ timeout: 20_000 });
+      expect(await refused.textContent()).toContain("the run would start without your changes");
+      await refused.getByRole("button", { name: "Start from the last commit" }).click();
+      const issueRun = await until("the issue's run", async () =>
+        (await runsNow()).find((r) => r.task.startsWith("Tidy the totals")),
+      );
+      expect(issueRun.worktree?.path).toBeDefined();
+      for (const r of await runsNow())
+        await metator(
+          ["run", "close", "--run", r.runId, "--aborted", "--reason", "the test ends it"],
+          repo.root,
+          scenario,
+        );
+    } finally {
+      await repo.write("scenario.yml", SCENARIO);
+    }
+    expect(errors).toEqual([]);
+  }, 120_000);
+
   test("in a folder a run's screens use the run's repository and the list screens the chosen one (D10)", async () => {
     await stop();
     await serve(folder, NOWHERE);

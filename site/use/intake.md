@@ -90,6 +90,7 @@ metator intake scan --drive      # also drive each started run in the background
 A scan goes through every rule. Each item the backlog does not hold yet becomes a task, and the task starts a run under the rule's workflow. For each rule the report gives how many items the source listed, how many were already known, which are new, which runs started, and which tasks wait.
 
 - An item becomes a task once. The task remembers its source by a key, such as `github:acme/shop#12` or `jira:SHOP-7`, so a later scan does not add it again.
+- A run that intake starts in a worktree starts from the last commit, also when tracked files in your checkout have uncommitted changes. Nobody is there to commit or stash them, and a run from an issue does not need them.
 - When `maxActive` runs are already active, the remaining tasks stay open in the backlog. A later scan starts them, before newer items.
 - The reporter's text is quoted in the task, with where it came from. Agents treat it as data and do not follow instructions in it.
 - A source that cannot be read gives a warning for its rule. The other rules are scanned as usual.

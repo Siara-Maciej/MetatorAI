@@ -95,7 +95,19 @@ const json = (body: unknown, status = 200) =>
 const fromResult = <T>(r: Result<T, MetatorError>) =>
   r.isOk()
     ? json({ ok: true, data: r.value })
-    : json({ ok: false, error: { code: r.error.code, message: r.error.message, hint: r.error.hint } }, 400);
+    : json(
+        {
+          ok: false,
+          error: {
+            code: r.error.code,
+            message: r.error.message,
+            hint: r.error.hint,
+            // What the app decides from (a refusal it can offer a way past), never prose.
+            ...(r.error.details ? { details: r.error.details } : {}),
+          },
+        },
+        400,
+      );
 
 /**
  * `metator serve`: the local daemon the desktop app talks to. Every endpoint runs the same use
@@ -330,6 +342,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
               await issues.start(id, {
                 workflow: str("workflow") ?? "",
                 ...(body.worktree === false ? { worktree: false } : {}),
+                ...(body.allowDirty === true ? { allowDirty: true } : {}),
                 ...(str("autonomy") ? { autonomy: str("autonomy") as "L0" | "L1" | "L2" } : {}),
               }),
             );

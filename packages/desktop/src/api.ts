@@ -474,7 +474,13 @@ export interface Workflow {
 export interface Envelope<T> {
   readonly ok: boolean;
   readonly data?: T;
-  readonly error?: { readonly code: string; readonly message: string; readonly hint?: string };
+  readonly error?: {
+    readonly code: string;
+    readonly message: string;
+    readonly hint?: string;
+    /** What a refusal is about, for the app to act on (`check: "tree"`: uncommitted changes). */
+    readonly details?: Readonly<Record<string, unknown>>;
+  };
 }
 
 export const DEFAULT_DAEMON = "http://127.0.0.1:4310";
@@ -583,6 +589,8 @@ export class DaemonClient {
       worktree?: boolean;
       parent?: string;
       drive?: string;
+      /** Start the worktree from the last commit although tracked files changed. */
+      allowDirty?: boolean;
     },
     repo?: string,
   ) => this.post<{ run: { runId: string }; drive?: { error?: string } }>("/runs", input, repo);
@@ -652,8 +660,11 @@ export class DaemonClient {
   ) => this.post<Issue>("/issues", body, repo);
   decideIssue = (id: string, body: { by: string; decision: "add" | "drop" }, repo?: string) =>
     this.post<Issue>(`/issues/${encodeURIComponent(id)}/decide`, body, repo);
-  startIssue = (id: string, body: { workflow: string; worktree?: boolean }, repo?: string) =>
-    this.post<{ issue: Issue; runId: string }>(`/issues/${encodeURIComponent(id)}/start`, body, repo);
+  startIssue = (
+    id: string,
+    body: { workflow: string; worktree?: boolean; allowDirty?: boolean },
+    repo?: string,
+  ) => this.post<{ issue: Issue; runId: string }>(`/issues/${encodeURIComponent(id)}/start`, body, repo);
   closeIssue = (id: string, by: string, repo?: string) =>
     this.post<Issue>(`/issues/${encodeURIComponent(id)}/close`, { by }, repo);
   dropIssue = (id: string, by: string, repo?: string) =>

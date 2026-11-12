@@ -22,6 +22,8 @@ const item = (n: number, extra: Partial<IntakeItem> = {}): IntakeItem => ({
 function world(config: unknown, items: Record<string, IntakeItem[] | MetatorError>) {
   const fs = new InMemoryFileSystem();
   const started: { workflow: string; task: string; autonomy?: string; worktree: boolean }[] = [];
+  /** Per started run: what its worktree was allowed (undefined for a run in the checkout). */
+  const dirty: (boolean | undefined)[] = [];
   let n = 0;
   const issues = new Issues({
     fs,
@@ -40,6 +42,7 @@ function world(config: unknown, items: Record<string, IntakeItem[] | MetatorErro
           ...(input.autonomy ? { autonomy: input.autonomy } : {}),
           worktree: input.worktree !== undefined,
         });
+        dirty.push(input.worktree ? input.worktree.allowDirty === true : undefined);
         n++;
         return ok({ runId: `run-${n}` } as never);
       },
@@ -60,7 +63,7 @@ function world(config: unknown, items: Record<string, IntakeItem[] | MetatorErro
     activeRuns: async () => ok(started.length),
     exclusive: (work) => lock.hold("intake", work),
   });
-  return { fs, issues, scan, started, listed };
+  return { fs, issues, scan, started, listed, dirty };
 }
 
 const RULES = {
@@ -130,6 +133,19 @@ describe("intake (T2, design/14 §3)", () => {
       ["jira", 0, 1],
     ]);
     expect(w.started).toHaveLength(2);
+  });
+
+  test("an intake run starts from the last commit whatever is uncommitted; a person's start says so itself", async () => {
+    const w = world(RULES, { github: [item(1)], jira: [item(2)] });
+    (await w.scan.execute())._unsafeUnwrap();
+    // The GitHub rule works in a worktree (allowed dirty); the Jira rule works in the checkout.
+    expect(w.dirty).toEqual([true, undefined]);
+    // Issues.start passes on what it was given, and nothing when it was given nothing.
+    const added = (await w.issues.add({ title: "By hand", by: "ola" }))._unsafeUnwrap();
+    (await w.issues.start(added.id, { workflow: "mt-feature" }))._unsafeUnwrap();
+    const second = (await w.issues.add({ title: "By hand, dirty", by: "ola" }))._unsafeUnwrap();
+    (await w.issues.start(second.id, { workflow: "mt-feature", allowDirty: true }))._unsafeUnwrap();
+    expect(w.dirty.slice(2)).toEqual([false, true]);
   });
 
   test("two scans at the same time make one issue and one run of an item (R6)", async () => {
