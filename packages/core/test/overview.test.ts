@@ -4,6 +4,7 @@ import { WorkOverview } from "../src/application/overview.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
 import { MetatorError } from "../src/domain/errors.ts";
+import { escalatedOf, inboxOf } from "../src/domain/inbox.ts";
 import {
   attentionOf,
   byAttention,
@@ -69,6 +70,9 @@ describe("overview domain", () => {
     ];
     expect(byAttention(runs).map((r) => r.id)).toEqual(["d", "c", "e", "b", "a"]);
     expect(countAttention(runs)).toEqual({ you: 2, driving: 1, stopped: 1, escalated: 0, finished: 1 });
+    // An escalated run waits for a person: it is not finished (F1).
+    const mixed = [...runs, { attention: "escalated" as const }, { attention: "aborted" as const }];
+    expect(countAttention(mixed)).toMatchObject({ escalated: 1, finished: 2 });
   });
 });
 
@@ -190,7 +194,7 @@ describe("WorkOverview", () => {
           loops: {},
           history: [
             { stage: "intake", event: "PASS" },
-            { stage: "plan", event: "FAIL" },
+            { stage: "plan", event: "FAIL", detail: "no plan.json" },
           ],
         },
       },
@@ -198,9 +202,33 @@ describe("WorkOverview", () => {
     } as never);
     const o = (await overview.execute())._unsafeUnwrap();
     const d = o.runs.find((r) => r.runId.endsWith("-d"));
-    expect([d?.stage, d?.attention]).toEqual(["plan", "escalated"]);
+    expect([d?.stage, d?.attention, d?.reason]).toEqual(["plan", "escalated", "no plan.json"]);
     expect(d?.stages.map((s) => s.state)).toEqual(["done", "stopped", "next", "next"]);
-    expect(o.counts.escalated).toBe(1);
+    expect([o.counts.escalated, o.counts.finished]).toEqual([1, 1]);
+    // What the inbox shows of it: the stage, the reason, how long, the two commands out.
+    expect(escalatedOf(o.runs, new Date("2026-10-28T11:00:00.000Z"))).toEqual([
+      {
+        runId: "20261028-mt-feature-d",
+        task: "d",
+        stage: "plan",
+        reason: "no plan.json",
+        waitedMs: 1_800_000,
+        next: [
+          "metator run resume --run 20261028-mt-feature-d --by <name> --drive",
+          "metator run close --run 20261028-mt-feature-d --aborted --reason <why>",
+        ],
+      },
+    ]);
+  });
+
+  test("a run that ended asks nothing: its open question is neither listed nor counted (R3)", async () => {
+    const { overview, runs } = await world();
+    const b = (await runs.load("20261028-mt-feature-b"))._unsafeUnwrap();
+    await runs.save({ ...b, state: { ...b.state, stage: "aborted", status: "aborted" } });
+    const o = (await overview.execute())._unsafeUnwrap();
+    const run = o.runs.find((r) => r.runId.endsWith("-b"));
+    expect([run?.attention, run?.questions.length, o.counts.questions]).toEqual(["aborted", 0, 0]);
+    expect(inboxOf(o.runs, new Date("2026-10-28T11:00:00.000Z"))).toEqual([]);
   });
 
   test("every run: stages, who acts, open questions, host, last activity, worktree and services", async () => {

@@ -10,6 +10,8 @@ import {
 } from "@metator/core";
 import { FakeTreeCopier, InMemoryFileSystem, ScriptedProcessRunner } from "@metator/testing";
 
+/** A manifest with something to install. */
+const PKG = '{"dependencies":{"left-pad":"1.3.0"}}';
 const ROOT = "/repo";
 const WT = ".metator/wt/20261102-mt-feature-a";
 
@@ -70,12 +72,28 @@ const entry = {
 };
 
 describe("SetupWorktree", () => {
+  test("a package.json that lists nothing to install runs no install and leaves no lockfile (F5)", async () => {
+    for (const manifest of ["{}", '{"name":"x","scripts":{"test":"node t.js"},"dependencies":{}}']) {
+      const w = world({ files: { "package.json": manifest, [`${WT}/package.json`]: manifest } });
+      await w.registry.save([entry]);
+      const r = (await w.setup.execute({ worktree: entry.id }))._unsafeUnwrap();
+      expect([r.dependencies, r.detail]).toEqual(["none", "package.json lists no dependencies"]);
+      expect(w.runner.calls).toEqual([]);
+    }
+    // Workspaces have their own dependencies; a manifest that cannot be read is installed as before.
+    for (const manifest of ['{"workspaces":["packages/*"]}', "not json", '{"devDependencies":{"a":"1"}}']) {
+      const w = world({ files: { [`${WT}/package.json`]: manifest } });
+      await w.registry.save([entry]);
+      expect((await w.setup.execute({ worktree: entry.id }))._unsafeUnwrap().dependencies).toBe("installed");
+    }
+  });
+
   test("the main checkout's node_modules are copied when every lockfile is the same, workspaces included", async () => {
     const w = world({
       files: {
-        "package.json": "{}",
+        "package.json": PKG,
         "bun.lock": "L",
-        [`${WT}/package.json`]: "{}",
+        [`${WT}/package.json`]: PKG,
         [`${WT}/bun.lock`]: "L",
       },
       dirs: ["node_modules", "packages/core/node_modules"],
@@ -100,9 +118,9 @@ describe("SetupWorktree", () => {
   test("a different lockfile, or no node_modules to copy, means an install in the worktree", async () => {
     const changed = world({
       files: {
-        "package.json": "{}",
+        "package.json": PKG,
         "bun.lock": "L",
-        [`${WT}/package.json`]: "{}",
+        [`${WT}/package.json`]: PKG,
         [`${WT}/bun.lock`]: "L2",
       },
       dirs: ["node_modules"],
@@ -113,14 +131,14 @@ describe("SetupWorktree", () => {
     expect(changed.runner.calls[0]?.cwd).toBe(`${ROOT}/${WT}`);
     expect(changed.copier.copies).toEqual([]);
 
-    const cold = world({ files: { "package.json": "{}", [`${WT}/package.json`]: "{}" } });
+    const cold = world({ files: { "package.json": PKG, [`${WT}/package.json`]: PKG } });
     await cold.registry.save([entry]);
     expect((await cold.setup.execute({ worktree: entry.id }))._unsafeUnwrap().dependencies).toBe("installed");
   });
 
   test("a failed install says the command and where; nothing to do without package.json or with node_modules", async () => {
     const failing = world({
-      files: { "package.json": "{}", [`${WT}/package.json`]: "{}" },
+      files: { "package.json": PKG, [`${WT}/package.json`]: PKG },
       install: { exitCode: 1, stderr: "registry down" },
     });
     await failing.registry.save([entry]);
@@ -131,7 +149,7 @@ describe("SetupWorktree", () => {
     const plain = world({ files: { "README.md": "" } });
     await plain.registry.save([entry]);
     expect((await plain.setup.execute({ worktree: entry.id }))._unsafeUnwrap().dependencies).toBe("none");
-    const present = world({ files: { [`${WT}/package.json`]: "{}" }, dirs: [`${WT}/node_modules`] });
+    const present = world({ files: { [`${WT}/package.json`]: PKG }, dirs: [`${WT}/node_modules`] });
     await present.registry.save([entry]);
     expect((await present.setup.execute({ worktree: entry.id }))._unsafeUnwrap().dependencies).toBe(
       "present",

@@ -9,11 +9,13 @@ import {
   chordOf,
   DEFAULT_KEYS,
   duration,
+  escalatedKey,
   evenTree,
   gotoRows,
   groupByFeature,
   hostChoice,
   inboxChips,
+  isFinished,
   keyMapOf,
   needsReason,
   neighborPane,
@@ -27,7 +29,9 @@ import {
   parseRoute,
   plainKey,
   questionKind,
+  refusedForDirtyTree,
   repoChoice,
+  resumeNotice,
   routeHash,
   stageGlyph,
   stateTone,
@@ -547,5 +551,34 @@ describe("hosts, workflows and repositories (D1, D5, D10)", () => {
     expect(autonomyLabel("L1")).toBe("L1: skips the gates the workflow allows");
     expect(autonomyLabel("L2")).toBe("L2: runs without a person");
     expect(autonomyLabel("L9")).toBe("L9");
+  });
+});
+
+describe("escalated runs (F1, D9)", () => {
+  test("an escalated run is not finished; done and aborted are", () => {
+    const by = (status: string) => isFinished({ status });
+    expect(["active", "escalated", "done", "aborted"].map(by)).toEqual([false, false, true, true]);
+  });
+
+  test("its key in the inbox never collides with a question's, and tells repositories apart", () => {
+    expect(escalatedKey({ runId: "r1" })).toBe("escalated::r1");
+    expect(escalatedKey({ runId: "r1", repo: "beta" })).toBe("escalated:beta:r1");
+  });
+
+  test("Resume says nothing when a drive started, and why when none did", () => {
+    expect(resumeNotice("r1", { started: true })).toBeUndefined();
+    expect(resumeNotice("r1", undefined)).toBeUndefined();
+    expect(resumeNotice("r1", { error: "AI host copilot cannot start here", hint: "Install it." })).toBe(
+      "Run r1 is resumed, but nothing drives it: AI host copilot cannot start here Install it.",
+    );
+  });
+});
+
+describe("a start refused for uncommitted changes", () => {
+  test("only the tree check offers the start from the last commit", () => {
+    expect(refusedForDirtyTree({ details: { check: "tree" } })).toBe(true);
+    expect(refusedForDirtyTree({ details: { check: "git" } })).toBe(false);
+    expect(refusedForDirtyTree({})).toBe(false);
+    expect(refusedForDirtyTree(undefined)).toBe(false);
   });
 });

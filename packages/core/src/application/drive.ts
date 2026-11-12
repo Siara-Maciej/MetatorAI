@@ -26,7 +26,7 @@ import { PlanScopeDocument } from "../domain/plan.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
 import { messageLines, type RunMessage } from "../domain/run-message.ts";
-import { APPROVAL_ACTIONS, fillInputs, isRunBookkeeping } from "../domain/run-record.ts";
+import { APPROVAL_ACTIONS, fillInputs, isRunBookkeeping, type RunRecord } from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
 import { type AgentUsage, AgentUsageDocument, type HostUsage } from "../domain/telemetry.ts";
 import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
@@ -256,6 +256,17 @@ export class RunJournal {
     const q = await this.load(file);
     if (q.isErr()) return err(q.error);
     if (q.value.answer) return err(MetatorError.usage(`question ${id} is already answered`));
+    // A run that ended asks nothing any more: an answer now would change nothing (R3).
+    const run = await this.repo.load(runId);
+    if (run.isOk() && run.value.state.status !== "active")
+      return err(
+        MetatorError.usage(
+          `run ${runId} is ${run.value.state.status}: question ${id} no longer waits for an answer`,
+          run.value.state.status === "escalated"
+            ? `Resume the run first: \`metator run resume --run ${runId} --by <name>\`.`
+            : "Nothing is left to answer in this run.",
+        ),
+      );
     const choices = input.choices.length === 0 && input.text ? [OTHER] : [...input.choices];
     const labels = q.value.options.map((o) => o.label);
     const unknown = choices.filter((c) => !labels.includes(c));
@@ -279,30 +290,66 @@ export class RunJournal {
         at: this.clock.now().toISOString(),
       },
     };
+    return this.settle(answered, input.origin);
+  }
+
+  /**
+   * A gate approved outside its question (`run approve <gate>`, R8): the stage's open gate
+   * questions get that approval as their answer, so no card asks for a decision already made.
+   */
+  async settleGate(
+    runId: string,
+    stage: string,
+    by: string,
+  ): Promise<Result<readonly Question[], MetatorError>> {
+    const all = await this.questions(runId);
+    if (all.isErr()) return err(all.error);
+    const out: Question[] = [];
+    for (const q of all.value) {
+      if (q.answer || q.stage !== stage || q.source !== "gate") continue;
+      const settled = await this.settle({
+        ...q,
+        answer: { choices: ["Approve"], by, at: this.clock.now().toISOString() },
+      });
+      if (settled.isErr()) return err(settled.error);
+      out.push(settled.value);
+    }
+    return ok(out);
+  }
+
+  private async settle(answered: Question, origin?: "inbox"): Promise<Result<Question, MetatorError>> {
+    const a = answered.answer as QuestionAnswer;
     const saved = await this.save(answered);
     if (saved.isErr()) return err(saved.error);
-    const logged = await this.record(runId, {
+    const logged = await this.record(answered.runId, {
       type: "answer",
-      stage: q.value.stage,
-      text: `${id}: ${choices.join(", ")}${input.text ? ` (${input.text})` : ""} · ${input.by}`,
-      ...(input.origin ? { origin: input.origin } : {}),
+      stage: answered.stage,
+      text: `${answered.id}: ${a.choices.join(", ")}${a.text ? ` (${a.text})` : ""} · ${a.by}`,
+      ...(origin ? { origin } : {}),
     });
     if (logged.isErr()) return err(logged.error);
     return ok(answered);
   }
 
-  /** Waits until the question has an answer; the answer comes from another process or this one. */
+  /**
+   * Waits until the question has an answer; the answer comes from another process or this one.
+   * Undefined when the run left the question's stage or ended meanwhile (an approval or an abort
+   * from another terminal, R3 and R8): nobody will answer, and the caller looks at the run again.
+   */
   async waitFor(
     runId: string,
     id: string,
     timer: Timer,
     pollMs: number,
-  ): Promise<Result<QuestionAnswer, MetatorError>> {
+  ): Promise<Result<QuestionAnswer | undefined, MetatorError>> {
     const file = this.questionFile(runId, id);
     for (;;) {
       const q = await this.load(file);
       if (q.isErr()) return err(q.error);
       if (q.value.answer) return ok(q.value.answer);
+      const run = await this.repo.load(runId);
+      if (run.isOk() && (run.value.state.status !== "active" || run.value.state.stage !== q.value.stage))
+        return ok(undefined);
       await timer.sleep(pollMs);
     }
   }
@@ -334,7 +381,12 @@ export interface DriveReport {
   readonly steps: number;
 }
 
-type Outcome = RunEvent | { readonly type: "STOP"; readonly reason: string };
+type Outcome =
+  | RunEvent
+  | { readonly type: "STOP"; readonly reason: string }
+  /** The run left the stage while it waited for a person: the drive looks at the run again. */
+  | { readonly type: "MOVED" };
+const MOVED = { type: "MOVED" } as const;
 
 /** Why the drive stopped on a host limit, and how the person carries on. */
 const limitReason = (agent: string, limit: string) =>
@@ -367,6 +419,8 @@ export interface DriveDependencies {
   readonly gatesDir?: string;
   /** The worktree registry, for the ports a run's worktree holds (the card's cost of delay). */
   readonly worktrees?: Pick<WorktreeRegistry, "get">;
+  /** Why a host cannot start here (its program is not installed); undefined when it can (F3). */
+  readonly hostProblem?: (host: string) => string | undefined;
 }
 
 /**
@@ -384,15 +438,25 @@ export class DriveRun {
         MetatorError.usage(`unknown AI host ${input.host}`, `Hosts: ${[...this.d.hosts.keys()].join(", ")}.`),
       );
     }
+    // Before a stage runs: a host that cannot start would fail every agent and spend the loops (F3).
+    const missing = hostRefusal(input.host, [...this.d.hosts.keys()], this.d.hostProblem);
+    if (missing) return err(missing);
     const id = await this.d.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     const runId = id.value;
+    const first = await this.d.repo.load(runId);
+    if (first.isErr()) return err(first.error);
+    const refused = notDrivable(first.value);
+    if (refused) return err(refused);
     const say = (entry: ActivityInput) => this.d.journal.record(runId, entry);
     await say({ type: "drive", text: `driving with ${host.id}` });
 
     let steps = 0;
-    let retry: string | undefined;
-    let retryFrom: string | undefined;
+    // A run resumed after it escalated starts where it failed: its agents hear why (F1).
+    const failed = first.value.state.context.history.at(-1);
+    const resumed = failed?.event === "FAIL" && failed.stage === first.value.state.stage;
+    let retry: string | undefined = resumed ? failed.detail : undefined;
+    let retryFrom: string | undefined = resumed && failed.detail ? failed.stage : undefined;
     // A later stage that failed and sent the run back: every stage until it is reached again hears it.
     let sentBack: { readonly from: string; readonly reason: string } | undefined;
     for (; steps < (input.maxSteps ?? 200); steps++) {
@@ -413,6 +477,12 @@ export class DriveRun {
             ? { retry, ...(retryFrom ? { retryFrom } : {}) }
             : {};
 
+      // A worktree removed by hand: nothing can run there, and a script would only fail to start (R10).
+      const gone = await this.worktreeGone(record.value);
+      if (gone) {
+        await say({ type: "error", stage: stage.id, text: gone.message });
+        return err(gone);
+      }
       const cwd = record.value.worktree ? `${this.d.root}/${record.value.worktree.path}` : this.d.root;
       // Through the run's worktree when it has one (the worktree links the run directory in): a
       // path into the checkout would be outside the root the agent's metator commands read from.
@@ -447,6 +517,15 @@ export class DriveRun {
       if (outcome.value.type === "STOP") {
         await say({ type: "drive", stage: stage.id, text: `stopped: ${outcome.value.reason}` });
         break;
+      }
+      if (outcome.value.type === "MOVED") {
+        await say({
+          type: "drive",
+          stage: stage.id,
+          text: `the run left ${stage.id} while it waited for a person; looking at the run again`,
+        });
+        retry = undefined;
+        continue;
       }
       // Someone moved the run while the stage worked (an agent, a person in another terminal):
       // this outcome was for a stage the run has left, so sending it would skip the next one.
@@ -525,6 +604,7 @@ export class DriveRun {
     const answer = await this.d.journal.waitFor(ctx.runId, q.value.id, this.d.timer, ctx.pollMs);
     if (answer.isErr()) return err(answer.error);
     const a = answer.value;
+    if (!a) return ok(MOVED);
     if (a.choices.includes("Approve"))
       return ok({ type: "APPROVE", by: a.by, ...(a.text ? { choice: a.text } : {}) });
     return ok({ type: "FAIL", reason: a.text ?? `rejected by ${a.by}` });
@@ -624,6 +704,7 @@ export class DriveRun {
     // since (or answered now), goes back to it.
     const pending = await this.pendingAnswer(ctx, agent);
     if (pending.isErr()) return err(pending.error);
+    if (typeof pending.value === "object") return ok(MOVED);
     let answer = pending.value;
     let resume = ctx.resume;
     // Up to three answers, and the agent always runs again with the last one.
@@ -654,7 +735,7 @@ export class DriveRun {
       if (status?.kind === "nothing") {
         const decided = await this.nothingToDo(ctx, agent, status.evidence, result.value.text);
         if (decided.isErr()) return err(decided.error);
-        if (decided.value.type === "ABORT") return ok(decided.value);
+        if (decided.value.type === "ABORT" || decided.value.type === "MOVED") return ok(decided.value);
         if (answers === MAX_ANSWERS)
           return ok({ type: "FAIL", reason: `${agent} found nothing to do after ${MAX_ANSWERS} answers` });
         answer = decided.value.answer;
@@ -679,6 +760,7 @@ export class DriveRun {
       if (q.isErr()) return err(q.error);
       const a = await this.d.journal.waitFor(ctx.runId, q.value.id, this.d.timer, ctx.pollMs);
       if (a.isErr()) return err(a.error);
+      if (!a.value) return ok(MOVED);
       answer = a.value.text ?? a.value.choices.join(", ");
     }
   }
@@ -695,6 +777,7 @@ export class DriveRun {
   ): Promise<
     Result<
       | { readonly type: "ABORT"; readonly reason: string }
+      | { readonly type: "MOVED" }
       | { readonly type: "GO_ON"; readonly answer: string },
       MetatorError
     >
@@ -721,6 +804,7 @@ export class DriveRun {
     if (q.isErr()) return err(q.error);
     const a = await this.d.journal.waitFor(ctx.runId, q.value.id, this.d.timer, ctx.pollMs);
     if (a.isErr()) return err(a.error);
+    if (!a.value) return ok({ type: "MOVED" });
     if (a.value.choices.includes(CLOSE_RUN)) return ok({ type: "ABORT", reason });
     return ok({
       type: "GO_ON",
@@ -886,7 +970,7 @@ export class DriveRun {
   private async pendingAnswer(
     ctx: StageContext,
     agent: string,
-  ): Promise<Result<string | undefined, MetatorError>> {
+  ): Promise<Result<string | typeof MOVED | undefined, MetatorError>> {
     const all = await this.d.journal.questions(ctx.runId);
     if (all.isErr()) return err(all.error);
     const last = all.value.filter((q) => q.stage === ctx.stage.id).at(-1);
@@ -896,7 +980,22 @@ export class DriveRun {
       ? ok(last.answer)
       : await this.d.journal.waitFor(ctx.runId, last.id, this.d.timer, ctx.pollMs);
     if (a.isErr()) return err(a.error);
+    if (!a.value) return ok(MOVED);
     return ok(a.value.text ?? a.value.choices.join(", "));
+  }
+
+  /** The error for a run whose worktree is no longer a checkout; undefined when it is there. */
+  private async worktreeGone(record: RunRecord): Promise<MetatorError | undefined> {
+    const wt = record.worktree;
+    // A git worktree has a `.git` file at its top; a plain folder made again by a script has none.
+    if (!wt || (await this.d.fs.exists(`${wt.path}/.git`))) return undefined;
+    return new MetatorError(
+      "NOT_FOUND",
+      `the worktree of run ${record.runId} is gone: ${wt.path} is not a git checkout any more`,
+      {
+        hint: `Put it back (\`git worktree prune && git worktree add ${wt.path} ${wt.branch}\`) and continue the run, or end the run: \`metator run close --run ${record.runId} --aborted --reason "worktree removed"\`.`,
+      },
+    );
   }
 
   private async critic(ctx: StageContext, agent: string): Promise<Result<Outcome, MetatorError>> {
@@ -952,9 +1051,13 @@ export class DriveRun {
       );
       if (asked.isErr()) return { choices: [], text: asked.error.message };
       const a = await this.d.journal.waitFor(ctx.runId, asked.value.id, this.d.timer, ctx.pollMs);
-      return a.isOk()
+      // No answer because the run ended or moved on: the agent is told, and stops asking.
+      return a.isOk() && a.value
         ? { choices: a.value.choices, ...(a.value.text ? { text: a.value.text } : {}) }
-        : { choices: [] };
+        : {
+            choices: [],
+            ...(a.isOk() ? { text: "The run ended or moved on: nobody will answer. Stop." } : {}),
+          };
     };
     // What a person approved so far (the push, after the delivery gate): the host lets the agent do it.
     const record = await this.d.repo.load(ctx.runId);
@@ -1059,6 +1162,36 @@ interface StageContext {
   readonly children: readonly string[];
   /** The worktree's port block, when the run has one. */
   readonly ports?: { readonly from: number; readonly count: number };
+}
+
+/** Why a drive cannot use this host here (its program is not installed), with the hosts that can; undefined when it can. */
+export function hostRefusal(
+  host: string,
+  known: readonly string[],
+  problem: ((host: string) => string | undefined) | undefined,
+): MetatorError | undefined {
+  const why = problem?.(host);
+  if (!why) return undefined;
+  const others = known.filter((h) => h !== host && !problem?.(h));
+  return MetatorError.usage(
+    `AI host ${host} cannot start here: ${why}`,
+    others.length > 0
+      ? `Install it, or drive with a host that is here: --host ${others.join(" | ")}.`
+      : "Install it, then drive the run again.",
+  );
+}
+
+/**
+ * Why a drive does not start on this run: an escalated run waits for a person's resume, and a
+ * drive that "ran" it would report success having done nothing (F1). Undefined for any other run.
+ */
+export function notDrivable(record: RunRecord): MetatorError | undefined {
+  if (record.state.status !== "escalated") return undefined;
+  const last = record.state.context.history.at(-1);
+  return MetatorError.usage(
+    `run ${record.runId} escalated${last ? ` at ${last.stage}` : ""}${last?.detail ? `: ${last.detail.slice(0, 300)}` : ""}`,
+    `Remove the cause, then \`metator run resume --run ${record.runId} --by <name> --drive\`; or give it up: \`metator run close --run ${record.runId} --aborted --reason <why>\`.`,
+  );
 }
 
 /** Transitions and tool calls since a person last answered (the whole run before any answer). */

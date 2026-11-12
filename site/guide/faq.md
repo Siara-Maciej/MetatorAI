@@ -28,7 +28,7 @@ No, as long as the hooks are installed. The pre-tool hook denies a push, a pull 
 
 ## What happens when an agent gets stuck
 
-A failed check sends the run back to an earlier stage, a limited number of times. After that the run is escalated: it stops and waits for you. Fix the cause and run `metator run resume --by <name>`, or close the run. See [Runs and workflows](./runs.md#how-a-run-moves).
+A failed check sends the run back to an earlier stage, a limited number of times. After that the run is escalated: it stops and waits for you. Fix the cause and run `metator run resume --by <name> --drive`, or close the run with `metator run close --aborted --reason <why>`. See [Runs and workflows](./runs.md#how-a-run-moves).
 
 ## Do I have to approve every step
 

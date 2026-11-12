@@ -40,6 +40,15 @@ export interface IssuePatch {
   readonly refs?: readonly IssueRef[];
 }
 
+/** What starting a run on an issue takes. */
+export interface StartIssueInput {
+  readonly workflow: string;
+  readonly worktree?: boolean;
+  readonly autonomy?: "L0" | "L1" | "L2";
+  /** Start although tracked files have uncommitted changes: the run does not need them. */
+  readonly allowDirty?: boolean;
+}
+
 /**
  * The backlog (S4): tasks a person adds, agents propose, and runs start from. A proposal is a
  * question of the run in the inbox; the person's answer there is the decision, applied the next
@@ -216,10 +225,13 @@ export class Issues {
     return this.setStatus(id, "dropped", input.by);
   }
 
-  /** A run on the task: its title and body are the task, the issue is in progress and remembers the run. */
+  /**
+   * A run on the task: its title and body are the task, the issue is in progress and remembers the
+   * run. `allowDirty` starts the worktree from the last commit although tracked files changed.
+   */
   async start(
     id: string,
-    input: { readonly workflow: string; readonly worktree?: boolean; readonly autonomy?: "L0" | "L1" | "L2" },
+    input: StartIssueInput,
   ): Promise<Result<{ readonly issue: Issue; readonly runId: string }, MetatorError>> {
     // Answers given in the inbox are applied first (outside the lock: applying one may start a run).
     const known = await this.show(id);
@@ -230,7 +242,7 @@ export class Issues {
 
   private async startLocked(
     id: string,
-    input: { readonly workflow: string; readonly worktree?: boolean; readonly autonomy?: "L0" | "L1" | "L2" },
+    input: StartIssueInput,
   ): Promise<Result<{ readonly issue: Issue; readonly runId: string }, MetatorError>> {
     const issue = await this.read(this.file(id));
     if (issue.isErr()) return err(issue.error);
@@ -256,7 +268,7 @@ export class Issues {
       workflow: input.workflow,
       task: issueTask(issue.value),
       ...(input.autonomy ? { autonomy: input.autonomy } : {}),
-      ...(input.worktree === false ? {} : { worktree: {} }),
+      ...(input.worktree === false ? {} : { worktree: input.allowDirty ? { allowDirty: true } : {} }),
     });
     if (started.isErr()) return err(started.error);
     const next: Issue = {

@@ -27,7 +27,10 @@ interface Check {
 beforeAll(async () => {
   repo = await ScratchRepo.create();
   await repo.write(".gitignore", ".metator/\nnode_modules/\n");
-  await repo.write("package.json", '{ "name": "demo", "scripts": { "test": "bun test" } }\n');
+  await repo.write(
+    "package.json",
+    '{ "name": "demo", "scripts": { "test": "bun test" }, "devDependencies": { "left-pad": "1.3.0" } }\n',
+  );
   await repo.write("bun.lock", "{}\n");
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
   await repo.commit("init");
@@ -45,6 +48,7 @@ describe("metator doctor (real CLI)", () => {
       "canon:warn",
       "workflows:ok",
       "gates:warn",
+      "host:ok",
       "dependencies:warn",
       "environment:ok",
       "mcp:ok",
@@ -116,4 +120,102 @@ describe("metator doctor (real CLI)", () => {
       await empty.dispose();
     }
   });
+
+  test("a directory that is not a git repository: doctor is not ready and run init refuses with the fix (F3)", async () => {
+    const { mkdtemp, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = await mkdtemp(join(tmpdir(), "metator-e2e-nogit-"));
+    try {
+      await Bun.write(join(dir, ".github/metator/workflows/demo.yml"), WORKFLOW);
+      const FIX = "git init && git commit --allow-empty -m init";
+      const r = await metator(["doctor"], dir);
+      const data = r.json.data as { ready: boolean; checks: Check[] };
+      expect(data.ready).toBe(false);
+      expect(data.checks.find((c) => c.id === "git")).toMatchObject({ status: "fail", fix: FIX });
+      for (const more of [[], ["--worktree"]]) {
+        const init = await metator(["run", "init", "--workflow", "demo", "--task", "x", ...more], dir);
+        const e = init.json.error as { code: string; hint: string };
+        expect([init.code, e.code, e.hint]).toEqual([
+          1,
+          "CHECK_FAILED",
+          `Run \`${FIX}\`, then start the run again.`,
+        ]);
+      }
+      expect((await metator(["run", "list"], dir)).json.data).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test("uncommitted changes: doctor says so, run init --worktree refuses, --allow-dirty starts without them (F3)", async () => {
+    await repo.write("package.json", '{ "name": "demo-changed" }\n');
+    try {
+      const doctor = (await mt("doctor")).json.data as {
+        ready: boolean;
+        checks: (Check & { message: string })[];
+      };
+      const tree = doctor.checks.find((c) => c.id === "tree");
+      expect([doctor.ready, tree?.status]).toEqual([true, "warn"]);
+      expect(tree?.message).toStartWith("1 tracked file(s) have uncommitted changes (package.json)");
+      const args = [
+        "run",
+        "init",
+        "--workflow",
+        "demo",
+        "--task",
+        "Start from a dirty tree",
+        "--worktree",
+        "--no-setup",
+      ];
+      const refused = await mt(...args);
+      const e = refused.json.error as { code: string; message: string; hint: string };
+      expect([refused.code, e.code]).toEqual([1, "CHECK_FAILED"]);
+      expect(e.message).toStartWith("the run would start without your changes: 1 tracked file(s)");
+      expect(e.hint).toContain("--allow-dirty");
+      // In the checkout the run starts, and is told what it will carry along.
+      const here = await mt("run", "init", "--workflow", "demo", "--task", "Start here from a dirty tree");
+      expect(here.code).toBe(0);
+      expect((here.json.warnings as string[]).some((w) => w.startsWith("tree: "))).toBe(true);
+      // An issue's run starts in a worktree by default: the same refusal, the same way past it.
+      await mt("issue", "add", "Tidy the flags", "--by", "ola");
+      const issue = await mt("issue", "start", "i001", "--workflow", "demo");
+      expect((issue.json.error as { code: string }).code).toBe("CHECK_FAILED");
+      expect((await mt("issue", "start", "i001", "--workflow", "demo", "--allow-dirty")).code).toBe(0);
+      const allowed = await mt(...args, "--allow-dirty");
+      expect(allowed.code).toBe(0);
+      const wt = (allowed.json.data as { worktree: { path: string } }).worktree.path;
+      expect(await repo.read(`${wt}/package.json`)).toContain('"name": "demo"');
+    } finally {
+      await repo.git("checkout", "--", "package.json");
+    }
+  }, 60_000);
+
+  test("no AI host that can start: doctor is not ready; a workflow that is not installed names metator setup (F3)", async () => {
+    await repo.write(
+      "metator.config.yml",
+      "kind: MetatorConfig\nschemaVersion: 1\nhosts:\n  targets: [copilot]\n",
+    );
+    try {
+      const r = await metator(["doctor"], repo.root, { METATOR_COPILOT_BIN: repo.path("no-such-copilot") });
+      const data = r.json.data as { ready: boolean; checks: (Check & { message: string })[] };
+      const host = data.checks.find((c) => c.id === "host");
+      expect([data.ready, host?.status]).toEqual([false, "fail"]);
+      expect(host?.message).toStartWith("no AI host can start: copilot (");
+    } finally {
+      const { rm } = await import("node:fs/promises");
+      await rm(repo.path("metator.config.yml"), { force: true });
+    }
+    const empty = await ScratchRepo.create();
+    try {
+      await empty.write("README.md", "# x\n");
+      await empty.commit("init");
+      const init = await metator(["run", "init", "--workflow", "mt-feature", "--task", "x"], empty.root);
+      expect((init.json.error as { hint: string }).hint).toStartWith(
+        "No workflow is installed here: run `metator setup`",
+      );
+    } finally {
+      await empty.dispose();
+    }
+  }, 60_000);
 });

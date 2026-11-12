@@ -95,7 +95,7 @@ export interface AttentionCounts {
   readonly you: number;
   readonly driving: number;
   readonly stopped: number;
-  /** Escalated runs: a person removes the cause and resumes them. */
+  /** Escalated runs: a person removes the cause and resumes them. Not finished. */
   readonly escalated: number;
   readonly finished: number;
 }
@@ -107,6 +107,7 @@ export function countAttention(runs: readonly { readonly attention: Attention }[
     driving: n("driving"),
     stopped: n("stopped"),
     escalated: n("escalated"),
-    finished: runs.length - n("you") - n("driving") - n("stopped"),
+    // Done and aborted only: an escalated run still waits for a person (F1).
+    finished: n("done") + n("aborted"),
   };
 }

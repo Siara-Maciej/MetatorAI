@@ -23,6 +23,14 @@ stages:
   - id: approval
     hitl: true
 `;
+/** A run of this workflow escalates at once: its only stage is a gate that fails until a file exists. */
+const STUCK = `kind: Workflow
+schemaVersion: 2
+id: stuck
+stages:
+  - id: check
+    gate: { script: "test -f {runDir}/fixed" }
+`;
 const SCENARIO = `kind: AgentScenario
 schemaVersion: 1
 agents:
@@ -119,6 +127,7 @@ beforeAll(async () => {
   repo = await ScratchRepo.create();
   await repo.write(".gitignore", ".metator/\n");
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
+  await repo.write(".github/metator/workflows/stuck.yml", STUCK);
   await repo.write("scenario.yml", SCENARIO);
   // A host that is installed but cannot work: it says why and exits.
   await repo.write("bin/claude", '#!/bin/sh\necho "claude: not logged in"\nexit 3\n');
@@ -272,6 +281,121 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
       (await term.textContent())?.includes("hello from the session") ? true : undefined,
     );
     expect(await page.getByTestId("connection").textContent()).toBe("connected");
+  }, 120_000);
+
+  test("an escalated run is a card in the Inbox with why it stopped; Resume drives it on, Close ends it (F1, D9)", async () => {
+    // The daemon's drives use the scenario host: no real AI host is ever started.
+    const scenario = { METATOR_AGENT_SCENARIO: repo.path("scenario.yml"), METATOR_HOST: "scenario" };
+    await stop();
+    await serve(repo.root, { ...NOWHERE, ...scenario });
+    const cli = (...args: string[]) => metator(args, repo.root, scenario);
+    const escalate = async (task: string) => {
+      const runId = (
+        (await cli("run", "init", "--workflow", "stuck", "--task", task)).json.data as { runId: string }
+      ).runId;
+      const driven = await cli("run", "drive", "--run", runId, "--host", "scenario");
+      expect((driven.json.data as { status: string }).status).toBe("escalated");
+      return runId;
+    };
+    const statusOf = async (runId: string) =>
+      ((await cli("run", "status", "--run", runId)).json.data as { status: string }).status;
+    const runId = await escalate("Check the totals");
+    await page.goto(app("inbox"));
+    await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
+    // It is listed among what needs the person, and in the sessions panel, not under "finished".
+    const row = page.getByTestId(`escalated-${runId}`);
+    await row.waitFor({ timeout: 20_000 });
+    expect(await page.locator("aside.sessions .list").textContent()).toContain("Check the totals");
+    expect(await page.locator("main.content").textContent()).not.toContain("Inbox zero");
+    await row.click();
+    const card = page.getByTestId("escalated-card");
+    await card.waitFor({ timeout: 20_000 });
+    expect(await card.getByTestId("escalated-reason").textContent()).toContain(
+      "gate `test -f {runDir}/fixed`",
+    );
+    // The cause removed, then Resume: the app asks who, the daemon resumes the run and drives it.
+    await Bun.write(repo.path(`.metator/runs/${runId}/fixed`), "");
+    await card.getByRole("button", { name: "Resume" }).click();
+    const who = page.getByRole("dialog", { name: "your name" });
+    await who.waitFor({ timeout: 5000 });
+    await who.getByLabel("Your name").fill("maciej");
+    await who.getByRole("button", { name: "Save" }).click();
+    await until("the resumed run to finish", async () =>
+      (await statusOf(runId)) === "done" ? true : undefined,
+    );
+    await until("its row to go", async () => ((await row.count()) === 0 ? true : undefined));
+    const log = await repo.read(`.metator/runs/${runId}/log.md`);
+    expect(log).toContain("resumed at check · by maciej");
+
+    // Another one is closed from its card: a reason is required, and the run ends as aborted.
+    const other = await escalate("Check the taxes");
+    await page.getByTestId(`escalated-${other}`).click();
+    await card.getByRole("button", { name: "Close run…" }).click();
+    const close = card.getByRole("button", { name: "Close as aborted" });
+    expect(await close.isDisabled()).toBe(true);
+    await card.getByLabel("why the run is closed (required)").fill("not worth fixing");
+    await close.click();
+    await until("the run to be aborted", async () =>
+      (await statusOf(other)) === "aborted" ? true : undefined,
+    );
+    await until("its row to go", async () =>
+      (await page.getByTestId(`escalated-${other}`).count()) === 0 ? true : undefined,
+    );
+    expect(errors).toEqual([]);
+  }, 120_000);
+
+  test("a start refused for uncommitted changes offers Start from the last commit, in the form and the Backlog (F3)", async () => {
+    // The daemon of the test before: scenario hosts only. A tracked file is changed and not committed.
+    const scenario = { METATOR_AGENT_SCENARIO: repo.path("scenario.yml"), METATOR_HOST: "scenario" };
+    await repo.write("scenario.yml", `${SCENARIO}# changed, not committed\n`);
+    const runsNow = async () =>
+      ((await api("/state")).data.runs as { runId: string; task: string; worktree?: { path: string } }[]) ??
+      [];
+    try {
+      await page.goto(app("inbox"));
+      await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
+      await page.getByRole("button", { name: "Advanced…" }).click();
+      const dialog = page.getByRole("dialog", { name: "new session" });
+      await dialog.getByLabel("Workflow", { exact: true }).selectOption("demo");
+      await dialog.getByLabel("Task").fill("Start from a dirty tree");
+      await dialog.getByLabel("Host").selectOption("scenario");
+      await dialog.getByRole("button", { name: "Create in background" }).click();
+      const notice = dialog.locator(".notice");
+      await notice.waitFor({ timeout: 20_000 });
+      expect(await notice.textContent()).toContain(
+        "the run would start without your changes: 1 tracked file(s)",
+      );
+      expect((await runsNow()).some((r) => r.task === "Start from a dirty tree")).toBe(false);
+      await notice.getByRole("button", { name: "Start from the last commit" }).click();
+      const run = await until("the run from the form", async () =>
+        (await runsNow()).find((r) => r.task === "Start from a dirty tree"),
+      );
+      // It works in a worktree at the last commit: the uncommitted line is not there.
+      expect(await repo.read(`${run.worktree?.path}/scenario.yml`)).toBe(SCENARIO);
+
+      // The Backlog: the same refusal, the same button, and the issue's run starts.
+      await metator(["issue", "add", "Tidy the totals", "--by", "maciej"], repo.root, scenario);
+      await page.goto(app("backlog"));
+      await page.getByTestId("issue-i001").click();
+      await page.getByRole("button", { name: "Start a run" }).click();
+      const refused = page.locator(".backlog .notice");
+      await refused.waitFor({ timeout: 20_000 });
+      expect(await refused.textContent()).toContain("the run would start without your changes");
+      await refused.getByRole("button", { name: "Start from the last commit" }).click();
+      const issueRun = await until("the issue's run", async () =>
+        (await runsNow()).find((r) => r.task.startsWith("Tidy the totals")),
+      );
+      expect(issueRun.worktree?.path).toBeDefined();
+      for (const r of await runsNow())
+        await metator(
+          ["run", "close", "--run", r.runId, "--aborted", "--reason", "the test ends it"],
+          repo.root,
+          scenario,
+        );
+    } finally {
+      await repo.write("scenario.yml", SCENARIO);
+    }
+    expect(errors).toEqual([]);
   }, 120_000);
 
   test("in a folder a run's screens use the run's repository and the list screens the chosen one (D10)", async () => {

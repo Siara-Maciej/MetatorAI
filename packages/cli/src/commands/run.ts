@@ -27,6 +27,7 @@ import { Argument, type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, findDaemon } from "../daemon-client.ts";
 import { positiveInt } from "../options.ts";
+import { HOSTS, resume } from "../sessions.ts";
 import { registerConductorCommands } from "./conductor.ts";
 import { registerDriveCommands } from "./drive.ts";
 
@@ -99,6 +100,11 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       "--no-setup",
       "with --worktree: leave the worktree without its dependencies (metator worktree setup later)",
     )
+    .option(
+      "--allow-dirty",
+      "with --worktree: start although tracked files have uncommitted changes (the run starts from the last commit, without them)",
+      false,
+    )
     .option("--parent <run>", "the run this one is a child of (a system run, possibly in another repository)")
     .option(
       "--input <name=value>",
@@ -115,6 +121,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
           worktree: boolean;
           base: string;
           setup: boolean;
+          allowDirty: boolean;
           parent?: string;
           input: string[];
         }) => {
@@ -135,7 +142,9 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
             workflow: opts.workflow,
             task,
             ...(opts.autonomy ? { autonomy: opts.autonomy } : {}),
-            ...(opts.worktree ? { worktree: { base: opts.base } } : {}),
+            ...(opts.worktree
+              ? { worktree: { base: opts.base, ...(opts.allowDirty ? { allowDirty: true } : {}) } }
+              : {}),
             ...(opts.parent ? { parent: opts.parent } : {}),
           };
           const started = await container().resolve("initRun").execute(input);
@@ -307,15 +316,31 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
 
   runs
     .command("resume")
-    .description("Resume an escalated run at the stage it escalated from, once the cause is fixed")
+    .description(
+      "Resume an escalated run at the stage it escalated from, once the cause is fixed; --drive carries it on at once",
+    )
     .requiredOption("--by <name>", "who resumes it (recorded in log.md)")
     .option("--run <id>", "run id (default: latest)")
+    .option("--drive", "also start a drive in the background, as `run continue` does", false)
+    .option("--host <host>", `with --drive: the AI host (${HOSTS.join(", ")}; default: the one the run used)`)
     .action(
-      action(async (opts: { by: string; run?: string }) => ({
-        result: await container()
+      action(async (opts: { by: string; run?: string; drive: boolean; host?: string }) => {
+        const c = container();
+        const resumed = await c
           .resolve("resumeRun")
-          .execute({ by: opts.by, ...(opts.run ? { runId: opts.run } : {}) }),
-      })),
+          .execute({ by: opts.by, ...(opts.run ? { runId: opts.run } : {}) });
+        if (resumed.isErr() || !opts.drive) return { result: resumed };
+        const driven = await resume(c, root(), resumed.value.runId, opts.host);
+        if (driven.isErr())
+          return {
+            result: resumed,
+            warnings: [
+              `the run is resumed, but no drive started: ${driven.error.message}${driven.error.hint ? ` (${driven.error.hint})` : ""}; start one with \`metator run continue ${resumed.value.runId}\``,
+            ],
+          };
+        const driver = await c.resolve("runDrivers").status(resumed.value.runId);
+        return { result: ok({ ...resumed.value, drive: driver.isOk() ? driver.value : null }) };
+      }),
     );
 
   runs

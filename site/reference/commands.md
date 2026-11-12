@@ -1785,6 +1785,7 @@ metator run init [options]
 | `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
 | `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
 | `--no-setup` | with --worktree: leave the worktree without its dependencies (metator worktree setup later) |  |
+| `--allow-dirty` | with --worktree: start although tracked files have uncommitted changes (the run starts from the last commit, without them) |  |
 | `--parent <run>` | the run this one is a child of (a system run, possibly in another repository) |  |
 | `--input <name=value>` | a workflow input its scripts read as {name} (repeatable), e.g. base=main | `[]` |
 
@@ -1888,7 +1889,7 @@ metator run checkpoint [options]
 
 ### `metator run resume`
 
-Resume an escalated run at the stage it escalated from, once the cause is fixed
+Resume an escalated run at the stage it escalated from, once the cause is fixed; --drive carries it on at once
 
 ```bash
 metator run resume [options]
@@ -1898,6 +1899,8 @@ metator run resume [options]
 |---|---|---|
 | `--by <name>` | who resumes it (recorded in log.md) **Required.** |  |
 | `--run <id>` | run id (default: latest) |  |
+| `--drive` | also start a drive in the background, as `run continue` does |  |
+| `--host <host>` | with --drive: the AI host (claude, copilot; default: the one the run used) |  |
 
 ### `metator run write`
 
@@ -2480,7 +2483,7 @@ metator doctor [options]
 
 ### `metator inbox`
 
-Every open decision of every run, first the ones a live drive waits on, then the oldest
+Every open decision of every run, first the ones a live drive waits on, then the oldest; and the escalated runs waiting for a resume
 
 ```bash
 metator inbox [options]
@@ -2706,6 +2709,7 @@ metator issue start [options] <id>
 | `<id>` |  | |
 | `--workflow <id>` | the workflow to run **Required.** |  |
 | `--no-worktree` | work in the main checkout |  |
+| `--allow-dirty` | start although tracked files have uncommitted changes (the worktree starts from the last commit, without them) |  |
 | `--autonomy <level>` | L0 asks at every gate (one of: L0, L1, L2) |  |
 
 ## intake

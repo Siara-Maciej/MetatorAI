@@ -1,6 +1,8 @@
 import {
   byUrgency,
+  type EscalatedItem,
   err,
+  escalatedOf,
   fleetReport,
   type InboxItem,
   inboxOf,
@@ -104,12 +106,15 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
 
   program
     .command("inbox")
-    .description("Every open decision of every run, first the ones a live drive waits on, then the oldest")
+    .description(
+      "Every open decision of every run, first the ones a live drive waits on, then the oldest; and the escalated runs waiting for a resume",
+    )
     .action(
       ctx.action(async () => {
         const f = ctx.folder();
         const roots = f ? f.repos.map((r) => ({ name: r.name, root: r.root })) : [{ name: "", root: "" }];
         const items: (InboxItem & { repo?: string })[] = [];
+        const escalated: (EscalatedItem & { repo?: string })[] = [];
         const warnings: string[] = [];
         for (const r of roots) {
           const c = r.root ? ctx.containerAt(r.root) : ctx.container();
@@ -123,9 +128,11 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
             warnings.push(f ? `${r.name}: ${unreadableRunWarning(u)}` : unreadableRunWarning(u));
           const now = c.resolve("clock").now();
           for (const item of inboxOf(o.value.runs, now)) items.push(f ? { repo: r.name, ...item } : item);
+          for (const item of escalatedOf(o.value.runs, now))
+            escalated.push(f ? { repo: r.name, ...item } : item);
         }
         // One queue across repositories, in the same order as within one.
-        return { result: ok({ decisions: items.sort(byUrgency) }), warnings };
+        return { result: ok({ decisions: items.sort(byUrgency), escalated }), warnings };
       }),
     );
 

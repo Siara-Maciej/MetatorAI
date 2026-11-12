@@ -56,7 +56,10 @@ describe("workNotes", () => {
     const { join } = await import("node:path");
     const dir = await mkdtemp(join(tmpdir(), "metator-notes-"));
     expect(workNotes(dir)).toEqual([]);
+    // Nothing to install: no node_modules is not a missing install (F5).
     await writeFile(join(dir, "package.json"), "{}");
+    expect(workNotes(dir)).toEqual([]);
+    await writeFile(join(dir, "package.json"), '{"devDependencies":{"vitest":"3"}}');
     expect(workNotes(dir)[0]).toContain("dependencies are not installed");
     await mkdir(join(dir, "node_modules"));
     expect(workNotes(dir)).toEqual([]);

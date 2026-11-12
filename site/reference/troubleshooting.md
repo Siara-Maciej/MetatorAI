@@ -8,7 +8,7 @@ For a check of the whole setup, run:
 metator doctor
 ```
 
-It lists what a run cannot do in this repository (configuration, agents, workflows, gates, dependencies, environment, remote) and the fix for each.
+It lists what a run cannot do in this repository (configuration, agents, git, workflows, gates, AI hosts, uncommitted changes, dependencies, environment, remote) and the fix for each.
 
 ## BIN_NOT_FOUND: ast-grep is not installed
 
@@ -107,6 +107,25 @@ metator run continue     # pick a run that waits or stopped, and drive it again
 ```
 
 If the process that drove the run died (a restart, a closed terminal), `metator run revive` starts every such run again at the stage it stood.
+
+## A run is escalated
+
+`metator run continue` answers `no active run to continue`, or `metator run drive` answers `run <id> escalated at <stage>: <reason>`. The run used up its tries at that stage and waits for you. Remove the cause, then resume it and drive it on:
+
+```bash
+metator run status --run <id>                      # the stage, the reason, the commands
+metator run resume --run <id> --by alice --drive
+```
+
+To give it up: `metator run close --run <id> --aborted --reason "<why>"`. In the app, the run's card in the Inbox has **Resume** and **Close run…**.
+
+## A run cannot start here
+
+`metator run init` fails with `a run cannot start here` when the directory is not a git repository, and with `--worktree` when the repository has no commit. The hint names the command. With `--worktree` it also fails with `the run would start without your changes` when tracked files have uncommitted changes: commit them, stash them, or pass `--allow-dirty` (in the app: **Start from the last commit**).
+
+## The AI host cannot start
+
+`metator run drive --host copilot` fails with `AI host copilot cannot start here` when the Copilot CLI is not installed. Install it, or drive with a host the hint lists. `metator doctor` shows the same under `host`.
 
 ## A push is denied by the hook
 

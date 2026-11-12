@@ -12,6 +12,14 @@ import {
 } from "@metator/core";
 import { type AgentName, detect, LOCKS, resolveCommand } from "package-manager-detector";
 
+/** Each tool's flag for "install, and write no lockfile". */
+const NO_LOCKFILE: Readonly<Record<string, readonly string[]>> = {
+  npm: ["--no-package-lock"],
+  pnpm: ["--no-lockfile"],
+  yarn: ["--no-lockfile"],
+  bun: ["--no-save"],
+};
+
 /**
  * Package manager via package-manager-detector (ADR-0028): detection from the `packageManager`
  * field, devEngines and lockfiles (never above the repository root), and script commands with
@@ -44,11 +52,16 @@ export class NodePackageManager implements PackageManagerDetector, PackageManage
     const pm = await this.detect();
     if (pm.isErr()) return err(pm.error);
     const agent = (pm.value?.name ?? "npm") as AgentName;
-    // With a lockfile, the install that changes nothing in it; without one, a plain install.
-    const resolved = resolveCommand(agent, (pm.value?.lockfiles.length ?? 0) > 0 ? "frozen" : "install", []);
+    // With a lockfile, the install that changes nothing in it; without one, an install that writes
+    // none: a lockfile the project does not have must not appear in a run's change (F5).
+    const locked = (pm.value?.lockfiles.length ?? 0) > 0;
+    const resolved = resolveCommand(agent, locked ? "frozen" : "install", []);
     if (!resolved)
       return err(new MetatorError("INTERNAL", `No install command for package manager ${agent}`));
-    return ok({ argv: [resolved.command, ...resolved.args], cwd });
+    // Only yarn 1 has the flag; a later yarn would refuse it.
+    const classic = agent !== "yarn" || /^1\./.test(pm.value?.version ?? "");
+    const noLockfile = locked || !classic ? [] : (NO_LOCKFILE[agent] ?? []);
+    return ok({ argv: [resolved.command, ...resolved.args, ...noLockfile], cwd });
   }
 
   async workspacesCommand(script: string): Promise<Result<ResolvedCommand, MetatorError>> {

@@ -195,7 +195,7 @@ describe("Panes", () => {
     ).toBe("NOT_FOUND");
   });
 
-  test("restore brings every pane back: sessions resumed, commands rerun, a failure noted in the run", async () => {
+  test("restore brings sessions and plain shells back; a command is not run a second time (R11)", async () => {
     const w = world();
     const r = (await w.init("Add discount"))._unsafeUnwrap();
     await w.panes.openRun({ runId: r.runId });
@@ -204,21 +204,47 @@ describe("Panes", () => {
       role: "apps",
       process: { kind: "command", argv: ["tail", "-f", "log"] },
     });
+    await w.panes.openPane({
+      workspace: "w1",
+      role: "shell",
+      process: { kind: "command", argv: ["/bin/zsh", "-l"] },
+    });
     // A restore while the panes live changes nothing.
     expect((await w.panes.restore())._unsafeUnwrap()).toEqual([]);
-    expect([w.copilot.started.length, w.terminal.spawned.length]).toEqual([1, 1]);
+    expect([w.copilot.started.length, w.terminal.spawned.length]).toEqual([1, 2]);
     // The daemon restarts: a new Panes over the same layout file, nothing live.
     for (const v of w.broker.list()) w.broker.close(v.paneId);
     const fresh = w.make();
     const restored = (await fresh.restore())._unsafeUnwrap();
     expect(restored).toEqual([
       { paneId: "w1:p1", ok: true },
-      { paneId: "w1:p2", ok: true },
+      { paneId: "w1:p2", ok: false, skipped: "its command is not run a second time: tail -f log" },
+      { paneId: "w1:p3", ok: true },
     ]);
     expect(w.copilot.started[1]?.resumed).toBe("copilot-1");
-    expect(w.terminal.spawned[1]?.argv).toEqual(["tail", "-f", "log"]);
-    expect(await fresh.authorize("tok-3")).toMatchObject({ id: "w1:p1" });
+    // Only the shell was started again; the pane of the command is still in the layout, not live.
+    expect(w.terminal.spawned.slice(2).map((s) => s.argv)).toEqual([["/bin/zsh", "-l"]]);
+    expect((await fresh.view())._unsafeUnwrap().panes.map((p) => p.id)).toContain("w1:p2");
+    expect(await fresh.authorize("tok-4")).toMatchObject({ id: "w1:p1" });
     expect(await fresh.authorize("tok-1")).toBeUndefined();
+  });
+
+  test("restore does not start the session of a run that is no longer active", async () => {
+    const w = world();
+    const r = (await w.init("Add discount"))._unsafeUnwrap();
+    await w.panes.openRun({ runId: r.runId });
+    for (const v of w.broker.list()) w.broker.close(v.paneId);
+    const record = (await w.repo.load(r.runId))._unsafeUnwrap();
+    await w.repo.save({ ...record, state: { ...record.state, stage: "aborted", status: "aborted" } });
+    const restored = (await w.make().restore())._unsafeUnwrap();
+    expect(restored).toEqual([
+      {
+        paneId: "w1:p1",
+        ok: false,
+        skipped: `run ${r.runId} is aborted: its session is not started again`,
+      },
+    ]);
+    expect(w.copilot.started.length).toBe(1);
   });
 
   test("read gives the last lines without escapes; wait sees idle and exit; close forgets the pane", async () => {

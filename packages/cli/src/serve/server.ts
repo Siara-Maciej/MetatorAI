@@ -7,12 +7,15 @@ import {
   DAEMON_FILE,
   DaemonInfoDocument,
   type ErrorCode,
+  type EscalatedItem,
+  escalatedOf,
   type InboxItem,
   inboxOf,
   type MessageTopic,
   MetatorError,
   OPTION_SCOPES,
   type OptionScope,
+  type Overview,
   PANE_ROLES,
   PANE_STATES,
   type PaneRole,
@@ -92,7 +95,19 @@ const json = (body: unknown, status = 200) =>
 const fromResult = <T>(r: Result<T, MetatorError>) =>
   r.isOk()
     ? json({ ok: true, data: r.value })
-    : json({ ok: false, error: { code: r.error.code, message: r.error.message, hint: r.error.hint } }, 400);
+    : json(
+        {
+          ok: false,
+          error: {
+            code: r.error.code,
+            message: r.error.message,
+            hint: r.error.hint,
+            // What the app decides from (a refusal it can offer a way past), never prose.
+            ...(r.error.details ? { details: r.error.details } : {}),
+          },
+        },
+        400,
+      );
 
 /**
  * `metator serve`: the local daemon the desktop app talks to. Every endpoint runs the same use
@@ -144,6 +159,57 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     return ok(cached(entry.root, () => ctx.containerAt(entry.root)));
   };
 
+  // One overview per repository per tick (R12): every socket of a tick reads the same one, and a
+  // request that changes something makes the next reader look again.
+  const overviews = new Map<string, { at: number; value: Promise<Result<Overview, MetatorError>> }>();
+  const overviewOf = (key: string, c: MetatorContainer, fresh: boolean) => {
+    const held = overviews.get(key);
+    if (!fresh && held && Date.now() - held.at < pollMs / 2) return held.value;
+    const value = c.resolve("workOverview").execute();
+    overviews.set(key, { at: Date.now(), value });
+    return value;
+  };
+  const repoViews = (): { name: string; path: string; key: string; c: MetatorContainer }[] =>
+    folder
+      ? folder.repos.map((r) => ({
+          name: r.name,
+          path: r.path,
+          key: r.root,
+          c: cached(r.root, () => ctx.containerAt(r.root)),
+        }))
+      : [{ name: "", path: ".", key: ".", c: cached(".", () => ctx.container()) }];
+  /** The same overview `metator status` prints: one repository, or each repository of a folder. */
+  const state = async (fresh: boolean): Promise<Json> => {
+    const views = repoViews();
+    if (!folder) {
+      const only = views[0] as (typeof views)[number];
+      const o = await overviewOf(only.key, only.c, fresh);
+      return o.isOk()
+        ? { ok: true, data: o.value }
+        : { ok: false, error: { code: o.error.code, message: o.error.message } };
+    }
+    const repos: Json[] = [];
+    for (const r of views) {
+      const o = await overviewOf(r.key, r.c, fresh);
+      repos.push({ name: r.name, path: r.path, ...(o.isOk() ? o.value : { error: o.error.message }) });
+    }
+    return { ok: true, data: { folder: folder.root, repos } };
+  };
+  /** The same queue `metator inbox` prints. */
+  const inbox = async (fresh: boolean): Promise<Json> => {
+    const items: (InboxItem & { repo?: string })[] = [];
+    const escalated: (EscalatedItem & { repo?: string })[] = [];
+    for (const r of repoViews()) {
+      const o = await overviewOf(r.key, r.c, fresh);
+      if (o.isErr()) continue;
+      const now = r.c.resolve("clock").now();
+      for (const item of inboxOf(o.value.runs, now)) items.push(folder ? { repo: r.name, ...item } : item);
+      for (const item of escalatedOf(o.value.runs, now))
+        escalated.push(folder ? { repo: r.name, ...item } : item);
+    }
+    return { ok: true, data: { decisions: items.sort(byUrgency), escalated } };
+  };
+
   const server = Bun.serve<Socket>({
     port: opts.port,
     hostname: opts.hostname,
@@ -152,6 +218,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
       const repo = url.searchParams.get("repo") ?? undefined;
       const path = url.pathname.replace(/\/+$/, "") || "/";
+      // A request that may change a run: the sockets' next tick reads the runs again.
+      if (req.method !== "GET") overviews.clear();
       if (path === "/health")
         return json({
           ok: true,
@@ -174,8 +242,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         };
         return server.upgrade(req, { data }) ? undefined : json({ ok: false }, 400);
       }
-      if (path === "/state") return json(await state(ctx, folder));
-      if (path === "/inbox") return json(await inbox(ctx, folder));
+      if (path === "/state") return json(await state(true));
+      if (path === "/inbox") return json(await inbox(true));
       if (path === "/conflicts") {
         const c = containerFor(repo);
         if (c.isErr()) return json({ ok: false, error: c.error }, 404);
@@ -274,6 +342,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
               await issues.start(id, {
                 workflow: str("workflow") ?? "",
                 ...(body.worktree === false ? { worktree: false } : {}),
+                ...(body.allowDirty === true ? { allowDirty: true } : {}),
                 ...(str("autonomy") ? { autonomy: str("autonomy") as "L0" | "L1" | "L2" } : {}),
               }),
             );
@@ -455,7 +524,9 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           workflow: str("workflow") ?? "",
           task: str("task") ?? "",
           ...(str("autonomy") ? { autonomy: str("autonomy") as "L0" | "L1" | "L2" } : {}),
-          ...(body.worktree === true ? { worktree: {} } : {}),
+          ...(body.worktree === true
+            ? { worktree: body.allowDirty === true ? { allowDirty: true } : {} }
+            : {}),
           ...(str("parent") ? { parent: str("parent") as string } : {}),
         });
         if (init.isErr()) return fromResult(init);
@@ -663,6 +734,51 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
               ...(str("via") === "chat" ? { via: "chat" as const } : {}),
             }),
           );
+        // An escalated run back at its stage, and driven on at once (R9): what the app's Resume does.
+        case "POST resume": {
+          const resumed = await c.value.resolve("resumeRun").execute({ runId, by: str("by") ?? "" });
+          if (resumed.isErr()) return fromResult(resumed);
+          const drive =
+            body.drive === false || !opts.start
+              ? undefined
+              : await opts.start(c.value, runId, str("host") ?? "");
+          return json({
+            ok: true,
+            data: {
+              run: resumed.value,
+              ...(drive
+                ? {
+                    drive: drive.isOk()
+                      ? drive.value
+                      : {
+                          error: drive.error.message,
+                          ...(drive.error.hint ? { hint: drive.error.hint } : {}),
+                        },
+                  }
+                : {}),
+            },
+          });
+        }
+        case "POST stop":
+          return fromResult((await c.value.resolve("runDrivers").stop(runId)).map((r) => ({ runId, ...r })));
+        // `run close`: the summary of a finished run; with a reason, an active or escalated run is
+        // aborted first, its drive stopped and its panes closed.
+        case "POST close": {
+          const reason = str("reason")?.trim();
+          if (body.aborted === true && !reason)
+            return fromResult(
+              err(MetatorError.usage("say why the run is aborted: reason", "An abort records its reason.")),
+            );
+          const closed = await c.value
+            .resolve("closeRun")
+            .execute({ runId, ...(reason ? { abortReason: reason } : {}) });
+          if (closed.isErr()) return fromResult(closed);
+          const panes = await c.value.resolve("panes").closeRun(runId);
+          return json({
+            ok: true,
+            data: { ...closed.value, ...(panes.isOk() ? { panes: panes.value } : {}) },
+          });
+        }
         case "POST message":
           return fromResult(
             await c.value.resolve("runMessages").send({
@@ -707,9 +823,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         if (d.kind === "state" || d.kind === "inbox") {
           let last = "";
           const tick = async () => {
-            const text = JSON.stringify(
-              d.kind === "state" ? await state(ctx, folder) : await inbox(ctx, folder),
-            );
+            const text = JSON.stringify(d.kind === "state" ? await state(false) : await inbox(false));
             if (text !== last) {
               last = text;
               ws.send(text);
@@ -978,36 +1092,6 @@ async function continueAnswered(
     return undefined;
   const started = await start(c, runId, "");
   return started.isOk() ? { started: started.value.started } : { error: started.error.message };
-}
-
-/** The same overview `metator status` prints: one repository, or each repository of a folder. */
-async function state(ctx: CommandContext, folder: Folder | null): Promise<Json> {
-  if (!folder) {
-    const o = await ctx.container().resolve("workOverview").execute();
-    return o.isOk()
-      ? { ok: true, data: o.value }
-      : { ok: false, error: { code: o.error.code, message: o.error.message } };
-  }
-  const repos: Json[] = [];
-  for (const r of folder.repos) {
-    const o = await ctx.containerAt(r.root).resolve("workOverview").execute();
-    repos.push({ name: r.name, path: r.path, ...(o.isOk() ? o.value : { error: o.error.message }) });
-  }
-  return { ok: true, data: { folder: folder.root, repos } };
-}
-
-/** The same queue `metator inbox` prints. */
-export async function inbox(ctx: CommandContext, folder: Folder | null): Promise<Json> {
-  const roots = folder ? folder.repos.map((r) => ({ name: r.name, root: r.root })) : [{ name: "", root: "" }];
-  const items: (InboxItem & { repo?: string })[] = [];
-  for (const r of roots) {
-    const c = r.root ? ctx.containerAt(r.root) : ctx.container();
-    const o = await c.resolve("workOverview").execute();
-    if (o.isErr()) continue;
-    for (const item of inboxOf(o.value.runs, c.resolve("clock").now()))
-      items.push(folder ? { repo: r.name, ...item } : item);
-  }
-  return { ok: true, data: { decisions: items.sort(byUrgency) } };
 }
 
 const ok = <T>(value: T) => ({ isOk: () => true, isErr: () => false, value }) as unknown as Result<T, never>;

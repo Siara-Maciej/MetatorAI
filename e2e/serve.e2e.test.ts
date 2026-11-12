@@ -17,6 +17,14 @@ stages:
   - id: approval
     hitl: true
 `;
+/** A run of this workflow escalates at once: its only stage is a gate that fails until a file exists. */
+const STUCK = `kind: Workflow
+schemaVersion: 2
+id: stuck
+stages:
+  - id: check
+    gate: { script: "test -f {runDir}/fixed" }
+`;
 const SCENARIO = `kind: AgentScenario
 schemaVersion: 1
 agents:
@@ -58,9 +66,11 @@ beforeAll(async () => {
   repo = await ScratchRepo.create();
   await repo.write(".gitignore", ".metator/\n");
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
+  await repo.write(".github/metator/workflows/stuck.yml", STUCK);
   await repo.write("scenario.yml", SCENARIO);
   await repo.commit("init");
-  env = { METATOR_AGENT_SCENARIO: repo.path("scenario.yml") };
+  // Drives the daemon starts use the scenario host too: no real AI host is ever started.
+  env = { METATOR_AGENT_SCENARIO: repo.path("scenario.yml"), METATOR_HOST: "scenario" };
   daemon = Bun.spawn(["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100"], {
     cwd: repo.root,
     env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
@@ -220,6 +230,67 @@ describe("metator serve (real daemon)", () => {
       return s.status === "done" ? true : undefined;
     });
   }, 60_000);
+
+  test("an escalated run through the API: in the inbox, resumed and driven on, stopped, or closed as aborted (R9)", async () => {
+    const escalate = async (task: string) => {
+      const runId = data(await mt("run", "init", "--workflow", "stuck", "--task", task)).runId as string;
+      expect(data(await mt("run", "drive", "--run", runId, "--host", "scenario")).status).toBe("escalated");
+      return runId;
+    };
+    const statusOf = async (runId: string) => data(await mt("run", "status", "--run", runId)).status;
+    const runId = await escalate("Check the totals");
+    const inbox = (await get("/inbox")).data as {
+      escalated: { runId: string; stage: string; reason: string; next: string[] }[];
+    };
+    const item = inbox.escalated.find((e) => e.runId === runId);
+    expect([item?.stage, item?.next[0]]).toEqual([
+      "check",
+      `metator run resume --run ${runId} --by <name> --drive`,
+    ]);
+    expect(item?.reason).toStartWith("gate `test -f {runDir}/fixed`");
+    const counts = (await get("/state")).data.counts as { escalated: number; finished: number };
+    expect(counts.escalated).toBe(1);
+    // A resume needs a name; with one the run is active again and a drive is started.
+    const nameless = await post(`/runs/${runId}/resume`, {});
+    expect([nameless.ok, (nameless.error as { code: string }).code]).toEqual([false, "USAGE"]);
+    await repo.write(`.metator/runs/${runId}/fixed`, "");
+    const resumed = await post(`/runs/${runId}/resume`, { by: "maciej" });
+    expect([resumed.ok, (resumed.data.run as { stage: string }).stage, resumed.data.drive]).toEqual([
+      true,
+      "check",
+      { stage: "check", started: true },
+    ]);
+    await until("the resumed run to finish", async () =>
+      (await statusOf(runId)) === "done" ? true : undefined,
+    );
+    expect(((await get("/inbox")).data as { escalated: unknown[] }).escalated).toEqual([]);
+
+    // Close: an abort needs a reason; an escalated run closed with one ends as aborted.
+    const other = await escalate("Check the taxes");
+    const bare = await post(`/runs/${other}/close`, { aborted: true });
+    expect([bare.ok, (bare.error as { code: string }).code]).toEqual([false, "USAGE"]);
+    const closed = await post(`/runs/${other}/close`, { aborted: true, reason: "not worth fixing" });
+    expect([closed.ok, closed.data.status]).toEqual([true, "aborted"]);
+    expect(await statusOf(other)).toBe("aborted");
+
+    // Stop: the drive of a run waiting at its gate ends; the run stays where it is.
+    const live = data(await mt("run", "init", "--workflow", "demo", "--task", "Stop me")).runId as string;
+    await mt("run", "drive", "--run", live, "--host", "scenario", "--detach");
+    await until("its gate", async () => {
+      const d = (await get("/inbox")).data as { decisions: { runId: string }[] };
+      return d.decisions.some((x) => x.runId === live) ? true : undefined;
+    });
+    const stopped = await post(`/runs/${live}/stop`, {});
+    expect([stopped.ok, typeof stopped.data.stopped]).toEqual([true, "number"]);
+    expect([await statusOf(live), data(await mt("run", "activity", "--run", live)).driver]).toEqual([
+      "active",
+      null,
+    ]);
+    // Closed with a reason while its question was open: the inbox no longer asks (R3).
+    await post(`/runs/${live}/close`, { aborted: true, reason: "the test ends it" });
+    const after = (await get("/inbox")).data as { decisions: { runId: string }[] };
+    expect(after.decisions.some((x) => x.runId === live)).toBe(false);
+  }, 90_000);
 });
 
 describe("metator serve stops (last: the daemon is gone after it)", () => {

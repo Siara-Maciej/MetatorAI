@@ -80,7 +80,7 @@ The panel lists the runs. Runs that wait for you come first, then the ones that 
 
 A run with more than one pane lists its panes under it, each with its state. A click on a pane opens the session on that pane.
 
-**By repository** and **By task** at the top switch the grouping. **By repository** groups the active runs by repository. **By task** groups the steps of a split task under their parent run, with a count of the steps done, and lists the other runs under **not split**. Finished runs are folded into one line at the bottom, such as **1 finished**.
+**By repository** and **By task** at the top switch the grouping. **By repository** groups the runs that are not finished by repository; an escalated run stays in the list, and a click on it opens its card in the Inbox. **By task** groups the steps of a split task under their parent run, with a count of the steps done, and lists the other runs under **not split**. Finished runs (done or aborted) are folded into one line at the bottom, such as **1 finished**.
 
 The buttons at the bottom start work:
 

@@ -44,6 +44,31 @@ export function withTerminalAsks(
   });
 }
 
+/** Done or aborted: nothing is left to do. An escalated run is not finished, it waits for a person (F1). */
+export const isFinished = (r: Pick<RunOverview, "status">): boolean =>
+  r.status === "done" || r.status === "aborted";
+
+/** The button of a start refused for uncommitted changes. */
+export const START_FROM_COMMIT = "Start from the last commit";
+
+/** A start refused because tracked files have uncommitted changes: the app offers to start without them. */
+export const refusedForDirtyTree = (
+  error: { readonly details?: Readonly<Record<string, unknown>> } | undefined,
+): boolean => error?.details?.check === "tree";
+
+/** The key of an escalated run in the inbox's selection, apart from a question's `<run>/<question>`. */
+export const escalatedKey = (r: { readonly runId: string; readonly repo?: string | undefined }): string =>
+  `escalated:${r.repo ?? ""}:${r.runId}`;
+
+/** What the app says after Resume: the run is driven again, or why no drive started. */
+export function resumeNotice(
+  runId: string,
+  drive: { readonly started?: boolean; readonly error?: string; readonly hint?: string } | undefined,
+): string | undefined {
+  if (!drive?.error) return undefined;
+  return `Run ${runId} is resumed, but nothing drives it: ${drive.error}${drive.hint ? ` ${drive.hint}` : ""}`;
+}
+
 /** The panel's order (spec §5.2): waits for you → working → stopped → escalated → finished. */
 const ATTENTION_RANK: Record<Attention, number> = {
   you: 0,

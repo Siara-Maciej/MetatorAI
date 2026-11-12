@@ -2158,6 +2158,31 @@ kbd {
   overflow: hidden;
   overflow-wrap: anywhere;
 }
+.needs .kind.ESCALATED {
+  color: var(--red, #c0392b);
+}
+.escalated-card .reason-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 16em;
+  overflow: auto;
+}
+.escalated-card .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+.escalated-card form.close {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.escalated-card form.close input {
+  flex: 1;
+  min-width: 0;
+}
 .needs .ask-row {
   display: block;
   width: 100%;

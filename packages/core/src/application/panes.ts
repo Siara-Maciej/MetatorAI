@@ -5,6 +5,7 @@ import {
   addPane,
   addTab,
   addWorkspace,
+  isPlainShell,
   type Layout,
   type Pane,
   type PaneProcess,
@@ -341,20 +342,32 @@ export class Panes {
     });
   }
 
-  /** Every pane of the layout started again (after a daemon restart): sessions resumed, commands rerun. */
-  async restore(
-    size: PtySize = DEFAULT_SIZE,
-  ): Promise<
+  /**
+   * The layout's panes started again (after a daemon restart): host sessions resumed and plain
+   * shells opened. A pane that ran a command stays as it ended (the command is not run a second
+   * time, R11), and so does the session of a run that is no longer active; each says why in `skipped`.
+   */
+  async restore(size: PtySize = DEFAULT_SIZE): Promise<
     Result<
-      readonly { readonly paneId: string; readonly ok: boolean; readonly error?: string }[],
+      readonly {
+        readonly paneId: string;
+        readonly ok: boolean;
+        readonly error?: string;
+        readonly skipped?: string;
+      }[],
       MetatorError
     >
   > {
     const layout = await this.d.layout.load();
     if (layout.isErr()) return err(layout.error);
-    const out: { paneId: string; ok: boolean; error?: string }[] = [];
+    const out: { paneId: string; ok: boolean; error?: string; skipped?: string }[] = [];
     for (const pane of layout.value.panes) {
       if (this.d.broker.status(pane.id)?.alive) continue;
+      const skipped = await this.notRestored(pane);
+      if (skipped) {
+        out.push({ paneId: pane.id, ok: false, skipped });
+        continue;
+      }
       const started = await this.spawn(pane, size);
       out.push(
         started.isOk()
@@ -369,6 +382,19 @@ export class Panes {
         });
     }
     return ok(out);
+  }
+
+  /** Why a pane is not started again by itself; undefined when it is. */
+  private async notRestored(pane: Pane): Promise<string | undefined> {
+    if (pane.process.kind === "command")
+      return isPlainShell(pane.process.argv)
+        ? undefined
+        : `its command is not run a second time: ${pane.process.argv.join(" ")}`;
+    if (!pane.runId) return undefined;
+    const record = await this.d.repo.load(pane.runId);
+    return record.isOk() && record.value.state.status !== "active"
+      ? `run ${pane.runId} is ${record.value.state.status}: its session is not started again`
+      : undefined;
   }
 
   /** The pane's terminal ended and the pane forgotten. */

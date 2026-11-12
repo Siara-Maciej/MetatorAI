@@ -4,6 +4,7 @@ import {
   addTab,
   addWorkspace,
   EMPTY_LAYOUT,
+  isPlainShell,
   LayoutDocument,
   paneOf,
   panesOf,
@@ -228,5 +229,22 @@ describe("split trees (S6)", () => {
       "layout.json",
     );
     expect(v1._unsafeUnwrap().workspaces[0]?.tabs[0]).toEqual({ id: "w1:t1", label: "main", panes: [] });
+  });
+});
+
+describe("isPlainShell", () => {
+  test("a shell with flags only is one; a shell handed a command, or any other program, is not (R11)", () => {
+    const plain = [["bash"], ["/bin/zsh", "-l"], ["fish", "--login"], ["C:\\tools\\pwsh.exe"], ["sh", "-i"]];
+    const not = [
+      ["bash", "-c", "bun test"],
+      ["bash", "-lc", "make"],
+      ["zsh", "run.sh"],
+      ["sleep", "6"],
+      ["metator", "env", "logs"],
+      ["pwsh", "-Command", "x"],
+      [],
+    ];
+    expect(plain.map(isPlainShell)).toEqual(plain.map(() => true));
+    expect(not.map(isPlainShell)).toEqual(not.map(() => false));
   });
 });

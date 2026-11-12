@@ -30,6 +30,8 @@ MetatorAI Desktop (D7, ADR-0078): the Vite + React app and its Tauri shell, a th
 - View logic is pure in `src/model.ts` and tested; components only render.
 - A request repeated on an interval goes through `usePolled`, the person's name through `useWho` (one dialog), a single-letter shortcut through `plainKey`, and an answer to a question through `useAnswer` (`src/components/answer.tsx`); none of these is written a second time in a screen.
 - With no daemon the shell draws one panel (`NoDaemon`) instead of the screens, so no screen shows empty data as if it were true.
+- A refusal the app can offer a way past is recognized by `error.details` (`refusedForDirtyTree`), never by the message; the way past is a button in the same `Notice`.
+- An escalated run is not finished (`isFinished` in `src/model.ts`): it stays in the sessions panel and is a row and a card in the Inbox (`EscalatedCard`), with Resume and Close run.
 
 ## Allowed dependencies
 

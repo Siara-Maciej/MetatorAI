@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
+import { RunJournal } from "../src/application/drive.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import {
   RunRepository,
@@ -620,7 +621,7 @@ describe("the current run and its artifacts", () => {
 });
 
 describe("resuming an escalated run", () => {
-  test("it goes on at the stage it escalated from; history and loops stay; the log says who", async () => {
+  test("it goes on at the stage it escalated from with a fresh loop; history stays; the log says who", async () => {
     const w = world();
     const runId = (await w.init.execute({ workflow: "feature", task: "resume me" }))._unsafeUnwrap().runId;
     const resume = new ResumeRun(w.catalog, w.repo, w.clock);
@@ -632,13 +633,142 @@ describe("resuming an escalated run", () => {
     await w.advance.execute({ event: { type: "PASS" } });
     const escalated = (await w.advance.execute({ event: { type: "FAIL", reason: "again" } }))._unsafeUnwrap();
     expect(escalated.status).toBe("escalated");
+    // What a person reads in `run status`: where and why, and the two commands out (R9).
+    expect(escalated.escalated).toEqual({
+      stage: "plan-gate",
+      reason: "again",
+      next: [
+        `metator run resume --run ${runId} --by <name> --drive`,
+        `metator run close --run ${runId} --aborted --reason <why>`,
+      ],
+    });
+    expect((await resume.execute({ by: " " }))._unsafeUnwrapErr().message).toBe(
+      "say who resumes: --by <name>",
+    );
     const back = (await resume.execute({ by: "ala" }))._unsafeUnwrap();
-    expect([back.stage, back.status, back.loops]).toEqual(["plan-gate", "active", { plan: 1 }]);
+    expect([back.stage, back.status, back.loops, back.escalated]).toEqual([
+      "plan-gate",
+      "active",
+      { plan: 0 },
+      undefined,
+    ]);
     const log = (await w.fs.read(`.metator/runs/${runId}/log.md`))._unsafeUnwrap();
     expect(log).toContain("resumed at plan-gate · by ala");
-    // The loop is spent: the next failure escalates again.
+    // A person said go on: the next failure sends the run back to be fixed, the one after escalates (F1).
+    const again = (await w.advance.execute({ event: { type: "FAIL", reason: "still" } }))._unsafeUnwrap();
+    expect([again.status, again.stage]).toEqual(["active", "plan"]);
+    await w.advance.execute({ event: { type: "PASS" } });
     expect(
-      (await w.advance.execute({ event: { type: "FAIL", reason: "still" } }))._unsafeUnwrap().status,
+      (await w.advance.execute({ event: { type: "FAIL", reason: "third" } }))._unsafeUnwrap().status,
     ).toBe("escalated");
+  });
+
+  test("approving an escalated run is refused with the resume that comes first", async () => {
+    const w = world();
+    const runId = (await w.init.execute({ workflow: "feature", task: "stuck" }))._unsafeUnwrap().runId;
+    await w.advance.execute({ event: { type: "PASS" } });
+    await w.advance.execute({ event: { type: "FAIL" } });
+    await w.advance.execute({ event: { type: "PASS" } });
+    await w.advance.execute({ event: { type: "FAIL" } });
+    const refused = (await w.approve.execute({ gate: "approval", by: "ala" }))._unsafeUnwrapErr();
+    expect([refused.code, refused.hint]).toEqual([
+      "TRANSITION_DENIED",
+      `Resume it first: \`metator run resume --run ${runId} --by ala\`.`,
+    ]);
+  });
+});
+
+describe("a gate approved outside its question (R8)", () => {
+  test("the gate's open question gets the approval as its answer, after the transition", async () => {
+    const w = world();
+    const journal = new RunJournal(w.fs, w.repo, w.clock);
+    const advance = new AdvanceRun(w.catalog, w.repo, w.clock, journal);
+    const runId = (await w.init.execute({ workflow: "feature", task: "gate" }))._unsafeUnwrap().runId;
+    await advance.execute({ event: { type: "PASS" } });
+    await advance.execute({ event: { type: "PASS" } }); // → approval
+    const ask = (source: "gate" | "agent", stage: string, prompt: string) =>
+      journal.ask(runId, { stage, source, prompt, options: [{ label: "Approve" }], multiSelect: false });
+    const gate = (await ask("gate", "approval", "approve?"))._unsafeUnwrap();
+    const other = (await ask("agent", "approval", "which?"))._unsafeUnwrap();
+    const earlier = (await ask("gate", "plan", "old"))._unsafeUnwrap();
+    const moved = (await advance.execute({ event: { type: "APPROVE", by: "ala" } }))._unsafeUnwrap();
+    expect(moved.stage).toBe("build");
+    const after = (await journal.questions(runId))._unsafeUnwrap();
+    expect(after.find((q) => q.id === gate.id)?.answer).toEqual({
+      choices: ["Approve"],
+      by: "ala",
+      at: "2026-10-25T09:00:00.000Z",
+    });
+    // Only the gate's own question of that stage: an agent's question and another stage's stay open.
+    expect([other.id, earlier.id].map((id) => after.find((q) => q.id === id)?.answer)).toEqual([
+      undefined,
+      undefined,
+    ]);
+    const activity = (await journal.activity(runId))._unsafeUnwrap();
+    expect(activity.at(-1)).toMatchObject({ type: "answer", text: `${gate.id}: Approve · ala` });
+  });
+});
+
+describe("a run is refused where it cannot work (F3)", () => {
+  const ready = (checks: { id: string; status: string; message: string; fix?: string }[]) => ({
+    execute: async () => ok({ ready: true, place: ".", checks }) as never,
+  });
+  const initWith = (w: ReturnType<typeof world>, checks: Parameters<typeof ready>[0]) =>
+    new InitRun(
+      w.catalog,
+      w.repo,
+      w.clock,
+      { execute: async () => err(MetatorError.notFound("wt")) } as never,
+      ready(checks),
+    );
+
+  test("no git repository, or no commit for a worktree: refused with the command that fixes it; nothing is created", async () => {
+    const w = world();
+    for (const id of ["git", "commits"]) {
+      const refused = (
+        await initWith(w, [{ id, status: "fail", message: `no ${id}`, fix: "git init" }]).execute({
+          workflow: "feature",
+          task: "t",
+          ...(id === "commits" ? { worktree: {} } : {}),
+        })
+      )._unsafeUnwrapErr();
+      expect([refused.code, refused.message, refused.hint]).toEqual([
+        "CHECK_FAILED",
+        `a run cannot start here: no ${id}`,
+        "Run `git init`, then start the run again.",
+      ]);
+    }
+    expect(await w.repo.list()).toEqual([]);
+    // Right after `git init` a run in the checkout still starts: only a worktree needs the commit.
+    const fresh = initWith(w, [{ id: "commits", status: "fail", message: "no commit" }]);
+    expect((await fresh.execute({ workflow: "feature", task: "t" })).isOk()).toBe(true);
+  });
+
+  test("uncommitted changes refuse a worktree run unless allowed; a run in the checkout starts", async () => {
+    const w = world();
+    const tree = [{ id: "tree", status: "warn", message: "1 tracked file(s) have uncommitted changes" }];
+    const init = initWith(w, tree);
+    const refused = (await init.execute({ workflow: "feature", task: "t", worktree: {} }))._unsafeUnwrapErr();
+    expect([refused.code, refused.details]).toEqual(["CHECK_FAILED", { check: "tree" }]);
+    expect(refused.hint).toContain("--allow-dirty");
+    expect((await init.execute({ workflow: "feature", task: "t" })).isOk()).toBe(true);
+    // Allowed: the refusal is gone, and the next thing asked is the worktree itself.
+    const allowed = await init.execute({ workflow: "feature", task: "t", worktree: { allowDirty: true } });
+    expect(allowed._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+    // A failing check that is not git's (no host) does not refuse a run: a session may carry it.
+    const other = initWith(w, [{ id: "host", status: "fail", message: "no host" }]);
+    expect((await other.execute({ workflow: "feature", task: "t2" })).isOk()).toBe(true);
+  });
+});
+
+describe("no workflow installed", () => {
+  test("the missing workflow's hint names metator setup, not an empty list (F3)", async () => {
+    const w = world({});
+    const e = (await w.init.execute({ workflow: "mt-feature", task: "t" }))._unsafeUnwrapErr();
+    expect(e.hint).toBe(
+      "No workflow is installed here: run `metator setup` (it writes them to .github/metator/workflows/*.yml).",
+    );
+    const known = (await world().init.execute({ workflow: "nope", task: "t" }))._unsafeUnwrapErr();
+    expect(known.hint).toBe("Known workflows: feature. Specs live in .github/metator/workflows/*.yml.");
   });
 });

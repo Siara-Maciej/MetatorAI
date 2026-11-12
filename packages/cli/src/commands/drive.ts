@@ -64,8 +64,21 @@ export function registerDriveCommands(
           const rows = await sessionRows(c);
           if (rows.isErr()) return { result: rows };
           const active = rows.value.filter((r) => r.status === "active");
-          if (active.length === 0)
-            return { result: err(new MetatorError("NOT_FOUND", "no active run to continue")) };
+          if (active.length === 0) {
+            // An escalated run is the likely reason a person asks: say how it goes on (R9).
+            const escalated = rows.value.filter((r) => r.status === "escalated").map((r) => r.runId);
+            return {
+              result: err(
+                new MetatorError("NOT_FOUND", "no active run to continue", {
+                  ...(escalated.length > 0
+                    ? {
+                        hint: `${escalated.length} run(s) escalated and wait for a resume: \`metator run resume --run ${escalated[0]} --by <name> --drive\`.`,
+                      }
+                    : {}),
+                }),
+              ),
+            };
+          }
           if (terminal) {
             const picked = await terminal.pickRun(
               active.map((r) => ({ runId: r.runId, label: `${r.runId} · ${r.stage}`, hint: r.state })),
@@ -98,6 +111,15 @@ export function registerDriveCommands(
         const id = await c.resolve("runRepository").resolveId(opts.run);
         if (id.isErr()) return { result: id };
         const host = opts.host ?? defaultHost(c);
+        if (!c.resolve("agentHosts").has(host))
+          return {
+            result: err(
+              MetatorError.usage(
+                `unknown AI host ${host}`,
+                `Hosts: ${[...c.resolve("agentHosts").keys()].join(", ")}.`,
+              ),
+            ),
+          };
         const drivers = c.resolve("runDrivers");
         if (opts.detach) {
           const started = await startDetached(c, root(), id.value, host, opts.maxSteps);

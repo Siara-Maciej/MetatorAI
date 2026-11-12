@@ -69,9 +69,16 @@ describe("NodePackageManager install", () => {
     expect([c.argv, c.cwd]).toEqual([argv, "/elsewhere"]);
   });
 
-  test("without a lockfile a plain install, with the package manager the manifest names", async () => {
-    const pm = new NodePackageManager(await repo({ "package.json": '{ "packageManager": "pnpm@9.0.0" }' }));
-    expect((await pm.installCommand("/w"))._unsafeUnwrap().argv).toEqual(["pnpm", "i"]);
+  test.each([
+    ['{ "packageManager": "pnpm@9.0.0" }', ["pnpm", "i", "--no-lockfile"]],
+    ["{}", ["npm", "i", "--no-package-lock"]],
+    ['{ "packageManager": "bun@1.2.0" }', ["bun", "install", "--no-save"]],
+    ['{ "packageManager": "yarn@1.22.0" }', ["yarn", "install", "--no-lockfile"]],
+    // A later yarn has no such flag: a plain install.
+    ['{ "packageManager": "yarn@4.1.0" }', ["yarn", "install"]],
+  ])("without a lockfile the install writes none (F5): %s → %j", async (manifest, argv) => {
+    const pm = new NodePackageManager(await repo({ "package.json": manifest }));
+    expect((await pm.installCommand("/w"))._unsafeUnwrap().argv).toEqual(argv);
   });
 });
 

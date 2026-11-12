@@ -36,6 +36,18 @@ describe("inboxOf", () => {
     ]);
   });
 
+  test("a run that is not active is not in the queue, whatever its questions say (R3)", () => {
+    const run = (runId: string, status?: string) => ({
+      runId,
+      task: runId,
+      driving: false,
+      questions: [q("q001", "2026-11-02T09:00:00.000Z")],
+      ...(status ? { status } : {}),
+    });
+    const items = inboxOf([run("a", "aborted"), run("b", "active"), run("c"), run("d", "escalated")], now);
+    expect(items.map((i) => i.runId)).toEqual(["b", "c"]);
+  });
+
   test("ties keep a stable order; a question asked after now has waited nothing", () => {
     const same = "2026-11-02T11:00:00.000Z";
     const items = inboxOf(

@@ -9,6 +9,7 @@ import {
   ok,
   RUN_READINESS,
   readinessWarnings,
+  startRefusal,
 } from "@metator/core";
 import { FakeVcs } from "@metator/testing";
 
@@ -265,5 +266,124 @@ describe("CheckReadiness", () => {
       status: "ok",
       message: "not a Node project: nothing to install",
     });
+  });
+
+  const here = (
+    extra: ConstructorParameters<typeof CheckReadiness>[10],
+    vcs: ConstructorParameters<typeof CheckReadiness>[4] = new FakeVcs([], [], "git@example.com:a/b.git"),
+    files: Record<string, string> = {},
+    worktree?: string,
+  ) =>
+    new CheckReadiness(
+      {
+        exists: async (p: string) => p === "metator/install.lock.json" || p in files,
+        read: async (p: string) => (p in files ? ok(files[p] as string) : err(MetatorError.notFound(p))),
+      },
+      DEFAULT_PATHS,
+      { config: gated, source: "metator.config.yml" },
+      catalog("mt-feature"),
+      vcs,
+      async () => false,
+      { get: async () => ok({ path: ".metator/wt/a" }) as never },
+      undefined,
+      undefined,
+      undefined,
+      extra,
+    ).execute(worktree ? { worktree } : {});
+
+  test("a directory git does not know is not ready, with the commands that make it one (F3)", async () => {
+    const v = (
+      await here(
+        {},
+        {
+          remoteUrl: async () => err(MetatorError.notFound("git repository")),
+          hasCommits: async () => err(MetatorError.notFound("git repository")),
+        },
+      )
+    )._unsafeUnwrap();
+    expect(v.ready).toBe(false);
+    expect(v.checks.find((c) => c.id === "git")).toEqual({
+      id: "git",
+      status: "fail",
+      message: "not a git repository: a run's change, its review and its worktree need git",
+      fix: "git init && git commit --allow-empty -m init",
+    });
+    const refusal = startRefusal(v, { worktree: false });
+    expect([refusal?.code, refusal?.hint]).toEqual([
+      "CHECK_FAILED",
+      "Run `git init && git commit --allow-empty -m init`, then start the run again.",
+    ]);
+    // Another failure of git (not "no repository") is not this check's to judge.
+    const odd = (
+      await here(
+        {},
+        {
+          remoteUrl: async () => ok(undefined),
+          hasCommits: async () => err(new MetatorError("COMMAND_FAILED", "git timed out")),
+        },
+      )
+    )._unsafeUnwrap();
+    expect(odd.checks.some((c) => c.id === "git")).toBe(false);
+  });
+
+  test("AI hosts: ok while one can start (the one that cannot is named), not ready when none can (F3)", async () => {
+    const host = async (...hosts: { id: string; problem?: string }[]) =>
+      (await here({ hosts: () => hosts }))._unsafeUnwrap();
+    const all = await host({ id: "claude" }, { id: "copilot" });
+    expect(all.checks.find((c) => c.id === "host")).toEqual({
+      id: "host",
+      status: "ok",
+      message: "AI hosts that can drive a run: claude, copilot",
+    });
+    const one = await host({ id: "claude" }, { id: "copilot", problem: "`copilot` is not installed" });
+    expect([one.ready, one.checks.find((c) => c.id === "host")]).toEqual([
+      true,
+      {
+        id: "host",
+        status: "ok",
+        message: "AI hosts that can drive a run: claude; cannot start: copilot (`copilot` is not installed)",
+      },
+    ]);
+    const none = await host({ id: "copilot", problem: "`copilot` is not installed" });
+    expect([none.ready, none.checks.find((c) => c.id === "host")?.status]).toEqual([false, "fail"]);
+    // No host failure refuses a run by itself: a session in the host can carry it.
+    expect(startRefusal(none, { worktree: true })).toBeUndefined();
+    expect((await host()).checks.some((c) => c.id === "host")).toBe(false);
+  });
+
+  test("uncommitted changes to tracked files are said, and refuse a worktree run unless allowed (F3)", async () => {
+    const dirty = (await here({ modified: async () => ["a.ts", "b.ts", "c.ts", "d.ts"] }))._unsafeUnwrap();
+    const tree = dirty.checks.find((c) => c.id === "tree");
+    expect([dirty.ready, tree?.status, tree?.fix]).toEqual([
+      true,
+      "warn",
+      "git commit -am <message>, or git stash",
+    ]);
+    expect(tree?.message).toStartWith("4 tracked file(s) have uncommitted changes (a.ts, b.ts, c.ts, …)");
+    expect(readinessWarnings(dirty, RUN_READINESS).some((w) => w.startsWith("tree: "))).toBe(true);
+    expect(startRefusal(dirty, { worktree: false })).toBeUndefined();
+    expect(startRefusal(dirty, { worktree: true, allowDirty: true })).toBeUndefined();
+    const refusal = startRefusal(dirty, { worktree: true });
+    expect([refusal?.code, refusal?.details]).toEqual(["CHECK_FAILED", { check: "tree" }]);
+    expect(refusal?.message).toStartWith("the run would start without your changes: 4 tracked file(s)");
+    // A clean tree, or git that cannot say, adds no check; a worktree's own changes are the run's.
+    for (const modified of [async () => [], async () => undefined])
+      expect((await here({ modified }))._unsafeUnwrap().checks.some((c) => c.id === "tree")).toBe(false);
+    const inWorktree = (await here({ modified: async () => ["a.ts"] }, undefined, {}, "a"))._unsafeUnwrap();
+    expect(inWorktree.checks.some((c) => c.id === "tree")).toBe(false);
+  });
+
+  test("a package.json that lists nothing to install misses nothing without node_modules (F5)", async () => {
+    const deps = async (manifest: string) =>
+      (await here({}, undefined, { "package.json": manifest }))
+        ._unsafeUnwrap()
+        .checks.find((c) => c.id === "dependencies");
+    expect(await deps('{"name":"x","scripts":{"test":"node t.js"}}')).toEqual({
+      id: "dependencies",
+      status: "ok",
+      message: "package.json lists no dependencies: nothing to install",
+    });
+    expect((await deps('{"dependencies":{"a":"1"}}'))?.status).toBe("warn");
+    expect((await deps('{"workspaces":["p/*"]}'))?.status).toBe("warn");
   });
 });

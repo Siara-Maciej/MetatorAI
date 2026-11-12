@@ -1,6 +1,6 @@
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { LOCKFILES, type WorktreeEntry } from "../domain/worktree.ts";
+import { declaresDependencies, LOCKFILES, type WorktreeEntry } from "../domain/worktree.ts";
 import type { FileSystem, PackageManager, ProcessRunner, TreeCopier } from "../ports/index.ts";
 import type { EnvironmentServices, ServiceReport } from "./environments.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -22,7 +22,8 @@ export interface SetupReport {
   readonly path: string;
   /**
    * reused: the main checkout's node_modules copied (lockfiles equal) · installed: the package
-   * manager ran · present: already there · none: not a Node project.
+   * manager ran · present: already there · none: not a Node project, or one whose package.json
+   * lists nothing to install.
    */
   readonly dependencies: "reused" | "installed" | "present" | "none";
   /** Directories copied, or the command run. */
@@ -101,6 +102,10 @@ export class SetupWorktree {
   ): Promise<Result<Pick<SetupReport, "dependencies" | "detail">, MetatorError>> {
     if (!(await this.fs.exists(`${path}/package.json`))) return ok({ dependencies: "none" });
     if (await this.where.isDirectory(`${path}/node_modules`)) return ok({ dependencies: "present" });
+    // Nothing to install: an install would only leave a lockfile in the run's change (F5).
+    const manifest = await this.fs.read(`${path}/package.json`);
+    if (manifest.isOk() && !declaresDependencies(manifest.value))
+      return ok({ dependencies: "none", detail: "package.json lists no dependencies" });
     if ((await this.sameLockfiles(path)) && (await this.where.isDirectory("node_modules"))) {
       const copied: string[] = [];
       for (const dir of ["", ...(await this.where.workspaces())]) {

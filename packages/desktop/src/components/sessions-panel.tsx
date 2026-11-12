@@ -8,6 +8,7 @@ import {
   byPanelOrder,
   duration,
   groupByFeature,
+  isFinished,
   paneLabel,
   panesOfRun,
   type Run,
@@ -29,11 +30,14 @@ const readMode = (): Mode => {
 export function SessionsPanel({
   current,
   onOpen,
+  onEscalated,
   onNew,
   onAdvanced,
 }: {
   readonly current?: string | undefined;
   onOpen(runId: string, pane?: string): void;
+  /** An escalated run has no session to open: its card in the Inbox resumes or closes it. */
+  onEscalated(run: Run): void;
   /** Opens a pane with the agent as the entry point (design/14 §2): the conversation starts the task. */
   onNew(): void;
   /** The form: workflow, autonomy, host and worktree chosen by hand. */
@@ -50,7 +54,7 @@ export function SessionsPanel({
   }, [mode]);
   const ordered = byPanelOrder(runs);
   const groups = groupByFeature<Run>(ordered);
-  const finished = ordered.filter((r) => r.status !== "active");
+  const finished = ordered.filter(isFinished);
   const [showFinished, setShowFinished] = useState(false);
   // A run with more than its conductor shows its panes under it (R4): who works, in what state.
   const paneRows = (r: Run) => {
@@ -81,7 +85,7 @@ export function SessionsPanel({
         type="button"
         className="row"
         aria-current={r.runId === current ? "true" : undefined}
-        onClick={() => onOpen(r.runId, r.terminalAsk)}
+        onClick={() => (r.status === "escalated" ? onEscalated(r) : onOpen(r.runId, r.terminalAsk))}
         title={r.task}
       >
         <Dot attention={r.attention} human={r.driver === "human"} />
@@ -101,7 +105,8 @@ export function SessionsPanel({
       {paneRows(r)}
     </div>
   );
-  const active = (list: readonly Run[]) => list.filter((r) => r.status === "active");
+  // Escalated runs stay in the list: they wait for a person, in the Inbox.
+  const active = (list: readonly Run[]) => list.filter((r) => !isFinished(r));
   return (
     <aside className="sessions" aria-label="sessions">
       <div className="mode" role="tablist">

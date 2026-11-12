@@ -121,6 +121,9 @@ export class ScanIntake {
       const run = await this.d.issues.start(id, {
         workflow: rule.workflow,
         worktree: rule.worktree,
+        // Nobody is there to commit or stash: a run from an issue starts from the last commit and
+        // never needs the uncommitted work of whoever sits at the checkout.
+        allowDirty: true,
         ...(rule.autonomy === "full" ? { autonomy: "L1" as const } : {}),
       });
       if (run.isErr()) return err(run.error);

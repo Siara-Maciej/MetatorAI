@@ -179,7 +179,8 @@ export class RunStateMachine {
 
   /**
    * An escalated run back at the stage it escalated from, after a person removed the cause. Its
-   * history and loop counts stay: the next failure there escalates again once its loop is spent.
+   * history stays. The loop that was spent there counts from zero again: a person said go on, so
+   * the next failure sends the run back to be fixed instead of escalating at once (F1).
    */
   resume(state: RunState): Result<RunState, MetatorError> {
     if (state.stage !== "escalated")
@@ -192,7 +193,28 @@ export class RunStateMachine {
     const from = state.context.history.at(-1)?.stage;
     if (!from || !this.spec.stages.some((s) => s.id === from))
       return err(new MetatorError("INVALID_CONFIG", "the run's history does not say where it escalated"));
-    return ok({ ...state, stage: from, status: "active", context: structuredClone(state.context) });
+    const context = structuredClone(state.context);
+    const loop = this.spec.stages.find((s) => s.id === from)?.onFail?.loop;
+    if (loop !== undefined) context.loops = { ...context.loops, [loop]: 0 };
+    return ok({ ...state, stage: from, status: "active", context });
+  }
+
+  /**
+   * An escalated run given up: it ends as aborted, with the reason in its history at the stage it
+   * escalated from (F6). An active run is aborted with the ABORT event instead.
+   */
+  abandon(state: RunState, reason: string): Result<RunState, MetatorError> {
+    if (state.status !== "escalated")
+      return err(
+        new MetatorError(
+          "TRANSITION_DENIED",
+          `the run is ${state.status}; only an escalated run is given up`,
+        ),
+      );
+    const from = state.context.history.at(-1)?.stage ?? state.stage;
+    const context = structuredClone(state.context);
+    context.history = [...context.history, { stage: from, event: "ABORT", detail: reason }];
+    return ok({ ...state, stage: "aborted", status: "aborted", context });
   }
 
   private expected(state: RunState): string {
