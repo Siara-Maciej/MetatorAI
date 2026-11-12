@@ -50,10 +50,20 @@ An escalated run stops and waits for you. `metator run status` and `metator inbo
 When you have fixed the cause, put the run back at the stage it stopped at. With `--drive` it is driven on at once:
 
 ```bash
-metator run resume --by alice --drive
+metator run resume --drive
 ```
 
+`--by` says who resumed the run. Without it the name comes from `$METATOR_USER`, or else from `git config user.name`. The same holds for `run approve`, `run advance approve`, `run answer`, `run message`, `mrs send`, `mrs resolve`, `findings react` and `review notes add` and `send`. The name only says who acts: the command is still the decision, and a command with no name anywhere is refused.
+
 A resumed run gets a fresh set of tries for the stage it stopped at: if the stage fails again, the run goes back to be fixed as the workflow says, and escalates only when that limit is used up again. The first agent that runs after a resume is told why the stage failed.
+
+To send the run back further, name the stage with `--to`, and say why with `--note`:
+
+```bash
+metator run resume --to plan --note "split step 2; the check needs the file it names" --drive
+```
+
+`--to` takes a stage the run already worked, or the stage it escalated from. Any other stage is refused, and the error names the stages you can choose. Sent back to an earlier stage, every loop of the run counts from zero, and the approvals on the way are asked again. The first agent that works after the resume reads your note and the failure the run escalated on. The run keeps the resume: `metator run status` shows it until an agent has worked, and the log, the activity and the plan board (`metator run board`) keep it for good.
 
 To give the run up instead, close it with a reason (see [Finish a run](#finish-a-run)).
 
@@ -97,7 +107,7 @@ A run has one driver at a time. A second `run drive` is refused while the first 
 
 `run drive` checks the host before it runs a stage. A host whose program is not installed is refused with the hosts that are, so no stage fails for that reason. If a run's worktree was removed by hand, the drive stops and names the two ways on: put the worktree back, or close the run.
 
-You can also approve a gate with `metator run approve <stage> --by <name>` while a drive waits on its question. The drive notices that the run moved on and carries on with the next stage.
+You can also approve a gate with `metator run approve <stage>` while a drive waits on its question. The drive notices that the run moved on and carries on with the next stage.
 
 ## Run several tasks at once
 

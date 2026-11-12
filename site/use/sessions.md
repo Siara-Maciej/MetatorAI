@@ -83,6 +83,8 @@ metator status      # every run: its stage, what waits for you, whether an agent
 metator ui          # the same as a full-screen view in the terminal
 ```
 
+A run whose agent works in a terminal pane of the app counts as working, though no background drive carries it: `metator status` shows `"attention": "driving"` with a `session` field naming the pane, and the app's top bar counts it under **working**. `metator status` reads this from the daemon when one serves the repository. An agent that printed nothing for the idle threshold (`supervisor.idleThresholdMs`) no longer counts.
+
 `metator ui` lists the runs on the left, the ones that need you first, followed by your [`metator ask`](./ask.md) conversations. The right side shows the selected run. The footer names the keys. `metator ui` needs a terminal. In a script, use `metator status`.
 
 ### Watch, stop and continue

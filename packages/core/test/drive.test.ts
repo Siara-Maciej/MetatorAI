@@ -1021,7 +1021,10 @@ loops:
       "Prices are in cents; EUR or USD?\n\nwhich currency?",
     );
     // Each question carries its decision card: the task, the stages passed, the artifacts so far.
-    const gateCard = w.asked.find((q) => q.source === "gate")?.card;
+    const gate = w.asked.find((q) => q.source === "gate");
+    // Its title says what is approved and for which task (F9).
+    expect(gate?.prompt).toStartWith('Approve the result of stage plan for "Add discount"?');
+    const gateCard = gate?.card;
     expect(gateCard).toMatchObject({
       task: "Add discount",
       done: ["setup", "plan"],

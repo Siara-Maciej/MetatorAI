@@ -24,10 +24,13 @@ Each row shows the kind (`APPROVAL`, `PERMISSION` or `QUESTION`), how long the q
 |---|---|
 | Header | the question id, its kind, the stage, the run and the agent |
 | Chips | whether the decision can be taken back, how many files it touches, how long it has waited |
-| **Goal** | the run's task |
+| Title | what is decided, in plain words: for an approval, what is approved and for which task |
+| **Goal** | the run's task, when the title does not already carry it whole |
 | **Since you left** | what happened since your last answer |
 | **Proposal and evidence** | the stages done so far, the artifacts to read, the checks that ran |
 | **Options** | each option with what it leads to; one may be marked **RECOMMENDED** |
+
+Click an artifact's name to read it on the card: Markdown as it is written, JSON indented. Click it again, or ✕, to close it. The **Plan** screen opens a run's artifacts the same way. The app reads them through the daemon (`GET /runs/<id>/artifact?path=<file>`), which returns only files inside the run's directory.
 
 The card is assembled from the run's files when the question is asked. No model writes it. The recommendation comes from a fixed rule: for example, Approve is recommended at an approval when the stage before it passed.
 
@@ -59,14 +62,14 @@ A run that reaches a loop limit, or whose agent stays blocked, becomes `escalate
 
 The card shows why the run stopped (the failure its last stage recorded) and has four buttons:
 
-- **Resume** puts the run back at the stage it escalated from and drives it on. Remove the cause first. The run gets a fresh set of tries for that stage. If no drive can start, the card says why.
+- **Resume** puts the run back at the stage chosen in **Resume at** and drives it on. Remove the cause first. The list starts at the stage the run stopped at, where the run gets a fresh set of tries; the other entries are the stages it already worked. The line above the list says what the resume will do. Write in **Note for the agent** what must be different: the first agent that works after the resume reads it, and the **Plan** screen lists it under **resumed**. If no drive can start, the card says why.
 - **Close run…** asks for a reason and ends the run as aborted.
 - **Briefing** shows what happened in the run, and **Changes** shows its change.
 
 The same from the terminal:
 
 ```bash
-metator run resume --run <id> --by alice --drive
+metator run resume --run <id> --to plan --note "smaller steps" --drive
 metator run close --run <id> --aborted --reason "not worth fixing"
 ```
 
