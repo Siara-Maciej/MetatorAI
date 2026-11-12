@@ -78,7 +78,7 @@ metator issue close i001 --by maciej     # done
 metator issue drop i002 --by maciej      # not going to be done
 ```
 
-Commands that change a task take `--by <name>`. `issue start` makes the issue `in-progress` and remembers the run. The run works in a new worktree unless you pass `--no-worktree`. `metator issue list --run <id>` lists the tasks tied to a run: started from it, proposed in it, or pointing at it.
+Commands that change a task take `--by <name>`. `issue start` makes the issue `in-progress` and remembers the run. A task whose run is still active is not started a second time: the command is refused and names the run. The run works in a new worktree unless you pass `--no-worktree`. `metator issue list --run <id>` lists the tasks tied to a run: started from it, proposed in it, or pointing at it.
 
 ```bash
 metator issue decide i002 --add --by maciej

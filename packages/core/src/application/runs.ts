@@ -6,7 +6,7 @@ import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run
 import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "../domain/run-record.ts";
 import type { WorkflowSpec } from "../domain/workflow-spec.ts";
 import type { BranchPublication, Clock, FileSystem } from "../ports/index.ts";
-import type { RunRepository } from "./run-repository.ts";
+import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { CreateWorktree } from "./worktrees.ts";
 
@@ -196,6 +196,10 @@ export class AdvanceRun {
     readonly runId?: string;
     readonly event: RunEvent;
   }): Promise<Result<RunView, MetatorError>> {
+    if (input.event.type === "APPROVE" && input.event.by.trim() === "")
+      return err(
+        MetatorError.usage("say who approves: --by <name>", "An approval records who made the decision."),
+      );
     const id = await this.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     const record = await this.repo.load(id.value);
@@ -207,50 +211,65 @@ export class AdvanceRun {
     const logReady = await this.repo.verifyLog(record.value.runId);
     if (logReady.isErr()) return err(logReady.error);
 
-    const before = record.value.state.stage;
-    const next = machine.send(record.value.state, input.event);
-    if (next.isErr()) return err(next.error);
-
-    const skipped = input.event.type === "FAIL" && machine.skipsOnFail(before);
+    const seen = record.value.state;
     const now = this.clock.now().toISOString();
-    // Approving a gate that grants external actions (delivery grants push) approves them too.
-    const granted = machine.workflow.stages.find((s) => s.id === before)?.grants ?? [];
-    const given = input.event.type === "APPROVE" ? approval(input.event, now) : undefined;
-    const approvals = given
-      ? {
-          ...record.value.approvals,
-          [before]: given,
-          ...Object.fromEntries(granted.map((g) => [g, given])),
-        }
-      : record.value.approvals;
-    const autopilot = input.event.type === "APPROVE" && input.event.choice === AUTOPILOT_CHOICE;
-    if (autopilot && machine.workflow.autonomy && !machine.workflow.autonomy.includes("L1")) {
-      return err(
-        MetatorError.usage(
-          `workflow ${machine.workflow.id} does not support autopilot (L1)`,
-          `Supported autonomy levels: ${machine.workflow.autonomy.join(", ")}.`,
-        ),
+    const lines: string[] = [];
+    const updated = await this.repo.update(id.value, (current) => {
+      // The event is about the stage its sender saw: a run that moved on meanwhile is not advanced twice.
+      if (current.state.stage !== seen.stage || current.state.status !== seen.status)
+        return err(movedOn(current, seen.stage));
+      const before = current.state.stage;
+      const next = machine.send(current.state, input.event);
+      if (next.isErr()) return err(next.error);
+      const skipped = input.event.type === "FAIL" && machine.skipsOnFail(before);
+      // Approving a gate that grants external actions (delivery grants push) approves them too.
+      const granted = machine.workflow.stages.find((s) => s.id === before)?.grants ?? [];
+      const given = input.event.type === "APPROVE" ? approval(input.event, now) : undefined;
+      const approvals = given
+        ? {
+            ...current.approvals,
+            [before]: given,
+            ...Object.fromEntries(granted.map((g) => [g, given])),
+          }
+        : current.approvals;
+      const autopilot = input.event.type === "APPROVE" && input.event.choice === AUTOPILOT_CHOICE;
+      if (autopilot && machine.workflow.autonomy && !machine.workflow.autonomy.includes("L1")) {
+        return err(
+          MetatorError.usage(
+            `workflow ${machine.workflow.id} does not support autopilot (L1)`,
+            `Supported autonomy levels: ${machine.workflow.autonomy.join(", ")}.`,
+          ),
+        );
+      }
+      const autonomy = autopilot && current.autonomy === "L0" ? "L1" : current.autonomy;
+      const gated = skipGates(
+        machine,
+        { ...current, autonomy, state: next.value, approvals, updatedAt: now },
+        now,
       );
-    }
-    const autonomy = autopilot && record.value.autonomy === "L0" ? "L1" : record.value.autonomy;
-    const { record: updated, lines } = skipGates(
-      machine,
-      { ...record.value, autonomy, state: next.value, approvals, updatedAt: now },
-      now,
-    );
-    const saved = await this.repo.save(updated);
-    if (saved.isErr()) return err(saved.error);
-    for (const line of [
-      `${now} · ${before} · ${describe(input.event)} → ${next.value.stage}${skipped ? " (optional stage skipped)" : ""}`,
-      ...(autonomy === record.value.autonomy ? [] : [`${now} · autopilot · autonomy ${autonomy}`]),
-      ...lines,
-    ]) {
-      const logged = await this.repo.appendLog(updated.runId, line);
+      lines.push(
+        `${now} · ${before} · ${describe(input.event)} → ${next.value.stage}${skipped ? " (optional stage skipped)" : ""}`,
+        ...(autonomy === current.autonomy ? [] : [`${now} · autopilot · autonomy ${autonomy}`]),
+        ...gated.lines,
+      );
+      return ok(gated.record);
+    });
+    if (updated.isErr()) return err(updated.error);
+    for (const line of lines) {
+      const logged = await this.repo.appendLog(id.value, line);
       if (logged.isErr()) return err(logged.error);
     }
-    return ok(view(updated, machine, this.repo));
+    return ok(view(updated.value, machine, this.repo));
   }
 }
+
+/** Another process changed the run between the look and the change: the caller looks again. */
+const movedOn = (current: RunRecord, seenStage: string): MetatorError =>
+  new MetatorError(
+    "TRANSITION_DENIED",
+    `run ${current.runId} moved on meanwhile: it was at ${seenStage}, now it is ${current.state.status} at ${current.state.stage}`,
+    { hint: "Look again (`metator run status`) and repeat what still applies." },
+  );
 
 /** `run resume`: an escalated run goes on at the stage it escalated from, and the log says who resumed it. */
 export class ResumeRun {
@@ -270,18 +289,17 @@ export class ResumeRun {
     if (record.isErr()) return err(record.error);
     const resolved = await machineFor(this.catalog, record.value.workflow.id);
     if (resolved.isErr()) return err(resolved.error);
-    const next = resolved.value.machine.resume(record.value.state);
-    if (next.isErr()) return err(next.error);
     const now = this.clock.now().toISOString();
-    const updated = { ...record.value, state: next.value, updatedAt: now };
-    const saved = await this.repo.save(updated);
-    if (saved.isErr()) return err(saved.error);
+    const updated = await this.repo.update(id.value, (current) =>
+      resolved.value.machine.resume(current.state).map((state) => ({ ...current, state, updatedAt: now })),
+    );
+    if (updated.isErr()) return err(updated.error);
     const logged = await this.repo.appendLog(
-      updated.runId,
-      `${now} · resumed at ${next.value.stage} · by ${input.by}`,
+      id.value,
+      `${now} · resumed at ${updated.value.state.stage} · by ${input.by}`,
     );
     if (logged.isErr()) return err(logged.error);
-    return ok(view(updated, resolved.value.machine, this.repo));
+    return ok(view(updated.value, resolved.value.machine, this.repo));
   }
 }
 
@@ -340,6 +358,10 @@ export class ApproveRun {
   }): Promise<
     Result<RunView | { readonly runId: string; readonly approvals: RunRecord["approvals"] }, MetatorError>
   > {
+    if (input.by.trim() === "")
+      return err(
+        MetatorError.usage("say who approves: --by <name>", "An approval records who made the decision."),
+      );
     const id = await this.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     const record = await this.repo.load(id.value);
@@ -407,12 +429,18 @@ export class ApproveRun {
       );
 
     const now = this.clock.now().toISOString();
-    const approvals = { ...record.value.approvals, [input.gate]: approval(decision, now) };
-    const saved = await this.repo.save({ ...record.value, approvals, updatedAt: now });
+    // On the record as it is now: an approval given at the same time by someone else stays (R5).
+    const saved = await this.repo.update(id.value, (current) =>
+      ok({
+        ...current,
+        approvals: { ...current.approvals, [input.gate]: approval(decision, now) },
+        updatedAt: now,
+      }),
+    );
     if (saved.isErr()) return err(saved.error);
     const logged = await this.repo.appendLog(id.value, `${now} · approved ${input.gate} · by ${input.by}`);
     if (logged.isErr()) return err(logged.error);
-    return ok({ runId: id.value, approvals });
+    return ok({ runId: id.value, approvals: saved.value.approvals });
   }
 }
 
@@ -483,20 +511,34 @@ export class WriteRunArtifact {
 export class ListRuns {
   constructor(private readonly repo: RunRepository) {}
 
+  /** Newest first. A run whose record cannot be read is left out of `runs` and named in `unreadable`. */
   async execute(): Promise<
     Result<
-      readonly { runId: string; workflow: string; stage: string; status: string; updatedAt: string }[],
+      {
+        readonly runs: readonly {
+          runId: string;
+          workflow: string;
+          stage: string;
+          status: string;
+          updatedAt: string;
+        }[];
+        readonly unreadable: readonly UnreadableRun[];
+      },
       MetatorError
     >
   > {
-    const rows = [];
-    for (const runId of await this.repo.list()) {
-      const record = await this.repo.load(runId);
-      if (record.isErr()) return err(record.error);
-      const { workflow, state, updatedAt } = record.value;
-      rows.push({ runId, workflow: workflow.id, stage: state.stage, status: state.status, updatedAt });
-    }
-    return ok(rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+    const all = await this.repo.loadAll();
+    const rows = all.runs.map(({ runId, workflow, state, updatedAt }) => ({
+      runId,
+      workflow: workflow.id,
+      stage: state.stage,
+      status: state.status,
+      updatedAt,
+    }));
+    return ok({
+      runs: rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+      unreadable: all.unreadable,
+    });
   }
 }
 

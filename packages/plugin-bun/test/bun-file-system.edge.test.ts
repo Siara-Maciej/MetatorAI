@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, readdir, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BunFileSystem } from "../src/bun-file-system.ts";
@@ -20,6 +20,36 @@ describe("BunFileSystem edge cases", () => {
     expect((await fs.write("a/b/c/report.json", "1")).isOk()).toBe(true);
     expect((await fs.write("a/b/c/report.json", "2")).isOk()).toBe(true);
     expect(await Bun.file(join(root, "a/b/c/report.json")).text()).toBe("2");
+  });
+
+  test("write replaces the file whole: no temporary file stays, a link is written through, the mode is kept", async () => {
+    const { fs, root } = await fresh();
+    await fs.write("run/state.json", "old");
+    await chmod(join(root, "run/state.json"), 0o755);
+    await symlink(join(root, "run/state.json"), join(root, "link.json"));
+    expect((await fs.write("link.json", "new")).isOk()).toBe(true);
+    expect((await lstat(join(root, "link.json"))).isSymbolicLink()).toBe(true);
+    expect(await Bun.file(join(root, "run/state.json")).text()).toBe("new");
+    expect((await stat(join(root, "run/state.json"))).mode & 0o777).toBe(0o755);
+    expect(await readdir(join(root, "run"))).toEqual(["state.json"]);
+  });
+
+  test("a reader never sees half a file while another writes it", async () => {
+    const { fs } = await fresh();
+    const texts = ["a".repeat(4_000_000), "b".repeat(4_000_000)];
+    await fs.write("state.json", texts[0] as string);
+    let torn = 0;
+    let writing = true;
+    const reader = (async () => {
+      while (writing) {
+        const text = (await fs.read("state.json"))._unsafeUnwrap();
+        if (!texts.includes(text)) torn++;
+      }
+    })();
+    for (let i = 0; i < 40; i++) await fs.write("state.json", texts[i % 2] as string);
+    writing = false;
+    await reader;
+    expect(torn).toBe(0);
   });
 
   test("glob includes dotfiles like .github/ but not .git/", async () => {

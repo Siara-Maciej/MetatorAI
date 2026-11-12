@@ -192,6 +192,7 @@ import {
 import {
   BunBackgroundProcess,
   BunCheckoutReader,
+  BunFileLock,
   BunFileSystem,
   BunLauncher,
   BunMachineState,
@@ -353,6 +354,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           created: () => excludeLocally(root, LOCAL_STATE_DIR),
         }),
     ).singleton(),
+    fileLock: asFunction(({ root }: { root: string }) => new BunFileLock(root)).singleton(),
     processRunner: asFunction(() => new BunProcessRunner()).singleton(),
     timer: asFunction(() => new BunTimer()).singleton(),
     launcher: asFunction(() => new BunLauncher()).singleton(),
@@ -455,6 +457,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         worktreeRegistry,
         environmentServices,
         optionStore,
+        runRepository,
       }) =>
         new CheckReadiness(
           fileSystem,
@@ -466,6 +469,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           worktreeRegistry,
           environmentServices,
           { servers: () => optionStore.mcp(), hasCommand: async (bin) => Bun.which(bin) !== null },
+          runRepository,
         ),
     ),
     setupWorktree: asFunction(
@@ -600,8 +604,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
     issues: asFunction(
-      ({ fileSystem, paths, clock, runJournal, runRepository, initRun, optionStore }) =>
+      ({ fileSystem, paths, clock, runJournal, runRepository, initRun, optionStore, fileLock }) =>
         new Issues({
+          lock: fileLock,
           fs: fileSystem,
           paths,
           clock,
@@ -641,8 +646,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         }),
     ),
     scanIntake: asFunction(
-      ({ config, issues, codeHost, runRepository }) =>
+      ({ config, issues, codeHost, runRepository, fileLock, paths }) =>
         new ScanIntake({
+          exclusive: (work) => fileLock.hold(`${paths.issues}/intake`, work),
           config: config.config.intake,
           issues,
           codeHost,
@@ -1295,7 +1301,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ fileSystem, paths }) => new WorkflowCatalog(fileSystem, paths),
     ).singleton(),
     runRepository: asFunction(
-      ({ fileSystem, paths }) => new RunRepository(fileSystem, paths, options.run),
+      ({ fileSystem, paths, fileLock }) => new RunRepository(fileSystem, paths, options.run, fileLock),
     ).singleton(),
     initRun: asFunction(
       ({ workflowCatalog, runRepository, clock, provideWorktree }) =>
@@ -1304,7 +1310,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     worktreeManager: asFunction(({ root }) => new GitWorktreeManager(root)).singleton(),
     portProbe: asFunction(() => new GetPortProbe()).singleton(),
     worktreeRegistry: asFunction(
-      ({ fileSystem, paths }) => new WorktreeRegistry(fileSystem, paths),
+      ({ fileSystem, paths, fileLock }) => new WorktreeRegistry(fileSystem, paths, fileLock),
     ).singleton(),
     machineState: asFunction(
       () => new BunMachineState(options.stateDir ?? machineStateDir(process.env)),

@@ -271,12 +271,13 @@ export class OptionStore {
     if (scope === "user") return this.writeUser(key, value);
     if (scope === "repo") return this.writeRepo(key, value);
     if (!runId || !this.deps.runs) return err(MetatorError.usage("a run-scope option needs --run <id>"));
-    const record = await this.deps.runs.load(runId);
-    if (record.isErr()) return err(record.error);
-    const options = { ...(record.value.options ?? {}) };
-    if (value === undefined) delete options[key];
-    else options[key] = value;
-    return this.deps.runs.save({ ...record.value, options });
+    const saved = await this.deps.runs.update(runId, (record) => {
+      const options = { ...(record.options ?? {}) };
+      if (value === undefined) delete options[key];
+      else options[key] = value;
+      return ok({ ...record, options });
+    });
+    return saved.map(() => undefined);
   }
 
   private async writeUser(key: string, value: unknown): Promise<Result<void, MetatorError>> {

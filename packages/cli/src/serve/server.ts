@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   acceptanceStats,
@@ -26,6 +26,7 @@ import {
 } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import type { CommandContext, Folder } from "../context.ts";
+import { liveDaemonAt } from "../daemon-client.ts";
 
 /** What a browser or the desktop app gets from the daemon (D3, ADR-0077). */
 export interface ServeOptions {
@@ -98,6 +99,28 @@ const fromResult = <T>(r: Result<T, MetatorError>) =>
  * cases as the CLI; the daemon keeps nothing that is not on disk, except the PTY sessions it brokers.
  * Localhost only, no authentication (decision 1).
  */
+/** The directories a daemon started here serves: the repository, or each repository of the folder. */
+export function servedRoots(ctx: CommandContext): string[] {
+  const folder = ctx.folder();
+  return folder ? folder.repos.map((r) => r.root) : [ctx.container().resolve("root")];
+}
+
+/**
+ * Another daemon that already serves one of these directories (R7): a second one would write its
+ * own address over the first one's file, and the CLI and the app would talk to the wrong process.
+ */
+export function daemonInTheWay(roots: readonly string[]): MetatorError | undefined {
+  for (const root of roots) {
+    const other = liveDaemonAt(root);
+    if (other && other.pid !== process.pid)
+      return MetatorError.usage(
+        `a daemon already serves ${root}: ${other.url} (pid ${other.pid})`,
+        `Use that one, or stop it first (kill ${other.pid}). A daemon for another repository is fine: run \`metator serve --port <other>\` there.`,
+      );
+  }
+  return undefined;
+}
+
 export async function startServer(ctx: CommandContext, opts: ServeOptions): Promise<Served> {
   const folder = ctx.folder();
   const pollMs = opts.pollMs ?? 1000;
@@ -871,7 +894,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   const intakeTimer = intakeEvery > 0 ? setInterval(intakeTick, intakeEvery) : undefined;
   const port = server.port ?? opts.port;
   // Where the daemon listens, for the CLI and the clients; and every pane of the layout back.
-  const roots = folder ? folder.repos.map((r) => r.root) : [ctx.container().resolve("root")];
+  const roots = servedRoots(ctx);
   const info = serializeJsonDocument(
     DaemonInfoDocument.stamp({
       url: `http://${opts.hostname}:${port}`,
@@ -910,7 +933,11 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       if (superviseTimer) clearInterval(superviseTimer);
       if (intakeTimer) clearInterval(intakeTimer);
       if (reviewsTimer) clearInterval(reviewsTimer);
-      for (const root of roots) rmSync(join(root, DAEMON_FILE), { force: true });
+      // Only its own file: one another daemon wrote since says where that daemon listens.
+      for (const root of roots) {
+        const file = join(root, DAEMON_FILE);
+        if (existsSync(file) && readFileSync(file, "utf8") === info) rmSync(file, { force: true });
+      }
       for (const ws of sockets) ws.close();
       await server.stop(true);
     },

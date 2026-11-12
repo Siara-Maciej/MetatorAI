@@ -17,6 +17,7 @@ import {
   type HealthProbe,
   type HealthTarget,
   type HostUsage,
+  InProcessLock,
   type InteractiveHost,
   type InteractiveSession,
   type MachineState,
@@ -336,6 +337,11 @@ export class InMemoryMachineState implements MachineState {
   async write(name: string, content: string): Promise<Result<void, MetatorError>> {
     this.files.set(name, content);
     return ok(undefined);
+  }
+
+  private readonly locks = new InProcessLock();
+  locked<T>(name: string, work: () => Promise<Result<T, MetatorError>>): Promise<Result<T, MetatorError>> {
+    return this.locks.hold(name, work);
   }
 
   async dirExists(path: string): Promise<boolean> {

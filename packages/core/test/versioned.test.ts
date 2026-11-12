@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
+import { MetatorError } from "../src/domain/errors.ts";
 import { defineDocument, parseYamlDocument, renderYamlDocument } from "../src/domain/versioned.ts";
 
 // A synthetic document with real history: v1 {name}, v2 {name, tags}, v3 {title, tags}.
@@ -28,6 +29,19 @@ describe("versioned documents", () => {
       title: "a",
       tags: [],
     });
+  });
+
+  test("stamp refuses a body its own schema rejects: an unreadable document is never written", () => {
+    let thrown: unknown;
+    try {
+      Note.stamp({ title: "a", tags: [1] } as never);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(MetatorError);
+    expect((thrown as MetatorError).code).toBe("INTERNAL");
+    expect((thrown as MetatorError).message).toContain("Note: refusing to write a document");
+    expect((thrown as MetatorError).message).toContain("tags.0");
   });
 
   test("reads the current version directly", () => {

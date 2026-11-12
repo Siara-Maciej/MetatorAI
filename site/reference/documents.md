@@ -94,6 +94,7 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |
 | `Layout` | `.metator/layout.json` | the daemon: workspaces, tabs and panes, restored after a restart |
 | `DaemonInfo` | `.metator/daemon.json` | `metator serve`, while it runs |
+| `FileLock` | `<file>.lock` next to a file under `.metator/` | any command, only while it changes that file (the worktree registry, a run's `state.json`, the backlog); a lock whose process is gone holds nothing |
 | `ReviewReaction` | `.metator/telemetry/reactions.jsonl` | `metator findings react`: what people did with a review comment |
 | `QuarterlyReview` | `.metator/reviews/quarterly-<date>.json` | `metator meta quarterly` |
 | `EvalReport` | `report.json` under the `--runs-dir` of `metator eval run` (default `.metator/evals`) | `metator eval run` |
@@ -104,6 +105,7 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 |---|---|---|
 | `UserOptions` | `~/.config/metator/options.yml` | `metator config set ... --scope user` and the app's **Settings** screen; `mcp:` by hand |
 | `PortLeases` | `~/.local/state/metator/port-leases.json` | `metator worktree new` and `worktree rm` |
+| `FileLock` | `~/.local/state/metator/port-leases.json.lock` | the same commands, only while they change the leases |
 
 `METATOR_CONFIG_DIR` and `METATOR_STATE_DIR` move these two directories.
 

@@ -25,8 +25,14 @@ export class ReviewFeedback {
   }
 
   async record(input: Omit<ReviewReaction, "at">): Promise<Result<ReviewReaction, MetatorError>> {
+    // What a person gave is checked as a document read from outside: a bad one is an error value.
     const parsed = ReviewReactionDocument.parse(
-      ReviewReactionDocument.stamp({ at: this.clock.now().toISOString(), ...input }),
+      {
+        kind: ReviewReactionDocument.kind,
+        schemaVersion: ReviewReactionDocument.current,
+        at: this.clock.now().toISOString(),
+        ...input,
+      },
       this.file(),
     );
     if (parsed.isErr()) return err(parsed.error);

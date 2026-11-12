@@ -140,6 +140,17 @@ describe("Supervisor", () => {
     expect((await w2.supervisor.tick())._unsafeUnwrap().revived).toEqual([]);
   });
 
+  test("a run whose record cannot be read is skipped: the other runs are still revived (R2)", async () => {
+    const w = world({ respawn: { enabled: true, maxAttempts: 2 } });
+    const broken = (await w.init("Broken one"))._unsafeUnwrap();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    await w.fs.write(broken.files.state, '{"kind":"RunRecord","schemaVer');
+    w.drives.set(broken.runId, { pid: 1, alive: false });
+    w.drives.set(run.runId, { pid: 2, alive: false });
+    const report = (await w.supervisor.tick())._unsafeUnwrap();
+    expect(report.revived.map((r) => r.runId)).toEqual([run.runId]);
+  });
+
   test("an idle session is nudged once; still idle, a person is asked; their answer closes it or nudges again", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();

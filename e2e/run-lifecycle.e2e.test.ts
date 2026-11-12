@@ -4,6 +4,7 @@
  * bounds loops and leaves an audit trail on disk.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { rm } from "node:fs/promises";
 import { metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 import { findUnversioned } from "./helpers/versioned.ts";
@@ -238,6 +239,79 @@ describe("run lifecycle via CLI (each step is a new process)", () => {
       await repo.write(file, original);
     }
   });
+});
+
+describe("a run's files stay readable (R1, R2)", () => {
+  test("an approval or an answer without a name is refused and the record stays readable", async () => {
+    const run = (await mt("run", "init", "--workflow", "feature", "--task", "who decided")).json.data as {
+      runId: string;
+    };
+    const file = `.metator/runs/${run.runId}/state.json`;
+    const before = await repo.read(file);
+    const refused = await mt("run", "approve", "push", "--by", "", "--run", run.runId);
+    expect([refused.code, (refused.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+    expect((refused.json.error as { message: string }).message).toBe("say who approves: --by <name>");
+    expect(await repo.read(file)).toBe(before);
+    expect((await mt("run", "status", "--run", run.runId)).code).toBe(0);
+    expect((await mt("run", "list")).code).toBe(0);
+  }, 30_000);
+
+  test("one truncated state.json: list, status, inbox, revive and doctor go on and name the file", async () => {
+    const run = (await mt("run", "init", "--workflow", "feature", "--task", "torn record")).json.data as {
+      runId: string;
+    };
+    const file = `.metator/runs/${run.runId}/state.json`;
+    const original = await repo.read(file);
+    try {
+      await repo.write(file, original.slice(0, 60));
+      const list = await mt("run", "list");
+      const rows = list.json.data as { runId: string }[];
+      expect(list.code).toBe(0);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.map((r) => r.runId)).not.toContain(run.runId);
+      const warnings = list.json.warnings as string[];
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(`run ${run.runId} cannot be read and is left out`);
+      expect(warnings[0]).toContain(`restore ${file} (from git or a backup), or delete the run's directory`);
+      const status = await mt("status");
+      expect(status.code).toBe(0);
+      const overview = status.json.data as { runs: unknown[]; unreadable: { runId: string; file: string }[] };
+      expect(overview.runs.length).toBe(rows.length);
+      expect(overview.unreadable.map((u) => [u.runId, u.file])).toEqual([[run.runId, file]]);
+      expect(status.json.warnings).toEqual(warnings);
+      for (const command of [["inbox"], ["run", "revive"]]) {
+        const r = await mt(...command);
+        expect([r.code, r.json.warnings]).toEqual([0, warnings]);
+      }
+      const doctor = await mt("doctor");
+      const checks = (doctor.json.data as { checks: { id: string; message: string; fix?: string }[] }).checks;
+      expect(checks.find((c) => c.id === "runs")).toMatchObject({
+        status: "warn",
+        fix: `restore ${file} (from git or a backup), or delete the run's directory`,
+      });
+      // The run a person names is still their answer: it cannot be read.
+      expect((await mt("run", "status", "--run", run.runId)).code).toBe(1);
+    } finally {
+      await repo.write(file, original);
+    }
+  }, 60_000);
+
+  test("a torn line in activity.jsonl is skipped: the activity before and after it still reads", async () => {
+    const run = (await mt("run", "init", "--workflow", "feature", "--task", "torn line")).json.data as {
+      runId: string;
+    };
+    await mt("run", "attach", "--by", "maciej", "--run", run.runId);
+    const file = `.metator/runs/${run.runId}/activity.jsonl`;
+    await repo.write(file, `${await repo.read(file)}{"kind":"RunActivity","schemaVersion":1,"at":"2026-1\n`);
+    await mt("run", "release", "--run", run.runId);
+    const activity = await mt("run", "activity", "--run", run.runId);
+    expect(activity.code).toBe(0);
+    expect(JSON.stringify(activity.json.data)).toContain("maciej attached");
+    expect(JSON.stringify(activity.json.data)).toContain("maciej released");
+    expect((await mt("run", "brief", "--run", run.runId)).code).toBe(0);
+    // The versioned-files guard below reads JSON documents, not JSON Lines: this journal is done with.
+    await rm(repo.path(file));
+  }, 30_000);
 });
 
 describe("usage errors via CLI", () => {

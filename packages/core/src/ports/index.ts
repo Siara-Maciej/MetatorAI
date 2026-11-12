@@ -34,6 +34,20 @@ export interface FileSystem extends ReadonlyFileSystem {
   remove(path: string): Promise<Result<void, MetatorError>>;
 }
 
+/**
+ * One writer at a time for a file that several processes read, change and write back (the
+ * worktree registry, a run's record, the backlog). The lock belongs to a process: one that died
+ * holds nothing.
+ */
+export interface FileLock {
+  /**
+   * Runs `work` while nobody else holds the lock of the repo-relative `path`, then releases it,
+   * whatever `work` returned. `work` must not take the same lock again. An error when the lock
+   * stays taken too long: it names the process that holds it.
+   */
+  hold<T>(path: string, work: () => Promise<Result<T, MetatorError>>): Promise<Result<T, MetatorError>>;
+}
+
 export interface ResolvedCommand {
   readonly argv: readonly string[];
   readonly cwd: string;
@@ -212,6 +226,11 @@ export interface MachineState {
   /** The document's text; undefined when it was never written. */
   read(name: string): Promise<Result<string | undefined, MetatorError>>;
   write(name: string, content: string): Promise<Result<void, MetatorError>>;
+  /**
+   * Runs `work` while no other process holds the lock of the document `name` (read, change, write
+   * back), as `FileLock.hold` does for a repository's files.
+   */
+  locked<T>(name: string, work: () => Promise<Result<T, MetatorError>>): Promise<Result<T, MetatorError>>;
   /** Whether an absolute directory still exists (a repository or a worktree holding state). */
   dirExists(path: string): Promise<boolean>;
 }

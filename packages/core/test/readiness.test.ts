@@ -48,6 +48,31 @@ describe("CheckReadiness", () => {
     expect(readinessWarnings(v)).toEqual([]);
   });
 
+  test("a run whose record cannot be read is a warning that names the file and the way out (R2)", async () => {
+    const r = await new CheckReadiness(
+      present("metator/install.lock.json", "package.json"),
+      DEFAULT_PATHS,
+      { config: gated, source: "metator.config.yml" },
+      catalog("mt-feature"),
+      new FakeVcs([], [], "git@example.com:a/b.git"),
+      async () => true,
+      undefined,
+      undefined,
+      undefined,
+      {
+        loadAll: async () => ({
+          runs: [],
+          unreadable: [{ runId: "r1", file: ".metator/runs/r1/state.json", message: "not valid JSON" }],
+        }),
+      },
+    ).execute();
+    const v = r._unsafeUnwrap();
+    expect(v.ready).toBe(true);
+    expect(readinessWarnings(v)).toEqual([
+      "runs: run r1 cannot be read and is left out of the overviews (not valid JSON) (fix: restore .metator/runs/r1/state.json (from git or a backup), or delete the run's directory)",
+    ]);
+  });
+
   test("MCP servers (T1): named when configured; a command missing from the PATH is a warning with the fix", async () => {
     const ready = (servers: Record<string, { command?: string; url?: string }>, present: string[]) =>
       new CheckReadiness(

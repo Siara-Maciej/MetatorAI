@@ -1,4 +1,5 @@
 import { MetatorError } from "../domain/errors.ts";
+import { InProcessLock } from "../domain/in-process-lock.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import {
@@ -12,7 +13,14 @@ import {
   type WorktreeEntry,
   WorktreeRegistryDocument,
 } from "../domain/worktree.ts";
-import type { Clock, FileSystem, MachineState, PortProbe, WorktreeManager } from "../ports/index.ts";
+import type {
+  Clock,
+  FileLock,
+  FileSystem,
+  MachineState,
+  PortProbe,
+  WorktreeManager,
+} from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -36,7 +44,29 @@ export class WorktreeRegistry {
   constructor(
     private readonly fs: FileSystem,
     private readonly paths: MetatorPaths,
+    /** One writer at a time; the runtime gives the lock that holds across processes. */
+    private readonly lock: FileLock = new InProcessLock(),
   ) {}
+
+  /**
+   * Runs `work` while nobody else changes the registry: what reads it, decides and writes it back
+   * (a new worktree and its ports) does all three inside. `work` uses `all` and `save`, never
+   * `exclusive` or `update` again.
+   */
+  exclusive<T>(work: () => Promise<Result<T, MetatorError>>): Promise<Result<T, MetatorError>> {
+    return this.lock.hold(this.paths.worktreeRegistry, work);
+  }
+
+  /** Changes the registry as it is now, in one step (R4). */
+  update(
+    change: (entries: readonly WorktreeEntry[]) => readonly WorktreeEntry[],
+  ): Promise<Result<void, MetatorError>> {
+    return this.exclusive(async () => {
+      const all = await this.all();
+      if (all.isErr()) return err(all.error);
+      return this.save(change(all.value));
+    });
+  }
 
   async all(): Promise<Result<readonly WorktreeEntry[], MetatorError>> {
     const file = this.paths.worktreeRegistry;
@@ -61,6 +91,7 @@ export class WorktreeRegistry {
         );
   }
 
+  /** Writes the whole registry: inside `exclusive` only, with entries read there. */
   async save(entries: readonly WorktreeEntry[]): Promise<Result<void, MetatorError>> {
     const sorted = [...entries].sort((a, b) => a.id.localeCompare(b.id));
     return this.fs.write(
@@ -95,8 +126,22 @@ export class MachineLeases {
     return ok(live);
   }
 
+  /**
+   * Runs `work` while no process of any repository changes the leases: picking a free block and
+   * writing its lease happen inside, so two repositories never get the same ports (R4). `work`
+   * uses `all` and `put`, never `add` or `remove`.
+   */
+  exclusive<T>(work: () => Promise<Result<T, MetatorError>>): Promise<Result<T, MetatorError>> {
+    return this.state.locked(LEASES, work);
+  }
+
   async add(entry: WorktreeEntry, root: string): Promise<Result<void, MetatorError>> {
-    return this.update((leases) => [
+    return this.exclusive(() => this.put(entry, root));
+  }
+
+  /** Writes a worktree's lease: inside `exclusive` only. */
+  async put(entry: WorktreeEntry, root: string): Promise<Result<void, MetatorError>> {
+    return this.rewrite((leases) => [
       ...leases.filter((l) => !(l.repo === this.repo && l.worktree === entry.id)),
       {
         repo: this.repo,
@@ -109,11 +154,13 @@ export class MachineLeases {
   }
 
   async remove(worktree: string): Promise<Result<void, MetatorError>> {
-    return this.update((leases) => leases.filter((l) => !(l.repo === this.repo && l.worktree === worktree)));
+    return this.exclusive(() =>
+      this.rewrite((leases) => leases.filter((l) => !(l.repo === this.repo && l.worktree === worktree))),
+    );
   }
 
   /** Rewrites the file with live leases only, so stale ones are dropped as a side effect. */
-  private async update(
+  private async rewrite(
     change: (leases: readonly PortLease[]) => readonly PortLease[],
   ): Promise<Result<void, MetatorError>> {
     const live = await this.all();
@@ -152,6 +199,13 @@ export class CreateWorktree {
         MetatorError.usage(`invalid worktree id "${input.id}"`, "Use lowercase letters, digits and -."),
       );
     }
+    // From reading who holds which ports to writing this worktree's block, nobody else changes
+    // the registry or the machine's leases: worktrees made at the same time get different ports
+    // and every one of them is in the registry (R4).
+    return this.registry.exclusive(() => this.machine.leases.exclusive(() => this.create(input)));
+  }
+
+  private async create(input: CreateWorktreeInput): Promise<Result<WorktreeEntry, MetatorError>> {
     const all = await this.registry.all();
     if (all.isErr()) return err(all.error);
     if (all.value.some((e) => e.id === input.id)) {
@@ -184,7 +238,7 @@ export class CreateWorktree {
     if (added.isErr()) return err(added.error);
     const saved = await this.registry.save([...all.value, entry]);
     if (saved.isErr()) return err(saved.error);
-    const leased = await this.machine.leases.add(entry, this.machine.root);
+    const leased = await this.machine.leases.put(entry, this.machine.root);
     if (leased.isErr()) return err(leased.error);
     return ok(entry);
   }
@@ -220,18 +274,24 @@ export class ProvideWorktree {
   ) {}
 
   async execute(input: CreateWorktreeInput): Promise<Result<WorktreeEntry, MetatorError>> {
-    const all = await this.registry.all();
-    if (all.isErr()) return err(all.error);
-    const free = all.value.find(isFreePoolEntry);
-    if (!free || !input.run) return this.create.execute(input);
-    const branch = `metator/${input.id}`;
-    const base = input.base ?? "HEAD";
-    const switched = await this.git.switchBranch(free.path, branch, base);
-    if (switched.isErr()) return err(switched.error);
-    const taken: WorktreeEntry = { ...free, branch, base, run: input.run };
-    const saved = await this.registry.save(all.value.map((e) => (e.id === free.id ? taken : e)));
-    if (saved.isErr()) return err(saved.error);
-    return ok(taken);
+    const run = input.run;
+    if (!run) return this.create.execute(input);
+    // Two runs starting at once never take the same pool worktree.
+    const fromPool = await this.registry.exclusive<WorktreeEntry | undefined>(async () => {
+      const all = await this.registry.all();
+      if (all.isErr()) return err(all.error);
+      const free = all.value.find(isFreePoolEntry);
+      if (!free) return ok(undefined);
+      const branch = `metator/${input.id}`;
+      const base = input.base ?? "HEAD";
+      const switched = await this.git.switchBranch(free.path, branch, base);
+      if (switched.isErr()) return err(switched.error);
+      const taken: WorktreeEntry = { ...free, branch, base, run };
+      const saved = await this.registry.save(all.value.map((e) => (e.id === free.id ? taken : e)));
+      return saved.map(() => taken);
+    });
+    if (fromPool.isErr()) return err(fromPool.error);
+    return fromPool.value ? ok(fromPool.value) : this.create.execute(input);
   }
 }
 
@@ -295,9 +355,7 @@ export class RemoveWorktree {
     }
     const removed = await this.git.remove(entry.value.path, input.force);
     if (removed.isErr()) return err(removed.error);
-    const all = await this.registry.all();
-    if (all.isErr()) return err(all.error);
-    const saved = await this.registry.save(all.value.filter((e) => e.id !== input.id));
+    const saved = await this.registry.update((all) => all.filter((e) => e.id !== input.id));
     if (saved.isErr()) return err(saved.error);
     const released = await this.leases.remove(input.id);
     if (released.isErr()) return err(released.error);

@@ -90,6 +90,14 @@ Only changed files are parsed again.
 metator run close --aborted --reason "scope changed"
 ```
 
+## A run cannot be read
+
+`metator run list`, `metator status`, `metator inbox` and `metator doctor` warn that `run <id> cannot be read and is left out`, and name the run's `state.json`. The file is cut short or was edited by hand. The other runs are listed as usual. Restore the file from git or a backup, or delete the run's directory `.metator/runs/<id>/` to drop the run.
+
+## A file is locked
+
+A command fails with `<file> is locked by process <pid>`. Another MetatorAI process was changing that file for more than two minutes. Run the command again when that process has finished. If no MetatorAI process runs, delete the `<file>.lock` the hint names.
+
 ## A run stopped and nothing happens
 
 ```bash

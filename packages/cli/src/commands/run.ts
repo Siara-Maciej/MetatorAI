@@ -20,6 +20,7 @@ import {
   RunSummaryDocument,
   readinessWarnings,
   taskWarnings,
+  unreadableRunWarning,
   VerdictDocument,
 } from "@metator/core";
 import { Argument, type Command, Option } from "commander";
@@ -468,7 +469,15 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
   runs
     .command("list")
     .description("List runs, newest first")
-    .action(action(async () => ({ result: await container().resolve("listRuns").execute() })));
+    .action(
+      action(async () => {
+        const listed = await container().resolve("listRuns").execute();
+        return {
+          result: listed.map((l) => l.runs),
+          warnings: listed.isOk() ? listed.value.unreadable.map(unreadableRunWarning) : [],
+        };
+      }),
+    );
   registerDriveCommands(program, runs, ctx);
   registerConductorCommands(program, runs, ctx);
 }

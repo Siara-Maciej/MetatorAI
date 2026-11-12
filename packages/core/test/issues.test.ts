@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  AdvanceRun,
   byBacklogOrder,
   DEFAULT_PATHS,
   InitRun,
@@ -28,7 +29,9 @@ function world(allowed = true) {
   const clock = new FixedClock(new Date("2026-11-09T22:40:00.000Z"));
   const repo = new RunRepository(fs, DEFAULT_PATHS);
   const journal = new RunJournal(fs, repo, clock);
-  const initRun = new InitRun(new WorkflowCatalog(fs, DEFAULT_PATHS), repo, clock);
+  const catalog = new WorkflowCatalog(fs, DEFAULT_PATHS);
+  const initRun = new InitRun(catalog, repo, clock);
+  const advance = new AdvanceRun(catalog, repo, clock);
   const issues = new Issues({
     fs,
     paths: DEFAULT_PATHS,
@@ -39,7 +42,7 @@ function world(allowed = true) {
     proposalsAllowed: async () => allowed,
   });
   const init = (task: string) => initRun.execute({ workflow: "demo", task });
-  return { fs, clock, repo, journal, issues, init };
+  return { fs, clock, repo, journal, issues, init, advance };
 }
 
 const issue = (over: Partial<Issue> = {}): Issue => ({
@@ -199,6 +202,25 @@ describe("Issues", () => {
     expect(refused.isErr() && refused.error.message).toContain("proposeFromAgents");
   });
 
+  test("at the same time: two adds get two ids, and two starts of one task make one run (R6)", async () => {
+    const w = world();
+    const added = await Promise.all(
+      ["one", "two", "three"].map((title) => w.issues.add({ title, by: "maciej" })),
+    );
+    expect(added.map((a) => a._unsafeUnwrap().id).sort()).toEqual(["i001", "i002", "i003"]);
+    expect((await w.issues.list())._unsafeUnwrap().map((i) => i.title)).toHaveLength(3);
+    const starts = await Promise.all([
+      w.issues.start("i001", { workflow: "demo", worktree: false }),
+      w.issues.start("i001", { workflow: "demo", worktree: false }),
+    ]);
+    expect(starts.map((s) => s.isOk()).sort()).toEqual([false, true]);
+    const won = starts.find((s) => s.isOk())?._unsafeUnwrap();
+    expect(starts.find((s) => s.isErr())?._unsafeUnwrapErr().message).toContain(
+      `its run ${won?.runId} is still active`,
+    );
+    expect(await w.repo.list()).toEqual([won?.runId as string]);
+  });
+
   test("start makes a run on the task (title and body), the issue is in progress and remembers the run; 'Add and start' does both", async () => {
     const w = world();
     const added = (
@@ -211,9 +233,21 @@ describe("Issues", () => {
     expect((await w.issues.list({ runId: started.runId }))._unsafeUnwrap().map((i) => i.id)).toEqual([
       added.id,
     ]);
-    // Another run on a task in progress is allowed; a run with a worktree needs one wired.
-    expect((await w.issues.start(added.id, { workflow: "demo", worktree: false })).isOk()).toBe(true);
+    // A task whose run is still active is not started again: the refusal names the run (R6).
+    const again = (await w.issues.start(added.id, { workflow: "demo", worktree: false }))._unsafeUnwrapErr();
+    expect(again.code).toBe("USAGE");
+    expect(again.message).toBe(
+      `issue ${added.id} is already in progress: its run ${started.runId} is still active`,
+    );
+    expect(again.hint).toContain(`metator run continue --run ${started.runId}`);
+    expect((await w.issues.show(added.id))._unsafeUnwrap().runId).toBe(started.runId);
+    // Once that run has ended, another run on the task is allowed; one with a worktree needs one wired.
+    (
+      await w.advance.execute({ runId: started.runId, event: { type: "ABORT", reason: "no" } })
+    )._unsafeUnwrap();
     expect((await w.issues.start(added.id, { workflow: "demo" })).isErr()).toBe(true);
+    const second = (await w.issues.start(added.id, { workflow: "demo", worktree: false }))._unsafeUnwrap();
+    expect(second.runId).not.toBe(started.runId);
     const run = (await w.init("Add the discount"))._unsafeUnwrap();
     const proposed = (
       await w.issues.propose({ title: "Edge test", agent: "mt-plan-critic", runId: run.runId })

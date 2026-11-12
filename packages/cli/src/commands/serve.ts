@@ -1,8 +1,8 @@
-import { ok } from "@metator/core";
+import { err, ok } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 import { nonNegativeInt, positiveInt } from "../options.ts";
-import { startServer } from "../serve/server.ts";
+import { daemonInTheWay, servedRoots, startServer } from "../serve/server.ts";
 import { resume } from "../sessions.ts";
 
 /**
@@ -41,6 +41,8 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
           reviewsMs?: number;
         }) => {
           const root = () => (program.opts() as { root?: string }).root;
+          const taken = daemonInTheWay(servedRoots(ctx));
+          if (taken) return { result: err(taken) };
           const served = await startServer(ctx, {
             port: opts.port,
             hostname: opts.hostname,

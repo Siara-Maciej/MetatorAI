@@ -269,6 +269,33 @@ describe("port leases across repositories (G1)", () => {
     expect(wc.ports.from).toBe(41000);
   });
 
+  test("worktrees made at the same time, in one repository and in two, are all registered with different ports (R4)", async () => {
+    const state = new InMemoryMachineState();
+    const repo = (root: string) => {
+      const registry = new WorktreeRegistry(new InMemoryFileSystem(), DEFAULT_PATHS);
+      const create = new CreateWorktree(
+        registry,
+        new FakeWorktreeManager(),
+        new FakePortProbe(),
+        new FixedClock(),
+        DEFAULT_PATHS,
+        { leases: new MachineLeases(state, root), root },
+      );
+      return { registry, create };
+    };
+    const shop = repo("/work/shop");
+    const billing = repo("/work/billing");
+    const made = await Promise.all([
+      ...["a", "b", "c", "d"].map((id) => shop.create.execute({ id })),
+      ...["a", "b"].map((id) => billing.create.execute({ id })),
+    ]);
+    const blocks = made.map((m) => m._unsafeUnwrap().ports.from);
+    expect([...blocks].sort()).toEqual([41000, 41020, 41040, 41060, 41080, 41100]);
+    expect((await shop.registry.all())._unsafeUnwrap().map((e) => e.id)).toEqual(["a", "b", "c", "d"]);
+    expect((await billing.registry.all())._unsafeUnwrap().map((e) => e.id)).toEqual(["a", "b"]);
+    expect(JSON.parse(state.files.get("port-leases.json") as string).leases).toHaveLength(6);
+  });
+
   test("a lease whose worktree is gone holds nothing and is dropped on the next write", async () => {
     const state = new InMemoryMachineState(new Set(["/a/.metator/wt/live"]));
     const leases = new MachineLeases(state, "/a");

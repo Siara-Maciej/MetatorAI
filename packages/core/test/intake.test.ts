@@ -5,6 +5,7 @@ import { Issues } from "../src/application/issues.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { MetatorConfigDocument } from "../src/domain/config.ts";
 import { MetatorError } from "../src/domain/errors.ts";
+import { InProcessLock } from "../src/domain/in-process-lock.ts";
 import { IntakeConfigSchema, type IntakeItem, sourceKey } from "../src/domain/intake.ts";
 import { IssueDocument } from "../src/domain/issue.ts";
 import { err, ok } from "../src/domain/result.ts";
@@ -45,6 +46,7 @@ function world(config: unknown, items: Record<string, IntakeItem[] | MetatorErro
     },
   });
   const listed: string[] = [];
+  const lock = new InProcessLock();
   const scan = new ScanIntake({
     config: IntakeConfigSchema.parse(config),
     issues,
@@ -56,6 +58,7 @@ function world(config: unknown, items: Record<string, IntakeItem[] | MetatorErro
       },
     },
     activeRuns: async () => ok(started.length),
+    exclusive: (work) => lock.hold("intake", work),
   });
   return { fs, issues, scan, started, listed };
 }
@@ -127,6 +130,16 @@ describe("intake (T2, design/14 §3)", () => {
       ["jira", 0, 1],
     ]);
     expect(w.started).toHaveLength(2);
+  });
+
+  test("two scans at the same time make one issue and one run of an item (R6)", async () => {
+    const w = world(RULES, { github: [item(12)], jira: [] });
+    const [a, b] = await Promise.all([w.scan.execute(), w.scan.execute()]);
+    expect(a._unsafeUnwrap().started + b._unsafeUnwrap().started).toBe(1);
+    expect(w.started).toHaveLength(1);
+    expect((await w.issues.list())._unsafeUnwrap().map((i) => i.source?.key)).toEqual([
+      "github:acme/shop#12",
+    ]);
   });
 
   test("maxActive holds the rest back as open issues; a dry run writes nothing; a failing source is reported, not fatal", async () => {

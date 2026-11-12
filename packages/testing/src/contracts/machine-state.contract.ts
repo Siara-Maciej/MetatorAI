@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { MachineState } from "@metator/core";
+import { err, type MachineState } from "@metator/core";
 
 export interface MachineStateWorld {
   readonly state: MachineState;
@@ -17,6 +17,20 @@ export function machineStateContract(name: string, make: () => Promise<MachineSt
       expect((await state.write("port-leases.json", '{"a":1}')).isOk()).toBe(true);
       await state.write("port-leases.json", '{"b":2}');
       expect((await state.read("port-leases.json"))._unsafeUnwrap()).toBe('{"b":2}');
+    });
+
+    test("locked: read, change and write back under the lock loses no update", async () => {
+      const { state } = await make();
+      const bump = () =>
+        state.locked("counter.json", async () => {
+          const text = await state.read("counter.json");
+          if (text.isErr()) return err(text.error);
+          await Bun.sleep(2);
+          return state.write("counter.json", String(Number(text.value ?? "0") + 1));
+        });
+      const results = await Promise.all(Array.from({ length: 10 }, bump));
+      expect(results.every((r) => r.isOk())).toBe(true);
+      expect((await state.read("counter.json"))._unsafeUnwrap()).toBe("10");
     });
 
     test("dirExists tells existing directories from missing ones", async () => {

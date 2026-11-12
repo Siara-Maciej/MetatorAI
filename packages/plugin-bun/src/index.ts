@@ -1,5 +1,6 @@
 export * from "./bun-background-process.ts";
 export * from "./bun-checkout-reader.ts";
+export * from "./bun-file-lock.ts";
 export * from "./bun-file-system.ts";
 export * from "./bun-launcher.ts";
 export * from "./bun-machine-state.ts";

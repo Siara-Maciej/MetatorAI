@@ -10,6 +10,11 @@ export interface ScanIntakeDependencies {
   readonly codeHost: CodeHost;
   /** Runs started by intake that are still active (against `maxActive`). */
   readonly activeRuns: () => Promise<Result<number, MetatorError>>;
+  /**
+   * Runs a scan while no other scan runs here, in this process or another (the daemon's tick and
+   * `metator intake scan`): two scans at once would each make an issue and a run of the same item.
+   */
+  readonly exclusive?: <T>(work: () => Promise<Result<T, MetatorError>>) => Promise<Result<T, MetatorError>>;
 }
 
 export interface IntakeRuleReport {
@@ -43,12 +48,18 @@ export class ScanIntake {
   constructor(private readonly d: ScanIntakeDependencies) {}
 
   async execute(input: { readonly dryRun?: boolean } = {}): Promise<Result<IntakeReport, MetatorError>> {
+    // A dry run writes nothing, so it waits for nobody.
+    if (input.dryRun === true || !this.d.exclusive) return this.scan(input.dryRun === true);
+    return this.d.exclusive(() => this.scan(false));
+  }
+
+  private async scan(dryRun: boolean): Promise<Result<IntakeReport, MetatorError>> {
     const active = await this.d.activeRuns();
     if (active.isErr()) return err(active.error);
     let free = Math.max(0, this.d.config.maxActive - active.value);
     const rules: IntakeRuleReport[] = [];
     for (const rule of this.d.config.rules) {
-      const report = await this.scanRule(rule, input.dryRun === true, free);
+      const report = await this.scanRule(rule, dryRun, free);
       if (report.isErr()) return err(report.error);
       free -= report.value.started.length;
       rules.push(report.value);

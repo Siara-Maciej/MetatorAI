@@ -1,4 +1,5 @@
 import { MetatorError } from "../domain/errors.ts";
+import { InProcessLock } from "../domain/in-process-lock.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   parseRunRecord,
@@ -13,8 +14,19 @@ import {
   renderFrontMatter,
   serializeJsonDocument,
 } from "../domain/versioned.ts";
-import type { FileSystem } from "../ports/index.ts";
+import type { FileLock, FileSystem } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
+
+/** A run whose record cannot be read (a torn or hand-edited `state.json`): skipped, and said. */
+export interface UnreadableRun {
+  readonly runId: string;
+  readonly file: string;
+  readonly message: string;
+}
+
+/** What a person is told about an unreadable run: the file, and the two ways out. */
+export const unreadableRunWarning = (u: UnreadableRun): string =>
+  `run ${u.runId} cannot be read and is left out (${u.message}): restore ${u.file} (from git or a backup), or delete the run's directory to drop it`;
 
 /**
  * Stores runs as versioned documents (ADR-0016): `<runs>/<id>/state.json` (RunRecord),
@@ -27,6 +39,8 @@ export class RunRepository {
     private readonly paths: MetatorPaths,
     /** The run this process works for (a run's worktree): what "no run named" means, not the latest. */
     private readonly current?: string,
+    /** One writer at a time per run record; the runtime gives the lock that holds across processes. */
+    private readonly lock: FileLock = new InProcessLock(),
   ) {}
 
   runDir(runId: string): string {
@@ -59,6 +73,25 @@ export class RunRepository {
       this.pointerFile(),
       serializeJsonDocument(RunPointerDocument.stamp({ runId: record.runId })),
     );
+  }
+
+  /**
+   * Reads the record, changes it and writes it back as one step: the CLI, the daemon and a drive
+   * change one run at the same time, and none of them writes over what another just wrote (R5).
+   * `change` sees the record as it is now and decides from it; an error value changes nothing.
+   */
+  async update(
+    runId: string,
+    change: (record: RunRecord) => Result<RunRecord, MetatorError>,
+  ): Promise<Result<RunRecord, MetatorError>> {
+    return this.lock.hold(this.stateFile(runId), async () => {
+      const record = await this.load(runId);
+      if (record.isErr()) return err(record.error);
+      const next = change(record.value);
+      if (next.isErr()) return err(next.error);
+      const saved = await this.save(next.value);
+      return saved.map(() => next.value);
+    });
   }
 
   async load(runId: string): Promise<Result<RunRecord, MetatorError>> {
@@ -96,6 +129,21 @@ export class RunRepository {
     return files.map((f) => f.slice(this.paths.runs.length + 1, -"/state.json".length)).sort();
   }
 
+  /** Every run that can be read; one broken record never hides the others (R2). */
+  async loadAll(): Promise<{
+    readonly runs: readonly RunRecord[];
+    readonly unreadable: readonly UnreadableRun[];
+  }> {
+    const runs: RunRecord[] = [];
+    const unreadable: UnreadableRun[] = [];
+    for (const runId of await this.list()) {
+      const record = await this.load(runId);
+      if (record.isOk()) runs.push(record.value);
+      else unreadable.push({ runId, file: this.stateFile(runId), message: record.error.message });
+    }
+    return { runs, unreadable };
+  }
+
   /** Checks the log's version header before a state change, so the audit trail never diverges. */
   async verifyLog(runId: string): Promise<Result<void, MetatorError>> {
     const file = this.logFile(runId);
@@ -121,15 +169,19 @@ export class RunRepository {
       );
   }
 
+  /** One line added at the end in one step: two writers never lose each other's line (R5). */
   async appendLog(runId: string, line: string): Promise<Result<void, MetatorError>> {
     const file = this.logFile(runId);
-    const current = await this.fs.read(file);
-    if (current.isErr()) {
-      const header = renderFrontMatter(RunLogDocument.stamp({ runId }), `# Run ${runId}\n\n`);
-      return this.fs.write(file, `${header}- ${line}\n`);
+    if (!(await this.fs.exists(file))) {
+      // The header is written once, whoever comes first.
+      const created = await this.lock.hold(file, async () => {
+        if (await this.fs.exists(file)) return ok(undefined);
+        return this.fs.write(file, renderFrontMatter(RunLogDocument.stamp({ runId }), `# Run ${runId}\n\n`));
+      });
+      if (created.isErr()) return err(created.error);
     }
-    const valid = readFrontMatter(current.value, file).andThen((raw) => RunLogDocument.parse(raw, file));
+    const valid = await this.verifyLog(runId);
     if (valid.isErr()) return err(valid.error);
-    return this.fs.write(file, `${current.value}- ${line}\n`);
+    return this.fs.append(file, `- ${line}\n`);
   }
 }

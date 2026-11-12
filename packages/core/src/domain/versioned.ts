@@ -28,7 +28,11 @@ export interface VersionedDocument<Body> {
   readonly current: number;
   /** Parses any supported version and returns the body migrated to the current version. */
   parse(raw: unknown, source: string): Result<Body, MetatorError>;
-  /** Adds the current header to a body; the only way documents get written. */
+  /**
+   * Adds the current header to a body; the only way documents get written. A body that does not
+   * satisfy the current schema is a bug in the caller (it validates what a person gave it first),
+   * so it throws instead of writing a document nothing can read back.
+   */
   stamp(body: Body): DocumentHeader & Body;
   /** JSON Schema of a version (the current one by default), header included (for agents and editors). */
   jsonSchema(io?: "input" | "output", version?: number): Record<string, unknown>;
@@ -142,6 +146,14 @@ export function defineDocument<S extends z.ZodType>(
     },
 
     stamp(body: z.output<S>): DocumentHeader & z.output<S> {
+      const valid = definition.latest.safeParse(body);
+      if (!valid.success) {
+        throw new MetatorError(
+          "INTERNAL",
+          `${kind}: refusing to write a document that does not satisfy its schema (${describeIssue(valid.error.issues[0])})`,
+          { details: { kind, issues: issuesOf(valid.error) } },
+        );
+      }
       return { kind, schemaVersion: current, ...(body as object) } as DocumentHeader & z.output<S>;
     },
 
