@@ -98,7 +98,7 @@ describe("run lifecycle", () => {
     const state = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     expect(state).toMatchObject({
       kind: "RunRecord",
-      schemaVersion: 7,
+      schemaVersion: 8,
       workflow: { id: "feature", revision: 1 },
       approvals: {},
       createdAt: "2026-10-25T09:00:00.000Z",
@@ -207,7 +207,7 @@ describe("run lifecycle", () => {
     await w.fs.write(run.files.state, JSON.stringify(headerless));
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
     expect(error.code).toBe("INVALID_ARTIFACT");
-    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 7" at the top of the document.');
+    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 8" at the top of the document.');
   });
 
   test("state.json from a newer MetatorAI is refused, not misread", async () => {
@@ -216,7 +216,7 @@ describe("run lifecycle", () => {
     const saved = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     await w.fs.write(run.files.state, JSON.stringify({ ...saved, schemaVersion: 99 }));
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
-    expect(error.message).toContain("schemaVersion 99 is newer than supported (7)");
+    expect(error.message).toContain("schemaVersion 99 is newer than supported (8)");
     expect(error.hint).toContain("Upgrade metator-ai");
   });
 
@@ -661,6 +661,7 @@ describe("resuming an escalated run", () => {
         `metator run resume --run ${runId} --by <name> --drive`,
         `metator run close --run ${runId} --aborted --reason <why>`,
       ],
+      resumable: ["plan", "plan-gate"],
     });
     expect((await resume.execute({ by: " " }))._unsafeUnwrapErr().message).toBe(
       "say who resumes: --by <name>",
@@ -681,6 +682,92 @@ describe("resuming an escalated run", () => {
     expect(
       (await w.advance.execute({ event: { type: "FAIL", reason: "third" } }))._unsafeUnwrap().status,
     ).toBe("escalated");
+  });
+
+  test("--to sends it back to a stage it already worked, with a note the record, the log and the timeline keep", async () => {
+    const w = world();
+    const runId = (await w.init.execute({ workflow: "feature", task: "back to plan" }))._unsafeUnwrap().runId;
+    const said: { type: string; stage: string; text: string; origin: string }[] = [];
+    const resume = new ResumeRun(w.catalog, w.repo, w.clock, {
+      record: async (_run, entry) => {
+        said.push(entry);
+        return ok(undefined);
+      },
+    });
+    await w.advance.execute({ event: { type: "PASS" } }); // plan
+    await w.advance.execute({ event: { type: "FAIL", reason: "thin" } }); // plan-gate → plan (loop 1 of 1)
+    await w.advance.execute({ event: { type: "PASS" } });
+    await w.advance.execute({ event: { type: "PASS" } }); // plan-gate
+    await w.approve.execute({ gate: "approval", by: "ala" });
+    const stuck = (await w.advance.execute({ event: { type: "FAIL", reason: "tests red" } }))._unsafeUnwrap();
+    expect([stuck.status, stuck.escalated?.resumable]).toEqual([
+      "escalated",
+      ["plan", "plan-gate", "approval", "build"],
+    ]);
+
+    // A stage the run never worked, or one the workflow does not have: a usage error naming the allowed ones.
+    const refused = (await resume.execute({ by: "ala", to: "deploy" }))._unsafeUnwrapErr();
+    expect([refused.code, refused.message, refused.hint]).toEqual([
+      "USAGE",
+      "the run cannot resume at deploy: it never worked that stage",
+      "It escalated at build. Stages it may resume at: plan, plan-gate, approval, build.",
+    ]);
+    expect((await w.repo.load(runId))._unsafeUnwrap().state.status).toBe("escalated");
+
+    const back = (
+      await resume.execute({ by: "ala", to: "plan", note: "  split step 2 in two  " })
+    )._unsafeUnwrap();
+    const resumed = {
+      at: "2026-10-25T09:00:00.000Z",
+      by: "ala",
+      from: "build",
+      to: "plan",
+      note: "split step 2 in two",
+      after: 6,
+    };
+    // Every loop counts from zero, the approval on the way is asked again, the history stays.
+    expect([back.stage, back.status, back.loops, back.approvals, back.resumed]).toEqual([
+      "plan",
+      "active",
+      { plan: 0 },
+      {},
+      resumed,
+    ]);
+    const record = (await w.repo.load(runId))._unsafeUnwrap();
+    expect([record.resumes, record.state.context.history.length]).toEqual([[resumed], 6]);
+    const line = "resumed at plan (escalated at build) · by ala · note: split step 2 in two";
+    expect((await w.fs.read(`.metator/runs/${runId}/log.md`))._unsafeUnwrap()).toContain(line);
+    expect(said).toEqual([{ type: "drive", stage: "plan", text: line, origin: "run" }]);
+    // The note waits for the first agent: a transition that is not an approval ends the wait.
+    expect((await w.advance.execute({ event: { type: "PASS" } }))._unsafeUnwrap().resumed).toBeUndefined();
+    // The gate must be approved again: the earlier approval does not carry over.
+    await w.advance.execute({ event: { type: "PASS" } });
+    const gate = (await w.status.execute({}))._unsafeUnwrap();
+    expect([gate.stage, gate.expects, gate.approvals]).toEqual([
+      "approval",
+      ["APPROVE", "FAIL", "ABORT"],
+      {},
+    ]);
+  });
+
+  test("a resume in place keeps the approvals and records the resume without a note", async () => {
+    const w = world();
+    const runId = (await w.init.execute({ workflow: "feature", task: "in place" }))._unsafeUnwrap().runId;
+    await w.advance.execute({ event: { type: "PASS" } });
+    await w.advance.execute({ event: { type: "PASS" } });
+    await w.approve.execute({ gate: "approval", by: "ala" });
+    await w.advance.execute({ event: { type: "FAIL", reason: "red" } });
+    const back = (
+      await new ResumeRun(w.catalog, w.repo, w.clock).execute({ by: "ola", to: "build", note: " " })
+    )._unsafeUnwrap();
+    expect([back.stage, Object.keys(back.approvals), back.resumed]).toEqual([
+      "build",
+      ["approval"],
+      { at: "2026-10-25T09:00:00.000Z", by: "ola", from: "build", to: "build", after: 4 },
+    ]);
+    expect((await w.fs.read(`.metator/runs/${runId}/log.md`))._unsafeUnwrap()).toContain(
+      "resumed at build · by ola\n",
+    );
   });
 
   test("approving an escalated run is refused with the resume that comes first", async () => {

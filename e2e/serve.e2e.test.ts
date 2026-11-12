@@ -253,12 +253,34 @@ describe("metator serve (real daemon)", () => {
     // A resume needs a name; with one the run is active again and a drive is started.
     const nameless = await post(`/runs/${runId}/resume`, {});
     expect([nameless.ok, (nameless.error as { code: string }).code]).toEqual([false, "USAGE"]);
+    // `to` takes only a stage the run worked: the refusal names them, and the run stays escalated.
+    const nowhere = await post(`/runs/${runId}/resume`, { by: "maciej", to: "deploy" });
+    expect([nowhere.ok, nowhere.error]).toEqual([
+      false,
+      {
+        code: "USAGE",
+        message: "the run cannot resume at deploy: it never worked that stage",
+        hint: "It escalated at check. Stages it may resume at: check.",
+      },
+    ]);
+    expect(await statusOf(runId)).toBe("escalated");
+    const listed = (await get("/state")).data.runs as { runId: string; resumable?: string[] }[];
+    expect(listed.find((r) => r.runId === runId)?.resumable).toEqual(["check"]);
     await repo.write(`.metator/runs/${runId}/fixed`, "");
-    const resumed = await post(`/runs/${runId}/resume`, { by: "maciej" });
+    const resumed = await post(`/runs/${runId}/resume`, {
+      by: "maciej",
+      to: "check",
+      note: "the file is there now",
+    });
     expect([resumed.ok, (resumed.data.run as { stage: string }).stage, resumed.data.drive]).toEqual([
       true,
       "check",
       { stage: "check", started: true },
+    ]);
+    // The note is kept with the run: its board lists the resume.
+    const board = (await get(`/runs/${runId}/board`)).data as { resumes: Record<string, unknown>[] };
+    expect(board.resumes).toMatchObject([
+      { by: "maciej", from: "check", to: "check", note: "the file is there now" },
     ]);
     await until("the resumed run to finish", async () =>
       (await statusOf(runId)) === "done" ? true : undefined,

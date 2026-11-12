@@ -220,6 +220,20 @@ export function PlanScreen({
                 ))}
               </div>
             </div>
+            {board.resumes && board.resumes.length > 0 ? (
+              <div>
+                <div className="sec">resumed</div>
+                <ul className="text resumes" aria-label="resumes">
+                  {board.resumes.map((r) => (
+                    <li key={r.at}>
+                      <span className="dim mono">{clock(r.at)}</span> at {r.to}
+                      {r.to === r.from ? "" : ` (escalated at ${r.from})`} by {r.by}
+                      {r.note ? <span className="amber">: {r.note}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {board.workers.length > 0 ? (
               <div>
                 <div className="sec">workers</div>

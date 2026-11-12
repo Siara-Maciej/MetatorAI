@@ -93,22 +93,27 @@ export class RunDrivers {
     return ok({ pid: pid.value, host: input.host, startedAt: this.clock.now().toISOString(), alive: true });
   }
 
-  /** `run stop`: ends the run's drive process; the run stays where it is and can continue. */
+  /**
+   * `run stop`: ends the run's drive process; the run stays where it is and can continue. The
+   * claim goes first: a driver file whose process is gone means "died" to everyone who reads it
+   * (the supervisor would start the drive again), and a drive stopped on purpose never died.
+   */
   async stop(runId: string): Promise<Result<{ readonly stopped: number | null }, MetatorError>> {
     const current = await this.status(runId);
     if (current.isErr()) return err(current.error);
     if (!current.value) return ok({ stopped: null });
-    if (current.value.alive) {
-      const stopped = await this.processes.stop(current.value.pid);
-      if (stopped.isErr()) return err(stopped.error);
-    }
+    const { pid, alive } = current.value;
     const removed = await this.fs.remove(this.file(runId));
     if (removed.isErr()) return err(removed.error);
-    const logged = await this.journal.record(runId, {
-      type: "drive",
-      text: `stopped (process ${current.value.pid})`,
-    });
+    if (alive) {
+      const stopped = await this.processes.stop(pid);
+      if (stopped.isErr()) return err(stopped.error);
+      // The process may have written its own claim again before it went: that one goes too.
+      const left = await this.release(runId, pid);
+      if (left.isErr()) return err(left.error);
+    }
+    const logged = await this.journal.record(runId, { type: "drive", text: `stopped (process ${pid})` });
     if (logged.isErr()) return err(logged.error);
-    return ok({ stopped: current.value.alive ? current.value.pid : null });
+    return ok({ stopped: alive ? pid : null });
   }
 }

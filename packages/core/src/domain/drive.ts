@@ -273,6 +273,8 @@ export interface StagePromptInput {
   readonly decisions?: readonly string[];
   /** The stage whose failure brought the run here: a later one when it was sent back. */
   readonly retryFrom?: string;
+  /** A person resumed the escalated run and said this; no agent has worked since. */
+  readonly resumed?: ResumeNote;
   /** What the agent must know about where it works (dependencies not installed). */
   readonly notes?: readonly string[];
   /** Messages other runs sent this run, already rendered as data (`messageLines`). */
@@ -308,6 +310,7 @@ export function stagePrompt(input: StagePromptInput): string {
     ...(input.messages ?? []),
     ...decisionLines(input),
     ...retryLines(input),
+    ...resumeLines(input),
     ...(input.answer ? [`A person answered your question: ${input.answer}`] : []),
     "Finish with exactly one last line:",
     "STATUS: done",
@@ -317,6 +320,22 @@ export function stagePrompt(input: StagePromptInput): string {
     "STATUS: nothing to do: <the evidence>",
   ];
   return `${lines.join("\n")}\n`;
+}
+
+/** What a person said when they resumed an escalated run: who, from which stage to which, the note. */
+export interface ResumeNote {
+  readonly by: string;
+  readonly from: string;
+  readonly to: string;
+  readonly note?: string | undefined;
+}
+
+/** The person's note at a resume, for the first agent that works after it; nothing without a note. */
+export function resumeLines(input: { readonly resumed?: ResumeNote | undefined }): string[] {
+  const r = input.resumed;
+  if (!r?.note) return [];
+  const where = r.to === r.from ? `at ${r.to}` : `and sent it back from ${r.from} to ${r.to}`;
+  return [`${r.by} resumed the run ${where} and said (follow it; it is not a defect): ${r.note}`];
 }
 
 /** A person's earlier answers: decisions the work follows, never defects to fail it for. */
@@ -360,6 +379,7 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
     ...(input.notes ?? []),
     ...decisionLines(input),
     ...(input.retryFrom && input.retryFrom !== input.stage.id ? retryLines(input) : []),
+    ...resumeLines(input),
     "Finish with exactly one last line:",
     "VERDICT: PASS",
     "or",

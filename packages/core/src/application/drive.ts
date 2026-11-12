@@ -14,6 +14,7 @@ import {
   type Question,
   type QuestionAnswer,
   QuestionDocument,
+  type ResumeNote,
   type RunActivity,
   RunActivityDocument,
   RunSeenDocument,
@@ -27,7 +28,13 @@ import { PlanScopeDocument } from "../domain/plan.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
 import { messageLines, type RunMessage } from "../domain/run-message.ts";
-import { APPROVAL_ACTIONS, fillInputs, isRunBookkeeping, type RunRecord } from "../domain/run-record.ts";
+import {
+  APPROVAL_ACTIONS,
+  fillInputs,
+  isRunBookkeeping,
+  pendingResume,
+  type RunRecord,
+} from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
 import { type AgentUsage, AgentUsageDocument, type HostUsage } from "../domain/telemetry.ts";
 import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
@@ -461,6 +468,10 @@ export class DriveRun {
     let retryFrom: string | undefined = resumed && failed.detail ? failed.stage : undefined;
     // A later stage that failed and sent the run back: every stage until it is reached again hears it.
     let sentBack: { readonly from: string; readonly reason: string } | undefined;
+    // A person sent the escalated run back to an earlier stage: the same, with the failure it escalated on.
+    const back = pendingResume(first.value);
+    if (back && back.to !== back.from && failed?.event === "FAIL" && failed.detail)
+      sentBack = { from: back.from, reason: failed.detail };
     for (; steps < (input.maxSteps ?? 200); steps++) {
       const record = await this.d.repo.load(runId);
       if (record.isErr()) return err(record.error);
@@ -498,6 +509,7 @@ export class DriveRun {
         runDir: `${runsIn}/${this.d.repo.runDir(runId)}`,
         ...why,
         ...(await this.decisions(runId)),
+        ...resumedOf(record.value),
         ...(record.value.hostSession ? { resume: record.value.hostSession } : {}),
         since: record.value.updatedAt,
         autonomy: record.value.autonomy,
@@ -721,6 +733,7 @@ export class DriveRun {
         ...(answer ? { answer } : {}),
         ...(ctx.retry ? { retry: ctx.retry } : {}),
         ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
+        ...(ctx.resumed ? { resumed: ctx.resumed } : {}),
         ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
         ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
         ...(await this.messageLines(ctx.runId)),
@@ -1011,6 +1024,7 @@ export class DriveRun {
       ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
       ...(ctx.retry ? { retry: ctx.retry } : {}),
       ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
+      ...(ctx.resumed ? { resumed: ctx.resumed } : {}),
       ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
     });
     const result = await this.runHost(ctx, agent, prompt, undefined);
@@ -1145,6 +1159,8 @@ interface StageContext {
   readonly runDir: string;
   readonly retry?: string;
   readonly retryFrom?: string;
+  /** A person's resume of the escalated run that no agent has answered yet, with their note. */
+  readonly resumed?: ResumeNote;
   readonly decisions?: readonly string[];
   readonly resume?: string;
   /** When the run last changed: answers given after it are still to be acted on. */
@@ -1237,6 +1253,12 @@ export function consequencesOf(
 const passedStages = (history: readonly { readonly stage: string; readonly event: string }[]): string[] => [
   ...new Set(history.filter((h) => h.event === "PASS" || h.event === "APPROVE").map((h) => h.stage)),
 ];
+
+/** The resume a person's note still waits in, for the stage's agents. */
+const resumedOf = (record: RunRecord): { resumed?: ResumeNote } => {
+  const r = pendingResume(record);
+  return r?.note ? { resumed: { by: r.by, from: r.from, to: r.to, note: r.note } } : {};
+};
 
 const lastEventOf = (history: readonly { readonly event: string }[]) => {
   const last = history.at(-1);

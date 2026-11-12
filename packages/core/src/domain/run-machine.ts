@@ -1,7 +1,13 @@
 import { assign, initialTransition, setup, transition } from "xstate";
 import { MetatorError } from "./errors.ts";
 import { err, ok, type Result } from "./result.ts";
-import type { RunContext, RunHistoryEntry, RunState, RunStatus } from "./run-record.ts";
+import {
+  type RunContext,
+  type RunHistoryEntry,
+  type RunState,
+  type RunStatus,
+  resumableStages,
+} from "./run-record.ts";
 import {
   type StageSpec,
   validateWorkflowSpec,
@@ -178,11 +184,25 @@ export class RunStateMachine {
   }
 
   /**
-   * An escalated run back at the stage it escalated from, after a person removed the cause. Its
-   * history stays. The loop that was spent there counts from zero again: a person said go on, so
-   * the next failure sends the run back to be fixed instead of escalating at once (F1).
+   * The stages an escalated run may be resumed at, in the workflow's order: every stage the run
+   * already worked, the one it escalated from included. Empty for a run that did not escalate.
    */
-  resume(state: RunState): Result<RunState, MetatorError> {
+  resumable(state: RunState): string[] {
+    if (state.stage !== "escalated") return [];
+    return resumableStages(
+      this.spec.stages.map((s) => s.id),
+      state.context.history,
+    );
+  }
+
+  /**
+   * An escalated run back at work, after a person removed the cause: at the stage it escalated
+   * from, or at an earlier stage it already worked (`to`). Its history stays. Resumed in place,
+   * the loop that was spent there counts from zero again: a person said go on, so the next failure
+   * sends the run back to be fixed instead of escalating at once (F1). Sent back to an earlier
+   * stage, every loop counts from zero: the run does that part of the workflow again.
+   */
+  resume(state: RunState, to?: string): Result<RunState, MetatorError> {
     if (state.stage !== "escalated")
       return err(
         MetatorError.usage(
@@ -193,10 +213,27 @@ export class RunStateMachine {
     const from = state.context.history.at(-1)?.stage;
     if (!from || !this.spec.stages.some((s) => s.id === from))
       return err(new MetatorError("INVALID_CONFIG", "the run's history does not say where it escalated"));
+    const allowed = this.resumable(state);
+    const target = to ?? from;
+    if (!allowed.includes(target))
+      return err(
+        MetatorError.usage(
+          `the run cannot resume at ${target}: it never worked that stage`,
+          `It escalated at ${from}. Stages it may resume at: ${allowed.join(", ")}.`,
+        ),
+      );
     const context = structuredClone(state.context);
-    const loop = this.spec.stages.find((s) => s.id === from)?.onFail?.loop;
-    if (loop !== undefined) context.loops = { ...context.loops, [loop]: 0 };
-    return ok({ ...state, stage: from, status: "active", context });
+    if (target === from) {
+      const loop = this.spec.stages.find((s) => s.id === from)?.onFail?.loop;
+      if (loop !== undefined) context.loops = { ...context.loops, [loop]: 0 };
+    } else context.loops = Object.fromEntries(Object.keys(context.loops).map((l) => [l, 0]));
+    return ok({ ...state, stage: target, status: "active", context });
+  }
+
+  /** The stages from `stage` to the end of the workflow, `stage` included. */
+  stagesFrom(stage: string): string[] {
+    const at = this.spec.stages.findIndex((s) => s.id === stage);
+    return at < 0 ? [] : this.spec.stages.slice(at).map((s) => s.id);
   }
 
   /**

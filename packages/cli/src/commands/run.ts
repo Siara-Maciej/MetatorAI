@@ -320,32 +320,49 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
   runs
     .command("resume")
     .description(
-      "Resume an escalated run at the stage it escalated from, once the cause is fixed; --drive carries it on at once",
+      "Resume an escalated run at the stage it escalated from, or at an earlier stage with --to, once the cause is fixed; --drive carries it on at once",
     )
     .option("--by <name>", `who resumes it, recorded in log.md${BY_DEFAULT}`)
     .option("--run <id>", "run id (default: latest)")
+    .option(
+      "--to <stage>",
+      "go on at this stage: one the run already worked, or the one it escalated from (the default)",
+    )
+    .option("--note <text>", "what you say to the agent that works next; kept in the run and its log")
     .option("--drive", "also start a drive in the background, as `run continue` does", false)
     .option("--host <host>", `with --drive: the AI host (${HOSTS.join(", ")}; default: the one the run used)`)
     .action(
-      action(async (opts: { by?: string; run?: string; drive: boolean; host?: string }) => {
-        const c = container();
-        const by = await who(c, opts.by);
-        if (by.isErr()) return { result: by };
-        const resumed = await c
-          .resolve("resumeRun")
-          .execute({ by: by.value, ...(opts.run ? { runId: opts.run } : {}) });
-        if (resumed.isErr() || !opts.drive) return { result: resumed };
-        const driven = await resume(c, root(), resumed.value.runId, opts.host);
-        if (driven.isErr())
-          return {
-            result: resumed,
-            warnings: [
-              `the run is resumed, but no drive started: ${driven.error.message}${driven.error.hint ? ` (${driven.error.hint})` : ""}; start one with \`metator run continue ${resumed.value.runId}\``,
-            ],
-          };
-        const driver = await c.resolve("runDrivers").status(resumed.value.runId);
-        return { result: ok({ ...resumed.value, drive: driver.isOk() ? driver.value : null }) };
-      }),
+      action(
+        async (opts: {
+          by?: string;
+          run?: string;
+          to?: string;
+          note?: string;
+          drive: boolean;
+          host?: string;
+        }) => {
+          const c = container();
+          const by = await who(c, opts.by);
+          if (by.isErr()) return { result: by };
+          const resumed = await c.resolve("resumeRun").execute({
+            by: by.value,
+            ...(opts.run ? { runId: opts.run } : {}),
+            ...(opts.to ? { to: opts.to } : {}),
+            ...(opts.note ? { note: opts.note } : {}),
+          });
+          if (resumed.isErr() || !opts.drive) return { result: resumed };
+          const driven = await resume(c, root(), resumed.value.runId, opts.host);
+          if (driven.isErr())
+            return {
+              result: resumed,
+              warnings: [
+                `the run is resumed, but no drive started: ${driven.error.message}${driven.error.hint ? ` (${driven.error.hint})` : ""}; start one with \`metator run continue ${resumed.value.runId}\``,
+              ],
+            };
+          const driver = await c.resolve("runDrivers").status(resumed.value.runId);
+          return { result: ok({ ...resumed.value, drive: driver.isOk() ? driver.value : null }) };
+        },
+      ),
     );
 
   runs

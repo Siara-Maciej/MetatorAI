@@ -1406,7 +1406,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ getRunStatus, fileSystem, paths }) => new GuardSessionStart(getRunStatus, fileSystem, paths),
     ),
     resumeRun: asFunction(
-      ({ workflowCatalog, runRepository, clock }) => new ResumeRun(workflowCatalog, runRepository, clock),
+      ({ workflowCatalog, runRepository, clock, runJournal }) =>
+        new ResumeRun(workflowCatalog, runRepository, clock, runJournal),
     ),
     writeRunArtifact: asFunction(
       ({ workflowCatalog, runRepository, fileSystem }) =>

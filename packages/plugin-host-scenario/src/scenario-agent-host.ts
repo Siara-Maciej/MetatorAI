@@ -70,7 +70,8 @@ export class ScenarioAgentHost implements AgentHost {
         const target = fillScenario(step.write.path, vars);
         const path = isAbsolute(target) ? target : join(task.cwd, target);
         await mkdir(dirname(path), { recursive: true });
-        await Bun.write(path, fillScenario(step.write.text, vars));
+        // What the agent was told, for a scenario that keeps it (`text: "{prompt}"`).
+        await Bun.write(path, fillScenario(step.write.text, { ...vars, prompt: task.prompt }));
         yield { type: "tool", name: "Write", summary: target };
       } else if ("tool" in step) {
         yield { type: "tool", name: step.tool.name, summary: step.tool.summary };

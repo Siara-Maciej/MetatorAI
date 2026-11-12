@@ -11,6 +11,7 @@ import {
   stoppedAt,
 } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { resumableStages } from "../domain/run-record.ts";
 import type { Clock } from "../ports/index.ts";
 import type { ConversationRepository } from "./ask.ts";
 import type { RunJournal } from "./drive.ts";
@@ -29,6 +30,8 @@ export interface RunOverview {
   readonly stage: string;
   /** Why an escalated or aborted run stopped: what its last transition recorded. */
   readonly reason?: string;
+  /** An escalated run: the stages a resume may go on at, the one it escalated from included. */
+  readonly resumable?: readonly string[];
   readonly attention: Attention;
   readonly stages: readonly StageProgress[];
   /** Open questions: what to answer, in order. */
@@ -133,6 +136,14 @@ export class WorkOverview {
         status: r.state.status,
         stage,
         ...(reason && r.state.status !== "done" ? { reason } : {}),
+        ...(r.state.status === "escalated"
+          ? {
+              resumable: resumableStages(
+                declared.map((s) => s.id),
+                r.state.context.history,
+              ),
+            }
+          : {}),
         attention: attentionOf(r.state.status, open.length, driving, atGate),
         stages,
         questions: open,

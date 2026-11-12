@@ -121,7 +121,7 @@ describe("metator config (options, real CLI)", () => {
       source: "repo",
     });
     const record = JSON.parse(await repo.read(`.metator/runs/${runId}/state.json`));
-    expect(record).toMatchObject({ schemaVersion: 7, options: { "supervisor.wipLimit": 1 } });
+    expect(record).toMatchObject({ schemaVersion: 8, options: { "supervisor.wipLimit": 1 } });
     const schema = data(await mt("config", "schema", "--options")) as { properties: Record<string, unknown> };
     expect(Object.keys(schema.properties)).toContain("supervisor.wipLimit");
   }, 30_000);

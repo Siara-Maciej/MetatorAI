@@ -1245,6 +1245,45 @@ loops:
     expect(w2.host.tasks.at(-1)?.prompt).toContain("tool crashed on a.ts");
   });
 
+  test("sent back to an earlier stage with a note: the first agent reads the note and the failure, later ones only the failure", async () => {
+    const w = world(
+      {
+        "mt-planner": [writesPlan, writesPlan, writesPlan, writesPlan],
+        "mt-implementer": [{}, {}],
+        "mt-scout": [{}, {}],
+      },
+      () => ({ choices: ["Approve"] }),
+      new ScriptedProcessRunner([
+        { argvPrefix: ["bun", "run", "metator", "index", "build"], result: { exitCode: 0 } },
+        { argvPrefix: ["test", "-f"], result: { exitCode: 1, stderr: "no plan" } },
+      ]),
+    );
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("escalated");
+    const before = w.host.tasks.length;
+    const from = (await w.repo.load(runId))._unsafeUnwrap().state.context.history.at(-1)?.stage as string;
+    (
+      await new ResumeRun(w.catalog, w.repo, w.clock).execute({
+        runId,
+        by: "ola",
+        to: "plan",
+        note: "write the plan to plan.json this time",
+      })
+    )._unsafeUnwrap();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 3 });
+    const after = w.host.tasks.slice(before);
+    const said = `ola resumed the run and sent it back from ${from} to plan and said (follow it; it is not a defect): write the plan to plan.json this time`;
+    // The planner works first: it reads the person's words and why the run escalated.
+    expect(after[0]?.agent).toBe("mt-planner");
+    expect(after[0]?.prompt).toContain(said);
+    expect(after[0]?.prompt).toContain(`Stage ${from} failed and sent the run back here:`);
+    expect(after[0]?.prompt).toContain("no plan");
+    // Whoever works after the plan passed does not get the note again.
+    expect(after.slice(1).some((t) => t.prompt.includes("ola resumed the run"))).toBe(false);
+    expect(after.length).toBeGreaterThan(1);
+  });
+
   test("a host whose program is not installed is refused before any stage runs (F3)", async () => {
     const w = world({}, () => undefined, okScripts(), {
       hostProblem: (h) => (h === "fake" ? "`fake` is not installed" : undefined),
@@ -1452,6 +1491,47 @@ describe("RunDrivers", () => {
     expect((await d.claim("r", 9999, "claude")).isOk()).toBe(true);
     expect((await d.stop("r"))._unsafeUnwrap()).toEqual({ stopped: null });
     expect((await d.status("r"))._unsafeUnwrap()).toBeNull();
+  });
+
+  test("a drive stopped on purpose never reads as one that died, not even while it is being stopped", async () => {
+    const { d, processes } = drivers();
+    const started = (
+      await d.start({ runId: "r", host: "claude", argv: ["metator"], cwd: "/", logFile: "/tmp/l" })
+    )._unsafeUnwrap();
+    // What another reader (the supervisor's tick) sees once the process is gone and `stop` still waits.
+    const seen: unknown[] = [];
+    const stop = processes.stop.bind(processes);
+    processes.stop = async (pid) => {
+      const r = await stop(pid);
+      seen.push((await d.status("r"))._unsafeUnwrap());
+      return r;
+    };
+    expect((await d.stop("r"))._unsafeUnwrap()).toEqual({ stopped: started.pid });
+    expect(seen).toEqual([null]);
+    expect((await d.status("r"))._unsafeUnwrap()).toBeNull();
+
+    // The stopped process wrote its own claim again on its way down: nothing of it is left behind.
+    const again = (
+      await d.start({ runId: "r", host: "claude", argv: ["metator"], cwd: "/", logFile: "/tmp/l" })
+    )._unsafeUnwrap();
+    processes.stop = async (pid) => {
+      await d.claim("r", pid, "claude");
+      return stop(pid);
+    };
+    await d.stop("r");
+    expect((await d.status("r"))._unsafeUnwrap()).toBeNull();
+    // A driver another process claimed meanwhile is not this stop's to remove.
+    const third = (
+      await d.start({ runId: "r", host: "claude", argv: ["metator"], cwd: "/", logFile: "/tmp/l" })
+    )._unsafeUnwrap();
+    processes.stop = async (pid) => {
+      const r = await stop(pid);
+      processes.alive.add(7777);
+      await d.claim("r", 7777, "claude");
+      return r;
+    };
+    expect((await d.stop("r"))._unsafeUnwrap()).toEqual({ stopped: third.pid });
+    expect([again.pid === third.pid, (await d.status("r"))._unsafeUnwrap()?.pid]).toEqual([false, 7777]);
   });
 
   test("release frees only its own claim", async () => {

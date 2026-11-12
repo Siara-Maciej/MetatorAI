@@ -59,6 +59,8 @@ export interface RunOverview {
   readonly stage: string;
   /** Why an escalated or aborted run stopped. */
   readonly reason?: string;
+  /** An escalated run: the stages a resume may go on at, the one it escalated from included. */
+  readonly resumable?: readonly string[];
   readonly attention: Attention;
   readonly stages: readonly StageProgress[];
   readonly questions: readonly Question[];
@@ -447,6 +449,14 @@ export interface PlanBoardView {
   }[];
   readonly next: readonly { readonly id: string; readonly owners: readonly string[] }[];
   readonly timeline: readonly Activity[];
+  /** Every resume of the run after it escalated (absent from an older daemon). */
+  readonly resumes?: readonly {
+    readonly at: string;
+    readonly by: string;
+    readonly from: string;
+    readonly to: string;
+    readonly note?: string;
+  }[];
 }
 
 export interface Brief {
@@ -546,10 +556,16 @@ export class DaemonClient {
     this.get<Brief>(`/runs/${runId}/brief${since ? `?since=${encodeURIComponent(since)}` : ""}`, repo);
   seen = (runId: string, repo?: string) => this.post<{ at: string }>(`/runs/${runId}/seen`, {}, repo);
   /** An escalated run back at the stage it escalated from, and driven on at once. */
-  resume = (runId: string, by: string, repo?: string) =>
+  /** Resume an escalated run: at the stage it escalated from, or at `to`, with a note for the next agent. */
+  resume = (
+    runId: string,
+    by: string,
+    repo?: string,
+    back: { readonly to?: string | undefined; readonly note?: string | undefined } = {},
+  ) =>
     this.post<{ run: { stage: string }; drive?: { started?: boolean; error?: string; hint?: string } }>(
       `/runs/${runId}/resume`,
-      { by },
+      { by, ...(back.to ? { to: back.to } : {}), ...(back.note?.trim() ? { note: back.note.trim() } : {}) },
       repo,
     );
   /** Stops the process that drives the run; the run stays where it is. */

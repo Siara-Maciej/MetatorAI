@@ -187,6 +187,9 @@ describe("planBoardOf", () => {
     ]);
     expect(b.timeline).toHaveLength(5);
     expect(planBoardOf({ ...base, timelineLength: 2 }).timeline.map((a) => a.at)).toEqual([T(38), T(40)]);
+    // The run's resumes are on the board as the record keeps them; a run nobody resumed has none.
+    const resume = { at: T(41), by: "ala", from: "review", to: "plan", note: "smaller steps", after: 4 };
+    expect([b.resumes, planBoardOf({ ...base, resumes: [resume] }).resumes]).toEqual([[], [resume]]);
   });
 
   test("a step is done by a worker's result, in progress by an edit, todo otherwise; artifacts say which are present", () => {

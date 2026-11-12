@@ -31,6 +31,16 @@ stages:
   - id: check
     gate: { script: "test -f {runDir}/fixed" }
 `;
+/** Escalates at its second stage: a resume may go back to the first. */
+const STUCK_LATE = `kind: Workflow
+schemaVersion: 2
+id: stuck-late
+stages:
+  - id: prepare
+    gate: { script: "true" }
+  - id: check
+    gate: { script: "test -f {runDir}/fixed" }
+`;
 const SCENARIO = `kind: AgentScenario
 schemaVersion: 1
 agents:
@@ -128,6 +138,7 @@ beforeAll(async () => {
   await repo.write(".gitignore", ".metator/\n");
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
   await repo.write(".github/metator/workflows/stuck.yml", STUCK);
+  await repo.write(".github/metator/workflows/stuck-late.yml", STUCK_LATE);
   await repo.write("scenario.yml", SCENARIO);
   // A host that is installed but cannot work: it says why and exits.
   await repo.write("bin/claude", '#!/bin/sh\necho "claude: not logged in"\nexit 3\n');
@@ -243,13 +254,40 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
         ? true
         : undefined,
     );
-    // Retry starts the same program in a new pane and drops the dead one: still one pane.
+    // Retry starts the same program in a new pane and drops the dead one: still one pane, and at
+    // no moment two dead panes on the screen (the daemon opens the new one before it closes the old).
+    await page.evaluate(() => {
+      const w = window as unknown as { mostEnded: number; endedWatch: MutationObserver };
+      const count = () => document.querySelectorAll('[data-testid^="ended-"]').length;
+      w.mostEnded = count();
+      w.endedWatch = new MutationObserver(() => {
+        w.mostEnded = Math.max(w.mostEnded, count());
+      });
+      w.endedWatch.observe(document.body, { childList: true, subtree: true, attributes: true });
+    });
+    // The close of the old pane is held back: what a loaded machine does, long enough to see.
+    const slowClose = /\/panes\/[^/]+\/close/;
+    await page.route(slowClose, async (route) => {
+      await Bun.sleep(1500);
+      await route.continue();
+    });
     await ended.getByRole("button", { name: "Retry" }).click();
     await until("the retried pane", async () => {
       const now = (await api("/layout")).data.panes as { id: string }[];
       return now.length === 1 && now[0]?.id !== panes[0]?.id ? true : undefined;
     });
     await ended.waitFor({ timeout: 20_000 });
+    await until("the new pane's own notice", async () =>
+      (await ended.getAttribute("data-testid")) !== `ended-${panes[0]?.id}` ? true : undefined,
+    );
+    expect(
+      await page.evaluate(() => {
+        const w = window as unknown as { mostEnded: number; endedWatch: MutationObserver };
+        w.endedWatch.disconnect();
+        return w.mostEnded;
+      }),
+    ).toBe(1);
+    await page.unroute(slowClose);
     await ended.getByRole("button", { name: "Close tab" }).click();
     await until("the tab gone", async () =>
       ((await api("/layout")).data.panes as unknown[]).length === 0 ? true : undefined,
@@ -289,9 +327,9 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await stop();
     await serve(repo.root, { ...NOWHERE, ...scenario });
     const cli = (...args: string[]) => metator(args, repo.root, scenario);
-    const escalate = async (task: string) => {
+    const escalate = async (task: string, workflow = "stuck") => {
       const runId = (
-        (await cli("run", "init", "--workflow", "stuck", "--task", task)).json.data as { runId: string }
+        (await cli("run", "init", "--workflow", workflow, "--task", task)).json.data as { runId: string }
       ).runId;
       const driven = await cli("run", "drive", "--run", runId, "--host", "scenario");
       expect((driven.json.data as { status: string }).status).toBe("escalated");
@@ -340,6 +378,37 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     );
     await until("its row to go", async () =>
       (await page.getByTestId(`escalated-${other}`).count()) === 0 ? true : undefined,
+    );
+
+    // Back to an earlier stage with a note: the card offers the stages the run worked, the one it
+    // stopped at first, and says what the resume will do.
+    const late = await escalate("Check the rounding", "stuck-late");
+    await page.getByTestId(`escalated-${late}`).click();
+    const stage = card.getByLabel("stage to resume at");
+    expect([await stage.inputValue(), await stage.locator("option").allTextContents()]).toEqual([
+      "check",
+      ["prepare", "check (where it stopped)"],
+    ]);
+    expect(await card.getByTestId("resume-plan").textContent()).toContain("goes back to check with a fresh");
+    await stage.selectOption("prepare");
+    expect(await card.getByTestId("resume-plan").textContent()).toBe(
+      "the run goes back to prepare and works from there to check again; approvals on the way are asked again",
+    );
+    await card.getByLabel("note for the agent that works next").fill("prepare the totals first");
+    await Bun.write(repo.path(`.metator/runs/${late}/fixed`), "");
+    await card.getByRole("button", { name: "Resume" }).click();
+    await until("the run sent back to finish", async () =>
+      (await statusOf(late)) === "done" ? true : undefined,
+    );
+    expect(await repo.read(`.metator/runs/${late}/log.md`)).toContain(
+      "resumed at prepare (escalated at check) · by maciej · note: prepare the totals first",
+    );
+    // The Plan screen keeps the resume and what the person said.
+    await page.goto(app(`plan/${late}`));
+    const resumes = page.getByLabel("resumes");
+    await resumes.waitFor({ timeout: 20_000 });
+    expect(await resumes.textContent()).toContain(
+      "at prepare (escalated at check) by maciej: prepare the totals first",
     );
     expect(errors).toEqual([]);
   }, 120_000);

@@ -4,7 +4,14 @@ import { escalatedNext } from "../domain/inbox.ts";
 import { type PublishedBranch, publicationProblem } from "../domain/publication.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run-machine.ts";
-import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "../domain/run-record.ts";
+import {
+  APPROVAL_ACTIONS,
+  type Approval,
+  type Autonomy,
+  pendingResume,
+  type RunRecord,
+  type RunResume,
+} from "../domain/run-record.ts";
 import type { WorkflowSpec } from "../domain/workflow-spec.ts";
 import type { BranchPublication, Clock, FileSystem } from "../ports/index.ts";
 import { type CheckReadiness, startRefusal } from "./readiness.ts";
@@ -39,7 +46,11 @@ export interface RunView {
     readonly stage: string;
     readonly reason?: string;
     readonly next: readonly string[];
+    /** The stages a resume may go on at (`run resume --to <stage>`). */
+    readonly resumable: readonly string[];
   };
+  /** A person resumed the run here and no stage has answered yet: who, from where, and their note. */
+  readonly resumed?: RunResume;
 }
 
 function view(record: RunRecord, machine: RunStateMachine, repo: RunRepository): RunView {
@@ -58,16 +69,18 @@ function view(record: RunRecord, machine: RunStateMachine, repo: RunRepository):
     ...(record.worktree ? { worktree: record.worktree } : {}),
     ...(record.driver ? { driver: record.driver } : {}),
     updatedAt: record.updatedAt,
-    ...(record.state.status === "escalated" ? { escalated: escalation(record) } : {}),
+    ...(record.state.status === "escalated" ? { escalated: escalation(record, machine) } : {}),
+    ...(pendingResume(record) ? { resumed: pendingResume(record) as RunResume } : {}),
   };
 }
 
-function escalation(record: RunRecord): NonNullable<RunView["escalated"]> {
+function escalation(record: RunRecord, machine: RunStateMachine): NonNullable<RunView["escalated"]> {
   const last = record.state.context.history.at(-1);
   return {
     stage: last?.stage ?? record.state.stage,
     ...(last?.detail ? { reason: last.detail } : {}),
     next: escalatedNext(record.runId),
+    resumable: machine.resumable(record.state),
   };
 }
 
@@ -322,21 +335,34 @@ const movedOn = (current: RunRecord, seenStage: string): MetatorError =>
   );
 
 /**
- * `run resume`: an escalated run goes on at the stage it escalated from, with that stage's loop
- * counted from zero again, and the log says who resumed it.
+ * `run resume`: an escalated run goes on at the stage it escalated from, or at an earlier stage it
+ * already worked (`to`), with a person's note for the first agent that works next. The record
+ * keeps the resume, the log says who resumed it and the run's activity shows it.
  */
 export class ResumeRun {
   constructor(
     private readonly catalog: WorkflowCatalog,
     private readonly repo: RunRepository,
     private readonly clock: Clock,
+    /** The run's activity: the resume and its note show in the timeline. */
+    private readonly journal?: {
+      record(
+        runId: string,
+        entry: { type: "drive"; stage: string; text: string; origin: "run" },
+      ): Promise<Result<void, MetatorError>>;
+    },
   ) {}
 
   async execute(input: {
     readonly runId?: string;
     readonly by: string;
+    /** The stage to go on at: the one that escalated when left out. */
+    readonly to?: string;
+    /** What the person says to the agent that works next. */
+    readonly note?: string;
   }): Promise<Result<RunView, MetatorError>> {
-    if (input.by.trim() === "")
+    const by = input.by.trim();
+    if (by === "")
       return err(MetatorError.usage("say who resumes: --by <name>", "The log records who resumed the run."));
     const id = await this.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
@@ -344,18 +370,58 @@ export class ResumeRun {
     if (record.isErr()) return err(record.error);
     const resolved = await machineFor(this.catalog, record.value.workflow.id);
     if (resolved.isErr()) return err(resolved.error);
+    const { machine } = resolved.value;
     const now = this.clock.now().toISOString();
+    const note = input.note?.trim();
+    const to = input.to?.trim();
+    let resume: RunResume | undefined;
     const updated = await this.repo.update(id.value, (current) =>
-      resolved.value.machine.resume(current.state).map((state) => ({ ...current, state, updatedAt: now })),
+      machine.resume(current.state, to || undefined).map((state) => {
+        const history = current.state.context.history;
+        const from = history.at(-1)?.stage ?? state.stage;
+        resume = {
+          at: now,
+          by,
+          from,
+          to: state.stage,
+          ...(note ? { note } : {}),
+          after: history.length,
+        };
+        // Sent back: the stages from there on are worked again, so their approvals are asked again.
+        const again = state.stage === from ? [] : machine.stagesFrom(state.stage);
+        const approvals = Object.fromEntries(
+          Object.entries(current.approvals).filter(([gate]) => !again.includes(gate)),
+        );
+        return {
+          ...current,
+          state,
+          approvals,
+          resumes: [...(current.resumes ?? []), resume],
+          updatedAt: now,
+        };
+      }),
     );
     if (updated.isErr()) return err(updated.error);
-    const logged = await this.repo.appendLog(
-      id.value,
-      `${now} · resumed at ${updated.value.state.stage} · by ${input.by}`,
-    );
+    const done = resume as RunResume | undefined;
+    const text = done ? resumeLine(done) : `resumed at ${updated.value.state.stage} by ${by}`;
+    const logged = await this.repo.appendLog(id.value, `${now} · ${text}`);
     if (logged.isErr()) return err(logged.error);
-    return ok(view(updated.value, resolved.value.machine, this.repo));
+    if (this.journal) {
+      const said = await this.journal.record(id.value, {
+        type: "drive",
+        stage: updated.value.state.stage,
+        text,
+        origin: "run",
+      });
+      if (said.isErr()) return err(said.error);
+    }
+    return ok(view(updated.value, machine, this.repo));
   }
+}
+
+/** A resume in one line, for the log and the timeline: where, from where, who, and what they said. */
+export function resumeLine(r: RunResume): string {
+  return `resumed at ${r.to}${r.to === r.from ? "" : ` (escalated at ${r.from})`} · by ${r.by}${r.note ? ` · note: ${r.note}` : ""}`;
 }
 
 function approval(event: { readonly by: string; readonly choice?: string }, at: string): Approval {

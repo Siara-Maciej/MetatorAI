@@ -26,6 +26,7 @@ schemaVersion: 1
 agents:
   mt-planner:
     - - write: { path: "{runDir}/plan.md", text: "# Plan\\n" }
+      - write: { path: "{runDir}/heard.md", text: "{prompt}" }
       - say: "STATUS: done"
 `;
 
@@ -183,6 +184,76 @@ describe("a run that stands still (real CLI, scenario host)", () => {
     expect([closed.code, data(closed).status]).toEqual([0, "aborted"]);
     expect((await status(other)).status).toBe("aborted");
     expect((await inbox()).escalated.map((e) => e.runId)).not.toContain(other);
+  }, 120_000);
+
+  test("run resume --to <stage> --note: back to a stage it worked, the note reaches the next agent and the timeline; any other stage is refused", async () => {
+    const runId = await start("Escalate, then back to the plan");
+    await mt("run", "drive", "--run", runId, "--host", "scenario", "--detach");
+    const gate = await gateOf(runId);
+    await mt("run", "answer", gate.id, "--choice", "Approve", "--by", "ola", "--run", runId);
+    const stuck = (await statusIs(runId, "escalated")) as { escalated: { resumable: string[] } };
+    expect(stuck.escalated.resumable).toEqual(["plan", "approval", "check"]);
+    await until("the drive to leave", async () => ((await driver(runId)) === null ? true : undefined));
+    // The first plan was written without a person's note.
+    expect(await repo.read(`.metator/runs/${runId}/heard.md`)).not.toContain("resumed the run");
+
+    const refused = await mt("run", "resume", "--run", runId, "--by", "ola", "--to", "deploy");
+    expect([refused.code, refused.json.error]).toEqual([
+      64,
+      {
+        code: "USAGE",
+        message: "the run cannot resume at deploy: it never worked that stage",
+        hint: "It escalated at check. Stages it may resume at: plan, approval, check.",
+      },
+    ]);
+    expect((await status(runId)).status).toBe("escalated");
+
+    const note = "name the file the check looks for";
+    const back = await mt(
+      "run",
+      "resume",
+      "--run",
+      runId,
+      "--by",
+      "ola",
+      "--to",
+      "plan",
+      "--note",
+      note,
+      "--drive",
+      "--host",
+      "scenario",
+    );
+    expect([back.code, data(back).stage, data(back).status, data(back).approvals]).toEqual([
+      0,
+      "plan",
+      "active",
+      {},
+    ]);
+    expect(data(back).resumed).toMatchObject({ by: "ola", from: "check", to: "plan", note });
+    // The planner works again and is told what the person said and why the run escalated.
+    const again = await gateOf(runId);
+    expect(again.id).not.toBe(gate.id);
+    const heard = await repo.read(`.metator/runs/${runId}/heard.md`);
+    expect(heard).toContain(
+      `ola resumed the run and sent it back from check to plan and said (follow it; it is not a defect): ${note}`,
+    );
+    expect(heard).toContain("Stage check failed and sent the run back here: gate `test -f");
+    // The record, the log and the plan board's timeline keep it.
+    const record = JSON.parse(await repo.read(`.metator/runs/${runId}/state.json`)) as {
+      schemaVersion: number;
+      resumes: { by: string; from: string; to: string; note: string }[];
+    };
+    expect([record.schemaVersion, record.resumes.length]).toEqual([8, 1]);
+    expect(record.resumes[0]).toMatchObject({ by: "ola", from: "check", to: "plan", note });
+    const line = `resumed at plan (escalated at check) · by ola · note: ${note}`;
+    expect(await repo.read(`.metator/runs/${runId}/log.md`)).toContain(line);
+    const board = data(await mt("run", "board", "--run", runId)) as { timeline: { text: string }[] };
+    expect(board.timeline.map((e) => e.text)).toContain(line);
+    // The approval is asked again, and with the cause removed the run ends.
+    await repo.write(`.metator/runs/${runId}/fixed`, "");
+    await mt("run", "answer", again.id, "--choice", "Approve", "--by", "ola", "--run", runId);
+    await statusIs(runId, "done");
   }, 120_000);
 
   test("a worktree removed by hand: the drive says so and names the two ways on (R10)", async () => {

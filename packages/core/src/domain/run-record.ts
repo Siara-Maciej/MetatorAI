@@ -124,8 +124,31 @@ const RunRecordV6Schema = RunRecordV5Schema.extend({
  * v7 (S1, design/13) adds, optionally, the run's option overrides by dotted key (a host, a
  * waiting limit for this run alone). Never change v1–v6.
  */
-export const RunRecordSchema = RunRecordV6Schema.extend({
+const RunRecordV7Schema = RunRecordV6Schema.extend({
   options: z.record(z.string().min(1), z.unknown()).optional(),
+}).strict();
+
+/**
+ * One resume of an escalated run: who put it back, from the stage that escalated to the stage it
+ * goes on at, and what they said. `after` is how many history entries the run had then: until the
+ * run records its next transition, the resume is the last thing that happened to it.
+ */
+export const RunResumeSchema = z.strictObject({
+  at: z.iso.datetime(),
+  by: z.string().min(1),
+  from: z.string().min(1),
+  to: z.string().min(1),
+  note: z.string().min(1).optional(),
+  after: z.number().int().min(0),
+});
+export type RunResume = z.infer<typeof RunResumeSchema>;
+
+/**
+ * v8 adds, optionally, the run's resumes: a person may send an escalated run back to an earlier
+ * stage with a note, and the first agent that works after it reads the note. Never change v1–v7.
+ */
+export const RunRecordSchema = RunRecordV7Schema.extend({
+  resumes: z.array(RunResumeSchema).optional(),
 }).strict();
 
 export type RunRecord = z.infer<typeof RunRecordSchema>;
@@ -152,9 +175,11 @@ export const RunRecordDocument = defineDocument("RunRecord", {
     { schema: RunRecordV5Schema, fromPrevious: (previous) => previous },
     // `driver` is optional: a v5 record is a v6 record the agent drives.
     { schema: RunRecordV6Schema, fromPrevious: (previous) => previous },
+    // `options` is optional: a v6 record is a v7 record with no overrides.
+    { schema: RunRecordV7Schema, fromPrevious: (previous) => previous },
   ],
   latest: RunRecordSchema,
-  // `options` is optional: a v6 record is a v7 record with no overrides.
+  // `resumes` is optional: a v7 record is a v8 record nobody resumed.
   upgrade: (previous) => previous,
   hint: "Do not edit state.json by hand; use `metator run advance` or `metator run approve`.",
 });
@@ -198,6 +223,29 @@ export function fillInputs(
         ),
       )
     : ok(filled);
+}
+
+/**
+ * The resume no agent has answered yet: the run's last resume, until the run records a transition
+ * other than a person's approval (a gate runs no agent, so the note waits for the stage after it).
+ */
+export function pendingResume(record: Pick<RunRecord, "state" | "resumes">): RunResume | undefined {
+  const last = record.resumes?.at(-1);
+  if (!last || record.state.status !== "active") return undefined;
+  const since = record.state.context.history.slice(last.after);
+  return since.every((h) => h.event === "APPROVE") ? last : undefined;
+}
+
+/**
+ * The stages an escalated run may be resumed at, in the workflow's order: every stage the run
+ * already worked, the one it escalated from included.
+ */
+export function resumableStages(
+  stages: readonly string[],
+  history: readonly { readonly stage: string }[],
+): string[] {
+  const worked = new Set(history.map((h) => h.stage));
+  return stages.filter((s) => worked.has(s));
 }
 
 export function parseRunRecord(text: string, source: string): Result<RunRecord, MetatorError> {
