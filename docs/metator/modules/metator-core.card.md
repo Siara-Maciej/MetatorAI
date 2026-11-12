@@ -32,6 +32,9 @@ The product's inside: domain model (versioned documents, rules, memory map, impo
 - An escalated run is not finished: it is counted apart (`countAttention`), listed by `escalatedOf`, refused by `DriveRun` (`notDrivable`), put back by `ResumeRun` with the escalating stage's loop at zero, and ended by `CloseRun` with a reason. A run that is not active has no open questions: `WorkOverview`, `inboxOf` and `RunJournal.answer` agree on that.
 - A wait for a person (`RunJournal.waitFor`) ends without an answer when the run left the question's stage or ended; the drive then looks at the run again instead of waiting for ever.
 - A run starts only where it can work: `InitRun` asks `CheckReadiness` and refuses through `startRefusal` (no git repository; for a worktree run, no commit or a dirty tree, unless `allowDirty`, which `Issues.start` passes on and intake always sets).
+- A workflow's `preconditions` are a closed list (`domain/preconditions.ts`: `clean-tree`, `branch-ok`, `tests-green`), each decided by a readiness check when the run starts; `startRefusal` refuses on the first that does not hold and on any other name, which `lintWorkflow` rejects. `tests-green` runs the quick gate (`CheckReadiness` with `gates`), which nothing else does unasked.
+- A human gate skipped by the run's autonomy grants what approving it grants (`skipGates`); `lintWorkflow` refuses a skippable gate that grants a push.
+- Local state has no path override: `MetatorConfig` v12 dropped `paths.runs`, `index`, `discovery` and `gates`, and a config rewritten at the current version loses them (`RETIRED_CONFIG_KEYS`).
 - Errors cross layers as one type [[cite: packages/core/src/domain/errors.ts:20 | "export class MetatorError extends Error {"]].
 
 ## Allowed dependencies
@@ -41,6 +44,7 @@ Only the pure libraries approved in ADR-0010 (enforced by MT-ARCH-003). Never ru
 ## Pitfalls
 
 - Changing a document schema in place breaks files users already have: add a version and an `upgrade` (MT-CODE-003).
+- A deleted module has no node in the import graph: `ComputeAffected` finds its importers through the imports that resolve to nothing now, by relative path, by the `candidates` an alias leads to, or by the directory of a workspace package imported by name (`missingEntries`).
 - A new setting is an option in the registry (`domain/option-registry.ts`), not a field of `MetatorConfig`: one definition gives the CLI, the daemon and the app its type, default, scope and description (S1).
 - `Bun` and `process` do not exist here (MT-ARCH-004); take what you need through a port.
 - `CloseRun` stops the run's driver last, after the summary is written: the caller may be a child of the process it stops.

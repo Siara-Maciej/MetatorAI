@@ -65,7 +65,7 @@ metator run init --workflow mt-feature --task "Add combined discount" --worktree
 metator run init --workflow mt-bugfix --task "Fix rounding" --worktree --base main
 ```
 
-A worktree starts from the last commit. When tracked files have uncommitted changes, `run init --worktree` refuses and names them: commit or stash them, or pass `--allow-dirty` to start without them. `metator issue start` behaves the same. In the app, the **Advanced…** form and **Start a run** on the Backlog show the refusal with the button **Start from the last commit**, which starts the run without your changes. Runs that [intake](./intake.md) starts never ask: they start from the last commit. Untracked files do not stop a run. `run init` also refuses in a directory that is not a git repository, and `run init --worktree` in a repository with no commit.
+A worktree starts from the last commit. When tracked files have uncommitted changes, `run init --worktree` refuses and names them: commit or stash them, or pass `--allow-dirty` to start without them. `metator issue start` behaves the same. In the app, the **Advanced…** form and **Start a run** on the Backlog show the refusal with the button **Start from the last commit**, which starts the run without your changes. Runs that [intake](./intake.md) starts never ask: they start from the last commit. Untracked files do not stop a run. A run in your checkout, without `--worktree`, refuses on uncommitted changes when its workflow requires `clean-tree`; `--allow-dirty` starts it with them, and they become part of its change. `run init` also refuses in a directory that is not a git repository, and `run init --worktree` in a repository with no commit.
 
 `--no-setup` skips the dependencies, and you can set them up later:
 

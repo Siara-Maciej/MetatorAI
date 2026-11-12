@@ -27,6 +27,20 @@ metator workflow lint        # check every spec after you edit one
 
 You can edit a workflow or add your own. `metator agents update` keeps the files you changed.
 
+## What must hold before a run starts
+
+A workflow lists its `preconditions`. `metator run init` checks each one when the run starts and refuses with the precondition's name and the step that fixes it.
+
+| Precondition | Holds when | When it does not |
+|---|---|---|
+| `clean-tree` | no tracked file has uncommitted changes | commit or stash them, or pass `--allow-dirty` |
+| `branch-ok` | the checkout is on a branch, or the run works in a worktree | `git switch -c <branch>`, or pass `--worktree` |
+| `tests-green` | the quick gate passes; the run starts only after it ran | `metator gate quick` shows the failing steps |
+
+`mt-feature`, `mt-bugfix` and `mt-system-change` require `clean-tree` and `branch-ok`. `mt-refactor` also requires `tests-green`, so starting a refactor takes as long as your quick gate, and it refuses when `gates.quick` has no steps. The review workflows require nothing.
+
+These three are the whole list. `metator workflow lint` rejects any other name, and a run does not start on a precondition that nothing can check. If you installed the workflows before this list existed, run `metator setup` again: the older files name `index-fresh`, which is gone.
+
 ## How a run moves
 
 A run is at exactly one stage. It moves only when the CLI receives an event for that stage:

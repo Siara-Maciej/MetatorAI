@@ -5587,8 +5587,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/runs.ts",
-    from: 'this.readiness.execute(preconditions.includes("tests-green") ? { gates: true } : {});',
-    to: "this.readiness.execute({});",
+    from: 'preconditions.includes("tests-green") ? { gates: true } : {},',
+    to: "{},",
     why: "a run of a workflow that requires tests-green runs the quick gate before it starts (D8)",
   },
   {

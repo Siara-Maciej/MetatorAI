@@ -14,7 +14,14 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 - A backlog of tasks: `metator issue list`, `add`, `propose`, `decide`, `start`. New document: `Issue`.
 - Notes on a change: `metator review changes` and `metator review notes`. New document: `ReviewNotes`.
 - Sessions in terminals that the daemon owns (`metator serve`, `metator attach`, `metator pane`), the inbox (`metator inbox`), a supervisor (`metator supervise`) and the desktop app.
-- `MetatorConfig` is at version 11: `notify` (6), `supervisor` (7), `options` (8), `mcp` (9), `intake` (10), `reviews` (11).
+- `MetatorConfig` is at version 12: `notify` (6), `supervisor` (7), `options` (8), `mcp` (9), `intake` (10), `reviews` (11). Version 12 removes `paths.runs`, `paths.index`, `paths.discovery` and `paths.gates`: local state always lives under `.metator/`. An older file that sets one still loads, and the key is ignored; MetatorAI drops it the next time it writes the file.
+- Workflow preconditions are checked when a run starts: `clean-tree`, `branch-ok`, `tests-green`. `index-fresh` is gone; run `metator setup` to update installed workflows. A run in your checkout now refuses on uncommitted changes when its workflow requires `clean-tree` (`--allow-dirty` starts it anyway).
+- `metator doctor --gates` runs the quick gate once and reports whether it is green.
+- `metator graph cycles --check` fails on an import cycle. A type-only import counts.
+- `metator rules pack --files` replaces `--paths`, and `metator eval run --timeout` replaces `--timeout-ms`. The old names still work.
+- `metator plan scope --dry-run` prints the scope without writing it. `plan scope` is an MCP tool again and never writes.
+- In `mt-pr-review` at autonomy `L2`, the skipped approval gate grants `comment`, so the publish stage can post.
+- `metator init` and `metator system discover` put warnings only in `warnings`, not in `data` as well.
 
 ## October 2026
 

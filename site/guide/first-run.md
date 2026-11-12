@@ -24,7 +24,7 @@ metator setup --host claude --hooks --yes
  "generated":38,"gitignore":"added",
  "checks":[{"command":"meta agents-lint","passed":true},{"command":"meta skills-lint","passed":true},
            {"command":"workflow lint","passed":true},{"command":"generate --check","passed":true}],
- "next":["metator doctor","metator serve"]}}
+ "next":["metator doctor","metator doctor --gates","metator serve"]}}
 ```
 
 Setup does four things:
@@ -34,9 +34,18 @@ Setup does four things:
 3. It generates the files your AI tool reads (`.claude/` for Claude Code, `.github/agents/` and `.github/skills/` for Copilot), and the hooks when you pass `--hooks`.
 4. It lints what it installed.
 
-Commit the result. `canon` in the result counts the shipped files that were written, and `next` names the two commands that follow. `--host` takes `claude`, `copilot` or both, and wins over what setup found. `hostsFrom` in the result says where the choice came from: `option`, `config` (an existing `metator.config.yml`), `found`, `asked`, or `default` (nothing said, so both).
+Commit the result. `canon` in the result counts the shipped files that were written, and `next` names the commands that follow. `--host` takes `claude`, `copilot` or both, and wins over what setup found. `hostsFrom` in the result says where the choice came from: `option`, `config` (an existing `metator.config.yml`), `found`, `asked`, or `default` (nothing said, so both).
 
-`metator doctor` then tells you what a run can do here. Each check is `ok`, `warn` (a run starts but does less) or `fail` (a run cannot start), and each problem names the command or the step that fixes it. It fails when the directory is not a git repository, when the repository has no commit, when there is no workflow, and when none of the AI hosts in `hosts.targets` can start. It warns about uncommitted changes to tracked files, missing gates, dependencies that are not installed, and a missing remote.
+`metator doctor` then tells you what a run can do here. Each check is `ok`, `warn` (a run starts but does less) or `fail` (a run cannot start), and each problem names the command or the step that fixes it. It fails when the directory is not a git repository, when the repository has no commit, when there is no workflow, and when none of the AI hosts in `hosts.targets` can start. It warns about uncommitted changes to tracked files, a detached HEAD, missing gates, dependencies that are not installed, and a missing remote.
+
+`metator doctor --gates` also runs the quick gate once and reports it as the check `green`. When the gate is red, the check names the failing steps and the command that shows their output:
+
+```bash
+metator doctor --gates
+metator gate quick     # the failing steps with the end of their output
+```
+
+The gate takes as long as your checks take, so `doctor` runs it only when you ask. A red gate before a run is worth fixing first: the run's own gates stage would fail on it. `--gates` looks at this checkout, not at a worktree.
 
 ## Start the daemon and open the app
 
