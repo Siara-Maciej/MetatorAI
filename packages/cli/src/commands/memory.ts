@@ -11,7 +11,12 @@ export function registerMemoryCommands(program: Command, { action, container }: 
   memory
     .command("inventory")
     .description("Every knowledge file with its size and memory map item (works without a map)")
-    .action(action(async () => ({ result: await container().resolve("inventoryMemory").execute() })));
+    .option("--generated", "include the host files `metator generate` wrote (copies of the canon)", false)
+    .action(
+      action(async (opts: { generated: boolean }) => ({
+        result: await container().resolve("inventoryMemory").execute({ generated: opts.generated }),
+      })),
+    );
 
   memory
     .command("budget")
@@ -92,11 +97,12 @@ export function registerMemoryCommands(program: Command, { action, container }: 
     .option("--min-words <n>", "shortest sentence that counts", positiveInt, 8)
     .option("--threshold <ratio>", "similarity for near duplicates (Jaccard on word 3-grams)", ratio, 0.8)
     .option("--check", "fail when duplicates exist", false)
+    .option("--generated", "include the host files `metator generate` wrote (copies of the canon)", false)
     .action(
-      action(async (opts: { minWords: number; threshold: number; check: boolean }) => {
+      action(async (opts: { minWords: number; threshold: number; check: boolean; generated: boolean }) => {
         const report = await container()
           .resolve("findMemoryDupes")
-          .execute({ minWords: opts.minWords, threshold: opts.threshold });
+          .execute({ minWords: opts.minWords, threshold: opts.threshold, generated: opts.generated });
         if (report.isOk() && opts.check && report.value.groups.length > 0) {
           return {
             result: err(

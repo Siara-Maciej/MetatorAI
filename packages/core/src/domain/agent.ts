@@ -84,6 +84,12 @@ export function generatedMarker(source: string): string {
   return `${GENERATED_MARKER} from ${source}; kind: HostFile, schemaVersion: 1. Edit the source, not this file. -->`;
 }
 
+/** Whether `metator generate` wrote this text: the marker is its first line after the front matter. */
+export function isGeneratedHostFile(text: string): boolean {
+  const body = text.startsWith("---\n") ? text.slice(text.indexOf("\n---\n", 3) + 5) : text;
+  return body.trimStart().startsWith(GENERATED_MARKER);
+}
+
 /** Canonical bodies say `metator …`; hosts get the repo's own command (e.g. `bun run metator …`). */
 export function withMetatorCommand(body: string, command: string): string {
   return command === "metator" ? body : body.replace(/`metator(?=[ `])/g, `\`${command}`);

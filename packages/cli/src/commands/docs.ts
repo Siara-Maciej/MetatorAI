@@ -10,14 +10,20 @@ export function registerDocsCommands(program: Command, { action, container }: Co
   docs
     .command("inventory")
     .description("Every Markdown document with lines, last change, age, owners and links")
-    .action(action(async () => ({ result: await container().resolve("docsInventory").execute() })));
+    .option("--generated", "include the host files `metator generate` wrote (copies of the canon)", false)
+    .action(
+      action(async (opts: { generated: boolean }) => ({
+        result: await container().resolve("docsInventory").execute({ generated: opts.generated }),
+      })),
+    );
 
   docs
     .command("links")
     .description("Relative links in Markdown that point at a missing file, directory or heading")
+    .option("--generated", "include the host files `metator generate` wrote (copies of the canon)", false)
     .action(
-      action(async () => {
-        const report = await container().resolve("docsLinks").execute();
+      action(async (opts: { generated: boolean }) => {
+        const report = await container().resolve("docsLinks").execute({ generated: opts.generated });
         if (report.isOk() && report.value.dead.length > 0) {
           return {
             result: err(

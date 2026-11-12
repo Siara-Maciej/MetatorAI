@@ -1,3 +1,4 @@
+import { isGeneratedHostFile } from "../domain/agent.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { err, ok, type Result } from "../domain/result.ts";
@@ -26,4 +27,27 @@ export class SourceFiles {
       files.filter((file) => (!extensions || extensions.some((ext) => file.endsWith(ext))) && !ignored(file)),
     );
   }
+}
+
+/**
+ * The files among `files` that `metator generate` wrote for the hosts: Markdown that carries its
+ * marker, and everything beside a generated `SKILL.md` (a skill's references and scripts). They
+ * are copies of the canon in `metator/`, so commands that read the repository's own documents
+ * leave them out.
+ */
+export async function generatedHostFiles(
+  fs: ReadonlyFileSystem,
+  files: readonly string[],
+): Promise<ReadonlySet<string>> {
+  const generated = new Set<string>();
+  const skills: string[] = [];
+  for (const file of files) {
+    if (!file.endsWith(".md")) continue;
+    const text = await fs.read(file);
+    if (text.isErr() || !isGeneratedHostFile(text.value)) continue;
+    generated.add(file);
+    if (file.endsWith("/SKILL.md")) skills.push(file.slice(0, -"SKILL.md".length));
+  }
+  for (const file of files) if (skills.some((dir) => file.startsWith(dir))) generated.add(file);
+  return generated;
 }
