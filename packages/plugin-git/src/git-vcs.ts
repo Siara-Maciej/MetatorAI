@@ -345,7 +345,8 @@ export function excludeLocally(root: string, dir: string): void {
   const git = (...args: string[]) => Bun.spawnSync(["git", "-C", root, ...args], { stderr: "ignore" });
   const common = git("rev-parse", "--git-common-dir");
   if (common.exitCode !== 0) return;
-  if (git("check-ignore", "-q", `${dir}/x`).exitCode === 0) return;
+  const ignored = git("check-ignore", "-q", join(dir, "x")).exitCode === 0;
+  if (ignored) return;
   const gitDir = common.stdout.toString().trim();
   const file = join(isAbsolute(gitDir) ? gitDir : join(root, gitDir), "info", "exclude");
   const known = existsSync(file) ? readFileSync(file, "utf8") : "";

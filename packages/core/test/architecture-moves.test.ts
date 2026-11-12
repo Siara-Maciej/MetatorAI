@@ -101,6 +101,24 @@ describe("moves", () => {
     ).toEqual([]);
   });
 
+  test("an import by a package's name that its package never declared stays undeclared when the file moves", () => {
+    // web imports pricing by name without declaring it (the graph resolves it with or without an install).
+    const undeclared = input({
+      imports: [
+        ...input().imports,
+        imp("apps/web/src/main.ts", "packages/pricing/src/index.ts", "@x/pricing"),
+      ],
+    });
+    const moved = applyMoves(undeclared, [
+      { type: "extract", files: ["apps/web/src/main.ts"], package: { name: "@x/shell", dir: "apps/shell" } },
+    ]);
+    // What web declared (cart) goes with the file; what it did not (pricing) is not declared for it.
+    expect(moved.declared).toEqual([{ package: "@x/shell", dependency: "@x/cart" }]);
+    expect(analyzeArchitecture(moved.input).violations.map((v) => v.id)).toContain(
+      "undeclared:@x/shell→@x/pricing",
+    );
+  });
+
   test("check: no package merges into or inverts against itself; an extract lands on free ground", () => {
     expect(
       checkMoves(input(), [
@@ -224,6 +242,11 @@ describe("moves", () => {
     expect([inverted.input.externals, analyzeArchitecture(inverted.input).cycles]).toEqual([[], []]);
     // An unrelated missing declaration stays missing: only what the move touches is declared.
     const undeclared = input({
+      // Reached by a relative path: no import by name that could be read as a declaration to keep.
+      imports: [
+        imp("apps/web/src/main.ts", "packages/cart/src/index.ts", "../../../packages/cart/src/index.ts"),
+        ...input().imports.slice(1),
+      ],
       manifests: {
         packages: input().manifests.packages.map((p) =>
           p.name === "@x/web" ? { ...p, dependencies: {} } : p,

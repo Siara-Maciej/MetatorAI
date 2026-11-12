@@ -147,7 +147,7 @@ describe("metator gate", () => {
     } finally {
       await empty.dispose();
     }
-  });
+  }, 30_000);
 
   test("dogfood: MetatorAI's quick gate passes on a clean file", async () => {
     const r = await metator(

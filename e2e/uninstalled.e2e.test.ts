@@ -93,7 +93,9 @@ describe("a monorepo before install", () => {
   test("index build: relative imports and each app's own paths resolve, with a warning why it is approximate", async () => {
     const r = await metator(["index", "build"], repo.root);
     expect(r.code).toBe(0);
-    expect(data(r)).toMatchObject({ edges: 4, unresolved: [] });
+    // Four by path or alias, and the two lint configs that import the shared one by its package
+    // name: a workspace package is an edge whether or not node_modules links it.
+    expect(data(r)).toMatchObject({ edges: 6, unresolved: [] });
     const warnings = r.json.warnings as string[];
     expect(warnings).toContain(
       "apps/web/tsconfig.json extends a config that is not installed; its own paths are used as aliases. Install dependencies for exact resolution.",
