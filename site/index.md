@@ -22,7 +22,7 @@ It works with GitHub Copilot and Claude Code. Everything stays on your machine, 
 
 Click **+ New session** and tell the agent what you want. It answers questions about the code with `file:line` references, and starts a run when you ask for a change. Each run gets its own tab and its own git worktree, so several can go on side by side.
 
-![A session: the stages of the run across the top, the agent's terminal, and the boxes with its question, the applications and the changed files](./public/screens/session.png)
+![The Session screen of a run: its stages across the top, the agent's terminal, and the boxes with its question, the applications and the changed files](./public/screens/session.png)
 
 ### 2. Watch the agents, or do something else
 

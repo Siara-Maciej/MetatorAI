@@ -1,8 +1,10 @@
 # Gates and approvals
 
-A gate is a stage that a run cannot pass on an agent's word. This page lists the kinds of gates, shows how to approve or reject one, and explains how the autonomy level changes which gates ask you.
+A run cannot pass some stages on an agent's word. A gate is a check that a tool or a second agent decides. An approval is a stage that waits for a named person. This page lists both, shows how to approve or reject, and explains how the autonomy level changes which approvals ask you.
 
 ## Kinds of gates
+
+A workflow has two kinds of gate and the approval:
 
 | Kind | Opened by | Examples |
 |---|---|---|
@@ -40,10 +42,10 @@ An approval is recorded in `state.json` and `log.md` with the name and the time.
 ```json
 {"ok":false,"error":{"code":"TRANSITION_DENIED",
  "message":"Stage \"plan-approval\" (active) does not accept PASS",
- "hint":"This gate needs a human decision: APPROVE, FAIL, ABORT."}}
+ "hint":"This approval needs a person's decision: APPROVE, FAIL, ABORT."}}
 ```
 
-When a run is driven from the terminal, the same gates arrive as questions. Answer them from one queue with `metator inbox` and `metator run answer` (see [Answer questions](../use/inbox.md)).
+When a run is driven from the terminal, the same approvals arrive as questions. Answer them from one queue with `metator inbox` and `metator run answer` (see [Answer questions](../use/inbox.md)).
 
 ## Push and comments
 
@@ -80,7 +82,7 @@ A run has an autonomy level. It decides which approval stages ask you.
 | `L1` | stages the workflow marks `skipAt: [L1]` are passed by the level. In the shipped workflows that is the plan approval. |
 | `L2` | headless, for `mt-pr-review` in CI. Its approval stage is marked `skipAt: [L2]`. |
 
-Set the level when you start the run, or switch an `L0` run to `L1` while approving a gate:
+Set the level when you start the run, or switch an `L0` run to `L1` while you approve:
 
 ```bash
 metator run init --workflow mt-feature --task "Bump the retry limit" --autonomy L1

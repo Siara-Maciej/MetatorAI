@@ -148,32 +148,32 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await expect(page.getByText("Inbox zero")).toBeTruthy();
     await page.getByRole("button", { name: "+ New session" }).click();
     const workbench = page.getByTestId("workbench");
-    const intake = workbench.locator('.pane-frame[aria-label^="intake"]').first();
+    const intake = workbench.locator('.pane-frame[aria-label^="chat"]').first();
     await intake.waitFor({ timeout: 20_000 });
     await until("the agent's greeting", async () =>
       (await intake.textContent())?.includes("describe a task and I start the run") ? true : undefined,
     );
-    // The pane belongs to the "intake" workspace, not to a run; the host got the entry-point prompt.
+    // The pane belongs to the "chat" workspace, not to a run; the host got the entry-point prompt.
     const layout = (await api("/layout")).data as {
       workspaces: { id: string; label: string; runId?: string }[];
       panes: { id: string; role: string; label: string; runId?: string; process: { prompt?: string } }[];
     };
-    const pane = layout.panes.find((p) => p.label === "intake");
+    const pane = layout.panes.find((p) => p.label === "chat");
     expect(pane).toMatchObject({ role: "apps" });
     expect(pane?.runId).toBeUndefined();
     expect(pane?.process.prompt).toContain("entry point");
-    expect(layout.workspaces.find((w) => w.label === "intake")?.runId).toBeUndefined();
-    // A second click reuses the workspace: one "intake" workspace, two panes.
+    expect(layout.workspaces.find((w) => w.label === "chat")?.runId).toBeUndefined();
+    // A second click reuses the workspace: one "chat" workspace, two panes.
     await page.getByRole("button", { name: "+ New session" }).click();
     await until("the second pane", async () => {
       const l = (await api("/layout")).data as {
         panes: { label: string }[];
         workspaces: { label: string }[];
       };
-      return l.panes.filter((p) => p.label === "intake").length === 2 ? l : undefined;
+      return l.panes.filter((p) => p.label === "chat").length === 2 ? l : undefined;
     });
     const again = (await api("/layout")).data as { workspaces: { label: string }[] };
-    expect(again.workspaces.filter((w) => w.label === "intake")).toHaveLength(1);
+    expect(again.workspaces.filter((w) => w.label === "chat")).toHaveLength(1);
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
     await page.getByTestId("connection").waitFor({ timeout: 20_000 });
   }, 60_000);

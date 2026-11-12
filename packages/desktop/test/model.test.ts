@@ -18,6 +18,7 @@ import {
   inboxChips,
   isFinished,
   keyMapOf,
+  keyText,
   needsReason,
   neighborPane,
   newQuestions,
@@ -552,6 +553,14 @@ describe("hosts, workflows and repositories (D1, D5, D10)", () => {
     expect(autonomyLabel("L1")).toBe("L1: skips the approvals the workflow lets it skip");
     expect(autonomyLabel("L2")).toBe("L2: no person at hand; only the approvals that are never skipped wait");
     expect(autonomyLabel("L9")).toBe("L9");
+  });
+
+  test("a key reads as it is pressed: the prefix key first, then the letter", () => {
+    expect(keyText(DEFAULT_KEYS, "newShell")).toBe("ctrl+b then c");
+    expect(keyText({ ...DEFAULT_KEYS, prefix: ["ctrl+a"] }, "goto")).toBe("ctrl+a then g");
+    expect(keyText({ newShell: ["ctrl+shift+s"] }, "newShell")).toBe("ctrl+shift+s");
+    expect(keyText({ newShell: ["prefix+c"] }, "newShell")).toBe("the prefix key then c");
+    expect(keyText(DEFAULT_KEYS, "nothing")).toBeUndefined();
   });
 
   test("the form offers the autonomy levels the workflow runs at; L0 and L1 when the daemon does not say", () => {

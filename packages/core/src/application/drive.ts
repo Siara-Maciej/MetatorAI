@@ -925,7 +925,8 @@ export class DriveRun {
   /** What waiting costs: ports the worktree holds, loops used, children waiting on this run. */
   private async costOfDelay(ctx: StageContext): Promise<string[]> {
     const out: string[] = [];
-    if (ctx.ports) out.push(`holds ports ${ctx.ports.from}–${ctx.ports.from + ctx.ports.count - 1}`);
+    if (ctx.ports)
+      out.push(`its worktree keeps ports ${ctx.ports.from}–${ctx.ports.from + ctx.ports.count - 1} busy`);
     for (const [loop, used] of Object.entries(ctx.loops))
       if (used > 0) out.push(`loop ${loop}: ${used} of ${ctx.loopLimits[loop] ?? "?"} used`);
     if (ctx.children.length > 0) out.push(`${ctx.children.length} child run(s) depend on this run`);

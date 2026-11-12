@@ -116,7 +116,7 @@ function Shell() {
   }, [route, go]);
   /**
    * "+ New session" (T1, design/14 §2): a pane with the orchestrator as the entry point in the
-   * "intake" workspace; the person talks, the agent starts the run. The host is the first of the
+   * "chat" workspace; the person talks, the agent starts the run. The host is the first of the
    * repository's `hostOrder` that is installed (D1); with none installed, or when the daemon
    * refuses, the app says so instead of opening a tab that cannot work.
    */
@@ -134,7 +134,7 @@ function Shell() {
       return;
     }
     const p = await client.openPane(
-      { label: "intake", newTab: true, role: "apps", agent: "mt-orchestrator", host },
+      { label: "chat", newTab: true, role: "apps", agent: "mt-orchestrator", host },
       repo,
     );
     if (p.ok && p.data) {

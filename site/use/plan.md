@@ -42,7 +42,7 @@ The **Backlog** screen lists **agents' proposals** first, then the **open** task
 | Button | On | Does |
 |---|---|---|
 | **+ task** | the top bar | opens a form: title, what and why, priority, labels |
-| **Start a run** | an open task | starts a run with the task's title and text, in a new worktree, and opens its session. The select **a run starts on** beside the buttons names the workflow: `mt-feature` when the repository has it, else its first one |
+| **Start a run** | an open task | starts a run with the task's title and text, in a new worktree, and opens its **Session** screen. The select **a run starts on** beside the buttons names the workflow: `mt-feature` when the repository has it, else its first one |
 | **Done**, **Drop** | an open task | closes it as done, or as not going to be done |
 | **Add** | a proposal | makes it a task |
 | **Add and start a run** | a proposal | makes it a task and starts a run on it |
@@ -78,7 +78,7 @@ metator issue close i001 --by maciej     # done
 metator issue drop i002 --by maciej      # not going to be done
 ```
 
-Commands that change a task take `--by <name>`. `issue start` makes the issue `in-progress` and remembers the run. A task whose run is still active is not started a second time: the command is refused and names the run. The run works in a new worktree unless you pass `--no-worktree`. When tracked files have uncommitted changes, the start is refused and names them: commit or stash them, or pass `--allow-dirty` to start from the last commit without them. In the app, the refusal comes with the button **Start from the last commit**, which does the same. `metator issue list --run <id>` lists the tasks tied to a run: started from it, proposed in it, or pointing at it.
+Commands that change a task take `--by <name>`; without it the name comes from `$METATOR_USER`, or else from `git config user.name`. `issue start` makes the issue `in-progress` and remembers the run. A task whose run is still active is not started a second time: the command is refused and names the run. The run works in a new worktree unless you pass `--no-worktree`. When tracked files have uncommitted changes, the start is refused and names them: commit or stash them, or pass `--allow-dirty` to start from the last commit without them. In the app, the refusal comes with the button **Start from the last commit**, which does the same. `metator issue list --run <id>` lists the tasks tied to a run: started from it, proposed in it, or pointing at it.
 
 ```bash
 metator issue decide i002 --add --by maciej

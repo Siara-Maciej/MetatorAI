@@ -539,6 +539,16 @@ export const keyMapOf = (options: readonly Pick<ResolvedOption, "key" | "value">
  * What a chord does: with the prefix pressed before, the actions bound to `prefix+<chord>`;
  * without, the ones bound to the bare chord (the prefix itself is `prefix`).
  */
+/**
+ * The keys of an action as a person presses them: `prefix+c` reads `ctrl+b then c` (the prefix key
+ * first, then the letter). Undefined when the action has no key.
+ */
+export function keyText(map: KeyMap, action: string): string | undefined {
+  const chord = map[action]?.[0];
+  if (!chord?.startsWith("prefix+")) return chord;
+  return `${map.prefix?.[0] ?? "the prefix key"} then ${chord.slice("prefix+".length)}`;
+}
+
 export function actionOf(map: KeyMap, chord: string, prefixed: boolean): string | undefined {
   const wanted = prefixed ? `prefix+${chord}` : chord;
   for (const [action, chords] of Object.entries(map)) if (chords.includes(wanted)) return action;

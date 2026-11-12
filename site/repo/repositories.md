@@ -49,7 +49,7 @@ Run `metator` in the folder that holds the repositories to see all of them at on
 cd ~/work
 metator repos list       # each repository and whether MetatorAI is set up in it
 metator repos status     # each repository's active runs, questions waiting for you, running services
-metator ui               # every repository's sessions on one screen
+metator ui               # every repository's runs on one screen
 ```
 
 A folder that is not a repository but holds repositories works this way without any file. To fix the list and the names, write one:
