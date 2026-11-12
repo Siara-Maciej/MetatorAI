@@ -292,6 +292,12 @@ export interface Cradle {
   driverLock: DriverLock;
   terminal: Terminal;
   interactiveHosts: ReadonlyMap<string, InteractiveHost>;
+  /** Every interactive host with the program it starts and whether that program is on this machine. */
+  hostStatus: () => readonly {
+    readonly id: string;
+    readonly command?: string;
+    readonly installed: boolean;
+  }[];
   ptyBroker: PtyBroker;
   layoutStore: LayoutStore;
   panes: Panes;

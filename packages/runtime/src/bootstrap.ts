@@ -544,6 +544,22 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         hosts.set(host.id, host);
       return hosts;
     }).singleton(),
+    // Which interactive hosts can start here: the program each one runs, looked up when asked
+    // (a host installed while the daemon runs is found without a restart).
+    hostStatus: asFunction(({ interactiveHosts }) => () => {
+      const commands: Readonly<Record<string, string>> = {
+        copilot: options.copilotBin ?? "copilot",
+        claude: options.claudeBin ?? "claude",
+        opencode: options.opencodeBin ?? "opencode",
+      };
+      return [...interactiveHosts.keys()].map((id) => {
+        const command = commands[id];
+        // A host with no program of its own (the scenario a test plays) is always there.
+        return command === undefined
+          ? { id, installed: true }
+          : { id, command, installed: commandExists(command) };
+      });
+    }).singleton(),
     ptyBroker: asFunction(
       ({ runRepository, runJournal, config, clock }) =>
         new PtyBroker({
@@ -1415,6 +1431,10 @@ async function worktreeChanges(
     .filter(Boolean);
   return ok([...new Set(files)].sort());
 }
+
+/** Whether a program can be started: a path that exists, or a name found on PATH. */
+const commandExists = (command: string): boolean =>
+  command.includes("/") ? existsSync(command) : Bun.which(command) !== null;
 
 const isDirectory = (path: string): boolean => {
   try {
