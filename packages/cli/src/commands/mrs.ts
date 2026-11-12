@@ -1,7 +1,6 @@
 import { err, ok, THREAD_KINDS, THREAD_STATES, type ThreadKind, type ThreadState } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
-import { BY_DEFAULT, who } from "../who.ts";
 
 /**
  * `metator mrs` (T3, design/14 §4): reviews of my own pull (merge) requests. The daemon keeps
@@ -83,24 +82,18 @@ export function registerMrsCommands(program: Command, { action, container }: Com
     .command("send")
     .description("Post every proposed reply that was not sent yet to the host")
     .argument("<id>", "the request")
-    .option("--by <name>", `the person who decides to send them${BY_DEFAULT}`)
-    .action(
-      action(async (id: string, opts: { by?: string }) => {
-        const by = await who(container(), opts.by);
-        return { result: by.isErr() ? by : await reviews().send(id, { by: by.value }) };
-      }),
-    );
+    .requiredOption("--by <name>", "the person who decides to send them")
+    .action(action(async (id: string, opts: { by: string }) => ({ result: await reviews().send(id, opts) })));
 
   mrs
     .command("resolve")
     .description("Close a thread at the host")
     .argument("<id>", "the request")
     .requiredOption("--thread <thread>", "the thread's id")
-    .option("--by <name>", `the person who decides to close it${BY_DEFAULT}`)
+    .requiredOption("--by <name>", "the person who decides to close it")
     .action(
-      action(async (id: string, opts: { thread: string; by?: string }) => {
-        const by = await who(container(), opts.by);
-        return { result: by.isErr() ? by : await reviews().resolve(id, opts.thread, { by: by.value }) };
-      }),
+      action(async (id: string, opts: { thread: string; by: string }) => ({
+        result: await reviews().resolve(id, opts.thread, { by: opts.by }),
+      })),
     );
 }

@@ -155,9 +155,19 @@ describe("metator issue (real CLI)", () => {
     expect(data(await mt("issue", "show", "i001")).runId).toBe(started.runId);
     expect((await mt("issue", "close", "i001", "--by", "maciej")).code).toBe(0);
     const fourth = data(await mt("issue", "add", "Old TODO", "--by", "maciej"));
-    expect(data(await mt("issue", "drop", fourth.id as string, "--by", "maciej"))).toMatchObject({
+    // Without --by the name is $METATOR_USER, else the one git signs commits with; with none, a usage error.
+    const named = { METATOR_USER: "ada" };
+    expect(data(await metator(["issue", "drop", fourth.id as string], repo.root, named))).toMatchObject({
       status: "dropped",
     });
+    const nameless = await metator(["issue", "add", "Nobody's task"], repo.root, {
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    });
+    expect([nameless.code, (nameless.json.error as Data).message]).toEqual([
+      64,
+      "say who you are: --by <name>",
+    ]);
     expect(
       data(await mt("issue", "edit", "i002", "--priority", "low", "--labels", "billing,correctness")),
     ).toMatchObject({
