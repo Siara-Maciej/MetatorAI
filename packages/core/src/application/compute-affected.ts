@@ -1,7 +1,7 @@
 import type { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { DependencyGraph, type Edge } from "../domain/graph.ts";
-import { resolveAmong } from "../domain/import-index.ts";
+import { filesAtCandidate, resolveAmong } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { ImportGraphReader, Vcs } from "../ports/index.ts";
 
@@ -38,9 +38,15 @@ export class ComputeAffected {
     // A deleted (or renamed) module is no node of the working tree's graph: its importers are
     // the files whose import of it resolves to nothing now.
     const changedSet = new Set(changed.value);
+    // A relative import names the file itself; an alias or a package name comes with the places it leads to.
     const dangling: Edge[] = graph.value.unresolved.flatMap((u) => {
-      const to = resolveAmong(u.from, u.specifier, changedSet, this.extensions);
-      return to ? [{ from: u.from, to, kind: "internal" as const }] : [];
+      const relative = resolveAmong(u.from, u.specifier, changedSet, this.extensions);
+      const named = (u.candidates ?? []).flatMap((c) => filesAtCandidate(c, changedSet, this.extensions));
+      return [...(relative ? [relative] : []), ...named].map((to) => ({
+        from: u.from,
+        to,
+        kind: "internal" as const,
+      }));
     });
     const files = [
       ...new DependencyGraph([...graph.value.edges, ...dangling]).affected(changed.value),

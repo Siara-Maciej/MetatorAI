@@ -57,8 +57,20 @@ describe("metator init", () => {
       "quick:script lint + files",
       "full:script test",
     ]);
+    // Warnings go out once, in the envelope, never inside the data too (C11).
+    expect(data(r).warnings).toBeUndefined();
     expect((await metator(["init"], repo.root)).code).toBe(64);
     expect((await metator(["init", "--dry-run"], repo.root)).code).toBe(0);
+    const bare = await ScratchRepo.create();
+    try {
+      await bare.write("package.json", JSON.stringify({ name: "bare", scripts: { test: "true" } }));
+      await bare.commit("init");
+      const dry = await metator(["init", "--dry-run"], bare.root);
+      expect(dry.json.warnings).toEqual(["no file-scoped checks found for the quick gate; add one by hand"]);
+      expect(Object.keys(data(dry)).sort()).toEqual(["config", "decisions", "written"]);
+    } finally {
+      await bare.dispose();
+    }
   });
 
   test("config show reports the file; an invalid config stops every command with the field", async () => {

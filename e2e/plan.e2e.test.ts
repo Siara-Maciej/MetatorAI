@@ -161,6 +161,18 @@ describe("metator plan scope / schema (real CLI)", () => {
     expect([saved.kind, saved.schemaVersion]).toEqual(["PlanScope", 1]);
     expect((await findUnversioned(repo.root, [RUN])).unversioned).toEqual([]);
 
+    // --dry-run prints the same scope and writes nothing.
+    await rm(repo.path(`${RUN}/plan-scope.json`));
+    const dry = await metator(["plan", "scope", `${RUN}/plan.json`, "--dry-run"], repo.root);
+    const printed = dry.json.data as { output?: string; edit: string[] };
+    expect([dry.code, printed.output, printed.edit]).toEqual([0, undefined, scope.edit]);
+    expect(await repo.exists(`${RUN}/plan-scope.json`)).toBe(false);
+    const both = await metator(
+      ["plan", "scope", `${RUN}/plan.json`, "--dry-run", "--out", "x.json"],
+      repo.root,
+    );
+    expect((both.json.error as { code: string }).code).toBe("USAGE");
+
     const custom = await metator(
       ["plan", "scope", `${RUN}/plan.json`, "--out", `${RUN}/scope/s.json`],
       repo.root,

@@ -71,7 +71,7 @@ Start a rule at E2 and move it to E1 when you can express it for a tool.
 ## See what an agent gets
 
 ```bash
-metator rules pack --paths packages/core/src/domain/hook.ts
+metator rules pack --files packages/core/src/domain/hook.ts
 ```
 
 In MetatorAI's own repository this prints (trimmed):
@@ -83,7 +83,7 @@ In MetatorAI's own repository this prints (trimmed):
   {"id":"MT-CODE-001","title":"Errors are values","implementation":"ast-grep:mt-code-001"}]}}
 ```
 
-`rules` holds the E2 and E3 rules in full, because the agent has to follow them by reading. `enforcedByTools` lists the E1 rules by title only: the tool reports those. Without `--paths`, the pack covers the files changed against `--base` (default `HEAD`). `--budget <tokens>` caps the size of the pack.
+`rules` holds the E2 and E3 rules in full, because the agent has to follow them by reading. `enforcedByTools` lists the E1 rules by title only: the tool reports those. Without `--files`, the pack covers the files changed against `--base` (default `HEAD`). `--budget <tokens>` caps the size of the pack.
 
 ## Generate host instructions
 

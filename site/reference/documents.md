@@ -8,7 +8,7 @@ Two kinds of files are written for people and carry no header: views rendered fr
 
 ```yaml
 kind: MetatorConfig
-schemaVersion: 11
+schemaVersion: 12
 ```
 
 A file with an older `schemaVersion` is upgraded when it is read. A file with a newer one is refused, and the error asks you to upgrade MetatorAI.

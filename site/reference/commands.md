@@ -122,11 +122,15 @@ metator graph dependents [options] <file>
 
 ### `metator graph cycles`
 
-Import cycles (strongly connected components)
+Import cycles (strongly connected components); type-only imports count
 
 ```bash
 metator graph cycles [options]
 ```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--check` | fail when there is a cycle (CI, `bun run arch`) |  |
 
 ### `metator graph path`
 
@@ -744,7 +748,7 @@ metator rules lint [options]
 
 ### `metator rules pack`
 
-Rules that apply to the given paths (default: files changed against --base), sized for an agent
+Rules that apply to the given files (default: files changed against --base), sized for an agent
 
 ```bash
 metator rules pack [options]
@@ -752,7 +756,7 @@ metator rules pack [options]
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `--paths <files...>` | repo-relative paths the agent will touch |  |
+| `--files <files...>` | repo-relative files the agent will touch |  |
 | `--base <ref>` | use files changed against this git ref | `"HEAD"` |
 | `--budget <tokens>` | token budget for the pack |  |
 
@@ -1520,7 +1524,7 @@ metator eval run [options]
 | `--command <template>` | e.g. 'scripts/review-case.sh {case} {base} {head} {out}' **Required.** |  |
 | `--runs-dir <dir>` | where each run writes &lt;case&gt;/&lt;run&gt;/ | `".metator/evals"` |
 | `--repeat <n>` | runs per case (stability) | `3` |
-| `--timeout-ms <ms>` | per run | `1800000` |
+| `--timeout <ms>` | time limit for one run | `1800000` |
 
 ### `metator eval list`
 
@@ -1607,6 +1611,7 @@ metator plan scope [options] <file>
 |---|---|---|
 | `<file>` | plan JSON | |
 | `--out <file>` | where to write the PlanScope document |  |
+| `--dry-run` | print the scope without writing it |  |
 
 ### `metator plan schema`
 
@@ -1785,7 +1790,7 @@ metator run init [options]
 | `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
 | `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
 | `--no-setup` | with --worktree: leave the worktree without its dependencies (metator worktree setup later) |  |
-| `--allow-dirty` | with --worktree: start although tracked files have uncommitted changes (the run starts from the last commit, without them) |  |
+| `--allow-dirty` | start although tracked files have uncommitted changes (with --worktree the run starts from the last commit, without them; in this checkout they become part of its change) |  |
 | `--parent <run>` | the run this one is a child of (a system run, possibly in another repository) |  |
 | `--input <name=value>` | a workflow input its scripts read as {name} (repeatable), e.g. base=main | `[]` |
 
@@ -2478,6 +2483,7 @@ metator doctor [options]
 |---|---|---|
 | `--worktree <id>` | look at this worktree (a run's) instead of this checkout |  |
 | `--run <id>` | look at this run's worktree |  |
+| `--gates` | also run the quick gate once and say whether it is green (takes the gate's time; this checkout only) |  |
 
 ## inbox
 

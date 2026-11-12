@@ -56,7 +56,7 @@ items:
     tier: T1
     kind: canon
     paths: ["docs/metator/rules/*.yml"]
-    load: "query:metator rules pack --paths <files>"
+    load: "query:metator rules pack --files <files>"
     writers: [human]
     readers: ["*"]
   - id: t1.dependencies

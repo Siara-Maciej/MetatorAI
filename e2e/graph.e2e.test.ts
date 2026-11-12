@@ -80,6 +80,18 @@ describe("metator graph", () => {
     });
   });
 
+  test("cycles --check fails with the cycle in the message; without it the list is only read", async () => {
+    const r = await metator(["graph", "cycles", "--check"], repo.root);
+    const error = r.json.error as { code: string; message: string; details: { cycles: string[][] } };
+    expect([r.code, error.code, error.message]).toEqual([
+      1,
+      "CHECK_FAILED",
+      "1 import cycle(s): packages/billing/src/round.ts ↔ packages/billing/src/tax.ts",
+    ]);
+    expect(error.details.cycles).toEqual([["packages/billing/src/round.ts", "packages/billing/src/tax.ts"]]);
+    expect((await metator(["graph", "cycles"], repo.root)).code).toBe(0);
+  });
+
   test("deps resolves workspace packages, tsconfig paths, CSS and .js → .ts imports", async () => {
     const r = await metator(["graph", "deps", "apps/web/src/main.ts"], repo.root);
     expect(data(r).files).toEqual([
@@ -223,7 +235,7 @@ describe("metator workspace list", () => {
 
 describe("dogfood: the MetatorAI repository", () => {
   test("has no import cycles", async () => {
-    expect(data(await metator(["graph", "cycles", "--root", SELF], SELF))).toEqual({ cycles: [] });
+    expect(data(await metator(["graph", "cycles", "--check", "--root", SELF], SELF))).toEqual({ cycles: [] });
   });
 
   test("core depends on no plugin, runtime wires every plugin", async () => {

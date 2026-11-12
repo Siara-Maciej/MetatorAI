@@ -34,6 +34,9 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 ## Pitfalls
 
 - Validate option values with commander (`choices`, `argParser`), not by hand (MT-CODE-004).
+- One flag name per meaning: a list of files is `--files`, a time limit is `--timeout` (`FLAG_NAMES` in `src/options.ts`, pinned by `test/flag-names.test.ts`). A renamed flag keeps its old spelling as `renamedOption`, hidden from the help and the reference.
+- An MCP tool only reads (`src/mcp.ts`): an option of a reading command that writes or runs the project's scripts goes into `REFUSED`, or the tool always passes the option that makes it read-only (`ALWAYS`: `plan scope --dry-run`).
+- Warnings go out once, in the envelope: a command strips them from its data unless the data is a stored document whose schema has the field (`discover`).
 - A new command must be added to the help list in `e2e/cli.e2e.test.ts`.
 - A detached drive is started only through `startDetached` (`src/sessions.ts`): it refuses a run that is not active and a host that cannot start, where the background process would end without a word.
 - `metator status` asks a live daemon for its overview first: only the daemon holds the panes, and a run whose agent works in one counts as working only there.

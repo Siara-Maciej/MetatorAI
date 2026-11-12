@@ -70,4 +70,39 @@ describe("ComputeAffected", () => {
       tests: ["packages/a/test/gone.test.ts"],
     });
   });
+
+  test("a deleted module imported by an alias or by a package name: the importer is affected (C1)", async () => {
+    const reader = (changedOnly = false): ImportGraphReader => ({
+      read: async () => ok(edges),
+      graph: async () =>
+        ok({
+          edges,
+          unresolved: changedOnly
+            ? []
+            : [
+                { from: "apps/web/src/main.ts", specifier: "@app/util", candidates: ["apps/web/src/util"] },
+                { from: "apps/web/src/page.ts", specifier: "@app/gone/", candidates: ["apps/web/src/gone"] },
+                { from: "packages/b/src/use.ts", specifier: "@x/money", candidates: ["packages/money/"] },
+                { from: "packages/b/src/other.ts", specifier: "@x/else", candidates: ["packages/else/"] },
+                { from: "packages/b/src/bare.ts", specifier: "left-pad" },
+              ],
+        }),
+    });
+    const changed = ["apps/web/src/util.ts", "apps/web/src/gone/index.ts", "packages/money/src/index.ts"];
+    const affected = (
+      await new ComputeAffected(vcs(changed), reader(), testGlobs, [".ts"]).execute({ base: "main" })
+    )._unsafeUnwrap();
+    expect(affected.files).toEqual([
+      "apps/web/src/gone/index.ts",
+      "apps/web/src/main.ts",
+      "apps/web/src/page.ts",
+      "apps/web/src/util.ts",
+      "packages/b/src/use.ts",
+      "packages/money/src/index.ts",
+    ]);
+    const plain = (
+      await new ComputeAffected(vcs(changed), reader(true), testGlobs, [".ts"]).execute({ base: "main" })
+    )._unsafeUnwrap();
+    expect(plain.files).toEqual([...changed].sort());
+  });
 });

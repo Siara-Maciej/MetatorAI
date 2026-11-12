@@ -13,7 +13,7 @@ output: { artifact: rulepack.md, summaryLines: 10 }
 - The files and packages from `analysis.json`.
 
 # Procedure
-1. `metator rules pack --paths <files>`.
+1. `metator rules pack --files <files>`.
 2. For each id in `omitted`, `metator rules show <id>` only if the plan depends on it.
 3. Keep E2 and E3 rules with their do/don't; list E1 rules by id only (tools enforce them).
 

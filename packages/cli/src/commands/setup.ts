@@ -192,8 +192,9 @@ export function registerSetupCommands(
           generated: (generated.envelope.data as { written: string[] }).written.length,
           gitignore: ignored.value,
           checks,
-          // What the guide says comes next: what a run cannot do here yet, then the daemon the app talks to.
-          next: ["metator doctor", "metator serve"],
+          // What the guide says comes next: what a run cannot do here yet (with --gates: whether the
+          // quick gate is green before any run), then the daemon the app talks to.
+          next: ["metator doctor", "metator doctor --gates", "metator serve"],
         };
         const failed = checks.filter((k) => !k.passed);
         if (failed.length > 0) {

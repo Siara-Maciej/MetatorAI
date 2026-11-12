@@ -130,7 +130,7 @@ Priorytet: **P0** = bez tego workflow nie jest enterprise (F1–F2), **P1** = is
 
 | Komenda | Po co | Prio |
 |---------|-------|------|
-| `rules pack --paths <…> [--from-run]` | rule pack: tylko reguły pasujące do ścieżek (`Bun.Glob`), ID + 1 zdanie + exemplar | P0 |
+| `rules pack --files <…> [--from-run]` | rule pack: tylko reguły pasujące do ścieżek (`Bun.Glob`), ID + 1 zdanie + exemplar | P0 |
 | `rules check --files <…>` | uruchamia reguły E1: `ast-grep scan` + `biome lint --only=…` i mapuje wyniki na `MT-*` | P0 |
 | `rules lint` | walidacja canon: schemat, unikalne ID, linki, exemplary, E1 ma implementację i test | P0 |
 | `rules adapters [--check]` | generuje `.github/instructions/mt-*.instructions.md` z canon | P0 |

@@ -22,7 +22,11 @@ export function registerConfigCommands(program: Command, { action, container, ru
         const report = await container()
           .resolve("initProject")
           .execute({ dryRun: opts.dryRun, ...(opts.host ? { hosts: opts.host } : {}) });
-        return { result: report, warnings: report.isOk() ? report.value.warnings : [] };
+        // The warnings go out once, in the envelope.
+        return {
+          result: report.map(({ warnings: _, ...written }) => written),
+          warnings: report.isOk() ? report.value.warnings : [],
+        };
       }),
     );
 

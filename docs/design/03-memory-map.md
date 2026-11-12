@@ -112,7 +112,7 @@ items:
     tier: T1
     kind: canon
     path: docs/metator/rules/*.md
-    load: "query:metator rules pack --paths <affected>"
+    load: "query:metator rules pack --files <affected>"
     writers: [human, mt-docs-curator(HITL), mt-retro(HITL)]
     readers: [mt-rule-curator, mt-plan-critic, mt-review-conventions]
     adapters: .github/instructions/mt-*.instructions.md

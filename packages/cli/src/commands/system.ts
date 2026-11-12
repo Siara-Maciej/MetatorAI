@@ -120,8 +120,12 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
                 "no application was found: no package runs on its own (a `bin`, a start, dev or serve script, a folder under apps/) and none has a Dockerfile. Add the applications to the map by hand, or give a package `kind: app` in the architecture policy.",
               ]
             : [];
+        // What the map lacks goes out once, in the envelope's warnings (in the error's details with --check).
         if (r.isErr() || !opts.check || r.value.drift.length === 0)
-          return { result: r, warnings: r.isOk() ? [...none, ...r.value.drift] : [] };
+          return {
+            result: r.map(({ drift: _, ...found }) => found),
+            warnings: r.isOk() ? [...none, ...r.value.drift] : [],
+          };
         return {
           result: err(
             new MetatorError(

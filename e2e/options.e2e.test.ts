@@ -107,7 +107,7 @@ describe("metator config (options, real CLI)", () => {
     const text = await repo.read("metator.config.yml");
     expect(text).toContain("# the person's editor");
     expect(parse(text)).toMatchObject({
-      schemaVersion: 11,
+      schemaVersion: 12,
       editor: "cursor",
       options: { "supervisor.wipLimit": 2 },
     });
@@ -209,6 +209,44 @@ describe("metator config (options, real CLI)", () => {
     } finally {
       daemon.kill("SIGTERM");
       await daemon.exited;
+    }
+  }, 60_000);
+
+  test("the local state has no path override (F3): a v11 config that moved the runs still keeps them in .metator/, and v12 refuses the key", async () => {
+    const moved = await ScratchRepo.create();
+    try {
+      await moved.write(".gitignore", ".metator/\n");
+      await moved.write(".github/metator/workflows/demo.yml", WORKFLOW);
+      await moved.write(
+        "metator.config.yml",
+        "kind: MetatorConfig\nschemaVersion: 11\npaths:\n  runs: state/runs # moved\n  adr: decisions\n",
+      );
+      await moved.commit("init");
+      const at = (...args: string[]) => metator(args, moved.root, env);
+      const paths = data(await at("config", "show")).paths as Record<string, string>;
+      expect([paths.runs, paths.adr]).toEqual([".metator/runs", "decisions"]);
+      const runId = data(await at("run", "init", "--workflow", "demo", "--task", "Where do runs live")).runId;
+      expect(await moved.exists(`.metator/runs/${runId}/state.json`)).toBe(true);
+      expect(await moved.exists("state/runs")).toBe(false);
+      // The run's own files are no part of its change.
+      expect(data(await at("review", "changes", "--run", runId as string)).files).toEqual([]);
+      // A setting saved by the CLI writes the file at v12, without the key.
+      expect((await at("config", "set", "supervisor.wipLimit", "2", "--scope", "repo")).code).toBe(0);
+      expect(parse(await moved.read("metator.config.yml"))).toMatchObject({
+        schemaVersion: 12,
+        paths: { adr: "decisions" },
+      });
+      expect(parse(await moved.read("metator.config.yml")).paths.runs).toBeUndefined();
+      await moved.write(
+        "metator.config.yml",
+        "kind: MetatorConfig\nschemaVersion: 12\npaths:\n  runs: state/runs\n",
+      );
+      const refused = await at("config", "show");
+      const error = refused.json.error as { code: string; message: string };
+      expect([refused.code !== 0, error.code]).toEqual([true, "INVALID_CONFIG"]);
+      expect(error.message).toContain("runs");
+    } finally {
+      await moved.dispose();
     }
   }, 60_000);
 });

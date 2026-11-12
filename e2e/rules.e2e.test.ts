@@ -113,9 +113,21 @@ describe("metator rules lint", () => {
 
 describe("metator rules pack / show", () => {
   test("explicit paths: E2 rules in full, E1 as a one-liner, other areas left out", async () => {
-    const r = await metator(["rules", "pack", "--paths", "./src/billing/invoice.ts"], repo.root);
+    const r = await metator(["rules", "pack", "--files", "./src/billing/invoice.ts"], repo.root);
     expect(r.code).toBe(0);
     expect(data(r).paths).toEqual(["src/billing/invoice.ts"]);
+    // The flag's old name still works and is no longer shown (B12); the same for eval run's time limit.
+    const old = await metator(["rules", "pack", "--paths", "./src/billing/invoice.ts"], repo.root);
+    expect([old.code, data(old).paths]).toEqual([0, ["src/billing/invoice.ts"]]);
+    const flags = async (...command: string[]) =>
+      (data(await metator([...command, "--help"], repo.root)).options as { flags: string }[]).map(
+        (o) => o.flags,
+      );
+    expect(await flags("rules", "pack")).toEqual(["--files <files...>", "--base <ref>", "--budget <tokens>"]);
+    expect(await flags("eval", "run")).toContain("--timeout <ms>");
+    expect(await flags("eval", "run")).not.toContain("--timeout-ms <ms>");
+    const usage = await metator(["eval", "run", "--command", "true", "--timeout-ms", "soon"], repo.root);
+    expect([usage.code, JSON.stringify(usage.json)]).toEqual([64, expect.stringContaining("--timeout-ms")]);
     expect((data(r).rules as { id: string }[]).map((x) => x.id)).toEqual(["ACME-TS-002"]);
     expect(data(r).enforcedByTools).toEqual([
       { id: "ACME-TS-001", title: "No var declarations", implementation: "ast-grep:no-var" },
@@ -134,7 +146,7 @@ describe("metator rules pack / show", () => {
   });
 
   test("an invalid budget is a usage error", async () => {
-    expect((await metator(["rules", "pack", "--paths", "src/a.ts", "--budget", "-5"], repo.root)).code).toBe(
+    expect((await metator(["rules", "pack", "--files", "src/a.ts", "--budget", "-5"], repo.root)).code).toBe(
       64,
     );
   });

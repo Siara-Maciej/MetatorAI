@@ -2,14 +2,14 @@
 kind: Workflow
 schemaVersion: 3
 id: mt-pr-review
-revision: 9
+revision: 10
 description: Shard, find with lenses, verify, judge, publish after approval
 entry: { prompt: mt-review, ci: true }
 input:
   oneOf: [pr, base]
   optional: [lenses]
 # Scripts read the run's inputs: `run init --input base=main`; without it, HEAD (the uncommitted change).
-preconditions: [index-fresh]
+preconditions: []
 limits: { parallel: 6 }
 stages:
   - id: metadata

@@ -1,7 +1,14 @@
-import { CONFIG_FILES, type HostTarget, MetatorConfigDocument } from "../domain/config.ts";
+import {
+  CONFIG_FILES,
+  type HostTarget,
+  MetatorConfigDocument,
+  RETIRED_CONFIG_KEYS,
+  withoutLocalStatePaths,
+} from "../domain/config.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
+  deleteYamlPaths,
   parseJsonDocument,
   parseYamlDocument,
   renderYamlDocument,
@@ -19,8 +26,9 @@ export interface ConfigChanges {
 
 /**
  * Saves settings in metator.config. A YAML file keeps its comments and its other settings; the
- * file is written at the current version, which every older file already is; without a config, a small one is created. The
- * result is validated before it is written.
+ * file is written at the current version, without the keys that version dropped (v12: the local
+ * state under `paths`); without a config, a small one is created. The result is validated before
+ * it is written.
  */
 export class UpdateConfig {
   constructor(private readonly fs: FileSystem) {}
@@ -52,8 +60,13 @@ export class UpdateConfig {
     const valid = MetatorConfigDocument.parse(current.value, file);
     if (valid.isErr()) return err(valid.error);
     const next = json
-      ? serializeJsonDocument(merge(current.value as Record<string, unknown>, nest(fields)))
-      : updateYamlFields(text.value, fields);
+      ? serializeJsonDocument(
+          merge(withoutLocalStatePaths(current.value) as Record<string, unknown>, nest(fields)) as {
+            kind: string;
+            schemaVersion: number;
+          },
+        )
+      : deleteYamlPaths(updateYamlFields(text.value, fields), RETIRED_CONFIG_KEYS);
     const after = (json ? parseJsonDocument(next, file) : parseYamlDocument(next, file)).andThen((raw) =>
       MetatorConfigDocument.parse(raw, file),
     );

@@ -1,4 +1,4 @@
-import { normalizePath } from "@metator/core";
+import { err, MetatorError, normalizePath, ok } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 
@@ -94,11 +94,27 @@ export function registerGraphCommands(program: Command, { action, container }: C
 
   graph
     .command("cycles")
-    .description("Import cycles (strongly connected components)")
+    .description("Import cycles (strongly connected components); type-only imports count")
+    .option("--check", "fail when there is a cycle (CI, `bun run arch`)", false)
     .action(
-      action(async () => ({
-        result: (await container().resolve("graphQueries").cycles()).map((cycles) => ({ cycles })),
-      })),
+      action(async (opts: { check: boolean }) => {
+        const cycles = await container().resolve("graphQueries").cycles();
+        if (cycles.isErr()) return { result: cycles };
+        if (opts.check && cycles.value.length > 0)
+          return {
+            result: err(
+              new MetatorError(
+                "CHECK_FAILED",
+                `${cycles.value.length} import cycle(s): ${cycles.value.map((c) => c.join(" ↔ ")).join("; ")}`,
+                {
+                  hint: "Break each cycle: move what both files need into a third one, or declare the type where it is used. `metator graph path <from> <to>` shows the chain; an `import type` is an edge too.",
+                  details: { cycles: cycles.value },
+                },
+              ),
+            ),
+          };
+        return { result: ok({ cycles: cycles.value }) };
+      }),
     );
 
   graph

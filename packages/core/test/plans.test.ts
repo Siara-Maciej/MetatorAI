@@ -232,4 +232,13 @@ describe("ScopePlan", () => {
       "./plan-scope.json",
     );
   });
+
+  test("a dry run computes the same scope and writes nothing", async () => {
+    const files = fs();
+    const dry = (
+      await new ScopePlan(files, graph([])).execute({ file: `${RUN}/plan.json`, dryRun: true })
+    )._unsafeUnwrap();
+    expect([dry.output, dry.shards.map((s) => s.steps)]).toEqual([undefined, [["S1", "S2", "S3", "S4"]]]);
+    expect(await files.exists(`${RUN}/plan-scope.json`)).toBe(false);
+  });
 });

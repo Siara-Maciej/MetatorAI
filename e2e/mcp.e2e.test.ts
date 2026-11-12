@@ -120,6 +120,31 @@ describe("metator mcp (real server over stdio)", () => {
     });
     expect(metadata.isError ?? false).toBe(false);
     const names = (await client.listTools()).tools.map((t) => t.name);
-    expect(names).not.toContain("metator_plan_scope");
+    // plan scope is a tool that computes the scope and never writes plan-scope.json.
+    expect(names).toContain("metator_plan_scope");
+    await repo.write(
+      "plan.json",
+      JSON.stringify({
+        kind: "Plan",
+        schemaVersion: 1,
+        task: "t",
+        scope: ["src/**"],
+        steps: [{ id: "S1", action: "modify", path: "src/a.ts", intent: "edit" }],
+      }),
+    );
+    const scope = await client.callTool({ name: "metator_plan_scope", arguments: { file: "plan.json" } });
+    expect(scope.isError ?? false).toBe(false);
+    expect(JSON.stringify(scope.content)).toContain("src/a.ts");
+    const out = await client.callTool({
+      name: "metator_plan_scope",
+      arguments: { file: "plan.json", args: ["--out", "scope.json"] },
+    });
+    expect([out.isError, text(out).error?.code, text(out).error?.message]).toEqual([
+      true,
+      "USAGE",
+      "the tool metator_plan_scope only reads: --out is refused",
+    ]);
+    for (const file of ["plan-scope.json", "scope.json"])
+      expect([file, await Bun.file(repo.path(file)).exists()]).toEqual([file, false]);
   });
 });

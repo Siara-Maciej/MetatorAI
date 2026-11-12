@@ -2,12 +2,12 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-self-review
-revision: 2
+revision: 3
 description: Review core, plan the blocking fixes, implement, review again
 entry: { prompt: mt-self-review }
 input:
   oneOf: [base]
-preconditions: [index-fresh]
+preconditions: []
 limits: { parallel: 6 }
 stages:
   - id: first-review

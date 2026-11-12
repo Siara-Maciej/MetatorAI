@@ -1,6 +1,8 @@
 import type { MetatorConfig } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
+import type { GateReport } from "../domain/gate.ts";
 import type { McpServers } from "../domain/mcp.ts";
+import { isPrecondition, PRECONDITIONS, preconditionKinds } from "../domain/preconditions.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { declaresDependencies } from "../domain/worktree.ts";
 import type { FileSystem, Vcs } from "../ports/index.ts";
@@ -21,9 +23,11 @@ export interface ReadinessCheck {
     | "git"
     | "commits"
     | "tree"
+    | "branch"
     | "host"
     | "workflows"
     | "gates"
+    | "green"
     | "dependencies"
     | "environment"
     | "remote"
@@ -47,6 +51,8 @@ export interface Readiness {
 export interface ReadinessInput {
   /** Look at this worktree (a run's session) instead of the repository's checkout. */
   readonly worktree?: string;
+  /** Run the quick gate once and say whether it is green (`doctor --gates`); it takes the gate's time. */
+  readonly gates?: boolean;
 }
 
 /** The lockfile names the package manager whose install command a person runs. */
@@ -91,11 +97,22 @@ export class CheckReadiness {
       readonly hosts?: () => readonly { readonly id: string; readonly problem?: string | undefined }[];
       /** Tracked files with uncommitted changes in the checkout; undefined when git cannot say. */
       readonly modified?: () => Promise<readonly string[] | undefined>;
+      /** Whether HEAD is detached (on no branch); undefined when git cannot say. */
+      readonly detached?: () => Promise<boolean | undefined>;
+      /** Runs the quick gate in the checkout. */
+      readonly quickGate?: () => Promise<Result<GateReport, MetatorError>>;
     } = {},
   ) {}
 
   async execute(input: ReadinessInput = {}): Promise<Result<Readiness, MetatorError>> {
     let place = ".";
+    if (input.gates && input.worktree)
+      return err(
+        MetatorError.usage(
+          "--gates runs the quick gate of this checkout, not of a worktree",
+          "Run `metator gate quick` in the worktree's directory.",
+        ),
+      );
     if (input.worktree) {
       const wt = await this.worktrees.get(input.worktree);
       if (wt.isErr()) return err(wt.error);
@@ -167,8 +184,9 @@ export class CheckReadiness {
               : "metator init (it proposes gates from the repository's scripts)",
           },
     );
+    if (input.gates) checks.push(await this.green());
     checks.push(...this.hosts());
-    if (place === ".") checks.push(...(await this.tree()));
+    if (place === ".") checks.push(...(await this.tree()), ...(await this.branch()));
     checks.push(await this.dependencies(place));
     checks.push(await this.environment(input.worktree));
     checks.push(await this.mcpServers());
@@ -235,6 +253,63 @@ export class CheckReadiness {
         fix: "git commit -am <message>, or git stash",
       },
     ];
+  }
+
+  /** A detached HEAD: commits made here are on no branch, and there is no branch to push. Said only then. */
+  private async branch(): Promise<ReadinessCheck[]> {
+    if (!(await this.here.detached?.())) return [];
+    return [
+      {
+        id: "branch",
+        status: "warn",
+        message:
+          "HEAD is detached: a run in this checkout commits to no branch, and its publish stage has none to push",
+        fix: "git switch -c <branch>",
+      },
+    ];
+  }
+
+  /** The quick gate, run once: red gates before a run are not the run's doing (`doctor --gates`). */
+  private async green(): Promise<ReadinessCheck> {
+    const steps = this.config.config.gates.quick;
+    if (!this.here.quickGate)
+      return {
+        id: "green",
+        status: "warn",
+        message: "the quick gate was not run",
+        fix: "metator gate quick",
+      };
+    if (steps.length === 0)
+      return {
+        id: "green",
+        status: "warn",
+        message: "the quick gate has no steps: nothing says whether the checks are green before a run",
+        fix: emptyGateHint("quick", this.config.source),
+      };
+    const report = await this.here.quickGate();
+    if (report.isErr())
+      return {
+        id: "green",
+        status: "warn",
+        message: `the quick gate did not run: ${report.error.message}`,
+        fix: "metator gate quick",
+      };
+    const red = report.value.steps.filter((s) => s.status === "fail" || s.status === "error");
+    if (red.length === 0)
+      return {
+        id: "green",
+        status: "ok",
+        message: `the quick gate is green (${report.value.steps.length} step(s))`,
+      };
+    const first = red[0];
+    // The end of a step's output is where a tool says what failed; its start is the command echoed.
+    const said = first?.detail?.split("\n").findLast((l) => l.trim() !== "");
+    return {
+      id: "green",
+      status: "warn",
+      message: `the quick gate is red before any run: step ${red.map((s) => s.id).join(", ")} failed${said ? ` (${first?.id}: ${said.trim().slice(0, 200)})` : ""}; a run's gates stage would fail on it`,
+      fix: "metator gate quick",
+    };
   }
 
   /** A Node project without node_modules: its tests, type checker and linters cannot run in a run. */
@@ -319,6 +394,7 @@ const where = (place: string) => (place === "." ? "" : ` in ${place}`);
 export const RUN_READINESS: readonly ReadinessCheck["id"][] = [
   "host",
   "tree",
+  "branch",
   "gates",
   "dependencies",
   "environment",
@@ -339,7 +415,12 @@ export const readinessWarnings = (r: Readiness, only?: readonly ReadinessCheck["
  */
 export function startRefusal(
   r: Readiness,
-  opts: { readonly worktree: boolean; readonly allowDirty?: boolean | undefined },
+  opts: {
+    readonly worktree: boolean;
+    readonly allowDirty?: boolean | undefined;
+    /** The workflow's `preconditions`: each one holds, or the run does not start. */
+    readonly preconditions?: readonly string[] | undefined;
+  },
 ): MetatorError | undefined {
   const failed = r.checks.find(
     (c) => c.status === "fail" && (c.id === "git" || (c.id === "commits" && opts.worktree)),
@@ -355,5 +436,53 @@ export function startRefusal(
       hint: "Commit them (`git commit -am <message>`) or put them away (`git stash`); to start from the last commit anyway, pass --allow-dirty.",
       details: { check: "tree" },
     });
+  for (const kind of opts.preconditions ?? []) {
+    const broken = brokenPrecondition(kind, r, opts);
+    if (broken)
+      return new MetatorError("CHECK_FAILED", broken.message, {
+        hint: broken.hint,
+        details: { precondition: kind },
+      });
+  }
   return undefined;
+}
+
+/** Why one declared precondition does not hold, and the step that makes it hold; undefined when it holds. */
+function brokenPrecondition(
+  kind: string,
+  r: Readiness,
+  opts: { readonly worktree: boolean; readonly allowDirty?: boolean | undefined },
+): { readonly message: string; readonly hint: string } | undefined {
+  if (!isPrecondition(kind))
+    return {
+      message: `the workflow requires \`${kind}\`, which nothing can check (checked: ${preconditionKinds()})`,
+      hint: "Run `metator setup` to update the installed workflows, or remove it from the workflow's `preconditions`; `metator workflow lint` lists every such line.",
+    };
+  const check = (id: ReadinessCheck["id"]) => r.checks.find((c) => c.id === id);
+  const fails = (why: string) => `precondition ${kind} does not hold (${PRECONDITIONS[kind]}): ${why}`;
+  if (kind === "clean-tree") {
+    const tree = check("tree");
+    if (!tree || tree.status === "ok" || opts.allowDirty) return undefined;
+    return {
+      message: fails(tree.message),
+      hint: "Commit the changes (`git commit -am <message>`) or put them away (`git stash`); to start with them anyway, pass --allow-dirty.",
+    };
+  }
+  if (kind === "branch-ok") {
+    const branch = check("branch");
+    // A run in a worktree gets its own branch: where the checkout's HEAD is does not matter to it.
+    if (!branch || branch.status === "ok" || opts.worktree) return undefined;
+    return {
+      message: fails(branch.message),
+      hint: "Create a branch (`git switch -c <branch>`), or start the run in a worktree (--worktree).",
+    };
+  }
+  const green = check("green");
+  if (green?.status === "ok") return undefined;
+  return {
+    message: fails(green?.message ?? "the quick gate was not run"),
+    hint: green?.fix?.startsWith("metator ")
+      ? `Run \`${green.fix}\` to see the failing steps, make them pass, then start the run again.`
+      : (green?.fix ?? "Run `metator gate quick`."),
+  };
 }

@@ -57,6 +57,7 @@ const READING: readonly string[] = [
   "review diff",
   "review plan",
   "plan lint",
+  "plan scope",
   "debug-tags check",
   "workflow list",
   "workflow lint",
@@ -85,8 +86,8 @@ const READING: readonly string[] = [
 ];
 
 /**
- * The options of a reading command that write a file, change files, clone a repository or send a
- * message: a tool call that carries one is refused, so a tool marked read-only stays read-only.
+ * The options of a reading command that write a file, change files, clone a repository, send a
+ * message or run the project's scripts: a tool call that carries one is refused, so a tool marked read-only stays read-only.
  */
 export const REFUSED: Readonly<Record<string, readonly string[]>> = {
   "system lint": ["--fetch"],
@@ -98,12 +99,19 @@ export const REFUSED: Readonly<Record<string, readonly string[]>> = {
   "review diff": ["--out"],
   "review plan": ["--out"],
   "worktree conflicts": ["--notify"],
+  "plan scope": ["--out"],
+  // The quick gate runs the project's scripts.
+  doctor: ["--gates"],
   report: ["--html"],
 };
 
-/** Options a tool always passes, so the command leaves no trace (`run brief` marks the run as read). */
+/**
+ * Options a tool always passes, so the command leaves no trace (`run brief` marks the run as read,
+ * `plan scope` writes plan-scope.json).
+ */
 export const ALWAYS: Readonly<Record<string, readonly string[]>> = {
   "run brief": ["--peek"],
+  "plan scope": ["--dry-run"],
 };
 
 /** How a tool's typed fields become a command line: positionals in order, then flags. */
@@ -124,7 +132,8 @@ export const TYPED: Readonly<Record<string, ToolShape>> = {
   "graph callers": { positionals: ["symbol"], flags: { file: "string" } },
   "symbols find": { positionals: ["name"], flags: {} },
   "rules show": { positionals: ["id"], flags: {} },
-  "rules pack": { positionals: [], flags: { paths: "list", base: "string", budget: "number" } },
+  "rules pack": { positionals: [], flags: { files: "list", base: "string", budget: "number" } },
+  "plan scope": { positionals: ["file"], flags: {} },
   "run status": { positionals: [], flags: { run: "string" } },
   "pane read": { positionals: ["pane"], flags: { lines: "number" } },
 };
@@ -158,6 +167,11 @@ export function mcpTools(program: Command): McpTool[] {
     });
 }
 
+/** Typed fields under the name they had before a flag was renamed: a caller that still sends one is heard. */
+export const RENAMED_FIELDS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  "rules pack": { files: "paths" },
+};
+
 /**
  * The command line a tool call amounts to: the tool's words, its typed positionals in order, its
  * typed flags (`--name value`, a bare `--name` for true, `--name a b` for a list), then `args`.
@@ -169,7 +183,8 @@ export function toolArgv(tool: McpTool, input: ToolInput): string[] {
     if (v !== undefined && v !== null) argv.push(String(v));
   }
   for (const [flag, kind] of Object.entries(tool.shape?.flags ?? {})) {
-    const v = input[flag];
+    const old = RENAMED_FIELDS[tool.command]?.[flag];
+    const v = input[flag] ?? (old ? input[old] : undefined);
     if (v === undefined || v === null) continue;
     if (kind === "boolean") {
       if (v === true) argv.push(`--${flag}`);

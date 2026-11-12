@@ -103,7 +103,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     )
     .option(
       "--allow-dirty",
-      "with --worktree: start although tracked files have uncommitted changes (the run starts from the last commit, without them)",
+      "start although tracked files have uncommitted changes (with --worktree the run starts from the last commit, without them; in this checkout they become part of its change)",
       false,
     )
     .option("--parent <run>", "the run this one is a child of (a system run, possibly in another repository)")
@@ -145,7 +145,9 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
             ...(opts.autonomy ? { autonomy: opts.autonomy } : {}),
             ...(opts.worktree
               ? { worktree: { base: opts.base, ...(opts.allowDirty ? { allowDirty: true } : {}) } }
-              : {}),
+              : opts.allowDirty
+                ? { allowDirty: true }
+                : {}),
             ...(opts.parent ? { parent: opts.parent } : {}),
           };
           const started = await container().resolve("initRun").execute(input);

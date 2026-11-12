@@ -2,12 +2,12 @@
 kind: Workflow
 schemaVersion: 3
 id: mt-bugfix
-revision: 3
+revision: 4
 description: Reproduce, diagnose, fix behind a regression test, verify
 entry: { prompt: mt-bugfix }
 input:
   oneOf: [task_ref, task_text]
-preconditions: [clean-tree, index-fresh, branch-ok]
+preconditions: [clean-tree, branch-ok]
 limits: { parallel: 6 }
 stages:
   - id: setup

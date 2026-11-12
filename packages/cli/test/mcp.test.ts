@@ -99,8 +99,31 @@ describe("the MCP tools (metator mcp)", () => {
     ]);
     expect(toolCall(tool("symbols find"), { name: "x", args: ["--", "--out"] }).isOk()).toBe(true);
     expect(tool("review diff").description).toContain("--out is refused");
-    // A command that always writes is not a tool at all.
-    expect(tools.some((t) => t.command === "plan scope")).toBe(false);
+    expect(refused("doctor", ["--gates"])[1]).toContain("--gates");
+  });
+
+  test("plan scope as a tool computes the scope and never writes it", () => {
+    expect(toolCall(tool("plan scope"), { file: "plan.json" })._unsafeUnwrap()).toEqual([
+      "plan",
+      "scope",
+      "plan.json",
+      "--dry-run",
+    ]);
+    // Asked twice, the flag is passed once.
+    expect(toolCall(tool("plan scope"), { args: ["plan.json", "--dry-run"] })._unsafeUnwrap()).toEqual([
+      "plan",
+      "scope",
+      "plan.json",
+      "--dry-run",
+    ]);
+    for (const args of [["--out", "elsewhere.json"], ["--out=elsewhere.json"]]) {
+      const e = toolCall(tool("plan scope"), { file: "plan.json", args })._unsafeUnwrapErr();
+      expect([e.code, e.message]).toEqual([
+        "USAGE",
+        "the tool metator_plan_scope only reads: --out is refused",
+      ]);
+    }
+    expect(tool("plan scope").description).toContain("--out is refused");
   });
 
   test("the refused and the added options are real options of their commands; no other option of a tool writes", () => {
@@ -157,14 +180,22 @@ describe("the MCP tools (metator mcp)", () => {
       "--json",
     ]);
     const pack = tools.find((x) => x.command === "rules pack") as (typeof tools)[number];
-    expect(toolArgv(pack, { paths: ["a.ts", "b.ts"], budget: 2000 })).toEqual([
+    expect(toolArgv(pack, { files: ["a.ts", "b.ts"], budget: 2000 })).toEqual([
       "rules",
       "pack",
-      "--paths",
+      "--files",
       "a.ts",
       "b.ts",
       "--budget",
       "2000",
+    ]);
+    // The field's name before the flag was renamed is still heard; the new one wins.
+    expect(toolArgv(pack, { paths: ["a.ts"] })).toEqual(["rules", "pack", "--files", "a.ts"]);
+    expect(toolArgv(pack, { files: ["b.ts"], paths: ["a.ts"] })).toEqual([
+      "rules",
+      "pack",
+      "--files",
+      "b.ts",
     ]);
     const path = tools.find((x) => x.command === "graph path") as (typeof tools)[number];
     expect(toolArgv(path, { from: "a.ts", to: "b.ts" })).toEqual(["graph", "path", "a.ts", "b.ts"]);

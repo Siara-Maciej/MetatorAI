@@ -23,6 +23,8 @@ Workflow bez któregokolwiek z poniższych punktów nie przechodzi `metator work
 | 15 | **Telemetria** | Co mierzymy? | czas etapów, tokeny, liczba pętli, eskalacje, wynik |
 | 16 | **Wyjście / raport** | Co dostaje użytkownik na końcu? | raport w stałym formacie + linki do artefaktów |
 
+**Warunki wstępne (punkt 3) to zamknięta lista**, którą silnik sprawdza przy starcie runu (`run init`): `clean-tree` (brak niezacommitowanych zmian w śledzonych plikach), `branch-ok` (checkout jest na gałęzi, nie na odłączonym HEAD; run w worktree ma własną gałąź) i `tests-green` (szybka bramka przechodzi; uruchamiana raz przy starcie). Warunek, który nie zachodzi, odmawia startu z nazwą warunku i krokiem naprawy. Nazwy spoza listy `workflow lint` odrzuca, a run na nich nie startuje: silnik nie udaje, że sprawdził coś, czego nie umie sprawdzić. Dawny `index-fresh` zniknął, bo indeks odbudowuje się sam.
+
 ---
 
 ## 2. Workflow jako maszyna stanów (`.github/metator/workflows/*.yml`)
@@ -38,7 +40,7 @@ entry: { prompt: mt-feature, ci: false }
 input:
   oneOf: [task_ref, task_text]
   optional: { autonomy: { enum: [L0, L1], default: L0 } }
-preconditions: [clean-tree, index-fresh, branch-ok]
+preconditions: [clean-tree, branch-ok]
 limits: { parallel: 6, loops: { plan: 2, build: 2, review: 3 } }
 stages:
   - id: G0-setup

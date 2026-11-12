@@ -1,4 +1,10 @@
-import { CONFIG_FILES, type MetatorConfig, MetatorConfigDocument } from "../domain/config.ts";
+import {
+  CONFIG_FILES,
+  type MetatorConfig,
+  MetatorConfigDocument,
+  RETIRED_CONFIG_KEYS,
+  withoutLocalStatePaths,
+} from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { type McpServers, mergeMcpServers } from "../domain/mcp.ts";
 import { OPTIONS, optionByKey } from "../domain/option-registry.ts";
@@ -18,6 +24,7 @@ import {
 } from "../domain/options.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
+  deleteYamlPaths,
   parseJsonDocument,
   parseYamlDocument,
   renderYamlDocument,
@@ -314,16 +321,19 @@ export class OptionStore {
     if (json) {
       const raw = parseJsonDocument(text.value, file);
       if (raw.isErr()) return err(raw.error);
-      const doc = raw.value as Record<string, unknown>;
+      const doc = withoutLocalStatePaths(raw.value) as Record<string, unknown>;
       const options = { ...((doc.options as Record<string, unknown> | undefined) ?? {}) };
       if (value === undefined) delete options[key];
       else options[key] = value;
       next = serializeJsonDocument({ ...doc, schemaVersion: MetatorConfigDocument.current, options });
     } else {
-      next = updateYamlPath(
-        updateYamlPath(text.value, ["schemaVersion"], MetatorConfigDocument.current),
-        ["options", key],
-        value,
+      next = deleteYamlPaths(
+        updateYamlPath(
+          updateYamlPath(text.value, ["schemaVersion"], MetatorConfigDocument.current),
+          ["options", key],
+          value,
+        ),
+        RETIRED_CONFIG_KEYS,
       );
     }
     // The file must still be a valid config before it is written.
