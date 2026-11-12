@@ -113,8 +113,15 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
             : { map: { file: catalog.source, load: () => catalog.load(), fs: c.resolve("fileSystem") } }),
           ...(opts.write ? { write: true } : {}),
         });
+        // An empty proposal is not "nothing to map": say what discovery looks for.
+        const none =
+          r.isOk() && r.value.proposal.applications.length === 0
+            ? [
+                "no application was found: no package runs on its own (a `bin`, a start, dev or serve script, a folder under apps/) and none has a Dockerfile. Add the applications to the map by hand, or give a package `kind: app` in the architecture policy.",
+              ]
+            : [];
         if (r.isErr() || !opts.check || r.value.drift.length === 0)
-          return { result: r, warnings: r.isOk() ? [...r.value.drift] : [] };
+          return { result: r, warnings: r.isOk() ? [...none, ...r.value.drift] : [] };
         return {
           result: err(
             new MetatorError(

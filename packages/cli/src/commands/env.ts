@@ -18,7 +18,11 @@ export function registerEnvCommands(program: Command, { action, container }: Com
     .action(
       action(async () => {
         const r = await container().resolve("discoverEnvironment").execute();
-        return { result: r, warnings: r.isOk() ? r.value.warnings : [] };
+        // The warnings go out once, in the envelope.
+        return {
+          result: r.map(({ warnings: _, ...found }) => found),
+          warnings: r.isOk() ? r.value.warnings : [],
+        };
       }),
     );
 
@@ -29,7 +33,10 @@ export function registerEnvCommands(program: Command, { action, container }: Com
     .action(
       action(async (opts: { dryRun: boolean }) => {
         const r = await container().resolve("initEnvironment").execute({ dryRun: opts.dryRun });
-        return { result: r, warnings: r.isOk() ? r.value.warnings : [] };
+        return {
+          result: r.map(({ warnings: _, ...written }) => written),
+          warnings: r.isOk() ? r.value.warnings : [],
+        };
       }),
     );
 
