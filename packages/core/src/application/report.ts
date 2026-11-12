@@ -19,10 +19,9 @@ export class BuildReport {
   /** The facts of every run started at or after `since` (default: every run). */
   async facts(since?: string): Promise<Result<readonly RunFacts[], MetatorError>> {
     const out: RunFacts[] = [];
-    for (const runId of await this.runs.list()) {
-      const record = await this.runs.load(runId);
-      if (record.isErr()) return err(record.error);
-      const r = record.value;
+    // A run whose record cannot be read has no facts; `metator status` names it.
+    for (const r of (await this.runs.loadAll()).runs) {
+      const runId = r.runId;
       if (since && r.createdAt < since) continue;
       const questions = await this.journal.questions(runId);
       if (questions.isErr()) return err(questions.error);

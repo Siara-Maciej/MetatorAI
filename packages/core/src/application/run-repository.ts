@@ -16,6 +16,17 @@ import {
 import type { FileSystem } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
 
+/** A run whose record cannot be read (a torn or hand-edited `state.json`): skipped, and said. */
+export interface UnreadableRun {
+  readonly runId: string;
+  readonly file: string;
+  readonly message: string;
+}
+
+/** What a person is told about an unreadable run: the file, and the two ways out. */
+export const unreadableRunWarning = (u: UnreadableRun): string =>
+  `run ${u.runId} cannot be read and is left out (${u.message}): restore ${u.file} (from git or a backup), or delete the run's directory to drop it`;
+
 /**
  * Stores runs as versioned documents (ADR-0016): `<runs>/<id>/state.json` (RunRecord),
  * an append-only `<runs>/<id>/log.md` (RunLog) and `<runs>/latest.json` (RunPointer).
@@ -94,6 +105,18 @@ export class RunRepository {
   async list(): Promise<readonly string[]> {
     const files = await this.fs.glob([`${this.paths.runs}/*/state.json`]);
     return files.map((f) => f.slice(this.paths.runs.length + 1, -"/state.json".length)).sort();
+  }
+
+  /** Every run that can be read; one broken record never hides the others (R2). */
+  async loadAll(): Promise<{ readonly runs: readonly RunRecord[]; readonly unreadable: readonly UnreadableRun[] }> {
+    const runs: RunRecord[] = [];
+    const unreadable: UnreadableRun[] = [];
+    for (const runId of await this.list()) {
+      const record = await this.load(runId);
+      if (record.isOk()) runs.push(record.value);
+      else unreadable.push({ runId, file: this.stateFile(runId), message: record.error.message });
+    }
+    return { runs, unreadable };
   }
 
   /** Checks the log's version header before a state change, so the audit trail never diverges. */

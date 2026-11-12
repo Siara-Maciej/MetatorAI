@@ -10,6 +10,7 @@ import {
   ok,
   type RunFacts,
   readinessWarnings,
+  unreadableRunWarning,
 } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
@@ -26,7 +27,10 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
     .action(
       ctx.action(async () => {
         const f = ctx.folder();
-        if (!f) return { result: await ctx.container().resolve("workOverview").execute() };
+        if (!f) {
+          const o = await ctx.container().resolve("workOverview").execute();
+          return { result: o, warnings: o.isOk() ? o.value.unreadable.map(unreadableRunWarning) : [] };
+        }
         const repos: ({ name: string; path: string } & (Overview | { error: string }))[] = [];
         const warnings: string[] = [];
         for (const r of f.repos) {
@@ -35,7 +39,10 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
             if (o.isErr()) {
               warnings.push(`${r.name}: ${o.error.message}`);
               repos.push({ name: r.name, path: r.path, error: o.error.message });
-            } else repos.push({ name: r.name, path: r.path, ...o.value });
+            } else {
+              repos.push({ name: r.name, path: r.path, ...o.value });
+              for (const u of o.value.unreadable) warnings.push(`${r.name}: ${unreadableRunWarning(u)}`);
+            }
           } catch (e) {
             warnings.push(`${r.name}: ${(e as Error).message}`);
             repos.push({ name: r.name, path: r.path, error: (e as Error).message });
@@ -112,6 +119,8 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
             warnings.push(`${r.name}: ${o.error.message}`);
             continue;
           }
+          for (const u of o.value.unreadable)
+            warnings.push(f ? `${r.name}: ${unreadableRunWarning(u)}` : unreadableRunWarning(u));
           const now = c.resolve("clock").now();
           for (const item of inboxOf(o.value.runs, now)) items.push(f ? { repo: r.name, ...item } : item);
         }

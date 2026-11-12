@@ -1,4 +1,4 @@
-import { briefOf, err, MetatorError, ok, policyFrom, policyRefusal, type Result } from "@metator/core";
+import { briefOf, err, MetatorError, ok, policyFrom, policyRefusal, type Result, unreadableRunWarning } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
@@ -117,9 +117,21 @@ export function registerDriveCommands(
         const c = container();
         const ids = opts.run ? [opts.run] : await c.resolve("runRepository").list();
         const revived: { runId: string; stage: string; died: number }[] = [];
+        const warnings: string[] = [];
         for (const runId of ids) {
           const record = await c.resolve("runRepository").load(runId);
-          if (record.isErr()) return { result: record };
+          if (record.isErr()) {
+            // The run a person named is their answer; among all runs, one broken record is skipped and said.
+            if (opts.run) return { result: record };
+            warnings.push(
+              unreadableRunWarning({
+                runId,
+                file: c.resolve("runRepository").stateFile(runId),
+                message: record.error.message,
+              }),
+            );
+            continue;
+          }
           if (record.value.state.status !== "active") continue;
           const driver = await c.resolve("runDrivers").status(runId);
           if (driver.isErr()) return { result: driver };
@@ -134,7 +146,7 @@ export function registerDriveCommands(
           if (resumed.isErr()) return { result: resumed };
           revived.push({ runId, stage: resumed.value.stage, died: driver.value.pid });
         }
-        return { result: ok({ revived }) };
+        return { result: ok({ revived }), warnings };
       }),
     );
 

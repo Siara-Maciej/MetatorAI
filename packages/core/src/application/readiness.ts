@@ -5,6 +5,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import type { FileSystem, Vcs } from "../ports/index.ts";
 import type { EnvironmentServices } from "./environments.ts";
 import type { MetatorPaths } from "./paths.ts";
+import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { WorktreeRegistry } from "./worktrees.ts";
 
@@ -12,7 +13,16 @@ import type { WorktreeRegistry } from "./worktrees.ts";
 export type ReadinessStatus = "ok" | "warn" | "fail";
 
 export interface ReadinessCheck {
-  readonly id: "config" | "canon" | "workflows" | "gates" | "dependencies" | "environment" | "remote" | "mcp";
+  readonly id:
+    | "config"
+    | "canon"
+    | "workflows"
+    | "gates"
+    | "dependencies"
+    | "environment"
+    | "remote"
+    | "mcp"
+    | "runs";
   readonly status: ReadinessStatus;
   /** What this means for a run, in one sentence. */
   readonly message: string;
@@ -66,6 +76,9 @@ export class CheckReadiness {
       readonly servers: () => Promise<Result<McpServers, MetatorError>>;
       readonly hasCommand: (bin: string) => Promise<boolean>;
     } = { servers: async () => ok({}), hasCommand: async () => true },
+    private readonly runs: Pick<RunRepository, "loadAll"> = {
+      loadAll: async () => ({ runs: [], unreadable: [] }),
+    },
   ) {}
 
   async execute(input: ReadinessInput = {}): Promise<Result<Readiness, MetatorError>> {
@@ -137,6 +150,14 @@ export class CheckReadiness {
             fix: "git remote add origin <url>",
           },
     );
+    // Said only when there is one: a run the overviews leave out, and the file to restore or delete.
+    for (const u of (await this.runs.loadAll()).unreadable)
+      checks.push({
+        id: "runs",
+        status: "warn",
+        message: `run ${u.runId} cannot be read and is left out of the overviews (${u.message})`,
+        fix: `restore ${u.file} (from git or a backup), or delete the run's directory`,
+      });
     return ok({ ready: checks.every((c) => c.status !== "fail"), place, checks });
   }
 

@@ -6,7 +6,7 @@ import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run
 import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "../domain/run-record.ts";
 import type { WorkflowSpec } from "../domain/workflow-spec.ts";
 import type { BranchPublication, Clock, FileSystem } from "../ports/index.ts";
-import type { RunRepository } from "./run-repository.ts";
+import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { CreateWorktree } from "./worktrees.ts";
 
@@ -196,6 +196,10 @@ export class AdvanceRun {
     readonly runId?: string;
     readonly event: RunEvent;
   }): Promise<Result<RunView, MetatorError>> {
+    if (input.event.type === "APPROVE" && input.event.by.trim() === "")
+      return err(
+        MetatorError.usage("say who approves: --by <name>", "An approval records who made the decision."),
+      );
     const id = await this.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     const record = await this.repo.load(id.value);
@@ -340,6 +344,10 @@ export class ApproveRun {
   }): Promise<
     Result<RunView | { readonly runId: string; readonly approvals: RunRecord["approvals"] }, MetatorError>
   > {
+    if (input.by.trim() === "")
+      return err(
+        MetatorError.usage("say who approves: --by <name>", "An approval records who made the decision."),
+      );
     const id = await this.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     const record = await this.repo.load(id.value);
@@ -483,20 +491,34 @@ export class WriteRunArtifact {
 export class ListRuns {
   constructor(private readonly repo: RunRepository) {}
 
+  /** Newest first. A run whose record cannot be read is left out of `runs` and named in `unreadable`. */
   async execute(): Promise<
     Result<
-      readonly { runId: string; workflow: string; stage: string; status: string; updatedAt: string }[],
+      {
+        readonly runs: readonly {
+          runId: string;
+          workflow: string;
+          stage: string;
+          status: string;
+          updatedAt: string;
+        }[];
+        readonly unreadable: readonly UnreadableRun[];
+      },
       MetatorError
     >
   > {
-    const rows = [];
-    for (const runId of await this.repo.list()) {
-      const record = await this.repo.load(runId);
-      if (record.isErr()) return err(record.error);
-      const { workflow, state, updatedAt } = record.value;
-      rows.push({ runId, workflow: workflow.id, stage: state.stage, status: state.status, updatedAt });
-    }
-    return ok(rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+    const all = await this.repo.loadAll();
+    const rows = all.runs.map(({ runId, workflow, state, updatedAt }) => ({
+      runId,
+      workflow: workflow.id,
+      stage: state.stage,
+      status: state.status,
+      updatedAt,
+    }));
+    return ok({
+      runs: rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+      unreadable: all.unreadable,
+    });
   }
 }
 

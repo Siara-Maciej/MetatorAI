@@ -16,7 +16,7 @@ import type { ConversationRepository } from "./ask.ts";
 import type { RunJournal } from "./drive.ts";
 import type { EnvironmentServices, ServiceReport } from "./environments.ts";
 import type { RunDrivers } from "./run-drivers.ts";
-import type { RunRepository } from "./run-repository.ts";
+import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { WorktreeRegistry } from "./worktrees.ts";
 
@@ -68,6 +68,8 @@ export interface Overview {
   readonly runs: readonly RunOverview[];
   readonly conversations: readonly ConversationOverview[];
   readonly counts: AttentionCounts & { readonly questions: number; readonly services: number };
+  /** Runs whose record cannot be read: left out of `runs`, with the file to restore or delete. */
+  readonly unreadable: readonly UnreadableRun[];
 }
 
 /**
@@ -88,10 +90,9 @@ export class WorkOverview {
 
   async execute(): Promise<Result<Overview, MetatorError>> {
     const out: RunOverview[] = [];
-    for (const runId of await this.runs.list()) {
-      const record = await this.runs.load(runId);
-      if (record.isErr()) return err(record.error);
-      const r = record.value;
+    const all = await this.runs.loadAll();
+    for (const r of all.runs) {
+      const runId = r.runId;
       const questions = await this.journal.questions(runId);
       const open = questions.isOk() ? questions.value.filter((q) => !q.answer) : [];
       const driver = await this.drivers.status(runId);
@@ -172,6 +173,7 @@ export class WorkOverview {
         questions: runs.reduce((n, r) => n + r.questions.length, 0),
         services: runs.reduce((n, r) => n + r.services.filter((s) => s.status === "running").length, 0),
       },
+      unreadable: all.unreadable,
     });
   }
 }

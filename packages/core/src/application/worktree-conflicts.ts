@@ -32,7 +32,7 @@ export interface ConflictReport {
  */
 export class WorktreeConflicts {
   constructor(
-    private readonly runs: Pick<RunRepository, "list" | "load">,
+    private readonly runs: Pick<RunRepository, "loadAll">,
     private readonly registry: Pick<WorktreeRegistry, "get">,
     /** Files a worktree changed since it branched off (committed and not), repo-relative. */
     private readonly changed: (entry: WorktreeEntry) => Promise<Result<readonly string[], MetatorError>>,
@@ -43,10 +43,9 @@ export class WorktreeConflicts {
     input: { readonly notify?: { readonly by: string } } = {},
   ): Promise<Result<ConflictReport, MetatorError>> {
     const changes: { runId: string; worktree: string; files: readonly string[]; createdAt: string }[] = [];
-    for (const runId of await this.runs.list()) {
-      const record = await this.runs.load(runId);
-      if (record.isErr()) return err(record.error);
-      const r = record.value;
+    // A run whose record cannot be read has no change to compare; `metator status` names it.
+    for (const r of (await this.runs.loadAll()).runs) {
+      const runId = r.runId;
       if (r.state.status !== "active" || !r.worktree) continue;
       const entry = await this.registry.get(r.worktree.id);
       if (entry.isErr()) continue; // a worktree removed by hand: no change to compare

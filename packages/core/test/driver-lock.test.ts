@@ -85,6 +85,36 @@ describe("DriverLock", () => {
   });
 });
 
+describe("who decided is never empty (R1)", () => {
+  test("an approval, an answer and an attach without a name are refused and write nothing", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const before = (await w.fs.read(run.files.state))._unsafeUnwrap();
+    for (const by of ["", "  "]) {
+      expect((await w.approve.execute({ gate: "push", by }))._unsafeUnwrapErr().code).toBe("USAGE");
+      expect((await w.advance.execute({ event: { type: "APPROVE", by } }))._unsafeUnwrapErr().code).toBe(
+        "USAGE",
+      );
+      expect((await w.lock.attach({ by }))._unsafeUnwrapErr().code).toBe("USAGE");
+    }
+    const q = (
+      await w.journal.ask(run.runId, {
+        stage: "plan",
+        source: "agent",
+        prompt: "Which?",
+        options: [{ label: "A" }],
+        multiSelect: false,
+      })
+    )._unsafeUnwrap();
+    const refused = (await w.journal.answer(run.runId, q.id, { choices: ["A"], by: "" }))._unsafeUnwrapErr();
+    expect(refused.code).toBe("USAGE");
+    expect(refused.message).toBe("say who answers: --by <name>");
+    expect((await w.journal.questions(run.runId))._unsafeUnwrap()[0]?.answer).toBeUndefined();
+    expect((await w.fs.read(run.files.state))._unsafeUnwrap()).toBe(before);
+    expect((await w.repo.load(run.runId)).isOk()).toBe(true);
+  });
+});
+
 describe("approval from the chat", () => {
   test("counts only while that person is attached; never for the push; logged with who held the session", async () => {
     const w = world();

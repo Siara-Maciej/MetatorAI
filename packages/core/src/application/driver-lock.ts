@@ -26,6 +26,7 @@ export class DriverLock {
     readonly runId?: string;
     readonly by: string;
   }): Promise<Result<DriverLockView, MetatorError>> {
+    if (input.by.trim() === "") return err(MetatorError.usage("say who attaches: --by <name>"));
     const id = await this.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     const record = await this.repo.load(id.value);

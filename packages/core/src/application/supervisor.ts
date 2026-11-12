@@ -8,7 +8,7 @@ import type { WorkOverview } from "./overview.ts";
 import type { Panes } from "./panes.ts";
 import type { PtyBroker } from "./pty-broker.ts";
 import type { RunDrivers } from "./run-drivers.ts";
-import type { RunRepository } from "./run-repository.ts";
+import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 
 export interface SupervisorDependencies {
   readonly policy: SupervisorPolicy;
@@ -42,6 +42,8 @@ export interface SupervisorReport {
   readonly prompts?: HostPromptsReport;
   /** Conductor panes resumed after their session ended while the run went on (R5). */
   readonly resumed: readonly { readonly runId: string; readonly paneId: string; readonly attempt: number }[];
+  /** Runs whose record cannot be read: not watched until the file is restored or deleted. */
+  readonly unreadable: readonly UnreadableRun[];
 }
 
 const RESUMED = "resumed conductor";
@@ -70,7 +72,8 @@ export class Supervisor {
     if (this.d.policy.respawn.enabled) {
       for (const runId of await this.d.repo.list()) {
         const record = await this.d.repo.load(runId);
-        if (record.isErr()) return err(record.error);
+        // One unreadable record never stops the others being watched; the report names it.
+        if (record.isErr()) continue;
         if (record.value.state.status !== "active") continue;
         const driver = await this.d.drivers.status(runId);
         if (driver.isErr()) return err(driver.error);
@@ -234,6 +237,7 @@ export class Supervisor {
       attention: { waiting, limit: this.d.policy.wipLimit, over: waiting > this.d.policy.wipLimit },
       ...(prompts ? { prompts } : {}),
       resumed,
+      unreadable: overview.value.unreadable,
     });
   }
 

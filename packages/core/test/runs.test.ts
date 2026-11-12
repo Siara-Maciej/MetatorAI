@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
-import { RunRepository } from "../src/application/run-repository.ts";
+import { RunRepository, type UnreadableRun, unreadableRunWarning } from "../src/application/run-repository.ts";
 import {
   AdvanceRun,
   ApproveRun,
@@ -242,8 +242,24 @@ describe("run lifecycle", () => {
     await w.init.execute({ workflow: "feature", task: "first" });
     w.clock.advance(1000);
     await w.init.execute({ workflow: "feature", task: "second" });
-    const rows = (await w.list.execute())._unsafeUnwrap();
+    const rows = (await w.list.execute())._unsafeUnwrap().runs;
     expect(rows.map((r) => r.runId)).toEqual(["20261025-feature-second", "20261025-feature-first"]);
+  });
+
+  test("one unreadable record never hides the other runs: it is left out and named with its file (R2)", async () => {
+    const w = world();
+    const first = (await w.init.execute({ workflow: "feature", task: "first" }))._unsafeUnwrap();
+    w.clock.advance(1000);
+    await w.init.execute({ workflow: "feature", task: "second" });
+    const text = (await w.fs.read(first.files.state))._unsafeUnwrap();
+    await w.fs.write(first.files.state, text.slice(0, 40));
+    const listed = (await w.list.execute())._unsafeUnwrap();
+    expect(listed.runs.map((r) => r.runId)).toEqual(["20261025-feature-second"]);
+    expect(listed.unreadable).toHaveLength(1);
+    expect(listed.unreadable[0]).toMatchObject({ runId: first.runId, file: first.files.state });
+    expect(unreadableRunWarning(listed.unreadable[0] as UnreadableRun)).toContain(
+      `restore ${first.files.state} (from git or a backup), or delete the run's directory`,
+    );
   });
 
   test("task text that slugifies to nothing still gets a valid id", async () => {

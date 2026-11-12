@@ -1126,6 +1126,18 @@ loops:
   });
 });
 
+describe("RunJournal activity", () => {
+  test("a torn line is skipped: the lines before and after it still read (R2)", async () => {
+    const fs = new InMemoryFileSystem();
+    const repo = new RunRepository(fs, DEFAULT_PATHS);
+    const j = new RunJournal(fs, repo, new FixedClock());
+    (await j.record("r1", { type: "drive", text: "one" }))._unsafeUnwrap();
+    (await fs.append(j.activityFile("r1"), '{"kind":"RunActivity","schemaVersion":1,"at":"2026-1\n'))._unsafeUnwrap();
+    (await j.record("r1", { type: "drive", text: "two" }))._unsafeUnwrap();
+    expect((await j.activity("r1"))._unsafeUnwrap().map((a) => a.text)).toEqual(["one", "two"]);
+  });
+});
+
 describe("RunJournal answers", () => {
   test("choices must be listed options; Other needs text; one choice unless multi-select", async () => {
     const fs = new InMemoryFileSystem();

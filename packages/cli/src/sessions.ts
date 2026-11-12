@@ -71,7 +71,7 @@ export async function sessionRows(c: MetatorContainer): Promise<Result<readonly 
   const listed = await c.resolve("listRuns").execute();
   if (listed.isErr()) return err(listed.error);
   const rows: SessionRow[] = [];
-  for (const r of listed.value) {
+  for (const r of listed.value.runs) {
     const open = await c.resolve("runJournal").questions(r.runId);
     const waiting = open.isOk() ? open.value.filter((q) => !q.answer).length : 0;
     const driver = await c.resolve("runDrivers").status(r.runId);

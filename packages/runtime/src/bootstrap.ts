@@ -444,6 +444,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         worktreeRegistry,
         environmentServices,
         optionStore,
+        runRepository,
       }) =>
         new CheckReadiness(
           fileSystem,
@@ -455,6 +456,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           worktreeRegistry,
           environmentServices,
           { servers: () => optionStore.mcp(), hasCommand: async (bin) => Bun.which(bin) !== null },
+          runRepository,
         ),
     ),
     setupWorktree: asFunction(

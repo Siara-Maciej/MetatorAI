@@ -167,7 +167,8 @@ export class RunJournal {
       const parsed = parseJsonDocument(line, `${file}:${i + 1}`).andThen((raw) =>
         RunActivityDocument.parse(raw, `${file}:${i + 1}`),
       );
-      if (parsed.isErr()) return err(parsed.error);
+      // A torn line (a writer killed mid-append) is skipped: the rest of the journal still reads.
+      if (parsed.isErr()) continue;
       out.push(parsed.value);
     }
     return ok(out);
@@ -248,6 +249,8 @@ export class RunJournal {
       readonly origin?: "inbox";
     },
   ): Promise<Result<Question, MetatorError>> {
+    if (input.by.trim() === "")
+      return err(MetatorError.usage("say who answers: --by <name>", "An answer records who gave it."));
     const file = this.questionFile(runId, id);
     if (!(await this.fs.exists(file))) return err(MetatorError.notFound(`question ${id} of run ${runId}`));
     const q = await this.load(file);

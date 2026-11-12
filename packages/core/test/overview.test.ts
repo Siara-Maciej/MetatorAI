@@ -169,7 +169,7 @@ async function world() {
     },
     new FixedClock(new Date("2026-10-28T11:00:00.000Z")),
   );
-  return { overview, runs };
+  return { overview, runs, fs };
 }
 
 describe("WorkOverview", () => {
@@ -239,6 +239,17 @@ describe("WorkOverview", () => {
     expect(o.conversations).toEqual([
       { id: "20261028-why", title: "Why?", host: "claude", turns: 2, updatedAt: "2026-10-28T11:00:00.000Z" },
     ]);
+  });
+
+  test("a run whose record cannot be read is left out and named; the others are all there (R2)", async () => {
+    const w = await world();
+    await w.fs.write(w.runs.stateFile("20261028-mt-feature-b"), '{"kind":"RunRecord","schemaVer');
+    const o = (await w.overview.execute())._unsafeUnwrap();
+    expect(o.runs.map((r) => r.runId).sort()).toEqual(["20261028-mt-feature-a", "20261028-mt-feature-c"]);
+    expect(o.unreadable.map((u) => [u.runId, u.file])).toEqual([
+      ["20261028-mt-feature-b", ".metator/runs/20261028-mt-feature-b/state.json"],
+    ]);
+    expect(o.unreadable[0]?.message).toContain("not valid JSON");
   });
 
   test("a run whose workflow is gone still shows its stage; a broken conversation list is an error", async () => {
