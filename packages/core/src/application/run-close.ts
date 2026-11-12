@@ -1,5 +1,6 @@
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { isRunBookkeeping } from "../domain/run-record.ts";
 import {
   isTerminal,
   type RunSummary,
@@ -15,10 +16,9 @@ import type { AdvanceRun, GetRunStatus } from "./runs.ts";
 /** Files the run directory holds besides the run's own bookkeeping. */
 async function artifactsOf(fs: FileSystem, repo: RunRepository, runId: string): Promise<string[]> {
   const dir = repo.runDir(runId);
-  const own = new Set(["state.json", "log.md", "summary.json", "handoff.md"]);
   return (await fs.glob([`${dir}/**`]))
     .map((f) => f.slice(dir.length + 1))
-    .filter((f) => !own.has(f))
+    .filter((f) => !isRunBookkeeping(f))
     .sort();
 }
 

@@ -203,3 +203,27 @@ export function fillInputs(
 export function parseRunRecord(text: string, source: string): Result<RunRecord, MetatorError> {
   return parseJsonDocument(text, source).andThen((raw) => RunRecordDocument.parse(raw, source));
 }
+
+const RUN_BOOKKEEPING_FILES = new Set([
+  "state.json",
+  "log.md",
+  "summary.json",
+  "handoff.md",
+  "driver.json",
+  "seen.json",
+]);
+
+/**
+ * Whether a file of a run directory (path relative to it) is the run's own bookkeeping: its
+ * record, log, summary and handoff, the drive's lock and journals, the questions and messages.
+ * Everything else is an artifact a stage left. One answer for the summary of a closed run, the
+ * evidence of a decision card and the plan board.
+ */
+export function isRunBookkeeping(file: string): boolean {
+  return (
+    RUN_BOOKKEEPING_FILES.has(file) ||
+    file.endsWith(".jsonl") ||
+    file.startsWith("questions/") ||
+    file.startsWith("messages/")
+  );
+}

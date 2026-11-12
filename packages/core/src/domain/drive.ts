@@ -114,7 +114,7 @@ export const RunActivityDocument = defineDocument("RunActivity", {
   latest: RunActivitySchema,
   // Every v1 type is a v2 type; `origin` is optional.
   upgrade: (previous) => previous,
-  hint: "Written by `metator run drive`; one versioned JSON object per line.",
+  hint: "Written by MetatorAI as a run goes on (the drive, answers, messages, the terminals); one versioned JSON object per line.",
 });
 
 export const QuestionOptionSchema = z.strictObject({

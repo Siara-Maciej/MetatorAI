@@ -26,7 +26,7 @@ import { PlanScopeDocument } from "../domain/plan.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
 import { messageLines, type RunMessage } from "../domain/run-message.ts";
-import { APPROVAL_ACTIONS, fillInputs } from "../domain/run-record.ts";
+import { APPROVAL_ACTIONS, fillInputs, isRunBookkeeping } from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
 import { type AgentUsage, AgentUsageDocument, type HostUsage } from "../domain/telemetry.ts";
 import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
@@ -782,9 +782,7 @@ export class DriveRun {
   ): Promise<DecisionCard> {
     const dir = this.d.repo.runDir(ctx.runId);
     const files = await this.d.fs.glob([`${dir}/*`]);
-    const artifacts = files
-      .map((f) => f.slice(dir.length + 1))
-      .filter((f) => !RUN_BOOKKEEPING.has(f) && !f.endsWith(".jsonl"));
+    const artifacts = files.map((f) => f.slice(dir.length + 1)).filter((f) => !isRunBookkeeping(f));
     const activity = await this.d.journal.activity(ctx.runId);
     const soFar = activity.isOk() ? sinceLastAnswer(activity.value) : [];
     const evidence = await this.evidence();
@@ -1085,9 +1083,6 @@ export function consequencesOf(
   } else out.Reject = "the run escalates with your reason: it waits for a person to resume it";
   return out;
 }
-
-/** The run's own files, which no decision rests on. */
-const RUN_BOOKKEEPING = new Set(["state.json", "log.md", "driver.json", "summary.json"]);
 
 const passedStages = (history: readonly { readonly stage: string; readonly event: string }[]): string[] => [
   ...new Set(history.filter((h) => h.event === "PASS" || h.event === "APPROVE").map((h) => h.stage)),

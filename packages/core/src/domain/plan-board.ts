@@ -3,6 +3,7 @@ import type { Question, RunActivity } from "./drive.ts";
 import type { GateReport } from "./gate.ts";
 import { type StageProgress, stageProgress } from "./overview.ts";
 import type { Plan, PlanStep } from "./plan.ts";
+import { isRunBookkeeping } from "./run-record.ts";
 
 /**
  * The plan board (S2, design/13 §2): where a run stands and what is left, as one projection of
@@ -154,10 +155,7 @@ export function planBoardOf(input: PlanBoardInput): PlanBoardView {
     ...new Set([...KNOWN_ARTIFACTS, ...declared.keys(), ...input.files.filter((f) => !f.includes("/"))]),
   ];
   const artifacts: BoardArtifact[] = names
-    .filter(
-      (n) =>
-        !["state.json", "log.md", "activity.jsonl", "usage.jsonl", "seen.json", "driver.json"].includes(n),
-    )
+    .filter((n) => !isRunBookkeeping(n))
     .map((name) => ({ name, present: input.files.includes(name), stage: declared.get(name) }));
   const at = input.stages.findIndex((s) => s.id === input.stage);
   const next =

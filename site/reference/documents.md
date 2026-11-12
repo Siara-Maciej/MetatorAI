@@ -2,7 +2,9 @@
 
 This page lists every file MetatorAI reads or writes: its kind, where it lives and who writes it. Use it to find a file, or to learn what a file in your repository is for.
 
-Every file is a versioned document. It starts with `kind` and `schemaVersion`: as top-level fields in JSON and YAML, as front matter in Markdown.
+Every file MetatorAI reads as data is a versioned document. It starts with `kind` and `schemaVersion`: as top-level fields in JSON and YAML, as front matter in Markdown.
+
+Two kinds of files are written for people and carry no header: views rendered from a document (`.metator/arch/report.md` and `report.html`) and the Markdown notes agents leave in a run's directory (`task.md`, `gates.md`, `build-log.md` and the like). MetatorAI never parses them.
 
 ```yaml
 kind: MetatorConfig

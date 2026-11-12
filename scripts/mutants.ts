@@ -1894,7 +1894,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/run-close.ts",
-    from: ".filter((f) => !own.has(f))",
+    from: ".filter((f) => !isRunBookkeeping(f))",
     to: "",
     why: "the run's own bookkeeping is not an artifact",
   },
@@ -5050,5 +5050,23 @@ export const MUTANTS: readonly Mutant[] = [
     from: "return (await this.repoMcp()).map((repo) => mergeMcpServers(repo, mine));",
     to: "return this.repoMcp();",
     why: "MetatorAI itself uses the person's MCP servers too; only the committed host file leaves them out",
+  },
+  {
+    file: "packages/core/src/domain/run-record.ts",
+    from: 'file.endsWith(".jsonl") ||',
+    to: "",
+    why: "a run's journals are its bookkeeping, not artifacts",
+  },
+  {
+    file: "packages/core/src/domain/run-record.ts",
+    from: 'file.startsWith("questions/") ||',
+    to: "",
+    why: "a run's questions are its bookkeeping, not artifacts",
+  },
+  {
+    file: "packages/core/src/domain/run-record.ts",
+    from: "RUN_BOOKKEEPING_FILES.has(file) ||",
+    to: "",
+    why: "a run's record, log and summary are its bookkeeping, not artifacts",
   },
 ];
