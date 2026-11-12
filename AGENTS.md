@@ -24,7 +24,7 @@ Ports and adapters; dependencies point inward: `core` (domain → ports → appl
 
 ## Rules that hold everywhere
 
-- Every file MetatorAI reads as data is a versioned document: `kind` + `schemaVersion` first (ADR-0016). Views rendered for people (`report.md`, `report.html`) and agents' Markdown notes in a run carry no header and are never parsed. A schema change is a new version with a migration and a frozen snapshot; a released version never changes (MT-CODE-003).
+- Every file MetatorAI reads as data is a versioned document: `kind` + `schemaVersion` first (ADR-0016). Rendered views (`report.md`, `report.html`) and agents' Markdown notes carry no header and are never parsed. A schema change is a new version with a migration and a frozen snapshot; a released version never changes (MT-CODE-003).
 - Use a proven package before writing generic code (ADR-0010); every dependency is listed in `docs/metator/dependencies.yml` with its ADR (MT-CODE-005).
 - Imports use `.ts` extensions inside a package and `@metator/<pkg>` across packages.
 - Tests sit in `packages/<pkg>/test/*.test.ts` on `bun:test` (tests may use `_unsafeUnwrap()`).
