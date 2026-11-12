@@ -37,7 +37,15 @@ type Plan = {
 beforeAll(async () => {
   repo = await ScratchRepo.create();
   await repo.write(".gitignore", ".metator/\nnode_modules/\nscenario.yml\n");
-  await repo.write("package.json", json({ name: "shop", private: true, workspaces: ["packages/*"] }));
+  // mt-refactor requires tests-green: the quick gate runs (and passes) when its runs start.
+  await repo.write(
+    "package.json",
+    json({ name: "shop", private: true, workspaces: ["packages/*"], scripts: { test: "true" } }),
+  );
+  await repo.write(
+    "metator.config.yml",
+    "kind: MetatorConfig\nschemaVersion: 12\ngates:\n  quick:\n    - id: test\n      run: { script: test }\n",
+  );
   await repo.write(
     "packages/cart/package.json",
     json({ name: "@shop/cart", private: true, main: "src/index.ts", dependencies: { "@shop/pricing": "*" } }),

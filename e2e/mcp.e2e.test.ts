@@ -135,7 +135,11 @@ describe("metator mcp (real server over stdio)", () => {
     const scope = await client.callTool({ name: "metator_plan_scope", arguments: { file: "plan.json" } });
     expect(scope.isError ?? false).toBe(false);
     expect(JSON.stringify(scope.content)).toContain("src/a.ts");
-    expect(await refused("metator_plan_scope", ["plan.json", "--out", "scope.json"])).toEqual([
+    const out = await client.callTool({
+      name: "metator_plan_scope",
+      arguments: { file: "plan.json", args: ["--out", "scope.json"] },
+    });
+    expect([out.isError, text(out).error?.code, text(out).error?.message]).toEqual([
       true,
       "USAGE",
       "the tool metator_plan_scope only reads: --out is refused",
