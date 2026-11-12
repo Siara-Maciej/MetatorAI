@@ -42,7 +42,7 @@ For a run with a worktree, MetatorAI:
 3. links the run directory into the worktree, so agents and hooks find the run at the same path;
 4. sets up dependencies, so tests and linters can run there.
 
-For the dependencies, the main checkout's `node_modules` are copied when the lockfiles match. Otherwise your package manager installs in the worktree. A failed install is a warning and the run still starts.
+For the dependencies, the main checkout's `node_modules` are copied when the lockfiles match. Otherwise your package manager installs in the worktree. A project without a lockfile is installed without writing one, so no lockfile appears in the run's change. A `package.json` that lists no dependencies needs no install, and none runs. A failed install is a warning and the run still starts.
 
 ### Ports
 
@@ -64,6 +64,8 @@ Base your port settings on `METATOR_PORT_BASE`, for example `PORT=$((METATOR_POR
 metator run init --workflow mt-feature --task "Add combined discount" --worktree
 metator run init --workflow mt-bugfix --task "Fix rounding" --worktree --base main
 ```
+
+A worktree starts from the last commit. When tracked files have uncommitted changes, `run init --worktree` refuses and names them: commit or stash them, or pass `--allow-dirty` to start without them. Untracked files do not stop a run. `run init` also refuses in a directory that is not a git repository, and `run init --worktree` in a repository with no commit.
 
 `--no-setup` skips the dependencies, and you can set them up later:
 
@@ -116,7 +118,9 @@ metator run close --run <id> --remove-worktree
 metator run close --run <id> --aborted --reason "superseded"
 ```
 
-`run close` writes `summary.json`. `--remove-worktree` also removes the run's worktree and frees its ports. `--aborted` ends a run that is still active.
+`run close` writes `summary.json`. `--remove-worktree` also removes the run's worktree and frees its ports. `--aborted` ends a run that is still active or escalated, and stops the process that drives it.
+
+If you removed a run's worktree by hand, `metator run drive` stops with `the worktree of run <id> is gone`. Put it back with `git worktree prune && git worktree add <path> <branch>`, or close the run with `--aborted`.
 
 ### Manage worktrees
 

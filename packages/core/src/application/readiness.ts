@@ -2,6 +2,7 @@ import type { MetatorConfig } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { McpServers } from "../domain/mcp.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { declaresDependencies } from "../domain/worktree.ts";
 import type { FileSystem, Vcs } from "../ports/index.ts";
 import type { EnvironmentServices } from "./environments.ts";
 import { emptyGateHint } from "./gate.ts";
@@ -17,7 +18,10 @@ export interface ReadinessCheck {
   readonly id:
     | "config"
     | "canon"
+    | "git"
     | "commits"
+    | "tree"
+    | "host"
     | "workflows"
     | "gates"
     | "dependencies"
@@ -60,7 +64,7 @@ const INSTALL: readonly (readonly [string, string])[] = [
  */
 export class CheckReadiness {
   constructor(
-    private readonly fs: Pick<FileSystem, "exists">,
+    private readonly fs: Pick<FileSystem, "exists"> & Partial<Pick<FileSystem, "read">>,
     private readonly paths: Pick<MetatorPaths, "installLock">,
     private readonly config: { readonly config: MetatorConfig; readonly source?: string | undefined },
     private readonly catalog: Pick<WorkflowCatalog, "scan">,
@@ -81,6 +85,13 @@ export class CheckReadiness {
     private readonly runs: Pick<RunRepository, "loadAll"> = {
       loadAll: async () => ({ runs: [], unreadable: [] }),
     },
+    /** What only the machine knows: which AI hosts can start, and what is uncommitted (F3). */
+    private readonly here: {
+      /** The AI hosts that drive runs here (`hosts.targets`), and why one cannot start. */
+      readonly hosts?: () => readonly { readonly id: string; readonly problem?: string | undefined }[];
+      /** Tracked files with uncommitted changes in the checkout; undefined when git cannot say. */
+      readonly modified?: () => Promise<readonly string[] | undefined>;
+    } = {},
   ) {}
 
   async execute(input: ReadinessInput = {}): Promise<Result<Readiness, MetatorError>> {
@@ -108,8 +119,15 @@ export class CheckReadiness {
             fix: "metator setup",
           },
     ];
-    // Only said when it fails: a repository right after `git init`.
+    // Only said when it fails: a directory git does not know, or a repository right after `git init`.
     const commits = await this.vcs.hasCommits?.();
+    if (commits?.isErr() && commits.error.code === "NOT_FOUND")
+      checks.push({
+        id: "git",
+        status: "fail",
+        message: "not a git repository: a run's change, its review and its worktree need git",
+        fix: "git init && git commit --allow-empty -m init",
+      });
     if (commits?.isOk() && !commits.value)
       checks.push({
         id: "commits",
@@ -149,6 +167,8 @@ export class CheckReadiness {
               : "metator init (it proposes gates from the repository's scripts)",
           },
     );
+    checks.push(...this.hosts());
+    if (place === ".") checks.push(...(await this.tree()));
     checks.push(await this.dependencies(place));
     checks.push(await this.environment(input.worktree));
     checks.push(await this.mcpServers());
@@ -174,11 +194,62 @@ export class CheckReadiness {
     return ok({ ready: checks.every((c) => c.status !== "fail"), place, checks });
   }
 
+  /**
+   * The AI hosts that would drive a run: failing when none of them can start. One that cannot,
+   * beside one that can, is said in the message and is no warning: `run drive` refuses it by name.
+   */
+  private hosts(): ReadinessCheck[] {
+    const hosts = this.here.hosts?.();
+    if (!hosts || hosts.length === 0) return [];
+    const missing = hosts.filter((h) => h.problem !== undefined);
+    const there = hosts.filter((h) => h.problem === undefined).map((h) => h.id);
+    const why = missing.map((h) => `${h.id} (${h.problem})`).join(", ");
+    if (there.length > 0)
+      return [
+        {
+          id: "host",
+          status: "ok",
+          message: `AI hosts that can drive a run: ${there.join(", ")}${missing.length > 0 ? `; cannot start: ${why}` : ""}`,
+        },
+      ];
+    return [
+      {
+        id: "host",
+        status: "fail",
+        message: `no AI host can start: ${why}; nothing would run a run's agents`,
+        fix: "install the host's CLI, or name an installed host in hosts.targets of metator.config.yml",
+      },
+    ];
+  }
+
+  /** Uncommitted changes to tracked files: a run in a worktree starts without them. Said only when there are some. */
+  private async tree(): Promise<ReadinessCheck[]> {
+    const modified = await this.here.modified?.();
+    if (!modified || modified.length === 0) return [];
+    const shown = modified.slice(0, 3).join(", ");
+    return [
+      {
+        id: "tree",
+        status: "warn",
+        message: `${modified.length} tracked file(s) have uncommitted changes (${shown}${modified.length > 3 ? ", …" : ""}): a run in a worktree starts from the last commit, without them; a run in this checkout mixes them into its change`,
+        fix: "git commit -am <message>, or git stash",
+      },
+    ];
+  }
+
   /** A Node project without node_modules: its tests, type checker and linters cannot run in a run. */
   private async dependencies(place: string): Promise<ReadinessCheck> {
     const at = (p: string) => (place === "." ? p : `${place}/${p}`);
     if (!(await this.fs.exists(at("package.json"))))
       return { id: "dependencies", status: "ok", message: "not a Node project: nothing to install" };
+    // A package.json that lists nothing to install leaves no node_modules behind: nothing is missing (F5).
+    const manifest = await this.fs.read?.(at("package.json"));
+    if (manifest?.isOk() && !declaresDependencies(manifest.value))
+      return {
+        id: "dependencies",
+        status: "ok",
+        message: `package.json lists no dependencies${where(place)}: nothing to install`,
+      };
     if (await this.isDirectory(at("node_modules")))
       return { id: "dependencies", status: "ok", message: `dependencies are installed${where(place)}` };
     let fix = "npm install";
@@ -246,6 +317,8 @@ const where = (place: string) => (place === "." ? "" : ` in ${place}`);
 
 /** What a run feels of readiness: its tests and gates, its push. Config and canon are `metator doctor`'s. */
 export const RUN_READINESS: readonly ReadinessCheck["id"][] = [
+  "host",
+  "tree",
   "gates",
   "dependencies",
   "environment",
@@ -257,3 +330,30 @@ export const readinessWarnings = (r: Readiness, only?: readonly ReadinessCheck["
   r.checks
     .filter((c) => c.status !== "ok" && (!only || only.includes(c.id)))
     .map((c) => `${c.id}: ${c.message}${c.fix ? ` (fix: ${c.fix})` : ""}`);
+
+/**
+ * Why a run cannot start here (F3), with the step that fixes it; undefined when it can. Git is
+ * needed by every run (its change, its review). A worktree also needs a commit to branch from
+ * (a run in the checkout of a repository right after `git init` still starts) and leaves
+ * uncommitted changes behind, which a person must have decided.
+ */
+export function startRefusal(
+  r: Readiness,
+  opts: { readonly worktree: boolean; readonly allowDirty?: boolean | undefined },
+): MetatorError | undefined {
+  const failed = r.checks.find(
+    (c) => c.status === "fail" && (c.id === "git" || (c.id === "commits" && opts.worktree)),
+  );
+  if (failed)
+    return new MetatorError("CHECK_FAILED", `a run cannot start here: ${failed.message}`, {
+      ...(failed.fix ? { hint: `Run \`${failed.fix}\`, then start the run again.` } : {}),
+      details: { check: failed.id },
+    });
+  const tree = r.checks.find((c) => c.id === "tree" && c.status !== "ok");
+  if (tree && opts.worktree && !opts.allowDirty)
+    return new MetatorError("CHECK_FAILED", `the run would start without your changes: ${tree.message}`, {
+      hint: "Commit them (`git commit -am <message>`) or put them away (`git stash`); to start from the last commit anyway, pass --allow-dirty.",
+      details: { check: "tree" },
+    });
+  return undefined;
+}

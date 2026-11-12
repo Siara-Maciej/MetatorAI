@@ -30,7 +30,10 @@ interface Check {
 beforeAll(async () => {
   repo = await ScratchRepo.create();
   await repo.write(".gitignore", ".metator/\nnode_modules/\n");
-  await repo.write("package.json", '{ "name": "demo", "private": true }\n');
+  await repo.write(
+    "package.json",
+    '{ "name": "demo", "private": true, "devDependencies": { "left-pad": "1.3.0" } }\n',
+  );
   await repo.write("bun.lock", '{ "lockfileVersion": 1, "workspaces": {} }\n');
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
   await repo.commit("init");
@@ -95,6 +98,34 @@ describe("worktree setup (real CLI)", () => {
     ).toBe("present");
     const after = (data(await mt("doctor", "--worktree", id)) as { checks: Check[] }).checks;
     expect(after.find((c) => c.id === "dependencies")?.status).toBe("ok");
+  }, 60_000);
+
+  test("a project that lists no dependencies: no install runs, no lockfile appears in the change, no warning (F5)", async () => {
+    const bare = await ScratchRepo.create();
+    try {
+      await bare.write(".gitignore", ".metator/\n");
+      await bare.write("package.json", '{ "name": "bare", "scripts": { "test": "node t.js" } }\n');
+      await bare.write(".github/metator/workflows/demo.yml", WORKFLOW);
+      await bare.commit("init");
+      const init = await metator(
+        ["run", "init", "--workflow", "demo", "--task", "Add the first flag", "--worktree"],
+        bare.root,
+      );
+      expect(init.code).toBe(0);
+      const d = data(init);
+      expect(d.setup).toMatchObject({ dependencies: "none", detail: "package.json lists no dependencies" });
+      expect((init.json.warnings as string[]).filter((w) => w.startsWith("dependencies"))).toEqual([]);
+      const wt = (d.worktree as { path: string }).path;
+      expect(await bare.exists(`${wt}/package-lock.json`)).toBe(false);
+      const changes = await metator(["worktree", "list"], bare.root);
+      expect(changes.code).toBe(0);
+      const status = Bun.spawnSync(["git", "status", "--porcelain"], { cwd: bare.path(wt) });
+      expect(status.stdout.toString().trim()).toBe("");
+      const doctor = (data(await metator(["doctor"], bare.root)) as { checks: Check[] }).checks;
+      expect(doctor.find((c) => c.id === "dependencies")?.status).toBe("ok");
+    } finally {
+      await bare.dispose();
+    }
   }, 60_000);
 
   test("a run in the checkout has no worktree to set up", async () => {

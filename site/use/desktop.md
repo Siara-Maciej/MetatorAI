@@ -80,7 +80,7 @@ The daemon reads each pane's state from the screen and the hooks, without asking
 
 If a conductor's session ends while its run is active, the supervisor in the daemon resumes it in the same pane, a limited number of times. A session a person holds is left alone.
 
-A tab remembers its layout, so the panes come back the same way after the daemon restarts.
+A tab remembers its layout, so the panes come back the same way after the daemon restarts. The daemon starts host sessions and plain shells again. A pane that ran a command (a test run, a script) is not run a second time: it shows how it ended, with **Retry**. The session of a run that is done, aborted or escalated is not started again either.
 
 ## From a terminal
 

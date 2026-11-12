@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { Chips } from "../components/chips.tsx";
 import { DecisionCard } from "../components/decision-card.tsx";
+import { EscalatedCard } from "../components/escalated-card.tsx";
 import { useDaemon } from "../daemon.tsx";
-import { duration, inboxChips, plainKey, questionKind } from "../model.ts";
+import { duration, escalatedKey, inboxChips, plainKey, questionKind } from "../model.ts";
 
 const key = (i: { runId: string; question: { id: string } }) => `${i.runId}/${i.question.id}`;
 
@@ -26,11 +27,14 @@ export function InboxScreen({
   }, [pick]);
   // Sessions whose agent asks on its terminal (D2): no card to answer from, the pane is the place.
   const inTerminal = runs.filter((r) => r.terminalAsk !== undefined);
-  const current = inbox.find((i) => key(i) === selected) ?? inbox[0];
+  // Escalated runs (F1): each is a card with the reason it stopped, Resume and Close.
+  const escalated = runs.filter((r) => r.status === "escalated");
+  const stopped = escalated.find((r) => escalatedKey(r) === selected);
+  const current = stopped ? undefined : (inbox.find((i) => key(i) === selected) ?? inbox[0]);
+  const shownStopped = stopped ?? (current ? undefined : escalated[0]);
   useEffect(() => {
     if (current && key(current) !== selected) setSelected(key(current));
   }, [current, selected]);
-  const escalated = runs.filter((r) => r.attention === "escalated");
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = plainKey(e);
@@ -46,7 +50,7 @@ export function InboxScreen({
   return (
     <div className="inbox">
       <div className="needs">
-        <h2>Needs you · {inbox.length + inTerminal.length}</h2>
+        <h2>Needs you · {inbox.length + inTerminal.length + escalated.length}</h2>
         {inbox.map((i) => (
           <button
             type="button"
@@ -98,24 +102,29 @@ export function InboxScreen({
             </div>
           </button>
         ))}
-        {inbox.length === 0 && inTerminal.length === 0 ? (
+        {escalated.map((r) => (
+          <button
+            type="button"
+            key={escalatedKey(r)}
+            className="item"
+            data-testid={`escalated-${r.runId}`}
+            aria-current={shownStopped && escalatedKey(shownStopped) === escalatedKey(r) ? "true" : undefined}
+            onClick={() => setSelected(escalatedKey(r))}
+          >
+            <div>
+              <span className="kind ESCALATED">ESCALATED</span>
+            </div>
+            <div className="title" title={r.task}>
+              {r.task}
+            </div>
+            <div className="sub dim">
+              stopped at {r.stage} · {r.runId}
+              {r.repo ? ` · ${r.repo}` : ""}
+            </div>
+          </button>
+        ))}
+        {inbox.length === 0 && inTerminal.length === 0 && escalated.length === 0 ? (
           <div className="empty">Nothing needs you.</div>
-        ) : null}
-        {escalated.length > 0 ? (
-          <div className="info">
-            {escalated.length} escalated:{" "}
-            {escalated.map((r) => (
-              <span key={r.runId}>
-                <button type="button" className="ghost" onClick={() => onBriefing(r.runId)}>
-                  briefing
-                </button>
-                <button type="button" className="ghost" onClick={() => onOpenSession(r.runId)}>
-                  terminal
-                </button>{" "}
-                <span className="mono">{r.runId}</span>{" "}
-              </span>
-            ))}
-          </div>
         ) : null}
       </div>
       {current ? (
@@ -124,6 +133,14 @@ export function InboxScreen({
           item={current}
           onAnswered={() => setSelected(undefined)}
           onOpenSession={onOpenSession}
+          onOpenChanges={onOpenChanges}
+        />
+      ) : shownStopped ? (
+        <EscalatedCard
+          key={escalatedKey(shownStopped)}
+          run={shownStopped}
+          onDone={() => setSelected(undefined)}
+          onBriefing={onBriefing}
           onOpenChanges={onOpenChanges}
         />
       ) : inTerminal.length > 0 ? (

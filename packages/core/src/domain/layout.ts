@@ -21,7 +21,7 @@ const HostProcessSchema = z.strictObject({
   prompt: z.string(),
   sessionId: z.string().optional(),
 });
-/** Any other program (a shell, `metator env logs`): started again as it was. */
+/** Any other program (a shell, `metator env logs`). Only a plain shell starts again by itself. */
 const CommandProcessSchema = z.strictObject({ kind: z.literal("command"), argv: z.array(z.string()).min(1) });
 
 export const PaneSchema = z.strictObject({
@@ -361,4 +361,37 @@ function treeAfterRemove(tab: Tab, pane: string): { tree?: SplitNode } {
   if (!tab.tree) return {};
   const tree = removeFromTree(tab.tree, pane);
   return tree ? { tree } : {};
+}
+
+const SHELLS = new Set([
+  "sh",
+  "bash",
+  "zsh",
+  "fish",
+  "dash",
+  "ksh",
+  "tcsh",
+  "csh",
+  "nu",
+  "pwsh",
+  "powershell",
+  "cmd",
+]);
+
+/**
+ * A shell with nothing to run (`bash`, `/bin/zsh -l`): the only command a daemon starts again
+ * after a restart. Any other command did something once (a test run, a script, `sleep 6`), and
+ * running it a second time is not what the person asked for (R11).
+ */
+export function isPlainShell(argv: readonly string[]): boolean {
+  const program =
+    (argv[0] ?? "")
+      .split(/[\\/]/)
+      .at(-1)
+      ?.replace(/\.exe$/i, "") ?? "";
+  if (!SHELLS.has(program)) return false;
+  // Flags only (`-l`, `--login`), and none that hands the shell a command (`-c`, `-lc`, `-Command`).
+  return argv
+    .slice(1)
+    .every((a) => a.startsWith("-") && !/^-[a-z]*c[a-z]*$/.test(a) && !/^--?command$/i.test(a));
 }

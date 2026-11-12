@@ -1,6 +1,7 @@
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { isRunBookkeeping } from "../domain/run-record.ts";
+import { RunStateMachine } from "../domain/run-machine.ts";
+import { isRunBookkeeping, type RunRecord } from "../domain/run-record.ts";
 import {
   isTerminal,
   type RunSummary,
@@ -10,8 +11,10 @@ import {
 } from "../domain/run-report.ts";
 import { serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
+import type { RunDrivers } from "./run-drivers.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { AdvanceRun, GetRunStatus } from "./runs.ts";
+import type { WorkflowCatalog } from "./workflow-catalog.ts";
 
 /** Files the run directory holds besides the run's own bookkeeping. */
 async function artifactsOf(fs: FileSystem, repo: RunRepository, runId: string): Promise<string[]> {
@@ -66,7 +69,9 @@ export class HandoffRun {
 
 /**
  * `run close` (ADR-0044): a run that reached a terminal state gets its summary (final telemetry);
- * `--aborted --reason` aborts an active run first. An active run is never closed silently.
+ * `--aborted --reason` aborts an active or an escalated run first (F6), and the process that
+ * drives it is stopped, so no agent goes on writing after the abort (R3). An active run is never
+ * closed silently.
  */
 export class CloseRun {
   constructor(
@@ -74,12 +79,16 @@ export class CloseRun {
     private readonly repo: RunRepository,
     private readonly fs: FileSystem,
     private readonly clock: Clock,
+    /** Who drives the run: an abort stops them. */
+    private readonly drivers?: Pick<RunDrivers, "stop">,
+    /** The workflows: an escalated run is given up through its state machine. */
+    private readonly catalog?: Pick<WorkflowCatalog, "get">,
   ) {}
 
   async execute(input: {
     readonly runId?: string;
     readonly abortReason?: string;
-  }): Promise<Result<RunSummary & { readonly file: string }, MetatorError>> {
+  }): Promise<Result<RunSummary & { readonly file: string; readonly stoppedDriver?: number }, MetatorError>> {
     const id = await this.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     let record = await this.repo.load(id.value);
@@ -101,6 +110,10 @@ export class CloseRun {
       if (aborted.isErr()) return err(aborted.error);
       record = await this.repo.load(id.value);
       if (record.isErr()) return err(record.error);
+    } else if (record.value.state.status === "escalated" && input.abortReason !== undefined) {
+      const given = await this.abandon(record.value, input.abortReason);
+      if (given.isErr()) return err(given.error);
+      record = given;
     }
     const current = record.value;
     const status = current.state.status;
@@ -116,6 +129,33 @@ export class CloseRun {
     if (written.isErr()) return err(written.error);
     const logged = await this.repo.appendLog(id.value, `${summary.closedAt} · closed · ${status}`);
     if (logged.isErr()) return err(logged.error);
-    return ok({ ...summary, file });
+    // Last, once everything is written: the caller may itself be a child of the drive it stops.
+    let stoppedDriver: number | null = null;
+    if (input.abortReason !== undefined && this.drivers) {
+      const stopped = await this.drivers.stop(id.value);
+      if (stopped.isErr()) return err(stopped.error);
+      stoppedDriver = stopped.value.stopped;
+    }
+    return ok({ ...summary, file, ...(stoppedDriver !== null ? { stoppedDriver } : {}) });
+  }
+
+  /** An escalated run ends as aborted, with the reason in its history and its log. */
+  private async abandon(record: RunRecord, reason: string): Promise<Result<RunRecord, MetatorError>> {
+    if (!this.catalog) return err(new MetatorError("INTERNAL", "CloseRun has no workflow catalog wired"));
+    const entry = await this.catalog.get(record.workflow.id);
+    if (entry.isErr()) return err(entry.error);
+    const machine = RunStateMachine.create(entry.value.spec);
+    if (machine.isErr()) return err(machine.error);
+    const now = this.clock.now().toISOString();
+    const updated = await this.repo.update(record.runId, (current) =>
+      machine.value.abandon(current.state, reason).map((state) => ({ ...current, state, updatedAt: now })),
+    );
+    if (updated.isErr()) return err(updated.error);
+    const logged = await this.repo.appendLog(
+      record.runId,
+      `${now} · escalated · ABORT · ${reason} → aborted`,
+    );
+    if (logged.isErr()) return err(logged.error);
+    return ok(updated.value);
   }
 }

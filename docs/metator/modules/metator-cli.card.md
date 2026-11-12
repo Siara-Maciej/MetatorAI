@@ -35,5 +35,7 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 
 - Validate option values with commander (`choices`, `argParser`), not by hand (MT-CODE-004).
 - A new command must be added to the help list in `e2e/cli.e2e.test.ts`.
+- A detached drive is started only through `startDetached` (`src/sessions.ts`): it refuses a run that is not active and a host that cannot start, where the background process would end without a word.
+- The daemon's state and inbox sockets read one overview per repository per tick (`overviewOf` in `src/serve/server.ts`); a request that is not a GET clears it. Do not build a container per poll.
 - A hook must not fail the host's tool call: `guard *` always exits 0 and reports its own errors as `systemMessage`.
 - Only the command a person typed may ask questions (`ctx.prompter`, set by `main.ts` for a TTY); questions go to stderr so stdout stays one envelope, and commands run through `invoke` never ask (ADR-0049).

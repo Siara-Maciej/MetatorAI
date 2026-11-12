@@ -145,9 +145,15 @@ describe("panes (real daemon, real PTYs)", () => {
     expect((await mt("pane", "read", gateId)).json.ok).toBe(false);
   }, 60_000);
 
-  test("a restarted daemon brings the panes back: the session resumed, the shell started again", async () => {
-    const before = (await get("/layout")).data as { panes: { id: string; live?: { pid: number } }[] };
+  test("a restarted daemon brings the session and a plain shell back; a command is not run a second time (R11)", async () => {
+    // A plain shell beside the session and the pane that ran a command.
+    const plain = await post("/panes", { runId, role: "shell", label: "sh", argv: ["sh"] });
+    const plainId = (plain.data as { id: string }).id;
+    const before = (await get("/layout")).data as {
+      panes: { id: string; process: { argv?: string[] }; live?: { pid: number } }[];
+    };
     const pids = Object.fromEntries(before.panes.map((p) => [p.id, p.live?.pid]));
+    const command = before.panes.find((p) => p.process.argv?.[1] === "-c")?.id as string;
     daemon.kill("SIGTERM");
     await daemon.exited;
     expect(existsSync(repo.path(".metator/daemon.json"))).toBe(false);
@@ -156,10 +162,14 @@ describe("panes (real daemon, real PTYs)", () => {
       const l = (await get("/layout")).data as {
         panes: { id: string; live?: { pid: number; alive: boolean } }[];
       };
-      return l.panes.every((p) => p.live?.alive) ? l : undefined;
+      return l.panes.filter((p) => p.id !== command).every((p) => p.live?.alive) ? l : undefined;
     });
+    // The pane of the command is still in the layout, with nothing running in it.
     expect(after.panes.map((p) => p.id)).toEqual(Object.keys(pids));
-    for (const p of after.panes) expect(p.live?.pid).not.toBe(pids[p.id]);
+    expect(after.panes.find((p) => p.id === command)?.live?.alive ?? false).toBe(false);
+    for (const p of after.panes.filter((x) => x.id !== command)) expect(p.live?.pid).not.toBe(pids[p.id]);
+    expect((await post(`/panes/${plainId}/close`, {})).data).toEqual({ closed: true });
+    expect((await post(`/panes/${command}/close`, {})).ok).toBe(true);
     await until("the resumed session", async () =>
       ((await get("/panes/w1:p1")).data.text as string).includes("resumed session") ? true : undefined,
     );

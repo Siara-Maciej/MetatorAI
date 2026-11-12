@@ -45,11 +45,17 @@ Agents send these commands during a run. Three things follow from the workflow a
 - A failed stage goes back to the stage the workflow names. In `mt-feature`, failed gates go back to `build`.
 - Each way back has a limit (`loops` in the workflow; `mt-feature` allows two returns to `build`). When the limit is used up, or a stage fails that has no way back, the run is escalated.
 
-An escalated run stops and waits for you. When you have fixed the cause, put it back at the stage it stopped at:
+An escalated run stops and waits for you. `metator run status` and `metator inbox` show the stage it stopped at, the reason, and the two commands that get it out. `metator run drive` and `metator run continue` refuse an escalated run and name the resume.
+
+When you have fixed the cause, put the run back at the stage it stopped at. With `--drive` it is driven on at once:
 
 ```bash
-metator run resume --by alice
+metator run resume --by alice --drive
 ```
+
+A resumed run gets a fresh set of tries for the stage it stopped at: if the stage fails again, the run goes back to be fixed as the workflow says, and escalates only when that limit is used up again. The first agent that runs after a resume is told why the stage failed.
+
+To give the run up instead, close it with a reason (see [Finish a run](#finish-a-run)).
 
 ## What a run leaves on disk
 
@@ -89,6 +95,10 @@ metator run continue                         # drive it again
 
 A run has one driver at a time. A second `run drive` is refused while the first is alive.
 
+`run drive` checks the host before it runs a stage. A host whose program is not installed is refused with the hosts that are, so no stage fails for that reason. If a run's worktree was removed by hand, the drive stops and names the two ways on: put the worktree back, or close the run.
+
+You can also approve a gate with `metator run approve <stage> --by <name>` while a drive waits on its question. The drive notices that the run moved on and carries on with the next stage.
+
 ## Run several tasks at once
 
 Give a run its own git worktree and it does not touch your checkout or another run's files:
@@ -103,7 +113,7 @@ metator run init --workflow mt-feature --task "Add combined discount" --worktree
 
 ```bash
 metator run close                                  # a finished run: writes summary.json
-metator run close --aborted --reason "superseded"  # give up an active run
+metator run close --aborted --reason "superseded"  # give up an active or an escalated run
 ```
 
-`run close` refuses an active run without `--aborted` and a reason.
+`run close` refuses an active run without `--aborted` and a reason. With them, the run ends as aborted, the process that drives it is stopped, and its open questions leave the inbox. An escalated run closed without `--aborted` keeps its status and can still be resumed.

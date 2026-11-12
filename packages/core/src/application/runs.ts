@@ -1,11 +1,14 @@
 import slugify from "@sindresorhus/slugify";
 import { MetatorError } from "../domain/errors.ts";
+import { escalatedNext } from "../domain/inbox.ts";
 import { type PublishedBranch, publicationProblem } from "../domain/publication.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run-machine.ts";
 import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "../domain/run-record.ts";
 import type { WorkflowSpec } from "../domain/workflow-spec.ts";
 import type { BranchPublication, Clock, FileSystem } from "../ports/index.ts";
+import type { RunJournal } from "./drive.ts";
+import { type CheckReadiness, startRefusal } from "./readiness.ts";
 import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { CreateWorktree } from "./worktrees.ts";
@@ -32,6 +35,12 @@ export interface RunView {
   readonly worktree?: RunRecord["worktree"];
   readonly driver?: RunRecord["driver"];
   readonly updatedAt: string;
+  /** An escalated run: where and why it stopped, and the commands that get it going or end it. */
+  readonly escalated?: {
+    readonly stage: string;
+    readonly reason?: string;
+    readonly next: readonly string[];
+  };
 }
 
 function view(record: RunRecord, machine: RunStateMachine, repo: RunRepository): RunView {
@@ -50,6 +59,16 @@ function view(record: RunRecord, machine: RunStateMachine, repo: RunRepository):
     ...(record.worktree ? { worktree: record.worktree } : {}),
     ...(record.driver ? { driver: record.driver } : {}),
     updatedAt: record.updatedAt,
+    ...(record.state.status === "escalated" ? { escalated: escalation(record) } : {}),
+  };
+}
+
+function escalation(record: RunRecord): NonNullable<RunView["escalated"]> {
+  const last = record.state.context.history.at(-1);
+  return {
+    stage: last?.stage ?? record.state.stage,
+    ...(last?.detail ? { reason: last.detail } : {}),
+    next: escalatedNext(record.runId),
   };
 }
 
@@ -80,7 +99,11 @@ export interface InitRunInput {
   readonly task: string;
   readonly autonomy?: Autonomy;
   /** Work in a new git worktree with its own ports (F8.2), branched from `base`. */
-  readonly worktree?: { readonly base?: string };
+  readonly worktree?: {
+    readonly base?: string;
+    /** Start although tracked files have uncommitted changes: the run starts from the last commit. */
+    readonly allowDirty?: boolean;
+  };
   /** The run this one is a child of (F7.6), possibly in another repository. */
   readonly parent?: string;
   /** The system plan step this run carries out (F7.6). */
@@ -95,6 +118,8 @@ export class InitRun {
     private readonly repo: RunRepository,
     private readonly clock: Clock,
     private readonly worktrees?: Pick<CreateWorktree, "execute">,
+    /** What the place allows: a run is refused where it could not work, with the step that fixes it (F3). */
+    private readonly readiness?: Pick<CheckReadiness, "execute">,
   ) {}
 
   async execute(input: InitRunInput): Promise<Result<RunView, MetatorError>> {
@@ -129,6 +154,16 @@ export class InitRun {
       );
     // Without a level: L0 (every gate asks) when the workflow has it, else the first level it lists.
     const autonomy = input.autonomy ?? (!levels || levels.includes("L0") ? "L0" : (levels[0] as Autonomy));
+
+    if (this.readiness) {
+      const ready = await this.readiness.execute({});
+      if (ready.isErr()) return err(ready.error);
+      const refusal = startRefusal(ready.value, {
+        worktree: input.worktree !== undefined,
+        allowDirty: input.worktree?.allowDirty,
+      });
+      if (refusal) return err(refusal);
+    }
 
     const now = this.clock.now().toISOString();
     const runId = await this.uniqueId(now, machine.workflow.id, input.task);
@@ -190,6 +225,8 @@ export class AdvanceRun {
     private readonly catalog: WorkflowCatalog,
     private readonly repo: RunRepository,
     private readonly clock: Clock,
+    /** The run's questions: a gate approved here answers the gate's open question (R8). */
+    private readonly journal?: Pick<RunJournal, "settleGate">,
   ) {}
 
   async execute(input: {
@@ -259,6 +296,12 @@ export class AdvanceRun {
       const logged = await this.repo.appendLog(id.value, line);
       if (logged.isErr()) return err(logged.error);
     }
+    // After the transition, never before it: a drive that read the answer first would send its own
+    // approval and this one would be refused.
+    if (input.event.type === "APPROVE" && this.journal) {
+      const settled = await this.journal.settleGate(id.value, seen.stage, input.event.by);
+      if (settled.isErr()) return err(settled.error);
+    }
     return ok(view(updated.value, machine, this.repo));
   }
 }
@@ -271,7 +314,10 @@ const movedOn = (current: RunRecord, seenStage: string): MetatorError =>
     { hint: "Look again (`metator run status`) and repeat what still applies." },
   );
 
-/** `run resume`: an escalated run goes on at the stage it escalated from, and the log says who resumed it. */
+/**
+ * `run resume`: an escalated run goes on at the stage it escalated from, with that stage's loop
+ * counted from zero again, and the log says who resumed it.
+ */
 export class ResumeRun {
   constructor(
     private readonly catalog: WorkflowCatalog,
@@ -283,6 +329,8 @@ export class ResumeRun {
     readonly runId?: string;
     readonly by: string;
   }): Promise<Result<RunView, MetatorError>> {
+    if (input.by.trim() === "")
+      return err(MetatorError.usage("say who resumes: --by <name>", "The log records who resumed the run."));
     const id = await this.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     const record = await this.repo.load(id.value);
@@ -366,6 +414,12 @@ export class ApproveRun {
     if (id.isErr()) return err(id.error);
     const record = await this.repo.load(id.value);
     if (record.isErr()) return err(record.error);
+    if (record.value.state.status === "escalated")
+      return err(
+        new MetatorError("TRANSITION_DENIED", `run ${id.value} is escalated; nothing to approve`, {
+          hint: `Resume it first: \`metator run resume --run ${id.value} --by ${input.by}\`.`,
+        }),
+      );
     if (input.via === "chat") {
       const driver = record.value.driver;
       if (driver?.by !== "human")

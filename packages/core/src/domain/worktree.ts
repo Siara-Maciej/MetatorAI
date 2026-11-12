@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineDocument } from "./versioned.ts";
+import { defineDocument, parseJsonDocument } from "./versioned.ts";
 
 /**
  * Worktrees of runs (F8.2, ADR-0050): each run works in its own git worktree with its own block
@@ -104,5 +104,21 @@ export function pruneCandidates(input: PruneInput): readonly WorktreeEntry[] {
     const status = input.runStatus.get(e.run);
     const finished = status === undefined || status !== "active";
     return finished && new Date(e.createdAt).getTime() <= cutoff;
+  });
+}
+
+/**
+ * Whether a package.json asks for anything to be installed: a dependency of any kind, or
+ * workspaces (whose packages have their own). One that does not leaves no node_modules behind,
+ * so its absence means nothing (F5). A manifest that cannot be read counts as declaring some.
+ */
+export function declaresDependencies(packageJson: string): boolean {
+  const parsed = parseJsonDocument(packageJson, "package.json");
+  if (parsed.isErr() || typeof parsed.value !== "object" || parsed.value === null) return true;
+  const manifest = parsed.value as Record<string, unknown>;
+  if (manifest.workspaces !== undefined) return true;
+  return ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].some((k) => {
+    const deps = manifest[k];
+    return typeof deps === "object" && deps !== null && Object.keys(deps).length > 0;
   });
 }

@@ -1,6 +1,6 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, MetatorError, ok, type Result } from "@metator/core";
+import { err, hostRefusal, MetatorError, notDrivable, ok, type Result } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import { type FollowResult, follow, person } from "./live.ts";
 import type { Terminal } from "./terminal.ts";
@@ -23,14 +23,31 @@ export const defaultHost = (
   return HOST_OF[c.resolve("config").config.hosts.targets[0] ?? "claude"] ?? "claude";
 };
 
-/** Starts `run drive` for the run in its own process (the same entry point as this command). */
-export function startDetached(
+/**
+ * Starts `run drive` for the run in its own process (the same entry point as this command).
+ * Refused up front where that process would end at once without a word: a run that is not
+ * active (an escalated one names its resume), a host whose program is not installed.
+ */
+export async function startDetached(
   c: MetatorContainer,
   root: string | undefined,
   runId: string,
   host: string,
   maxSteps = 200,
 ) {
+  const record = await c.resolve("runRepository").load(runId);
+  if (record.isErr()) return err(record.error);
+  const refused = notDrivable(record.value);
+  if (refused) return err(refused);
+  if (record.value.state.status !== "active")
+    return err(
+      new MetatorError(
+        "TRANSITION_DENIED",
+        `run ${runId} is ${record.value.state.status}; there is nothing to drive`,
+      ),
+    );
+  const missing = hostRefusal(host, [...c.resolve("agentHosts").keys()], c.resolve("driveHostProblem"));
+  if (missing) return err(missing);
   const argv = [
     process.argv[0] as string,
     process.argv[1] as string,
@@ -150,6 +167,8 @@ export async function resume(
 ): Promise<Result<{ readonly stage: string; readonly started: boolean }, MetatorError>> {
   const record = await c.resolve("runRepository").load(runId);
   if (record.isErr()) return err(record.error);
+  const escalated = notDrivable(record.value);
+  if (escalated) return err(escalated);
   if (record.value.state.status !== "active") {
     return err(
       new MetatorError(

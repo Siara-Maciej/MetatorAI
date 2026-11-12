@@ -115,6 +115,41 @@ describe("RunStateMachine (XState)", () => {
     expect(exhausted.status).toBe("escalated");
   });
 
+  test("resume: back at the stage it escalated from, that stage's loop from zero, the others as they were", () => {
+    let state = drive(machine().start(), { type: "PASS" }, { type: "PASS" }); // at plan-gate
+    for (let i = 0; i < 2; i++) state = drive(state, { type: "FAIL" }, { type: "PASS" });
+    const escalated = drive(state, { type: "FAIL", reason: "third" });
+    expect([escalated.status, escalated.context.loops]).toEqual(["escalated", { plan: 2 }]);
+    const withOther = { ...escalated, context: { ...escalated.context, loops: { plan: 2, review: 1 } } };
+    const resumed = machine().resume(withOther)._unsafeUnwrap();
+    expect([resumed.stage, resumed.status, resumed.context.loops]).toEqual([
+      "plan-gate",
+      "active",
+      { plan: 0, review: 1 },
+    ]);
+    expect(resumed.context.history).toEqual(escalated.context.history);
+    // The input is not changed, and a run that is not escalated does not resume.
+    expect(withOther.context.loops).toEqual({ plan: 2, review: 1 });
+    expect(machine().resume(resumed)._unsafeUnwrapErr().code).toBe("USAGE");
+    // A stage with no loop of its own (it escalates on its first FAIL) resumes with the loops untouched.
+    const first = drive(machine().start(), { type: "FAIL", reason: "x" });
+    expect(machine().resume(first)._unsafeUnwrap().context.loops).toEqual({});
+  });
+
+  test("abandon: an escalated run ends aborted with the reason; any other run is refused", () => {
+    const escalated = drive(machine().start(), { type: "PASS" }, { type: "PASS" }, { type: "PASS" });
+    const stuck = drive(escalated, { type: "FAIL", reason: "no" }); // approval has no onFail
+    const given = machine().abandon(stuck, "gave up")._unsafeUnwrap();
+    expect([given.stage, given.status, given.context.history.at(-1)]).toEqual([
+      "aborted",
+      "aborted",
+      { stage: "approval", event: "ABORT", detail: "gave up" },
+    ]);
+    expect(stuck.context.history.length).toBe(given.context.history.length - 1);
+    expect(machine().abandon(machine().start(), "x")._unsafeUnwrapErr().code).toBe("TRANSITION_DENIED");
+    expect(machine().abandon(given, "x")._unsafeUnwrapErr().code).toBe("TRANSITION_DENIED");
+  });
+
   test("a stage without onFail escalates on FAIL", () => {
     expect(drive(machine().start(), { type: "FAIL" }).status).toBe("escalated");
   });

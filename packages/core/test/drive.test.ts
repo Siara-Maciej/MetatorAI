@@ -14,6 +14,8 @@ import {
   DO_IT,
   DriveRun,
   failedSteps,
+  hostRefusal,
+  notDrivable,
   OTHER,
   RunJournal,
   sinceLastAnswer,
@@ -23,7 +25,7 @@ import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { CloseRun } from "../src/application/run-close.ts";
 import { RunDrivers } from "../src/application/run-drivers.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
-import { AdvanceRun, ApproveRun, InitRun } from "../src/application/runs.ts";
+import { AdvanceRun, ApproveRun, InitRun, ResumeRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import {
   blockedPrompt,
@@ -333,8 +335,24 @@ function world(
     runId = view.runId;
     return view.runId;
   };
-  return { fs, repo, journal, host, drive, start, asked, scripts, advance, clock };
+  return { fs, repo, journal, host, drive, start, asked, scripts, advance, clock, catalog };
 }
+
+/** The dependencies of a second drive over the same world (its own timer, or its own advance). */
+const driveDeps = (w: ReturnType<typeof world>) => ({
+  catalog: w.catalog,
+  repo: w.repo,
+  journal: w.journal,
+  advance: w.advance,
+  approve: new ApproveRun(w.advance, w.repo, w.clock, w.catalog),
+  close: new CloseRun(w.advance, w.repo, w.fs, w.clock),
+  hosts: new Map([["fake", w.host]]),
+  process: w.scripts,
+  fs: w.fs,
+  timer: new InstantTimer(async () => {}),
+  root: "/repo",
+  metatorCommand: "bun run metator",
+});
 
 const okScripts = () =>
   new ScriptedProcessRunner([
@@ -439,6 +457,16 @@ describe("DriveRun", () => {
     const record = (await w.repo.load(runId))._unsafeUnwrap();
     const worktree = { id: "wt1", path: ".metator/wt/wt1", branch: "metator/wt1" };
     (await w.repo.save({ ...record, worktree }))._unsafeUnwrap();
+    // The worktree was removed by hand (R10): the drive says so and runs nothing there.
+    const gone = (await w.drive.execute({ runId, host: "fake", maxSteps: 2 }))._unsafeUnwrapErr();
+    expect([gone.code, gone.message]).toEqual([
+      "NOT_FOUND",
+      `the worktree of run ${runId} is gone: .metator/wt/wt1 is not a git checkout any more`,
+    ]);
+    expect(gone.hint).toContain(`metator run close --run ${runId} --aborted`);
+    expect([w.scripts.calls.length, w.host.tasks.length]).toEqual([0, 0]);
+    expect((await w.journal.activity(runId))._unsafeUnwrap().at(-1)?.type).toBe("error");
+    await w.fs.write(".metator/wt/wt1/.git", "gitdir: /repo/.git/worktrees/wt1\n");
     await w.drive.execute({ runId, host: "fake", maxSteps: 2 });
     expect([w.host.tasks[0]?.cwd, w.host.tasks[0]?.runDir]).toEqual([
       "/repo/.metator/wt/wt1",
@@ -1117,6 +1145,106 @@ loops:
     expect(f3?.text).toBe("FAIL: missing artifacts: plan.md");
   });
 
+  test("a gate approved from another terminal: the drive stops waiting and carries on (R8)", async () => {
+    const w = world(
+      { "mt-planner": [writesPlan], "mt-implementer": [{}], "mt-scout": [{}] },
+      () => undefined,
+      okScripts(),
+    );
+    w0 = w;
+    const runId = await w.start();
+    const journal = w.journal;
+    // The "person" approves the stage itself (`run approve approval`); the question stays open.
+    let approved = false;
+    const timer = new InstantTimer(async () => {
+      if (approved) return;
+      approved = true;
+      (await w.advance.execute({ runId, event: { type: "APPROVE", by: "ola" } }))._unsafeUnwrap();
+    });
+    const drive = new DriveRun({ ...driveDeps(w), timer });
+    const r = (await drive.execute({ runId, host: "fake", maxSteps: 4 }))._unsafeUnwrap();
+    expect(approved).toBe(true);
+    // setup, plan, approval (left while it waited), build: the drive is past the gate, at check.
+    expect([r.status, r.stage]).toEqual(["active", "check"]);
+    const history = (await w.repo.load(runId))._unsafeUnwrap().state.context.history;
+    expect(history.filter((h) => h.event === "APPROVE")).toEqual([
+      { stage: "approval", event: "APPROVE", detail: "ola" },
+    ]);
+    const said = (await journal.activity(runId))._unsafeUnwrap().map((a) => a.text);
+    expect(said).toContain("the run left approval while it waited for a person; looking at the run again");
+  });
+
+  test("a run aborted while its gate waits: the drive stops waiting and ends (R3)", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start();
+    const timer = new InstantTimer(async () => {
+      const now = (await w.repo.load(runId))._unsafeUnwrap();
+      if (now.state.status === "active")
+        (await w.advance.execute({ runId, event: { type: "ABORT", reason: "not needed" } }))._unsafeUnwrap();
+    });
+    const drive = new DriveRun({ ...driveDeps(w), timer });
+    const r = (await drive.execute({ runId, host: "fake" }))._unsafeUnwrap();
+    expect([r.status, r.steps]).toEqual(["aborted", 3]);
+    // Nothing ran after the abort.
+    expect(w.host.tasks.map((t) => t.agent)).toEqual(["mt-planner"]);
+  });
+
+  test("an escalated run is not driven: the refusal names the resume; resumed, its agent hears why it failed (F1)", async () => {
+    const w = world(
+      { "mt-planner": [writesPlan, {}], "mt-implementer": [{}, {}], "mt-scout": [{}, {}] },
+      () => ({ choices: ["Approve"] }),
+      new ScriptedProcessRunner([
+        { argvPrefix: ["bun", "run", "metator", "index", "build"], result: { exitCode: 0 } },
+        { argvPrefix: ["test", "-f"], result: { exitCode: 1, stderr: "no plan" } },
+      ]),
+    );
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("escalated");
+    const steps = (await w.journal.activity(runId))._unsafeUnwrap().length;
+    const refused = (await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrapErr();
+    expect(refused.code).toBe("USAGE");
+    expect(refused.message).toStartWith(`run ${runId} escalated at check: gate \`test -f`);
+    expect(refused.hint).toContain(`metator run resume --run ${runId} --by <name> --drive`);
+    // A refused drive leaves no trace of having driven.
+    expect((await w.journal.activity(runId))._unsafeUnwrap().length).toBe(steps);
+    expect(notDrivable((await w.repo.load(runId))._unsafeUnwrap())?.code).toBe("USAGE");
+
+    (
+      await new ResumeRun(new WorkflowCatalog(w.fs, DEFAULT_PATHS), w.repo, w.clock).execute({
+        runId,
+        by: "ola",
+      })
+    )._unsafeUnwrap();
+    expect(notDrivable((await w.repo.load(runId))._unsafeUnwrap())).toBeUndefined();
+    const again = (await w.drive.execute({ runId, host: "fake", maxSteps: 2 }))._unsafeUnwrap();
+    // check fails again and, with its loop counted from zero, sends the run back to plan.
+    expect(again.status).toBe("active");
+    const planner = w.host.tasks.filter((t) => t.agent === "mt-planner").at(-1);
+    expect(planner?.prompt).toContain("no plan");
+  });
+
+  test("a host whose program is not installed is refused before any stage runs (F3)", async () => {
+    const w = world({}, () => undefined, okScripts(), {
+      hostProblem: (h) => (h === "fake" ? "`fake` is not installed" : undefined),
+    });
+    const runId = await w.start();
+    const e = (await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrapErr();
+    expect([e.code, e.message, e.hint]).toEqual([
+      "USAGE",
+      "AI host fake cannot start here: `fake` is not installed",
+      "Install it, then drive the run again.",
+    ]);
+    expect([w.scripts.calls.length, (await w.journal.activity(runId))._unsafeUnwrap().length]).toEqual([
+      0, 0,
+    ]);
+    expect(hostRefusal("a", ["a", "b", "c"], (h) => (h === "b" ? undefined : "gone"))?.hint).toBe(
+      "Install it, or drive with a host that is here: --host b.",
+    );
+    expect(hostRefusal("b", ["a", "b"], (h) => (h === "b" ? undefined : "gone"))).toBeUndefined();
+  });
+
   test("unknown host and max steps", async () => {
     const w = world({}, () => undefined, okScripts());
     const runId = await w.start();
@@ -1199,6 +1327,33 @@ describe("RunJournal answers", () => {
     expect((await ask())._unsafeUnwrap().id).toBe(first.id);
     await j.answer("r1", first.id, { choices: ["Approve"], by: "m" });
     expect((await ask())._unsafeUnwrap().id).toBe("q002");
+  });
+});
+
+describe("RunJournal and a run that ended", () => {
+  test("a question of a run that is not active takes no answer; waiting for it ends (R3)", async () => {
+    const w = world({}, () => undefined, okScripts());
+    const runId = await w.start();
+    const q = (
+      await w.journal.ask(runId, {
+        stage: "setup",
+        source: "agent",
+        prompt: "which?",
+        options: [{ label: "A" }],
+        multiSelect: false,
+      })
+    )._unsafeUnwrap();
+    (await w.advance.execute({ runId, event: { type: "ABORT", reason: "stop" } }))._unsafeUnwrap();
+    const refused = (await w.journal.answer(runId, q.id, { choices: ["A"], by: "m" }))._unsafeUnwrapErr();
+    expect([refused.code, refused.message]).toEqual([
+      "USAGE",
+      `run ${runId} is aborted: question ${q.id} no longer waits for an answer`,
+    ]);
+    // A wait that would never end returns nothing instead: the timer is never slept on.
+    const never = new InstantTimer(async () => {
+      throw new Error("waited on a run that ended");
+    });
+    expect((await w.journal.waitFor(runId, q.id, never, 1))._unsafeUnwrap()).toBeUndefined();
   });
 });
 

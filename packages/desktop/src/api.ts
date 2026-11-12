@@ -57,6 +57,8 @@ export interface RunOverview {
   readonly autonomy: string;
   readonly status: string;
   readonly stage: string;
+  /** Why an escalated or aborted run stopped. */
+  readonly reason?: string;
   readonly attention: Attention;
   readonly stages: readonly StageProgress[];
   readonly questions: readonly Question[];
@@ -535,6 +537,19 @@ export class DaemonClient {
   brief = (runId: string, repo?: string, since?: string) =>
     this.get<Brief>(`/runs/${runId}/brief${since ? `?since=${encodeURIComponent(since)}` : ""}`, repo);
   seen = (runId: string, repo?: string) => this.post<{ at: string }>(`/runs/${runId}/seen`, {}, repo);
+  /** An escalated run back at the stage it escalated from, and driven on at once. */
+  resume = (runId: string, by: string, repo?: string) =>
+    this.post<{ run: { stage: string }; drive?: { started?: boolean; error?: string; hint?: string } }>(
+      `/runs/${runId}/resume`,
+      { by },
+      repo,
+    );
+  /** Stops the process that drives the run; the run stays where it is. */
+  stop = (runId: string, repo?: string) =>
+    this.post<{ stopped: number | null }>(`/runs/${runId}/stop`, {}, repo);
+  /** Ends a run as aborted, with the reason: its drive is stopped and its panes are closed. */
+  abort = (runId: string, reason: string, repo?: string) =>
+    this.post<{ status: string }>(`/runs/${runId}/close`, { aborted: true, reason }, repo);
   attach = (runId: string, by: string, repo?: string) => this.post(`/runs/${runId}/attach`, { by }, repo);
   release = (runId: string, repo?: string) => this.post(`/runs/${runId}/release`, {}, repo);
   answer = (

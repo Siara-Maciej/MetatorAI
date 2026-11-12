@@ -27,6 +27,8 @@ export interface RunOverview {
   readonly autonomy: string;
   readonly status: string;
   readonly stage: string;
+  /** Why an escalated or aborted run stopped: what its last transition recorded. */
+  readonly reason?: string;
   readonly attention: Attention;
   readonly stages: readonly StageProgress[];
   /** Open questions: what to answer, in order. */
@@ -94,7 +96,9 @@ export class WorkOverview {
     for (const r of all.runs) {
       const runId = r.runId;
       const questions = await this.journal.questions(runId);
-      const open = questions.isOk() ? questions.value.filter((q) => !q.answer) : [];
+      const active = r.state.status === "active";
+      // A run that ended asks nothing any more: its open questions are not a person's to answer (R3).
+      const open = questions.isOk() && active ? questions.value.filter((q) => !q.answer) : [];
       const driver = await this.drivers.status(runId);
       const driving = driver.isOk() && driver.value?.alive === true;
       const spec = await this.workflows.get(r.workflow.id);
@@ -104,7 +108,7 @@ export class WorkOverview {
       const atGate = stages.some((s) => s.state === "waiting" && s.hitl);
       const activity = await this.journal.activity(runId);
       const last = activity.isOk() ? activity.value.at(-1) : undefined;
-      const active = r.state.status === "active";
+      const reason = active ? undefined : r.state.context.history.at(-1)?.detail;
       const end = active ? this.clock.now().getTime() : new Date(r.updatedAt).getTime();
       let worktree: RunOverview["worktree"];
       let services: RunOverview["services"] = [];
@@ -128,6 +132,7 @@ export class WorkOverview {
         autonomy: r.autonomy,
         status: r.state.status,
         stage,
+        ...(reason && r.state.status !== "done" ? { reason } : {}),
         attention: attentionOf(r.state.status, open.length, driving, atGate),
         stages,
         questions: open,

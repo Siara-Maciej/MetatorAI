@@ -21,12 +21,14 @@ export function inboxOf(
     readonly task: string;
     readonly driving: boolean;
     readonly questions: readonly Question[];
+    /** The run's status; a run that is not active asks nothing any more (R3). */
+    readonly status?: string;
   }[],
   now: Date,
 ): InboxItem[] {
   const items = runs.flatMap((r) =>
     r.questions
-      .filter((q) => !q.answer)
+      .filter((q) => !q.answer && (r.status ?? "active") === "active")
       .map((q) => ({
         runId: r.runId,
         task: r.task,
@@ -37,6 +39,50 @@ export function inboxOf(
       })),
   );
   return items.sort(byUrgency);
+}
+
+/** A run that escalated: it stands until a person resumes it or closes it (R9, F1). */
+export interface EscalatedItem {
+  readonly runId: string;
+  readonly task: string;
+  /** The stage it escalated from: where a resume puts it back. */
+  readonly stage: string;
+  /** Why it escalated: the failure its last transition recorded. */
+  readonly reason?: string;
+  readonly waitedMs: number;
+  /** The two ways out, as commands. */
+  readonly next: readonly string[];
+}
+
+/** The two ways out of an escalated run, as the commands a person runs. */
+export const escalatedNext = (runId: string): string[] => [
+  `metator run resume --run ${runId} --by <name> --drive`,
+  `metator run close --run ${runId} --aborted --reason <why>`,
+];
+
+/** Every escalated run, the one waiting longest first. */
+export function escalatedOf(
+  runs: readonly {
+    readonly runId: string;
+    readonly task: string;
+    readonly status: string;
+    readonly stage: string;
+    readonly reason?: string;
+    readonly updatedAt: string;
+  }[],
+  now: Date,
+): EscalatedItem[] {
+  return runs
+    .filter((r) => r.status === "escalated")
+    .map((r) => ({
+      runId: r.runId,
+      task: r.task,
+      stage: r.stage,
+      ...(r.reason ? { reason: r.reason } : {}),
+      waitedMs: Math.max(0, now.getTime() - new Date(r.updatedAt).getTime()),
+      next: escalatedNext(r.runId),
+    }))
+    .sort((a, b) => b.waitedMs - a.waitedMs || a.runId.localeCompare(b.runId));
 }
 
 /** A decision a live drive waits on first, then the one waiting longest; ties in a stable order. */

@@ -62,7 +62,10 @@ export class WorkflowCatalog {
     if (broken) return err(broken.error);
     return err(
       new MetatorError("NOT_FOUND", `Workflow "${id}" not found`, {
-        hint: `Known workflows: ${workflows.map((w) => w.spec.id).join(", ") || "none"}. Specs live in ${this.paths.workflows}/*.yml.`,
+        hint:
+          workflows.length > 0
+            ? `Known workflows: ${workflows.map((w) => w.spec.id).join(", ")}. Specs live in ${this.paths.workflows}/*.yml.`
+            : `No workflow is installed here: run \`metator setup\` (it writes them to ${this.paths.workflows}/*.yml).`,
       }),
     );
   }

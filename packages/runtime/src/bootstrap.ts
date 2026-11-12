@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
@@ -58,6 +58,7 @@ import {
   DocsLinks,
   DriveRun,
   DriverLock,
+  declaresDependencies,
   EnvironmentCatalog,
   EnvironmentServices,
   EvalCatalog,
@@ -458,6 +459,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         environmentServices,
         optionStore,
         runRepository,
+        processRunner,
+        driveHostProblem,
       }) =>
         new CheckReadiness(
           fileSystem,
@@ -470,6 +473,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           environmentServices,
           { servers: () => optionStore.mcp(), hasCommand: async (bin) => Bun.which(bin) !== null },
           runRepository,
+          {
+            hosts: () =>
+              config.config.hosts.targets.map((id: string) => ({ id, problem: driveHostProblem(id) })),
+            modified: () => modifiedTracked(processRunner, root),
+          },
         ),
     ),
     setupWorktree: asFunction(
@@ -561,6 +569,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     }).singleton(),
     // Which interactive hosts can start here: the program each one runs, looked up when asked
     // (a host installed while the daemon runs is found without a restart).
+    // Why a host that drives agents cannot start here. Claude runs through its SDK and the scenario
+    // host is played by a test: only Copilot needs its program on the PATH.
+    driveHostProblem: asFunction(() => (host: string): string | undefined => {
+      if (host !== "copilot") return undefined;
+      const command = options.copilotBin ?? "copilot";
+      return commandExists(command) ? undefined : `\`${command}\` is not installed`;
+    }).singleton(),
     hostStatus: asFunction(({ interactiveHosts }) => () => {
       const commands: Readonly<Record<string, string>> = {
         copilot: options.copilotBin ?? "copilot",
@@ -783,6 +798,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         runMessages,
         paths,
         worktreeRegistry,
+        driveHostProblem,
       }) =>
         new DriveRun({
           catalog: workflowCatalog,
@@ -803,6 +819,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           gatesDir: paths.gates,
           worktrees: worktreeRegistry,
           notifier,
+          hostProblem: driveHostProblem,
         }),
     ),
     // One GitVcs behind every git port, so they all agree on what a change is.
@@ -1304,8 +1321,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ fileSystem, paths, fileLock }) => new RunRepository(fileSystem, paths, options.run, fileLock),
     ).singleton(),
     initRun: asFunction(
-      ({ workflowCatalog, runRepository, clock, provideWorktree }) =>
-        new InitRun(workflowCatalog, runRepository, clock, provideWorktree),
+      ({ workflowCatalog, runRepository, clock, provideWorktree, checkReadiness }) =>
+        new InitRun(workflowCatalog, runRepository, clock, provideWorktree, checkReadiness),
     ),
     worktreeManager: asFunction(({ root }) => new GitWorktreeManager(root)).singleton(),
     portProbe: asFunction(() => new GetPortProbe()).singleton(),
@@ -1366,7 +1383,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new PruneWorktrees(worktreeRegistry, removeWorktree, worktreeManager, runRepository, clock),
     ),
     advanceRun: asFunction(
-      ({ workflowCatalog, runRepository, clock }) => new AdvanceRun(workflowCatalog, runRepository, clock),
+      ({ workflowCatalog, runRepository, clock, runJournal }) =>
+        new AdvanceRun(workflowCatalog, runRepository, clock, runJournal),
     ),
     approveRun: asFunction(
       ({ advanceRun, runRepository, clock, workflowCatalog }) =>
@@ -1403,8 +1421,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new HandoffRun(getRunStatus, runRepository, fileSystem, clock),
     ),
     closeRun: asFunction(
-      ({ advanceRun, runRepository, fileSystem, clock }) =>
-        new CloseRun(advanceRun, runRepository, fileSystem, clock),
+      ({ advanceRun, runRepository, fileSystem, clock, runDrivers, workflowCatalog }) =>
+        new CloseRun(advanceRun, runRepository, fileSystem, clock, runDrivers, workflowCatalog),
     ),
     getRunStatus: asFunction(
       ({ workflowCatalog, runRepository }) => new GetRunStatus(workflowCatalog, runRepository),
@@ -1452,6 +1470,20 @@ async function worktreeChanges(
   return ok([...new Set(files)].sort());
 }
 
+/** Tracked files with uncommitted changes, MetatorAI's own state aside; undefined when git cannot say. */
+async function modifiedTracked(runner: ProcessRunner, root: string): Promise<readonly string[] | undefined> {
+  const status = await runner.run({
+    argv: ["git", "-c", "core.quotepath=false", "status", "--porcelain", "--untracked-files=no"],
+    cwd: root,
+  });
+  if (status.exitCode !== 0) return undefined;
+  return status.stdout
+    .split("\n")
+    .filter((l) => l.length > 3)
+    .map((l) => l.slice(3))
+    .filter((f) => !f.startsWith(".metator/"));
+}
+
 /** Whether a program can be started: a path that exists, or a name found on PATH. */
 const commandExists = (command: string): boolean =>
   command.includes("/") ? existsSync(command) : Bun.which(command) !== null;
@@ -1469,7 +1501,13 @@ const isDirectory = (path: string): boolean => {
  * cannot run its tests, type checker or linters there, and installing is not the agent's call.
  */
 export function workNotes(cwd: string): string[] {
-  if (existsSync(join(cwd, "package.json")) && !existsSync(join(cwd, "node_modules")))
+  const manifest = join(cwd, "package.json");
+  // A package.json that lists nothing to install has no node_modules and misses nothing (F5).
+  if (
+    existsSync(manifest) &&
+    !existsSync(join(cwd, "node_modules")) &&
+    declaresDependencies(readFileSync(manifest, "utf8"))
+  )
     return [
       "The project's dependencies are not installed here (no node_modules): its tests, type checker and linters cannot run. Do not install anything or try to run them; write the code and tests, and say plainly that they were not run.",
     ];

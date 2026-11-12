@@ -5,6 +5,7 @@ import { CloseRun, HandoffRun } from "../src/application/run-close.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
 import { AdvanceRun, GetRunStatus, InitRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
+import { ok } from "../src/domain/result.ts";
 import type { RunRecord } from "../src/domain/run-record.ts";
 import { RunHandoffDocument, RunSummaryDocument, summarizeRun } from "../src/domain/run-report.ts";
 import { readFrontMatter } from "../src/domain/versioned.ts";
@@ -39,6 +40,8 @@ async function world() {
     dir: repo.runDir(run.runId),
     handoff: new HandoffRun(new GetRunStatus(catalog, repo), repo, fs, later),
     close: new CloseRun(advance, repo, fs, later),
+    catalog,
+    later,
   };
 }
 
@@ -122,6 +125,51 @@ describe("CloseRun", () => {
     expect([s.status, s.events.ABORT, s.stage]).toEqual(["aborted", 1, "aborted"]);
     const log = (await w.repo.readLog(w.runId))._unsafeUnwrap();
     expect(log.some((l) => l.includes("ABORT · scope changed"))).toBe(true);
+  });
+
+  test("--aborted stops the process that drives the run, after everything is written (R3)", async () => {
+    const w = await world();
+    const order: string[] = [];
+    const close = new CloseRun(
+      w.advance,
+      w.repo,
+      w.fs,
+      w.later,
+      {
+        stop: async (runId) => {
+          order.push(`stop ${runId} summary:${await w.fs.exists(`${w.dir}/summary.json`)}`);
+          return ok({ stopped: 4242 });
+        },
+      },
+      w.catalog,
+    );
+    const s = (await close.execute({ abortReason: "scope changed" }))._unsafeUnwrap();
+    expect([s.status, s.stoppedDriver]).toEqual(["aborted", 4242]);
+    expect(order).toEqual([`stop ${w.runId} summary:true`]);
+    // Closing a run that is already over (what a drive does at its end) stops nobody.
+    expect((await close.execute({}))._unsafeUnwrap().stoppedDriver).toBeUndefined();
+    expect(order.length).toBe(1);
+  });
+
+  test("--aborted ends an escalated run as aborted, with the reason at the stage it escalated from (F6)", async () => {
+    const w = await world();
+    const close = new CloseRun(w.advance, w.repo, w.fs, w.later, undefined, w.catalog);
+    (await w.advance.execute({ event: { type: "FAIL", reason: "no plan" } }))._unsafeUnwrap();
+    expect((await w.repo.load(w.runId))._unsafeUnwrap().state.status).toBe("escalated");
+    const s = (await close.execute({ abortReason: "gave up" }))._unsafeUnwrap();
+    expect([s.status, s.events.ABORT]).toEqual(["aborted", 1]);
+    const state = (await w.repo.load(w.runId))._unsafeUnwrap().state;
+    expect([state.status, state.stage, state.context.history.at(-1)]).toEqual([
+      "aborted",
+      "aborted",
+      { stage: "plan", event: "ABORT", detail: "gave up" },
+    ]);
+    const log = (await w.repo.readLog(w.runId))._unsafeUnwrap();
+    expect(log.at(-2)).toBe("2026-10-25T10:30:00.000Z · escalated · ABORT · gave up → aborted");
+    // Without a reason an escalated run is summarized as it is: still escalated, still resumable.
+    const other = await world();
+    (await other.advance.execute({ event: { type: "FAIL" } }))._unsafeUnwrap();
+    expect((await other.close.execute({}))._unsafeUnwrap().status).toBe("escalated");
   });
 
   test("no runs at all is an error value", async () => {

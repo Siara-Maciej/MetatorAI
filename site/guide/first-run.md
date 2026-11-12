@@ -33,7 +33,7 @@ Setup does four things:
 
 Commit the result. `--host` takes `claude`, `copilot` or both, and wins over what setup found. `hostsFrom` in the result says where the choice came from: `option`, `config` (an existing `metator.config.yml`), `found`, `asked`, or `default` (nothing said, so both).
 
-`metator doctor` then tells you what a run can do here. Each check is `ok`, `warn` (a run starts but does less) or `fail` (a run cannot start), and each problem names the command that fixes it.
+`metator doctor` then tells you what a run can do here. Each check is `ok`, `warn` (a run starts but does less) or `fail` (a run cannot start), and each problem names the command or the step that fixes it. It fails when the directory is not a git repository, when the repository has no commit, when there is no workflow, and when none of the AI hosts in `hosts.targets` can start. It warns about uncommitted changes to tracked files, missing gates, dependencies that are not installed, and a missing remote.
 
 ## Start the daemon and open the app
 

@@ -9,7 +9,9 @@ import { NoDaemon, Notice } from "./components/common.tsx";
 import { SessionsPanel } from "./components/sessions-panel.tsx";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
 import {
+  escalatedKey,
   hostChoice,
+  isFinished,
   newQuestions,
   nextWaiting,
   noHostText,
@@ -271,7 +273,7 @@ function Shell() {
           aria-expanded={panelOpen}
           onClick={() => setPanelOpen(!panelOpen)}
         >
-          Sessions · {d.runs.filter((r) => r.status === "active").length}
+          Sessions · {d.runs.filter((r) => !isFinished(r)).length}
         </button>
         <span className="spacer" />
         <button
@@ -310,6 +312,7 @@ function Shell() {
       <SessionsPanel
         current={current}
         onOpen={(id, pane) => openSession(id, false, pane)}
+        onEscalated={(r) => go({ screen: "inbox", pick: escalatedKey(r) })}
         onNew={() => void openIntake()}
         onAdvanced={() => setDialog(true)}
       />

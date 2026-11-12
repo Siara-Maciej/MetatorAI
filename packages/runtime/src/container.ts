@@ -296,6 +296,8 @@ export interface Cradle {
   driverLock: DriverLock;
   terminal: Terminal;
   interactiveHosts: ReadonlyMap<string, InteractiveHost>;
+  /** Why a host that drives agents cannot start on this machine; undefined when it can. */
+  driveHostProblem: (host: string) => string | undefined;
   /** Every interactive host with the program it starts and whether that program is on this machine. */
   hostStatus: () => readonly {
     readonly id: string;

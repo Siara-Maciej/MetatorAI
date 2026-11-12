@@ -43,7 +43,7 @@ The line under the buttons shows the command your answer amounts to. **Changes**
 
 The daemon carries out the answer. If no drive is running, it starts one again on the host the run used. What you write in your own words is passed to every later agent of the run as a decision to follow.
 
-With nothing open the screen reads **Inbox zero**. It says so only while the daemon answers.
+With nothing open, and no escalated run, the screen reads **Inbox zero**. It says so only while the daemon answers.
 
 ## Questions asked in the terminal
 
@@ -55,13 +55,19 @@ Sometimes the AI host shows its own permission prompt in the terminal ("Allow ..
 
 ## Escalated runs
 
-A run that reaches a loop limit, or whose agent stays blocked, becomes `escalated`. It needs work from you and a yes or no is not enough. The Inbox lists escalated runs under the queue, each with **briefing** (what happened) and **terminal** (the session).
+A run that reaches a loop limit, or whose agent stays blocked, becomes `escalated`. It needs work from you and a yes or no is not enough. Escalated runs count in the heading **Needs you** and are listed in the queue as rows marked `ESCALATED`, with the task and the stage the run stopped at. In the sessions panel a click on an escalated run opens the same card.
 
-Fix the cause, then resume the run at the stage it escalated from:
+The card shows why the run stopped (the failure its last stage recorded) and has four buttons:
+
+- **Resume** puts the run back at the stage it escalated from and drives it on. Remove the cause first. The run gets a fresh set of tries for that stage. If no drive can start, the card says why.
+- **Close run…** asks for a reason and ends the run as aborted.
+- **Briefing** shows what happened in the run, and **Changes** shows its change.
+
+The same from the terminal:
 
 ```bash
-metator run resume --run <id> --by alice
-metator run drive --run <id> --host claude --detach
+metator run resume --run <id> --by alice --drive
+metator run close --run <id> --aborted --reason "not worth fixing"
 ```
 
 ## Get notified

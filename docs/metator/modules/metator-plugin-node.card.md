@@ -27,6 +27,8 @@ dir: packages/plugin-node
 
 - A repository without package.json has no packages, not an error [[cite: packages/plugin-node/src/manypkg-workspace-reader.ts:41 | "if (!existsSync(join(this.root, \"package.json\"))) return ok([]);"]].
 
+- An install where the project has no lockfile writes none (`--no-package-lock`, `--no-lockfile`, `--no-save`), so a run's change never gains a lockfile the project does not have.
+
 ## Allowed dependencies
 
 `@metator/core`, `@manypkg/get-packages` (ADR-0018), `package-manager-detector` (ADR-0028), `@friedemannsommer/lcov-parser` (ADR-0041), `get-port` (ADR-0050), `wait-on` (ADR-0053) and `node-pty` (ADR-0077); `@metator/testing` in tests.
