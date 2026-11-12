@@ -3218,8 +3218,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-typescript/src/oxc-import-analyzer.ts",
-    from: "bare && !this.aliased(tsconfig, specifier)",
-    to: "bare",
+    from: "if (bare && !targets) return",
+    to: "if (bare) return",
     why: "a missing file behind a tsconfig alias is unresolved, not a package",
   },
   {
@@ -5215,8 +5215,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/compute-affected.ts",
-    from: 'return to ? [{ from: u.from, to, kind: "internal" as const }] : [];',
-    to: "return [];",
+    from: "return [...(relative ? [relative] : []), ...named].map((to) => ({",
+    to: "return [].map((to: string) => ({",
     why: "the importers of a deleted module are affected (their import of it resolves to nothing)",
   },
   {
