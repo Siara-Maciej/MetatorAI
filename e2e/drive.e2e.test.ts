@@ -187,6 +187,39 @@ describe("metator run drive (real CLI, scenario host)", () => {
     await mt("run", "stop");
   }, 60_000);
 
+  test("one meaning per code: an unknown run is NOT_FOUND, a run that ended is TRANSITION_DENIED, no active run is NOT_FOUND", async () => {
+    type E = { code: string; message: string };
+    const failed = async (...args: string[]) => {
+      const r = await mt(...args);
+      return [r.code, (r.json.error as E | undefined)?.code];
+    };
+    for (const command of ["stop", "questions", "activity", "status"])
+      expect([command, ...(await failed("run", command, "--run", "20990101-no-such-run"))]).toEqual([
+        command,
+        1,
+        "NOT_FOUND",
+      ]);
+    // Every run of this repository has ended by now, or is ended here.
+    const runs = (await mt("run", "list")).json.data as { runId: string; status: string }[];
+    for (const r of runs.filter((x) => x.status === "active"))
+      await mt("run", "advance", "abort", "--reason", "the test ends it", "--run", r.runId);
+    const ended = (runs[0] as { runId: string }).runId;
+    const again = await mt("run", "continue", ended, "--host", "scenario");
+    expect([again.code, (again.json.error as E).code, (again.json.error as E).message]).toEqual([
+      1,
+      "TRANSITION_DENIED",
+      expect.stringContaining("there is nothing to continue"),
+    ]);
+    const approve = await mt("run", "approve", "push", "--by", "maciej", "--run", ended);
+    expect([approve.code, (approve.json.error as E).code]).toEqual([1, "TRANSITION_DENIED"]);
+    const none = await mt("run", "continue");
+    expect([none.code, (none.json.error as E).code, (none.json.error as E).message]).toEqual([
+      1,
+      "NOT_FOUND",
+      "no active run to continue",
+    ]);
+  }, 60_000);
+
   test("every log line of the activity is a versioned document", async () => {
     const runs = ((await mt("run", "list")).json.data as { runId: string }[]).map((r) => r.runId);
     for (const runId of runs) {

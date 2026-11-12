@@ -1,5 +1,5 @@
 import { type LayoutView, PANE_STATES, type PaneState } from "@metator/core";
-import type { Command } from "commander";
+import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, findDaemon, paneHeaders } from "../daemon-client.ts";
 import { positiveInt } from "../options.ts";
@@ -50,10 +50,12 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
   pane
     .command("split <pane>")
     .description("Split a pane's area: a shell (or a command) to the right of it or below it (S6)")
-    .option("--dir <dir>", "right or down", "right")
+    .addOption(
+      new Option("--dir <dir>", "where the new pane goes").choices(["right", "down"]).default("right"),
+    )
     .option("--argv <argv...>", "the command to run in the new pane (default: your shell)")
     .action(
-      ctx.action(async (id: string, opts: { dir: string; argv?: string[] }) => {
+      ctx.action(async (id: string, opts: { dir: "right" | "down"; argv?: string[] }) => {
         const daemon = findDaemon(root());
         if (daemon.isErr()) return { result: daemon };
         return {
@@ -61,7 +63,7 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
             daemon.value,
             "POST",
             `/panes/${encodeURIComponent(id)}/split`,
-            { dir: opts.dir === "down" ? "down" : "right", ...(opts.argv ? { argv: opts.argv } : {}) },
+            { dir: opts.dir, ...(opts.argv ? { argv: opts.argv } : {}) },
             paneHeaders(),
           ),
         };

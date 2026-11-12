@@ -87,7 +87,7 @@ metator mcp            # serve over stdio; the host starts it
 metator mcp --list     # print the tools it would serve
 ```
 
-Each reading command is a tool named after its words, such as `metator_graph_affected` or `metator_run_status`. A tool takes the command's options and arguments in `args` and returns the same JSON the terminal prints. Commands that write, run your scripts or move a run are not served. A client configuration:
+Each reading command is a tool named after its words, such as `metator_graph_affected` or `metator_run_status`. A tool takes the command's options and arguments in `args` and returns the same JSON the terminal prints. Commands that write, run your scripts or move a run are not served. An option of a served command that writes a file, changes files, clones a repository or sends a message (`--out`, `--sarif`, `--fix`, `--fetch`, `--notify`, `--html`) is refused with `USAGE`, and `run brief` as a tool does not mark the run as read. A client configuration:
 
 ```json
 { "mcpServers": { "metator": { "command": "metator", "args": ["mcp"], "cwd": "/path/to/your/repo" } } }

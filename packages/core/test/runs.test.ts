@@ -292,9 +292,10 @@ describe("run approvals (RunRecord v2)", () => {
     const w = world();
     await w.init.execute({ workflow: "feature", task: "t" });
     await w.advance.execute({ event: { type: "ABORT", reason: "stop" } });
-    expect((await w.approve.execute({ gate: "push", by: "m" }))._unsafeUnwrapErr().message).toContain(
-      "is aborted",
-    );
+    const finished = (await w.approve.execute({ gate: "push", by: "m" }))._unsafeUnwrapErr();
+    expect(finished.message).toContain("is aborted");
+    // A run that is not active is the same refusal everywhere: TRANSITION_DENIED, not USAGE.
+    expect(finished.code).toBe("TRANSITION_DENIED");
     expect(
       (await w.approve.execute({ runId: "20990101-x-y", gate: "push", by: "m" }))._unsafeUnwrapErr().code,
     ).toBe("NOT_FOUND");

@@ -386,7 +386,12 @@ export class ApproveRun {
       );
     }
     if (record.value.state.status !== "active")
-      return err(MetatorError.usage(`run ${id.value} is ${record.value.state.status}; nothing to approve`));
+      return err(
+        new MetatorError(
+          "TRANSITION_DENIED",
+          `run ${id.value} is ${record.value.state.status}; nothing to approve`,
+        ),
+      );
     // The workflow says which external actions its runs may take (`permissions.external`).
     const entry = await this.catalog.get(record.value.workflow.id);
     if (entry.isErr()) return err(entry.error);

@@ -31,23 +31,32 @@ export interface CommandHelp extends CommandInfo {
   readonly commands?: CommandInfo[];
 }
 
-/**
- * `metator <command> --help`: the command the words before the flag name, with its options (and
- * the commands of a group). `--help` with no command, or after `--`, is the whole list.
- */
-export function describeCommandFor(program: Command, argv: readonly string[]): CommandHelp | undefined {
-  const end = argv.indexOf("--");
-  const words = end === -1 ? argv : argv.slice(0, end);
-  if (!words.some((a) => a === "--help" || a === "-h")) return undefined;
+/** The command the words name, skipping the options (with their values) of the commands on the way. */
+function commandAt(
+  program: Command,
+  words: readonly string[],
+): { readonly cmd: Command; readonly path: readonly string[]; readonly rest: readonly string[] } {
   let cmd = program;
   const path: string[] = [];
-  for (const word of words) {
+  let i = 0;
+  for (; i < words.length; i++) {
+    const word = words[i] as string;
     const sub = cmd.commands.find((c) => c.name() === word || c.aliases().includes(word));
-    if (!sub) break;
-    cmd = sub;
-    path.push(sub.name());
+    if (sub) {
+      cmd = sub;
+      path.push(sub.name());
+      continue;
+    }
+    // `-C <dir>` and `--root <dir>` (or `--root=<dir>`) before the command are not its name.
+    const flag = word.split("=")[0] as string;
+    const option = cmd.options.find((o) => o.short === flag || o.long === flag);
+    if (!option) break;
+    if ((option.required || option.optional) && !word.includes("=")) i++;
   }
-  if (path.length === 0) return undefined;
+  return { cmd, path, rest: words.slice(i) };
+}
+
+function helpOf(cmd: Command, path: readonly string[]): CommandHelp {
   const name = path.join(" ");
   const commands = cmd.commands.length > 0 ? describeCommands(cmd).commands : undefined;
   return {
@@ -61,6 +70,23 @@ export function describeCommandFor(program: Command, argv: readonly string[]): C
     })),
     ...(commands ? { commands: commands.map((c) => ({ ...c, name: `${name} ${c.name}` })) } : {}),
   };
+}
+
+/**
+ * `metator <command> --help`: the command the words before the flag name, with its options (and
+ * the commands of a group). `--help` with no command, or after `--`, is the whole list. A group
+ * that does not run on its own, typed bare (`metator repos`), is its help too.
+ */
+export function describeCommandFor(program: Command, argv: readonly string[]): CommandHelp | undefined {
+  const end = argv.indexOf("--");
+  const words = end === -1 ? argv : argv.slice(0, end);
+  const asked = words.some((a) => a === "--help" || a === "-h");
+  const { cmd, path, rest } = commandAt(program, words);
+  if (path.length === 0) return undefined;
+  if (asked) return helpOf(cmd, path);
+  const runsItself = (cmd as unknown as { _actionHandler?: unknown })._actionHandler != null;
+  const bareGroup = rest.length === 0 && end === -1 && cmd.commands.length > 0 && !runsItself;
+  return bareGroup ? helpOf(cmd, path) : undefined;
 }
 
 /**

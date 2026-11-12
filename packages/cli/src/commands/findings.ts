@@ -314,7 +314,7 @@ export function registerReviewCommands(program: Command, { action, container, ru
     .argument("<text>", "the note")
     .option("--run <id>", "run id (default: latest)")
     .option("--file <path>", "the file it is about (repo-relative)")
-    .option("--line <n>", "the line in it", (v: string) => Number(v))
+    .option("--line <n>", "the line in it", positiveInt)
     .addOption(new Option("--side <side>", "the old or the new side of the diff").choices(["old", "new"]))
     .requiredOption("--by <name>", "who writes it")
     .action(
