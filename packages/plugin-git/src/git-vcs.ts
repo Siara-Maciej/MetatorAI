@@ -270,15 +270,35 @@ export class GitVcs
   private async mergeBase(git: SimpleGit, base: string): Promise<Result<string, MetatorError>> {
     if (base === "HEAD") return ok("HEAD");
     const mergeBase = await git.raw(["merge-base", base, "HEAD"]).catch(() => undefined);
-    if (!mergeBase?.trim()) {
+    if (mergeBase?.trim()) return ok(mergeBase.trim());
+    // Not `--quiet`: git would then fail without stderr, which simple-git reports as success.
+    const exists = await git.raw(["rev-parse", "--verify", `${base}^{commit}`]).then(
+      (out) => out.trim() !== "",
+      () => false,
+    );
+    if (!exists)
       return err(
         MetatorError.usage(
           `Unknown base ref "${base}"`,
           "Use a branch, tag or commit that shares history with HEAD.",
         ),
       );
-    }
-    return ok(mergeBase.trim());
+    const shallow = await git.raw(["rev-parse", "--is-shallow-repository"]).then(
+      (out) => out.trim() === "true",
+      () => false,
+    );
+    // The ref is there, the commits between it and HEAD are not: a depth-1 clone, as CI makes by default.
+    return err(
+      shallow
+        ? MetatorError.usage(
+            `Base ref "${base}" shares no history with HEAD: this clone is shallow`,
+            "Fetch the history: `git fetch --unshallow` (GitHub Actions: `fetch-depth: 0` on actions/checkout).",
+          )
+        : MetatorError.usage(
+            `Base ref "${base}" shares no history with HEAD`,
+            "Use a branch, tag or commit that shares history with HEAD.",
+          ),
+    );
   }
 
   private async hasCommits(git: SimpleGit): Promise<boolean> {

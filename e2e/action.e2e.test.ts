@@ -35,12 +35,13 @@ let repo: ScratchRepo;
 let scratch: string;
 
 /** A step's script with GitHub's expressions filled in as a pull request would fill them. */
-function fill(script: string, inputs: Record<string, string>): string {
+function fill(script: string, inputs: Record<string, string>, github: Record<string, string> = {}): string {
   const context: Record<string, string> = {
     "github.action_path": ROOT,
     "github.workspace": repo.root,
     "github.base_ref": "",
     "steps.base.outputs.ref": "HEAD~1",
+    ...github,
   };
   return script.replace(/\$\{\{ ([a-z_.-]+) \}\}/g, (whole, name: string) => {
     if (name.startsWith("inputs.")) return inputs[name.slice("inputs.".length)] ?? "";
@@ -48,8 +49,13 @@ function fill(script: string, inputs: Record<string, string>): string {
   });
 }
 
-async function runStep(step: Step, inputs: Record<string, string>, cwd = repo.root) {
-  const script = fill(step.run as string, inputs);
+async function runStep(
+  step: Step,
+  inputs: Record<string, string>,
+  cwd = repo.root,
+  github: Record<string, string> = {},
+) {
+  const script = fill(step.run as string, inputs, github);
   const outputs = join(scratch, `${step.id ?? step.name}.out`);
   await writeFile(outputs, "");
   const proc = Bun.spawn(["bash", "-eo", "pipefail", "-c", script], {
@@ -126,6 +132,47 @@ describe("the MetatorAI GitHub Action (action.yml)", () => {
     expect([specs.code, specs.stdout.includes('"problems":[]'), specs.stdout.includes('"stale":[]')]).toEqual(
       [0, true, true],
     );
+  }, 60_000);
+
+  test("a pull request on a shallow checkout (the default of actions/checkout): the base step fetches the history the merge base needs", async () => {
+    const origin = await ScratchRepo.create();
+    const clone = join(scratch, "shallow");
+    try {
+      await origin.write("src/a.ts", "export const a = 1;\n");
+      await origin.commit("base");
+      await origin.git("checkout", "-q", "-b", "pr");
+      await origin.write("src/b.ts", "export const b = 2;\n");
+      await origin.commit("first");
+      await origin.write("src/c.ts", "export const c = 3;\n");
+      await origin.commit("second");
+      await origin.git("clone", "-q", "--depth", "1", "--branch", "pr", `file://${origin.root}`, clone);
+      // Without the history the base is there and still useless: the message says why.
+      await origin.git(
+        "-C",
+        clone,
+        "fetch",
+        "-q",
+        "--depth",
+        "1",
+        "origin",
+        "+refs/heads/main:refs/remotes/origin/main",
+      );
+      const shallow = await metator(["changed", "--base", "origin/main"], clone);
+      expect([shallow.code, (shallow.json.error as { message: string }).message]).toEqual([
+        64,
+        'Base ref "origin/main" shares no history with HEAD: this clone is shallow',
+      ]);
+      expect((shallow.json.error as { hint: string }).hint).toContain("git fetch --unshallow");
+      const step = scripted().find((s) => s.name === "The base ref") as Step;
+      const base = await runStep(step, { ...defaults(), "working-directory": clone }, clone, {
+        "github.base_ref": "main",
+      });
+      expect([base.code, base.outputs.trim()]).toEqual([0, "ref=origin/main"]);
+      const changed = await metator(["changed", "--base", "origin/main"], clone);
+      expect((changed.json.data as { files: string[] }).files).toEqual(["src/b.ts", "src/c.ts"]);
+    } finally {
+      await origin.dispose();
+    }
   }, 60_000);
 
   test("a stale generated host file fails the specs step, like a rule violation fails the rules step", async () => {

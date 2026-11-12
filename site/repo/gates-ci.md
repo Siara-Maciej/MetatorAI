@@ -112,6 +112,8 @@ jobs:
 | `metator-ref` | `main` | which MetatorAI ref to run |
 | `working-directory` | the workspace | the repository to check |
 
+On a pull request the action fetches the base branch itself, with the history a shallow checkout lacks, so `fetch-depth: 0` is optional there. A `base` you pass, and the `HEAD~1` of a push, must already be in the checkout: keep `fetch-depth: 0` for those.
+
 The action sets two outputs: `violations` (rule violations in the change) and `arch-added` (architecture violations the change adds). It fails when either is not zero, when a workflow spec fails lint, when a generated file is stale, and when the gate fails.
 
 ## Your own job
@@ -168,6 +170,8 @@ jobs:
       - run: metator gate full
       - run: metator meta check-all --min-e1 60
 ```
+
+The checks compare against the merge base, so the checkout needs history. On a shallow clone they stop with `Base ref "origin/main" shares no history with HEAD: this clone is shallow`; `fetch-depth: 0` on `actions/checkout` (or `git fetch --unshallow`) fixes it.
 
 ## Decision records in CI
 

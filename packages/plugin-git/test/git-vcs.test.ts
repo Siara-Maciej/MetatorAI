@@ -173,6 +173,31 @@ describe("GitVcs unrelated history", () => {
     await sh(dir, "checkout", "-q", "-f", "feature");
     const error = (await new GitVcs(dir).changedFiles("island"))._unsafeUnwrapErr();
     expect(error.code).toBe("USAGE");
+    expect(error.message).toBe('Base ref "island" shares no history with HEAD');
+  });
+});
+
+describe("GitVcs shallow clone", () => {
+  test("a base that exists but shares no history says the clone is shallow and how to fetch the history", async () => {
+    const origin = await scenario();
+    await sh(origin, "commit", "-q", "-am", "more work");
+    const dir = await mkdtemp(join(tmpdir(), "metator-git-"));
+    dirs.push(dir);
+    // What actions/checkout does by default, then the base branch at depth 1.
+    await sh(dir, "clone", "-q", "--depth", "1", "--branch", "feature", `file://${origin}`, ".");
+    await sh(dir, "fetch", "-q", "--depth", "1", "origin", "+refs/heads/main:refs/remotes/origin/main");
+    const error = (await new GitVcs(dir).changedFiles("origin/main"))._unsafeUnwrapErr();
+    expect(error.code).toBe("USAGE");
+    expect(error.message).toBe('Base ref "origin/main" shares no history with HEAD: this clone is shallow');
+    expect(error.hint).toContain("git fetch --unshallow");
+    expect(error.hint).toContain("fetch-depth: 0");
+    // A ref that does not exist is still unknown, shallow or not.
+    expect((await new GitVcs(dir).changedFiles("origin/nope"))._unsafeUnwrapErr().message).toBe(
+      'Unknown base ref "origin/nope"',
+    );
+    // With the history fetched the same base works.
+    await sh(dir, "fetch", "-q", "--unshallow", "origin", "+refs/heads/main:refs/remotes/origin/main");
+    expect((await new GitVcs(dir).changedFiles("origin/main"))._unsafeUnwrap()).toContain("e.ts");
   });
 });
 
