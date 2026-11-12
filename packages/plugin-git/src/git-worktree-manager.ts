@@ -14,6 +14,19 @@ export class GitWorktreeManager implements WorktreeManager {
     shared: readonly string[] = [],
     setup: readonly string[] = [],
   ): Promise<Result<void, MetatorError>> {
+    // Not `--quiet`: git would then fail without stderr, which simple-git reports as success.
+    const committed = await simpleGit(this.root)
+      .revparse(["--verify", "HEAD"])
+      .then(
+        () => true,
+        () => false,
+      );
+    if (!committed)
+      return err(
+        new MetatorError("COMMAND_FAILED", `git worktree add ${path}: the repository has no commit yet`, {
+          hint: "A worktree branches from a commit. Make the first one: `git commit --allow-empty -m init`.",
+        }),
+      );
     return this.attempt(`git worktree add ${path}`, async () => {
       await simpleGit(this.root).raw(["worktree", "add", "-b", branch, path, base]);
       await this.linkSetup(path, setup, shared);

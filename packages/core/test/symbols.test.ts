@@ -142,6 +142,27 @@ describe("SymbolQueries", () => {
     });
   });
 
+  test("a workspace package imported by name that nothing links (no install) is followed to its entry", async () => {
+    const unlinked = {
+      "packages/money/src/index.ts": "export const add = 1;",
+      "packages/shop/src/use.ts": 'import { add } from "@x/money"',
+    };
+    const fs = new InMemoryFileSystem(unlinked);
+    // The package resolves from inside itself (its manifest names the entry), not from the shop.
+    const byName: ImportAnalyzer = {
+      ...analyzer,
+      resolve: (from, spec) =>
+        from === "packages/money/package.json" && spec === "@x/money"
+          ? { type: "file", path: "packages/money/src/index.ts" }
+          : analyzer.resolve(from, spec),
+    };
+    const q = new SymbolQueries(new SourceFiles(vcs(Object.keys(unlinked)), fs, []), fs, byName, symbols, {
+      packages: async () => ok([{ name: "@x/money", dir: "packages/money" }]),
+    });
+    const r = (await q.callers({ name: "add" }))._unsafeUnwrap();
+    expect(r.callers.map((c) => `${c.file}:${c.line}`)).toEqual(["packages/shop/src/use.ts:1"]);
+  });
+
   test("callers need a single definition: ambiguity is a usage error, absence NOT_FOUND", async () => {
     expect((await queries().callers({ name: "add" }))._unsafeUnwrapErr().code).toBe("USAGE");
     const r = (await queries().callers({ name: "add", file: "src/money.ts" }))._unsafeUnwrap();

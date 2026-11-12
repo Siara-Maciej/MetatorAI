@@ -77,16 +77,20 @@ const history = (files: Record<string, string>): RevisionReader => ({
   addedLines: async () => ok(new Map()),
   lastChanged: async () => ok(new Map()),
 });
-const graph = (edges: Edge[]) => ({
+const graph = (
+  edges: Edge[],
+  files: string[] = [],
+  unresolved: { from: string; specifier: string }[] = [],
+) => ({
   execute: async () =>
     ok({
-      files: [],
+      files,
       edges,
       packages: PACKAGES,
       externals: [],
       externalUses: [],
       imports: [],
-      unresolved: [],
+      unresolved,
       stats: { parsed: 0, reused: 0, failed: 0 },
       parseErrors: [],
     }),
@@ -113,6 +117,29 @@ describe("DiffImportGraph", () => {
       newPackageDependencies: [],
       newCycles: [],
     });
+  });
+
+  test("a deleted module: the edges of its importers are removed, changed or not", async () => {
+    // Resolution against the current tree: `./gone` is no file any more.
+    const now: ImportAnalyzer = {
+      ...analyzer,
+      resolve: (from, specifier) =>
+        specifier === "./gone" ? { type: "unresolved" } : analyzer.resolve(from, specifier),
+    };
+    const diff = new DiffImportGraph(
+      new FakeVcs([], [`${CORE}/gone.ts`, `${CORE}/fixed.ts`]),
+      history({ [`${CORE}/gone.ts`]: "", [`${CORE}/fixed.ts`]: 'import "./gone";' }),
+      graph(
+        [],
+        [`${CORE}/fixed.ts`, `${CORE}/broken.ts`],
+        [{ from: `${CORE}/broken.ts`, specifier: "./gone" }],
+      ),
+      now,
+    );
+    expect((await diff.execute({ base: "main" }))._unsafeUnwrap().removed).toEqual([
+      e(`${CORE}/broken.ts`, `${CORE}/gone.ts`),
+      e(`${CORE}/fixed.ts`, `${CORE}/gone.ts`),
+    ]);
   });
 
   test("an unparsable base version contributes no edges; failures are error values", async () => {

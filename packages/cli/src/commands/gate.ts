@@ -1,4 +1,4 @@
-import { err, MetatorError, normalizePath, ok } from "@metator/core";
+import { emptyGateHint, err, MetatorError, normalizePath, ok } from "@metator/core";
 import { Argument, type Command } from "commander";
 import type { CommandContext } from "../context.ts";
 
@@ -20,7 +20,7 @@ export function registerGateCommands(program: Command, { action, container }: Co
           return {
             result: err(
               new MetatorError("INVALID_CONFIG", `Gate "${gate}" has no steps`, {
-                hint: "Add gates.quick / gates.full to metator.config (`metator init` proposes them).",
+                hint: emptyGateHint(gate, c.resolve("config").source),
               }),
             ),
           };

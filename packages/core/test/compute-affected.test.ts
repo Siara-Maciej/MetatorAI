@@ -49,4 +49,25 @@ describe("ComputeAffected", () => {
     const result = await new ComputeAffected(vcs([]), broken, testGlobs).execute({});
     expect(result._unsafeUnwrapErr().code).toBe("STALE_INDEX");
   });
+
+  test("a deleted module's importers are affected: their import of it resolves to nothing now", async () => {
+    const withDangling: ImportGraphReader = {
+      read: async () => ok(edges),
+      graph: async () =>
+        ok({
+          edges,
+          unresolved: [
+            { from: "packages/a/src/ui.ts", specifier: "./gone" },
+            { from: "packages/a/test/gone.test.ts", specifier: "../src/gone.js" },
+            { from: "packages/a/test/other.test.ts", specifier: "./never-existed" },
+          ],
+        }),
+    };
+    const useCase = new ComputeAffected(vcs(["packages/a/src/gone.ts"]), withDangling, testGlobs, [".ts"]);
+    expect((await useCase.execute({ base: "main" }))._unsafeUnwrap()).toEqual({
+      changed: ["packages/a/src/gone.ts"],
+      files: ["packages/a/src/gone.ts", "packages/a/src/ui.ts", "packages/a/test/gone.test.ts"],
+      tests: ["packages/a/test/gone.test.ts"],
+    });
+  });
 });

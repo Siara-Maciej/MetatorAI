@@ -2,7 +2,7 @@ import { analyzeArchitecture } from "../domain/architecture.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { SECRET_GLOBS } from "../domain/hook.ts";
-import { packageOf } from "../domain/import-index.ts";
+import { manifestPath, packageOf } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import {
   type AppCandidate,
@@ -239,7 +239,7 @@ export class RepositoryDiscoverySource implements DiscoverySource {
 
   async owners(dirs: readonly string[]) {
     const r = await this.findOwners.execute({
-      paths: dirs.map((d) => (d === "." ? "package.json" : `${d}/package.json`)),
+      paths: dirs.map(manifestPath),
     });
     return r.map((o) => o.owners.map((x) => x.owners));
   }

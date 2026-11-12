@@ -112,3 +112,13 @@ test("an uncommitted setup reaches the worktree as links, ignored there only", a
   expect(status).toContain("?? metator.config.yml");
   expect(status).toContain("?? .claude/skills/mt-x/SKILL.md");
 });
+
+test("a repository with no commit: the error says how to make the first one", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "metator-wt-"));
+  dirs.push(dir);
+  git(dir, "init", "-q", "-b", "main");
+  const error = (await new GitWorktreeManager(dir).add(".worktrees/x", "mt/x", "HEAD"))._unsafeUnwrapErr();
+  expect(error.code).toBe("COMMAND_FAILED");
+  expect(error.message).toContain("the repository has no commit yet");
+  expect(error.hint).toContain("git commit --allow-empty -m init");
+});

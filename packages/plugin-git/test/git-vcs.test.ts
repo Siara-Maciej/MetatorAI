@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BunProcessRunner } from "@metator/plugin-bun";
-import { GitVcs } from "../src/git-vcs.ts";
+import { excludeLocally, GitVcs } from "../src/git-vcs.ts";
 
 const runner = new BunProcessRunner();
 const dirs: string[] = [];
@@ -173,6 +173,31 @@ describe("GitVcs unrelated history", () => {
     await sh(dir, "checkout", "-q", "-f", "feature");
     const error = (await new GitVcs(dir).changedFiles("island"))._unsafeUnwrapErr();
     expect(error.code).toBe("USAGE");
+    expect(error.message).toBe('Base ref "island" shares no history with HEAD');
+  });
+});
+
+describe("GitVcs shallow clone", () => {
+  test("a base that exists but shares no history says the clone is shallow and how to fetch the history", async () => {
+    const origin = await scenario();
+    await sh(origin, "commit", "-q", "-am", "more work");
+    const dir = await mkdtemp(join(tmpdir(), "metator-git-"));
+    dirs.push(dir);
+    // What actions/checkout does by default, then the base branch at depth 1.
+    await sh(dir, "clone", "-q", "--depth", "1", "--branch", "feature", `file://${origin}`, ".");
+    await sh(dir, "fetch", "-q", "--depth", "1", "origin", "+refs/heads/main:refs/remotes/origin/main");
+    const error = (await new GitVcs(dir).changedFiles("origin/main"))._unsafeUnwrapErr();
+    expect(error.code).toBe("USAGE");
+    expect(error.message).toBe('Base ref "origin/main" shares no history with HEAD: this clone is shallow');
+    expect(error.hint).toContain("git fetch --unshallow");
+    expect(error.hint).toContain("fetch-depth: 0");
+    // A ref that does not exist is still unknown, shallow or not.
+    expect((await new GitVcs(dir).changedFiles("origin/nope"))._unsafeUnwrapErr().message).toBe(
+      'Unknown base ref "origin/nope"',
+    );
+    // With the history fetched the same base works.
+    await sh(dir, "fetch", "-q", "--unshallow", "origin", "+refs/heads/main:refs/remotes/origin/main");
+    expect((await new GitVcs(dir).changedFiles("origin/main"))._unsafeUnwrap()).toContain("e.ts");
   });
 });
 
@@ -421,5 +446,47 @@ describe("GitVcs published", () => {
     await sh(clone, "push", "-q", "origin", "metator/r");
     const state = (await new GitVcs(clone).published())._unsafeUnwrap();
     expect(state.remote).toBe(state.head);
+  });
+});
+
+describe("excludeLocally", () => {
+  const untracked = async (dir: string) => {
+    const r = await runner.run({ argv: ["git", "status", "--porcelain"], cwd: dir });
+    return r.stdout.trim();
+  };
+
+  test("a directory git does not ignore yet is ignored in this clone only (.git/info/exclude), once", async () => {
+    const dir = await repo();
+    await Bun.write(join(dir, ".metator/index/imports.json"), "{}");
+    expect(await untracked(dir)).toBe("?? .metator/");
+    excludeLocally(dir, ".metator");
+    excludeLocally(dir, ".metator");
+    expect(await untracked(dir)).toBe("");
+    const exclude = await Bun.file(join(dir, ".git/info/exclude")).text();
+    expect(exclude.split("\n").filter((l) => l === "/.metator/")).toHaveLength(1);
+    expect(existsSync(join(dir, ".gitignore"))).toBe(false);
+  });
+
+  test("already ignored by the repository, or no repository: nothing is written", async () => {
+    const dir = await repo();
+    await writeFile(join(dir, ".gitignore"), ".metator/\n");
+    const before = existsSync(join(dir, ".git/info/exclude"))
+      ? await Bun.file(join(dir, ".git/info/exclude")).text()
+      : "";
+    excludeLocally(dir, ".metator");
+    expect(
+      existsSync(join(dir, ".git/info/exclude")) ? await Bun.file(join(dir, ".git/info/exclude")).text() : "",
+    ).toBe(before);
+    const plain = await mkdtemp(join(tmpdir(), "metator-git-"));
+    dirs.push(plain);
+    excludeLocally(plain, ".metator");
+    expect(existsSync(join(plain, ".git"))).toBe(false);
+  });
+
+  test("in a worktree the exclude file is the repository's (shared by every worktree)", async () => {
+    const dir = await scenario();
+    await sh(dir, "worktree", "add", "-q", "-b", "wt", "wt-dir", "main");
+    excludeLocally(join(dir, "wt-dir"), ".metator");
+    expect(await Bun.file(join(dir, ".git/info/exclude")).text()).toContain("/.metator/");
   });
 });

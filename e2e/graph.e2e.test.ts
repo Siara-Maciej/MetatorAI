@@ -164,6 +164,51 @@ describe("metator graph", () => {
   });
 });
 
+describe("a workspace nothing links (pnpm, no install)", () => {
+  test("an import by a workspace package's name is still an edge to its entry", async () => {
+    const bare = await ScratchRepo.create();
+    try {
+      const files: Record<string, string> = {
+        "package.json": JSON.stringify({ name: "acme", private: true }),
+        "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
+        ".gitignore": "node_modules/\n.metator/\n",
+        "packages/money/package.json": JSON.stringify({ name: "@acme/money", main: "./src/index.ts" }),
+        "packages/money/src/index.ts": "export const add = (a: number, b: number) => a + b;\n",
+        "packages/shop/package.json": JSON.stringify({
+          name: "@acme/shop",
+          exports: { ".": "./src/index.ts" },
+          dependencies: { "@acme/money": "workspace:*" },
+        }),
+        "packages/shop/src/index.ts": 'import { add } from "@acme/money";\nexport const total = add(1, 2);\n',
+        "packages/web/package.json": JSON.stringify({ name: "@acme/web" }),
+        "packages/web/src/main.ts": 'import { total } from "@acme/shop";\nexport const page = total;\n',
+        "packages/web/src/main.test.ts": 'import { page } from "./main.ts";\nconsole.log(page);\n',
+      };
+      for (const [path, content] of Object.entries(files)) await bare.write(path, content);
+      await bare.commit("init");
+      expect(await bare.exists("node_modules")).toBe(false);
+      expect(data(await metator(["graph", "packages"], bare.root))).toEqual({
+        edges: [
+          { from: "@acme/shop", to: "@acme/money", count: 1 },
+          { from: "@acme/web", to: "@acme/shop", count: 1 },
+        ],
+      });
+      const dependents = await metator(
+        ["graph", "dependents", "packages/money/src/index.ts", "--transitive"],
+        bare.root,
+      );
+      expect(JSON.stringify(dependents.json.data)).toContain("packages/web/src/main.test.ts");
+      const affected = await metator(
+        ["graph", "affected", "--files", "packages/money/src/index.ts"],
+        bare.root,
+      );
+      expect(data(affected).tests).toEqual(["packages/web/src/main.test.ts"]);
+    } finally {
+      await bare.dispose();
+    }
+  }, 60_000);
+});
+
 describe("metator workspace list", () => {
   test("lists the Bun workspace packages", async () => {
     expect(data(await metator(["workspace", "list"], repo.root))).toEqual({

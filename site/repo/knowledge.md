@@ -75,6 +75,8 @@ Budgets matter most for files an agent always loads: every line of `AGENTS.md` c
 | `metator memory matrix` | who reads and writes which file |
 | `metator memory check` | for CI: every file mapped, budgets kept, citations true |
 
+`memory inventory` and `memory dupes` leave out the files `metator generate` wrote for the AI tools (`.claude/agents/`, `.github/agents/`, the generated skills): they are copies of what is in `metator/`. `--generated` includes them.
+
 ## Docs that drift
 
 ```bash
@@ -82,6 +84,8 @@ metator docs inventory    # every Markdown document: lines, last change, age, ow
 metator docs links        # relative links to a missing file, directory or heading
 metator docs drift        # verified claims checked against the code again
 ```
+
+`docs inventory` and `docs links` leave out the generated files for the AI tools too; `--generated` includes them.
 
 A claim records a statement from your docs with the code that proves it, in `docs/metator/claims.json`:
 

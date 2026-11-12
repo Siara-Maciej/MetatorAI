@@ -100,6 +100,18 @@ describe("metator env (real CLI, real processes)", () => {
     };
     expect(data.environment.services.app?.ports).toEqual({ http: 3000 });
     expect(data.evidence.map((e) => e.from)).toEqual(["package.json#scripts.dev"]);
+    // A warning is said once, in the envelope: the data is the proposal and its evidence.
+    expect(Object.keys(data).sort()).toEqual(["environment", "evidence"]);
+    const bare = await ScratchRepo.create();
+    try {
+      const none = await metator(["env", "discover"], bare.root);
+      expect([none.json.data, none.json.warnings]).toEqual([
+        { environment: null, evidence: [] },
+        ["nothing to start was found: no compose file, start script, Procfile or Makefile target"],
+      ]);
+    } finally {
+      await bare.dispose();
+    }
     const init = await mt("env", "init");
     expect([init.code, (init.json.error as { message: string }).message]).toEqual([
       64,

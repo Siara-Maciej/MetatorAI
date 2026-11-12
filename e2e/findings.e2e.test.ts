@@ -1,5 +1,7 @@
 /** Review findings end to end: the real `metator` process checks findings against real code. */
+
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import { metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 import { findUnversioned } from "./helpers/versioned.ts";
@@ -101,6 +103,20 @@ describe("metator findings", () => {
     const merged = JSON.parse(await repo.read(`${DIR}/merged.json`));
     expect(merged.findings.map((f: Data) => [f.id, f.alsoFrom])).toEqual([["LOGIC-001", ["contracts"]]]);
     expect((await findUnversioned(repo.root, [".metator"])).unversioned).toEqual([]);
+  });
+
+  test("merge and verdict on a directory with no findings file: NOT_FOUND, nothing created", async () => {
+    await repo.write("empty-dir/notes.md", "not a lens file\n");
+    for (const dir of ["no-such-dir", "empty-dir"])
+      for (const command of ["merge", "verdict"]) {
+        const r = await metator(["findings", command, dir], repo.root);
+        expect([r.code, (r.json.error as Data).code]).toEqual([1, "NOT_FOUND"]);
+        expect(String((r.json.error as Data).hint)).toContain(".metator/runs/<run>/findings");
+      }
+    expect(existsSync(repo.path("no-such-dir"))).toBe(false);
+    expect(readdirSync(repo.path("empty-dir"))).toEqual(["notes.md"]);
+    expect(await repo.exists("verdict.json")).toBe(false);
+    rmSync(repo.path("empty-dir"), { recursive: true });
   });
 
   test("review plan shards the branch; verdict and comments follow verification", async () => {

@@ -266,6 +266,17 @@ describe("InitProject", () => {
       await new InitProject(bare, new InMemoryFileSystem({}), DEFAULT_PATHS).execute({ dryRun: true })
     )._unsafeUnwrap();
     expect(report.warnings).toEqual(["no file-scoped checks found for the quick gate; add one by hand"]);
+    // An empty gate is not written: `quick: []` reads as a choice nobody made.
+    expect(parse(report.config).gates).toEqual({ full: [{ id: "test", run: { script: "test" } }] });
+    const nothing = { execute: async () => ok(discovery({})) };
+    const none = (
+      await new InitProject(nothing, new InMemoryFileSystem({}), DEFAULT_PATHS).execute({ dryRun: true })
+    )._unsafeUnwrap();
+    expect(parse(none.config).gates).toBeUndefined();
+    expect(MetatorConfigDocument.parse(parse(none.config), "c")._unsafeUnwrap().gates).toEqual({
+      quick: [],
+      full: [],
+    });
   });
 });
 

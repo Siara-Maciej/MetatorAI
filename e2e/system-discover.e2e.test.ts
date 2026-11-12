@@ -247,3 +247,48 @@ describe("metator system discover in a folder of three repositories (real CLI)",
     }
   }, 120_000);
 });
+
+describe("metator system discover: a workspace of libraries", () => {
+  test("no application found is said, with what would make one, instead of a silent empty list", async () => {
+    const libs = await ScratchRepo.create();
+    try {
+      await libs.write("package.json", json({ name: "acme", private: true }));
+      await libs.write("pnpm-workspace.yaml", "packages:\n  - packages/*\n");
+      await libs.write("packages/money/package.json", json({ name: "@acme/money", main: "./src/index.ts" }));
+      await libs.write(
+        "packages/money/src/index.ts",
+        "export const add = (a: number, b: number) => a + b;\n",
+      );
+      await libs.write(
+        "packages/shop/package.json",
+        json({ name: "@acme/shop", dependencies: { "@acme/money": "workspace:*" } }),
+      );
+      await libs.write(
+        "packages/shop/src/index.ts",
+        'import { add } from "@acme/money";\nexport const t = add(1, 2);\n',
+      );
+      await libs.commit("init");
+      const r = await metator(["system", "discover"], libs.root);
+      expect((r.json.data as { proposal: { applications: unknown[] } }).proposal.applications).toEqual([]);
+      expect(r.json.warnings).toEqual([expect.stringContaining("no application was found")]);
+      // A package that starts is one: the warning goes.
+      await libs.write(
+        "packages/shop/package.json",
+        json({
+          name: "@acme/shop",
+          scripts: { start: "bun src/index.ts" },
+          dependencies: { "@acme/money": "workspace:*" },
+        }),
+      );
+      const found = await metator(["system", "discover"], libs.root);
+      expect(
+        (found.json.data as { proposal: { applications: { id: string }[] } }).proposal.applications.map(
+          (a) => a.id,
+        ),
+      ).toEqual(["shop"]);
+      expect(found.json.warnings ?? []).toEqual([]);
+    } finally {
+      await libs.dispose();
+    }
+  }, 60_000);
+});

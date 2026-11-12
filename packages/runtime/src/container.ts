@@ -234,6 +234,8 @@ export interface Cradle {
   /** The one git adapter of the repository; the git ports below resolve to it. */
   git: Vcs & RevisionReader & ChangeHistory & BranchHistory & ChangePatch & BranchPublication;
   vcs: Vcs;
+  /** The Vcs of another checkout (a worktree's directory): one reading of "changed files" everywhere. */
+  vcsAt: (dir: string) => Vcs;
   revisionReader: RevisionReader;
   changeHistory: ChangeHistory;
   sandbox: Sandbox;
