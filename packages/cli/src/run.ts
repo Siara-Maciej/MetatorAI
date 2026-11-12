@@ -11,6 +11,16 @@ export interface Io {
 
 export type RunOptions = ProgramOptions;
 
+/** No words at all, or only `--help` / `-h` (with `-C <dir>` or `--root <dir>` before it): the list of commands. */
+export function asksForTheList(argv: readonly string[]): boolean {
+  const words = argv.filter((a, i) => {
+    const before = argv[i - 1];
+    if (before === "-C" || before === "--root") return false;
+    return a !== "-C" && a !== "--root" && !a.startsWith("--root=");
+  });
+  return words.every((a) => a === "--help" || a === "-h");
+}
+
 /** Driving adapter: argv → commander → use case → one JSON envelope line → exit code. */
 export async function run(argv: readonly string[], io: Io, options: RunOptions = {}): Promise<number> {
   let outcome: Outcome | undefined;
@@ -35,8 +45,9 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
   }
   try {
     // No command: the whole list for a script, the verbs a person reaches for at a terminal.
+    // `--help` with no command asks the same thing, and is an answer too, never a usage error.
     const bare = options.terminal ? ["help", "--verbs"] : ["help"];
-    await program.parseAsync(argv.length === 0 ? bare : [...argv], { from: "user" });
+    await program.parseAsync(asksForTheList(argv) ? bare : [...argv], { from: "user" });
     outcome ??= { result: ok(describeCommands(program)) }; // a command group without subcommand → help
   } catch (e) {
     outcome = { result: err(e instanceof CommanderError ? fromCommander(e, program) : fromUnknown(e)) };

@@ -127,12 +127,23 @@ export async function newRun(
   const scan = await c.resolve("workflowCatalog").scan();
   if (scan.workflows.length === 0)
     return err(MetatorError.usage("no workflows here", "Run `metator setup` to install them."));
+  // Only the hosts that can run agents on this machine are offered.
+  const problem = c.resolve("driveHostProblem");
+  const hosts = [...c.resolve("agentHosts").keys()].filter((h) => problem(h) === undefined);
+  if (hosts.length === 0)
+    return err(
+      MetatorError.usage(
+        "no AI host is installed here",
+        "Install GitHub Copilot CLI or Claude Code, then run `metator doctor`.",
+      ),
+    );
   const answers = await terminal.newRun({
     workflows: scan.workflows.map((w) => ({
       id: w.spec.id,
       ...(w.spec.description ? { description: w.spec.description } : {}),
+      ...(w.spec.autonomy ? { autonomy: w.spec.autonomy } : {}),
     })),
-    hosts: [...c.resolve("agentHosts").keys()],
+    hosts,
     defaultHost: defaultHost(c),
   });
   if (!answers) return err(MetatorError.usage("no run started"));

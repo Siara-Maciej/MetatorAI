@@ -110,7 +110,7 @@ export class RunRepository {
 
   /** Resolves undefined to the current run (when there is one), and "latest" to the most recent run. */
   async resolveId(runId: string | undefined): Promise<Result<string, MetatorError>> {
-    if (runId && runId !== "latest") return ok(runId);
+    if (runId && runId !== "latest") return this.named(runId);
     if (runId === undefined && this.current && (await this.exists(this.current))) return ok(this.current);
     const source = this.pointerFile();
     const text = await this.fs.read(source);
@@ -122,6 +122,23 @@ export class RunRepository {
     return parseJsonDocument(text.value, source)
       .andThen((raw) => RunPointerDocument.parse(raw, source))
       .map((pointer) => pointer.runId);
+  }
+
+  /**
+   * The run a typed id names: the id itself when such a run exists, else the one run whose id
+   * starts with it (ids are long). Several such runs are a usage error that lists them; none
+   * leaves the id as typed, for the caller to report as not found.
+   */
+  private async named(typed: string): Promise<Result<string, MetatorError>> {
+    if (await this.exists(typed)) return ok(typed);
+    const starting = (await this.list()).filter((id) => id.startsWith(typed));
+    if (starting.length <= 1) return ok(starting[0] ?? typed);
+    return err(
+      MetatorError.usage(
+        `${starting.length} runs start with "${typed}"`,
+        `Type more of the id: ${starting.join(", ")}.`,
+      ),
+    );
   }
 
   async list(): Promise<readonly string[]> {

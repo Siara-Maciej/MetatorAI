@@ -314,10 +314,20 @@ describe("metator CLI (process e2e)", () => {
     }
     for (const group of ["repos", "worktree", "env", "system", "graph"]) {
       const bare = await metator([group], repo);
-      const data = bare.json.data as { name: string; commands: { name: string }[] };
+      const data = bare.json.data as { name: string; commands: { name: string; usage: string }[] };
       expect([bare.code, bare.json.ok, data.name]).toEqual([0, true, group]);
       expect(data.commands.every((c) => c.name.startsWith(`${group} `))).toBe(true);
+      // The usage of a group's command names the group too (`metator worktree new`, not `metator new`).
+      expect(data.commands.every((c) => c.usage.startsWith(`metator ${c.name}`))).toBe(true);
     }
+    // `--help` with no command is the list, as a bare `metator` is: an answer, exit 0.
+    const asked = await metator(["--help"], repo);
+    const list = asked.json.data as { commands: { name: string }[] };
+    expect([asked.code, asked.json.ok, list.commands.some((c) => c.name === "run init")]).toEqual([
+      0,
+      true,
+      true,
+    ]);
   }, 30_000);
 
   test("a number option that is not a number is a usage error (64), never an internal one", async () => {

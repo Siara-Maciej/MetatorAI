@@ -98,7 +98,24 @@ describe("metator run drive (real CLI, scenario host)", () => {
     ]);
     const wrong = await mt("run", "answer", "q001", "--choice", "Maybe", "--by", "maciej");
     expect((wrong.json.error as { message: string }).message).toBe("choose from: Approve, Reject, Other");
-    expect((await mt("run", "answer", "q001", "--choice", "Approve", "--by", "maciej")).code).toBe(0);
+    // With no --by, no $METATOR_USER and no name in git, the answer is refused with where to set one.
+    const nameless = await metator(["run", "answer", "q001", "--choice", "approve"], repo.root, {
+      ...env,
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    });
+    expect([nameless.code, (nameless.json.error as { message: string }).message]).toEqual([
+      64,
+      "say who you are: --by <name>",
+    ]);
+    expect((nameless.json.error as { hint: string }).hint).toContain("git config user.name");
+    // The name git signs commits with answers; `approve` is the label Approve; the start of the id names the run.
+    await repo.git("config", "user.name", "Ada Lovelace");
+    const answered = await mt("run", "answer", "q001", "--run", runId.slice(0, 20), "--choice", "approve");
+    expect([
+      answered.code,
+      (answered.json.data as { answer: { choices: string[]; by: string } }).answer,
+    ]).toEqual([0, expect.objectContaining({ choices: ["Approve"], by: "Ada Lovelace" })]);
 
     const asked = await openQuestion("build");
     expect([asked.source, asked.prompt]).toEqual(["agent", "Round half up or half even?"]);

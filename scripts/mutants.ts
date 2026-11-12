@@ -5519,4 +5519,28 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "an intake run starts from the last commit whatever is uncommitted",
   },
+  {
+    file: "packages/core/src/domain/drive.ts",
+    from: "const same = labels.filter((l) => l.toLowerCase() === typed.trim().toLowerCase());",
+    to: "const same: string[] = [];",
+    why: "a choice typed in another case is the one label it names (F10)",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: "input.choices.map((c) => labelFor(labels, c));",
+    to: "[...input.choices];",
+    why: "an answer is recorded with the question's own label, however it was typed (F10)",
+  },
+  {
+    file: "packages/core/src/application/run-repository.ts",
+    from: "const starting = (await this.list()).filter((id) => id.startsWith(typed));",
+    to: "const starting: string[] = [];",
+    why: "the start of a run's id names the run; a start two runs share is refused (F10)",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: "cardLine(a.text)}",
+    to: "a.text}",
+    why: "a decision card carries one short line per transition, never a failure's whole output (F9)",
+  },
 ];

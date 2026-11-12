@@ -68,7 +68,16 @@ function helpOf(cmd: Command, path: readonly string[]): CommandHelp {
       description: o.description,
       ...(o.defaultValue !== undefined ? { default: o.defaultValue } : {}),
     })),
-    ...(commands ? { commands: commands.map((c) => ({ ...c, name: `${name} ${c.name}` })) } : {}),
+    // A group's commands carry the group in their name and their usage, as the whole list does.
+    ...(commands
+      ? {
+          commands: commands.map((c) => ({
+            ...c,
+            name: `${name} ${c.name}`,
+            usage: `metator ${name} ${c.usage.slice("metator ".length)}`,
+          })),
+        }
+      : {}),
   };
 }
 

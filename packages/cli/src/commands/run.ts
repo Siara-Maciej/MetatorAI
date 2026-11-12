@@ -28,6 +28,7 @@ import type { CommandContext } from "../context.ts";
 import { callDaemon, findDaemon } from "../daemon-client.ts";
 import { positiveInt } from "../options.ts";
 import { HOSTS, resume } from "../sessions.ts";
+import { BY_DEFAULT, who } from "../who.ts";
 import { registerConductorCommands } from "./conductor.ts";
 import { registerDriveCommands } from "./drive.ts";
 
@@ -319,16 +320,18 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .description(
       "Resume an escalated run at the stage it escalated from, once the cause is fixed; --drive carries it on at once",
     )
-    .requiredOption("--by <name>", "who resumes it (recorded in log.md)")
+    .option("--by <name>", `who resumes it, recorded in log.md${BY_DEFAULT}`)
     .option("--run <id>", "run id (default: latest)")
     .option("--drive", "also start a drive in the background, as `run continue` does", false)
     .option("--host <host>", `with --drive: the AI host (${HOSTS.join(", ")}; default: the one the run used)`)
     .action(
-      action(async (opts: { by: string; run?: string; drive: boolean; host?: string }) => {
+      action(async (opts: { by?: string; run?: string; drive: boolean; host?: string }) => {
         const c = container();
+        const by = await who(c, opts.by);
+        if (by.isErr()) return { result: by };
         const resumed = await c
           .resolve("resumeRun")
-          .execute({ by: opts.by, ...(opts.run ? { runId: opts.run } : {}) });
+          .execute({ by: by.value, ...(opts.run ? { runId: opts.run } : {}) });
         if (resumed.isErr() || !opts.drive) return { result: resumed };
         const driven = await resume(c, root(), resumed.value.runId, opts.host);
         if (driven.isErr())

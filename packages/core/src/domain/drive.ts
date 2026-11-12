@@ -210,6 +210,17 @@ export const QuestionDocument = defineDocument("Question", {
   hint: "Answer with `metator run answer <question> --choice <label> --by <name>`.",
 });
 
+/**
+ * The label a typed choice names: the label itself, else the one label that differs from it only
+ * in case (`approve` is `Approve`). Two such labels, or none, name nothing: the typed word is kept
+ * and refused where the choice is checked.
+ */
+export function labelFor(labels: readonly string[], typed: string): string {
+  if (labels.includes(typed)) return typed;
+  const same = labels.filter((l) => l.toLowerCase() === typed.trim().toLowerCase());
+  return same.length === 1 ? (same[0] as string) : typed;
+}
+
 /** The drive process of a run (`.metator/runs/<id>/driver.json`), so others can stop or find it. */
 export const RunDriverDocument = defineDocument("RunDriver", {
   latest: z.strictObject({ pid: z.number().int().positive(), host: z.string(), startedAt: z.iso.datetime() }),

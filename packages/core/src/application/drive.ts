@@ -7,6 +7,7 @@ import {
   type DecisionCard,
   gatePrompt,
   hostLimit,
+  labelFor,
   nextQuestionId,
   parseCriticVerdict,
   parseStatus,
@@ -267,8 +268,9 @@ export class RunJournal {
             : "Nothing is left to answer in this run.",
         ),
       );
-    const choices = input.choices.length === 0 && input.text ? [OTHER] : [...input.choices];
     const labels = q.value.options.map((o) => o.label);
+    const choices =
+      input.choices.length === 0 && input.text ? [OTHER] : input.choices.map((c) => labelFor(labels, c));
     const unknown = choices.filter((c) => !labels.includes(c));
     if (choices.length === 0 || unknown.length > 0) {
       return err(
@@ -1194,11 +1196,20 @@ export function notDrivable(record: RunRecord): MetatorError | undefined {
   );
 }
 
+/** The longest line a decision card carries of what happened; the run's log has the whole text. */
+const CARD_LINE = 240;
+/** A transition's text as one line of a card: its first non-empty line, at most CARD_LINE characters. */
+export function cardLine(text: string): string {
+  const first = (text.split("\n").find((l) => l.trim() !== "") ?? "").trim();
+  return first.length > CARD_LINE ? `${first.slice(0, CARD_LINE - 1)}…` : first;
+}
+
 /** Transitions and tool calls since a person last answered (the whole run before any answer). */
 export function sinceLastAnswer(activity: readonly RunActivity[]): string[] {
   const last = activity.map((a) => a.type).lastIndexOf("answer");
   const after = activity.slice(last + 1);
-  const out = after.filter((a) => a.type === "advance").map((a) => `${a.stage ?? "?"} ${a.text}`);
+  // One line each, for a card: the first line of a failure's reason, cut where a sentence still reads.
+  const out = after.filter((a) => a.type === "advance").map((a) => `${a.stage ?? "?"} ${cardLine(a.text)}`);
   const tools = after.filter((a) => a.type === "tool").length;
   if (tools > 0) out.push(`${tools} tool call(s)`);
   return out;

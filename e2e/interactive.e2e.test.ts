@@ -48,7 +48,11 @@ beforeAll(async () => {
   );
   await repo.write("scenario.yml", SCENARIO);
   await repo.commit("init");
-  env = { METATOR_AGENT_SCENARIO: repo.path("scenario.yml"), METATOR_USER: "maciej" };
+  env = {
+    METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
+    METATOR_USER: "maciej",
+    METATOR_COPILOT_BIN: "metator-no-such-copilot",
+  };
 });
 afterAll(async () => {
   for (const r of ((await mt("run", "list")).json.data as { runId: string }[]) ?? [])
@@ -69,11 +73,11 @@ describe("metator run in a terminal", () => {
       ["run"],
       repo.root,
       [
-        { waitFor: "Which workflow?", keys: KEY.enter },
+        // One workflow here: it is said, not asked.
         { waitFor: "What is the task?", keys: `Add discount${KEY.enter}` },
         { waitFor: "Autonomy", keys: KEY.enter },
-        // claude (default), copilot, scenario
-        { waitFor: "Which AI host", keys: `${KEY.down}${KEY.down}${KEY.enter}` },
+        // claude (default), scenario; Copilot is not installed here, so it is not offered.
+        { waitFor: "Which AI host", keys: `${KEY.down}${KEY.enter}` },
         { waitFor: "own git worktree", keys: KEY.enter },
         { waitFor: "approve to continue", keys: KEY.enter }, // Approve
         { waitFor: "Round half up or half even?", keys: `${KEY.down}${KEY.enter}` }, // half-even
@@ -83,6 +87,9 @@ describe("metator run in a terminal", () => {
     );
     const data = r.json.data as Followed;
     expect([r.code, data.status, data.detached]).toEqual([0, "done", false]);
+    expect(r.screen).toContain("Workflow: demo");
+    expect(r.screen).not.toContain("Which workflow?");
+    expect(r.screen).not.toContain("GitHub Copilot");
     // The live view showed the stages and the transitions as they happened.
     for (const line of ["▸ plan", "Planning the change", "✓ PASS", "▸ approval", "✓ APPROVE", "▸ build"])
       expect(r.screen).toContain(line);
@@ -97,6 +104,38 @@ describe("metator run in a terminal", () => {
     ]);
     expect(await repo.read(`.metator/wt/${data.runId}/src/discount.ts`)).toBe("export const discount = 1;\n");
   }, 90_000);
+
+  test("the wizard starts at mt-feature, offers only its autonomy levels, and does not ask what has one answer", async () => {
+    const other = await ScratchRepo.create();
+    try {
+      await other.write(".gitignore", ".metator/\n");
+      await other.write(".github/metator/workflows/demo.yml", WORKFLOW);
+      await other.write(
+        ".github/metator/workflows/mt-feature.yml",
+        `${WORKFLOW.replace("id: demo", "id: mt-feature")}autonomy: [L0]\n`,
+      );
+      await other.commit("init");
+      const r = await inTerminal(
+        ["run"],
+        other.root,
+        [
+          // demo comes first in the list; the cursor stands on mt-feature.
+          { waitFor: "Which workflow?", keys: KEY.enter },
+          { waitFor: "What is the task?", keys: `Add discount${KEY.enter}` },
+          { waitFor: "own git worktree", keys: KEY.ctrlC },
+        ],
+        30_000,
+        // No scenario: Claude Code is the only host left, and Copilot's program is not there.
+        { METATOR_COPILOT_BIN: "metator-no-such-copilot", METATOR_USER: "maciej" },
+      );
+      expect(r.screen).toContain("Autonomy: L0 (the only level mt-feature runs at)");
+      expect(r.screen).toContain("AI host: Claude Code (the only one installed here)");
+      expect(r.screen).not.toContain("Which AI host");
+      expect([r.code, (r.json.error as { message: string }).message]).toEqual([64, "no run started"]);
+    } finally {
+      await other.dispose();
+    }
+  }, 60_000);
 
   test("run continue: pick a stopped run, drive it again, answer, done", async () => {
     await mt("run", "init", "--workflow", "demo", "--task", "Second change");
@@ -159,7 +198,39 @@ describe("metator run in a terminal", () => {
     expect(done.code).not.toBe(0);
   }, 60_000);
 
-  test("a bare `metator` at a terminal shows the verbs a person reaches for, and the one JSON line stays", async () => {
+  test("`metator run drive` in the foreground at a terminal says each stage as it happens, and the question's command", async () => {
+    const init = await mt("run", "init", "--workflow", "demo", "--task", "Fifth change");
+    const runId = (init.json.data as { runId: string }).runId;
+    const answering = (async () => {
+      for (let i = 0; i < 200; i++) {
+        const qs = (
+          (await mt("run", "questions", "--run", runId)).json.data as { questions: { id: string }[] }
+        ).questions;
+        // The name is not given: it comes from $METATOR_USER; the label is typed in lower case.
+        if (qs[0]) return mt("run", "answer", qs[0].id, "--run", runId, "--choice", "reject", "--text", "no");
+        await Bun.sleep(100);
+      }
+      throw new Error("the gate never asked");
+    })();
+    const r = await inTerminal(
+      ["run", "drive", "--run", runId, "--host", "scenario"],
+      repo.root,
+      [],
+      60_000,
+      env,
+    );
+    expect((await answering).code).toBe(0);
+    for (const line of ["▸ plan", "Planning the change", "✓ PASS", "▸ approval"])
+      expect(r.screen).toContain(line);
+    expect(r.screen).toContain("metator run answer q001 --choice <label>");
+    expect(r.screen).toContain("✗ FAIL: no");
+    expect((r.json.data as Followed).status).toBe("escalated");
+  }, 90_000);
+
+  test("a bare `metator` or `metator --help` at a terminal shows the verbs a person reaches for, and the one JSON line stays", async () => {
+    const asked = await inTerminal(["--help"], repo.root, [], 20_000);
+    expect([asked.code, asked.json.ok]).toEqual([0, true]);
+    expect(asked.screen).toContain("Work on a task");
     const r = await inTerminal([], repo.root, [], 20_000);
     expect(r.code).toBe(0);
     expect(r.screen).toContain("MetatorAI 0.0.0: survey first, prove everything.");

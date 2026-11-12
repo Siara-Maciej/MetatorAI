@@ -192,7 +192,8 @@ export function registerSetupCommands(
           generated: (generated.envelope.data as { written: string[] }).written.length,
           gitignore: ignored.value,
           checks,
-          next: ["metator workflow list", 'metator run init --workflow mt-feature --task "…"'],
+          // What the guide says comes next: what a run cannot do here yet, then the daemon the app talks to.
+          next: ["metator doctor", "metator serve"],
         };
         const failed = checks.filter((k) => !k.passed);
         if (failed.length > 0) {
