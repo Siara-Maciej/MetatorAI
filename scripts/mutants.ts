@@ -4415,8 +4415,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/runs.ts",
-    from: "return `resumed at ${r.to}",
-    to: "return `at ${r.to}",
+    from: "return `resumed at ",
+    to: "return `at ",
     why: "the log says who resumed a run",
   },
   {
@@ -5599,8 +5599,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/runs.ts",
-    from: "if (isRunBookkeeping(path)) return `${path} is the run's own bookkeeping`;",
-    to: "",
+    from: "if (isRunBookkeeping(path)) return",
+    to: "if (false) return",
     why: "the run's bookkeeping is no artifact to read",
   },
   {
@@ -5624,13 +5624,13 @@ export const MUTANTS: readonly Mutant[] = [
   {
     file: "packages/core/src/application/drive.ts",
     from: "prompt: gateQuestion(ctx.stage, ctx.task, ctx.done.at(-1)),",
-    to: "prompt: `${ctx.stage.id}: approve to continue`,",
+    to: "prompt: ctx.stage.id,",
     why: "a gate asks what is approved and for which task",
   },
   {
     file: "packages/core/src/domain/drive.ts",
-    from: '        ? `the ${named.replaceAll("-", " ")}`',
-    to: "        ? `the ${named}`",
+    from: 'named.replaceAll("-", " ")',
+    to: "named",
     why: "a gate named after what it approves says it in words",
   },
   {
