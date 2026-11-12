@@ -1,13 +1,13 @@
 # W4: review a PR, interactive or in CI (02-workflows §3, review core §3.1).
 kind: Workflow
-schemaVersion: 2
+schemaVersion: 3
 id: mt-pr-review
-revision: 8
+revision: 9
 description: Shard, find with lenses, verify, judge, publish after approval
 entry: { prompt: mt-review, ci: true }
 input:
   oneOf: [pr, base]
-  optional: [autonomy, lenses]
+  optional: [lenses]
 # Scripts read the run's inputs: `run init --input base=main`; without it, HEAD (the uncommitted change).
 preconditions: [index-fresh]
 limits: { parallel: 6 }
@@ -50,9 +50,12 @@ stages:
     description: Comment format and scope (blocking or all)
     hitl: true
     skipAt: [L2]
+    # Approving the gate approves the comments: the publish stage posts without asking again.
+    grants: [comment]
   - id: publish
+    description: The comments and the summary, formatted from the verdict; the reviewer agent posts them
+    # Prints them (no file): posting is mt-pr-review's, through the code host, once comment is approved.
     owner: "script:metator findings to-github {runDir}/verdict.json"
-    produces: [comments.json]
 loops: {}
 escalation:
   onLoopExhausted: not used (no loops); an unverified blocker is reported as not decided

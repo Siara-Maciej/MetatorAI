@@ -1768,7 +1768,7 @@ metator run init [options]
 |---|---|---|
 | `--workflow <id>` | workflow id **Required.** |  |
 | `--task <text>` | task description or work item reference **Required.** |  |
-| `--autonomy <level>` | L0 all gates, L1 skip plan approval, L2 headless (one of: L0, L1, L2) | `"L0"` |
+| `--autonomy <level>` | L0 all gates, L1 skip plan approval, L2 headless; one the workflow lists (default: L0 when it lists it) (one of: L0, L1, L2) |  |
 | `--worktree` | work in a new git worktree with its own ports (.metator/wt/&lt;run&gt;) |  |
 | `--base <ref>` | with --worktree: the ref to branch from | `"HEAD"` |
 | `--no-setup` | with --worktree: leave the worktree without its dependencies (metator worktree setup later) |  |

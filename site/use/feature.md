@@ -35,7 +35,7 @@ State the acceptance criteria if you have them. When the task is ambiguous, the 
 | `review` | `mt-pr-review` | `verdict.json` | the [review](./review.md) of the change; the stage passes only on an approved verdict |
 | `delivery` | you | | approve the push |
 | `publish` | `mt-pr-author` | `pr.md` | commits and pushes the run's branch; opens a pull request only when the task asks for one |
-| `learn` | `mt-retro` | | optional: lessons from the run |
+| `learn` | `mt-retro` | | optional: lessons from the run; if it fails, the stage is skipped and the run still ends done |
 
 A failed stage sends the run back: a failed plan gate or a rejected plan to `plan`, failed gates to `build`, a failed review to `plan`. Each loop has a limit (plan 2, build 2, review 3). At the limit the run is escalated and you get the open problems.
 

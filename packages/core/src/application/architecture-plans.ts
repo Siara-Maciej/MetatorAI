@@ -10,6 +10,7 @@ import {
 import {
   describeMove,
   lintRefactorPlan,
+  moveScope,
   nextWave,
   type PlanGoal,
   planDigest,
@@ -299,6 +300,8 @@ export class RunRefactorPlan {
         workflow: PLAN_WORKFLOW,
         task,
         worktree: input.base ? { base: input.base } : {},
+        // W3 requires its scope: what the move touches.
+        inputs: { scope: moveScope(m.move) },
       });
       if (run.isErr()) return err(run.error);
       started.push({ move: m.id, run: run.value.runId, task });

@@ -111,6 +111,25 @@ export class InitRun {
         ),
       );
 
+    const missing = (machine.workflow.input?.required ?? []).filter((k) => !input.inputs?.[k]);
+    if (missing.length > 0)
+      return err(
+        MetatorError.usage(
+          `workflow ${machine.workflow.id} needs the input ${missing.map((m) => `\`${m}\``).join(", ")}`,
+          `Pass each with \`--input <name>=<value>\`, e.g. \`--input ${missing[0]}=<value>\`.`,
+        ),
+      );
+    const levels = machine.workflow.autonomy;
+    if (input.autonomy && levels && !levels.includes(input.autonomy))
+      return err(
+        MetatorError.usage(
+          `workflow ${machine.workflow.id} does not support autonomy ${input.autonomy}`,
+          `Supported autonomy levels: ${levels.join(", ")}.`,
+        ),
+      );
+    // Without a level: L0 (every gate asks) when the workflow has it, else the first level it lists.
+    const autonomy = input.autonomy ?? (!levels || levels.includes("L0") ? "L0" : (levels[0] as Autonomy));
+
     const now = this.clock.now().toISOString();
     const runId = await this.uniqueId(now, machine.workflow.id, input.task);
     let worktree: RunRecord["worktree"];
@@ -128,7 +147,7 @@ export class InitRun {
       runId,
       workflow: { id: machine.workflow.id, revision: machine.workflow.revision, source },
       task: input.task,
-      autonomy: input.autonomy ?? "L0",
+      autonomy,
       createdAt: now,
       updatedAt: now,
       state: machine.start(),
@@ -192,6 +211,7 @@ export class AdvanceRun {
     const next = machine.send(record.value.state, input.event);
     if (next.isErr()) return err(next.error);
 
+    const skipped = input.event.type === "FAIL" && machine.skipsOnFail(before);
     const now = this.clock.now().toISOString();
     // Approving a gate that grants external actions (delivery grants push) approves them too.
     const granted = machine.workflow.stages.find((s) => s.id === before)?.grants ?? [];
@@ -221,7 +241,7 @@ export class AdvanceRun {
     const saved = await this.repo.save(updated);
     if (saved.isErr()) return err(saved.error);
     for (const line of [
-      `${now} · ${before} · ${describe(input.event)} → ${next.value.stage}`,
+      `${now} · ${before} · ${describe(input.event)} → ${next.value.stage}${skipped ? " (optional stage skipped)" : ""}`,
       ...(autonomy === record.value.autonomy ? [] : [`${now} · autopilot · autonomy ${autonomy}`]),
       ...lines,
     ]) {
@@ -307,6 +327,7 @@ export class ApproveRun {
     private readonly advance: Pick<AdvanceRun, "execute">,
     private readonly repo: RunRepository,
     private readonly clock: Clock,
+    private readonly catalog: Pick<WorkflowCatalog, "get">,
   ) {}
 
   async execute(input: {
@@ -369,6 +390,19 @@ export class ApproveRun {
         new MetatorError(
           "TRANSITION_DENIED",
           `run ${id.value} is ${record.value.state.status}; nothing to approve`,
+        ),
+      );
+    // The workflow says which external actions its runs may take (`permissions.external`).
+    const entry = await this.catalog.get(record.value.workflow.id);
+    if (entry.isErr()) return err(entry.error);
+    const permitted = entry.value.spec.permissions?.external;
+    if (permitted && !permitted.includes(input.gate))
+      return err(
+        MetatorError.usage(
+          `workflow ${entry.value.spec.id} does not permit ${input.gate}`,
+          permitted.length > 0
+            ? `External actions it permits: ${permitted.join(", ")}.`
+            : "It permits no external action.",
         ),
       );
 

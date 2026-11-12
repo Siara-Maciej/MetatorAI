@@ -64,7 +64,9 @@ In `mt-feature`, `mt-bugfix` and `mt-refactor`, approving the `delivery` stage g
 metator run approve delivery --by alice
 ```
 
-You can also grant an action directly with `metator run approve push --by alice` or `metator run approve comment --by alice`.
+In `mt-pr-review`, approving the `approval` stage grants the comments in the same way.
+
+You can also grant an action directly with `metator run approve push --by alice` or `metator run approve comment --by alice`. A workflow lists the external actions its runs may take (`permissions.external`); an action it does not list is refused. `mt-self-review` lists none, so its runs can be granted neither.
 
 This protection needs the hooks. Install them with `metator setup --hooks` or `metator generate --hooks` (see [Hooks and guardrails](../repo/hooks.md)).
 
@@ -92,7 +94,7 @@ A stage passed by the level is logged that way, so the log always tells a person
 - 2026-11-11T01:41:08.932Z · plan-approval · skipped at L1 → build
 ```
 
-A stage marked `neverSkip` asks a person at every level. In the shipped workflows that includes every `delivery` stage, so no level pushes on its own. A workflow also lists the levels it supports. `mt-review-response` supports only `L0`.
+A stage marked `neverSkip` asks a person at every level. In the shipped workflows that includes every `delivery` stage, so no level pushes on its own. A workflow also lists the levels it supports, and `metator run init` refuses a level that is not on the list. `mt-review-response` supports only `L0`. Without `--autonomy` a run starts at `L0`, or at the first level the workflow lists when it does not list `L0`.
 
 ## Answers that repeat
 

@@ -49,7 +49,7 @@ function world(files: Record<string, string> = {}, role?: string) {
     repo,
     init: () => new InitRun(catalog, repo, clock).execute({ workflow: "feature", task: "t" }),
     advance,
-    approve: new ApproveRun(advance, repo, clock),
+    approve: new ApproveRun(advance, repo, clock, catalog),
     preTool: new GuardPreTool(status, repo, new AgentCatalog(fs, DEFAULT_PATHS), fs, ROOT, role),
     stop: new GuardStop(status),
     subagent: new GuardSubagentOutput(status, repo, fs),
@@ -219,6 +219,53 @@ describe("GuardSubagentOutput", () => {
     const out = (await w.subagent.execute({}))._unsafeUnwrap() as { reason: string };
     expect(out.reason).toContain("questions/q001.json: does not match Question v1");
     expect(out.reason).not.toContain("driver.json");
+    expect(out.reason).not.toContain("unknown or missing kind");
+  });
+
+  test("messages, the brief's mark, worker results and review notes are known documents", async () => {
+    const w = world();
+    const run = (await w.init())._unsafeUnwrap();
+    const dir = w.repo.runDir(run.runId);
+    const at = "2026-10-31T01:53:43.693Z";
+    await w.fs.write(
+      `${dir}/messages/m001.json`,
+      JSON.stringify({
+        kind: "RunMessage",
+        schemaVersion: 2,
+        id: "m001",
+        fromRun: run.runId,
+        toRun: run.runId,
+        at,
+        topic: "info",
+        text: "the contract changed",
+        refs: [],
+        by: "mt-implementer",
+      }),
+    );
+    await w.fs.write(`${dir}/seen.json`, JSON.stringify({ kind: "RunSeen", schemaVersion: 1, at }));
+    await w.fs.write(
+      `${dir}/results/mt-scout-1.json`,
+      JSON.stringify({
+        kind: "WorkerResult",
+        schemaVersion: 1,
+        worker: "mt-scout-1",
+        stage: "build",
+        agent: "mt-scout",
+        status: "done",
+        summary: "surveyed",
+        artifacts: ["analysis.json"],
+        at,
+      }),
+    );
+    await w.fs.write(
+      `${dir}/review/notes.json`,
+      JSON.stringify({ kind: "ReviewNotes", schemaVersion: 1, notes: [] }),
+    );
+    expect((await w.subagent.execute({}))._unsafeUnwrap()).toBeNull();
+    // Known kinds are still checked against their schema.
+    await w.fs.write(`${dir}/seen.json`, JSON.stringify({ kind: "RunSeen", schemaVersion: 1 }));
+    const out = (await w.subagent.execute({}))._unsafeUnwrap() as { reason: string };
+    expect(out.reason).toContain("seen.json: does not match RunSeen v1");
     expect(out.reason).not.toContain("unknown or missing kind");
   });
 

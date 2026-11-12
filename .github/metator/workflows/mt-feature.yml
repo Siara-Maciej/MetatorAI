@@ -2,12 +2,11 @@
 kind: Workflow
 schemaVersion: 3
 id: mt-feature
-revision: 2
+revision: 3
 description: Survey, plan, gate, build, verify, ship
 entry: { prompt: mt-feature }
 input:
   oneOf: [task_ref, task_text]
-  optional: [autonomy]
 preconditions: [clean-tree, index-fresh, branch-ok]
 limits: { parallel: 6 }
 stages:

@@ -304,3 +304,106 @@ describe("every persisted file is a versioned document (ADR-0016)", () => {
     }
   });
 });
+
+describe("what a workflow declares holds via CLI: autonomy levels, required inputs, external actions, optional stages", () => {
+  const DECLARED = `
+kind: Workflow
+schemaVersion: 3
+id: declared
+input:
+  oneOf: [task_text]
+  required: [scope]
+autonomy: [L0, L1]
+permissions: { edit: plan-scope, external: [comment] }
+stages:
+  - id: build
+  - id: learn
+    optional: true
+  - id: wrap
+`;
+  let own: ScratchRepo;
+  const run = (...args: string[]) => metator(args, own.root, NOW);
+  const init = (...more: string[]) => run("run", "init", "--workflow", "declared", "--task", "t", ...more);
+
+  beforeAll(async () => {
+    own = await ScratchRepo.create();
+    await own.write(".github/metator/workflows/declared.yml", DECLARED);
+    await own.write(
+      ".github/metator/workflows/headless.yml",
+      DECLARED.replace("id: declared", "id: headless").replace("autonomy: [L0, L1]", "autonomy: [L1]"),
+    );
+    await own.commit("init");
+  });
+  afterAll(async () => {
+    await own.dispose();
+  });
+
+  test("init refuses a level the workflow does not list and a run without a required input", async () => {
+    const level = await init("--input", "scope=src", "--autonomy", "L2");
+    expect([level.code, level.json.error]).toEqual([
+      64,
+      {
+        code: "USAGE",
+        message: "workflow declared does not support autonomy L2",
+        hint: "Supported autonomy levels: L0, L1.",
+      },
+    ]);
+    const input = await init();
+    expect([input.code, input.json.error]).toEqual([
+      64,
+      {
+        code: "USAGE",
+        message: "workflow declared needs the input `scope`",
+        hint: "Pass each with `--input <name>=<value>`, e.g. `--input scope=<value>`.",
+      },
+    ]);
+    // Neither refusal left a run behind.
+    expect((await run("run", "list")).json.data).toEqual([]);
+  });
+
+  test("without --autonomy a run starts at L0, or at the workflow's first level when it lists no L0", async () => {
+    const started = await init("--input", "scope=src");
+    expect([started.code, (started.json.data as { autonomy: string }).autonomy]).toEqual([0, "L0"]);
+    const headless = await run(
+      "run",
+      "init",
+      "--workflow",
+      "headless",
+      "--task",
+      "h",
+      "--input",
+      "scope=src",
+    );
+    expect((headless.json.data as { autonomy: string }).autonomy).toBe("L1");
+    expect((await run("run", "advance", "abort", "--reason", "only the level mattered")).code).toBe(0);
+  });
+
+  const declaredRun = async () =>
+    ((await run("run", "list")).json.data as { runId: string; workflow: string }[]).find(
+      (r) => r.workflow === "declared",
+    )?.runId as string;
+
+  test("an external action the workflow does not permit is refused", async () => {
+    const id = await declaredRun();
+    const push = await run("run", "approve", "push", "--by", "alice", "--run", id);
+    expect([push.code, push.json.error]).toEqual([
+      64,
+      {
+        code: "USAGE",
+        message: "workflow declared does not permit push",
+        hint: "External actions it permits: comment.",
+      },
+    ]);
+    expect((await run("run", "approve", "comment", "--by", "alice", "--run", id)).code).toBe(0);
+  });
+
+  test("a failed optional stage is skipped and the log says so", async () => {
+    const id = await declaredRun();
+    expect((await run("run", "advance", "pass", "--run", id)).code).toBe(0);
+    const skipped = await run("run", "advance", "fail", "--reason", "no lessons", "--run", id);
+    expect([skipped.code, (skipped.json.data as { stage: string }).stage]).toEqual([0, "wrap"]);
+    expect(await own.read(`.metator/runs/${id}/log.md`)).toContain(
+      "· learn · FAIL · no lessons → wrap (optional stage skipped)",
+    );
+  });
+});

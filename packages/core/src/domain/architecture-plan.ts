@@ -270,6 +270,22 @@ export function describeMove(m: Move): string {
   }
 }
 
+/** What a move touches, for the refactor workflow's `scope` input: its files and packages. */
+export function moveScope(m: Move): string {
+  switch (m.type) {
+    case "move":
+      return [...m.files, m.to].join(", ");
+    case "merge":
+      return [m.from, m.into].join(", ");
+    case "extract":
+      return [...m.files, m.package.dir].join(", ");
+    case "invert":
+      return [m.from, m.to].join(", ");
+    case "declare":
+      return m.package;
+  }
+}
+
 /**
  * The first wave not done: its pending moves (what `arch plan run` starts) and its blocked ones
  * (what stops the plan until a person sets them back to pending).

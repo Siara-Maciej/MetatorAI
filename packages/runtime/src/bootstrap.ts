@@ -1333,7 +1333,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ workflowCatalog, runRepository, clock }) => new AdvanceRun(workflowCatalog, runRepository, clock),
     ),
     approveRun: asFunction(
-      ({ advanceRun, runRepository, clock }) => new ApproveRun(advanceRun, runRepository, clock),
+      ({ advanceRun, runRepository, clock, workflowCatalog }) =>
+        new ApproveRun(advanceRun, runRepository, clock, workflowCatalog),
     ),
     guardPreTool: asFunction(
       ({ getRunStatus, runRepository, agentCatalog, fileSystem, root, role }) =>
