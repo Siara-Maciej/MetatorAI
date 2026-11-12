@@ -7,7 +7,6 @@ import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run
 import { APPROVAL_ACTIONS, type Approval, type Autonomy, type RunRecord } from "../domain/run-record.ts";
 import type { WorkflowSpec } from "../domain/workflow-spec.ts";
 import type { BranchPublication, Clock, FileSystem } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
 import { type CheckReadiness, startRefusal } from "./readiness.ts";
 import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
@@ -220,13 +219,21 @@ export class InitRun {
   }
 }
 
+/**
+ * What approving a gate needs from the journal: the gate's open question is answered with the
+ * approval. Declared here, so this module does not import the drive that imports it.
+ */
+export interface GateSettler {
+  settleGate(runId: string, stage: string, by: string): Promise<Result<unknown, MetatorError>>;
+}
+
 export class AdvanceRun {
   constructor(
     private readonly catalog: WorkflowCatalog,
     private readonly repo: RunRepository,
     private readonly clock: Clock,
     /** The run's questions: a gate approved here answers the gate's open question (R8). */
-    private readonly journal?: Pick<RunJournal, "settleGate">,
+    private readonly journal?: GateSettler,
   ) {}
 
   async execute(input: {

@@ -11,7 +11,6 @@ import {
 } from "../domain/run-report.ts";
 import { serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
-import type { RunDrivers } from "./run-drivers.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { AdvanceRun, GetRunStatus } from "./runs.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
@@ -68,6 +67,14 @@ export class HandoffRun {
 }
 
 /**
+ * What an abort needs from the run's drivers. Declared here, so this module does not import the
+ * drivers, which import the drive that imports this module.
+ */
+export interface DriverStopper {
+  stop(runId: string): Promise<Result<{ readonly stopped: number | null }, MetatorError>>;
+}
+
+/**
  * `run close` (ADR-0044): a run that reached a terminal state gets its summary (final telemetry);
  * `--aborted --reason` aborts an active or an escalated run first (F6), and the process that
  * drives it is stopped, so no agent goes on writing after the abort (R3). An active run is never
@@ -80,7 +87,7 @@ export class CloseRun {
     private readonly fs: FileSystem,
     private readonly clock: Clock,
     /** Who drives the run: an abort stops them. */
-    private readonly drivers?: Pick<RunDrivers, "stop">,
+    private readonly drivers?: DriverStopper,
     /** The workflows: an escalated run is given up through its state machine. */
     private readonly catalog?: Pick<WorkflowCatalog, "get">,
   ) {}
