@@ -159,6 +159,23 @@ describe("mergeFindings / MergeFindingSets", () => {
     expect((await w.validate.execute({ dir: "f", fix: false }))._unsafeUnwrap().files).toBe(2);
   });
 
+  test("a missing directory, or one with no lens file, is NOT_FOUND and nothing is written", async () => {
+    for (const files of [{}, { "f/merged.json": setFile("merged", []) }] as Record<string, string>[]) {
+      const w = world(files);
+      const before = await w.fs.glob(["**/*"]);
+      const error = (await w.merge.execute({ dir: "f" }))._unsafeUnwrapErr();
+      expect([error.code, error.message]).toEqual(["NOT_FOUND", "no findings file in f"]);
+      expect(error.hint).toContain(".metator/runs/<run>/findings");
+      expect(await w.fs.glob(["**/*"])).toEqual(before);
+    }
+    // A lens that found nothing still wrote its file: that is a review with no findings.
+    const empty = world({ "f/logic.json": setFile("logic", []) });
+    expect((await empty.merge.execute({ dir: "f" }))._unsafeUnwrap().merged).toBe(0);
+    // A file that is not a FindingSet is a lens file too: merge goes on, validate names it.
+    const broken = world({ "f/logic.json": "{}" });
+    expect((await broken.merge.execute({ dir: "f" })).isOk()).toBe(true);
+  });
+
   test("merging again keeps the verifications already recorded for the same finding", async () => {
     const w = world({ "f/logic.json": setFile("logic", [finding()]) });
     (await w.merge.execute({ dir: "f" }))._unsafeUnwrap();
