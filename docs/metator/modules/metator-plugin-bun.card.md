@@ -21,7 +21,7 @@ dir: packages/plugin-bun
 
 ## Responsibility
 
-Adapters on the Bun runtime: `FileSystem`, `ProcessRunner`, `BackgroundProcess`, `Timer`, `Launcher`, `DataIsolator` (Postgres), `TreeCopier`, `MachineState` (machine-wide state in the user's state directory), `CheckoutReader` (files of other checkouts on this machine), `Sandbox` (a temporary git repository) and `BinResolver` (the repository's pinned binaries before PATH). The `test` rule engine: conformance tests in `rules/conformance/` run under `bun test` (ADR-0034). `findRepoRoot` and its relatives find the repository a command runs in.
+Adapters on the Bun runtime: `FileSystem` (a write replaces the file whole), `FileLock` (one writer at a time for a shared file, across processes), `ProcessRunner`, `BackgroundProcess`, `Timer`, `Launcher`, `DataIsolator` (Postgres), `TreeCopier`, `MachineState` (machine-wide state in the user's state directory), `CheckoutReader` (files of other checkouts on this machine), `Sandbox` (a temporary git repository) and `BinResolver` (the repository's pinned binaries before PATH). The `test` rule engine: conformance tests in `rules/conformance/` run under `bun test` (ADR-0034). `findRepoRoot` and its relatives find the repository a command runs in.
 
 ## Invariants
 

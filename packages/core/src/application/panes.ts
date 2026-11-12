@@ -544,14 +544,10 @@ export class Panes {
     if (pane.runId) {
       // The conductor's session is the run's host session too (`run drive` resumes it).
       if (pane.role === "conductor" && pane.process.kind === "host") {
-        const record = await this.d.repo.load(pane.runId);
-        if (record.isOk())
-          await this.d.repo.save({
-            ...record.value,
-            host,
-            hostSession: sessionId,
-            updatedAt: this.d.clock.now().toISOString(),
-          });
+        const at = this.d.clock.now().toISOString();
+        await this.d.repo.update(pane.runId, (record) =>
+          ok({ ...record, host, hostSession: sessionId, updatedAt: at }),
+        );
       }
       const noted = await this.d.journal.record(pane.runId, {
         type: "agent",

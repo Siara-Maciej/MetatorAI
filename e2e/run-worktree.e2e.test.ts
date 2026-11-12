@@ -61,6 +61,48 @@ describe("a run's worktree", () => {
     expect(status.stdout.toString()).toBe("");
   }, 60_000);
 
+  test("four runs started at once each get a worktree in the registry and their own ports (R4)", async () => {
+    const before = (
+      JSON.parse(await repo.read(".metator/worktrees.json")) as { worktrees: { id: string }[] }
+    ).worktrees.map((w) => w.id);
+    const started = await Promise.all(
+      ["one", "two", "three", "four"].map((n) =>
+        metator(
+          ["run", "init", "--workflow", "feature", "--task", `At once ${n}`, "--worktree", "--no-setup"],
+          repo.root,
+        ),
+      ),
+    );
+    expect(started.map((s) => s.code)).toEqual([0, 0, 0, 0]);
+    const ids = started.map((s) => (data(s).worktree as { id: string }).id);
+    const registry = JSON.parse(await repo.read(".metator/worktrees.json")) as {
+      worktrees: { id: string; ports: { from: number; count: number } }[];
+    };
+    expect(registry.worktrees.map((w) => w.id).sort()).toEqual([...before, ...ids].sort());
+    const blocks = registry.worktrees.map((w) => w.ports.from);
+    expect(new Set(blocks).size).toBe(blocks.length);
+    // No lock is left behind.
+    expect(await repo.exists(".metator/worktrees.json.lock")).toBe(false);
+  }, 120_000);
+
+  test("two approvals given at once are both in state.json and in the log (R5)", async () => {
+    const run = data(
+      await metator(["run", "init", "--workflow", "feature", "--task", "Two approvals"], repo.root),
+    );
+    const both = await Promise.all([
+      metator(["run", "approve", "push", "--by", "maciej", "--run", run.runId as string], repo.root),
+      metator(["run", "approve", "comment", "--by", "alice", "--run", run.runId as string], repo.root),
+    ]);
+    expect(both.map((b) => b.code)).toEqual([0, 0]);
+    const state = JSON.parse(await repo.read(`.metator/runs/${run.runId}/state.json`)) as {
+      approvals: Record<string, { by: string }>;
+    };
+    expect([state.approvals.push?.by, state.approvals.comment?.by]).toEqual(["maciej", "alice"]);
+    const log = await repo.read(`.metator/runs/${run.runId}/log.md`);
+    expect(log).toContain("approved push · by maciej");
+    expect(log).toContain("approved comment · by alice");
+  }, 60_000);
+
   test("a worktree without a config of its own reads the checkout's (one not committed yet)", async () => {
     await repo.write(
       "metator.config.yml",

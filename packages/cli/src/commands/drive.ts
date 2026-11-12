@@ -1,4 +1,13 @@
-import { briefOf, err, MetatorError, ok, policyFrom, policyRefusal, type Result, unreadableRunWarning } from "@metator/core";
+import {
+  briefOf,
+  err,
+  MetatorError,
+  ok,
+  policyFrom,
+  policyRefusal,
+  type Result,
+  unreadableRunWarning,
+} from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";

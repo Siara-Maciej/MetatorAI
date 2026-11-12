@@ -12,4 +12,4 @@ tags:
 
 A test that expects an error proves nothing when the code can fail for another reason too: the proposal-cannot-start test also failed for a missing worktree, so the mutant that removed the check survived. Make the asserted failure the only one possible (here worktree: false) and check the message.
 
-Evidence: [[cite: packages/core/test/issues.test.ts:170 | "const refusedStart = await w.issues.start(\"i001\", { workflow: \"demo\", worktree: false });"]]
+Evidence: [[cite: packages/core/test/issues.test.ts:173 | "const refusedStart = await w.issues.start(\"i001\", { workflow: \"demo\", worktree: false });"]]

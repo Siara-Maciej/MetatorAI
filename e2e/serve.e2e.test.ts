@@ -4,6 +4,7 @@
  * WebSocket, lets only the attached person type, and answers a question through its API.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { realpath, rm } from "node:fs/promises";
 import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
@@ -94,6 +95,29 @@ describe("metator serve (real daemon)", () => {
     ]);
     expect(((await get("/inbox")).data as { decisions: unknown[] }).decisions).toEqual([]);
     expect((await get("/nope")).ok).toBe(false);
+  });
+
+  test("a second daemon in the same repository is refused and leaves the first one's file alone (R7)", async () => {
+    const before = await repo.read(".metator/daemon.json");
+    const pid = (JSON.parse(before) as { pid: number }).pid;
+    const second = await mt("serve", "--port", "0");
+    expect([second.code, (second.json.error as Data).code]).toEqual([64, "USAGE"]);
+    expect((second.json.error as Data).message).toBe(
+      `a daemon already serves ${await realpath(repo.root)}: ${base} (pid ${pid})`,
+    );
+    expect(String((second.json.error as Data).hint)).toContain("metator serve --port <other>");
+    expect(await repo.read(".metator/daemon.json")).toBe(before);
+    expect((await get("/health")).ok).toBe(true);
+  });
+
+  test("an approval or an answer through the API without a name is refused; the state still reads (R1)", async () => {
+    const runId = ((await get("/state")).data as { runs: { runId: string }[] }).runs[0]?.runId as string;
+    const approved = await post(`/runs/${runId}/approve`, { gate: "push" });
+    expect([approved.ok, approved.error?.code]).toEqual([false, "USAGE"]);
+    const answered = await post(`/runs/${runId}/answer`, { question: "q001", choices: ["x"] });
+    expect([answered.ok, answered.error?.code]).toEqual([false, "USAGE"]);
+    const state = await get("/state");
+    expect([state.ok, (state.data as { unreadable: unknown[] }).unreadable]).toEqual([true, []]);
   });
 
   test("a PTY session over a WebSocket: output streams, only the attached person types, the exit arrives", async () => {
@@ -195,5 +219,47 @@ describe("metator serve (real daemon)", () => {
       const s = (await mt("run", "status", "--run", runId)).json.data as { status: string };
       return s.status === "done" ? true : undefined;
     });
+  }, 60_000);
+});
+
+describe("metator serve stops (last: the daemon is gone after it)", () => {
+  test("a daemon that stops removes daemon.json only when the file is still its own (R7)", async () => {
+    // Another daemon wrote its address meanwhile (here: this test process, which lives).
+    const other = `${JSON.stringify(
+      {
+        kind: "DaemonInfo",
+        schemaVersion: 1,
+        url: "http://127.0.0.1:4999",
+        pid: process.pid,
+        startedAt: "2026-11-12T10:00:00.000Z",
+      },
+      null,
+      2,
+    )}\n`;
+    await repo.write(".metator/daemon.json", other);
+    daemon.kill("SIGTERM");
+    expect(await daemon.exited).toBe(0);
+    expect(await repo.read(".metator/daemon.json")).toBe(other);
+    // Its own file is removed: a daemon started and stopped leaves nothing behind.
+    await rm(repo.path(".metator/daemon.json"));
+    const again = Bun.spawn(["bun", CLI_ENTRY, "serve", "--port", "0"], {
+      cwd: repo.root,
+      env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    // It says where it listens as the last step of starting; its signal handlers follow at once.
+    const reader = again.stderr.getReader();
+    let said = "";
+    await until("the second daemon to listen", async () => {
+      const { value, done } = await reader.read();
+      said += new TextDecoder().decode(value);
+      return done || said.includes('"serving"') ? true : undefined;
+    });
+    await Bun.sleep(500);
+    expect(await repo.exists(".metator/daemon.json")).toBe(true);
+    again.kill("SIGTERM");
+    expect(await again.exited).toBe(0);
+    expect(await repo.exists(".metator/daemon.json")).toBe(false);
   }, 60_000);
 });

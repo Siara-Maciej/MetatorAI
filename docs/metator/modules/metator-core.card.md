@@ -25,7 +25,10 @@ The product's inside: domain model (versioned documents, rules, memory map, impo
 
 ## Invariants
 
-- Every persisted file is stamped with its header [[cite: packages/core/src/domain/versioned.ts:144 | "stamp(body: z.output<S>): DocumentHeader & z.output<S> {"]].
+- Every persisted file is stamped with its header [[cite: packages/core/src/domain/versioned.ts:148 | "stamp(body: z.output<S>): DocumentHeader & z.output<S> {"]].
+- `stamp` refuses a body its own schema rejects, so a document that cannot be read back is never written; a use case checks what a person gave it first and answers with `USAGE`.
+- A file that several processes read, change and write back (a run's `state.json`, the worktree registry, the backlog) is changed under a `FileLock`: `RunRepository.update`, `WorktreeRegistry.exclusive`, `MachineLeases.exclusive`. The work inside never takes the same lock again.
+- One unreadable run never hides the others: overviews read runs through `RunRepository.loadAll` and name what they left out.
 - Errors cross layers as one type [[cite: packages/core/src/domain/errors.ts:20 | "export class MetatorError extends Error {"]].
 
 ## Allowed dependencies

@@ -40,6 +40,16 @@ export function findDaemon(start: string): Result<DaemonInfo, MetatorError> {
   );
 }
 
+/** The daemon `<root>/.metator/daemon.json` names, when its process lives; a stale or unreadable file names none. */
+export function liveDaemonAt(root: string): DaemonInfo | undefined {
+  const file = join(root, DAEMON_FILE);
+  if (!existsSync(file)) return undefined;
+  const info = parseJsonDocument(readFileSync(file, "utf8"), file).andThen((raw) =>
+    DaemonInfoDocument.parse(raw, file),
+  );
+  return info.isOk() && processLives(info.value.pid) ? info.value : undefined;
+}
+
 function processLives(pid: number): boolean {
   try {
     process.kill(pid, 0);

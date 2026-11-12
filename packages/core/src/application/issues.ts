@@ -1,4 +1,5 @@
 import { MetatorError } from "../domain/errors.ts";
+import { InProcessLock } from "../domain/in-process-lock.ts";
 import {
   byBacklogOrder,
   type Issue,
@@ -12,7 +13,7 @@ import {
 } from "../domain/issue.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
-import type { Clock, FileSystem } from "../ports/index.ts";
+import type { Clock, FileLock, FileSystem } from "../ports/index.ts";
 import type { RunJournal } from "./drive.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -27,6 +28,8 @@ export interface IssuesDependencies {
   readonly initRun: Pick<InitRun, "execute">;
   /** `issues.proposeFromAgents`: false refuses proposals. */
   readonly proposalsAllowed?: () => Promise<boolean>;
+  /** One writer at a time for an issue's id and its run; the runtime gives the lock across processes. */
+  readonly lock?: FileLock;
 }
 
 export interface IssuePatch {
@@ -43,7 +46,21 @@ export interface IssuePatch {
  * time the backlog is read, so the CLI, the daemon and the app agree without another store.
  */
 export class Issues {
-  constructor(private readonly d: IssuesDependencies) {}
+  private readonly lock: FileLock;
+
+  constructor(private readonly d: IssuesDependencies) {
+    this.lock = d.lock ?? new InProcessLock();
+  }
+
+  /** Taking the next id and writing the issue under it is one step: two adders never get one id (R6). */
+  private numbered<T>(work: () => Promise<Result<T, MetatorError>>): Promise<Result<T, MetatorError>> {
+    const ids = `${this.d.paths.issues}/ids`;
+    return this.lock.hold(ids, work);
+  }
+
+  private file(id: string): string {
+    return `${this.d.paths.issues}/${id}.json`;
+  }
 
   async list(
     input: { readonly status?: Issue["status"]; readonly runId?: string } = {},
@@ -86,24 +103,26 @@ export class Issues {
   ): Promise<Result<Issue, MetatorError>> {
     if (input.by.trim() === "") return err(MetatorError.usage("say who adds the task: --by <name>"));
     if (input.title.trim() === "") return err(MetatorError.usage("a task needs a title"));
-    const all = await this.load();
-    if (all.isErr()) return err(all.error);
-    const now = this.d.clock.now().toISOString();
-    const issue: Issue = {
-      id: nextIssueId(all.value.map((i) => i.id)),
-      title: input.title,
-      body: input.body ?? "",
-      status: "open",
-      priority: input.priority ?? "normal",
-      labels: [...(input.labels ?? [])],
-      refs: [...(input.refs ?? [])],
-      decidedBy: { by: input.by, at: now, decision: "added" },
-      ...(input.source ? { source: input.source } : {}),
-      createdAt: now,
-      updatedAt: now,
-    };
-    const saved = await this.save(issue);
-    return saved.map(() => issue);
+    return this.numbered(async () => {
+      const all = await this.load();
+      if (all.isErr()) return err(all.error);
+      const now = this.d.clock.now().toISOString();
+      const issue: Issue = {
+        id: nextIssueId(all.value.map((i) => i.id)),
+        title: input.title,
+        body: input.body ?? "",
+        status: "open",
+        priority: input.priority ?? "normal",
+        labels: [...(input.labels ?? [])],
+        refs: [...(input.refs ?? [])],
+        decidedBy: { by: input.by, at: now, decision: "added" },
+        ...(input.source ? { source: input.source } : {}),
+        createdAt: now,
+        updatedAt: now,
+      };
+      const saved = await this.save(issue);
+      return saved.map(() => issue);
+    });
   }
 
   /**
@@ -125,6 +144,14 @@ export class Issues {
     if (runId.isErr()) return err(runId.error);
     const record = await this.d.repo.load(runId.value);
     if (record.isErr()) return err(record.error);
+    return this.numbered(() => this.writeProposal(input, runId.value, record.value.state.stage));
+  }
+
+  private async writeProposal(
+    input: IssuePatch & { readonly title: string; readonly agent: string },
+    runId: string,
+    stage: string,
+  ): Promise<Result<{ readonly issue: Issue; readonly questionId: string }, MetatorError>> {
     const all = await this.load();
     if (all.isErr()) return err(all.error);
     const now = this.d.clock.now().toISOString();
@@ -135,12 +162,12 @@ export class Issues {
       status: "proposed",
       priority: input.priority ?? "normal",
       labels: [...(input.labels ?? [])],
-      refs: [...(input.refs ?? []), ...(input.refs?.some((r) => r.run) ? [] : [{ run: runId.value }])],
-      proposedBy: { agent: input.agent, runId: runId.value, at: now },
+      refs: [...(input.refs ?? []), ...(input.refs?.some((r) => r.run) ? [] : [{ run: runId }])],
+      proposedBy: { agent: input.agent, runId, at: now },
       createdAt: now,
       updatedAt: now,
     };
-    const asked = await this.d.journal.ask(runId.value, proposalQuestion(draft, record.value.state.stage));
+    const asked = await this.d.journal.ask(runId, proposalQuestion(draft, stage));
     if (asked.isErr()) return err(asked.error);
     const issue: Issue = {
       ...draft,
@@ -194,7 +221,18 @@ export class Issues {
     id: string,
     input: { readonly workflow: string; readonly worktree?: boolean; readonly autonomy?: "L0" | "L1" | "L2" },
   ): Promise<Result<{ readonly issue: Issue; readonly runId: string }, MetatorError>> {
-    const issue = await this.show(id);
+    // Answers given in the inbox are applied first (outside the lock: applying one may start a run).
+    const known = await this.show(id);
+    if (known.isErr()) return err(known.error);
+    // From looking at the issue to writing its run, nobody else starts it: one issue, one run (R6).
+    return this.lock.hold(this.file(id), () => this.startLocked(id, input));
+  }
+
+  private async startLocked(
+    id: string,
+    input: { readonly workflow: string; readonly worktree?: boolean; readonly autonomy?: "L0" | "L1" | "L2" },
+  ): Promise<Result<{ readonly issue: Issue; readonly runId: string }, MetatorError>> {
+    const issue = await this.read(this.file(id));
     if (issue.isErr()) return err(issue.error);
     if (issue.value.status === "proposed")
       return err(
@@ -204,6 +242,16 @@ export class Issues {
       );
     if (issue.value.status === "dropped" || issue.value.status === "done")
       return err(MetatorError.usage(`issue ${id} is ${issue.value.status}`));
+    if (issue.value.status === "in-progress" && issue.value.runId) {
+      const run = await this.d.repo.load(issue.value.runId);
+      if (run.isOk() && run.value.state.status === "active")
+        return err(
+          MetatorError.usage(
+            `issue ${id} is already in progress: its run ${issue.value.runId} is still active`,
+            `Go on with it (\`metator run continue --run ${issue.value.runId}\`), or end it first (\`metator run close --aborted --run ${issue.value.runId}\`).`,
+          ),
+        );
+    }
     const started = await this.d.initRun.execute({
       workflow: input.workflow,
       task: issueTask(issue.value),
@@ -291,20 +339,21 @@ export class Issues {
     const files = await this.d.fs.glob([`${this.d.paths.issues}/*.json`]);
     const out: Issue[] = [];
     for (const file of [...files].sort()) {
-      const text = await this.d.fs.read(file);
-      if (text.isErr()) return err(text.error);
-      const parsed = parseJsonDocument(text.value, file).andThen((raw) => IssueDocument.parse(raw, file));
+      const parsed = await this.read(file);
       if (parsed.isErr()) return err(parsed.error);
       out.push(parsed.value);
     }
     return ok(out);
   }
 
+  private async read(file: string): Promise<Result<Issue, MetatorError>> {
+    const text = await this.d.fs.read(file);
+    if (text.isErr()) return err(text.error);
+    return parseJsonDocument(text.value, file).andThen((raw) => IssueDocument.parse(raw, file));
+  }
+
   private save(issue: Issue): Promise<Result<void, MetatorError>> {
-    return this.d.fs.write(
-      `${this.d.paths.issues}/${issue.id}.json`,
-      serializeJsonDocument(IssueDocument.stamp(issue)),
-    );
+    return this.d.fs.write(this.file(issue.id), serializeJsonDocument(IssueDocument.stamp(issue)));
   }
 }
 

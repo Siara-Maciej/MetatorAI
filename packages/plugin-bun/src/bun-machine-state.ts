@@ -1,7 +1,8 @@
 import { existsSync, statSync } from "node:fs";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { err, type MachineState, MetatorError, ok, type Result } from "@metator/core";
+import { err, InProcessLock, type MachineState, MetatorError, ok, type Result } from "@metator/core";
+import { type LockFileOptions, withLockFile } from "./lock-file.ts";
 
 /**
  * MachineState in a directory of the user's (G1, ADR-0056): `$METATOR_STATE_DIR`, else
@@ -9,7 +10,12 @@ import { err, type MachineState, MetatorError, ok, type Result } from "@metator/
  * a temporary file first and is renamed into place, so a reader never sees half a document.
  */
 export class BunMachineState implements MachineState {
-  constructor(private readonly dir: string) {}
+  private readonly queue = new InProcessLock();
+
+  constructor(
+    private readonly dir: string,
+    private readonly lockOptions: LockFileOptions = {},
+  ) {}
 
   async read(name: string): Promise<Result<string | undefined, MetatorError>> {
     const file = Bun.file(join(this.dir, name));
@@ -33,6 +39,14 @@ export class BunMachineState implements MachineState {
     } catch (e) {
       return err(new MetatorError("COMMAND_FAILED", `cannot write ${target}: ${(e as Error).message}`));
     }
+  }
+
+  async locked<T>(
+    name: string,
+    work: () => Promise<Result<T, MetatorError>>,
+  ): Promise<Result<T, MetatorError>> {
+    const target = join(this.dir, name);
+    return this.queue.hold(target, () => withLockFile(target, work, this.lockOptions));
   }
 
   async dirExists(path: string): Promise<boolean> {

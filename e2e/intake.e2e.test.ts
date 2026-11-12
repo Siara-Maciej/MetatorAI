@@ -147,4 +147,28 @@ describe("metator intake (real CLI, real MCP server process)", () => {
       await daemon.exited;
     }
   }, 60_000);
+
+  test("two scans at the same time make one issue of a new item (R6)", async () => {
+    await repo.write(
+      "issues.json",
+      JSON.stringify([
+        ...ISSUES,
+        { number: 15, title: "Crash on empty cart", body: "", labels: [{ name: "bug" }] },
+        { number: 16, title: "Cart loses items", body: "", labels: [{ name: "bug" }] },
+      ]),
+    );
+    const scans = await Promise.all([
+      metator(["intake", "scan"], repo.root),
+      metator(["intake", "scan"], repo.root),
+      metator(["intake", "scan"], repo.root),
+    ]);
+    expect(scans.map((s) => s.code)).toEqual([0, 0, 0]);
+    const fresh = scans.flatMap((s) => ((data(s).rules as Data[])[0]?.new ?? []) as string[]);
+    expect(fresh).toEqual(["github:acme/shop#16"]);
+    const issues = data(await metator(["issue", "list"], repo.root)).issues as Data[];
+    expect(issues.filter((i) => (i.source as Data | undefined)?.key === "github:acme/shop#16")).toHaveLength(
+      1,
+    );
+    expect(await repo.exists(".metator/issues/intake.lock")).toBe(false);
+  }, 60_000);
 });

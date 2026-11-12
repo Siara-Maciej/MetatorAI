@@ -1022,9 +1022,11 @@ export class DriveRun {
 
   /** The host session goes into the run, so `run continue` can resume the agent where it was. */
   private async rememberSession(ctx: StageContext, session: string): Promise<Result<void, MetatorError>> {
-    const record = await this.d.repo.load(ctx.runId);
-    if (record.isErr()) return err(record.error);
-    return this.d.repo.save({ ...record.value, host: ctx.host.id, hostSession: session });
+    // On the record as it is now: an approval a person gives meanwhile is not written over (R5).
+    const saved = await this.d.repo.update(ctx.runId, (record) =>
+      ok({ ...record, host: ctx.host.id, hostSession: session }),
+    );
+    return saved.map(() => undefined);
   }
 }
 

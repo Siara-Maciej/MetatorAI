@@ -12,7 +12,7 @@ The repository must be set up once with `metator setup` ([First run](../guide/fi
 metator serve
 ```
 
-It listens on `http://127.0.0.1:4310` and runs until you stop it. `--port <n>` picks another port.
+It listens on `http://127.0.0.1:4310` and runs until you stop it. `--port <n>` picks another port. One repository has one daemon: a second `metator serve` there is refused and names the address and the process id of the first. A daemon for another repository needs its own port (`metator serve --port <other>`).
 
 Then open the app. The installers are built by the `desktop` workflow of the MetatorAI repository on GitHub, as the artifacts `metatorai-desktop-windows-x64`, `metatorai-desktop-macos-universal` and `metatorai-desktop-linux-x64`. From a clone of MetatorAI you can run the window directly:
 

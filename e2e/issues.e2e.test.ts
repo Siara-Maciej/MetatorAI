@@ -146,6 +146,13 @@ describe("metator issue (real CLI)", () => {
     expect(data(await mt("run", "status", "--run", started.runId)).task).toBe(
       "ADR for rounding\n\nHalf-up or half-even.",
     );
+    // A task whose run is still active is not started a second time: the refusal names the run.
+    const twice = await mt("issue", "start", "i001", "--workflow", "demo", "--no-worktree");
+    expect([twice.code, (twice.json.error as Data).code]).toEqual([64, "USAGE"]);
+    expect((twice.json.error as Data).message).toBe(
+      `issue i001 is already in progress: its run ${started.runId} is still active`,
+    );
+    expect(data(await mt("issue", "show", "i001")).runId).toBe(started.runId);
     expect((await mt("issue", "close", "i001", "--by", "maciej")).code).toBe(0);
     const fourth = data(await mt("issue", "add", "Old TODO", "--by", "maciej"));
     expect(data(await mt("issue", "drop", fourth.id as string, "--by", "maciej"))).toMatchObject({

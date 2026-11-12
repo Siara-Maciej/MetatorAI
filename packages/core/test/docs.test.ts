@@ -113,7 +113,11 @@ describe("DocsInventory", () => {
 const CODE = "line 1\nexport const TAX = 0.23;\nline 3\n";
 // Written by hand, as a person edits the file: an invalid claim set must reach the reader.
 const claims = (list: object[]) =>
-  serializeJsonDocument({ kind: ClaimSetDocument.kind, schemaVersion: ClaimSetDocument.current, claims: list });
+  serializeJsonDocument({
+    kind: ClaimSetDocument.kind,
+    schemaVersion: ClaimSetDocument.current,
+    claims: list,
+  });
 const claim = (id: string, line: number, quote: string, extra: object = {}) => ({
   id,
   source: "docs/a.md",

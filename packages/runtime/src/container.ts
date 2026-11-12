@@ -67,6 +67,7 @@ import type {
   EnvironmentCatalog,
   EnvironmentServices,
   EvalCatalog,
+  FileLock,
   FileSystem,
   FindMemoryDupes,
   FindOwners,
@@ -230,6 +231,7 @@ export interface Cradle {
   // ports
   clock: Clock;
   fileSystem: FileSystem;
+  fileLock: FileLock;
   processRunner: ProcessRunner;
   /** The one git adapter of the repository; the git ports below resolve to it. */
   git: Vcs & RevisionReader & ChangeHistory & BranchHistory & ChangePatch & BranchPublication;

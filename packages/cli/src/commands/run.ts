@@ -19,8 +19,8 @@ import {
   type RunEvent,
   RunSummaryDocument,
   readinessWarnings,
-  unreadableRunWarning,
   taskWarnings,
+  unreadableRunWarning,
   VerdictDocument,
 } from "@metator/core";
 import { Argument, type Command, Option } from "commander";

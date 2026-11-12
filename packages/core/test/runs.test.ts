@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
-import { RunRepository, type UnreadableRun, unreadableRunWarning } from "../src/application/run-repository.ts";
+import {
+  RunRepository,
+  type UnreadableRun,
+  unreadableRunWarning,
+} from "../src/application/run-repository.ts";
 import {
   AdvanceRun,
   ApproveRun,
@@ -12,6 +16,8 @@ import {
   WriteRunArtifact,
 } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
+import { MetatorError } from "../src/domain/errors.ts";
+import { err, ok } from "../src/domain/result.ts";
 
 const FEATURE = `
 kind: Workflow
@@ -260,6 +266,55 @@ describe("run lifecycle", () => {
     expect(unreadableRunWarning(listed.unreadable[0] as UnreadableRun)).toContain(
       `restore ${first.files.state} (from git or a backup), or delete the run's directory`,
     );
+  });
+
+  test("two approvals at the same time are both in the record; the log has both lines (R5)", async () => {
+    const w = world();
+    const run = (await w.init.execute({ workflow: "feature", task: "first" }))._unsafeUnwrap();
+    const [push, comment] = await Promise.all([
+      w.approve.execute({ gate: "push", by: "maciej" }),
+      w.approve.execute({ gate: "comment", by: "alice" }),
+    ]);
+    expect([push.isOk(), comment.isOk()]).toEqual([true, true]);
+    const record = (await w.repo.load(run.runId))._unsafeUnwrap();
+    expect(Object.keys(record.approvals).sort()).toEqual(["comment", "push"]);
+    const log = (await w.fs.read(run.files.log))._unsafeUnwrap();
+    expect(log).toContain("approved push · by maciej");
+    expect(log).toContain("approved comment · by alice");
+    expect(log.match(/^kind: RunLog$/gm)).toHaveLength(1);
+  });
+
+  test("the same event sent twice at once advances the run once: the second is told it moved on (R5)", async () => {
+    const w = world();
+    const run = (await w.init.execute({ workflow: "feature", task: "first" }))._unsafeUnwrap();
+    const both = await Promise.all([
+      w.advance.execute({ event: { type: "PASS" } }),
+      w.advance.execute({ event: { type: "PASS" } }),
+    ]);
+    expect(both.map((r) => r.isOk()).sort()).toEqual([false, true]);
+    const refused = both.find((r) => r.isErr())?._unsafeUnwrapErr();
+    expect(refused?.code).toBe("TRANSITION_DENIED");
+    expect(refused?.message).toBe(
+      `run ${run.runId} moved on meanwhile: it was at plan, now it is active at plan-gate`,
+    );
+    expect((await w.repo.load(run.runId))._unsafeUnwrap().state.stage).toBe("plan-gate");
+  });
+
+  test("update changes the record as it is now, and an error value from the change writes nothing", async () => {
+    const w = world();
+    const run = (await w.init.execute({ workflow: "feature", task: "first" }))._unsafeUnwrap();
+    const before = (await w.fs.read(run.files.state))._unsafeUnwrap();
+    const refused = await w.repo.update(run.runId, () => err(MetatorError.usage("no")));
+    expect(refused._unsafeUnwrapErr().message).toBe("no");
+    expect((await w.fs.read(run.files.state))._unsafeUnwrap()).toBe(before);
+    const bumps = await Promise.all(
+      ["a", "b", "c"].map((k) =>
+        w.repo.update(run.runId, (r) => ok({ ...r, options: { ...(r.options ?? {}), [k]: true } })),
+      ),
+    );
+    expect(bumps.every((b) => b.isOk())).toBe(true);
+    expect((await w.repo.load(run.runId))._unsafeUnwrap().options).toEqual({ a: true, b: true, c: true });
+    expect((await w.repo.update("nope", (r) => ok(r)))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
   });
 
   test("task text that slugifies to nothing still gets a valid id", async () => {

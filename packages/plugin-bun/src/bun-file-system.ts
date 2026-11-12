@@ -1,4 +1,4 @@
-import { appendFile, mkdir, rm } from "node:fs/promises";
+import { appendFile, chmod, mkdir, realpath, rename, rm, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   err,
@@ -9,6 +9,31 @@ import {
   ok,
   type Result,
 } from "@metator/core";
+
+let writes = 0;
+
+/**
+ * Writes a file whole or not at all: the content goes to a temporary file next to it, which is
+ * then renamed into place. A process reading meanwhile (the daemon's overview while a drive saves
+ * `state.json`) sees the old file or the new one, never half of one. A link is written through
+ * to the file it names, and an existing file keeps its mode.
+ */
+async function writeWhole(target: string, content: string): Promise<void> {
+  const real = await realpath(target).catch(() => target);
+  const tmp = `${real}.${process.pid}.${writes++}.tmp`;
+  try {
+    await Bun.write(tmp, content);
+    const mode = await stat(real).then(
+      (s) => s.mode & 0o7777,
+      () => undefined,
+    );
+    if (mode !== undefined) await chmod(tmp, mode);
+    await rename(tmp, real);
+  } finally {
+    // Renamed into place, it is gone already; after a failure it must not stay behind.
+    await rm(tmp, { force: true });
+  }
+}
 
 const DEFAULT_IGNORES = ["!**/node_modules/**", "!.git/**"];
 
@@ -47,7 +72,7 @@ export class BunFileSystem implements FileSystem {
     if (target.isErr()) return err(target.error);
     try {
       await mkdir(dirname(target.value), { recursive: true });
-      await Bun.write(target.value, content);
+      await writeWhole(target.value, content);
       return ok(undefined);
     } catch (e) {
       return err(

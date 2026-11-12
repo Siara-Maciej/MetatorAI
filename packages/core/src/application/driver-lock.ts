@@ -48,7 +48,16 @@ export class DriverLock {
     if (current?.by === "human") return ok({ runId: id.value, driver: current });
     const at = this.clock.now().toISOString();
     const driver: Driver = { by: "human", attachedBy: input.by, attachedAt: at };
-    const saved = await this.repo.save({ ...record.value, driver, updatedAt: at });
+    const saved = await this.repo.update(id.value, (now) =>
+      // Someone else attached meanwhile: the lock is theirs.
+      now.driver?.by === "human" && now.driver.attachedBy !== input.by
+        ? err(
+            MetatorError.usage(
+              `run ${id.value} is driven by ${now.driver.attachedBy} since ${now.driver.attachedAt}`,
+            ),
+          )
+        : ok({ ...now, driver, updatedAt: at }),
+    );
     if (saved.isErr()) return err(saved.error);
     const logged = await this.repo.appendLog(id.value, `${at} · driver · ${input.by} attached`);
     if (logged.isErr()) return err(logged.error);
@@ -70,7 +79,7 @@ export class DriverLock {
     const driver: Driver = { by: "agent" };
     if (!current || current.by === "agent") return ok({ runId: id.value, driver });
     const at = this.clock.now().toISOString();
-    const saved = await this.repo.save({ ...record.value, driver, updatedAt: at });
+    const saved = await this.repo.update(id.value, (now) => ok({ ...now, driver, updatedAt: at }));
     if (saved.isErr()) return err(saved.error);
     const logged = await this.repo.appendLog(id.value, `${at} · driver · ${current.attachedBy} released`);
     if (logged.isErr()) return err(logged.error);
