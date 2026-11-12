@@ -66,7 +66,7 @@ export function resumeNotice(
   drive: { readonly started?: boolean; readonly error?: string; readonly hint?: string } | undefined,
 ): string | undefined {
   if (!drive?.error) return undefined;
-  return `Run ${runId} is resumed, but nothing drives it: ${drive.error}${drive.hint ? ` ${drive.hint}` : ""}`;
+  return `Run ${runId} is resumed, but no agent works on it: ${drive.error}${drive.hint ? ` ${drive.hint}` : ""}`;
 }
 
 /** The panel's order (spec §5.2): waits for you → working → stopped → escalated → finished. */
@@ -135,8 +135,8 @@ export function nextWaiting<R extends Pick<RunOverview, "runId" | "attention">>(
   return waiting[(i + 1) % waiting.length];
 }
 
-export const questionKind = (q: Pick<Question, "source">): "GATE" | "PERMISSION" | "QUESTION" =>
-  q.source === "gate" ? "GATE" : q.source === "permission" ? "PERMISSION" : "QUESTION";
+export const questionKind = (q: Pick<Question, "source">): "APPROVAL" | "PERMISSION" | "QUESTION" =>
+  q.source === "gate" ? "APPROVAL" : q.source === "permission" ? "PERMISSION" : "QUESTION";
 
 /** The chips of an inbox row (spec §6.3): reversible, how many files it touches, whether the answer can be remembered, blocks a wave. */
 export function inboxChips(item: Pick<InboxItem, "question" | "driving">): string[] {
@@ -336,7 +336,7 @@ export function panesOfRun<P extends Pick<PaneView, "runId" | "role" | "id">>(
 export function paneLabel(pane: Pick<PaneView, "role" | "label" | "worker" | "process">): string {
   if (pane.worker) return pane.worker.name;
   if (pane.role === "conductor")
-    return `conductor · ${pane.process.kind === "host" ? pane.process.agent : pane.label}`;
+    return `agent · ${pane.process.kind === "host" ? pane.process.agent : pane.label}`;
   return pane.label || pane.role;
 }
 
@@ -738,12 +738,17 @@ export const repoChoice = (
   saved: string | null | undefined,
 ): string | undefined => (repos.some((r) => r.name === saved) ? (saved as string) : repos[0]?.name);
 
-/** An autonomy level with words beside it: `L0: asks at every gate`. */
+/** An autonomy level with words beside it: `L0: every approval waits for you`. */
 export const autonomyLabel = (level: string): string =>
   level === "L0"
-    ? "L0: asks at every gate"
+    ? "L0: every approval waits for you"
     : level === "L1"
-      ? "L1: skips the gates the workflow allows"
+      ? "L1: skips the approvals the workflow lets it skip"
       : level === "L2"
-        ? "L2: runs without a person"
+        ? "L2: no person at hand; only the approvals that are never skipped wait"
         : level;
+
+/** The autonomy levels the form offers for a workflow: the ones it lists; L0 and L1 when the daemon does not say. */
+export const autonomyLevels = (
+  workflow: { readonly autonomy?: readonly string[] | undefined } | undefined,
+): readonly string[] => (workflow?.autonomy?.length ? workflow.autonomy : ["L0", "L1"]);

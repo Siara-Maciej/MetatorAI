@@ -58,8 +58,8 @@ const COMMANDS: readonly PaletteCommand[] = [
   { id: "editor", label: "Open the worktree in your editor", key: "e" },
   { id: "shell", label: "Shell in the worktree", key: "t" },
   { id: "diff", label: "Diff of the run", key: "d" },
-  { id: "next-waiting", label: "Go to the next session that needs you", key: "g" },
-  { id: "finished", label: "Show or hide the finished sessions of this repository", key: "f" },
+  { id: "next-waiting", label: "Go to the next run that needs you", key: "g" },
+  { id: "finished", label: "Show or hide the finished runs of this repository", key: "f" },
   { id: "settings", label: "Settings: editor, AI hosts", key: "," },
   { id: "quit", label: "Quit", key: "q" },
 ];
@@ -219,7 +219,7 @@ export function App(props: AppProps) {
         const repo =
           folded?.repo ?? run?.repo ?? (current?.kind === "chat" ? undefined : snapshot?.repos[0]?.root);
         if (repo && rows.some((r) => r.kind === "finished" && r.repo === repo)) toggleFinished(repo);
-        else say("No finished sessions here.", "");
+        else say("No finished runs here.", "");
         return;
       }
       case "settings":
@@ -296,7 +296,7 @@ export function App(props: AppProps) {
           <Text wrap="truncate">
             <Text color={t.you > 0 ? "yellow" : "gray"}>{t.you} need you</Text>
             <Text dimColor> · </Text>
-            <Text color="cyan">{t.driving} driving</Text>
+            <Text color="cyan">{t.driving} working</Text>
             <Text dimColor> · </Text>
             <Text>{t.stopped} stopped</Text>
             {t.escalated > 0 ? (
@@ -408,7 +408,7 @@ export function App(props: AppProps) {
           ) : folded ? (
             <Box borderStyle="round" borderColor="gray" paddingX={1} flexDirection="column" width={right}>
               <Text>
-                {folded.count} finished session{folded.count === 1 ? "" : "s"}
+                {folded.count} finished run{folded.count === 1 ? "" : "s"}
                 {snapshot && snapshot.repos.length > 1 ? ` in ${repoName(folded.repo)}` : ""}
               </Text>
               <Text dimColor>⏎ or f: {folded.open ? "hide" : "show"} them</Text>

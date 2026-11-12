@@ -106,20 +106,20 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
   {
     verb: "Set up a repository",
     commands: [
-      ["setup", "hosts, workflows and hooks, asked in the terminal (or --host … --yes)"],
+      ["setup", "AI hosts, workflows and hooks, asked in the terminal (or --host … --yes)"],
       ["init", "the config from the repository's own scripts, with the evidence"],
       ["doctor", "what a run will not be able to do here, and the fix for each"],
-      ["agents update", "take the newer canon, keeping the files you changed"],
-      ["generate", "the host files (Copilot, Claude Code) from the canonical agents"],
+      ["agents update", "take the newer shipped files, keeping the ones you changed"],
+      ["generate", "the AI hosts' files (Copilot, Claude Code) from the shipped agents and skills"],
     ],
   },
   {
     verb: "Work on a task",
     commands: [
-      ["run", "start a run in the terminal: workflow, task, host, then follow it"],
+      ["run", "start a run in the terminal: workflow, task, AI host, then follow it"],
       ["run init", "a run from a workflow and a task (--worktree for its own checkout)"],
-      ["run start", "the run as a conductor pane under the daemon; workers in their own panes"],
-      ["run drive", "the run headless, stage by stage, asking you when a gate needs you"],
+      ["run start", "the run in an agent's pane under the daemon; its workers in their own panes"],
+      ["run drive", "the run without a terminal of its own, stage by stage, asking you at each approval"],
       ["run status", "the stage the run stands at and what it expects"],
       ["inbox", "every question waiting for you, the most urgent first"],
       ["run answer", "answer a question; --always makes it a policy"],
@@ -132,7 +132,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["open", "your editor on the run's worktree, at a file and line"],
       ["attach", "your terminal on a pane (or a run's conductor); Ctrl-] detaches"],
       ["status", "every run at a glance: who waits for you, who works, who stopped"],
-      ["ui", "the full-screen view of every session"],
+      ["ui", "the full-screen view of every run"],
     ],
   },
   {
@@ -150,7 +150,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
     verb: "Check and review",
     commands: [
       ["gate", "the repository's quality gates, as agents and CI run them"],
-      ["rules check", "the canon's rules against a change"],
+      ["rules check", "the repository's rules against a change"],
       ["arch check", "package architecture against the policy; only new violations"],
       ["review plan", "the review of a change: shards, lenses, rules"],
       ["findings to-github", "verified findings as PR comments"],
@@ -168,7 +168,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
     verb: "Keep it running",
     commands: [
       ["serve", "the local daemon: state, inbox, terminals, the desktop app's backend"],
-      ["supervise", "restart dead drives, nudge idle sessions, mind the attention budget"],
+      ["supervise", "restart dead drives, nudge idle agents, mind the attention budget"],
       ["worktree", "worktrees and their ports: new, list, rm, prune"],
       ["env", "the application's environment per worktree: up, down, status, logs"],
       ["report", "what the runs cost and gave back"],

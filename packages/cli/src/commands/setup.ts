@@ -63,7 +63,7 @@ export function registerSetupCommands(
           : "Take the canon of this MetatorAI version; files changed here are kept unless --theirs",
       )
       .option("--workflows <ids...>", "workflows to install (default: all, or the installed ones on update)")
-      .option("--theirs", "resolve conflicts with the canon's version", false)
+      .option("--theirs", "resolve conflicts with the shipped version", false)
       .option("--dry-run", "report what would change without writing", false)
       .option("--no-generate", "leave the host files (.claude/agents, .github/agents, skills) as they are")
       .action(

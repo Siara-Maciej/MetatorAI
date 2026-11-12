@@ -95,6 +95,11 @@ beforeAll(async () => {
     "kind: MetatorConfig\nschemaVersion: 9\nsupervisor:\n  hostOrder: [scenario]\n",
   );
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
+  // A second workflow, later in the alphabet, that runs at one level only (the form starts there).
+  await repo.write(
+    ".github/metator/workflows/mt-feature.yml",
+    `${WORKFLOW.replace("id: demo", "id: mt-feature")}autonomy: [L0]\n`,
+  );
   await repo.write("scenario.yml", SCENARIO);
   await repo.commit("init");
   daemon = Bun.spawn(["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100", "--supervise-ms", "0"], {
@@ -178,21 +183,31 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await page.getByRole("button", { name: "Advanced…" }).click();
     const dialog = page.getByRole("dialog", { name: "new session" });
     await dialog.getByLabel("Task").fill("Add the discount to the invoice");
-    await dialog.getByLabel("Host").selectOption("scenario");
-    await dialog.getByLabel("Workspace").uncheck();
-    // The levels read with words beside them.
+    await dialog.getByLabel("AI host").selectOption("scenario");
+    await dialog.getByLabel("Worktree").uncheck();
+    // The form starts at mt-feature, not at the first workflow of the alphabet, and offers only the
+    // levels that workflow runs at, with words beside them.
+    expect(await dialog.getByLabel(/^Workflow/).inputValue()).toBe("mt-feature");
     expect(await dialog.getByLabel("Autonomy").locator("option").allTextContents()).toEqual([
-      "L0: asks at every gate",
-      "L1: skips the gates the workflow allows",
+      "L0: every approval waits for you",
+    ]);
+    await dialog.getByLabel(/^Workflow/).selectOption("demo");
+    await until("the levels of demo", async () =>
+      (await dialog.getByLabel("Autonomy").locator("option").count()) === 2 ? true : undefined,
+    );
+    expect(await dialog.getByLabel("Autonomy").locator("option").allTextContents()).toEqual([
+      "L0: every approval waits for you",
+      "L1: skips the approvals the workflow lets it skip",
     ]);
     // Escape closes the dialog from a focused field (D7); it opens again with the same form.
     await dialog.getByLabel("Task").focus();
     await page.keyboard.press("Escape");
     await until("the dialog closed", async () => ((await dialog.count()) === 0 ? true : undefined));
     await page.getByRole("button", { name: "Advanced…" }).click();
+    await dialog.getByLabel(/^Workflow/).selectOption("demo");
     await dialog.getByLabel("Task").fill("Add the discount to the invoice");
-    await dialog.getByLabel("Host").selectOption("scenario");
-    await dialog.getByLabel("Workspace").uncheck();
+    await dialog.getByLabel("AI host").selectOption("scenario");
+    await dialog.getByLabel("Worktree").uncheck();
     await expect(await dialog.locator("code").textContent()).toContain(
       "metator run init --workflow demo --task",
     );
@@ -243,7 +258,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
   test("the gate question arrives in the inbox and is answered from the card without opening the session", async () => {
     const item = page.locator(".needs .item", { hasText: "approval" }).first();
     await item.waitFor({ timeout: 40_000 });
-    await expect(await item.locator(".kind").textContent()).toBe("GATE");
+    await expect(await item.locator(".kind").textContent()).toBe("APPROVAL");
     const card = page.getByLabel("decision card");
     await expect(await card.locator("h1").textContent()).toContain("approval");
     // Reject promises a reason (D8): without it neither the button nor Enter sends the answer.
@@ -302,7 +317,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the session to greet", async () =>
       (await term.textContent())?.includes("hello from the session") ? true : undefined,
     );
-    await expect(await page.getByTestId("driverbar").textContent()).toContain("Driver: agent");
+    await expect(await page.getByTestId("driverbar").textContent()).toContain("Working: agent");
     // The agent asks on its own screen (D2): the run counts as waiting for you, in the top bar,
     // in the panel and on the session, and the Inbox has a row that opens the pane.
     await page.getByTestId("terminal-ask").waitFor({ timeout: 30_000 });
@@ -322,7 +337,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await page.locator(".session .head").click();
     await page.keyboard.press("Control+a");
     await Bun.sleep(300);
-    await expect(await page.getByTestId("driverbar").textContent()).toContain("Driver: agent");
+    await expect(await page.getByTestId("driverbar").textContent()).toContain("Working: agent");
     await page.getByRole("button", { name: "Attach · a" }).click();
     await until("the lock", async () =>
       (await page.getByTestId("driverbar").textContent())?.includes("maciej") ? true : undefined,
@@ -340,7 +355,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     // The run's panes (R4): the conductor's tab with its state; a shell pane opens, streams and closes.
     const panes = page.getByTestId("panes");
     await until("the conductor's tab", async () =>
-      (await panes.textContent())?.includes("conductor") ? true : undefined,
+      (await panes.textContent())?.includes("agent · ") ? true : undefined,
     );
     await panes.getByRole("button", { name: "+ Shell" }).click();
     const shellTerm = page.locator('[data-testid^="pane-"]');
@@ -377,7 +392,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     const layout = (await api("/layout")).data as { workspaces: { tabs: { tree?: unknown }[] }[] };
     expect(layout.workspaces.some((w) => w.tabs.some((t) => t.tree !== undefined))).toBe(true);
     // The new shell takes anyone's keys: typed text comes back from the PTY.
-    const shellFrame = workbench.locator('.pane-frame:not([aria-label^="conductor"])').first();
+    const shellFrame = workbench.locator('.pane-frame:not([aria-label^="agent · "])').first();
     await shellFrame.waitFor({ timeout: 20_000 });
     await shellFrame.locator(".xterm").click();
     await page.keyboard.type("echo hello-from-the-workbench");
@@ -409,7 +424,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await page.keyboard.press("g");
     const picker = page.getByRole("dialog", { name: "Go to" });
     await picker.waitFor({ timeout: 5000 });
-    expect(await picker.textContent()).toContain("conductor");
+    expect(await picker.textContent()).toContain("agent · ");
     await page.keyboard.press("Escape");
     await until("the picker closed", async () => ((await picker.count()) === 0 ? true : undefined));
     // A right click on a pane is the menu with the splits.
@@ -419,7 +434,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     expect(await menu.textContent()).toContain("Split right");
     await page.keyboard.press("Escape");
     // "New task from here…" opens the backlog's form with the pane's run as what the task points at.
-    await workbench.locator('.pane-frame[aria-label^="conductor"]').first().click({ button: "right" });
+    await workbench.locator('.pane-frame[aria-label^="agent · "]').first().click({ button: "right" });
     await page.getByRole("menu").getByText("New task from here…").click();
     await page.getByTestId("backlog").waitFor({ timeout: 20_000 });
     await until("the draft in the form", async () =>
@@ -466,7 +481,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await page.getByTestId("issue-i001").waitFor({ timeout: 20_000 });
     expect(await page.getByTestId("backlog").textContent()).toContain("i001 · open");
     // A run on the task starts on a workflow this repository has (D5), not on a guessed one.
-    expect(await page.getByLabel("workflow").inputValue()).toBe("demo");
+    expect(await page.getByLabel("workflow").inputValue()).toBe("mt-feature");
     // What an action answered stays on the screen past the list's refresh (D5).
     await page.route("**/issues/i001/close*", (r) =>
       r.fulfill({
@@ -539,7 +554,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     expect(sentMessages.map((m) => m.topic)).toEqual(["review"]);
     expect(sentMessages[0]?.text).toContain("- src/discount.ts:2: cap in cents?");
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/graph`);
-    await page.getByRole("img", { name: "sessions graph" }).waitFor({ timeout: 20_000 });
+    await page.getByRole("img", { name: "runs graph" }).waitFor({ timeout: 20_000 });
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/supervisor`);
     await until("the KPI tiles", async () =>
       (await page.getByTestId("kpi-inbox").textContent())?.includes("100%") ? true : undefined,
@@ -577,7 +592,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
     await page.getByTestId("connection").waitFor({ timeout: 20_000 });
     expect(await page.locator("aside.sessions").isVisible()).toBe(false);
-    await page.getByRole("button", { name: /^Sessions · / }).click();
+    await page.getByRole("button", { name: /^Runs · / }).click();
     expect(await page.locator("aside.sessions").isVisible()).toBe(true);
     await page.keyboard.press("Escape");
     expect(await page.locator("aside.sessions").isVisible()).toBe(false);

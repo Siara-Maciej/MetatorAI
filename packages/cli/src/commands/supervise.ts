@@ -12,9 +12,7 @@ export function registerSuperviseCommand(program: Command, ctx: CommandContext):
   const root = () => (program.opts() as { root?: string }).root;
   program
     .command("supervise")
-    .description(
-      "Keep sessions alive: restart drives that died, nudge idle sessions, watch the attention budget",
-    )
+    .description("Keep runs alive: restart drives that died, nudge idle agents, watch the attention budget")
     .option("--once", "one tick, then the report", false)
     .option("--interval-ms <n>", "how often to tick", positiveInt, 5000)
     .action(

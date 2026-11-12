@@ -64,7 +64,7 @@ export function toEvent(name: EventName, opts: AdvanceOptions): Result<RunEvent,
       return ok(opts.reason ? { type: "FAIL", reason: opts.reason } : { type: "FAIL" });
     case "approve":
       if (!opts.by?.trim()) {
-        return err(MetatorError.usage("approve requires --by <name>", "Gates record who made the decision."));
+        return err(MetatorError.usage("approve requires --by <name>", "An approval records who gave it."));
       }
       return ok(
         opts.choice
@@ -92,7 +92,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .addOption(
       new Option(
         "--autonomy <level>",
-        "L0 all gates, L1 skip plan approval, L2 headless; one the workflow lists (default: L0 when it lists it)",
+        "L0 every approval waits for you, L1 skips the approvals the workflow lets it skip, L2 no person at hand; one the workflow lists (default: L0 when it lists it)",
       ).choices(AutonomySchema.options),
     )
     .option("--worktree", "work in a new git worktree with its own ports (.metator/wt/<run>)", false)
@@ -190,7 +190,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .option("--run <id>", "run id (default: latest)")
     .option("--reason <text>", "why (fail, abort)")
     .option("--by <name>", "who decided (required for approve)")
-    .option("--choice <value>", "selected option at a gate")
+    .option("--choice <value>", "selected option at an approval")
     .action(
       action(async (name: EventName, opts: AdvanceOptions) => {
         const event = toEvent(name, opts);
@@ -202,8 +202,10 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
 
   runs
     .command("approve")
-    .description("Record a human approval: the HITL stage the run waits at, or an action (push, comment)")
-    .argument("<gate>", "current HITL stage id, or push / comment")
+    .description(
+      "Record a person's approval: the approval stage the run waits at, or an action (push, comment)",
+    )
+    .argument("<gate>", "the approval stage the run waits at, or push / comment")
     .requiredOption("--by <name>", "who approved")
     .option("--choice <value>", "selected option")
     .option("--run <id>", "run id (default: latest)")

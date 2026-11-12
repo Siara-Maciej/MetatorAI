@@ -203,7 +203,7 @@ export function registerDriveCommands(
 
   runs
     .command("questions")
-    .description("Questions waiting for a person: HITL gates, agents asking, tool permissions")
+    .description("Questions waiting for a person: approvals, agents asking, tool permissions")
     .option("--run <id>", "only this run (default: every run)")
     .option("--all", "include answered questions", false)
     .action(

@@ -79,7 +79,7 @@ export interface SessionRow {
   readonly driving: boolean;
   /** Its drive process ended without leaving: `run revive` starts it again. */
   readonly died: boolean;
-  /** waits for you (n) · driving · died · stopped · done · escalated · aborted */
+  /** waits for you (n) · working · died · stopped · done · escalated · aborted */
   readonly state: string;
 }
 
@@ -100,7 +100,7 @@ export async function sessionRows(c: MetatorContainer): Promise<Result<readonly 
         : waiting > 0
           ? `waits for you (${waiting})`
           : driving
-            ? "driving"
+            ? "working"
             : died
               ? "died"
               : "stopped";

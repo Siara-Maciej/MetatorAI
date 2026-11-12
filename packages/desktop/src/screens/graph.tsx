@@ -91,7 +91,7 @@ export function GraphScreen() {
         <svg
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label="sessions graph"
+          aria-label="runs graph"
           style={{ minWidth: width, minHeight: height }}
         >
           <defs>

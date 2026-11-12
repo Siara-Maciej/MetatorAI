@@ -467,6 +467,8 @@ export interface Workflow {
   readonly id: string;
   readonly revision: number;
   readonly description?: string;
+  /** The autonomy levels the workflow runs at; a daemon older than this field leaves it out. */
+  readonly autonomy?: readonly string[];
   readonly stages: readonly string[];
   readonly source: string;
 }

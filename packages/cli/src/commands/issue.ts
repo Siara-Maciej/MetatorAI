@@ -224,7 +224,9 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       "start although tracked files have uncommitted changes (the worktree starts from the last commit, without them)",
       false,
     )
-    .addOption(new Option("--autonomy <level>", "L0 asks at every gate").choices(["L0", "L1", "L2"]))
+    .addOption(
+      new Option("--autonomy <level>", "L0: every approval waits for you").choices(["L0", "L1", "L2"]),
+    )
     .action(
       action(
         async (

@@ -213,8 +213,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await page.getByRole("button", { name: "Advanced…" }).click();
     const dialog = page.getByRole("dialog", { name: "new session" });
     await dialog.getByTestId("no-host").waitFor({ timeout: 20_000 });
-    expect(await dialog.getByLabel("Host").inputValue()).toBe("");
-    expect(await dialog.getByLabel("Host").locator("option:disabled").allTextContents()).toEqual([
+    expect(await dialog.getByLabel("AI host").inputValue()).toBe("");
+    expect(await dialog.getByLabel("AI host").locator("option:disabled").allTextContents()).toEqual([
       "copilot (not installed)",
       "claude (not installed)",
       "opencode (not installed)",
@@ -358,7 +358,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
       const dialog = page.getByRole("dialog", { name: "new session" });
       await dialog.getByLabel("Workflow", { exact: true }).selectOption("demo");
       await dialog.getByLabel("Task").fill("Start from a dirty tree");
-      await dialog.getByLabel("Host").selectOption("scenario");
+      await dialog.getByLabel("AI host").selectOption("scenario");
       await dialog.getByRole("button", { name: "Create in background" }).click();
       const notice = dialog.locator(".notice");
       await notice.waitFor({ timeout: 20_000 });

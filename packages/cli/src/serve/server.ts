@@ -260,6 +260,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
               id: spec.id,
               revision: spec.revision,
               ...(spec.description ? { description: spec.description } : {}),
+              // The levels the workflow runs at: the form offers only these.
+              ...(spec.autonomy ? { autonomy: spec.autonomy } : {}),
               stages: spec.stages.map((st) => st.id),
               source,
             })),

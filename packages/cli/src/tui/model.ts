@@ -114,7 +114,7 @@ export const ATTENTION: Readonly<
   Record<Attention, { readonly icon: string; readonly label: string; readonly color: string }>
 > = {
   you: { icon: "?", label: "needs you", color: "yellow" },
-  driving: { icon: "⟳", label: "driving", color: "cyan" },
+  driving: { icon: "⟳", label: "working", color: "cyan" },
   stopped: { icon: "‖", label: "stopped", color: "gray" },
   done: { icon: "✓", label: "done", color: "green" },
   escalated: { icon: "!", label: "escalated", color: "red" },

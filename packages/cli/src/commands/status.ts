@@ -84,7 +84,7 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
     .description(
       "What a run here will and will not do: config, canon, workflows, gates, dependencies, environment, remote",
     )
-    .option("--worktree <id>", "look at this worktree (a run's session) instead of this checkout")
+    .option("--worktree <id>", "look at this worktree (a run's) instead of this checkout")
     .option("--run <id>", "look at this run's worktree")
     .action(
       ctx.action(async (opts: { worktree?: string; run?: string }) => {
