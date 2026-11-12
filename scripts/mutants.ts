@@ -69,8 +69,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/commands/meta.ts",
-    from: "if (!sub) break;",
-    to: "if (!sub) return undefined;",
+    from: "if (!option) break;",
+    to: "if (!option) return { cmd: program, path: [], rest: words };",
     why: "--help describes the command the words before it name",
   },
   {
@@ -4918,6 +4918,42 @@ export const MUTANTS: readonly Mutant[] = [
     from: "    branchHistory: asFunction(({ git }) => git).singleton(),",
     to: "    branchHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),",
     why: "every git port is the one GitVcs with MetatorAI's own state left out",
+  },
+  {
+    file: "packages/core/src/application/runs.ts",
+    from: '"TRANSITION_DENIED",\n          `run ',
+    to: '"USAGE",\n          `run ',
+    why: "a run that is not active refuses an approval as TRANSITION_DENIED, not as a usage error",
+  },
+  {
+    file: "packages/cli/src/mcp.ts",
+    from: ".find((f) => options.includes(f))",
+    to: ".find(() => false)",
+    why: "an MCP reading tool refuses an option that writes",
+  },
+  {
+    file: "packages/cli/src/mcp.ts",
+    from: '"run brief": ["--peek"]',
+    to: '"run brief": []',
+    why: "run brief as an MCP tool does not mark the run as read",
+  },
+  {
+    file: "packages/cli/src/commands/meta.ts",
+    from: "rest.length === 0 && end === -1 && cmd.commands.length > 0 && !runsItself",
+    to: "false",
+    why: "a bare command group prints that group's help",
+  },
+  {
+    file: "packages/cli/src/commands/meta.ts",
+    from: 'if ((option.required || option.optional) && !word.includes("=")) i++;',
+    to: "",
+    why: "--help after `-C <dir>` describes the command, not the directory",
+  },
+  {
+    file: "packages/cli/src/options.ts",
+    from: "n < 0",
+    to: "n < -1",
+    why: "a negative number is not a port or an interval",
   },
   {
     file: "packages/core/src/domain/effective-config.ts",

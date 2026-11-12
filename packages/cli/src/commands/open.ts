@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
+import { positiveInt } from "../options.ts";
 
 /**
  * `metator open` (S5, design/13 §5): the editor of `editor.command` on a run's worktree (or the
@@ -15,7 +16,7 @@ export function registerOpenCommands(program: Command, { action, runs }: Command
     .option("--run <id>", "the run whose worktree opens (default: latest)")
     .option("--pane <id>", "a pane: its working directory opens")
     .option("--file <path>", "a file in it (repo-relative)")
-    .option("--line <n>", "a line of the file", (v: string) => Number(v))
+    .option("--line <n>", "a line of the file", positiveInt)
     .action(
       action(async (opts: { run?: string; pane?: string; file?: string; line?: number }) => ({
         result: await runs()

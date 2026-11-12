@@ -1,11 +1,12 @@
 import { ok } from "@metator/core";
+import { serialize, toEnvelope } from "@metator/runtime";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Command } from "commander";
 import { z } from "zod";
 import pkg from "../../package.json" with { type: "json" };
 import type { CommandContext } from "../context.ts";
-import { type McpTool, mcpTools, type ToolShape, toolArgv } from "../mcp.ts";
+import { type McpTool, mcpTools, type ToolShape, toolCall } from "../mcp.ts";
 
 /** The zod shape of a tool's input: its typed fields (positionals required) and the raw `args`. */
 function inputShape(shape: ToolShape | undefined): Record<string, z.ZodTypeAny> {
@@ -78,7 +79,10 @@ export async function serve(
       },
       async (input: Record<string, unknown>) => {
         calls++;
-        const r = await invoke(toolArgv(tool, input as { readonly args?: readonly string[] }));
+        const argv = toolCall(tool, input as { readonly args?: readonly string[] });
+        if (argv.isErr())
+          return { content: [{ type: "text", text: serialize(toEnvelope(argv, [])) }], isError: true };
+        const r = await invoke(argv.value);
         return {
           content: [{ type: "text", text: JSON.stringify(r.envelope) }],
           isError: r.code !== 0,

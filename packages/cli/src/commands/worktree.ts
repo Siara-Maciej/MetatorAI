@@ -1,6 +1,7 @@
 import { portVariables } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
+import { person } from "../live.ts";
 import { positiveInt } from "../options.ts";
 
 export function registerWorktreeCommands(program: Command, { action, container }: CommandContext): void {
@@ -53,12 +54,16 @@ export function registerWorktreeCommands(program: Command, { action, container }
     .command("conflicts")
     .description("Files two active runs changed in their own worktrees, and which to merge first")
     .option("--notify", "tell both runs of each conflict (a shared-file message each way)", false)
-    .option("--by <name>", "who sends the messages (with --notify)", "metator")
+    .option(
+      "--by <name>",
+      "who sends the messages (with --notify; default: $METATOR_USER, else your login name)",
+    )
     .action(
-      action(async (opts: { notify: boolean; by: string }) => ({
+      // `--by` is resolved here, not as the option's default: the CLI reference is generated from the options.
+      action(async (opts: { notify: boolean; by?: string }) => ({
         result: await container()
           .resolve("worktreeConflicts")
-          .execute(opts.notify ? { notify: { by: opts.by } } : {}),
+          .execute(opts.notify ? { notify: { by: opts.by ?? person() } } : {}),
       })),
     );
 

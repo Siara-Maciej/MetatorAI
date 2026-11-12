@@ -139,6 +139,20 @@ describe("conductor (real daemon, real PTYs)", () => {
     expect(error(await mt("run", "collect", "mt-planner-1")).message).toBe(
       "worker mt-planner-1 has not reported yet",
     );
+    const vague = await mt(
+      "run",
+      "result",
+      "--worker",
+      "mt-planner-1",
+      "--status",
+      "finished",
+      "--summary",
+      "x",
+    );
+    expect([vague.code, (vague.json.error as Data).message]).toEqual([
+      64,
+      expect.stringContaining("Allowed choices are done, blocked, failed"),
+    ]);
     // The worker reports from its pane: a file, no daemon needed.
     const reported = data(
       await mt(

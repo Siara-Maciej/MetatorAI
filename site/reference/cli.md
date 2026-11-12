@@ -31,7 +31,7 @@ Three kinds of command do not follow this. The hook commands (`metator guard ...
 
 ## Help
 
-`metator help` lists every command. `metator help --verbs` lists the ones a person types, grouped by what you want to do. `metator <command> --help` (or `-h`) describes one command.
+`metator help` lists every command. `metator help --verbs` lists the ones a person types, grouped by what you want to do. `metator <command> --help` (or `-h`) describes one command. A command group typed alone, such as `metator repos`, prints the group's help.
 
 ```bash
 metator run answer --help
@@ -60,13 +60,13 @@ Hook commands always exit `0`.
 |---|---|---|
 | `USAGE` | wrong arguments, or an event the current stage does not accept | 64 |
 | `STALE_INDEX` | the import index is older than the files | 65 |
-| `NOT_FOUND` | no such run, rule, file or map | 1 |
-| `INVALID_CONFIG` | `metator.config.yml`, a workflow, a rule set or the system map does not match its schema | 1 |
+| `NOT_FOUND` | no such run, pane, rule, file or map | 1 |
+| `INVALID_CONFIG` | `metator.config.yml`, a workflow, a rule set or the system map does not match its schema, or a gate has no steps | 1 |
 | `INVALID_ARTIFACT` | a run artifact or another document does not match its schema | 1 |
 | `CHECK_FAILED` | a check ran and found problems (rules, gates, lint of plans, workflows, docs) | 1 |
 | `COMMAND_FAILED` | a tool MetatorAI ran failed in a way it could not report | 1 |
 | `BIN_NOT_FOUND` | a tool such as ast-grep is not installed in the repository | 1 |
-| `TRANSITION_DENIED` | a state change the workflow does not allow | 1 |
+| `TRANSITION_DENIED` | a state change the workflow does not allow, or a run that has ended | 1 |
 | `PARSE_FAILED` | a tool's output could not be parsed | 1 |
 | `INTERNAL` | a bug in MetatorAI; please report it | 1 |
 
