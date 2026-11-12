@@ -1308,9 +1308,14 @@ h3 {
   font-size: 12px;
   color: var(--dim);
   cursor: default;
-  /* A button is 28px tall by default: the title must not cover the terminal's first line. */
+  /* A button is 28px tall by default: the title must not cover the terminal's first line, in a
+     narrow pane either. */
   min-height: 0;
   line-height: 16px;
+  max-width: calc(100% - 28px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pane-frame.focus .title {
   color: #e8825a;

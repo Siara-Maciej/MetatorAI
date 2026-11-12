@@ -8,9 +8,11 @@ A click on a run in the sessions panel opens its **Session** screen.
 
 ![A session while the agent drives: the stages, the driver bar, the terminal, and the boxes on the right](../public/screens/session.png)
 
-The head shows the task, the run id and chips for the workflow, the autonomy level, the host, the worktree's ports and the time since the run started. Under them is the line of stages, with the current one marked.
+The head shows the task, the run id and chips for the workflow, the autonomy level with what it means (**L0: asks at every gate**), the host, the worktree's ports and the time since the run started. Under them is the line of stages, with the current one marked.
 
-The driver bar says who types. With **Driver: agent** you watch. Type your name and click **Attach** (key `a`) to take the keyboard. **Release to agent** (key `c`) gives it back. While you are attached, your yes in the chat counts as an approval ([Workbench and terminals](./desktop.md#who-types-in-a-session)).
+The driver bar says who types. With **Driver: agent** you watch. Click **Attach** (key `a`) to take the keyboard; the app asks for your name the first time. **Release to agent** (key `c`) gives it back.
+
+When the agent asks on its own screen, with no card in the Inbox, a line above the terminal says **The agent asks in its terminal**, with **Show the pane** when another pane is the one that asks. Attach and type the answer. While you are attached, your yes in the chat counts as an approval ([Workbench and terminals](./desktop.md#who-types-in-a-session)).
 
 Below the driver bar:
 
@@ -22,7 +24,7 @@ The boxes on the right:
 
 | Box | Shows |
 |---|---|
-| **Question** | the run's open question with a button per option; empty when nothing waits |
+| **Question** | the run's open question with a button per option. A click on a plain option answers. Reject and Other first ask for the reason, and a question with several answers lets you choose them, then **Send**. Empty when nothing waits |
 | **Apps** | the services of the worktree's environment, with their state and ports |
 | **Changes** | **Review** opens the run's change ([Read the change](./changes.md)); **Open in editor** opens the worktree; below are the branch and the path |
 | **Links** | the parent run and the steps, files this run shares with another run (with which to merge first), and messages from other runs |

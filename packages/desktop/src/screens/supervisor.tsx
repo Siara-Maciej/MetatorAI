@@ -27,8 +27,9 @@ export function SupervisorScreen({
           <h2>Daemon</h2>
           <span className={`chip ${view ? "green" : "red"}`}>{view ? "running" : "no answer"}</span>
           <span className="dim">
-            {active.length} sessions · {installed.length} of {hosts.length} hosts installed · up{" "}
-            {view ? duration(view.daemon.uptimeMs) : "—"} · <code>{view?.daemon.url ?? url}</code>
+            {active.length} session{active.length === 1 ? "" : "s"} · {installed.length} of {hosts.length}{" "}
+            hosts installed · up {view ? duration(view.daemon.uptimeMs) : "—"} ·{" "}
+            <code>{view?.daemon.url ?? url}</code>
           </span>
           <span style={{ flex: 1 }} />
           <RepoSelect />

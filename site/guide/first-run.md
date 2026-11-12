@@ -61,7 +61,7 @@ The run surveys the code, writes a plan and checks it. Then it stops, and the co
 
 The decision card shows the task, what was done so far and the options. To read the plan first, go to **Work** and click the stages under the tabs: the **Plan** screen lists every step with its file and the tests that come first.
 
-Back in the **Inbox**, choose **Approve**, type your name in the last field and click the **Approve** button. To send the plan back, choose **Reject** and write the reason in the note field.
+Back in the **Inbox**, choose **Approve** and click the **Approve** button. The first time, the app asks for your name. To send the plan back, choose **Reject** and write the reason in the field under the options; the answer is sent only with a reason.
 
 ## Watch the work
 

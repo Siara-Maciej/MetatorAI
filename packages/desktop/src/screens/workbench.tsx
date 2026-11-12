@@ -536,10 +536,15 @@ export function WorkbenchScreen({
           <div className="empty" />
         )}
         {p.live?.alive ? null : (
-          <div className="pane-ended" role="status" data-testid={`ended-${p.id}`}>
+          <div
+            className="pane-ended"
+            role="status"
+            data-testid={`ended-${p.id}`}
+            title={p.live ? "The pane keeps the last output of the process." : undefined}
+          >
             <span className="msg">
               {p.live
-                ? `The process ended${p.live.exitCode !== undefined ? ` with code ${p.live.exitCode}` : ""}. Its last output is above.`
+                ? `The process ended${p.live.exitCode !== undefined ? ` with code ${p.live.exitCode}` : ""}.`
                 : "Nothing runs in this pane: its process did not start, or the daemon was restarted."}
             </span>
             <button type="button" className="primary" onClick={() => void retryPane(p)}>
