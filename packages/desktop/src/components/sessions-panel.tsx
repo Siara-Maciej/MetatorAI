@@ -1,6 +1,6 @@
 /**
- * The sessions panel (spec §5.2, screen K): App mode lists runs per repository, Run mode shows
- * feature groups as frames with their steps; both in the panel's order.
+ * The sessions panel (spec §5.2, screen K): "By repository" lists runs per repository, "By task"
+ * shows a task split into steps as a frame with its steps; both in the panel's order.
  */
 import { useEffect, useState } from "react";
 import { useDaemon } from "../daemon.tsx";
@@ -31,7 +31,6 @@ export function SessionsPanel({
   onOpen,
   onNew,
   onAdvanced,
-  onGrid,
 }: {
   readonly current?: string | undefined;
   onOpen(runId: string, pane?: string): void;
@@ -39,9 +38,8 @@ export function SessionsPanel({
   onNew(): void;
   /** The form: workflow, autonomy, host and worktree chosen by hand. */
   onAdvanced(): void;
-  onGrid(group?: string): void;
 }) {
-  const { runs, repos, panes } = useDaemon();
+  const { runs, repos, panes, down } = useDaemon();
   const [mode, setMode] = useState<Mode>(readMode);
   useEffect(() => {
     try {
@@ -56,7 +54,10 @@ export function SessionsPanel({
   const [showFinished, setShowFinished] = useState(false);
   // A run with more than its conductor shows its panes under it (R4): who works, in what state.
   const paneRows = (r: Run) => {
-    const own = panesOfRun(panes, r.runId);
+    const own = panesOfRun(
+      panes.filter((p) => (p.repo ?? "") === (r.repo ?? "")),
+      r.runId,
+    );
     if (own.length < 2) return null;
     return own.map((p) => (
       <button
@@ -80,18 +81,22 @@ export function SessionsPanel({
         type="button"
         className="row"
         aria-current={r.runId === current ? "true" : undefined}
-        onClick={() => onOpen(r.runId)}
+        onClick={() => onOpen(r.runId, r.terminalAsk)}
+        title={r.task}
       >
         <Dot attention={r.attention} human={r.driver === "human"} />
-        <span>
+        <span className="text">
           <div className="title">
             {label ? <span className="chip blue">{label}</span> : null} {r.task}
           </div>
           <div className="sub">
-            {r.stage} · {r.host ?? "no host"} · {attentionLabel(r.attention)} · {duration(r.elapsedMs)}
+            {r.stage} · {r.host ?? "no host"} ·{" "}
+            {r.terminalAsk ? "asks in its terminal" : attentionLabel(r.attention)} · {duration(r.elapsedMs)}
           </div>
         </span>
-        <span className="dim">{r.questions.length > 0 ? `?${r.questions.length}` : ""}</span>
+        <span className="dim">
+          {r.questions.length > 0 ? `?${r.questions.length}` : r.terminalAsk ? "?" : ""}
+        </span>
       </button>
       {paneRows(r)}
     </div>
@@ -100,15 +105,29 @@ export function SessionsPanel({
   return (
     <aside className="sessions" aria-label="sessions">
       <div className="mode" role="tablist">
-        <button type="button" role="tab" aria-selected={mode === "app"} onClick={() => setMode("app")}>
-          App
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "app"}
+          title="The active sessions of each repository"
+          onClick={() => setMode("app")}
+        >
+          By repository
         </button>
-        <button type="button" role="tab" aria-selected={mode === "run"} onClick={() => setMode("run")}>
-          Run
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "run"}
+          title="The steps of a task that was split, under their task"
+          onClick={() => setMode("run")}
+        >
+          By task
         </button>
       </div>
       <div className="list">
-        {mode === "app" ? (
+        {down ? (
+          <div className="section">no daemon: nothing to list</div>
+        ) : mode === "app" ? (
           (repos.length > 0 ? repos.map((x) => x.name) : [""]).map((repo) => {
             const here = active(ordered.filter((r) => (r.repo ?? "") === repo));
             return (
@@ -127,7 +146,9 @@ export function SessionsPanel({
               return (
                 <div className="group" key={g.parent}>
                   <div className="head">
-                    <span>feature · {parent?.task ?? g.parent}</span>
+                    <span className="clip" title={parent?.task ?? g.parent}>
+                      task · {parent?.task ?? g.parent}
+                    </span>
                     <span>
                       {g.done} / {g.steps.length}
                     </span>
@@ -136,7 +157,7 @@ export function SessionsPanel({
                 </div>
               );
             })}
-            <div className="section">standalone · {active(groups.standalone).length}</div>
+            <div className="section">not split · {active(groups.standalone).length}</div>
             {active(groups.standalone).map((r) => row(r))}
           </>
         )}
@@ -158,19 +179,18 @@ export function SessionsPanel({
           type="button"
           className="primary"
           title="Talk to the agent; it starts the run"
+          disabled={down}
           onClick={onNew}
         >
           + New session
         </button>
-        <button type="button" title="The form: workflow, autonomy, host, worktree" onClick={onAdvanced}>
-          Advanced…
-        </button>
         <button
           type="button"
-          title="Open the selected group as a terminal grid"
-          onClick={() => onGrid(groups.groups[0]?.parent)}
+          title="The form: workflow, autonomy, host, worktree"
+          disabled={down}
+          onClick={onAdvanced}
         >
-          ▦
+          Advanced…
         </button>
       </div>
     </aside>

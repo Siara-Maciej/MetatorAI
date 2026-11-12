@@ -236,6 +236,12 @@ export interface SupervisorView {
     readonly repo: string | null;
   };
   readonly hosts: readonly string[];
+  /** Each host with the program it starts and whether it is on the daemon's machine (absent on an older daemon). */
+  readonly hostStatus?: readonly {
+    readonly id: string;
+    readonly command?: string;
+    readonly installed: boolean;
+  }[];
   readonly policy: {
     readonly wipLimit: number;
     readonly respawn: { readonly enabled: boolean; readonly maxAttempts: number };

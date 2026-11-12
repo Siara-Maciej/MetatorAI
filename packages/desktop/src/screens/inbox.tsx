@@ -3,19 +3,29 @@ import { useEffect, useState } from "react";
 import { Chips } from "../components/chips.tsx";
 import { DecisionCard } from "../components/decision-card.tsx";
 import { useDaemon } from "../daemon.tsx";
-import { duration, inboxChips, questionKind } from "../model.ts";
+import { duration, inboxChips, plainKey, questionKind } from "../model.ts";
 
 const key = (i: { runId: string; question: { id: string } }) => `${i.runId}/${i.question.id}`;
 
 export function InboxScreen({
+  pick,
   onOpenSession,
+  onOpenChanges,
   onBriefing,
 }: {
-  onOpenSession(runId: string): void;
+  /** The item to show first (`<run>/<question>`, from the workbench's toast). */
+  readonly pick?: string | undefined;
+  onOpenSession(runId: string, pane?: string): void;
+  onOpenChanges(runId: string): void;
   onBriefing(runId: string): void;
 }) {
   const { inbox, runs } = useDaemon();
-  const [selected, setSelected] = useState<string>();
+  const [selected, setSelected] = useState<string | undefined>(pick);
+  useEffect(() => {
+    if (pick) setSelected(pick);
+  }, [pick]);
+  // Sessions whose agent asks on its terminal (D2): no card to answer from, the pane is the place.
+  const inTerminal = runs.filter((r) => r.terminalAsk !== undefined);
   const current = inbox.find((i) => key(i) === selected) ?? inbox[0];
   useEffect(() => {
     if (current && key(current) !== selected) setSelected(key(current));
@@ -23,12 +33,12 @@ export function InboxScreen({
   const escalated = runs.filter((r) => r.attention === "escalated");
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === "g" && inbox.length > 1) {
+      const k = plainKey(e);
+      if (k === "g" && inbox.length > 1) {
         const i = inbox.findIndex((x) => key(x) === selected);
         setSelected(key(inbox[(i + 1) % inbox.length] as (typeof inbox)[number]));
       }
-      if (e.key === "o" && current) onOpenSession(current.runId);
+      if (k === "o" && current) onOpenSession(current.runId);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -36,7 +46,7 @@ export function InboxScreen({
   return (
     <div className="inbox">
       <div className="needs">
-        <h2>Needs you · {inbox.length}</h2>
+        <h2>Needs you · {inbox.length + inTerminal.length}</h2>
         {inbox.map((i) => (
           <button
             type="button"
@@ -49,14 +59,16 @@ export function InboxScreen({
               <span className={`kind ${questionKind(i.question)}`}>{questionKind(i.question)}</span>
               {i.question.card?.group ? (
                 <span className="chip blue" style={{ marginLeft: 6 }}>
-                  F · {i.question.card.group.step}/{i.question.card.group.of}
+                  step {i.question.card.group.step}/{i.question.card.group.of}
                 </span>
               ) : null}
               <span className="dim" style={{ float: "right" }}>
                 {duration(i.waitedMs)}
               </span>
             </div>
-            <div className="title">{i.question.prompt}</div>
+            <div className="title" title={i.question.prompt}>
+              {i.question.prompt}
+            </div>
             <div className="sub dim">
               {i.runId}
               {i.repo ? ` · ${i.repo}` : ""}
@@ -64,7 +76,31 @@ export function InboxScreen({
             <Chips items={inboxChips(i)} />
           </button>
         ))}
-        {inbox.length === 0 ? <div className="empty">Nothing needs you.</div> : null}
+        {inTerminal.map((r) => (
+          <button
+            type="button"
+            key={r.runId}
+            className="ask-row"
+            data-testid={`terminal-ask-${r.runId}`}
+            title="The agent asks on its terminal: open the pane and answer there"
+            onClick={() => onOpenSession(r.runId, r.terminalAsk)}
+          >
+            <div>
+              <span className="kind TERMINAL">TERMINAL</span>
+              <span className="open">Open ›</span>
+            </div>
+            <div className="title" title={r.task}>
+              {r.task}
+            </div>
+            <div className="sub dim">
+              answers in its terminal · {r.stage}
+              {r.repo ? ` · ${r.repo}` : ""}
+            </div>
+          </button>
+        ))}
+        {inbox.length === 0 && inTerminal.length === 0 ? (
+          <div className="empty">Nothing needs you.</div>
+        ) : null}
         {escalated.length > 0 ? (
           <div className="info">
             {escalated.length} escalated:{" "}
@@ -88,7 +124,25 @@ export function InboxScreen({
           item={current}
           onAnswered={() => setSelected(undefined)}
           onOpenSession={onOpenSession}
+          onOpenChanges={onOpenChanges}
         />
+      ) : inTerminal.length > 0 ? (
+        <div className="empty">
+          <h2>
+            {inTerminal.length === 1 ? "1 session asks" : `${inTerminal.length} sessions ask`} in the terminal
+          </h2>
+          <p>
+            There is no card to answer from: the agent wrote its question on its own screen. Open the session,
+            take the keyboard and answer there.
+          </p>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => onOpenSession(inTerminal[0]?.runId as string, inTerminal[0]?.terminalAsk)}
+          >
+            Open {inTerminal.length === 1 ? "the session" : "the first one"}
+          </button>
+        </div>
       ) : (
         <div className="empty">
           <h2>Inbox zero</h2>

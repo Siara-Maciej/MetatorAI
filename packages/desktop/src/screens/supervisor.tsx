@@ -1,9 +1,8 @@
-/** Screen 4: the daemon, the fleet, the policy and the acceptance criteria as tiles. */
-import { useCallback, useEffect, useState } from "react";
-import type { SupervisorView } from "../api.ts";
+/** Screen 4: the daemon, its sessions, the supervisor's settings and four figures as tiles. */
 import { attentionLabel, Dot } from "../components/chips.tsx";
-import { useDaemon } from "../daemon.tsx";
-import { duration } from "../model.ts";
+import { RepoSelect } from "../components/common.tsx";
+import { useDaemon, usePolled } from "../daemon.tsx";
+import { duration, type HostStatus, noHostText } from "../model.ts";
 
 export function SupervisorScreen({
   onOpenSession,
@@ -12,38 +11,29 @@ export function SupervisorScreen({
   onOpenSession(runId: string): void;
   onNew(): void;
 }) {
-  const { client, runs, repos, url } = useDaemon();
-  const [view, setView] = useState<SupervisorView>();
-  const [error, setError] = useState<string>();
-  const load = useCallback(async () => {
-    const r = await client.supervisor(repos[0]?.name);
-    if (r.ok && r.data) {
-      setView(r.data);
-      setError(undefined);
-    } else setError(r.error?.message ?? "no supervisor view");
-  }, [client, repos]);
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 5000);
-    return () => clearInterval(t);
-  }, [load]);
+  const { client, runs, repo, url } = useDaemon();
+  const { data: view, error } = usePolled(`supervisor:${repo ?? ""}`, () => client.supervisor(repo), 5000);
   const a = view?.acceptance;
   const fromInboxPct = a && a.answered > 0 ? Math.round((100 * a.fromInbox) / a.answered) : undefined;
   const active = runs.filter((r) => r.status === "active");
   const sessions = new Map((view?.sessions ?? []).map((s) => [s.runId, s]));
+  const hosts: readonly HostStatus[] =
+    view?.hostStatus ?? (view?.hosts ?? []).map((id) => ({ id, installed: true }));
+  const installed = hosts.filter((h) => h.installed);
   return (
     <div className="supervisor">
       <div className="main">
         <div className="head">
-          <h2>Supervisor</h2>
-          <span className={`chip ${view ? "green" : "red"}`}>{view ? "daemon up" : "daemon down"}</span>
+          <h2>Daemon</h2>
+          <span className={`chip ${view ? "green" : "red"}`}>{view ? "running" : "no answer"}</span>
           <span className="dim">
-            {active.length} sessions · {view?.hosts.length ?? 0} hosts · up{" "}
+            {active.length} sessions · {installed.length} of {hosts.length} hosts installed · up{" "}
             {view ? duration(view.daemon.uptimeMs) : "—"} · <code>{view?.daemon.url ?? url}</code>
           </span>
           <span style={{ flex: 1 }} />
+          <RepoSelect />
           <button type="button" className="primary" onClick={onNew}>
-            Spawn session
+            + New session
           </button>
         </div>
         {error ? <div className="banner">{error}</div> : null}
@@ -52,21 +42,21 @@ export function SupervisorScreen({
             <div className={`v ${a?.medianAnswerMs !== undefined ? "" : ""}`}>
               {a?.medianAnswerMs !== undefined ? duration(a.medianAnswerMs) : "—"}
             </div>
-            <div className="l">11a · median question → answer ({a?.answered ?? 0} answered)</div>
+            <div className="l">median time from a question to its answer ({a?.answered ?? 0} answered)</div>
           </div>
           <div className="kpi" data-testid="kpi-inbox">
             <div className={`v ${fromInboxPct === undefined ? "" : fromInboxPct >= 80 ? "ok" : "bad"}`}>
               {fromInboxPct === undefined ? "—" : `${fromInboxPct}%`}
             </div>
-            <div className="l">11a · answered from the card, session unopened (goal ≥ 80%)</div>
+            <div className="l">answered from the card, without opening the session (goal: 80% or more)</div>
           </div>
           <div className="kpi" data-testid="kpi-restarts">
             <div className="v">{a?.restarts ?? 0}</div>
-            <div className="l">11b · supervisor restarts, last 24 h (no manual revive)</div>
+            <div className="l">sessions the daemon started again, last 24 h</div>
           </div>
           <div className="kpi" data-testid="kpi-nudges">
             <div className="v">{a?.nudges ?? 0}</div>
-            <div className="l">idle nudges, last 24 h</div>
+            <div className="l">reminders typed to an idle agent, last 24 h</div>
           </div>
         </div>
         <table className="fleet">
@@ -78,7 +68,7 @@ export function SupervisorScreen({
               <th>driver</th>
               <th>state</th>
               <th>uptime</th>
-              <th>pty</th>
+              <th>terminal</th>
               <th>last activity</th>
             </tr>
           </thead>
@@ -107,16 +97,16 @@ export function SupervisorScreen({
       </div>
       <aside className="side policy">
         <div className="box">
-          <h3>SupervisorPolicy</h3>
+          <h3>How the daemon looks after sessions</h3>
           {view ? (
             <dl>
-              <dt>WIP limit</dt>
+              <dt>sessions waiting for you at most</dt>
               <dd>{view.policy.wipLimit}</dd>
-              <dt>restart with resume</dt>
+              <dt>start a dead session again</dt>
               <dd>
                 {view.policy.respawn.enabled ? "on" : "off"} · {view.policy.respawn.maxAttempts} attempts
               </dd>
-              <dt>idle threshold</dt>
+              <dt>idle after</dt>
               <dd>{duration(view.policy.idleThresholdMs)}</dd>
               <dt>host order</dt>
               <dd>{view.policy.hostOrder.join(" → ")}</dd>
@@ -124,7 +114,7 @@ export function SupervisorScreen({
               <dd>{view.policy.chatApprovals}</dd>
               <dt>push</dt>
               <dd>always a person</dd>
-              <dt>ticks every</dt>
+              <dt>checks every</dt>
               <dd>{view.daemon.superviseMs > 0 ? duration(view.daemon.superviseMs) : "never"}</dd>
             </dl>
           ) : (
@@ -135,11 +125,27 @@ export function SupervisorScreen({
           </div>
         </div>
         <div className="box">
-          <h3>Hosts</h3>
-          <div>{view?.hosts.join(", ") ?? "—"}</div>
+          <h3>AI hosts</h3>
+          {hosts.length === 0 ? <div className="muted">—</div> : null}
+          {hosts.map((h) => (
+            <div key={h.id} className="svc" data-testid={`host-${h.id}`}>
+              <span>
+                {h.id}
+                {h.command && h.command !== h.id ? <span className="dim"> · {h.command}</span> : null}
+              </span>
+              <span className={h.installed ? "green" : "amber"}>
+                {h.installed ? "installed" : "not installed"}
+              </span>
+            </div>
+          ))}
+          {hosts.length > 0 && installed.length === 0 ? (
+            <div className="muted" style={{ marginTop: 6 }}>
+              {noHostText(hosts)}
+            </div>
+          ) : null}
         </div>
         <div className="box">
-          <h3>Learned policies</h3>
+          <h3>Answers given always</h3>
           <div className="muted">
             answers given with <code>metator run answer --always</code>; list with{" "}
             <code>metator policy list</code>

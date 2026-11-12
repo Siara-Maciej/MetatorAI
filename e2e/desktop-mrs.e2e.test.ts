@@ -196,14 +196,16 @@ describe("MetatorAI Desktop: Open MRs (real daemon, real Chromium, real MCP serv
     );
     expect(await page.getByTestId("send-replies").textContent()).toBe("Send 1 reply");
     if (SHOTS) await page.screenshot({ path: join(SHOTS, "17-open-mrs.png") });
-    // Without a name nothing is sent.
+    // Without a name nothing is sent: the app asks for it in its own dialog, once.
     await page.getByTestId("send-replies").click();
-    await until("the name is asked for", async () =>
-      (await screen.textContent())?.includes("your name decides") ? true : undefined,
-    );
+    const who = page.getByRole("dialog", { name: "your name" });
+    await who.waitFor({ timeout: 5000 });
+    await who.getByRole("button", { name: "Cancel" }).click();
+    await Bun.sleep(500);
     expect(existsSync(repo.path("mcp.log"))).toBe(false);
-    await page.getByLabel("your name").fill("maciej");
     await page.getByTestId("send-replies").click();
+    await who.getByLabel("Your name").fill("maciej");
+    await who.getByRole("button", { name: "Save" }).click();
     await until("the reply sent", async () =>
       (await page.getByTestId("thread-T1").textContent())?.includes("answered") ? true : undefined,
     );

@@ -4,9 +4,10 @@
  * its file, tests, exemplar and rules, what waits for a person at the top, what comes next and
  * the artifacts below, the last events at the bottom. Everything comes from `GET /runs/:id/board`.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import type { BoardStep, PlanBoardView } from "../api.ts";
-import { useDaemon } from "../daemon.tsx";
+import { QuickAnswer } from "../components/answer.tsx";
+import { useDaemon, usePolled } from "../daemon.tsx";
 import { clock, duration, stageGlyph } from "../model.ts";
 
 const STEP_GLYPH: Record<BoardStep["state"], string> = {
@@ -26,35 +27,17 @@ export function PlanScreen({
   onOpenPane(paneId: string, runId: string): void;
   onOpenSession(runId: string, attach?: boolean): void;
 }) {
-  const { client, runs, me, setMe } = useDaemon();
+  const { client, runs } = useDaemon();
   const run = runs.find((r) => r.runId === runId);
-  const [board, setBoard] = useState<PlanBoardView>();
-  const [error, setError] = useState<string>();
+  const {
+    data: board,
+    error,
+    reload: load,
+  } = usePolled(`plan:${run?.repo ?? ""}:${runId}`, () => client.board(runId, run?.repo), 2000);
   const [chosen, setChosen] = useState<string>();
-  const load = useCallback(async () => {
-    const r = await client.board(runId, run?.repo);
-    if (r.ok && r.data) {
-      setBoard(r.data);
-      setError(undefined);
-    } else setError(r.error?.message ?? "no board");
-  }, [client, runId, run?.repo]);
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 2000);
-    return () => clearInterval(t);
-  }, [load]);
   const steps = board?.plan?.steps ?? [];
   const step = steps.find((s) => s.id === chosen) ?? steps.find((s) => s.state === "in-progress") ?? steps[0];
   const waiting = board?.waiting[0];
-  const answer = async (choice: string) => {
-    if (!waiting) return;
-    const who = me || window.prompt("your name") || "";
-    if (!who) return;
-    setMe(who);
-    const r = await client.answer(runId, waiting.id, [choice], who, undefined, undefined, run?.repo);
-    if (!r.ok) setError(r.error?.message);
-    else await load();
-  };
   if (!board)
     return (
       <div className="plan">
@@ -64,7 +47,9 @@ export function PlanScreen({
   return (
     <div className="plan" data-testid="plan">
       <div className="top">
-        <span className="dim">‹ {board.task}</span>
+        <span className="dim clip" title={board.task}>
+          ‹ {board.task}
+        </span>
         <b>Plan</b>
         <span className="spacer" />
         <span className="strip" data-testid="plan-stages">
@@ -112,7 +97,9 @@ export function PlanScreen({
               {board.waiting.map((q) => (
                 <div key={q.id} className="step">
                   <span className="g waiting">?</span>
-                  <span className="n">{q.prompt}</span>
+                  <span className="n clamp" title={q.prompt}>
+                    {q.prompt}
+                  </span>
                   <span className="dim">{duration(Date.now() - new Date(q.askedAt).getTime())}</span>
                 </div>
               ))}
@@ -123,7 +110,7 @@ export function PlanScreen({
           {error ? <div className="banner">{error}</div> : null}
           {waiting ? (
             <div className="ask" data-testid="plan-ask">
-              <span>
+              <span className="clamp" title={waiting.prompt}>
                 <span className="amber">?</span> {waiting.agent ?? waiting.source} asks:{" "}
                 <b>{waiting.prompt}</b>{" "}
                 <span className="dim">· {duration(Date.now() - new Date(waiting.askedAt).getTime())}</span>
@@ -134,16 +121,7 @@ export function PlanScreen({
                   Answer in the pane
                 </button>
               ) : (
-                waiting.options.slice(0, 3).map((o) => (
-                  <button
-                    type="button"
-                    key={o.label}
-                    className={o.label === waiting.card?.recommended ? "primary" : undefined}
-                    onClick={() => void answer(o.label)}
-                  >
-                    {o.label}
-                  </button>
-                ))
+                <QuickAnswer question={waiting} repo={run?.repo} onDone={() => void load()} />
               )}
             </div>
           ) : null}
