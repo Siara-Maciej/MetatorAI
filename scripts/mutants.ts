@@ -3787,7 +3787,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "base imports of a renamed file resolve to the base file",
   },
   {
-    file: "packages/core/src/application/architecture.ts",
+    file: "packages/core/src/domain/import-index.ts",
     from: "/index$",
     to: "/main$",
     why: "a directory import resolves to its index",
