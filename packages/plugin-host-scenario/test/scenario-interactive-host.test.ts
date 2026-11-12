@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentScenario } from "@metator/core";
 import { NodePtyTerminal } from "@metator/plugin-node";
-import { interactiveHostContract, outputUntil } from "@metator/testing";
+import { FakeTerminal, interactiveHostContract, outputUntil } from "@metator/testing";
 import { ScenarioInteractiveHost } from "../src/scenario-interactive-host.ts";
 
 const scenario: AgentScenario = {
@@ -69,16 +69,18 @@ describe("ScenarioInteractiveHost", () => {
   });
 
   test("an agent with its own entry plays it; others fall back to the session entry", async () => {
-    const host = new ScenarioInteractiveHost(new NodePtyTerminal(), {
+    const terminal = new FakeTerminal();
+    const host = new ScenarioInteractiveHost(terminal, {
       agents: { ...scenario.agents, "mt-planner": [[{ say: "planner here" }]] },
     });
-    const planner = (await host.launch({ ...task(tmpdir()), agent: "mt-planner" }))._unsafeUnwrap();
-    expect([planner.sessionId, planner.argv[2]]).toEqual([
+    const size = { cols: 80, rows: 24 };
+    const planner = (await host.start({ ...task(tmpdir()), agent: "mt-planner" }, size))._unsafeUnwrap();
+    expect([planner.sessionId, terminal.spawned[0]?.argv[2]]).toEqual([
       "scenario-mt-planner-1",
       expect.stringContaining("planner here"),
     ]);
-    const other = (await host.launch({ ...task(tmpdir()), agent: "mt-implementer" }))._unsafeUnwrap();
-    expect([other.sessionId, other.argv[2]]).toEqual([
+    const other = (await host.start({ ...task(tmpdir()), agent: "mt-implementer" }, size))._unsafeUnwrap();
+    expect([other.sessionId, terminal.spawned[1]?.argv[2]]).toEqual([
       "scenario-mt-implementer-1",
       expect.stringContaining("Planning the change"),
     ]);

@@ -1,11 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { type Clock, err, type Logger, MetatorError, ok } from "@metator/core";
+import { type Clock, err, MetatorError, ok } from "@metator/core";
 import { asFunction, asValue } from "awilix";
-import { checkoutRoots, orderedHosts, workNotes } from "../src/bootstrap.ts";
-import { createMetatorContainer, resolvePort } from "../src/container.ts";
+import { bootstrap, checkoutRoots, orderedHosts, workNotes } from "../src/bootstrap.ts";
+import { createMetatorContainer } from "../src/container.ts";
 
 const fixedClock = (iso: string): Clock => ({ now: () => new Date(iso) });
-const silentLogger: Logger = { debug: () => {}, info: () => {}, warn: () => {} };
 
 describe("Metator container (awilix)", () => {
   test("resolves lazily and caches singletons", () => {
@@ -26,14 +25,11 @@ describe("Metator container (awilix)", () => {
     const c = createMetatorContainer();
     c.register({
       clock: asValue(fixedClock("2026-05-01T10:00:00Z")),
-      logger: asFunction(
-        ({ clock }: { clock: Clock }): Logger => ({
-          ...silentLogger,
-          info: () => void clock.now(),
-        }),
-      ).singleton(),
+      timer: asFunction(({ clock }: { clock: Clock }) => ({
+        sleep: async () => void clock.now(),
+      })).singleton(),
     });
-    expect(typeof c.resolve("logger").info).toBe("function");
+    expect(typeof c.resolve("timer").sleep).toBe("function");
   });
 
   test("re-registering overrides the default (config > preset > default)", () => {
@@ -42,39 +38,14 @@ describe("Metator container (awilix)", () => {
     c.register({ clock: asValue(fixedClock("2030-01-01T00:00:00Z")) });
     expect(c.resolve("clock").now().getUTCFullYear()).toBe(2030);
   });
+});
 
-  test("a scope per run sees its own values without leaking into the root", () => {
-    const root = createMetatorContainer();
-    root.register({ clock: asValue(fixedClock("2026-01-01T00:00:00Z")) });
-    const run = root.createScope();
-    run.register({ clock: asValue(fixedClock("2026-12-31T00:00:00Z")) });
-    expect(run.resolve("clock").now().getUTCMonth()).toBe(11);
-    expect(root.resolve("clock").now().getUTCMonth()).toBe(0);
-  });
-
-  test("missing port becomes BINDING_MISSING with an actionable hint", () => {
-    const result = resolvePort(createMetatorContainer(), "vcs");
-    const error = result._unsafeUnwrapErr();
-    expect(error.code).toBe("BINDING_MISSING");
-    expect(error.hint).toContain("metator.config");
-  });
-
-  test("dependency cycles are reported, not stack-overflowed", () => {
-    const c = createMetatorContainer();
-    c.register({
-      clock: asFunction(({ logger }: { logger: Logger }) => logger as unknown as Clock),
-      logger: asFunction(({ clock }: { clock: Clock }) => clock as unknown as Logger),
-    });
-    const error = resolvePort(c, "clock")._unsafeUnwrapErr();
-    expect(error.code).toBe("INTERNAL");
-    expect(error.message).toContain("cycle");
-  });
-
-  test("resolvePort returns the instance on success", () => {
-    const c = createMetatorContainer();
-    const clock = fixedClock("2026-01-01T00:00:00Z");
-    c.register({ clock: asValue(clock) });
-    expect(resolvePort(c, "clock")._unsafeUnwrap()).toBe(clock);
+describe("bootstrap", () => {
+  test("every git port is the one GitVcs, so they agree on what a change is", () => {
+    const c = bootstrap({ root: "/repo" });
+    const git = c.resolve("git");
+    for (const port of ["vcs", "revisionReader", "changeHistory", "branchHistory", "changePatch"] as const)
+      expect(c.resolve(port) as unknown).toBe(git);
   });
 });
 

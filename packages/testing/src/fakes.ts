@@ -16,7 +16,6 @@ import {
   type FileSystem,
   type HealthProbe,
   type HealthTarget,
-  type HostLaunch,
   type HostUsage,
   type InteractiveHost,
   type InteractiveSession,
@@ -443,24 +442,23 @@ export class FakeInteractiveHost implements InteractiveHost {
   readonly id: string;
   readonly started: { task: AgentTask; resumed?: string; pty: FakePty }[] = [];
   private n = 0;
-  constructor(id = "fake") {
+  /** `play` gets each session's PTY as it opens, for a test that scripts the session up front. */
+  constructor(
+    id = "fake",
+    private readonly play: (pty: FakePty) => void = () => {},
+  ) {
     this.id = id;
-  }
-  async launch(task: AgentTask, resume?: string): Promise<Result<HostLaunch, MetatorError>> {
-    return ok({
-      argv: [this.id, ...(resume ? ["--resume", resume] : [task.prompt])],
-      sessionId: resume ?? `${this.id}-${this.n + 1}`,
-      env: { METATOR_RUN_DIR: task.runDir },
-    });
   }
   async start(task: AgentTask): Promise<Result<InteractiveSession, MetatorError>> {
     const pty = new FakePty(1000 + ++this.n);
     this.started.push({ task, pty });
+    this.play(pty);
     return ok({ sessionId: `${this.id}-${this.n}`, pty });
   }
   async resume(sessionId: string, task: AgentTask): Promise<Result<InteractiveSession, MetatorError>> {
     const pty = new FakePty(1000 + ++this.n);
     this.started.push({ task, resumed: sessionId, pty });
+    this.play(pty);
     return ok({ sessionId, pty });
   }
 }

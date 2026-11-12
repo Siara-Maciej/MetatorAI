@@ -3,7 +3,6 @@ import { join } from "node:path";
 import {
   type AgentTask,
   err,
-  type HostLaunch,
   type InteractiveHost,
   type InteractiveSession,
   type MetatorError,
@@ -30,10 +29,14 @@ export class ClaudeInteractiveHost implements InteractiveHost {
     private readonly newId: () => string = () => crypto.randomUUID(),
   ) {}
 
-  async launch(task: AgentTask, resume?: string): Promise<Result<HostLaunch, MetatorError>> {
+  /** The session's command line and id; with `resume`, the one that continues that session. */
+  private async launch(
+    task: AgentTask,
+    resume?: string,
+  ): Promise<Result<{ argv: string[]; sessionId: string }, MetatorError>> {
     const sessionId = resume ?? this.newId();
     const mode = resume === undefined ? [task.prompt, "--session-id", sessionId] : ["--resume", resume];
-    return ok({ argv: claudeArgv(this.bin, task, mode), sessionId, env: sessionEnv(task) });
+    return ok({ argv: claudeArgv(this.bin, task, mode), sessionId });
   }
 
   async start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>> {

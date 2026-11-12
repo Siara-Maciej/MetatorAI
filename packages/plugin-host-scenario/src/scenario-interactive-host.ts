@@ -3,14 +3,12 @@ import {
   type AgentTask,
   err,
   fillScenario,
-  type HostLaunch,
   type InteractiveHost,
   type InteractiveSession,
   MetatorError,
   ok,
   type PtySize,
   type Result,
-  sessionEnv,
   type Terminal,
 } from "@metator/core";
 import { ScenarioAgentHost } from "./scenario-agent-host.ts";
@@ -46,7 +44,10 @@ export class ScenarioInteractiveHost implements InteractiveHost {
   }
 
   /** The script of the agent's next entry (a resumed session: the entry after the one it names). */
-  async launch(task: AgentTask, resume?: string): Promise<Result<HostLaunch, MetatorError>> {
+  private async launch(
+    task: AgentTask,
+    resume?: string,
+  ): Promise<Result<{ argv: string[]; sessionId: string }, MetatorError>> {
     const atLeast = resume === undefined ? 0 : Number(/-(\d+)$/.exec(resume)?.[1] ?? 0);
     if (typeof this.source === "string") this.loaded ??= ScenarioAgentHost.load(this.source);
     const scenario = typeof this.source === "string" ? await this.loaded : ok(this.source);
@@ -79,11 +80,7 @@ export class ScenarioInteractiveHost implements InteractiveHost {
         lines.push(`printf '%s\\n' ${quote(`[tool] ${step.tool.name} ${step.tool.summary}`)}`);
       else lines.push(`printf '%s\\n' ${quote(step.fail)}; exit 1`);
     }
-    return ok({
-      argv: ["sh", "-c", lines.join("\n")],
-      sessionId: `scenario-${task.agent}-${n + 1}`,
-      env: sessionEnv(task),
-    });
+    return ok({ argv: ["sh", "-c", lines.join("\n")], sessionId: `scenario-${task.agent}-${n + 1}` });
   }
 
   private async spawn(

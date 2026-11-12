@@ -16,7 +16,6 @@
     "wait-on": "9.5.1"
   },
   "devDependencies": {
-    "@metator/plugin-bun": "workspace:*",
     "@metator/testing": "workspace:*"
   }
 }

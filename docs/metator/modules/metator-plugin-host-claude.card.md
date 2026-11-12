@@ -21,7 +21,7 @@ dir: packages/plugin-host-claude
 
 ## Responsibility
 
-`HostGenerator` for Claude Code: writes `.claude/agents/<id>.md` from canonical agents (ADR-0030). `ClaudeAgentHost` runs a canonical agent through the Claude Agent SDK for `run drive`; questions and permission prompts go to a person (ADR-0051). `ClaudeInteractiveHost` opens `claude <task> --session-id <uuid>` in a PTY through the `Terminal` port for the daemon and the desktop app (D6, ADR-0077).
+`HostGenerator` for Claude Code: writes `.claude/agents/<id>.md` from canonical agents (ADR-0030); `ClaudeSkillGenerator` (`SkillGenerator`) writes `.claude/skills/<name>/SKILL.md` (ADR-0039). `ClaudeAgentHost` runs a canonical agent through the Claude Agent SDK for `run drive`; questions and permission prompts go to a person (ADR-0051). `ClaudeInteractiveHost` opens `claude <task> --session-id <uuid>` in a PTY through the `Terminal` port for the daemon and the desktop app (D6, ADR-0077).
 
 ## Invariants
 
@@ -30,7 +30,7 @@ dir: packages/plugin-host-claude
 
 ## Allowed dependencies
 
-`@metator/core` and `yaml` only.
+`@metator/core`, `yaml` and `@anthropic-ai/claude-agent-sdk` (ADR-0051), which `ClaudeAgentHost` imports lazily; `@metator/plugin-node` and `@metator/testing` in tests.
 
 ## Pitfalls
 

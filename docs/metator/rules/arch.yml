@@ -24,7 +24,7 @@ rules:
     applyTo: ["packages/core/src/**"]
     enforcement: E1
     implementation: ast-grep:mt-arch-core-approved-deps
-    summary: "@metator/core imports only the libraries approved in ADR-0010 (neverthrow, graphlib, xstate, picomatch, zod, yaml, slugify)."
+    summary: "@metator/core imports only the libraries approved in ADR-0010 (neverthrow, graphlib, xstate, picomatch, zod, yaml, slugify, github-slugger, shell-quote, semver)."
     rationale: docs/adr/0010-dependency-policy.md
     source: { ref: AGENTS.md#rules-that-hold-everywhere, verified: 2026-10-26 }
   - id: MT-ARCH-004

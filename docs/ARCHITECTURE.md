@@ -120,7 +120,7 @@ flowchart LR
       DependencyGraph · Diagnostic · TestReport · Coverage · Capability · Policy]
   end
   subgraph Ports["Porty (interfejsy)"]
-    P[FileSystem · ProcessRunner · Clock · Logger · Cache · Vcs · PackageManager ·
+    P[FileSystem · ProcessRunner · Clock · Cache · Vcs · PackageManager ·
       Linter · Formatter · TypeChecker · TestRunner · ImportGraphReader · CodeHost* ·
       Tracker · HostGenerator · HookCodec · AgentEngine · SchemaRegistry …]
   end
@@ -232,7 +232,6 @@ export interface ResolvedCommand { readonly argv: readonly string[]; readonly cw
 export interface ProcessResult { readonly exitCode: number; readonly stdout: string; readonly stderr: string; readonly durationMs: number }
 
 export interface Clock { now(): Date }
-export interface Logger { debug(m: string, d?: unknown): void; info(m: string, d?: unknown): void; warn(m: string, d?: unknown): void }
 export interface Cache { get<T>(key: string): Promise<T | undefined>; set<T>(key: string, v: T): Promise<void> }
 ```
 
@@ -471,56 +470,45 @@ Zgodnie z polityką zależności ([ADR-0010](adr/0010-dependency-policy.md)) nie
 | Kryterium | awilix | Dlaczego ważne dla nas |
 |-----------|--------|------------------------|
 | Bez dekoratorów i `reflect-metadata` | tak | czysty TS, działa na Node, Bun i w `bun build --compile` |
-| Leniwe rozwiązywanie, `singleton`/`scoped`/`transient` | tak | hooki budują tylko to, czego dotykają; **scope na run** workflow |
-| Dynamiczna rejestracja i nadpisanie przez ponowne `register` | tak | pluginy z configu, warstwy config > preset > default |
+| Leniwe rozwiązywanie, `singleton`/`transient` | tak | hooki budują tylko to, czego dotykają |
+| Nadpisanie przez ponowne `register` | tak | dostępne, dziś nieużywane: rejestracja jest statyczna (7.3) |
 | Wykrywanie cykli, tryb `strict` (wycieki lifetime) | tak | błędy konfiguracji wychodzą od razu |
 | Typowanie | `AwilixContainer<Cradle>` | porty jako pola typowanego „cradle” |
 
 Odrzucone: inversify i tsyringe (dekoratory, `reflect-metadata`), typed-inject (bardzo dobre typy, ale słabo pasuje do dynamicznych pluginów, brak multi-bindingów).
 
-### 7.2 Cradle i rozwiązywanie portów
+### 7.2 Cradle
 
 ```ts
 // packages/runtime/src/container.ts
-export interface Cradle {            // każdy port, od którego może zależeć use case
-  clock: Clock; logger: Logger; fileSystem: FileSystem;
-  processRunner: ProcessRunner; vcs: Vcs; importGraphReader: ImportGraphReader;
+export interface Cradle {            // każdy port i każdy use case, pod stałym kluczem
+  clock: Clock; fileSystem: FileSystem; processRunner: ProcessRunner; vcs: Vcs;
+  // …
 }
 export const createMetatorContainer = () =>
   createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true });
-
-/** Jedyna nasza warstwa nad awilix: błędy awilix → MetatorError (errors as values). */
-export function resolvePort<K extends keyof Cradle>(c: MetatorContainer, name: K): Result<Cradle[K], MetatorError>;
 ```
 
-Plugin rejestruje implementacje zwykłym API awilix:
+Nie ma własnej warstwy nad awilix: komendy CLI biorą zależności przez `container.resolve(...)`. Brak rejestracji to błąd programisty, nie błąd użytkownika, więc nie ma dla niego kodu błędu.
 
-```ts
-register({ container, config }) {
-  container.register({
-    linter: asFunction(({ commandExecutor, parsers }) => new CommandLinter(spec, commandExecutor, parsers.get("biome-json"))).singleton(),
-  });
-}
-```
-
-### 7.3 Composition root i kolejność warstw konfiguracji
+### 7.3 Composition root
 
 ```ts
 // packages/runtime/src/bootstrap.ts
-export async function bootstrap(argv: CliArgs): Promise<MetatorContainer> {
+export function bootstrap(options: BootstrapOptions): MetatorContainer {
   const c = createMetatorContainer();
-  registerCore(c);                                        // FS, ProcessRunner, Clock, Logger, schematy, parsery
-  const config = await loadConfig(c, argv);               // defaults ← discovery ← metator.config.* ← env ← flagi
-  for (const plugin of await loadPlugins(config.plugins)) // tylko jawnie włączone (bezpieczeństwo)
-    plugin.register({ container: c, config });
-  bindCapabilities(c, config);                            // capability → preset/provider → port (ponowne register = override)
+  const config = options.config ?? { config: DEFAULT_CONFIG, source: undefined };
+  c.register({
+    root: asValue(options.root),
+    fileSystem: asFunction(({ root }) => new BunFileSystem(root)).singleton(),
+    vcs: asFunction(({ git }) => git).singleton(),
+    // … każdy adapter i każdy use case, wpisany tu jawnie
+  });
   return c;
 }
 ```
 
-Każdy run workflow dostaje `c.createScope()` z wartościami runu (`runId`, `policy`, `state`). Nic z runu nie przecieka do root containera.
-
-Use case `RunGate` dostaje `GateComposer`, który na podstawie `cfg.gates.quick = ["format","lint","rules"]` składa kroki z portów. **Nowa bramka to zmiana w konfiguracji, nie w kodzie.**
+Rejestracja jest statyczna: `bootstrap()` to jedyne miejsce, które zna konkretne adaptery (MT-ARCH-007), i wpisuje je wszystkie w jednym wywołaniu `c.register({...})`. Pluginy nie rejestrują się same i nie są ładowane z konfiguracji. Konfiguracja (`metator.config.yml`, wczytana przez CLI i podana w `options.config`) wybiera wartości i warianty wewnątrz fabryk, a nie zestaw pluginów. Nie ma scope'ów: jeden kontener obsługuje jeden root repozytorium, a kontener innego repozytorium powstaje przez ponowne wywołanie `bootstrap()` z jego rootem i jego konfiguracją. Dwa adaptery nie mają klucza w cradle i powstają w fabryce swojego use case'u: `TscDeclarationEmitter` (dla `ApiSnapshots`) i `LcovCoverageReader` (dla `DiffCoverage`).
 
 ### 7.4 Leniwość dla hooków (NFR1)
 
@@ -934,7 +922,7 @@ export function packageManagerContract(make: () => PackageManager, fixtureRoot: 
 2. **Pluginy tylko jawnie włączone** w `plugins: [...]`. Bez auto-ładowania z `node_modules`. Pluginy spoza `@metator/*` wymagają wpisu w `trustedPlugins` (review w PR).
 3. **Brak sieci w rdzeniu.** Sieć mają tylko pluginy code hostów i trackerów, i to tylko w use case'ach, które jej wymagają (headless). W trybie interaktywnym te dane pobiera agent przez MCP.
 4. **Zapisy zewnętrzne za dekoratorem polityki** (`ApprovalGatedWriter`), sprawdzanym niezależnie od hooków.
-5. **Sekrety:** `ReadonlyFileSystem` dla guardów z wbudowaną listą wzorców zakazanych (`.env*`, klucze). Tokeny tylko ze zmiennych środowiskowych i nigdy do artefaktów i logów (redakcja w `Logger`).
+5. **Sekrety:** `ReadonlyFileSystem` dla guardów z wbudowaną listą wzorców zakazanych (`.env*`, klucze). Tokeny tylko ze zmiennych środowiskowych i nigdy do artefaktów i logów.
 6. **Dane jako dane:** treść PR, issue i docs przechodzi do agentów w znacznikach danych. Polityka P12 jest częścią kanonu, nie projektu.
 
 ---

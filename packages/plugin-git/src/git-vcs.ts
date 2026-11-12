@@ -197,7 +197,8 @@ export class GitVcs
     if (git.isErr()) return err(git.error);
     return this.attempt(async () => {
       const status = await git.value.status();
-      const uncommitted = !status.isClean();
+      // MetatorAI's own state is not the person's work: the same answer as changedFiles().
+      const uncommitted = status.files.some((f) => !this.own.some((p) => f.path.startsWith(p)));
       const branch = status.detached ? null : status.current;
       if (!(await this.hasCommits(git.value)))
         return ok({ branch, head: null, mergeBase: null, commits: [] as BranchCommit[], uncommitted });

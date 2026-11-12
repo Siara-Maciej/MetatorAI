@@ -2,11 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { agentHostContract } from "../src/contracts/agent-host.contract.ts";
 import { dataIsolatorContract } from "../src/contracts/data-isolator.contract.ts";
 import { fileSystemContract } from "../src/contracts/file-system.contract.ts";
+import { interactiveHostContract } from "../src/contracts/interactive-host.contract.ts";
 import { machineStateContract } from "../src/contracts/machine-state.contract.ts";
+import { treeCopierContract } from "../src/contracts/tree-copier.contract.ts";
 import { worktreeManagerContract } from "../src/contracts/worktree-manager.contract.ts";
 import {
   FakeAgentHost,
   FakeDataIsolator,
+  FakeInteractiveHost,
+  FakeTreeCopier,
   FakeWorktreeManager,
   FixedClock,
   InMemoryFileSystem,
@@ -71,3 +75,32 @@ machineStateContract("InMemoryMachineState", async () => ({
   existing: "/repo",
   missing: "/gone",
 }));
+
+// The fake's sessions say nothing on their own: the test plays the session (it speaks, echoes
+// what is typed and exits), the way tests of the host's consumers drive a FakePty.
+interactiveHostContract("FakeInteractiveHost", async () => ({
+  host: new FakeInteractiveHost("fake", (pty) => {
+    setTimeout(() => pty.print("ready\n"), 5);
+    const typed = setInterval(() => {
+      if (pty.killed) clearInterval(typed);
+      if (pty.typed.length === 0) return;
+      clearInterval(typed);
+      pty.print(`typed: ${pty.typed.join("")}`);
+      setTimeout(() => pty.exit(0), 5);
+    }, 5);
+  }),
+  task: { agent: "session", prompt: "p", cwd: "/w", projectRoot: "/w", runDir: "/w/.metator/runs/r" },
+  says: "ready",
+  answer: { type: "ship it", echoes: "typed: ship it" },
+}));
+
+treeCopierContract(
+  "FakeTreeCopier",
+  () => new FakeTreeCopier(),
+  async () => ({
+    copier: new FakeTreeCopier(new Set(["/repo/node_modules"])),
+    source: "/repo/node_modules",
+    target: "/wt/node_modules",
+    missing: "/repo/none",
+  }),
+);

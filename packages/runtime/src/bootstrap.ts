@@ -304,6 +304,8 @@ export function orderedHosts<H extends { readonly id: string }>(
 }
 
 const systemClock: Clock = { now: () => new Date() };
+/** `.metator/` is MetatorAI's own state: never a change, even before setup gitignores it. */
+const OWN_STATE: readonly string[] = [".metator/"];
 
 /** The host files of shipped agents in this repository (as `agents install` writes them), for sandboxes. */
 async function agentDefinitionFiles(fs: FileSystem, ids: readonly string[]): Promise<Record<string, string>> {
@@ -662,7 +664,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new RunChanges({
           root,
           repo: runRepository,
-          changesAt: (dir) => new GitVcs(dir, [".metator/"]),
+          changesAt: (dir) => new GitVcs(dir, OWN_STATE),
           runner: processRunner,
         }),
     ),
@@ -770,12 +772,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           notifier,
         }),
     ),
-    // `.metator/` is MetatorAI's own state: never a change, even before setup gitignores it.
-    vcs: asFunction(({ root }) => new GitVcs(root, [".metator/"])).singleton(),
-    revisionReader: asFunction(({ root }) => new GitVcs(root)).singleton(),
-    changeHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
-    branchHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),
-    changePatch: asFunction(({ root }) => new GitVcs(root, [".metator/"])).singleton(),
+    // One GitVcs behind every git port, so they all agree on what a change is.
+    git: asFunction(({ root }) => new GitVcs(root, OWN_STATE)).singleton(),
+    vcs: asFunction(({ git }) => git).singleton(),
+    revisionReader: asFunction(({ git }) => git).singleton(),
+    changeHistory: asFunction(({ git }) => git).singleton(),
+    branchHistory: asFunction(({ git }) => git).singleton(),
+    changePatch: asFunction(({ git }) => git).singleton(),
     sandbox: asFunction(() => new TempGitSandbox()).singleton(),
     nodePackageManager: asFunction(({ root }) => new NodePackageManager(root)).singleton(),
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),

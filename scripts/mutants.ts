@@ -32,12 +32,6 @@ export const MUTANTS: readonly Mutant[] = [
     why: "output must respect the byte budget",
   },
   {
-    file: "packages/runtime/src/container.ts",
-    from: 'e.message.includes("Cyclic dependencies")',
-    to: "false",
-    why: "dependency cycles must be reported as such",
-  },
-  {
     file: "packages/core/src/domain/run-machine.ts",
     from: '(context.loops[(stage.onFail as NonNullable<StageSpec["onFail"]>).loop] ?? 0) <',
     to: '(context.loops[(stage.onFail as NonNullable<StageSpec["onFail"]>).loop] ?? 0) <=',
@@ -3260,8 +3254,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-git/src/git-vcs.ts",
-    from: "const uncommitted = !status.isClean();",
-    to: "const uncommitted = false;",
+    from: "status.files.some((f) => !this.own.some((p) => f.path.startsWith(p)))",
+    to: "false",
     why: "uncommitted work is reported",
   },
   {
@@ -4912,6 +4906,18 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'merged.threads.filter((t) => t.state === "planned").map((t) => t.id)',
     to: "merged.threads.map((t) => t.id)",
     why: "only planned threads become fixed when the run is done",
+  },
+  {
+    file: "packages/plugin-git/src/git-vcs.ts",
+    from: "const uncommitted = status.files.some((f) => !this.own.some((p) => f.path.startsWith(p)));",
+    to: "const uncommitted = !status.isClean();",
+    why: "MetatorAI's own state is not uncommitted work",
+  },
+  {
+    file: "packages/runtime/src/bootstrap.ts",
+    from: "    branchHistory: asFunction(({ git }) => git).singleton(),",
+    to: "    branchHistory: asFunction(({ root }) => new GitVcs(root)).singleton(),",
+    why: "every git port is the one GitVcs with MetatorAI's own state left out",
   },
   {
     file: "packages/core/src/application/runs.ts",

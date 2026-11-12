@@ -95,32 +95,3 @@ describe("CopilotInteractiveHost", () => {
     expect((await host.start(task("/work"), size))._unsafeUnwrapErr().message).toBe("no pty");
   });
 });
-
-describe("CopilotInteractiveHost.launch", () => {
-  test("the same command line start runs, with only the run's variables, and without spawning", async () => {
-    const terminal = new FakeTerminal();
-    const host = new CopilotInteractiveHost(terminal, "copilot", { PATH: "/bin" });
-    const launch = (await host.launch(task("/work/wt")))._unsafeUnwrap();
-    expect(launch).toEqual({
-      argv: [
-        "copilot",
-        "-i",
-        "Add discount",
-        "--add-dir",
-        "/work/wt/.metator/runs/20261102-mt-feature-a",
-        "--deny-tool",
-        "shell(git push)",
-      ],
-      sessionId: CONTINUE,
-      env: {
-        METATOR_RUN: "20261102-mt-feature-a",
-        METATOR_RUN_DIR: "/work/wt/.metator/runs/20261102-mt-feature-a",
-        METATOR_DRIVEN: "1",
-      },
-    });
-    expect(terminal.spawned).toEqual([]);
-    const id = "0b7a9c2e-3d4f-4a5b-8c6d-7e8f9a0b1c2d";
-    expect((await host.launch(task("/w"), id))._unsafeUnwrap().argv.slice(1, 3)).toEqual(["--resume", id]);
-    expect((await host.launch(task("/w"), CONTINUE))._unsafeUnwrap().argv[1]).toBe("--continue");
-  });
-});

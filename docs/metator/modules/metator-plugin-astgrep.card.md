@@ -21,7 +21,7 @@ dir: packages/plugin-astgrep
 
 ## Responsibility
 
-`RuleEngine` port on the ast-grep CLI: E1 rules from sgconfig.yml and their tests, findings from `ast-grep scan --json=stream`.
+`RuleEngine` port on the ast-grep CLI: E1 rules from sgconfig.yml and their tests, findings from `ast-grep scan --json=stream`. `RuleScaffolder` (`AstGrepScaffolder`): writes a new rule and its test, with placeholder cases, into the directories sgconfig.yml names.
 
 ## Invariants
 

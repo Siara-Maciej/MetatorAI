@@ -7,7 +7,6 @@ export type ErrorCode =
   | "BIN_NOT_FOUND"
   | "STALE_INDEX"
   | "TRANSITION_DENIED"
-  | "BINDING_MISSING"
   | "PARSE_FAILED"
   | "CHECK_FAILED"
   | "INTERNAL";

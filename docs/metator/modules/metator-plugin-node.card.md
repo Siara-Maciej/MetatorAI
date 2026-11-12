@@ -21,7 +21,7 @@ dir: packages/plugin-node
 
 ## Responsibility
 
-`WorkspaceReader` port on @manypkg/get-packages: workspace packages of npm, yarn, pnpm, bun, lerna and rush repositories. `PackageManagerDetector` and `PackageManager` ports on package-manager-detector: which package manager the repo uses and how to run its scripts (ADR-0028).
+`WorkspaceReader` and `ManifestReader` ports on @manypkg/get-packages: workspace packages of npm, yarn, pnpm, bun, lerna and rush repositories, and their manifests with Nx and Turborepo tags. `PackageManagerDetector` and `PackageManager` ports on package-manager-detector: which package manager the repo uses and how to run its scripts (ADR-0028). `ToolBoundariesReader` (`JsonToolBoundariesReader`): the boundary rules `arch init` imports from root-level tool files. `CoverageReader` (`LcovCoverageReader`): line coverage from an LCOV report. `PortProbe` on get-port and `HealthProbe` on wait-on: free ports for worktrees and readiness of started services. `Terminal` on node-pty (`NodePtyTerminal`): pseudo-terminals for interactive host sessions.
 
 ## Invariants
 
@@ -29,7 +29,7 @@ dir: packages/plugin-node
 
 ## Allowed dependencies
 
-`@metator/core`, `@manypkg/get-packages` (ADR-0018) and `package-manager-detector` (ADR-0028).
+`@metator/core`, `@manypkg/get-packages` (ADR-0018), `package-manager-detector` (ADR-0028), `@friedemannsommer/lcov-parser` (ADR-0041), `get-port` (ADR-0050), `wait-on` (ADR-0053) and `node-pty` (ADR-0077); `@metator/testing` in tests.
 
 ## Pitfalls
 

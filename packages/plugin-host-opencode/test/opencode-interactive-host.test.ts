@@ -82,29 +82,3 @@ describe("OpencodeInteractiveHost", () => {
     expect((await host.start(task("/work"), size))._unsafeUnwrapErr().message).toBe("no pty");
   });
 });
-
-describe("OpencodeInteractiveHost.launch", () => {
-  test("start, continue and a named session as command lines, without spawning", async () => {
-    const terminal = new FakeTerminal();
-    const host = new OpencodeInteractiveHost(terminal);
-    const t = task("/work/wt");
-    expect((await host.launch(t))._unsafeUnwrap().argv).toEqual([
-      "opencode",
-      "/work/wt",
-      "--prompt",
-      "Add discount",
-    ]);
-    expect((await host.launch(t, CONTINUE))._unsafeUnwrap().argv).toEqual([
-      "opencode",
-      "/work/wt",
-      "--continue",
-    ]);
-    expect((await host.launch(t, "ses_1"))._unsafeUnwrap().argv).toEqual([
-      "opencode",
-      "/work/wt",
-      "--session",
-      "ses_1",
-    ]);
-    expect(terminal.spawned).toEqual([]);
-  });
-});
