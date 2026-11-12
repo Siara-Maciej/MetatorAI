@@ -1223,6 +1223,19 @@ loops:
     expect(again.status).toBe("active");
     const planner = w.host.tasks.filter((t) => t.agent === "mt-planner").at(-1);
     expect(planner?.prompt).toContain("no plan");
+
+    // Escalated at an agent's own stage: the first agent after the resume hears why it failed.
+    const w2 = world(
+      { "mt-planner": [{ ok: false, text: "tool crashed on a.ts" }, writesPlan] },
+      () => undefined,
+      okScripts(),
+    );
+    w0 = w2;
+    const id2 = await w2.start();
+    expect((await w2.drive.execute({ runId: id2, host: "fake" }))._unsafeUnwrap().status).toBe("escalated");
+    (await new ResumeRun(w2.catalog, w2.repo, w2.clock).execute({ runId: id2, by: "ola" }))._unsafeUnwrap();
+    await w2.drive.execute({ runId: id2, host: "fake", maxSteps: 1 });
+    expect(w2.host.tasks.at(-1)?.prompt).toContain("tool crashed on a.ts");
   });
 
   test("a host whose program is not installed is refused before any stage runs (F3)", async () => {

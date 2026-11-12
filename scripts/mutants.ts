@@ -2604,7 +2604,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-node/src/node-package-manager.ts",
-    from: '(pm.value?.lockfiles.length ?? 0) > 0 ? "frozen" : "install"',
+    from: 'locked ? "frozen" : "install"',
     to: '"install"',
     why: "with a lockfile the install keeps it as it is",
   },
@@ -2936,8 +2936,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/inbox.ts",
-    from: "      .filter((q) => !q.answer)\n",
-    to: "",
+    from: '.filter((q) => !q.answer && (r.status ?? "active") === "active")',
+    to: '.filter((q) => (r.status ?? "active") === "active")',
     why: "an answered question is no decision",
   },
   {
@@ -3014,8 +3014,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/overview.ts",
-    from: "const open = questions.isOk() ? questions.value.filter((q) => !q.answer) : [];",
-    to: "const open = questions.isOk() ? questions.value : [];",
+    from: "const open = questions.isOk() && active ? questions.value.filter((q) => !q.answer) : [];",
+    to: "const open = questions.isOk() && active ? questions.value : [];",
     why: "answered questions are not waiting",
   },
   {
