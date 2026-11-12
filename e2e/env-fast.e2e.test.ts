@@ -137,6 +137,10 @@ describe("fast start (real CLI, real processes)", () => {
     const r = await mt("env", "up", "--worktree", "web-fix", "--affected");
     const d = data<{ services: { service: string }[]; affected: string[] }>(r);
     expect([d.affected, d.services.map((s) => s.service)]).toEqual([["apps/web/page.ts"], ["web"]]);
+    // The same changed files as everywhere else: a name outside ASCII comes back as it is.
+    await repo.write(".metator/wt/web-fix/apps/web/zażółć.ts", "export const z = 1;\n");
+    const named = data<{ affected: string[] }>(await mt("env", "up", "--worktree", "web-fix", "--affected"));
+    expect(named.affected).toEqual(["apps/web/page.ts", "apps/web/zażółć.ts"]);
     const none = await mt("env", "up", "--affected");
     expect(data<{ services: unknown[] }>(none).services).toEqual([]);
     await mt("env", "down", "--worktree", "web-fix");

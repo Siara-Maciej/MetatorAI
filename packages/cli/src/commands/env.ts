@@ -166,16 +166,14 @@ async function changedFiles(
   const entry = await c.resolve("worktreeRegistry").get(worktree);
   if (entry.isErr()) return err(entry.error);
   const root = c.resolve("root");
-  const git = (argv: string[], cwd: string) =>
-    c.resolve("processRunner").run({ argv: ["git", ...argv], cwd });
-  const dir = `${root}/${entry.value.path}`;
-  const head = (await git(["rev-parse", base ?? "HEAD"], root)).stdout.trim();
-  const fork = await git(["merge-base", "HEAD", head], dir);
-  if (fork.exitCode !== 0)
-    return err(new MetatorError("COMMAND_FAILED", `git merge-base in ${dir}: ${fork.stderr.trim()}`));
-  const committed = await git(["diff", "--name-only", fork.stdout.trim()], dir);
-  const untracked = await git(["ls-files", "--others", "--exclude-standard"], dir);
-  const changed = `${committed.stdout}\n${untracked.stdout}`.split("\n").filter(Boolean);
-  const r = await c.resolve("computeAffected").execute({ changed });
+  // The ref is this checkout's (its HEAD is where the worktree left from); the files are the worktree's.
+  const ref = base ?? "HEAD";
+  const head = await c
+    .resolve("processRunner")
+    .run({ argv: ["git", "rev-parse", "--verify", ref], cwd: root });
+  if (head.exitCode !== 0) return err(MetatorError.usage(`Unknown base ref "${ref}"`));
+  const changed = await c.resolve("vcsAt")(`${root}/${entry.value.path}`).changedFiles(head.stdout.trim());
+  if (changed.isErr()) return err(changed.error);
+  const r = await c.resolve("computeAffected").execute({ changed: changed.value });
   return r.map((a) => a.files);
 }

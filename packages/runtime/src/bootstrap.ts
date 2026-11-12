@@ -671,11 +671,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ReviewNotes({ fs: fileSystem, repo: runRepository, messages: runMessages, clock }),
     ),
     runChanges: asFunction(
-      ({ root, runRepository, processRunner }) =>
+      ({ root, runRepository, processRunner, vcsAt }) =>
         new RunChanges({
           root,
           repo: runRepository,
-          changesAt: (dir) => new GitVcs(dir, OWN_STATE),
+          changesAt: vcsAt,
           runner: processRunner,
         }),
     ),
@@ -786,6 +786,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     // One GitVcs behind every git port, so they all agree on what a change is.
     git: asFunction(({ root }) => new GitVcs(root, OWN_STATE)).singleton(),
     vcs: asFunction(({ git }) => git).singleton(),
+    // The same reading of a change in another checkout (a worktree).
+    vcsAt: asFunction(() => (dir: string) => new GitVcs(dir, OWN_STATE)).singleton(),
     revisionReader: asFunction(({ git }) => git).singleton(),
     changeHistory: asFunction(({ git }) => git).singleton(),
     branchHistory: asFunction(({ git }) => git).singleton(),
