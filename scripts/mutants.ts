@@ -819,8 +819,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/runtime/src/bootstrap.ts",
-    from: 'if (existsSync(join(cwd, "package.json")) && !existsSync(join(cwd, "node_modules")))',
-    to: 'if (existsSync(join(cwd, "package.json")))',
+    from: '    !existsSync(join(cwd, "node_modules")) &&\n    declaresDependencies(',
+    to: "    declaresDependencies(",
     why: "only a project without node_modules is told its tools cannot run",
   },
   {
