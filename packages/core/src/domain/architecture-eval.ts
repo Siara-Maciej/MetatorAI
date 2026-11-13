@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ArchitectureReport } from "./architecture.ts";
 import { goalMet, PLAN_GOALS, type RefactorPlan, type RefactorPlanProblem } from "./architecture-plan.ts";
+import type { ArchitectureReport } from "./architecture-report.ts";
 import { defineDocument } from "./versioned.ts";
 
 /**

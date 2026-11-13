@@ -1,13 +1,4 @@
-import {
-  type ArchitectureInput,
-  type ArchitectureReport,
-  ArchitectureReportDocument,
-  analyzeArchitecture,
-  type ExternalImport,
-  manifestOf,
-  type PackageManifest,
-  type ResolvedImport,
-} from "../domain/architecture.ts";
+import { analyzeArchitecture } from "../domain/architecture.ts";
 import {
   type ArchitectureBaseline,
   ArchitectureBaselineDocument,
@@ -18,6 +9,8 @@ import {
   proposePolicy,
   tightenBaseline,
 } from "../domain/architecture-check.ts";
+import type { ArchitectureInput, ExternalImport, ResolvedImport } from "../domain/architecture-context.ts";
+import { manifestOf, type PackageManifest } from "../domain/architecture-manifests.ts";
 import { checkMoves, type Move, type MoveEffect, simulateMoves } from "../domain/architecture-moves.ts";
 import {
   type ArchitecturePolicy,
@@ -27,6 +20,7 @@ import {
   lintPolicy,
 } from "../domain/architecture-policy.ts";
 import { renderArchitectureHtml, renderArchitectureMarkdown } from "../domain/architecture-render.ts";
+import { type ArchitectureReport, ArchitectureReportDocument } from "../domain/architecture-report.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { manifestPath, resolveAmong } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";

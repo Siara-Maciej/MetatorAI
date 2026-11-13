@@ -136,7 +136,11 @@ export function DependenciesPanel() {
             const p = pos.get(r.runId);
             if (!p) return null;
             return (
-              <a key={r.runId} href={routeHash({ screen: "run", runId: r.runId, tab: runTabFor(r) })} aria-label={r.task}>
+              <a
+                key={r.runId}
+                href={routeHash({ screen: "run", runId: r.runId, tab: runTabFor(r) })}
+                aria-label={r.task}
+              >
                 <rect
                   className="node"
                   x={p.x}

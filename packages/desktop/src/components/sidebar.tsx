@@ -152,7 +152,6 @@ export function Sidebar({
   };
   const finished = runs.filter(isFinished);
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: the arrow keys move between the rows, which are buttons and links
     <aside className="sessions" aria-label="runs" onKeyDown={(e) => moveInList(e, ".row")}>
       <div className="list">
         {down ? (
@@ -260,7 +259,7 @@ export function Sidebar({
         </button>
         <button
           type="button"
-          aria-label="Use the form"
+          aria-label="New run from the form"
           title="The form: workflow, autonomy, host, worktree"
           disabled={down}
           onClick={onForm}

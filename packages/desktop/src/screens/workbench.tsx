@@ -17,7 +17,6 @@ import { SplitGrid } from "../components/split-grid.tsx";
 import { StageBar } from "../components/stage-bar.tsx";
 import { Tabs } from "../components/tabs.tsx";
 import type { TerminalHandle } from "../components/terminal.tsx";
-import { WorkbenchSidebar } from "../components/workbench-sidebar.tsx";
 import { useDaemon } from "../daemon.tsx";
 import { runControls, useAction, useOption } from "../hooks.ts";
 import {
@@ -433,10 +432,36 @@ export function WorkbenchScreen({
   };
   const waitingForYou = runCounts(runs).needYou;
   return (
-    <div className="workbench" data-testid="workbench" data-zoom-key={keymap.zoom?.[0]}>
+    <section
+      className="workbench"
+      aria-label="Terminals"
+      data-testid="workbench"
+      data-zoom-key={keymap.zoom?.[0]}
+    >
       <Tabs
         label="tabs"
         className="tabbar"
+        before={
+          repos.length > 1 ? (
+            <select
+              className="workspace"
+              aria-label="workspace"
+              title="The workspace whose tabs are shown: the checkout, or the agents that start runs"
+              value={repo?.id ?? ""}
+              onChange={(e) => {
+                setRepoId(e.target.value);
+                setTabKey(undefined);
+              }}
+            >
+              {repos.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label}
+                  {r.attention && needsPerson({ attention: r.attention }) ? " · needs you" : ""}
+                </option>
+              ))}
+            </select>
+          ) : undefined
+        }
         current={tab?.key}
         onSelect={setTabKey}
         items={(repo?.tabs ?? []).map((t) => ({
@@ -505,23 +530,6 @@ export function WorkbenchScreen({
         ) : null}
       </div>
       <div className="body">
-        <WorkbenchSidebar
-          repos={repos}
-          repo={repo}
-          tab={tab}
-          panes={panes}
-          focused={focused?.id}
-          symbols={symbols}
-          onRepo={(id) => {
-            setRepoId(id);
-            setTabKey(undefined);
-          }}
-          onNew={onNewTask}
-          onPane={(key, paneId) => {
-            setTabKey(key);
-            setFocus(paneId);
-          }}
-        />
         <section className="grid-area" aria-label="panes">
           <Notice {...action.notice} tone={action.notice.text ? action.notice.tone : "info"} />
           {tree ? (
@@ -556,6 +564,6 @@ export function WorkbenchScreen({
       {mode.kind === "goto" ? (
         <GotoPicker repos={repos} panes={panes} onPick={pick} onClose={() => setMode(IDLE)} />
       ) : null}
-    </div>
+    </section>
   );
 }

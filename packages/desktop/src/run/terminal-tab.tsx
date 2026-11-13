@@ -155,71 +155,66 @@ export function TerminalTab({
           </div>
         ) : null}
         <Tabs
-              label="panes"
-              className="panes"
-              testId="panes"
-              current={shown}
-              onSelect={setChosenPane}
-              items={panes.map((p) => ({
-                id: p.id,
-                label: paneLabel(p),
-                title: `${p.id} · ${p.state?.reason ?? ""}`,
-                after: (
-                  <>
-                    <Chip tone={lookOf("pane", paneStateOf(p)).tone}>{paneStateOf(p)}</Chip>
-                    {p.role !== "conductor" ? (
-                      <button
-                        type="button"
-                        className="ghost"
-                        title={`close ${p.id}`}
-                        aria-label={`close ${p.id}`}
-                        onClick={() => void close(p.id)}
-                      >
-                        ✕
-                      </button>
-                    ) : null}
-                  </>
-                ),
-              }))}
-            >
-              {termStatus.alive === false && termStatus.exitCode !== undefined ? (
-                <Chip tone="amber">session exited {termStatus.exitCode}</Chip>
-              ) : null}
-              <span className="spacer" />
-              <button type="button" onClick={() => void openShell()}>
-                + Shell
-              </button>
-            </Tabs>
-            {shown && shown !== conductor?.id ? (
-              <PaneTerminal key={shown} paneId={shown} repo={repo} canType={attached} />
-            ) : hasTerminal ? (
-              <RunTerminal runId={runId} repo={repo} canType={attached} onStatus={setTermStatus} />
-            ) : (
-              <div className="empty no-session" data-testid="no-session">
-                <h2>No session runs for this run</h2>
-                <p>
-                  {phase === "active"
-                    ? run.driving
-                      ? "An agent works on it in the background, without a terminal. Opening a session starts the host in a terminal of its own."
-                      : "Nothing works on it. Opening a session starts the host in a terminal."
-                    : phase === "escalated"
-                      ? "The run stopped. Resume it above; its events say what happened."
-                      : "The run is finished. Its events and its changes are what is left."}
-                </p>
-                {phase === "active" ? (
+          label="panes"
+          className="panes"
+          testId="panes"
+          current={shown}
+          onSelect={setChosenPane}
+          items={panes.map((p) => ({
+            id: p.id,
+            label: paneLabel(p),
+            title: `${p.id} · ${p.state?.reason ?? ""}`,
+            after: (
+              <>
+                <Chip tone={lookOf("pane", paneStateOf(p)).tone}>{paneStateOf(p)}</Chip>
+                {p.role !== "conductor" ? (
                   <button
                     type="button"
-                    className="primary"
-                    disabled={action.busy}
-                    onClick={() => void open()}
+                    className="ghost"
+                    title={`close ${p.id}`}
+                    aria-label={`close ${p.id}`}
+                    onClick={() => void close(p.id)}
                   >
-                    Open a session
+                    ✕
                   </button>
-                ) : (
-                  <a href={routeHash({ screen: "run", runId, tab: "activity" })}>Activity</a>
-                )}
-              </div>
+                ) : null}
+              </>
+            ),
+          }))}
+        >
+          {termStatus.alive === false && termStatus.exitCode !== undefined ? (
+            <Chip tone="amber">session exited {termStatus.exitCode}</Chip>
+          ) : null}
+          <span className="spacer" />
+          <button type="button" onClick={() => void openShell()}>
+            + Shell
+          </button>
+        </Tabs>
+        {shown && shown !== conductor?.id ? (
+          <PaneTerminal key={shown} paneId={shown} repo={repo} canType={attached} />
+        ) : hasTerminal ? (
+          <RunTerminal runId={runId} repo={repo} canType={attached} onStatus={setTermStatus} />
+        ) : (
+          <div className="empty no-session" data-testid="no-session">
+            <h2>No session runs for this run</h2>
+            <p>
+              {phase === "active"
+                ? run.driving
+                  ? "An agent works on it in the background, without a terminal. Opening a session starts the host in a terminal of its own."
+                  : "Nothing works on it. Opening a session starts the host in a terminal."
+                : phase === "escalated"
+                  ? "The run stopped. Resume it above; its events say what happened."
+                  : "The run is finished. Its events and its changes are what is left."}
+            </p>
+            {phase === "active" ? (
+              <button type="button" className="primary" disabled={action.busy} onClick={() => void open()}>
+                Open a session
+              </button>
+            ) : (
+              <a href={routeHash({ screen: "run", runId, tab: "activity" })}>Activity</a>
             )}
+          </div>
+        )}
 
         {phase === "active" ? (
           <form
@@ -314,11 +309,7 @@ export function TerminalTab({
           {run.parent ? (
             <div>
               parent{" "}
-              <button
-                type="button"
-                className="ghost mono"
-                onClick={() => onOpenRun(run.parent as string)}
-              >
+              <button type="button" className="ghost mono" onClick={() => onOpenRun(run.parent as string)}>
                 {run.parent}
               </button>
             </div>

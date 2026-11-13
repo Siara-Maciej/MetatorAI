@@ -107,11 +107,7 @@
       "kind": "module-cycle",
       "severity": "error",
       "message": "modules auth ⇄ orders ⇄ users depend on each other",
-      "packages": [
-        "auth",
-        "orders",
-        "users"
-      ],
+      "packages": ["auth", "orders", "users"],
       "evidence": [
         {
           "file": "apps/api/src/module/auth/auth.service.ts",
@@ -136,10 +132,7 @@
       "kind": "module-internal",
       "severity": "error",
       "message": "auth imports users past its public part (contracts/**) 1 time(s)",
-      "packages": [
-        "auth",
-        "users"
-      ],
+      "packages": ["auth", "users"],
       "evidence": [
         {
           "file": "apps/api/src/module/auth/auth.service.ts",
@@ -152,10 +145,7 @@
       "kind": "module-internal",
       "severity": "error",
       "message": "billing imports ledger past its public part (contracts/**) 1 time(s)",
-      "packages": [
-        "billing",
-        "ledger"
-      ],
+      "packages": ["billing", "ledger"],
       "evidence": [
         {
           "file": "apps/api/src/module/billing/billing.service.ts",
@@ -168,10 +158,7 @@
       "kind": "module-internal",
       "severity": "error",
       "message": "ledger imports billing past its public part (contracts/**) 1 time(s)",
-      "packages": [
-        "ledger",
-        "billing"
-      ],
+      "packages": ["ledger", "billing"],
       "evidence": [
         {
           "file": "apps/api/src/module/ledger/ledger.service.ts",
@@ -184,10 +171,7 @@
       "kind": "module-internal",
       "severity": "error",
       "message": "users imports auth past its public part (contracts/**) 1 time(s)",
-      "packages": [
-        "users",
-        "auth"
-      ],
+      "packages": ["users", "auth"],
       "evidence": [
         {
           "file": "apps/api/src/module/users/users.service.ts",
@@ -200,10 +184,7 @@
       "kind": "module-internal",
       "severity": "error",
       "message": "users imports orders past its public part (contracts/**) 1 time(s)",
-      "packages": [
-        "users",
-        "orders"
-      ],
+      "packages": ["users", "orders"],
       "evidence": [
         {
           "file": "apps/api/src/module/users/users.service.ts",
@@ -216,9 +197,7 @@
       "kind": "undeclared",
       "severity": "error",
       "message": "@m/api imports nodemailer without declaring it in package.json",
-      "packages": [
-        "@m/api"
-      ],
+      "packages": ["@m/api"],
       "evidence": [
         {
           "file": "apps/api/src/module/mail/mail.service.ts",
@@ -231,10 +210,7 @@
       "kind": "module-cycle",
       "severity": "warning",
       "message": "modules billing ⇄ ledger depend on each other (only through import type)",
-      "packages": [
-        "billing",
-        "ledger"
-      ],
+      "packages": ["billing", "ledger"],
       "evidence": [
         {
           "file": "apps/api/src/module/billing/billing.service.ts",
@@ -251,9 +227,7 @@
       "kind": "unused-dependency",
       "severity": "warning",
       "message": "@m/api declares left-pad in dependencies, but no file imports it",
-      "packages": [
-        "@m/api"
-      ],
+      "packages": ["@m/api"],
       "evidence": [
         {
           "file": "apps/api/package.json",
@@ -263,45 +237,29 @@
     }
   ],
   "modules": {
-    "globs": [
-      "apps/api/src/module/*"
-    ],
-    "public": [
-      "contracts/**"
-    ],
+    "globs": ["apps/api/src/module/*"],
+    "public": ["contracts/**"],
     "modules": [
       {
         "name": "auth",
         "dir": "apps/api/src/module/auth",
         "files": 1,
-        "dependsOn": [
-          "users"
-        ],
-        "dependents": [
-          "users"
-        ]
+        "dependsOn": ["users"],
+        "dependents": ["users"]
       },
       {
         "name": "billing",
         "dir": "apps/api/src/module/billing",
         "files": 1,
-        "dependsOn": [
-          "ledger"
-        ],
-        "dependents": [
-          "ledger"
-        ]
+        "dependsOn": ["ledger"],
+        "dependents": ["ledger"]
       },
       {
         "name": "ledger",
         "dir": "apps/api/src/module/ledger",
         "files": 1,
-        "dependsOn": [
-          "billing"
-        ],
-        "dependents": [
-          "billing"
-        ]
+        "dependsOn": ["billing"],
+        "dependents": ["billing"]
       },
       {
         "name": "mail",
@@ -314,25 +272,15 @@
         "name": "orders",
         "dir": "apps/api/src/module/orders",
         "files": 2,
-        "dependsOn": [
-          "users"
-        ],
-        "dependents": [
-          "users"
-        ]
+        "dependsOn": ["users"],
+        "dependents": ["users"]
       },
       {
         "name": "users",
         "dir": "apps/api/src/module/users",
         "files": 2,
-        "dependsOn": [
-          "auth",
-          "orders"
-        ],
-        "dependents": [
-          "auth",
-          "orders"
-        ]
+        "dependsOn": ["auth", "orders"],
+        "dependents": ["auth", "orders"]
       }
     ],
     "edges": [
@@ -446,27 +394,10 @@
         ]
       }
     ],
-    "twoWay": [
-      [
-        "auth",
-        "users"
-      ],
-      [
-        "billing",
-        "ledger"
-      ],
-      [
-        "orders",
-        "users"
-      ]
-    ],
+    "twoWay": [["auth", "users"], ["billing", "ledger"], ["orders", "users"]],
     "cycles": [
       {
-        "modules": [
-          "auth",
-          "orders",
-          "users"
-        ],
+        "modules": ["auth", "orders", "users"],
         "edges": [
           {
             "from": "auth",
@@ -492,10 +423,7 @@
         "typeOnly": false
       },
       {
-        "modules": [
-          "billing",
-          "ledger"
-        ],
+        "modules": ["billing", "ledger"],
         "edges": [
           {
             "from": "billing",

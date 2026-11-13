@@ -1,11 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { SimulateArchitecture } from "../src/application/architecture.ts";
-import {
-  type ArchitectureInput,
-  analyzeArchitecture,
-  manifestOf,
-  type ResolvedImport,
-} from "../src/domain/architecture.ts";
+import { analyzeArchitecture } from "../src/domain/architecture.ts";
+import type { ArchitectureInput, ResolvedImport } from "../src/domain/architecture-context.ts";
+import { manifestOf } from "../src/domain/architecture-manifests.ts";
 import { cheapestCut } from "../src/domain/architecture-metrics.ts";
 import { applyMoves, checkMoves, MoveSchema, simulateMoves } from "../src/domain/architecture-moves.ts";
 import { EMPTY_POLICY } from "../src/domain/architecture-policy.ts";

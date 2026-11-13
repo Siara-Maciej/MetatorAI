@@ -18,7 +18,8 @@ export function useAnswer(
     readonly initial?: readonly string[];
     /** From the decision card, without opening the session: what the daemon counts. */
     readonly origin?: "inbox";
-    onDone(): void;
+    /** The answer went through, with what was chosen. */
+    onDone(choices: readonly string[]): void;
   },
 ) {
   const { client, who } = useDaemon();
@@ -55,7 +56,7 @@ export function useAnswer(
     if (!r.ok) setError(r.error?.message ?? "the answer was refused");
     else {
       setError(undefined);
-      options.onDone();
+      options.onDone(picked);
     }
   };
   return {

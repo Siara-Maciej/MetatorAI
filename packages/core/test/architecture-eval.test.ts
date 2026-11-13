@@ -1,13 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { InMemoryFileSystem } from "@metator/testing";
 import { RunArchEvals } from "../src/application/architecture-evals.ts";
-import { type ArchitectureInput, analyzeArchitecture, manifestOf } from "../src/domain/architecture.ts";
+import { analyzeArchitecture } from "../src/domain/architecture.ts";
+import type { ArchitectureInput } from "../src/domain/architecture-context.ts";
 import {
   ArchEvalCaseSchema,
   failedArchCase,
   scoreArchCase,
   summarizeArchEval,
 } from "../src/domain/architecture-eval.ts";
+import { manifestOf } from "../src/domain/architecture-manifests.ts";
 import { applyMoves } from "../src/domain/architecture-moves.ts";
 import { RefactorPlanSchema } from "../src/domain/architecture-plan.ts";
 import { EMPTY_POLICY } from "../src/domain/architecture-policy.ts";

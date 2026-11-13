@@ -22,6 +22,7 @@ export function Tabs<Id extends string>({
   className = "tabs",
   testId,
   children,
+  before,
 }: {
   readonly label: string;
   /** The tabs; their ids are of the type of `current`. */
@@ -32,6 +33,8 @@ export function Tabs<Id extends string>({
   readonly testId?: string | undefined;
   /** What follows the tabs on the same row (a spacer, a button). */
   readonly children?: ReactNode;
+  /** What stands before the tabs on the same row (the Terminals' workspace switch). */
+  readonly before?: ReactNode;
 }) {
   const move = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
@@ -45,6 +48,7 @@ export function Tabs<Id extends string>({
   };
   return (
     <div className={className} role="tablist" aria-label={label} data-testid={testId}>
+      {before}
       {items.map((t, i) => {
         const tab = (
           <button

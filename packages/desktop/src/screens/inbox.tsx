@@ -58,10 +58,13 @@ export function InboxScreen({
         />
       ) : picked?.kind === "terminal" ? (
         <div className="empty">
-          <h2>{inTerminal.length === 1 ? "1 run asks" : `${plural(inTerminal.length, "run")} ask`} in the terminal</h2>
+          <h2>
+            {inTerminal.length === 1 ? "1 run asks" : `${plural(inTerminal.length, "run")} ask`} in the
+            terminal
+          </h2>
           <p>
-            There is no card to answer from: the agent wrote its question on its own screen. Open the run, take
-            the keyboard and answer there.
+            There is no card to answer from: the agent wrote its question on its own screen. Open the run,
+            take the keyboard and answer there.
           </p>
           <button type="button" className="primary" onClick={() => onOpenRun(picked.runId, picked.pane)}>
             Open the run
@@ -93,8 +96,8 @@ function FirstRun({ onStart, onForm }: { onStart(task: string): void; onForm(): 
     >
       <h1>Describe a task</h1>
       <p className="muted">
-        Say what to do in a sentence or two. The agent opens in a terminal, asks what is unclear and starts the
-        run; every decision it needs from you comes here.
+        Say what to do in a sentence or two. The agent opens in a terminal, asks what is unclear and starts
+        the run; every decision it needs from you comes here.
       </p>
       <textarea
         aria-label="Describe a task"

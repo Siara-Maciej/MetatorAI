@@ -21,12 +21,8 @@
       "files": 1,
       "testFiles": 0,
       "owners": [],
-      "dependsOn": [
-        "@shop/core"
-      ],
-      "dependents": [
-        "@shop/core"
-      ]
+      "dependsOn": ["@shop/core"],
+      "dependents": ["@shop/core"]
     },
     {
       "name": "@shop/admin",
@@ -36,9 +32,7 @@
       "files": 1,
       "testFiles": 0,
       "owners": [],
-      "dependsOn": [
-        "@shop/web"
-      ],
+      "dependsOn": ["@shop/web"],
       "dependents": [],
       "metrics": {
         "ca": 0,
@@ -59,9 +53,7 @@
       "testFiles": 0,
       "owners": [],
       "dependsOn": [],
-      "dependents": [
-        "@shop/web"
-      ],
+      "dependents": ["@shop/web"],
       "metrics": {
         "ca": 1,
         "ce": 0,
@@ -80,15 +72,8 @@
       "files": 2,
       "testFiles": 0,
       "owners": [],
-      "dependsOn": [
-        "(root)",
-        "@shop/ui"
-      ],
-      "dependents": [
-        "(root)",
-        "@shop/ui",
-        "@shop/web"
-      ],
+      "dependsOn": ["(root)", "@shop/ui"],
+      "dependents": ["(root)", "@shop/ui", "@shop/web"],
       "metrics": {
         "ca": 2,
         "ce": 1,
@@ -107,14 +92,8 @@
       "files": 1,
       "testFiles": 0,
       "owners": [],
-      "dependsOn": [
-        "@shop/types"
-      ],
-      "dependents": [
-        "@shop/types",
-        "@shop/ui",
-        "@shop/web"
-      ],
+      "dependsOn": ["@shop/types"],
+      "dependents": ["@shop/types", "@shop/ui", "@shop/web"],
       "metrics": {
         "ca": 3,
         "ce": 1,
@@ -173,12 +152,8 @@
       "files": 1,
       "testFiles": 0,
       "owners": [],
-      "dependsOn": [
-        "@shop/db"
-      ],
-      "dependents": [
-        "@shop/db"
-      ],
+      "dependsOn": ["@shop/db"],
+      "dependents": ["@shop/db"],
       "metrics": {
         "ca": 1,
         "ce": 1,
@@ -197,14 +172,8 @@
       "files": 3,
       "testFiles": 1,
       "owners": [],
-      "dependsOn": [
-        "@shop/core",
-        "@shop/db"
-      ],
-      "dependents": [
-        "@shop/core",
-        "@shop/web"
-      ],
+      "dependsOn": ["@shop/core", "@shop/db"],
+      "dependents": ["@shop/core", "@shop/web"],
       "metrics": {
         "ca": 2,
         "ce": 2,
@@ -223,15 +192,8 @@
       "files": 4,
       "testFiles": 1,
       "owners": [],
-      "dependsOn": [
-        "@shop/config",
-        "@shop/core",
-        "@shop/db",
-        "@shop/ui"
-      ],
-      "dependents": [
-        "@shop/admin"
-      ],
+      "dependsOn": ["@shop/config", "@shop/core", "@shop/db", "@shop/ui"],
+      "dependents": ["@shop/admin"],
       "metrics": {
         "ca": 1,
         "ce": 4,
@@ -254,75 +216,43 @@
     ],
     "hubs": [],
     "deadExports": [],
-    "deadPackages": [
-      "@shop/lonely"
-    ]
+    "deadPackages": ["@shop/lonely"]
   },
   "apps": {
     "closure": [
       {
         "app": "@shop/admin",
-        "packages": [
-          "@shop/config",
-          "@shop/core",
-          "@shop/db",
-          "@shop/types",
-          "@shop/ui",
-          "@shop/web"
-        ]
+        "packages": ["@shop/config", "@shop/core", "@shop/db", "@shop/types", "@shop/ui", "@shop/web"]
       },
       {
         "app": "@shop/web",
-        "packages": [
-          "@shop/config",
-          "@shop/core",
-          "@shop/db",
-          "@shop/types",
-          "@shop/ui"
-        ]
+        "packages": ["@shop/config", "@shop/core", "@shop/db", "@shop/types", "@shop/ui"]
       }
     ],
     "blastRadius": [
       {
         "package": "@shop/config",
-        "apps": [
-          "@shop/admin",
-          "@shop/web"
-        ]
+        "apps": ["@shop/admin", "@shop/web"]
       },
       {
         "package": "@shop/core",
-        "apps": [
-          "@shop/admin",
-          "@shop/web"
-        ]
+        "apps": ["@shop/admin", "@shop/web"]
       },
       {
         "package": "@shop/db",
-        "apps": [
-          "@shop/admin",
-          "@shop/web"
-        ]
+        "apps": ["@shop/admin", "@shop/web"]
       },
       {
         "package": "@shop/types",
-        "apps": [
-          "@shop/admin",
-          "@shop/web"
-        ]
+        "apps": ["@shop/admin", "@shop/web"]
       },
       {
         "package": "@shop/ui",
-        "apps": [
-          "@shop/admin",
-          "@shop/web"
-        ]
+        "apps": ["@shop/admin", "@shop/web"]
       },
       {
         "package": "@shop/web",
-        "apps": [
-          "@shop/admin"
-        ]
+        "apps": ["@shop/admin"]
       }
     ]
   },
@@ -530,10 +460,7 @@
   ],
   "cycles": [
     {
-      "packages": [
-        "@shop/core",
-        "@shop/ui"
-      ],
+      "packages": ["@shop/core", "@shop/ui"],
       "edges": [
         {
           "from": "@shop/core",
@@ -558,10 +485,7 @@
       ]
     },
     {
-      "packages": [
-        "@shop/db",
-        "@shop/types"
-      ],
+      "packages": ["@shop/db", "@shop/types"],
       "edges": [
         {
           "from": "@shop/db",
@@ -592,10 +516,7 @@
       "kind": "app-import",
       "severity": "error",
       "message": "@shop/admin depends on the application @shop/web; applications sit on top and nothing imports them",
-      "packages": [
-        "@shop/admin",
-        "@shop/web"
-      ],
+      "packages": ["@shop/admin", "@shop/web"],
       "evidence": [
         {
           "file": "apps/admin/src/main.ts",
@@ -608,10 +529,7 @@
       "kind": "cycle",
       "severity": "error",
       "message": "@shop/core ⇄ @shop/ui depend on each other",
-      "packages": [
-        "@shop/core",
-        "@shop/ui"
-      ],
+      "packages": ["@shop/core", "@shop/ui"],
       "evidence": [
         {
           "file": "packages/core/src/money.ts",
@@ -633,10 +551,7 @@
       "kind": "dev-in-prod",
       "severity": "error",
       "message": "@shop/ui imports @shop/db outside tests, but declares it only in devDependencies",
-      "packages": [
-        "@shop/ui",
-        "@shop/db"
-      ],
+      "packages": ["@shop/ui", "@shop/db"],
       "evidence": [
         {
           "file": "packages/ui/src/button.ts",
@@ -649,9 +564,7 @@
       "kind": "dev-in-prod",
       "severity": "error",
       "message": "@shop/web imports dev-lib outside tests, but declares it only in devDependencies",
-      "packages": [
-        "@shop/web"
-      ],
+      "packages": ["@shop/web"],
       "evidence": [
         {
           "file": "apps/web/src/main.ts",
@@ -680,10 +593,7 @@
       "kind": "relative-import",
       "severity": "error",
       "message": "@shop/core reaches into (root) with a relative path instead of its package name",
-      "packages": [
-        "@shop/core",
-        "(root)"
-      ],
+      "packages": ["@shop/core", "(root)"],
       "evidence": [
         {
           "file": "packages/core/src/money.ts",
@@ -697,10 +607,7 @@
       "kind": "relative-import",
       "severity": "error",
       "message": "@shop/web reaches into @shop/ui with a relative path instead of its package name",
-      "packages": [
-        "@shop/web",
-        "@shop/ui"
-      ],
+      "packages": ["@shop/web", "@shop/ui"],
       "evidence": [
         {
           "file": "apps/web/src/main.ts",
@@ -714,9 +621,7 @@
       "kind": "root-only",
       "severity": "error",
       "message": "@shop/web imports hoisted, declared only by the repository root (works through hoisting)",
-      "packages": [
-        "@shop/web"
-      ],
+      "packages": ["@shop/web"],
       "evidence": [
         {
           "file": "apps/web/src/main.ts",
@@ -729,9 +634,7 @@
       "kind": "undeclared",
       "severity": "error",
       "message": "@shop/config imports missing without declaring it in package.json",
-      "packages": [
-        "@shop/config"
-      ],
+      "packages": ["@shop/config"],
       "evidence": [
         {
           "file": "tools/config/index.ts",
@@ -744,10 +647,7 @@
       "kind": "undeclared",
       "severity": "error",
       "message": "@shop/ui imports the workspace package @shop/testing without declaring it in package.json",
-      "packages": [
-        "@shop/ui",
-        "@shop/testing"
-      ],
+      "packages": ["@shop/ui", "@shop/testing"],
       "evidence": [
         {
           "file": "packages/ui/src/button.test.ts",
@@ -760,10 +660,7 @@
       "kind": "undeclared",
       "severity": "error",
       "message": "@shop/web imports the workspace package @shop/config without declaring it in package.json",
-      "packages": [
-        "@shop/web",
-        "@shop/config"
-      ],
+      "packages": ["@shop/web", "@shop/config"],
       "evidence": [
         {
           "file": "apps/web/src/page.ts",
@@ -776,10 +673,7 @@
       "kind": "undeclared",
       "severity": "error",
       "message": "@shop/web imports the workspace package @shop/db without declaring it in package.json",
-      "packages": [
-        "@shop/web",
-        "@shop/db"
-      ],
+      "packages": ["@shop/web", "@shop/db"],
       "evidence": [
         {
           "file": "apps/web/src/page.ts",
@@ -792,9 +686,7 @@
       "kind": "undeclared",
       "severity": "error",
       "message": "@shop/web imports missing without declaring it in package.json",
-      "packages": [
-        "@shop/web"
-      ],
+      "packages": ["@shop/web"],
       "evidence": [
         {
           "file": "apps/web/src/page.ts",
@@ -807,10 +699,7 @@
       "kind": "cycle",
       "severity": "warning",
       "message": "@shop/db ⇄ @shop/types depend on each other (only through import type)",
-      "packages": [
-        "@shop/db",
-        "@shop/types"
-      ],
+      "packages": ["@shop/db", "@shop/types"],
       "evidence": [
         {
           "file": "packages/db/src/index.ts",
@@ -840,11 +729,7 @@
       "kind": "version-drift",
       "severity": "warning",
       "message": "zod is declared with 2 ranges: ^3.0.0 (shop, @shop/ui); ^4.0.0 (@shop/web)",
-      "packages": [
-        "@shop/ui",
-        "@shop/web",
-        "shop"
-      ],
+      "packages": ["@shop/ui", "@shop/web", "shop"],
       "evidence": [
         {
           "file": "./package.json",

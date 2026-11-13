@@ -5,12 +5,12 @@
   "summary": {
     "packages": 9,
     "apps": 2,
-    "edges": 12,
+    "edges": 13,
     "cycles": 1,
     "errors": 6,
-    "warnings": 14,
+    "warnings": 16,
     "excepted": 0,
-    "score": 56
+    "score": 54
   },
   "packages": [
     {
@@ -22,17 +22,15 @@
       "files": 1,
       "testFiles": 0,
       "owners": [],
-      "dependsOn": [
-        "@b/kit"
-      ],
+      "dependsOn": ["@b/data", "@b/kit"],
       "dependents": [],
       "metrics": {
         "ca": 0,
-        "ce": 1,
+        "ce": 2,
         "instability": 1,
         "abstractness": 0,
         "distance": 0,
-        "depth": 2,
+        "depth": 3,
         "exportsUsed": null
       }
     },
@@ -40,31 +38,19 @@
       "name": "@b/data",
       "dir": "libs/data",
       "kind": "lib",
-      "tags": [
-        "type:data"
-      ],
+      "tags": ["type:data"],
       "layer": "data",
       "files": 2,
       "testFiles": 0,
-      "owners": [
-        "@team/data",
-        "@team/core"
-      ],
-      "dependsOn": [
-        "@b/feature",
-        "@b/kit",
-        "@b/util"
-      ],
-      "dependents": [
-        "@b/feature",
-        "@b/shop"
-      ],
+      "owners": ["@team/data", "@team/core"],
+      "dependsOn": ["@b/feature", "@b/kit", "@b/util"],
+      "dependents": ["@b/cli", "@b/feature", "@b/shop"],
       "metrics": {
-        "ca": 2,
+        "ca": 3,
         "ce": 3,
-        "instability": 0.6,
+        "instability": 0.5,
         "abstractness": 0,
-        "distance": 0.4,
+        "distance": 0.5,
         "depth": 2,
         "exportsUsed": 0.5
       }
@@ -77,9 +63,7 @@
       "files": 1,
       "testFiles": 0,
       "owners": [],
-      "dependsOn": [
-        "@b/util"
-      ],
+      "dependsOn": ["@b/util"],
       "dependents": [],
       "metrics": {
         "ca": 0,
@@ -95,25 +79,13 @@
       "name": "@b/feature",
       "dir": "libs/feature",
       "kind": "lib",
-      "tags": [
-        "scope:shop",
-        "type:feature"
-      ],
+      "tags": ["scope:shop", "type:feature"],
       "layer": "features",
       "files": 3,
       "testFiles": 1,
-      "owners": [
-        "@team/shop"
-      ],
-      "dependsOn": [
-        "@b/data",
-        "@b/kit",
-        "@b/util"
-      ],
-      "dependents": [
-        "@b/data",
-        "@b/shop"
-      ],
+      "owners": ["@team/shop"],
+      "dependsOn": ["@b/data", "@b/kit", "@b/util"],
+      "dependents": ["@b/data", "@b/shop"],
       "metrics": {
         "ca": 2,
         "ce": 3,
@@ -148,24 +120,13 @@
       "name": "@b/kit",
       "dir": "libs/kit",
       "kind": "lib",
-      "tags": [
-        "type:kit"
-      ],
+      "tags": ["type:kit"],
       "layer": "shared",
       "files": 8,
       "testFiles": 0,
-      "owners": [
-        "@team/core"
-      ],
-      "dependsOn": [
-        "@b/util"
-      ],
-      "dependents": [
-        "@b/cli",
-        "@b/data",
-        "@b/feature",
-        "@b/shop"
-      ],
+      "owners": ["@team/core"],
+      "dependsOn": ["@b/util"],
+      "dependents": ["@b/cli", "@b/data", "@b/feature", "@b/shop"],
       "metrics": {
         "ca": 4,
         "ce": 1,
@@ -200,20 +161,12 @@
       "name": "@b/shop",
       "dir": "apps/shop",
       "kind": "app",
-      "tags": [
-        "type:app"
-      ],
+      "tags": ["type:app"],
       "layer": "apps",
       "files": 2,
       "testFiles": 0,
-      "owners": [
-        "@team/shop"
-      ],
-      "dependsOn": [
-        "@b/data",
-        "@b/feature",
-        "@b/kit"
-      ],
+      "owners": ["@team/shop"],
+      "dependsOn": ["@b/data", "@b/feature", "@b/kit"],
       "dependents": [],
       "metrics": {
         "ca": 0,
@@ -229,20 +182,13 @@
       "name": "@b/util",
       "dir": "libs/util",
       "kind": "lib",
-      "tags": [
-        "type:util"
-      ],
+      "tags": ["type:util"],
       "layer": "shared",
       "files": 1,
       "testFiles": 0,
       "owners": [],
       "dependsOn": [],
-      "dependents": [
-        "@b/data",
-        "@b/extracted",
-        "@b/feature",
-        "@b/kit"
-      ],
+      "dependents": ["@b/data", "@b/extracted", "@b/feature", "@b/kit"],
       "metrics": {
         "ca": 4,
         "ce": 0,
@@ -261,33 +207,25 @@
         "clusters": [
           {
             "files": 3,
-            "sample": [
-              "libs/kit/src/a1.ts",
-              "libs/kit/src/a2.ts",
-              "libs/kit/src/a3.ts"
-            ],
-            "consumers": [
-              "@b/data",
-              "@b/feature",
-              "@b/shop"
-            ]
+            "sample": ["libs/kit/src/a1.ts", "libs/kit/src/a2.ts", "libs/kit/src/a3.ts"],
+            "consumers": ["@b/data", "@b/feature", "@b/shop"]
           },
           {
             "files": 3,
-            "sample": [
-              "libs/kit/src/b1.ts",
-              "libs/kit/src/b2.ts",
-              "libs/kit/src/b3.ts"
-            ],
-            "consumers": [
-              "@b/cli"
-            ]
+            "sample": ["libs/kit/src/b1.ts", "libs/kit/src/b2.ts", "libs/kit/src/b3.ts"],
+            "consumers": ["@b/cli"]
           }
         ]
       }
     ],
     "merge": [],
-    "hubs": [],
+    "hubs": [
+      {
+        "package": "@b/data",
+        "fanIn": 3,
+        "fanOut": 3
+      }
+    ],
     "deadExports": [
       {
         "package": "@b/shop",
@@ -325,10 +263,7 @@
         "name": "orphan"
       }
     ],
-    "deadPackages": [
-      "@b/extracted",
-      "@b/orphan"
-    ]
+    "deadPackages": ["@b/extracted", "@b/orphan"]
   },
   "coupling": [
     {
@@ -364,6 +299,11 @@
         "imports": 1
       },
       {
+        "from": "(no owner)",
+        "to": "@team/core, @team/data",
+        "imports": 1
+      },
+      {
         "from": "@team/core",
         "to": "(no owner)",
         "imports": 1
@@ -389,63 +329,53 @@
         "imports": 1
       }
     ],
-    "unowned": [
-      "@b/cli",
-      "@b/extracted",
-      "@b/helper",
-      "@b/orphan",
-      "@b/util"
-    ]
+    "unowned": ["@b/cli", "@b/extracted", "@b/helper", "@b/orphan", "@b/util"]
   },
   "apps": {
     "closure": [
       {
         "app": "@b/cli",
-        "packages": [
-          "@b/kit",
-          "@b/util"
-        ]
+        "packages": ["@b/data", "@b/feature", "@b/kit", "@b/util"]
       },
       {
         "app": "@b/shop",
-        "packages": [
-          "@b/data",
-          "@b/feature",
-          "@b/kit",
-          "@b/util"
-        ]
+        "packages": ["@b/data", "@b/feature", "@b/kit", "@b/util"]
       }
     ],
     "blastRadius": [
       {
-        "package": "@b/kit",
-        "apps": [
-          "@b/cli",
-          "@b/shop"
-        ]
-      },
-      {
-        "package": "@b/util",
-        "apps": [
-          "@b/cli",
-          "@b/shop"
-        ]
-      },
-      {
         "package": "@b/data",
-        "apps": [
-          "@b/shop"
-        ]
+        "apps": ["@b/cli", "@b/shop"]
       },
       {
         "package": "@b/feature",
-        "apps": [
-          "@b/shop"
-        ]
+        "apps": ["@b/cli", "@b/shop"]
+      },
+      {
+        "package": "@b/kit",
+        "apps": ["@b/cli", "@b/shop"]
+      },
+      {
+        "package": "@b/util",
+        "apps": ["@b/cli", "@b/shop"]
       }
     ]
   },
   "edges": [
+    {
+      "from": "@b/cli",
+      "to": "@b/data",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "tools/cli/src/main.ts",
+          "to": "libs/data/src/index.ts"
+        }
+      ]
+    },
     {
       "from": "@b/cli",
       "to": "@b/kit",
@@ -631,10 +561,7 @@
   ],
   "cycles": [
     {
-      "packages": [
-        "@b/data",
-        "@b/feature"
-      ],
+      "packages": ["@b/data", "@b/feature"],
       "edges": [
         {
           "from": "@b/data",
@@ -665,10 +592,7 @@
       "kind": "layer",
       "severity": "error",
       "message": "@b/data (layer data) depends on @b/feature (layer features, above it)",
-      "packages": [
-        "@b/data",
-        "@b/feature"
-      ],
+      "packages": ["@b/data", "@b/feature"],
       "evidence": [
         {
           "file": "libs/data/src/repo.ts",
@@ -681,10 +605,7 @@
       "kind": "tag",
       "severity": "error",
       "message": "@b/data → @b/feature: type:data must not depend on type:feature",
-      "packages": [
-        "@b/data",
-        "@b/feature"
-      ],
+      "packages": ["@b/data", "@b/feature"],
       "evidence": [
         {
           "file": "libs/data/src/repo.ts",
@@ -697,10 +618,7 @@
       "kind": "tag",
       "severity": "error",
       "message": "@b/data → @b/util: only type:feature, type:kit may depend on type:util",
-      "packages": [
-        "@b/data",
-        "@b/util"
-      ],
+      "packages": ["@b/data", "@b/util"],
       "evidence": [
         {
           "file": "libs/data/src/repo.ts",
@@ -713,10 +631,7 @@
       "kind": "tag",
       "severity": "error",
       "message": "@b/extracted → @b/util: only type:feature, type:kit may depend on type:util",
-      "packages": [
-        "@b/extracted",
-        "@b/util"
-      ],
+      "packages": ["@b/extracted", "@b/util"],
       "evidence": [
         {
           "file": "libs/data/src/moved.ts",
@@ -729,10 +644,7 @@
       "kind": "undeclared",
       "severity": "error",
       "message": "@b/extracted imports the workspace package @b/util without declaring it in package.json",
-      "packages": [
-        "@b/extracted",
-        "@b/util"
-      ],
+      "packages": ["@b/extracted", "@b/util"],
       "evidence": [
         {
           "file": "libs/data/src/moved.ts",
@@ -745,10 +657,7 @@
       "kind": "undeclared",
       "severity": "error",
       "message": "@b/feature imports the workspace package @b/helper without declaring it in package.json",
-      "packages": [
-        "@b/feature",
-        "@b/helper"
-      ],
+      "packages": ["@b/feature", "@b/helper"],
       "evidence": [
         {
           "file": "libs/feature/src/cart.spec.ts",
@@ -761,10 +670,7 @@
       "kind": "cycle",
       "severity": "warning",
       "message": "@b/data ⇄ @b/feature depend on each other (only through import type)",
-      "packages": [
-        "@b/data",
-        "@b/feature"
-      ],
+      "packages": ["@b/data", "@b/feature"],
       "evidence": [
         {
           "file": "libs/data/src/repo.ts",
@@ -777,13 +683,27 @@
       ]
     },
     {
+      "id": "threshold:@b/cli:depth",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/cli: depth 3 is over the threshold 2",
+      "packages": ["@b/cli"],
+      "evidence": []
+    },
+    {
+      "id": "threshold:@b/data:fanIn",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/data: fanIn 3 is over the threshold 2",
+      "packages": ["@b/data"],
+      "evidence": []
+    },
+    {
       "id": "threshold:@b/data:fanOut",
       "kind": "threshold",
       "severity": "warning",
       "message": "@b/data: fanOut 3 is over the threshold 2",
-      "packages": [
-        "@b/data"
-      ],
+      "packages": ["@b/data"],
       "evidence": []
     },
     {
@@ -791,9 +711,7 @@
       "kind": "threshold",
       "severity": "warning",
       "message": "@b/feature: fanOut 3 is over the threshold 2",
-      "packages": [
-        "@b/feature"
-      ],
+      "packages": ["@b/feature"],
       "evidence": []
     },
     {
@@ -801,9 +719,7 @@
       "kind": "threshold",
       "severity": "warning",
       "message": "@b/helper: distance 1 is over the threshold 0.5",
-      "packages": [
-        "@b/helper"
-      ],
+      "packages": ["@b/helper"],
       "evidence": []
     },
     {
@@ -811,9 +727,7 @@
       "kind": "threshold",
       "severity": "warning",
       "message": "@b/kit: distance 0.8 is over the threshold 0.5",
-      "packages": [
-        "@b/kit"
-      ],
+      "packages": ["@b/kit"],
       "evidence": []
     },
     {
@@ -821,9 +735,7 @@
       "kind": "threshold",
       "severity": "warning",
       "message": "@b/kit: fanIn 4 is over the threshold 2",
-      "packages": [
-        "@b/kit"
-      ],
+      "packages": ["@b/kit"],
       "evidence": []
     },
     {
@@ -831,9 +743,7 @@
       "kind": "threshold",
       "severity": "warning",
       "message": "@b/kit: files 8 is over the threshold 5",
-      "packages": [
-        "@b/kit"
-      ],
+      "packages": ["@b/kit"],
       "evidence": []
     },
     {
@@ -841,9 +751,7 @@
       "kind": "threshold",
       "severity": "warning",
       "message": "@b/orphan: distance 1 is over the threshold 0.5",
-      "packages": [
-        "@b/orphan"
-      ],
+      "packages": ["@b/orphan"],
       "evidence": []
     },
     {
@@ -851,9 +759,7 @@
       "kind": "threshold",
       "severity": "warning",
       "message": "@b/shop: depth 3 is over the threshold 2",
-      "packages": [
-        "@b/shop"
-      ],
+      "packages": ["@b/shop"],
       "evidence": []
     },
     {
@@ -861,9 +767,7 @@
       "kind": "threshold",
       "severity": "warning",
       "message": "@b/shop: fanOut 3 is over the threshold 2",
-      "packages": [
-        "@b/shop"
-      ],
+      "packages": ["@b/shop"],
       "evidence": []
     },
     {
@@ -871,9 +775,7 @@
       "kind": "threshold",
       "severity": "warning",
       "message": "@b/util: fanIn 4 is over the threshold 2",
-      "packages": [
-        "@b/util"
-      ],
+      "packages": ["@b/util"],
       "evidence": []
     },
     {
@@ -881,9 +783,7 @@
       "kind": "unlayered",
       "severity": "warning",
       "message": "@b/extracted belongs to no layer, so its dependencies are not checked",
-      "packages": [
-        "@b/extracted"
-      ],
+      "packages": ["@b/extracted"],
       "evidence": []
     },
     {
@@ -891,9 +791,7 @@
       "kind": "unlayered",
       "severity": "warning",
       "message": "@b/helper belongs to no layer, so its dependencies are not checked",
-      "packages": [
-        "@b/helper"
-      ],
+      "packages": ["@b/helper"],
       "evidence": []
     },
     {
@@ -901,9 +799,7 @@
       "kind": "unlayered",
       "severity": "warning",
       "message": "@b/orphan belongs to no layer, so its dependencies are not checked",
-      "packages": [
-        "@b/orphan"
-      ],
+      "packages": ["@b/orphan"],
       "evidence": []
     }
   ],

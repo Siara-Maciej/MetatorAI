@@ -60,164 +60,164 @@ export function PlanTab({
           <StageBar stages={board.stages} variant="strip" titleOf={stageTitle} testId="plan-stages" />
         </>
       }
-        listLabel="steps of the plan"
-        list={
-          <>
-            <ListSection>
-              steps · {board.plan ? `${board.plan.done}/${board.plan.steps.length}` : "no plan yet"}
-            </ListSection>
-            {steps.map((s, i) => (
-              <ListRow
-                key={s.id}
-                className="step"
-                selected={step?.id === s.id}
-                onSelect={() => setChosen(s.id)}
-                glyph={<Glyph kind="step" state={s.state} />}
-                title={`${i + 1} ${s.intent}`}
-                sub={`${s.path}${s.evidence && s.state === "done" ? ` · ${s.evidence.split(": ")[1] ?? s.evidence}` : ""}`}
-                trailing={<span className="dim">{s.worker?.name ?? ""}</span>}
-              />
-            ))}
-            {board.plan === undefined ? (
-              <EmptyRow>The plan stage writes plan.json; the steps appear here as it does.</EmptyRow>
-            ) : null}
-            <span className="spacer" />
-            {board.waiting.length > 0 ? (
-              <>
-                <ListSection>waits for you · {board.waiting.length}</ListSection>
-                {board.waiting.map((q) => (
-                  <ListRow
-                    key={q.id}
-                    className="step"
-                    glyph={<Glyph kind="step" state="waiting" />}
-                    title={
-                      <span className="clamp" title={q.prompt}>
-                        {q.prompt}
-                      </span>
-                    }
-                    trailing={
-                      <span className="dim">{duration(Date.now() - new Date(q.askedAt).getTime())}</span>
-                    }
-                  />
-                ))}
-              </>
-            ) : null}
-          </>
-        }
-      >
-        {error ? <div className="banner">{error}</div> : null}
-        {waiting ? (
-          <div className="ask" data-testid="plan-ask">
-            <span className="clamp" title={waiting.prompt}>
-              <span className="amber">?</span> {waiting.agent ?? waiting.source} asks: <b>{waiting.prompt}</b>{" "}
-              <span className="dim">· {duration(Date.now() - new Date(waiting.askedAt).getTime())}</span>
-            </span>
-            <span className="spacer" />
-            {waiting.source === "permission" ? (
-              <button type="button" className="primary" onClick={() => onOpenRun(runId, true)}>
-                Answer in the pane
-              </button>
-            ) : (
-              <QuickAnswer question={waiting} repo={run?.repo} onDone={() => void load()} />
-            )}
-          </div>
-        ) : null}
-        {step ? (
-          <>
-            <h2>
-              {steps.indexOf(step) + 1} · {step.intent} <span className="dim">in {step.path}</span>
-            </h2>
-            <div className="dim">
-              {step.worker
-                ? `${step.worker.name}${step.worker.paneId ? ` · ${step.worker.paneId}` : ""} · `
-                : ""}
-              {step.state}
-              {step.evidence ? ` · ${step.evidence}` : ""}
-            </div>
-            <dl className="facts">
-              {facts.map(([name, value]) => (
-                <div className="row" key={name}>
-                  <dt className="dim">{name}</dt>
-                  <dd className="mono">{value}</dd>
-                </div>
+      listLabel="steps of the plan"
+      list={
+        <>
+          <ListSection>
+            steps · {board.plan ? `${board.plan.done}/${board.plan.steps.length}` : "no plan yet"}
+          </ListSection>
+          {steps.map((s, i) => (
+            <ListRow
+              key={s.id}
+              className="step"
+              selected={step?.id === s.id}
+              onSelect={() => setChosen(s.id)}
+              glyph={<Glyph kind="step" state={s.state} />}
+              title={`${i + 1} ${s.intent}`}
+              sub={`${s.path}${s.evidence && s.state === "done" ? ` · ${s.evidence.split(": ")[1] ?? s.evidence}` : ""}`}
+              trailing={<span className="dim">{s.worker?.name ?? ""}</span>}
+            />
+          ))}
+          {board.plan === undefined ? (
+            <EmptyRow>The plan stage writes plan.json; the steps appear here as it does.</EmptyRow>
+          ) : null}
+          <span className="spacer" />
+          {board.waiting.length > 0 ? (
+            <>
+              <ListSection>waits for you · {board.waiting.length}</ListSection>
+              {board.waiting.map((q) => (
+                <ListRow
+                  key={q.id}
+                  className="step"
+                  glyph={<Glyph kind="step" state="waiting" />}
+                  title={
+                    <span className="clamp" title={q.prompt}>
+                      {q.prompt}
+                    </span>
+                  }
+                  trailing={
+                    <span className="dim">{duration(Date.now() - new Date(q.askedAt).getTime())}</span>
+                  }
+                />
               ))}
-            </dl>
-            {step.worker?.paneId ? (
-              <div className="actions">
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={() => onOpenPane(step.worker?.paneId as string, runId)}
-                >
-                  Show the pane
-                </button>
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <h2 className="dim">
-            {board.stage} · {board.status}
+            </>
+          ) : null}
+        </>
+      }
+    >
+      {error ? <div className="banner">{error}</div> : null}
+      {waiting ? (
+        <div className="ask" data-testid="plan-ask">
+          <span className="clamp" title={waiting.prompt}>
+            <span className="amber">?</span> {waiting.agent ?? waiting.source} asks: <b>{waiting.prompt}</b>{" "}
+            <span className="dim">· {duration(Date.now() - new Date(waiting.askedAt).getTime())}</span>
+          </span>
+          <span className="spacer" />
+          {waiting.source === "permission" ? (
+            <button type="button" className="primary" onClick={() => onOpenRun(runId, true)}>
+              Answer in the pane
+            </button>
+          ) : (
+            <QuickAnswer question={waiting} repo={run?.repo} onDone={() => void load()} />
+          )}
+        </div>
+      ) : null}
+      {step ? (
+        <>
+          <h2>
+            {steps.indexOf(step) + 1} · {step.intent} <span className="dim">in {step.path}</span>
           </h2>
-        )}
-        <div className="cols">
-          <div>
-            <ListSection>what comes next</ListSection>
-            <div className="text">
-              {board.next.length > 0
-                ? board.next
-                    .map((n) => `${n.id}${n.owners.length > 0 ? ` (${n.owners.join(", ")})` : ""}`)
-                    .join(" · ")
-                : board.status === "done"
-                  ? "nothing: the run is done"
-                  : "this is the last stage"}
-            </div>
-            {board.gates.length > 0 ? (
-              <div className="text">
-                gates:{" "}
-                {board.gates.map((g) => (
-                  <span key={`${g.gate}-${g.at}`} className={g.passed ? "green" : "red"}>
-                    {g.gate} {g.passed ? "✓" : "✕"}{" "}
-                  </span>
-                ))}
-              </div>
-            ) : null}
+          <div className="dim">
+            {step.worker
+              ? `${step.worker.name}${step.worker.paneId ? ` · ${step.worker.paneId}` : ""} · `
+              : ""}
+            {step.state}
+            {step.evidence ? ` · ${step.evidence}` : ""}
           </div>
-          <div>
-            <ListSection>artifacts</ListSection>
-            <div className="text mono">
-              {board.artifacts.map((a) => (
-                <span
-                  key={a.name}
-                  className={a.present ? "" : "dim"}
-                  title={a.stage ? `from ${a.stage}` : undefined}
-                >
-                  {a.present ? "✓" : "○"} {a.name}{" "}
+          <dl className="facts">
+            {facts.map(([name, value]) => (
+              <div className="row" key={name}>
+                <dt className="dim">{name}</dt>
+                <dd className="mono">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {step.worker?.paneId ? (
+            <div className="actions">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => onOpenPane(step.worker?.paneId as string, runId)}
+              >
+                Show the pane
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <h2 className="dim">
+          {board.stage} · {board.status}
+        </h2>
+      )}
+      <div className="cols">
+        <div>
+          <ListSection>what comes next</ListSection>
+          <div className="text">
+            {board.next.length > 0
+              ? board.next
+                  .map((n) => `${n.id}${n.owners.length > 0 ? ` (${n.owners.join(", ")})` : ""}`)
+                  .join(" · ")
+              : board.status === "done"
+                ? "nothing: the run is done"
+                : "this is the last stage"}
+          </div>
+          {board.gates.length > 0 ? (
+            <div className="text">
+              gates:{" "}
+              {board.gates.map((g) => (
+                <span key={`${g.gate}-${g.at}`} className={g.passed ? "green" : "red"}>
+                  {g.gate} {g.passed ? "✓" : "✕"}{" "}
                 </span>
               ))}
             </div>
-          </div>
-          {board.workers.length > 0 ? (
-            <div>
-              <ListSection>workers</ListSection>
-              <div className="text">
-                {board.workers.map((w) => (
-                  <div key={w.name}>
-                    <button type="button" className="ghost mono" onClick={() => onOpenPane(w.paneId, runId)}>
-                      {w.name}
-                    </button>{" "}
-                    <span className="dim">
-                      {w.stage} · {w.paneId} ·{" "}
-                      {w.result ? `${w.result.status}: ${w.result.summary}` : (w.state ?? "")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
           ) : null}
         </div>
-        <span className="spacer" />
-        <ActivityList entries={board.timeline.slice(-8)} variant="list" />
-      </ListDetail>
+        <div>
+          <ListSection>artifacts</ListSection>
+          <div className="text mono">
+            {board.artifacts.map((a) => (
+              <span
+                key={a.name}
+                className={a.present ? "" : "dim"}
+                title={a.stage ? `from ${a.stage}` : undefined}
+              >
+                {a.present ? "✓" : "○"} {a.name}{" "}
+              </span>
+            ))}
+          </div>
+        </div>
+        {board.workers.length > 0 ? (
+          <div>
+            <ListSection>workers</ListSection>
+            <div className="text">
+              {board.workers.map((w) => (
+                <div key={w.name}>
+                  <button type="button" className="ghost mono" onClick={() => onOpenPane(w.paneId, runId)}>
+                    {w.name}
+                  </button>{" "}
+                  <span className="dim">
+                    {w.stage} · {w.paneId} ·{" "}
+                    {w.result ? `${w.result.status}: ${w.result.summary}` : (w.state ?? "")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+      <span className="spacer" />
+      <ActivityList entries={board.timeline.slice(-8)} variant="list" />
+    </ListDetail>
   );
 }
 

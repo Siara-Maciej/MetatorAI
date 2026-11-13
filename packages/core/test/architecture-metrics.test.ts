@@ -5,13 +5,9 @@ import {
   ArchitecturePolicyCatalog,
   StyleImports,
 } from "../src/application/architecture.ts";
-import {
-  type ArchitectureInput,
-  analyzeArchitecture,
-  manifestOf,
-  type PackageManifest,
-  type ResolvedImport,
-} from "../src/domain/architecture.ts";
+import { analyzeArchitecture } from "../src/domain/architecture.ts";
+import type { ArchitectureInput, ResolvedImport } from "../src/domain/architecture-context.ts";
+import { manifestOf, type PackageManifest } from "../src/domain/architecture-manifests.ts";
 import {
   appReach,
   changeCoupling,

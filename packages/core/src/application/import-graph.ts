@@ -1,4 +1,4 @@
-import type { ResolvedImport } from "../domain/architecture.ts";
+import type { ResolvedImport } from "../domain/architecture-context.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { DependencyGraph, type Edge } from "../domain/graph.ts";
 import {

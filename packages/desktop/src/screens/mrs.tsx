@@ -107,7 +107,7 @@ export function MrsScreen({
           <div className="actions">
             <button
               type="button"
-              className="go"
+              className="primary"
               data-testid="send-replies"
               disabled={proposed(current) === 0}
               onClick={() =>

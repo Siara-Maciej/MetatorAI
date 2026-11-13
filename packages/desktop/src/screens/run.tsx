@@ -17,8 +17,8 @@ import {
   duration,
   finishedText,
   plainKey,
-  RUN_TABS,
   type Route,
+  RUN_TABS,
   type RunTab,
   runPhase,
 } from "../model.ts";
@@ -128,7 +128,9 @@ export function RunScreen({
             run={run}
             runId={runId}
             file={file}
-            onOpenFile={(id, f) => go({ screen: "run", runId: id, tab: "changes", ...(f ? { file: f } : {}) })}
+            onOpenFile={(id, f) =>
+              go({ screen: "run", runId: id, tab: "changes", ...(f ? { file: f } : {}) })
+            }
           />
         ) : null}
         {tab === "activity" ? <ActivityTab runId={runId} repo={repo} /> : null}
@@ -140,11 +142,19 @@ export function RunScreen({
 /** Everything the run did, newest last: the time, the type, where it came from, what happened. */
 function ActivityTab({ runId, repo }: { readonly runId: string; readonly repo: string | undefined }) {
   const { client } = useDaemon();
-  const { data, error } = usePolled(`activity:${repo ?? ""}:${runId}`, () => client.activity(runId, repo), 2000);
+  const { data, error } = usePolled(
+    `activity:${repo ?? ""}:${runId}`,
+    () => client.activity(runId, repo),
+    2000,
+  );
   return (
     <>
       {error && !data ? <div className="banner">{error}</div> : null}
-      <ActivityList entries={data?.entries ?? []} variant="table" empty={data ? "Nothing happened yet." : undefined} />
+      <ActivityList
+        entries={data?.entries ?? []}
+        variant="table"
+        empty={data ? "Nothing happened yet." : undefined}
+      />
     </>
   );
 }

@@ -10,7 +10,8 @@ import {
   SimulateRefactorPlan,
   SyncRefactorPlan,
 } from "../src/application/architecture-plans.ts";
-import { type ArchitectureInput, manifestOf, type ResolvedImport } from "../src/domain/architecture.ts";
+import type { ArchitectureInput, ResolvedImport } from "../src/domain/architecture-context.ts";
+import { manifestOf } from "../src/domain/architecture-manifests.ts";
 import { applyMoves } from "../src/domain/architecture-moves.ts";
 import {
   describeMove,

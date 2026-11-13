@@ -1,4 +1,4 @@
-import type { ArchitectureReport, Violation } from "./architecture.ts";
+import type { ArchitectureReport, Violation } from "./architecture-report.ts";
 
 const cell = (text: string) => text.replaceAll("|", "\\|").replaceAll("\n", " ");
 const list = (items: readonly string[]) => (items.length === 0 ? "—" : items.join(", "));

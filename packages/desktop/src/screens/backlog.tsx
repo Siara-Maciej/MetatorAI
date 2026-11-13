@@ -255,7 +255,7 @@ export function BacklogScreen({
             <div className="dim">points at: {initialDraft.refs.map(issueRefText).join(" · ")}</div>
           ) : null}
           <div className="actions">
-            <button type="submit" className="go">
+            <button type="submit" className="primary">
               Add
             </button>
             <button type="button" onClick={() => setAdding(false)}>
@@ -295,7 +295,7 @@ export function BacklogScreen({
           <div className="actions">
             {current.status === "proposed" ? (
               <>
-                <button type="button" className="go" onClick={() => void decide(current, "add")}>
+                <button type="button" className="primary" onClick={() => void decide(current, "add")}>
                   Add
                 </button>
                 <button type="button" onClick={() => void addAndStart(current)}>
@@ -308,7 +308,7 @@ export function BacklogScreen({
             ) : null}
             {current.status === "open" ? (
               <>
-                <button type="button" className="go" onClick={() => void start(current)}>
+                <button type="button" className="primary" onClick={() => void start(current)}>
                   Start a run
                 </button>
                 <button type="button" onClick={() => act((by) => client.closeIssue(current.id, by, repo))}>

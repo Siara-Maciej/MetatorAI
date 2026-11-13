@@ -187,7 +187,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await page.getByTestId("connection").textContent()).toBe("no daemon");
     // Nothing claims an empty inbox, and nothing can be started.
     expect(await page.locator("main.content").textContent()).not.toContain("Inbox zero");
-    expect(await page.getByRole("button", { name: "+ New session" }).isDisabled()).toBe(true);
+    expect(await page.getByRole("button", { name: "+ New run" }).isDisabled()).toBe(true);
     for (const screen of ["grid", "backlog", "mrs", "settings", "supervisor", "session/nope"]) {
       await page.goto(app(screen));
       await panel.waitFor({ timeout: 10_000 });
@@ -197,11 +197,11 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await panel.getByRole("button", { name: "Retry" }).click();
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
     expect(await panel.count()).toBe(0);
-    expect(await page.locator("main.content").textContent()).toContain("Inbox zero");
+    expect(await page.locator("main.content").textContent()).toContain("Describe a task");
   }, 90_000);
 
   test("with no AI host installed + New session says so and opens nothing; the form offers no host (D1)", async () => {
-    await page.getByRole("button", { name: "+ New session" }).click();
+    await page.getByRole("button", { name: "+ New run" }).click();
     const notice = page.locator("main.content > .notice");
     await notice.waitFor({ timeout: 20_000 });
     const said = (await notice.textContent()) ?? "";
@@ -210,8 +210,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(said).toContain('the guide page "Copilot and Claude Code", site/guide/hosts.md');
     expect(page.url()).toContain("#/inbox");
     expect(((await api("/layout")).data.panes as unknown[]).length).toBe(0);
-    await page.getByRole("button", { name: "Advanced…" }).click();
-    const dialog = page.getByRole("dialog", { name: "new session" });
+    await page.getByRole("button", { name: "New run from the form" }).click();
+    const dialog = page.getByRole("dialog", { name: "new run" });
     await dialog.getByTestId("no-host").waitFor({ timeout: 20_000 });
     expect(await dialog.getByLabel("AI host").inputValue()).toBe("");
     expect(await dialog.getByLabel("AI host").locator("option:disabled").allTextContents()).toEqual([
@@ -231,7 +231,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await serve(repo.root, { ...NOWHERE, METATOR_CLAUDE_BIN: repo.path("bin/claude") });
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
     await page.goto(app("inbox"));
-    await page.getByRole("button", { name: "+ New session" }).click();
+    await page.getByRole("button", { name: "+ New run" }).click();
     // The first host of the order (copilot) is not installed: the session starts on the one that is.
     const ended = page.locator('[data-testid^="ended-"]');
     await ended.waitFor({ timeout: 20_000 });
@@ -308,10 +308,10 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await row.waitFor({ timeout: 20_000 });
     expect(await page.locator("aside.sessions .list").textContent()).toContain("Check the totals");
     expect(await page.locator("main.content").textContent()).not.toContain("Inbox zero");
-    // One count everywhere: the escalated run is among the runs that need you, in the top bar and
-    // in the Inbox's heading, and it is listed on the daemon screen.
-    const needYou = (await page.getByTestId("counters").textContent())?.match(/need you (\d+)/)?.[1];
-    expect(Number(needYou)).toBeGreaterThan(0);
+    // One count everywhere: the escalated run is among the runs that need you, in the sidebar,
+    // counted in its heading, and it is listed in the Overview.
+    const needYou = await page.locator(".needs .item").count();
+    expect(needYou).toBeGreaterThan(0);
     expect(await page.getByTestId("needs-count").textContent()).toContain(`Needs you · ${needYou}`);
     await page.goto(app("supervisor"));
     await until("the escalated run on the daemon screen", async () =>
@@ -384,8 +384,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     try {
       await page.goto(app("inbox"));
       await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
-      await page.getByRole("button", { name: "Advanced…" }).click();
-      const dialog = page.getByRole("dialog", { name: "new session" });
+      await page.getByRole("button", { name: "New run from the form" }).click();
+      const dialog = page.getByRole("dialog", { name: "new run" });
       await dialog.getByLabel("Workflow", { exact: true }).selectOption("demo");
       await dialog.getByLabel("Task").fill("Start from a dirty tree");
       await dialog.getByLabel("AI host").selectOption("scenario");

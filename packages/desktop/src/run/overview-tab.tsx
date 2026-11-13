@@ -31,7 +31,10 @@ export function OverviewTab({
     async () => {
       const b = await client.brief(runId, repo);
       if (!b.ok || !b.data) return { ok: false, ...(b.error ? { error: b.error } : {}) };
-      const [a, c] = await Promise.all([client.activity(runId, repo), client.reviewChanges(runId, undefined, repo)]);
+      const [a, c] = await Promise.all([
+        client.activity(runId, repo),
+        client.reviewChanges(runId, undefined, repo),
+      ]);
       const since = b.data.since;
       return {
         ok: true,
@@ -86,7 +89,9 @@ export function OverviewTab({
               )}
             </>
           ) : run?.terminalAsk ? (
-            <div className="muted">The agent asks in its terminal: open the Terminal tab and answer there.</div>
+            <div className="muted">
+              The agent asks in its terminal: open the Terminal tab and answer there.
+            </div>
           ) : (
             <div className="muted">
               Nothing: the run {run?.attention === "driving" ? "is working" : (run?.status ?? "is not here")}.

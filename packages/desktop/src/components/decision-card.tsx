@@ -17,7 +17,7 @@ export function DecisionCard({
   onOpenChanges,
 }: {
   readonly item: InboxItem;
-  onAnswered(): void;
+  onAnswered(choices: readonly string[]): void;
   onOpenSession(runId: string): void;
   /** The run's change, straight from the card: what the decision is about. */
   onOpenChanges(runId: string): void;
@@ -198,7 +198,7 @@ export function DecisionCard({
           Changes
         </button>
         <button type="button" onClick={() => onOpenSession(q.runId)}>
-          Open session · o
+          Open run · o
         </button>
       </div>
       <Notice text={a.error} onClose={a.clearError} />

@@ -95,130 +95,130 @@ export function ChangesTab({
       className="review"
       testId="review"
       top={
-          <>
-            <b>Changes</b>
-            {view ? <span className="dim mono">against {view.base.slice(0, 12)}</span> : null}
-            <span className="spacer" />
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => void openEditor()}
-              data-testid="review-editor"
-            >
-              Open in editor
-            </button>
-            <button
-              type="button"
-              className="primary"
-              disabled={drafts.length === 0}
-              onClick={() => void send()}
-              data-testid="send-notes"
-            >
-              Send {drafts.length > 0 ? drafts.length : ""} to agent
-            </button>
-          </>
+        <>
+          <b>Changes</b>
+          {view ? <span className="dim mono">against {view.base.slice(0, 12)}</span> : null}
+          <span className="spacer" />
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => void openEditor()}
+            data-testid="review-editor"
+          >
+            Open in editor
+          </button>
+          <button
+            type="button"
+            className="primary"
+            disabled={drafts.length === 0}
+            onClick={() => void send()}
+            data-testid="send-notes"
+          >
+            Send {drafts.length > 0 ? drafts.length : ""} to agent
+          </button>
+        </>
       }
-        listLabel="changed files and notes"
-        detailClass="diff"
-        list={
-          <>
-            <ListSection>files · {view?.files.length ?? 0}</ListSection>
-            {view?.files.map((f) => (
-              <ListRow
-                key={f.path}
-                className="item"
-                selected={f.path === file}
-                onSelect={() => onOpenFile(runId, f.path)}
-                testId={`file-${f.path}`}
-                glyph={<Glyph kind="file" state={f.status} />}
-                title={f.path}
-                trailing={
-                  <span className="counts">
-                    <span className="green">+{f.added}</span> <span className="red">−{f.removed}</span>
-                    {notes.some((n) => n.file === f.path) ? <span className="amber"> ✎</span> : null}
-                  </span>
-                }
-              />
-            ))}
-            {view && view.files.length === 0 ? <EmptyRow>No change yet.</EmptyRow> : null}
-            <span className="spacer" />
-            <ListSection>notes · {notes.length}</ListSection>
-            {notes.map((n) => (
-              <ListRow
-                key={n.id}
-                className="note-row"
-                glyph={<Glyph kind="note" state={n.status} />}
-                title={
-                  <>
-                    <span className="dim mono">
-                      {n.file ? `${n.file}${n.line ? `:${n.line}` : ""}` : "the change"}
-                    </span>{" "}
-                    {n.text}
-                  </>
-                }
-                trailing={
-                  n.status === "sent" ? (
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => void setStatus(n, "addressed")}
-                      aria-label={`mark the note on ${n.file ?? "the change"} addressed`}
-                      title="mark addressed"
-                    >
-                      ✓
-                    </button>
-                  ) : n.status === "addressed" ? (
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => void setStatus(n, "draft")}
-                      aria-label={`reopen the note on ${n.file ?? "the change"}`}
-                      title="reopen"
-                    >
-                      ↺
-                    </button>
-                  ) : undefined
-                }
-              />
-            ))}
-            {!file ? (
-              draft && draft.line === undefined ? (
-                noteForm("note on the change", false)
-              ) : (
-                <div className="note-form">
-                  <button type="button" className="ghost" onClick={() => setDraft({ text: "" })}>
-                    + note on the whole change
+      listLabel="changed files and notes"
+      detailClass="diff"
+      list={
+        <>
+          <ListSection>files · {view?.files.length ?? 0}</ListSection>
+          {view?.files.map((f) => (
+            <ListRow
+              key={f.path}
+              className="item"
+              selected={f.path === file}
+              onSelect={() => onOpenFile(runId, f.path)}
+              testId={`file-${f.path}`}
+              glyph={<Glyph kind="file" state={f.status} />}
+              title={f.path}
+              trailing={
+                <span className="counts">
+                  <span className="green">+{f.added}</span> <span className="red">−{f.removed}</span>
+                  {notes.some((n) => n.file === f.path) ? <span className="amber"> ✎</span> : null}
+                </span>
+              }
+            />
+          ))}
+          {view && view.files.length === 0 ? <EmptyRow>No change yet.</EmptyRow> : null}
+          <span className="spacer" />
+          <ListSection>notes · {notes.length}</ListSection>
+          {notes.map((n) => (
+            <ListRow
+              key={n.id}
+              className="note-row"
+              glyph={<Glyph kind="note" state={n.status} />}
+              title={
+                <>
+                  <span className="dim mono">
+                    {n.file ? `${n.file}${n.line ? `:${n.line}` : ""}` : "the change"}
+                  </span>{" "}
+                  {n.text}
+                </>
+              }
+              trailing={
+                n.status === "sent" ? (
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => void setStatus(n, "addressed")}
+                    aria-label={`mark the note on ${n.file ?? "the change"} addressed`}
+                    title="mark addressed"
+                  >
+                    ✓
                   </button>
-                </div>
-              )
-            ) : null}
-          </>
-        }
-      >
-        <Notice {...action.notice} />
-        {changes.error && !view ? <div className="banner">{changes.error}</div> : null}
-        {!file ? (
-          <div className="empty">
-            <h2>{view?.files.length ? "Pick a file" : "No change"}</h2>
-            <p>
-              A click on a line adds a note there; "Send to agent" delivers every draft note to the run as one
-              message.
-            </p>
-          </div>
-        ) : view?.diff ? (
-          <Diff
-            file={file}
-            diff={view.diff}
-            notes={notes.filter((n) => n.file === file && n.line !== undefined)}
-            draft={draft}
-            onDraft={setDraft}
-            onOpenEditor={(line) => void openEditor(line)}
-            form={(line) => noteForm(`note on line ${line}`, true)}
-          />
-        ) : (
-          <div className="dim file-head">{view ? "no diff for this file" : "loading…"}</div>
-        )}
-      </ListDetail>
+                ) : n.status === "addressed" ? (
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => void setStatus(n, "draft")}
+                    aria-label={`reopen the note on ${n.file ?? "the change"}`}
+                    title="reopen"
+                  >
+                    ↺
+                  </button>
+                ) : undefined
+              }
+            />
+          ))}
+          {!file ? (
+            draft && draft.line === undefined ? (
+              noteForm("note on the change", false)
+            ) : (
+              <div className="note-form">
+                <button type="button" className="ghost" onClick={() => setDraft({ text: "" })}>
+                  + note on the whole change
+                </button>
+              </div>
+            )
+          ) : null}
+        </>
+      }
+    >
+      <Notice {...action.notice} />
+      {changes.error && !view ? <div className="banner">{changes.error}</div> : null}
+      {!file ? (
+        <div className="empty">
+          <h2>{view?.files.length ? "Pick a file" : "No change"}</h2>
+          <p>
+            A click on a line adds a note there; "Send to agent" delivers every draft note to the run as one
+            message.
+          </p>
+        </div>
+      ) : view?.diff ? (
+        <Diff
+          file={file}
+          diff={view.diff}
+          notes={notes.filter((n) => n.file === file && n.line !== undefined)}
+          draft={draft}
+          onDraft={setDraft}
+          onOpenEditor={(line) => void openEditor(line)}
+          form={(line) => noteForm(`note on line ${line}`, true)}
+        />
+      ) : (
+        <div className="dim file-head">{view ? "no diff for this file" : "loading…"}</div>
+      )}
+    </ListDetail>
   );
 }
 

@@ -4,7 +4,7 @@
  */
 import { useRef } from "react";
 import type { PaneView } from "../api.ts";
-import { lookOf, type PaneShown, paneLabel } from "../model.ts";
+import { lookOf, type PaneShown, paneLabel, paneNote } from "../model.ts";
 import { Glyph } from "./glyph.tsx";
 import { PaneTerminal, type TerminalHandle } from "./terminal.tsx";
 
@@ -81,6 +81,7 @@ export function PaneFrame({
             {" · "}
             {symbols ? <Glyph kind="pane" state={state} /> : null} {state}
           </span>
+          {paneNote(p, state) ? <span className="faint"> · {paneNote(p, state)}</span> : null}
           {mine ? <span className="teal"> · yours</span> : null}
         </button>
       ) : null}

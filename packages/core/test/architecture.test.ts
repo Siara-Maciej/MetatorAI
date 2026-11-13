@@ -6,16 +6,13 @@ import {
   ArchitecturePolicyCatalog,
 } from "../src/application/architecture.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
-import {
-  type ArchitectureInput,
-  analyzeArchitecture,
-  type ExternalImport,
-  manifestOf,
-  matchesId,
-  type PackageManifest,
-  type ResolvedImport,
-  ROOT_PACKAGE,
-} from "../src/domain/architecture.ts";
+import { analyzeArchitecture, matchesId } from "../src/domain/architecture.ts";
+import type {
+  ArchitectureInput,
+  ExternalImport,
+  ResolvedImport,
+} from "../src/domain/architecture-context.ts";
+import { manifestOf, type PackageManifest, ROOT_PACKAGE } from "../src/domain/architecture-manifests.ts";
 import {
   ArchitecturePolicySchema,
   brokenTagRules,

@@ -4,6 +4,7 @@
  * title with one line under it, something at the end.
  */
 import type { ReactNode } from "react";
+import { moveInList } from "./list-keys.ts";
 
 export function ListDetail({
   className,
@@ -27,7 +28,12 @@ export function ListDetail({
     <div className={`ld ${className}${top ? "" : " no-top"}`} data-testid={testId}>
       {top ? <div className="ld-top">{top}</div> : null}
       <div className="ld-body">
-        <aside className="ld-list" aria-label={listLabel}>
+        {/* The arrow keys and j/k move along the rows and choose the one they land on. */}
+        <aside
+          className="ld-list"
+          aria-label={listLabel}
+          onKeyDown={(e) => moveInList(e, "button.ld-row", true)}
+        >
           {list}
         </aside>
         <section className={`ld-detail ${detailClass}`}>{children}</section>

@@ -145,8 +145,11 @@ afterAll(async () => {
 describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
   test("+ New session opens a pane with the agent as the entry point (T1); the form sits under Advanced", async () => {
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
-    await expect(page.getByText("Inbox zero")).toBeTruthy();
-    await page.getByRole("button", { name: "+ New session" }).click();
+    // Nothing was ever started: the app offers to describe a task, or the form, not an empty queue.
+    await page.getByTestId("first-run").waitFor({ timeout: 20_000 });
+    expect(await page.getByTestId("first-run").textContent()).toContain("Describe a task");
+    expect(await page.getByTestId("needs-count").textContent()).toContain("Needs you · 0");
+    await page.getByRole("button", { name: "+ New run" }).click();
     const workbench = page.getByTestId("workbench");
     const intake = workbench.locator('.pane-frame[aria-label^="chat"]').first();
     await intake.waitFor({ timeout: 20_000 });
@@ -164,7 +167,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     expect(pane?.process.prompt).toContain("entry point");
     expect(layout.workspaces.find((w) => w.label === "chat")?.runId).toBeUndefined();
     // A second click reuses the workspace: one "chat" workspace, two panes.
-    await page.getByRole("button", { name: "+ New session" }).click();
+    await page.getByRole("button", { name: "+ New run" }).click();
     await until("the second pane", async () => {
       const l = (await api("/layout")).data as {
         panes: { label: string }[];
@@ -187,10 +190,16 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await help.waitFor({ timeout: 5000 });
     expect(await help.getByTestId("help-workbench").textContent()).toContain("ctrl+b zZoom");
     expect(await help.getByTestId("help-workbench").textContent()).not.toContain("prefix+");
+    // Typing filters the list: one key is left.
+    await help.getByLabel("filter the keys").fill("zoom");
+    await until("the filtered keys", async () =>
+      (await help.getByTestId("help-workbench").textContent()) === "ctrl+b zZoom" ? true : undefined,
+    );
+    expect(await help.getByTestId("help-shell").count()).toBe(0);
     await page.keyboard.press("Escape");
     await until("the help closed", async () => ((await help.count()) === 0 ? true : undefined));
-    await page.getByRole("button", { name: "Advanced…" }).click();
-    const dialog = page.getByRole("dialog", { name: "new session" });
+    await page.getByRole("button", { name: "New run from the form" }).click();
+    const dialog = page.getByRole("dialog", { name: "new run" });
     await dialog.getByLabel("Task").fill("Add the discount to the invoice");
     await dialog.getByLabel("AI host").selectOption("scenario");
     await dialog.getByLabel("Worktree").uncheck();
@@ -212,7 +221,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await dialog.getByLabel("Task").focus();
     await page.keyboard.press("Escape");
     await until("the dialog closed", async () => ((await dialog.count()) === 0 ? true : undefined));
-    await page.getByRole("button", { name: "Advanced…" }).click();
+    await page.getByRole("button", { name: "New run from the form" }).click();
     await dialog.getByLabel(/^Workflow/).selectOption("demo");
     await dialog.getByLabel("Task").fill("Add the discount to the invoice");
     await dialog.getByLabel("AI host").selectOption("scenario");
@@ -232,7 +241,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
   test("a multi-select question takes several choices; the name is asked for once, in the app's own dialog", async () => {
     const item = page.locator(".needs .item").first();
     await item.waitFor({ timeout: 40_000 });
-    await expect(await item.locator(".kind").textContent()).toBe("QUESTION");
+    await expect(await item.locator(".kind").textContent()).toBe("question");
     const card = page.getByLabel("decision card");
     await expect(await card.locator("h1").textContent()).toContain("Which currencies");
     // Nothing is chosen for the person: the button waits for a choice.
@@ -267,7 +276,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
   test("the gate question arrives in the inbox and is answered from the card without opening the session", async () => {
     const item = page.locator(".needs .item", { hasText: "approval" }).first();
     await item.waitFor({ timeout: 40_000 });
-    await expect(await item.locator(".kind").textContent()).toBe("APPROVAL");
+    await expect(await item.locator(".kind").textContent()).toBe("approval");
     const card = page.getByLabel("decision card");
     await expect(await card.locator("h1").textContent()).toContain("approval");
     // Reject promises a reason (D8): without it neither the button nor Enter sends the answer.
@@ -294,6 +303,10 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await page.keyboard.press("Enter");
     await until("the inbox to empty", async () =>
       (await page.locator(".needs .item").count()) === 0 ? true : undefined,
+    );
+    // The answer is confirmed in words.
+    expect(await page.locator("main.content > .notice").textContent()).toContain(
+      "Answered: Approve. The run goes on.",
     );
     const runId = ((await api("/state")).data.runs as { runId: string }[])[0]?.runId as string;
     const activity = (await api(`/runs/${runId}/activity`)).data.entries as {
@@ -338,7 +351,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     // The agent asks on its own screen (D2): the run counts as waiting for you, in the top bar,
     // in the panel and on the session, and the Inbox has a row that opens the pane.
     await page.getByTestId("terminal-ask").waitFor({ timeout: 30_000 });
-    expect(await page.getByTestId("counters").textContent()).toContain("need you 1");
+    expect(await page.getByTestId("needs-count").textContent()).toContain("Needs you · 1");
     expect(await page.locator(".sessions .row[aria-current='true']").textContent()).toContain(
       "asks in its terminal",
     );
@@ -349,9 +362,9 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     expect(await page.locator("main.content").textContent()).not.toContain("Inbox zero");
     await asks.click();
     await term.waitFor({ timeout: 20_000 });
-    expect(page.url()).toContain(`#/session/${runId}/`);
+    expect(page.url()).toContain(`#/run/${runId}/terminal/`);
     // A single-letter shortcut is the bare key (D7): Ctrl+A is not "attach".
-    await page.locator(".session .head").click();
+    await page.locator(".run-header h1").click();
     await page.keyboard.press("Control+a");
     await Bun.sleep(300);
     await expect(await page.getByTestId("driverbar").textContent()).toContain("Working: agent");
@@ -387,7 +400,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the shell tab gone", async () =>
       (await panes.textContent())?.includes("shell") ? undefined : true,
     );
-    await page.getByRole("tab", { name: /Events/ }).click();
+    await page.getByLabel("tabs of this run").getByRole("link", { name: "Activity" }).click();
     await until("the events table", async () =>
       (await page.locator(".events tbody tr").count()) > 0 ? true : undefined,
     );
@@ -457,9 +470,6 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the idle shell", async () =>
       (await shellFrame.getAttribute("data-state")) === "idle" ? true : undefined,
     );
-    expect(
-      await workbench.locator(".sidebar .ag").filter({ hasNotText: "agent ·" }).first().textContent(),
-    ).toContain("idle");
     await page.keyboard.press("Escape");
     // "New task from here…" opens the backlog's form with the pane's run as what the task points at.
     await workbench.locator('.pane-frame[aria-label^="agent · "]').first().click({ button: "right" });
@@ -581,6 +591,14 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     }[];
     expect(sentMessages.map((m) => m.topic)).toEqual(["review"]);
     expect(sentMessages[0]?.text).toContain("- src/discount.ts:2: cap in cents?");
+    // The Overview counts the run's change from the same source as Changes: one file, the same one.
+    await page.getByLabel("tabs of this run").getByRole("link", { name: "Overview" }).click();
+    await until("the overview's change", async () =>
+      (await page.getByTestId("overview-changes").textContent())?.includes("src/discount.ts")
+        ? true
+        : undefined,
+    );
+    expect(await page.getByTestId("overview-changes").textContent()).toContain("Changes · 1 file");
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/graph`);
     await page.getByRole("img", { name: "runs graph" }).waitFor({ timeout: 20_000 });
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/supervisor`);

@@ -1,4 +1,4 @@
-/** Screen 6: the new-session dialog over the inbox; the footer shows the `metator run init` it amounts to. */
+/** The new-run form, a dialog; the footer shows the `metator run init` it amounts to. */
 import { useState } from "react";
 import type { Workflow } from "../api.ts";
 import { Notice } from "../components/common.tsx";
@@ -105,8 +105,8 @@ export function NewSessionDialog({
     onCreated(r.data.run.runId, andAttach);
   };
   return (
-    <Modal label="new session" onClose={onClose}>
-      <h2>New session</h2>
+    <Modal label="new run" onClose={onClose}>
+      <h2>New run</h2>
       {repos.length > 0 ? (
         <label className="field">
           <span>Repository</span>

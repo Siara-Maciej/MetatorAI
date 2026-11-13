@@ -6,6 +6,7 @@
 import { useMemo, useState } from "react";
 import type { OptionDiagnostic, OptionScope, ResolvedOption } from "../api.ts";
 import { Notice, RepoSelect } from "../components/common.tsx";
+import { moveInList } from "../components/list-keys.ts";
 import { useDaemon } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import { optionMatches, refusalText } from "../model.ts";
@@ -57,7 +58,7 @@ export function SettingsScreen() {
   };
   return (
     <div className="settings-screen">
-      <aside className="sections">
+      <aside className="sections" onKeyDown={(e) => moveInList(e, "button.section", true)}>
         <div className="pick">
           <RepoSelect />
           <label htmlFor="settings-q" className="dim">

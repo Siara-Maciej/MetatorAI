@@ -8,20 +8,19 @@
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import {
-  type ArchitectureInput,
-  ArchitectureReportDocument,
-  analyzeArchitecture,
-  type ExternalImport,
-  manifestOf,
-  type PackageManifest,
-  type ResolvedImport,
-} from "../src/domain/architecture.ts";
+import { analyzeArchitecture } from "../src/domain/architecture.ts";
+import type {
+  ArchitectureInput,
+  ExternalImport,
+  ResolvedImport,
+} from "../src/domain/architecture-context.ts";
+import { manifestOf, type PackageManifest } from "../src/domain/architecture-manifests.ts";
 import {
   ArchitecturePolicySchema,
   EMPTY_POLICY,
   VIOLATION_KINDS,
 } from "../src/domain/architecture-policy.ts";
+import { ArchitectureReportDocument } from "../src/domain/architecture-report.ts";
 import type { ResolvedModule } from "../src/domain/symbols.ts";
 import { serializeJsonDocument } from "../src/domain/versioned.ts";
 
@@ -199,7 +198,7 @@ function boundaries(): ArchitectureInput {
   const cli = m("tools/cli", "@b/cli", {
     private: true,
     bin: { b: "bin.js" },
-    dependencies: { "@b/kit": ws },
+    dependencies: { "@b/kit": ws, "@b/data": ws },
   });
   const feature = m(
     "libs/feature",
@@ -246,6 +245,7 @@ function boundaries(): ArchitectureInput {
       imp("apps/shop/src/routes.ts", "libs/data/src/index.ts", "@b/data"),
       imp("apps/shop/src/routes.ts", "libs/kit/src/a1.ts", "@b/kit/a1"),
       imp("tools/cli/src/main.ts", "libs/kit/src/b1.ts", "@b/kit/b1"),
+      imp("tools/cli/src/main.ts", "libs/data/src/index.ts", "@b/data"),
       imp("libs/feature/src/index.ts", "libs/feature/src/cart.ts", "./cart.ts"),
       imp("libs/feature/src/cart.ts", "libs/data/src/repo.ts", "@b/data"),
       imp("libs/feature/src/cart.ts", "libs/kit/src/index.ts", "@b/kit"),
@@ -432,7 +432,8 @@ describe("analyzeArchitecture: the whole report is pinned", () => {
     test(`${name}: every field of the report, in order`, async () => {
       const text = reportText(input());
       if (process.env.UPDATE_ARCH_FIXTURES === "1") await Bun.write(fixture(name), text);
-      expect(text).toBe(await Bun.file(fixture(name)).text());
+      // The fixture's own layout is the formatter's; its keys, their order and every value are compared.
+      expect(text).toBe(serializeJsonDocument(await Bun.file(fixture(name)).json()));
     });
   }
 
@@ -450,7 +451,7 @@ describe("analyzeArchitecture: the whole report is pinned", () => {
       some((r) => r.coupling?.length),
       some((r) => r.teams?.edges.length),
       some((r) => r.teams?.unowned.length),
-      some((r) => r.apps?.length),
+      some((r) => r.apps?.closure.length),
       some((r) => r.modules?.cycles.length),
       some((r) => r.cycles.some((c) => c.typeOnly)),
       some((r) => r.cycles.some((c) => !c.typeOnly)),
@@ -465,4 +466,13 @@ describe("analyzeArchitecture: the whole report is pinned", () => {
       some((r) => r.packages.some((p) => p.kind === "root")),
     ]).toEqual(Array.from({ length: 16 }, () => true));
   });
+});
+
+test("a manifest is private only when it says so; a nameless one is named after its directory", () => {
+  expect([
+    manifestOf("libs/a", { name: "a" }).private,
+    manifestOf("libs/a", { name: "a", private: true }).private,
+    manifestOf("libs/a", { name: "a", private: "yes" }).private,
+  ]).toEqual([false, true, false]);
+  expect([manifestOf("libs/a", {}).name, manifestOf(".", null).name]).toEqual(["libs/a", "(root)"]);
 });

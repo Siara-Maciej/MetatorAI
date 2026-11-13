@@ -3,6 +3,7 @@ import type { InboxItem, RunOverview } from "../src/api.ts";
 import {
   actionOf,
   answerCommand,
+  answeredText,
   autonomyLabel,
   autonomyLevels,
   byPanelOrder,
@@ -15,6 +16,7 @@ import {
   duration,
   escalatedKey,
   evenTree,
+  filterKeys,
   finishedText,
   flattenState,
   gotoRows,
@@ -23,6 +25,8 @@ import {
   hostChoice,
   inboxChips,
   isFinished,
+  isFirstRun,
+  isIntake,
   keyLabel,
   keyMapOf,
   keyText,
@@ -30,6 +34,7 @@ import {
   lookOf,
   menuCommands,
   needsPerson,
+  needsQueue,
   needsReason,
   neighborPane,
   newQuestions,
@@ -39,10 +44,13 @@ import {
   notifies,
   openRuns,
   optionMatches,
+  paneAsRun,
   paneLabel,
+  paneNote,
   paneStateOf,
   panesOfRun,
   parseRoute,
+  pickedNeed,
   plainKey,
   plural,
   portsText,
@@ -54,23 +62,34 @@ import {
   repoOfTab,
   resumeNotice,
   retryHost,
+  rollUp,
   routeHash,
   runCounts,
   runIdOf,
+  runLine,
   runPhase,
+  runStateOf,
+  runTabFor,
+  runWithPanes,
   SHELL_KEYS,
   SHELL_QUIET_MS,
   sameRepo,
+  seenFrom,
+  seenKey,
+  sidebarRuns,
   stageGlyph,
   stepLabel,
+  stepNeed,
   tabOfPane,
   tabOfRun,
+  terminalKey,
   toastOf,
   toggleChoice,
   treeLeavesOf,
   WORKBENCH_COMMANDS,
   wasAway,
   withRatio,
+  withSeen,
   withTerminalAsks,
   workbenchRepos,
   workflowChoice,
@@ -241,26 +260,71 @@ describe("formatting and routes", () => {
   });
 
   test("routes parse and print both ways; anything unknown is the inbox", () => {
-    expect(parseRoute("#/session/2026%2Fa")).toEqual({ screen: "session", runId: "2026/a" });
-    expect(parseRoute("#/session/r/w1%3Ap2")).toEqual({ screen: "session", runId: "r", pane: "w1:p2" });
+    expect(parseRoute("#/run/2026%2Fa")).toEqual({ screen: "run", runId: "2026/a", tab: "overview" });
+    expect(parseRoute("#/run/r/terminal/w1%3Ap2")).toEqual({
+      screen: "run",
+      runId: "r",
+      tab: "terminal",
+      pane: "w1:p2",
+    });
+    expect(parseRoute("#/run/r/changes/src/a%20b.ts")).toEqual({
+      screen: "run",
+      runId: "r",
+      tab: "changes",
+      file: "src/a b.ts",
+    });
+    // A tab the page does not have is its first one.
+    expect(parseRoute("#/run/r/nope")).toEqual({ screen: "run", runId: "r", tab: "overview" });
+    expect(parseRoute("#/run")).toEqual({ screen: "inbox" });
     expect(parseRoute("#/grid/p")).toEqual({ screen: "grid", group: "p" });
     expect(parseRoute("#/grid")).toEqual({ screen: "grid" });
-    expect(parseRoute("#/briefing/r")).toEqual({ screen: "briefing", runId: "r" });
-    expect(parseRoute("#/briefing")).toEqual({ screen: "inbox" });
+    expect(parseRoute("#/overview/dependencies")).toEqual({ screen: "overview", tab: "dependencies" });
     expect(parseRoute("")).toEqual({ screen: "inbox" });
     expect(parseRoute("#/nope")).toEqual({ screen: "inbox" });
     for (const hash of [
       "#/inbox",
       "#/inbox/r%2Fq001",
-      "#/session/r",
-      "#/session/r/w1%3Ap2",
+      "#/run/r/overview",
+      "#/run/r/terminal",
+      "#/run/r/terminal/w1%3Ap2",
+      "#/run/r/plan",
+      "#/run/r/changes",
+      "#/run/r/changes/src/discount.ts",
+      "#/run/r/activity",
       "#/grid",
       "#/grid/p",
-      "#/graph",
-      "#/supervisor",
-      "#/briefing/r",
+      "#/grid/pane:w1%3Ap2",
+      "#/overview",
+      "#/overview/dependencies",
+      "#/mrs",
+      "#/mrs/gh-45",
+      "#/backlog",
+      "#/settings",
     ])
       expect(routeHash(parseRoute(hash))).toBe(hash);
+  });
+
+  test("the routes a run's four screens and the two overview screens once had land on the right tab", () => {
+    expect(parseRoute("#/session/r")).toEqual({ screen: "run", runId: "r", tab: "terminal" });
+    expect(parseRoute("#/session/r/w1%3Ap2")).toEqual({
+      screen: "run",
+      runId: "r",
+      tab: "terminal",
+      pane: "w1:p2",
+    });
+    expect(parseRoute("#/plan/r")).toEqual({ screen: "run", runId: "r", tab: "plan" });
+    expect(parseRoute("#/review/r/src/a.ts")).toEqual({
+      screen: "run",
+      runId: "r",
+      tab: "changes",
+      file: "src/a.ts",
+    });
+    expect(parseRoute("#/review/r")).toEqual({ screen: "run", runId: "r", tab: "changes" });
+    expect(parseRoute("#/briefing/r")).toEqual({ screen: "run", runId: "r", tab: "overview" });
+    expect(parseRoute("#/briefing")).toEqual({ screen: "inbox" });
+    expect(parseRoute("#/supervisor")).toEqual({ screen: "overview", tab: "daemon" });
+    expect(parseRoute("#/graph")).toEqual({ screen: "overview", tab: "dependencies" });
+    expect(routeHash(parseRoute("#/session/r"))).toBe("#/run/r/terminal");
   });
 
   test("away means ten minutes or more since the person last looked", () => {
@@ -636,6 +700,7 @@ describe("one vocabulary for states", () => {
   ) =>
     ({
       process: kind === "host" ? { kind, host: "copilot", agent: "a", prompt: "" } : { kind, argv: ["sh"] },
+      runId: "r1",
       ...(live ? { live } : {}),
       ...(state ? { state: { state, reason: "" } } : {}),
     }) as never;
@@ -739,11 +804,21 @@ describe("counts every screen agrees on", () => {
 });
 
 describe("the screens of one run", () => {
-  test("session, plan, changes and briefing are about a run; the list screens are not", () => {
-    expect(RUN_TABS.map((t) => t.screen)).toEqual(["session", "plan", "review", "briefing"]);
-    for (const t of RUN_TABS) expect(runIdOf({ screen: t.screen, runId: "r1" })).toBe("r1");
+  test("one page per run with five tabs, each with one letter; the other places are not about a run", () => {
+    expect(RUN_TABS.map((t) => [t.tab, t.key])).toEqual([
+      ["overview", "o"],
+      ["terminal", "t"],
+      ["plan", "p"],
+      ["changes", "d"],
+      ["activity", "l"],
+    ]);
+    for (const t of RUN_TABS) expect(runIdOf({ screen: "run", runId: "r1", tab: t.tab })).toBe("r1");
     expect(runIdOf({ screen: "inbox" })).toBeUndefined();
     expect(runIdOf({ screen: "grid", pane: "p" })).toBeUndefined();
+    // From the sidebar a run opens where the work is; a finished one on its summary.
+    expect(runTabFor(run("a"))).toBe("terminal");
+    expect(runTabFor(run("a", { status: "escalated" }))).toBe("terminal");
+    expect(runTabFor(run("a", { status: "done" }))).toBe("overview");
   });
 
   test("an escalated or finished run has no driver to show", () => {
@@ -961,5 +1036,190 @@ describe("shapes the daemon passes through from core (ADR-0085)", () => {
   test("a pane names its tab, and the tab its workspace", () => {
     expect(workspaceOfPane({ tab: "w2:t1" })).toBe("w2");
     expect(workspaceOfPane({ tab: "w12:t3" })).toBe("w12");
+  });
+});
+
+describe("the sidebar: one state that rolls up (wave 2)", () => {
+  test("a run reads one of five words; done is a finished run not opened since it finished", () => {
+    const at = "2026-11-13T10:00:00.000Z";
+    expect(runStateOf(run("a", { attention: "you" }))).toBe("needs you");
+    expect(runStateOf(run("a", { attention: "driving" }))).toBe("working");
+    expect(runStateOf(run("a", { attention: "escalated", status: "escalated" }))).toBe("escalated");
+    expect(runStateOf(run("a", { attention: "stopped" }))).toBe("idle");
+    const done = run("a", { attention: "done", status: "done", updatedAt: at });
+    expect(runStateOf(done)).toBe("done");
+    // Opened before it finished: still news. Opened after: quiet.
+    expect(runStateOf(done, "2026-11-13T09:59:59.000Z")).toBe("done");
+    expect(runStateOf(done, at)).toBe("idle");
+    expect(runStateOf(done, "2026-11-13T10:05:00.000Z")).toBe("idle");
+    // An aborted run is not news: the person closed it.
+    expect(runStateOf(run("a", { attention: "aborted", status: "aborted" }))).toBe("idle");
+  });
+
+  test("states roll up pane → run → repository: a person is needed first, then work, then news, then quiet", () => {
+    expect(rollUp([])).toBe("idle");
+    expect(rollUp(["idle", "done", "working"])).toBe("working");
+    expect(rollUp(["working", "escalated", "done"])).toBe("escalated");
+    expect(rollUp(["escalated", "needs you", "working"])).toBe("needs you");
+    expect(rollUp(["idle", "done"])).toBe("done");
+    expect((["asks", "working", "idle", "exited"] as const).map(paneAsRun)).toEqual([
+      "needs you",
+      "working",
+      "idle",
+      "idle",
+    ]);
+    // A stopped run whose worker pane asks needs you; one whose pane works is working.
+    const stopped = run("a", { attention: "stopped" });
+    expect(runWithPanes(stopped, ["idle", "asks"])).toBe("needs you");
+    expect(runWithPanes(stopped, ["working", "exited"])).toBe("working");
+    expect(runWithPanes(stopped, [])).toBe("idle");
+    // The panes of a finished run say nothing about it.
+    const done = run("a", { attention: "done", status: "done" });
+    expect(runWithPanes(done, ["working"])).toBe("done");
+    // A repository is the roll-up of its runs.
+    expect(rollUp([runWithPanes(stopped, ["working"]), runStateOf(done)])).toBe("working");
+  });
+
+  test("what was opened is kept as a map that survives bad storage and never grows without end", () => {
+    expect(seenKey({ runId: "r", repo: "fe" })).toBe("fe/r");
+    expect(seenKey({ runId: "r" })).toBe("/r");
+    expect(seenFrom(null)).toEqual({});
+    expect(seenFrom("not json")).toEqual({});
+    expect(seenFrom("[1,2]")).toEqual({});
+    expect(seenFrom('{"/a":"2026-11-13T10:00:00.000Z","/b":5}')).toEqual({
+      "/a": "2026-11-13T10:00:00.000Z",
+    });
+    const three = withSeen(withSeen(withSeen({}, "/a", "1"), "/b", "2"), "/c", "3", 2);
+    expect(three).toEqual({ "/c": "3", "/b": "2" });
+    expect(withSeen({ "/a": "1" }, "/a", "9")).toEqual({ "/a": "9" });
+  });
+
+  const question = (runId: string, id: string, source: "gate" | "agent" | "permission", extra = {}) =>
+    ({
+      runId,
+      task: `task of ${runId}`,
+      stage: "build",
+      driving: false,
+      waitedMs: 65_000,
+      question: {
+        id,
+        runId,
+        stage: "build",
+        source,
+        prompt: `prompt ${id}`,
+        options: [],
+        multiSelect: false,
+        askedAt: "",
+      },
+      ...extra,
+    }) as never;
+
+  test("what needs you is one queue: questions, then terminal asks, then escalated runs", () => {
+    const runs = [
+      run("r1", { task: "Add the discount" }),
+      { ...run("r2", { task: "Round the totals", attention: "you" }), terminalAsk: "w2:p1" },
+      run("r3", {
+        task: "Check the totals",
+        status: "escalated",
+        attention: "escalated",
+        stage: "check",
+        reason: "gate failed",
+      }),
+    ];
+    const rows = needsQueue(
+      [question("r1", "q1", "gate"), question("r1", "q2", "permission", { repo: "fe" })],
+      runs,
+    );
+    expect(rows.map((r) => [r.key, r.kind, r.title])).toEqual([
+      ["r1/q1", "approval", "prompt q1"],
+      ["r1/q2", "permission", "prompt q2"],
+      ["terminal::r2", "terminal", "Round the totals"],
+      ["escalated::r3", "escalated", "Check the totals"],
+    ]);
+    // One dim line: the run's task, the stage and how long it has waited; a question of a
+    // repository the state does not list falls back to the item's own task.
+    expect(rows[0]?.sub).toBe("Add the discount · build · 1 min");
+    expect(rows[1]?.sub).toBe("task of r1 · fe · build · 1 min");
+    expect(rows[2]).toMatchObject({ sub: "answers in its terminal · build", pane: "w2:p1" });
+    expect(rows[3]).toMatchObject({ sub: "stopped at check · r3", hint: "gate failed" });
+    // The hover of a question carries what the card's chips say.
+    expect(rows[1]?.hint).toBe("prompt q2 · can be allowed always");
+    expect(terminalKey({ runId: "r2", repo: "fe" })).toBe("terminal:fe:r2");
+    expect(needsQueue([], [run("a")])).toEqual([]);
+  });
+
+  test("the Inbox shows the picked row, else the first; j/k and the arrows move around the ends", () => {
+    const rows = needsQueue([question("r1", "q1", "gate"), question("r1", "q2", "agent")], [run("r1")]);
+    expect(pickedNeed(rows, "r1/q2")?.key).toBe("r1/q2");
+    expect(pickedNeed(rows, "gone")?.key).toBe("r1/q1");
+    expect(pickedNeed(rows, undefined)?.key).toBe("r1/q1");
+    expect(pickedNeed([], "x")).toBeUndefined();
+    expect(stepNeed(rows, undefined, 1)?.key).toBe("r1/q2");
+    expect(stepNeed(rows, "r1/q2", 1)?.key).toBe("r1/q1");
+    expect(stepNeed(rows, "r1/q1", -1)?.key).toBe("r1/q2");
+    expect(stepNeed([], undefined, 1)).toBeUndefined();
+  });
+
+  test("the runs of a repository: who needs a person first, the steps of a split run under it", () => {
+    const runs = [
+      run("p", { createdAt: "2026-11-02T10:00:00.000Z", updatedAt: "2026-11-02T10:00:00.000Z" }),
+      run("s2", { parent: "p", createdAt: "2026-11-02T10:02:00.000Z", attention: "you" }),
+      run("s1", { parent: "p", createdAt: "2026-11-02T10:01:00.000Z" }),
+      run("solo", { attention: "you", updatedAt: "2026-11-02T11:00:00.000Z" }),
+      run("orphan", { parent: "gone", attention: "stopped" }),
+    ];
+    expect(sidebarRuns(runs).map((x) => [x.run.runId, x.nested, x.step])).toEqual([
+      ["solo", false, undefined],
+      ["p", false, undefined],
+      ["s1", true, "step 1/2"],
+      ["s2", true, "step 2/2"],
+      ["orphan", false, undefined],
+    ]);
+    expect(sidebarRuns([])).toEqual([]);
+  });
+
+  test("one dim line under a run: its step, that it asks on its terminal, stage · host · age", () => {
+    expect(runLine({ stage: "build", host: "copilot", elapsedMs: 240_000 })).toBe("build · copilot · 4 min");
+    expect(runLine({ stage: "plan", elapsedMs: 5000, terminalAsk: "w1:p1" }, "step 2/3")).toBe(
+      "step 2/3 · asks in its terminal · plan · no host · 5s",
+    );
+  });
+
+  test("the agent a run begins with is ready for a task: idle, never asks", () => {
+    const intake = (state?: string) =>
+      ({
+        process: { kind: "host", host: "copilot", agent: "mt-orchestrator", prompt: "" },
+        live: { alive: true },
+        ...(state ? { state: { state, reason: "" } } : {}),
+      }) as never;
+    expect(isIntake(intake())).toBe(true);
+    expect(isIntake({ process: { kind: "command", argv: ["sh"] } } as never)).toBe(false);
+    expect(isIntake({ ...(intake() as object), runId: "r1" } as never)).toBe(false);
+    expect(paneStateOf(intake("blocked"))).toBe("idle");
+    expect(paneStateOf(intake("waiting"))).toBe("idle");
+    expect(paneStateOf(intake("working"))).toBe("working");
+    expect(paneNote(intake(), "idle")).toBe("ready for your task");
+    expect(paneNote(intake(), "working")).toBeUndefined();
+    expect(paneNote({ ...(intake() as object), runId: "r1" } as never, "idle")).toBeUndefined();
+  });
+
+  test("with no run and nothing to decide the app offers to start; an answer is confirmed in words", () => {
+    expect(isFirstRun([], [])).toBe(true);
+    expect(isFirstRun([run("a")], [])).toBe(false);
+    expect(isFirstRun([], [{}])).toBe(false);
+    expect(answeredText(["Approve"])).toBe("Answered: Approve. The run goes on.");
+    expect(answeredText(["EUR", "USD"])).toBe("Answered: EUR, USD. The run goes on.");
+  });
+
+  test("the help filters by a key or by what it does; each letter of the shell means one thing", () => {
+    expect(filterKeys(SHELL_KEYS, "")).toHaveLength(SHELL_KEYS.length);
+    expect(filterKeys(SHELL_KEYS, "ATTACH").map((k) => k.keys)).toEqual(["a / c"]);
+    expect(filterKeys(helpRows(DEFAULT_KEYS), "zoom").map((k) => k.id)).toEqual(["zoom"]);
+    expect(filterKeys(helpRows(DEFAULT_KEYS), "ctrl+b z").map((k) => k.id)).toEqual(["zoom"]);
+    expect(filterKeys(SHELL_KEYS, "no such thing")).toEqual([]);
+    // No single letter is listed twice among the keys of every screen, and the run's tabs use theirs.
+    const letters = SHELL_KEYS.flatMap((k) => k.keys.split(/[\s/]+/)).filter((k) => /^[a-z?]$/.test(k));
+    expect(new Set(letters).size).toBe(letters.length);
+    for (const t of RUN_TABS) expect(letters).toContain(t.key);
   });
 });

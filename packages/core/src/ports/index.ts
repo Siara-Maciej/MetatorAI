@@ -4,8 +4,8 @@
  */
 
 import type { Agent } from "../domain/agent.ts";
-import type { ManifestSet } from "../domain/architecture.ts";
 import type { ToolBoundaries } from "../domain/architecture-check.ts";
+import type { ManifestSet } from "../domain/architecture-manifests.ts";
 import type { ContractComparison } from "../domain/contract-diff.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";

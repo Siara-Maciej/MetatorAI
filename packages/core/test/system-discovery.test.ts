@@ -5,7 +5,7 @@ import {
   type DiscoverySource,
   RepositoryDiscoverySource,
 } from "../src/application/system-discovery.ts";
-import { manifestOf } from "../src/domain/architecture.ts";
+import { manifestOf } from "../src/domain/architecture-manifests.ts";
 import { EMPTY_POLICY } from "../src/domain/architecture-policy.ts";
 import { ok } from "../src/domain/result.ts";
 import {
