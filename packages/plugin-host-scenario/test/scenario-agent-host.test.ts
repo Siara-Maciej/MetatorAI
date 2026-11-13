@@ -50,6 +50,18 @@ describe("ScenarioAgentHost", () => {
     expect(events.at(-1)).toEqual({ type: "result", ok: true, text: "answer: B\nSTATUS: done" });
   });
 
+  test("a written text may carry what the agent was told: {prompt}", async () => {
+    const cwd = await dir();
+    const host = new ScenarioAgentHost({
+      agents: {
+        "mt-planner": [[{ write: { path: "{runDir}/heard.md", text: "heard: {prompt} $& {cwd}" } }]],
+      },
+    });
+    await collect(host, { ...task(cwd), prompt: "do $1 at {runDir}" });
+    // The prompt goes in as it is: nothing in it is read as a pattern or filled again.
+    expect(await Bun.file(join(cwd, "run/heard.md")).text()).toBe(`heard: do $1 at {runDir} $& ${cwd}`);
+  });
+
   test("the n-th start plays the n-th entry and the last repeats; fail ends with a failed result", async () => {
     const host = new ScenarioAgentHost({ agents: { a: [[{ say: "one" }], [{ fail: "two" }]] } });
     const cwd = await dir();

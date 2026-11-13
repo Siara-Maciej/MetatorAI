@@ -207,6 +207,57 @@ describe("RunStateMachine (XState)", () => {
     expect(error.hint).toContain("aborted");
   });
 
+  test("resume --to: an earlier stage the run worked, every loop from zero; a stage it never worked is refused", () => {
+    const P = { type: "PASS" } as const;
+    // context, plan, plan-gate (fails once), approval, build, review fails twice: escalated at review.
+    const escalated = drive(
+      machine().start(),
+      P,
+      P,
+      { type: "FAIL" },
+      P,
+      P,
+      { type: "APPROVE", by: "u" },
+      P,
+      { type: "FAIL", reason: "one" },
+      P,
+      P,
+      { type: "APPROVE", by: "u" },
+      P,
+      { type: "FAIL", reason: "two" },
+    );
+    expect([escalated.status, escalated.context.loops]).toEqual(["escalated", { plan: 0, review: 1 }]);
+    expect(machine().resumable(escalated)).toEqual([
+      "context",
+      "plan",
+      "plan-gate",
+      "approval",
+      "build",
+      "review",
+    ]);
+    const back = machine().resume(escalated, "plan")._unsafeUnwrap();
+    expect([back.stage, back.status, back.context.loops]).toEqual(["plan", "active", { plan: 0, review: 0 }]);
+    expect(back.context.history).toEqual(escalated.context.history);
+    // The escalating stage named outright is the resume in place: only its own loop starts again.
+    const withOther = { ...escalated, context: { ...escalated.context, loops: { plan: 1, review: 1 } } };
+    expect(machine().resume(withOther, "review")._unsafeUnwrap().context.loops).toEqual({
+      plan: 1,
+      review: 0,
+    });
+    // A run that escalated at its second stage never worked the later ones.
+    const early = drive(machine().start(), P, { type: "FAIL", reason: "x" });
+    expect(machine().resumable(early)).toEqual(["context", "plan"]);
+    const refused = machine().resume(early, "build")._unsafeUnwrapErr();
+    expect([refused.code, refused.message, refused.hint]).toEqual([
+      "USAGE",
+      "the run cannot resume at build: it never worked that stage",
+      "It escalated at plan. Stages it may resume at: context, plan.",
+    ]);
+    expect(machine().resumable(back)).toEqual([]);
+    expect(machine().stagesFrom("build")).toEqual(["build", "review"]);
+    expect(machine().stagesFrom("nope")).toEqual([]);
+  });
+
   test("state survives a JSON round trip (state.json) and resumes in a new machine", () => {
     const midway = drive(machine().start(), { type: "PASS" }, { type: "PASS" }, { type: "FAIL" });
     const restored: RunState = JSON.parse(JSON.stringify(midway));

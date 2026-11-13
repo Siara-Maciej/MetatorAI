@@ -86,13 +86,30 @@ describe("metator review changes|notes and open (real CLI)", () => {
     );
     expect(a).toMatchObject({ id: "n001", status: "draft", file: "src/invoice.ts", line: 2 });
     expect(
-      (await mt("review", "notes", "add", "tests for 1000.00", "--run", runId, "--by", "maciej")).code,
+      // Without --by the name is $METATOR_USER.
+      (
+        await metator(["review", "notes", "add", "tests for 1000.00", "--run", runId], repo.root, {
+          ...env,
+          METATOR_USER: "maciej",
+        })
+      ).code,
     ).toBe(0);
     expect(JSON.parse(await repo.read(`.metator/runs/${runId}/review/notes.json`))).toMatchObject({
       kind: "ReviewNotes",
       schemaVersion: 1,
     });
-    const sent = data(await mt("review", "notes", "send", "--run", runId, "--by", "maciej")) as {
+    const nobody = { ...env, METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const refused = await metator(["review", "notes", "send", "--run", runId], repo.root, nobody);
+    expect([refused.code, (refused.json.error as { message: string }).message]).toEqual([
+      64,
+      "say who you are: --by <name>",
+    ]);
+    const sent = data(
+      await metator(["review", "notes", "send", "--run", runId], repo.root, {
+        ...env,
+        METATOR_USER: "maciej",
+      }),
+    ) as {
       message: { id: string; topic: string };
       notes: Data[];
     };

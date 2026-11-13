@@ -32,7 +32,14 @@ export const AgentScenarioDocument = defineDocument("AgentScenario", {
   hint: "Each agent lists its starts; each start lists steps: say, write, tool, ask or fail.",
 });
 
-/** `{runDir}` and `{cwd}` in a scenario path or text, filled in for this start. */
-export function fillScenario(text: string, vars: { readonly runDir: string; readonly cwd: string }): string {
-  return text.replaceAll("{runDir}", vars.runDir).replaceAll("{cwd}", vars.cwd);
+/**
+ * `{runDir}` and `{cwd}` in a scenario path or text, filled in for this start; `{prompt}` too
+ * where the host passes what the agent was told (a test writes it to a file and reads it back).
+ */
+export function fillScenario(
+  text: string,
+  vars: { readonly runDir: string; readonly cwd: string; readonly prompt?: string },
+): string {
+  const filled = text.replaceAll("{runDir}", vars.runDir).replaceAll("{cwd}", vars.cwd);
+  return vars.prompt === undefined ? filled : filled.replaceAll("{prompt}", () => vars.prompt as string);
 }

@@ -3,7 +3,7 @@ import type { Question, RunActivity } from "./drive.ts";
 import type { GateReport } from "./gate.ts";
 import { type StageProgress, stageProgress } from "./overview.ts";
 import type { Plan, PlanStep } from "./plan.ts";
-import { isRunBookkeeping } from "./run-record.ts";
+import { isRunBookkeeping, type RunResume } from "./run-record.ts";
 
 /**
  * The plan board (S2, design/13 §2): where a run stands and what is left, as one projection of
@@ -84,6 +84,8 @@ export interface PlanBoardView {
   readonly next: readonly { readonly id: string; readonly owners: readonly string[] }[];
   /** The last events, the oldest first. */
   readonly timeline: readonly RunActivity[];
+  /** Every time a person resumed the run after it escalated: where, from where, who, their note. */
+  readonly resumes: readonly RunResume[];
 }
 
 export interface PlanBoardInput {
@@ -111,6 +113,8 @@ export interface PlanBoardInput {
   /** Run-directory files present (relative to the run directory). */
   readonly files: readonly string[];
   readonly gates: readonly GateReport[];
+  /** The run's resumes, as its record keeps them. */
+  readonly resumes?: readonly RunResume[] | undefined;
   /** How many events the timeline keeps. */
   readonly timelineLength?: number;
 }
@@ -185,6 +189,7 @@ export function planBoardOf(input: PlanBoardInput): PlanBoardView {
     gates,
     next,
     timeline: input.activity.slice(-length),
+    resumes: input.resumes ?? [],
   };
 }
 

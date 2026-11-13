@@ -2174,6 +2174,21 @@ kbd {
   align-items: center;
   margin-top: 12px;
 }
+.escalated-card .resume-at {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+.escalated-card .resume-at label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.escalated-card .resume-at label.note {
+  flex: 1;
+  min-width: 240px;
+}
 .escalated-card form.close {
   display: flex;
   gap: 8px;
@@ -2443,4 +2458,42 @@ kbd {
 }
 .workbench .toast {
   bottom: 56px;
+}
+.plan ul.resumes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.artifacts .names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+}
+.artifacts button.artifact {
+  padding: 1px 6px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.artifacts button.artifact[aria-expanded="true"] {
+  color: var(--teal, #2dd4bf);
+}
+.artifact-view {
+  margin-top: 8px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.artifact-view .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.artifact-view pre {
+  margin: 6px 0 0;
+  max-height: 22em;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
 }

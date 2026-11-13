@@ -656,6 +656,13 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
                 (str("status") ?? "addressed") as "draft" | "sent" | "addressed",
               ),
           );
+        // A run artifact's content, to read: only a file inside the run directory (F9).
+        case "GET artifact":
+          return fromResult(
+            await c.value
+              .resolve("readRunArtifact")
+              .execute({ runId, path: url.searchParams.get("path") ?? "" }),
+          );
         case "GET board":
           return fromResult(
             await c.value.resolve("planBoard").execute({
@@ -738,7 +745,13 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           );
         // An escalated run back at its stage, and driven on at once (R9): what the app's Resume does.
         case "POST resume": {
-          const resumed = await c.value.resolve("resumeRun").execute({ runId, by: str("by") ?? "" });
+          const resumed = await c.value.resolve("resumeRun").execute({
+            runId,
+            by: str("by") ?? "",
+            // Back to an earlier stage, with what the person says to the agent that works next.
+            ...(str("to") ? { to: str("to") as string } : {}),
+            ...(str("note") ? { note: str("note") as string } : {}),
+          });
           if (resumed.isErr()) return fromResult(resumed);
           const drive =
             body.drive === false || !opts.start

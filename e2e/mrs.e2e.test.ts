@@ -126,8 +126,10 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
       proposed: 1,
     });
     expect(await Bun.file(repo.path("mcp.log")).exists()).toBe(false);
-    // `send` needs a person's name (commander refuses without it).
-    expect((await metator(["mrs", "send", ID], repo.root)).code).not.toBe(0);
+    // `send` records who decided: with no --by and no name anywhere it is refused, and nothing is sent.
+    const anonymous = { METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    expect((await metator(["mrs", "send", ID], repo.root, anonymous)).code).toBe(64);
+    expect(await Bun.file(repo.path("mcp.log")).exists()).toBe(false);
     const sent = data(await metator(["mrs", "send", ID, "--by", "maciej"], repo.root));
     expect(sent.sent).toEqual(["T1"]);
     expect(
@@ -139,7 +141,20 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
     expect(((data(await metator(["mrs", "show", ID], repo.root)).threads as Data[])[0] as Data).state).toBe(
       "answered",
     );
-    expect(data(await metator(["mrs", "send", ID, "--by", "maciej"], repo.root)).sent).toEqual([]);
+    // Without --by the name is $METATOR_USER; with no name anywhere the command is refused.
+    expect(data(await metator(["mrs", "send", ID], repo.root, { METATOR_USER: "maciej" })).sent).toEqual([]);
+    const nobody = { METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    for (const argv of [
+      ["mrs", "send", ID],
+      ["mrs", "resolve", ID, "--thread", "T1"],
+    ]) {
+      const refused = await metator(argv, repo.root, nobody);
+      expect([argv[1], refused.code, (refused.json.error as Data).message]).toEqual([
+        argv[1],
+        64,
+        "say who you are: --by <name>",
+      ]);
+    }
   }, 60_000);
 
   test("a thread the plan covers is fixed by the scan that follows the end of the answering run, not before", async () => {
@@ -161,7 +176,7 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
   }, 60_000);
 
   test("resolve closes the thread at the host; an unknown thread or request is NOT_FOUND", async () => {
-    const r = await metator(["mrs", "resolve", ID, "--thread", "T1", "--by", "maciej"], repo.root);
+    const r = await metator(["mrs", "resolve", ID, "--thread", "T1"], repo.root, { METATOR_USER: "maciej" });
     expect(r.code).toBe(0);
     const log = (await Bun.file(repo.path("mcp.log")).text()).trim().split("\n");
     expect(JSON.parse(log.at(-1) as string)).toEqual({ resolve: "T1" });

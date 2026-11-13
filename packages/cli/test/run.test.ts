@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { nonNegativeInt } from "../src/options.ts";
 import { asksForTheList, run } from "../src/run.ts";
 import type { Terminal } from "../src/terminal.ts";
@@ -59,7 +62,10 @@ describe("metator CLI", () => {
   test("who acts without --by: $METATOR_USER, else git's user.name; with neither, a usage error that says how", () => {
     expect(whoFrom("ada", { METATOR_USER: "env" }, "Git Name")._unsafeUnwrap()).toBe("ada");
     expect(whoFrom(undefined, { METATOR_USER: "env" }, "Git Name")._unsafeUnwrap()).toBe("env");
-    expect(whoFrom("  ", {}, " Git Name\n")._unsafeUnwrap()).toBe("Git Name");
+    expect(whoFrom(undefined, { METATOR_USER: " " }, " Git Name\n")._unsafeUnwrap()).toBe("Git Name");
+    // A name given and left empty is nobody: no default takes its place.
+    expect(whoFrom("  ", { METATOR_USER: "env" }, "Git Name")._unsafeUnwrapErr().code).toBe("USAGE");
+    expect(whoFrom("", {}, "Git Name")._unsafeUnwrapErr().message).toBe("say who you are: --by <name>");
     const none = whoFrom(undefined, {}, "\n")._unsafeUnwrapErr();
     expect([none.code, none.message]).toEqual(["USAGE", "say who you are: --by <name>"]);
     expect(none.hint).toContain("git config user.name");
@@ -134,8 +140,25 @@ describe("metator CLI usage errors (fail before touching the repository)", () =>
     return (json.error as { message: string }).message;
   };
 
-  test("approve without --by", async () => {
-    expect(await usage("run", "advance", "approve")).toContain("--by");
+  test("approve without --by, with no name in the environment or in git's config", async () => {
+    const keys = ["METATOR_USER", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM"] as const;
+    const before = keys.map((k) => process.env[k]);
+    Object.assign(process.env, {
+      METATOR_USER: "",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    });
+    try {
+      // This repository's own config may name someone: the command runs where there is no repository.
+      const dir = await mkdtemp(join(tmpdir(), "metator-nobody-"));
+      expect(await usage("-C", dir, "run", "advance", "approve")).toBe("say who you are: --by <name>");
+      await rm(dir, { recursive: true, force: true });
+    } finally {
+      keys.forEach((k, i) => {
+        if (before[i] === undefined) delete process.env[k];
+        else process.env[k] = before[i];
+      });
+    }
   });
 
   test("approve with a blank --by", async () => {

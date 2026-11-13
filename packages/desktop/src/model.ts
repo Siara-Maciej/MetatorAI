@@ -60,6 +60,41 @@ export const refusedForDirtyTree = (
 export const escalatedKey = (r: { readonly runId: string; readonly repo?: string | undefined }): string =>
   `escalated:${r.repo ?? ""}:${r.runId}`;
 
+/**
+ * An artifact as the viewer shows it: JSON indented so a person can read it, anything else (and
+ * JSON that does not parse) as it is written.
+ */
+export function artifactText(name: string, content: string): string {
+  if (!name.endsWith(".json")) return content;
+  try {
+    return JSON.stringify(JSON.parse(content), null, 2);
+  } catch {
+    return content;
+  }
+}
+
+/**
+ * Whether the card shows the task under Goal: only when its title does not already carry the
+ * whole task (a gate's title names the task; a long or multi-line one is cut there).
+ */
+export const goalShown = (prompt: string, task: string): boolean => !prompt.includes(task.trim());
+
+/**
+ * The stages the ESCALATED card offers a resume at: what the daemon says the run already worked,
+ * and always the stage it escalated from (an older daemon names none).
+ */
+export function resumeStages(run: Pick<RunOverview, "stage" | "resumable">): string[] {
+  const listed = run.resumable ?? [];
+  return listed.includes(run.stage) ? [...listed] : [...listed, run.stage];
+}
+
+/** What Resume will do, in one sentence: in place with fresh tries, or back to an earlier stage. */
+export function resumePlan(stage: string, to: string): string {
+  return to === stage
+    ? `the run goes back to ${stage} with a fresh set of tries and is driven on`
+    : `the run goes back to ${to} and works from there to ${stage} again; approvals on the way are asked again`;
+}
+
 /** What the app says after Resume: the run is driven again, or why no drive started. */
 export function resumeNotice(
   runId: string,
@@ -584,6 +619,21 @@ export function evenTree(panes: readonly string[], dir: "row" | "column" = "row"
     a: evenTree(panes.slice(0, half), next) as SplitNode,
     b: evenTree(panes.slice(half), next) as SplitNode,
   };
+}
+
+/**
+ * The tree without some panes (a dead pane being replaced by Retry): a split that loses one side
+ * is its other side; undefined when nothing is left.
+ */
+export function withoutPanes(
+  node: SplitNode | undefined,
+  hidden: ReadonlySet<string>,
+): SplitNode | undefined {
+  if (!node || hidden.size === 0) return node;
+  if ("pane" in node) return hidden.has(node.pane) ? undefined : node;
+  const a = withoutPanes(node.a, hidden);
+  const b = withoutPanes(node.b, hidden);
+  return a && b ? { ...node, a, b } : (a ?? b);
 }
 
 /** The tree with the ratio at a path replaced (a drag of a divider). */

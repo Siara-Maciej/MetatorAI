@@ -6,6 +6,7 @@ import {
   blockedPrompt,
   type DecisionCard,
   gatePrompt,
+  gateQuestion,
   hostLimit,
   labelFor,
   nextQuestionId,
@@ -14,6 +15,7 @@ import {
   type Question,
   type QuestionAnswer,
   QuestionDocument,
+  type ResumeNote,
   type RunActivity,
   RunActivityDocument,
   RunSeenDocument,
@@ -27,7 +29,13 @@ import { PlanScopeDocument } from "../domain/plan.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
 import { messageLines, type RunMessage } from "../domain/run-message.ts";
-import { APPROVAL_ACTIONS, fillInputs, isRunBookkeeping, type RunRecord } from "../domain/run-record.ts";
+import {
+  APPROVAL_ACTIONS,
+  fillInputs,
+  isRunBookkeeping,
+  pendingResume,
+  type RunRecord,
+} from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
 import { type AgentUsage, AgentUsageDocument, type HostUsage } from "../domain/telemetry.ts";
 import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
@@ -461,6 +469,10 @@ export class DriveRun {
     let retryFrom: string | undefined = resumed && failed.detail ? failed.stage : undefined;
     // A later stage that failed and sent the run back: every stage until it is reached again hears it.
     let sentBack: { readonly from: string; readonly reason: string } | undefined;
+    // A person sent the escalated run back to an earlier stage: the same, with the failure it escalated on.
+    const back = pendingResume(first.value);
+    if (back && back.to !== back.from && failed?.event === "FAIL" && failed.detail)
+      sentBack = { from: back.from, reason: failed.detail };
     for (; steps < (input.maxSteps ?? 200); steps++) {
       const record = await this.d.repo.load(runId);
       if (record.isErr()) return err(record.error);
@@ -498,6 +510,7 @@ export class DriveRun {
         runDir: `${runsIn}/${this.d.repo.runDir(runId)}`,
         ...why,
         ...(await this.decisions(runId)),
+        ...resumedOf(record.value),
         ...(record.value.hostSession ? { resume: record.value.hostSession } : {}),
         since: record.value.updatedAt,
         autonomy: record.value.autonomy,
@@ -587,7 +600,7 @@ export class DriveRun {
       {
         stage: ctx.stage.id,
         source: "gate",
-        prompt: `${ctx.stage.description ?? ctx.stage.id}: approve to continue`,
+        prompt: gateQuestion(ctx.stage, ctx.task, ctx.done.at(-1)),
         options: [
           { label: "Approve", description: "Continue with the next stage" },
           { label: "Reject", description: "Send the run back, with your reason" },
@@ -721,6 +734,7 @@ export class DriveRun {
         ...(answer ? { answer } : {}),
         ...(ctx.retry ? { retry: ctx.retry } : {}),
         ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
+        ...(ctx.resumed ? { resumed: ctx.resumed } : {}),
         ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
         ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
         ...(await this.messageLines(ctx.runId)),
@@ -927,8 +941,8 @@ export class DriveRun {
     const out: string[] = [];
     if (ctx.ports)
       out.push(`its worktree keeps ports ${ctx.ports.from}–${ctx.ports.from + ctx.ports.count - 1} busy`);
-    for (const [loop, used] of Object.entries(ctx.loops))
-      if (used > 0) out.push(`loop ${loop}: ${used} of ${ctx.loopLimits[loop] ?? "?"} used`);
+    // A gate's Reject already says how far its own loop is: the card counts it once (F9).
+    out.push(...loopCosts(ctx.loops, ctx.loopLimits, ctx.stage.hitl ? ctx.stage.onFail?.loop : undefined));
     if (ctx.children.length > 0) out.push(`${ctx.children.length} child run(s) depend on this run`);
     return out;
   }
@@ -1011,6 +1025,7 @@ export class DriveRun {
       ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
       ...(ctx.retry ? { retry: ctx.retry } : {}),
       ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
+      ...(ctx.resumed ? { resumed: ctx.resumed } : {}),
       ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
     });
     const result = await this.runHost(ctx, agent, prompt, undefined);
@@ -1145,6 +1160,8 @@ interface StageContext {
   readonly runDir: string;
   readonly retry?: string;
   readonly retryFrom?: string;
+  /** A person's resume of the escalated run that no agent has answered yet, with their note. */
+  readonly resumed?: ResumeNote;
   readonly decisions?: readonly string[];
   readonly resume?: string;
   /** When the run last changed: answers given after it are still to be acted on. */
@@ -1216,6 +1233,20 @@ export function sinceLastAnswer(activity: readonly RunActivity[]): string[] {
   return out;
 }
 
+/**
+ * The loops already used, as costs of waiting on a card: one line each. The loop a gate's own
+ * Reject consequence counts (`stated`) is left out, so the card says that number once.
+ */
+export function loopCosts(
+  loops: Readonly<Record<string, number>>,
+  limits: Readonly<Record<string, number>>,
+  stated?: string,
+): string[] {
+  return Object.entries(loops)
+    .filter(([loop, used]) => used > 0 && loop !== stated)
+    .map(([loop, used]) => `loop ${loop}: ${used} of ${limits[loop] ?? "?"} used`);
+}
+
 /** What each answer to a gate does, from the workflow: the next stage, or where a FAIL sends the run. */
 export function consequencesOf(
   stage: StageSpec,
@@ -1237,6 +1268,12 @@ export function consequencesOf(
 const passedStages = (history: readonly { readonly stage: string; readonly event: string }[]): string[] => [
   ...new Set(history.filter((h) => h.event === "PASS" || h.event === "APPROVE").map((h) => h.stage)),
 ];
+
+/** The resume a person's note still waits in, for the stage's agents. */
+const resumedOf = (record: RunRecord): { resumed?: ResumeNote } => {
+  const r = pendingResume(record);
+  return r?.note ? { resumed: { by: r.by, from: r.from, to: r.to, note: r.note } } : {};
+};
 
 const lastEventOf = (history: readonly { readonly event: string }[]) => {
   const last = history.at(-1);

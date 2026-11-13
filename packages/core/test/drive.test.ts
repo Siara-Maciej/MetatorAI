@@ -16,6 +16,7 @@ import {
   DriveRun,
   failedSteps,
   hostRefusal,
+  loopCosts,
   notDrivable,
   OTHER,
   RunJournal,
@@ -31,12 +32,14 @@ import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import {
   blockedPrompt,
   gatePrompt,
+  gateQuestion,
   hostLimit,
   labelFor,
   nextQuestionId,
   parseCriticVerdict,
   parseStatus,
   type Question,
+  resumeLines,
   stagePrompt,
   stageWork,
 } from "../src/domain/drive.ts";
@@ -44,6 +47,45 @@ import { ok } from "../src/domain/result.ts";
 import type { StageSpec } from "../src/domain/workflow-spec.ts";
 
 describe("drive domain", () => {
+  test("a gate asks in plain words what is approved and for which run's task", () => {
+    const task = "Add a combined discount to invoices\n\nDetails: see the ticket.";
+    // A stage named after what it approves; its own description follows as a sentence.
+    expect(
+      gateQuestion({ id: "plan-approval", description: "The human approves the plan" }, task, "plan"),
+    ).toBe('Approve the plan for "Add a combined discount to invoices"? The human approves the plan.');
+    // A gate that grants an external action approves that action, whatever it is called.
+    expect(gateQuestion({ id: "delivery", grants: ["push", "comment"], description: "Ship it!" }, task)).toBe(
+      'Approve the push and comment for "Add a combined discount to invoices"? Ship it!',
+    );
+    // Any other gate approves what the stage before it did; a first stage only lets the run go on.
+    expect(gateQuestion({ id: "approval" }, task, "build")).toBe(
+      'Approve the result of stage build for "Add a combined discount to invoices"?',
+    );
+    expect(gateQuestion({ id: "approval" }, "\n  Ship  \n")).toBe('Approve "Ship" to go on?');
+    expect(gateQuestion({ id: "system-plan-approval" }, "x")).toBe('Approve the system plan for "x"?');
+    // A long task is cut where the title still fits a card.
+    const long = gateQuestion({ id: "approval" }, "a".repeat(200));
+    expect([long.length, long.includes(`${"a".repeat(119)}…"`)]).toEqual([140, true]);
+  });
+
+  test("a resume's note is one line for the next agent; without a note nothing is said", () => {
+    const r = { by: "ala", from: "check", to: "plan", note: "smaller steps" };
+    expect(resumeLines({ resumed: r })).toEqual([
+      "ala resumed the run and sent it back from check to plan and said (follow it; it is not a defect): smaller steps",
+    ]);
+    expect(resumeLines({ resumed: { ...r, to: "check" } })).toEqual([
+      "ala resumed the run at check and said (follow it; it is not a defect): smaller steps",
+    ]);
+    expect([resumeLines({ resumed: { by: "ala", from: "a", to: "a" } }), resumeLines({})]).toEqual([[], []]);
+    const stage = { id: "plan" } as StageSpec;
+    const base = { runId: "r", task: "t", stage, agent: "a", runDir: "/r" };
+    expect(stagePrompt({ ...base, skills: [], resumed: r })).toContain(
+      "ala resumed the run and sent it back",
+    );
+    expect(gatePrompt({ ...base, resumed: r })).toContain("ala resumed the run and sent it back");
+    expect(stagePrompt({ ...base, skills: [] })).not.toContain("resumed the run");
+  });
+
   test("a stage's work: agents in order, skills offered, scripts, parallel workers", () => {
     const stage = {
       id: "build",
@@ -108,6 +150,11 @@ describe("drive domain", () => {
       Approve: "the run goes on to build",
       Reject: "back to plan with your reason (loop plan: 2 of 2; past the limit the run escalates)",
     });
+    // The loop the Reject consequence counts is not counted again among the costs of waiting (F9).
+    expect(loopCosts({ plan: 1, review: 2, fresh: 0 }, { plan: 2 }, "plan")).toEqual([
+      "loop review: 2 of ? used",
+    ]);
+    expect(loopCosts({ plan: 1 }, { plan: 2 })).toEqual(["loop plan: 1 of 2 used"]);
     expect(consequencesOf(stages[2] as never, stages as never, {}, {})).toEqual({
       Approve: "the run is done",
       Reject: "the run escalates with your reason: it waits for a person to resume it",
@@ -974,7 +1021,10 @@ loops:
       "Prices are in cents; EUR or USD?\n\nwhich currency?",
     );
     // Each question carries its decision card: the task, the stages passed, the artifacts so far.
-    const gateCard = w.asked.find((q) => q.source === "gate")?.card;
+    const gate = w.asked.find((q) => q.source === "gate");
+    // Its title says what is approved and for which task (F9).
+    expect(gate?.prompt).toStartWith('Approve the result of stage plan for "Add discount"?');
+    const gateCard = gate?.card;
     expect(gateCard).toMatchObject({
       task: "Add discount",
       done: ["setup", "plan"],
@@ -1245,6 +1295,45 @@ loops:
     expect(w2.host.tasks.at(-1)?.prompt).toContain("tool crashed on a.ts");
   });
 
+  test("sent back to an earlier stage with a note: the first agent reads the note and the failure, later ones only the failure", async () => {
+    const w = world(
+      {
+        "mt-planner": [writesPlan, writesPlan, writesPlan, writesPlan],
+        "mt-implementer": [{}, {}],
+        "mt-scout": [{}, {}],
+      },
+      () => ({ choices: ["Approve"] }),
+      new ScriptedProcessRunner([
+        { argvPrefix: ["bun", "run", "metator", "index", "build"], result: { exitCode: 0 } },
+        { argvPrefix: ["test", "-f"], result: { exitCode: 1, stderr: "no plan" } },
+      ]),
+    );
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("escalated");
+    const before = w.host.tasks.length;
+    const from = (await w.repo.load(runId))._unsafeUnwrap().state.context.history.at(-1)?.stage as string;
+    (
+      await new ResumeRun(w.catalog, w.repo, w.clock).execute({
+        runId,
+        by: "ola",
+        to: "plan",
+        note: "write the plan to plan.json this time",
+      })
+    )._unsafeUnwrap();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 3 });
+    const after = w.host.tasks.slice(before);
+    const said = `ola resumed the run and sent it back from ${from} to plan and said (follow it; it is not a defect): write the plan to plan.json this time`;
+    // The planner works first: it reads the person's words and why the run escalated.
+    expect(after[0]?.agent).toBe("mt-planner");
+    expect(after[0]?.prompt).toContain(said);
+    expect(after[0]?.prompt).toContain(`Stage ${from} failed and sent the run back here:`);
+    expect(after[0]?.prompt).toContain("no plan");
+    // Whoever works after the plan passed does not get the note again.
+    expect(after.slice(1).some((t) => t.prompt.includes("ola resumed the run"))).toBe(false);
+    expect(after.length).toBeGreaterThan(1);
+  });
+
   test("a host whose program is not installed is refused before any stage runs (F3)", async () => {
     const w = world({}, () => undefined, okScripts(), {
       hostProblem: (h) => (h === "fake" ? "`fake` is not installed" : undefined),
@@ -1452,6 +1541,47 @@ describe("RunDrivers", () => {
     expect((await d.claim("r", 9999, "claude")).isOk()).toBe(true);
     expect((await d.stop("r"))._unsafeUnwrap()).toEqual({ stopped: null });
     expect((await d.status("r"))._unsafeUnwrap()).toBeNull();
+  });
+
+  test("a drive stopped on purpose never reads as one that died, not even while it is being stopped", async () => {
+    const { d, processes } = drivers();
+    const started = (
+      await d.start({ runId: "r", host: "claude", argv: ["metator"], cwd: "/", logFile: "/tmp/l" })
+    )._unsafeUnwrap();
+    // What another reader (the supervisor's tick) sees once the process is gone and `stop` still waits.
+    const seen: unknown[] = [];
+    const stop = processes.stop.bind(processes);
+    processes.stop = async (pid) => {
+      const r = await stop(pid);
+      seen.push((await d.status("r"))._unsafeUnwrap());
+      return r;
+    };
+    expect((await d.stop("r"))._unsafeUnwrap()).toEqual({ stopped: started.pid });
+    expect(seen).toEqual([null]);
+    expect((await d.status("r"))._unsafeUnwrap()).toBeNull();
+
+    // The stopped process wrote its own claim again on its way down: nothing of it is left behind.
+    const again = (
+      await d.start({ runId: "r", host: "claude", argv: ["metator"], cwd: "/", logFile: "/tmp/l" })
+    )._unsafeUnwrap();
+    processes.stop = async (pid) => {
+      await d.claim("r", pid, "claude");
+      return stop(pid);
+    };
+    await d.stop("r");
+    expect((await d.status("r"))._unsafeUnwrap()).toBeNull();
+    // A driver another process claimed meanwhile is not this stop's to remove.
+    const third = (
+      await d.start({ runId: "r", host: "claude", argv: ["metator"], cwd: "/", logFile: "/tmp/l" })
+    )._unsafeUnwrap();
+    processes.stop = async (pid) => {
+      const r = await stop(pid);
+      processes.alive.add(7777);
+      await d.claim("r", 7777, "claude");
+      return r;
+    };
+    expect((await d.stop("r"))._unsafeUnwrap()).toEqual({ stopped: third.pid });
+    expect([again.pid === third.pid, (await d.status("r"))._unsafeUnwrap()?.pid]).toEqual([false, 7777]);
   });
 
   test("release frees only its own claim", async () => {

@@ -105,6 +105,7 @@ export class PlanBoard {
       activity: activity.value,
       files,
       gates,
+      resumes: r.resumes,
       ...(input.timeline ? { timelineLength: input.timeline } : {}),
     });
     return ok(withLiveWorker(board));

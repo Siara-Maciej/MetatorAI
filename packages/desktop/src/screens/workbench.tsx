@@ -28,6 +28,7 @@ import {
   stripStages,
   type WorkbenchRepo,
   type WorkbenchTab,
+  withoutPanes,
   workbenchRepos,
 } from "../model.ts";
 
@@ -90,10 +91,16 @@ export function WorkbenchScreen({
   const repo = repos.find((r) => r.id === repoId) ?? repos[0];
   const [tabKey, setTabKey] = useState<string>();
   const tab: WorkbenchTab | undefined = repo?.tabs.find((t) => t.key === tabKey) ?? repo?.tabs[0];
+  // Dead panes a Retry is replacing: not drawn from the click on, so the old pane and its
+  // replacement are never on the screen together (the daemon opens one, then closes the other).
+  const [retiring, setRetiring] = useState<ReadonlySet<string>>(new Set());
   const tabPanes = (tab?.panes ?? [])
+    .filter((id) => !retiring.has(id))
     .map((id) => panes.find((p) => p.id === id))
     .filter((p): p is PaneView => !!p);
-  const tree: SplitNode | undefined = tab ? (tab.tree ?? evenTree(tab.panes)) : undefined;
+  const tree: SplitNode | undefined = tab
+    ? withoutPanes(tab.tree ?? evenTree(tab.panes), retiring)
+    : undefined;
   const [focus, setFocus] = useState<string>();
   // A pane asked for by the route: once the layout knows it, its tab and focus.
   const shown = useRef<string | undefined>(undefined);
@@ -196,6 +203,14 @@ export function WorkbenchScreen({
       setNote(r.ok ? undefined : `The session did not start: ${r.error?.message ?? "the daemon refused"}`);
       return;
     }
+    const retire = (on: boolean) =>
+      setRetiring((now) => {
+        const next = new Set(now);
+        if (on) next.add(p.id);
+        else next.delete(p.id);
+        return next;
+      });
+    retire(true);
     let process: { argv: string[] } | { host: string; agent: string; prompt: string };
     if (p.process.kind === "command") process = { argv: [...p.process.argv] };
     else {
@@ -208,6 +223,7 @@ export function WorkbenchScreen({
           ? wanted
           : hostChoice(s.data?.policy.hostOrder ?? [], status);
       if (!host) {
+        retire(false);
         setNote(noHostText(status ?? []));
         return;
       }
@@ -218,12 +234,18 @@ export function WorkbenchScreen({
       repoName,
     );
     if (!r.ok || !r.data) {
+      retire(false);
       setNote(`The pane did not start: ${r.error?.message ?? "the daemon refused"}`);
       return;
     }
     setNote(undefined);
     setFocus(r.data.id);
-    await client.closePane(p.id, repoName);
+    const closed = await client.closePane(p.id, repoName);
+    // Still there: it is drawn again, with what the daemon said.
+    if (!closed.ok) {
+      retire(false);
+      setNote(closed.error?.message);
+    }
   };
   const newShell = async () => {
     if (!tab) return;

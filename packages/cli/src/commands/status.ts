@@ -16,6 +16,7 @@ import {
 } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
+import { callDaemon, liveDaemonAt } from "../daemon-client.ts";
 
 /**
  * `metator status` (G4, ADR-0059): every run (its stages, who must act, the questions, the last
@@ -30,7 +31,16 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
       ctx.action(async () => {
         const f = ctx.folder();
         if (!f) {
-          const o = await ctx.container().resolve("workOverview").execute();
+          // The daemon holds the panes: its overview knows which runs an agent works on in one.
+          const root = ctx.container().resolve("root");
+          const daemon = liveDaemonAt(root);
+          const served = daemon
+            ? await callDaemon<Overview>(daemon, "GET", "/state", undefined, {}, 5000)
+            : undefined;
+          const o =
+            served?.isOk() && Array.isArray(served.value.runs)
+              ? served
+              : await ctx.container().resolve("workOverview").execute();
           return { result: o, warnings: o.isOk() ? o.value.unreadable.map(unreadableRunWarning) : [] };
         }
         const repos: ({ name: string; path: string } & (Overview | { error: string }))[] = [];

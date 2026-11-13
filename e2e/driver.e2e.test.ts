@@ -91,7 +91,7 @@ describe("driver lock and messages (real CLI)", () => {
     const released = data(await mt("run", "release", "--run", id)) as { driver: { by: string } };
     expect(released.driver.by).toBe("agent");
     const state = JSON.parse(await repo.read(`.metator/runs/${id}/state.json`));
-    expect([state.schemaVersion, state.driver]).toEqual([7, { by: "agent" }]);
+    expect([state.schemaVersion, state.driver]).toEqual([8, { by: "agent" }]);
     const activity = (
       data(await mt("run", "activity", "--run", id)) as { entries: { type: string; origin?: string }[] }
     ).entries;
@@ -143,5 +143,15 @@ describe("driver lock and messages (real CLI)", () => {
       ).entries;
       expect(entries.filter((e) => e.type === "message").map((e) => e.text)).toEqual([text]);
     }
+    // Without --by the sender is $METATOR_USER; with no name anywhere the message is refused.
+    const message = ["run", "message", b.runId as string, "--from", a.runId as string, "--text", "see above"];
+    const nobody = { ...env, METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const refused = await metator(message, repo.root, nobody);
+    expect([refused.code, (refused.json.error as { message: string }).message]).toEqual([
+      64,
+      "say who you are: --by <name>",
+    ]);
+    const named = await metator(message, repo.root, { ...env, METATOR_USER: "ola" });
+    expect([named.code, (data(named) as { by: string }).by]).toEqual([0, "ola"]);
   }, 60_000);
 });
