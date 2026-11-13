@@ -3,6 +3,7 @@
  * program itself, so the reference can never drift from the CLI. `--check` fails when it did.
  */
 import { join } from "node:path";
+import { metaOf } from "../../packages/cli/src/command-meta.ts";
 import { buildProgram } from "../../packages/cli/src/program.ts";
 
 /** commander is a dependency of the CLI package, not of the repository root. */
@@ -12,6 +13,8 @@ const OUT = join(import.meta.dir, "../../site/reference/commands.md");
 
 function leaves(cmd: Command, prefix = ""): { name: string; cmd: Command }[] {
   return cmd.commands.flatMap((sub: Command): { name: string; cmd: Command }[] => {
+    // A renamed command's old spelling still runs and is not documented (`renamedCommand`).
+    if (metaOf(sub).renamedTo) return [];
     const name = `${prefix}${sub.name()}`;
     return sub.commands.length > 0 ? leaves(sub, `${name} `) : [{ name, cmd: sub }];
   });
@@ -35,7 +38,7 @@ export function renderCliReference(): string {
     "",
     "Every command prints exactly one JSON object (the envelope) on stdout. See [CLI and envelope](./cli.md) for the output contract and exit codes.",
     "",
-    "Global option: `-C, --root <dir>` runs the command against another repository (default: the nearest ancestor with `.git`).",
+    "Global options: `-C, --root <dir>` runs the command against another repository (default: the nearest ancestor with `.git`). `--json` prints only the JSON line at a terminal, without the text some commands add on stderr for a person.",
     "",
   ];
   for (const [group, commands] of groups) {

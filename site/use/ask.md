@@ -26,7 +26,7 @@ metator ask "And for B2B orders?" --conversation 20261028-how-is-the-discount-co
 metator ask list
 ```
 
-`--continue` follows up in the latest conversation and `--conversation` in the one you name. `ask list` shows every conversation, newest first. Conversations are kept in `.metator/conversations/`, and `metator ui` lists them under the sessions.
+`--continue` follows up in the latest conversation and `--conversation` in the one you name. `ask list` shows every conversation, newest first. Conversations are kept in `.metator/conversations/`, and `metator status` lists them under the runs.
 
 A follow-up continues the host's own session, so the agent remembers what it read. `--host` picks the host that answers: `claude`, `copilot` or `scenario`. If you switch hosts in a conversation, the new host gets the earlier questions and answers.
 

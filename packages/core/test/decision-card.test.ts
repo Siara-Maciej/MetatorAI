@@ -64,7 +64,7 @@ test("a card lists the artifacts, the gate reports, the plan's blast radius and 
   expect(card.group).toEqual({ parent: "r0", step: 2, of: 3 });
   expect([card.task, card.done, card.reversible, card.evidence]).toEqual(["Add a flag", ["plan"], true, []]);
   expect(card.costOfDelay).toHaveLength(3);
-  if (card.blastRadius) expect(card.blastRadius).toEqual({ files: 3, areas: ["docs", "src"] });
+  expect(card.blastRadius).toEqual({ files: 3, areas: ["docs", "src"] });
 });
 
 test("a run without a parent has no group; one its parent does not list is the first of one", async () => {

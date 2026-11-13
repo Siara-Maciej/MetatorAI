@@ -4,7 +4,10 @@ import { checkCommands, meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { positiveInt, ratio } from "../options.ts";
 
-export function registerAgentCommands(program: Command, { action, container, invoke }: CommandContext): void {
+export function registerAgentCommands(
+  program: Command,
+  { action, container, invoke, root: given }: CommandContext,
+): void {
   const group = program.command("meta").description("Lint the canonical agents, skills and workflows");
 
   meta(group.command("agents-lint"), { audience: "ci", check: [] })
@@ -59,7 +62,7 @@ export function registerAgentCommands(program: Command, { action, container, inv
     .option("--min-e1 <percent>", "rules coverage floor: percent of rules a tool enforces", positiveInt, 40)
     .action(
       action(async (opts: { minE1: number }) => {
-        const root = (program.opts() as { root?: string }).root;
+        const root = given();
         const prefix = root ? ["--root", root] : [];
         const checks = [];
         // Every command that says `check` where it is registered, then the coverage floor.

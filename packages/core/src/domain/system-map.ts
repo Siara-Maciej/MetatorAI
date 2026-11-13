@@ -122,10 +122,6 @@ export const appDir = (app: Application): string => cleanPath(app.source.path ??
 export const specPath = (owner: Application, contract: Contract): string | undefined =>
   "path" in contract.spec ? inDir(appDir(owner), contract.spec.path) : undefined;
 
-/** Where a contract's specification is: its file, or the path its provider serves it at. */
-export const specWhere = (owner: Application, contract: Contract): string =>
-  specPath(owner, contract) ?? `served at ${(contract.spec as { served: string }).served}`;
-
 /** The applications that consume a contract, with the version range each expects. */
 export function consumersOf(
   map: SystemMap,

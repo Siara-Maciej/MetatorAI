@@ -4,7 +4,7 @@
  * points, and the decision. An agent only proposes; the task exists after your "Add".
  */
 import { useMemo, useState } from "react";
-import type { Issue } from "../api.ts";
+import type { Issue, IssueRef } from "../api.ts";
 import { Notice, RepoSelect } from "../components/common.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../components/list-detail.tsx";
@@ -31,7 +31,7 @@ export function BacklogScreen({
 }: {
   onOpenSession(runId: string): void;
   /** A task started from a pane or a step: the form opens with these refs. */
-  readonly initialDraft?: { readonly title?: string; readonly refs?: Issue["refs"] } | undefined;
+  readonly initialDraft?: { readonly title?: string; readonly refs?: readonly IssueRef[] } | undefined;
 }) {
   const { client, repo, run: runOf } = useDaemon();
   const list = usePolled(`issues:${repo ?? ""}`, () => client.issues(repo), 2000);

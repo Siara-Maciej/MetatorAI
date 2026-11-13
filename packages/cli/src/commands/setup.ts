@@ -49,7 +49,7 @@ const upstreamWarnings = (removed: readonly string[]) =>
 
 export function registerSetupCommands(
   program: Command,
-  { action, container, invoke, terminal }: CommandContext,
+  { action, container, invoke, terminal, root: given }: CommandContext,
 ): void {
   const agents = program
     .command("agents")
@@ -112,7 +112,7 @@ export function registerSetupCommands(
     .option("--yes", "do not ask; take the options and what was found", false)
     .action(
       action(async (opts: { host?: HostTarget[]; workflows?: string[]; hooks: boolean; yes: boolean }) => {
-        const root = (program.opts() as { root?: string }).root;
+        const root = given();
         const prefix = root ? ["--root", root] : [];
         const c = container();
         const configured = c.resolve("config");

@@ -38,7 +38,7 @@ export class RunSystemPlan {
     private readonly sources: Pick<SystemSources, "locate" | "location">,
     private readonly at: (root: string) => RepositoryRuns,
     private readonly clock: Clock,
-    private readonly parents: Pick<RunRepository, "load" | "save" | "appendLog">,
+    private readonly parents: Pick<RunRepository, "load" | "update" | "appendLog">,
   ) {}
 
   async execute(input: {
@@ -61,7 +61,8 @@ export class RunSystemPlan {
     let plan: SystemPlan = approved.value;
     const map = await this.sources.location.require();
     if (map.isErr()) return err(map.error);
-    let parent = input.parent ? await this.parents.load(input.parent) : undefined;
+    // The parent must be there before any step starts; its record is changed under its lock later.
+    const parent = input.parent ? await this.parents.load(input.parent) : undefined;
     if (parent?.isErr()) return err(parent.error);
 
     const ready: { step: SystemPlan["steps"][number]; at: LocatedSource }[] = [];
@@ -102,15 +103,16 @@ export class RunSystemPlan {
       const saved = await this.store.save(plan);
       if (saved.isErr()) return err(saved.error);
       if (parent?.isOk()) {
-        const record = { ...parent.value, children: [...(parent.value.children ?? []), run.value.runId] };
-        const kept = await this.parents.save(record);
+        // Read, change and write as one step: the parent's own drive may change it meanwhile (R5).
+        const kept = await this.parents.update(parent.value.runId, (record) =>
+          ok({ ...record, children: [...(record.children ?? []), run.value.runId] }),
+        );
         if (kept.isErr()) return err(kept.error);
         const logged = await this.parents.appendLog(
-          record.runId,
+          parent.value.runId,
           `${this.clock.now().toISOString()} · child · ${run.value.runId} (${step.id} in ${step.app})`,
         );
         if (logged.isErr()) return err(logged.error);
-        parent = ok(record);
       }
     }
     return ok({ plan, started });

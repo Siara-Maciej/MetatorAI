@@ -6,7 +6,6 @@ import {
   addTab,
   addWorkspace,
   isPlainShell,
-  type Layout,
   type Pane,
   type PaneProcess,
   type PaneRole,
@@ -587,20 +586,6 @@ export class Panes {
     return ok({ ...current, live: adopted.value });
   }
 }
-
-/** The layout a client renders: workspaces with their panes nested, the live state on each. */
-export function layoutTree(
-  view: LayoutView,
-): readonly (Workspace & { readonly panes: readonly PaneView[] })[] {
-  const byWorkspace = new Map<string, PaneView[]>();
-  for (const p of view.panes) {
-    const w = p.tab.split(":")[0] as string;
-    byWorkspace.set(w, [...(byWorkspace.get(w) ?? []), p]);
-  }
-  return view.workspaces.map((w) => ({ ...w, panes: byWorkspace.get(w.id) ?? [] }));
-}
-
-export const isLayout = (x: unknown): x is Layout => typeof x === "object" && x !== null && "workspaces" in x;
 
 const basename = (path: string): string => path.split(/[\\/]/).filter(Boolean).at(-1) ?? "workspace";
 

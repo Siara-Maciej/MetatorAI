@@ -54,7 +54,6 @@ import { registerStatusCommand } from "./commands/status.ts";
 import { registerSuperviseCommand } from "./commands/supervise.ts";
 import { registerSystemCommands } from "./commands/system.ts";
 import { registerTestCommands } from "./commands/test.ts";
-import { registerUiCommands } from "./commands/ui.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
 import { registerWorktreeCommands } from "./commands/worktree.ts";
 import type { CommandContext, Folder, Outcome } from "./context.ts";
@@ -178,7 +177,6 @@ export function buildProgram(
   registerRunCommands(program, ctx);
   registerWorktreeCommands(program, ctx);
   registerEnvCommands(program, ctx);
-  registerUiCommands(program, ctx);
   registerReposCommands(program, ctx);
   registerAskCommands(program, ctx);
   registerStatusCommand(program, ctx);
@@ -199,7 +197,7 @@ export function buildProgram(
     const name = commandWords(action);
     throw MetatorError.usage(
       `\`metator ${name}\` works on one repository, and ${f.root} is a folder of ${f.repos.length}`,
-      `Run it inside a repository (${f.repos.map((r) => r.name).join(", ")}) or pass \`-C <repository>\`; here, \`metator ui\`, \`repos\`, \`ask\` and \`status\` cover them all.`,
+      `Run it inside a repository (${f.repos.map((r) => r.name).join(", ")}) or pass \`-C <repository>\`; here, \`metator status\`, \`inbox\`, \`repos\` and \`ask\` cover them all.`,
     );
   });
   return program;

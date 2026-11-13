@@ -69,7 +69,7 @@ export class RuleCatalog {
     const entry = scan.rules.find((r) => r.rule.id === id);
     if (entry) return ok(entry);
     return err(
-      new MetatorError("NOT_FOUND", `Rule ${id} not found`, {
+      MetatorError.notFound(`Rule ${id}`, {
         hint: `Rules live in ${this.paths.rules}/*.yml; \`metator rules lint\` lists them.`,
       }),
     );

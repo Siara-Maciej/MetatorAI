@@ -1,128 +1,103 @@
 /**
  * The daemon's JSON and WebSockets, as the app sees them (D7, ADR-0078). These shapes mirror
- * `metator serve`; the app has no domain logic of its own and imports nothing from MetatorAI.
+ * `metator serve`; the app has no domain logic of its own and imports no code from MetatorAI:
+ * only types of `@metator/core`, with `import type` (ADR-0085).
  */
+import type {
+  Attention,
+  AttentionCounts,
+  BoardStage,
+  BoardStep,
+  InboxItem as CoreInboxItem,
+  DecisionCard,
+  DiffLine,
+  FileDiff,
+  Issue,
+  IssueRef,
+  LayoutView,
+  OptionDescription,
+  OptionDiagnostic,
+  OptionScope,
+  OptionSource,
+  OptionsView,
+  Overview,
+  PaneRole,
+  PaneState,
+  PaneView,
+  PlanBoardView,
+  PtyView,
+  PullRequestReview,
+  Question,
+  ResolvedOption,
+  ReviewNote,
+  ReviewThread,
+  RunActivity,
+  RunBrief,
+  RunChangesView,
+  RunMessage,
+  RunOverview,
+  SplitNode,
+  StageProgress,
+  StageState,
+  Tab,
+  UnreadableRun,
+  Workspace,
+  WorktreeConflict,
+} from "@metator/core";
 
-export type Attention = "you" | "driving" | "stopped" | "done" | "escalated" | "aborted";
-export type StageState = "done" | "current" | "waiting" | "next" | "stopped";
+/*
+ * The shapes the daemon passes through unchanged are core's own types (ADR-0085): imported with
+ * `import type` only, erased at build, so the app still carries no MetatorAI code. Where the
+ * daemon reshapes an answer (`/supervisor`, `/workflows`, `/runs/:id/brief`, the folder's
+ * `/state`, the inbox's `repo`), the shape is written here.
+ */
+export type {
+  Attention,
+  AttentionCounts,
+  BoardStage,
+  BoardStep,
+  DecisionCard,
+  DiffLine,
+  FileDiff,
+  Issue,
+  IssueRef,
+  LayoutView,
+  OptionDescription,
+  OptionDiagnostic,
+  OptionScope,
+  OptionSource,
+  OptionsView,
+  Overview,
+  PaneRole,
+  PaneState,
+  PaneView,
+  PlanBoardView,
+  Question,
+  ResolvedOption,
+  ReviewNote,
+  RunChangesView,
+  RunMessage,
+  RunOverview,
+  SplitNode,
+  StageProgress,
+  StageState,
+  UnreadableRun,
+};
 
-export interface QuestionOption {
-  readonly label: string;
-  readonly description?: string;
-}
-
-export interface DecisionCard {
-  readonly task: string;
-  readonly done: readonly string[];
-  readonly artifacts: readonly string[];
-  readonly recommended?: string;
-  readonly reversible: boolean;
-  readonly soFar?: readonly string[];
-  readonly evidence?: readonly string[];
-  readonly consequences?: Readonly<Record<string, string>>;
-  readonly blastRadius?: { readonly files: number; readonly areas: readonly string[] };
-  readonly costOfDelay?: readonly string[];
-  readonly group?: { readonly parent: string; readonly step: number; readonly of: number };
-}
-
-export interface Question {
-  readonly id: string;
-  readonly runId: string;
-  readonly stage: string;
-  readonly source: "gate" | "agent" | "permission";
-  readonly agent?: string;
-  readonly prompt: string;
-  readonly options: readonly QuestionOption[];
-  readonly multiSelect: boolean;
-  readonly askedAt: string;
-  readonly answer?: {
-    readonly choices: readonly string[];
-    readonly text?: string;
-    readonly by: string;
-    readonly at: string;
-  };
-  readonly card?: DecisionCard;
-}
-
-export interface StageProgress {
-  readonly id: string;
-  readonly state: StageState;
-  readonly hitl: boolean;
-}
-
-export interface RunOverview {
-  readonly runId: string;
-  readonly workflow: string;
-  readonly task: string;
-  readonly autonomy: string;
-  readonly status: string;
-  readonly stage: string;
-  /** Why an escalated or aborted run stopped. */
-  readonly reason?: string;
-  readonly attention: Attention;
-  readonly stages: readonly StageProgress[];
-  readonly questions: readonly Question[];
-  readonly driving: boolean;
-  readonly driver: "agent" | "human";
-  readonly attachedBy?: string;
-  readonly died: boolean;
-  readonly parent?: string;
-  readonly children?: readonly string[];
-  readonly host?: string;
-  readonly last?: {
-    readonly at: string;
-    readonly type: string;
-    readonly text: string;
-    readonly stage?: string;
-    readonly agent?: string;
-  };
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly elapsedMs: number;
-  readonly worktree?: {
-    readonly id: string;
-    readonly path: string;
-    readonly branch: string;
-    readonly ports?: { readonly from: number; readonly count: number };
-  };
-  readonly services: readonly {
-    readonly service: string;
-    readonly status: string;
-    readonly ports: readonly number[];
-    readonly scope: string;
-  }[];
-}
-
-export interface AttentionCounts {
-  readonly you: number;
-  readonly driving: number;
-  readonly stopped: number;
-  readonly escalated: number;
-  readonly finished: number;
-  readonly questions: number;
-  readonly services: number;
-}
-
-export interface Overview {
-  readonly runs: readonly RunOverview[];
-  readonly conversations: readonly {
-    readonly id: string;
-    readonly title: string;
-    readonly host: string;
-    readonly turns: number;
-    readonly updatedAt: string;
-  }[];
-  readonly counts: AttentionCounts;
-  /** Runs whose record cannot be read: left out of `runs`, with the file to restore or delete. */
-  readonly unreadable?: readonly UnreadableRun[];
-}
-
-/** A run the daemon could not read (core's `UnreadableRun`). */
-export interface UnreadableRun {
-  readonly runId: string;
-  readonly file: string;
-  readonly message: string;
-}
+/** One option of a question. */
+export type QuestionOption = Question["options"][number];
+/** An event of a run's activity. */
+export type Activity = RunActivity;
+/** A live terminal of a pane, as the daemon's broker describes it. */
+export type PtySession = PtyView;
+export type TabView = Tab;
+export type WorkspaceView = Workspace;
+/** Two runs that changed the same files, and which to merge first. */
+export type Conflict = WorktreeConflict;
+/** One review thread on my request, with what the agent made of it. */
+export type ReviewThreadView = ReviewThread;
+/** My reviewed request, by the id `metator mrs` names it. */
+export type ReviewedRequest = PullRequestReview & { readonly id: string };
 
 /** `/state`: one repository, or each repository of a folder. */
 export interface RepoState extends Partial<Overview> {
@@ -132,110 +107,11 @@ export interface RepoState extends Partial<Overview> {
 }
 export type StateData = Overview | { readonly folder: string; readonly repos: readonly RepoState[] };
 
-export interface InboxItem {
-  readonly repo?: string;
-  readonly runId: string;
-  readonly task: string;
-  readonly stage: string;
-  readonly driving: boolean;
-  readonly waitedMs: number;
-  readonly question: Question;
-}
+/** A decision of the inbox; in a folder the daemon adds the repository it is in. */
+export type InboxItem = CoreInboxItem & { readonly repo?: string };
 
-export interface Activity {
-  readonly at: string;
-  readonly type: string;
-  readonly stage?: string;
-  readonly agent?: string;
-  readonly text: string;
-  readonly origin?: "hook" | "pty" | "run" | "inbox";
-}
-
-export interface RunMessage {
-  readonly id: string;
-  readonly fromRun: string;
-  readonly toRun: string;
-  readonly at: string;
-  readonly topic: "info" | "contract" | "shared-file" | "done" | "review" | "review-reply";
-  readonly text: string;
-  readonly refs: readonly string[];
-  readonly by: string;
-}
-
-export interface Conflict {
-  readonly runs: readonly [string, string];
-  readonly files: readonly string[];
-  readonly mergeFirst: string;
-}
-
-/** A live terminal of a pane, as the daemon's broker describes it (core's `PtyView`). */
-export interface PtySession {
-  readonly paneId: string;
-  /** The run the pane belongs to; a pane of no run (a shell of the repository) has none. */
-  readonly runId?: string;
-  readonly role: PaneRole;
-  readonly host: string;
-  readonly sessionId: string;
-  readonly pid: number;
-  readonly alive: boolean;
-  readonly exitCode?: number;
-  readonly idle: boolean;
-  readonly lastOutputAt: string;
-  readonly lastHookAt?: string;
-}
-
-/** A pane's agent state as the daemon senses it (R3). */
-export type PaneState = "working" | "blocked" | "waiting" | "idle" | "exited";
-export type PaneRole = "conductor" | "worker" | "apps" | "gate" | "shell";
-
-/** A pane of the daemon's layout (R1): what it runs, and its live terminal and state when it has one. */
-export interface PaneView {
-  readonly id: string;
-  readonly workspace: string;
-  readonly tab: string;
-  readonly role: PaneRole;
-  readonly label: string;
-  readonly cwd: string;
-  readonly runId?: string;
-  readonly worker?: { readonly name: string; readonly stage: string };
-  readonly process:
-    | {
-        readonly kind: "host";
-        readonly host: string;
-        readonly agent: string;
-        readonly prompt: string;
-        readonly sessionId?: string;
-      }
-    | { readonly kind: "command"; readonly argv: readonly string[] };
-  readonly live?: PtySession;
-  readonly state?: { readonly state: PaneState; readonly reason: string };
-}
-
-/** A tab's split tree (S6): a pane, or two parts along a direction at a ratio. */
-export type SplitNode =
-  | { readonly pane: string }
-  | { readonly dir: "row" | "column"; readonly ratio: number; readonly a: SplitNode; readonly b: SplitNode };
-
-export interface TabView {
-  readonly id: string;
-  readonly label: string;
-  readonly panes: readonly string[];
-  readonly tree?: SplitNode;
-}
-
-export interface WorkspaceView {
-  readonly id: string;
-  readonly label: string;
-  readonly cwd: string;
-  readonly runId?: string;
-  readonly group?: string;
-  readonly tabs: readonly TabView[];
-}
-
-export interface LayoutView {
-  readonly workspaces: readonly WorkspaceView[];
-  readonly panes: readonly PaneView[];
-}
+/** `/runs/:id/brief`: the run's brief with where the run stands. */
+export type Brief = RunBrief & { readonly runId: string; readonly status: string; readonly stage: string };
 
 export interface SupervisorView {
   readonly daemon: {
@@ -269,207 +145,6 @@ export interface SupervisorView {
     readonly restarts: number;
     readonly nudges: number;
   };
-}
-
-/** Options (S1): what `/options` says about every setting. */
-export type OptionScope = "user" | "repo" | "run";
-export type OptionSource = OptionScope | "default";
-export interface OptionDescription {
-  readonly key: string;
-  readonly kind: "boolean" | "enum" | "number" | "string" | "list" | "keybinding" | "command";
-  readonly scope: "user" | "repo";
-  readonly title: string;
-  readonly description: string;
-  readonly default: unknown;
-  readonly restart: "none" | "daemon" | "app";
-  readonly since?: string;
-  readonly fixed: boolean;
-  readonly choices?: readonly string[];
-  readonly min?: number;
-  readonly max?: number;
-  readonly unit?: string;
-  readonly runsLocally?: boolean;
-}
-export interface ResolvedOption {
-  readonly key: string;
-  readonly value: unknown;
-  readonly source: OptionSource;
-  readonly definition: OptionDescription;
-  readonly layers: Partial<Record<OptionScope, unknown>>;
-}
-export interface OptionDiagnostic {
-  readonly kind: "unknown-key" | "invalid-value" | "wrong-scope" | "fixed";
-  readonly scope: OptionScope;
-  readonly source: string;
-  readonly key: string;
-  readonly message: string;
-}
-export interface OptionsView {
-  readonly options: readonly ResolvedOption[];
-  readonly diagnostics: readonly OptionDiagnostic[];
-  readonly groups: readonly { readonly id: string; readonly count: number; readonly changed: number }[];
-  readonly files: { readonly user: string; readonly repo: string; readonly run?: string };
-}
-
-/** The plan board (S2): where a run stands and what is left, from `GET /runs/:id/board`. */
-export interface BoardStep {
-  readonly id: string;
-  readonly action: "create" | "modify" | "delete";
-  readonly path: string;
-  readonly intent: string;
-  readonly state: "todo" | "in-progress" | "done" | "blocked";
-  readonly testsFirst: readonly string[];
-  readonly rules: readonly string[];
-  readonly exemplar?: string;
-  readonly dependsOn: readonly string[];
-  readonly worker?: { readonly name: string; readonly paneId?: string };
-  readonly evidence?: string;
-}
-export interface BoardStage extends StageProgress {
-  readonly owners: readonly string[];
-  readonly workedBy: readonly string[];
-  readonly startedAt?: string;
-  readonly endedAt?: string;
-  readonly verdict?: string;
-}
-/** A backlog task (Issue v1): proposed by an agent, or added by a person. */
-export interface IssueRef {
-  readonly run?: string;
-  readonly step?: string;
-  readonly file?: string;
-  readonly line?: number;
-  readonly note?: string;
-}
-/** One review thread on my request, with what the agent made of it. */
-export interface ReviewThreadView {
-  readonly id: string;
-  readonly author: string;
-  readonly file?: string;
-  readonly line?: number;
-  readonly body: string;
-  readonly kind: "unsorted" | "question" | "change" | "nit" | "praise";
-  readonly state: "open" | "answered" | "planned" | "fixed" | "resolved";
-  readonly reply?: string;
-  readonly repliedAt?: string;
-}
-
-/** My reviewed request (`PullRequestReview`), by the id `metator mrs` names it. */
-export interface ReviewedRequest {
-  readonly id: string;
-  readonly number: number;
-  readonly title: string;
-  readonly branch?: string;
-  readonly url?: string;
-  readonly threads: readonly ReviewThreadView[];
-  readonly runId?: string;
-  readonly updatedAt: string;
-}
-
-export interface Issue {
-  readonly id: string;
-  readonly title: string;
-  readonly body: string;
-  readonly status: "proposed" | "open" | "in-progress" | "done" | "dropped";
-  readonly priority: "low" | "normal" | "high";
-  readonly labels: readonly string[];
-  readonly refs: readonly IssueRef[];
-  readonly proposedBy?: {
-    readonly agent: string;
-    readonly runId?: string;
-    readonly at: string;
-    readonly questionId?: string;
-  };
-  readonly decidedBy?: { readonly by: string; readonly at: string; readonly decision: "added" | "dropped" };
-  readonly runId?: string;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-/** A person's note on a run's change (ReviewNotes v1). */
-export interface ReviewNote {
-  readonly id: string;
-  readonly file?: string;
-  readonly line?: number;
-  readonly side?: "old" | "new";
-  readonly text: string;
-  readonly by: string;
-  readonly at: string;
-  readonly status: "draft" | "sent" | "addressed";
-  readonly sentIn?: string;
-}
-export interface DiffLine {
-  readonly kind: "context" | "add" | "del";
-  readonly old?: number;
-  readonly new?: number;
-  readonly text: string;
-}
-export interface FileDiff {
-  readonly path: string;
-  readonly status: "modified" | "added" | "deleted" | "renamed";
-  readonly added: number;
-  readonly removed: number;
-  readonly hunks: readonly { readonly header: string; readonly lines: readonly DiffLine[] }[];
-}
-export interface RunChangesView {
-  readonly runId: string;
-  readonly dir: string;
-  readonly base: string;
-  readonly files: readonly {
-    readonly path: string;
-    readonly added: number;
-    readonly removed: number;
-    readonly status: FileDiff["status"];
-  }[];
-  readonly diff?: FileDiff;
-}
-export interface PlanBoardView {
-  readonly runId: string;
-  readonly task: string;
-  readonly workflow: string;
-  readonly status: string;
-  readonly stage: string;
-  readonly stages: readonly BoardStage[];
-  readonly plan?: {
-    readonly scope: readonly string[];
-    readonly steps: readonly BoardStep[];
-    readonly done: number;
-  };
-  readonly workers: readonly {
-    readonly name: string;
-    readonly stage: string;
-    readonly agent: string;
-    readonly paneId: string;
-    readonly alive: boolean;
-    readonly state?: string;
-    readonly result?: { readonly status: string; readonly summary: string; readonly at: string };
-  }[];
-  readonly waiting: readonly Question[];
-  readonly artifacts: readonly {
-    readonly name: string;
-    readonly present: boolean;
-    readonly stage?: string;
-  }[];
-  readonly gates: readonly {
-    readonly gate: string;
-    readonly passed: boolean;
-    readonly at: string;
-    readonly steps: readonly { readonly id: string; readonly ok: boolean }[];
-  }[];
-  readonly next: readonly { readonly id: string; readonly owners: readonly string[] }[];
-  readonly timeline: readonly Activity[];
-}
-
-export interface Brief {
-  readonly runId: string;
-  readonly status: string;
-  readonly stage: string;
-  readonly since: string;
-  readonly transitions: readonly string[];
-  readonly files: readonly string[];
-  readonly answers: readonly string[];
-  readonly questions: readonly string[];
-  readonly errors: readonly string[];
-  readonly tools: number;
-  readonly last?: string;
 }
 
 export interface Workflow {

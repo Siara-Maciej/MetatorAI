@@ -58,7 +58,7 @@ export function registerMcpCommand(program: Command, ctx: CommandContext): void 
               })),
             }),
           };
-        const root = (program.opts() as { root?: string }).root;
+        const root = ctx.root();
         const served = await serve(tools, (argv) => ctx.invoke(root ? ["--root", root, ...argv] : argv));
         return { result: ok(served) };
       }),

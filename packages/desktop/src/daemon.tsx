@@ -12,18 +12,13 @@ import {
   type InboxItem,
   type OptionsView,
   type PaneView,
-  type RepoState,
   type ResolvedOption,
   type StateData,
-  type UnreadableRun,
   type WorkspaceView,
   wsUrl,
 } from "./api.ts";
 import { Modal } from "./components/modal.tsx";
-import { type Run, repoChoice, sameRepo, withTerminalAsks } from "./model.ts";
-
-/** A run the daemon could not read, with the repository it is in when the daemon serves a folder. */
-export type Unreadable = UnreadableRun & { readonly repo?: string | undefined };
+import { flattenState, type Run, repoChoice, sameRepo, type Unreadable, withTerminalAsks } from "./model.ts";
 
 export interface Daemon {
   readonly client: DaemonClient;
@@ -93,24 +88,6 @@ const write = (key: string, value: string) => {
     /* a private window: nothing kept */
   }
 };
-
-/** The runs of a `/state` answer, flattened across a folder's repositories. */
-export function flattenState(data: StateData | undefined): {
-  runs: Run[];
-  repos: { name: string; path: string }[];
-  unreadable: Unreadable[];
-} {
-  if (!data) return { runs: [], repos: [], unreadable: [] };
-  if ("repos" in data) {
-    const all = data.repos as readonly RepoState[];
-    return {
-      runs: all.flatMap((r) => (r.runs ?? []).map((run) => ({ ...run, repo: r.name }))),
-      repos: all.map((r) => ({ name: r.name, path: r.path })),
-      unreadable: all.flatMap((r) => (r.unreadable ?? []).map((u) => ({ ...u, repo: r.name }))),
-    };
-  }
-  return { runs: [...data.runs], repos: [], unreadable: [...(data.unreadable ?? [])] };
-}
 
 /**
  * A request repeated on an interval (D11): the last good answer, the last failure, and a way to

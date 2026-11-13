@@ -14,18 +14,18 @@ dir: packages/cli
 - Test-only dependencies: none
 - Used by: `(root)`
 - Imported by other packages: `packages/cli/package.json`, `packages/cli/src/program.ts`
-- Third-party: `@clack/prompts`, `@inkjs/ui`, `@modelcontextprotocol/sdk`, `commander`, `ink`, `react`, `zod`
+- Third-party: `@clack/prompts`, `@modelcontextprotocol/sdk`, `commander`, `zod`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: `cli-command-group`
 <!-- metator:generated:end -->
 
 ## Responsibility
 
-Driving adapter on commander: one module per command group, JSON-only output, exit codes. `guard *` commands answer hooks in the host's protocol instead of the envelope (ADR-0038). `src/tui/` is the full-screen `metator ui` on Ink (ADR-0060): the view knows only `TuiService`, which works on the repositories' containers; the screen goes to stderr.
+Driving adapter on commander: one module per command group, JSON-only output, exit codes. `guard *` commands answer hooks in the host's protocol instead of the envelope (ADR-0038). Each command says what it is where it is registered (`meta(cmd, {...})`, `src/command-meta.ts`): its audience, whether it only reads, the folder and check lists, and the text a person reads (`src/render.ts`), which goes to stderr at a terminal while stdout keeps the JSON line. A renamed command keeps its old words as a hidden spelling (`renamedCommand`). There is no full-screen terminal view (ADR-0086 withdrew `metator ui`); the prompts that remain are `@clack/prompts` in `src/terminal.ts`.
 
 ## Invariants
 
-- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:81 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
+- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:85 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
 
 ## Allowed dependencies
 
@@ -35,7 +35,10 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 
 - Validate option values with commander (`choices`, `argParser`), not by hand (MT-CODE-004).
 - One flag name per meaning: a list of files is `--files`, a time limit is `--timeout` (`FLAG_NAMES` in `src/options.ts`, pinned by `test/flag-names.test.ts`). A renamed flag keeps its old spelling as `renamedOption`, hidden from the help and the reference.
-- An MCP tool only reads (`src/mcp.ts`): an option of a reading command that writes or runs the project's scripts goes into `REFUSED`, or the tool always passes the option that makes it read-only (`ALWAYS`: `plan scope --dry-run`).
+- An MCP tool only reads (`src/mcp.ts`): a command is a tool only when it says `reads` in its `meta(...)`; an option of it that writes or runs the project's scripts goes into `writesWith` (refused), or `readsWith` names the option the tool always passes to stay read-only (`plan scope --dry-run`). A tool keeps its name when its command is renamed.
+- A renamed command keeps its old words through `renamedCommand` (hidden from the help and the reference); `test/command-meta.test.ts` lists every old spelling and pins that the lists derived from `meta(...)` are the ones that were kept by hand.
+- Text for a person goes to stderr only at a terminal and only from a command's `render`; stdout must stay byte-identical with and without a terminal (`test/command-meta.test.ts`).
+- Who acts is one rule (`who()` in `src/who.ts`): `--by`, `$METATOR_USER`, git's `user.name`, the login name. Never record a made-up name; an approval keeps `--by` required (`byOption(..., "required")`).
 - Warnings go out once, in the envelope: a command strips them from its data unless the data is a stored document whose schema has the field (`discover`).
 - A new command must be added to the help list in `e2e/cli.e2e.test.ts`.
 - A detached drive is started only through `startDetached` (`src/sessions.ts`): it refuses a run that is not active and a host that cannot start, where the background process would end without a word.

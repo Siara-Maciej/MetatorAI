@@ -14,7 +14,7 @@ dir: packages/plugin-host-claude
 - Test-only dependencies: `@metator/plugin-node`, `@metator/testing`
 - Used by: `(root)`, `@metator/runtime`
 - Imported by other packages: `packages/plugin-host-claude/package.json`, `packages/plugin-host-claude/src/index.ts`
-- Third-party: `@anthropic-ai/claude-agent-sdk`, `yaml`
+- Third-party: `@anthropic-ai/claude-agent-sdk`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: `interactive-host`
 <!-- metator:generated:end -->
@@ -30,7 +30,7 @@ dir: packages/plugin-host-claude
 
 ## Allowed dependencies
 
-`@metator/core`, `yaml` and `@anthropic-ai/claude-agent-sdk` (ADR-0051), which `ClaudeAgentHost` imports lazily; `@metator/plugin-node` and `@metator/testing` in tests.
+`@metator/core` and `@anthropic-ai/claude-agent-sdk` (ADR-0051), which `ClaudeAgentHost` imports lazily; `@metator/plugin-node` and `@metator/testing` in tests.
 
 ## Pitfalls
 

@@ -38,7 +38,6 @@ The CLI has more than two hundred commands. Most of them are called by agents, h
 | [`metator inbox`](./commands.md#metator-inbox) | every question that waits for you, across runs |
 | [`metator run answer`](./commands.md#metator-run-answer) | answers a question so the run continues |
 | [`metator status`](./commands.md#metator-status) | every run: its stage, who must act, open questions |
-| [`metator ui`](./commands.md#metator-ui) | the full-screen view of every session |
 | [`metator attach`](./commands.md#metator-attach) | puts your terminal on a session's pane; Ctrl-] detaches |
 
 ### Read and check a change

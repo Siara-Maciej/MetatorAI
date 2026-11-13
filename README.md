@@ -44,7 +44,8 @@ Everything the app does is also a command:
 
 ```bash
 metator run                                    # starts a task and shows it live
-metator ui                                     # every run and every question that waits for you
+metator status                                 # every run and what it needs now
+metator inbox                                  # every question that waits for you
 metator ask "How is the discount computed?"    # an answer with file:line citations
 ```
 

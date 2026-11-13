@@ -2,7 +2,7 @@ kind: Pattern
 schemaVersion: 1
 id: interactive-host
 title: Interactive host adapter
-intent: A plugin that runs an AI host CLI in a pseudo-terminal behind the InteractiveHost port: a `PtyInteractiveHost` (core) given the host's `launch` (the command line of a new and of a resumed session) and the run's environment; the host's own hooks report the run's activity.
+intent: A plugin that runs an AI host CLI in a pseudo-terminal behind the InteractiveHost port, as core's PtyInteractiveHost given the host's launch (the command line of a new and of a resumed session) and the run's environment; the host's own hooks report the run's activity.
 when: a new AI host (a CLI that talks to a model) should run as a run's session or a worker pane
 whenNot: a headless agent host (AgentHost) or a tool that is not a model
 detection: ast-grep:mt-pattern-interactive-host

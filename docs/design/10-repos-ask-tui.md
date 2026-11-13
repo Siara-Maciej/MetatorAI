@@ -70,6 +70,8 @@ Relacja z `SystemMap`: mapa systemu opisuje **co** wdrażamy i jakie kontrakty �
 
 ### 3.3 Przegląd pracy: `metator status`
 
+> **Zmiana (2026-11-13).** TUI już nie czyta tych danych (ADR-0086). W terminalu `metator status` oprócz koperty JSON na stdout wypisuje ten sam przegląd jako tekst na stderr; `--json` zostawia samą kopertę.
+
 Jeden use case (`WorkOverview`) zbiera wszystko, czego potrzebuje człowiek:
 - każdy run:
   - workflow, etapy z ich stanem (zrobiony, bieżący, czeka na człowieka, przyszły), autonomia, host;
@@ -81,6 +83,8 @@ Jeden use case (`WorkOverview`) zbiera wszystko, czego potrzebuje człowiek:
 `metator status` zwraca to jako kopertę JSON. TUI czyta te same dane, więc to, co widać, da się też przetestować bez terminala.
 
 ### 3.4 Interfejs terminala na Ink
+
+> **Wycofane (2026-11-13, [ADR-0086](../adr/0086-withdraw-terminal-ui.md), Proposed).** Pełnoekranowy `metator ui` na Ink został usunięty: frontem graficznym jest aplikacja desktopowa. W terminalu `metator status` i `metator inbox` wypisują tekst dla człowieka na stderr (stdout zostaje jedną linią JSON). Poniższy opis zostaje jako historia decyzji.
 
 **Wybór biblioteki** (ADR-0010: gotowy pakiet):
 

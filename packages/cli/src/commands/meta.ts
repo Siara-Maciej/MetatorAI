@@ -145,7 +145,6 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["open", "your editor on the run's worktree, at a file and line"],
       ["attach", "your terminal on a pane (or a run's conductor); Ctrl-] detaches"],
       ["status", "every run at a glance: who waits for you, who works, who stopped"],
-      ["ui", "the full-screen view of every run"],
     ],
   },
   {

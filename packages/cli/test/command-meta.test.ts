@@ -219,7 +219,8 @@ describe("what a command says of itself (meta)", () => {
   });
 
   test("the commands of a folder of repositories are the ones listed before", () => {
-    expect(folderCommands(program).sort()).toEqual([...BEFORE.folder].sort());
+    // `metator ui` was one of them; the full-screen view is withdrawn (ADR-0086).
+    expect(folderCommands(program).sort()).toEqual(BEFORE.folder.filter((c) => c !== "ui").sort());
   });
 
   test("meta check-all runs the checks listed before, in the tree's order", () => {
@@ -232,7 +233,9 @@ describe("what a command says of itself (meta)", () => {
     const persons = commandsFor(program, "person");
     const verbs = VERBS.flatMap((g) => g.commands.map(([name]) => name));
     expect([...persons].sort()).toEqual([...verbs].sort());
-    expect(verbs).toEqual(BEFORE.verbs.map((v) => (v === "run init" ? "run new" : v)));
+    expect(verbs).toEqual(
+      BEFORE.verbs.filter((v) => v !== "ui").map((v) => (v === "run init" ? "run new" : v)),
+    );
   });
 
   test("help --for: each audience's commands; every command belongs to one, an old spelling to none", async () => {

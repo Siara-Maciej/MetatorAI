@@ -10,7 +10,7 @@ import { positiveInt } from "../options.ts";
  * Agents read, list and wait; typing into a pane is a person's, through a client that attached.
  */
 export function registerPaneCommands(program: Command, ctx: CommandContext): void {
-  const root = () => (program.opts() as { root?: string }).root ?? process.cwd();
+  const root = ctx.start;
   const pane = program
     .command("pane")
     .description("The runtime's workspaces and panes: list them, read one, wait for its state");

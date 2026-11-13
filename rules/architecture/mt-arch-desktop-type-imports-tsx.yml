@@ -1,0 +1,29 @@
+id: mt-arch-desktop-type-imports-tsx
+language: Tsx
+severity: error
+message: "ADR-0085: the desktop app takes only types from @metator/core, with a whole-statement `import type`; no code of MetatorAI reaches its bundle."
+note: "Write `import type { X } from \"@metator/core\"`. `import { type X }` leaves an import behind (verbatimModuleSyntax); a value, another @metator package, a re-export or `import()` puts MetatorAI code in the app."
+files:
+  - packages/desktop/src/**
+rule:
+  any:
+    # Any package of MetatorAI other than core, type or not.
+    - all:
+        - kind: import_statement
+        - has: { field: source, regex: '^[''"]@metator/' }
+        - not: { has: { field: source, regex: '^[''"]@metator/core[''"]$' } }
+    # Core, but not as a whole-statement type import.
+    - all:
+        - kind: import_statement
+        - has: { field: source, regex: '^[''"]@metator/core[''"]$' }
+        - not: { regex: '^import\s+type\s' }
+    # A re-export of anything but types.
+    - all:
+        - kind: export_statement
+        - has: { field: source, regex: '^[''"]@metator/' }
+        - not: { regex: '^export\s+type\s' }
+    # A dynamic import.
+    - all:
+        - kind: call_expression
+        - has: { field: function, kind: import }
+        - has: { field: arguments, has: { kind: string, regex: '^[''"]@metator/' } }

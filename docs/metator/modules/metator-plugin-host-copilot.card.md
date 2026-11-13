@@ -14,7 +14,7 @@ dir: packages/plugin-host-copilot
 - Test-only dependencies: `@metator/plugin-node`, `@metator/testing`
 - Used by: `@metator/runtime`
 - Imported by other packages: `packages/plugin-host-copilot/src/index.ts`
-- Third-party: `yaml`
+- Third-party: none
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: none
 <!-- metator:generated:end -->
@@ -30,7 +30,7 @@ dir: packages/plugin-host-copilot
 
 ## Allowed dependencies
 
-`@metator/core` and `yaml` only.
+`@metator/core` only.
 
 ## Pitfalls
 

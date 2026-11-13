@@ -72,12 +72,12 @@ export interface Terminal {
   newRun(q: NewRunQuestions): Promise<NewRunAnswers | null>;
   pickRun(runs: readonly RunChoice[]): Promise<string | null>;
   answer(q: Question): Promise<PersonAnswer | null>;
-  /** One choice from a list (`metator ui` menus). */
+  /** One choice from a list (a yes or no before something is done). */
   choose<T extends string>(message: string, options: readonly Choice<T>[]): Promise<T | null>;
   show(line: string): void;
   /** Gets the person's attention (terminal bell): a question is waiting. */
   bell(): void;
-  /** Writes control text as is (the full-screen view's screen switch). */
+  /** Writes text as is: what a command renders for a person (`render`). */
   raw(text: string): void;
 }
 

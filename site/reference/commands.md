@@ -4,7 +4,7 @@
 
 Every command prints exactly one JSON object (the envelope) on stdout. See [CLI and envelope](./cli.md) for the output contract and exit codes.
 
-Global option: `-C, --root <dir>` runs the command against another repository (default: the nearest ancestor with `.git`).
+Global options: `-C, --root <dir>` runs the command against another repository (default: the nearest ancestor with `.git`). `--json` prints only the JSON line at a terminal, without the text some commands add on stderr for a person.
 
 ## version
 
@@ -29,6 +29,7 @@ metator help [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--verbs` | the overview by verb instead of the whole list |  |
+| `--for <audience>` | only the commands of an audience: a person at a terminal, an agent of a run, a host's hook, a CI job (one of: person, agent, hook, ci) |  |
 
 ## changed
 
@@ -371,7 +372,7 @@ metator system plan approve [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` | the plan id | |
-| `--by <name>` | who approves (default METATOR_USER or the login) |  |
+| `--by <name>` | who approves (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator system plan run`
 
@@ -400,12 +401,12 @@ metator system plan schema [options]
 |---|---|---|
 | `--analysis` | the analysis instead |  |
 
-### `metator system status`
+### `metator system plan status`
 
 Each step's child run read back from its repository; the plan done when every step is
 
 ```bash
-metator system status [options] [id]
+metator system plan status [options] [id]
 ```
 
 | Argument or option | Description | Default |
@@ -647,7 +648,7 @@ metator arch plan approve [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` | the plan id | |
-| `--by <name>` | who approves (default METATOR_USER or the login) |  |
+| `--by <name>` | who approves (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator arch plan run`
 
@@ -961,12 +962,12 @@ metator docs drift [options]
 |---|---|---|
 | `--fix` | rewrite the line of claims whose quote moved |  |
 
-### `metator docs claims-schema`
+### `metator docs schema`
 
 Print the JSON Schema of the claims file
 
 ```bash
-metator docs claims-schema [options]
+metator docs schema [options]
 ```
 
 ## cards
@@ -1244,13 +1245,17 @@ metator meta quarterly [options]
 | `--report <file>` | EvalReport of the current state to compare with the baseline |  |
 | `--tolerance <ratio>` | allowed drop per eval number | `0.02` |
 
-### `metator meta agents-schema`
+### `metator meta schema`
 
-Print the JSON Schema of a canonical agent's front matter
+Print the JSON Schema of a canonical agent's or skill's front matter
 
 ```bash
-metator meta agents-schema [options]
+metator meta schema [options] <kind>
 ```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<kind>` | whose front matter (one of: agents, skills) | |
 
 ### `metator meta skills-lint`
 
@@ -1258,14 +1263,6 @@ Canonical skills: name = directory, trigger and anti-trigger, sections, size, fi
 
 ```bash
 metator meta skills-lint [options]
-```
-
-### `metator meta skills-schema`
-
-Print the JSON Schema of a canonical skill's front matter
-
-```bash
-metator meta skills-schema [options]
 ```
 
 ## generate
@@ -1391,7 +1388,7 @@ metator findings react [options] <finding>
 | `<finding>` | the finding id the comment carried (LOGIC-007) | |
 | `--pr <ref>` | the pull request (42, owner/repo#42) **Required.** |  |
 | `--state <state>` | what people did with it (one of: resolved, dismissed, open) **Required.** |  |
-| `--by <who>` | who reacted **Required.** |  |
+| `--by <name>` | who reacted (default: $METATOR_USER, else git's user.name, else your login name) |  |
 | `--lens <lens>` | the lens that raised it (one of: logic, contracts, conventions, tests, security, equivalence) |  |
 | `--reason <text>` | why, in a few words |  |
 
@@ -1464,7 +1461,7 @@ metator review notes add [options] <text>
 | `--file <path>` | the file it is about (repo-relative) |  |
 | `--line <n>` | the line in it |  |
 | `--side <side>` | the old or the new side of the diff (one of: old, new) |  |
-| `--by <name>` | who writes it **Required.** |  |
+| `--by <name>` | who writes it (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator review notes send`
 
@@ -1477,7 +1474,7 @@ metator review notes send [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
-| `--by <name>` | who sends **Required.** |  |
+| `--by <name>` | who sends (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator review notes status`
 
@@ -1774,12 +1771,12 @@ metator workflow schema [options]
 
 ## run
 
-### `metator run init`
+### `metator run new`
 
 Start a run of a workflow
 
 ```bash
-metator run init [options]
+metator run new [options]
 ```
 
 | Argument or option | Description | Default |
@@ -1826,17 +1823,17 @@ metator run approve [options] <gate>
 | `--run <id>` | run id (default: latest) |  |
 | `--via <channel>` | chat: the person said yes in the session's chat; counts only while they are attached (one of: chat) |  |
 
-### `metator run attach`
+### `metator run take`
 
 Take the session's keyboard: your input goes to its PTY and your yes in the chat counts
 
 ```bash
-metator run attach [options]
+metator run take [options]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `--by <name>` | who attaches **Required.** |  |
+| `--by <name>` | who takes it (default: $METATOR_USER, else git's user.name, else your login name) |  |
 | `--run <id>` | run id (default: latest) |  |
 
 ### `metator run release`
@@ -1866,7 +1863,7 @@ metator run message [options] <to>
 | `--topic <topic>` | what it is about (one of: info, contract, shared-file, done, review, review-reply) | `"info"` |
 | `--text <text>` | the message **Required.** |  |
 | `--ref <ref>` | a file, run or URL it points at (repeatable) | `[]` |
-| `--by <name>` | who sends: an agent of the run, or a person **Required.** |  |
+| `--by <name>` | who sends: an agent of the run, or a person (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator run messages`
 
@@ -1902,7 +1899,7 @@ metator run resume [options]
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `--by <name>` | who resumes it, recorded in log.md (default: $METATOR_USER, else git's user.name) |  |
+| `--by <name>` | who resumes it, recorded in log.md (default: $METATOR_USER, else git's user.name, else your login name) |  |
 | `--run <id>` | run id (default: latest) |  |
 | `--drive` | also start a drive in the background, as `run continue` does |  |
 | `--host <host>` | with --drive: the AI host (claude, copilot; default: the one the run used) |  |
@@ -1938,11 +1935,12 @@ metator run handoff [options]
 Write summary.json (final telemetry) for a finished run; --aborted --reason aborts an active one
 
 ```bash
-metator run close [options]
+metator run close [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 | `--aborted` | abort an active run first (needs --reason) |  |
 | `--reason <text>` | why the run is aborted |  |
@@ -1954,11 +1952,12 @@ metator run close [options]
 Show the current stage, what it expects and recent history
 
 ```bash
-metator run status [options]
+metator run status [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 
 ### `metator run board`
@@ -1966,11 +1965,12 @@ metator run status [options]
 The plan board (S2): stages with who worked them, the plan's steps with their state, workers, what waits for you, artifacts, gates, the last events
 
 ```bash
-metator run board [options]
+metator run board [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 | `--timeline <n>` | how many events to keep | `30` |
 
@@ -2047,11 +2047,12 @@ metator run revive [options]
 Stop the process driving the run; the run stays where it is and can continue
 
 ```bash
-metator run stop [options]
+metator run stop [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 
 ### `metator run questions`
@@ -2081,7 +2082,7 @@ metator run answer [options] <question>
 | `--run <id>` | run id (default: latest) |  |
 | `--choice <labels...>` | the option label(s) chosen |  |
 | `--text <text>` | your own words (with Other, or a reason with Reject) |  |
-| `--by <name>` | who answers (default: $METATOR_USER, else git's user.name) |  |
+| `--by <name>` | who answers (default: $METATOR_USER, else git's user.name, else your login name) |  |
 | `--always` | also answer every such question this way from now on (an answer policy in metator/answer-policies.yml) |  |
 
 ### `metator run brief`
@@ -2089,11 +2090,12 @@ metator run answer [options] <question>
 What happened in a run since you last looked: transitions, files, answers, questions, errors
 
 ```bash
-metator run brief [options]
+metator run brief [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 | `--since <time>` | from this ISO time (default: your last brief of the run, else its start) |  |
 | `--peek` | do not mark the run as read |  |
@@ -2103,11 +2105,12 @@ metator run brief [options]
 What the drive did: stages, agents, tools, questions, answers, transitions
 
 ```bash
-metator run activity [options]
+metator run activity [options] [run]
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
+| `[run]` | run id, the same as --run (default: latest) | |
 | `--run <id>` | run id (default: latest) |  |
 | `--tail <n>` | only the last n entries |  |
 
@@ -2262,7 +2265,7 @@ metator worktree conflicts [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--notify` | tell both runs of each conflict (a shared-file message each way) |  |
-| `--by <name>` | who sends the messages (with --notify; default: $METATOR_USER, else your login name) |  |
+| `--by <name>` | who sends the messages (with --notify) (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator worktree list`
 
@@ -2350,7 +2353,7 @@ metator env analyze [options]
 
 ### `metator env pool`
 
-Worktrees with their services already up; `run init --worktree` takes a free one
+Worktrees with their services already up; `run new --worktree` takes a free one
 
 ```bash
 metator env pool [options]
@@ -2407,16 +2410,6 @@ Print the JSON Schema of metator/environment.yml
 
 ```bash
 metator env schema [options]
-```
-
-## ui
-
-### `metator ui`
-
-The full-screen view: every run, its progress and questions, apps, conversations, settings
-
-```bash
-metator ui [options]
 ```
 
 ## repos
@@ -2622,7 +2615,7 @@ metator issue add [options] <title>
 | `--priority <level>` | how urgent (one of: low, normal, high) |  |
 | `--labels <a,b>` | labels, comma-separated |  |
 | `--ref <ref...>` | what it points at: &lt;file&gt;[:line], run:&lt;id&gt;[/&lt;step&gt;] |  |
-| `--by <name>` | who adds it (default: $METATOR_USER, else git's user.name) |  |
+| `--by <name>` | who adds it (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator issue propose`
 
@@ -2657,7 +2650,7 @@ metator issue decide [options] <id>
 | `--drop` | drop it |  |
 | `--priority <level>` | how urgent (one of: low, normal, high) |  |
 | `--labels <a,b>` | labels, comma-separated |  |
-| `--by <name>` | who decides (default: $METATOR_USER, else git's user.name) |  |
+| `--by <name>` | who decides (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator issue edit`
 
@@ -2687,20 +2680,20 @@ metator issue close [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` |  | |
-| `--by <name>` | who closes it (default: $METATOR_USER, else git's user.name) |  |
+| `--by <name>` | who closes it (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
-### `metator issue drop`
+### `metator issue rm`
 
-The task is not going to be done
+The task is not going to be done: it stays in the backlog as dropped
 
 ```bash
-metator issue drop [options] <id>
+metator issue rm [options] <id>
 ```
 
 | Argument or option | Description | Default |
 |---|---|---|
-| `<id>` |  | |
-| `--by <name>` | who drops it (default: $METATOR_USER, else git's user.name) |  |
+| `<id>` | the task's id | |
+| `--by <name>` | who drops it (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator issue start`
 
@@ -2806,7 +2799,7 @@ metator mrs send [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` | the request | |
-| `--by <name>` | the person who decides to send them **Required.** |  |
+| `--by <name>` | the person who decides to send them (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator mrs resolve`
 
@@ -2820,7 +2813,7 @@ metator mrs resolve [options] <id>
 |---|---|---|
 | `<id>` | the request | |
 | `--thread <thread>` | the thread's id **Required.** |  |
-| `--by <name>` | the person who decides to close it **Required.** |  |
+| `--by <name>` | the person who decides to close it (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ## open
 
@@ -2852,7 +2845,7 @@ metator attach [options] <pane>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<pane>` |  | |
-| `--by <name>` | who attaches (default: $METATOR_USER, else your login name) |  |
+| `--by <name>` | who attaches (default: $METATOR_USER, else git's user.name, else your login name) |  |
 | `--keep` | keep the run's driver lock after detaching |  |
 
 ## mcp

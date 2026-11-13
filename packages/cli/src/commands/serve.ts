@@ -40,7 +40,7 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
           intakeMs?: number;
           reviewsMs?: number;
         }) => {
-          const root = () => (program.opts() as { root?: string }).root;
+          const root = ctx.root;
           const taken = daemonInTheWay(servedRoots(ctx));
           if (taken) return { result: err(taken) };
           const served = await startServer(ctx, {

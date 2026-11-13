@@ -139,13 +139,13 @@ export function DecisionCard({
               aria-pressed={a.choices.includes(o.label)}
               onClick={() => a.toggle(o.label)}
             >
-              <div className="label">
+              <span className="label">
                 <span>{o.label}</span>
                 {card?.recommended === o.label ? <span className="rec">RECOMMENDED</span> : null}
-              </div>
-              {o.description ? <div className="cons">{o.description}</div> : null}
+              </span>
+              {o.description ? <span className="cons">{o.description}</span> : null}
               {card?.consequences?.[o.label] ? (
-                <div className="cons">→ {card.consequences[o.label]}</div>
+                <span className="cons">→ {card.consequences[o.label]}</span>
               ) : null}
             </button>
           ))}

@@ -6,6 +6,14 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 
 ## November 2026
 
+- `metator ui`, the full-screen view in the terminal, is removed: the desktop app is the graphical front. At a terminal `metator status`, `inbox`, `run status`, `doctor`, `help` and every `--help` now print text you can read on stderr; stdout keeps the one JSON line, and `--json` prints only that line.
+- New names, with the old ones still working: `metator run new` (was `run init`), `run take` (was `run attach`), `issue rm` (was `issue drop`), `system plan status` (was `system status`), `docs schema` (was `docs claims-schema`), `meta schema agents|skills` (was `meta agents-schema`, `meta skills-schema`).
+- `metator help --for person|agent|hook|ci` lists the commands of one audience.
+- The run can be named as a word: `metator run status <run>`, also for `board`, `brief`, `activity`, `stop` and `close`. `--run <id>` still works.
+- Who acts when `--by` is left out is one rule everywhere: `$METATOR_USER`, else git's `user.name`, else your login name. `--by` is no longer required for `run take`, `run message`, `findings react`, `review notes add`, `review notes send`, `mrs send` and `mrs resolve`; `run approve` still requires it.
+- `metator run continue` on an escalated run, at a terminal, asks whether its cause is fixed and resumes it on a yes. Without a terminal it still refuses and names `run resume`.
+- A `Deny` answer no longer asks for a reason in the terminal: only `Reject` and `Other` ask for your own words.
+- `meta check-all` runs the same checks in the order of the command list.
 - Documentation rebuilt in four sections: Guide, Use, Repository, Reference. Old addresses changed.
 - Automatic intake: rules under `intake` turn issues from GitHub, GitLab or Jira into tasks and runs (`metator intake rules`, `scan`, `status`).
 - Reviews of your own pull requests: `metator mrs list`, `show`, `scan`, `triage`, `send`, `resolve`, and the `mt-review-response` workflow. New document: `PullRequestReview`.
@@ -28,7 +36,7 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 - `metator setup`, and `metator agents install` and `agents update` with an install lock.
 - A worktree per run with its own ports; `metator run drive`, `run continue`, questions and answers from the terminal.
 - Application environments: `metator env discover`, `init`, `up`, `down`, `status`, `logs`.
-- `metator ui`, `metator ask` with citations, `metator status`, and a folder of several repositories.
+- `metator ask` with citations, `metator status`, and a folder of several repositories.
 - Package architecture: `metator arch analyze`, `check`, `simulate`, `plan`, `eval`.
 - Systems of several applications: the system map, `metator system discover`, `impact`, `analyze`, `plan`, and `metator contract diff`.
 - Review with verified findings, a verdict, and scoring on recorded cases (`metator eval`).

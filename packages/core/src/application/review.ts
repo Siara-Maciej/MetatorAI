@@ -100,7 +100,7 @@ export class JudgeFindings {
     if (text.isErr()) {
       if ((await lensFiles(this.fs, input.dir)).length === 0) return err(noFindingsFile(input.dir));
       return err(
-        new MetatorError("NOT_FOUND", `${source} not found`, {
+        MetatorError.notFound(source, {
           hint: `Run \`metator findings merge ${input.dir}\` first.`,
         }),
       );

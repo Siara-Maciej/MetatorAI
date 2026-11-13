@@ -27,6 +27,10 @@ export interface TerminalHandle {
   scrollToBottom(): void;
 }
 
+/** A colour of the stylesheet (`:root`'s custom property), for xterm's theme. */
+const token = (name: string, fallback: string): string =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+
 /** How often, and how many times, a dropped terminal socket is opened again. */
 const RECONNECT_MS = 2000;
 const RECONNECT_TRIES = 30;
@@ -124,7 +128,12 @@ function SocketTerminal({
       fontFamily: '"JetBrains Mono", ui-monospace, Menlo, monospace',
       fontSize: 12,
       lineHeight: 1.25,
-      theme: { background: "#0b0e13", foreground: "#e6e9ef", cursor: "#2dd4bf" },
+      // The terminal's colours are the stylesheet's tokens (the fallbacks are their values).
+      theme: {
+        background: token("--term-bg", "#0b0e13"),
+        foreground: token("--text", "#e6e9ef"),
+        cursor: token("--teal", "#2dd4bf"),
+      },
       convertEol: false,
       scrollback: scrollback ?? 5000,
     });

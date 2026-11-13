@@ -50,9 +50,9 @@ export class ReviewNotes {
   }
 
   async add(runId: string | undefined, input: AddNoteInput): Promise<Result<ReviewNote, MetatorError>> {
-    if (input.text.trim() === "") return err(usage("a note needs a text"));
-    if (input.by.trim() === "") return err(usage("say who writes the note: --by <name>"));
-    if (input.line !== undefined && !input.file) return err(usage("a line needs a file"));
+    if (input.text.trim() === "") return err(MetatorError.usage("a note needs a text"));
+    if (input.by.trim() === "") return err(MetatorError.usage("say who writes the note: --by <name>"));
+    if (input.line !== undefined && !input.file) return err(MetatorError.usage("a line needs a file"));
     const id = await this.d.repo.resolveId(runId);
     if (id.isErr()) return err(id.error);
     const notes = await this.load(id.value);
@@ -76,13 +76,13 @@ export class ReviewNotes {
     runId: string | undefined,
     input: { readonly by: string },
   ): Promise<Result<{ readonly message: RunMessage; readonly notes: readonly ReviewNote[] }, MetatorError>> {
-    if (input.by.trim() === "") return err(usage("say who sends: --by <name>"));
+    if (input.by.trim() === "") return err(MetatorError.usage("say who sends: --by <name>"));
     const id = await this.d.repo.resolveId(runId);
     if (id.isErr()) return err(id.error);
     const notes = await this.load(id.value);
     if (notes.isErr()) return err(notes.error);
     const drafts = notes.value.filter((n) => n.status === "draft");
-    if (drafts.length === 0) return err(usage("no draft notes to send"));
+    if (drafts.length === 0) return err(MetatorError.usage("no draft notes to send"));
     const message = await this.d.messages.send({
       from: id.value,
       to: id.value,
@@ -111,7 +111,7 @@ export class ReviewNotes {
     const notes = await this.load(id.value);
     if (notes.isErr()) return err(notes.error);
     const found = notes.value.find((n) => n.id === noteId);
-    if (!found) return err(notFound(`note ${noteId}`));
+    if (!found) return err(MetatorError.notFound(`note ${noteId}`));
     const next: ReviewNote =
       status === "draft" ? { ...found, status, sentIn: undefined } : { ...found, status };
     const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)) as ReviewNote;
@@ -145,6 +145,3 @@ export function withReplies(notes: readonly ReviewNote[], messages: readonly Run
     n.status === "sent" && n.sentIn && replied.has(n.sentIn) ? { ...n, status: "addressed" } : n,
   );
 }
-
-const usage = (message: string) => MetatorError.usage(message);
-const notFound = (what: string) => MetatorError.notFound(what);

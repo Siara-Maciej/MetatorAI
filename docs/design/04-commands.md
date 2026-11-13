@@ -75,6 +75,8 @@ export function emit<T>(env: Envelope<T>, maxKb = 8): never {
 
 Zasady: wyjście zawsze w JSON (dla ludzi flaga `--pretty`), bez kolorów, bez sieci (wyjątki: `findings to-github`, `run init` z ADO przez MCP robi agent, nie skrypt).
 
+> **Stan od 2026-11-13.** Flagi `--pretty` nie ma. Stdout to zawsze jedna linia JSON. Gdy komendę wpisuje człowiek w terminalu, komendy z zarejestrowanym rendererem (`status`, `inbox`, `run status`, `doctor`, `help`, każde `--help`) dopisują czytelny tekst na **stderr**; `--json` go wyłącza. Każda komenda mówi o sobie przy rejestracji (`meta(cmd, { audience, reads, writesWith, readsWith, folder, check, render })`), a z tego powstają: narzędzia MCP, komendy dozwolone w folderze repozytoriów, lista `meta check-all`, `help --for person|agent|hook|ci` i przegląd `help --verbs`. Zmiana nazwy komendy zostawia starą pisownię jako ukrytą (`renamedCommand`): `run new` (dawniej `run init`), `run take` (`run attach`), `issue rm` (`issue drop`), `system plan status` (`system status`), `docs schema` (`docs claims-schema`), `meta schema agents|skills` (`meta agents-schema`, `meta skills-schema`).
+
 ### 2.2 Wpięcie w `package.json`
 
 ```json

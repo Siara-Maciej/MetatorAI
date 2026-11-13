@@ -9,11 +9,14 @@ import type {
   IssueRef,
   PaneView,
   Question,
+  RepoState,
   ResolvedOption,
   RunOverview,
   SplitNode,
   StageProgress,
+  StateData,
   TabView,
+  UnreadableRun,
   WorkspaceView,
 } from "./api.ts";
 
@@ -745,20 +748,31 @@ export type Tone = "amber" | "violet" | "red" | "green" | "blue" | "teal" | "fai
  */
 export type PaneShown = "working" | "asks" | "idle" | "exited";
 
+/** A shell with no output for this long sits at its prompt: it is idle, whatever the daemon's longer quiet time says. */
+export const SHELL_QUIET_MS = 2000;
+
 /**
  * The state of a pane as the app shows it. The daemon's `blocked` (the host's prompt is on the
  * screen) and `waiting` (a question of the run is open) both read `asks`, and only for an agent: a
- * shell of the same run does not ask, it is idle. A live shell the daemon says nothing about is
- * idle too, never "working"; a pane with no live process has exited.
+ * shell of the same run does not ask, it is idle. A shell is "working" only while it prints: the
+ * daemon calls a pane working for its host's whole quiet time (15 s for a program it does not
+ * know), which a shell at its prompt is not. A live shell the daemon says nothing about is idle
+ * too; a pane with no live process has exited.
  */
-export function paneStateOf(pane: Pick<PaneView, "process" | "live" | "state">): PaneShown {
+export function paneStateOf(
+  pane: Pick<PaneView, "process" | "state"> & {
+    readonly live?: Pick<NonNullable<PaneView["live"]>, "alive" | "lastOutputAt"> | undefined;
+  },
+  now: number = Date.now(),
+): PaneShown {
   const raw = pane.state?.state;
   if (raw === "exited" || !pane.live?.alive) return "exited";
   const agent = pane.process.kind === "host";
   if (raw === "blocked" || raw === "waiting") return agent ? "asks" : "idle";
-  if (raw === "working") return "working";
   if (raw === "idle") return "idle";
-  return agent ? "working" : "idle";
+  if (agent) return "working";
+  const last = Date.parse(pane.live.lastOutputAt ?? "");
+  return raw === "working" && now - last < SHELL_QUIET_MS ? "working" : "idle";
 }
 
 export interface Look {
@@ -833,6 +847,31 @@ export function lookOf(kind: LookKind, state: string | undefined): Look {
 }
 
 /* ---------- counts, repositories, routes: what several screens must agree on ---------- */
+
+/** A run the daemon could not read, with the repository it is in when the daemon serves a folder. */
+export type Unreadable = UnreadableRun & { readonly repo?: string | undefined };
+
+/**
+ * A `/state` answer flattened across a folder's repositories: every run with its repository, the
+ * repositories, and the runs the daemon could not read (they are in no list, so the panel names
+ * them with the file to restore).
+ */
+export function flattenState(data: StateData | undefined): {
+  runs: Run[];
+  repos: { name: string; path: string }[];
+  unreadable: Unreadable[];
+} {
+  if (!data) return { runs: [], repos: [], unreadable: [] };
+  if ("repos" in data) {
+    const all = data.repos as readonly RepoState[];
+    return {
+      runs: all.flatMap((r) => (r.runs ?? []).map((run) => ({ ...run, repo: r.name }))),
+      repos: all.map((r) => ({ name: r.name, path: r.path })),
+      unreadable: all.flatMap((r) => (r.unreadable ?? []).map((u) => ({ ...u, repo: r.name }))),
+    };
+  }
+  return { runs: [...data.runs], repos: [], unreadable: [...(data.unreadable ?? [])] };
+}
 
 /** Two things belong to the same repository; "no repository" (the daemon serves one) is one too. */
 export const sameRepo = (a: string | undefined, b: string | undefined): boolean => (a ?? "") === (b ?? "");
@@ -1048,10 +1087,10 @@ export const WORKBENCH_COMMANDS: readonly WorkbenchCommand[] = [
     menu: "tab-own",
     enabled: (c) => !(c.tab?.kind === "shell" && c.tab.panes === 0),
   },
-  { id: "focusLeft", label: () => "Focus the pane before" },
-  { id: "focusRight", label: () => "Focus the pane after" },
-  { id: "focusUp", label: () => "Focus the pane before" },
-  { id: "focusDown", label: () => "Focus the pane after" },
+  { id: "focusLeft", label: () => "Focus the pane before (left)" },
+  { id: "focusRight", label: () => "Focus the pane after (right)" },
+  { id: "focusUp", label: () => "Focus the pane before (up)" },
+  { id: "focusDown", label: () => "Focus the pane after (down)" },
   { id: "goto", label: () => "Go to a pane or a question" },
   { id: "nextWaiting", label: () => "Next tab that waits for you" },
   { id: "help", label: () => "This help" },
@@ -1119,3 +1158,12 @@ export function helpRows(
   ];
   return rows.filter((r) => r.keys !== "");
 }
+
+/** The workspace a pane sits in: the first part of its tab's id (`w2:t1` is in `w2`). */
+export const workspaceOfPane = (pane: { readonly tab: string }): string => pane.tab.split(":")[0] ?? "";
+
+/** The ports of a service as text: `web 3000, db 5432`; `no port` when it holds none. */
+export const portsText = (ports: Readonly<Record<string, number>>): string =>
+  Object.entries(ports)
+    .map(([name, port]) => `${name} ${port}`)
+    .join(", ") || "no port";

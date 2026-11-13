@@ -1,0 +1,17 @@
+id: mt-arch-desktop-type-imports
+valid:
+  - import type { RunOverview, Question } from "@metator/core";
+  - export type { RunOverview } from "@metator/core";
+  - import { useState } from "react";
+  - import { duration } from "./model.ts";
+invalid:
+  - import { briefOf } from "@metator/core";
+  - import { type RunOverview } from "@metator/core";
+  - import { type RunOverview, briefOf } from "@metator/core";
+  - import * as core from "@metator/core";
+  - import "@metator/core";
+  - import type { Container } from "@metator/runtime";
+  - import { GitVcs } from "@metator/plugin-git";
+  - export { briefOf } from "@metator/core";
+  - export * from "@metator/core";
+  - const core = await import("@metator/core");

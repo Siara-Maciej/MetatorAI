@@ -73,7 +73,7 @@ export function webSocket(url: string): AttachSocket {
  * detach unless `--keep`. Ctrl-] detaches; the pane goes on.
  */
 export function registerAttachCommand(program: Command, ctx: CommandContext): void {
-  const root = () => (program.opts() as { root?: string }).root ?? process.cwd();
+  const root = ctx.start;
   meta(program.command("attach <pane>"), { audience: "person" })
     .description(
       "This terminal on a pane (or a run's conductor pane); Ctrl-] detaches. A run's pane takes its driver lock",

@@ -109,6 +109,8 @@ function world(steps: SystemPlan["steps"], roots: Record<string, string> = { web
     store,
     repos,
     platform,
+    sources,
+    at,
     run: new RunSystemPlan(store, sources, at, platform.clock, platform.runs),
     status: new SystemPlanStatus(store, sources, at),
     save: () => store.save(plan(steps)),
@@ -196,5 +198,34 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
       "pending",
     ]);
     expect(await w.platform.runs.list()).toEqual([]);
+  });
+
+  test("a change another writer made to the parent run while a step started is kept (R5)", async () => {
+    const w = world([step("billing-bump", "billing"), step("web-migrate", "web")]);
+    await w.save();
+    const parent = (
+      await w.platform.init.execute({ workflow: "mt-feature", task: "Rename refunds" })
+    )._unsafeUnwrap();
+    // Another process changes the parent's record each time a child run starts.
+    let n = 0;
+    const at = (root: string): RepositoryRuns => ({
+      runs: w.at(root).runs,
+      init: {
+        execute: async (input) => {
+          n++;
+          const noted = await w.platform.runs.update(parent.runId, (r) =>
+            ok({ ...r, options: { ...(r.options ?? {}), [`note.${n}`]: true } }),
+          );
+          expect(noted.isOk()).toBe(true);
+          return w.at(root).init.execute(input);
+        },
+      },
+    });
+    const run = new RunSystemPlan(w.store, w.sources, at, w.platform.clock, w.platform.runs);
+    const started = (await run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    expect(started.started).toHaveLength(2);
+    const record = (await w.platform.runs.load(parent.runId))._unsafeUnwrap();
+    expect(record.options).toEqual({ "note.1": true, "note.2": true });
+    expect(record.children).toEqual(started.started.map((s) => s.run));
   });
 });

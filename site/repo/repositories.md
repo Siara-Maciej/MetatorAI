@@ -49,7 +49,7 @@ Run `metator` in the folder that holds the repositories to see all of them at on
 cd ~/work
 metator repos list       # each repository and whether MetatorAI is set up in it
 metator repos status     # each repository's active runs, questions waiting for you, running services
-metator ui               # every repository's runs on one screen
+metator status           # every repository's runs, by repository
 ```
 
 A folder that is not a repository but holds repositories works this way without any file. To fix the list and the names, write one:
@@ -76,7 +76,7 @@ The folder file is only a list. It holds no agents, rules or workflows, and chan
 | Where you are | What `metator` acts on | Commands |
 |---|---|---|
 | inside a repository, at any depth | that repository | every command |
-| the folder of repositories | all its repositories | `ui`, `repos`, `ask`, `status` |
+| the folder of repositories | all its repositories | `repos`, `ask`, `status`, `inbox` |
 | anywhere, with `-C <path>` | the repository or folder at `<path>` | as above, for that place |
 
 Any other command in the folder stops with a `USAGE` error that names the repositories. Run it inside one, or pass `-C`:

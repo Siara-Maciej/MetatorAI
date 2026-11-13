@@ -90,7 +90,7 @@ metator run answer q002 --choice Reject --text "split step 3 into two" --by alic
 
 `--choice` is the label of an option; upper and lower case do not matter, so `approve` is Approve. `--text` carries your own words: the reason with Reject, or the answer with Other. `--by` is your name, which goes into the run's log. Without it the name comes from `$METATOR_USER`, or else from `git config user.name`. `--run` takes a run id or the start of one, as long as only one run starts that way.
 
-The run's drive carries out the answer. If no drive is running, `metator run continue <run>` starts it again. `metator ui` shows the same queue as a full-screen view in the terminal.
+The run's drive carries out the answer. If no drive is running, `metator run continue <run>` starts it again. At a terminal `metator inbox` prints the queue as text, each question with the command that answers it.
 
 ### Answers that repeat
 

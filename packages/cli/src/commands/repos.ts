@@ -28,7 +28,7 @@ export function registerReposCommands(program: Command, ctx: CommandContext): vo
     .option("--dry-run", "print the proposal without writing it", false)
     .action(
       action(async (opts: { dryRun: boolean }) => {
-        const here = resolve((program.opts() as { root?: string }).root ?? process.cwd());
+        const here = resolve(ctx.start());
         const file = join(here, REPO_SET_FILE);
         if (!opts.dryRun && existsSync(file))
           return {

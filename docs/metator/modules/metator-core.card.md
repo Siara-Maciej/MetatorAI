@@ -12,7 +12,7 @@ dir: packages/core
 - Directory: `packages/core`
 - Depends on: none
 - Test-only dependencies: `@metator/testing`
-- Used by: `(root)`, `@metator/cli`, `@metator/plugin-astgrep`, `@metator/plugin-biome`, `@metator/plugin-bun`, `@metator/plugin-codehost-mcp`, `@metator/plugin-docker`, `@metator/plugin-git`, `@metator/plugin-host-claude`, `@metator/plugin-host-copilot`, `@metator/plugin-host-opencode`, `@metator/plugin-host-scenario`, `@metator/plugin-node`, `@metator/plugin-openapi`, `@metator/plugin-typescript`, `@metator/runtime`, `@metator/testing`
+- Used by: `(root)`, `@metator/cli`, `@metator/desktop`, `@metator/plugin-astgrep`, `@metator/plugin-biome`, `@metator/plugin-bun`, `@metator/plugin-codehost-mcp`, `@metator/plugin-docker`, `@metator/plugin-git`, `@metator/plugin-host-claude`, `@metator/plugin-host-copilot`, `@metator/plugin-host-opencode`, `@metator/plugin-host-scenario`, `@metator/plugin-node`, `@metator/plugin-openapi`, `@metator/plugin-typescript`, `@metator/runtime`, `@metator/testing`
 - Imported by other packages: `packages/core/src/index.ts`
 - Third-party: `@dagrejs/graphlib`, `@sindresorhus/slugify`, `github-slugger`, `neverthrow`, `picomatch`, `semver`, `shell-quote`, `xstate`, `yaml`, `zod`
 - Owners: `@Siara-Maciej`
@@ -27,7 +27,7 @@ The product's inside: domain model (versioned documents, rules, memory map, impo
 
 - Every persisted file is stamped with its header [[cite: packages/core/src/domain/versioned.ts:148 | "stamp(body: z.output<S>): DocumentHeader & z.output<S> {"]].
 - `stamp` refuses a body its own schema rejects, so a document that cannot be read back is never written; a use case checks what a person gave it first and answers with `USAGE`.
-- A file that several processes read, change and write back (a run's `state.json`, the worktree registry, the backlog) is changed under a `FileLock`: `RunRepository.update`, `WorktreeRegistry.exclusive`, `MachineLeases.exclusive`. The work inside never takes the same lock again.
+- A file that several processes read, change and write back (a run's `state.json`, the worktree registry, the backlog) is changed under a `FileLock`: `RunRepository.update` (also for a parent run's `children`, `RunSystemPlan`), `WorktreeRegistry.exclusive`, `MachineLeases.exclusive`; `LayoutStore.update` puts the daemon's changes in line inside its process. The work inside never takes the same lock again.
 - One unreadable run never hides the others: overviews read runs through `RunRepository.loadAll` and name what they left out.
 - An escalated run is not finished: it is counted apart (`countAttention`), listed by `escalatedOf`, refused by `DriveRun` (`notDrivable`), put back by `ResumeRun` with the escalating stage's loop at zero, and ended by `CloseRun` with a reason. A run that is not active has no open questions: `WorkOverview`, `inboxOf` and `RunJournal.answer` agree on that.
 - A wait for a person (`RunJournal.waitFor`) ends without an answer when the run left the question's stage or ended; the drive then looks at the run again instead of waiting for ever.
@@ -35,6 +35,7 @@ The product's inside: domain model (versioned documents, rules, memory map, impo
 - A workflow's `preconditions` are a closed list (`domain/preconditions.ts`: `clean-tree`, `branch-ok`, `tests-green`), each decided by a readiness check when the run starts; `startRefusal` refuses on the first that does not hold and on any other name, which `lintWorkflow` rejects. `tests-green` runs the quick gate (`CheckReadiness` with `gates`), which nothing else does unasked.
 - A human gate skipped by the run's autonomy grants what approving it grants (`skipGates`); `lintWorkflow` refuses a skippable gate that grants a push.
 - Local state has no path override: `MetatorConfig` v12 dropped `paths.runs`, `index`, `discovery` and `gates`, and a config rewritten at the current version loses them (`RETIRED_CONFIG_KEYS`).
+- Refactor plans and system plans share one lifecycle (`domain/plan-progress.ts`: `approvePlan`, `requireApproved`, `asDraft`, `settled`, `progressOf`): a rule about approval is changed there, once.
 - Errors cross layers as one type [[cite: packages/core/src/domain/errors.ts:20 | "export class MetatorError extends Error {"]].
 
 ## Allowed dependencies
@@ -46,6 +47,9 @@ Only the pure libraries approved in ADR-0010 (enforced by MT-ARCH-003). Never ru
 - Changing a document schema in place breaks files users already have: add a version and an `upgrade` (MT-CODE-003).
 - A deleted module has no node in the import graph: `ComputeAffected` finds its importers through the imports that resolve to nothing now, by relative path, by the `candidates` an alias leads to, or by the directory of a workspace package imported by name (`missingEntries`).
 - A new setting is an option in the registry (`domain/option-registry.ts`), not a field of `MetatorConfig`: one definition gives the CLI, the daemon and the app its type, default, scope and description (S1).
+- A document is read and written through `application/document-io.ts` (`readDocument`, `loadDocument`, `writeDocument`, `readJsonLines`, `scanDocuments`), not by parsing and stamping by hand; a reader that skips a bad file or line on purpose says so (`"skip"`).
+- `metator.config` is changed only through `editRepoConfig` (`application/config-file.ts`): it keeps a YAML file's comments, drops the retired keys and validates the result before writing.
+- A port file with a callback type (`=>`) counts as behavior for MT-TEST-003, so ports stay in `ports/index.ts` (the one file the rule exempts).
 - `Bun` and `process` do not exist here (MT-ARCH-004); take what you need through a port.
 - `CloseRun` stops the run's driver last, after the summary is written: the caller may be a child of the process it stops.
 - `Panes.restore` starts host sessions and plain shells only (`isPlainShell`); a pane that ran a command stays as it ended.

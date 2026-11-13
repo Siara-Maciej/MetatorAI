@@ -10,8 +10,8 @@ import { positiveInt, runOption } from "../options.ts";
  * commands go through the daemon, which owns the panes and checks who calls (the pane token);
  * a worker's report is a file in the run directory, written here, so a worker needs no daemon.
  */
-export function registerConductorCommands(program: Command, runs: Command, ctx: CommandContext): void {
-  const root = () => (program.opts() as { root?: string }).root ?? process.cwd();
+export function registerConductorCommands(_program: Command, runs: Command, ctx: CommandContext): void {
+  const root = ctx.start;
   const call = async <T>(method: "GET" | "POST", path: string, body?: unknown) => {
     const daemon = findDaemon(root());
     if (daemon.isErr()) return daemon;

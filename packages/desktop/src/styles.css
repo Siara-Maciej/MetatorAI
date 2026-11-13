@@ -21,6 +21,42 @@
   --font: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --radius: 8px;
+  /* The type scale (spec §6.2): every text size of the app is one of these. */
+  --fs-micro: 10px;
+  --fs-chip: 10.5px;
+  --fs-small: 11px;
+  --fs-code: 11.5px;
+  --fs-compact: 12px;
+  --fs-base: 12.5px;
+  --fs-head: 13px;
+  --fs-title: 15px;
+  /* The spacing steps between things. */
+  --sp-1: 4px;
+  --sp-2: 6px;
+  --sp-3: 8px;
+  --sp-4: 10px;
+  --sp-5: 12px;
+  --sp-6: 14px;
+  /* A state colour as a background wash, as a border, as a halo. */
+  --amber-wash: color-mix(in srgb, var(--amber) 8%, transparent);
+  --amber-line: color-mix(in srgb, var(--amber) 50%, transparent);
+  --red-wash: color-mix(in srgb, var(--red) 8%, transparent);
+  --red-line: color-mix(in srgb, var(--red) 50%, transparent);
+  --green-wash: color-mix(in srgb, var(--green) 8%, transparent);
+  --green-line: color-mix(in srgb, var(--green) 50%, transparent);
+  --blue-wash: color-mix(in srgb, var(--blue) 8%, transparent);
+  --blue-line: color-mix(in srgb, var(--blue) 50%, transparent);
+  --violet-wash: color-mix(in srgb, var(--violet) 8%, transparent);
+  --violet-line: color-mix(in srgb, var(--violet) 50%, transparent);
+  --teal-wash: color-mix(in srgb, var(--teal) 8%, transparent);
+  --teal-line: color-mix(in srgb, var(--teal) 50%, transparent);
+  --amber-halo: color-mix(in srgb, var(--amber) 25%, transparent);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --shadow: rgba(0, 0, 0, 0.5);
+  /* The terminal's own background, the frame of the focused pane, text on the teal button. */
+  --term-bg: #0b0e13;
+  --focus: #e8825a;
+  --on-teal: #052e2b;
 }
 * {
   box-sizing: border-box;
@@ -34,7 +70,7 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
-  font: 12.5px / 1.4 var(--font);
+  font: var(--fs-base) / 1.4 var(--font);
   overflow: hidden;
 }
 button,
@@ -61,7 +97,7 @@ button:disabled {
 }
 button.primary {
   background: var(--teal);
-  color: #052e2b;
+  color: var(--on-teal);
   border-color: var(--teal);
   font-weight: 600;
   min-height: 32px;
@@ -100,7 +136,7 @@ a {
 code,
 .mono {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-code);
 }
 h1,
 h2,
@@ -109,10 +145,10 @@ h3 {
   font-weight: 600;
 }
 h2 {
-  font-size: 15px;
+  font-size: var(--fs-title);
 }
 h3 {
-  font-size: 13px;
+  font-size: var(--fs-head);
 }
 .muted {
   color: var(--muted);
@@ -136,9 +172,6 @@ h3 {
 .teal {
   color: var(--teal);
 }
-.faint {
-  color: var(--dim);
-}
 .spacer {
   flex: 1;
 }
@@ -146,9 +179,9 @@ h3 {
 .stagebar {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--sp-1);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 .stagebar.strip {
@@ -165,9 +198,14 @@ button.stagebar {
   cursor: pointer;
 }
 
+/* `faint` is the dim colour, `small` the small size; `dim` is both: a secondary line of text. */
+.faint,
 .dim {
   color: var(--dim);
-  font-size: 11px;
+}
+.small,
+.dim {
+  font-size: var(--fs-small);
 }
 
 /* shell */
@@ -181,7 +219,7 @@ button.stagebar {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--sp-6);
   padding: 0 12px;
   background: var(--panel);
   border-bottom: 1px solid var(--edge);
@@ -192,13 +230,13 @@ button.stagebar {
 }
 .topbar .counters {
   display: flex;
-  gap: 10px;
+  gap: var(--sp-4);
 }
 .rail {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 4px;
+  gap: var(--sp-1);
   padding: 8px 6px;
   background: var(--panel);
   border-right: 1px solid var(--edge);
@@ -210,7 +248,7 @@ button.stagebar {
   border-radius: 6px;
   color: var(--muted);
   text-decoration: none;
-  font-size: 10px;
+  font-size: var(--fs-micro);
 }
 .rail a[aria-current="page"] {
   color: var(--teal);
@@ -236,7 +274,7 @@ button.stagebar {
 }
 .sessions .mode {
   display: flex;
-  gap: 4px;
+  gap: var(--sp-1);
   padding: 8px;
   border-bottom: 1px solid var(--edge);
 }
@@ -246,7 +284,7 @@ button.stagebar {
 }
 .sessions .section {
   padding: 6px 10px 2px;
-  font-size: 10px;
+  font-size: var(--fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--dim);
@@ -254,7 +292,7 @@ button.stagebar {
 .sessions .row {
   display: grid;
   grid-template-columns: 10px 1fr auto;
-  gap: 6px;
+  gap: var(--sp-2);
   align-items: start;
   padding: 5px 10px;
   width: 100%;
@@ -273,13 +311,13 @@ button.stagebar {
 }
 .sessions .row .title {
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .sessions .row .sub {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -295,14 +333,14 @@ button.stagebar {
   display: flex;
   justify-content: space-between;
   padding: 2px 10px;
-  font-size: 10px;
+  font-size: var(--fs-micro);
   color: var(--blue);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 .sessions .footer {
   display: flex;
-  gap: 6px;
+  gap: var(--sp-2);
   padding: 8px;
   border-top: 1px solid var(--edge);
 }
@@ -322,7 +360,7 @@ button.stagebar {
 }
 .dot.you {
   background: var(--amber);
-  box-shadow: 0 0 0 2px rgba(240, 180, 41, 0.25);
+  box-shadow: 0 0 0 2px var(--amber-halo);
 }
 .dot.driving {
   background: var(--violet);
@@ -346,10 +384,10 @@ button.stagebar {
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--sp-1);
 }
 .chip {
-  font-size: 10.5px;
+  font-size: var(--fs-chip);
   padding: 1px 7px;
   border-radius: 999px;
   border: 1px solid var(--edge);
@@ -359,27 +397,27 @@ button.stagebar {
 }
 .chip.amber {
   color: var(--amber);
-  border-color: rgba(240, 180, 41, 0.5);
+  border-color: var(--amber-line);
 }
 .chip.red {
   color: var(--red);
-  border-color: rgba(248, 113, 113, 0.5);
+  border-color: var(--red-line);
 }
 .chip.green {
   color: var(--green);
-  border-color: rgba(74, 222, 128, 0.5);
+  border-color: var(--green-line);
 }
 .chip.blue {
   color: var(--blue);
-  border-color: rgba(96, 165, 250, 0.5);
+  border-color: var(--blue-line);
 }
 .chip.violet {
   color: var(--violet);
-  border-color: rgba(167, 139, 250, 0.5);
+  border-color: var(--violet-line);
 }
 .chip.teal {
   color: var(--teal);
-  border-color: rgba(45, 212, 191, 0.5);
+  border-color: var(--teal-line);
 }
 
 /* inbox */
@@ -413,7 +451,7 @@ button.stagebar {
   box-shadow: inset 2px 0 0 var(--teal);
 }
 .needs .kind {
-  font-size: 10px;
+  font-size: var(--fs-micro);
   letter-spacing: 0.06em;
   font-weight: 600;
 }
@@ -433,7 +471,7 @@ button.stagebar {
 .needs .info {
   padding: 10px 12px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-small);
   border-top: 1px solid var(--edge);
 }
 .card {
@@ -442,9 +480,9 @@ button.stagebar {
 }
 .card .ctx {
   color: var(--dim);
-  font-size: 11px;
+  font-size: var(--fs-small);
   display: flex;
-  gap: 10px;
+  gap: var(--sp-4);
   flex-wrap: wrap;
 }
 .card h1 {
@@ -456,7 +494,7 @@ button.stagebar {
 }
 .card section h3 {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-small);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 4px;
@@ -468,7 +506,7 @@ button.stagebar {
 .options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
+  gap: var(--sp-3);
 }
 .option {
   text-align: left;
@@ -485,21 +523,21 @@ button.stagebar {
   font-weight: 600;
   display: flex;
   justify-content: space-between;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 .option .rec {
   color: var(--teal);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   letter-spacing: 0.06em;
 }
 .option .cons {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-small);
   margin-top: 2px;
 }
 .actions {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
   align-items: center;
   margin-top: 12px;
   flex-wrap: wrap;
@@ -507,7 +545,7 @@ button.stagebar {
 .footer-cmd {
   margin-top: 10px;
   color: var(--dim);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .empty {
   padding: 40px;
@@ -531,17 +569,17 @@ button.stagebar {
 .driverbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-4);
   padding: 6px 14px;
   border-bottom: 1px solid var(--edge);
-  font-size: 11.5px;
+  font-size: var(--fs-code);
 }
 .driverbar.human {
-  background: rgba(96, 165, 250, 0.08);
+  background: var(--blue-wash);
   color: var(--blue);
 }
 .driverbar.agent {
-  background: rgba(167, 139, 250, 0.08);
+  background: var(--violet-wash);
   color: var(--violet);
 }
 .driverbar .note {
@@ -550,14 +588,14 @@ button.stagebar {
 }
 .tabs {
   display: flex;
-  gap: 4px;
+  gap: var(--sp-1);
   padding: 6px 14px;
   border-bottom: 1px solid var(--edge);
   align-items: center;
 }
 .panes {
   display: flex;
-  gap: 4px;
+  gap: var(--sp-1);
   padding: 4px 14px;
   border-bottom: 1px solid var(--edge);
   align-items: center;
@@ -565,13 +603,13 @@ button.stagebar {
 }
 .sessions .pane-row {
   padding-left: 28px;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .term {
   flex: 1;
   min-height: 0;
   padding: 6px 10px;
-  background: #0b0e13;
+  background: var(--term-bg);
 }
 .term .xterm {
   height: 100%;
@@ -583,7 +621,7 @@ button.stagebar {
 .events table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
+  font-size: var(--fs-code);
 }
 .events th {
   text-align: left;
@@ -613,7 +651,7 @@ button.stagebar {
 }
 .composer {
   display: flex;
-  gap: 6px;
+  gap: var(--sp-2);
   padding: 8px 14px;
   border-top: 1px solid var(--edge);
 }
@@ -627,10 +665,10 @@ button.stagebar {
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--sp-5);
 }
 .side h3 {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -642,7 +680,7 @@ button.stagebar {
   padding: 8px 10px;
 }
 .side .box.warn {
-  border-color: rgba(240, 180, 41, 0.5);
+  border-color: var(--amber-line);
 }
 .side ul {
   margin: 0;
@@ -651,7 +689,7 @@ button.stagebar {
 .side .svc {
   display: flex;
   justify-content: space-between;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 
 /* graph */
@@ -671,12 +709,12 @@ button.stagebar {
 }
 .graph text {
   fill: var(--text);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-family: var(--font);
 }
 .graph .lanename {
   fill: var(--dim);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   letter-spacing: 0.06em;
 }
 .graph .node {
@@ -708,14 +746,14 @@ button.stagebar {
 .supervisor .head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--sp-5);
   flex-wrap: wrap;
   margin-bottom: 10px;
 }
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: var(--sp-3);
   margin: 10px 0;
 }
 .kpi {
@@ -736,12 +774,12 @@ button.stagebar {
 }
 .kpi .l {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .fleet {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
+  font-size: var(--fs-code);
 }
 .fleet th {
   text-align: left;
@@ -758,7 +796,7 @@ button.stagebar {
   grid-template-columns: auto 1fr;
   gap: 4px 10px;
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--fs-code);
 }
 .policy dt {
   color: var(--muted);
@@ -787,7 +825,7 @@ button.stagebar {
 .timeline li {
   padding: 3px 0 3px 12px;
   position: relative;
-  font-size: 11.5px;
+  font-size: var(--fs-code);
 }
 .timeline li::before {
   content: "";
@@ -831,7 +869,7 @@ button.stagebar {
 .dialog .field {
   display: grid;
   grid-template-columns: 130px 1fr;
-  gap: 8px;
+  gap: var(--sp-3);
   align-items: center;
   margin: 8px 0;
 }
@@ -841,12 +879,12 @@ button.stagebar {
 }
 .dialog .warn {
   color: var(--amber);
-  font-size: 11.5px;
+  font-size: var(--fs-code);
   margin: 8px 0;
 }
 .dialog .foot {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
   align-items: center;
   margin-top: 12px;
   flex-wrap: wrap;
@@ -858,10 +896,10 @@ button.stagebar {
 }
 .banner {
   padding: 8px 14px;
-  background: rgba(248, 113, 113, 0.1);
+  background: var(--red-wash);
   color: var(--red);
   border-bottom: 1px solid var(--edge);
-  font-size: 11.5px;
+  font-size: var(--fs-code);
 }
 /* settings (S1) */
 .settings-screen {
@@ -887,7 +925,7 @@ button.stagebar {
   border-radius: 0;
   background: none;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-compact);
 }
 .settings-screen .sections .section:hover {
   background: var(--hover);
@@ -904,18 +942,18 @@ button.stagebar {
 .settings-screen .opt {
   display: grid;
   grid-template-columns: minmax(200px, 1fr) 220px 70px 70px;
-  gap: 12px;
+  gap: var(--sp-5);
   align-items: start;
   padding: 9px 0;
   border-top: 1px solid var(--edge);
 }
 .settings-screen .opt .k {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-compact);
 }
 .settings-screen .opt .d {
   font-family: var(--font);
-  font-size: 11.5px;
+  font-size: var(--fs-code);
   margin-top: 2px;
 }
 .settings-screen .opt input:not([type="checkbox"]),
@@ -923,7 +961,7 @@ button.stagebar {
   width: 100%;
 }
 .settings-screen .opt .src {
-  font-size: 11px;
+  font-size: var(--fs-small);
   padding-top: 6px;
   color: var(--dim);
 }
@@ -938,10 +976,10 @@ button.stagebar {
 }
 .settings-screen .toggle {
   display: inline-flex;
-  gap: 8px;
+  gap: var(--sp-3);
   align-items: center;
   padding-top: 5px;
-  font-size: 12px;
+  font-size: var(--fs-compact);
 }
 /* workbench (S6): herdr's shape */
 .workbench {
@@ -951,21 +989,21 @@ button.stagebar {
   min-height: 0;
   position: relative;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-base);
 }
 .workbench .tabbar,
 .workbench .procstrip {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--sp-5);
   padding: 0 14px;
   border-bottom: 1px solid var(--edge);
   white-space: nowrap;
   overflow: hidden;
 }
 .workbench .procstrip {
-  gap: 6px;
-  font-size: 12px;
+  gap: var(--sp-2);
+  font-size: var(--fs-compact);
 }
 .workbench .body {
   display: grid;
@@ -996,22 +1034,22 @@ button.stagebar {
 }
 .workbench .ws .l1 {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
   align-items: center;
 }
 .workbench .ws .l2 {
   padding-left: 18px;
-  font-size: 11.5px;
+  font-size: var(--fs-code);
 }
 .workbench .agents .sec {
   padding: 12px 20px 4px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   letter-spacing: 0.06em;
   color: var(--dim);
 }
 .workbench .ag {
   display: flex;
-  gap: 10px;
+  gap: var(--sp-4);
   align-items: center;
   width: 100%;
   padding: 2px 20px;
@@ -1098,13 +1136,13 @@ button.stagebar {
   min-height: 0;
   border: 1px solid transparent;
   border-radius: 3px;
-  background: #0b0e13;
+  background: var(--term-bg);
 }
 .pane-frame.framed {
   border-color: var(--edge);
 }
 .pane-frame.focus {
-  border-color: #e8825a;
+  border-color: var(--focus);
 }
 .pane-frame .title {
   position: absolute;
@@ -1116,7 +1154,7 @@ button.stagebar {
   border-radius: 0;
   padding: 0 6px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-compact);
   color: var(--dim);
   cursor: default;
   /* A button is 28px tall by default: the title must not cover the terminal's first line, in a
@@ -1129,7 +1167,7 @@ button.stagebar {
   text-overflow: ellipsis;
 }
 .pane-frame.focus .title {
-  color: #e8825a;
+  color: var(--focus);
 }
 .pane-frame .term {
   padding: 10px 8px 4px;
@@ -1137,12 +1175,12 @@ button.stagebar {
 .pane-frame .ask,
 .pane-frame .copy-mode {
   display: flex;
-  gap: 10px;
+  gap: var(--sp-4);
   align-items: center;
   padding: 5px 10px;
   border-top: 1px solid var(--edge);
   background: var(--panel);
-  font-size: 12px;
+  font-size: var(--fs-compact);
 }
 .pane-frame .ask {
   color: var(--amber);
@@ -1156,7 +1194,7 @@ button.stagebar {
   right: 18px;
   bottom: 18px;
   display: flex;
-  gap: 10px;
+  gap: var(--sp-4);
   align-items: center;
   padding: 8px 12px;
   background: var(--panel);
@@ -1164,13 +1202,13 @@ button.stagebar {
   border-radius: 6px;
   color: var(--text);
   font: inherit;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 30px var(--shadow);
   max-width: 60%;
   text-align: left;
 }
 kbd {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--fs-chip);
   color: var(--dim);
   border: 1px solid var(--edge);
   border-radius: 3px;
@@ -1184,9 +1222,9 @@ kbd {
   border-radius: 6px;
   padding: 4px;
   min-width: 240px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 14px 40px var(--shadow);
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-base);
 }
 .context-menu .mi {
   display: flex;
@@ -1219,13 +1257,13 @@ kbd {
   background: var(--panel);
   border: 1px solid var(--edge);
   border-radius: 8px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 60px var(--shadow);
   overflow: hidden;
   font-family: var(--mono);
 }
 .goto .head {
   display: flex;
-  gap: 10px;
+  gap: var(--sp-4);
   align-items: center;
   padding: 10px 14px;
   border-bottom: 1px solid var(--edge);
@@ -1240,16 +1278,16 @@ kbd {
 }
 .goto .filters {
   display: flex;
-  gap: 4px;
+  gap: var(--sp-1);
 }
 .goto .filters .chip {
   background: none;
   font: inherit;
-  font-size: 10.5px;
+  font-size: var(--fs-chip);
 }
 .goto .filters .chip.on {
   background: var(--teal);
-  color: #06201c;
+  color: var(--on-teal);
   border-color: var(--teal);
 }
 .goto .rows {
@@ -1259,7 +1297,7 @@ kbd {
 }
 .goto .row {
   display: flex;
-  gap: 10px;
+  gap: var(--sp-4);
   align-items: center;
   width: 100%;
   padding: 6px 12px;
@@ -1282,20 +1320,20 @@ kbd {
 }
 .goto .hint {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
   flex-wrap: wrap;
   padding: 8px 14px;
   border-top: 1px solid var(--edge);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 
 /* plan (S2) */
 .plan .detail h2 {
-  font-size: 13px;
+  font-size: var(--fs-head);
 }
 .plan .ask {
   display: flex;
-  gap: 10px;
+  gap: var(--sp-4);
   align-items: center;
   flex-wrap: wrap;
   border-left: 2px solid var(--amber);
@@ -1303,7 +1341,7 @@ kbd {
 }
 .plan .actions {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
 }
 .plan .actions .go {
   border-color: var(--teal);
@@ -1316,7 +1354,7 @@ kbd {
   margin-top: 8px;
 }
 .plan .text {
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   max-width: 640px;
 }
 /* The backlog: proposals and open tasks on the left, the chosen one on the right. */
@@ -1331,25 +1369,25 @@ kbd {
 }
 .backlog .pr {
   flex: none;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .backlog .detail h2 {
-  font-size: 13px;
+  font-size: var(--fs-head);
 }
 .backlog .text {
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   max-width: 640px;
   white-space: pre-wrap;
 }
 .backlog .row {
   display: flex;
-  gap: 12px;
+  gap: var(--sp-5);
   align-items: center;
   flex-wrap: wrap;
 }
 .backlog .actions {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
 }
 .backlog .actions .go {
   border-color: var(--teal);
@@ -1358,13 +1396,13 @@ kbd {
 .backlog .form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--sp-4);
   max-width: 640px;
 }
 .backlog .form label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-1);
 }
 .backlog .form .row label {
   flex: 1;
@@ -1385,12 +1423,12 @@ kbd {
 }
 .review .counts {
   flex: none;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .review .note-form {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--sp-2);
   padding: 6px 20px;
 }
 .review .note-form.inline {
@@ -1407,7 +1445,7 @@ kbd {
 }
 .review .row {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
 }
 .review .diff {
   overflow: auto;
@@ -1437,10 +1475,10 @@ kbd {
   background: var(--hover);
 }
 .review .line.add {
-  background: rgba(74, 222, 128, 0.08);
+  background: var(--green-wash);
 }
 .review .line.del {
-  background: rgba(248, 113, 113, 0.08);
+  background: var(--red-wash);
 }
 .review .line.noted .code {
   text-decoration: underline dotted var(--amber);
@@ -1475,7 +1513,7 @@ kbd {
 .mrs .threads {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--sp-5);
   margin-top: 14px;
 }
 .mrs .thread.resolved,
@@ -1489,7 +1527,7 @@ kbd {
 .mrs .thread .reply {
   margin: 4px 0 6px;
   padding: 6px 10px;
-  background: rgba(45, 212, 191, 0.08);
+  background: var(--teal-wash);
   border-radius: 6px;
   white-space: pre-wrap;
 }
@@ -1512,7 +1550,7 @@ kbd {
 .banner.notice,
 .banner.ask-banner {
   display: flex;
-  gap: 10px;
+  gap: var(--sp-4);
   align-items: flex-start;
 }
 .banner.notice .msg,
@@ -1526,22 +1564,22 @@ kbd {
   color: inherit;
 }
 .banner.notice.info {
-  background: rgba(96, 165, 250, 0.08);
+  background: var(--blue-wash);
   color: var(--muted);
 }
 .banner.ask-banner {
-  background: rgba(240, 180, 41, 0.1);
+  background: var(--amber-wash);
   color: var(--amber);
   align-items: center;
 }
 .repo-select {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--sp-2);
   align-items: center;
   flex: none;
 }
 .repo-select select {
-  min-height: 24px;
+  min-height: 28px;
   padding: 2px 6px;
   max-width: 180px;
 }
@@ -1549,7 +1587,7 @@ kbd {
 /* the top bar's own buttons */
 .topbar .who {
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: var(--fs-code);
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1597,12 +1635,12 @@ kbd {
   padding: 4px 6px 4px 12px;
 }
 .no-daemon .cmd code {
-  font-size: 13px;
+  font-size: var(--fs-head);
   color: var(--teal);
 }
 .no-daemon .addr {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
   margin-top: 6px;
 }
 .no-daemon .addr input {
@@ -1636,13 +1674,13 @@ kbd {
 .escalated-card .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--sp-3);
   align-items: center;
   margin-top: 12px;
 }
 .escalated-card form.close {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
   margin-top: 8px;
 }
 .escalated-card form.close input {
@@ -1668,7 +1706,7 @@ kbd {
 .needs .ask-row .open {
   float: right;
   color: var(--teal);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .inbox > .empty .primary {
   margin-top: 12px;
@@ -1681,16 +1719,16 @@ kbd {
   flex-direction: column;
   gap: 3px;
   margin-top: 14px;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .card .reason input {
-  font-size: 12.5px;
+  font-size: var(--fs-base);
 }
 
 /* answering in the session's side box and on the plan */
 .quick-answer .reason {
   display: flex;
-  gap: 6px;
+  gap: var(--sp-2);
   align-items: center;
   margin-top: 6px;
 }
@@ -1713,7 +1751,7 @@ kbd {
 }
 .backlog .wf {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--sp-2);
   align-items: center;
   margin-left: 8px;
 }
@@ -1736,20 +1774,20 @@ kbd {
 }
 .pane-frame .pane-ended {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
   align-items: center;
   flex-wrap: wrap;
   padding: 6px 10px;
   border-top: 1px solid var(--edge);
   background: var(--panel);
-  font-size: 12px;
+  font-size: var(--fs-compact);
 }
 .pane-frame .pane-ended .msg {
   flex: 1 1 200px;
   color: var(--amber);
 }
 .pane-frame .pane-ended button {
-  min-height: 26px;
+  min-height: 28px;
 }
 .workbench .toast {
   padding: 0;
@@ -1800,18 +1838,18 @@ kbd {
     left: 52px;
     width: 280px;
     z-index: 8;
-    box-shadow: 12px 0 30px rgba(0, 0, 0, 0.5);
+    box-shadow: 12px 0 30px var(--shadow);
   }
   .topbar {
-    gap: 8px;
+    gap: var(--sp-3);
   }
   .topbar .panel-toggle {
     display: inline-block;
     white-space: nowrap;
-    min-height: 26px;
+    min-height: 28px;
   }
   .topbar .counters {
-    gap: 4px;
+    gap: var(--sp-1);
   }
   .session {
     grid-template-columns: 1fr;
@@ -1893,7 +1931,7 @@ kbd {
   height: 100%;
   min-height: 0;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   --ld-list: 320px;
 }
 .ld.no-top {
@@ -1908,7 +1946,7 @@ kbd {
 .ld-top {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--sp-6);
   padding: 0 14px;
   border-bottom: 1px solid var(--edge);
   white-space: nowrap;
@@ -1928,13 +1966,13 @@ kbd {
 }
 .ld-sec {
   padding: 4px 20px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   letter-spacing: 0.06em;
   color: var(--dim);
 }
 .ld-row {
   display: flex;
-  gap: 10px;
+  gap: var(--sp-4);
   align-items: flex-start;
   width: 100%;
   padding: 6px 20px;
@@ -1960,7 +1998,7 @@ button.ld-row:hover,
 }
 .ld-row .sub {
   display: block;
-  font-size: 11.5px;
+  font-size: var(--fs-code);
   color: var(--dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1968,18 +2006,18 @@ button.ld-row:hover,
 }
 .ld-row .trail {
   flex: none;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .ld-detail {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--sp-5);
   padding: 20px 28px;
   overflow: auto;
   min-width: 0;
 }
 .ld-detail h2 {
-  font-size: 13px;
+  font-size: var(--fs-head);
 }
 .ld-detail .empty {
   padding: 40px;
@@ -1989,7 +2027,7 @@ button.ld-row:hover,
 .empty-row {
   padding: 6px 20px;
   color: var(--dim);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .review .ld-row {
   padding-block: 5px;
@@ -2011,7 +2049,7 @@ button.ld-row:hover,
 }
 .plan .facts .row {
   display: flex;
-  gap: 12px;
+  gap: var(--sp-5);
   padding: 3px 0;
 }
 .plan .facts dt {
@@ -2048,17 +2086,17 @@ button.ld-row:hover,
   border-bottom: 1px solid var(--edge);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-1);
   min-width: 0;
 }
 .run-header .line {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-4);
   min-width: 0;
 }
 .run-header h1 {
-  font-size: 15px;
+  font-size: var(--fs-title);
   max-width: 60%;
 }
 .run-header .line .go {
@@ -2067,7 +2105,7 @@ button.ld-row:hover,
 }
 .run-tabs {
   display: flex;
-  gap: 4px;
+  gap: var(--sp-1);
 }
 .run-tabs a {
   padding: 2px 10px;
@@ -2075,7 +2113,7 @@ button.ld-row:hover,
   border-radius: 6px;
   color: var(--muted);
   text-decoration: none;
-  font-size: 11.5px;
+  font-size: var(--fs-code);
 }
 .run-tabs a:hover {
   background: var(--hover);
@@ -2090,7 +2128,7 @@ button.ld-row:hover,
 .briefing .since {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-4);
   flex-wrap: wrap;
   margin-top: 10px;
 }
@@ -2107,7 +2145,7 @@ button.ld-row:hover,
 }
 .driverbar.escalated {
   flex-wrap: wrap;
-  background: rgba(248, 113, 113, 0.08);
+  background: var(--red-wash);
   color: var(--red);
 }
 .driverbar.escalated .note {
@@ -2123,7 +2161,7 @@ button.ld-row:hover,
 }
 .driverbar.escalated form.close {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-3);
   flex: 1 1 100%;
 }
 .driverbar.escalated form.close input {
@@ -2139,7 +2177,7 @@ button.ld-row:hover,
 }
 .session .no-session {
   flex: 1;
-  background: #0b0e13;
+  background: var(--term-bg);
 }
 .session .no-session .primary,
 .session .no-session button {
@@ -2149,7 +2187,7 @@ button.ld-row:hover,
 /* ---------- tabs (components/tabs.tsx) ---------- */
 .tab-with {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--sp-2);
   align-items: center;
 }
 .workbench .tabbar [role="tab"] {
@@ -2160,7 +2198,7 @@ button.ld-row:hover,
   color: var(--dim);
   font: inherit;
   display: inline-flex;
-  gap: 6px;
+  gap: var(--sp-2);
   align-items: center;
   min-width: 0;
   flex: 0 1 auto;
@@ -2199,7 +2237,7 @@ dialog {
   font: inherit;
 }
 dialog::backdrop {
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--scrim);
 }
 dialog.goto {
   margin-top: 100px;
@@ -2210,7 +2248,7 @@ dialog.goto {
 }
 .help h3 {
   margin: 14px 0 6px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -2257,7 +2295,7 @@ dialog.goto {
 .sessions .unreadable {
   border-top: 1px solid var(--edge);
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .sessions .unreadable ul {
   margin: 4px 0 0;
@@ -2285,7 +2323,7 @@ dialog.goto {
 .settings-screen .pick {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-1);
   padding: 8px 12px;
 }
 .settings-screen .files {
@@ -2296,4 +2334,7 @@ dialog.goto {
 }
 .settings-screen .opt .k .chip {
   margin-left: 6px;
+}
+.option .cons {
+  display: block;
 }

@@ -80,10 +80,10 @@ Inside a worktree, `metator run ...` without `--run` means that worktree's run. 
 
 ```bash
 metator status      # every run: its stage, what waits for you, whether an agent works on it
-metator ui          # the same as a full-screen view in the terminal
+metator inbox       # only the questions that wait for you
 ```
 
-`metator ui` lists the runs on the left, the ones that need you first, followed by your [`metator ask`](./ask.md) conversations. The right side shows the selected run. The footer names the keys. `metator ui` needs a terminal. In a script, use `metator status`.
+At a terminal `metator status` prints each run with its stages, what it needs now and the command that does it, followed by your [`metator ask`](./ask.md) conversations. In a script it prints the same data as one JSON line (`--json` gives only that line at a terminal too). The desktop app shows the same runs in a window.
 
 ### Watch, stop and continue
 

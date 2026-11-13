@@ -121,7 +121,7 @@ Give a run its own git worktree and it does not touch your checkout or another r
 metator run init --workflow mt-feature --task "Add combined discount" --worktree
 ```
 
-`metator status` lists every run and which ones wait for you. `metator ui` shows the same as a full-screen view. See [Sessions and worktrees](../use/sessions.md).
+`metator status` lists every run and which ones wait for you. `metator inbox` lists the questions alone. At a terminal both print text you can read. See [Sessions and worktrees](../use/sessions.md).
 
 ## Finish a run
 

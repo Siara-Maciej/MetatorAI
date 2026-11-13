@@ -10,7 +10,7 @@ import { resume } from "../sessions.ts";
  * runs the same loop). `--once` does one tick and prints its report, for scripts and tests.
  */
 export function registerSuperviseCommand(program: Command, ctx: CommandContext): void {
-  const root = () => (program.opts() as { root?: string }).root;
+  const root = ctx.root;
   meta(program.command("supervise"), { audience: "person", folder: true })
     .description("Keep runs alive: restart drives that died, nudge idle agents, watch the attention budget")
     .option("--once", "one tick, then the report", false)

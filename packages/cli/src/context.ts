@@ -16,7 +16,7 @@ export interface Outcome {
 /** A folder of repositories (G2): where `metator` was run, and the repositories it gathers. */
 export interface Folder {
   readonly root: string;
-  /** Absolute paths, with the names `metator ui` and `repos` show. */
+  /** Absolute paths, with the names `metator status` and `repos` show. */
   readonly repos: readonly { readonly name: string; readonly path: string; readonly root: string }[];
   /** `metator.repos.yml` when the folder has one; else the repositories were found below it. */
   readonly file: string | null;

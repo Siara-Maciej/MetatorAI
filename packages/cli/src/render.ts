@@ -1,4 +1,11 @@
-import type { Attention, EscalatedItem, InboxItem, Overview, RunOverview, StageProgress } from "@metator/core";
+import type {
+  Attention,
+  EscalatedItem,
+  InboxItem,
+  Overview,
+  RunOverview,
+  StageProgress,
+} from "@metator/core";
 
 /**
  * A command's data as a person reads it (ADR-0052): at a terminal the text goes to stderr and
@@ -47,8 +54,10 @@ export function duration(ms: number): string {
 /** One line on what the run needs now, with the command that does it. */
 export function nextStep(run: RunOverview): string {
   const q = run.questions[0];
-  if (q) return `waits for you: ${q.prompt}  (metator run answer ${q.id} --run ${run.runId} --choice <label>)`;
-  if (run.attention === "you") return `waits at ${run.stage}: metator run approve ${run.stage} --by <name> --run ${run.runId}`;
+  if (q)
+    return `waits for you: ${q.prompt}  (metator run answer ${q.id} --run ${run.runId} --choice <label>)`;
+  if (run.attention === "you")
+    return `waits at ${run.stage}: metator run approve ${run.stage} --by <name> --run ${run.runId}`;
   if (run.attention === "driving") return `working${run.last ? `: ${run.last.text}` : ""}`;
   if (run.died) return `the drive died at ${run.stage}  (metator run continue ${run.runId})`;
   if (run.attention === "stopped") return `stopped at ${run.stage}  (metator run continue ${run.runId})`;

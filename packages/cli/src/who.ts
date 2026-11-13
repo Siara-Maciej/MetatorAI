@@ -6,7 +6,7 @@ type Env = Readonly<Record<string, string | undefined>>;
 /**
  * Who acts, when the command was not told: `--by`, else `$METATOR_USER`, else the name git signs
  * this repository's commits with, else the login name (`$USER`, `$USERNAME`). One rule for every
- * command and for `metator ui`. No name anywhere is a usage error that says where to set one:
+ * command. No name anywhere is a usage error that says where to set one:
  * nothing is ever recorded under a made-up name.
  */
 export function whoFrom(

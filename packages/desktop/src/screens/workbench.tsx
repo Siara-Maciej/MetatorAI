@@ -49,6 +49,7 @@ import {
   type WorkbenchRepo,
   type WorkbenchTab,
   workbenchRepos,
+  workspaceOfPane,
 } from "../model.ts";
 
 /** What the keys mean right now: one thing at a time. */
@@ -211,7 +212,7 @@ export function WorkbenchScreen({
     const id = await opening(
       () =>
         client.openPane(
-          { workspace: p.workspace, tab: p.tab, role: p.role, label: p.label, ...process },
+          { workspace: workspaceOfPane(p), tab: p.tab, role: p.role, label: p.label, ...process },
           repoName,
         ),
       "The pane did not start",
@@ -434,7 +435,7 @@ export function WorkbenchScreen({
   return (
     <div className="workbench" data-testid="workbench" data-zoom-key={keymap.zoom?.[0]}>
       <Tabs
-        label="tabs of this repository"
+        label="tabs"
         className="tabbar"
         current={tab?.key}
         onSelect={setTabKey}

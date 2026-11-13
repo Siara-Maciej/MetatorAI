@@ -16,6 +16,7 @@ import {
   escalatedKey,
   evenTree,
   finishedText,
+  flattenState,
   gotoRows,
   groupByFeature,
   helpRows,
@@ -44,6 +45,7 @@ import {
   parseRoute,
   plainKey,
   plural,
+  portsText,
   questionKind,
   RUN_TABS,
   refusalText,
@@ -57,6 +59,7 @@ import {
   runIdOf,
   runPhase,
   SHELL_KEYS,
+  SHELL_QUIET_MS,
   sameRepo,
   stageGlyph,
   stepLabel,
@@ -71,6 +74,7 @@ import {
   withTerminalAsks,
   workbenchRepos,
   workflowChoice,
+  workspaceOfPane,
 } from "../src/model.ts";
 
 const run = (runId: string, extra: Partial<RunOverview> = {}): RunOverview =>
@@ -650,8 +654,20 @@ describe("one vocabulary for states", () => {
     // A live shell the daemon says nothing about is not "working".
     expect(paneStateOf(pane("command"))).toBe("idle");
     expect(paneStateOf(pane("command", "idle"))).toBe("idle");
-    // Output just now is work, in a shell as anywhere.
-    expect(paneStateOf(pane("command", "working"))).toBe("working");
+    // A shell works only while it prints: the daemon calls it working for 15 s after its last
+    // output, the app for two.
+    const at = Date.parse("2026-11-13T10:00:00.000Z");
+    const printing = (agoMs: number) =>
+      ({
+        process: { kind: "command", argv: ["sh"] },
+        live: { alive: true, lastOutputAt: new Date(at - agoMs).toISOString() },
+        state: { state: "working", reason: "output just now" },
+      }) as never;
+    expect(paneStateOf(printing(500), at)).toBe("working");
+    expect(paneStateOf(printing(SHELL_QUIET_MS), at)).toBe("idle");
+    expect(paneStateOf(printing(14_000), at)).toBe("idle");
+    // With no time of its last output a shell is idle.
+    expect(paneStateOf(pane("command", "working"))).toBe("idle");
     // An agent the daemon has not sensed yet is at work.
     expect(paneStateOf(pane("host"))).toBe("working");
   });
@@ -899,5 +915,51 @@ describe("the workbench's commands and small decisions (S6)", () => {
     expect(rows.find((r) => r.id === "help")?.keys).toBe("ctrl+a ?");
     // The help of every screen lists `?` first.
     expect(SHELL_KEYS[0]?.keys).toBe("?");
+  });
+});
+
+describe("the daemon's state, flattened", () => {
+  const broken = { runId: "r9", file: ".metator/runs/r9/state.json", message: "not a RunRecord" };
+
+  test("one repository: its runs as they are, and the runs it could not read", () => {
+    const flat = flattenState({
+      runs: [run("a")],
+      conversations: [],
+      counts: {} as never,
+      unreadable: [broken],
+    });
+    expect(flat.runs.map((r) => [r.runId, r.repo])).toEqual([["a", undefined]]);
+    expect(flat.repos).toEqual([]);
+    expect(flat.unreadable).toEqual([broken]);
+  });
+
+  test("a folder: every run and every unreadable run with its repository; an older daemon names none", () => {
+    const flat = flattenState({
+      folder: "/work",
+      repos: [
+        { name: "fe", path: "/work/fe", runs: [run("a")], unreadable: [broken] },
+        { name: "be", path: "/work/be", runs: [run("b")] },
+        { name: "bad", path: "/work/bad", error: "no config" },
+      ],
+    });
+    expect(flat.runs.map((r) => [r.runId, r.repo])).toEqual([
+      ["a", "fe"],
+      ["b", "be"],
+    ]);
+    expect(flat.repos.map((r) => r.name)).toEqual(["fe", "be", "bad"]);
+    expect(flat.unreadable).toEqual([{ ...broken, repo: "fe" }]);
+    expect(flattenState(undefined)).toEqual({ runs: [], repos: [], unreadable: [] });
+  });
+});
+
+describe("shapes the daemon passes through from core (ADR-0085)", () => {
+  test("a service's ports are named: they read `name port`, or `no port`", () => {
+    expect(portsText({ web: 3000, db: 5432 })).toBe("web 3000, db 5432");
+    expect(portsText({})).toBe("no port");
+  });
+
+  test("a pane names its tab, and the tab its workspace", () => {
+    expect(workspaceOfPane({ tab: "w2:t1" })).toBe("w2");
+    expect(workspaceOfPane({ tab: "w12:t3" })).toBe("w12");
   });
 });

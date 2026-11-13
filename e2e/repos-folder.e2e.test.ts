@@ -90,17 +90,15 @@ describe("a folder of repositories (real CLI)", () => {
     );
   }, 60_000);
 
-  test("metator ui in the folder: every repository's sessions on one screen, by repository", async () => {
-    const r = await inTerminal(
-      ["ui"],
-      folder,
-      [
-        { waitFor: "3 repositories", keys: "" },
-        { waitFor: "Fix VAT", keys: "q" },
-      ],
-      60_000,
-    );
+  test("metator status in the folder, at a terminal: every repository's runs as text, by repository, and the JSON line", async () => {
+    const r = await inTerminal(["status"], folder, [], 60_000);
     expect(r.code).toBe(0);
-    for (const text of ["billing", "shop", "Add discount", "Fix VAT"]) expect(r.screen).toContain(text);
+    for (const text of ["3 repositories", "billing", "shop", "Add discount", "Fix VAT"])
+      expect(r.screen).toContain(text);
+    expect((r.json.data as { repos: unknown[] }).repos).toHaveLength(3);
+    // --json: the line alone, nothing a person reads.
+    const quiet = await inTerminal(["status", "--json"], folder, [], 60_000);
+    expect(quiet.screen).not.toContain("3 repositories");
+    expect((quiet.json.data as { repos: unknown[] }).repos).toHaveLength(3);
   }, 90_000);
 });

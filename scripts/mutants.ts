@@ -140,13 +140,13 @@ export const MUTANTS: readonly Mutant[] = [
     why: "git's @{u} is no workflow input",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/declared-command.ts",
     from: "return inside && declared.some((p) => rest === p || rest.startsWith(`$" + "{p} `));",
     to: "return declared.some((p) => rest === p || rest.startsWith(`$" + "{p} `));",
     why: "a cd out of the working directories is not dropped",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/declared-command.ts",
     from: 'if (rest.includes("&&")) return false;',
     to: "",
     why: "a chain after the declared command is not the declared command",
@@ -164,7 +164,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "git ls-remote only reads",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/declared-command.ts",
     from: "if (/[`;|&<>]|\\$/.test(head)) return false;",
     to: "",
     why: "a chain or pipe before the here-document is not the declared command",
@@ -206,7 +206,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "metator version only prints",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/permitted-writes.ts",
     from: 'if (at === 3 && !(inside(argv[2] ?? "/") && argv[2] !== undefined)) return false;',
     to: "",
     why: "git -C names a directory the agent works in",
@@ -218,13 +218,13 @@ export const MUTANTS: readonly Mutant[] = [
     why: "git remote reads URLs, never sets or adds one",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/shell-words.ts",
     from: 'if (c === "`" || command[i + 1] === "(") substitutes = true;',
     to: "",
     why: "a command substitution in a reading command asks a person",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/shell-words.ts",
     from: 'if (part === "..") parts.pop();',
     to: 'if (part === "..") continue;',
     why: "a path after cd that climbs out of the working directories asks",
@@ -254,19 +254,19 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a subagent is judged by its own definition",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/declared-command.ts",
     from: "if (substitutes || /[;&|<>\\n\\r]/.test(unquoted)) return false;\n  const trimmed",
     to: "const trimmed",
     why: "a declared command with another chained to it is not the declared command",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/permitted-writes.ts",
     from: 'if (files.length === 0 || files.some((f) => f.startsWith("-") || f.split("/").includes(".."))) return false;',
     to: "",
     why: "rm takes files, never an option such as -r or a climb out",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/permitted-writes.ts",
     from: "return dirs.some((d) => abs.startsWith(",
     to: "return true || dirs.some((d) => abs.startsWith(",
     why: "rm removes only inside the run's directories",
@@ -320,19 +320,19 @@ export const MUTANTS: readonly Mutant[] = [
     why: "only a bare --version is reading, never a tool run with other arguments",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/shell-words.ts",
     from: "i++; // an escaped character is literal",
     to: "",
     why: "an escaped $ or quote in a commit message is literal",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/shell-words.ts",
     from: 'expands = true;\n      if (c === "`"',
     to: 'if (c === "`"',
     why: "a commit message that would run a command asks a person",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/permitted-writes.ts",
     from: "const RUN_BRANCH = /^(HEAD:(refs\\/heads\\/)?)?metator\\/[A-Za-z0-9][\\w.-]*$/;",
     to: "const RUN_BRANCH = /^(HEAD:(refs\\/heads\\/)?)?[A-Za-z0-9][\\w./-]*$/;",
     why: "the approved push publishes only the run's branch",
@@ -362,7 +362,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the person sees the options the agent listed",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/permitted-writes.ts",
     from:
       '    const abs = path.startsWith("/") ? path : `$' +
       '{cwd.replace(/\\/$/, "")}/$' +
@@ -390,24 +390,6 @@ export const MUTANTS: readonly Mutant[] = [
     from: '  "**/{test,tests,spec}/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",\n',
     to: "",
     why: "a mocha test in test/ without a .test suffix is a test",
-  },
-  {
-    file: "packages/cli/src/tui/model.ts",
-    from: "FINISHED.has(run.attention) && `$" + "{r.root}#$" + "{run.runId}` !== keep;",
-    to: "FINISHED.has(run.attention);",
-    why: "the selected run stays in view when it finishes",
-  },
-  {
-    file: "packages/cli/src/tui/model.ts",
-    from: "if (shown) rows.push(...finished.map(row));",
-    to: "",
-    why: "an open repository shows its finished sessions",
-  },
-  {
-    file: "packages/cli/src/tui/model.ts",
-    from: 'const FINISHED: ReadonlySet<Attention> = new Set(["done", "aborted"]);',
-    to: 'const FINISHED: ReadonlySet<Attention> = new Set(["done", "aborted", "escalated"]);',
-    why: "an escalated run still needs someone and stays in view",
   },
   {
     file: "packages/core/src/domain/publication.ts",
@@ -452,19 +434,19 @@ export const MUTANTS: readonly Mutant[] = [
     why: "committing and pushing asks a person until the push is approved",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/permitted-writes.ts",
     from: 'return words.length === 2 && words[0] === "origin" && RUN_BRANCH.test(words[1] as string);',
     to: "return true;",
     why: "a push names origin and one branch, never a refspec or a force",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/permitted-writes.ts",
     from: "if (/[\\n\\r]/.test(unquoted) ||",
     to: "if (",
     why: "a line break outside quotes starts another command",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/permitted-writes.ts",
     from: "if (!COMMIT_OPTIONS.test(a)) return false;",
     to: "",
     why: "git commit --amend or --no-verify is no plain delivery commit",
@@ -602,7 +584,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "find -delete, rg --pre and sort -o are not read-only",
   },
   {
-    file: "packages/core/src/domain/read-only-command.ts",
+    file: "packages/core/src/domain/permitted-writes.ts",
     from: '!arg.split("/").includes("..") &&',
     to: "",
     why: "a path out of the working directories is not searched without a person",
@@ -3019,16 +3001,52 @@ export const MUTANTS: readonly Mutant[] = [
     why: "answered questions are not waiting",
   },
   {
-    file: "packages/cli/src/tui/model.ts",
+    file: "packages/core/src/domain/answer-words.ts",
+    from: 'export const ANSWERS_WITH_WORDS: readonly string[] = ["Reject", "Other"];',
+    to: 'export const ANSWERS_WITH_WORDS: readonly string[] = ["Reject", "Other", "Deny"];',
+    why: "Deny is a whole answer: only Reject and Other ask for the person's words",
+  },
+  {
+    file: "packages/cli/src/who.ts",
+    from: "[given, env.METATOR_USER, gitName, env.USER, env.USERNAME]",
+    to: "[given, env.METATOR_USER, env.USER, gitName, env.USERNAME]",
+    why: "git's user.name comes before the login name",
+  },
+  {
+    file: "packages/cli/src/options.ts",
+    from: "word && opts.run && word !== opts.run",
+    to: "word && opts.run && word === opts.run",
+    why: "the run named twice the same way is one run; two different runs are a usage error",
+  },
+  {
+    file: "packages/cli/src/outcome.ts",
+    from: "if (!failure) return { result: report, ...extra };",
+    to: "if (failure) return { result: report, ...extra };",
+    why: "a check that names a problem fails",
+  },
+  {
+    file: "packages/cli/src/commands/meta.ts",
+    from: "if (metaOf(sub).renamedTo && !renamed) continue;",
+    to: "",
+    why: "a command's old spelling is not in the help",
+  },
+  {
+    file: "packages/cli/src/command-meta.ts",
+    from: ".filter((c) => c.meta.check && !c.meta.renamedFrom)",
+    to: ".filter((c) => !c.meta.renamedFrom)",
+    why: "meta check-all runs only the commands that say they are checks",
+  },
+  {
+    file: "packages/cli/src/run.ts",
+    from: "if (!asksForJsonOnly(argv)) options.terminal?.raw(",
+    to: "if (asksForJsonOnly(argv)) options.terminal?.raw(",
+    why: "--json leaves the text out; without it a person at a terminal reads it",
+  },
+  {
+    file: "packages/cli/src/render.ts",
     from: 'return s.state === "current" || s.state === "waiting" || s.state === "stopped" ? `[',
     to: 'return s.state === "current" || s.state === "stopped" ? `[',
     why: "the stage that waits for you is marked as the current one",
-  },
-  {
-    file: "packages/cli/src/tui/model.ts",
-    from: "  if (q) return `waits for you: ",
-    to: "  if (!q) return `waits for you: ",
-    why: "a waiting question comes first in the next step",
   },
   {
     file: "packages/core/src/domain/overview.ts",
@@ -3047,24 +3065,6 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'escalated: n("escalated"),',
     to: "escalated: 0,",
     why: "escalated runs are counted",
-  },
-  {
-    file: "packages/cli/src/tui/components/ChatView.tsx",
-    from: "marginTop={-top}",
-    to: "marginTop={0}",
-    why: "PgDn scrolls a long answer",
-  },
-  {
-    file: "packages/cli/src/tui/components/ChatView.tsx",
-    from: 'height={layout.rows} overflow="hidden"',
-    to: "",
-    why: "a long answer stays inside the screen",
-  },
-  {
-    file: "packages/cli/src/tui/App.tsx",
-    from: '["active", "escalated"].includes(run.run.status)',
-    to: 'run.run.status === "active"',
-    why: "Enter resumes an escalated run",
   },
   {
     file: "packages/core/src/application/init.ts",
@@ -3263,12 +3263,6 @@ export const MUTANTS: readonly Mutant[] = [
     from: "}..HEAD`])",
     to: "}`])",
     why: "only the commits after the merge base belong to the branch",
-  },
-  {
-    file: "packages/core/src/domain/versioned.ts",
-    from: 'doc.setIn(key.split("."), value);',
-    to: "doc.set(key, value);",
-    why: "dotted settings are set nested",
   },
   {
     file: "packages/core/src/domain/architecture.ts",
@@ -4070,8 +4064,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/system-runs.ts",
-    from: "children: [...(parent.value.children ?? []), run.value.runId]",
-    to: "children: parent.value.children ?? []",
+    from: "children: [...(record.children ?? []), run.value.runId]",
+    to: "children: record.children ?? []",
     why: "the system run lists its child runs",
   },
   {
@@ -5743,14 +5737,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/host-files.ts",
-    from: "${generatedMarker(context.source)}\\n${note}${prose}",
-    to: "${note}${prose}",
-    why: "a generated agent file carries the generated marker",
+    from: "generatedMarker(context.source)",
+    to: 'generatedMarker("")',
+    why: "a generated agent file's marker names the source it was generated from",
   },
   {
     file: "packages/core/src/application/host-files.ts",
-    from: "    this.owns = `${root}/*/SKILL.md`;",
-    to: "    this.owns = `${root}/SKILL.md`;",
+    from: "/*/SKILL.md`;",
+    to: "/SKILL.md`;",
     why: "a skills generator owns the SKILL.md of every skill directory under its root",
   },
   {
@@ -5848,5 +5842,17 @@ export const MUTANTS: readonly Mutant[] = [
     from: "step: at >= 0 ? at + 1 : 1",
     to: "step: at",
     why: "a decision card counts a run's place in its feature group from one",
+  },
+  {
+    file: "packages/core/src/application/layout-store.ts",
+    from: "return this.lock.hold(this.file, async () => {",
+    to: "return (async () => {",
+    why: "two layout changes made at once are both kept (R5)",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: "ok({ ...record, children: [...(record.children ?? []), run.value.runId] }),",
+    to: "ok({ ...parent.value, children: [...(record.children ?? []), run.value.runId] }),",
+    why: "a child is added to the parent run as it is now, not as it was when the wave began (R5)",
   },
 ];

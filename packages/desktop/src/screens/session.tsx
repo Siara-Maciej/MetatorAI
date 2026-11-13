@@ -19,6 +19,7 @@ import {
   paneStateOf,
   panesOfRun,
   plainKey,
+  portsText,
   runPhase,
 } from "../model.ts";
 
@@ -169,12 +170,16 @@ export function SessionScreen({
               Working:{" "}
               {run.driver === "human"
                 ? `${run.attachedBy ?? "a person"}${attached ? " (you)" : ""}`
-                : "agent"}
+                : run.driving || live
+                  ? "agent"
+                  : "nobody"}
             </strong>
             <span className="note">
               {run.driver === "human"
                 ? "a yes in the chat counts as an approval while a person is attached"
-                : "attach to type; approvals said in the chat do not count until then"}
+                : run.driving || live
+                  ? "attach to type; approvals said in the chat do not count until then"
+                  : "no agent works on this run and no session is open"}
             </span>
             {attached ? (
               <button type="button" onClick={() => void release()}>
@@ -343,7 +348,7 @@ export function SessionScreen({
             <div className="svc" key={s.service}>
               <span>{s.service}</span>
               <span className="dim">
-                {s.status} · {s.ports.join(", ") || "no port"}
+                {s.status} · {portsText(s.ports)}
               </span>
             </div>
           ))}

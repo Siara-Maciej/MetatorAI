@@ -95,10 +95,7 @@ export class RunRepository {
     const text = await this.fs.read(source);
     if (text.isErr()) {
       return err(
-        new MetatorError("NOT_FOUND", `Run "${runId}" not found`, {
-          hint: "List runs with `metator run list`.",
-          details: { source },
-        }),
+        MetatorError.notFound(`Run "${runId}"`, { hint: "List runs with `metator run list`.", source }),
       );
     }
     return parseRunRecord(text.value, source);

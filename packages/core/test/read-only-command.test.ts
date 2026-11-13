@@ -2,12 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   declaredAfterCd,
   declaredWithDocument,
-  deliveryCommand,
-  readOnlyCommand,
-  removeInside,
-  runArtifactWrite,
   singleDeclaredCommand,
-} from "../src/domain/read-only-command.ts";
+} from "../src/domain/declared-command.ts";
+import { deliveryCommand, removeInside, runArtifactWrite } from "../src/domain/permitted-writes.ts";
+import { METATOR_QUERIES, readOnlyCommand } from "../src/domain/read-only-command.ts";
 
 const DIRS = ["/folder", "/repo/.metator/runs/r"];
 const ro = (command: string) => readOnlyCommand(command, DIRS);
@@ -425,5 +423,24 @@ describe("removeInside", () => {
         "rm /r/.metator/wt/x",
       ].map(go),
     ).toEqual(Array(8).fill(false));
+  });
+});
+
+describe("METATOR_QUERIES", () => {
+  test("every entry is a command of one or two lowercase words, as the matcher reads them", () => {
+    const malformed = [...METATOR_QUERIES].filter((q) => !/^[a-z][a-z-]*( [a-z][a-z-]*)?$/.test(q));
+    expect(malformed).toEqual([]);
+    expect(METATOR_QUERIES.size).toBeGreaterThan(20);
+  });
+
+  test("no one-word entry is the group of a two-word entry: it would let every command of the group through", () => {
+    const groups = new Set([...METATOR_QUERIES].filter((q) => q.includes(" ")).map((q) => q.split(" ")[0]));
+    expect([...METATOR_QUERIES].filter((q) => !q.includes(" ") && groups.has(q))).toEqual([]);
+  });
+
+  test("an entry that would be malformed is not matched as a query", () => {
+    expect(readOnlyCommand("metator graph deps src/a.ts", ["/repo"])).toBe(true);
+    expect(readOnlyCommand("metator graph", ["/repo"])).toBe(false);
+    expect(readOnlyCommand("metator graph deps src/a.ts --out x.json", ["/repo"])).toBe(false);
   });
 });
