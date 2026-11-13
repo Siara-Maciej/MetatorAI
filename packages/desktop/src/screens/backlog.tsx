@@ -4,12 +4,12 @@
  * points, and the decision. An agent only proposes; the task exists after your "Add".
  */
 import { useMemo, useState } from "react";
-import type { Envelope, Issue } from "../api.ts";
+import type { Issue } from "../api.ts";
 import { Notice, RepoSelect } from "../components/common.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../components/list-detail.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { useAction } from "../hooks.ts";
+import { type Answer, useAction } from "../hooks.ts";
 import {
   duration,
   issueRefText,
@@ -63,7 +63,7 @@ export function BacklogScreen({
   const current = issues.find((i) => i.id === chosen) ?? proposals[0] ?? open[0];
   /** The last start was refused for uncommitted changes: the same start, from the last commit. */
   const [retry, setRetry] = useState<() => void>();
-  const act = (fn: (by: string) => Promise<Pick<Envelope<unknown>, "ok" | "error">>, again?: () => void) => {
+  const act = (fn: (by: string) => Promise<Answer>, again?: () => void) => {
     setRetry(undefined);
     return action.run(fn, {
       who: true,
@@ -177,7 +177,9 @@ export function BacklogScreen({
           {proposals.map(row)}
           <ListSection>open · {open.length}</ListSection>
           {open.map(row)}
-          {open.length === 0 && proposals.length === 0 ? <EmptyRow>Nothing open. + task adds one.</EmptyRow> : null}
+          {open.length === 0 && proposals.length === 0 ? (
+            <EmptyRow>Nothing open. + task adds one.</EmptyRow>
+          ) : null}
           <span className="spacer" />
           {finished.length > 0 ? (
             <>
@@ -309,10 +311,7 @@ export function BacklogScreen({
                 <button type="button" className="go" onClick={() => void start(current)}>
                   Start a run
                 </button>
-                <button
-                  type="button"
-                  onClick={() => act((by) => client.closeIssue(current.id, by, repo))}
-                >
+                <button type="button" onClick={() => act((by) => client.closeIssue(current.id, by, repo))}>
                   Done
                 </button>
                 <button type="button" onClick={() => act((by) => client.dropIssue(current.id, by, repo))}>
@@ -328,9 +327,7 @@ export function BacklogScreen({
                   value={workflowOf(current) ?? ""}
                   onChange={(e) => setWanted(e.target.value)}
                 >
-                  {workflows.length === 0 ? (
-                    <option value="">no workflow in this repository</option>
-                  ) : null}
+                  {workflows.length === 0 ? <option value="">no workflow in this repository</option> : null}
                   {workflows.map((w) => (
                     <option key={w} value={w}>
                       {w}
@@ -347,8 +344,8 @@ export function BacklogScreen({
           </div>
           <span className="spacer" />
           <div className="faint">
-            An agent only proposes. A task exists after your "Add"; "Add and start a run" also opens a run
-            in a new worktree (a new tab).
+            An agent only proposes. A task exists after your "Add"; "Add and start a run" also opens a run in
+            a new worktree (a new tab).
           </div>
         </>
       ) : (

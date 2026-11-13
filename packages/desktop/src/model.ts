@@ -983,7 +983,9 @@ export interface CommandContext {
   /** Someone else holds it. */
   readonly taken: boolean;
   readonly zoomed: boolean;
-  readonly tab?: { readonly kind: "task" | "shell"; readonly runId?: string | undefined; readonly panes: number } | undefined;
+  readonly tab?:
+    | { readonly kind: "task" | "shell"; readonly runId?: string | undefined; readonly panes: number }
+    | undefined;
 }
 
 export interface WorkbenchCommand {
@@ -1061,7 +1063,12 @@ const NO_CONTEXT: CommandContext = { attached: false, taken: false, zoomed: fals
 export function menuCommands(
   menus: readonly NonNullable<WorkbenchCommand["menu"]>[],
   ctx: CommandContext,
-): { readonly id: string; readonly label: string; readonly separator: boolean; readonly disabled: boolean }[] {
+): {
+  readonly id: string;
+  readonly label: string;
+  readonly separator: boolean;
+  readonly disabled: boolean;
+}[] {
   return WORKBENCH_COMMANDS.filter(
     (c) => c.menu !== undefined && menus.includes(c.menu) && (c.shown?.(ctx) ?? true),
   ).map((c) => ({
@@ -1074,9 +1081,7 @@ export function menuCommands(
 
 /** A chord as a person presses it: `prefix+z` reads `ctrl+b z`; a bare chord reads as it is. */
 export const chordText = (map: KeyMap, chord: string): string =>
-  chord.startsWith("prefix+")
-    ? `${map.prefix?.[0] ?? "prefix"} ${chord.slice("prefix+".length)}`
-    : chord;
+  chord.startsWith("prefix+") ? `${map.prefix?.[0] ?? "prefix"} ${chord.slice("prefix+".length)}` : chord;
 
 /** The first key of an action as a person presses it (`ctrl+b z`), for a menu item; none when unbound. */
 export const keyLabel = (map: KeyMap, action: string): string | undefined => {
@@ -1101,7 +1106,9 @@ export const SHELL_KEYS: readonly { readonly keys: string; readonly label: strin
  * The help overlay's rows for the workbench: every bound command with all its keys as they are
  * pressed, in the table's order; a command with no key is left out.
  */
-export function helpRows(map: KeyMap): { readonly id: string; readonly keys: string; readonly label: string }[] {
+export function helpRows(
+  map: KeyMap,
+): { readonly id: string; readonly keys: string; readonly label: string }[] {
   const rows = [
     { id: "prefix", keys: (map.prefix ?? []).join(" / "), label: "The prefix: press it, then a key below" },
     ...WORKBENCH_COMMANDS.map((c) => ({

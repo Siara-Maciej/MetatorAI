@@ -31,9 +31,14 @@ describe("the answers that need the person's own words", () => {
     const q = {
       id: "q001",
       prompt: "Allow Bash?",
-      options: [{ label: "Allow" }, { label: "Deny", description: "refuse" }, { label: "Reject" }, { label: "Other" }],
+      options: [
+        { label: "Allow" },
+        { label: "Deny", description: "refuse" },
+        { label: "Reject" },
+        { label: "Other" },
+      ],
     };
-    expect(withNeedsText(q)).toEqual({
+    expect<unknown>(withNeedsText(q)).toEqual({
       id: "q001",
       prompt: "Allow Bash?",
       options: [

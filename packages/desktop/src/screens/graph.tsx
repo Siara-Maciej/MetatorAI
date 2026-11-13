@@ -1,52 +1,59 @@
 /** Screen 3: lanes per repository, sessions as cards, parent → child arrows, dashed links for messages and shared files. */
-import { useCallback, useEffect, useState } from "react";
 import type { Conflict, RunMessage } from "../api.ts";
-import { useDaemon } from "../daemon.tsx";
+import { Notice } from "../components/common.tsx";
+import { useDaemon, usePolled } from "../daemon.tsx";
+import { useAction } from "../hooks.ts";
+import { lookOf, openRuns, routeHash, sameRepo, type Tone } from "../model.ts";
+
+/** The custom property of a tone, for an SVG stroke. */
+const TONE_VAR: Record<Tone, string> = {
+  amber: "amber",
+  violet: "violet",
+  red: "red",
+  green: "green",
+  blue: "blue",
+  teal: "teal",
+  faint: "grey",
+};
 
 const W = 220;
 const H = 54;
 
 export function GraphScreen() {
-  const { runs, repos, client, me } = useDaemon();
-  const [conflicts, setConflicts] = useState<(Conflict & { repo?: string })[]>([]);
-  const [messages, setMessages] = useState<RunMessage[]>([]);
-  const [note, setNote] = useState<string>();
-  const load = useCallback(async () => {
-    const names = repos.length > 0 ? repos.map((r) => r.name) : [undefined];
-    const all: (Conflict & { repo?: string })[] = [];
-    for (const repo of names) {
-      const c = await client.conflicts(repo);
-      if (c.ok && c.data) all.push(...c.data.conflicts.map((x) => ({ ...x, ...(repo ? { repo } : {}) })));
-    }
-    setConflicts(all);
-    const msgs: RunMessage[] = [];
-    for (const r of runs.filter((x) => x.status === "active")) {
-      const m = await client.messages(r.runId, r.repo);
-      if (m.ok && m.data) msgs.push(...m.data.messages);
-    }
-    setMessages(msgs);
-  }, [client, repos, runs]);
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { runs, repos, client } = useDaemon();
+  // Every run that is not finished, escalated ones included: what the panel and the top bar count.
+  const active = openRuns(runs);
+  // Asked again when the set of runs changes, not on every refresh of the state.
+  const key = `graph:${repos.map((r) => r.name).join(",")}:${active.map((r) => `${r.repo ?? ""}/${r.runId}`).join(",")}`;
+  const links0 = usePolled(
+    key,
+    async () => {
+      const names = repos.length > 0 ? repos.map((r) => r.name) : [undefined];
+      const [conflicts, messages] = await Promise.all([
+        Promise.all(
+          names.map(async (repo) => {
+            const c = await client.conflicts(repo);
+            return (c.data?.conflicts ?? []).map((x) => ({ ...x, ...(repo ? { repo } : {}) }));
+          }),
+        ),
+        Promise.all(active.map(async (r) => (await client.messages(r.runId, r.repo)).data?.messages ?? [])),
+      ]);
+      return { ok: true, data: { conflicts: conflicts.flat(), messages: messages.flat() } };
+    },
+    5000,
+  );
+  const conflicts: readonly (Conflict & { repo?: string })[] = links0.data?.conflicts ?? [];
+  const messages: readonly RunMessage[] = links0.data?.messages ?? [];
+  const action = useAction(links0.reload);
   const lanes = repos.length > 0 ? repos.map((r) => r.name) : [""];
-  const active = runs.filter((r) => r.status === "active");
   const pos = new Map<string, { x: number; y: number }>();
   lanes.forEach((lane, li) => {
     active
-      .filter((r) => (r.repo ?? "") === lane)
+      .filter((r) => sameRepo(r.repo, lane))
       .forEach((r, i) => {
         pos.set(r.runId, { x: 120 + i * (W + 30), y: 40 + li * (H + 60) });
       });
   });
-  const color = (a: string) =>
-    a === "you"
-      ? "var(--amber)"
-      : a === "driving"
-        ? "var(--violet)"
-        : a === "escalated"
-          ? "var(--red)"
-          : "var(--grey)";
   const edges = active.flatMap((r) =>
     (r.children ?? [])
       .filter((c) => pos.has(c))
@@ -71,23 +78,24 @@ export function GraphScreen() {
     return `M ${p.x + W} ${p.y + H / 2} C ${p.x + W + 40} ${p.y + H / 2}, ${q.x - 40} ${q.y + H / 2}, ${q.x} ${q.y + H / 2}`;
   };
   const width =
-    160 + Math.max(1, ...lanes.map((l) => active.filter((r) => (r.repo ?? "") === l).length)) * (W + 30);
+    160 + Math.max(1, ...lanes.map((l) => active.filter((r) => sameRepo(r.repo, l)).length)) * (W + 30);
   const height = 40 + lanes.length * (H + 60);
-  const notify = async (c: Conflict & { repo?: string }) => {
-    const who = me || "me";
-    const text = `both runs changed ${c.files.join(", ")}; merge ${c.mergeFirst} first, the other rebases on it`;
-    for (const [to, from] of [
-      [c.runs[0], c.runs[1]],
-      [c.runs[1], c.runs[0]],
-    ] as const) {
-      const r = await client.message(to, from, "shared-file", text, [...c.files], who, c.repo);
-      if (!r.ok) setNote(r.error?.message);
-    }
-    await load();
-  };
+  const notify = (c: Conflict & { repo?: string }) =>
+    action.run(
+      async (by) => {
+        const text = `both runs changed ${c.files.join(", ")}; merge ${c.mergeFirst} first, the other rebases on it`;
+        const sent = await Promise.all(
+          ([c.runs, [c.runs[1], c.runs[0]]] as const).map(([to, from]) =>
+            client.message(to, from, "shared-file", text, [...c.files], by, c.repo),
+          ),
+        );
+        return sent.find((r) => !r.ok) ?? { ok: true };
+      },
+      { who: true, done: "both runs were told" },
+    );
   return (
     <div className="graph">
-      <div style={{ overflow: "auto" }}>
+      <div className="canvas">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           role="img"
@@ -112,7 +120,7 @@ export function GraphScreen() {
               <rect className="lane" x={8} y={20 + li * (H + 60)} width={width - 16} height={H + 40} rx={8} />
               <text className="lanename" x={16} y={36 + li * (H + 60)}>
                 {(lane || "this repository").toUpperCase()} ·{" "}
-                {active.filter((r) => (r.repo ?? "") === lane).length}
+                {active.filter((r) => sameRepo(r.repo, lane)).length}
               </text>
             </g>
           ))}
@@ -128,7 +136,7 @@ export function GraphScreen() {
             const p = pos.get(r.runId);
             if (!p) return null;
             return (
-              <a key={r.runId} href={`#/session/${encodeURIComponent(r.runId)}`} aria-label={r.task}>
+              <a key={r.runId} href={routeHash({ screen: "session", runId: r.runId })} aria-label={r.task}>
                 <rect
                   className="node"
                   x={p.x}
@@ -136,7 +144,7 @@ export function GraphScreen() {
                   width={W}
                   height={H}
                   rx={8}
-                  stroke={color(r.attention)}
+                  stroke={`var(--${TONE_VAR[lookOf("attention", r.attention).tone ?? "faint"]})`}
                 />
                 <text x={p.x + 10} y={p.y + 20} fontWeight={600}>
                   {r.task.length > 28 ? `${r.task.slice(0, 27)}…` : r.task}
@@ -163,7 +171,7 @@ export function GraphScreen() {
                 </span>
                 <code>{l.from}</code> ↔ <code>{l.to}</code>
                 {l.kind === "conflict" ? (
-                  <div className="chips" style={{ marginTop: 4 }}>
+                  <div className="chips gap-top">
                     <span className="chip amber">merge {l.data.mergeFirst} first</span>
                     <button type="button" onClick={() => void notify(l.data)}>
                       Notify both
@@ -183,7 +191,7 @@ export function GraphScreen() {
             instruction
           </div>
         </div>
-        {note ? <div className="banner">{note}</div> : null}
+        <Notice {...action.notice} />
       </aside>
     </div>
   );

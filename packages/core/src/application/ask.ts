@@ -11,6 +11,7 @@ import type { AgentAnswer, AgentEvent, AgentQuestion } from "../domain/drive.ts"
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { AgentHost, Clock, FileSystem } from "../ports/index.ts";
+import { hostNamed } from "./agent-run.ts";
 import { loadDocument, writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 
@@ -116,12 +117,9 @@ export class AskQuestion {
       previous = prior.value;
     }
     const hostId = input.host ?? previous?.host ?? input.defaultHost;
-    const host = this.hosts.get(hostId);
-    if (!host) {
-      return err(
-        MetatorError.usage(`unknown host ${hostId}`, `Hosts: ${[...this.hosts.keys()].join(", ")}.`),
-      );
-    }
+    const found = hostNamed(this.hosts, hostId);
+    if (found.isErr()) return err(found.error);
+    const host = found.value;
     const now = this.clock.now();
     const id =
       previous?.id ?? (await uniqueId(question, now, (candidate) => this.conversations.exists(candidate)));

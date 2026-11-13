@@ -3,7 +3,7 @@
  * answered, and the controls of one run (attach, release, the editor, its panes).
  */
 import { useCallback, useRef, useState } from "react";
-import type { Envelope } from "./api.ts";
+import type { DaemonClient } from "./api.ts";
 import { useDaemon } from "./daemon.tsx";
 import { type Run, refusalText } from "./model.ts";
 
@@ -13,8 +13,17 @@ export function useOption<T>(key: string, fallback: T): T {
   return (options.find((o) => o.key === key)?.value as T | undefined) ?? fallback;
 }
 
-/** What an action answered: the envelope's `ok` and its error. */
-type Answer = Pick<Envelope<unknown>, "ok" | "error">;
+/** What an action answered: the envelope's `ok` and what it says of a refusal. */
+export interface Answer {
+  readonly ok: boolean;
+  readonly error?:
+    | {
+        readonly message?: string;
+        readonly hint?: string;
+        readonly details?: Readonly<Record<string, unknown>>;
+      }
+    | undefined;
+}
 
 export interface ActionNotice {
   readonly text: string | undefined;
@@ -82,30 +91,37 @@ export function useAction(reload?: () => Promise<unknown> | unknown): Action {
   };
 }
 
-/** The controls of one run, the same on the session screen and on the workbench. */
-export function useRunControls(run: Pick<Run, "runId" | "repo" | "driver" | "attachedBy"> | undefined, action: Action) {
-  const { client, me } = useDaemon();
+type RunRef = Pick<Run, "runId" | "repo" | "driver" | "attachedBy">;
+
+/**
+ * The controls of one run, the same on the session screen and on the workbench (which has many
+ * runs and asks for the controls of the one a pane belongs to).
+ */
+export function runControls(client: DaemonClient, action: Action, me: string, run: RunRef | undefined) {
   const runId = run?.runId;
   const repo = run?.repo;
-  /** The person holds the keyboard of this run. */
-  const attached = run?.driver === "human" && run.attachedBy === me && me !== "";
+  const none = () => Promise.resolve(false);
   return {
-    attached,
+    /** The person holds the keyboard of this run. */
+    attached: run?.driver === "human" && run.attachedBy === me && me !== "",
     /** Someone holds it: nobody else can attach. */
     taken: run?.driver === "human",
-    attach: () =>
-      runId ? action.run((by) => client.attach(runId, by, repo), { who: true }) : Promise.resolve(false),
-    release: () => (runId ? action.run(() => client.release(runId, repo)) : Promise.resolve(false)),
+    attach: () => (runId ? action.run((by) => client.attach(runId, by, repo), { who: true }) : none()),
+    release: () => (runId ? action.run(() => client.release(runId, repo)) : none()),
     /** The run's directory in the person's editor (`editor.command`), at a file and line when given. */
     openEditor: (at: { file?: string; line?: number } = {}) =>
-      runId
-        ? action.run(() => client.openEditor(runId, at, repo), { done: "opened in the editor" })
-        : Promise.resolve(false),
+      runId ? action.run(() => client.openEditor(runId, at, repo), { done: "opened in the editor" }) : none(),
     closePane: (paneId: string) => action.run(() => client.closePane(paneId, repo)),
     /** Starts the run's terminal session: the one explicit way a process starts from a screen. */
     openSession: () =>
       runId
         ? action.run(() => client.ptyOpen(runId, repo), { refused: "the session did not start" })
-        : Promise.resolve(false),
+        : none(),
   };
+}
+
+/** `runControls` of one run, for a screen that is about that run. */
+export function useRunControls(run: RunRef | undefined, action: Action) {
+  const { client, me } = useDaemon();
+  return runControls(client, action, me, run);
 }

@@ -10,8 +10,8 @@ import {
 import { type Command, Option } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { schemaCommand } from "../outcome.ts";
 import { byOption } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
 import { asPerson, who } from "../who.ts";
 import { minScore } from "./system-plan.ts";
@@ -172,7 +172,7 @@ export function registerArchPlanCommands(
       action(async (id: string) => ({ result: await container().resolve("syncRefactorPlan").execute(id) })),
     );
 
-  schemaCommand(plan, ctx, "Print the JSON Schema of a refactor plan", RefactorPlanDocument);
+  schemaCommand(plan, { action }, "Print the JSON Schema of a refactor plan", RefactorPlanDocument);
 }
 
 /** `arch eval` (H7): the golden set of refactor planning, each case planned in a fresh repository. */
@@ -221,5 +221,5 @@ export function registerArchEvalCommands(arch: Command, { action, container }: C
         };
       }),
     );
-  schemaCommand(evalCmd, ctx, "Print the JSON Schema of a golden case", ArchEvalCaseDocument);
+  schemaCommand(evalCmd, { action }, "Print the JSON Schema of a golden case", ArchEvalCaseDocument);
 }

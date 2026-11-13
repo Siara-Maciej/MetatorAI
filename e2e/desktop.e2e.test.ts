@@ -301,7 +301,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
   }, 60_000);
 
   test("the session screen streams the PTY; only the attached person types; other screens render", async () => {
-    // A second run, undriven: its scenario session is opened by the terminal itself.
+    // A second run, undriven: its scenario session is opened by the person, with "Open a session".
     const created = await (
       await fetch(`${daemonUrl}/runs`, {
         method: "POST",
@@ -313,6 +313,14 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
       `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/session/${runId}`,
     );
     const term = page.getByTestId(`terminal-${runId}`);
+    // Coming to the session starts nothing: the screen says no session runs, and the daemon has no pane.
+    await page.getByTestId("no-session").waitFor({ timeout: 20_000 });
+    await Bun.sleep(1500);
+    expect(
+      ((await api("/layout")).data.panes as { runId?: string }[]).filter((p) => p.runId === runId),
+    ).toEqual([]);
+    expect(await term.count()).toBe(0);
+    await page.getByRole("button", { name: "Open a session" }).click();
     await term.waitFor({ timeout: 20_000 });
     await until("the session to greet", async () =>
       (await term.textContent())?.includes("hello from the session") ? true : undefined,
@@ -370,7 +378,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the shell tab gone", async () =>
       (await panes.textContent())?.includes("shell") ? undefined : true,
     );
-    await page.getByRole("button", { name: /Events/ }).click();
+    await page.getByRole("tab", { name: /Events/ }).click();
     await until("the events table", async () =>
       (await page.locator(".events tbody tr").count()) > 0 ? true : undefined,
     );

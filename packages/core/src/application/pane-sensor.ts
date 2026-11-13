@@ -3,9 +3,9 @@ import { type PaneState, type PaneStateView, paneStateOf } from "../domain/host-
 import { stripAnsi, tailLines } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Clock } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
 import type { HostManifestCatalog } from "./host-manifests.ts";
 import type { PtyBroker, PtyView } from "./pty-broker.ts";
+import type { RunJournal } from "./run-journal.ts";
 
 export interface PaneSensorDependencies {
   readonly broker: Pick<PtyBroker, "status" | "list" | "backlog">;

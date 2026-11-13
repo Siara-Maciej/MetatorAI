@@ -25,7 +25,9 @@ Composition root: the awilix container, the typed Cradle and the JSON envelope. 
 
 ## Invariants
 
-- The container is strict, so lifetime mistakes fail fast [[cite: packages/runtime/src/container.ts:463 | "createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true })"]].
+- The container is strict, so lifetime mistakes fail fast [[cite: packages/runtime/src/container.ts:477 | "createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true })"]].
+
+- One adapter instance stands behind the ports it implements (git, the package manager, the oxc analyzer), so they agree with each other.
 
 ## Allowed dependencies
 

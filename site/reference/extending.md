@@ -57,7 +57,7 @@ Every method returns a `Result`. An adapter returns a tool's failure as a `Metat
 
 ## Contract suites
 
-A contract suite is one set of tests that every adapter of a port must pass, the in-memory fake included. The suites are in `packages/testing/src/contracts`: file system, process runner, worktree manager, machine state, tree copier, data isolator, agent host, interactive host, code host, review host and contract differ.
+A contract suite is one set of tests that every adapter of a port must pass, the in-memory fake included. The suites are in `packages/testing/src/contracts`: file system, file lock, process runner, worktree manager, machine state, tree copier, data isolator, version control, rule engine, agent host, interactive host, host generator, skill generator, code host, review host and contract differ.
 
 ```ts
 // packages/plugin-bun/test/bun-process-runner.test.ts

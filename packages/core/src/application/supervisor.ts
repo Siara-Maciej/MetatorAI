@@ -2,12 +2,12 @@ import type { SupervisorPolicy } from "../domain/config.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { countAttention } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import type { RunJournal } from "./drive.ts";
 import type { HostPrompts, HostPromptsReport } from "./host-prompts.ts";
 import type { WorkOverview } from "./overview.ts";
 import type { Panes } from "./panes.ts";
 import type { PtyBroker } from "./pty-broker.ts";
 import type { RunDrivers } from "./run-drivers.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 
 export interface SupervisorDependencies {

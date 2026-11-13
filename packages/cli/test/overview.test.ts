@@ -54,8 +54,8 @@ describe("the overview by verb (metator help --verbs)", () => {
     for (const t of top) if (!plumbing.has(t)) expect([t, reached.has(t)]).toEqual([t, true]);
     expect(overview.total).toBe(all.length);
     expect(overview.verbs.map((v) => v.verb)).toEqual(VERBS.map((v) => v.verb));
-    expect(overview.verbs[1]?.commands.find((c) => c.name === "run init")?.usage).toBe(
-      "metator run init [options]",
+    expect(overview.verbs[1]?.commands.find((c) => c.name === "run new")?.usage).toBe(
+      "metator run new [options]",
     );
   });
 
@@ -63,7 +63,7 @@ describe("the overview by verb (metator help --verbs)", () => {
     const text = renderOverview(overview);
     expect(text).toStartWith("MetatorAI 0.0.0: survey first, prove everything.");
     expect(text).toMatch(/\nWork on a task\n {2}metator run {2,}start a run in the terminal/);
-    expect(text).toContain("  metator run init ");
+    expect(text).toContain("  metator run new ");
     expect(text).toContain("`metator help`");
     expect(text).not.toContain(String.fromCharCode(27));
   });

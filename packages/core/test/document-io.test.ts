@@ -63,7 +63,9 @@ test("a document is written with its header: JSON, or YAML under the comment", a
 });
 
 test("JSON lines: no file is no lines; a bad line fails with its number, or is skipped", async () => {
-  const fs = new InMemoryFileSystem({ "log.jsonl": `${JSON_A}\n\n{"torn\n${JSON_A.replace('"a"', '"b"')}\n` });
+  const fs = new InMemoryFileSystem({
+    "log.jsonl": `${JSON_A}\n\n{"torn\n${JSON_A.replace('"a"', '"b"')}\n`,
+  });
   expect((await readJsonLines(fs, "none.jsonl", Note, "fail"))._unsafeUnwrap()).toEqual([]);
   expect((await readJsonLines(fs, "log.jsonl", Note, "skip"))._unsafeUnwrap()).toEqual([
     { id: "a" },

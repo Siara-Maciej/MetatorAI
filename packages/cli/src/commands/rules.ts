@@ -2,8 +2,8 @@ import { err, MetatorError, normalizePath, ok, RuleSetDocument } from "@metator/
 import { type Command, Option } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { schemaCommand } from "../outcome.ts";
 import { positiveInt, renamedOption } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
 
 const repoPaths = (files: readonly string[]) => files.map((f) => normalizePath(f).replace(/^(\.\/)+/, ""));
 
@@ -160,5 +160,5 @@ export function registerRulesCommands(program: Command, { action, container }: C
       })),
     );
 
-  schemaCommand(rules, ctx, "Print the JSON Schema of a rule set file", RuleSetDocument);
+  schemaCommand(rules, { action }, "Print the JSON Schema of a rule set file", RuleSetDocument);
 }

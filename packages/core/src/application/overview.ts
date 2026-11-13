@@ -13,9 +13,9 @@ import {
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Clock } from "../ports/index.ts";
 import type { ConversationRepository } from "./ask.ts";
-import type { RunJournal } from "./drive.ts";
 import type { EnvironmentServices, ServiceReport } from "./environments.ts";
 import type { RunDrivers } from "./run-drivers.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository, UnreadableRun } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 import type { WorktreeRegistry } from "./worktrees.ts";

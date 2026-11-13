@@ -2,7 +2,7 @@
 import { attentionLabel, Dot } from "../components/chips.tsx";
 import { RepoSelect } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { duration, type HostStatus, noHostText } from "../model.ts";
+import { duration, type HostStatus, noHostText, openRuns, plural, runCounts } from "../model.ts";
 
 export function SupervisorScreen({
   onOpenSession,
@@ -15,7 +15,9 @@ export function SupervisorScreen({
   const { data: view, error } = usePolled(`supervisor:${repo ?? ""}`, () => client.supervisor(repo), 5000);
   const a = view?.acceptance;
   const fromInboxPct = a && a.answered > 0 ? Math.round((100 * a.fromInbox) / a.answered) : undefined;
-  const active = runs.filter((r) => r.status === "active");
+  // Every run that is not finished, escalated ones included: the same count the top bar reads.
+  const counts = runCounts(runs);
+  const active = openRuns(runs);
   const sessions = new Map((view?.sessions ?? []).map((s) => [s.runId, s]));
   const hosts: readonly HostStatus[] =
     view?.hostStatus ?? (view?.hosts ?? []).map((id) => ({ id, installed: true }));
@@ -27,11 +29,11 @@ export function SupervisorScreen({
           <h2>Daemon</h2>
           <span className={`chip ${view ? "green" : "red"}`}>{view ? "running" : "no answer"}</span>
           <span className="dim">
-            {active.length} run{active.length === 1 ? "" : "s"} · {installed.length} of {hosts.length} AI
+            {plural(counts.open, "run")} · {counts.needYou} need you · {installed.length} of {hosts.length} AI
             hosts installed · up {view ? duration(view.daemon.uptimeMs) : "—"} ·{" "}
             <code>{view?.daemon.url ?? url}</code>
           </span>
-          <span style={{ flex: 1 }} />
+          <span className="spacer" />
           <RepoSelect />
           <button type="button" className="primary" onClick={onNew}>
             + New session
@@ -40,9 +42,7 @@ export function SupervisorScreen({
         {error ? <div className="banner">{error}</div> : null}
         <div className="kpis">
           <div className="kpi" data-testid="kpi-median">
-            <div className={`v ${a?.medianAnswerMs !== undefined ? "" : ""}`}>
-              {a?.medianAnswerMs !== undefined ? duration(a.medianAnswerMs) : "—"}
-            </div>
+            <div className="v">{a?.medianAnswerMs !== undefined ? duration(a.medianAnswerMs) : "—"}</div>
             <div className="l">median time from a question to its answer ({a?.answered ?? 0} answered)</div>
           </div>
           <div className="kpi" data-testid="kpi-inbox">
@@ -63,22 +63,25 @@ export function SupervisorScreen({
         <table className="fleet">
           <thead>
             <tr>
-              <th>run</th>
-              <th>repo</th>
-              <th>AI host</th>
-              <th>working</th>
-              <th>state</th>
-              <th>uptime</th>
-              <th>terminal</th>
-              <th>last activity</th>
+              {["run", "repo", "AI host", "working", "state", "uptime", "terminal", "last activity"].map(
+                (h) => (
+                  <th key={h} scope="col">
+                    {h}
+                  </th>
+                ),
+              )}
             </tr>
           </thead>
           <tbody>
             {active.map((r) => {
               const s = sessions.get(r.runId);
               return (
-                <tr key={r.runId} onClick={() => onOpenSession(r.runId)} style={{ cursor: "pointer" }}>
-                  <td>{r.task}</td>
+                <tr key={`${r.repo ?? ""}:${r.runId}`}>
+                  <td>
+                    <button type="button" className="ghost link" onClick={() => onOpenSession(r.runId)}>
+                      {r.task}
+                    </button>
+                  </td>
                   <td>{r.repo ?? "—"}</td>
                   <td>{r.host ?? "—"}</td>
                   <td>{r.driver === "human" ? (r.attachedBy ?? "person") : "agent"}</td>
@@ -94,7 +97,7 @@ export function SupervisorScreen({
             })}
           </tbody>
         </table>
-        {active.length === 0 ? <div className="empty">No active run.</div> : null}
+        {active.length === 0 ? <div className="empty">No open run.</div> : null}
       </div>
       <aside className="side policy">
         <div className="box">
@@ -121,7 +124,7 @@ export function SupervisorScreen({
           ) : (
             <div className="muted">—</div>
           )}
-          <div className="dim" style={{ marginTop: 6 }}>
+          <div className="dim gap-top">
             edit in <code>metator.config.yml</code> → supervisor
           </div>
         </div>
@@ -140,9 +143,7 @@ export function SupervisorScreen({
             </div>
           ))}
           {hosts.length > 0 && installed.length === 0 ? (
-            <div className="muted" style={{ marginTop: 6 }}>
-              {noHostText(hosts)}
-            </div>
+            <div className="muted gap-top">{noHostText(hosts)}</div>
           ) : null}
         </div>
         <div className="box">

@@ -1,7 +1,7 @@
 import { MetatorError } from "../domain/errors.ts";
-import { progressOf } from "../domain/plan-progress.ts";
+import { progressOf, requireApproved, settled } from "../domain/plan-progress.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { approvalHolds, readySteps, type SystemPlan, stepTask } from "../domain/system-plan.ts";
+import { readySteps, type SystemPlan, stepTask, systemPlanDigest } from "../domain/system-plan.ts";
 import type { Clock } from "../ports/index.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { InitRun } from "./runs.ts";
@@ -51,21 +51,14 @@ export class RunSystemPlan {
   }): Promise<Result<{ readonly plan: SystemPlan; readonly started: readonly StartedStep[] }, MetatorError>> {
     const loaded = await this.store.load(input.id);
     if (loaded.isErr()) return err(loaded.error);
-    let plan = loaded.value;
-    if (plan.status === "draft" || !plan.approval)
-      return err(
-        MetatorError.usage(
-          `${plan.id} is not approved`,
-          `A person approves it: \`metator system plan approve ${plan.id}\`.`,
-        ),
-      );
-    if (!approvalHolds(plan))
-      return err(
-        MetatorError.usage(
-          `the steps of ${plan.id} changed after ${plan.approval.by} approved them`,
-          "Approve the plan again.",
-        ),
-      );
+    const approved = requireApproved(
+      loaded.value,
+      systemPlanDigest(loaded.value),
+      "steps",
+      `A person approves it: \`metator system plan approve ${loaded.value.id}\`.`,
+    );
+    if (approved.isErr()) return err(approved.error);
+    let plan: SystemPlan = approved.value;
     const map = await this.sources.location.require();
     if (map.isErr()) return err(map.error);
     let parent = input.parent ? await this.parents.load(input.parent) : undefined;
@@ -182,7 +175,7 @@ export class SystemPlanStatus {
         root: located.value.root,
       });
     }
-    const done = next.length > 0 && next.every((s) => s.status === "done");
+    const done = settled(next);
     const plan: SystemPlan = { ...loaded.value, steps: next, ...(done ? { status: "done" as const } : {}) };
     const saved = await this.store.save(plan);
     return saved.isErr() ? err(saved.error) : ok({ plan, steps });

@@ -89,7 +89,11 @@ export function MrsScreen({
             {current.runId ? (
               <>
                 <span>{run ? `${run.stage} · ${run.attention}` : "finished"}</span>
-                <button type="button" className="ghost" onClick={() => onOpenSession(current.runId as string)}>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => onOpenSession(current.runId as string)}
+                >
                   Open session
                 </button>
                 <button type="button" className="ghost" onClick={() => onOpenPlan(current.runId as string)}>
@@ -106,7 +110,9 @@ export function MrsScreen({
               className="go"
               data-testid="send-replies"
               disabled={proposed(current) === 0}
-              onClick={() => void action.run((by) => client.sendMrReplies(current.id, by, repo), { who: true })}
+              onClick={() =>
+                void action.run((by) => client.sendMrReplies(current.id, by, repo), { who: true })
+              }
             >
               Send {plural(proposed(current), "reply", "replies")}
             </button>
@@ -129,7 +135,9 @@ export function MrsScreen({
                     type="button"
                     className="ghost"
                     onClick={() =>
-                      void action.run((by) => client.resolveMrThread(current.id, t.id, by, repo), { who: true })
+                      void action.run((by) => client.resolveMrThread(current.id, t.id, by, repo), {
+                        who: true,
+                      })
                     }
                   >
                     Resolve

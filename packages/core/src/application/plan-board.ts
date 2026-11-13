@@ -8,8 +8,8 @@ import { parseJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
 import type { Conductor } from "./conductor.ts";
 import { parseDocumentText } from "./document-io.ts";
-import type { RunJournal } from "./drive.ts";
 import type { MetatorPaths } from "./paths.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 

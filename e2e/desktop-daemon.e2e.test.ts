@@ -268,6 +268,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     const runId = (created.json.data as { runId: string }).runId;
     await page.goto(app(`session/${runId}`));
     const term = page.getByTestId(`terminal-${runId}`);
+    await page.getByRole("button", { name: "Open a session" }).click();
     await term.waitFor({ timeout: 20_000 });
     await until("the session to greet", async () =>
       (await term.textContent())?.includes("hello from the session") ? true : undefined,

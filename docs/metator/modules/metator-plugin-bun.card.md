@@ -21,7 +21,7 @@ dir: packages/plugin-bun
 
 ## Responsibility
 
-Adapters on the Bun runtime: `FileSystem` (a write replaces the file whole), `FileLock` (one writer at a time for a shared file, across processes), `ProcessRunner`, `BackgroundProcess`, `Timer`, `Launcher`, `DataIsolator` (Postgres), `TreeCopier`, `MachineState` (machine-wide state in the user's state directory), `CheckoutReader` (files of other checkouts on this machine), `Sandbox` (a temporary git repository) and `BinResolver` (the repository's pinned binaries before PATH). The `test` rule engine: conformance tests in `rules/conformance/` run under `bun test` (ADR-0034). `findRepoRoot` and its relatives find the repository a command runs in.
+Adapters on the Bun runtime: `FileSystem` (a write replaces the file whole), `FileLock` (one writer at a time for a shared file, across processes), `ProcessRunner`, `BackgroundProcess`, `Timer`, `Launcher`, `DataIsolator` (Postgres), `TreeCopier`, `MachineState` (machine-wide state in the user's state directory), `CheckoutReader` (files of other checkouts on this machine), `Sandbox` (a temporary git repository) and `BinResolver` (the repository's pinned binaries before PATH; where dependencies are not installed, the pinned path, reported missing, for gate steps and PATH for rule engines). The `test` rule engine: conformance tests in `rules/conformance/` run under `bun test` (ADR-0034). `findRepoRoot` and its relatives find the repository a command runs in.
 
 ## Invariants
 
@@ -30,6 +30,8 @@ Adapters on the Bun runtime: `FileSystem` (a write replaces the file whole), `Fi
 
 - Stopping a background service signals its whole process group, so nothing it started outlives it [[cite: packages/plugin-bun/src/bun-background-process.ts:55 | "// The whole group: the shell and every process it started."]].
 - Database names are validated before they reach SQL, so quoting them is safe [[cite: packages/plugin-bun/src/bun-sql-data-isolator.ts:14 | "Names match DB_NAME, so they"]].
+
+- A conformance finding is the same on every run: how long a test took is cut from its message.
 
 ## Allowed dependencies
 

@@ -1,11 +1,4 @@
-import {
-  ArchitecturePolicyDocument,
-  DECLARATION_KINDS,
-  err,
-  MetatorError,
-  type Move,
-  ok,
-} from "@metator/core";
+import { ArchitecturePolicyDocument, DECLARATION_KINDS, err, MetatorError, type Move } from "@metator/core";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";

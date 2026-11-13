@@ -3,7 +3,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import { nextMessageId, type RunMessage, RunMessageDocument } from "../domain/run-message.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
 import { loadDocument, writeDocument } from "./document-io.ts";
-import type { RunJournal } from "./drive.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
 export interface SendMessageInput {

@@ -1,10 +1,10 @@
 import type { MetatorError } from "../domain/errors.ts";
 import { ANSWERED_IN_PANE, ATTACH_PANE, hostPromptText, LEAVE_PANE } from "../domain/host-manifest.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import type { RunJournal } from "./drive.ts";
 import type { DriverLock } from "./driver-lock.ts";
 import type { Notifier } from "./notifier.ts";
 import type { PaneSensor } from "./pane-sensor.ts";
+import type { RunJournal } from "./run-journal.ts";
 
 export interface HostPromptsDependencies {
   readonly sensor: Pick<PaneSensor, "all">;

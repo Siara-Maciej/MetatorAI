@@ -21,11 +21,11 @@ dir: packages/plugin-astgrep
 
 ## Responsibility
 
-`RuleEngine` port on the ast-grep CLI: E1 rules from sgconfig.yml and their tests, findings from `ast-grep scan --json=stream`. `RuleScaffolder` (`AstGrepScaffolder`): writes a new rule and its test, with placeholder cases, into the directories sgconfig.yml names.
+`RuleEngine` port on the ast-grep CLI: E1 rules from sgconfig.yml and their tests, findings from `ast-grep scan --format sarif` through `diagnosticsFromSarif`. `RuleScaffolder` (`AstGrepScaffolder`): writes a new rule and its test, with placeholder cases, into the directories sgconfig.yml names.
 
 ## Invariants
 
-- The repository's pinned binary wins over one on PATH [[cite: packages/plugin-astgrep/src/ast-grep-engine.ts:114 | "return existsSync(local) ? local : \"ast-grep\";"]].
+- The repository's pinned binary wins over one on PATH [[cite: packages/plugin-astgrep/src/ast-grep-engine.ts:62 | "bin: \"ast-grep\","]] (the `BinResolver` it is given, run by `runTool`).
 
 ## Allowed dependencies
 
@@ -35,3 +35,4 @@ dir: packages/plugin-astgrep
 
 - ast-grep scans in parallel; results are sorted so output stays deterministic.
 - ast-grep fails on paths that do not exist; deleted files are filtered out before scanning.
+- ast-grep writes plain paths where SARIF has URIs; the engine escapes them, so a `%` in a file name survives.

@@ -1714,14 +1714,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/skill-generator.ts",
-    from: 'readonly root = ".claude/skills";',
-    to: 'readonly root = ".claude/skills-x";',
+    from: 'super("claude", ".claude/skills");',
+    to: 'super("claude", ".claude/skills-x");',
     why: "claude skills live in .claude/skills",
   },
   {
     file: "packages/plugin-host-copilot/src/skill-generator.ts",
-    from: 'readonly root = ".github/skills";',
-    to: 'readonly root = ".github/skills-x";',
+    from: 'super("copilot", ".github/skills");',
+    to: 'super("copilot", ".github/skills-x");',
     why: "copilot skills live in .github/skills",
   },
   {
@@ -2217,13 +2217,13 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a scenario path can point into the run directory",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/application/run-journal.ts",
     from: "if (standing) return ok(standing);",
     to: "",
     why: "a restarted drive does not ask the same question twice",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/application/run-journal.ts",
     from: "if (choices.length === 0 || unknown.length > 0) {",
     to: "if (choices.length === 0) {",
     why: "an answer must be one of the options",
@@ -2277,7 +2277,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the prompt echoed back is not the agent's text",
   },
   {
-    file: "packages/plugin-host-scenario/src/scenario-agent-host.ts",
+    file: "packages/plugin-host-scenario/src/scenario-player.ts",
     from: "entries[Math.min(n, entries.length - 1)]",
     to: "entries[0]",
     why: "the n-th start plays the n-th entry",
@@ -2368,7 +2368,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/config-file.ts",
-    from: 'value: MetatorConfigDocument.current };',
+    from: "value: MetatorConfigDocument.current };",
     to: "value: 1 };",
     why: "a config with an editor is written as v3",
   },
@@ -2548,8 +2548,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-scenario/src/scenario-agent-host.ts",
-    from: "const n = Math.max(this.starts.get(task.agent) ?? 0, resumed ? Number(resumed) : 0);",
-    to: "const n = this.starts.get(task.agent) ?? 0;",
+    from: "this.player.next(task.agent, resumed ? Number(resumed) : 0)",
+    to: "this.player.next(task.agent, 0)",
     why: "a resumed scenario session plays the next entry",
   },
   {
@@ -2609,13 +2609,13 @@ export const MUTANTS: readonly Mutant[] = [
     why: "with a lockfile the install keeps it as it is",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/domain/drive.ts",
     from: '  const last = activity.map((a) => a.type).lastIndexOf("answer");',
     to: "  const last = -1;",
     why: "the card says what happened since the last answer, not since the start",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/domain/drive.ts",
     from: "  if (stage.onFail) {\n",
     to: "  if (false) {\n",
     why: "a gate with onFail says where a rejection sends the run",
@@ -2804,8 +2804,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-scenario/src/scenario-interactive-host.ts",
-    from: "    const n = Math.max(this.starts.get(task.agent) ?? 0, atLeast);",
-    to: "    const n = 0;",
+    from: "const atLeast = resume === undefined ? 0 : Number(/-(\\d+)$/.exec(resume)?.[1] ?? 0);",
+    to: "const atLeast = 0;",
     why: "a resumed session plays the next entry",
   },
   {
@@ -3721,21 +3721,21 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a done wave is skipped",
   },
   {
-    file: "packages/core/src/application/architecture-plans.ts",
-    from: "    if (blocking.length > 0)\n",
-    to: "    if (false)\n",
+    file: "packages/core/src/domain/plan-progress.ts",
+    from: "  if (blocking.length > 0)\n",
+    to: "  if (false)\n",
     why: "approval needs a clean lint",
   },
   {
-    file: "packages/core/src/application/architecture-plans.ts",
+    file: "packages/core/src/domain/plan-progress.ts",
     from: 'if (plan.status === "draft" || !plan.approval)',
     to: "if (!plan.approval)",
     why: "a draft never runs",
   },
   {
-    file: "packages/core/src/application/architecture-plans.ts",
-    from: "    if (plan.approval.digest !== planDigest(plan))\n",
-    to: "    if (false)\n",
+    file: "packages/core/src/domain/plan-progress.ts",
+    from: "  if (plan.approval.digest !== digest)\n",
+    to: "  if (false)\n",
     why: "an edited plan does not run on an old approval",
   },
   {
@@ -3746,7 +3746,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/architecture-plans.ts",
-    from: 'if (written.value.approval || written.value.status !== "draft") {',
+    from: "if (draft !== written.value) {",
     to: "if (false) {",
     why: "the planner never approves its own plan",
   },
@@ -3757,9 +3757,9 @@ export const MUTANTS: readonly Mutant[] = [
     why: "an impossible plan scores 0",
   },
   {
-    file: "packages/core/src/application/architecture-plans.ts",
-    from: 'const blocking = errors.filter((p) => p.code !== "stale-approval");',
-    to: "const blocking = errors;",
+    file: "packages/core/src/domain/plan-progress.ts",
+    from: 'p.severity === "error" && p.code !== "stale-approval"',
+    to: 'p.severity === "error"',
     why: "approving again fixes a stale approval",
   },
   {
@@ -4082,14 +4082,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/system-runs.ts",
-    from: 'const done = next.length > 0 && next.every((s) => s.status === "done");',
+    from: "const done = settled(next);",
     to: 'const done = next.some((s) => s.status === "done");',
     why: "the plan is done only when every step is",
   },
   {
     file: "packages/core/src/application/system-runs.ts",
-    from: "if (!approvalHolds(plan))\n      return err(",
-    to: "if (false)\n      return err(",
+    from: 'systemPlanDigest(loaded.value),\n      "steps",',
+    to: 'loaded.value.approval?.digest ?? "",\n      "steps",',
     why: "a plan changed after its approval does not run",
   },
   {
@@ -4166,7 +4166,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/system-plans.ts",
-    from: 'if (written.value.approval || written.value.status !== "draft") {',
+    from: "if (draft !== written.value) {",
     to: "if (false) {",
     why: "an agent never approves the plan it wrote",
   },
@@ -4444,7 +4444,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the quick gate is never left empty when a lint script exists",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/domain/drive.ts",
     from: '.filter((s): s is { id: string; detail?: string } => (s as { status?: unknown }).status === "fail")',
     to: ".filter((s): s is { id: string; detail?: string } => true)",
     why: "a failed gate names only the steps that failed",
@@ -4511,8 +4511,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-scenario/src/scenario-interactive-host.ts",
-    from: "    const entries = scenario.value.agents[task.agent] ?? scenario.value.agents[SESSION_AGENT];",
-    to: "    const entries = scenario.value.agents[SESSION_AGENT];",
+    from: "player.next(task.agent, atLeast, SESSION_AGENT)",
+    to: "player.next(SESSION_AGENT, atLeast)",
     why: "an agent's own scenario entry plays in its pane",
   },
   {
@@ -5088,7 +5088,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "an APPROVE event without a name is refused (R1)",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/application/run-journal.ts",
     from: 'if (input.by.trim() === "")',
     to: "if (false)",
     why: "an answer without a name is refused (R1)",
@@ -5100,7 +5100,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "attaching without a name is refused (R1)",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/application/run-journal.ts",
     from: 'RunActivityDocument, "skip")',
     to: 'RunActivityDocument, "fail")',
     why: "a torn activity line is skipped, the journal still reads (R2)",
@@ -5358,7 +5358,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a lock is never taken outside the repository",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/application/run-journal.ts",
     from: 'if (run.isOk() && (run.value.state.status !== "active" || run.value.state.stage !== q.value.stage))',
     to: "if (false)",
     why: "a wait for an answer ends when the run left the stage or ended (R3, R8)",
@@ -5388,7 +5388,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a resumed run's agent hears why the stage failed (F1)",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/application/run-journal.ts",
     from: 'if (run.isOk() && run.value.state.status !== "active")',
     to: "if (false)",
     why: "a question of a run that ended takes no answer (R3)",
@@ -5526,7 +5526,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a choice typed in another case is the one label it names (F10)",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/application/run-journal.ts",
     from: "input.choices.map((c) => labelFor(labels, c));",
     to: "[...input.choices];",
     why: "an answer is recorded with the question's own label, however it was typed (F10)",
@@ -5538,7 +5538,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the start of a run's id names the run; a start two runs share is refused (F10)",
   },
   {
-    file: "packages/core/src/application/drive.ts",
+    file: "packages/core/src/domain/drive.ts",
     from: "cardLine(a.text)}",
     to: "a.text}",
     why: "a decision card carries one short line per transition, never a failure's whole output (F9)",
@@ -5677,13 +5677,13 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/document-io.ts",
-    from: "else if (onBadLine === \"fail\") return err(parsed.error);",
+    from: 'else if (onBadLine === "fail") return err(parsed.error);',
     to: "",
     why: "a bad JSON line fails the read unless the caller skips torn lines",
   },
   {
     file: "packages/core/src/application/document-io.ts",
-    from: "if (options.unreadable !== \"skip\") problems.push({ source, error: text.error });",
+    from: 'if (options.unreadable !== "skip") problems.push({ source, error: text.error });',
     to: "problems.push({ source, error: text.error });",
     why: "a scan that skips unreadable files does not report them",
   },
@@ -5698,5 +5698,155 @@ export const MUTANTS: readonly Mutant[] = [
     from: "if (current.isErr()) return err(current.error);",
     to: "",
     why: "a config that is not valid stays untouched when a setting is saved",
+  },
+  {
+    file: "packages/core/src/application/golden-cases.ts",
+    from: "await box.value.dispose();",
+    to: "",
+    why: "a golden case's sandbox is disposed whatever the scoring did",
+  },
+  {
+    file: "packages/core/src/application/golden-cases.ts",
+    from: "{ ...extra, ...c.files }",
+    to: "{ ...c.files, ...extra }",
+    why: "a golden case's own files win over the files every sandbox gets",
+  },
+  {
+    file: "packages/core/src/application/golden-cases.ts",
+    from: "if (problem) return err(problem.error);",
+    to: "",
+    why: "one invalid golden case fails the whole set",
+  },
+  {
+    file: "packages/core/src/application/pty-interactive-host.ts",
+    from: "    return this.spawn(task, size, sessionId);",
+    to: "    return this.spawn(task, size);",
+    why: "a resume hands the session id to the host's launch",
+  },
+  {
+    file: "packages/core/src/application/pty-interactive-host.ts",
+    from: "    if (launch.isErr()) return err(launch.error);",
+    to: '    if (launch.isErr()) return ok({ sessionId: "", pty: undefined as never });',
+    why: "a launch that fails spawns nothing and is the error",
+  },
+  {
+    file: "packages/core/src/application/pty-interactive-host.ts",
+    from: "      ...(env ? { env } : {}),",
+    to: "",
+    why: "a host's session environment reaches the terminal",
+  },
+  {
+    file: "packages/core/src/application/host-files.ts",
+    from: "const text = withMetatorCommand(body, context.metatorCommand);",
+    to: "const text = body;",
+    why: "a host's agent runs MetatorAI the way the repository does",
+  },
+  {
+    file: "packages/core/src/application/host-files.ts",
+    from: "${generatedMarker(context.source)}\\n${note}${prose}",
+    to: "${note}${prose}",
+    why: "a generated agent file carries the generated marker",
+  },
+  {
+    file: "packages/core/src/application/host-files.ts",
+    from: "    this.owns = `${root}/*/SKILL.md`;",
+    to: "    this.owns = `${root}/SKILL.md`;",
+    why: "a skills generator owns the SKILL.md of every skill directory under its root",
+  },
+  {
+    file: "packages/core/src/application/tool-runner.ts",
+    from: "  if (r.exitCode === 127)",
+    to: "  if (false)",
+    why: "a tool that cannot be started is BIN_NOT_FOUND, not the tool's answer",
+  },
+  {
+    file: "packages/core/src/application/tool-runner.ts",
+    from: "const command = await bins.command(run.bin, run.args);",
+    to: "const command = { argv: [run.bin, ...run.args], cwd: (await bins.command(run.bin, [])).cwd };",
+    why: "a tool runs as the binary the resolver names (the repository's pinned one)",
+  },
+  {
+    file: "packages/plugin-host-scenario/src/scenario-player.ts",
+    from: "const n = Math.max(this.starts.get(agent) ?? 0, atLeast);",
+    to: "const n = this.starts.get(agent) ?? 0;",
+    why: "a continued session plays the entry after the turns it already played",
+  },
+  {
+    file: "packages/plugin-host-scenario/src/scenario-player.ts",
+    from: "?? (standIn ? scenario.value.agents[standIn] : undefined)",
+    to: "",
+    why: "an agent the scenario does not list plays the stand-in entry",
+  },
+  {
+    file: "packages/plugin-docker/src/docker-compose-runtime.ts",
+    from: "    if (r.exitCode === 127) {",
+    to: "    if (false) {",
+    why: "a docker that cannot be started is BIN_NOT_FOUND with how to get it",
+  },
+  {
+    file: "packages/plugin-bun/src/node-bin-resolver.ts",
+    from: 'this.whenUninstalled === "pinned" &&',
+    to: "",
+    why: "rule engines run a tool from PATH where dependencies are not installed",
+  },
+  {
+    file: "packages/plugin-bun/src/bun-test-engine.ts",
+    from: '.map((l) => l.replace(DURATION, ""));',
+    to: ";",
+    why: "a conformance finding is the same on every run (no test durations)",
+  },
+  {
+    file: "packages/plugin-astgrep/src/ast-grep-engine.ts",
+    from: "artifactLocation: { uri: encodeURI(uri) }",
+    to: "artifactLocation: { uri }",
+    why: "a file name with a percent sign is reported verbatim",
+  },
+  {
+    file: "packages/core/src/domain/plan-progress.ts",
+    from: 'items.length > 0 && items.every((i) => i.status === "done")',
+    to: 'items.every((i) => i.status === "done")',
+    why: "a plan without items is not done",
+  },
+  {
+    file: "packages/core/src/domain/plan-progress.ts",
+    from: 'if (!plan.approval && plan.status === "draft") return plan;',
+    to: "if (!plan.approval) return plan;",
+    why: "a plan an agent marked approved without an approval is a draft again",
+  },
+  {
+    file: "packages/core/src/domain/plan-progress.ts",
+    from: 'if (plan.status === "running" || plan.status === "done")',
+    to: 'if (plan.status === "done")',
+    why: "a running plan cannot be approved again",
+  },
+  {
+    file: "packages/core/src/application/agent-run.ts",
+    from: 'if (e.type === "result" && !e.ok)',
+    to: "if (false)",
+    why: "an agent that stops without success is a failed command",
+  },
+  {
+    file: "packages/core/src/application/agent-run.ts",
+    from: "return host\n    ? ok(host)",
+    to: "return true\n    ? ok(host as H)",
+    why: "an unknown host is a usage error that lists the hosts",
+  },
+  {
+    file: "packages/core/src/application/decision-card.ts",
+    from: "if (used > 0) out.push(",
+    to: "if (used >= 0) out.push(",
+    why: "a decision card counts only the loops a run used as a cost of delay",
+  },
+  {
+    file: "packages/core/src/application/decision-card.ts",
+    from: ".filter((f) => !isRunBookkeeping(f))",
+    to: "",
+    why: "a decision card lists the run's artifacts, not its bookkeeping files",
+  },
+  {
+    file: "packages/core/src/application/decision-card.ts",
+    from: "step: at >= 0 ? at + 1 : 1",
+    to: "step: at",
+    why: "a decision card counts a run's place in its feature group from one",
   },
 ];

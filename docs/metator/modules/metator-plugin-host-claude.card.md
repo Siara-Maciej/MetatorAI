@@ -21,11 +21,11 @@ dir: packages/plugin-host-claude
 
 ## Responsibility
 
-`HostGenerator` for Claude Code: writes `.claude/agents/<id>.md` from canonical agents (ADR-0030); `ClaudeSkillGenerator` (`SkillGenerator`) writes `.claude/skills/<name>/SKILL.md` (ADR-0039). `ClaudeAgentHost` runs a canonical agent through the Claude Agent SDK for `run drive`; questions and permission prompts go to a person (ADR-0051). `ClaudeInteractiveHost` opens `claude <task> --session-id <uuid>` in a PTY through the `Terminal` port for the daemon and the desktop app (D6, ADR-0077).
+`HostGenerator` for Claude Code: writes `.claude/agents/<id>.md` from canonical agents (ADR-0030); `ClaudeSkillGenerator` (`SkillGenerator`) writes `.claude/skills/<name>/SKILL.md` (ADR-0039). `ClaudeAgentHost` runs a canonical agent through the Claude Agent SDK for `run drive`; questions and permission prompts go to a person (ADR-0051). `ClaudeInteractiveHost` opens `claude <task> --session-id <uuid>` in a PTY through the `Terminal` port for the daemon and the desktop app (D6, ADR-0077); it is core's `PtyInteractiveHost` given Claude Code's command line, as `ClaudeSkillGenerator` is core's `AgentSkillsGenerator` given `.claude/skills`.
 
 ## Invariants
 
-- Without general Bash, each `metator` group is allowed on its own [[cite: packages/plugin-host-claude/src/claude-generator.ts:77 | "for (const g of metatorGroups(agent)) tools.add(`Bash(${context.metatorCommand} ${g}:*)`);"]].
+- Without general Bash, each `metator` group is allowed on its own [[cite: packages/plugin-host-claude/src/claude-generator.ts:75 | "for (const g of metatorGroups(agent)) tools.add(`Bash(${context.metatorCommand} ${g}:*)`);"]].
 - Claude Code tool names and model aliases live in one table each, pinned by a snapshot test.
 
 ## Allowed dependencies

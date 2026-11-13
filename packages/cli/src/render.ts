@@ -1,11 +1,69 @@
-import type { EscalatedItem, InboxItem, Overview, RunOverview } from "@metator/core";
-import { ATTENTION, duration, fit, nextStep, stageBar } from "./tui/model.ts";
+import type { Attention, EscalatedItem, InboxItem, Overview, RunOverview, StageProgress } from "@metator/core";
 
 /**
  * A command's data as a person reads it (ADR-0052): at a terminal the text goes to stderr and
  * stdout keeps the one JSON line, so a pipe and a script see what they always saw. Pure
  * functions over the same data the envelope carries; `--json` leaves them out.
  */
+
+export const ATTENTION: Readonly<Record<Attention, { readonly icon: string; readonly label: string }>> = {
+  you: { icon: "?", label: "needs you" },
+  driving: { icon: "⟳", label: "working" },
+  stopped: { icon: "‖", label: "stopped" },
+  done: { icon: "✓", label: "done" },
+  escalated: { icon: "!", label: "escalated" },
+  aborted: { icon: "✗", label: "aborted" },
+};
+
+const STAGE_MARK: Readonly<Record<StageProgress["state"], string>> = {
+  done: "✓",
+  current: "⟳",
+  waiting: "?",
+  next: "·",
+  stopped: "!",
+};
+
+/** `intake ✓ ─ plan ✓ ─ [plan-approval ?] ─ build ·`: the current stage in brackets. */
+export function stageBar(stages: readonly StageProgress[]): string {
+  return stages
+    .map((s) => {
+      const label = `${s.id} ${STAGE_MARK[s.state]}`;
+      return s.state === "current" || s.state === "waiting" || s.state === "stopped" ? `[${label}]` : label;
+    })
+    .join(" ─ ");
+}
+
+/** `45 s`, `12 min`, `3 h 05 min`, `2 d 4 h`. */
+export function duration(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h ${String(m % 60).padStart(2, "0")} min`;
+  return `${Math.floor(h / 24)} d ${h % 24} h`;
+}
+
+/** One line on what the run needs now, with the command that does it. */
+export function nextStep(run: RunOverview): string {
+  const q = run.questions[0];
+  if (q) return `waits for you: ${q.prompt}  (metator run answer ${q.id} --run ${run.runId} --choice <label>)`;
+  if (run.attention === "you") return `waits at ${run.stage}: metator run approve ${run.stage} --by <name> --run ${run.runId}`;
+  if (run.attention === "driving") return `working${run.last ? `: ${run.last.text}` : ""}`;
+  if (run.died) return `the drive died at ${run.stage}  (metator run continue ${run.runId})`;
+  if (run.attention === "stopped") return `stopped at ${run.stage}  (metator run continue ${run.runId})`;
+  if (run.attention === "escalated")
+    return `at ${run.stage}: fix the cause, then metator run resume --run ${run.runId} --drive`;
+  if (run.attention === "aborted") return `at ${run.stage}`;
+  return "every stage passed";
+}
+
+/** The text on one line, cut to a width with an ellipsis. */
+export function fit(text: string, width: number): string {
+  if (width <= 1) return text.slice(0, Math.max(0, width));
+  const flat = text.replace(/\s+/g, " ");
+  return flat.length <= width ? flat : `${flat.slice(0, width - 1)}…`;
+}
 
 const WIDTH = 100;
 
@@ -21,7 +79,8 @@ export function renderCommandList(data: {
   readonly audience?: string;
 }): string {
   const width = Math.max(0, ...data.commands.map((c) => c.name.length));
-  const lines = data.commands.map((c) => fit(`  metator ${c.name.padEnd(width)}  ${c.summary}`, WIDTH + 40));
+  const cut = (line: string) => (line.length <= WIDTH + 40 ? line : `${line.slice(0, WIDTH + 39)}…`);
+  const lines = data.commands.map((c) => cut(`  metator ${c.name.padEnd(width)}  ${c.summary}`));
   const whose = data.audience ? ` for ${data.audience}` : "";
   return [
     ...lines,
@@ -66,7 +125,7 @@ function runLines(run: RunOverview): string[] {
     `${a.icon} ${run.runId}  ${a.label} · ${run.workflow} · ${duration(run.elapsedMs)}`,
     `    ${fit(run.task, WIDTH - 4)}`,
     `    ${stageBar(run.stages)}`,
-    `    ${fit(nextStep(run), WIDTH - 4)}`,
+    `    ${nextStep(run)}`,
   ];
 }
 

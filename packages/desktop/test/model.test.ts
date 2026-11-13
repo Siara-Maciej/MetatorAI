@@ -6,40 +6,66 @@ import {
   autonomyLabel,
   autonomyLevels,
   byPanelOrder,
+  byStage,
   canAnswer,
   chordOf,
+  chordText,
+  closesWorkspace,
   DEFAULT_KEYS,
   duration,
   escalatedKey,
   evenTree,
+  finishedText,
   gotoRows,
   groupByFeature,
+  helpRows,
   hostChoice,
   inboxChips,
   isFinished,
+  keyLabel,
   keyMapOf,
   keyText,
+  LOOKS,
+  lookOf,
+  menuCommands,
+  needsPerson,
   needsReason,
   neighborPane,
   newQuestions,
   nextWaiting,
+  nextWaitingTab,
   noHostText,
   notifies,
+  openRuns,
   optionMatches,
   paneLabel,
+  paneStateOf,
   panesOfRun,
   parseRoute,
   plainKey,
+  plural,
   questionKind,
+  RUN_TABS,
+  refusalText,
   refusedForDirtyTree,
   repoChoice,
+  repoOfTab,
   resumeNotice,
+  retryHost,
   routeHash,
+  runCounts,
+  runIdOf,
+  runPhase,
+  SHELL_KEYS,
+  sameRepo,
   stageGlyph,
-  stateTone,
   stepLabel,
+  tabOfPane,
+  tabOfRun,
+  toastOf,
   toggleChoice,
   treeLeavesOf,
+  WORKBENCH_COMMANDS,
   wasAway,
   withRatio,
   withTerminalAsks,
@@ -239,7 +265,7 @@ describe("formatting and routes", () => {
     expect(wasAway(0, 600_000)).toBe(true);
   });
 
-  test("a run's panes: the conductor first, workers next, shells last; labels and state tones", () => {
+  test("a run's panes: the conductor first, workers next, shells last; labels", () => {
     const pane = (
       id: string,
       role: "conductor" | "worker" | "shell",
@@ -275,9 +301,6 @@ describe("formatting and routes", () => {
       "mt-planner-2",
       "shell",
     ]);
-    expect(
-      ["blocked", "waiting", "working", "idle", "exited", undefined].map((s) => stateTone(s as never)),
-    ).toEqual(["amber", "amber", "violet", undefined, "red", undefined]);
   });
 });
 
@@ -422,7 +445,7 @@ describe("workbench view logic (S6)", () => {
       ["pane", "sh"],
       ["question", "Round how?"],
     ]);
-    expect(gotoRows(repos, panes as never, "blocked", "").map((r) => r.id)).toEqual(["w2:p1", "r1/q1"]);
+    expect(gotoRows(repos, panes as never, "asks", "").map((r) => r.id)).toEqual(["w2:p1", "r1/q1"]);
     expect(gotoRows(repos, panes as never, "idle", "").map((r) => r.id)).toEqual(["w2:p2"]);
     expect(gotoRows(repos, panes as never, "all", "round").map((r) => r.id)).toEqual(["r1/q1"]);
   });
@@ -598,5 +621,283 @@ describe("a start refused for uncommitted changes", () => {
     expect(refusedForDirtyTree({ details: { check: "git" } })).toBe(false);
     expect(refusedForDirtyTree({})).toBe(false);
     expect(refusedForDirtyTree(undefined)).toBe(false);
+  });
+});
+
+describe("one vocabulary for states", () => {
+  const pane = (
+    kind: "host" | "command",
+    state?: string,
+    live: { alive: boolean } | null = { alive: true },
+  ) =>
+    ({
+      process: kind === "host" ? { kind, host: "copilot", agent: "a", prompt: "" } : { kind, argv: ["sh"] },
+      ...(live ? { live } : {}),
+      ...(state ? { state: { state, reason: "" } } : {}),
+    }) as never;
+
+  test("an agent that asks reads `asks`, whether on its screen or on a card; never `blocked`", () => {
+    expect(paneStateOf(pane("host", "blocked"))).toBe("asks");
+    expect(paneStateOf(pane("host", "waiting"))).toBe("asks");
+    expect(paneStateOf(pane("host", "working"))).toBe("working");
+    expect(paneStateOf(pane("host", "idle"))).toBe("idle");
+  });
+
+  test("an idle shell is idle: never waiting for you, never working, whatever its run asks", () => {
+    // The daemon marks every pane of a run with an open question `waiting`, its shells too.
+    expect(paneStateOf(pane("command", "waiting"))).toBe("idle");
+    expect(paneStateOf(pane("command", "blocked"))).toBe("idle");
+    // A live shell the daemon says nothing about is not "working".
+    expect(paneStateOf(pane("command"))).toBe("idle");
+    expect(paneStateOf(pane("command", "idle"))).toBe("idle");
+    // Output just now is work, in a shell as anywhere.
+    expect(paneStateOf(pane("command", "working"))).toBe("working");
+    // An agent the daemon has not sensed yet is at work.
+    expect(paneStateOf(pane("host"))).toBe("working");
+  });
+
+  test("a pane with no live process has exited", () => {
+    expect(paneStateOf(pane("host", "working", { alive: false }))).toBe("exited");
+    expect(paneStateOf(pane("command", undefined, null))).toBe("exited");
+    expect(paneStateOf(pane("host", "exited"))).toBe("exited");
+  });
+
+  test("every state has one glyph and one colour; an unknown one is a faint dot", () => {
+    expect(lookOf("pane", "asks")).toEqual({ glyph: "?", tone: "amber" });
+    expect(lookOf("pane", "idle").tone).toBe("faint");
+    expect(lookOf("stage", "current")).toEqual({ glyph: "⟳", tone: "violet" });
+    expect(lookOf("issue", "open")).toEqual({ glyph: "○" });
+    expect(lookOf("file", "deleted")).toEqual({ glyph: "D", tone: "red" });
+    expect(lookOf("note", "nonsense")).toEqual({ glyph: "·", tone: "faint" });
+    expect(lookOf("thread", undefined)).toEqual({ glyph: "·", tone: "faint" });
+    // The stage bar's glyph is the table's.
+    for (const state of ["done", "current", "waiting", "stopped", "next"] as const)
+      expect(stageGlyph({ state })).toBe(LOOKS.stage[state].glyph);
+  });
+});
+
+describe("counts every screen agrees on", () => {
+  const runs = [
+    run("a", { attention: "you" }),
+    run("b", { attention: "driving" }),
+    run("c", { attention: "escalated", status: "escalated" }),
+    run("d", { attention: "stopped" }),
+    run("e", { attention: "done", status: "done" }),
+    run("f", { attention: "aborted", status: "aborted" }),
+  ];
+
+  test("an escalated run needs a person, and is counted among the runs that need you", () => {
+    expect(runs.filter(needsPerson).map((r) => r.runId)).toEqual(["a", "c"]);
+    expect(runCounts(runs)).toEqual({
+      needYou: 2,
+      working: 1,
+      escalated: 1,
+      stopped: 1,
+      finished: 2,
+      open: 4,
+    });
+    expect(runCounts([])).toEqual({ needYou: 0, working: 0, escalated: 0, stopped: 0, finished: 0, open: 0 });
+  });
+
+  test("the open runs are every run that is not finished, the escalated one included", () => {
+    expect(openRuns(runs).map((r) => r.runId)).toEqual(["a", "b", "c", "d"]);
+    expect(openRuns(runs)).toHaveLength(runCounts(runs).open);
+  });
+
+  test("no repository and an empty name are the same repository", () => {
+    expect(sameRepo(undefined, "")).toBe(true);
+    expect(sameRepo("fe", "fe")).toBe(true);
+    expect(sameRepo("fe", undefined)).toBe(false);
+  });
+
+  test("counts read with their noun; a refusal reads with its hint", () => {
+    expect([plural(1, "run"), plural(2, "run"), plural(0, "reply", "replies")]).toEqual([
+      "1 run",
+      "2 runs",
+      "0 replies",
+    ]);
+    expect(refusalText({ message: "no", hint: "try again" })).toBe("no try again");
+    expect(refusalText(undefined)).toBe("the daemon refused");
+    expect(refusalText({}, "the run was not closed")).toBe("the run was not closed");
+  });
+});
+
+describe("the screens of one run", () => {
+  test("session, plan, changes and briefing are about a run; the list screens are not", () => {
+    expect(RUN_TABS.map((t) => t.screen)).toEqual(["session", "plan", "review", "briefing"]);
+    for (const t of RUN_TABS) expect(runIdOf({ screen: t.screen, runId: "r1" })).toBe("r1");
+    expect(runIdOf({ screen: "inbox" })).toBeUndefined();
+    expect(runIdOf({ screen: "grid", pane: "p" })).toBeUndefined();
+  });
+
+  test("an escalated or finished run has no driver to show", () => {
+    expect(runPhase(run("a"))).toBe("active");
+    expect(runPhase(run("a", { status: "escalated" }))).toBe("escalated");
+    expect(runPhase(run("a", { status: "done" }))).toBe("finished");
+    expect(runPhase(run("a", { status: "aborted" }))).toBe("finished");
+    expect(finishedText(run("a", { status: "done", elapsedMs: 120_000 }))).toBe(
+      "Done: every stage passed, in 2 min.",
+    );
+    expect(finishedText(run("a", { status: "aborted", stage: "build", reason: "not worth it" }))).toBe(
+      "Closed as aborted at build: not worth it.",
+    );
+  });
+
+  test("events group by the stage they happened in, in order of first appearance", () => {
+    const e = (stage: string | undefined, text: string) => ({ ...(stage ? { stage } : {}), text });
+    expect(byStage([e("plan", "1"), e("build", "2"), e("plan", "3"), e(undefined, "4")])).toEqual([
+      ["plan", [e("plan", "1"), e("plan", "3")]],
+      ["build", [e("build", "2")]],
+      ["run", [e(undefined, "4")]],
+    ]);
+  });
+});
+
+describe("the workbench's commands and small decisions (S6)", () => {
+  const ws = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    label: id,
+    cwd: "/repo",
+    tabs: [{ id: `${id}:t1`, label: "shell", panes: [`${id}:p1`] }],
+    ...extra,
+  });
+  const repos = workbenchRepos(
+    [
+      ws("w1", {
+        tabs: [
+          { id: "w1:t1", label: "shell", panes: ["w1:p1"] },
+          { id: "w1:t2", label: "other", panes: ["w1:p2"] },
+        ],
+      }),
+      ws("w2", { runId: "r1", group: "w1" }),
+      ws("w3", { runId: "r2", group: "w1" }),
+      ws("w4", { cwd: "/elsewhere" }),
+    ] as never,
+    [run("r1", { attention: "driving" }), run("r2", { attention: "escalated", status: "escalated" })],
+  );
+
+  test("a pane and a run lead to their tab, a tab to its sidebar entry", () => {
+    expect(tabOfPane(repos, "w2:p1")?.runId).toBe("r1");
+    expect(tabOfPane(repos, "nope")).toBeUndefined();
+    expect(tabOfRun(repos, "r2")?.key).toBe("w3:t1");
+    expect(repoOfTab(repos, "w3:t1")?.id).toBe("w1");
+    expect(repoOfTab(repos, "w4:t1")?.id).toBe("w4");
+  });
+
+  test("the next waiting tab is the next that needs a person, escalated included, around the end", () => {
+    expect(nextWaitingTab(repos, "w2:t1")?.key).toBe("w3:t1");
+    expect(nextWaitingTab(repos, "w3:t1")?.key).toBe("w3:t1");
+    expect(nextWaitingTab(repos, undefined)?.key).toBe("w3:t1");
+    expect(nextWaitingTab(workbenchRepos([ws("w1")] as never, []), "w1:t1")).toBeUndefined();
+  });
+
+  test("closing a run's tab or the last tab of a workspace closes the workspace; a shared one only its panes", () => {
+    const tab = (key: string) => repos.flatMap((r) => r.tabs).find((t) => t.key === key) as never;
+    expect(closesWorkspace(repos, tab("w2:t1"))).toBe(true);
+    expect(closesWorkspace(repos, tab("w4:t1"))).toBe(true);
+    expect(closesWorkspace(repos, tab("w1:t2"))).toBe(false);
+  });
+
+  test("the toast is the first open question of a tab shown here that was not dismissed", () => {
+    const item = (runId: string, id: string) => ({ runId, question: { id } }) as never;
+    const inbox = [item("gone", "q0"), item("r1", "q1"), item("r2", "q2")];
+    expect(toastOf(inbox, repos, [], true)).toBe(inbox[1]);
+    expect(toastOf(inbox, repos, ["r1/q1"], true)).toBe(inbox[2]);
+    expect(toastOf(inbox, repos, ["r1/q1", "r2/q2"], true)).toBeUndefined();
+    // notify.channel: off
+    expect(toastOf(inbox, repos, [], false)).toBeUndefined();
+  });
+
+  test("a dead pane starts again on its host while it is installed, else on the order's first installed", () => {
+    const status = [
+      { id: "copilot", installed: false },
+      { id: "claude", installed: true },
+    ];
+    expect(retryHost("claude", ["copilot", "claude"], status)).toBe("claude");
+    expect(retryHost("copilot", ["copilot", "claude"], status)).toBe("claude");
+    expect(retryHost("copilot", ["copilot"], [{ id: "copilot", installed: false }])).toBeUndefined();
+    // An older daemon does not say what is installed: the pane's own host is tried.
+    expect(retryHost("copilot", [], undefined)).toBe("copilot");
+  });
+
+  test("every command is named once; every default key runs a command or is the prefix", () => {
+    const ids = WORKBENCH_COMMANDS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const action of Object.keys(DEFAULT_KEYS)) expect(["prefix", ...ids]).toContain(action);
+  });
+
+  test("the pane menu offers the keyboard one way at a time, and says why a command cannot run", () => {
+    const base = { attached: false, taken: false, zoomed: false };
+    const agent = { runId: "r1", role: "conductor" as const, asks: false };
+    const free = menuCommands(["pane"], { ...base, pane: agent });
+    expect(free.map((c) => c.id)).toEqual([
+      "attach",
+      "zoom",
+      "splitRight",
+      "splitDown",
+      "copyMode",
+      "plan",
+      "changes",
+      "editor",
+      "taskFromHere",
+      "closePane",
+    ]);
+    expect(free[0]).toMatchObject({ label: "Take the keyboard", disabled: false });
+    // A conductor is not closed from the menu; the plan has a line above it.
+    expect(free.find((c) => c.id === "closePane")?.disabled).toBe(true);
+    expect(free.find((c) => c.id === "plan")?.separator).toBe(true);
+    // The agent asks on its screen: taking the keyboard is the answer.
+    expect(menuCommands(["pane"], { ...base, pane: { ...agent, asks: true } })[0]?.label).toBe(
+      "Answer here (take the keyboard)",
+    );
+    // Someone else holds the keyboard.
+    expect(menuCommands(["pane"], { ...base, taken: true, pane: agent })[0]).toMatchObject({
+      id: "attach",
+      disabled: true,
+    });
+    // The person holds it: the menu gives it back, and a zoomed pane unzooms.
+    const mine = menuCommands(["pane"], { attached: true, taken: true, zoomed: true, pane: agent });
+    expect(mine.slice(0, 2).map((c) => c.label)).toEqual(["Give the keyboard back", "Unzoom"]);
+    // A shell of no run: nothing to take, no plan, no changes; it can be closed.
+    const shell = menuCommands(["pane"], { ...base, pane: { role: "shell", asks: false } });
+    expect(shell.filter((c) => c.disabled).map((c) => c.id)).toEqual(["release", "plan", "changes"]);
+  });
+
+  test("the tab menus: new tabs everywhere; on a tab also a shell pane and closing it", () => {
+    const base = { attached: false, taken: false, zoomed: false };
+    expect(menuCommands(["tab"], base).map((c) => c.id)).toEqual(["newShellTab", "newTab", "backlog"]);
+    const own = menuCommands(["tab", "tab-own"], { ...base, tab: { kind: "task", runId: "r1", panes: 2 } });
+    expect(own.map((c) => c.id)).toEqual(["newShellTab", "newTab", "backlog", "newShell", "closeTab"]);
+    expect(own.at(-1)?.label).toBe("Close tab (its panes; the worktree stays)");
+    // An empty shell tab has nothing to close.
+    expect(
+      menuCommands(["tab-own"], { ...base, tab: { kind: "shell", panes: 0 } }).find(
+        (c) => c.id === "closeTab",
+      ),
+    ).toMatchObject({ label: "Close tab", disabled: true });
+  });
+
+  test("keys read as they are pressed, with the real prefix key, in the menus and the help", () => {
+    expect(chordText(DEFAULT_KEYS, "prefix+z")).toBe("ctrl+b z");
+    expect(chordText(DEFAULT_KEYS, "f5")).toBe("f5");
+    expect(keyLabel(DEFAULT_KEYS, "zoom")).toBe("ctrl+b z");
+    expect(keyLabel(DEFAULT_KEYS, "editor")).toBeUndefined();
+    const rebound = keyMapOf([
+      { key: "keys.prefix", value: ["ctrl+a"] },
+      { key: "keys.zoom", value: ["prefix+f", "f11"] },
+    ]);
+    const rows = helpRows(rebound);
+    expect(rows[0]).toEqual({
+      id: "prefix",
+      keys: "ctrl+a",
+      label: "The prefix: press it, then a key below",
+    });
+    expect(rows.find((r) => r.id === "zoom")).toEqual({ id: "zoom", keys: "ctrl+a f / f11", label: "Zoom" });
+    // No row says the word "prefix" for a key, and a command with no key is left out.
+    expect(rows.slice(1).some((r) => r.keys.includes("prefix"))).toBe(false);
+    expect(rows.some((r) => r.id === "editor")).toBe(false);
+    expect(rows.find((r) => r.id === "help")?.keys).toBe("ctrl+a ?");
+    // The help of every screen lists `?` first.
+    expect(SHELL_KEYS[0]?.keys).toBe("?");
   });
 });

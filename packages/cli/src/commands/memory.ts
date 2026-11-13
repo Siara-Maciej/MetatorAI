@@ -2,8 +2,8 @@ import { accessMatrix, err, MemoryMapDocument, MetatorError, ok } from "@metator
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { schemaCommand } from "../outcome.ts";
 import { positiveInt, ratio } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
 
 export function registerMemoryCommands(program: Command, { action, container }: CommandContext): void {
   const memory = program
@@ -122,5 +122,5 @@ export function registerMemoryCommands(program: Command, { action, container }: 
       })),
     );
 
-  schemaCommand(memory, ctx, "Print the JSON Schema of the memory map", MemoryMapDocument);
+  schemaCommand(memory, { action }, "Print the JSON Schema of the memory map", MemoryMapDocument);
 }

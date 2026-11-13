@@ -14,8 +14,8 @@ import {
 import { type Command, InvalidArgumentError, Option } from "commander";
 import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { schemaCommand } from "../outcome.ts";
 import { byOption } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
 import { asPerson, who } from "../who.ts";
 

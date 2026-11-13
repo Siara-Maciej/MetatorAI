@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { MetatorError } from "./errors.ts";
+import type { RunRecord } from "./run-record.ts";
 import type { HostUsage } from "./telemetry.ts";
-import { defineDocument } from "./versioned.ts";
+import { defineDocument, parseJsonDocument } from "./versioned.ts";
 import type { StageSpec } from "./workflow-spec.ts";
 
 /**
@@ -441,4 +443,91 @@ function lastMarked(text: string, marker: string): string | undefined {
 export function nextQuestionId(existing: readonly string[]): string {
   const max = existing.reduce((m, id) => Math.max(m, Number(id.slice(1)) || 0), 0);
   return `q${String(max + 1).padStart(3, "0")}`;
+}
+
+/**
+ * A failed `metator gate` read for a person: each failing step and the first line of its output
+ * (a stack trace's tail says nothing). Undefined when the output is no gate result.
+ */
+export function failedSteps(stdout: string): string | undefined {
+  const parsed = parseJsonDocument(stdout.trim().split("\n").at(-1) ?? "", "gate output");
+  if (parsed.isErr()) return undefined;
+  const envelope = parsed.value;
+  const error = (envelope as { error?: { message?: unknown; details?: { steps?: unknown } } } | null)?.error;
+  const steps = error?.details?.steps;
+  if (!Array.isArray(steps)) return undefined;
+  const failed = steps
+    .filter((s): s is { id: string; detail?: string } => (s as { status?: unknown }).status === "fail")
+    .map((s) => {
+      const first = (s.detail ?? "").split("\n").find((l) => l.trim() !== "") ?? "";
+      return `${s.id}: ${first.trim().slice(0, 300)}`;
+    });
+  return [typeof error?.message === "string" ? error.message : "gate failed", ...failed].join("; ");
+}
+
+/** Why a drive cannot use this host here (its program is not installed), with the hosts that can; undefined when it can. */
+export function hostRefusal(
+  host: string,
+  known: readonly string[],
+  problem: ((host: string) => string | undefined) | undefined,
+): MetatorError | undefined {
+  const why = problem?.(host);
+  if (!why) return undefined;
+  const others = known.filter((h) => h !== host && !problem?.(h));
+  return MetatorError.usage(
+    `AI host ${host} cannot start here: ${why}`,
+    others.length > 0
+      ? `Install it, or drive with a host that is here: --host ${others.join(" | ")}.`
+      : "Install it, then drive the run again.",
+  );
+}
+
+/**
+ * Why a drive does not start on this run: an escalated run waits for a person's resume, and a
+ * drive that "ran" it would report success having done nothing (F1). Undefined for any other run.
+ */
+export function notDrivable(record: RunRecord): MetatorError | undefined {
+  if (record.state.status !== "escalated") return undefined;
+  const last = record.state.context.history.at(-1);
+  return MetatorError.usage(
+    `run ${record.runId} escalated${last ? ` at ${last.stage}` : ""}${last?.detail ? `: ${last.detail.slice(0, 300)}` : ""}`,
+    `Remove the cause, then \`metator run resume --run ${record.runId} --by <name> --drive\`; or give it up: \`metator run close --run ${record.runId} --aborted --reason <why>\`.`,
+  );
+}
+
+/** The longest line a decision card carries of what happened; the run's log has the whole text. */
+const CARD_LINE = 240;
+/** A transition's text as one line of a card: its first non-empty line, at most CARD_LINE characters. */
+export function cardLine(text: string): string {
+  const first = (text.split("\n").find((l) => l.trim() !== "") ?? "").trim();
+  return first.length > CARD_LINE ? `${first.slice(0, CARD_LINE - 1)}…` : first;
+}
+
+/** Transitions and tool calls since a person last answered (the whole run before any answer). */
+export function sinceLastAnswer(activity: readonly RunActivity[]): string[] {
+  const last = activity.map((a) => a.type).lastIndexOf("answer");
+  const after = activity.slice(last + 1);
+  // One line each, for a card: the first line of a failure's reason, cut where a sentence still reads.
+  const out = after.filter((a) => a.type === "advance").map((a) => `${a.stage ?? "?"} ${cardLine(a.text)}`);
+  const tools = after.filter((a) => a.type === "tool").length;
+  if (tools > 0) out.push(`${tools} tool call(s)`);
+  return out;
+}
+
+/** What each answer to a gate does, from the workflow: the next stage, or where a FAIL sends the run. */
+export function consequencesOf(
+  stage: StageSpec,
+  stages: readonly StageSpec[],
+  loops: Readonly<Record<string, number>>,
+  limits: Readonly<Record<string, number>>,
+): Record<string, string> {
+  const at = stages.findIndex((s) => s.id === stage.id);
+  const next = stages[at + 1];
+  const out: Record<string, string> = { Approve: next ? `the run goes on to ${next.id}` : "the run is done" };
+  if (stage.onFail) {
+    const used = loops[stage.onFail.loop] ?? 0;
+    const limit = limits[stage.onFail.loop];
+    out.Reject = `back to ${stage.onFail.goto} with your reason (loop ${stage.onFail.loop}: ${used + 1}${limit ? ` of ${limit}` : ""}; past the limit the run escalates)`;
+  } else out.Reject = "the run escalates with your reason: it waits for a person to resume it";
+  return out;
 }

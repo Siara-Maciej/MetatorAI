@@ -1,10 +1,11 @@
 import type { Attention } from "../api.ts";
+import type { Tone } from "../model.ts";
 
 export const Chip = ({
   tone,
   children,
 }: {
-  readonly tone?: "amber" | "red" | "green" | "blue" | "violet" | "teal" | undefined;
+  readonly tone?: Tone | undefined;
   readonly children: React.ReactNode;
 }) => <span className={`chip${tone ? ` ${tone}` : ""}`}>{children}</span>;
 

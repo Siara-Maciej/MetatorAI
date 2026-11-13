@@ -47,6 +47,41 @@ describe("bootstrap", () => {
     for (const port of ["vcs", "revisionReader", "changeHistory", "branchHistory", "changePatch"] as const)
       expect(c.resolve(port) as unknown).toBe(git);
   });
+
+  test("the import and the symbol analyzer are the one oxc analyzer", () => {
+    const c = bootstrap({ root: "/repo" });
+    const oxc = c.resolve("oxc");
+    expect(c.resolve("importAnalyzer") as unknown).toBe(oxc);
+    expect(c.resolve("symbolAnalyzer") as unknown).toBe(oxc);
+  });
+
+  test("the contract kinds are the ones a differ compares", () => {
+    const c = bootstrap({ root: "/repo" });
+    expect(c.resolve("contractKinds")).toEqual(["openapi"]);
+    expect(c.resolve("contractKinds")).toEqual(c.resolve("contractDiffers").map((d) => d.kind));
+  });
+
+  test("the adapters use cases are given are the registered ones, so a test container can replace them", () => {
+    const c = bootstrap({ root: "/repo" });
+    for (const key of [
+      "ruleEngines",
+      "toolBins",
+      "containerRuntime",
+      "mcpToolCaller",
+      "codeHost",
+      "reviewHost",
+      "declarationEmitter",
+      "coverageReader",
+      "plannedBreakingChanges",
+      "styleImports",
+      "apiSnapshots",
+      "diffCoverage",
+      "diffContracts",
+      "architectureFacts",
+    ] as const)
+      expect(c.resolve(key)).toBeDefined();
+    expect(c.resolve("ruleEngines").map((e) => e.engine)).toEqual(["ast-grep", "biome", "tsc", "test"]);
+  });
 });
 
 describe("workNotes", () => {

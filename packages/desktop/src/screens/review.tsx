@@ -99,7 +99,12 @@ export function ReviewScreen({
         actions={
           <>
             {view ? <span className="dim mono">against {view.base.slice(0, 12)}</span> : null}
-            <button type="button" className="ghost" onClick={() => void openEditor()} data-testid="review-editor">
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => void openEditor()}
+              data-testid="review-editor"
+            >
               Open in editor
             </button>
             <button

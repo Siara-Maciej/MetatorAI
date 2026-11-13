@@ -2,8 +2,8 @@ import { err, MetatorError, normalizePath, ok, PatternDocument } from "@metator/
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { schemaCommand } from "../outcome.ts";
 import { positiveInt } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
 
 export function registerPatternsCommands(program: Command, { action, container }: CommandContext): void {
   const patterns = program.command("patterns").description("Pattern catalog: occurrences, exemplars, legacy");
@@ -45,7 +45,7 @@ export function registerPatternsCommands(program: Command, { action, container }
       }),
     );
 
-  schemaCommand(patterns, ctx, "Print the JSON Schema of a pattern file", PatternDocument);
+  schemaCommand(patterns, { action }, "Print the JSON Schema of a pattern file", PatternDocument);
 
   meta(program.command("similar"), { reads: true })
     .description("How we already do this: ranked pattern occurrences for a planned file or a description")

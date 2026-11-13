@@ -24,7 +24,8 @@ export function Tabs<Id extends string>({
   children,
 }: {
   readonly label: string;
-  readonly items: readonly TabItem<Id>[];
+  /** The tabs; their ids are of the type of `current`. */
+  readonly items: readonly TabItem<NoInfer<Id>>[];
   readonly current: Id | undefined;
   onSelect(id: Id): void;
   readonly className?: string;

@@ -25,11 +25,11 @@ dir: packages/plugin-biome
 
 ## Invariants
 
-- A repository without a Biome config is never linted with Biome's defaults [[cite: packages/plugin-biome/src/biome-engine.ts:81 | "if (!CONFIG_FILES.some((f) => existsSync(join(this.root, f)))) return ok([]);"]].
+- A repository without a Biome config is never linted with Biome's defaults [[cite: packages/plugin-biome/src/biome-engine.ts:83 | "if (!CONFIG_FILES.some((f) => existsSync(join(this.root, f)))) return ok([]);"]].
 
 ## Allowed dependencies
 
-`@metator/core` only; Biome itself is the user's dev dependency, found in their `node_modules` (ADR-0025).
+`@metator/core` only; Biome itself is the user's dev dependency, found in their `node_modules` (ADR-0025) by the `BinResolver` the engine is given.
 
 ## Pitfalls
 

@@ -8,35 +8,30 @@ import {
   InstantTimer,
   ScriptedProcessRunner,
 } from "@metator/testing";
-import {
-  CLOSE_RUN,
-  cardLine,
-  consequencesOf,
-  DO_IT,
-  DriveRun,
-  failedSteps,
-  hostRefusal,
-  notDrivable,
-  OTHER,
-  RunJournal,
-  sinceLastAnswer,
-} from "../src/application/drive.ts";
+import { CLOSE_RUN, DO_IT, DriveRun } from "../src/application/drive.ts";
 import { Notifier } from "../src/application/notifier.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { CloseRun } from "../src/application/run-close.ts";
 import { RunDrivers } from "../src/application/run-drivers.ts";
+import { OTHER, RunJournal } from "../src/application/run-journal.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
 import { AdvanceRun, ApproveRun, InitRun, ResumeRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import {
   blockedPrompt,
+  cardLine,
+  consequencesOf,
+  failedSteps,
   gatePrompt,
   hostLimit,
+  hostRefusal,
   labelFor,
   nextQuestionId,
+  notDrivable,
   parseCriticVerdict,
   parseStatus,
   type Question,
+  sinceLastAnswer,
   stagePrompt,
   stageWork,
 } from "../src/domain/drive.ts";

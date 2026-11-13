@@ -12,8 +12,8 @@ import type { Pane } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Clock, FileSystem, Timer } from "../ports/index.ts";
 import { readDocument, writeDocument } from "./document-io.ts";
-import type { RunJournal } from "./drive.ts";
 import type { Panes, PaneView } from "./panes.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 

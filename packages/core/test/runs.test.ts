@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
-import { RunJournal } from "../src/application/drive.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
+import { RunJournal } from "../src/application/run-journal.ts";
 import {
   RunRepository,
   type UnreadableRun,

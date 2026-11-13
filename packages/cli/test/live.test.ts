@@ -42,5 +42,4 @@ describe("live view", () => {
     );
     expect(formatWatched(e({ type: "advance", stage: "build", text: "PASS" }))).toBe("  ✓ PASS");
   });
-
 });

@@ -1,10 +1,10 @@
-import { EnvironmentDocument, err, MetatorError, ok, type Result } from "@metator/core";
+import { EnvironmentDocument, err, MetatorError, type Result } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { schemaCommand } from "../outcome.ts";
 import { positiveInt } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
 
 /** `env *` (F8.5): how the application starts, started per worktree on its own ports. */
 export function registerEnvCommands(program: Command, { action, container }: CommandContext): void {
@@ -152,7 +152,7 @@ export function registerEnvCommands(program: Command, { action, container }: Com
       })),
     );
 
-  schemaCommand(env, ctx, "Print the JSON Schema of metator/environment.yml", EnvironmentDocument);
+  schemaCommand(env, { action }, "Print the JSON Schema of metator/environment.yml", EnvironmentDocument);
 }
 
 /**

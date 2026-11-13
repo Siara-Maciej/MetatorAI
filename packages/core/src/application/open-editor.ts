@@ -2,9 +2,9 @@ import { editorArgv } from "../domain/editors.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Launcher } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
 import type { OptionStore } from "./options.ts";
 import type { Panes } from "./panes.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
 export interface OpenEditorDependencies {

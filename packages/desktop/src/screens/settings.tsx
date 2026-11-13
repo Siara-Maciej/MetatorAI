@@ -6,16 +6,24 @@
 import { useMemo, useState } from "react";
 import type { OptionDiagnostic, OptionScope, ResolvedOption } from "../api.ts";
 import { Notice, RepoSelect } from "../components/common.tsx";
-import { useDaemon, usePolled } from "../daemon.tsx";
-import { optionMatches } from "../model.ts";
+import { useDaemon } from "../daemon.tsx";
+import { useAction } from "../hooks.ts";
+import { optionMatches, refusalText } from "../model.ts";
 
 export function SettingsScreen() {
-  const { client, repo, url, me, setMe, setUrl } = useDaemon();
-  const options = usePolled(`options:${repo ?? ""}`, () => client.options(repo), 3000);
-  const view = options.data;
-  const load = options.reload;
+  const {
+    client,
+    repo,
+    url,
+    me,
+    setMe,
+    setUrl,
+    optionsView: view,
+    optionsError,
+    reloadOptions,
+  } = useDaemon();
   // What a change answered stays until closed: the refresh never clears a refusal (D5).
-  const [error, setError] = useState<string>();
+  const action = useAction(reloadOptions);
   const [section, setSection] = useState<string>("ui");
   const [query, setQuery] = useState("");
   // Counts refusals: a field whose value was refused is drawn again with the value that holds.
@@ -32,28 +40,36 @@ export function SettingsScreen() {
     (view?.diagnostics ?? []).filter((d) => d.key === key);
   const change = async (o: ResolvedOption, value: unknown, reset = false) => {
     const scope: OptionScope = o.definition.scope === "user" ? "user" : "repo";
-    const r = await client.setOption(o.key, reset ? { scope, reset: true } : { scope, value }, repo);
-    setError(r.ok ? undefined : `${o.key} was not changed: ${r.error?.message ?? "the daemon refused"}`);
-    // Read again either way: a refused value must not stay in the field (D6).
-    setRefused((n) => (r.ok ? n : n + 1));
-    await load();
+    // The options are read again either way: a refused value must not stay in the field (D6).
+    const ok = await action.run(async () => {
+      const r = await client.setOption(o.key, reset ? { scope, reset: true } : { scope, value }, repo);
+      return r.ok
+        ? r
+        : {
+            ok: false,
+            error: {
+              code: r.error?.code ?? "REFUSED",
+              message: `${o.key} was not changed: ${refusalText(r.error)}`,
+            },
+          };
+    });
+    if (!ok) setRefused((n) => n + 1);
   };
   return (
     <div className="settings-screen">
       <aside className="sections">
-        <div style={{ padding: "8px 12px 0" }}>
+        <div className="pick">
           <RepoSelect />
+          <label htmlFor="settings-q" className="dim">
+            search
+          </label>
+          <input
+            id="settings-q"
+            placeholder="pane, prefix, notify…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
         </div>
-        <label htmlFor="settings-q" className="dim" style={{ padding: "8px 12px 2px", display: "block" }}>
-          search
-        </label>
-        <input
-          id="settings-q"
-          placeholder="pane, prefix, notify…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{ margin: "0 12px 8px", width: "calc(100% - 24px)" }}
-        />
         {sections.map((s) => (
           <button
             type="button"
@@ -85,18 +101,16 @@ export function SettingsScreen() {
           <span className="dim">2</span>
         </button>
         <div className="spacer" />
-        <div className="dim" style={{ padding: "8px 12px", fontSize: 11 }}>
+        <div className="dim files">
           user: {view?.files.user ?? "options.yml"} · repo: {view?.files.repo ?? "metator.config.yml"}
         </div>
       </aside>
       <section className="options-list">
-        <Notice text={error} onClose={() => setError(undefined)} />
-        {options.error && !view ? <div className="banner">{options.error}</div> : null}
+        <Notice {...action.notice} />
+        {optionsError && !view ? <div className="banner">{optionsError}</div> : null}
         {section === "app" && query === "" ? (
           <>
-            <div className="dim" style={{ marginBottom: 10 }}>
-              app · this window only: where the daemon is and who you are
-            </div>
+            <div className="dim lead">app · this window only: where the daemon is and who you are</div>
             <div className="opt">
               <div className="k">
                 daemon url<div className="d dim">The address of `metator serve` this app talks to.</div>
@@ -128,7 +142,7 @@ export function SettingsScreen() {
           </>
         ) : (
           <>
-            <div className="dim" style={{ marginBottom: 10 }}>
+            <div className="dim lead">
               {query
                 ? `${shown.length} matching options`
                 : `${section} · a change applies at once; "restart" marks the ones the daemon reads at start`}
@@ -166,14 +180,8 @@ function OptionRow({
     <div className="opt" data-testid={`option-${o.key}`} data-source={o.source}>
       <div className="k">
         {name}
-        {d.restart !== "none" ? (
-          <span className="chip" style={{ marginLeft: 6 }}>{`restart ${d.restart}`}</span>
-        ) : null}
-        {d.runsLocally ? (
-          <span className="chip" style={{ marginLeft: 6 }}>
-            runs locally
-          </span>
-        ) : null}
+        {d.restart !== "none" ? <span className="chip">{`restart ${d.restart}`}</span> : null}
+        {d.runsLocally ? <span className="chip">runs locally</span> : null}
         <div className="d dim">{d.description}</div>
         {diagnostics.map((x) => (
           <div key={x.message} className="d amber">

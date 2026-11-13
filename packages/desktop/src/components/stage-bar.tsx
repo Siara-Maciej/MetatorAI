@@ -22,18 +22,18 @@ export function StageBar<S extends Pick<StageProgress, "id" | "state">>({
   readonly testId?: string | undefined;
 }) {
   const separator = variant === "bar" ? " ─ " : " · ";
-  const items = stages.map((s, i) => {
+  const item = (s: S, i: number) => {
     const look = lookOf("stage", s.state);
     const text = `${s.id} ${look.glyph}`;
     return (
-      <span key={s.id} title={titleOf?.(s)}>
+      <>
         {i > 0 ? <span className="faint">{separator}</span> : null}
         <span className={look.tone} data-state={s.state}>
           {variant === "bar" && s.state === "current" ? `[${text}]` : text}
         </span>
-      </span>
+      </>
     );
-  });
+  };
   return onOpen ? (
     <button
       type="button"
@@ -42,11 +42,17 @@ export function StageBar<S extends Pick<StageProgress, "id" | "state">>({
       data-testid={testId}
       onClick={onOpen}
     >
-      {items}
+      {stages.map((s, i) => (
+        <span key={s.id}>{item(s, i)}</span>
+      ))}
     </button>
   ) : (
-    <span className={`stagebar ${variant}`} role="group" aria-label="stages" data-testid={testId}>
-      {items}
-    </span>
+    <ul className={`stagebar ${variant}`} aria-label="stages" data-testid={testId}>
+      {stages.map((s, i) => (
+        <li key={s.id} title={titleOf?.(s)}>
+          {item(s, i)}
+        </li>
+      ))}
+    </ul>
   );
 }

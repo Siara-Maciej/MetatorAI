@@ -14,8 +14,8 @@ import {
 import { type Command, Option } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { schemaCommand } from "../outcome.ts";
 import { byOption, defined, positiveInt, runOption } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
 import { asPerson } from "../who.ts";
 
 type Lens = (typeof LENSES)[number];
@@ -213,7 +213,7 @@ export function registerFindingsCommands(program: Command, { action, container }
       ),
     );
 
-  schemaCommand(findings, ctx, "Print the JSON Schema of a findings file", FindingSetDocument);
+  schemaCommand(findings, { action }, "Print the JSON Schema of a findings file", FindingSetDocument);
   findings
     .command("react")
     .description(

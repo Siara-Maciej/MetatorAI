@@ -6,12 +6,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { IssueRef } from "./api.ts";
 import { NoDaemon, Notice } from "./components/common.tsx";
+import { HelpOverlay } from "./components/help-overlay.tsx";
 import { SessionsPanel } from "./components/sessions-panel.tsx";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
 import {
   escalatedKey,
   hostChoice,
-  isFinished,
+  keyMapOf,
   newQuestions,
   nextWaiting,
   noHostText,
@@ -20,6 +21,8 @@ import {
   plainKey,
   type Route,
   routeHash,
+  runCounts,
+  runIdOf,
   wasAway,
 } from "./model.ts";
 import { systemNotifier } from "./notify.ts";
@@ -58,6 +61,7 @@ function Shell() {
   const d = useDaemon();
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
   const [dialog, setDialog] = useState(false);
+  const [help, setHelp] = useState(false);
   // What an action of the shell answered (a session that could not open): it stays until closed.
   const [notice, setNotice] = useState<string>();
   // Below about 1000 px the sessions panel is a drawer behind a button of the top bar.
@@ -77,6 +81,9 @@ function Shell() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  // The options come with the daemon's state, read once for the whole app.
+  const options = useRef(d.options);
+  options.current = d.options;
   // Notifications: every question that was not there before (spec §5.4).
   const known = useRef<{ id: string; runId: string }[] | undefined>(undefined);
   useEffect(() => {
@@ -85,11 +92,9 @@ function Shell() {
     known.current = now.map((q) => ({ id: q.id, runId: q.runId }));
     if (fresh.length === 0) return;
     // `notify.channel: off` silences the system notification as it hides the workbench's toast.
-    void d.client.options(d.repo).then((r) => {
-      if (!notifies(r.data?.options ?? [])) return;
-      for (const q of fresh) void notifier.notify("MetatorAI needs you", q.prompt);
-    });
-  }, [d.inbox, d.client, d.repo]);
+    if (!notifies(options.current)) return;
+    for (const q of fresh) void notifier.notify("MetatorAI needs you", q.prompt);
+  }, [d.inbox]);
   // Back after ten minutes: the briefing of a session opened first (spec §6.8).
   const lastSeen = useRef<number>(Date.now());
   useEffect(() => {
@@ -145,20 +150,22 @@ function Shell() {
   const openSession = useCallback(
     (runId: string, attach = false, pane?: string) => {
       go({ screen: "session", runId, ...(pane ? { pane } : {}) });
-      const run = d.runs.find((r) => r.runId === runId);
+      const run = d.run(runId);
       if (attach) void d.who().then((by) => (by ? d.client.attach(runId, by, run?.repo) : undefined));
     },
     [go, d],
   );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // Escape closes the dialog from anywhere, a focused field included (D7).
+      // Escape closes the runs drawer; a dialog closes itself (the browser's own <dialog>, D7).
       if (e.key === "Escape") {
-        setDialog(false);
         setPanelOpen(false);
         return;
       }
+      // A dialog has the keys while it is open.
+      if (document.querySelector("dialog[open]")) return;
       const key = plainKey(e);
+      if (key === "?") setHelp(true);
       if (key === "g" && route.screen !== "inbox") {
         const next = nextWaiting(d.runs, route.screen === "session" ? route.runId : undefined);
         if (next) openSession(next.runId, false, next.terminalAsk);
@@ -168,18 +175,9 @@ function Shell() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [route, d.runs, dialog, openSession, openIntake]);
-  const counts = {
-    you: d.runs.filter((r) => r.attention === "you").length,
-    driving: d.runs.filter((r) => r.attention === "driving").length,
-    escalated: d.runs.filter((r) => r.attention === "escalated").length,
-  };
-  const current =
-    route.screen === "session" ||
-    route.screen === "briefing" ||
-    route.screen === "plan" ||
-    route.screen === "review"
-      ? route.runId
-      : undefined;
+  // One count for the top bar, the Inbox, the graph and the daemon screen (model.ts `runCounts`).
+  const counts = runCounts(d.runs);
+  const current = runIdOf(route);
   // The screen the route names: an expression, not a component, so a render keeps its state.
   const screen = (
     <>
@@ -205,6 +203,7 @@ function Shell() {
           onOpenSettings={() => go({ screen: "settings" })}
           onOpenPlan={(runId) => go({ screen: "plan", runId })}
           onOpenReview={(runId) => go({ screen: "review", runId })}
+          onHelp={() => setHelp(true)}
           onOpenInbox={(pick) => go({ screen: "inbox", pick })}
           onOpenBacklog={(draft) => {
             setBacklogDraft(draft);
@@ -218,7 +217,6 @@ function Shell() {
           runId={route.runId}
           file={route.file}
           onOpenFile={(runId, file) => go({ screen: "review", runId, ...(file ? { file } : {}) })}
-          onOpenSession={openSession}
         />
       ) : null}
       {route.screen === "backlog" ? (
@@ -257,13 +255,16 @@ function Shell() {
           {d.repos.length > 0 ? `${d.repos.length} repositories` : "this repository"}
         </span>
         <span className="counters" data-testid="counters">
-          <span className="chip amber" title="runs that wait for your answer">
-            need you {counts.you}
+          <span className="chip amber" title="runs that wait for you: they ask, or they escalated">
+            need you {counts.needYou}
           </span>
           <span className="chip violet" title="runs an agent works on">
-            working {counts.driving}
+            working {counts.working}
           </span>
-          <span className="chip red" title="runs that stopped and need work from you">
+          <span
+            className="chip red"
+            title="among the runs that need you: the ones that stopped and need work"
+          >
             escalated {counts.escalated}
           </span>
         </span>
@@ -273,9 +274,18 @@ function Shell() {
           aria-expanded={panelOpen}
           onClick={() => setPanelOpen(!panelOpen)}
         >
-          Runs · {d.runs.filter((r) => !isFinished(r)).length}
+          Runs · {counts.open}
         </button>
         <span className="spacer" />
+        <button
+          type="button"
+          className="ghost"
+          title="the keys of the app"
+          aria-label="keyboard help"
+          onClick={() => setHelp(true)}
+        >
+          ?
+        </button>
         <button
           type="button"
           className="ghost who"
@@ -295,7 +305,9 @@ function Shell() {
             href={routeHash(r.route)}
             aria-current={route.screen === r.route.screen ? "page" : undefined}
           >
-            <div style={{ fontSize: 16 }}>{r.glyph}</div>
+            <span className="glyph" aria-hidden="true">
+              {r.glyph}
+            </span>
             {r.label}
           </a>
         ))}
@@ -304,7 +316,9 @@ function Shell() {
             href={routeHash({ screen: "session", runId: current })}
             aria-current={route.screen === "session" ? "page" : undefined}
           >
-            <div style={{ fontSize: 16 }}>▣</div>
+            <span className="glyph" aria-hidden="true">
+              ▣
+            </span>
             Session
           </a>
         ) : null}
@@ -320,6 +334,7 @@ function Shell() {
         <Notice text={d.down ? undefined : notice} onClose={() => setNotice(undefined)} />
         {d.down ? <NoDaemon /> : screen}
       </main>
+      {help ? <HelpOverlay keymap={keyMapOf(d.options)} onClose={() => setHelp(false)} /> : null}
       {dialog && !d.down ? (
         <NewSessionDialog
           onClose={() => setDialog(false)}

@@ -56,5 +56,5 @@ export function registerPlanCommands(program: Command, { action, container }: Co
       }),
     );
 
-  schemaCommand(plan, ctx, "Print the JSON Schema of a plan", PlanDocument);
+  schemaCommand(plan, { action }, "Print the JSON Schema of a plan", PlanDocument);
 }

@@ -2,7 +2,7 @@ import { MetatorError } from "../domain/errors.ts";
 import type { PaneRole } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Clock, PtyHandle, PtySize } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
 /** How much of a pane's output a late viewer gets. */

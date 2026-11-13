@@ -25,7 +25,7 @@ dir: packages/plugin-host-opencode
 
 ## Invariants
 
-- A started session reports `continue`, because OpenCode names its sessions itself [[cite: packages/plugin-host-opencode/src/opencode-interactive-host.ts:45 | "sessionId: resume ?? CONTINUE"]].
+- A started session reports `continue`, because OpenCode names its sessions itself [[cite: packages/plugin-host-opencode/src/opencode-interactive-host.ts:37 | "sessionId: resume ?? CONTINUE"]].
 - A terminal that cannot spawn is a failed result, never a throw.
 
 ## Allowed dependencies

@@ -4,7 +4,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import { serializeJsonDocument } from "../domain/versioned.ts";
 import type { BackgroundProcess, Clock, FileSystem } from "../ports/index.ts";
 import { readDocument } from "./document-io.ts";
-import type { RunJournal } from "./drive.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
 export interface DriverView {

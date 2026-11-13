@@ -114,7 +114,7 @@ export function SessionsPanel({
         label="how the runs are listed"
         className="mode"
         current={mode}
-        onSelect={setMode}
+        onSelect={(id) => setMode(id)}
         items={[
           { id: "app", label: "By repository", title: "The active runs of each repository" },
           { id: "run", label: "By task", title: "The steps of a task that was split, under their task" },

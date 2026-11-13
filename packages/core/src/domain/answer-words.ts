@@ -16,9 +16,9 @@ export const wordsRequired = (choices: readonly string[]): boolean => choices.in
  * A question's options with `needsText` on the ones that ask for words, for a client that shows
  * the question without MetatorAI's code (the app reads it as data). Nothing else changes.
  */
-export function withNeedsText<
-  Q extends { readonly options: readonly { readonly label: string }[] },
->(question: Q): Q {
+export function withNeedsText<Q extends { readonly options: readonly { readonly label: string }[] }>(
+  question: Q,
+): Q {
   return {
     ...question,
     options: question.options.map((o) => (needsWords([o.label]) ? { ...o, needsText: true } : o)),

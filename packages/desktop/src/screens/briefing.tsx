@@ -28,7 +28,10 @@ export function BriefingScreen({
       if (!b.ok || !b.data) return { ok: false, ...(b.error ? { error: b.error } : {}) };
       const a = await client.activity(runId, repo);
       const since = b.data.since;
-      return { ok: true, data: { brief: b.data, events: (a.data?.entries ?? []).filter((e) => e.at > since) } };
+      return {
+        ok: true,
+        data: { brief: b.data, events: (a.data?.entries ?? []).filter((e) => e.at > since) },
+      };
     },
     5000,
   );

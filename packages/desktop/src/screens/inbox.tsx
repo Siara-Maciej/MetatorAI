@@ -68,13 +68,11 @@ export function InboxScreen({
             <span className="l1">
               <span className={`kind ${questionKind(i.question)}`}>{questionKind(i.question)}</span>
               {i.question.card?.group ? (
-                <span className="chip blue" style={{ marginLeft: 6 }}>
+                <span className="chip blue">
                   step {i.question.card.group.step}/{i.question.card.group.of}
                 </span>
               ) : null}
-              <span className="dim" style={{ float: "right" }}>
-                {duration(i.waitedMs)}
-              </span>
+              <span className="dim wait">{duration(i.waitedMs)}</span>
             </span>
             <span className="title" title={i.question.prompt}>
               {i.question.prompt}

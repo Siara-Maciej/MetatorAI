@@ -62,6 +62,18 @@ describe("ScenarioInteractiveHost", () => {
     await rm(cwd, { recursive: true, force: true });
   }, 30_000);
 
+  test("a session resumed by another process (a new host) plays the entry after the one its id names", async () => {
+    const terminal = new FakeTerminal();
+    const host = new ScenarioInteractiveHost(terminal, scenario);
+    const again = (
+      await host.resume("scenario-session-1", task(tmpdir()), { cols: 80, rows: 24 })
+    )._unsafeUnwrap();
+    expect(again.sessionId).toBe("scenario-session-2");
+    expect(terminal.spawned[0]?.argv[2]).toContain("Resumed");
+    // The script runs with the terminal's own environment.
+    expect("env" in (terminal.spawned[0] ?? {})).toBe(false);
+  });
+
   test("a scenario without a session entry cannot start", async () => {
     const host = new ScenarioInteractiveHost(new NodePtyTerminal(), { agents: {} });
     const r = await host.start(task(tmpdir()), { cols: 80, rows: 24 });

@@ -70,7 +70,10 @@ export function SessionScreen({
   const messages = data?.messages ?? [];
   const conflicts = data?.conflicts ?? [];
   const action = useAction(refresh);
-  const { attached, taken, attach, release, openEditor, closePane, openSession } = useRunControls(run, action);
+  const { attached, taken, attach, release, openEditor, closePane, openSession } = useRunControls(
+    run,
+    action,
+  );
   /**
    * The run's own terminal is shown once its session lives, or once the person opened one here.
    * Coming to this screen never starts a process: a run driven in the background, or one that
@@ -164,7 +167,9 @@ export function SessionScreen({
           <div className={`driverbar ${run.driver}`} data-testid="driverbar">
             <strong>
               Working:{" "}
-              {run.driver === "human" ? `${run.attachedBy ?? "a person"}${attached ? " (you)" : ""}` : "agent"}
+              {run.driver === "human"
+                ? `${run.attachedBy ?? "a person"}${attached ? " (you)" : ""}`
+                : "agent"}
             </strong>
             <span className="note">
               {run.driver === "human"
@@ -198,7 +203,7 @@ export function SessionScreen({
         <Tabs
           label="terminal or events"
           current={tab}
-          onSelect={setTab}
+          onSelect={(id) => setTab(id)}
           items={[
             { id: "terminal", label: "Terminal" },
             { id: "events", label: `Events · ${events.length}` },
@@ -259,7 +264,12 @@ export function SessionScreen({
                       : "The run is finished. Its events and its changes are what is left."}
                 </p>
                 {phase === "active" ? (
-                  <button type="button" className="primary" disabled={action.busy} onClick={() => void open()}>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={action.busy}
+                    onClick={() => void open()}
+                  >
                     Open a session
                   </button>
                 ) : (
@@ -366,7 +376,11 @@ export function SessionScreen({
           {run.parent ? (
             <div>
               parent{" "}
-              <button type="button" className="ghost mono" onClick={() => onOpenSession(run.parent as string)}>
+              <button
+                type="button"
+                className="ghost mono"
+                onClick={() => onOpenSession(run.parent as string)}
+              >
                 {run.parent}
               </button>
             </div>

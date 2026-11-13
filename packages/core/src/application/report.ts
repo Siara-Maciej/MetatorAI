@@ -2,7 +2,7 @@ import type { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type FleetReport, fleetReport, type RunFacts } from "../domain/telemetry.ts";
 import type { Clock } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
 /**

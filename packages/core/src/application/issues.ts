@@ -14,8 +14,8 @@ import {
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Clock, FileLock, FileSystem } from "../ports/index.ts";
 import { loadDocument, writeDocument } from "./document-io.ts";
-import type { RunJournal } from "./drive.ts";
 import type { MetatorPaths } from "./paths.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { InitRun } from "./runs.ts";
 

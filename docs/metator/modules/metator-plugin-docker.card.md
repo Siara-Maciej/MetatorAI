@@ -21,16 +21,16 @@ dir: packages/plugin-docker
 
 ## Responsibility
 
-`ContainerRuntime` on the Docker CLI for `env up|down|logs` (ADR-0053): `docker compose -p <project> -f <file> up -d|stop|logs <service>`, run in the place's directory with the service's environment. It starts nothing on its own and knows nothing of ports or health.
+`ContainerRuntime` on the Docker CLI for `env up|down|logs` (ADR-0053): `docker compose -p <project> -f <file> up -d|stop|logs <service>`, run through the `ProcessRunner` port in the place's directory with the service's environment. It starts nothing on its own and knows nothing of ports or health.
 
 ## Invariants
 
-- Each place has its own Compose project, so worktrees never stop each other's containers [[cite: packages/plugin-docker/src/docker-compose-runtime.ts:36 | "return this.run(s, [this.bin, \"compose\", \"-p\", s.project, \"-f\", s.file, ...args]);"]].
-- A failing command or a missing binary is an error value with the reason, never a throw.
+- Each place has its own Compose project, so worktrees never stop each other's containers [[cite: packages/plugin-docker/src/docker-compose-runtime.ts:43 | "return this.run(s, [this.bin, \"compose\", \"-p\", s.project, \"-f\", s.file, ...args]);"]].
+- A failing command or a missing binary is an error value with the reason, never a throw; a Docker that cannot be started (the runner's exit 127) is `BIN_NOT_FOUND` with how to get it.
 
 ## Allowed dependencies
 
-`@metator/core` only (MT-ARCH-005); the Docker CLI is called as a process.
+`@metator/core` only (MT-ARCH-005); the Docker CLI is called as a process. `@metator/plugin-bun` and `@metator/testing` in tests.
 
 ## Pitfalls
 

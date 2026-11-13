@@ -373,7 +373,7 @@ const NO_OPTIONS: readonly ResolvedOption[] = [];
 function NameDialog({ initial, onDone }: { readonly initial: string; onDone(name: string): void }) {
   const [name, setName] = useState(initial);
   return (
-    <Modal label="your name" className="name-dialog" onClose={() => onDone("")}>
+    <Modal label="your name" className="dialog name-dialog" onClose={() => onDone("")}>
       <form
         onSubmit={(e) => {
           e.preventDefault();

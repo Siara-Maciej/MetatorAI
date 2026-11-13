@@ -25,10 +25,10 @@ import {
 } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Clock, InteractiveHost, PtyHandle, PtySize, Terminal, Timer } from "../ports/index.ts";
-import type { RunJournal } from "./drive.ts";
 import type { LayoutStore } from "./layout-store.ts";
 import type { PaneSensor } from "./pane-sensor.ts";
 import type { PtyBroker, PtyView } from "./pty-broker.ts";
+import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
 export const DEFAULT_SIZE: PtySize = { cols: 120, rows: 36 };

@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { EvalCaseDocument, err, MetatorError, normalizePath, ok } from "@metator/core";
+import { EvalCaseDocument, err, MetatorError, normalizePath } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
-import { schemaCommand } from "../outcome.ts";
 import { positiveInt, ratio, renamedOption } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
 
 export function registerEvalCommands(program: Command, { action, container }: CommandContext): void {
   const evals = program.command("eval").description("Review evals on the golden set: run, score, compare");
@@ -160,5 +160,5 @@ export function registerEvalCommands(program: Command, { action, container }: Co
       }),
     );
 
-  schemaCommand(evals, ctx, "Print the JSON Schema of a golden eval case", EvalCaseDocument);
+  schemaCommand(evals, { action }, "Print the JSON Schema of a golden eval case", EvalCaseDocument);
 }
