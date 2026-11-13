@@ -15,7 +15,9 @@ import {
   unreadableRunWarning,
 } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { renderDoctor, renderInbox, renderStatus } from "../render.ts";
 
 /**
  * `metator status` (G4, ADR-0059): every run (its stages, who must act, the questions, the last
@@ -23,8 +25,7 @@ import type { CommandContext } from "../context.ts";
  * repositories, that for each repository.
  */
 export function registerStatusCommand(program: Command, ctx: CommandContext): void {
-  program
-    .command("status")
+  meta(program.command("status"), { audience: "person", reads: true, folder: true, render: renderStatus })
     .description("The work at a glance: each run's stages, who must act, questions, services; conversations")
     .action(
       ctx.action(async () => {
@@ -79,8 +80,12 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
       }),
     );
 
-  program
-    .command("doctor")
+  meta(program.command("doctor"), {
+    audience: "person",
+    reads: true,
+    writesWith: ["--gates"],
+    render: renderDoctor,
+  })
     .description(
       "What a run here will and will not do: config, canon, workflows, gates, dependencies, environment, remote",
     )
@@ -111,8 +116,7 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
       }),
     );
 
-  program
-    .command("inbox")
+  meta(program.command("inbox"), { audience: "person", reads: true, folder: true, render: renderInbox })
     .description(
       "Every open decision of every run, first the ones a live drive waits on, then the oldest; and the escalated runs waiting for a resume",
     )
@@ -143,8 +147,7 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
       }),
     );
 
-  program
-    .command("report")
+  meta(program.command("report"), { audience: "person", reads: true, writesWith: ["--html"], folder: true })
     .description(
       "What the runs cost and asked of people: tokens, money, agent time, questions, waiting, per agent",
     )

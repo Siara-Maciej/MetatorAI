@@ -2,8 +2,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { err, hostRefusal, MetatorError, notDrivable, ok, type Result } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
-import { type FollowResult, follow, person } from "./live.ts";
+import { type FollowResult, follow } from "./live.ts";
 import type { Terminal } from "./terminal.ts";
+import { who } from "./who.ts";
 
 /**
  * The AI hosts that drive agents without a terminal, as the help names them. Which hosts exist is
@@ -137,6 +138,8 @@ export async function newRun(
         "Install GitHub Copilot CLI or Claude Code, then run `metator doctor`.",
       ),
     );
+  const by = await who(c);
+  if (by.isErr()) return err(by.error);
   const answers = await terminal.newRun({
     workflows: scan.workflows.map((w) => ({
       id: w.spec.id,
@@ -166,7 +169,7 @@ export async function newRun(
   const started = await startDetached(c, root, run.value.runId, answers.host);
   if (started.isErr()) return err(started.error);
   terminal.show(`run ${run.value.runId} · ${answers.host} · Ctrl+C leaves; the run goes on`);
-  return ok(await follow(c, run.value.runId, terminal, person()));
+  return ok(await follow(c, run.value.runId, terminal, by.value));
 }
 
 /** Makes sure an active run has a live driver, with the host it used unless told otherwise. */

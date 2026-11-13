@@ -12,18 +12,18 @@ import {
 } from "@metator/core";
 import { findChildRepos } from "@metator/runtime";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext, Folder } from "../context.ts";
 import { sessionRows } from "../sessions.ts";
 
 /** `repos *` (G2, ADR-0057): a folder of repositories, each with its own MetatorAI. */
 export function registerReposCommands(program: Command, ctx: CommandContext): void {
   const { action, folder } = ctx;
-  const repos = program
-    .command("repos")
-    .description("A folder of repositories: list them, see their work, write metator.repos.yml");
+  const repos = meta(program.command("repos"), { audience: "person" }).description(
+    "A folder of repositories: list them, see their work, write metator.repos.yml",
+  );
 
-  repos
-    .command("init")
+  meta(repos.command("init"), { folder: true })
     .description(`Write ${REPO_SET_FILE} in this folder from the repositories below it (never overwrites)`)
     .option("--dry-run", "print the proposal without writing it", false)
     .action(
@@ -59,8 +59,7 @@ export function registerReposCommands(program: Command, ctx: CommandContext): vo
       }),
     );
 
-  repos
-    .command("list")
+  meta(repos.command("list"), { reads: true, folder: true })
     .description("The folder's repositories and whether MetatorAI is set up in each")
     .action(
       action(() => {
@@ -79,8 +78,7 @@ export function registerReposCommands(program: Command, ctx: CommandContext): vo
       }),
     );
 
-  repos
-    .command("status")
+  meta(repos.command("status"), { reads: true, folder: true })
     .description("Each repository's work: active runs, questions waiting for you, running services")
     .action(
       action(async () => {

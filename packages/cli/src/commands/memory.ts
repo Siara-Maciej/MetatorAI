@@ -1,6 +1,8 @@
 import { accessMatrix, err, MemoryMapDocument, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { schemaCommand } from "../outcome.ts";
 import { positiveInt, ratio } from "../options.ts";
 
 export function registerMemoryCommands(program: Command, { action, container }: CommandContext): void {
@@ -8,8 +10,7 @@ export function registerMemoryCommands(program: Command, { action, container }: 
     .command("memory")
     .description("Memory map: knowledge inventory, context budgets, citations, CI guard");
 
-  memory
-    .command("inventory")
+  meta(memory.command("inventory"), { reads: true })
     .description("Every knowledge file with its size and memory map item (works without a map)")
     .option("--generated", "include the host files `metator generate` wrote (copies of the canon)", false)
     .action(
@@ -18,8 +19,7 @@ export function registerMemoryCommands(program: Command, { action, container }: 
       })),
     );
 
-  memory
-    .command("budget")
+  meta(memory.command("budget"), { reads: true })
     .description("File and tier sizes against the memory map budgets")
     .action(
       action(async () => {
@@ -38,8 +38,7 @@ export function registerMemoryCommands(program: Command, { action, container }: 
       }),
     );
 
-  memory
-    .command("validate")
+  meta(memory.command("validate"), { reads: true, writesWith: ["--fix"] })
     .description('Check [[cite: path:line | "quote"]] claims; --fix updates lines of moved quotes')
     .option("--fix", "rewrite line numbers of quotes that moved", false)
     .action(
@@ -65,8 +64,7 @@ export function registerMemoryCommands(program: Command, { action, container }: 
       }),
     );
 
-  memory
-    .command("check")
+  meta(memory.command("check"), { audience: "ci", reads: true, check: [] })
     .description("CI guard: every knowledge file mapped, budgets kept, citations true")
     .action(
       action(async () => {
@@ -91,8 +89,7 @@ export function registerMemoryCommands(program: Command, { action, container }: 
       }),
     );
 
-  memory
-    .command("dupes")
+  meta(memory.command("dupes"), { audience: "ci", reads: true, check: ["--check"] })
     .description("The same statement in several knowledge files (generated copies excluded)")
     .option("--min-words <n>", "shortest sentence that counts", positiveInt, 8)
     .option("--threshold <ratio>", "similarity for near duplicates (Jaccard on word 3-grams)", ratio, 0.8)
@@ -117,8 +114,7 @@ export function registerMemoryCommands(program: Command, { action, container }: 
       }),
     );
 
-  memory
-    .command("matrix")
+  meta(memory.command("matrix"), { reads: true })
     .description("Who reads and writes which memory, from the map's readers and writers")
     .action(
       action(async () => ({
@@ -126,8 +122,5 @@ export function registerMemoryCommands(program: Command, { action, container }: 
       })),
     );
 
-  memory
-    .command("schema")
-    .description("Print the JSON Schema of the memory map")
-    .action(action(() => ({ result: ok(MemoryMapDocument.jsonSchema("input")) })));
+  schemaCommand(memory, ctx, "Print the JSON Schema of the memory map", MemoryMapDocument);
 }

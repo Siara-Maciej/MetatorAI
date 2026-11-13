@@ -1,17 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import {
-  type AgentTask,
-  err,
-  type InteractiveHost,
-  type InteractiveSession,
-  type MetatorError,
-  ok,
-  type PtySize,
-  type Result,
-  sessionEnv,
-  type Terminal,
-} from "@metator/core";
+import { type AgentTask, ok, PtyInteractiveHost, sessionEnv, type Terminal } from "@metator/core";
 
 /**
  * InteractiveHost on Claude Code (D6, ADR-0077): `claude <task> --session-id <uuid>` in a PTY in
@@ -19,52 +8,22 @@ import {
  * it; `claude --resume <uuid>` continues. The project's hooks (`.claude/settings.json`) write
  * the run's activity; the end of the session is the process exit.
  */
-export class ClaudeInteractiveHost implements InteractiveHost {
-  readonly id = "claude";
-
+export class ClaudeInteractiveHost extends PtyInteractiveHost {
   constructor(
-    private readonly terminal: Terminal,
-    private readonly bin: string = "claude",
-    private readonly env: Readonly<Record<string, string | undefined>> = process.env,
-    private readonly newId: () => string = () => crypto.randomUUID(),
-  ) {}
-
-  /** The session's command line and id; with `resume`, the one that continues that session. */
-  private async launch(
-    task: AgentTask,
-    resume?: string,
-  ): Promise<Result<{ argv: string[]; sessionId: string }, MetatorError>> {
-    const sessionId = resume ?? this.newId();
-    const mode = resume === undefined ? [task.prompt, "--session-id", sessionId] : ["--resume", resume];
-    return ok({ argv: claudeArgv(this.bin, task, mode), sessionId });
-  }
-
-  async start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.spawn(task, size);
-  }
-
-  async resume(
-    sessionId: string,
-    task: AgentTask,
-    size: PtySize,
-  ): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.spawn(task, size, sessionId);
-  }
-
-  private async spawn(
-    task: AgentTask,
-    size: PtySize,
-    resume?: string,
-  ): Promise<Result<InteractiveSession, MetatorError>> {
-    const launch = await this.launch(task, resume);
-    if (launch.isErr()) return err(launch.error);
-    const spawned = this.terminal.spawn(launch.value.argv, {
-      cwd: task.cwd,
-      env: sessionEnv(task, this.env),
-      size,
+    terminal: Terminal,
+    bin = "claude",
+    env: Readonly<Record<string, string | undefined>> = process.env,
+    newId: () => string = () => crypto.randomUUID(),
+  ) {
+    super(terminal, {
+      id: "claude",
+      env: (task) => sessionEnv(task, env),
+      launch: async (task, resume) => {
+        const sessionId = resume ?? newId();
+        const mode = resume === undefined ? [task.prompt, "--session-id", sessionId] : ["--resume", resume];
+        return ok({ argv: claudeArgv(bin, task, mode), sessionId });
+      },
     });
-    if (spawned.isErr()) return err(spawned.error);
-    return ok({ sessionId: launch.value.sessionId, pty: spawned.value });
   }
 }
 

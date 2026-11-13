@@ -1,22 +1,22 @@
 import { basename } from "node:path";
 import { err, MetatorError, ok, SystemMapDocument } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { schemaCommand } from "../outcome.ts";
 import { registerSystemPlanCommands } from "./system-plan.ts";
 
 export function registerSystemCommands(program: Command, ctx: CommandContext): void {
   const { action, container } = ctx;
-  const system = program
-    .command("system")
-    .description("The system landscape: applications, the contracts between them, deploy order");
+  const system = meta(program.command("system"), { audience: "person" }).description(
+    "The system landscape: applications, the contracts between them, deploy order",
+  );
 
-  system
-    .command("show")
+  meta(system.command("show"), { reads: true })
     .description("The system map with each contract's provider and consumers, and the deploy waves")
     .action(action(async () => ({ result: await container().resolve("showSystem").execute() })));
 
-  system
-    .command("lint")
+  meta(system.command("lint"), { audience: "ci", reads: true, writesWith: ["--fetch"], check: [] })
     .description("Owners, consumed contracts, contract kinds, deploy cycles and the specifications")
     .option(
       "--fetch",
@@ -45,8 +45,7 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
       }),
     );
 
-  system
-    .command("impact")
+  meta(system.command("impact"), { reads: true })
     .description("Where a change lands: changed files or named contracts → contracts → consumers → owners")
     .option("--base <ref>", "the files changed since the merge base with this ref", "HEAD")
     .option("--files <files...>", "these files instead of git")
@@ -62,8 +61,7 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
       })),
     );
 
-  system
-    .command("sources")
+  meta(system.command("sources"), { reads: true, writesWith: ["--fetch"] })
     .description("Where each application's code is on this machine: here, a checkout or a pinned clone")
     .option("--fetch", "clone what has no local checkout", false)
     .action(
@@ -82,8 +80,7 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
       }),
     );
 
-  system
-    .command("discover")
+  meta(system.command("discover"), { folder: true })
     .description("Propose a system map from the code: applications, contracts and consumers, with evidence")
     .option("--write", "write the proposal to the map file when there is none (never overwrites)", false)
     .option("--check", "fail when the map lacks what the code shows", false)
@@ -143,8 +140,5 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
 
   registerSystemPlanCommands(system, ctx);
 
-  system
-    .command("schema")
-    .description("Print the JSON Schema of the system map")
-    .action(action(async () => ({ result: ok(SystemMapDocument.jsonSchema("input")) })));
+  schemaCommand(system, ctx, "Print the JSON Schema of the system map", SystemMapDocument);
 }

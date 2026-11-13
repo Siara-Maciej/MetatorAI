@@ -13,8 +13,8 @@ import {
 import type { MetatorContainer } from "@metator/runtime";
 import { askPlace, folderPlace } from "../ask-place.ts";
 import type { Folder } from "../context.ts";
-import { person } from "../live.ts";
 import { defaultHost, startDetached } from "../sessions.ts";
+import { who } from "../who.ts";
 import type { RepoWork, Snapshot } from "./model.ts";
 
 /** A program that needs the whole terminal (a terminal editor, a shell, `git diff`). */
@@ -104,6 +104,8 @@ export function tuiService(ctx: ServiceContext): TuiService {
     : [{ name: basename(ctx.root), root: ctx.root }];
   const message = (e: { message: string; hint?: string | undefined }) =>
     e.hint ? `${e.message}. ${e.hint}` : e.message;
+  // The same name a command records: METATOR_USER, else git's user.name, else the login name.
+  const by = (repo: string) => who(at(repo), undefined, ctx.env);
   const dirOf = async (repo: string, runId?: string) => {
     if (!runId) return repo;
     const r = await at(repo).resolve("runRepository").load(runId);
@@ -150,9 +152,11 @@ export function tuiService(ctx: ServiceContext): TuiService {
     },
 
     async answer(repo, q, choices, text) {
+      const name = await by(repo);
+      if (name.isErr()) return message(name.error);
       const r = await at(repo)
         .resolve("runJournal")
-        .answer(q.runId, q.id, { choices: [...choices], ...(text ? { text } : {}), by: person(ctx.env) });
+        .answer(q.runId, q.id, { choices: [...choices], ...(text ? { text } : {}), by: name.value });
       if (r.isErr()) return message(r.error);
       // An answer is carried out by the drive: with none alive, the run is driven again.
       return this.continueRun(repo, q.runId);
@@ -160,8 +164,10 @@ export function tuiService(ctx: ServiceContext): TuiService {
 
     async decideGate(repo, runId, stage, approve, reason) {
       const c = at(repo);
+      const name = await by(repo);
+      if (name.isErr()) return message(name.error);
       const r = approve
-        ? await c.resolve("approveRun").execute({ runId, gate: stage, by: person(ctx.env) })
+        ? await c.resolve("approveRun").execute({ runId, gate: stage, by: name.value })
         : await c
             .resolve("advanceRun")
             .execute({ runId, event: { type: "FAIL", ...(reason ? { reason } : {}) } });
@@ -176,7 +182,9 @@ export function tuiService(ctx: ServiceContext): TuiService {
       if (record.isErr()) return message(record.error);
       // An escalated run goes back to the stage it escalated from (its cause is fixed), then on.
       if (record.value.state.status === "escalated") {
-        const resumed = await c.resolve("resumeRun").execute({ runId, by: person(ctx.env) });
+        const name = await by(repo);
+        if (name.isErr()) return message(name.error);
+        const resumed = await c.resolve("resumeRun").execute({ runId, by: name.value });
         if (resumed.isErr()) return message(resumed.error);
       }
       // The host that drove it last, else the one the run records, else the default.
@@ -224,11 +232,13 @@ export function tuiService(ctx: ServiceContext): TuiService {
         ctx.folder && repo === ctx.folder.root
           ? folderPlace(ctx.folder, at(repo))
           : askPlace({ container: () => at(repo), containerAt: at, folder: () => null });
+      const name = await who(place.container, undefined, ctx.env);
+      if (name.isErr()) return { error: message(name.error) };
       const r = await place.container.resolve("askQuestion").execute({
         question,
         ...(conversation ? { conversation } : {}),
         defaultHost: defaultHost(place.container, ctx.env),
-        by: person(ctx.env),
+        by: name.value,
         cwd: place.cwd,
         projectRoot: place.projectRoot,
         where: place.where,

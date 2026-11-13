@@ -3,19 +3,17 @@ import {
   type BasicCapability,
   err,
   type GeneratedFile,
-  generatedMarker,
   HOOK_BINDINGS,
   type HostAgentContext,
   type HostGenerator,
+  hostAgentFile,
   isGuardCommand,
   MetatorError,
   type ModelTier,
   metatorGroups,
   ok,
   type Result,
-  withMetatorCommand,
 } from "@metator/core";
-import { stringify } from "yaml";
 
 /** The one place that knows Claude Code's tool names. Changes go here only. */
 export const CLAUDE_TOOLS: Readonly<Record<BasicCapability, readonly string[]>> = {
@@ -81,16 +79,8 @@ export class ClaudeGenerator implements HostGenerator {
       tools: [...tools].join(", "),
       model: context.model ?? CLAUDE_MODELS[agent.tier],
     };
-    return {
-      path: `.claude/agents/${agent.id}.md`,
-      content: `---\n${stringify(front, { lineWidth: 0 }).trimEnd()}\n---\n${generatedMarker(context.source)}\n${prose(body, context)}`,
-    };
+    return hostAgentFile(`.claude/agents/${agent.id}.md`, front, body, context);
   }
-}
-
-function prose(body: string, context: HostAgentContext): string {
-  const text = withMetatorCommand(body, context.metatorCommand);
-  return text.startsWith("\n") ? text : `\n${text}`;
 }
 
 interface Group {

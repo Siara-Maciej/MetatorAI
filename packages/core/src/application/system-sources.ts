@@ -11,8 +11,8 @@ import {
   selfApplications,
 } from "../domain/system-impact.ts";
 import { type Application, appDir, type SystemMap, SystemMapDocument } from "../domain/system-map.ts";
-import { parseYamlDocument } from "../domain/versioned.ts";
 import type { CheckoutReader, ImportGraphReader, RepositoryCloner, Vcs } from "../ports/index.ts";
+import { parseDocumentText } from "./document-io.ts";
 
 /** `path` resolved against an absolute `base`, with `.` and `..` taken out. */
 export function absolute(base: string, path: string): string {
@@ -164,9 +164,7 @@ export class PinnedSystemLocation implements SystemLocation {
       return err(
         MetatorError.notFound(`the system map ${this.map.path} in ${this.map.repo}`, { source: this.source }),
       );
-    return parseYamlDocument(text.value, this.source).andThen((raw) =>
-      SystemMapDocument.parse(raw, this.source),
-    );
+    return parseDocumentText(text.value, this.source, SystemMapDocument, "yaml");
   }
 }
 

@@ -12,8 +12,11 @@ import {
   SEVERITIES,
 } from "@metator/core";
 import { type Command, Option } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { positiveInt } from "../options.ts";
+import { schemaCommand } from "../outcome.ts";
+import { byOption, defined, positiveInt, runOption } from "../options.ts";
+import { asPerson } from "../who.ts";
 
 type Lens = (typeof LENSES)[number];
 
@@ -72,8 +75,7 @@ export function registerFindingsCommands(program: Command, { action, container }
       }),
     );
 
-  findings
-    .command("check-quote")
+  meta(findings.command("check-quote"), { reads: true })
     .description("One quote against one file near a line (normalized whitespace); moved or missing fails")
     .argument("<file>", "file the quote is claimed to be in")
     .requiredOption("--line <n>", "line the quote is claimed to be on", positiveInt)
@@ -188,8 +190,7 @@ export function registerFindingsCommands(program: Command, { action, container }
       })),
     );
 
-  findings
-    .command("to-github")
+  meta(findings.command("to-github"), { audience: "person" })
     .description(
       "Inline comments (confirmed blockers only) and a summary from verdict.json, for posting after approval",
     )
@@ -212,10 +213,7 @@ export function registerFindingsCommands(program: Command, { action, container }
       ),
     );
 
-  findings
-    .command("schema")
-    .description("Print the JSON Schema of a findings file")
-    .action(action(() => ({ result: ok(FindingSetDocument.jsonSchema("input")) })));
+  schemaCommand(findings, ctx, "Print the JSON Schema of a findings file", FindingSetDocument);
   findings
     .command("react")
     .description(
@@ -228,34 +226,33 @@ export function registerFindingsCommands(program: Command, { action, container }
         .choices([...REACTION_STATES])
         .makeOptionMandatory(),
     )
-    .requiredOption("--by <who>", "who reacted")
+    .addOption(byOption("who reacted"))
     .addOption(new Option("--lens <lens>", "the lens that raised it").choices([...LENSES]))
     .option("--reason <text>", "why, in a few words")
     .action(
       action(
         async (
           finding: string,
-          opts: { pr: string; state: ReactionState; by: string; lens?: Lens; reason?: string },
-        ) => ({
-          result: await container()
-            .resolve("reviewFeedback")
-            .record({
-              finding,
-              pr: opts.pr,
-              state: opts.state,
-              by: opts.by,
-              ...(opts.lens ? { lens: opts.lens } : {}),
-              ...(opts.reason ? { reason: opts.reason } : {}),
-            }),
-        }),
+          opts: { pr: string; state: ReactionState; by?: string; lens?: Lens; reason?: string },
+        ) =>
+          asPerson(container(), opts.by, async (by) => ({
+            result: await container()
+              .resolve("reviewFeedback")
+              .record({
+                finding,
+                pr: opts.pr,
+                state: opts.state,
+                by,
+                ...defined({ lens: opts.lens, reason: opts.reason }),
+              }),
+          })),
       ),
     );
 }
 
 export function registerReviewCommands(program: Command, { action, container, runs }: CommandContext): void {
   const review = program.command("review").description("Plan a review of the change and describe it");
-  review
-    .command("metadata")
+  meta(review.command("metadata"), { reads: true, writesWith: ["--out"] })
     .description("The branch against its base: commits, authors, changed files, uncommitted work (pr.json)")
     .option("--base <ref>", "the branch the change goes into", "HEAD")
     .option("--out <path>", "also write it as a ReviewMetadata document")
@@ -266,8 +263,7 @@ export function registerReviewCommands(program: Command, { action, container, ru
           .execute({ base: opts.base, ...(opts.out ? { out: normalizePath(opts.out) } : {}) }),
       })),
     );
-  review
-    .command("diff")
+  meta(review.command("diff"), { reads: true, writesWith: ["--out"] })
     .description("The change as a unified diff (new files whole), without MetatorAI's own files")
     .argument("[files...]", "only these files")
     .option("--base <ref>", "the branch the change goes into", "HEAD")
@@ -284,10 +280,9 @@ export function registerReviewCommands(program: Command, { action, container, ru
       })),
     );
   // The change of a run and a person's notes on it (S5, design/13 §5).
-  review
-    .command("changes")
+  meta(review.command("changes"), { audience: "person" })
     .description("The files a run changed, with their line counts; --file adds that file's diff as hunks")
-    .option("--run <id>", "run id (default: latest)")
+    .addOption(runOption())
     .option("--file <path>", "one file's diff, as hunks and numbered lines")
     .action(
       action(async (opts: { run?: string; file?: string }) => ({
@@ -302,48 +297,44 @@ export function registerReviewCommands(program: Command, { action, container, ru
   notes
     .command("list")
     .description("The notes with their status (draft, sent, addressed)")
-    .option("--run <id>", "run id (default: latest)")
+    .addOption(runOption())
     .action(
       action(async (opts: { run?: string }) => ({
         result: await runs().resolve("reviewNotes").list(opts.run),
       })),
     );
-  notes
-    .command("add")
+  meta(notes.command("add"), { audience: "person" })
     .description("A note on a file and line (or on the whole change); it waits as a draft until `notes send`")
     .argument("<text>", "the note")
-    .option("--run <id>", "run id (default: latest)")
+    .addOption(runOption())
     .option("--file <path>", "the file it is about (repo-relative)")
     .option("--line <n>", "the line in it", positiveInt)
     .addOption(new Option("--side <side>", "the old or the new side of the diff").choices(["old", "new"]))
-    .requiredOption("--by <name>", "who writes it")
+    .addOption(byOption("who writes it"))
     .action(
       action(
         async (
           text: string,
-          opts: { run?: string; file?: string; line?: number; side?: "old" | "new"; by: string },
-        ) => ({
-          result: await runs()
-            .resolve("reviewNotes")
-            .add(opts.run, {
-              text,
-              by: opts.by,
-              ...(opts.file ? { file: opts.file } : {}),
-              ...(opts.line ? { line: opts.line } : {}),
-              ...(opts.side ? { side: opts.side } : {}),
-            }),
-        }),
+          opts: { run?: string; file?: string; line?: number; side?: "old" | "new"; by?: string },
+        ) =>
+          asPerson(runs(), opts.by, async (by) => ({
+            result: await runs()
+              .resolve("reviewNotes")
+              .add(opts.run, { text, by, ...defined({ file: opts.file, line: opts.line, side: opts.side }) }),
+          })),
       ),
     );
   notes
     .command("send")
     .description("The draft notes go to the run's agents as one message (topic review)")
-    .option("--run <id>", "run id (default: latest)")
-    .requiredOption("--by <name>", "who sends")
+    .addOption(runOption())
+    .addOption(byOption("who sends"))
     .action(
-      action(async (opts: { run?: string; by: string }) => ({
-        result: await runs().resolve("reviewNotes").send(opts.run, { by: opts.by }),
-      })),
+      action(async (opts: { run?: string; by?: string }) =>
+        asPerson(runs(), opts.by, async (by) => ({
+          result: await runs().resolve("reviewNotes").send(opts.run, { by }),
+        })),
+      ),
     );
   notes
     .command("status")
@@ -354,14 +345,13 @@ export function registerReviewCommands(program: Command, { action, container, ru
         .choices(["draft", "sent", "addressed"])
         .default("addressed"),
     )
-    .option("--run <id>", "run id (default: latest)")
+    .addOption(runOption())
     .action(
       action(async (id: string, opts: { run?: string; set: "draft" | "sent" | "addressed" }) => ({
         result: await runs().resolve("reviewNotes").setStatus(opts.run, id, opts.set),
       })),
     );
-  review
-    .command("plan")
+  meta(review.command("plan"), { audience: "person", reads: true, writesWith: ["--out"] })
     .description("Shards per package with card and rules; lenses run per shard")
     .option("--base <ref>", "review files changed against this ref", "HEAD")
     .option("--files <files...>", "review these files instead")

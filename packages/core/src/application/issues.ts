@@ -12,8 +12,8 @@ import {
   proposalQuestion,
 } from "../domain/issue.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileLock, FileSystem } from "../ports/index.ts";
+import { loadDocument, writeDocument } from "./document-io.ts";
 import type { RunJournal } from "./drive.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -359,13 +359,11 @@ export class Issues {
   }
 
   private async read(file: string): Promise<Result<Issue, MetatorError>> {
-    const text = await this.d.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file).andThen((raw) => IssueDocument.parse(raw, file));
+    return loadDocument(this.d.fs, file, IssueDocument);
   }
 
   private save(issue: Issue): Promise<Result<void, MetatorError>> {
-    return this.d.fs.write(this.file(issue.id), serializeJsonDocument(IssueDocument.stamp(issue)));
+    return writeDocument(this.d.fs, this.file(issue.id), IssueDocument, issue);
   }
 }
 

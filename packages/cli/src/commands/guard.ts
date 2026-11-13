@@ -1,5 +1,6 @@
 import { type HookResponse, type MetatorError, ok, type Result } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext, Outcome } from "../context.ts";
 import { callDaemon, findDaemon, paneHeaders } from "../daemon-client.ts";
 
@@ -60,8 +61,7 @@ export function registerGuardCommands(program: Command, { action, container, std
     ],
   ] as const;
   for (const [name, description, token] of events) {
-    guard
-      .command(name)
+    meta(guard.command(name), { audience: "hook" })
       .description(description)
       .action(
         action(async () => {
@@ -77,15 +77,13 @@ export function registerGuardCommands(program: Command, { action, container, std
       );
   }
 
-  guard
-    .command("session-start")
+  meta(guard.command("session-start"), { audience: "hook" })
     .description("SessionStart: the active run and a missing index as context")
     .action(
       action(async () => answer(await container().resolve("guardSessionStart").execute(), "session-start")),
     );
 
-  guard
-    .command("precompact")
+  meta(guard.command("precompact"), { audience: "hook" })
     .description("PreCompact: write a run checkpoint to log.md before the context is compacted")
     .action(
       action(async () => {

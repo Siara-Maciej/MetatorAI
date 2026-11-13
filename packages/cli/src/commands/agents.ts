@@ -1,32 +1,13 @@
 import { AgentDocument, err, MetatorError, ok, SkillDocument } from "@metator/core";
-import type { Command } from "commander";
+import { Argument, type Command } from "commander";
+import { checkCommands, meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { positiveInt, ratio } from "../options.ts";
 
-/** What `meta check-all` runs: every lint and drift check of the knowledge layer (04-commands §I). */
-export const CHECK_ALL: readonly (readonly string[])[] = [
-  ["rules", "lint"],
-  ["rules", "adapters", "--check"],
-  ["memory", "check"],
-  ["cards", "build", "--check"],
-  ["patterns", "scan", "--check"],
-  ["adr", "lint"],
-  ["memory", "dupes", "--check"],
-  ["meta", "agents-lint"],
-  ["meta", "skills-lint"],
-  ["workflow", "validate"],
-  ["workflow", "lint"],
-  ["generate", "--check"],
-  ["docs", "links"],
-  ["docs", "drift"],
-  ["system", "lint"],
-];
-
 export function registerAgentCommands(program: Command, { action, container, invoke }: CommandContext): void {
-  const meta = program.command("meta").description("Lint the canonical agents, skills and workflows");
+  const group = program.command("meta").description("Lint the canonical agents, skills and workflows");
 
-  meta
-    .command("agents-lint")
+  meta(group.command("agents-lint"), { audience: "ci", check: [] })
     .description("Canonical agents: schema, prefix, delegation (known, allowed, acyclic), sections, size")
     .action(
       action(async () => {
@@ -40,7 +21,7 @@ export function registerAgentCommands(program: Command, { action, container, inv
           return {
             result: err(
               new MetatorError("CHECK_FAILED", `${errors.length} agent problem(s)`, {
-                hint: "Fix metator/agents/*.md; `metator meta agents-schema` prints the front matter format.",
+                hint: "Fix metator/agents/*.md; `metator meta schema agents` prints the front matter format.",
                 details: { ...report.value },
               }),
             ),
@@ -51,7 +32,7 @@ export function registerAgentCommands(program: Command, { action, container, inv
       }),
     );
 
-  meta
+  group
     .command("audit")
     .description(
       "Inventory of agents, skills and prompts (canonical and in host directories) with their call graph",
@@ -71,8 +52,7 @@ export function registerAgentCommands(program: Command, { action, container, inv
       }),
     );
 
-  meta
-    .command("check-all")
+  meta(group.command("check-all"), { audience: "ci" })
     .description(
       "Every lint and check in one run (pre-commit, CI): rules, memory, cards, patterns, ADRs, agents, skills, workflows, generated files",
     )
@@ -82,7 +62,11 @@ export function registerAgentCommands(program: Command, { action, container, inv
         const root = (program.opts() as { root?: string }).root;
         const prefix = root ? ["--root", root] : [];
         const checks = [];
-        for (const argv of [...CHECK_ALL, ["rules", "coverage", "--min-e1", String(opts.minE1)]]) {
+        // Every command that says `check` where it is registered, then the coverage floor.
+        for (const argv of [
+          ...checkCommands(program),
+          ["rules", "coverage", "--min-e1", String(opts.minE1)],
+        ]) {
           const r = await invoke([...prefix, ...argv]);
           const error = r.envelope.error as { code?: string; message?: string } | undefined;
           checks.push({
@@ -106,7 +90,7 @@ export function registerAgentCommands(program: Command, { action, container, inv
       }),
     );
 
-  meta
+  group
     .command("quarterly")
     .description(
       "The quarterly review (F6): rule coverage and dead rules, memory budgets, stale documents, unpromoted lessons, review evals against a baseline; written to .metator/reviews/",
@@ -130,13 +114,20 @@ export function registerAgentCommands(program: Command, { action, container, inv
       }),
     );
 
-  meta
-    .command("agents-schema")
+  // `meta schema agents|skills`, as every other group names its schema; the two old names still run.
+  const schemas = { agents: AgentDocument, skills: SkillDocument };
+  const schema = group
+    .command("schema")
+    .description("Print the JSON Schema of a canonical agent's or skill's front matter")
+    .addArgument(new Argument("<kind>", "whose front matter").choices(Object.keys(schemas)))
+    .action(action((kind: keyof typeof schemas) => ({ result: ok(schemas[kind].jsonSchema("input")) })));
+  meta(schema, { renamedFrom: "meta agents-schema" });
+
+  meta(group.command("agents-schema", { hidden: true }), { renamedTo: "meta schema agents" })
     .description("Print the JSON Schema of a canonical agent's front matter")
     .action(action(() => ({ result: ok(AgentDocument.jsonSchema("input")) })));
 
-  meta
-    .command("skills-lint")
+  meta(group.command("skills-lint"), { audience: "ci", check: [] })
     .description("Canonical skills: name = directory, trigger and anti-trigger, sections, size, files exist")
     .action(
       action(async () => {
@@ -147,7 +138,7 @@ export function registerAgentCommands(program: Command, { action, container, inv
           return {
             result: err(
               new MetatorError("CHECK_FAILED", `${errors.length} skill problem(s)`, {
-                hint: "Fix metator/skills/<name>/SKILL.md; `metator meta skills-schema` prints the front matter format.",
+                hint: "Fix metator/skills/<name>/SKILL.md; `metator meta schema skills` prints the front matter format.",
                 details: { ...report.value },
               }),
             ),
@@ -157,13 +148,11 @@ export function registerAgentCommands(program: Command, { action, container, inv
       }),
     );
 
-  meta
-    .command("skills-schema")
+  meta(group.command("skills-schema", { hidden: true }), { renamedTo: "meta schema skills" })
     .description("Print the JSON Schema of a canonical skill's front matter")
     .action(action(() => ({ result: ok(SkillDocument.jsonSchema("input")) })));
 
-  program
-    .command("generate")
+  meta(program.command("generate"), { audience: "person", check: ["--check"] })
     .description("Host files (Copilot, Claude Code) from the canonical agents and skills")
     .option("--check", "compare only; fail when generated files are stale or orphaned", false)
     .option("--hooks", "also install the hook configuration (`metator guard *`) for each host", false)

@@ -17,9 +17,9 @@ import {
   systemPlannerPrompt,
   systemScoutPrompt,
 } from "../domain/system-plan.ts";
-import { type DocumentHeader, parseYamlDocument, renderYamlDocument } from "../domain/versioned.ts";
 import type { AgentHost, Clock, FileSystem } from "../ports/index.ts";
 import type { BreakingAllowance, DiffContracts } from "./contract-diff.ts";
+import { readDocument, writeDocument } from "./document-io.ts";
 import { DocumentStore, runAgent } from "./document-store.ts";
 import type { SystemImpactQuery, SystemLocation } from "./system-sources.ts";
 
@@ -44,18 +44,17 @@ export class SystemPlanStore extends DocumentStore<SystemPlan> {
   }
 
   async loadAnalysis(id: string): Promise<Result<SystemAnalysis | undefined, MetatorError>> {
-    const file = this.analysisFile(id);
-    if (!(await this.files.exists(file))) return ok(undefined);
-    const text = await this.files.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseYamlDocument(text.value, file).andThen((raw) => SystemAnalysisDocument.parse(raw, file));
+    return readDocument(this.files, this.analysisFile(id), SystemAnalysisDocument, "yaml");
   }
 
   async saveAnalysis(id: string, analysis: SystemAnalysis): Promise<Result<void, MetatorError>> {
-    const doc: DocumentHeader & Record<string, unknown> = { ...SystemAnalysisDocument.stamp(analysis) };
-    return this.files.write(
+    return writeDocument(
+      this.files,
       this.analysisFile(id),
-      renderYamlDocument(doc, "What a task touches across the system (metator system analyze)."),
+      SystemAnalysisDocument,
+      analysis,
+      "yaml",
+      "What a task touches across the system (metator system analyze).",
     );
   }
 }

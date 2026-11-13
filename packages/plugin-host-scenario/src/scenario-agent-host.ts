@@ -1,20 +1,15 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
-import {
-  type AgentAnswer,
-  type AgentEvent,
-  type AgentHost,
-  type AgentQuestion,
-  type AgentScenario,
-  AgentScenarioDocument,
-  type AgentTask,
-  err,
-  fillScenario,
-  MetatorError,
-  ok,
-  type Result,
+import type {
+  AgentAnswer,
+  AgentEvent,
+  AgentHost,
+  AgentQuestion,
+  AgentScenario,
+  AgentTask,
 } from "@metator/core";
-import { parse } from "yaml";
+import { fillScenario } from "@metator/core";
+import { ScenarioPlayer } from "./scenario-player.ts";
 
 /**
  * AgentHost that plays a scenario (ADR-0051): no model, the same events a real host emits.
@@ -22,43 +17,27 @@ import { parse } from "yaml";
  */
 export class ScenarioAgentHost implements AgentHost {
   readonly id = "scenario";
-  private readonly starts = new Map<string, number>();
-  private loaded: Promise<Result<AgentScenario, MetatorError>> | undefined;
+  private readonly player: ScenarioPlayer;
 
   /** A scenario, or the path of an AgentScenario file read at the first start. */
-  constructor(private readonly source: AgentScenario | string) {}
-
-  /** Reads the scenario file; a missing or invalid one is an error value with the reason. */
-  static async load(file: string): Promise<Result<AgentScenario, MetatorError>> {
-    const handle = Bun.file(file);
-    if (!(await handle.exists())) return err(MetatorError.notFound(`scenario ${file}`));
-    let raw: unknown;
-    try {
-      raw = parse(await handle.text());
-    } catch (e) {
-      return err(new MetatorError("PARSE_FAILED", `${file}: ${(e as Error).message}`));
-    }
-    return AgentScenarioDocument.parse(raw, file);
+  constructor(source: AgentScenario | string) {
+    this.player = new ScenarioPlayer(source);
   }
 
   async *run(task: AgentTask, ask: (q: AgentQuestion) => Promise<AgentAnswer>): AsyncIterable<AgentEvent> {
-    if (typeof this.source === "string") this.loaded ??= ScenarioAgentHost.load(this.source);
-    const scenario = typeof this.source === "string" ? await this.loaded : ok(this.source);
-    if (!scenario || scenario.isErr()) {
-      yield { type: "result", ok: false, text: scenario?.error.message ?? "no scenario" };
+    // Continuing a session of this agent (a new process, e.g. `ask --continue`) plays the entry after it.
+    const resumed = task.resume?.match(new RegExp(`^scenario-${task.agent}-(\\d+)$`))?.[1];
+    const turn = await this.player.next(task.agent, resumed ? Number(resumed) : 0);
+    if (turn.isErr()) {
+      yield { type: "result", ok: false, text: turn.error.message };
       return;
     }
-    const entries = scenario.value.agents[task.agent];
-    if (!entries) {
+    if (!turn.value) {
       yield { type: "result", ok: false, text: `the scenario has no entry for ${task.agent}` };
       return;
     }
-    // Continuing a session of this agent (a new process, e.g. `ask --continue`) plays the entry after it.
-    const resumed = task.resume?.match(new RegExp(`^scenario-${task.agent}-(\\d+)$`))?.[1];
-    const n = Math.max(this.starts.get(task.agent) ?? 0, resumed ? Number(resumed) : 0);
-    this.starts.set(task.agent, n + 1);
-    const steps = entries[Math.min(n, entries.length - 1)] ?? [];
-    yield { type: "session", id: `scenario-${task.agent}-${n + 1}` };
+    const { steps, sessionId } = turn.value;
+    yield { type: "session", id: sessionId };
     const said: string[] = [];
     const vars = { runDir: task.runDir, cwd: task.cwd };
     for (const step of steps) {

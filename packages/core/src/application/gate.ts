@@ -3,7 +3,6 @@ import type { MetatorError } from "../domain/errors.ts";
 import { type GateReport, GateReportDocument, type GateStepResult, outputTail } from "../domain/gate.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { serializeJsonDocument } from "../domain/versioned.ts";
 import type {
   BinResolver,
   Clock,
@@ -13,6 +12,7 @@ import type {
   ResolvedCommand,
   Vcs,
 } from "../ports/index.ts";
+import { writeDocument } from "./document-io.ts";
 import type { GateChecks } from "./gate-checks.ts";
 import type { MetatorPaths } from "./paths.ts";
 
@@ -70,9 +70,12 @@ export class RunGate {
       passed: steps.every((s) => s.status === "pass" || s.status === "skipped"),
       steps,
     };
-    const saved = await this.fs.write(
+    const saved = await writeDocument(
+      this.fs,
       `${this.paths.gates}/${input.gate}.json`,
-      serializeJsonDocument(GateReportDocument.stamp(report)),
+      GateReportDocument,
+      report,
+      "json",
     );
     if (saved.isErr()) return err(saved.error);
     return ok(report);

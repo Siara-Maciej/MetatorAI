@@ -1,7 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
+  type BinResolver,
   type Diagnostic,
+  diagnosticsFromSarif,
   type EngineRule,
   err,
   MetatorError,
@@ -9,7 +11,8 @@ import {
   type ProcessRunner,
   type Result,
   type RuleEngine,
-  type Severity,
+  runTool,
+  type SarifLog,
 } from "@metator/core";
 import { parseAllDocuments } from "yaml";
 
@@ -18,20 +21,10 @@ interface SgConfig {
   readonly testConfigs?: readonly { readonly testDir: string }[];
 }
 
-interface SgMatch {
-  readonly ruleId: string;
-  readonly file: string;
-  readonly severity: string;
-  readonly message: string;
-  readonly range: { readonly start: { readonly line: number; readonly column: number } };
-}
-
-const SEVERITY: Readonly<Record<string, Severity>> = { error: "error", warning: "warning" };
-
 /**
  * E1 rule engine on the ast-grep CLI (ADR-0020): rules come from `sgconfig.yml` (`ruleDirs`,
- * with tests from `testConfigs`), findings from `ast-grep scan --json=stream`. The repo's own
- * `node_modules/.bin/ast-grep` wins over one on PATH, so the pinned version runs.
+ * with tests from `testConfigs`), findings from `ast-grep scan --format sarif`. The repo's own
+ * `node_modules/.bin/ast-grep` wins over one on PATH (`bins`), so the pinned version runs.
  */
 export class AstGrepEngine implements RuleEngine {
   readonly engine = "ast-grep";
@@ -39,6 +32,7 @@ export class AstGrepEngine implements RuleEngine {
   constructor(
     private readonly runner: ProcessRunner,
     private readonly root: string,
+    private readonly bins: BinResolver,
   ) {}
 
   async rules(): Promise<Result<readonly EngineRule[], MetatorError>> {
@@ -64,40 +58,27 @@ export class AstGrepEngine implements RuleEngine {
     const targets = files?.filter((f) => existsSync(join(this.root, f)));
     if (targets && targets.length === 0) return ok([]);
 
-    const r = await this.runner.run(
-      { argv: [this.binary(), "scan", "--json=stream", ...(targets ?? [])], cwd: this.root },
-      { timeoutMs: 120_000 },
-    );
-    if (r.exitCode === 127) {
-      return err(
-        new MetatorError("BIN_NOT_FOUND", "ast-grep is not installed", {
-          hint: "Install it with `bun add -d @ast-grep/cli` (or npm/pnpm/yarn).",
-        }),
-      );
-    }
+    const run = await runTool(this.runner, this.bins, {
+      bin: "ast-grep",
+      args: ["scan", "--format", "sarif", ...(targets ?? [])],
+      hint: "Install it with `bun add -d @ast-grep/cli` (or npm/pnpm/yarn).",
+      timeoutMs: 120_000,
+    });
+    if (run.isErr()) return err(run.error);
+    const r = run.value;
     // Exit 1 only means "error-level findings"; anything else non-zero without output is a failure.
     if (r.exitCode !== 0 && r.exitCode !== 1) return err(failed(r.exitCode, r.stderr));
-    const diagnostics: Diagnostic[] = [];
-    for (const line of r.stdout.split("\n")) {
-      if (line.trim() === "") continue;
-      let match: SgMatch;
+    let log: SarifLog = {};
+    if (r.exitCode === 1 || r.stdout.trim() !== "") {
       try {
-        match = JSON.parse(line) as SgMatch;
+        log = JSON.parse(r.stdout) as SarifLog;
       } catch {
-        return err(failed(r.exitCode, `unexpected output: ${line.slice(0, 200)}`));
+        return err(failed(r.exitCode, r.stderr.trim() || `unexpected output: ${r.stdout.slice(0, 200)}`));
       }
-      diagnostics.push({
-        source: this.engine,
-        toolRuleId: match.ruleId,
-        file: match.file,
-        line: match.range.start.line + 1,
-        column: match.range.start.column + 1,
-        severity: SEVERITY[match.severity] ?? "info",
-        message: match.message,
-      });
     }
+    const diagnostics = diagnosticsFromSarif(asUris(log), this.root, this.engine);
     if (r.exitCode === 1 && diagnostics.length === 0) return err(failed(r.exitCode, r.stderr));
-    // ast-grep scans in parallel; sort so the output is deterministic.
+    // ast-grep scans in parallel; two rules at one position are ordered by rule so the output is deterministic.
     return ok(
       diagnostics.sort(
         (a, b) =>
@@ -107,11 +88,6 @@ export class AstGrepEngine implements RuleEngine {
           (a.toolRuleId ?? "").localeCompare(b.toolRuleId ?? ""),
       ),
     );
-  }
-
-  private binary(): string {
-    const local = join(this.root, "node_modules", ".bin", "ast-grep");
-    return existsSync(local) ? local : "ast-grep";
   }
 
   private async config(): Promise<Result<SgConfig | undefined, MetatorError>> {
@@ -146,6 +122,25 @@ export class AstGrepEngine implements RuleEngine {
     }
     return found;
   }
+}
+
+/** ast-grep writes plain paths where SARIF has URIs: a `%` or a space in a file name is escaped here. */
+function asUris(log: SarifLog): SarifLog {
+  return {
+    ...log,
+    runs: (log.runs ?? []).map((run) => ({
+      ...run,
+      results: (run.results ?? []).map((result) => ({
+        ...result,
+        locations: (result.locations ?? []).map((l) => {
+          const uri = l.physicalLocation?.artifactLocation?.uri;
+          return uri === undefined
+            ? l
+            : { physicalLocation: { ...l.physicalLocation, artifactLocation: { uri: encodeURI(uri) } } };
+        }),
+      })),
+    })),
+  };
 }
 
 function failed(exitCode: number, stderr: string): MetatorError {

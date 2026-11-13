@@ -1,7 +1,9 @@
 import { ok } from "@metator/core";
-import type { Command } from "commander";
+import { type Command, Option } from "commander";
 import pkg from "../../package.json" with { type: "json" };
+import { AUDIENCES, type Audience, commandsFor, everyCommand, meta, metaOf } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { renderCommandList } from "../render.ts";
 
 export interface CommandInfo {
   readonly name: string;
@@ -9,11 +11,19 @@ export interface CommandInfo {
   readonly usage: string;
 }
 
-/** Machine-readable help built from commander's own command tree (single source of truth). */
-export function describeCommands(program: Command): { commands: CommandInfo[] } {
+/**
+ * Machine-readable help built from commander's own command tree (single source of truth). A
+ * command's old spelling still runs and is not listed, unless `renamed` asks for it (the MCP
+ * tools keep the names they had).
+ */
+export function describeCommands(
+  program: Command,
+  { renamed = false }: { readonly renamed?: boolean } = {},
+): { commands: CommandInfo[] } {
   const commands: CommandInfo[] = [];
   const walk = (cmd: Command, prefix: string) => {
     for (const sub of cmd.commands) {
+      if (metaOf(sub).renamedTo && !renamed) continue;
       const name = `${prefix}${sub.name()}`;
       // A group is listed itself only when it also runs on its own (`metator run`, `metator ask`).
       const runsItself = (sub as unknown as { _actionHandler?: unknown })._actionHandler != null;
@@ -120,7 +130,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
     verb: "Work on a task",
     commands: [
       ["run", "start a run in the terminal: workflow, task, AI host, then follow it"],
-      ["run init", "a run from a workflow and a task (--worktree for its own checkout)"],
+      ["run new", "a run from a workflow and a task (--worktree for its own checkout)"],
       ["run start", "the run in an agent's pane under the daemon; its workers in their own panes"],
       ["run drive", "the run without a terminal of its own, stage by stage, asking you at each approval"],
       ["run status", "the stage the run stands at and what it expects"],
@@ -190,14 +200,19 @@ export interface Overview {
 export function describeOverview(program: Command): Overview {
   const all = describeCommands(program).commands;
   const byName = new Map(all.map((c) => [c.name, c]));
+  // The verbs give the order and the words; which commands are a person's is what each says
+  // of itself where it is registered (`audience: "person"`).
+  const persons = new Set(commandsFor(program, "person"));
   return {
     version: pkg.version,
     verbs: VERBS.map((g) => ({
       verb: g.verb,
-      commands: g.commands.map(([name, said]) => {
-        const known = byName.get(name);
-        return { name, summary: said, usage: known?.usage ?? `metator ${name}` };
-      }),
+      commands: g.commands
+        .filter(([name]) => persons.has(name))
+        .map(([name, said]) => {
+          const known = byName.get(name);
+          return { name, summary: said, usage: known?.usage ?? `metator ${name}` };
+        }),
     })),
     total: all.length,
   };
@@ -216,22 +231,47 @@ export function renderOverview(o: Overview): string {
   return lines.join("\n");
 }
 
-export function registerMetaCommands(program: Command, { action, terminal }: CommandContext): void {
-  program
-    .command("version")
+/** The commands of an audience, with each one's summary and usage (a group too, when it names the audience). */
+export function describeAudience(
+  program: Command,
+  audience: Audience,
+): { audience: Audience; commands: CommandInfo[] } {
+  const wanted = new Set(commandsFor(program, audience));
+  return {
+    audience,
+    commands: everyCommand(program)
+      .filter((c) => wanted.has(c.name))
+      .map((c) => ({
+        name: c.name,
+        summary: c.cmd.description(),
+        usage: `metator ${c.name} ${c.cmd.usage()}`.trim(),
+      })),
+  };
+}
+
+export function registerMetaCommands(program: Command, { action }: CommandContext): void {
+  meta(program.command("version"), { reads: true, folder: true })
     .description("Print the MetatorAI version")
     .action(action(() => ({ result: ok({ name: "metator-ai", version: pkg.version }) })));
 
-  program
-    .command("help")
+  meta(program.command("help"), {
+    reads: true,
+    folder: true,
+    render: (data: Overview | { commands: CommandInfo[]; audience?: string }) =>
+      "verbs" in data ? renderOverview(data) : renderCommandList(data),
+  })
     .description("List available commands (--verbs: the ones a person reaches for, by what they want to do)")
     .option("--verbs", "the overview by verb instead of the whole list", false)
+    .addOption(
+      new Option(
+        "--for <audience>",
+        "only the commands of an audience: a person at a terminal, an agent of a run, a host's hook, a CI job",
+      ).choices(AUDIENCES),
+    )
     .action(
-      action((opts: { verbs: boolean }) => {
-        if (!opts.verbs) return { result: ok(describeCommands(program)) };
-        const overview = describeOverview(program);
-        terminal?.raw(`${renderOverview(overview)}\n`);
-        return { result: ok(overview) };
+      action((opts: { verbs: boolean; for?: Audience }) => {
+        if (opts.for) return { result: ok(describeAudience(program, opts.for)) };
+        return { result: ok(opts.verbs ? describeOverview(program) : describeCommands(program)) };
       }),
     );
 }

@@ -30,6 +30,10 @@ export interface CommandContext {
   readonly runs: () => MetatorContainer;
   /** The container of another repository (one of a folder's). */
   readonly containerAt: (root: string) => MetatorContainer;
+  /** `-C <dir>` / `--root <dir>` as it was given; undefined when the command runs where it was typed. */
+  readonly root: () => string | undefined;
+  /** Where the command runs: `--root`, else the working directory. */
+  readonly start: () => string;
   /** The folder of repositories this command runs in; null inside a repository. */
   readonly folder: () => Folder | null;
   /** The process's standard input (hook payloads). */

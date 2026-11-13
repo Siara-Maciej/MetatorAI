@@ -1,14 +1,14 @@
 import { err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
 import { askPlace } from "../ask-place.ts";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { person } from "../live.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
+import { who } from "../who.ts";
 
 /** `ask` (G3, ADR-0058): plain questions about the code, answered by mt-guide with citations. */
 export function registerAskCommands(program: Command, ctx: CommandContext): void {
-  const ask = program
-    .command("ask")
+  const ask = meta(program.command("ask"), { audience: "person", folder: true })
     .description("Ask a question about the code (how it works, where it is); the answer cites path:line")
     .argument("[question...]", "the question, in your own words")
     .option("--continue", "a follow-up in the latest conversation", false)
@@ -31,12 +31,14 @@ export function registerAskCommands(program: Command, ctx: CommandContext): void
               };
           }
           const terminal = ctx.terminal;
+          const by = await who(c);
+          if (by.isErr()) return { result: by };
           const r = await c.resolve("askQuestion").execute({
             question: words.join(" "),
             ...(conversation ? { conversation } : {}),
             ...(opts.host ? { host: opts.host } : {}),
             defaultHost: defaultHost(c),
-            by: person(process.env),
+            by: by.value,
             cwd: place.cwd,
             projectRoot: place.projectRoot,
             where: place.where,
@@ -80,8 +82,7 @@ export function registerAskCommands(program: Command, ctx: CommandContext): void
       ),
     );
 
-  ask
-    .command("list")
+  meta(ask.command("list"), { reads: true, folder: true })
     .description("Conversations of `metator ask`, newest first")
     .action(
       ctx.action(async () => {

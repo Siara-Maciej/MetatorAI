@@ -1,8 +1,8 @@
 import { AnswerPoliciesDocument, type AnswerPolicy } from "../domain/answer-policy.ts";
 import { MetatorError } from "../domain/errors.ts";
-import { err, ok, type Result } from "../domain/result.ts";
-import { parseYamlDocument, renderYamlDocument } from "../domain/versioned.ts";
+import { err, type Result } from "../domain/result.ts";
 import type { FileSystem } from "../ports/index.ts";
+import { readDocument, writeDocument } from "./document-io.ts";
 
 /** Where the repository keeps its answer policies, reviewed like code. */
 export const ANSWER_POLICIES_FILE = "metator/answer-policies.yml";
@@ -15,12 +15,8 @@ export class AnswerPolicyStore {
   ) {}
 
   async list(): Promise<Result<readonly AnswerPolicy[], MetatorError>> {
-    if (!(await this.fs.exists(this.file))) return ok([]);
-    const text = await this.fs.read(this.file);
-    if (text.isErr()) return err(text.error);
-    return parseYamlDocument(text.value, this.file)
-      .andThen((raw) => AnswerPoliciesDocument.parse(raw, this.file))
-      .map((d) => d.policies);
+    const doc = await readDocument(this.fs, this.file, AnswerPoliciesDocument, "yaml");
+    return doc.map((d) => d?.policies ?? []);
   }
 
   async add(policy: AnswerPolicy): Promise<Result<AnswerPolicy, MetatorError>> {
@@ -45,13 +41,13 @@ export class AnswerPolicyStore {
   }
 
   private save(policies: readonly AnswerPolicy[]): Promise<Result<void, MetatorError>> {
-    const doc = AnswerPoliciesDocument.stamp({ policies: [...policies] });
-    return this.fs.write(
+    return writeDocument(
+      this.fs,
       this.file,
-      renderYamlDocument(
-        { ...doc },
-        "Answer policies: each answers one kind of question for the team. Review changes like code.",
-      ),
+      AnswerPoliciesDocument,
+      { policies: [...policies] },
+      "yaml",
+      "Answer policies: each answers one kind of question for the team. Review changes like code.",
     );
   }
 }

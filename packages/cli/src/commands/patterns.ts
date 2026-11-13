@@ -1,13 +1,14 @@
 import { err, MetatorError, normalizePath, ok, PatternDocument } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { schemaCommand } from "../outcome.ts";
 import { positiveInt } from "../options.ts";
 
 export function registerPatternsCommands(program: Command, { action, container }: CommandContext): void {
   const patterns = program.command("patterns").description("Pattern catalog: occurrences, exemplars, legacy");
 
-  patterns
-    .command("scan")
+  meta(patterns.command("scan"), { audience: "ci", check: ["--check"] })
     .description("Find every occurrence of every cataloged pattern and write the pattern index")
     .option("--check", "fail when the catalog has problems (exemplar, occurrences, detection rules)", false)
     .action(
@@ -44,13 +45,9 @@ export function registerPatternsCommands(program: Command, { action, container }
       }),
     );
 
-  patterns
-    .command("schema")
-    .description("Print the JSON Schema of a pattern file")
-    .action(action(() => ({ result: ok(PatternDocument.jsonSchema("input")) })));
+  schemaCommand(patterns, ctx, "Print the JSON Schema of a pattern file", PatternDocument);
 
-  program
-    .command("similar")
+  meta(program.command("similar"), { reads: true })
     .description("How we already do this: ranked pattern occurrences for a planned file or a description")
     .option("--file <path>", "repo-relative path of the file you are about to write")
     .argument("[description...]", "what you are about to build")

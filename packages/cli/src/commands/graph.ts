@@ -1,5 +1,6 @@
 import { err, MetatorError, normalizePath, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 /** Accepts `./src/a.ts` or `src\a.ts` as well as the canonical `src/a.ts`. */
@@ -31,10 +32,11 @@ export function registerGraphCommands(program: Command, { action, container }: C
       }),
     );
 
-  const graph = program.command("graph").description("Query the file-level import graph");
+  const graph = meta(program.command("graph"), { reads: true }).description(
+    "Query the file-level import graph",
+  );
 
-  graph
-    .command("affected")
+  meta(graph.command("affected"), { audience: "person" })
     .description("Files and tests affected by changes (against a git ref, or an explicit file list)")
     .option("--base <ref>", "git ref to compare against", "HEAD")
     .option("--files <files...>", "explicit changed files instead of git")
@@ -74,8 +76,7 @@ export function registerGraphCommands(program: Command, { action, container }: C
     ["deps", "Files the given file imports"],
     ["dependents", "Files that import the given file"],
   ] as const) {
-    graph
-      .command(name)
+    meta(graph.command(name), name === "dependents" ? { audience: "person" } : {})
       .description(description)
       .argument("<file>", "repo-relative source file")
       .option("--transitive", "follow imports transitively", false)
@@ -141,10 +142,10 @@ export function registerGraphCommands(program: Command, { action, container }: C
       })),
     );
 
-  program
-    .command("workspace")
-    .description("Inspect the repository's workspace packages")
-    .command("list")
+  meta(
+    program.command("workspace").description("Inspect the repository's workspace packages").command("list"),
+    { reads: true },
+  )
     .description("Workspace packages (npm, yarn, pnpm, bun, lerna, rush)")
     .action(
       action(async () => ({
@@ -152,10 +153,10 @@ export function registerGraphCommands(program: Command, { action, container }: C
       })),
     );
 
-  program
-    .command("symbols")
-    .description("Exported symbols")
-    .command("find")
+  meta(program.command("symbols").description("Exported symbols").command("find"), {
+    audience: "person",
+    reads: true,
+  })
     .description("Where an exported name is defined, and which modules re-export it")
     .argument("<name>", "exported name")
     .action(

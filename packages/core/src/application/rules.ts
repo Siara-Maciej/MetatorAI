@@ -13,7 +13,7 @@ import {
   RuleSetDocument,
   rulesFor,
 } from "../domain/rule.ts";
-import { parseYamlDocument, readFrontMatter, renderFrontMatter } from "../domain/versioned.ts";
+import { readFrontMatter, renderFrontMatter } from "../domain/versioned.ts";
 import type {
   EngineRule,
   FileSystem,
@@ -22,6 +22,7 @@ import type {
   RuleScaffolder,
   Vcs,
 } from "../ports/index.ts";
+import { scanDocuments } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { SourceFiles } from "./source-files.ts";
 
@@ -50,17 +51,13 @@ export class RuleCatalog {
   ) {}
 
   async scan(): Promise<RuleCatalogScan> {
-    const files = await this.fs.glob([`${this.paths.rules}/*.yml`, `${this.paths.rules}/*.yaml`]);
-    const sets: RuleSetEntry[] = [];
-    const problems: { source: string; error: MetatorError }[] = [];
-    for (const source of [...files].sort()) {
-      const text = await this.fs.read(source);
-      const set = text
-        .andThen((t) => parseYamlDocument(t, source))
-        .andThen((raw) => RuleSetDocument.parse(raw, source));
-      if (set.isOk()) sets.push({ set: set.value, source });
-      else problems.push({ source, error: set.error });
-    }
+    const { entries, problems } = await scanDocuments(
+      this.fs,
+      [`${this.paths.rules}/*.yml`, `${this.paths.rules}/*.yaml`],
+      RuleSetDocument,
+      { format: "yaml" },
+    );
+    const sets: RuleSetEntry[] = entries.map(({ value, source }) => ({ set: value, source }));
     const rules = sets.flatMap(({ set, source }) =>
       set.rules.map((rule) => ({ rule, area: set.area, source })),
     );

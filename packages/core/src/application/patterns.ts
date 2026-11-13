@@ -3,8 +3,9 @@ import { packageOf } from "../domain/import-index.ts";
 import { type Pattern, PatternDocument, PatternIndexDocument, pathAffinity } from "../domain/pattern.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { parseImplementation } from "../domain/rule.ts";
-import { parseYamlDocument, serializeJsonDocument } from "../domain/versioned.ts";
+import { serializeJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem, ReadonlyFileSystem, RuleEngine, WorkspaceReader } from "../ports/index.ts";
+import { scanDocuments } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RuleCatalog } from "./rules.ts";
 
@@ -24,17 +25,13 @@ export class PatternCatalog {
     readonly patterns: readonly PatternEntry[];
     readonly problems: readonly { readonly source: string; readonly error: MetatorError }[];
   }> {
-    const files = await this.fs.glob([`${this.paths.patterns}/*.yml`, `${this.paths.patterns}/*.yaml`]);
-    const patterns: PatternEntry[] = [];
-    const problems: { source: string; error: MetatorError }[] = [];
-    for (const source of [...files].sort()) {
-      const parsed = (await this.fs.read(source))
-        .andThen((t) => parseYamlDocument(t, source))
-        .andThen((raw) => PatternDocument.parse(raw, source));
-      if (parsed.isOk()) patterns.push({ pattern: parsed.value, source });
-      else problems.push({ source, error: parsed.error });
-    }
-    return { patterns, problems };
+    const { entries, problems } = await scanDocuments(
+      this.fs,
+      [`${this.paths.patterns}/*.yml`, `${this.paths.patterns}/*.yaml`],
+      PatternDocument,
+      { format: "yaml" },
+    );
+    return { patterns: entries.map(({ value, source }) => ({ pattern: value, source })), problems };
   }
 }
 

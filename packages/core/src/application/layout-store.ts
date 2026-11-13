@@ -1,8 +1,8 @@
 import type { MetatorError } from "../domain/errors.ts";
 import { EMPTY_LAYOUT, type Layout, LayoutDocument } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
+import { readDocument, writeDocument } from "./document-io.ts";
 
 export const LAYOUT_FILE = ".metator/layout.json";
 
@@ -14,16 +14,12 @@ export class LayoutStore {
   ) {}
 
   async load(): Promise<Result<Layout, MetatorError>> {
-    if (!(await this.fs.exists(this.file))) return ok(EMPTY_LAYOUT);
-    const text = await this.fs.read(this.file);
-    if (text.isErr()) return err(text.error);
-    const raw = parseJsonDocument(text.value, this.file);
-    if (raw.isErr()) return err(raw.error);
-    return LayoutDocument.parse(raw.value, this.file);
+    const layout = await readDocument(this.fs, this.file, LayoutDocument, "json");
+    return layout.map((l) => l ?? EMPTY_LAYOUT);
   }
 
   save(layout: Layout): Promise<Result<void, MetatorError>> {
-    return this.fs.write(this.file, serializeJsonDocument(LayoutDocument.stamp(layout)));
+    return writeDocument(this.fs, this.file, LayoutDocument, layout, "json");
   }
 
   /** Reads, changes, writes: `change` returns the new layout and what the caller wants back. */

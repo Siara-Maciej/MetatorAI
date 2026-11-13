@@ -3,8 +3,9 @@ import { MetatorError } from "../domain/errors.ts";
 import { matchesAny } from "../domain/glob.ts";
 import { manifestPath } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
+import { parseJsonDocument } from "../domain/versioned.ts";
 import type { DeclarationEmitter, FileSystem, WorkspaceReader } from "../ports/index.ts";
+import { parseDocumentText, writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 
 interface Manifest {
@@ -120,7 +121,7 @@ export class ApiSnapshots {
     const snap = await this.current(input.package);
     if (snap.isErr()) return err(snap.error);
     const output = this.snapshotFile(input.package);
-    const saved = await this.fs.write(output, serializeJsonDocument(ApiSnapshotDocument.stamp(snap.value)));
+    const saved = await writeDocument(this.fs, output, ApiSnapshotDocument, snap.value, "json");
     if (saved.isErr()) return err(saved.error);
     return ok({ ...snap.value, output });
   }
@@ -136,7 +137,7 @@ export class ApiSnapshots {
           hint: `Take one before the change: \`metator api snapshot ${input.package}\`.`,
         }),
       );
-    const base = parseJsonDocument(text.value, file).andThen((raw) => ApiSnapshotDocument.parse(raw, file));
+    const base = parseDocumentText(text.value, file, ApiSnapshotDocument, "json");
     if (base.isErr()) return err(base.error);
     const now = await this.current(input.package);
     if (now.isErr()) return err(now.error);

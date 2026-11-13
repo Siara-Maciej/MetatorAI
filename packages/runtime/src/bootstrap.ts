@@ -39,6 +39,7 @@ import {
   CompareEvals,
   ComputeAffected,
   Conductor,
+  type ContractDiffer,
   ConversationRepository,
   CreateRefactorPlan,
   CreateSystemPlan,
@@ -373,7 +374,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           runs: runRepository,
         }),
     ),
-    containerRuntime: asFunction(() => new DockerComposeRuntime(options.dockerBin)).singleton(),
+    containerRuntime: asFunction(
+      ({ processRunner }) => new DockerComposeRuntime(processRunner, options.dockerBin),
+    ).singleton(),
     healthProbe: asFunction(() => new WaitOnHealthProbe()).singleton(),
     environmentCatalog: asFunction(({ fileSystem, paths }) => new EnvironmentCatalog(fileSystem, paths)),
     discoverEnvironment: asFunction(
@@ -637,11 +640,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           },
         }),
     ),
+    mcpToolCaller: asFunction(({ root }) => new SdkToolCaller(root)),
     codeHost: asFunction(
-      ({ optionStore, root }) => new McpCodeHost(() => optionStore.mcp(), new SdkToolCaller(root)),
+      ({ optionStore, mcpToolCaller }) => new McpCodeHost(() => optionStore.mcp(), mcpToolCaller),
     ),
     reviewHost: asFunction(
-      ({ optionStore, root }) => new McpReviewHost(() => optionStore.mcp(), new SdkToolCaller(root)),
+      ({ optionStore, mcpToolCaller }) => new McpReviewHost(() => optionStore.mcp(), mcpToolCaller),
     ),
     myReviews: asFunction(
       ({ config, fileSystem, paths, clock, reviewHost, initRun, runRepository, notifier }) =>
@@ -839,13 +843,18 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     packageManagerDetector: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     packageManager: asFunction(({ nodePackageManager }) => nodePackageManager).singleton(),
     binResolver: asFunction(({ root }) => new NodeBinResolver(root)).singleton(),
+    // Rule engines and the declaration emitter run a tool from PATH where a project's dependencies
+    // are not installed (a fresh worktree still checks its rules); gate steps do not (`binResolver`).
+    toolBins: asFunction(({ root }) => new NodeBinResolver(root, "path")).singleton(),
     workspaceReader: asFunction(({ root }) => new ManypkgWorkspaceReader(root)).singleton(),
     toolBoundariesReader: asFunction(({ root }) => new JsonToolBoundariesReader(root)).singleton(),
     manifestReader: asFunction(
       ({ root, workspaceReader }) => new ManypkgManifestReader(root, workspaceReader),
     ).singleton(),
-    importAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
-    symbolAnalyzer: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
+    // One oxc analyzer behind both ports: one set of resolvers and tsconfig lookups.
+    oxc: asFunction(({ root }) => new OxcImportAnalyzer(root)).singleton(),
+    importAnalyzer: asFunction(({ oxc }) => oxc).singleton(),
+    symbolAnalyzer: asFunction(({ oxc }) => oxc).singleton(),
     sourceFiles: asFunction(
       ({ vcs, fileSystem, sourceIgnores }) => new SourceFiles(vcs, fileSystem, sourceIgnores),
     ).singleton(),
@@ -862,10 +871,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ).singleton(),
     importGraphReader: asFunction(({ buildImportGraph }) => new IndexedImportGraphReader(buildImportGraph)),
     graphQueries: asFunction(({ buildImportGraph }) => new GraphQueries(buildImportGraph)),
-    ruleEngines: asFunction(({ processRunner, root }) => [
-      new AstGrepEngine(processRunner, root),
-      new BiomeEngine(processRunner, root),
-      new TscEngine(processRunner, root),
+    ruleEngines: asFunction(({ processRunner, root, toolBins }) => [
+      new AstGrepEngine(processRunner, root, toolBins),
+      new BiomeEngine(processRunner, root, toolBins),
+      new TscEngine(processRunner, root, toolBins),
       new BunTestEngine(processRunner, root),
     ]).singleton(),
     ruleScaffolders: asFunction(({ root }) => [new AstGrepScaffolder(root)]).singleton(),
@@ -927,13 +936,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new ScanPatterns(patternCatalog, ruleCatalog, ruleEngines, workspaceReader, fileSystem, paths),
     ),
     findSimilar: asFunction(({ scanPatterns }) => new FindSimilar(scanPatterns)),
+    declarationEmitter: asFunction(
+      ({ processRunner, root, toolBins }) => new TscDeclarationEmitter(processRunner, root, toolBins),
+    ).singleton(),
     apiSnapshots: asFunction(
-      ({ processRunner, root, workspaceReader, fileSystem, paths }) =>
-        new ApiSnapshots(new TscDeclarationEmitter(processRunner, root), workspaceReader, fileSystem, paths),
+      ({ declarationEmitter, workspaceReader, fileSystem, paths }) =>
+        new ApiSnapshots(declarationEmitter, workspaceReader, fileSystem, paths),
     ),
+    coverageReader: asFunction(({ root }) => new LcovCoverageReader(root)).singleton(),
     diffCoverage: asFunction(
-      ({ revisionReader, root, testGlobs }) =>
-        new DiffCoverage(revisionReader, new LcovCoverageReader(root), testGlobs),
+      ({ revisionReader, coverageReader, testGlobs }) =>
+        new DiffCoverage(revisionReader, coverageReader, testGlobs),
     ),
     checkFlaky: asFunction(
       ({ packageManager, processRunner }) => new CheckFlaky(packageManager, processRunner),
@@ -943,8 +956,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     checkQuote: asFunction(({ fileSystem }) => new CheckQuote(fileSystem)),
     findOwners: asFunction(({ fileSystem }) => new FindOwners(fileSystem)),
-    // Contract kinds the installed plugins provide (ADR-0047). MVP: OpenAPI only.
-    contractKinds: asValue(["openapi"]),
+    // Contract kinds the installed plugins provide (ADR-0047): the ones a differ compares.
+    contractKinds: asFunction(({ contractDiffers }) =>
+      contractDiffers.map((d: ContractDiffer) => d.kind),
+    ).singleton(),
     systemCatalog: asFunction(({ fileSystem, paths, config }) => {
       const map = config.config.system?.map;
       return new SystemCatalog(
@@ -979,15 +994,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     showSystem: asFunction(({ systemLocation }) => new ShowSystem(systemLocation)),
     contractDetectors: asFunction(() => [new OpenApiContractDetector()]).singleton(),
     contractDiffers: asFunction(() => [new OpenApiContractDiffer()]).singleton(),
+    plannedBreakingChanges: asFunction(({ systemPlanStore }) => new PlannedBreakingChanges(systemPlanStore)),
     diffContracts: asFunction(
-      ({ systemSources, revisionReader, fileSystem, contractDiffers, systemPlanStore }) =>
-        new DiffContracts(
-          systemSources,
-          revisionReader,
-          fileSystem,
-          contractDiffers,
-          new PlannedBreakingChanges(systemPlanStore),
-        ),
+      ({ systemSources, revisionReader, fileSystem, contractDiffers, plannedBreakingChanges }) =>
+        new DiffContracts(systemSources, revisionReader, fileSystem, contractDiffers, plannedBreakingChanges),
     ),
     systemPlanStore: asFunction(
       ({ fileSystem, paths }) => new SystemPlanStore(fileSystem, paths.systemPlans),
@@ -1073,16 +1083,16 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         symbolQueries,
         changeHistory,
         findOwners,
-        sourceFiles,
-        fileSystem,
+        styleImports,
       }) =>
         new ArchitectureFacts(buildImportGraph, manifestReader, architecturePolicyCatalog, clock, {
           symbols: symbolQueries,
           history: changeHistory,
           owners: findOwners,
-          styles: new StyleImports(sourceFiles, fileSystem),
+          styles: styleImports,
         }),
     ),
+    styleImports: asFunction(({ sourceFiles, fileSystem }) => new StyleImports(sourceFiles, fileSystem)),
     architectureBaselineStore: asFunction(
       ({ fileSystem, paths }) => new ArchitectureBaselineStore(fileSystem, paths.archBaseline),
     ),

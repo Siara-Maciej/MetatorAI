@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ScriptedProcessRunner } from "@metator/testing";
+import { ruleEngineContract, ScriptedProcessRunner } from "@metator/testing";
 import { BunProcessRunner } from "../src/bun-process-runner.ts";
 import { BunTestEngine } from "../src/bun-test-engine.ts";
 
@@ -25,6 +25,17 @@ async function project(files: Record<string, string>): Promise<string> {
   for (const [path, content] of Object.entries(files)) await Bun.write(join(dir, path), content);
   return dir;
 }
+
+ruleEngineContract("BunTestEngine", async () => {
+  const files = { "rules/conformance/mt-a.test.ts": PASSING, "rules/conformance/mt-b.test.ts": FAILING };
+  return {
+    engine: new BunTestEngine(new BunProcessRunner(), await project(files)),
+    bare: new BunTestEngine(new BunProcessRunner(), await project({ "src/a.ts": "export {};\n" })),
+    missing: new BunTestEngine(new ScriptedProcessRunner(), await project(files)),
+    // A conformance test checks the project as a whole: its finding is the test itself.
+    finding: { file: "rules/conformance/mt-b.test.ts", toolRuleId: "mt-b" },
+  };
+});
 
 describe("BunTestEngine.rules", () => {
   test("lists conformance tests; only those with a rejects case count as tested", async () => {
@@ -64,6 +75,8 @@ describe("BunTestEngine.check (real bun test)", () => {
     ]);
     expect(diagnostics[0]?.message).toContain("(fail) every command has an e2e test");
     expect(diagnostics[0]?.message).toContain("graph cycles");
+    // The same finding on every run: how long the test took is not part of it.
+    expect(diagnostics[0]?.message).not.toMatch(/\[\d+(\.\d+)?m?s\]/);
   });
 
   test("passing conformance tests report nothing", async () => {

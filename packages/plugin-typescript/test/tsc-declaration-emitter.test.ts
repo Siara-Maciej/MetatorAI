@@ -2,9 +2,14 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BunProcessRunner } from "@metator/plugin-bun";
+import type { ProcessRunner } from "@metator/core";
+import { BunProcessRunner, NodeBinResolver } from "@metator/plugin-bun";
 import { ScriptedProcessRunner } from "@metator/testing";
 import { TscDeclarationEmitter } from "../src/tsc-declaration-emitter.ts";
+
+/** The engine as the runtime wires it: the repository's pinned binary first, PATH otherwise. */
+const emitter = (runner: ProcessRunner, root: string) =>
+  new TscDeclarationEmitter(runner, root, new NodeBinResolver(root, "path"));
 
 const TSC = join(import.meta.dir, "../node_modules/.bin/tsc");
 const dirs: string[] = [];
@@ -29,26 +34,20 @@ describe("TscDeclarationEmitter (real tsc)", () => {
       "src/a.ts": "export const a: number = 1;\n",
       "src/b.ts": 'export const b: number = "type error";\n',
     });
-    const files = (await new TscDeclarationEmitter(new BunProcessRunner(), root).emit())._unsafeUnwrap();
+    const files = (await emitter(new BunProcessRunner(), root).emit())._unsafeUnwrap();
     expect([...files.keys()].sort()).toEqual(["src/a.d.ts", "src/b.d.ts"]);
     expect(files.get("src/a.d.ts")).toContain("export declare const a: number;");
   }, 60_000);
 
   test("no tsconfig, no tsc, nothing emitted: error values", async () => {
     const bare = await project({});
-    expect(
-      (await new TscDeclarationEmitter(new BunProcessRunner(), bare).emit())._unsafeUnwrapErr().code,
-    ).toBe("NOT_FOUND");
+    expect((await emitter(new BunProcessRunner(), bare).emit())._unsafeUnwrapErr().code).toBe("NOT_FOUND");
     const root = await project({ "tsconfig.json": TSCONFIG, "src/a.ts": "export const a = 1;\n" });
     const missing = new ScriptedProcessRunner(); // unscripted commands exit 127
-    expect((await new TscDeclarationEmitter(missing, root).emit())._unsafeUnwrapErr().code).toBe(
-      "BIN_NOT_FOUND",
-    );
+    expect((await emitter(missing, root).emit())._unsafeUnwrapErr().code).toBe("BIN_NOT_FOUND");
     const silent = new ScriptedProcessRunner([
       { argvPrefix: [], result: { exitCode: 2, stdout: "", stderr: "boom" } },
     ]);
-    expect((await new TscDeclarationEmitter(silent, root).emit())._unsafeUnwrapErr().code).toBe(
-      "COMMAND_FAILED",
-    );
+    expect((await emitter(silent, root).emit())._unsafeUnwrapErr().code).toBe("COMMAND_FAILED");
   }, 60_000);
 });

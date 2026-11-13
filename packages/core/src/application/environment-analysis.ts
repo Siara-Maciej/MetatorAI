@@ -6,8 +6,8 @@ import {
 } from "../domain/environment-profile.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
+import { writeDocument } from "./document-io.ts";
 import type { EnvironmentCatalog, EnvironmentServices, ServiceReport } from "./environments.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { CreateWorktree, RemoveWorktree, WorktreeRegistry } from "./worktrees.ts";
@@ -53,10 +53,7 @@ export class AnalyzeEnvironment {
       const warm = await this.measure(WARM);
       if (warm.isErr()) return err(warm.error);
       const profile = buildProfile(env.value, cold.value, warm.value, this.clock.now());
-      const saved = await this.fs.write(
-        this.paths.envProfile,
-        serializeJsonDocument(EnvProfileDocument.stamp(profile)),
-      );
+      const saved = await writeDocument(this.fs, this.paths.envProfile, EnvProfileDocument, profile, "json");
       if (saved.isErr()) return err(saved.error);
       return ok(profile);
     } finally {

@@ -3,8 +3,8 @@ import type { MetatorError } from "../domain/errors.ts";
 import { markdownAnchors } from "../domain/markdown.ts";
 import { locateQuote } from "../domain/memory.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem, ReadonlyFileSystem, RevisionReader } from "../ports/index.ts";
+import { parseDocumentText, writeDocument } from "./document-io.ts";
 import type { FindOwners } from "./owners.ts";
 import { generatedHostFiles, type SourceFiles } from "./source-files.ts";
 
@@ -173,9 +173,7 @@ export class DocsDrift {
     const text = await this.fs.read(this.file);
     // No docs analysis has run yet: there is nothing that could have drifted.
     if (text.isErr()) return ok({ file: this.file, checked: 0, results: [] });
-    const set = parseJsonDocument(text.value, this.file).andThen((raw) =>
-      ClaimSetDocument.parse(raw, this.file),
-    );
+    const set = parseDocumentText(text.value, this.file, ClaimSetDocument, "json");
     if (set.isErr()) return err(set.error);
 
     const results: DriftResult[] = [];
@@ -203,7 +201,7 @@ export class DocsDrift {
       );
     }
     if (input.fix && results.some((r) => r.status === "moved")) {
-      const saved = await this.fs.write(this.file, serializeJsonDocument(ClaimSetDocument.stamp({ claims })));
+      const saved = await writeDocument(this.fs, this.file, ClaimSetDocument, { claims }, "json");
       if (saved.isErr()) return err(saved.error);
     }
     return ok({ file: this.file, checked: results.length, results });

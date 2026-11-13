@@ -10,8 +10,8 @@ import {
 import { MetatorError } from "../domain/errors.ts";
 import type { Pane } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem, Timer } from "../ports/index.ts";
+import { readDocument, writeDocument } from "./document-io.ts";
 import type { RunJournal } from "./drive.ts";
 import type { Panes, PaneView } from "./panes.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -296,9 +296,12 @@ export class Conductor {
       ...(input.question?.trim() ? { question: input.question.trim() } : {}),
       at: this.d.clock.now().toISOString(),
     };
-    const written = await this.d.fs.write(
+    const written = await writeDocument(
+      this.d.fs,
       this.resultFile(id.value, input.worker),
-      serializeJsonDocument(WorkerResultDocument.stamp(result)),
+      WorkerResultDocument,
+      result,
+      "json",
     );
     if (written.isErr()) return err(written.error);
     const noted = await this.d.journal.record(id.value, {
@@ -329,13 +332,7 @@ export class Conductor {
     runId: string,
     worker: string,
   ): Promise<Result<WorkerResult | undefined, MetatorError>> {
-    const file = this.resultFile(runId, worker);
-    if (!(await this.d.fs.exists(file))) return ok(undefined);
-    const text = await this.d.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const raw = parseJsonDocument(text.value, file);
-    if (raw.isErr()) return err(raw.error);
-    return WorkerResultDocument.parse(raw.value, file);
+    return readDocument(this.d.fs, this.resultFile(runId, worker), WorkerResultDocument);
   }
 
   private resultFile(runId: string, worker: string): string {

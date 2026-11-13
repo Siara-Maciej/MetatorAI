@@ -1,9 +1,11 @@
 import { err, ok } from "@metator/core";
 import { exitCodeFor, fromUnknown, serialize, toEnvelope } from "@metator/runtime";
-import { CommanderError } from "commander";
+import { type Command, CommanderError } from "commander";
+import { metaOf } from "./command-meta.ts";
 import { describeCommandFor, describeCommands } from "./commands/meta.ts";
 import type { Outcome } from "./context.ts";
 import { buildProgram, fromCommander, type ProgramOptions } from "./program.ts";
+import { renderCommandHelp } from "./render.ts";
 
 export interface Io {
   readonly out: (text: string) => void;
@@ -16,17 +18,25 @@ export function asksForTheList(argv: readonly string[]): boolean {
   const words = argv.filter((a, i) => {
     const before = argv[i - 1];
     if (before === "-C" || before === "--root") return false;
-    return a !== "-C" && a !== "--root" && !a.startsWith("--root=");
+    return a !== "-C" && a !== "--root" && !a.startsWith("--root=") && a !== "--json";
   });
   return words.every((a) => a === "--help" || a === "-h");
+}
+
+/** `--json` among the command's words (before a `--`): the person asked for the JSON line alone. */
+export function asksForJsonOnly(argv: readonly string[]): boolean {
+  const end = argv.indexOf("--");
+  return (end === -1 ? argv : argv.slice(0, end)).includes("--json");
 }
 
 /** Driving adapter: argv → commander → use case → one JSON envelope line → exit code. */
 export async function run(argv: readonly string[], io: Io, options: RunOptions = {}): Promise<number> {
   let outcome: Outcome | undefined;
+  let ran: Command | undefined;
   const program = buildProgram(
-    (o) => {
+    (o, command) => {
       outcome = o;
+      ran = command;
     },
     {
       ...options,
@@ -38,8 +48,13 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
       },
     },
   );
+  // What a person reads goes to stderr; stdout keeps the one JSON line, byte for byte (`--json`: only that).
+  const say = (text: string) => {
+    if (!asksForJsonOnly(argv)) options.terminal?.raw(`${text}\n`);
+  };
   const help = describeCommandFor(program, argv);
   if (help) {
+    say(renderCommandHelp(help));
     io.out(serialize(toEnvelope(ok(help), [])));
     return 0;
   }
@@ -57,6 +72,8 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
     if (final.hook !== null) io.out(JSON.stringify(final.hook));
     return 0; // a hook never fails the host's tool call by exit code
   }
+  const render = ran ? metaOf(ran).render : undefined;
+  if (render && final.result.isOk()) say((render as (data: unknown) => string)(final.result.value));
   io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));
   return final.result.isOk() ? 0 : exitCodeFor(final.result.error);
 }

@@ -11,8 +11,9 @@ import {
 import { locateQuote } from "../domain/memory.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { ReviewPlanDocument } from "../domain/review-plan.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
+import { parseJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
+import { loadDocument, parseDocumentText, writeDocument } from "./document-io.ts";
 
 export interface FindingVerdict {
   readonly id: string;
@@ -77,9 +78,12 @@ export class ValidateFindings {
         );
       }
       if (input.fix && verdicts.some((v) => v.source === source && v.status === "fixed")) {
-        const saved = await this.fs.write(
+        const saved = await writeDocument(
+          this.fs,
           source,
-          serializeJsonDocument(FindingSetDocument.stamp({ ...set, findings: updated })),
+          FindingSetDocument,
+          { ...set, findings: updated },
+          "json",
         );
         if (saved.isErr()) return err(saved.error);
       }
@@ -124,9 +128,7 @@ export class CalibrateFinding {
     Result<{ readonly output: string; readonly findings: number; readonly finding: Finding }, MetatorError>
   > {
     const output = `${input.dir.replace(/\/$/, "")}/${MERGED}`;
-    const set = (await this.fs.read(output))
-      .andThen((text) => parseJsonDocument(text, output))
-      .andThen((raw) => FindingSetDocument.parse(raw, output));
+    const set = await loadDocument(this.fs, output, FindingSetDocument, "json");
     if (set.isErr()) return err(set.error);
     const { dir: _dir, ...change } = input;
     const changed = calibrateFinding(set.value.findings, change);
@@ -144,9 +146,12 @@ export class CalibrateFinding {
           "A blocker names its trigger, reachability and evidence: pass --trigger, --reachability and --evidence <test|trace|rule|doc>:<ref>.",
         ),
       );
-    const saved = await this.fs.write(
+    const saved = await writeDocument(
+      this.fs,
       output,
-      serializeJsonDocument(FindingSetDocument.stamp({ ...set.value, findings: changed.findings })),
+      FindingSetDocument,
+      { ...set.value, findings: changed.findings },
+      "json",
     );
     if (saved.isErr()) return err(saved.error);
     return ok({
@@ -193,9 +198,12 @@ export class MergeFindingSets {
       const v = verified.get(sameFinding(f));
       return v && !f.verification ? { ...f, verification: v } : f;
     });
-    const saved = await this.fs.write(
+    const saved = await writeDocument(
+      this.fs,
       output,
-      serializeJsonDocument(FindingSetDocument.stamp({ lens: "merged", findings })),
+      FindingSetDocument,
+      { lens: "merged", findings },
+      "json",
     );
     if (saved.isErr()) return err(saved.error);
     return ok({
@@ -211,7 +219,7 @@ export class MergeFindingSets {
     const out = new Map<string, NonNullable<Finding["verification"]>>();
     const text = await this.fs.read(path);
     if (text.isErr()) return out;
-    const set = parseJsonDocument(text.value, path).andThen((raw) => FindingSetDocument.parse(raw, path));
+    const set = parseDocumentText(text.value, path, FindingSetDocument, "json");
     if (set.isErr()) return out; // an unreadable previous merge is replaced, not trusted
     for (const f of set.value.findings) if (f.verification) out.set(sameFinding(f), f.verification);
     return out;
@@ -245,9 +253,7 @@ async function loadSets(
   const sets: { source: string; set: FindingSet }[] = [];
   const unreadable: { source: string; message: string }[] = [];
   for (const source of files) {
-    const parsed = (await fs.read(source))
-      .andThen((t) => parseJsonDocument(t, source))
-      .andThen((raw) => FindingSetDocument.parse(raw, source));
+    const parsed = await loadDocument(fs, source, FindingSetDocument, "json");
     if (parsed.isOk()) sets.push({ source, set: parsed.value });
     else {
       const issue = (parsed.error.details?.issues as { path: string }[] | undefined)?.[0];

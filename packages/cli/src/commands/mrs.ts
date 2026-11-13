@@ -1,6 +1,9 @@
 import { err, ok, THREAD_KINDS, THREAD_STATES, type ThreadKind, type ThreadState } from "@metator/core";
 import { type Command, Option } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { byOption } from "../options.ts";
+import { asPerson } from "../who.ts";
 
 /**
  * `metator mrs` (T3, design/14 §4): reviews of my own pull (merge) requests. The daemon keeps
@@ -13,8 +16,7 @@ export function registerMrsCommands(program: Command, { action, container }: Com
     .description("Reviews of my open pull requests: threads, proposed replies, the run that answers them");
   const reviews = () => container().resolve("myReviews");
 
-  mrs
-    .command("list")
+  meta(mrs.command("list"), { audience: "person" })
     .description("My reviewed requests with their open threads and the answering run")
     .action(
       action(async () => {
@@ -82,18 +84,24 @@ export function registerMrsCommands(program: Command, { action, container }: Com
     .command("send")
     .description("Post every proposed reply that was not sent yet to the host")
     .argument("<id>", "the request")
-    .requiredOption("--by <name>", "the person who decides to send them")
-    .action(action(async (id: string, opts: { by: string }) => ({ result: await reviews().send(id, opts) })));
+    .addOption(byOption("the person who decides to send them"))
+    .action(
+      action(async (id: string, opts: { by?: string }) =>
+        asPerson(container(), opts.by, async (by) => ({ result: await reviews().send(id, { by }) })),
+      ),
+    );
 
   mrs
     .command("resolve")
     .description("Close a thread at the host")
     .argument("<id>", "the request")
     .requiredOption("--thread <thread>", "the thread's id")
-    .requiredOption("--by <name>", "the person who decides to close it")
+    .addOption(byOption("the person who decides to close it"))
     .action(
-      action(async (id: string, opts: { thread: string; by: string }) => ({
-        result: await reviews().resolve(id, opts.thread, { by: opts.by }),
-      })),
+      action(async (id: string, opts: { thread: string; by?: string }) =>
+        asPerson(container(), opts.by, async (by) => ({
+          result: await reviews().resolve(id, opts.thread, { by }),
+        })),
+      ),
     );
 }

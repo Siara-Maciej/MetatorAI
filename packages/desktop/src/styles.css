@@ -65,9 +65,6 @@ button.primary {
 button.primary:hover {
   filter: brightness(1.08);
 }
-button.danger {
-  color: var(--red);
-}
 button.ghost {
   background: transparent;
   border-color: transparent;
@@ -115,6 +112,54 @@ h3 {
 .muted {
   color: var(--muted);
 }
+/* One vocabulary of state colours (model.ts `Tone`): a glyph, a word or a mark takes one class. */
+.amber {
+  color: var(--amber);
+}
+.violet {
+  color: var(--violet);
+}
+.red {
+  color: var(--red);
+}
+.green {
+  color: var(--green);
+}
+.blue {
+  color: var(--blue);
+}
+.teal {
+  color: var(--teal);
+}
+.faint {
+  color: var(--dim);
+}
+.spacer {
+  flex: 1;
+}
+/* The stages of a run in one line: under a run's header, on the workbench's strip, on the plan. */
+.stagebar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.stagebar.strip {
+  flex-wrap: nowrap;
+  gap: 0;
+  font-size: inherit;
+  white-space: pre;
+}
+button.stagebar {
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: 0;
+  cursor: pointer;
+}
+
 .dim {
   color: var(--dim);
   font-size: 11px;
@@ -143,9 +188,6 @@ h3 {
 .topbar .counters {
   display: flex;
   gap: 10px;
-}
-.topbar .spacer {
-  flex: 1;
 }
 .rail {
   display: flex;
@@ -370,7 +412,7 @@ h3 {
   letter-spacing: 0.06em;
   font-weight: 600;
 }
-.needs .kind.GATE {
+.needs .kind.APPROVAL {
   color: var(--amber);
 }
 .needs .kind.PERMISSION {
@@ -457,9 +499,6 @@ h3 {
   margin-top: 12px;
   flex-wrap: wrap;
 }
-.actions .spacer {
-  flex: 1;
-}
 .footer-cmd {
   margin-top: 10px;
   color: var(--dim);
@@ -491,30 +530,6 @@ h3 {
 .session .head .id {
   color: var(--dim);
 }
-.stagebar {
-  display: flex;
-  list-style: none;
-  padding: 0;
-  margin-bottom: 0;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-top: 6px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-}
-.stagebar .st.current {
-  color: var(--violet);
-}
-.stagebar .st.waiting {
-  color: var(--amber);
-}
-.stagebar .st.done {
-  color: var(--green);
-}
-.stagebar .st.stopped {
-  color: var(--red);
-}
 .driverbar {
   display: flex;
   align-items: center;
@@ -541,9 +556,6 @@ h3 {
   padding: 6px 14px;
   border-bottom: 1px solid var(--edge);
   align-items: center;
-}
-.tabs .spacer {
-  flex: 1;
 }
 .panes {
   display: flex;
@@ -647,82 +659,6 @@ h3 {
   display: flex;
   justify-content: space-between;
   gap: 6px;
-}
-
-/* grid */
-.grid {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
-.grid .head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--edge);
-  flex-wrap: wrap;
-}
-.grid .head .spacer {
-  flex: 1;
-}
-.tiles {
-  flex: 1;
-  display: grid;
-  gap: 8px;
-  padding: 8px;
-  min-height: 0;
-}
-.tiles.l1 {
-  grid-template-columns: 1fr;
-}
-.tiles.l2 {
-  grid-template-columns: 1fr 1fr;
-  grid-auto-rows: minmax(0, 1fr);
-}
-.tiles.l3 {
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-auto-rows: minmax(0, 1fr);
-}
-.tile {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border: 1px solid var(--edge);
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--panel);
-}
-.tile.focused {
-  border-color: var(--teal);
-}
-.tile.pinned {
-  border-style: dashed;
-}
-.tile .bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--edge);
-  font-size: 11.5px;
-}
-.tile .bar .n {
-  font-weight: 700;
-}
-.tile .bar .title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-}
-.tile .term {
-  padding: 4px 6px;
-}
-.tile .composer {
-  padding: 4px 8px;
 }
 
 /* graph */
@@ -855,9 +791,6 @@ h3 {
   gap: 10px;
   flex-wrap: wrap;
 }
-.briefing .head .spacer {
-  flex: 1;
-}
 .timeline {
   margin: 10px 0;
   padding: 0;
@@ -985,9 +918,6 @@ h3 {
   background: var(--hover);
   box-shadow: inset 2px 0 0 var(--teal);
 }
-.settings-screen .sections .spacer {
-  flex: 1;
-}
 .settings-screen .options-list {
   padding: 16px 24px;
   overflow: auto;
@@ -1035,10 +965,6 @@ h3 {
   padding-top: 5px;
   font-size: 12px;
 }
-.amber {
-  color: var(--amber);
-}
-
 /* workbench (S6): herdr's shape */
 .workbench {
   display: grid;
@@ -1062,16 +988,6 @@ h3 {
 .workbench .procstrip {
   gap: 6px;
   font-size: 12px;
-}
-.workbench .procstrip .stages {
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  display: inline-flex;
-  gap: 6px;
-  cursor: pointer;
 }
 .workbench .tabbar .ico {
   width: 26px;
@@ -1109,22 +1025,6 @@ h3 {
 .workbench .mark.stopped,
 .workbench .mark.aborted {
   color: var(--grey);
-}
-.workbench .spacer {
-  flex: 1;
-}
-.workbench .stage.done {
-  color: var(--green);
-}
-.workbench .stage.current {
-  color: var(--teal);
-}
-.workbench .stage.waiting {
-  color: var(--amber);
-}
-.workbench .stage.next,
-.workbench .stage.stopped {
-  color: var(--dim);
 }
 .workbench .body {
   display: grid;
@@ -1206,19 +1106,6 @@ h3 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.workbench .st.working {
-  color: var(--violet);
-}
-.workbench .st.blocked,
-.workbench .st.waiting {
-  color: var(--amber);
-}
-.workbench .st.idle {
-  color: var(--dim);
-}
-.workbench .st.exited {
-  color: var(--red);
 }
 .workbench .grid-area {
   display: flex;
@@ -1480,14 +1367,6 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.goto .glyph.blocked,
-.goto .glyph.waiting,
-.goto .glyph.question {
-  color: var(--amber);
-}
-.goto .glyph.working {
-  color: var(--violet);
-}
 .goto .hint {
   display: flex;
   gap: 8px;
@@ -1514,22 +1393,6 @@ kbd {
   border-bottom: 1px solid var(--edge);
   white-space: nowrap;
   overflow: hidden;
-}
-.plan .spacer {
-  flex: 1;
-}
-.plan .strip .stage.done {
-  color: var(--green);
-}
-.plan .strip .stage.current {
-  color: var(--teal);
-}
-.plan .strip .stage.waiting {
-  color: var(--amber);
-}
-.plan .strip .stage.next,
-.plan .strip .stage.stopped {
-  color: var(--dim);
 }
 .plan .body {
   display: grid;
@@ -1575,19 +1438,6 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.plan .g.done {
-  color: var(--green);
-}
-.plan .g.in-progress {
-  color: var(--violet);
-}
-.plan .g.blocked,
-.plan .g.waiting {
-  color: var(--amber);
-}
-.plan .g.todo {
-  color: var(--dim);
 }
 .plan .detail {
   display: flex;
@@ -1667,9 +1517,6 @@ kbd {
   white-space: nowrap;
   overflow: hidden;
 }
-.backlog .spacer {
-  flex: 1;
-}
 .backlog .body {
   display: grid;
   grid-template-columns: 320px 1fr;
@@ -1722,21 +1569,12 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.backlog .g.proposed,
 .backlog .pr.high {
   color: var(--amber);
 }
-.backlog .g.in-progress {
-  color: var(--violet);
-}
-.backlog .g.done {
-  color: var(--green);
-}
-.backlog .g.open,
 .backlog .pr.normal {
   color: var(--text);
 }
-.backlog .g.dropped,
 .backlog .pr.low {
   color: var(--dim);
 }
@@ -1821,9 +1659,6 @@ kbd {
   white-space: nowrap;
   overflow: hidden;
 }
-.review .spacer {
-  flex: 1;
-}
 .review .top .go {
   border-color: var(--teal);
   color: var(--teal);
@@ -1868,25 +1703,11 @@ kbd {
   width: 12px;
   flex: none;
 }
-.review .g.added,
 .review .plus {
   color: var(--green);
 }
-.review .g.deleted,
 .review .minus {
   color: var(--red);
-}
-.review .g.modified {
-  color: var(--amber);
-}
-.review .g.draft {
-  color: var(--amber);
-}
-.review .g.sent {
-  color: var(--violet);
-}
-.review .g.addressed {
-  color: var(--green);
 }
 .review .n {
   flex: 1;
@@ -2145,10 +1966,6 @@ kbd {
 .name-dialog p {
   margin: 8px 0 12px;
 }
-.dialog .foot .spacer {
-  flex: 1;
-}
-
 /* inbox: sessions that ask in their terminal; long questions */
 .needs .title {
   display: -webkit-box;

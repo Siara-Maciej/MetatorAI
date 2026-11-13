@@ -1,12 +1,12 @@
 import { err, MetatorError, ok, workflowJsonSchema } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 export function registerWorkflowCommands(program: Command, { action, container }: CommandContext): void {
   const workflow = program.command("workflow").description("Inspect and validate workflow specs");
 
-  workflow
-    .command("list")
+  meta(workflow.command("list"), { reads: true })
     .description("List workflows declared in .github/metator/workflows")
     .action(
       action(async () => {
@@ -25,8 +25,7 @@ export function registerWorkflowCommands(program: Command, { action, container }
       }),
     );
 
-  workflow
-    .command("lint")
+  meta(workflow.command("lint"), { audience: "person", reads: true, check: [] })
     .description("Every workflow against the 16-section anatomy, with owners and critics in the canon")
     .action(
       action(async () => {
@@ -47,8 +46,7 @@ export function registerWorkflowCommands(program: Command, { action, container }
       }),
     );
 
-  workflow
-    .command("validate")
+  meta(workflow.command("validate"), { audience: "ci", reads: true, check: [] })
     .description("Validate one spec file, or every spec in the repository")
     .argument("[file]", "repo-relative path to a workflow YAML file")
     .action(

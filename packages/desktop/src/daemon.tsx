@@ -1,9 +1,8 @@
 /**
  * The live connection to the daemon (D7): the state and the inbox over their WebSockets, with a
  * fetch when a socket is down; the layout of every repository; the person's name, the repository
- * the list screens show and the daemon's address from local storage. Two hooks every screen
- * shares live here too: `usePolled` (a request repeated on an interval) and `useWho` (the one
- * place the person's name is asked for).
+ * the list screens show and the daemon's address from local storage. `usePolled` (a request
+ * repeated on an interval) lives here too; the hooks built on it are in `hooks.ts`.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -11,13 +10,20 @@ import {
   daemonUrl,
   type Envelope,
   type InboxItem,
+  type OptionsView,
   type PaneView,
   type RepoState,
+  type ResolvedOption,
   type StateData,
+  type UnreadableRun,
   type WorkspaceView,
   wsUrl,
 } from "./api.ts";
-import { type Run, repoChoice, withTerminalAsks } from "./model.ts";
+import { Modal } from "./components/modal.tsx";
+import { type Run, repoChoice, sameRepo, withTerminalAsks } from "./model.ts";
+
+/** A run the daemon could not read, with the repository it is in when the daemon serves a folder. */
+export type Unreadable = UnreadableRun & { readonly repo?: string | undefined };
 
 export interface Daemon {
   readonly client: DaemonClient;
@@ -40,6 +46,20 @@ export interface Daemon {
   readonly panes: readonly (PaneView & { readonly repo?: string | undefined })[];
   /** Every workspace of every repository's layout, read with the panes. */
   readonly workspaces: readonly (WorkspaceView & { readonly repo?: string | undefined })[];
+  /** The run with this id; in a folder, the one of `repo` when it is given. */
+  run(runId: string | undefined, repo?: string): Run | undefined;
+  /** The panes of one repository: in a folder two repositories may use the same pane ids. */
+  panesOf(repo: string | undefined): readonly (PaneView & { readonly repo?: string | undefined })[];
+  /** Runs whose record cannot be read: they are in no list, so the panel says where they are. */
+  readonly unreadable: readonly Unreadable[];
+  /**
+   * The options of the shown repository (S1), read once for the whole app every few seconds:
+   * the settings screen, the workbench's keys and look, and the notifications all read these.
+   */
+  readonly options: readonly ResolvedOption[];
+  readonly optionsView: OptionsView | undefined;
+  readonly optionsError: string | undefined;
+  reloadOptions(): Promise<void>;
   readonly me: string;
   setMe(name: string): void;
   setUrl(url: string): void;
@@ -78,16 +98,18 @@ const write = (key: string, value: string) => {
 export function flattenState(data: StateData | undefined): {
   runs: Run[];
   repos: { name: string; path: string }[];
+  unreadable: Unreadable[];
 } {
-  if (!data) return { runs: [], repos: [] };
+  if (!data) return { runs: [], repos: [], unreadable: [] };
   if ("repos" in data) {
-    const repos = (data.repos as readonly RepoState[]).map((r) => ({ name: r.name, path: r.path }));
-    const runs = (data.repos as readonly RepoState[]).flatMap((r) =>
-      (r.runs ?? []).map((run) => ({ ...run, repo: r.name })),
-    );
-    return { runs, repos };
+    const all = data.repos as readonly RepoState[];
+    return {
+      runs: all.flatMap((r) => (r.runs ?? []).map((run) => ({ ...run, repo: r.name }))),
+      repos: all.map((r) => ({ name: r.name, path: r.path })),
+      unreadable: all.flatMap((r) => (r.unreadable ?? []).map((u) => ({ ...u, repo: r.name }))),
+    };
   }
-  return { runs: [...data.runs], repos: [] };
+  return { runs: [...data.runs], repos: [], unreadable: [...(data.unreadable ?? [])] };
 }
 
 /**
@@ -130,12 +152,6 @@ export function usePolled<T>(
   const mine = state.key === key;
   return { data: mine ? state.data : undefined, error: mine ? state.error : undefined, reload };
 }
-
-/** The person's name and the one way it is asked for (D11): the app's dialog, once. */
-export const useWho = (): { readonly me: string; who(): Promise<string> } => {
-  const { me, who } = useDaemon();
-  return { me, who };
-};
 
 /** A socket that is opened again after it drops, with a fetch meanwhile. */
 function useStream<T>(
@@ -239,7 +255,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
       if (env.ok && env.data) setInbox(env.data.decisions);
     },
   );
-  const { runs: stateRuns, repos } = useMemo(() => flattenState(state), [state]);
+  const { runs: stateRuns, repos, unreadable } = useMemo(() => flattenState(state), [state]);
   // The layout has no socket: it is read every second, for every repository the daemon serves.
   const names = repos.map((r) => r.name).join("\n");
   const layout = usePolled(
@@ -296,21 +312,35 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
   };
   // Down: the socket is closed and the last request failed. A socket that only blinked is not down.
   const down = !stateUp && error !== undefined;
+  const repo = repoChoice(repos, savedRepo);
+  const options = usePolled(`options:${url}:${repo ?? ""}`, () => client.options(repo), 3000);
+  const shownRuns = down ? NO_RUNS : runs;
+  const shownPanes = down ? NO_PANES : panes;
   const value: Daemon = {
     client,
     url,
     connected: stateUp,
     down,
     ...(error ? { error } : {}),
-    runs: down ? NO_RUNS : runs,
+    runs: shownRuns,
     repos,
-    repo: repoChoice(repos, savedRepo),
+    repo,
+    run: (runId, ofRepo) =>
+      runId === undefined
+        ? undefined
+        : shownRuns.find((r) => r.runId === runId && (ofRepo === undefined || sameRepo(r.repo, ofRepo))),
+    panesOf: (ofRepo) => shownPanes.filter((p) => sameRepo(p.repo, ofRepo)),
+    unreadable: down ? NO_UNREADABLE : unreadable,
+    options: options.data?.options ?? NO_OPTIONS,
+    optionsView: options.data,
+    optionsError: options.error,
+    reloadOptions: options.reload,
     setRepo: (name) => {
       write("metator.repo", name);
       setSavedRepo(name);
     },
     inbox: down ? NO_INBOX : inbox,
-    panes: down ? NO_PANES : panes,
+    panes: shownPanes,
     workspaces: down ? NO_WORKSPACES : workspaces,
     me,
     setMe,
@@ -336,22 +366,18 @@ const NO_RUNS: readonly Run[] = [];
 const NO_INBOX: readonly InboxItem[] = [];
 const NO_PANES: Daemon["panes"] = [];
 const NO_WORKSPACES: Daemon["workspaces"] = [];
+const NO_UNREADABLE: readonly Unreadable[] = [];
+const NO_OPTIONS: readonly ResolvedOption[] = [];
 
 /** The one place the app asks who the person is: their name goes next to every answer they give. */
 function NameDialog({ initial, onDone }: { readonly initial: string; onDone(name: string): void }) {
   const [name, setName] = useState(initial);
   return (
-    <div className="backdrop">
+    <Modal label="your name" className="name-dialog" onClose={() => onDone("")}>
       <form
-        className="dialog name-dialog"
-        role="dialog"
-        aria-label="your name"
         onSubmit={(e) => {
           e.preventDefault();
           if (name.trim()) onDone(name.trim());
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") onDone("");
         }}
       >
         <h2>Who are you?</h2>
@@ -379,6 +405,6 @@ function NameDialog({ initial, onDone }: { readonly initial: string; onDone(name
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

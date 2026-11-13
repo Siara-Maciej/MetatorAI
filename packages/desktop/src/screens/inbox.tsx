@@ -4,7 +4,7 @@ import { Chips } from "../components/chips.tsx";
 import { DecisionCard } from "../components/decision-card.tsx";
 import { EscalatedCard } from "../components/escalated-card.tsx";
 import { useDaemon } from "../daemon.tsx";
-import { duration, escalatedKey, inboxChips, plainKey, questionKind } from "../model.ts";
+import { duration, escalatedKey, inboxChips, plainKey, plural, questionKind, runCounts } from "../model.ts";
 
 const key = (i: { runId: string; question: { id: string } }) => `${i.runId}/${i.question.id}`;
 
@@ -32,6 +32,9 @@ export function InboxScreen({
   const stopped = escalated.find((r) => escalatedKey(r) === selected);
   const current = stopped ? undefined : (inbox.find((i) => key(i) === selected) ?? inbox[0]);
   const shownStopped = stopped ?? (current ? undefined : escalated[0]);
+  // The heading counts runs, as the top bar does; the rows below may be more (two questions of one run).
+  const counts = runCounts(runs);
+  const rows = inbox.length + inTerminal.length + escalated.length;
   useEffect(() => {
     if (current && key(current) !== selected) setSelected(key(current));
   }, [current, selected]);
@@ -50,7 +53,10 @@ export function InboxScreen({
   return (
     <div className="inbox">
       <div className="needs">
-        <h2>Needs you · {inbox.length + inTerminal.length + escalated.length}</h2>
+        <h2 data-testid="needs-count">
+          Needs you · {counts.needYou}
+          {rows !== counts.needYou ? <span className="dim"> · {plural(rows, "item")}</span> : null}
+        </h2>
         {inbox.map((i) => (
           <button
             type="button"
@@ -59,7 +65,7 @@ export function InboxScreen({
             aria-current={key(i) === selected ? "true" : undefined}
             onClick={() => setSelected(key(i))}
           >
-            <div>
+            <span className="l1">
               <span className={`kind ${questionKind(i.question)}`}>{questionKind(i.question)}</span>
               {i.question.card?.group ? (
                 <span className="chip blue" style={{ marginLeft: 6 }}>
@@ -69,14 +75,14 @@ export function InboxScreen({
               <span className="dim" style={{ float: "right" }}>
                 {duration(i.waitedMs)}
               </span>
-            </div>
-            <div className="title" title={i.question.prompt}>
+            </span>
+            <span className="title" title={i.question.prompt}>
               {i.question.prompt}
-            </div>
-            <div className="sub dim">
+            </span>
+            <span className="sub dim">
               {i.runId}
               {i.repo ? ` · ${i.repo}` : ""}
-            </div>
+            </span>
             <Chips items={inboxChips(i)} />
           </button>
         ))}
@@ -89,17 +95,17 @@ export function InboxScreen({
             title="The agent asks on its terminal: open the pane and answer there"
             onClick={() => onOpenSession(r.runId, r.terminalAsk)}
           >
-            <div>
+            <span className="l1">
               <span className="kind TERMINAL">TERMINAL</span>
               <span className="open">Open ›</span>
-            </div>
-            <div className="title" title={r.task}>
+            </span>
+            <span className="title" title={r.task}>
               {r.task}
-            </div>
-            <div className="sub dim">
+            </span>
+            <span className="sub dim">
               answers in its terminal · {r.stage}
               {r.repo ? ` · ${r.repo}` : ""}
-            </div>
+            </span>
           </button>
         ))}
         {escalated.map((r) => (
@@ -111,16 +117,16 @@ export function InboxScreen({
             aria-current={shownStopped && escalatedKey(shownStopped) === escalatedKey(r) ? "true" : undefined}
             onClick={() => setSelected(escalatedKey(r))}
           >
-            <div>
+            <span className="l1">
               <span className="kind ESCALATED">ESCALATED</span>
-            </div>
-            <div className="title" title={r.task}>
+            </span>
+            <span className="title" title={r.task}>
               {r.task}
-            </div>
-            <div className="sub dim">
+            </span>
+            <span className="sub dim">
               stopped at {r.stage} · {r.runId}
               {r.repo ? ` · ${r.repo}` : ""}
-            </div>
+            </span>
           </button>
         ))}
         {inbox.length === 0 && inTerminal.length === 0 && escalated.length === 0 ? (

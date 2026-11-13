@@ -9,8 +9,8 @@ import {
   ReviewNotesDocument,
 } from "../domain/review-note.ts";
 import type { RunMessage } from "../domain/run-message.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
+import { readDocument, writeDocument } from "./document-io.ts";
 import type { RunMessages } from "./run-messages.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -127,20 +127,12 @@ export class ReviewNotes {
   }
 
   private async load(runId: string): Promise<Result<ReviewNote[], MetatorError>> {
-    const file = this.file(runId);
-    if (!(await this.d.fs.exists(file))) return ok([]);
-    const text = await this.d.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file)
-      .andThen((raw) => ReviewNotesDocument.parse(raw, file))
-      .map((d) => [...d.notes]);
+    const doc = await readDocument(this.d.fs, this.file(runId), ReviewNotesDocument);
+    return doc.map((d) => [...(d?.notes ?? [])]);
   }
 
   private save(runId: string, notes: readonly ReviewNote[]): Promise<Result<void, MetatorError>> {
-    return this.d.fs.write(
-      this.file(runId),
-      serializeJsonDocument(ReviewNotesDocument.stamp({ notes: [...notes] })),
-    );
+    return writeDocument(this.d.fs, this.file(runId), ReviewNotesDocument, { notes: [...notes] });
   }
 }
 

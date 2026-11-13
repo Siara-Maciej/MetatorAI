@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
 
@@ -8,8 +9,7 @@ import { positiveInt } from "../options.ts";
  * reuse their window and get `--goto file:line`.
  */
 export function registerOpenCommands(program: Command, { action, runs }: CommandContext): void {
-  program
-    .command("open")
+  meta(program.command("open"), { audience: "person" })
     .description(
       "Open a run's worktree (or a pane's directory) in your editor, at a file and line when given",
     )

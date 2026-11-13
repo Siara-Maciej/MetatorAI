@@ -1,14 +1,16 @@
 import { EnvironmentDocument, err, MetatorError, ok, type Result } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { schemaCommand } from "../outcome.ts";
 import { positiveInt } from "../options.ts";
 
 /** `env *` (F8.5): how the application starts, started per worktree on its own ports. */
 export function registerEnvCommands(program: Command, { action, container }: CommandContext): void {
-  const env = program
-    .command("env")
-    .description("The application's services: discovered, started per worktree, shared where it pays off");
+  const env = meta(program.command("env"), { audience: "person" }).description(
+    "The application's services: discovered, started per worktree, shared where it pays off",
+  );
 
   env
     .command("discover")
@@ -94,7 +96,7 @@ export function registerEnvCommands(program: Command, { action, container }: Com
 
   env
     .command("pool")
-    .description("Worktrees with their services already up; `run init --worktree` takes a free one")
+    .description("Worktrees with their services already up; `run new --worktree` takes a free one")
     .option("--size <n>", "keep this many free worktrees started", positiveInt)
     .option("--drain", "stop and remove the free ones", false)
     .action(
@@ -121,8 +123,7 @@ export function registerEnvCommands(program: Command, { action, container }: Com
       })),
     );
 
-  env
-    .command("status")
+  meta(env.command("status"), { reads: true })
     .description("Each service: where it runs, whether it is up, its ports")
     .option("--worktree <id>", "the services of this worktree")
     .action(
@@ -151,10 +152,7 @@ export function registerEnvCommands(program: Command, { action, container }: Com
       })),
     );
 
-  env
-    .command("schema")
-    .description("Print the JSON Schema of metator/environment.yml")
-    .action(action(() => ({ result: ok(EnvironmentDocument.jsonSchema("input")) })));
+  schemaCommand(env, ctx, "Print the JSON Schema of metator/environment.yml", EnvironmentDocument);
 }
 
 /**

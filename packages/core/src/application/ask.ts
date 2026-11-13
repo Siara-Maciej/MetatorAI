@@ -10,8 +10,8 @@ import {
 import type { AgentAnswer, AgentEvent, AgentQuestion } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { AgentHost, Clock, FileSystem } from "../ports/index.ts";
+import { loadDocument, writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 
 export const GUIDE_AGENT = "mt-guide";
@@ -38,13 +38,11 @@ export class ConversationRepository {
         MetatorError.notFound(`conversation ${id}`, { hint: "`metator ask list` shows the conversations." }),
       );
     }
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file).andThen((raw) => ConversationDocument.parse(raw, file));
+    return loadDocument(this.fs, file, ConversationDocument);
   }
 
   async save(c: Conversation): Promise<Result<void, MetatorError>> {
-    return this.fs.write(this.file(c.id), serializeJsonDocument(ConversationDocument.stamp(c)));
+    return writeDocument(this.fs, this.file(c.id), ConversationDocument, c);
   }
 
   async list(): Promise<Result<readonly Conversation[], MetatorError>> {

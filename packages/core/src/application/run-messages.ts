@@ -1,8 +1,8 @@
 import type { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { nextMessageId, type RunMessage, RunMessageDocument } from "../domain/run-message.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
+import { loadDocument, writeDocument } from "./document-io.ts";
 import type { RunJournal } from "./drive.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -35,9 +35,7 @@ export class RunMessages {
     const files = await this.fs.glob([`${this.repo.runDir(runId)}/messages/m*.json`]);
     const out: RunMessage[] = [];
     for (const file of files) {
-      const text = await this.fs.read(file);
-      if (text.isErr()) return err(text.error);
-      const m = parseJsonDocument(text.value, file).andThen((raw) => RunMessageDocument.parse(raw, file));
+      const m = await loadDocument(this.fs, file, RunMessageDocument, "json");
       if (m.isErr()) return err(m.error);
       out.push(m.value);
     }
@@ -61,9 +59,12 @@ export class RunMessages {
       refs: [...(input.refs ?? [])],
       by: input.by,
     };
-    const saved = await this.fs.write(
+    const saved = await writeDocument(
+      this.fs,
       this.file(input.to, message.id),
-      serializeJsonDocument(RunMessageDocument.stamp(message)),
+      RunMessageDocument,
+      message,
+      "json",
     );
     if (saved.isErr()) return err(saved.error);
     const summary = `${message.topic}: ${message.text.slice(0, 200)}`;

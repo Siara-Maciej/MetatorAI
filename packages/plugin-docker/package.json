@@ -8,5 +8,9 @@
   },
   "dependencies": {
     "@metator/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@metator/plugin-bun": "workspace:*",
+    "@metator/testing": "workspace:*"
   }
 }

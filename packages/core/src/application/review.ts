@@ -14,9 +14,9 @@ import {
   type Verdict,
   VerdictDocument,
 } from "../domain/verdict.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { BranchHistory, ChangePatch, FileSystem, Vcs, WorkspaceReader } from "../ports/index.ts";
 import { cardFile } from "./cards.ts";
+import { loadDocument, parseDocumentText, writeDocument } from "./document-io.ts";
 import { lensFiles, noFindingsFile } from "./findings.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RuleCatalog } from "./rules.ts";
@@ -75,7 +75,7 @@ export class PlanReview {
       tasks: shards.length * lenses.length,
     };
     if (input.out) {
-      const saved = await this.fs.write(input.out, serializeJsonDocument(ReviewPlanDocument.stamp(plan)));
+      const saved = await writeDocument(this.fs, input.out, ReviewPlanDocument, plan, "json");
       if (saved.isErr()) return err(saved.error);
     }
     return ok(plan);
@@ -105,11 +105,11 @@ export class JudgeFindings {
         }),
       );
     }
-    const set = parseJsonDocument(text.value, source).andThen((raw) => FindingSetDocument.parse(raw, source));
+    const set = parseDocumentText(text.value, source, FindingSetDocument, "json");
     if (set.isErr()) return err(set.error);
     const verdict = judge(set.value.findings, input.verifiedCorrect);
     const output = `${verdictDir(input.dir)}/verdict.json`;
-    const saved = await this.fs.write(output, serializeJsonDocument(VerdictDocument.stamp(verdict)));
+    const saved = await writeDocument(this.fs, output, VerdictDocument, verdict, "json");
     if (saved.isErr()) return err(saved.error);
     return ok({ ...verdict, output });
   }
@@ -133,11 +133,7 @@ export class FormatReviewComments {
       MetatorError
     >
   > {
-    const text = await this.fs.read(input.verdict);
-    if (text.isErr()) return err(text.error);
-    const verdict = parseJsonDocument(text.value, input.verdict).andThen((raw) =>
-      VerdictDocument.parse(raw, input.verdict),
-    );
+    const verdict = await loadDocument(this.fs, input.verdict, VerdictDocument, "json");
     if (verdict.isErr()) return err(verdict.error);
     if (verdict.value.decision === "NEEDS_VERIFICATION") {
       return err(
@@ -179,10 +175,7 @@ export class DescribeReviewedChange {
       uncommitted: branch.value.uncommitted,
     };
     if (input.out) {
-      const saved = await this.fs.write(
-        input.out,
-        serializeJsonDocument(ReviewMetadataDocument.stamp(metadata)),
-      );
+      const saved = await writeDocument(this.fs, input.out, ReviewMetadataDocument, metadata, "json");
       if (saved.isErr()) return err(saved.error);
     }
     return ok(metadata);

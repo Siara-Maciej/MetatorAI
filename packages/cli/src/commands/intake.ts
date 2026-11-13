@@ -1,5 +1,6 @@
 import { err, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { resume } from "../sessions.ts";
 
@@ -23,8 +24,7 @@ export function registerIntakeCommands(program: Command, { action, container }: 
       }),
     );
 
-  intake
-    .command("scan")
+  meta(intake.command("scan"), { audience: "person" })
     .description("One pass over every rule: new items become issues and runs (at most `maxActive` at once)")
     .option("--dry-run", "only say what is new; write nothing and start nothing", false)
     .option("--drive [host]", "also drive each started run in the background (on this host, or the default)")

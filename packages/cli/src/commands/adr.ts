@@ -1,12 +1,14 @@
 import { err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 export function registerAdrCommands(program: Command, { action, container }: CommandContext): void {
-  program
-    .command("adr")
-    .description("Architecture decision records")
-    .command("lint")
+  meta(program.command("adr").description("Architecture decision records").command("lint"), {
+    audience: "ci",
+    reads: true,
+    check: [],
+  })
     .description("Numbering, status, sections, index, and Accepted ADRs naming the rules they imply")
     .action(
       action(async () => {

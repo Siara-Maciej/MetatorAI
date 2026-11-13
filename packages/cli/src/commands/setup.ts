@@ -13,6 +13,7 @@ import {
   writesFile,
 } from "@metator/core";
 import { type Command, Option } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 /** What `setup` runs after installing, as proof the repository is ready for agents. */
@@ -55,8 +56,7 @@ export function registerSetupCommands(
     .description("The agents, skills and workflows shipped with MetatorAI, installed into this repository");
 
   for (const mode of ["install", "update"] as const) {
-    agents
-      .command(mode)
+    meta(agents.command(mode), mode === "update" ? { audience: "person" } : {})
       .description(
         mode === "install"
           ? "Copy the shipped agents, skills and workflows here and record them in metator/install.lock.json"
@@ -97,8 +97,7 @@ export function registerSetupCommands(
       );
   }
 
-  program
-    .command("setup")
+  meta(program.command("setup"), { audience: "person" })
     .description(
       "Set MetatorAI up here in one step: config, hosts, agents, skills, workflows, host files, checks",
     )

@@ -31,4 +31,14 @@ describe("NodeBinResolver (real files)", () => {
       "--noEmit",
     ]);
   });
+
+  test("asked for PATH instead, a project without node_modules runs the bare name; a pinned binary still wins", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metator-bin-"));
+    dirs.push(root);
+    await Bun.write(join(root, "package.json"), "{}");
+    const resolver = new NodeBinResolver(root, "path");
+    expect((await resolver.command("tsc", ["--noEmit"])).argv).toEqual(["tsc", "--noEmit"]);
+    await Bun.write(join(root, "node_modules/.bin/tsc"), "#!/bin/sh\n");
+    expect((await resolver.command("tsc", [])).argv).toEqual([join(root, "node_modules/.bin/tsc")]);
+  });
 });

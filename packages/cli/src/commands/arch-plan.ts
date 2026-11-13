@@ -8,9 +8,12 @@ import {
   RefactorPlanDocument,
 } from "@metator/core";
 import { type Command, Option } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { person } from "../live.ts";
+import { schemaCommand } from "../outcome.ts";
+import { byOption } from "../options.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
+import { asPerson, who } from "../who.ts";
 import { minScore } from "./system-plan.ts";
 
 const goal = () =>
@@ -31,11 +34,13 @@ export function registerArchPlanCommands(
     .argument("<title...>", "what the refactor is for")
     .addOption(goal())
     .action(
-      action(async (title: string[], opts: { goal: PlanGoal }) => ({
-        result: await container()
-          .resolve("createRefactorPlan")
-          .execute({ title: title.join(" "), goal: opts.goal, by: person(process.env) }),
-      })),
+      action(async (title: string[], opts: { goal: PlanGoal }) =>
+        asPerson(container(), undefined, async (by) => ({
+          result: await container()
+            .resolve("createRefactorPlan")
+            .execute({ title: title.join(" "), goal: opts.goal, by }),
+        })),
+      ),
     );
 
   plan
@@ -49,11 +54,13 @@ export function registerArchPlanCommands(
         const c = container();
         const root = c.resolve("root");
         const t = terminal;
+        const by = await who(c);
+        if (by.isErr()) return { result: by };
         const r = await c.resolve("proposeRefactorPlan").execute({
           title: title.join(" "),
           goal: opts.goal,
           host: opts.host ?? defaultHost(c),
-          by: person(process.env),
+          by: by.value,
           cwd: root,
           projectRoot: root,
           ...(t
@@ -72,8 +79,7 @@ export function registerArchPlanCommands(
       }),
     );
 
-  plan
-    .command("list")
+  meta(plan.command("list"), { reads: true })
     .description("Every refactor plan with its goal, status and moves")
     .action(
       action(async () => ({
@@ -90,8 +96,7 @@ export function registerArchPlanCommands(
       })),
     );
 
-  plan
-    .command("show")
+  meta(plan.command("show"), { reads: true })
     .description("One refactor plan")
     .argument("<id>", "the plan id")
     .action(
@@ -108,8 +113,7 @@ export function registerArchPlanCommands(
       })),
     );
 
-  plan
-    .command("lint")
+  meta(plan.command("lint"), { reads: true })
     .description(
       "Check the plan: moves possible, citations real, effects current, no new errors, goal reached",
     )
@@ -139,13 +143,13 @@ export function registerArchPlanCommands(
     .command("approve")
     .description("Approve the plan's moves as they are now (a person, never an agent)")
     .argument("<id>", "the plan id")
-    .option("--by <name>", "who approves (default METATOR_USER or the login)")
+    .addOption(byOption("who approves"))
     .action(
-      action(async (id: string, opts: { by?: string }) => ({
-        result: await container()
-          .resolve("approveRefactorPlan")
-          .execute({ id, by: opts.by ?? person(process.env) }),
-      })),
+      action(async (id: string, opts: { by?: string }) =>
+        asPerson(container(), opts.by, async (by) => ({
+          result: await container().resolve("approveRefactorPlan").execute({ id, by }),
+        })),
+      ),
     );
 
   plan
@@ -161,18 +165,14 @@ export function registerArchPlanCommands(
       })),
     );
 
-  plan
-    .command("status")
+  meta(plan.command("status"), { reads: true })
     .description("Read the moves' runs back into the plan: done, blocked, the plan done when all are")
     .argument("<id>", "the plan id")
     .action(
       action(async (id: string) => ({ result: await container().resolve("syncRefactorPlan").execute(id) })),
     );
 
-  plan
-    .command("schema")
-    .description("Print the JSON Schema of a refactor plan")
-    .action(action(async () => ({ result: ok(RefactorPlanDocument.jsonSchema("input")) })));
+  schemaCommand(plan, ctx, "Print the JSON Schema of a refactor plan", RefactorPlanDocument);
 }
 
 /** `arch eval` (H7): the golden set of refactor planning, each case planned in a fresh repository. */
@@ -204,9 +204,11 @@ export function registerArchEvalCommands(arch: Command, { action, container }: C
     .addOption(minScore())
     .action(
       action(async (opts: { case?: string; host?: string; min?: number }) => {
+        const by = await who(container());
+        if (by.isErr()) return { result: by };
         const r = await evals().execute({
           host: opts.host ?? defaultHost(container()),
-          by: person(process.env),
+          by: by.value,
           ...(opts.case ? { only: opts.case } : {}),
         });
         if (r.isErr() || opts.min === undefined || r.value.summary.score >= opts.min) return { result: r };
@@ -219,8 +221,5 @@ export function registerArchEvalCommands(arch: Command, { action, container }: C
         };
       }),
     );
-  evalCmd
-    .command("schema")
-    .description("Print the JSON Schema of a golden case")
-    .action(action(async () => ({ result: ok(ArchEvalCaseDocument.jsonSchema("input")) })));
+  schemaCommand(evalCmd, ctx, "Print the JSON Schema of a golden case", ArchEvalCaseDocument);
 }

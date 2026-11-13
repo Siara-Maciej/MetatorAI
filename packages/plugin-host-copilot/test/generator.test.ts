@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { AgentDocument } from "@metator/core";
+import { hostGeneratorContract, skillGeneratorContract } from "@metator/testing";
 import { CopilotGenerator } from "../src/copilot-generator.ts";
 import { CopilotSkillGenerator } from "../src/skill-generator.ts";
 
@@ -19,6 +20,9 @@ const agent = (extra: Record<string, unknown>) =>
   )._unsafeUnwrap();
 
 const BODY = "\n# Input\nRun `metator graph deps a.ts`.\n";
+
+hostGeneratorContract("CopilotGenerator", () => new CopilotGenerator());
+skillGeneratorContract("CopilotSkillGenerator", () => new CopilotSkillGenerator());
 
 describe("CopilotGenerator", () => {
   test("snapshot of the generated worker (tool table, model, marker)", () => {

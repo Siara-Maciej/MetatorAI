@@ -3,12 +3,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  type BinResolver,
   type DeclarationEmitter,
   err,
   MetatorError,
   ok,
   type ProcessRunner,
   type Result,
+  runTool,
 } from "@metator/core";
 
 /**
@@ -19,6 +21,7 @@ export class TscDeclarationEmitter implements DeclarationEmitter {
   constructor(
     private readonly runner: ProcessRunner,
     private readonly root: string,
+    private readonly bins: BinResolver,
   ) {}
 
   async emit(): Promise<Result<ReadonlyMap<string, string>, MetatorError>> {
@@ -30,9 +33,7 @@ export class TscDeclarationEmitter implements DeclarationEmitter {
       );
     const out = await mkdtemp(join(tmpdir(), "metator-dts-"));
     try {
-      const local = join(this.root, "node_modules", ".bin", "tsc");
-      const argv = [
-        existsSync(local) ? local : "tsc",
+      const args = [
         "-p",
         "tsconfig.json",
         "--noEmit",
@@ -42,8 +43,9 @@ export class TscDeclarationEmitter implements DeclarationEmitter {
         "--outDir",
         out,
       ];
-      const r = await this.runner.run({ argv, cwd: this.root }, { timeoutMs: 300_000 });
-      if (r.exitCode === 127) return err(new MetatorError("BIN_NOT_FOUND", "tsc is not installed"));
+      const run = await runTool(this.runner, this.bins, { bin: "tsc", args, timeoutMs: 300_000 });
+      if (run.isErr()) return err(run.error);
+      const r = run.value;
       const files = new Map<string, string>();
       for await (const rel of new Bun.Glob("**/*.d.ts").scan({ cwd: out }))
         files.set(rel, await Bun.file(join(out, rel)).text());

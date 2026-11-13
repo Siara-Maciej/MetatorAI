@@ -10,7 +10,6 @@ import {
   packageOf,
 } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type {
   FileSystem,
   ImportAnalyzer,
@@ -19,6 +18,7 @@ import type {
   WorkspacePackage,
   WorkspaceReader,
 } from "../ports/index.ts";
+import { parseDocumentText, writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { SourceFiles } from "./source-files.ts";
 
@@ -172,10 +172,7 @@ export class BuildImportGraph {
       }
     }
 
-    const saved = await this.fs.write(
-      this.indexFile(),
-      serializeJsonDocument(ImportIndexDocument.stamp(next)),
-    );
+    const saved = await writeDocument(this.fs, this.indexFile(), ImportIndexDocument, next, "json");
     if (saved.isErr()) return err(saved.error);
 
     return ok({
@@ -197,9 +194,7 @@ export class BuildImportGraph {
   private async loadIndex(): Promise<ImportIndex | undefined> {
     const text = await this.fs.read(this.indexFile());
     if (text.isErr()) return undefined;
-    const index = parseJsonDocument(text.value, this.indexFile()).andThen((raw) =>
-      ImportIndexDocument.parse(raw, this.indexFile()),
-    );
+    const index = parseDocumentText(text.value, this.indexFile(), ImportIndexDocument, "json");
     return index.isOk() && index.value.analyzer === this.analyzerId ? index.value : undefined;
   }
 }

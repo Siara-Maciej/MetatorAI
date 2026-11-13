@@ -1,12 +1,3 @@
-import { analyzeArchitecture } from "../domain/architecture.ts";
-import {
-  type ArchCaseScore,
-  type ArchEvalCase,
-  ArchEvalCaseDocument,
-  failedArchCase,
-  scoreArchCase,
-  summarizeArchEval,
-} from "../domain/architecture-eval.ts";
 import {
   describeMove,
   lintRefactorPlan,
@@ -18,7 +9,6 @@ import {
   type RefactorPlan,
   RefactorPlanDocument,
   type RefactorPlanProblem,
-  replayPlan,
   simulatePlan,
 } from "../domain/architecture-plan.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion } from "../domain/drive.ts";
@@ -26,8 +16,7 @@ import { MetatorError } from "../domain/errors.ts";
 import { planId } from "../domain/ids.ts";
 import { progressOf } from "../domain/plan-progress.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseYamlDocument } from "../domain/versioned.ts";
-import type { AgentHost, Clock, FileSystem, Sandbox } from "../ports/index.ts";
+import type { AgentHost, Clock, FileSystem } from "../ports/index.ts";
 import type { AnalyzeArchitecture, ArchitectureFacts } from "./architecture.ts";
 import { DocumentStore, runAgent } from "./document-store.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -349,101 +338,5 @@ export class SyncRefactorPlan {
     };
     const saved = await this.store.save(plan);
     return saved.isErr() ? err(saved.error) : ok(plan);
-  }
-}
-
-/** The tools of one sandbox repository, built for its root (the CLI makes a container there). */
-export interface ArchEvalWorkspace {
-  readonly propose: Pick<ProposeRefactorPlan, "execute">;
-  readonly facts: Pick<ArchitectureFacts, "gather">;
-}
-
-/** `arch eval run` (H7): every golden case in a fresh repository, planned by the host, scored. */
-export class RunArchEvals {
-  constructor(
-    private readonly fs: FileSystem,
-    private readonly dir: string,
-    private readonly sandbox: Sandbox,
-    private readonly workspaceAt: (root: string) => ArchEvalWorkspace,
-    /** Files every sandbox gets besides the case's (the planner's host agent definitions). */
-    private readonly extraFiles: () => Promise<Readonly<Record<string, string>>> = async () => ({}),
-  ) {}
-
-  async cases(): Promise<Result<readonly ArchEvalCase[], MetatorError>> {
-    const out: ArchEvalCase[] = [];
-    for (const file of await this.fs.glob([`${this.dir}/*.yml`])) {
-      const text = await this.fs.read(file);
-      if (text.isErr()) return err(text.error);
-      const parsed = parseYamlDocument(text.value, file).andThen((raw) =>
-        ArchEvalCaseDocument.parse(raw, file),
-      );
-      if (parsed.isErr()) return err(parsed.error);
-      out.push(parsed.value);
-    }
-    return ok(out.sort((a, b) => a.id.localeCompare(b.id)));
-  }
-
-  async execute(input: {
-    readonly host: string;
-    readonly by: string;
-    readonly only?: string;
-  }): Promise<
-    Result<
-      { readonly summary: ReturnType<typeof summarizeArchEval>; readonly cases: readonly ArchCaseScore[] },
-      MetatorError
-    >
-  > {
-    const cases = await this.cases();
-    if (cases.isErr()) return err(cases.error);
-    const selected = cases.value.filter((c) => !input.only || c.id === input.only);
-    if (selected.length === 0)
-      return err(
-        MetatorError.notFound(input.only ? `arch eval case ${input.only}` : `arch eval cases in ${this.dir}`),
-      );
-    const scores: ArchCaseScore[] = [];
-    const extra = await this.extraFiles();
-    for (const c of selected) {
-      const box = await this.sandbox.create({ ...extra, ...c.files });
-      if (box.isErr()) return err(box.error);
-      try {
-        scores.push(await this.scoreCase(c, box.value.root, input));
-      } finally {
-        await box.value.dispose();
-      }
-    }
-    return ok({ summary: summarizeArchEval(scores), cases: scores });
-  }
-
-  private async scoreCase(
-    c: ArchEvalCase,
-    root: string,
-    input: { readonly host: string; readonly by: string },
-  ) {
-    const ws = this.workspaceAt(root);
-    const facts = await ws.facts.gather();
-    if (facts.isErr()) return failedArchCase(c.id, facts.error.message);
-    const proposed = await ws.propose.execute({
-      title: c.id,
-      goal: c.goal,
-      host: input.host,
-      by: input.by,
-      cwd: root,
-      projectRoot: root,
-    });
-    if (proposed.isErr()) return failedArchCase(c.id, proposed.error.message);
-    // A move that cannot run leaves nothing to score: its simulated result would be fiction.
-    const replayed = replayPlan(facts.value, proposed.value.plan);
-    if (replayed.problems.length > 0)
-      return failedArchCase(
-        c.id,
-        `impossible moves: ${replayed.problems.map((p) => `${p.move}: ${p.message}`).join("; ")}`,
-      );
-    return scoreArchCase({
-      case: c,
-      plan: proposed.value.plan,
-      problems: proposed.value.problems,
-      before: analyzeArchitecture(facts.value),
-      after: analyzeArchitecture(replayed.state),
-    });
   }
 }

@@ -1,5 +1,6 @@
 import { err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 export function registerApiCommands(program: Command, { action, container }: CommandContext): void {
@@ -42,8 +43,7 @@ export function registerApiCommands(program: Command, { action, container }: Com
       }),
     );
 
-  api
-    .command("diff")
+  meta(api.command("diff"), { reads: true })
     .description("Compare the package's API with its snapshot; any added or removed declaration fails")
     .argument("<package>", "workspace package name")
     .action(

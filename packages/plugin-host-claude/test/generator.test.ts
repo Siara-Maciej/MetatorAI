@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { AgentDocument } from "@metator/core";
+import { hostGeneratorContract, skillGeneratorContract } from "@metator/testing";
 import { ClaudeGenerator } from "../src/claude-generator.ts";
 import { ClaudeSkillGenerator } from "../src/skill-generator.ts";
 
@@ -19,6 +20,9 @@ const agent = (extra: Record<string, unknown>) =>
   )._unsafeUnwrap();
 
 const BODY = "\n# Input\nRun `metator graph deps a.ts`.\n";
+
+hostGeneratorContract("ClaudeGenerator", () => new ClaudeGenerator());
+skillGeneratorContract("ClaudeSkillGenerator", () => new ClaudeSkillGenerator());
 
 describe("ClaudeGenerator", () => {
   test("snapshot of the generated worker (tool table, model, marker)", () => {

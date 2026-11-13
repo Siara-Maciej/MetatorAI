@@ -1,5 +1,6 @@
 import { err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { runTui } from "../tui/run.tsx";
 import { tuiService } from "../tui/service.ts";
@@ -9,8 +10,7 @@ import { tuiService } from "../tui/service.ts";
  * folder, in one full-screen view: progress, questions, apps, conversations, settings.
  */
 export function registerUiCommands(program: Command, ctx: CommandContext): void {
-  program
-    .command("ui")
+  meta(program.command("ui"), { audience: "person", folder: true })
     .description("The full-screen view: every run, its progress and questions, apps, conversations, settings")
     .action(
       ctx.action(async () => {

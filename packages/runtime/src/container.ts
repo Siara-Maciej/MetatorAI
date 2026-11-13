@@ -48,10 +48,12 @@ import type {
   ContractDetector,
   ContractDiffer,
   ConversationRepository,
+  CoverageReader,
   CreateRefactorPlan,
   CreateSystemPlan,
   CreateWorktree,
   DataIsolator,
+  DeclarationEmitter,
   DescribeReviewedChange,
   DiffContracts,
   DiffCoverage,
@@ -133,6 +135,7 @@ import type {
   Panes,
   PatternCatalog,
   PlanBoard,
+  PlannedBreakingChanges,
   PlanReview,
   PortProbe,
   ProcessRunner,
@@ -184,6 +187,7 @@ import type {
   SkillCatalog,
   SkillGenerator,
   SourceFiles,
+  StyleImports,
   Supervisor,
   SupervisorDependencies,
   SymbolAnalyzer,
@@ -213,6 +217,7 @@ import type {
   WorktreeRegistry,
   WriteRunArtifact,
 } from "@metator/core";
+import type { McpToolCaller } from "@metator/plugin-codehost-mcp";
 import { type AwilixContainer, createContainer, InjectionMode } from "awilix";
 import type { LoadedConfig } from "./config.ts";
 
@@ -245,9 +250,13 @@ export interface Cradle {
   packageManagerDetector: PackageManagerDetector;
   packageManager: PackageManager;
   binResolver: BinResolver;
+  /** Binaries of rule engines: the repository's pinned one first, PATH otherwise, installed or not. */
+  toolBins: BinResolver;
   workspaceReader: WorkspaceReader;
   manifestReader: ManifestReader;
   toolBoundariesReader: ToolBoundariesReader;
+  /** The one analyzer of the repository; the two ports below resolve to it. */
+  oxc: ImportAnalyzer & SymbolAnalyzer;
   importAnalyzer: ImportAnalyzer;
   symbolAnalyzer: SymbolAnalyzer;
   importGraphReader: ImportGraphReader;
@@ -265,6 +274,7 @@ export interface Cradle {
   userConfig: UserConfigStore;
   optionStore: OptionStore;
   issues: Issues;
+  mcpToolCaller: McpToolCaller;
   codeHost: CodeHost;
   scanIntake: ScanIntake;
   reviewHost: ReviewHost;
@@ -373,7 +383,9 @@ export interface Cradle {
   systemCatalog: SystemCatalog;
   contractDetectors: readonly ContractDetector[];
   contractDiffers: readonly ContractDiffer[];
+  plannedBreakingChanges: PlannedBreakingChanges;
   diffContracts: DiffContracts;
+  styleImports: StyleImports;
   cloneCache: CloneCache;
   repositoryRuns: (root: string) => RepositoryRuns;
   runSystemPlan: RunSystemPlan;
@@ -416,7 +428,9 @@ export interface Cradle {
   docsInventory: DocsInventory;
   docsDrift: DocsDrift;
   addLesson: AddLesson;
+  coverageReader: CoverageReader;
   diffCoverage: DiffCoverage;
+  declarationEmitter: DeclarationEmitter;
   apiSnapshots: ApiSnapshots;
   diffImportGraph: DiffImportGraph;
   lintPlan: LintPlan;

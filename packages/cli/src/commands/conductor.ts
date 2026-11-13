@@ -1,8 +1,9 @@
 import type { WaitOutcome, WorkerResult } from "@metator/core";
 import { type Command, Option } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, findDaemon, paneHeaders } from "../daemon-client.ts";
-import { positiveInt } from "../options.ts";
+import { positiveInt, runOption } from "../options.ts";
 
 /**
  * `metator run start|delegate|wait|collect|workers|result` (R2, ADR-0080): the conductor's
@@ -21,10 +22,9 @@ export function registerConductorCommands(program: Command, runs: Command, ctx: 
     return id.map((runId) => `/runs/${encodeURIComponent(runId)}/${rest}`);
   };
 
-  runs
-    .command("start")
+  meta(runs.command("start"), { audience: "person" })
     .description("Open the run as a conductor pane: an interactive host session that runs the workflow")
-    .option("--run <id>", "run id (default: latest)")
+    .addOption(runOption())
     .option(
       "--host <id>",
       "an interactive host: copilot, claude, opencode (default: the run's host, else the first of supervisor.hostOrder that is installed)",
@@ -47,7 +47,7 @@ export function registerConductorCommands(program: Command, runs: Command, ctx: 
     .option("--card-file <path>", "the card from a file")
     .option("--name <name>", "the worker's name (default: <agent>-<n>)")
     .option("--host <id>", "the worker's host (default: the run's)")
-    .option("--run <id>", "run id (default: latest)")
+    .addOption(runOption())
     .action(
       ctx.action(
         async (
@@ -81,7 +81,7 @@ export function registerConductorCommands(program: Command, runs: Command, ctx: 
     .command("wait <worker>")
     .description("Wait until the worker reported, its pane ended, or it sits idle without a report")
     .option("--timeout <ms>", "give up after this long", positiveInt, 600_000)
-    .option("--run <id>", "run id (default: latest)")
+    .addOption(runOption())
     .action(
       ctx.action(async (worker: string, opts: { timeout: number; run?: string }) => {
         const path = await runPath(
@@ -96,7 +96,7 @@ export function registerConductorCommands(program: Command, runs: Command, ctx: 
   runs
     .command("collect <worker>")
     .description("The worker's result (summary, artifacts, its question when blocked); closes its pane")
-    .option("--run <id>", "run id (default: latest)")
+    .addOption(runOption())
     .action(
       ctx.action(async (worker: string, opts: { run?: string }) => {
         const path = await runPath(opts.run, "collect");
@@ -105,10 +105,9 @@ export function registerConductorCommands(program: Command, runs: Command, ctx: 
       }),
     );
 
-  runs
-    .command("workers")
+  meta(runs.command("workers"), { reads: true })
     .description("The run's workers: their panes, states and results so far")
-    .option("--run <id>", "run id (default: latest)")
+    .addOption(runOption())
     .action(
       ctx.action(async (opts: { run?: string }) => {
         const path = await runPath(opts.run, "workers");
@@ -136,7 +135,7 @@ export function registerConductorCommands(program: Command, runs: Command, ctx: 
       [] as string[],
     )
     .option("--question <text>", "with blocked: the decision a person must take")
-    .option("--run <id>", "run id (default: latest)")
+    .addOption(runOption())
     .action(
       ctx.action(
         async (opts: {

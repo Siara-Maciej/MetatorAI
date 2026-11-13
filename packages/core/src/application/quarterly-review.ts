@@ -1,9 +1,9 @@
 import type { MetatorError } from "../domain/errors.ts";
 import { type QuarterlyReview, QuarterlyReviewDocument, reviewActions } from "../domain/quarterly-review.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
 import type { DocsInventory } from "./docs.ts";
+import { writeDocument } from "./document-io.ts";
 import type { CompareEvals } from "./evals.ts";
 import type { MemoryBudget } from "./memory.ts";
 import type { MetatorPaths } from "./paths.ts";
@@ -102,7 +102,7 @@ export class RunQuarterlyReview {
     };
     const review: QuarterlyReview = { ...body, actions: reviewActions(body) };
     const output = `${this.d.paths.reviews}/quarterly-${now.toISOString().slice(0, 10)}.json`;
-    const saved = await this.d.fs.write(output, serializeJsonDocument(QuarterlyReviewDocument.stamp(review)));
+    const saved = await writeDocument(this.d.fs, output, QuarterlyReviewDocument, review, "json");
     if (saved.isErr()) return err(saved.error);
     return ok({ ...review, output });
   }

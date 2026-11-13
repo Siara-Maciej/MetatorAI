@@ -3,10 +3,10 @@
  * the panel, how a question becomes an inbox row, how times read. Pure functions, no DOM.
  */
 import type {
+  Activity,
   Attention,
   InboxItem,
   IssueRef,
-  PaneState,
   PaneView,
   Question,
   ResolvedOption,
@@ -174,21 +174,8 @@ export const clock = (iso: string): string => {
   return Number.isNaN(d.getTime()) ? iso : d.toTimeString().slice(0, 8);
 };
 
-/** The stage bar's text: `intake ✓ ─ plan ⟳ ─ gates ·`. */
-export function stageGlyph(s: Pick<StageProgress, "state">): string {
-  switch (s.state) {
-    case "done":
-      return "✓";
-    case "current":
-      return "⟳";
-    case "waiting":
-      return "?";
-    case "stopped":
-      return "✕";
-    default:
-      return "·";
-  }
-}
+/** The glyph of a stage in the stage bar: `intake ✓ ─ plan ⟳ ─ gates ·` (the `stage` row of `LOOKS`). */
+export const stageGlyph = (s: Pick<StageProgress, "state">): string => lookOf("stage", s.state).glyph;
 
 /**
  * The command the card's footer shows: what the button does. The card answers the question
@@ -339,16 +326,6 @@ export function paneLabel(pane: Pick<PaneView, "role" | "label" | "worker" | "pr
     return `agent · ${pane.process.kind === "host" ? pane.process.agent : pane.label}`;
   return pane.label || pane.role;
 }
-
-/** The chip tone of a pane state: blocked and waiting want a person, working is the agent's, the rest is grey. */
-export const stateTone = (state: PaneState | undefined): "amber" | "violet" | "red" | undefined =>
-  state === "blocked" || state === "waiting"
-    ? "amber"
-    : state === "working"
-      ? "violet"
-      : state === "exited"
-        ? "red"
-        : undefined;
 
 /** The settings search: the key, the title or the description holds the words. */
 export const optionMatches = (o: ResolvedOption, query: string): boolean => {
@@ -597,7 +574,7 @@ export function withRatio(node: SplitNode, path: readonly ("a" | "b")[], ratio: 
     : { ...node, b: withRatio(node.b, rest, ratio) };
 }
 
-export type GotoFilter = "all" | "blocked" | "working" | "idle" | "done";
+export type GotoFilter = "all" | "asks" | "working" | "idle" | "done";
 
 export interface GotoRow {
   readonly kind: "pane" | "question";
@@ -605,7 +582,7 @@ export interface GotoRow {
   readonly tab: WorkbenchTab;
   readonly label: string;
   readonly detail: string;
-  readonly state: PaneState | "question" | undefined;
+  readonly state: PaneShown | "question";
   readonly paneId?: string | undefined;
   readonly questionId?: string | undefined;
 }
@@ -624,7 +601,7 @@ export function gotoRows(
       for (const id of tab.panes) {
         const p = panes.find((x) => x.id === id);
         if (!p) continue;
-        const state = p.state?.state ?? (p.live?.alive ? "working" : "exited");
+        const state = paneStateOf(p);
         rows.push({
           kind: "pane",
           id: p.id,
@@ -649,8 +626,8 @@ export function gotoRows(
   return rows.filter((r) => {
     if (q !== "" && !`${r.label} ${r.detail} ${r.tab.label}`.toLowerCase().includes(q)) return false;
     switch (filter) {
-      case "blocked":
-        return r.state === "blocked" || r.state === "waiting" || r.state === "question";
+      case "asks":
+        return r.state === "asks" || r.state === "question";
       case "working":
         return r.state === "working";
       case "idle":
@@ -662,12 +639,6 @@ export function gotoRows(
     }
   });
 }
-
-/** The process strip's text for a run: `intake ✓ · plan ⟳ · gates ·`, each stage once. */
-export const stripStages = (
-  run: RunOverview | undefined,
-): { id: string; glyph: string; state: StageProgress["state"] }[] =>
-  (run?.stages ?? []).map((s) => ({ id: s.id, glyph: stageGlyph(s), state: s.state }));
 
 /* ---------- keys, answers, hosts, repositories: the small decisions every screen shares ---------- */
 
@@ -762,3 +733,382 @@ export const autonomyLabel = (level: string): string =>
 export const autonomyLevels = (
   workflow: { readonly autonomy?: readonly string[] | undefined } | undefined,
 ): readonly string[] => (workflow?.autonomy?.length ? workflow.autonomy : ["L0", "L1"]);
+
+/* ---------- one vocabulary: what a state reads as, its glyph and its colour ---------- */
+
+/** The colours a state can take; each is a class of the stylesheet (`faint` is the dim text colour). */
+export type Tone = "amber" | "violet" | "red" | "green" | "blue" | "teal" | "faint";
+
+/**
+ * What a pane reads as, on every screen: an agent at work, an agent that asks (on its own screen
+ * or on a card), a pane where nothing happens, a process that ended.
+ */
+export type PaneShown = "working" | "asks" | "idle" | "exited";
+
+/**
+ * The state of a pane as the app shows it. The daemon's `blocked` (the host's prompt is on the
+ * screen) and `waiting` (a question of the run is open) both read `asks`, and only for an agent: a
+ * shell of the same run does not ask, it is idle. A live shell the daemon says nothing about is
+ * idle too, never "working"; a pane with no live process has exited.
+ */
+export function paneStateOf(pane: Pick<PaneView, "process" | "live" | "state">): PaneShown {
+  const raw = pane.state?.state;
+  if (raw === "exited" || !pane.live?.alive) return "exited";
+  const agent = pane.process.kind === "host";
+  if (raw === "blocked" || raw === "waiting") return agent ? "asks" : "idle";
+  if (raw === "working") return "working";
+  if (raw === "idle") return "idle";
+  return agent ? "working" : "idle";
+}
+
+export interface Look {
+  readonly glyph: string;
+  readonly tone?: Tone | undefined;
+}
+
+/** Every state the app draws with a glyph and a colour, by what it is the state of. */
+export const LOOKS = {
+  pane: {
+    working: { glyph: "⋮", tone: "violet" },
+    asks: { glyph: "?", tone: "amber" },
+    idle: { glyph: "✓", tone: "faint" },
+    exited: { glyph: "✕", tone: "red" },
+    question: { glyph: "?", tone: "amber" },
+  },
+  stage: {
+    done: { glyph: "✓", tone: "green" },
+    current: { glyph: "⟳", tone: "violet" },
+    waiting: { glyph: "?", tone: "amber" },
+    stopped: { glyph: "✕", tone: "red" },
+    next: { glyph: "·", tone: "faint" },
+  },
+  step: {
+    done: { glyph: "✓", tone: "green" },
+    "in-progress": { glyph: "⋮", tone: "violet" },
+    blocked: { glyph: "!", tone: "amber" },
+    todo: { glyph: "○", tone: "faint" },
+    waiting: { glyph: "?", tone: "amber" },
+  },
+  issue: {
+    proposed: { glyph: "?", tone: "amber" },
+    "in-progress": { glyph: "⋮", tone: "violet" },
+    open: { glyph: "○" },
+    done: { glyph: "✓", tone: "green" },
+    dropped: { glyph: "✕", tone: "faint" },
+  },
+  note: {
+    draft: { glyph: "✎", tone: "amber" },
+    sent: { glyph: "→", tone: "violet" },
+    addressed: { glyph: "✓", tone: "green" },
+  },
+  thread: {
+    open: { glyph: "○", tone: "amber" },
+    answered: { glyph: "↩" },
+    planned: { glyph: "⋮", tone: "violet" },
+    fixed: { glyph: "✓", tone: "green" },
+    resolved: { glyph: "✓", tone: "green" },
+  },
+  file: {
+    added: { glyph: "A", tone: "green" },
+    deleted: { glyph: "D", tone: "red" },
+    modified: { glyph: "M", tone: "amber" },
+    renamed: { glyph: "R", tone: "amber" },
+  },
+  attention: {
+    you: { glyph: "●", tone: "amber" },
+    driving: { glyph: "●", tone: "violet" },
+    escalated: { glyph: "●", tone: "red" },
+    done: { glyph: "●", tone: "green" },
+    stopped: { glyph: "●", tone: "faint" },
+    aborted: { glyph: "●", tone: "faint" },
+  },
+} as const satisfies Record<string, Record<string, Look>>;
+
+export type LookKind = keyof typeof LOOKS;
+
+/** The glyph and colour of a state; a state the table does not know is a faint dot. */
+export function lookOf(kind: LookKind, state: string | undefined): Look {
+  const table: Record<string, Look> = LOOKS[kind];
+  return (state !== undefined ? table[state] : undefined) ?? { glyph: "·", tone: "faint" };
+}
+
+/* ---------- counts, repositories, routes: what several screens must agree on ---------- */
+
+/** Two things belong to the same repository; "no repository" (the daemon serves one) is one too. */
+export const sameRepo = (a: string | undefined, b: string | undefined): boolean => (a ?? "") === (b ?? "");
+
+/** A run that waits for a person: it asks (on a card or in its terminal), or it escalated (F1). */
+export const needsPerson = (r: Pick<RunOverview, "attention">): boolean =>
+  r.attention === "you" || r.attention === "escalated";
+
+export interface RunCounts {
+  /** Runs that wait for a person, escalated ones included. */
+  readonly needYou: number;
+  readonly working: number;
+  /** Among `needYou`: the runs that stopped and need work. */
+  readonly escalated: number;
+  readonly stopped: number;
+  readonly finished: number;
+  /** Every run that is not finished: what the panel, the graph and the daemon screen list. */
+  readonly open: number;
+}
+
+/** The one count of runs: the top bar, the Inbox, the graph and the daemon screen all read it. */
+export function runCounts(runs: readonly Pick<RunOverview, "attention" | "status">[]): RunCounts {
+  const of = (a: Attention) => runs.filter((r) => r.attention === a).length;
+  const finished = runs.filter(isFinished).length;
+  return {
+    needYou: runs.filter(needsPerson).length,
+    working: of("driving"),
+    escalated: of("escalated"),
+    stopped: of("stopped"),
+    finished,
+    open: runs.length - finished,
+  };
+}
+
+/** The runs that are not finished, escalated ones included. */
+export const openRuns = <R extends Pick<RunOverview, "status">>(runs: readonly R[]): R[] =>
+  runs.filter((r) => !isFinished(r));
+
+/** The run a route is about (session, plan, changes, briefing), or none. */
+export const runIdOf = (route: Route): string | undefined =>
+  route.screen === "session" ||
+  route.screen === "plan" ||
+  route.screen === "review" ||
+  route.screen === "briefing"
+    ? route.runId
+    : undefined;
+
+/** The four screens of one run, in the order of the run header's tabs. */
+export const RUN_TABS = [
+  { screen: "session", label: "Session" },
+  { screen: "plan", label: "Plan" },
+  { screen: "review", label: "Changes" },
+  { screen: "briefing", label: "Briefing" },
+] as const;
+
+/**
+ * Where a run stands for the session screen's bar: `escalated` and `finished` runs have no
+ * driver to show and nothing to attach to.
+ */
+export const runPhase = (r: Pick<RunOverview, "status">): "active" | "escalated" | "finished" =>
+  r.status === "escalated" ? "escalated" : isFinished(r) ? "finished" : "active";
+
+/** What the session screen says of a finished run in one line. */
+export const finishedText = (r: Pick<RunOverview, "status" | "stage" | "reason" | "elapsedMs">): string =>
+  r.status === "aborted"
+    ? `Closed as aborted at ${r.stage}${r.reason ? `: ${r.reason}` : ""}.`
+    : `Done: every stage passed, in ${duration(r.elapsedMs)}.`;
+
+/** Events grouped by the stage they happened in, in the order the stages first appear. */
+export function byStage<E extends Pick<Activity, "stage">>(entries: readonly E[]): [string, E[]][] {
+  const groups = new Map<string, E[]>();
+  for (const e of entries) groups.set(e.stage ?? "run", [...(groups.get(e.stage ?? "run") ?? []), e]);
+  return [...groups.entries()];
+}
+
+/** `2 replies`, `1 reply`, `1 task`: a count with its noun. */
+export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+
+/** The message of a refusal, with its hint; what the app says when the daemon says nothing. */
+export const refusalText = (
+  error: { readonly message?: string; readonly hint?: string } | undefined,
+  fallback = "the daemon refused",
+): string => `${error?.message ?? fallback}${error?.hint ? ` ${error.hint}` : ""}`;
+
+/* ---------- the workbench's small decisions ---------- */
+
+/** The tab that holds a pane, or the tab of a run. */
+export const tabOfPane = (repos: readonly WorkbenchRepo[], paneId: string): WorkbenchTab | undefined =>
+  repos.flatMap((r) => r.tabs).find((t) => t.panes.includes(paneId));
+export const tabOfRun = (repos: readonly WorkbenchRepo[], runId: string): WorkbenchTab | undefined =>
+  repos.flatMap((r) => r.tabs).find((t) => t.runId === runId);
+
+/** The sidebar entry a tab sits under. */
+export const repoOfTab = (repos: readonly WorkbenchRepo[], tabKey: string): WorkbenchRepo | undefined =>
+  repos.find((r) => r.tabs.some((t) => t.key === tabKey));
+
+/** The next tab that waits for a person after the current one, around the end; none when none waits. */
+export function nextWaitingTab(
+  repos: readonly WorkbenchRepo[],
+  currentKey: string | undefined,
+): WorkbenchTab | undefined {
+  const all = repos.flatMap((r) => r.tabs);
+  const i = all.findIndex((t) => t.key === currentKey);
+  return [...all.slice(i + 1), ...all.slice(0, i + 1)].find(
+    (t) => t.attention === "you" || t.attention === "escalated",
+  );
+}
+
+/**
+ * Closing a tab closes its whole workspace when the tab is a run's, or the last of its workspace;
+ * a tab that shares its workspace loses only its own panes.
+ */
+export const closesWorkspace = (repos: readonly WorkbenchRepo[], tab: WorkbenchTab): boolean =>
+  tab.kind === "task" ||
+  repos.flatMap((r) => r.tabs).filter((t) => t.workspaceId === tab.workspaceId).length === 1;
+
+/** The one toast of the workbench: the first open question of a tab shown here that was not dismissed. */
+export function toastOf<I extends Pick<InboxItem, "runId" | "question">>(
+  inbox: readonly I[],
+  repos: readonly WorkbenchRepo[],
+  dismissed: readonly string[],
+  announce: boolean,
+): I | undefined {
+  if (!announce) return undefined;
+  return inbox.find(
+    (i) => !dismissed.includes(`${i.runId}/${i.question.id}`) && tabOfRun(repos, i.runId) !== undefined,
+  );
+}
+
+/** The host a dead pane starts again on: the one it had while it is installed, else the order's first installed. */
+export function retryHost(
+  wanted: string,
+  hostOrder: readonly string[],
+  status: readonly HostStatus[] | undefined,
+): string | undefined {
+  if (!status || status.some((h) => h.id === wanted && h.installed)) return wanted;
+  return hostChoice(hostOrder, status);
+}
+
+/** What a workbench command can see when it says its label and whether it applies. */
+export interface CommandContext {
+  /** The pane the command is about: the focused one, or the one under the menu. */
+  readonly pane?:
+    | { readonly runId?: string | undefined; readonly role: PaneView["role"]; readonly asks: boolean }
+    | undefined;
+  /** The person holds the keyboard of that pane's run. */
+  readonly attached: boolean;
+  /** Someone else holds it. */
+  readonly taken: boolean;
+  readonly zoomed: boolean;
+  readonly tab?: { readonly kind: "task" | "shell"; readonly runId?: string | undefined; readonly panes: number } | undefined;
+}
+
+export interface WorkbenchCommand {
+  /** The action's name: the `keys.<id>` option binds it. */
+  readonly id: string;
+  /** What the help and the menus call it. */
+  label(ctx: CommandContext): string;
+  /** The menus that list it, in this table's order. */
+  readonly menu?: "pane" | "tab" | "tab-own" | undefined;
+  /** A thin line above it in a menu. */
+  readonly separator?: boolean | undefined;
+  enabled?(ctx: CommandContext): boolean;
+  /** Only listed when it applies (the two keyboard commands swap). */
+  shown?(ctx: CommandContext): boolean;
+}
+
+const hasRun = (c: CommandContext) => c.pane?.runId !== undefined;
+
+/**
+ * Every command of the workbench, once: the keys run them (`keys.*`), the right-click menus list
+ * the ones with a `menu`, and the help overlay lists them all with their keys.
+ */
+export const WORKBENCH_COMMANDS: readonly WorkbenchCommand[] = [
+  {
+    id: "attach",
+    label: (c) => (c.pane?.asks ? "Answer here (take the keyboard)" : "Take the keyboard"),
+    menu: "pane",
+    shown: (c) => hasRun(c) && !c.attached,
+    enabled: (c) => hasRun(c) && !c.taken,
+  },
+  {
+    id: "release",
+    label: () => "Give the keyboard back",
+    menu: "pane",
+    shown: (c) => !hasRun(c) || c.attached,
+    enabled: hasRun,
+  },
+  { id: "zoom", label: (c) => (c.zoomed ? "Unzoom" : "Zoom"), menu: "pane" },
+  { id: "splitRight", label: () => "Split right", menu: "pane" },
+  { id: "splitDown", label: () => "Split down", menu: "pane" },
+  { id: "copyMode", label: () => "Copy mode", menu: "pane" },
+  { id: "plan", label: () => "Plan of the run", menu: "pane", separator: true, enabled: hasRun },
+  { id: "changes", label: () => "Changes", menu: "pane", enabled: hasRun },
+  { id: "editor", label: () => "Open in editor", menu: "pane" },
+  { id: "taskFromHere", label: () => "New task from here…", menu: "pane" },
+  {
+    id: "closePane",
+    label: () => "Close pane",
+    menu: "pane",
+    separator: true,
+    enabled: (c) => c.pane?.role !== "conductor",
+  },
+  { id: "newShellTab", label: () => "New tab: shell", menu: "tab" },
+  { id: "newTab", label: () => "New tab: tell the agent a task (it starts the run)…", menu: "tab" },
+  { id: "backlog", label: () => "Backlog…", menu: "tab" },
+  { id: "newShell", label: () => "New shell pane here", menu: "tab-own", separator: true },
+  {
+    id: "closeTab",
+    label: (c) => (c.tab?.kind === "task" ? "Close tab (its panes; the worktree stays)" : "Close tab"),
+    menu: "tab-own",
+    enabled: (c) => !(c.tab?.kind === "shell" && c.tab.panes === 0),
+  },
+  { id: "focusLeft", label: () => "Focus the pane before" },
+  { id: "focusRight", label: () => "Focus the pane after" },
+  { id: "focusUp", label: () => "Focus the pane before" },
+  { id: "focusDown", label: () => "Focus the pane after" },
+  { id: "goto", label: () => "Go to a pane or a question" },
+  { id: "nextWaiting", label: () => "Next tab that waits for you" },
+  { id: "help", label: () => "This help" },
+];
+
+const NO_CONTEXT: CommandContext = { attached: false, taken: false, zoomed: false };
+
+/** The items of a menu: the commands listed for it that apply, with their label and whether they can run. */
+export function menuCommands(
+  menus: readonly NonNullable<WorkbenchCommand["menu"]>[],
+  ctx: CommandContext,
+): { readonly id: string; readonly label: string; readonly separator: boolean; readonly disabled: boolean }[] {
+  return WORKBENCH_COMMANDS.filter(
+    (c) => c.menu !== undefined && menus.includes(c.menu) && (c.shown?.(ctx) ?? true),
+  ).map((c) => ({
+    id: c.id,
+    label: c.label(ctx),
+    separator: c.separator === true,
+    disabled: !(c.enabled?.(ctx) ?? true),
+  }));
+}
+
+/** A chord as a person presses it: `prefix+z` reads `ctrl+b z`; a bare chord reads as it is. */
+export const chordText = (map: KeyMap, chord: string): string =>
+  chord.startsWith("prefix+")
+    ? `${map.prefix?.[0] ?? "prefix"} ${chord.slice("prefix+".length)}`
+    : chord;
+
+/** The first key of an action as a person presses it (`ctrl+b z`), for a menu item; none when unbound. */
+export const keyLabel = (map: KeyMap, action: string): string | undefined => {
+  const chord = map[action]?.[0];
+  return chord === undefined ? undefined : chordText(map, chord);
+};
+
+/** A key that works on every screen, outside a field. */
+export const SHELL_KEYS: readonly { readonly keys: string; readonly label: string }[] = [
+  { keys: "?", label: "This help" },
+  { keys: "g", label: "Next run that waits for you" },
+  { keys: "n", label: "New session: talk to the agent that starts a task" },
+  { keys: "esc", label: "Close a dialog, a menu or the runs drawer" },
+  { keys: "o", label: "Inbox: open the session of the chosen question" },
+  { keys: "↵", label: "Inbox: send the chosen answer" },
+  { keys: "a / c", label: "Session: attach / release to the agent" },
+  { keys: "t", label: "Session: terminal or events" },
+  { keys: "e / d", label: "Session: open in the editor / the changes" },
+];
+
+/**
+ * The help overlay's rows for the workbench: every bound command with all its keys as they are
+ * pressed, in the table's order; a command with no key is left out.
+ */
+export function helpRows(map: KeyMap): { readonly id: string; readonly keys: string; readonly label: string }[] {
+  const rows = [
+    { id: "prefix", keys: (map.prefix ?? []).join(" / "), label: "The prefix: press it, then a key below" },
+    ...WORKBENCH_COMMANDS.map((c) => ({
+      id: c.id,
+      keys: (map[c.id] ?? []).map((chord) => chordText(map, chord)).join(" / "),
+      label: c.label(NO_CONTEXT),
+    })),
+  ];
+  return rows.filter((r) => r.keys !== "");
+}

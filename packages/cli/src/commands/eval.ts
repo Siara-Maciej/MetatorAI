@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { EvalCaseDocument, err, MetatorError, normalizePath, ok } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
+import { schemaCommand } from "../outcome.ts";
 import { positiveInt, ratio, renamedOption } from "../options.ts";
 
 export function registerEvalCommands(program: Command, { action, container }: CommandContext): void {
@@ -159,8 +160,5 @@ export function registerEvalCommands(program: Command, { action, container }: Co
       }),
     );
 
-  evals
-    .command("schema")
-    .description("Print the JSON Schema of a golden eval case")
-    .action(action(() => ({ result: ok(EvalCaseDocument.jsonSchema("input")) })));
+  schemaCommand(evals, ctx, "Print the JSON Schema of a golden eval case", EvalCaseDocument);
 }

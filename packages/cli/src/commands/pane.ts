@@ -1,5 +1,6 @@
 import { type LayoutView, PANE_STATES, type PaneState } from "@metator/core";
 import { type Command, Option } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, findDaemon, paneHeaders } from "../daemon-client.ts";
 import { positiveInt } from "../options.ts";
@@ -14,8 +15,7 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
     .command("pane")
     .description("The runtime's workspaces and panes: list them, read one, wait for its state");
 
-  pane
-    .command("list")
+  meta(pane.command("list"), { reads: true })
     .description("Every workspace with its panes and their live state")
     .action(
       ctx.action(async () => {
@@ -27,8 +27,7 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
       }),
     );
 
-  pane
-    .command("read <pane>")
+  meta(pane.command("read <pane>"), { reads: true })
     .description("The last lines of a pane's output, without terminal escapes")
     .option("--lines <n>", "how many lines", positiveInt, 80)
     .action(

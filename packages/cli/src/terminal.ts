@@ -1,5 +1,5 @@
 import { cancel, confirm, intro, isCancel, log, multiselect, outro, select, text } from "@clack/prompts";
-import type { Autonomy, HostTarget, Question } from "@metator/core";
+import { type Autonomy, type HostTarget, needsWords, type Question, wordsRequired } from "@metator/core";
 
 export interface SetupAnswers {
   readonly hosts: readonly HostTarget[];
@@ -224,12 +224,12 @@ export const clackTerminal: Terminal = {
         });
     if (isCancel(chosen)) return null;
     const choices = Array.isArray(chosen) ? chosen : [chosen];
-    const needsText = choices.includes("Other") || choices.includes("Reject") || choices.includes("Deny");
-    if (!needsText) return { choices };
+    // Only Other and Reject promise the person's own words; Deny is a whole answer.
+    if (!needsWords(choices)) return { choices };
     const words = await text({
       ...io,
-      message: choices.includes("Other") ? "Your answer" : "Why? (it goes back to the run)",
-      validate: (v) => (choices.includes("Other") && !v?.trim() ? "Write your answer" : undefined),
+      message: wordsRequired(choices) ? "Your answer" : "Why? (it goes back to the run)",
+      validate: (v) => (wordsRequired(choices) && !v?.trim() ? "Write your answer" : undefined),
     });
     if (isCancel(words)) return null;
     return { choices, ...(words.trim() ? { text: words.trim() } : {}) };

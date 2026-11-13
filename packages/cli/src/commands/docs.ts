@@ -1,5 +1,6 @@
 import { ClaimSetDocument, err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 export function registerDocsCommands(program: Command, { action, container }: CommandContext): void {
@@ -7,8 +8,7 @@ export function registerDocsCommands(program: Command, { action, container }: Co
     .command("docs")
     .description("Documentation: inventory, dead links, claims that drifted from the code");
 
-  docs
-    .command("inventory")
+  meta(docs.command("inventory"), { reads: true })
     .description("Every Markdown document with lines, last change, age, owners and links")
     .option("--generated", "include the host files `metator generate` wrote (copies of the canon)", false)
     .action(
@@ -17,8 +17,7 @@ export function registerDocsCommands(program: Command, { action, container }: Co
       })),
     );
 
-  docs
-    .command("links")
+  meta(docs.command("links"), { audience: "ci", reads: true, check: [] })
     .description("Relative links in Markdown that point at a missing file, directory or heading")
     .option("--generated", "include the host files `metator generate` wrote (copies of the canon)", false)
     .action(
@@ -38,8 +37,7 @@ export function registerDocsCommands(program: Command, { action, container }: Co
       }),
     );
 
-  docs
-    .command("drift")
+  meta(docs.command("drift"), { audience: "ci", reads: true, writesWith: ["--fix"], check: [] })
     .description(
       "Verified claims (docs/metator/claims.json) checked against the code again; --fix updates moved lines",
     )
@@ -66,8 +64,10 @@ export function registerDocsCommands(program: Command, { action, container }: Co
       }),
     );
 
-  docs
-    .command("claims-schema")
-    .description("Print the JSON Schema of the claims file")
-    .action(action(async () => ({ result: ok(ClaimSetDocument.jsonSchema("input")) })));
+  // `docs schema`, as every other group names it; `docs claims-schema` is its old name.
+  renamedCommand({ parent: docs, name: "claims-schema" }, { parent: docs, name: "schema" }, (cmd) =>
+    cmd
+      .description("Print the JSON Schema of the claims file")
+      .action(action(async () => ({ result: ok(ClaimSetDocument.jsonSchema("input")) }))),
+  );
 }

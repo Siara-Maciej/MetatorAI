@@ -8,13 +8,9 @@ import {
   type RunRecord,
   RunRecordDocument,
 } from "../domain/run-record.ts";
-import {
-  parseJsonDocument,
-  readFrontMatter,
-  renderFrontMatter,
-  serializeJsonDocument,
-} from "../domain/versioned.ts";
+import { renderFrontMatter } from "../domain/versioned.ts";
 import type { FileLock, FileSystem } from "../ports/index.ts";
+import { parseDocumentText, writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 
 /** A run whose record cannot be read (a torn or hand-edited `state.json`): skipped, and said. */
@@ -64,15 +60,15 @@ export class RunRepository {
   }
 
   async save(record: RunRecord): Promise<Result<void, MetatorError>> {
-    const written = await this.fs.write(
+    const written = await writeDocument(
+      this.fs,
       this.stateFile(record.runId),
-      serializeJsonDocument(RunRecordDocument.stamp(record)),
+      RunRecordDocument,
+      record,
+      "json",
     );
     if (written.isErr()) return written;
-    return this.fs.write(
-      this.pointerFile(),
-      serializeJsonDocument(RunPointerDocument.stamp({ runId: record.runId })),
-    );
+    return writeDocument(this.fs, this.pointerFile(), RunPointerDocument, { runId: record.runId }, "json");
   }
 
   /**
@@ -119,9 +115,7 @@ export class RunRepository {
         new MetatorError("NOT_FOUND", "No runs yet", { hint: "Start one with `metator run init`." }),
       );
     }
-    return parseJsonDocument(text.value, source)
-      .andThen((raw) => RunPointerDocument.parse(raw, source))
-      .map((pointer) => pointer.runId);
+    return parseDocumentText(text.value, source, RunPointerDocument, "json").map((pointer) => pointer.runId);
   }
 
   /**
@@ -166,9 +160,7 @@ export class RunRepository {
     const file = this.logFile(runId);
     const current = await this.fs.read(file);
     if (current.isErr()) return ok(undefined); // created on first append
-    return readFrontMatter(current.value, file)
-      .andThen((raw) => RunLogDocument.parse(raw, file))
-      .map(() => undefined);
+    return parseDocumentText(current.value, file, RunLogDocument, "front-matter").map(() => undefined);
   }
 
   /** The log's entries, oldest first (empty before the first append). */
@@ -176,14 +168,12 @@ export class RunRepository {
     const file = this.logFile(runId);
     const current = await this.fs.read(file);
     if (current.isErr()) return ok([]);
-    return readFrontMatter(current.value, file)
-      .andThen((raw) => RunLogDocument.parse(raw, file))
-      .map(() =>
-        current.value
-          .split("\n")
-          .filter((l) => l.startsWith("- "))
-          .map((l) => l.slice(2)),
-      );
+    return parseDocumentText(current.value, file, RunLogDocument, "front-matter").map(() =>
+      current.value
+        .split("\n")
+        .filter((l) => l.startsWith("- "))
+        .map((l) => l.slice(2)),
+    );
   }
 
   /** One line added at the end in one step: two writers never lose each other's line (R5). */

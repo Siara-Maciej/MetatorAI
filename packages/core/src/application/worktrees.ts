@@ -1,7 +1,6 @@
 import { MetatorError } from "../domain/errors.ts";
 import { InProcessLock } from "../domain/in-process-lock.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import {
   candidateBlocks,
   DEFAULT_PORT_COUNT,
@@ -21,6 +20,7 @@ import type {
   PortProbe,
   WorktreeManager,
 } from "../ports/index.ts";
+import { parseDocumentText, readDocument, writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -69,13 +69,8 @@ export class WorktreeRegistry {
   }
 
   async all(): Promise<Result<readonly WorktreeEntry[], MetatorError>> {
-    const file = this.paths.worktreeRegistry;
-    if (!(await this.fs.exists(file))) return ok([]);
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file)
-      .andThen((raw) => WorktreeRegistryDocument.parse(raw, file))
-      .map((doc) => doc.worktrees);
+    const doc = await readDocument(this.fs, this.paths.worktreeRegistry, WorktreeRegistryDocument);
+    return doc.map((d) => d?.worktrees ?? []);
   }
 
   async get(id: string): Promise<Result<WorktreeEntry, MetatorError>> {
@@ -94,9 +89,12 @@ export class WorktreeRegistry {
   /** Writes the whole registry: inside `exclusive` only, with entries read there. */
   async save(entries: readonly WorktreeEntry[]): Promise<Result<void, MetatorError>> {
     const sorted = [...entries].sort((a, b) => a.id.localeCompare(b.id));
-    return this.fs.write(
+    return writeDocument(
+      this.fs,
       this.paths.worktreeRegistry,
-      serializeJsonDocument(WorktreeRegistryDocument.stamp({ worktrees: sorted })),
+      WorktreeRegistryDocument,
+      { worktrees: sorted },
+      "json",
     );
   }
 }
@@ -119,7 +117,7 @@ export class MachineLeases {
     const text = await this.state.read(LEASES);
     if (text.isErr()) return err(text.error);
     if (text.value === undefined) return ok([]);
-    const doc = parseJsonDocument(text.value, LEASES).andThen((raw) => PortLeasesDocument.parse(raw, LEASES));
+    const doc = parseDocumentText(text.value, LEASES, PortLeasesDocument, "json");
     if (doc.isErr()) return err(doc.error);
     const live: PortLease[] = [];
     for (const l of doc.value.leases) if (await this.state.dirExists(l.path)) live.push(l);
@@ -165,10 +163,7 @@ export class MachineLeases {
   ): Promise<Result<void, MetatorError>> {
     const live = await this.all();
     if (live.isErr()) return err(live.error);
-    return this.state.write(
-      LEASES,
-      serializeJsonDocument(PortLeasesDocument.stamp({ leases: [...change(live.value)] })),
-    );
+    return writeDocument(this.state, LEASES, PortLeasesDocument, { leases: [...change(live.value)] }, "json");
   }
 }
 

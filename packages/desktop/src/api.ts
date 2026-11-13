@@ -113,6 +113,15 @@ export interface Overview {
     readonly updatedAt: string;
   }[];
   readonly counts: AttentionCounts;
+  /** Runs whose record cannot be read: left out of `runs`, with the file to restore or delete. */
+  readonly unreadable?: readonly UnreadableRun[];
+}
+
+/** A run the daemon could not read (core's `UnreadableRun`). */
+export interface UnreadableRun {
+  readonly runId: string;
+  readonly file: string;
+  readonly message: string;
 }
 
 /** `/state`: one repository, or each repository of a folder. */
@@ -552,28 +561,36 @@ export class DaemonClient {
       { by },
       repo,
     );
-  /** Stops the process that drives the run; the run stays where it is. */
-  stop = (runId: string, repo?: string) =>
-    this.post<{ stopped: number | null }>(`/runs/${runId}/stop`, {}, repo);
   /** Ends a run as aborted, with the reason: its drive is stopped and its panes are closed. */
   abort = (runId: string, reason: string, repo?: string) =>
     this.post<{ status: string }>(`/runs/${runId}/close`, { aborted: true, reason }, repo);
   attach = (runId: string, by: string, repo?: string) => this.post(`/runs/${runId}/attach`, { by }, repo);
   release = (runId: string, repo?: string) => this.post(`/runs/${runId}/release`, {}, repo);
+  /** An answer to a question; `origin: "inbox"` only from the decision card (acceptance 11a counts it). */
   answer = (
-    runId: string,
-    question: string,
-    choices: string[],
-    by: string,
-    text?: string,
-    origin?: "inbox",
+    input: {
+      readonly runId: string;
+      readonly question: string;
+      readonly choices: readonly string[];
+      readonly by: string;
+      readonly text?: string | undefined;
+      readonly origin?: "inbox" | undefined;
+    },
     repo?: string,
   ) =>
     this.post<Question>(
-      `/runs/${runId}/answer`,
-      { question, choices, by, ...(text ? { text } : {}), ...(origin ? { origin } : {}) },
+      `/runs/${input.runId}/answer`,
+      {
+        question: input.question,
+        choices: input.choices,
+        by: input.by,
+        ...(input.text ? { text: input.text } : {}),
+        ...(input.origin ? { origin: input.origin } : {}),
+      },
       repo,
     );
+  /** Starts (or finds) the terminal session of a run's conductor: the one explicit way a session opens. */
+  ptyOpen = (runId: string, repo?: string) => this.post<PtySession>(`/runs/${runId}/pty-open`, {}, repo);
   message = (
     to: string,
     from: string,

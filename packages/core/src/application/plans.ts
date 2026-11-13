@@ -9,19 +9,16 @@ import {
   planScope,
 } from "../domain/plan.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
+import { loadDocument, writeDocument } from "./document-io.ts";
 import type { BuildImportGraph } from "./import-graph.ts";
 import type { ScanPatterns } from "./patterns.ts";
 import type { RuleCatalog } from "./rules.ts";
 
 type ImportEdges = readonly { readonly from: string; readonly to: string }[];
 
-async function readPlan(fs: FileSystem, file: string): Promise<Result<Plan, MetatorError>> {
-  const text = await fs.read(file);
-  if (text.isErr()) return err(text.error);
-  return parseJsonDocument(text.value, file).andThen((raw) => PlanDocument.parse(raw, file));
-}
+const readPlan = (fs: FileSystem, file: string): Promise<Result<Plan, MetatorError>> =>
+  loadDocument(fs, file, PlanDocument, "json");
 
 async function internalImports(
   graph: Pick<BuildImportGraph, "execute">,
@@ -94,7 +91,7 @@ export class ScopePlan {
     if (input.dryRun) return ok(scope);
     const dir = input.file.includes("/") ? input.file.slice(0, input.file.lastIndexOf("/")) : ".";
     const output = input.out ?? `${dir}/plan-scope.json`;
-    const saved = await this.fs.write(output, serializeJsonDocument(PlanScopeDocument.stamp(scope)));
+    const saved = await writeDocument(this.fs, output, PlanScopeDocument, scope, "json");
     if (saved.isErr()) return err(saved.error);
     return ok({ ...scope, output });
   }

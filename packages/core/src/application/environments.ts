@@ -22,12 +22,7 @@ import type { Phase } from "../domain/environment-profile.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { manifestPath } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import {
-  parseJsonDocument,
-  parseYamlDocument,
-  renderYamlDocument,
-  serializeJsonDocument,
-} from "../domain/versioned.ts";
+import { parseJsonDocument, parseYamlDocument, renderYamlDocument } from "../domain/versioned.ts";
 import { LOCKFILES, portVariables, type WorktreeEntry } from "../domain/worktree.ts";
 import type {
   BackgroundProcess,
@@ -42,6 +37,7 @@ import type {
   TreeCopier,
   WorkspaceReader,
 } from "../ports/index.ts";
+import { loadDocument, readDocument, writeDocument } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { WorktreeRegistry } from "./worktrees.ts";
 
@@ -61,9 +57,7 @@ export class EnvironmentCatalog {
         }),
       );
     }
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const env = parseYamlDocument(text.value, file).andThen((raw) => EnvironmentDocument.parse(raw, file));
+    const env = await loadDocument(this.fs, file, EnvironmentDocument, "yaml");
     if (env.isErr()) return err(env.error);
     const problems = lintEnvironment(env.value);
     if (problems.length > 0) {
@@ -580,15 +574,12 @@ export class EnvironmentServices {
   }
 
   private async state(place: string): Promise<Result<EnvState, MetatorError>> {
-    const file = this.stateFile(place);
-    if (!(await this.fs.exists(file))) return ok({ services: {} });
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file).andThen((raw) => EnvStateDocument.parse(raw, file));
+    const state = await readDocument(this.fs, this.stateFile(place), EnvStateDocument);
+    return state.map((s) => s ?? { services: {} });
   }
 
   private save(place: string, state: EnvState): Promise<Result<void, MetatorError>> {
-    return this.fs.write(this.stateFile(place), serializeJsonDocument(EnvStateDocument.stamp(state)));
+    return writeDocument(this.fs, this.stateFile(place), EnvStateDocument, state);
   }
 }
 

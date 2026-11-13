@@ -1,12 +1,26 @@
 /** Screen 2: one session, its terminal or its events, the driver lock, the question and the links. */
 import { useEffect, useState } from "react";
+import { ActivityList } from "../components/activity-list.tsx";
 import { QuickAnswer } from "../components/answer.tsx";
 import { Chip } from "../components/chips.tsx";
 import { Notice } from "../components/common.tsx";
-import { StageBar } from "../components/stage-bar.tsx";
+import { EscalatedActions } from "../components/escalated-card.tsx";
+import { RunHeader } from "../components/run-header.tsx";
+import { Tabs } from "../components/tabs.tsx";
 import { PaneTerminal, RunTerminal, sendLine, type TerminalStatus } from "../components/terminal.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { autonomyLabel, clock, duration, paneLabel, panesOfRun, plainKey, stateTone } from "../model.ts";
+import { useAction, useRunControls } from "../hooks.ts";
+import {
+  autonomyLabel,
+  duration,
+  finishedText,
+  lookOf,
+  paneLabel,
+  paneStateOf,
+  panesOfRun,
+  plainKey,
+  runPhase,
+} from "../model.ts";
 
 export function SessionScreen({
   runId,
@@ -21,39 +35,18 @@ export function SessionScreen({
   /** The run's change with the notes on it (S5). */
   onOpenReview(runId: string): void;
 }) {
-  const { client, runs, panes: allPanes, url, me, who } = useDaemon();
-  const run = runs.find((r) => r.runId === runId);
+  const { client, run: runOf, panesOf, url, me } = useDaemon();
+  const run = runOf(runId);
   const repo = run?.repo;
   // In a folder two repositories may use the same pane ids: only the run's repository counts.
-  const panes = panesOfRun(
-    allPanes.filter((p) => (p.repo ?? "") === (repo ?? "")),
-    runId,
-  );
+  const panes = panesOfRun(panesOf(repo), runId);
   const [chosenPane, setChosenPane] = useState<string | undefined>(wantedPane);
   useEffect(() => setChosenPane(wantedPane), [wantedPane]);
-  // The conductor's tab is the run's own terminal (opened by the daemon when none is live).
   const conductor = panes.find((p) => p.role === "conductor");
   const shown = chosenPane && panes.some((p) => p.id === chosenPane) ? chosenPane : conductor?.id;
-  const openShell = async () => {
-    const r = await client.openPane({ runId, role: "shell", label: "shell" }, repo);
-    if (r.ok && r.data) setChosenPane(r.data.id);
-    else setNote(r.error?.message);
-  };
-  const closePane = async (id: string) => {
-    const r = await client.closePane(id, repo);
-    if (!r.ok) setNote(r.error?.message);
-    else if (chosenPane === id) setChosenPane(undefined);
-  };
-  /** The run's directory in the person's editor (`editor.command`); a refusal is said on the screen. */
-  const openEditor = async () => {
-    const r = await client.openEditor(runId, {}, repo);
-    setNote(r.ok ? undefined : r.error?.message);
-  };
   const [tab, setTab] = useState<"terminal" | "events">("terminal");
   const [line, setLine] = useState("");
-  const [note, setNote] = useState<string>();
   const [termStatus, setTermStatus] = useState<TerminalStatus>({});
-  const attached = run?.driver === "human" && run.attachedBy === me && me !== "";
   const { data, reload: refresh } = usePolled(
     `session:${repo ?? ""}:${runId}`,
     async () => {
@@ -76,30 +69,51 @@ export function SessionScreen({
   const events = data?.events ?? [];
   const messages = data?.messages ?? [];
   const conflicts = data?.conflicts ?? [];
-  const attach = async () => {
-    const by = await who();
-    if (!by) return;
-    const r = await client.attach(runId, by, repo);
-    setNote(r.ok ? undefined : r.error?.message);
+  const action = useAction(refresh);
+  const { attached, taken, attach, release, openEditor, closePane, openSession } = useRunControls(run, action);
+  /**
+   * The run's own terminal is shown once its session lives, or once the person opened one here.
+   * Coming to this screen never starts a process: a run driven in the background, or one that
+   * has no session yet, says so and offers "Open a session".
+   */
+  const [terminalOf, setTerminalOf] = useState<string>();
+  const live = conductor?.live?.alive === true;
+  useEffect(() => {
+    if (live) setTerminalOf(runId);
+  }, [live, runId]);
+  const hasTerminal = terminalOf === runId;
+  const open = async () => {
+    if (await openSession()) setTerminalOf(runId);
   };
-  const release = async () => {
-    const r = await client.release(runId, repo);
-    setNote(r.ok ? undefined : r.error?.message);
+  const openShell = async () => {
+    let pane: string | undefined;
+    await action.run(async () => {
+      const r = await client.openPane({ runId, role: "shell", label: "shell" }, repo);
+      pane = r.data?.id;
+      return r;
+    });
+    if (pane) setChosenPane(pane);
+  };
+  const close = async (id: string) => {
+    if ((await closePane(id)) && chosenPane === id) setChosenPane(undefined);
   };
   const send = async () => {
     if (!attached) {
       await attach();
       return;
     }
-    const refused = await sendLine(runId, url, me, repo, line, shown !== conductor?.id ? shown : undefined);
-    setNote(refused);
+    const refused = await sendLine(runId, url, me, repo, line, shown ?? conductor?.id);
+    action.say(refused);
     if (!refused) setLine("");
   };
+  const phase = run ? runPhase(run) : "active";
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = plainKey(e);
-      if (k === "a" && !attached) void attach();
-      if (k === "c" && attached) void release();
+      if (phase === "active") {
+        if (k === "a" && !attached) void attach();
+        if (k === "c" && attached) void release();
+      }
       if (k === "t") setTab(tab === "terminal" ? "events" : "terminal");
       if (k === "e") void openEditor();
       if (k === "d") onOpenReview(runId);
@@ -112,12 +126,8 @@ export function SessionScreen({
   return (
     <div className="session">
       <div className="main">
-        <div className="head">
-          <h2 className="clip" title={run.task}>
-            {run.task}
-          </h2>
-          <div className="id mono">{run.runId}</div>
-          <div className="chips" style={{ marginTop: 4 }}>
+        <RunHeader runId={runId} run={run} screen="session">
+          <div className="chips">
             {repo ? <Chip>{repo}</Chip> : null}
             <Chip>{run.workflow}</Chip>
             <Chip>{autonomyLabel(run.autonomy)}</Chip>
@@ -133,34 +143,46 @@ export function SessionScreen({
               <Chip tone="amber">session exited {termStatus.exitCode}</Chip>
             ) : null}
           </div>
-          <StageBar stages={run.stages} />
-        </div>
-        <div className={`driverbar ${run.driver}`} data-testid="driverbar">
-          <strong>
-            Working:{" "}
-            {run.driver === "human" ? `${run.attachedBy ?? "a person"}${attached ? " (you)" : ""}` : "agent"}
-          </strong>
-          <span className="note">
-            {run.driver === "human"
-              ? "a yes in the chat counts as an approval while a person is attached"
-              : "attach to type; approvals said in the chat do not count until then"}
-          </span>
-          {attached ? (
-            <button type="button" onClick={() => void release()}>
-              Release to agent · c
+        </RunHeader>
+        {phase === "escalated" ? (
+          <div className="driverbar escalated" data-testid="driverbar">
+            <strong>Escalated at {run.stage}</strong>
+            <span className="note" data-testid="escalated-reason">
+              {run.reason ?? "The run recorded no reason. Its briefing shows what happened last."}
+            </span>
+            <EscalatedActions run={run} />
+          </div>
+        ) : phase === "finished" ? (
+          <div className={`driverbar finished ${run.status}`} data-testid="driverbar">
+            <strong>{run.status === "done" ? "Done" : "Aborted"}</strong>
+            <span className="note">{finishedText(run)}</span>
+            <button type="button" onClick={() => onOpenReview(runId)}>
+              Changes
             </button>
-          ) : (
-            <button
-              type="button"
-              className="primary"
-              onClick={() => void attach()}
-              disabled={run.driver === "human"}
-            >
-              Attach · a
-            </button>
-          )}
-        </div>
-        <Notice text={note} onClose={() => setNote(undefined)} />
+          </div>
+        ) : (
+          <div className={`driverbar ${run.driver}`} data-testid="driverbar">
+            <strong>
+              Working:{" "}
+              {run.driver === "human" ? `${run.attachedBy ?? "a person"}${attached ? " (you)" : ""}` : "agent"}
+            </strong>
+            <span className="note">
+              {run.driver === "human"
+                ? "a yes in the chat counts as an approval while a person is attached"
+                : "attach to type; approvals said in the chat do not count until then"}
+            </span>
+            {attached ? (
+              <button type="button" onClick={() => void release()}>
+                Release to agent · c
+              </button>
+            ) : (
+              <button type="button" className="primary" onClick={() => void attach()} disabled={taken}>
+                Attach · a
+              </button>
+            )}
+          </div>
+        )}
+        <Notice {...action.notice} />
         {run.terminalAsk ? (
           <div className="banner ask-banner" data-testid="terminal-ask">
             <span className="msg">
@@ -173,104 +195,110 @@ export function SessionScreen({
             ) : null}
           </div>
         ) : null}
-        <div className="tabs">
-          <button type="button" aria-pressed={tab === "terminal"} onClick={() => setTab("terminal")}>
-            Terminal
-          </button>
-          <button type="button" aria-pressed={tab === "events"} onClick={() => setTab("events")}>
-            Events · {events.length}
-          </button>
+        <Tabs
+          label="terminal or events"
+          current={tab}
+          onSelect={setTab}
+          items={[
+            { id: "terminal", label: "Terminal" },
+            { id: "events", label: `Events · ${events.length}` },
+          ]}
+        >
           <span className="spacer" />
           <span className="dim">e editor · t events · d changes</span>
-        </div>
+        </Tabs>
         {tab === "terminal" ? (
           <>
-            <div className="panes" role="tablist" aria-label="panes" data-testid="panes">
-              {panes.map((p) => (
-                <span key={p.id} className="pane-tab">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={shown === p.id}
-                    onClick={() => setChosenPane(p.id)}
-                    title={`${p.id} · ${p.state?.reason ?? ""}`}
-                  >
-                    {paneLabel(p)}
-                  </button>
-                  <Chip tone={stateTone(p.state?.state)}>
-                    {p.state?.state ?? (p.live?.alive ? "live" : "off")}
-                  </Chip>
-                  {p.role !== "conductor" ? (
-                    <button
-                      type="button"
-                      className="ghost"
-                      title={`close ${p.id}`}
-                      onClick={() => void closePane(p.id)}
-                    >
-                      ✕
-                    </button>
-                  ) : null}
-                </span>
-              ))}
+            <Tabs
+              label="panes"
+              className="panes"
+              testId="panes"
+              current={shown}
+              onSelect={setChosenPane}
+              items={panes.map((p) => ({
+                id: p.id,
+                label: paneLabel(p),
+                title: `${p.id} · ${p.state?.reason ?? ""}`,
+                after: (
+                  <>
+                    <Chip tone={lookOf("pane", paneStateOf(p)).tone}>{paneStateOf(p)}</Chip>
+                    {p.role !== "conductor" ? (
+                      <button
+                        type="button"
+                        className="ghost"
+                        title={`close ${p.id}`}
+                        aria-label={`close ${p.id}`}
+                        onClick={() => void close(p.id)}
+                      >
+                        ✕
+                      </button>
+                    ) : null}
+                  </>
+                ),
+              }))}
+            >
               <span className="spacer" />
               <button type="button" onClick={() => void openShell()}>
                 + Shell
               </button>
-            </div>
+            </Tabs>
             {shown && shown !== conductor?.id ? (
               <PaneTerminal key={shown} paneId={shown} repo={repo} canType={attached} />
-            ) : (
+            ) : hasTerminal ? (
               <RunTerminal runId={runId} repo={repo} canType={attached} onStatus={setTermStatus} />
+            ) : (
+              <div className="empty no-session" data-testid="no-session">
+                <h2>No session runs for this run</h2>
+                <p>
+                  {phase === "active"
+                    ? run.driving
+                      ? "An agent works on it in the background, without a terminal. Opening a session starts the host in a terminal of its own."
+                      : "Nothing works on it. Opening a session starts the host in a terminal."
+                    : phase === "escalated"
+                      ? "The run stopped. Resume it above; its events say what happened."
+                      : "The run is finished. Its events and its changes are what is left."}
+                </p>
+                {phase === "active" ? (
+                  <button type="button" className="primary" disabled={action.busy} onClick={() => void open()}>
+                    Open a session
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => setTab("events")}>
+                    Events
+                  </button>
+                )}
+              </div>
             )}
           </>
         ) : (
-          <div className="events">
-            <table>
-              <thead>
-                <tr>
-                  <th>time</th>
-                  <th>type</th>
-                  <th>source</th>
-                  <th>what</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.map((e, i) => (
-                  <tr key={`${e.at}-${String(i)}`}>
-                    <td className="time">{clock(e.at)}</td>
-                    <td className="type">{e.type}</td>
-                    <td className="src">{e.origin ?? (e.agent ? `agent ${e.agent}` : "run")}</td>
-                    <td>{e.text}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ActivityList entries={events} variant="table" />
         )}
-        <form
-          className="composer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send();
-          }}
-        >
-          <input
-            aria-label="message to the session"
-            placeholder={
-              attached
-                ? "type to the session · y / a / p / n are shortcuts the host knows"
-                : "attach to type (click here attaches)"
-            }
-            value={line}
-            onFocus={() => {
-              if (!attached && run.driver !== "human") void attach();
+        {phase === "active" ? (
+          <form
+            className="composer"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send();
             }}
-            onChange={(e) => setLine(e.target.value)}
-          />
-          <button type="submit" disabled={!attached}>
-            Send
-          </button>
-        </form>
+          >
+            <input
+              aria-label="message to the session"
+              placeholder={
+                attached
+                  ? "type to the session · y / a / p / n are shortcuts the host knows"
+                  : "attach to type (click here attaches)"
+              }
+              value={line}
+              onFocus={() => {
+                if (!attached && !taken) void attach();
+              }}
+              onChange={(e) => setLine(e.target.value)}
+            />
+            <button type="submit" disabled={!attached}>
+              Send
+            </button>
+          </form>
+        ) : null}
       </div>
       <aside className="side">
         <div className="box">
@@ -282,7 +310,7 @@ export function SessionScreen({
               </div>
               <QuickAnswer question={question} repo={repo} onDone={() => void refresh()} />
               {question.source === "permission" ? (
-                <div className="dim" style={{ marginTop: 4 }}>
+                <div className="dim">
                   The host asks in its terminal. To give the same answer every time, answer with{" "}
                   <code>metator run answer --always</code>.
                 </div>
@@ -290,6 +318,10 @@ export function SessionScreen({
             </>
           ) : run.terminalAsk ? (
             <div className="muted">the agent asks in its terminal: answer there</div>
+          ) : phase === "escalated" ? (
+            <div className="muted">the run escalated: resume or close it in the bar above</div>
+          ) : phase === "finished" ? (
+            <div className="muted">nothing: the run is {run.status}</div>
           ) : (
             <div className="muted">nothing waits for you here</div>
           )}
@@ -334,11 +366,7 @@ export function SessionScreen({
           {run.parent ? (
             <div>
               parent{" "}
-              <button
-                type="button"
-                className="ghost mono"
-                onClick={() => onOpenSession(run.parent as string)}
-              >
+              <button type="button" className="ghost mono" onClick={() => onOpenSession(run.parent as string)}>
                 {run.parent}
               </button>
             </div>

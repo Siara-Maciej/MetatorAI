@@ -1,9 +1,9 @@
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 export function registerChangedCommand(program: Command, { action, container }: CommandContext): void {
-  program
-    .command("changed")
+  meta(program.command("changed"), { reads: true })
     .description("Files changed against a git ref (committed on the branch, staged, unstaged, untracked)")
     .option("--base <ref>", "git ref to compare against", "HEAD")
     .action(

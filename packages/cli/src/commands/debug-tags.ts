@@ -1,12 +1,12 @@
 import { err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 export function registerDebugTagsCommands(program: Command, { action, container }: CommandContext): void {
-  program
-    .command("debug-tags")
-    .description("Instrumentation markers left in code")
-    .command("check")
+  meta(program.command("debug-tags").description("Instrumentation markers left in code").command("check"), {
+    reads: true,
+  })
     .description("No [DEBUG-<hex>] marker in the files changed against a base (or every file without --base)")
     .option("--base <ref>", "only files changed against this git ref")
     .action(

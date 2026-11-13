@@ -7,6 +7,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import { parseJsonDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
 import type { Conductor } from "./conductor.ts";
+import { parseDocumentText } from "./document-io.ts";
 import type { RunJournal } from "./drive.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -59,7 +60,7 @@ export class PlanBoard {
     for (const f of files.filter((x) => x.startsWith("results/"))) {
       const text = await this.d.fs.read(`${dir}/${f}`);
       if (text.isErr()) continue;
-      const parsed = parseJsonDocument(text.value, f).andThen((raw) => WorkerResultDocument.parse(raw, f));
+      const parsed = parseDocumentText(text.value, f, WorkerResultDocument, "json");
       if (parsed.isOk()) results.push(parsed.value);
     }
     const workers = await this.d.conductor.workers(runId);
@@ -85,9 +86,7 @@ export class PlanBoard {
       if (!(await this.d.fs.exists(file))) continue;
       const text = await this.d.fs.read(file);
       if (text.isErr()) continue;
-      const parsed = parseJsonDocument(text.value, file).andThen((raw) =>
-        GateReportDocument.parse(raw, file),
-      );
+      const parsed = parseDocumentText(text.value, file, GateReportDocument, "json");
       if (parsed.isOk()) gates.push(parsed.value);
     }
     const board = planBoardOf({

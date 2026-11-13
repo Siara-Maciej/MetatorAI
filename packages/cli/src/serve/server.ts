@@ -26,6 +26,7 @@ import {
   SplitNodeSchema,
   type Supervisor,
   serializeJsonDocument,
+  withNeedsText,
 } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import type { CommandContext, Folder } from "../context.ts";
@@ -178,6 +179,14 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           c: cached(r.root, () => ctx.containerAt(r.root)),
         }))
       : [{ name: "", path: ".", key: ".", c: cached(".", () => ctx.container()) }];
+  /**
+   * A served overview: each question's options say which ones ask for the person's own words
+   * (`needsText`), so the app reads the rule as data instead of keeping its own.
+   */
+  const served = (o: Overview): Overview => ({
+    ...o,
+    runs: o.runs.map((r) => ({ ...r, questions: r.questions.map(withNeedsText) })),
+  });
   /** The same overview `metator status` prints: one repository, or each repository of a folder. */
   const state = async (fresh: boolean): Promise<Json> => {
     const views = repoViews();
@@ -185,13 +194,17 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       const only = views[0] as (typeof views)[number];
       const o = await overviewOf(only.key, only.c, fresh);
       return o.isOk()
-        ? { ok: true, data: o.value }
+        ? { ok: true, data: served(o.value) }
         : { ok: false, error: { code: o.error.code, message: o.error.message } };
     }
     const repos: Json[] = [];
     for (const r of views) {
       const o = await overviewOf(r.key, r.c, fresh);
-      repos.push({ name: r.name, path: r.path, ...(o.isOk() ? o.value : { error: o.error.message }) });
+      repos.push({
+        name: r.name,
+        path: r.path,
+        ...(o.isOk() ? served(o.value) : { error: o.error.message }),
+      });
     }
     return { ok: true, data: { folder: folder.root, repos } };
   };
@@ -203,7 +216,10 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       const o = await overviewOf(r.key, r.c, fresh);
       if (o.isErr()) continue;
       const now = r.c.resolve("clock").now();
-      for (const item of inboxOf(o.value.runs, now)) items.push(folder ? { repo: r.name, ...item } : item);
+      for (const found of inboxOf(o.value.runs, now)) {
+        const item = { ...found, question: withNeedsText(found.question) };
+        items.push(folder ? { repo: r.name, ...item } : item);
+      }
       for (const item of escalatedOf(o.value.runs, now))
         escalated.push(folder ? { repo: r.name, ...item } : item);
     }

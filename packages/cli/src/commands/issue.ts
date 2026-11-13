@@ -8,8 +8,10 @@ import {
   MetatorError,
 } from "@metator/core";
 import { type Command, Option } from "commander";
+import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { BY_DEFAULT, who } from "../who.ts";
+import { byOption } from "../options.ts";
+import { who } from "../who.ts";
 
 /**
  * `metator issue` (S4, design/13 §4): the repository's backlog. A person adds, edits, closes,
@@ -39,8 +41,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       : undefined;
   const priority = new Option("--priority <level>", "how urgent").choices(ISSUE_PRIORITIES);
 
-  issue
-    .command("list")
+  meta(issue.command("list"), { audience: "person", reads: true })
     .description("The backlog, the most pressing first")
     .addOption(new Option("--status <status>", "only these").choices(ISSUE_STATUSES))
     .option("--run <id>", "only the tasks of this run (proposed from it, started as it, or pointing at it)")
@@ -57,8 +58,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       })),
     );
 
-  issue
-    .command("show <id>")
+  meta(issue.command("show <id>"), { reads: true })
     .description("One task with everything attached")
     .action(action(async (id: string) => ({ result: await runs().resolve("issues").show(id) })));
 
@@ -69,7 +69,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
     .addOption(priority)
     .option("--labels <a,b>", "labels, comma-separated")
     .option("--ref <ref...>", "what it points at: <file>[:line], run:<id>[/<step>]")
-    .option("--by <name>", `who adds it${BY_DEFAULT}`)
+    .addOption(byOption("who adds it"))
     .action(
       action(
         async (
@@ -138,7 +138,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
     .option("--drop", "drop it", false)
     .addOption(priority)
     .option("--labels <a,b>", "labels, comma-separated")
-    .option("--by <name>", `who decides${BY_DEFAULT}`)
+    .addOption(byOption("who decides"))
     .action(
       action(
         async (
@@ -193,7 +193,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
   issue
     .command("close <id>")
     .description("The task is done")
-    .option("--by <name>", `who closes it${BY_DEFAULT}`)
+    .addOption(byOption("who closes it"))
     .action(
       action(async (id: string, opts: { by?: string }) => {
         const by = await who(runs(), opts.by);
@@ -201,19 +201,21 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       }),
     );
 
-  issue
-    .command("drop <id>")
-    .description("The task is not going to be done")
-    .option("--by <name>", `who drops it${BY_DEFAULT}`)
-    .action(
-      action(async (id: string, opts: { by?: string }) => {
-        const by = await who(runs(), opts.by);
-        return { result: by.isErr() ? by : await runs().resolve("issues").drop(id, { by: by.value }) };
-      }),
-    );
+  // `issue rm`, as a worktree and a policy are removed; `issue drop` is its old name.
+  renamedCommand({ parent: issue, name: "drop" }, { parent: issue, name: "rm" }, (cmd) =>
+    cmd
+      .argument("<id>", "the task's id")
+      .description("The task is not going to be done: it stays in the backlog as dropped")
+      .addOption(byOption("who drops it"))
+      .action(
+        action(async (id: string, opts: { by?: string }) => {
+          const by = await who(runs(), opts.by);
+          return { result: by.isErr() ? by : await runs().resolve("issues").drop(id, { by: by.value }) };
+        }),
+      ),
+  );
 
-  issue
-    .command("start <id>")
+  meta(issue.command("start <id>"), { audience: "person" })
     .description(
       "A run on the task (its title and body are the task), in its own worktree unless --no-worktree",
     )

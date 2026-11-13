@@ -1,13 +1,9 @@
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import {
-  type DocumentHeader,
-  parseYamlDocument,
-  renderYamlDocument,
-  type VersionedDocument,
-} from "../domain/versioned.ts";
+import type { VersionedDocument } from "../domain/versioned.ts";
 import type { AgentHost, FileSystem } from "../ports/index.ts";
+import { loadDocument, writeDocument } from "./document-io.ts";
 
 /**
  * Documents with an id as versioned YAML files `<dir>/<id>.yml` (refactor and system plans):
@@ -33,17 +29,14 @@ export class DocumentStore<T extends { readonly id: string }> {
     const file = this.file(id);
     if (!(await this.fs.exists(file)))
       return err(MetatorError.notFound(`${this.text.noun} ${id}`, { hint: this.text.listHint }));
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const value = parseYamlDocument(text.value, file).andThen((raw) => this.doc.parse(raw, file));
+    const value = await loadDocument(this.fs, file, this.doc, "yaml");
     if (value.isOk() && value.value.id !== id)
       return err(new MetatorError("INVALID_CONFIG", `${file}: its id is ${value.value.id}, not ${id}`));
     return value;
   }
 
   async save(value: T): Promise<Result<void, MetatorError>> {
-    const doc = { ...this.doc.stamp(value) } as DocumentHeader & Record<string, unknown>;
-    return this.fs.write(this.file(value.id), renderYamlDocument(doc, this.text.comment));
+    return writeDocument(this.fs, this.file(value.id), this.doc, value, "yaml", this.text.comment);
   }
 
   async list(): Promise<Result<readonly T[], MetatorError>> {

@@ -31,9 +31,16 @@ import { APPROVAL_ACTIONS, fillInputs, isRunBookkeeping, type RunRecord } from "
 import { isTerminal } from "../domain/run-report.ts";
 import { type AgentUsage, AgentUsageDocument, type HostUsage } from "../domain/telemetry.ts";
 import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
-import { parseJsonDocument, serializeJsonDocument, serializeJsonLine } from "../domain/versioned.ts";
+import { parseJsonDocument, serializeJsonLine } from "../domain/versioned.ts";
 import type { StageSpec } from "../domain/workflow-spec.ts";
 import type { AgentHost, Clock, FileSystem, ProcessRunner, Timer } from "../ports/index.ts";
+import {
+  loadDocument,
+  parseDocumentText,
+  readDocument,
+  readJsonLines,
+  writeDocument,
+} from "./document-io.ts";
 import type { Notifier } from "./notifier.ts";
 import type { CloseRun } from "./run-close.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -104,20 +111,7 @@ export class RunJournal {
   }
 
   async usage(runId: string): Promise<Result<readonly AgentUsage[], MetatorError>> {
-    const file = this.usageFile(runId);
-    if (!(await this.fs.exists(file))) return ok([]);
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const out: AgentUsage[] = [];
-    for (const [i, line] of text.value.split("\n").entries()) {
-      if (line.trim() === "") continue;
-      const parsed = parseJsonDocument(line, `${file}:${i + 1}`).andThen((raw) =>
-        AgentUsageDocument.parse(raw, `${file}:${i + 1}`),
-      );
-      if (parsed.isErr()) return err(parsed.error);
-      out.push(parsed.value);
-    }
-    return ok(out);
+    return readJsonLines(this.fs, this.usageFile(runId), AgentUsageDocument, "fail");
   }
 
   seenFile(runId: string): string {
@@ -127,21 +121,13 @@ export class RunJournal {
   /** When a person last read the run's brief; undefined before the first. */
   async seen(runId: string): Promise<Result<string | undefined, MetatorError>> {
     const file = this.seenFile(runId);
-    if (!(await this.fs.exists(file))) return ok(undefined);
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file)
-      .andThen((raw) => RunSeenDocument.parse(raw, file))
-      .map((d) => d.at);
+    return (await readDocument(this.fs, file, RunSeenDocument, "json")).map((d) => d?.at);
   }
 
   /** A person has read the run up to now: the next brief starts here. */
   async markSeen(runId: string): Promise<Result<string, MetatorError>> {
     const at = this.clock.now().toISOString();
-    const written = await this.fs.write(
-      this.seenFile(runId),
-      serializeJsonDocument(RunSeenDocument.stamp({ at })),
-    );
+    const written = await writeDocument(this.fs, this.seenFile(runId), RunSeenDocument, { at }, "json");
     return written.map(() => at);
   }
 
@@ -158,30 +144,15 @@ export class RunJournal {
   }
 
   async activity(runId: string): Promise<Result<readonly RunActivity[], MetatorError>> {
-    const file = this.activityFile(runId);
-    if (!(await this.fs.exists(file))) return ok([]);
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const out: RunActivity[] = [];
-    for (const [i, line] of text.value.split("\n").entries()) {
-      if (line.trim() === "") continue;
-      const parsed = parseJsonDocument(line, `${file}:${i + 1}`).andThen((raw) =>
-        RunActivityDocument.parse(raw, `${file}:${i + 1}`),
-      );
-      // A torn line (a writer killed mid-append) is skipped: the rest of the journal still reads.
-      if (parsed.isErr()) continue;
-      out.push(parsed.value);
-    }
-    return ok(out);
+    // A torn line (a writer killed mid-append) is skipped: the rest of the journal still reads.
+    return readJsonLines(this.fs, this.activityFile(runId), RunActivityDocument, "skip");
   }
 
   async questions(runId: string): Promise<Result<readonly Question[], MetatorError>> {
     const files = await this.fs.glob([`${this.repo.runDir(runId)}/questions/q*.json`]);
     const out: Question[] = [];
     for (const file of files) {
-      const text = await this.fs.read(file);
-      if (text.isErr()) return err(text.error);
-      const q = parseJsonDocument(text.value, file).andThen((raw) => QuestionDocument.parse(raw, file));
+      const q = await loadDocument(this.fs, file, QuestionDocument, "json");
       if (q.isErr()) return err(q.error);
       out.push(q.value);
     }
@@ -357,13 +328,11 @@ export class RunJournal {
   }
 
   private async load(file: string): Promise<Result<Question, MetatorError>> {
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file).andThen((raw) => QuestionDocument.parse(raw, file));
+    return loadDocument(this.fs, file, QuestionDocument, "json");
   }
 
   private save(q: Question): Promise<Result<void, MetatorError>> {
-    return this.fs.write(this.questionFile(q.runId, q.id), serializeJsonDocument(QuestionDocument.stamp(q)));
+    return writeDocument(this.fs, this.questionFile(q.runId, q.id), QuestionDocument, q, "json");
   }
 }
 
@@ -644,9 +613,7 @@ export class DriveRun {
     // way back), CHANGES_REQUIRED is an answer, not a failure.
     if ((ctx.stage.produces ?? []).includes("verdict.json") && ctx.stage.onFail) {
       const file = `${this.d.repo.runDir(ctx.runId)}/verdict.json`;
-      const verdict = (await this.d.fs.read(file))
-        .andThen((text) => parseJsonDocument(text, file))
-        .andThen((raw) => VerdictDocument.parse(raw, file));
+      const verdict = await loadDocument(this.d.fs, file, VerdictDocument, "json");
       if (verdict.isErr()) return ok({ type: "FAIL", reason: verdict.error.message });
       const blocks = verdictBlocks(verdict.value);
       if (blocks) return ok({ type: "FAIL", reason: blocks });
@@ -898,9 +865,7 @@ export class DriveRun {
     for (const file of await this.d.fs.glob([`${this.d.gatesDir ?? ".metator/gates"}/*.json`])) {
       const text = await this.d.fs.read(file);
       if (text.isErr()) continue;
-      const report = parseJsonDocument(text.value, file).andThen((raw) =>
-        GateReportDocument.parse(raw, file),
-      );
+      const report = parseDocumentText(text.value, file, GateReportDocument, "json");
       if (report.isErr()) continue;
       const steps = report.value.steps.map(
         (s) => `${s.id} ${s.status === "pass" ? "✓" : s.status === "fail" ? "✗" : s.status}`,
@@ -916,7 +881,7 @@ export class DriveRun {
     if (!(await this.d.fs.exists(file))) return undefined;
     const text = await this.d.fs.read(file);
     if (text.isErr()) return undefined;
-    const scope = parseJsonDocument(text.value, file).andThen((raw) => PlanScopeDocument.parse(raw, file));
+    const scope = parseDocumentText(text.value, file, PlanScopeDocument, "json");
     if (scope.isErr()) return undefined;
     const areas = [...new Set(scope.value.edit.map((f) => f.split("/")[0] ?? f))].sort();
     return { files: scope.value.edit.length, areas };

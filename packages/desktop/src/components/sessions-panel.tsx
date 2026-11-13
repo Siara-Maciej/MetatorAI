@@ -9,13 +9,17 @@ import {
   duration,
   groupByFeature,
   isFinished,
+  lookOf,
   paneLabel,
+  paneStateOf,
   panesOfRun,
+  plural,
   type Run,
-  stateTone,
+  sameRepo,
   stepLabel,
 } from "../model.ts";
 import { attentionLabel, Chip, Dot } from "./chips.tsx";
+import { Tabs } from "./tabs.tsx";
 
 type Mode = "app" | "run";
 
@@ -43,7 +47,7 @@ export function SessionsPanel({
   /** The form: workflow, autonomy, host and worktree chosen by hand. */
   onAdvanced(): void;
 }) {
-  const { runs, repos, panes, down } = useDaemon();
+  const { runs, repos, panesOf, down, unreadable } = useDaemon();
   const [mode, setMode] = useState<Mode>(readMode);
   useEffect(() => {
     try {
@@ -58,10 +62,7 @@ export function SessionsPanel({
   const [showFinished, setShowFinished] = useState(false);
   // A run with more than its conductor shows its panes under it (R4): who works, in what state.
   const paneRows = (r: Run) => {
-    const own = panesOfRun(
-      panes.filter((p) => (p.repo ?? "") === (r.repo ?? "")),
-      r.runId,
-    );
+    const own = panesOfRun(panesOf(r.repo), r.runId);
     if (own.length < 2) return null;
     return own.map((p) => (
       <button
@@ -75,7 +76,7 @@ export function SessionsPanel({
         <span className="sub">
           {paneLabel(p)} <span className="dim">· {p.id}</span>
         </span>
-        <Chip tone={stateTone(p.state?.state)}>{p.state?.state ?? (p.live?.alive ? "live" : "off")}</Chip>
+        <Chip tone={lookOf("pane", paneStateOf(p)).tone}>{paneStateOf(p)}</Chip>
       </button>
     ));
   };
@@ -90,13 +91,13 @@ export function SessionsPanel({
       >
         <Dot attention={r.attention} human={r.driver === "human"} />
         <span className="text">
-          <div className="title">
+          <span className="title">
             {label ? <span className="chip blue">{label}</span> : null} {r.task}
-          </div>
-          <div className="sub">
+          </span>
+          <span className="sub">
             {r.stage} · {r.host ?? "no host"} ·{" "}
             {r.terminalAsk ? "asks in its terminal" : attentionLabel(r.attention)} · {duration(r.elapsedMs)}
-          </div>
+          </span>
         </span>
         <span className="dim">
           {r.questions.length > 0 ? `?${r.questions.length}` : r.terminalAsk ? "?" : ""}
@@ -109,32 +110,22 @@ export function SessionsPanel({
   const active = (list: readonly Run[]) => list.filter((r) => !isFinished(r));
   return (
     <aside className="sessions" aria-label="sessions">
-      <div className="mode" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "app"}
-          title="The active runs of each repository"
-          onClick={() => setMode("app")}
-        >
-          By repository
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "run"}
-          title="The steps of a task that was split, under their task"
-          onClick={() => setMode("run")}
-        >
-          By task
-        </button>
-      </div>
+      <Tabs
+        label="how the runs are listed"
+        className="mode"
+        current={mode}
+        onSelect={setMode}
+        items={[
+          { id: "app", label: "By repository", title: "The active runs of each repository" },
+          { id: "run", label: "By task", title: "The steps of a task that was split, under their task" },
+        ]}
+      />
       <div className="list">
         {down ? (
           <div className="section">no daemon: nothing to list</div>
         ) : mode === "app" ? (
           (repos.length > 0 ? repos.map((x) => x.name) : [""]).map((repo) => {
-            const here = active(ordered.filter((r) => (r.repo ?? "") === repo));
+            const here = active(ordered.filter((r) => sameRepo(r.repo, repo)));
             return (
               <div key={repo || "."}>
                 <div className="section">
@@ -179,6 +170,20 @@ export function SessionsPanel({
           </>
         ) : null}
       </div>
+      {unreadable.length > 0 ? (
+        <details className="unreadable" data-testid="unreadable">
+          <summary className="amber">{plural(unreadable.length, "run")} cannot be read</summary>
+          <ul>
+            {unreadable.map((u) => (
+              <li key={`${u.repo ?? ""}:${u.runId}`}>
+                <span className="mono">{u.runId}</span>
+                {u.repo ? ` · ${u.repo}` : ""}: {u.message}. Restore <code>{u.file}</code>, or delete the
+                run's directory.
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
       <div className="footer">
         <button
           type="button"

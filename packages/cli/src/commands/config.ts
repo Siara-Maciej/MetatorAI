@@ -7,11 +7,11 @@ import {
   ok,
 } from "@metator/core";
 import { type Command, Option } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 
 export function registerConfigCommands(program: Command, { action, container, runs }: CommandContext): void {
-  program
-    .command("init")
+  meta(program.command("init"), { audience: "person" })
     .description("Discover the repository and write a proposed metator.config.yml (never overwrites)")
     .option("--dry-run", "print the proposal without writing it", false)
     .addOption(
@@ -34,8 +34,7 @@ export function registerConfigCommands(program: Command, { action, container, ru
     .command("config")
     .description("The repository's metator.config and every option: your own, the repository's, a run's");
 
-  config
-    .command("show")
+  meta(config.command("show"), { reads: true })
     .description("Resolved configuration and where it came from")
     .action(
       action(() => {

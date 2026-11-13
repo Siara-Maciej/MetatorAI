@@ -27,6 +27,7 @@ import { VerdictDocument } from "../domain/verdict.ts";
 import { parseJsonDocument, type VersionedDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
 import type { AgentCatalog } from "./agents.ts";
+import { parseDocumentText } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { CheckRules } from "./rules.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -74,7 +75,7 @@ export class GuardPreTool {
       const file = `${this.repo.runDir(run.value.runId)}/plan-scope.json`;
       const text = await this.fs.read(file);
       if (text.isOk()) {
-        const scope = parseJsonDocument(text.value, file).andThen((r) => PlanScopeDocument.parse(r, file));
+        const scope = parseDocumentText(text.value, file, PlanScopeDocument, "json");
         if (scope.isErr()) return err(scope.error);
         editScope = scope.value.edit;
       }

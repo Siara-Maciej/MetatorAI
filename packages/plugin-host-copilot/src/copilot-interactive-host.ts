@@ -2,24 +2,16 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   type AgentTask,
-  err,
-  type InteractiveHost,
-  type InteractiveSession,
+  CONTINUE_SESSION,
   isUuid,
-  type MetatorError,
   ok,
-  type PtySize,
-  type Result,
+  PtyInteractiveHost,
   sessionEnv,
   type Terminal,
 } from "@metator/core";
 
-/**
- * The session id a started session reports when the host names its sessions itself and tells
- * nobody: a resume then takes the most recent session of the working directory (`--continue`).
- * A run's worktree is its own directory, so the most recent session there is the run's.
- */
-export const CONTINUE = "continue";
+/** Copilot names its sessions itself: a started session is resumed as the directory's latest. */
+export const CONTINUE = CONTINUE_SESSION;
 
 /**
  * InteractiveHost on GitHub Copilot CLI (D6, ADR-0077): `copilot -i <task>` in a PTY in the
@@ -27,51 +19,21 @@ export const CONTINUE = "continue";
  * and git push denied at the process level. The hooks (`.github/hooks/metator.json`) write the
  * run's activity; the end of the session is the process exit.
  */
-export class CopilotInteractiveHost implements InteractiveHost {
-  readonly id = "copilot";
-
+export class CopilotInteractiveHost extends PtyInteractiveHost {
   constructor(
-    private readonly terminal: Terminal,
-    private readonly bin: string = "copilot",
-    private readonly env: Readonly<Record<string, string | undefined>> = process.env,
-  ) {}
-
-  /** The session's command line and id; with `resume`, the one that continues that session. */
-  private async launch(
-    task: AgentTask,
-    resume?: string,
-  ): Promise<Result<{ argv: string[]; sessionId: string }, MetatorError>> {
-    const mode =
-      resume === undefined ? ["-i", task.prompt] : isUuid(resume) ? ["--resume", resume] : ["--continue"];
-    return ok({ argv: copilotArgv(this.bin, task, mode), sessionId: resume ?? CONTINUE });
-  }
-
-  async start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.spawn(task, size);
-  }
-
-  async resume(
-    sessionId: string,
-    task: AgentTask,
-    size: PtySize,
-  ): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.spawn(task, size, sessionId);
-  }
-
-  private async spawn(
-    task: AgentTask,
-    size: PtySize,
-    resume?: string,
-  ): Promise<Result<InteractiveSession, MetatorError>> {
-    const launch = await this.launch(task, resume);
-    if (launch.isErr()) return err(launch.error);
-    const spawned = this.terminal.spawn(launch.value.argv, {
-      cwd: task.cwd,
-      env: sessionEnv(task, this.env),
-      size,
+    terminal: Terminal,
+    bin = "copilot",
+    env: Readonly<Record<string, string | undefined>> = process.env,
+  ) {
+    super(terminal, {
+      id: "copilot",
+      env: (task) => sessionEnv(task, env),
+      launch: async (task, resume) => {
+        const mode =
+          resume === undefined ? ["-i", task.prompt] : isUuid(resume) ? ["--resume", resume] : ["--continue"];
+        return ok({ argv: copilotArgv(bin, task, mode), sessionId: resume ?? CONTINUE });
+      },
     });
-    if (spawned.isErr()) return err(spawned.error);
-    return ok({ sessionId: launch.value.sessionId, pty: spawned.value });
   }
 }
 

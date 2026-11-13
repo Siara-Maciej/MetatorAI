@@ -1,10 +1,8 @@
 import { MultiSelect, Select, TextInput } from "@inkjs/ui";
-import type { Autonomy, HostTarget, Question } from "@metator/core";
+import { type Autonomy, type HostTarget, needsWords, type Question } from "@metator/core";
 import { Box, Text } from "ink";
 import { useState } from "react";
 import type { NewRunInput, RunOptions, Settings } from "../service.ts";
-
-const NEEDS_WORDS = ["Other", "Reject", "Deny"];
 
 function Frame(props: {
   readonly title: string;
@@ -22,7 +20,7 @@ function Frame(props: {
   );
 }
 
-/** A question of a run: pick an option; Other, Reject and Deny ask for words too. */
+/** A question of a run: pick an option; Other and Reject ask for words too (`needsWords`). */
 export function AnswerDialog(props: {
   readonly question: Question;
   readonly onAnswer: (choices: string[], text?: string) => void;
@@ -30,7 +28,7 @@ export function AnswerDialog(props: {
   const q = props.question;
   const [choice, setChoice] = useState<string | null>(null);
   const header = `${q.stage}${q.agent ? ` · ${q.agent}` : ""} · ${q.source}`;
-  if (choice && NEEDS_WORDS.includes(choice))
+  if (choice && needsWords([choice]))
     return (
       <Frame title={`${header} · ${choice}`}>
         <Text>{choice === "Other" ? "Your answer:" : "Why? (it goes back to the run)"}</Text>
@@ -62,7 +60,7 @@ export function AnswerDialog(props: {
       ) : (
         <Select
           options={q.options.map((o) => ({ label: label(o), value: o.label }))}
-          onChange={(v) => (NEEDS_WORDS.includes(v) ? setChoice(v) : props.onAnswer([v]))}
+          onChange={(v) => (needsWords([v]) ? setChoice(v) : props.onAnswer([v]))}
         />
       )}
     </Frame>

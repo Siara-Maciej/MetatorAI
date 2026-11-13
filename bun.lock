@@ -132,6 +132,10 @@
       "dependencies": {
         "@metator/core": "workspace:*",
       },
+      "devDependencies": {
+        "@metator/plugin-bun": "workspace:*",
+        "@metator/testing": "workspace:*",
+      },
     },
     "packages/plugin-git": {
       "name": "@metator/plugin-git",

@@ -2,8 +2,11 @@ import { afterAll, expect, test } from "bun:test";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { BunProcessRunner } from "@metator/plugin-bun";
+import { ScriptedProcessRunner } from "@metator/testing";
 import { DockerComposeRuntime } from "../src/docker-compose-runtime.ts";
 
+const runner = new BunProcessRunner();
 const dirs: string[] = [];
 afterAll(async () => {
   await Promise.all(dirs.map((d) => rm(d, { recursive: true, force: true })));
@@ -25,7 +28,7 @@ async function fakeDocker(code = 0) {
 
 test("up, stop and logs of one service of one project, in its directory, with the ports", async () => {
   const d = await fakeDocker();
-  const rt = new DockerComposeRuntime(d.bin);
+  const rt = new DockerComposeRuntime(runner, d.bin);
   const svc = {
     file: "compose.yml",
     service: "api",
@@ -46,11 +49,29 @@ test("up, stop and logs of one service of one project, in its directory, with th
 test("a failing compose is an error value with stderr; a missing binary is BIN_NOT_FOUND", async () => {
   const d = await fakeDocker(1);
   const svc = { file: "compose.yml", service: "db", project: "metator-shared", cwd: d.dir, env: {} };
-  expect((await new DockerComposeRuntime(d.bin).up(svc))._unsafeUnwrapErr().message).toContain(
+  expect((await new DockerComposeRuntime(runner, d.bin).up(svc))._unsafeUnwrapErr().message).toContain(
     "exited 1: boom",
   );
-  const missing = await new DockerComposeRuntime(join(d.dir, "nope")).up(svc);
+  const missing = await new DockerComposeRuntime(runner, join(d.dir, "nope")).up(svc);
   expect(missing._unsafeUnwrapErr().code).toBe("BIN_NOT_FOUND");
+});
+
+test("a docker that cannot be started names the binary, why, and how to get it", async () => {
+  const svc = { file: "compose.yml", service: "db", project: "p", cwd: "/work", env: { A: "1" } };
+  const scripted = new ScriptedProcessRunner([
+    { argvPrefix: ["podman"], result: { exitCode: 127, stderr: "ENOENT: no such file\n" } },
+  ]);
+  const error = (await new DockerComposeRuntime(scripted, "podman").up(svc))._unsafeUnwrapErr();
+  expect(error.toJSON()).toEqual({
+    code: "BIN_NOT_FOUND",
+    message: "podman is not available: ENOENT: no such file",
+    hint: "Install Docker (with the compose plugin), or set METATOR_DOCKER_BIN.",
+  });
+  expect(scripted.calls[0]).toMatchObject({
+    argv: ["podman", "compose", "-p", "p", "-f", "compose.yml", "up", "-d", "db"],
+    cwd: "/work",
+    env: { A: "1" },
+  });
 });
 
 test("an external network compose cannot find is created, then the service starts; the message is the command", async () => {
@@ -65,14 +86,14 @@ test("an external network compose cannot find is created, then the service start
   );
   await chmod(bin, 0o755);
   const svc = { file: "compose.yml", service: "db", project: "p", cwd: dir, env: {} };
-  expect((await new DockerComposeRuntime(bin).up(svc)).isOk()).toBe(true);
+  expect((await new DockerComposeRuntime(runner, bin).up(svc)).isOk()).toBe(true);
   expect((await Bun.file(calls).text()).trim().split("\n")).toEqual([
     "compose -p p -f compose.yml up -d db",
     "network create shop-net",
     "compose -p p -f compose.yml up -d db",
   ]);
   const failing = await fakeDocker(1);
-  expect((await new DockerComposeRuntime(failing.bin).up(svc))._unsafeUnwrapErr().message).toStartWith(
-    `\`${failing.bin} compose -p p -f compose.yml up -d db\` exited 1`,
-  );
+  expect(
+    (await new DockerComposeRuntime(runner, failing.bin).up(svc))._unsafeUnwrapErr().message,
+  ).toStartWith(`\`${failing.bin} compose -p p -f compose.yml up -d db\` exited 1`);
 });

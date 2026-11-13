@@ -1,8 +1,9 @@
 import { RunDriverDocument } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
+import { serializeJsonDocument } from "../domain/versioned.ts";
 import type { BackgroundProcess, Clock, FileSystem } from "../ports/index.ts";
+import { readDocument } from "./document-io.ts";
 import type { RunJournal } from "./drive.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -31,13 +32,8 @@ export class RunDrivers {
   }
 
   async status(runId: string): Promise<Result<DriverView | null, MetatorError>> {
-    const file = this.file(runId);
-    if (!(await this.fs.exists(file))) return ok(null);
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    return parseJsonDocument(text.value, file)
-      .andThen((raw) => RunDriverDocument.parse(raw, file))
-      .map((d) => ({ ...d, alive: this.processes.isAlive(d.pid) }));
+    const driver = await readDocument(this.fs, this.file(runId), RunDriverDocument);
+    return driver.map((d) => (d ? { ...d, alive: this.processes.isAlive(d.pid) } : null));
   }
 
   /** Records `pid` as the run's driver; refused while another live process drives it. */

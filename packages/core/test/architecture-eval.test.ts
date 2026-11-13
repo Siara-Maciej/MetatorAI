@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { InMemoryFileSystem } from "@metator/testing";
-import { RunArchEvals } from "../src/application/architecture-plans.ts";
+import { RunArchEvals } from "../src/application/architecture-evals.ts";
 import { type ArchitectureInput, analyzeArchitecture, manifestOf } from "../src/domain/architecture.ts";
 import {
   ArchEvalCaseSchema,

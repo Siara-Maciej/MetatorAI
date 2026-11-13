@@ -10,8 +10,8 @@ import {
   type ThreadKind,
   type ThreadState,
 } from "../domain/review-thread.ts";
-import { parseJsonDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem, ReviewHost } from "../ports/index.ts";
+import { loadDocument, writeDocument } from "./document-io.ts";
 import type { Notifier } from "./notifier.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { InitRun } from "./runs.ts";
@@ -239,16 +239,17 @@ export class MyReviews {
 
   private async read(id: string): Promise<PullRequestReview | undefined> {
     const file = `${this.d.paths.mrs}/${id}.json`;
-    const parsed = (await this.d.fs.read(file))
-      .andThen((t) => parseJsonDocument(t, file))
-      .andThen((raw) => PullRequestReviewDocument.parse(raw, file));
+    const parsed = await loadDocument(this.d.fs, file, PullRequestReviewDocument, "json");
     return parsed.isOk() ? parsed.value : undefined;
   }
 
   private write(id: string, review: PullRequestReview): Promise<Result<void, MetatorError>> {
-    return this.d.fs.write(
+    return writeDocument(
+      this.d.fs,
       `${this.d.paths.mrs}/${id}.json`,
-      serializeJsonDocument(PullRequestReviewDocument.stamp(review)),
+      PullRequestReviewDocument,
+      review,
+      "json",
     );
   }
 }

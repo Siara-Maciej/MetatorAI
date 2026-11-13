@@ -1,14 +1,15 @@
 import { err, MetatorError, normalizePath, ok, PlanDocument } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { schemaCommand } from "../outcome.ts";
 
 export function registerPlanCommands(program: Command, { action, container }: CommandContext): void {
   const plan = program
     .command("plan")
     .description("Implementation plans: lint before the build, scope for the hooks and shards");
 
-  plan
-    .command("lint")
+  meta(plan.command("lint"), { reads: true })
     .description(
       "Schema, step order, task scope, exemplars from the pattern index, tests first, graph order, deletions",
     )
@@ -34,8 +35,7 @@ export function registerPlanCommands(program: Command, { action, container }: Co
       }),
     );
 
-  plan
-    .command("scope")
+  meta(plan.command("scope"), { reads: true, writesWith: ["--out"], readsWith: ["--dry-run"] })
     .description("Write the edit scope and independent shards (plan-scope.json next to the plan)")
     .argument("<file>", "plan JSON")
     .option("--out <file>", "where to write the PlanScope document")
@@ -56,8 +56,5 @@ export function registerPlanCommands(program: Command, { action, container }: Co
       }),
     );
 
-  plan
-    .command("schema")
-    .description("Print the JSON Schema of a plan")
-    .action(action(() => ({ result: ok(PlanDocument.jsonSchema("input")) })));
+  schemaCommand(plan, ctx, "Print the JSON Schema of a plan", PlanDocument);
 }

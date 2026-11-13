@@ -1,5 +1,6 @@
 import { ok, type SupervisorReport } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
 import { resume } from "../sessions.ts";
@@ -10,8 +11,7 @@ import { resume } from "../sessions.ts";
  */
 export function registerSuperviseCommand(program: Command, ctx: CommandContext): void {
   const root = () => (program.opts() as { root?: string }).root;
-  program
-    .command("supervise")
+  meta(program.command("supervise"), { audience: "person", folder: true })
     .description("Keep runs alive: restart drives that died, nudge idle agents, watch the attention budget")
     .option("--once", "one tick, then the report", false)
     .option("--interval-ms <n>", "how often to tick", positiveInt, 5000)

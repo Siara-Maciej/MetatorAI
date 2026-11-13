@@ -1,5 +1,6 @@
 import { err, ok } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { nonNegativeInt, positiveInt } from "../options.ts";
 import { daemonInTheWay, servedRoots, startServer } from "../serve/server.ts";
@@ -11,8 +12,7 @@ import { resume } from "../sessions.ts";
  * the command runs until SIGINT or SIGTERM.
  */
 export function registerServeCommand(program: Command, ctx: CommandContext): void {
-  program
-    .command("serve")
+  meta(program.command("serve"), { audience: "person", folder: true })
     .description(
       "The local daemon the desktop app talks to: state, inbox, activity and PTY sessions on localhost",
     )

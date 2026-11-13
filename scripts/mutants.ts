@@ -1012,8 +1012,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/run-repository.ts",
-    from: "RunPointerDocument.stamp({ runId: record.runId })",
-    to: 'RunPointerDocument.stamp({ runId: "19990101-stale" })',
+    from: "RunPointerDocument, { runId: record.runId }",
+    to: 'RunPointerDocument, { runId: "19990101-stale" }',
     why: "the latest pointer must follow the last written run",
   },
   {
@@ -2367,9 +2367,9 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the configured editor wins over the environment",
   },
   {
-    file: "packages/core/src/application/config-edit.ts",
-    from: "      schemaVersion: MetatorConfigDocument.current,\n",
-    to: "",
+    file: "packages/core/src/application/config-file.ts",
+    from: 'value: MetatorConfigDocument.current };',
+    to: "value: 1 };",
     why: "a config with an editor is written as v3",
   },
   {
@@ -2702,8 +2702,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/layout-store.ts",
-    from: "    if (!(await this.fs.exists(this.file))) return ok(EMPTY_LAYOUT);",
-    to: "",
+    from: "return layout.map((l) => l ?? EMPTY_LAYOUT);",
+    to: "return layout.map((l) => l as never);",
     why: "no layout file is an empty layout, not an error",
   },
   {
@@ -3751,7 +3751,7 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the planner never approves its own plan",
   },
   {
-    file: "packages/core/src/application/architecture-plans.ts",
+    file: "packages/core/src/application/architecture-evals.ts",
     from: "    if (replayed.problems.length > 0)\n",
     to: "    if (false)\n",
     why: "an impossible plan scores 0",
@@ -5101,8 +5101,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
-    from: "if (parsed.isErr()) continue;",
-    to: "if (parsed.isErr()) return err(parsed.error);",
+    from: 'RunActivityDocument, "skip")',
+    to: 'RunActivityDocument, "fail")',
     why: "a torn activity line is skipped, the journal still reads (R2)",
   },
   {
@@ -5610,15 +5610,15 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a config rewritten at the current version loses the keys that version dropped (F3)",
   },
   {
-    file: "packages/core/src/application/config-edit.ts",
-    from: ": deleteYamlPaths(updateYamlFields(text.value, fields), RETIRED_CONFIG_KEYS);",
-    to: ": updateYamlFields(text.value, fields);",
+    file: "packages/core/src/application/config-file.ts",
+    from: "next = deleteYamlPaths(next, RETIRED_CONFIG_KEYS);",
+    to: "",
     why: "saving a setting into a v11 config leaves a valid v12 file (F3)",
   },
   {
-    file: "packages/core/src/application/options.ts",
-    from: "const doc = withoutLocalStatePaths(raw.value) as Record<string, unknown>;",
-    to: "const doc = raw.value as Record<string, unknown>;",
+    file: "packages/core/src/application/config-file.ts",
+    from: "copy(withoutLocalStatePaths(raw.value) as Record<string, unknown>)",
+    to: "copy(raw.value as Record<string, unknown>)",
     why: "an option set in a v11 JSON config leaves a valid v12 file (F3)",
   },
   {
@@ -5668,5 +5668,35 @@ export const MUTANTS: readonly Mutant[] = [
     from: '? { type: "unresolved", candidates: targets }',
     to: '? { type: "unresolved" }',
     why: "an alias that resolves to nothing says where it leads (C1)",
+  },
+  {
+    file: "packages/core/src/application/document-io.ts",
+    from: "if (!(await fs.exists(file))) return ok(undefined);",
+    to: "",
+    why: "an absent document reads as undefined, not as an error",
+  },
+  {
+    file: "packages/core/src/application/document-io.ts",
+    from: "else if (onBadLine === \"fail\") return err(parsed.error);",
+    to: "",
+    why: "a bad JSON line fails the read unless the caller skips torn lines",
+  },
+  {
+    file: "packages/core/src/application/document-io.ts",
+    from: "if (options.unreadable !== \"skip\") problems.push({ source, error: text.error });",
+    to: "problems.push({ source, error: text.error });",
+    why: "a scan that skips unreadable files does not report them",
+  },
+  {
+    file: "packages/core/src/application/document-io.ts",
+    from: "[...(await fs.glob(globs))].sort()",
+    to: "[...(await fs.glob(globs))].sort().reverse()",
+    why: "a scan lists documents in path order",
+  },
+  {
+    file: "packages/core/src/application/config-edit.ts",
+    from: "if (current.isErr()) return err(current.error);",
+    to: "",
+    why: "a config that is not valid stays untouched when a setting is saved",
   },
 ];

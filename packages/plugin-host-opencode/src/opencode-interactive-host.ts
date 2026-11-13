@@ -2,19 +2,15 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   type AgentTask,
-  err,
-  type InteractiveHost,
-  type InteractiveSession,
-  type MetatorError,
+  CONTINUE_SESSION,
   ok,
-  type PtySize,
-  type Result,
+  PtyInteractiveHost,
   sessionEnv,
   type Terminal,
 } from "@metator/core";
 
-/** See `CONTINUE` in the Copilot host: OpenCode names its sessions itself (`ses_…`). */
-export const CONTINUE = "continue";
+/** OpenCode names its sessions itself (`ses_…`): a started session is resumed as the directory's latest. */
+export const CONTINUE = CONTINUE_SESSION;
 
 /**
  * InteractiveHost on OpenCode (D6, ADR-0077): `opencode <worktree> --prompt <task>` in a PTY,
@@ -22,55 +18,25 @@ export const CONTINUE = "continue";
  * `opencode --session <id>` or `--continue` resumes. An OpenCode plugin writes the run's
  * activity from its hooks; the end of the session is the process exit.
  */
-export class OpencodeInteractiveHost implements InteractiveHost {
-  readonly id = "opencode";
-
+export class OpencodeInteractiveHost extends PtyInteractiveHost {
   constructor(
-    private readonly terminal: Terminal,
-    private readonly bin: string = "opencode",
-    private readonly env: Readonly<Record<string, string | undefined>> = process.env,
-  ) {}
-
-  /** The session's command line and id; with `resume`, the one that continues that session. */
-  private async launch(
-    task: AgentTask,
-    resume?: string,
-  ): Promise<Result<{ argv: string[]; sessionId: string }, MetatorError>> {
-    const mode =
-      resume === undefined
-        ? ["--prompt", task.prompt]
-        : resume.startsWith("ses_")
-          ? ["--session", resume]
-          : ["--continue"];
-    return ok({ argv: opencodeArgv(this.bin, task, mode), sessionId: resume ?? CONTINUE });
-  }
-
-  async start(task: AgentTask, size: PtySize): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.spawn(task, size);
-  }
-
-  async resume(
-    sessionId: string,
-    task: AgentTask,
-    size: PtySize,
-  ): Promise<Result<InteractiveSession, MetatorError>> {
-    return this.spawn(task, size, sessionId);
-  }
-
-  private async spawn(
-    task: AgentTask,
-    size: PtySize,
-    resume?: string,
-  ): Promise<Result<InteractiveSession, MetatorError>> {
-    const launch = await this.launch(task, resume);
-    if (launch.isErr()) return err(launch.error);
-    const spawned = this.terminal.spawn(launch.value.argv, {
-      cwd: task.cwd,
-      env: sessionEnv(task, this.env),
-      size,
+    terminal: Terminal,
+    bin = "opencode",
+    env: Readonly<Record<string, string | undefined>> = process.env,
+  ) {
+    super(terminal, {
+      id: "opencode",
+      env: (task) => sessionEnv(task, env),
+      launch: async (task, resume) => {
+        const mode =
+          resume === undefined
+            ? ["--prompt", task.prompt]
+            : resume.startsWith("ses_")
+              ? ["--session", resume]
+              : ["--continue"];
+        return ok({ argv: opencodeArgv(bin, task, mode), sessionId: resume ?? CONTINUE });
+      },
     });
-    if (spawned.isErr()) return err(spawned.error);
-    return ok({ sessionId: launch.value.sessionId, pty: spawned.value });
   }
 }
 

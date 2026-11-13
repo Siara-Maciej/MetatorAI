@@ -41,12 +41,14 @@ export function useAnswer(
     if (!by) return;
     setBusy(true);
     const r = await client.answer(
-      q.runId,
-      q.id,
-      [...picked],
-      by,
-      text.trim() || undefined,
-      options.origin,
+      {
+        runId: q.runId,
+        question: q.id,
+        choices: picked,
+        by,
+        text: text.trim() || undefined,
+        origin: options.origin,
+      },
       repo,
     );
     setBusy(false);

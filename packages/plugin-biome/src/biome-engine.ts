@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
+  type BinResolver,
   type Diagnostic,
   diagnosticsFromSarif,
   type EngineRule,
@@ -10,6 +11,7 @@ import {
   type ProcessRunner,
   type Result,
   type RuleEngine,
+  runTool,
   type SarifLog,
 } from "@metator/core";
 
@@ -28,6 +30,7 @@ export class BiomeEngine implements RuleEngine {
   constructor(
     private readonly runner: ProcessRunner,
     private readonly root: string,
+    private readonly bins: BinResolver,
   ) {}
 
   async rules(): Promise<Result<readonly EngineRule[], MetatorError>> {
@@ -61,10 +64,9 @@ export class BiomeEngine implements RuleEngine {
    */
   private async enabledRules(): Promise<Set<string> | undefined> {
     if (!CONFIG_FILES.some((f) => existsSync(join(this.root, f)))) return undefined;
-    const r = await this.runner.run(
-      { argv: [this.binary(), "rage", "--linter"], cwd: this.root },
-      { timeoutMs: 60_000 },
-    );
+    const r = await this.runner.run(await this.bins.command("biome", ["rage", "--linter"]), {
+      timeoutMs: 60_000,
+    });
     if (r.exitCode !== 0) return undefined;
     const block = r.stdout.split(/^\s*Enabled rules:\s*$/m)[1];
     if (block === undefined) return undefined;
@@ -81,28 +83,21 @@ export class BiomeEngine implements RuleEngine {
     if (!CONFIG_FILES.some((f) => existsSync(join(this.root, f)))) return ok([]);
     const targets = files?.filter((f) => existsSync(join(this.root, f)));
     if (targets && targets.length === 0) return ok([]);
-    const r = await this.runner.run(
-      {
-        argv: [
-          this.binary(),
-          "lint",
-          "--reporter=sarif",
-          "--max-diagnostics=none",
-          "--files-ignore-unknown=true",
-          "--no-errors-on-unmatched",
-          ...(targets ?? ["."]),
-        ],
-        cwd: this.root,
-      },
-      { timeoutMs: 120_000 },
-    );
-    if (r.exitCode === 127) {
-      return err(
-        new MetatorError("BIN_NOT_FOUND", "biome is not installed", {
-          hint: "Install it with `bun add -d @biomejs/biome` (or npm/pnpm/yarn).",
-        }),
-      );
-    }
+    const run = await runTool(this.runner, this.bins, {
+      bin: "biome",
+      args: [
+        "lint",
+        "--reporter=sarif",
+        "--max-diagnostics=none",
+        "--files-ignore-unknown=true",
+        "--no-errors-on-unmatched",
+        ...(targets ?? ["."]),
+      ],
+      hint: "Install it with `bun add -d @biomejs/biome` (or npm/pnpm/yarn).",
+      timeoutMs: 120_000,
+    });
+    if (run.isErr()) return err(run.error);
+    const r = run.value;
     let log: SarifLog;
     try {
       log = JSON.parse(r.stdout) as SarifLog;
@@ -114,10 +109,5 @@ export class BiomeEngine implements RuleEngine {
       );
     }
     return ok(diagnosticsFromSarif(log, this.root, this.engine));
-  }
-
-  private binary(): string {
-    const local = join(this.root, "node_modules", ".bin", "biome");
-    return existsSync(local) ? local : "biome";
   }
 }

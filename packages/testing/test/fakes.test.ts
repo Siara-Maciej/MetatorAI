@@ -4,13 +4,17 @@ import { dataIsolatorContract } from "../src/contracts/data-isolator.contract.ts
 import { fileSystemContract } from "../src/contracts/file-system.contract.ts";
 import { interactiveHostContract } from "../src/contracts/interactive-host.contract.ts";
 import { machineStateContract } from "../src/contracts/machine-state.contract.ts";
+import { ruleEngineContract } from "../src/contracts/rule-engine.contract.ts";
 import { treeCopierContract } from "../src/contracts/tree-copier.contract.ts";
+import { vcsContract } from "../src/contracts/vcs.contract.ts";
 import { worktreeManagerContract } from "../src/contracts/worktree-manager.contract.ts";
 import {
   FakeAgentHost,
   FakeDataIsolator,
   FakeInteractiveHost,
+  FakeRuleEngine,
   FakeTreeCopier,
+  FakeVcs,
   FakeWorktreeManager,
   FixedClock,
   InMemoryFileSystem,
@@ -46,6 +50,27 @@ describe("FixedClock", () => {
     expect(clock.now().toISOString()).toBe("2026-05-01T10:00:01.500Z");
   });
 });
+
+vcsContract("FakeVcs", async () => ({
+  vcs: new FakeVcs(["a.ts", "b.ts", "c.ts"], ["a.ts", "c.ts"], "git@example.com:shop/web.git"),
+  base: "main",
+  remote: "git@example.com:shop/web.git",
+  outside: new FakeVcs("not-a-repo"),
+}));
+
+ruleEngineContract("FakeRuleEngine", async () => ({
+  engine: new FakeRuleEngine(
+    "fake",
+    [
+      { id: "no-eval", source: "rules/no-eval.yml", hasTest: false },
+      { id: "no-var", source: "rules/no-var.yml", hasTest: true },
+    ],
+    [{ source: "fake", toolRuleId: "no-var", file: "src/a.ts", severity: "error", message: "no var" }],
+  ),
+  bare: new FakeRuleEngine("fake", []),
+  finding: { file: "src/a.ts", toolRuleId: "no-var" },
+  clean: "src/clean.ts",
+}));
 
 worktreeManagerContract("FakeWorktreeManager", async () => {
   const manager = new FakeWorktreeManager();

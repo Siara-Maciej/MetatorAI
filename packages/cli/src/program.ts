@@ -11,6 +11,7 @@ import {
   runsRootOf,
 } from "@metator/runtime";
 import { Command, type CommanderError } from "commander";
+import { commandWords, metaOf } from "./command-meta.ts";
 import { registerAdrCommands } from "./commands/adr.ts";
 import { registerAgentCommands } from "./commands/agents.ts";
 import { registerApiCommands } from "./commands/api.ts";
@@ -73,10 +74,14 @@ export interface ProgramOptions {
  * (configureOutput) and its errors are thrown (exitOverride) and mapped to USAGE envelopes.
  * Settings are applied before subcommands are created, so every subcommand inherits them.
  */
-export function buildProgram(onOutcome: (outcome: Outcome) => void, options: ProgramOptions = {}): Command {
+export function buildProgram(
+  onOutcome: (outcome: Outcome, command?: Command) => void,
+  options: ProgramOptions = {},
+): Command {
   const program = new Command("metator")
     .description("MetatorAI: survey first, prove everything.")
     .option("-C, --root <dir>", "repository root (default: nearest ancestor with .git)")
+    .option("--json", "at a terminal: only the JSON line, without the text a person reads", false)
     .exitOverride()
     .configureOutput({ writeOut: () => {}, writeErr: () => {} })
     .helpCommand(false);
@@ -104,7 +109,8 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
       stateDir: machineStateDir(env),
     });
   };
-  const start = () => (program.opts() as { root?: string }).root ?? options.cwd ?? process.cwd();
+  const root = () => (program.opts() as { root?: string }).root;
+  const start = () => root() ?? options.cwd ?? process.cwd();
   let folder: Folder | null | undefined;
   const folderOf = (): Folder | null => {
     folder ??= readFolder(start());
@@ -120,6 +126,8 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
       return main === root ? containerAt(root) : containerAt(main, { run: basename(root) });
     },
     containerAt,
+    root,
+    start,
     folder: folderOf,
     stdin: options.stdin ?? (async () => ""),
     terminal: options.terminal ?? null,
@@ -131,7 +139,9 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
     action:
       (handler) =>
       async (...args) => {
-        onOutcome(await handler(...args));
+        // commander hands the command itself to an action as its last argument.
+        const last = args.at(-1);
+        onOutcome(await handler(...args), last instanceof Command ? last : undefined);
       },
   };
 
@@ -185,38 +195,14 @@ export function buildProgram(onOutcome: (outcome: Outcome) => void, options: Pro
   // In a folder of repositories only the commands that span repositories run (G2, ADR-0057).
   program.hook("preAction", (_root, action) => {
     const f = folderOf();
-    const name = commandName(action);
-    if (!f || FOLDER_COMMANDS.has(name)) return;
+    if (!f || metaOf(action).folder) return;
+    const name = commandWords(action);
     throw MetatorError.usage(
       `\`metator ${name}\` works on one repository, and ${f.root} is a folder of ${f.repos.length}`,
       `Run it inside a repository (${f.repos.map((r) => r.name).join(", ")}) or pass \`-C <repository>\`; here, \`metator ui\`, \`repos\`, \`ask\` and \`status\` cover them all.`,
     );
   });
   return program;
-}
-
-/** Commands that run in a folder of repositories and cover all of them. */
-export const FOLDER_COMMANDS: ReadonlySet<string> = new Set([
-  "help",
-  "version",
-  "repos init",
-  "repos list",
-  "repos status",
-  "system discover",
-  "ui",
-  "ask",
-  "ask list",
-  "status",
-  "inbox",
-  "report",
-  "serve",
-  "supervise",
-]);
-
-function commandName(cmd: Command): string {
-  const parts: string[] = [];
-  for (let c: Command | null = cmd; c?.parent; c = c.parent) parts.unshift(c.name());
-  return parts.join(" ");
 }
 
 /** The folder `start` is in, with its repositories from `metator.repos.yml` or found below it. */

@@ -7,7 +7,9 @@ import {
   ok,
 } from "@metator/core";
 import type { Command } from "commander";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { schemaCommand } from "../outcome.ts";
 import { registerArchEvalCommands, registerArchPlanCommands } from "./arch-plan.ts";
 
 export function registerArchCommands(program: Command, ctx: CommandContext): void {
@@ -25,8 +27,7 @@ export function registerArchCommands(program: Command, ctx: CommandContext): voi
     )
     .action(action(async () => ({ result: await container().resolve("initArchitecturePolicy").execute() })));
 
-  arch
-    .command("analyze")
+  meta(arch.command("analyze"), { reads: true })
     .description("Analyze the package graph; writes .metator/arch/report.json and report.md")
     .action(
       action(async () => {
@@ -43,8 +44,7 @@ export function registerArchCommands(program: Command, ctx: CommandContext): voi
       }),
     );
 
-  arch
-    .command("check")
+  meta(arch.command("check"), { audience: "person", reads: true, writesWith: ["--sarif"] })
     .description("Fail on violations the change adds: not at the base, not in the baseline, not excepted")
     .option("--base <ref>", "compare against the merge base with this ref")
     .option("--strict", "new warnings fail too", false)
@@ -138,8 +138,7 @@ export function registerArchCommands(program: Command, ctx: CommandContext): voi
   registerArchPlanCommands(arch, ctx);
   registerArchEvalCommands(arch, ctx);
 
-  arch
-    .command("cycles")
+  meta(arch.command("cycles"), { reads: true })
     .description("Cycles between packages, with the imports that close them")
     .action(
       action(async () => ({
@@ -149,8 +148,7 @@ export function registerArchCommands(program: Command, ctx: CommandContext): voi
       })),
     );
 
-  arch
-    .command("declared")
+  meta(arch.command("declared"), { reads: true })
     .description("Dependencies imported but not declared, declared but not imported, and version drift")
     .action(
       action(async () => ({
@@ -160,8 +158,5 @@ export function registerArchCommands(program: Command, ctx: CommandContext): voi
       })),
     );
 
-  arch
-    .command("schema")
-    .description("Print the JSON Schema of metator/architecture.yml")
-    .action(action(async () => ({ result: ok(ArchitecturePolicyDocument.jsonSchema("input")) })));
+  schemaCommand(arch, ctx, "Print the JSON Schema of metator/architecture.yml", ArchitecturePolicyDocument);
 }

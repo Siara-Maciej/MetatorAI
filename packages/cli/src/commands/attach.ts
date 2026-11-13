@@ -9,9 +9,11 @@ import {
 } from "@metator/core";
 import type { Command } from "commander";
 import { type AttachIo, type AttachOutcome, type AttachSocket, attachPane, isPaneId } from "../attach.ts";
+import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { callDaemon, findDaemon } from "../daemon-client.ts";
-import { person } from "../live.ts";
+import { byOption } from "../options.ts";
+import { who } from "../who.ts";
 
 /** The person's own terminal as the attach client's IO (raw mode on stdin, bytes on stdout). */
 export function processIo(
@@ -72,17 +74,18 @@ export function webSocket(url: string): AttachSocket {
  */
 export function registerAttachCommand(program: Command, ctx: CommandContext): void {
   const root = () => (program.opts() as { root?: string }).root ?? process.cwd();
-  program
-    .command("attach <pane>")
+  meta(program.command("attach <pane>"), { audience: "person" })
     .description(
       "This terminal on a pane (or a run's conductor pane); Ctrl-] detaches. A run's pane takes its driver lock",
     )
-    .option("--by <name>", "who attaches (default: $METATOR_USER, else your login name)")
+    .addOption(byOption("who attaches"))
     .option("--keep", "keep the run's driver lock after detaching")
     .action(
       ctx.action(async (id: string, given: { by?: string; keep?: boolean }) => {
         // Resolved here, not as the option's default: the CLI reference is generated from the options.
-        const opts = { ...given, by: given.by ?? person() };
+        const by = await who(ctx.runs(), given.by);
+        if (by.isErr()) return { result: by };
+        const opts = { ...given, by: by.value };
         if (!process.stdin.isTTY) {
           return {
             result: err(

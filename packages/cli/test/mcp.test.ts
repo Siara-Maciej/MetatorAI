@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { describeCommands } from "../src/commands/meta.ts";
-import { ALWAYS, mcpTools, REFUSED, TYPED, toolArgv, toolCall } from "../src/mcp.ts";
+import { alwaysOptions, mcpTools, refusedOptions, TYPED, toolArgv, toolCall } from "../src/mcp.ts";
 import { buildProgram } from "../src/program.ts";
 
 describe("the MCP tools (metator mcp)", () => {
   const program = buildProgram(() => {});
   const tools = mcpTools(program);
+  const REFUSED = refusedOptions(program);
+  const ALWAYS = alwaysOptions(program);
   const all = describeCommands(program).commands.map((c) => c.name);
 
   test("every tool is a command of the tree, named by its words; a prefix takes its whole group", () => {

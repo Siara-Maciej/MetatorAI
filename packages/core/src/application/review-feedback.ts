@@ -7,8 +7,9 @@ import {
   ReviewReactionDocument,
   reactionStats,
 } from "../domain/review-feedback.ts";
-import { parseJsonDocument, serializeJsonLine } from "../domain/versioned.ts";
+import { serializeJsonLine } from "../domain/versioned.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
+import { readJsonLines } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { BuildReport } from "./report.ts";
 
@@ -44,17 +45,7 @@ export class ReviewFeedback {
   }
 
   async list(): Promise<Result<readonly ReviewReaction[], MetatorError>> {
-    const file = this.file();
-    if (!(await this.fs.exists(file))) return ok([]);
-    const text = await this.fs.read(file);
-    if (text.isErr()) return err(text.error);
-    const out: ReviewReaction[] = [];
-    for (const line of text.value.split("\n").filter((l) => l.trim() !== "")) {
-      const r = parseJsonDocument(line, file).andThen((raw) => ReviewReactionDocument.parse(raw, file));
-      if (r.isErr()) return err(r.error);
-      out.push(r.value);
-    }
-    return ok(out);
+    return readJsonLines(this.fs, this.file(), ReviewReactionDocument, "fail", false);
   }
 
   async stats(): Promise<Result<ReactionStats, MetatorError>> {

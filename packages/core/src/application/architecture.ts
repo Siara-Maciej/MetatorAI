@@ -31,12 +31,7 @@ import { MetatorError } from "../domain/errors.ts";
 import { manifestPath, resolveAmong } from "../domain/import-index.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { stylePackages } from "../domain/style-imports.ts";
-import {
-  parseJsonDocument,
-  parseYamlDocument,
-  renderYamlDocument,
-  serializeJsonDocument,
-} from "../domain/versioned.ts";
+import { parseJsonDocument, renderYamlDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type {
   ChangeHistory,
   Clock,
@@ -48,6 +43,7 @@ import type {
   ToolBoundariesReader,
   Vcs,
 } from "../ports/index.ts";
+import { parseDocumentText, writeDocument } from "./document-io.ts";
 import { type BuildImportGraph, resolveImport } from "./import-graph.ts";
 import type { FindOwners } from "./owners.ts";
 import type { MetatorPaths } from "./paths.ts";
@@ -74,9 +70,7 @@ export class ArchitecturePolicyCatalog {
   async load(): Promise<Result<LoadedPolicy, MetatorError>> {
     const text = await this.fs.read(this.file);
     if (text.isErr()) return ok({ policy: EMPTY_POLICY, source: null });
-    const policy = parseYamlDocument(text.value, this.file).andThen((raw) =>
-      ArchitecturePolicyDocument.parse(raw, this.file),
-    );
+    const policy = parseDocumentText(text.value, this.file, ArchitecturePolicyDocument, "yaml");
     if (policy.isErr()) return err(policy.error);
     const problems = lintPolicy(policy.value);
     if (problems.length > 0)
@@ -198,10 +192,7 @@ export class AnalyzeArchitecture {
       markdown: `${this.paths.arch}/report.md`,
       html: `${this.paths.arch}/report.html`,
     };
-    const json = await this.fs.write(
-      files.json,
-      serializeJsonDocument(ArchitectureReportDocument.stamp(report)),
-    );
+    const json = await writeDocument(this.fs, files.json, ArchitectureReportDocument, report, "json");
     if (json.isErr()) return err(json.error);
     const markdown = await this.fs.write(files.markdown, renderArchitectureMarkdown(report));
     if (markdown.isErr()) return err(markdown.error);
@@ -225,13 +216,11 @@ export class ArchitectureBaselineStore {
   async load(): Promise<Result<ArchitectureBaseline | undefined, MetatorError>> {
     const text = await this.fs.read(this.file);
     if (text.isErr()) return ok(undefined);
-    return parseJsonDocument(text.value, this.file).andThen((raw) =>
-      ArchitectureBaselineDocument.parse(raw, this.file),
-    );
+    return parseDocumentText(text.value, this.file, ArchitectureBaselineDocument, "json");
   }
 
   async save(baseline: ArchitectureBaseline): Promise<Result<void, MetatorError>> {
-    return this.fs.write(this.file, serializeJsonDocument(ArchitectureBaselineDocument.stamp(baseline)));
+    return writeDocument(this.fs, this.file, ArchitectureBaselineDocument, baseline, "json");
   }
 }
 
