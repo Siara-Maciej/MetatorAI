@@ -80,7 +80,7 @@ A run has an autonomy level. It decides which approval stages ask you.
 |---|---|
 | `L0` (default) | every approval stage asks you |
 | `L1` | stages the workflow marks `skipAt: [L1]` are passed by the level. In the shipped workflows that is the plan approval. |
-| `L2` | headless, for `mt-pr-review` in CI. Its approval stage is marked `skipAt: [L2]`. |
+| `L2` | headless, for `mt-pr-review` in CI. Its approval stage is marked `skipAt: [L2]`; the level passes it and grants what approving it grants, the review comments. A stage that grants a push can never be skipped. |
 
 Set the level when you start the run, or switch an `L0` run to `L1` while you approve:
 

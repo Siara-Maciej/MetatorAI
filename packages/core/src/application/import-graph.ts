@@ -25,6 +25,8 @@ import type { SourceFiles } from "./source-files.ts";
 export interface UnresolvedImport {
   readonly from: string;
   readonly specifier: string;
+  /** Where a specifier that is not relative leads: paths an alias maps it to, or a package's directory. */
+  readonly candidates?: readonly string[];
 }
 
 export interface ImportGraphReport {
@@ -41,6 +43,11 @@ export interface ImportGraphReport {
   /** Every import that resolved to a file, with its specifier (for the package architecture). */
   readonly imports: readonly ResolvedImport[];
   readonly unresolved: readonly UnresolvedImport[];
+  /**
+   * Imports of a workspace package by name that led to its manifest: the file they name is not
+   * there (deleted, or the package names no entry). A change in the package reaches the importer.
+   */
+  readonly missingEntries?: readonly UnresolvedImport[];
   readonly stats: { readonly parsed: number; readonly reused: number; readonly failed: number };
   /** What made resolution approximate, from the analyzer. */
   readonly notes?: readonly string[];
@@ -69,6 +76,21 @@ export function resolveImport(
     if (entry.type === "file") return entry;
   }
   return { type: "file", path: manifest };
+}
+
+/**
+ * The directory of the workspace package an import names, when the import led to the package's
+ * manifest instead of a file (`resolveImport`'s last resort); undefined otherwise.
+ */
+export function missingPackageEntry(
+  packages: readonly PackageRef[],
+  specifier: string,
+  resolved: string,
+): string | undefined {
+  const pkg = packages.find((p) => specifier === p.name || specifier.startsWith(`${p.name}/`));
+  // The root package's directory is the repository: every change would count.
+  if (!pkg || pkg.dir === "." || pkg.dir === "" || resolved !== manifestPath(pkg.dir)) return undefined;
+  return specifier === `${pkg.name}/package.json` ? undefined : `${pkg.dir}/`;
 }
 
 /**
@@ -125,19 +147,27 @@ export class BuildImportGraph {
     const externalUses = new Map<string, { from: string; name: string; typeOnly: boolean }>();
     const imports: ResolvedImport[] = [];
     const unresolved: UnresolvedImport[] = [];
+    const missingEntries: UnresolvedImport[] = [];
     for (const [from, entry] of Object.entries(next.files)) {
       for (const imp of entry.imports) {
         const target = resolveImport(this.analyzer, packages.value, from, imp.specifier);
         if (target.type === "file") {
           edges.push({ from, to: target.path, kind: classifyEdge(from, target.path, packages.value) });
           imports.push({ from, to: target.path, specifier: imp.specifier, typeOnly: imp.typeOnly });
+          const dir = missingPackageEntry(packages.value, imp.specifier, target.path);
+          if (dir && !missingEntries.some((u) => u.from === from && u.specifier === imp.specifier))
+            missingEntries.push({ from, specifier: imp.specifier, candidates: [dir] });
         } else if (target.type === "external") {
           externals.add(target.name);
           const key = `${from}\u0000${target.name}`;
           const typeOnly = imp.typeOnly && (externalUses.get(key)?.typeOnly ?? true);
           externalUses.set(key, { from, name: target.name, typeOnly });
         } else if (!unresolved.some((u) => u.from === from && u.specifier === imp.specifier)) {
-          unresolved.push({ from, specifier: imp.specifier });
+          unresolved.push({
+            from,
+            specifier: imp.specifier,
+            ...(target.candidates && target.candidates.length > 0 ? { candidates: target.candidates } : {}),
+          });
         }
       }
     }
@@ -156,6 +186,7 @@ export class BuildImportGraph {
       externalUses: [...externalUses.values()],
       imports,
       unresolved,
+      missingEntries,
       stats: { parsed, reused, failed: parseErrors.length },
       parseErrors,
       notes: this.analyzer.notes?.() ?? [],
@@ -192,7 +223,10 @@ export class IndexedImportGraphReader implements ImportGraphReader {
   }
 
   async graph() {
-    return (await this.build.execute()).map(({ edges, unresolved }) => ({ edges, unresolved }));
+    return (await this.build.execute()).map(({ edges, unresolved, missingEntries }) => ({
+      edges,
+      unresolved: [...unresolved, ...(missingEntries ?? [])],
+    }));
   }
 }
 

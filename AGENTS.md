@@ -42,7 +42,7 @@ Nothing is done until it is proven:
 
 ## Develop MetatorAI with MetatorAI
 
-1. Before editing: `bun run metator rules pack --paths <files>`, the package card, `bun run metator similar --file <new file>`.
+1. Before editing: `bun run metator rules pack --files <files>`, the package card, `bun run metator similar --file <new file>`.
 2. While editing: `bun run metator graph dependents <file> --transitive`.
 3. After editing: `bun run metator graph affected --base origin/main` to pick tests; `bun run metator rules check --base origin/main`.
 4. Before committing: `bun run metator cards build`, `bun run metator rules adapters` and `bun run metator generate` when structure, rules or agents changed; then `bun run canon` and `bun run check`.

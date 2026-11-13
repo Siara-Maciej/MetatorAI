@@ -53,6 +53,7 @@ A step runs a `package.json` script with your package manager (`script`), a bina
 | `metator rules check --base main` | a changed file breaks a tool-enforced [rule](./index.md) |
 | `metator test affected --base main` | a test the import graph says the change reaches fails. It runs only those tests |
 | `metator graph diff --base main` | reports import edges added and removed, new package dependencies and new cycles |
+| `metator graph cycles --check` | two files import each other, directly or through others. An `import type` counts, so this finds cycles that a linter and the type checker accept |
 | `metator arch check --base main` | the change adds a [package architecture](./architecture.md) violation |
 | `metator contract diff --base main --check` | the change breaks an API contract in a way the [system map](./systems.md) does not allow |
 | `metator coverage diff --base main --min 80` | fewer than 80 percent of the added lines are covered (reads `coverage/lcov.info`) |

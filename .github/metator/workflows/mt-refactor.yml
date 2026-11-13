@@ -2,13 +2,13 @@
 kind: Workflow
 schemaVersion: 3
 id: mt-refactor
-revision: 4
+revision: 5
 description: Snapshot the API, pin behavior, small steps, prove equivalence
 entry: { prompt: mt-refactor }
 input:
   oneOf: [task_ref, task_text]
   optional: [scope]
-preconditions: [clean-tree, index-fresh, branch-ok, tests-green]
+preconditions: [clean-tree, branch-ok, tests-green]
 limits: { parallel: 6 }
 stages:
   - id: setup

@@ -338,7 +338,12 @@ export interface ImportGraphReader {
     Result<
       {
         readonly edges: readonly Edge[];
-        readonly unresolved: readonly { readonly from: string; readonly specifier: string }[];
+        readonly unresolved: readonly {
+          readonly from: string;
+          readonly specifier: string;
+          /** Where a specifier that is not relative leads (an alias, a workspace package by name). */
+          readonly candidates?: readonly string[];
+        }[];
       },
       MetatorError
     >
@@ -435,7 +440,11 @@ export interface ImportSpecifier {
 export type Resolution =
   | { readonly type: "file"; readonly path: string }
   | { readonly type: "external"; readonly name: string }
-  | { readonly type: "unresolved" };
+  | {
+      readonly type: "unresolved";
+      /** Repo-relative paths an alias maps the specifier to, extension unknown (`src/util`). */
+      readonly candidates?: readonly string[];
+    };
 
 /** Language-specific import extraction and module resolution (e.g. TypeScript via oxc). */
 export interface ImportAnalyzer {

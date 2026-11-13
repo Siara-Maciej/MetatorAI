@@ -235,6 +235,13 @@ export function updateYamlPath(text: string, path: readonly string[], value: unk
   return doc.toString({ lineWidth: 0 });
 }
 
+/** Removes the fields at the given paths where they are; everything else stays, comments included. */
+export function deleteYamlPaths(text: string, paths: readonly (readonly string[])[]): string {
+  const doc = parseDocument(text);
+  for (const path of paths) if (doc.hasIn(path)) doc.deleteIn(path);
+  return doc.toString({ lineWidth: 0 });
+}
+
 const FRONT_MATTER = /^---\n([\s\S]*?)\n---\n/;
 
 /** Markdown documents carry their header as YAML front matter. */

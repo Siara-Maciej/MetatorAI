@@ -123,6 +123,19 @@ To give it up: `metator run close --run <id> --aborted --reason "<why>"`. In the
 
 `metator run init` fails with `a run cannot start here` when the directory is not a git repository, and with `--worktree` when the repository has no commit. The hint names the command. With `--worktree` it also fails with `the run would start without your changes` when tracked files have uncommitted changes: commit them, stash them, or pass `--allow-dirty` (in the app: **Start from the last commit**).
 
+## A precondition does not hold
+
+`metator run init` fails with `precondition <name> does not hold` when the workflow requires something the checkout does not meet. The hint names the fix.
+
+| Message starts with | Fix |
+|---|---|
+| `precondition clean-tree does not hold` | commit or stash your changes, or pass `--allow-dirty` |
+| `precondition branch-ok does not hold` | `git switch -c <branch>`, or start the run with `--worktree` |
+| `precondition tests-green does not hold` | `metator gate quick`, fix the failing steps, start again |
+| `the workflow requires ..., which nothing can check` | `metator setup` updates the installed workflows; in your own workflow, remove the line |
+
+`metator doctor --gates` tells you whether the quick gate is green before you start. [How runs work](../guide/runs.md#what-must-hold-before-a-run-starts) lists the preconditions.
+
 ## The AI host cannot start
 
 `metator run drive --host copilot` fails with `AI host copilot cannot start here` when the Copilot CLI is not installed. Install it, or drive with a host the hint lists. `metator doctor` shows the same under `host`.

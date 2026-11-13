@@ -75,3 +75,15 @@ rules:
     summary: A port interface has at most five members; a bigger one is split by axis of change (readers from writers, one tool capability from another).
     rationale: docs/ARCHITECTURE.md
     source: { ref: AGENTS.md#rules-that-hold-everywhere, verified: 2026-10-26 }
+  - id: MT-ARCH-009
+    title: No import cycles, type-only ones included
+    applyTo: ["packages/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"]
+    enforcement: E1
+    implementation: test:mt-arch-009
+    summary: No two files import each other, directly or through others; an `import type` is an edge too. `bun run arch` runs `metator graph cycles --check` and prints the cycle.
+    rationale: docs/ARCHITECTURE.md
+    source: { ref: AGENTS.md#architecture-enforced, verified: 2026-11-12 }
+    do:
+      - "declare the type both files need in a third file, or where it is used"
+    dont:
+      - 'a.ts: import type { B } from "./b.ts"; b.ts: import { a } from "./a.ts"'

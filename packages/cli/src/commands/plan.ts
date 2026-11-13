@@ -39,12 +39,21 @@ export function registerPlanCommands(program: Command, { action, container }: Co
     .description("Write the edit scope and independent shards (plan-scope.json next to the plan)")
     .argument("<file>", "plan JSON")
     .option("--out <file>", "where to write the PlanScope document")
+    .option("--dry-run", "print the scope without writing it", false)
     .action(
-      action(async (file: string, opts: { out?: string }) => ({
-        result: await container()
-          .resolve("scopePlan")
-          .execute({ file: normalizePath(file), ...(opts.out ? { out: normalizePath(opts.out) } : {}) }),
-      })),
+      action(async (file: string, opts: { out?: string; dryRun: boolean }) => {
+        if (opts.dryRun && opts.out)
+          return { result: err(MetatorError.usage("--dry-run writes nothing: leave out --out")) };
+        return {
+          result: await container()
+            .resolve("scopePlan")
+            .execute({
+              file: normalizePath(file),
+              ...(opts.out ? { out: normalizePath(opts.out) } : {}),
+              ...(opts.dryRun ? { dryRun: true } : {}),
+            }),
+        };
+      }),
     );
 
   plan

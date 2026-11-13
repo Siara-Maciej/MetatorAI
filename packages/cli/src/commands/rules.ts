@@ -1,7 +1,7 @@
 import { err, MetatorError, normalizePath, ok, RuleSetDocument } from "@metator/core";
 import { type Command, Option } from "commander";
 import type { CommandContext } from "../context.ts";
-import { positiveInt } from "../options.ts";
+import { positiveInt, renamedOption } from "../options.ts";
 
 const repoPaths = (files: readonly string[]) => files.map((f) => normalizePath(f).replace(/^(\.\/)+/, ""));
 
@@ -39,15 +39,17 @@ export function registerRulesCommands(program: Command, { action, container }: C
   rules
     .command("pack")
     .description(
-      "Rules that apply to the given paths (default: files changed against --base), sized for an agent",
+      "Rules that apply to the given files (default: files changed against --base), sized for an agent",
     )
-    .option("--paths <files...>", "repo-relative paths the agent will touch")
+    .option("--files <files...>", "repo-relative files the agent will touch")
+    .addOption(renamedOption("--paths <files...>", "--files"))
     .option("--base <ref>", "use files changed against this git ref", "HEAD")
     .option("--budget <tokens>", "token budget for the pack", positiveInt)
     .action(
-      action(async (opts: { paths?: string[]; base: string; budget?: number }) => {
+      action(async (opts: { files?: string[]; paths?: string[]; base: string; budget?: number }) => {
         const c = container();
-        let paths = opts.paths ? repoPaths(opts.paths) : undefined;
+        const given = opts.files ?? opts.paths;
+        let paths = given ? repoPaths(given) : undefined;
         if (!paths) {
           const changed = await c.resolve("vcs").changedFiles(opts.base);
           if (changed.isErr()) return { result: changed };

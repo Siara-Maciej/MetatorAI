@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { FakeVcs, InMemoryFileSystem } from "@metator/testing";
-import { BuildImportGraph, GraphQueries } from "../src/application/import-graph.ts";
+import {
+  BuildImportGraph,
+  GraphQueries,
+  IndexedImportGraphReader,
+  missingPackageEntry,
+} from "../src/application/import-graph.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { SourceFiles } from "../src/application/source-files.ts";
 import { MetatorError } from "../src/domain/errors.ts";
@@ -170,6 +175,45 @@ describe("BuildImportGraph", () => {
       await new BuildImportGraph(sources, fs, noted, workspace, DEFAULT_PATHS, "fake@1").execute()
     )._unsafeUnwrap();
     expect(report.notes).toEqual(["tsconfig.json extends a missing config"]);
+  });
+
+  test("an alias that leads nowhere keeps where it leads; a package imported by name that led to its manifest is a missing entry (C1)", async () => {
+    const files = {
+      "apps/app/src/main.ts":
+        "// import @app/gone\n// import @a/core\n// import @a/core\n// import @a/core/package.json",
+      "packages/core/package.json": "{}",
+    };
+    const table: Record<string, Resolution> = {
+      "apps/app/src/main.ts->@app/gone": { type: "unresolved", candidates: ["apps/app/src/gone"] },
+      // The entry file is gone: the analyzer sees a package, and the manifest names nothing that exists.
+      "apps/app/src/main.ts->@a/core": { type: "external", name: "@a/core" },
+      "apps/app/src/main.ts->@a/core/package.json": { type: "file", path: "packages/core/package.json" },
+    };
+    const w = world(files, table);
+    const report = (await w.build.execute())._unsafeUnwrap();
+    expect(report.unresolved).toEqual([
+      { from: "apps/app/src/main.ts", specifier: "@app/gone", candidates: ["apps/app/src/gone"] },
+    ]);
+    expect(report.missingEntries).toEqual([
+      { from: "apps/app/src/main.ts", specifier: "@a/core", candidates: ["packages/core/"] },
+    ]);
+    // What `graph affected` reads: both, as imports that resolve to no file.
+    expect(
+      (await new IndexedImportGraphReader(w.build).graph())
+        ._unsafeUnwrap()
+        .unresolved.map((u) => u.specifier),
+    ).toEqual(["@app/gone", "@a/core"]);
+    expect(missingPackageEntry([{ name: "x", dir: "." }], "x", "package.json")).toBeUndefined();
+    expect(
+      missingPackageEntry(
+        [{ name: "@a/core", dir: "packages/core" }],
+        "@a/corey",
+        "packages/core/package.json",
+      ),
+    ).toBeUndefined();
+    expect(
+      missingPackageEntry([{ name: "@a/core", dir: "packages/core" }], "@a/core/x", "packages/core/src/x.ts"),
+    ).toBeUndefined();
   });
 
   test("the same unresolved import used twice in a file is reported once", async () => {

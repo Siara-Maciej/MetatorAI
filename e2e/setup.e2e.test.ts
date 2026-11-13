@@ -74,7 +74,11 @@ describe("metator setup (real CLI)", () => {
     ]);
     expect(data.checks.every((c) => c.passed)).toBe(true);
     // What comes next is what the guide says: the readiness check, then the daemon the app talks to.
-    expect((r.json.data as { next: string[] }).next).toEqual(["metator doctor", "metator serve"]);
+    expect((r.json.data as { next: string[] }).next).toEqual([
+      "metator doctor",
+      "metator doctor --gates",
+      "metator serve",
+    ]);
     expect(await repo.read("metator.config.yml")).toContain("targets:\n    - claude");
     expect([await repo.exists(".claude/agents/mt-scout.md"), await repo.exists(".github/agents")]).toEqual([
       true,

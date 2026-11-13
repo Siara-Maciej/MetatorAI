@@ -8,7 +8,7 @@ Bun monorepo, ports and adapters: `core` (domain → ports → application) ← 
 
 ## Before you change code
 
-- `bun run metator rules pack --paths <files>` prints the rules that apply to the files you touch; `bun run metator similar --file <new file>` finds the exemplar to copy.
+- `bun run metator rules pack --files <files>` prints the rules that apply to the files you touch; `bun run metator similar --file <new file>` finds the exemplar to copy.
 - A new behavior gets a unit test in `packages/<pkg>/test/`, a user-facing change an e2e test in `e2e/` on the real `metator` process, a core or plugin module a mutant in `scripts/mutants.ts`.
 - A schema change is a new version with an upgrade and a frozen snapshot (`bun run schemas:freeze`); a released version never changes.
 

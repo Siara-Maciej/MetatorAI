@@ -56,6 +56,9 @@ function commandAt(
   return { cmd, path, rest: words.slice(i) };
 }
 
+/** The options a person is shown: a renamed flag's old spelling still parses and is not listed. */
+export const visibleOptions = (cmd: Command) => cmd.options.filter((o) => !o.hidden);
+
 function helpOf(cmd: Command, path: readonly string[]): CommandHelp {
   const name = path.join(" ");
   const commands = cmd.commands.length > 0 ? describeCommands(cmd).commands : undefined;
@@ -63,7 +66,7 @@ function helpOf(cmd: Command, path: readonly string[]): CommandHelp {
     name,
     summary: cmd.description(),
     usage: `metator ${name} ${cmd.usage()}`.trim(),
-    options: cmd.options.map((o) => ({
+    options: visibleOptions(cmd).map((o) => ({
       flags: o.flags,
       description: o.description,
       ...(o.defaultValue !== undefined ? { default: o.defaultValue } : {}),

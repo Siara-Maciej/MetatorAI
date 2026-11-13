@@ -91,7 +91,20 @@ describe("OxcImportAnalyzer.resolve (real monorepo, real bun install)", () => {
   });
 
   test("a tsconfig paths alias to a missing file is unresolved, not a package to declare", () => {
-    expect(analyzer.resolve("apps/web/src/main.ts", "@app/does-not-exist")).toEqual({ type: "unresolved" });
+    // With where the alias leads, so a deleted file's importers can be found (C1).
+    expect(analyzer.resolve("apps/web/src/main.ts", "@app/does-not-exist")).toEqual({
+      type: "unresolved",
+      candidates: ["apps/web/src/does-not-exist"],
+    });
+    expect(analyzer.resolve("apps/web/src/main.ts", "@app/deep/gone.js")).toEqual({
+      type: "unresolved",
+      candidates: ["apps/web/src/deep/gone.js"],
+    });
+    // A name no alias claims is still a package.
+    expect(analyzer.resolve("apps/web/src/main.ts", "@apple/x")).toEqual({
+      type: "external",
+      name: "@apple/x",
+    });
   });
 
   test("non-code assets resolve to files", () => {

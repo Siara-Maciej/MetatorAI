@@ -2,7 +2,7 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-system-change
-revision: 2
+revision: 3
 description: Analyze the system, plan steps per application, approve, carry them out as child runs in each repository
 entry: { prompt: mt-system-change }
 input:

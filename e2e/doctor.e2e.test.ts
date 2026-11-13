@@ -218,4 +218,89 @@ describe("metator doctor (real CLI)", () => {
       await empty.dispose();
     }
   }, 60_000);
+
+  test("workflow preconditions: a dirty tree, a detached HEAD and a red quick gate refuse the run with the fix; doctor --gates says the gate is red", async () => {
+    const pre = await ScratchRepo.create();
+    const wf = (id: string, preconditions: string) =>
+      `kind: Workflow\nschemaVersion: 3\nid: ${id}\npreconditions: ${preconditions}\nstages:\n  - id: build\n    owner: mt-implementer\n`;
+    try {
+      await pre.write(".gitignore", ".metator/\n");
+      await pre.write(
+        "package.json",
+        JSON.stringify({
+          name: "pre",
+          scripts: { test: "test ! -f RED || (echo two tests failed; exit 1)" },
+        }),
+      );
+      await pre.write(
+        "metator.config.yml",
+        "kind: MetatorConfig\nschemaVersion: 2\ngates:\n  quick:\n    - id: test\n      run: { script: test }\n",
+      );
+      await pre.write(".github/metator/workflows/tidy.yml", wf("tidy", "[clean-tree, branch-ok]"));
+      await pre.write(".github/metator/workflows/green.yml", wf("green", "[tests-green]"));
+      await pre.write(".github/metator/workflows/odd.yml", wf("odd", "[index-fresh]"));
+      await pre.write(".github/metator/workflows/free.yml", wf("free", "[]"));
+      await pre.commit("init");
+      const init = (workflow: string, ...more: string[]) =>
+        metator(["run", "init", "--workflow", workflow, "--task", "x", ...more], pre.root);
+      const error = (r: { json: Record<string, unknown> }) =>
+        r.json.error as { code: string; message: string; hint: string; details: { precondition: string } };
+
+      // clean-tree: refused in the checkout; the other workflow starts; --allow-dirty is a decision.
+      await pre.write("package.json", `${await pre.read("package.json")}\n`);
+      const dirty = await init("tidy");
+      expect([dirty.code, error(dirty).code, error(dirty).details]).toEqual([
+        1,
+        "CHECK_FAILED",
+        { precondition: "clean-tree" },
+      ]);
+      expect(error(dirty).message).toStartWith(
+        "precondition clean-tree does not hold (no tracked file has uncommitted changes): 1 tracked file(s)",
+      );
+      expect(error(dirty).hint).toContain("git stash");
+      expect((await init("free")).code).toBe(0);
+      expect((await init("tidy", "--allow-dirty")).code).toBe(0);
+      await pre.git("checkout", "--", "package.json");
+
+      // branch-ok: a detached HEAD refuses a run in the checkout; doctor says it; a branch fixes it.
+      await pre.git("checkout", "-q", "--detach");
+      const detached = await init("tidy");
+      expect(error(detached).details).toEqual({ precondition: "branch-ok" });
+      expect(error(detached).hint).toContain("git switch -c <branch>");
+      const doctor = (await metator(["doctor"], pre.root)).json.data as { checks: Check[] };
+      expect(doctor.checks.find((c) => c.id === "branch")).toMatchObject({ status: "warn" });
+      await pre.git("switch", "-q", "main");
+      expect((await init("tidy")).code).toBe(0);
+
+      // tests-green: the quick gate runs when the run starts.
+      expect((await init("green")).code).toBe(0);
+      await pre.write("RED", "");
+      const red = await init("green");
+      expect(error(red).details).toEqual({ precondition: "tests-green" });
+      expect(error(red).message).toContain("step test failed (test: two tests failed)");
+      expect(error(red).hint).toStartWith("Run `metator gate quick`");
+      // doctor: nothing about the gate unless asked; asked, the failing step and the command.
+      const plain = (await metator(["doctor"], pre.root)).json.data as { checks: Check[] };
+      expect(plain.checks.some((c) => c.id === "green")).toBe(false);
+      const asked = await metator(["doctor", "--gates"], pre.root);
+      const green = (
+        asked.json.data as { ready: boolean; checks: (Check & { message: string })[] }
+      ).checks.find((c) => c.id === "green");
+      expect([asked.code, green?.status, green?.fix]).toEqual([0, "warn", "metator gate quick"]);
+      expect(green?.message).toContain("step test failed");
+      expect((asked.json.warnings as string[]).some((w) => w.startsWith("green: "))).toBe(true);
+      const { rm } = await import("node:fs/promises");
+      await rm(pre.path("RED"));
+      const now = (await metator(["doctor", "--gates"], pre.root)).json.data as { checks: Check[] };
+      expect(now.checks.find((c) => c.id === "green")?.status).toBe("ok");
+
+      // A precondition nothing can check: lint rejects it and no run starts on it.
+      const odd = await init("odd");
+      expect(error(odd).message).toContain("`index-fresh`, which nothing can check");
+      const lint = await metator(["workflow", "lint"], pre.root);
+      expect(JSON.stringify(lint.json)).toContain("`index-fresh` cannot be checked when a run starts");
+    } finally {
+      await pre.dispose();
+    }
+  }, 120_000);
 });

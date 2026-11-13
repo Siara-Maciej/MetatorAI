@@ -7,7 +7,7 @@ revision: 1
 description: Survey, plan, gate, build, verify, ship
 stages:
   - id: setup
-    description: Branch and preconditions (clean tree, fresh index)
+    description: Build the index the next stages read
   - id: intake
     description: Task and acceptance criteria; ask when ambiguous
   - id: context

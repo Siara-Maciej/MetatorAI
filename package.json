@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "arch": "ast-grep test --skip-snapshot-tests && ast-grep scan --filter '^mt-(arch|code|test)-'",
+    "arch": "ast-grep test --skip-snapshot-tests && ast-grep scan --filter '^mt-(arch|code|test)-' && bun packages/cli/src/main.ts graph cycles --check",
     "check": "bun run lint && bun run typecheck && bun run arch && bun run canon && bun run test && bun run test:mutation",
     "canon": "bun packages/cli/src/main.ts meta check-all --min-e1 100",
     "metator": "bun packages/cli/src/main.ts",

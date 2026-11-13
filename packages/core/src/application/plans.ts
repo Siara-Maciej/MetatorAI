@@ -71,7 +71,10 @@ export class LintPlan {
   }
 }
 
-/** `plan scope <plan.json>`: writes the edit scope and independent shards next to the plan. */
+/**
+ * `plan scope <plan.json>`: writes the edit scope and independent shards next to the plan; with
+ * `dryRun` it only computes them (the MCP tool, which never writes).
+ */
 export class ScopePlan {
   constructor(
     private readonly fs: FileSystem,
@@ -81,12 +84,14 @@ export class ScopePlan {
   async execute(input: {
     readonly file: string;
     readonly out?: string;
-  }): Promise<Result<PlanScope & { readonly output: string }, MetatorError>> {
+    readonly dryRun?: boolean;
+  }): Promise<Result<PlanScope & { readonly output?: string }, MetatorError>> {
     const plan = await readPlan(this.fs, input.file);
     if (plan.isErr()) return err(plan.error);
     const imports = await internalImports(this.graph);
     if (imports.isErr()) return err(imports.error);
     const scope = planScope(plan.value, input.file, imports.value);
+    if (input.dryRun) return ok(scope);
     const dir = input.file.includes("/") ? input.file.slice(0, input.file.lastIndexOf("/")) : ".";
     const output = input.out ?? `${dir}/plan-scope.json`;
     const saved = await this.fs.write(output, serializeJsonDocument(PlanScopeDocument.stamp(scope)));

@@ -1,0 +1,20 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 11,
+  "paths": {
+    "runs": "state/runs",
+    "gates": "state/gates",
+    "rules": "docs/rules"
+  },
+  "gates": {
+    "quick": [
+      {
+        "id": "test",
+        "run": {
+          "script": "test"
+        }
+      }
+    ]
+  },
+  "reviews": {}
+}

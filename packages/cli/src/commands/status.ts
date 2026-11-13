@@ -86,8 +86,13 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
     )
     .option("--worktree <id>", "look at this worktree (a run's) instead of this checkout")
     .option("--run <id>", "look at this run's worktree")
+    .option(
+      "--gates",
+      "also run the quick gate once and say whether it is green (takes the gate's time; this checkout only)",
+      false,
+    )
     .action(
-      ctx.action(async (opts: { worktree?: string; run?: string }) => {
+      ctx.action(async (opts: { worktree?: string; run?: string; gates: boolean }) => {
         const c = ctx.container();
         let worktree = opts.worktree;
         if (opts.run) {
@@ -99,7 +104,9 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
             };
           worktree = record.value.worktree.id;
         }
-        const r = await c.resolve("checkReadiness").execute(worktree ? { worktree } : {});
+        const r = await c
+          .resolve("checkReadiness")
+          .execute({ ...(worktree ? { worktree } : {}), ...(opts.gates ? { gates: true } : {}) });
         return { result: r, warnings: r.isOk() ? readinessWarnings(r.value) : [] };
       }),
     );

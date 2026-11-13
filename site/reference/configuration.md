@@ -13,7 +13,7 @@ A file that does not match the schema stops every command with `INVALID_CONFIG` 
 
 ```yaml
 kind: MetatorConfig
-schemaVersion: 11
+schemaVersion: 12
 
 gates:
   quick:
@@ -110,21 +110,17 @@ metator gate full
 
 ## Paths
 
-Override any of these under `paths:`.
+Override any of these under `paths:`. Local state (runs, the index, gate reports, what `metator discover` found) always lives under `.metator/` and has no key here: git, the hooks and a run's worktree treat that directory as MetatorAI's own. A file older than version 12 that sets `runs`, `index`, `discovery` or `gates` still loads, and the key is ignored.
 
 | Key | Default | Holds |
 |---|---|---|
 | `workflows` | `.github/metator/workflows` | workflow specs |
-| `runs` | `.metator/runs` | run state, logs, artifacts |
-| `index` | `.metator/index` | the import index and the pattern index |
 | `rules` | `docs/metator/rules` | the rules |
 | `instructions` | `.github/instructions` | generated Copilot instructions |
 | `memoryMap` | `docs/metator/memory-map.yml` | the memory map |
 | `cards` | `docs/metator/modules` | module cards |
 | `patterns` | `docs/metator/patterns` | the pattern catalog |
 | `adr` | `docs/adr` | architecture decision records |
-| `discovery` | `.metator/discovery.json` | what `metator discover` found |
-| `gates` | `.metator/gates` | gate reports |
 | `agents` | `metator/agents` | agent definitions |
 | `evals` | `docs/metator/evals/golden` | review cases for `metator eval` |
 
