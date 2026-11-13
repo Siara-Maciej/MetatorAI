@@ -18,7 +18,18 @@ import {
   wsUrl,
 } from "./api.ts";
 import { Modal } from "./components/modal.tsx";
-import { flattenState, type Run, repoChoice, sameRepo, type Unreadable, withTerminalAsks } from "./model.ts";
+import {
+  flattenState,
+  type Run,
+  repoChoice,
+  type SeenRuns,
+  sameRepo,
+  seenFrom,
+  seenKey,
+  type Unreadable,
+  withSeen,
+  withTerminalAsks,
+} from "./model.ts";
 
 export interface Daemon {
   readonly client: DaemonClient;
@@ -55,6 +66,10 @@ export interface Daemon {
   readonly optionsView: OptionsView | undefined;
   readonly optionsError: string | undefined;
   reloadOptions(): Promise<void>;
+  /** When this person last opened each run (per window): a finished run reads `done` until they look. */
+  readonly seen: SeenRuns;
+  /** The run was opened now. */
+  markSeen(run: { readonly runId: string; readonly repo?: string | undefined }): void;
   readonly me: string;
   setMe(name: string): void;
   setUrl(url: string): void;
@@ -263,6 +278,14 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
   const workspaces = layout.data?.workspaces ?? NO_WORKSPACES;
   const runs = useMemo(() => withTerminalAsks(stateRuns, panes), [stateRuns, panes]);
   const [savedRepo, setSavedRepo] = useState(() => read("metator.repo"));
+  const [seen, setSeen] = useState<SeenRuns>(() => seenFrom(read("metator.seen")));
+  const markSeen = useCallback((run: { readonly runId: string; readonly repo?: string | undefined }) => {
+    setSeen((before) => {
+      const after = withSeen(before, seenKey(run), new Date().toISOString());
+      write("metator.seen", JSON.stringify(after));
+      return after;
+    });
+  }, []);
   // The name dialog: one question at a time; everyone who asked gets the same answer.
   const [asking, setAsking] = useState(false);
   const waiters = useRef<((name: string) => void)[]>([]);
@@ -319,6 +342,8 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     inbox: down ? NO_INBOX : inbox,
     panes: shownPanes,
     workspaces: down ? NO_WORKSPACES : workspaces,
+    seen,
+    markSeen,
     me,
     setMe,
     setUrl: (u) => {

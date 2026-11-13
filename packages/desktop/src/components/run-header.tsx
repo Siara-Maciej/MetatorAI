@@ -1,40 +1,28 @@
 import type { ReactNode } from "react";
-import type { StageProgress } from "../api.ts";
-import { RUN_TABS, type Run, routeHash } from "../model.ts";
+import { RUN_TABS, type Run, type RunTab, routeHash } from "../model.ts";
 import { StageBar } from "./stage-bar.tsx";
 
 /**
- * The top of every screen about one run (session, plan, changes, briefing): the task, the run's
- * id, the four screens as links with the shown one marked, the screen's own actions, and the
- * stages in one line.
+ * The top of the page about one run: the task, the run's id, the page's tabs as links with the
+ * shown one marked, and the stages in one line.
  */
-export function RunHeader<S extends Pick<StageProgress, "id" | "state">>({
+export function RunHeader({
   runId,
   run,
-  screen,
-  task,
-  stages,
-  stageTitle,
-  stagesTestId,
-  actions,
+  tab,
+  showStages = true,
   children,
 }: {
   readonly runId: string;
   /** The run from the state; none while the state has not come, or for a run it no longer lists. */
   readonly run: Run | undefined;
-  readonly screen: (typeof RUN_TABS)[number]["screen"];
-  /** The task, when the screen knows it from elsewhere (the plan's board). */
-  readonly task?: string | undefined;
-  /** The stages to show instead of the run's (the plan's, with who worked on each). */
-  readonly stages?: readonly S[] | undefined;
-  stageTitle?: ((stage: S) => string) | undefined;
-  readonly stagesTestId?: string | undefined;
-  /** The screen's own buttons, at the end of the first line. */
-  readonly actions?: ReactNode;
-  /** Under the first line: the session's chips. */
+  readonly tab: RunTab;
+  /** The plan shows the stages itself, with who worked on each. */
+  readonly showStages?: boolean;
+  /** Under the tabs: what the run is (workflow, host, ports). */
   readonly children?: ReactNode;
 }) {
-  const title = task ?? run?.task ?? runId;
+  const title = run?.task ?? runId;
   return (
     <header className="head run-header">
       <div className="line">
@@ -42,26 +30,21 @@ export function RunHeader<S extends Pick<StageProgress, "id" | "state">>({
           {title}
         </h1>
         <span className="id mono faint">{runId}</span>
-        <span className="spacer" />
-        {actions}
       </div>
-      <nav className="run-tabs" aria-label="screens of this run">
+      <nav className="run-tabs" aria-label="tabs of this run">
         {RUN_TABS.map((t) => (
           <a
-            key={t.screen}
-            href={routeHash({ screen: t.screen, runId })}
-            aria-current={t.screen === screen ? "page" : undefined}
+            key={t.tab}
+            href={routeHash({ screen: "run", runId, tab: t.tab })}
+            aria-current={t.tab === tab ? "page" : undefined}
+            title={`key ${t.key}`}
           >
             {t.label}
           </a>
         ))}
       </nav>
       {children}
-      {stages ? (
-        <StageBar stages={stages} titleOf={stageTitle} testId={stagesTestId} />
-      ) : run ? (
-        <StageBar stages={run.stages} testId={stagesTestId} />
-      ) : null}
+      {showStages && run ? <StageBar stages={run.stages} /> : null}
     </header>
   );
 }

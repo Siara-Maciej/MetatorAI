@@ -198,69 +198,100 @@ export function answerCommand(
 
 const quote = (s: string) => (/^[\w./-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\"')}"`);
 
+/** The tabs of the one page about a run, in the order of its header. */
+export const RUN_TABS = [
+  { tab: "overview", label: "Overview", key: "o" },
+  { tab: "terminal", label: "Terminal", key: "t" },
+  { tab: "plan", label: "Plan", key: "p" },
+  { tab: "changes", label: "Changes", key: "d" },
+  { tab: "activity", label: "Activity", key: "l" },
+] as const;
+export type RunTab = (typeof RUN_TABS)[number]["tab"];
+
+/** The two parts of the Overview place: the daemon with its figures, and what links the runs. */
+export type OverviewTab = "daemon" | "dependencies";
+
 /**
- * The hash route, one per screen: `#/inbox[/<run>%2F<question>]`, `#/session/<run>[/<pane>]`, `#/grid[/<group>|/pane:<pane>]`,
- * `#/graph`, `#/supervisor`, `#/mrs[/<id>]`, `#/settings`, `#/plan/<run>`, `#/backlog`,
- * `#/review/<run>[/<file>]`, `#/briefing/<run>`.
+ * The hash route, one per place: `#/inbox[/<run>%2F<question>]`, `#/run/<run>[/<tab>[/<pane or
+ * file>]]`, `#/grid[/<group>|/pane:<pane>]` (Terminals), `#/overview[/dependencies]`,
+ * `#/mrs[/<id>]`, `#/settings`, `#/backlog`. The routes of the four screens a run once had
+ * (`#/session`, `#/plan`, `#/review`, `#/briefing`) and of the two the Overview once was
+ * (`#/supervisor`, `#/graph`) still parse: they land on the tab that holds what they showed.
  */
 export type Route =
   | { readonly screen: "inbox"; readonly pick?: string }
-  | { readonly screen: "session"; readonly runId: string; readonly pane?: string }
+  | {
+      readonly screen: "run";
+      readonly runId: string;
+      readonly tab: RunTab;
+      /** The pane the Terminal tab shows first. */
+      readonly pane?: string;
+      /** The file the Changes tab shows. */
+      readonly file?: string;
+    }
   | { readonly screen: "grid"; readonly group?: string; readonly pane?: string }
-  | { readonly screen: "graph" }
-  | { readonly screen: "supervisor" }
+  | { readonly screen: "overview"; readonly tab: OverviewTab }
   | { readonly screen: "mrs"; readonly id?: string }
   | { readonly screen: "settings" }
-  | { readonly screen: "plan"; readonly runId: string }
-  | { readonly screen: "backlog" }
-  | { readonly screen: "review"; readonly runId: string; readonly file?: string }
-  | { readonly screen: "briefing"; readonly runId: string };
+  | { readonly screen: "backlog" };
+
+/** The tab an old run route showed. */
+const OLD_RUN_ROUTES: Readonly<Record<string, RunTab>> = {
+  session: "terminal",
+  plan: "plan",
+  review: "changes",
+  briefing: "overview",
+};
+
+/** A run route from the parts after its tab: a pane for the terminal, a file path for the changes. */
+function runRoute(runId: string, tab: RunTab, rest: readonly string[]): Route {
+  const pane = tab === "terminal" ? rest[0] : undefined;
+  const file = tab === "changes" ? rest.join("/") : "";
+  return { screen: "run", runId, tab, ...(pane ? { pane } : {}), ...(file ? { file } : {}) };
+}
 
 export function parseRoute(hash: string): Route {
   const parts = hash
     .replace(/^#\/?/, "")
     .split("/")
-    .filter((p) => p !== "");
+    .filter((p) => p !== "")
+    .map((p) => {
+      try {
+        return decodeURIComponent(p);
+      } catch {
+        return p;
+      }
+    });
   const [screen, arg] = parts;
+  if (screen === undefined) return { screen: "inbox" };
+  const old = OLD_RUN_ROUTES[screen];
+  if (old) return arg ? runRoute(arg, old, parts.slice(2)) : { screen: "inbox" };
   switch (screen) {
-    case "session": {
-      const pane = parts[2];
-      return arg
-        ? {
-            screen: "session",
-            runId: decodeURIComponent(arg),
-            ...(pane ? { pane: decodeURIComponent(pane) } : {}),
-          }
-        : { screen: "inbox" };
+    case "run": {
+      if (!arg) return { screen: "inbox" };
+      const tab = RUN_TABS.find((t) => t.tab === parts[2])?.tab;
+      return runRoute(arg, tab ?? "overview", parts.slice(3));
     }
     case "grid":
       return arg
         ? arg.startsWith("pane:")
-          ? { screen: "grid", pane: decodeURIComponent(arg.slice("pane:".length)) }
-          : { screen: "grid", group: decodeURIComponent(arg) }
+          ? { screen: "grid", pane: arg.slice("pane:".length) }
+          : { screen: "grid", group: arg }
         : { screen: "grid" };
-    case "graph":
-      return { screen: "graph" };
+    case "overview":
+      return { screen: "overview", tab: arg === "dependencies" ? "dependencies" : "daemon" };
     case "supervisor":
-      return { screen: "supervisor" };
+      return { screen: "overview", tab: "daemon" };
+    case "graph":
+      return { screen: "overview", tab: "dependencies" };
     case "settings":
       return { screen: "settings" };
     case "backlog":
       return { screen: "backlog" };
     case "mrs":
-      return arg ? { screen: "mrs", id: decodeURIComponent(arg) } : { screen: "mrs" };
-    case "review": {
-      const file = parts.slice(2).map(decodeURIComponent).join("/");
-      return arg
-        ? { screen: "review", runId: decodeURIComponent(arg), ...(file ? { file } : {}) }
-        : { screen: "inbox" };
-    }
-    case "briefing":
-      return arg ? { screen: "briefing", runId: decodeURIComponent(arg) } : { screen: "inbox" };
-    case "plan":
-      return arg ? { screen: "plan", runId: decodeURIComponent(arg) } : { screen: "grid" };
+      return arg ? { screen: "mrs", id: arg } : { screen: "mrs" };
     case "inbox":
-      return arg ? { screen: "inbox", pick: decodeURIComponent(arg) } : { screen: "inbox" };
+      return arg ? { screen: "inbox", pick: arg } : { screen: "inbox" };
     default:
       return { screen: "inbox" };
   }
@@ -268,20 +299,21 @@ export function parseRoute(hash: string): Route {
 
 export function routeHash(route: Route): string {
   switch (route.screen) {
-    case "session":
-      return `#/session/${encodeURIComponent(route.runId)}${route.pane ? `/${encodeURIComponent(route.pane)}` : ""}`;
+    case "run": {
+      const rest =
+        route.tab === "terminal" && route.pane
+          ? `/${encodeURIComponent(route.pane)}`
+          : route.tab === "changes" && route.file
+            ? `/${route.file.split("/").map(encodeURIComponent).join("/")}`
+            : "";
+      return `#/run/${encodeURIComponent(route.runId)}/${route.tab}${rest}`;
+    }
     case "inbox":
       return `#/inbox${route.pick ? `/${encodeURIComponent(route.pick)}` : ""}`;
-    case "briefing":
-      return `#/briefing/${encodeURIComponent(route.runId)}`;
-    case "plan":
-      return `#/plan/${encodeURIComponent(route.runId)}`;
-    case "backlog":
-      return "#/backlog";
     case "mrs":
       return `#/mrs${route.id ? `/${encodeURIComponent(route.id)}` : ""}`;
-    case "review":
-      return `#/review/${encodeURIComponent(route.runId)}${route.file ? `/${route.file.split("/").map(encodeURIComponent).join("/")}` : ""}`;
+    case "overview":
+      return route.tab === "dependencies" ? "#/overview/dependencies" : "#/overview";
     case "grid":
       return route.pane
         ? `#/grid/pane:${encodeURIComponent(route.pane)}`
@@ -761,6 +793,7 @@ export const SHELL_QUIET_MS = 2000;
  */
 export function paneStateOf(
   pane: Pick<PaneView, "process" | "state"> & {
+    readonly runId?: string | undefined;
     readonly live?: Pick<NonNullable<PaneView["live"]>, "alive" | "lastOutputAt"> | undefined;
   },
   now: number = Date.now(),
@@ -768,12 +801,24 @@ export function paneStateOf(
   const raw = pane.state?.state;
   if (raw === "exited" || !pane.live?.alive) return "exited";
   const agent = pane.process.kind === "host";
-  if (raw === "blocked" || raw === "waiting") return agent ? "asks" : "idle";
+  // The agent of a new run waits for the person to say what to do: that is not a question of a run.
+  if (raw === "blocked" || raw === "waiting") return agent && !isIntake(pane) ? "asks" : "idle";
   if (raw === "idle") return "idle";
   if (agent) return "working";
   const last = Date.parse(pane.live.lastOutputAt ?? "");
   return raw === "working" && now - last < SHELL_QUIET_MS ? "working" : "idle";
 }
+
+/** The pane where a run begins: an agent of no run, to whom the person describes what to do. */
+export const isIntake = (
+  pane: Pick<PaneView, "process"> & { readonly runId?: string | undefined },
+): boolean => pane.process.kind === "host" && pane.runId === undefined;
+
+/** What a pane says beside its state, when the state alone would mislead: an idle intake pane is ready. */
+export const paneNote = (
+  pane: Pick<PaneView, "process"> & { readonly runId?: string | undefined },
+  state: PaneShown,
+): string | undefined => (isIntake(pane) && state === "idle" ? "ready for your task" : undefined);
 
 export interface Look {
   readonly glyph: string;
@@ -827,6 +872,21 @@ export const LOOKS = {
     deleted: { glyph: "D", tone: "red" },
     modified: { glyph: "M", tone: "amber" },
     renamed: { glyph: "R", tone: "amber" },
+  },
+  /** A run, a repository: `runStateOf` and `rollUp`. */
+  run: {
+    "needs you": { glyph: "?", tone: "amber" },
+    working: { glyph: "⋮", tone: "violet" },
+    escalated: { glyph: "!", tone: "red" },
+    done: { glyph: "✓", tone: "green" },
+    idle: { glyph: "·", tone: "faint" },
+  },
+  need: {
+    question: { glyph: "?", tone: "amber" },
+    approval: { glyph: "?", tone: "amber" },
+    permission: { glyph: "?", tone: "amber" },
+    terminal: { glyph: "›", tone: "amber" },
+    escalated: { glyph: "!", tone: "red" },
   },
   attention: {
     you: { glyph: "●", tone: "amber" },
@@ -910,22 +970,9 @@ export function runCounts(runs: readonly Pick<RunOverview, "attention" | "status
 export const openRuns = <R extends Pick<RunOverview, "status">>(runs: readonly R[]): R[] =>
   runs.filter((r) => !isFinished(r));
 
-/** The run a route is about (session, plan, changes, briefing), or none. */
+/** The run a route is about, or none. */
 export const runIdOf = (route: Route): string | undefined =>
-  route.screen === "session" ||
-  route.screen === "plan" ||
-  route.screen === "review" ||
-  route.screen === "briefing"
-    ? route.runId
-    : undefined;
-
-/** The four screens of one run, in the order of the run header's tabs. */
-export const RUN_TABS = [
-  { screen: "session", label: "Session" },
-  { screen: "plan", label: "Plan" },
-  { screen: "review", label: "Changes" },
-  { screen: "briefing", label: "Briefing" },
-] as const;
+  route.screen === "run" ? route.runId : undefined;
 
 /**
  * Where a run stands for the session screen's bar: `escalated` and `finished` runs have no
@@ -1078,7 +1125,7 @@ export const WORKBENCH_COMMANDS: readonly WorkbenchCommand[] = [
     enabled: (c) => c.pane?.role !== "conductor",
   },
   { id: "newShellTab", label: () => "New tab: shell", menu: "tab" },
-  { id: "newTab", label: () => "New tab: tell the agent a task (it starts the run)…", menu: "tab" },
+  { id: "newTab", label: () => "New run: describe it to the agent…", menu: "tab" },
   { id: "backlog", label: () => "Backlog…", menu: "tab" },
   { id: "newShell", label: () => "New shell pane here", menu: "tab-own", separator: true },
   {
@@ -1131,15 +1178,25 @@ export const keyLabel = (map: KeyMap, action: string): string | undefined => {
 /** A key that works on every screen, outside a field. */
 export const SHELL_KEYS: readonly { readonly keys: string; readonly label: string }[] = [
   { keys: "?", label: "This help" },
-  { keys: "g", label: "Next run that waits for you" },
-  { keys: "n", label: "New session: talk to the agent that starts a task" },
+  { keys: "g", label: "Next run that needs you" },
+  { keys: "n", label: "New run: describe it to the agent" },
+  { keys: "j / k  ↓ / ↑", label: "Move in a list: the decisions, the tasks, the steps, the files" },
+  { keys: "↵", label: "Decision: send the chosen answer" },
+  { keys: "o", label: "Overview of the run (from a decision, or on a run)" },
+  { keys: "t / p / d / l", label: "Run: its terminal, plan, changes, activity" },
+  { keys: "a / c", label: "Run: attach to its session / release it to the agent" },
+  { keys: "e", label: "Run: open in the editor" },
   { keys: "esc", label: "Close a dialog, a menu or the runs drawer" },
-  { keys: "o", label: "Inbox: open the session of the chosen question" },
-  { keys: "↵", label: "Inbox: send the chosen answer" },
-  { keys: "a / c", label: "Session: attach / release to the agent" },
-  { keys: "t", label: "Session: terminal or events" },
-  { keys: "e / d", label: "Session: open in the editor / the changes" },
 ];
+
+/** The rows of the help that hold the words: a key or what it does, ignoring case. */
+export function filterKeys<K extends { readonly keys: string; readonly label: string }>(
+  rows: readonly K[],
+  query: string,
+): K[] {
+  const q = query.trim().toLowerCase();
+  return q === "" ? [...rows] : rows.filter((r) => `${r.keys} ${r.label}`.toLowerCase().includes(q));
+}
 
 /**
  * The help overlay's rows for the workbench: every bound command with all its keys as they are
@@ -1167,3 +1224,216 @@ export const portsText = (ports: Readonly<Record<string, number>>): string =>
   Object.entries(ports)
     .map(([name, port]) => `${name} ${port}`)
     .join(", ") || "no port";
+
+/* ---------- the sidebar: what needs you, the runs, and one state that rolls up ---------- */
+
+/** What a run reads as, in the sidebar and everywhere a run is one row. */
+export type RunShown = "needs you" | "working" | "escalated" | "done" | "idle";
+
+/**
+ * The state of a run in one of five words. `done` is a finished run this person has not opened
+ * since it finished: it stays marked until they look, then it is `idle`. A stopped or aborted run
+ * is `idle`: nothing happens and nothing is asked.
+ */
+export function runStateOf(
+  run: Pick<RunOverview, "attention" | "status" | "updatedAt">,
+  seenAt?: string | undefined,
+): RunShown {
+  if (run.attention === "you") return "needs you";
+  if (run.attention === "escalated") return "escalated";
+  if (run.attention === "driving") return "working";
+  if (run.status === "done") return seenAt !== undefined && seenAt >= run.updatedAt ? "idle" : "done";
+  return "idle";
+}
+
+/** What wins when states meet: a person is needed first, then work, then news, then quiet. */
+const RUN_RANK: Readonly<Record<RunShown, number>> = {
+  "needs you": 0,
+  escalated: 1,
+  working: 2,
+  done: 3,
+  idle: 4,
+};
+
+/** A pane's state as a run's: an agent that asks needs you, one that works is working. */
+export const paneAsRun = (state: PaneShown): RunShown =>
+  state === "asks" ? "needs you" : state === "working" ? "working" : "idle";
+
+/**
+ * States rolled up: the panes of a run into the run, the runs of a repository into the
+ * repository. The strongest one wins; nothing to roll up is `idle`.
+ */
+export const rollUp = (states: readonly RunShown[]): RunShown =>
+  states.reduce<RunShown>((best, s) => (RUN_RANK[s] < RUN_RANK[best] ? s : best), "idle");
+
+/** A run's state with its panes: the run's own word, unless one of its panes says more. */
+export const runWithPanes = (
+  run: Pick<RunOverview, "attention" | "status" | "updatedAt">,
+  panes: readonly PaneShown[],
+  seenAt?: string | undefined,
+): RunShown => rollUp([runStateOf(run, seenAt), ...(isFinished(run) ? [] : panes.map(paneAsRun))]);
+
+/** When this person last opened each run, by `<repo>/<run>`: kept in the window's storage. */
+export type SeenRuns = Readonly<Record<string, string>>;
+
+export const seenKey = (run: { readonly runId: string; readonly repo?: string | undefined }): string =>
+  `${run.repo ?? ""}/${run.runId}`;
+
+/** The stored text as the map; anything that is not such a map is no map. */
+export function seenFrom(text: string | null): SeenRuns {
+  if (!text) return {};
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter((e): e is [string, string] => typeof e[1] === "string"),
+    );
+  } catch {
+    return {};
+  }
+}
+
+/** The map with a run opened now; only the newest `keep` entries stay, so it never grows without end. */
+export function withSeen(seen: SeenRuns, key: string, at: string, keep = 200): SeenRuns {
+  const entries = Object.entries({ ...seen, [key]: at }).sort((a, b) => b[1].localeCompare(a[1]));
+  return Object.fromEntries(entries.slice(0, keep));
+}
+
+export type NeedKind = "question" | "approval" | "permission" | "terminal" | "escalated";
+
+/** One thing that needs the person: a question on a card, a question on a terminal, an escalated run. */
+export interface NeedRow {
+  /** What the Inbox route picks: `<run>/<question>`, `terminal:<repo>:<run>`, `escalated:<repo>:<run>`. */
+  readonly key: string;
+  readonly kind: NeedKind;
+  readonly title: string;
+  /** One line under it: where it comes from and how long it has waited. */
+  readonly sub: string;
+  readonly runId: string;
+  readonly repo?: string | undefined;
+  /** The pane that asks, for a question on a terminal. */
+  readonly pane?: string | undefined;
+  /** What the row says on hover: the chips of the card. */
+  readonly hint: string;
+}
+
+export const terminalKey = (r: { readonly runId: string; readonly repo?: string | undefined }): string =>
+  `terminal:${r.repo ?? ""}:${r.runId}`;
+
+/**
+ * Everything that needs the person, in one queue: the questions in the inbox's order (the ones a
+ * live drive waits on first), then the runs that ask on their terminal, then the escalated runs.
+ */
+export function needsQueue(inbox: readonly InboxItem[], runs: readonly Run[]): NeedRow[] {
+  const taskOf = (runId: string, repo: string | undefined) =>
+    runs.find((r) => r.runId === runId && sameRepo(r.repo, repo))?.task;
+  return [
+    ...inbox.map(
+      (i): NeedRow => ({
+        key: `${i.runId}/${i.question.id}`,
+        kind: questionKind(i.question).toLowerCase() as NeedKind,
+        title: i.question.prompt,
+        sub: [taskOf(i.runId, i.repo) ?? i.task, i.repo, i.stage, duration(i.waitedMs)]
+          .filter((x) => x !== undefined && x !== "")
+          .join(" · "),
+        runId: i.runId,
+        repo: i.repo,
+        hint: [i.question.prompt, ...inboxChips(i)].join(" · "),
+      }),
+    ),
+    ...runs
+      .filter((r) => r.terminalAsk !== undefined)
+      .map(
+        (r): NeedRow => ({
+          key: terminalKey(r),
+          kind: "terminal",
+          title: r.task,
+          sub: ["answers in its terminal", r.repo, r.stage].filter((x) => x !== undefined).join(" · "),
+          runId: r.runId,
+          repo: r.repo,
+          pane: r.terminalAsk,
+          hint: "The agent asks on its terminal: open the pane and answer there",
+        }),
+      ),
+    ...runs
+      .filter((r) => r.status === "escalated")
+      .map(
+        (r): NeedRow => ({
+          key: escalatedKey(r),
+          kind: "escalated",
+          title: r.task,
+          sub: [`stopped at ${r.stage}`, r.repo, r.runId].filter((x) => x !== undefined).join(" · "),
+          runId: r.runId,
+          repo: r.repo,
+          hint: r.reason ?? "The run stopped and needs work from you",
+        }),
+      ),
+  ];
+}
+
+/** The row the Inbox shows: the picked one while it is there, else the first. */
+export const pickedNeed = (rows: readonly NeedRow[], pick: string | undefined): NeedRow | undefined =>
+  rows.find((r) => r.key === pick) ?? rows[0];
+
+/** The row before or after the shown one (`j`/`k`, the arrows), around the ends. */
+export function stepNeed(
+  rows: readonly NeedRow[],
+  pick: string | undefined,
+  step: 1 | -1,
+): NeedRow | undefined {
+  if (rows.length === 0) return undefined;
+  const i = rows.findIndex((r) => r.key === pickedNeed(rows, pick)?.key);
+  return rows[(i + step + rows.length) % rows.length];
+}
+
+/** A run as a row of the sidebar: under its parent when it is a step of a split run. */
+export interface SidebarRun<R> {
+  readonly run: R;
+  /** A step of the run above it. */
+  readonly nested: boolean;
+  /** `step 2/3`, when it is one. */
+  readonly step?: string | undefined;
+}
+
+/**
+ * The runs of one repository as the sidebar lists them: in the panel's order (who needs a person
+ * first), each run that was split followed by its steps in the order they started.
+ */
+export function sidebarRuns<R extends RunOverview>(runs: readonly R[]): SidebarRun<R>[] {
+  const { groups } = groupByFeature(runs);
+  const stepIds = new Set(groups.flatMap((g) => g.steps.map((s) => s.runId)));
+  const out: SidebarRun<R>[] = [];
+  for (const run of byPanelOrder(runs.filter((r) => !stepIds.has(r.runId)))) {
+    out.push({ run, nested: false });
+    const steps = groups.find((g) => g.parent === run.runId)?.steps ?? [];
+    for (const step of steps) out.push({ run: step, nested: true, step: stepLabel(step, groups) });
+  }
+  return out;
+}
+
+/** The one dim line under a run's name: its step, that it asks on its terminal, stage · host · age. */
+export const runLine = (
+  r: Pick<Run, "stage" | "host" | "elapsedMs" | "terminalAsk">,
+  step?: string | undefined,
+): string =>
+  [
+    step,
+    r.terminalAsk ? "asks in its terminal" : undefined,
+    r.stage,
+    r.host ?? "no host",
+    duration(r.elapsedMs),
+  ]
+    .filter((x) => x !== undefined)
+    .join(" · ");
+
+/** Nothing has ever been started here: the app offers to describe a task instead of an empty queue. */
+export const isFirstRun = (runs: readonly unknown[], needs: readonly unknown[]): boolean =>
+  runs.length === 0 && needs.length === 0;
+
+/** What the app says once an answer went through. */
+export const answeredText = (choices: readonly string[]): string =>
+  `Answered: ${choices.join(", ")}. The run goes on.`;
+
+/** The tab a run opens on from the sidebar: where the work is while it runs, the summary once it is finished. */
+export const runTabFor = (r: Pick<RunOverview, "status">): RunTab =>
+  isFinished(r) ? "overview" : "terminal";

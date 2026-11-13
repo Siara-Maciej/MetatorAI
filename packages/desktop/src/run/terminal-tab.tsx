@@ -1,4 +1,4 @@
-/** Screen 2: one session, its terminal or its events, the driver lock, the question and the links. */
+/** The Terminal tab of a run: its live session, who types, its panes, the question and the links. */
 import { useEffect, useState } from "react";
 import { ActivityList } from "../components/activity-list.tsx";
 import { QuickAnswer } from "../components/answer.tsx";
@@ -23,43 +23,36 @@ import {
   runPhase,
 } from "../model.ts";
 
-export function SessionScreen({
-  runId,
+export function TerminalTab({
+  run,
   pane: wantedPane,
-  onOpenSession,
-  onOpenReview,
+  onOpenRun,
+  onOpenChanges,
 }: {
-  readonly runId: string;
-  /** The pane to show first (from the sessions panel); the conductor otherwise. */
+  readonly run: Run;
+  /** The pane to show first (from the sidebar); the conductor otherwise. */
   readonly pane?: string | undefined;
-  onOpenSession(runId: string): void;
-  /** The run's change with the notes on it (S5). */
-  onOpenReview(runId: string): void;
+  onOpenRun(runId: string): void;
+  onOpenChanges(runId: string): void;
 }) {
-  const { client, run: runOf, panesOf, url, me } = useDaemon();
-  const run = runOf(runId);
-  const repo = run?.repo;
+  const { client, panesOf, url, me } = useDaemon();
+  const runId = run.runId;
+  const repo = run.repo;
   // In a folder two repositories may use the same pane ids: only the run's repository counts.
   const panes = panesOfRun(panesOf(repo), runId);
   const [chosenPane, setChosenPane] = useState<string | undefined>(wantedPane);
   useEffect(() => setChosenPane(wantedPane), [wantedPane]);
   const conductor = panes.find((p) => p.role === "conductor");
   const shown = chosenPane && panes.some((p) => p.id === chosenPane) ? chosenPane : conductor?.id;
-  const [tab, setTab] = useState<"terminal" | "events">("terminal");
   const [line, setLine] = useState("");
   const [termStatus, setTermStatus] = useState<TerminalStatus>({});
   const { data, reload: refresh } = usePolled(
-    `session:${repo ?? ""}:${runId}`,
+    `links:${repo ?? ""}:${runId}`,
     async () => {
-      const [a, m, c] = await Promise.all([
-        client.activity(runId, repo),
-        client.messages(runId, repo),
-        client.conflicts(repo),
-      ]);
+      const [m, c] = await Promise.all([client.messages(runId, repo), client.conflicts(repo)]);
       return {
         ok: true,
         data: {
-          events: a.data?.entries ?? [],
           messages: m.data?.messages ?? [],
           conflicts: (c.data?.conflicts ?? []).filter((x) => x.runs.includes(runId)),
         },
@@ -67,7 +60,6 @@ export function SessionScreen({
     },
     2000,
   );
-  const events = data?.events ?? [];
   const messages = data?.messages ?? [];
   const conflicts = data?.conflicts ?? [];
   const action = useAction(refresh);
@@ -110,61 +102,22 @@ export function SessionScreen({
     action.say(refused);
     if (!refused) setLine("");
   };
-  const phase = run ? runPhase(run) : "active";
+  const phase = runPhase(run);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (phase !== "active" || document.querySelector("dialog[open]")) return;
       const k = plainKey(e);
-      if (phase === "active") {
-        if (k === "a" && !attached) void attach();
-        if (k === "c" && attached) void release();
-      }
-      if (k === "t") setTab(tab === "terminal" ? "events" : "terminal");
-      if (k === "e") void openEditor();
-      if (k === "d") onOpenReview(runId);
+      if (k === "a" && !attached) void attach();
+      if (k === "c" && attached) void release();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
-  if (!run) return <div className="empty">run {runId} is not in the state yet</div>;
   const question = run.questions[0];
   return (
     <div className="session">
       <div className="main">
-        <RunHeader runId={runId} run={run} screen="session">
-          <div className="chips">
-            {repo ? <Chip>{repo}</Chip> : null}
-            <Chip>{run.workflow}</Chip>
-            <Chip>{autonomyLabel(run.autonomy)}</Chip>
-            <Chip tone="violet">{run.host ?? "no host"}</Chip>
-            {run.worktree?.ports ? (
-              <Chip>
-                ports {run.worktree.ports.from}–{run.worktree.ports.from + run.worktree.ports.count - 1}
-              </Chip>
-            ) : null}
-            <Chip>{duration(run.elapsedMs)}</Chip>
-            {run.died ? <Chip tone="red">drive died</Chip> : null}
-            {termStatus.alive === false && termStatus.exitCode !== undefined ? (
-              <Chip tone="amber">session exited {termStatus.exitCode}</Chip>
-            ) : null}
-          </div>
-        </RunHeader>
-        {phase === "escalated" ? (
-          <div className="driverbar escalated" data-testid="driverbar">
-            <strong>Escalated at {run.stage}</strong>
-            <span className="note" data-testid="escalated-reason">
-              {run.reason ?? "The run recorded no reason. Its briefing shows what happened last."}
-            </span>
-            <EscalatedActions run={run} />
-          </div>
-        ) : phase === "finished" ? (
-          <div className={`driverbar finished ${run.status}`} data-testid="driverbar">
-            <strong>{run.status === "done" ? "Done" : "Aborted"}</strong>
-            <span className="note">{finishedText(run)}</span>
-            <button type="button" onClick={() => onOpenReview(runId)}>
-              Changes
-            </button>
-          </div>
-        ) : (
+        {phase === "active" ? (
           <div className={`driverbar ${run.driver}`} data-testid="driverbar">
             <strong>
               Working:{" "}
@@ -191,7 +144,7 @@ export function SessionScreen({
               </button>
             )}
           </div>
-        )}
+        ) : null}
         <Notice {...action.notice} />
         {run.terminalAsk ? (
           <div className="banner ask-banner" data-testid="terminal-ask">
@@ -206,20 +159,6 @@ export function SessionScreen({
           </div>
         ) : null}
         <Tabs
-          label="terminal or events"
-          current={tab}
-          onSelect={(id) => setTab(id)}
-          items={[
-            { id: "terminal", label: "Terminal" },
-            { id: "events", label: `Events · ${events.length}` },
-          ]}
-        >
-          <span className="spacer" />
-          <span className="dim">e editor · t events · d changes</span>
-        </Tabs>
-        {tab === "terminal" ? (
-          <>
-            <Tabs
               label="panes"
               className="panes"
               testId="panes"
@@ -278,16 +217,11 @@ export function SessionScreen({
                     Open a session
                   </button>
                 ) : (
-                  <button type="button" onClick={() => setTab("events")}>
-                    Events
-                  </button>
+                  <a href={routeHash({ screen: "run", runId, tab: "activity" })}>Activity</a>
                 )}
               </div>
             )}
-          </>
-        ) : (
-          <ActivityList entries={events} variant="table" />
-        )}
+
         {phase === "active" ? (
           <form
             className="composer"
@@ -356,8 +290,8 @@ export function SessionScreen({
         <div className="box">
           <h3>Changes</h3>
           <div className="row">
-            <button type="button" className="ghost" onClick={() => onOpenReview(runId)}>
-              Review
+            <button type="button" className="ghost" onClick={() => onOpenChanges(runId)}>
+              Changes
             </button>
             <button type="button" className="ghost" onClick={() => void openEditor()}>
               Open in editor
@@ -384,7 +318,7 @@ export function SessionScreen({
               <button
                 type="button"
                 className="ghost mono"
-                onClick={() => onOpenSession(run.parent as string)}
+                onClick={() => onOpenRun(run.parent as string)}
               >
                 {run.parent}
               </button>
@@ -393,7 +327,7 @@ export function SessionScreen({
           {run.children?.map((c) => (
             <div key={c}>
               step{" "}
-              <button type="button" className="ghost mono" onClick={() => onOpenSession(c)}>
+              <button type="button" className="ghost mono" onClick={() => onOpenRun(c)}>
                 {c}
               </button>
             </div>
