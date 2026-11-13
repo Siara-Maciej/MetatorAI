@@ -84,7 +84,8 @@ export function registerMrsCommands(program: Command, { action, container }: Com
     .command("send")
     .description("Post every proposed reply that was not sent yet to the host")
     .argument("<id>", "the request")
-    .addOption(byOption("the person who decides to send them"))
+    // Posting to the host is a person's decision, as an approval is: the name is typed, never assumed.
+    .addOption(byOption("the person who decides to send them", "required"))
     .action(
       action(async (id: string, opts: { by?: string }) =>
         asPerson(container(), opts.by, async (by) => ({ result: await reviews().send(id, { by }) })),
@@ -96,7 +97,7 @@ export function registerMrsCommands(program: Command, { action, container }: Com
     .description("Close a thread at the host")
     .argument("<id>", "the request")
     .requiredOption("--thread <thread>", "the thread's id")
-    .addOption(byOption("the person who decides to close it"))
+    .addOption(byOption("the person who decides to close it", "required"))
     .action(
       action(async (id: string, opts: { thread: string; by?: string }) =>
         asPerson(container(), opts.by, async (by) => ({

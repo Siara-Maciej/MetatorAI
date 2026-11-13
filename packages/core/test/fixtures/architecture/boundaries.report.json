@@ -1,0 +1,914 @@
+{
+  "kind": "ArchitectureReport",
+  "schemaVersion": 2,
+  "policy": null,
+  "summary": {
+    "packages": 9,
+    "apps": 2,
+    "edges": 12,
+    "cycles": 1,
+    "errors": 6,
+    "warnings": 14,
+    "excepted": 0,
+    "score": 56
+  },
+  "packages": [
+    {
+      "name": "@b/cli",
+      "dir": "tools/cli",
+      "kind": "app",
+      "tags": [],
+      "layer": "apps",
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [
+        "@b/kit"
+      ],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 1,
+        "instability": 1,
+        "abstractness": 0,
+        "distance": 0,
+        "depth": 2,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@b/data",
+      "dir": "libs/data",
+      "kind": "lib",
+      "tags": [
+        "type:data"
+      ],
+      "layer": "data",
+      "files": 2,
+      "testFiles": 0,
+      "owners": [
+        "@team/data",
+        "@team/core"
+      ],
+      "dependsOn": [
+        "@b/feature",
+        "@b/kit",
+        "@b/util"
+      ],
+      "dependents": [
+        "@b/feature",
+        "@b/shop"
+      ],
+      "metrics": {
+        "ca": 2,
+        "ce": 3,
+        "instability": 0.6,
+        "abstractness": 0,
+        "distance": 0.4,
+        "depth": 2,
+        "exportsUsed": 0.5
+      }
+    },
+    {
+      "name": "@b/extracted",
+      "dir": "libs/extracted",
+      "kind": "lib",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [
+        "@b/util"
+      ],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 1,
+        "instability": 1,
+        "abstractness": 0,
+        "distance": 0,
+        "depth": 1,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@b/feature",
+      "dir": "libs/feature",
+      "kind": "lib",
+      "tags": [
+        "scope:shop",
+        "type:feature"
+      ],
+      "layer": "features",
+      "files": 3,
+      "testFiles": 1,
+      "owners": [
+        "@team/shop"
+      ],
+      "dependsOn": [
+        "@b/data",
+        "@b/kit",
+        "@b/util"
+      ],
+      "dependents": [
+        "@b/data",
+        "@b/shop"
+      ],
+      "metrics": {
+        "ca": 2,
+        "ce": 3,
+        "instability": 0.6,
+        "abstractness": 0.33,
+        "distance": 0.07,
+        "depth": 2,
+        "exportsUsed": 0.33
+      }
+    },
+    {
+      "name": "@b/helper",
+      "dir": "libs/helper",
+      "kind": "lib",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 0,
+        "instability": 0,
+        "abstractness": 0,
+        "distance": 1,
+        "depth": 0,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@b/kit",
+      "dir": "libs/kit",
+      "kind": "lib",
+      "tags": [
+        "type:kit"
+      ],
+      "layer": "shared",
+      "files": 8,
+      "testFiles": 0,
+      "owners": [
+        "@team/core"
+      ],
+      "dependsOn": [
+        "@b/util"
+      ],
+      "dependents": [
+        "@b/cli",
+        "@b/data",
+        "@b/feature",
+        "@b/shop"
+      ],
+      "metrics": {
+        "ca": 4,
+        "ce": 1,
+        "instability": 0.2,
+        "abstractness": 0,
+        "distance": 0.8,
+        "depth": 1,
+        "exportsUsed": 0.38
+      }
+    },
+    {
+      "name": "@b/orphan",
+      "dir": "libs/orphan",
+      "kind": "lib",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 0,
+        "instability": 0,
+        "abstractness": 0,
+        "distance": 1,
+        "depth": 0,
+        "exportsUsed": 0
+      }
+    },
+    {
+      "name": "@b/shop",
+      "dir": "apps/shop",
+      "kind": "app",
+      "tags": [
+        "type:app"
+      ],
+      "layer": "apps",
+      "files": 2,
+      "testFiles": 0,
+      "owners": [
+        "@team/shop"
+      ],
+      "dependsOn": [
+        "@b/data",
+        "@b/feature",
+        "@b/kit"
+      ],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 3,
+        "instability": 1,
+        "abstractness": 0,
+        "distance": 0,
+        "depth": 3,
+        "exportsUsed": 0
+      }
+    },
+    {
+      "name": "@b/util",
+      "dir": "libs/util",
+      "kind": "lib",
+      "tags": [
+        "type:util"
+      ],
+      "layer": "shared",
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [],
+      "dependents": [
+        "@b/data",
+        "@b/extracted",
+        "@b/feature",
+        "@b/kit"
+      ],
+      "metrics": {
+        "ca": 4,
+        "ce": 0,
+        "instability": 0,
+        "abstractness": 0.5,
+        "distance": 0.5,
+        "depth": 0,
+        "exportsUsed": 1
+      }
+    }
+  ],
+  "boundaries": {
+    "split": [
+      {
+        "package": "@b/kit",
+        "clusters": [
+          {
+            "files": 3,
+            "sample": [
+              "libs/kit/src/a1.ts",
+              "libs/kit/src/a2.ts",
+              "libs/kit/src/a3.ts"
+            ],
+            "consumers": [
+              "@b/data",
+              "@b/feature",
+              "@b/shop"
+            ]
+          },
+          {
+            "files": 3,
+            "sample": [
+              "libs/kit/src/b1.ts",
+              "libs/kit/src/b2.ts",
+              "libs/kit/src/b3.ts"
+            ],
+            "consumers": [
+              "@b/cli"
+            ]
+          }
+        ]
+      }
+    ],
+    "merge": [],
+    "hubs": [],
+    "deadExports": [
+      {
+        "package": "@b/shop",
+        "file": "apps/shop/src/routes.ts",
+        "name": "routes"
+      },
+      {
+        "package": "@b/shop",
+        "file": "apps/shop/src/routes.ts",
+        "name": "unusedRoute"
+      },
+      {
+        "package": "@b/data",
+        "file": "libs/data/src/repo.ts",
+        "name": "deadRepo"
+      },
+      {
+        "package": "@b/feature",
+        "file": "libs/feature/src/cart.ts",
+        "name": "CartOptions"
+      },
+      {
+        "package": "@b/kit",
+        "file": "libs/kit/src/a3.ts",
+        "name": "a3unused"
+      },
+      {
+        "package": "@b/kit",
+        "file": "libs/kit/src/c1.ts",
+        "name": "c1"
+      },
+      {
+        "package": "@b/orphan",
+        "file": "libs/orphan/src/index.ts",
+        "name": "orphan"
+      }
+    ],
+    "deadPackages": [
+      "@b/extracted",
+      "@b/orphan"
+    ]
+  },
+  "coupling": [
+    {
+      "a": "@b/data",
+      "b": "@b/feature",
+      "together": 3,
+      "ratio": 1,
+      "dependency": "both"
+    },
+    {
+      "a": "@b/kit",
+      "b": "@b/util",
+      "together": 3,
+      "ratio": 0.75,
+      "dependency": "a-to-b"
+    }
+  ],
+  "teams": {
+    "edges": [
+      {
+        "from": "@team/shop",
+        "to": "@team/core",
+        "imports": 2
+      },
+      {
+        "from": "@team/shop",
+        "to": "@team/core, @team/data",
+        "imports": 2
+      },
+      {
+        "from": "(no owner)",
+        "to": "@team/core",
+        "imports": 1
+      },
+      {
+        "from": "@team/core",
+        "to": "(no owner)",
+        "imports": 1
+      },
+      {
+        "from": "@team/core, @team/data",
+        "to": "(no owner)",
+        "imports": 1
+      },
+      {
+        "from": "@team/core, @team/data",
+        "to": "@team/core",
+        "imports": 1
+      },
+      {
+        "from": "@team/core, @team/data",
+        "to": "@team/shop",
+        "imports": 1
+      },
+      {
+        "from": "@team/shop",
+        "to": "(no owner)",
+        "imports": 1
+      }
+    ],
+    "unowned": [
+      "@b/cli",
+      "@b/extracted",
+      "@b/helper",
+      "@b/orphan",
+      "@b/util"
+    ]
+  },
+  "apps": {
+    "closure": [
+      {
+        "app": "@b/cli",
+        "packages": [
+          "@b/kit",
+          "@b/util"
+        ]
+      },
+      {
+        "app": "@b/shop",
+        "packages": [
+          "@b/data",
+          "@b/feature",
+          "@b/kit",
+          "@b/util"
+        ]
+      }
+    ],
+    "blastRadius": [
+      {
+        "package": "@b/kit",
+        "apps": [
+          "@b/cli",
+          "@b/shop"
+        ]
+      },
+      {
+        "package": "@b/util",
+        "apps": [
+          "@b/cli",
+          "@b/shop"
+        ]
+      },
+      {
+        "package": "@b/data",
+        "apps": [
+          "@b/shop"
+        ]
+      },
+      {
+        "package": "@b/feature",
+        "apps": [
+          "@b/shop"
+        ]
+      }
+    ]
+  },
+  "edges": [
+    {
+      "from": "@b/cli",
+      "to": "@b/kit",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "tools/cli/src/main.ts",
+          "to": "libs/kit/src/b1.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/data",
+      "to": "@b/feature",
+      "imports": 1,
+      "runtime": 0,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "libs/data/src/repo.ts",
+          "to": "libs/feature/src/cart.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/data",
+      "to": "@b/kit",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "libs/data/src/repo.ts",
+          "to": "libs/kit/src/a2.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/data",
+      "to": "@b/util",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "libs/data/src/repo.ts",
+          "to": "libs/util/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/extracted",
+      "to": "@b/util",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "none",
+      "samples": [
+        {
+          "from": "libs/data/src/moved.ts",
+          "to": "libs/util/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/feature",
+      "to": "@b/data",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "libs/feature/src/cart.ts",
+          "to": "libs/data/src/repo.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/feature",
+      "to": "@b/helper",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": true,
+      "declared": "none",
+      "samples": [
+        {
+          "from": "libs/feature/src/cart.spec.ts",
+          "to": "libs/helper/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/feature",
+      "to": "@b/kit",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "libs/feature/src/cart.ts",
+          "to": "libs/kit/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/feature",
+      "to": "@b/util",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "libs/feature/src/cart.ts",
+          "to": "libs/util/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/kit",
+      "to": "@b/util",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "libs/kit/src/a3.ts",
+          "to": "libs/util/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/shop",
+      "to": "@b/data",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "apps/shop/src/routes.ts",
+          "to": "libs/data/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/shop",
+      "to": "@b/feature",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "apps/shop/src/main.ts",
+          "to": "libs/feature/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@b/shop",
+      "to": "@b/kit",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "apps/shop/src/routes.ts",
+          "to": "libs/kit/src/a1.ts"
+        }
+      ]
+    }
+  ],
+  "cycles": [
+    {
+      "packages": [
+        "@b/data",
+        "@b/feature"
+      ],
+      "edges": [
+        {
+          "from": "@b/data",
+          "to": "@b/feature",
+          "imports": 1,
+          "runtime": 0
+        },
+        {
+          "from": "@b/feature",
+          "to": "@b/data",
+          "imports": 1,
+          "runtime": 1
+        }
+      ],
+      "typeOnly": true,
+      "cut": [
+        {
+          "from": "@b/feature",
+          "to": "@b/data",
+          "imports": 1
+        }
+      ]
+    }
+  ],
+  "violations": [
+    {
+      "id": "layer:@b/data→@b/feature",
+      "kind": "layer",
+      "severity": "error",
+      "message": "@b/data (layer data) depends on @b/feature (layer features, above it)",
+      "packages": [
+        "@b/data",
+        "@b/feature"
+      ],
+      "evidence": [
+        {
+          "file": "libs/data/src/repo.ts",
+          "to": "libs/feature/src/cart.ts"
+        }
+      ]
+    },
+    {
+      "id": "tag:@b/data→@b/feature",
+      "kind": "tag",
+      "severity": "error",
+      "message": "@b/data → @b/feature: type:data must not depend on type:feature",
+      "packages": [
+        "@b/data",
+        "@b/feature"
+      ],
+      "evidence": [
+        {
+          "file": "libs/data/src/repo.ts",
+          "to": "libs/feature/src/cart.ts"
+        }
+      ]
+    },
+    {
+      "id": "tag:@b/data→@b/util",
+      "kind": "tag",
+      "severity": "error",
+      "message": "@b/data → @b/util: only type:feature, type:kit may depend on type:util",
+      "packages": [
+        "@b/data",
+        "@b/util"
+      ],
+      "evidence": [
+        {
+          "file": "libs/data/src/repo.ts",
+          "to": "libs/util/src/index.ts"
+        }
+      ]
+    },
+    {
+      "id": "tag:@b/extracted→@b/util",
+      "kind": "tag",
+      "severity": "error",
+      "message": "@b/extracted → @b/util: only type:feature, type:kit may depend on type:util",
+      "packages": [
+        "@b/extracted",
+        "@b/util"
+      ],
+      "evidence": [
+        {
+          "file": "libs/data/src/moved.ts",
+          "to": "libs/util/src/index.ts"
+        }
+      ]
+    },
+    {
+      "id": "undeclared:@b/extracted→@b/util",
+      "kind": "undeclared",
+      "severity": "error",
+      "message": "@b/extracted imports the workspace package @b/util without declaring it in package.json",
+      "packages": [
+        "@b/extracted",
+        "@b/util"
+      ],
+      "evidence": [
+        {
+          "file": "libs/data/src/moved.ts",
+          "to": "libs/util/src/index.ts"
+        }
+      ]
+    },
+    {
+      "id": "undeclared:@b/feature→@b/helper",
+      "kind": "undeclared",
+      "severity": "error",
+      "message": "@b/feature imports the workspace package @b/helper without declaring it in package.json",
+      "packages": [
+        "@b/feature",
+        "@b/helper"
+      ],
+      "evidence": [
+        {
+          "file": "libs/feature/src/cart.spec.ts",
+          "to": "libs/helper/src/index.ts"
+        }
+      ]
+    },
+    {
+      "id": "cycle:@b/data,@b/feature",
+      "kind": "cycle",
+      "severity": "warning",
+      "message": "@b/data ⇄ @b/feature depend on each other (only through import type)",
+      "packages": [
+        "@b/data",
+        "@b/feature"
+      ],
+      "evidence": [
+        {
+          "file": "libs/data/src/repo.ts",
+          "to": "libs/feature/src/cart.ts"
+        },
+        {
+          "file": "libs/feature/src/cart.ts",
+          "to": "libs/data/src/repo.ts"
+        }
+      ]
+    },
+    {
+      "id": "threshold:@b/data:fanOut",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/data: fanOut 3 is over the threshold 2",
+      "packages": [
+        "@b/data"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "threshold:@b/feature:fanOut",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/feature: fanOut 3 is over the threshold 2",
+      "packages": [
+        "@b/feature"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "threshold:@b/helper:distance",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/helper: distance 1 is over the threshold 0.5",
+      "packages": [
+        "@b/helper"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "threshold:@b/kit:distance",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/kit: distance 0.8 is over the threshold 0.5",
+      "packages": [
+        "@b/kit"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "threshold:@b/kit:fanIn",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/kit: fanIn 4 is over the threshold 2",
+      "packages": [
+        "@b/kit"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "threshold:@b/kit:files",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/kit: files 8 is over the threshold 5",
+      "packages": [
+        "@b/kit"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "threshold:@b/orphan:distance",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/orphan: distance 1 is over the threshold 0.5",
+      "packages": [
+        "@b/orphan"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "threshold:@b/shop:depth",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/shop: depth 3 is over the threshold 2",
+      "packages": [
+        "@b/shop"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "threshold:@b/shop:fanOut",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/shop: fanOut 3 is over the threshold 2",
+      "packages": [
+        "@b/shop"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "threshold:@b/util:fanIn",
+      "kind": "threshold",
+      "severity": "warning",
+      "message": "@b/util: fanIn 4 is over the threshold 2",
+      "packages": [
+        "@b/util"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "unlayered:@b/extracted",
+      "kind": "unlayered",
+      "severity": "warning",
+      "message": "@b/extracted belongs to no layer, so its dependencies are not checked",
+      "packages": [
+        "@b/extracted"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "unlayered:@b/helper",
+      "kind": "unlayered",
+      "severity": "warning",
+      "message": "@b/helper belongs to no layer, so its dependencies are not checked",
+      "packages": [
+        "@b/helper"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "unlayered:@b/orphan",
+      "kind": "unlayered",
+      "severity": "warning",
+      "message": "@b/orphan belongs to no layer, so its dependencies are not checked",
+      "packages": [
+        "@b/orphan"
+      ],
+      "evidence": []
+    }
+  ],
+  "unresolved": {
+    "count": 0,
+    "sample": []
+  }
+}

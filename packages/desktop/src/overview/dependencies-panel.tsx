@@ -3,7 +3,7 @@ import type { Conflict, RunMessage } from "../api.ts";
 import { Notice } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
-import { lookOf, openRuns, routeHash, sameRepo, type Tone } from "../model.ts";
+import { lookOf, openRuns, routeHash, runTabFor, sameRepo, type Tone } from "../model.ts";
 
 /** The custom property of a tone, for an SVG stroke. */
 const TONE_VAR: Record<Tone, string> = {
@@ -19,7 +19,7 @@ const TONE_VAR: Record<Tone, string> = {
 const W = 220;
 const H = 54;
 
-export function GraphScreen() {
+export function DependenciesPanel() {
   const { runs, repos, client } = useDaemon();
   // Every run that is not finished, escalated ones included: what the panel and the top bar count.
   const active = openRuns(runs);
@@ -136,7 +136,7 @@ export function GraphScreen() {
             const p = pos.get(r.runId);
             if (!p) return null;
             return (
-              <a key={r.runId} href={routeHash({ screen: "session", runId: r.runId })} aria-label={r.task}>
+              <a key={r.runId} href={routeHash({ screen: "run", runId: r.runId, tab: runTabFor(r) })} aria-label={r.task}>
                 <rect
                   className="node"
                   x={p.x}

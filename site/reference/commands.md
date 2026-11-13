@@ -2799,7 +2799,7 @@ metator mrs send [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` | the request | |
-| `--by <name>` | the person who decides to send them (default: $METATOR_USER, else git's user.name, else your login name) |  |
+| `--by <name>` | the person who decides to send them **Required.** |  |
 
 ### `metator mrs resolve`
 
@@ -2813,7 +2813,7 @@ metator mrs resolve [options] <id>
 |---|---|---|
 | `<id>` | the request | |
 | `--thread <thread>` | the thread's id **Required.** |  |
-| `--by <name>` | the person who decides to close it (default: $METATOR_USER, else git's user.name, else your login name) |  |
+| `--by <name>` | the person who decides to close it **Required.** |  |
 
 ## open
 

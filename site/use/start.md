@@ -89,7 +89,7 @@ metator run init --workflow mt-feature --task "Add combined discount" --worktree
 metator run drive --host claude --detach
 ```
 
-`run init` creates the run at its first stage. `run drive` carries it stage by stage. Without `--host` it uses the first of `hosts.targets`. The [command reference](../reference/commands.md#metator-run-init) lists every option.
+`run init` creates the run at its first stage. `run drive` carries it stage by stage. Without `--host` it uses the first of `hosts.targets`. The [command reference](../reference/commands.md#metator-run-new) lists every option.
 
 ## Pick a workflow
 

@@ -187,7 +187,7 @@ describe("metator run in a terminal", () => {
     const bare = await mt("run");
     expect([bare.code, (bare.json.error as { hint: string }).hint]).toEqual([
       64,
-      "Without one, use `metator run init` and `metator run drive`; `metator help` lists every command.",
+      "Without one, use `metator run new` and `metator run drive`; `metator help` lists every command.",
     ]);
     const init = await mt("run", "init", "--workflow", "demo", "--task", "Fourth change");
     const runId = (init.json.data as { runId: string }).runId;
@@ -235,7 +235,7 @@ describe("metator run in a terminal", () => {
     expect(r.code).toBe(0);
     expect(r.screen).toContain("MetatorAI 0.0.0: survey first, prove everything.");
     expect(r.screen).toContain("Work on a task");
-    expect(r.screen).toContain("metator run init");
+    expect(r.screen).toContain("metator run new");
     expect((r.json.data as { verbs: unknown[] }).verbs.length).toBe(6);
   });
 });

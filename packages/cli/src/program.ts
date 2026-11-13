@@ -9,6 +9,7 @@ import {
   loadConfig,
   machineStateDir,
   runsRootOf,
+  userConfigDir,
 } from "@metator/runtime";
 import { Command, type CommanderError } from "commander";
 import { commandWords, metaOf } from "./command-meta.ts";
@@ -106,6 +107,7 @@ export function buildProgram(
       ...(env.METATOR_OPENCODE_BIN ? { opencodeBin: env.METATOR_OPENCODE_BIN } : {}),
       ...(env.METATOR_DOCKER_BIN ? { dockerBin: env.METATOR_DOCKER_BIN } : {}),
       stateDir: machineStateDir(env),
+      userConfigDir: userConfigDir(env),
     });
   };
   const root = () => (program.opts() as { root?: string }).root;

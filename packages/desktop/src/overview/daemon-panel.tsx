@@ -1,16 +1,9 @@
-/** Screen 4: the daemon, its sessions, the supervisor's settings and four figures as tiles. */
+/** The Daemon part of the Overview: four figures as tiles, the open runs with who works on each, the hosts and how the daemon looks after runs. */
 import { attentionLabel, Dot } from "../components/chips.tsx";
-import { RepoSelect } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { duration, type HostStatus, noHostText, openRuns, plural, runCounts } from "../model.ts";
 
-export function SupervisorScreen({
-  onOpenSession,
-  onNew,
-}: {
-  onOpenSession(runId: string): void;
-  onNew(): void;
-}) {
+export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
   const { client, runs, repo, url } = useDaemon();
   const { data: view, error } = usePolled(`supervisor:${repo ?? ""}`, () => client.supervisor(repo), 5000);
   const a = view?.acceptance;
@@ -33,11 +26,6 @@ export function SupervisorScreen({
             hosts installed · up {view ? duration(view.daemon.uptimeMs) : "—"} ·{" "}
             <code>{view?.daemon.url ?? url}</code>
           </span>
-          <span className="spacer" />
-          <RepoSelect />
-          <button type="button" className="primary" onClick={onNew}>
-            + New session
-          </button>
         </div>
         {error ? <div className="banner">{error}</div> : null}
         <div className="kpis">
@@ -78,7 +66,7 @@ export function SupervisorScreen({
               return (
                 <tr key={`${r.repo ?? ""}:${r.runId}`}>
                   <td>
-                    <button type="button" className="ghost link" onClick={() => onOpenSession(r.runId)}>
+                    <button type="button" className="ghost link" onClick={() => onOpenRun(r.runId)}>
                       {r.task}
                     </button>
                   </td>

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readOnlyCommand } from "@metator/core";
+import { METATOR_QUERIES, readOnlyCommand } from "@metator/core";
 import {
   checkCommands,
   commandsFor,
@@ -207,7 +207,56 @@ async function invoke(...argv: string[]): Promise<{ code: number; json: Record<s
 }
 
 /** Queries an agent's host runs unasked (core) that are not MCP tools (they say no `reads`). */
-const QUERIES_NOT_TOOLS: string[] = ["findings validate", "findings schema", "plan schema", "run schema"];
+const QUERIES_NOT_TOOLS: string[] = ["findings schema", "findings validate", "plan schema", "run schema"];
+
+/** MCP tools (commands that say `reads`) that core does not list as a query. */
+const TOOLS_NOT_QUERIES: string[] = [
+  "arch analyze",
+  "arch check",
+  "arch plan lint",
+  "arch plan list",
+  "arch plan show",
+  "arch plan status",
+  "ask list",
+  "debug-tags check",
+  "docs drift",
+  "doctor",
+  "env status",
+  "help",
+  "inbox",
+  "issue list",
+  "issue show",
+  "memory budget",
+  "memory check",
+  "memory dupes",
+  "memory inventory",
+  "memory matrix",
+  "memory validate",
+  "pane list",
+  "pane read",
+  "plan scope",
+  "policy list",
+  "report",
+  "repos list",
+  "repos status",
+  "review metadata",
+  "review plan",
+  "rules check",
+  "rules coverage",
+  "run brief",
+  "run messages",
+  "run workers",
+  "status",
+  "system plan lint",
+  "system plan list",
+  "system plan show",
+  "system status",
+  "workflow lint",
+  "workflow list",
+  "workflow validate",
+  "worktree conflicts",
+  "worktree list",
+];
 
 describe("what a command says of itself (meta)", () => {
   const program = buildProgram(() => {});
@@ -282,16 +331,21 @@ describe("what a command says of itself (meta)", () => {
     expect([reads(leaf), reads(other)]).toEqual([true, false]);
   });
 
-  test("core's read-only metator queries and the commands tagged reads: the differences, named", () => {
-    // An agent's host may run a query without asking (core: METATOR_QUERIES, through
-    // readOnlyCommand); an MCP tool is a command that says it reads. Two lists, kept by two
-    // packages: this names where they differ, so a change to either one is seen here.
+  test("core's read-only metator queries and the commands that say they read: the differences, named", () => {
+    // An agent's host may run a query without asking (core: METATOR_QUERIES); an MCP tool is a
+    // command that says it reads. Two lists, kept by two packages: neither is changed to fit the
+    // other here, and where they differ is written down, so a change to either one is seen.
     const tagged = new Set(mcpTools(program).map((t) => t.command));
-    const leaves = describeCommands(program, { renamed: true }).commands.map((c) => c.name);
-    const queries = leaves.filter((c) => readOnlyCommand(`metator ${c}`, ["."]));
-    expect(queries.filter((c) => !tagged.has(c))).toEqual(QUERIES_NOT_TOOLS);
-    expect(queries.filter((c) => tagged.has(c)).length).toBeGreaterThan(25);
-    expect(queries.length).toBeLessThan(tagged.size);
+    const commands = new Set(describeCommands(program, { renamed: true }).commands.map((c) => c.name));
+    const queries = [...METATOR_QUERIES];
+    // Every query is a command of the tree (under the words core knows it by).
+    expect(queries.filter((q) => !commands.has(q))).toEqual([]);
+    // Queries a host runs unasked that are not MCP tools: they print a schema, or `findings
+    // validate` takes `--fix`, which writes.
+    expect(queries.filter((q) => !tagged.has(q)).sort()).toEqual(QUERIES_NOT_TOOLS);
+    // MCP tools that a host's agent must still ask for through the shell.
+    expect([...tagged].filter((t) => !METATOR_QUERIES.has(t)).sort()).toEqual(TOOLS_NOT_QUERIES);
+    expect(readOnlyCommand("metator run status", ["."])).toBe(true);
   });
 });
 

@@ -8,10 +8,9 @@ import type { DiffLine, FileDiff, ReviewNote } from "../api.ts";
 import { Notice } from "../components/common.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../components/list-detail.tsx";
-import { RunHeader } from "../components/run-header.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction, useRunControls } from "../hooks.ts";
-import { lookOf, plural } from "../model.ts";
+import { lookOf, plural, type Run } from "../model.ts";
 
 interface Draft {
   readonly line?: number;
@@ -19,17 +18,18 @@ interface Draft {
   readonly text: string;
 }
 
-export function ReviewScreen({
+export function ChangesTab({
+  run,
   runId,
   file,
   onOpenFile,
 }: {
+  readonly run: Run | undefined;
   readonly runId: string;
   readonly file?: string | undefined;
   onOpenFile(runId: string, file?: string): void;
 }) {
-  const { client, run: runOf } = useDaemon();
-  const run = runOf(runId);
+  const { client } = useDaemon();
   // The run's own repository (D10): in a folder the change is read where the run lives.
   const repo = run?.repo;
   const key = `review:${repo ?? ""}:${runId}:${file ?? ""}`;
@@ -81,7 +81,7 @@ export function ReviewScreen({
           aria-label={label}
         />
         <div className="row">
-          <button type="button" className="go" onClick={() => void add()}>
+          <button type="button" className="primary" onClick={() => void add()}>
             Add note
           </button>
           <button type="button" onClick={() => setDraft(undefined)}>
@@ -91,14 +91,14 @@ export function ReviewScreen({
       </div>
     ) : null;
   return (
-    <div className="run-screen">
-      <RunHeader
-        runId={runId}
-        run={run}
-        screen="review"
-        actions={
+    <ListDetail
+      className="review"
+      testId="review"
+      top={
           <>
+            <b>Changes</b>
             {view ? <span className="dim mono">against {view.base.slice(0, 12)}</span> : null}
+            <span className="spacer" />
             <button
               type="button"
               className="ghost"
@@ -109,7 +109,7 @@ export function ReviewScreen({
             </button>
             <button
               type="button"
-              className="go"
+              className="primary"
               disabled={drafts.length === 0}
               onClick={() => void send()}
               data-testid="send-notes"
@@ -117,11 +117,7 @@ export function ReviewScreen({
               Send {drafts.length > 0 ? drafts.length : ""} to agent
             </button>
           </>
-        }
-      />
-      <ListDetail
-        className="review"
-        testId="review"
+      }
         listLabel="changed files and notes"
         detailClass="diff"
         list={
@@ -223,7 +219,6 @@ export function ReviewScreen({
           <div className="dim file-head">{view ? "no diff for this file" : "loading…"}</div>
         )}
       </ListDetail>
-    </div>
   );
 }
 

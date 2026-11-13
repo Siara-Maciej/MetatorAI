@@ -1,25 +1,21 @@
 /** The Terminal tab of a run: its live session, who types, its panes, the question and the links. */
 import { useEffect, useState } from "react";
-import { ActivityList } from "../components/activity-list.tsx";
 import { QuickAnswer } from "../components/answer.tsx";
 import { Chip } from "../components/chips.tsx";
 import { Notice } from "../components/common.tsx";
-import { EscalatedActions } from "../components/escalated-card.tsx";
-import { RunHeader } from "../components/run-header.tsx";
 import { Tabs } from "../components/tabs.tsx";
 import { PaneTerminal, RunTerminal, sendLine, type TerminalStatus } from "../components/terminal.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction, useRunControls } from "../hooks.ts";
 import {
-  autonomyLabel,
-  duration,
-  finishedText,
   lookOf,
   paneLabel,
   paneStateOf,
   panesOfRun,
   plainKey,
   portsText,
+  type Run,
+  routeHash,
   runPhase,
 } from "../model.ts";
 
@@ -186,6 +182,9 @@ export function TerminalTab({
                 ),
               }))}
             >
+              {termStatus.alive === false && termStatus.exitCode !== undefined ? (
+                <Chip tone="amber">session exited {termStatus.exitCode}</Chip>
+              ) : null}
               <span className="spacer" />
               <button type="button" onClick={() => void openShell()}>
                 + Shell

@@ -1,0 +1,873 @@
+{
+  "kind": "ArchitectureReport",
+  "schemaVersion": 2,
+  "policy": "metator/architecture.yml",
+  "summary": {
+    "packages": 9,
+    "apps": 2,
+    "edges": 12,
+    "cycles": 2,
+    "errors": 12,
+    "warnings": 2,
+    "excepted": 2,
+    "score": 38
+  },
+  "packages": [
+    {
+      "name": "(root)",
+      "dir": ".",
+      "kind": "root",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [
+        "@shop/core"
+      ],
+      "dependents": [
+        "@shop/core"
+      ]
+    },
+    {
+      "name": "@shop/admin",
+      "dir": "apps/admin",
+      "kind": "app",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [
+        "@shop/web"
+      ],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 1,
+        "instability": 1,
+        "abstractness": 0,
+        "distance": 0,
+        "depth": 3,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@shop/config",
+      "dir": "tools/config",
+      "kind": "lib",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [],
+      "dependents": [
+        "@shop/web"
+      ],
+      "metrics": {
+        "ca": 1,
+        "ce": 0,
+        "instability": 0,
+        "abstractness": 0,
+        "distance": 1,
+        "depth": 0,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@shop/core",
+      "dir": "packages/core",
+      "kind": "lib",
+      "tags": [],
+      "files": 2,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [
+        "(root)",
+        "@shop/ui"
+      ],
+      "dependents": [
+        "(root)",
+        "@shop/ui",
+        "@shop/web"
+      ],
+      "metrics": {
+        "ca": 2,
+        "ce": 1,
+        "instability": 0.33,
+        "abstractness": 0,
+        "distance": 0.67,
+        "depth": 1,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@shop/db",
+      "dir": "packages/db",
+      "kind": "lib",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [
+        "@shop/types"
+      ],
+      "dependents": [
+        "@shop/types",
+        "@shop/ui",
+        "@shop/web"
+      ],
+      "metrics": {
+        "ca": 3,
+        "ce": 1,
+        "instability": 0.25,
+        "abstractness": 0,
+        "distance": 0.75,
+        "depth": 0,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@shop/lonely",
+      "dir": "packages/lonely",
+      "kind": "lib",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 0,
+        "instability": 0,
+        "abstractness": 0,
+        "distance": 1,
+        "depth": 0,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@shop/testing",
+      "dir": "packages/testing",
+      "kind": "lib",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 0,
+        "instability": 0,
+        "abstractness": 0,
+        "distance": 1,
+        "depth": 0,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@shop/types",
+      "dir": "packages/types",
+      "kind": "lib",
+      "tags": [],
+      "files": 1,
+      "testFiles": 0,
+      "owners": [],
+      "dependsOn": [
+        "@shop/db"
+      ],
+      "dependents": [
+        "@shop/db"
+      ],
+      "metrics": {
+        "ca": 1,
+        "ce": 1,
+        "instability": 0.5,
+        "abstractness": 0,
+        "distance": 0.5,
+        "depth": 0,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@shop/ui",
+      "dir": "packages/ui",
+      "kind": "lib",
+      "tags": [],
+      "files": 3,
+      "testFiles": 1,
+      "owners": [],
+      "dependsOn": [
+        "@shop/core",
+        "@shop/db"
+      ],
+      "dependents": [
+        "@shop/core",
+        "@shop/web"
+      ],
+      "metrics": {
+        "ca": 2,
+        "ce": 2,
+        "instability": 0.5,
+        "abstractness": 0,
+        "distance": 0.5,
+        "depth": 1,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@shop/web",
+      "dir": "apps/web",
+      "kind": "app",
+      "tags": [],
+      "files": 4,
+      "testFiles": 1,
+      "owners": [],
+      "dependsOn": [
+        "@shop/config",
+        "@shop/core",
+        "@shop/db",
+        "@shop/ui"
+      ],
+      "dependents": [
+        "@shop/admin"
+      ],
+      "metrics": {
+        "ca": 1,
+        "ce": 4,
+        "instability": 0.8,
+        "abstractness": 0,
+        "distance": 0.2,
+        "depth": 2,
+        "exportsUsed": null
+      }
+    }
+  ],
+  "boundaries": {
+    "split": [],
+    "merge": [
+      {
+        "package": "@shop/config",
+        "into": "@shop/web",
+        "reason": "only @shop/web depends on it (1 files)"
+      }
+    ],
+    "hubs": [],
+    "deadExports": [],
+    "deadPackages": [
+      "@shop/lonely"
+    ]
+  },
+  "apps": {
+    "closure": [
+      {
+        "app": "@shop/admin",
+        "packages": [
+          "@shop/config",
+          "@shop/core",
+          "@shop/db",
+          "@shop/types",
+          "@shop/ui",
+          "@shop/web"
+        ]
+      },
+      {
+        "app": "@shop/web",
+        "packages": [
+          "@shop/config",
+          "@shop/core",
+          "@shop/db",
+          "@shop/types",
+          "@shop/ui"
+        ]
+      }
+    ],
+    "blastRadius": [
+      {
+        "package": "@shop/config",
+        "apps": [
+          "@shop/admin",
+          "@shop/web"
+        ]
+      },
+      {
+        "package": "@shop/core",
+        "apps": [
+          "@shop/admin",
+          "@shop/web"
+        ]
+      },
+      {
+        "package": "@shop/db",
+        "apps": [
+          "@shop/admin",
+          "@shop/web"
+        ]
+      },
+      {
+        "package": "@shop/types",
+        "apps": [
+          "@shop/admin",
+          "@shop/web"
+        ]
+      },
+      {
+        "package": "@shop/ui",
+        "apps": [
+          "@shop/admin",
+          "@shop/web"
+        ]
+      },
+      {
+        "package": "@shop/web",
+        "apps": [
+          "@shop/admin"
+        ]
+      }
+    ]
+  },
+  "edges": [
+    {
+      "from": "(root)",
+      "to": "@shop/core",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "none",
+      "samples": [
+        {
+          "from": "scripts/release.ts",
+          "to": "packages/core/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/admin",
+      "to": "@shop/web",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "apps/admin/src/main.ts",
+          "to": "apps/web/src/page.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/core",
+      "to": "(root)",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "none",
+      "samples": [
+        {
+          "from": "packages/core/src/money.ts",
+          "to": "scripts/release.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/core",
+      "to": "@shop/ui",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "packages/core/src/money.ts",
+          "to": "packages/ui/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/db",
+      "to": "@shop/types",
+      "imports": 1,
+      "runtime": 0,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "packages/db/src/index.ts",
+          "to": "packages/types/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/types",
+      "to": "@shop/db",
+      "imports": 1,
+      "runtime": 0,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "packages/types/src/index.ts",
+          "to": "packages/db/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/ui",
+      "to": "@shop/core",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "packages/ui/src/button.ts",
+          "to": "packages/core/src/money.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/ui",
+      "to": "@shop/db",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "devDependencies",
+      "samples": [
+        {
+          "from": "packages/ui/src/button.ts",
+          "to": "packages/db/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/ui",
+      "to": "@shop/testing",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": true,
+      "declared": "none",
+      "samples": [
+        {
+          "from": "packages/ui/src/button.test.ts",
+          "to": "packages/testing/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/web",
+      "to": "@shop/config",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "none",
+      "samples": [
+        {
+          "from": "apps/web/src/page.ts",
+          "to": "tools/config/package.json"
+        }
+      ]
+    },
+    {
+      "from": "@shop/web",
+      "to": "@shop/core",
+      "imports": 1,
+      "runtime": 0,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "apps/web/src/page.ts",
+          "to": "packages/core/src/money.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/web",
+      "to": "@shop/db",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": false,
+      "declared": "none",
+      "samples": [
+        {
+          "from": "apps/web/src/page.ts",
+          "to": "packages/db/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/web",
+      "to": "@shop/testing",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": true,
+      "declared": "devDependencies",
+      "samples": [
+        {
+          "from": "apps/web/test/main.test.ts",
+          "to": "packages/testing/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@shop/web",
+      "to": "@shop/ui",
+      "imports": 2,
+      "runtime": 2,
+      "testOnly": false,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "apps/web/src/main.ts",
+          "to": "packages/ui/src/index.ts"
+        },
+        {
+          "from": "apps/web/src/main.ts",
+          "to": "packages/ui/src/button.ts"
+        }
+      ]
+    }
+  ],
+  "cycles": [
+    {
+      "packages": [
+        "@shop/core",
+        "@shop/ui"
+      ],
+      "edges": [
+        {
+          "from": "@shop/core",
+          "to": "@shop/ui",
+          "imports": 1,
+          "runtime": 1
+        },
+        {
+          "from": "@shop/ui",
+          "to": "@shop/core",
+          "imports": 1,
+          "runtime": 1
+        }
+      ],
+      "typeOnly": false,
+      "cut": [
+        {
+          "from": "@shop/ui",
+          "to": "@shop/core",
+          "imports": 1
+        }
+      ]
+    },
+    {
+      "packages": [
+        "@shop/db",
+        "@shop/types"
+      ],
+      "edges": [
+        {
+          "from": "@shop/db",
+          "to": "@shop/types",
+          "imports": 1,
+          "runtime": 0
+        },
+        {
+          "from": "@shop/types",
+          "to": "@shop/db",
+          "imports": 1,
+          "runtime": 0
+        }
+      ],
+      "typeOnly": true,
+      "cut": [
+        {
+          "from": "@shop/types",
+          "to": "@shop/db",
+          "imports": 1
+        }
+      ]
+    }
+  ],
+  "violations": [
+    {
+      "id": "app-import:@shop/admin→@shop/web",
+      "kind": "app-import",
+      "severity": "error",
+      "message": "@shop/admin depends on the application @shop/web; applications sit on top and nothing imports them",
+      "packages": [
+        "@shop/admin",
+        "@shop/web"
+      ],
+      "evidence": [
+        {
+          "file": "apps/admin/src/main.ts",
+          "to": "apps/web/src/page.ts"
+        }
+      ]
+    },
+    {
+      "id": "cycle:@shop/core,@shop/ui",
+      "kind": "cycle",
+      "severity": "error",
+      "message": "@shop/core ⇄ @shop/ui depend on each other",
+      "packages": [
+        "@shop/core",
+        "@shop/ui"
+      ],
+      "evidence": [
+        {
+          "file": "packages/core/src/money.ts",
+          "to": "packages/ui/src/index.ts"
+        },
+        {
+          "file": "packages/ui/src/button.ts",
+          "to": "packages/core/src/money.ts"
+        }
+      ],
+      "exception": {
+        "reason": "being untangled",
+        "owner": "ann",
+        "expires": "2027-01-01"
+      }
+    },
+    {
+      "id": "dev-in-prod:@shop/ui→@shop/db",
+      "kind": "dev-in-prod",
+      "severity": "error",
+      "message": "@shop/ui imports @shop/db outside tests, but declares it only in devDependencies",
+      "packages": [
+        "@shop/ui",
+        "@shop/db"
+      ],
+      "evidence": [
+        {
+          "file": "packages/ui/src/button.ts",
+          "to": "packages/db/src/index.ts"
+        }
+      ]
+    },
+    {
+      "id": "dev-in-prod:@shop/web→dev-lib",
+      "kind": "dev-in-prod",
+      "severity": "error",
+      "message": "@shop/web imports dev-lib outside tests, but declares it only in devDependencies",
+      "packages": [
+        "@shop/web"
+      ],
+      "evidence": [
+        {
+          "file": "apps/web/src/main.ts",
+          "specifier": "dev-lib"
+        },
+        {
+          "file": "apps/web/test/main.test.ts",
+          "specifier": "dev-lib"
+        },
+        {
+          "file": "apps/web/vite.config.ts",
+          "specifier": "dev-lib"
+        }
+      ]
+    },
+    {
+      "id": "expired-exception:app-import:@shop/admin→@shop/web",
+      "kind": "expired-exception",
+      "severity": "error",
+      "message": "the exception for app-import:@shop/admin→@shop/web (bob) expired on 2026-01-01",
+      "packages": [],
+      "evidence": []
+    },
+    {
+      "id": "relative-import:@shop/core→(root)",
+      "kind": "relative-import",
+      "severity": "error",
+      "message": "@shop/core reaches into (root) with a relative path instead of its package name",
+      "packages": [
+        "@shop/core",
+        "(root)"
+      ],
+      "evidence": [
+        {
+          "file": "packages/core/src/money.ts",
+          "to": "scripts/release.ts",
+          "specifier": "../../../scripts/release.ts"
+        }
+      ]
+    },
+    {
+      "id": "relative-import:@shop/web→@shop/ui",
+      "kind": "relative-import",
+      "severity": "error",
+      "message": "@shop/web reaches into @shop/ui with a relative path instead of its package name",
+      "packages": [
+        "@shop/web",
+        "@shop/ui"
+      ],
+      "evidence": [
+        {
+          "file": "apps/web/src/main.ts",
+          "to": "packages/ui/src/button.ts",
+          "specifier": "../../../packages/ui/src/button.ts"
+        }
+      ]
+    },
+    {
+      "id": "root-only:@shop/web→hoisted",
+      "kind": "root-only",
+      "severity": "error",
+      "message": "@shop/web imports hoisted, declared only by the repository root (works through hoisting)",
+      "packages": [
+        "@shop/web"
+      ],
+      "evidence": [
+        {
+          "file": "apps/web/src/main.ts",
+          "specifier": "hoisted"
+        }
+      ]
+    },
+    {
+      "id": "undeclared:@shop/config→missing",
+      "kind": "undeclared",
+      "severity": "error",
+      "message": "@shop/config imports missing without declaring it in package.json",
+      "packages": [
+        "@shop/config"
+      ],
+      "evidence": [
+        {
+          "file": "tools/config/index.ts",
+          "specifier": "missing"
+        }
+      ]
+    },
+    {
+      "id": "undeclared:@shop/ui→@shop/testing",
+      "kind": "undeclared",
+      "severity": "error",
+      "message": "@shop/ui imports the workspace package @shop/testing without declaring it in package.json",
+      "packages": [
+        "@shop/ui",
+        "@shop/testing"
+      ],
+      "evidence": [
+        {
+          "file": "packages/ui/src/button.test.ts",
+          "to": "packages/testing/src/index.ts"
+        }
+      ]
+    },
+    {
+      "id": "undeclared:@shop/web→@shop/config",
+      "kind": "undeclared",
+      "severity": "error",
+      "message": "@shop/web imports the workspace package @shop/config without declaring it in package.json",
+      "packages": [
+        "@shop/web",
+        "@shop/config"
+      ],
+      "evidence": [
+        {
+          "file": "apps/web/src/page.ts",
+          "to": "tools/config/package.json"
+        }
+      ]
+    },
+    {
+      "id": "undeclared:@shop/web→@shop/db",
+      "kind": "undeclared",
+      "severity": "error",
+      "message": "@shop/web imports the workspace package @shop/db without declaring it in package.json",
+      "packages": [
+        "@shop/web",
+        "@shop/db"
+      ],
+      "evidence": [
+        {
+          "file": "apps/web/src/page.ts",
+          "to": "packages/db/src/index.ts"
+        }
+      ]
+    },
+    {
+      "id": "undeclared:@shop/web→missing",
+      "kind": "undeclared",
+      "severity": "error",
+      "message": "@shop/web imports missing without declaring it in package.json",
+      "packages": [
+        "@shop/web"
+      ],
+      "evidence": [
+        {
+          "file": "apps/web/src/page.ts",
+          "specifier": "missing"
+        }
+      ]
+    },
+    {
+      "id": "cycle:@shop/db,@shop/types",
+      "kind": "cycle",
+      "severity": "warning",
+      "message": "@shop/db ⇄ @shop/types depend on each other (only through import type)",
+      "packages": [
+        "@shop/db",
+        "@shop/types"
+      ],
+      "evidence": [
+        {
+          "file": "packages/db/src/index.ts",
+          "to": "packages/types/src/index.ts"
+        },
+        {
+          "file": "packages/types/src/index.ts",
+          "to": "packages/db/src/index.ts"
+        }
+      ],
+      "exception": {
+        "reason": "being untangled",
+        "owner": "ann",
+        "expires": "2027-01-01"
+      }
+    },
+    {
+      "id": "unused-exception:layer:nothing",
+      "kind": "unused-exception",
+      "severity": "warning",
+      "message": "the exception for layer:nothing (cid) matches no violation; remove it",
+      "packages": [],
+      "evidence": []
+    },
+    {
+      "id": "version-drift:zod",
+      "kind": "version-drift",
+      "severity": "warning",
+      "message": "zod is declared with 2 ranges: ^3.0.0 (shop, @shop/ui); ^4.0.0 (@shop/web)",
+      "packages": [
+        "@shop/ui",
+        "@shop/web",
+        "shop"
+      ],
+      "evidence": [
+        {
+          "file": "./package.json",
+          "specifier": "zod@^3.0.0"
+        },
+        {
+          "file": "packages/ui/package.json",
+          "specifier": "zod@^3.0.0"
+        },
+        {
+          "file": "apps/web/package.json",
+          "specifier": "zod@^4.0.0"
+        }
+      ]
+    }
+  ],
+  "unresolved": {
+    "count": 1,
+    "sample": [
+      {
+        "from": "apps/web/src/main.ts",
+        "specifier": "./gone.ts"
+      }
+    ]
+  }
+}

@@ -60,7 +60,7 @@ afterAll(async () => {
   const runs = (await mt("run", "list")).json.data as { runId: string }[];
   for (const r of runs) await mt("run", "stop", "--run", r.runId);
   await repo.dispose();
-});
+}, 60_000);
 
 describe("the command surface (real CLI)", () => {
   test("a renamed command runs under its new words and its old ones; the help lists the new", async () => {

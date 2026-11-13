@@ -130,7 +130,7 @@ describe("linked runs (real CLI, three repositories)", () => {
     const waiting = await mt("platform", "system", "plan", "run", "rename-refunds", "--workflow", "mt-tiny");
     expect([(waiting.json.data as { started: unknown[] }).started, waiting.json.warnings]).toEqual([
       [],
-      ["no step can start yet: the steps before them are not done (`metator system status`)"],
+      ["no step can start yet: the steps before them are not done (`metator system plan status`)"],
     ]);
     const check = await mt("platform", "system", "status", "--run", parent, "--check");
     expect([check.code, (check.json.error as { message: string }).message]).toEqual([

@@ -14,7 +14,7 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 - New names, with the old ones still working: `metator run new` (was `run init`), `run take` (was `run attach`), `issue rm` (was `issue drop`), `system plan status` (was `system status`), `docs schema` (was `docs claims-schema`), `meta schema agents|skills` (was `meta agents-schema`, `meta skills-schema`).
 - `metator help --for person|agent|hook|ci` lists the commands of one audience.
 - The run can be named as a word: `metator run status <run>`, also for `board`, `brief`, `activity`, `stop` and `close`. `--run <id>` still works.
-- Who acts when `--by` is left out is one rule everywhere: `$METATOR_USER`, else git's `user.name`, else your login name. `--by` is no longer required for `run take`, `run message`, `findings react`, `review notes add`, `review notes send`, `mrs send` and `mrs resolve`; `run approve` still requires it.
+- Who acts when `--by` is left out is one rule everywhere: `$METATOR_USER`, else git's `user.name`, else your login name. `--by` is no longer required for `run take`, `run message`, `findings react`, `review notes add` and `review notes send`; `run approve`, `mrs send` and `mrs resolve` still require it.
 - `metator run continue` on an escalated run, at a terminal, asks whether its cause is fixed and resumes it on a yes. Without a terminal it still refuses and names `run resume`.
 - A `Deny` answer no longer asks for a reason in the terminal: only `Reject` and `Other` ask for your own words.
 - `meta check-all` runs the same checks in the order of the command list.

@@ -1,0 +1,519 @@
+{
+  "kind": "ArchitectureReport",
+  "schemaVersion": 2,
+  "policy": "metator/architecture.yml",
+  "summary": {
+    "packages": 2,
+    "apps": 1,
+    "edges": 0,
+    "cycles": 0,
+    "errors": 7,
+    "warnings": 2,
+    "excepted": 0,
+    "score": 63
+  },
+  "packages": [
+    {
+      "name": "@m/api",
+      "dir": "apps/api",
+      "kind": "app",
+      "tags": [],
+      "files": 10,
+      "testFiles": 1,
+      "owners": [],
+      "dependsOn": [],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 0,
+        "instability": 0,
+        "abstractness": 0,
+        "distance": 1,
+        "depth": 0,
+        "exportsUsed": null
+      }
+    },
+    {
+      "name": "@m/lib",
+      "dir": "packages/lib",
+      "kind": "lib",
+      "tags": [],
+      "files": 2,
+      "testFiles": 1,
+      "owners": [],
+      "dependsOn": [],
+      "dependents": [],
+      "metrics": {
+        "ca": 0,
+        "ce": 0,
+        "instability": 0,
+        "abstractness": 0,
+        "distance": 1,
+        "depth": 0,
+        "exportsUsed": null
+      }
+    }
+  ],
+  "boundaries": {
+    "split": [],
+    "merge": [],
+    "hubs": [],
+    "deadExports": [],
+    "deadPackages": []
+  },
+  "apps": {
+    "closure": [
+      {
+        "app": "@m/api",
+        "packages": []
+      }
+    ],
+    "blastRadius": []
+  },
+  "edges": [
+    {
+      "from": "@m/api",
+      "to": "@m/lib",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": true,
+      "declared": "dependencies",
+      "samples": [
+        {
+          "from": "apps/api/src/module/mail/mail.service.ts",
+          "to": "packages/lib/src/index.ts"
+        }
+      ]
+    },
+    {
+      "from": "@m/lib",
+      "to": "@m/api",
+      "imports": 1,
+      "runtime": 1,
+      "testOnly": true,
+      "declared": "devDependencies",
+      "samples": [
+        {
+          "from": "packages/lib/test/lib.test.ts",
+          "to": "apps/api/src/main.ts"
+        }
+      ]
+    }
+  ],
+  "cycles": [],
+  "violations": [
+    {
+      "id": "module-cycle:auth,orders,users",
+      "kind": "module-cycle",
+      "severity": "error",
+      "message": "modules auth ⇄ orders ⇄ users depend on each other",
+      "packages": [
+        "auth",
+        "orders",
+        "users"
+      ],
+      "evidence": [
+        {
+          "file": "apps/api/src/module/auth/auth.service.ts",
+          "to": "apps/api/src/module/users/users.service.ts"
+        },
+        {
+          "file": "apps/api/src/module/orders/orders.service.ts",
+          "to": "apps/api/src/module/users/contracts/get-user.query.ts"
+        },
+        {
+          "file": "apps/api/src/module/users/users.service.ts",
+          "to": "apps/api/src/module/auth/auth.service.ts"
+        },
+        {
+          "file": "apps/api/src/module/users/users.service.ts",
+          "to": "apps/api/src/module/orders/orders.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "module-internal:auth→users",
+      "kind": "module-internal",
+      "severity": "error",
+      "message": "auth imports users past its public part (contracts/**) 1 time(s)",
+      "packages": [
+        "auth",
+        "users"
+      ],
+      "evidence": [
+        {
+          "file": "apps/api/src/module/auth/auth.service.ts",
+          "to": "apps/api/src/module/users/users.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "module-internal:billing→ledger",
+      "kind": "module-internal",
+      "severity": "error",
+      "message": "billing imports ledger past its public part (contracts/**) 1 time(s)",
+      "packages": [
+        "billing",
+        "ledger"
+      ],
+      "evidence": [
+        {
+          "file": "apps/api/src/module/billing/billing.service.ts",
+          "to": "apps/api/src/module/ledger/ledger.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "module-internal:ledger→billing",
+      "kind": "module-internal",
+      "severity": "error",
+      "message": "ledger imports billing past its public part (contracts/**) 1 time(s)",
+      "packages": [
+        "ledger",
+        "billing"
+      ],
+      "evidence": [
+        {
+          "file": "apps/api/src/module/ledger/ledger.service.ts",
+          "to": "apps/api/src/module/billing/billing.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "module-internal:users→auth",
+      "kind": "module-internal",
+      "severity": "error",
+      "message": "users imports auth past its public part (contracts/**) 1 time(s)",
+      "packages": [
+        "users",
+        "auth"
+      ],
+      "evidence": [
+        {
+          "file": "apps/api/src/module/users/users.service.ts",
+          "to": "apps/api/src/module/auth/auth.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "module-internal:users→orders",
+      "kind": "module-internal",
+      "severity": "error",
+      "message": "users imports orders past its public part (contracts/**) 1 time(s)",
+      "packages": [
+        "users",
+        "orders"
+      ],
+      "evidence": [
+        {
+          "file": "apps/api/src/module/users/users.service.ts",
+          "to": "apps/api/src/module/orders/orders.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "undeclared:@m/api→nodemailer",
+      "kind": "undeclared",
+      "severity": "error",
+      "message": "@m/api imports nodemailer without declaring it in package.json",
+      "packages": [
+        "@m/api"
+      ],
+      "evidence": [
+        {
+          "file": "apps/api/src/module/mail/mail.service.ts",
+          "specifier": "nodemailer"
+        }
+      ]
+    },
+    {
+      "id": "module-cycle:billing,ledger",
+      "kind": "module-cycle",
+      "severity": "warning",
+      "message": "modules billing ⇄ ledger depend on each other (only through import type)",
+      "packages": [
+        "billing",
+        "ledger"
+      ],
+      "evidence": [
+        {
+          "file": "apps/api/src/module/billing/billing.service.ts",
+          "to": "apps/api/src/module/ledger/ledger.service.ts"
+        },
+        {
+          "file": "apps/api/src/module/ledger/ledger.service.ts",
+          "to": "apps/api/src/module/billing/billing.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "unused-dependency:@m/api→left-pad",
+      "kind": "unused-dependency",
+      "severity": "warning",
+      "message": "@m/api declares left-pad in dependencies, but no file imports it",
+      "packages": [
+        "@m/api"
+      ],
+      "evidence": [
+        {
+          "file": "apps/api/package.json",
+          "specifier": "left-pad"
+        }
+      ]
+    }
+  ],
+  "modules": {
+    "globs": [
+      "apps/api/src/module/*"
+    ],
+    "public": [
+      "contracts/**"
+    ],
+    "modules": [
+      {
+        "name": "auth",
+        "dir": "apps/api/src/module/auth",
+        "files": 1,
+        "dependsOn": [
+          "users"
+        ],
+        "dependents": [
+          "users"
+        ]
+      },
+      {
+        "name": "billing",
+        "dir": "apps/api/src/module/billing",
+        "files": 1,
+        "dependsOn": [
+          "ledger"
+        ],
+        "dependents": [
+          "ledger"
+        ]
+      },
+      {
+        "name": "ledger",
+        "dir": "apps/api/src/module/ledger",
+        "files": 1,
+        "dependsOn": [
+          "billing"
+        ],
+        "dependents": [
+          "billing"
+        ]
+      },
+      {
+        "name": "mail",
+        "dir": "apps/api/src/module/mail",
+        "files": 1,
+        "dependsOn": [],
+        "dependents": []
+      },
+      {
+        "name": "orders",
+        "dir": "apps/api/src/module/orders",
+        "files": 2,
+        "dependsOn": [
+          "users"
+        ],
+        "dependents": [
+          "users"
+        ]
+      },
+      {
+        "name": "users",
+        "dir": "apps/api/src/module/users",
+        "files": 2,
+        "dependsOn": [
+          "auth",
+          "orders"
+        ],
+        "dependents": [
+          "auth",
+          "orders"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "auth",
+        "to": "users",
+        "imports": 1,
+        "runtime": 1,
+        "samples": [
+          {
+            "from": "apps/api/src/module/auth/auth.service.ts",
+            "to": "apps/api/src/module/users/users.service.ts"
+          }
+        ],
+        "internal": 1,
+        "internalSamples": [
+          {
+            "from": "apps/api/src/module/auth/auth.service.ts",
+            "to": "apps/api/src/module/users/users.service.ts"
+          }
+        ]
+      },
+      {
+        "from": "billing",
+        "to": "ledger",
+        "imports": 1,
+        "runtime": 0,
+        "samples": [
+          {
+            "from": "apps/api/src/module/billing/billing.service.ts",
+            "to": "apps/api/src/module/ledger/ledger.service.ts"
+          }
+        ],
+        "internal": 1,
+        "internalSamples": [
+          {
+            "from": "apps/api/src/module/billing/billing.service.ts",
+            "to": "apps/api/src/module/ledger/ledger.service.ts"
+          }
+        ]
+      },
+      {
+        "from": "ledger",
+        "to": "billing",
+        "imports": 1,
+        "runtime": 0,
+        "samples": [
+          {
+            "from": "apps/api/src/module/ledger/ledger.service.ts",
+            "to": "apps/api/src/module/billing/billing.service.ts"
+          }
+        ],
+        "internal": 1,
+        "internalSamples": [
+          {
+            "from": "apps/api/src/module/ledger/ledger.service.ts",
+            "to": "apps/api/src/module/billing/billing.service.ts"
+          }
+        ]
+      },
+      {
+        "from": "orders",
+        "to": "users",
+        "imports": 1,
+        "runtime": 1,
+        "samples": [
+          {
+            "from": "apps/api/src/module/orders/orders.service.ts",
+            "to": "apps/api/src/module/users/contracts/get-user.query.ts"
+          }
+        ],
+        "internal": 0,
+        "internalSamples": []
+      },
+      {
+        "from": "users",
+        "to": "auth",
+        "imports": 1,
+        "runtime": 1,
+        "samples": [
+          {
+            "from": "apps/api/src/module/users/users.service.ts",
+            "to": "apps/api/src/module/auth/auth.service.ts"
+          }
+        ],
+        "internal": 1,
+        "internalSamples": [
+          {
+            "from": "apps/api/src/module/users/users.service.ts",
+            "to": "apps/api/src/module/auth/auth.service.ts"
+          }
+        ]
+      },
+      {
+        "from": "users",
+        "to": "orders",
+        "imports": 1,
+        "runtime": 0,
+        "samples": [
+          {
+            "from": "apps/api/src/module/users/users.service.ts",
+            "to": "apps/api/src/module/orders/orders.service.ts"
+          }
+        ],
+        "internal": 1,
+        "internalSamples": [
+          {
+            "from": "apps/api/src/module/users/users.service.ts",
+            "to": "apps/api/src/module/orders/orders.service.ts"
+          }
+        ]
+      }
+    ],
+    "twoWay": [
+      [
+        "auth",
+        "users"
+      ],
+      [
+        "billing",
+        "ledger"
+      ],
+      [
+        "orders",
+        "users"
+      ]
+    ],
+    "cycles": [
+      {
+        "modules": [
+          "auth",
+          "orders",
+          "users"
+        ],
+        "edges": [
+          {
+            "from": "auth",
+            "to": "users",
+            "imports": 1
+          },
+          {
+            "from": "orders",
+            "to": "users",
+            "imports": 1
+          },
+          {
+            "from": "users",
+            "to": "auth",
+            "imports": 1
+          },
+          {
+            "from": "users",
+            "to": "orders",
+            "imports": 1
+          }
+        ],
+        "typeOnly": false
+      },
+      {
+        "modules": [
+          "billing",
+          "ledger"
+        ],
+        "edges": [
+          {
+            "from": "billing",
+            "to": "ledger",
+            "imports": 1
+          },
+          {
+            "from": "ledger",
+            "to": "billing",
+            "imports": 1
+          }
+        ],
+        "typeOnly": true
+      }
+    ]
+  },
+  "unresolved": {
+    "count": 0,
+    "sample": []
+  }
+}

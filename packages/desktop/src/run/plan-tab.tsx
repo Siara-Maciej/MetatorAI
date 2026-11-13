@@ -10,24 +10,27 @@ import { ActivityList } from "../components/activity-list.tsx";
 import { QuickAnswer } from "../components/answer.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../components/list-detail.tsx";
-import { RunHeader } from "../components/run-header.tsx";
+import { StageBar } from "../components/stage-bar.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { clock, duration } from "../model.ts";
+import { clock, duration, type Run } from "../model.ts";
 
 const or = (items: readonly string[]): string => (items.length > 0 ? items.join(", ") : "—");
 
-export function PlanScreen({
+export function PlanTab({
+  run,
   runId,
   onOpenPane,
-  onOpenSession,
+  onOpenRun,
 }: {
+  /** The run from the state; the board is read for a run the state no longer lists too. */
+  readonly run: Run | undefined;
   readonly runId: string;
-  /** Shows a pane on the workbench (the step's worker). */
+  /** Shows a pane in Terminals (the step's worker). */
   onOpenPane(paneId: string, runId: string): void;
-  onOpenSession(runId: string, attach?: boolean): void;
+  /** The run's Terminal tab, with the keyboard taken when asked. */
+  onOpenRun(runId: string, attach?: boolean): void;
 }) {
-  const { client, run: runOf } = useDaemon();
-  const run = runOf(runId);
+  const { client } = useDaemon();
   const {
     data: board,
     error,
@@ -37,13 +40,7 @@ export function PlanScreen({
   const steps = board?.plan?.steps ?? [];
   const step = steps.find((s) => s.id === chosen) ?? steps.find((s) => s.state === "in-progress") ?? steps[0];
   const waiting = board?.waiting[0];
-  if (!board)
-    return (
-      <div className="run-screen">
-        <RunHeader runId={runId} run={run} screen="plan" />
-        <div className="empty">{error ?? `reading the plan of ${runId}…`}</div>
-      </div>
-    );
+  if (!board) return <div className="empty">{error ?? `reading the plan of ${runId}…`}</div>;
   const facts: [string, string][] = step
     ? [
         ["file", `${step.action} ${step.path}`],
@@ -54,19 +51,15 @@ export function PlanScreen({
       ]
     : [];
   return (
-    <div className="run-screen">
-      <RunHeader
-        runId={runId}
-        run={run}
-        screen="plan"
-        task={board.task}
-        stages={board.stages}
-        stageTitle={stageTitle}
-        stagesTestId="plan-stages"
-      />
-      <ListDetail
-        className="plan"
-        testId="plan"
+    <ListDetail
+      className="plan"
+      testId="plan"
+      top={
+        <>
+          <span className="faint">who worked each stage (hover)</span>
+          <StageBar stages={board.stages} variant="strip" titleOf={stageTitle} testId="plan-stages" />
+        </>
+      }
         listLabel="steps of the plan"
         list={
           <>
@@ -121,7 +114,7 @@ export function PlanScreen({
             </span>
             <span className="spacer" />
             {waiting.source === "permission" ? (
-              <button type="button" className="primary" onClick={() => onOpenSession(runId, true)}>
+              <button type="button" className="primary" onClick={() => onOpenRun(runId, true)}>
                 Answer in the pane
               </button>
             ) : (
@@ -153,7 +146,7 @@ export function PlanScreen({
               <div className="actions">
                 <button
                   type="button"
-                  className="go"
+                  className="primary"
                   onClick={() => onOpenPane(step.worker?.paneId as string, runId)}
                 >
                   Show the pane
@@ -225,7 +218,6 @@ export function PlanScreen({
         <span className="spacer" />
         <ActivityList entries={board.timeline.slice(-8)} variant="list" />
       </ListDetail>
-    </div>
   );
 }
 
