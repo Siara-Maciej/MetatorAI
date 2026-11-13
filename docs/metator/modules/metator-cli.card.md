@@ -13,7 +13,7 @@ dir: packages/cli
 - Depends on: `@metator/core`, `@metator/runtime`
 - Test-only dependencies: none
 - Used by: `(root)`
-- Imported by other packages: `packages/cli/package.json`, `packages/cli/src/program.ts`
+- Imported by other packages: `packages/cli/package.json`, `packages/cli/src/command-meta.ts`, `packages/cli/src/program.ts`
 - Third-party: `@clack/prompts`, `@modelcontextprotocol/sdk`, `commander`, `zod`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: `cli-command-group`

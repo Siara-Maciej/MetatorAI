@@ -8,7 +8,9 @@ Open it with **Review** on the run's **Session** screen, or from the workbench w
 
 ![The change of a run: one added file on the left, its diff on the right with a note under line 2](../public/screens/changes.png)
 
-The left column lists the changed files, each with a letter (`A` added, `M` modified, `D` deleted, `R` renamed), its added and removed line counts, and a pencil where you left notes. Click a file to see its diff on the right. The top bar says what the change is compared against.
+The left column lists the changed files, each with a letter (`A` added, `M` modified, `D` deleted, `R` renamed), its added and removed line counts, and a pencil where you left notes. Click a file to see its diff on the right. The head of the screen says what the change is compared against, next to the links to the run's other screens.
+
+The lines of a diff are one stop of the Tab key: the arrow keys move from line to line, and Enter opens a note on the line.
 
 A run in its own worktree is compared with the repository's `HEAD` as it stands when you look. A run in your checkout is compared with `HEAD`. New, untracked files show whole, as added. MetatorAI's own files (`.metator/`, `.github/metator/`) are left out.
 
@@ -16,7 +18,7 @@ A run in its own worktree is compared with the repository's `HEAD` as it stands 
 |---|---|
 | write a note on a line | click the line, type, **Add note** |
 | write a note on the whole change | with no file chosen, **+ note on the whole change** under the list |
-| send the notes | **Send N to agent** in the top bar |
+| send the notes | **Send N to agent** in the head of the screen |
 | open a line in your editor | double-click the line |
 | open the worktree in your editor | **Open in editor** |
 

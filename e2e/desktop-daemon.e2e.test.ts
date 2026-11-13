@@ -308,6 +308,35 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await row.waitFor({ timeout: 20_000 });
     expect(await page.locator("aside.sessions .list").textContent()).toContain("Check the totals");
     expect(await page.locator("main.content").textContent()).not.toContain("Inbox zero");
+    // One count everywhere: the escalated run is among the runs that need you, in the top bar and
+    // in the Inbox's heading, and it is listed on the daemon screen.
+    const needYou = (await page.getByTestId("counters").textContent())?.match(/need you (\d+)/)?.[1];
+    expect(Number(needYou)).toBeGreaterThan(0);
+    expect(await page.getByTestId("needs-count").textContent()).toContain(`Needs you · ${needYou}`);
+    await page.goto(app("supervisor"));
+    await until("the escalated run on the daemon screen", async () =>
+      (await page.locator(".fleet").textContent())?.includes("Check the totals") ? true : undefined,
+    );
+    // Its session screen has no driver to show: why it stopped, Resume and Close, and no Attach;
+    // nothing "waits for you here", and coming here started no session.
+    await page.goto(app(`session/${runId}`));
+    const bar = page.getByTestId("driverbar");
+    await bar.waitFor({ timeout: 20_000 });
+    expect(await bar.textContent()).toContain("Escalated at check");
+    expect(await bar.textContent()).not.toContain("Working:");
+    expect(await bar.getByTestId("escalated-reason").textContent()).toContain(
+      "gate `test -f {runDir}/fixed`",
+    );
+    expect(await bar.getByRole("button", { name: "Resume" }).count()).toBe(1);
+    expect(await bar.getByRole("button", { name: "Close run…" }).count()).toBe(1);
+    expect(await page.getByRole("button", { name: /^Attach/ }).count()).toBe(0);
+    expect(await page.getByRole("button", { name: "Open a session" }).count()).toBe(0);
+    expect(await page.locator(".session .side").textContent()).not.toContain("nothing waits for you here");
+    expect(
+      ((await api("/layout")).data.panes as { runId?: string }[]).filter((p) => p.runId === runId),
+    ).toEqual([]);
+    await page.goto(app("inbox"));
+    await row.waitFor({ timeout: 20_000 });
     await row.click();
     const card = page.getByTestId("escalated-card");
     await card.waitFor({ timeout: 20_000 });

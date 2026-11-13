@@ -170,14 +170,14 @@ export function SessionScreen({
               Working:{" "}
               {run.driver === "human"
                 ? `${run.attachedBy ?? "a person"}${attached ? " (you)" : ""}`
-                : run.driving || live
+                : run.driving || live || hasTerminal
                   ? "agent"
                   : "nobody"}
             </strong>
             <span className="note">
               {run.driver === "human"
                 ? "a yes in the chat counts as an approval while a person is attached"
-                : run.driving || live
+                : run.driving || live || hasTerminal
                   ? "attach to type; approvals said in the chat do not count until then"
                   : "no agent works on this run and no session is open"}
             </span>

@@ -47,6 +47,8 @@ With nothing open, and no escalated run, the screen reads **Inbox zero**. It say
 
 ## Questions asked in the terminal
 
+The heading **Needs you** counts runs, the same number as **need you** in the top bar; escalated runs are in it. When one run has two open questions the heading adds the number of rows (`· 3 items`).
+
 An agent can also stop at a question it wrote on its own screen, without a card. Such a run still counts in **need you**. The Inbox lists it under the queue as a row marked `TERMINAL`, with the task and **answers in its terminal**. A click opens the run's **Session** screen on the pane that asks. Attach and type the answer there ([Sessions and worktrees](./sessions.md)).
 
 ## Permission prompts of the host

@@ -10,7 +10,7 @@ Open **Plan** from the **Work** screen: click the stages under the tabs, or pres
 
 | Part | Shows |
 |---|---|
-| Stages, top right | each stage with its state; hover for who worked it, when, and its verdict |
+| Stages, in the head | each stage with its state; hover for who worked it, when, and its verdict |
 | **steps**, left | the plan's steps with their state, file and worker, and a count of the ones done |
 | **waits for you**, left | the open questions, oldest first |
 | The chosen step, right | its file, the tests that come first, the exemplar, the rules, and the steps it comes after |

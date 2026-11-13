@@ -8,15 +8,18 @@ A click on a run in the runs panel opens its **Session** screen.
 
 ![The Session screen while the agent works: the stages, the bar that says who works, the terminal, and the boxes on the right](../public/screens/session.png)
 
-The head shows the task, the run id and chips for the workflow, the autonomy level with what it means (**L0: every approval waits for you**), the AI host, the worktree's ports and the time since the run started. Under them is the line of stages, with the current one marked.
+The head is the same on every screen about one run: the task, the run id, and four links, **Session**, **Plan**, **Changes** and **Briefing**, with the shown one marked. On the Session screen it also has chips for the workflow, the autonomy level with what it means (**L0: every approval waits for you**), the AI host, the worktree's ports and the time since the run started. Under them is the line of stages, with the current one marked.
 
-The bar under the head says who types. With **Working: agent** you watch. Click **Attach** (key `a`) to take the keyboard; the app asks for your name the first time. **Release to agent** (key `c`) gives it back.
+The bar under the head says who types. With **Working: agent** you watch. Click **Attach** (key `a`) to take the keyboard; the app asks for your name the first time. **Release to agent** (key `c`) gives it back. With **Working: nobody** no agent works on the run and no session is open.
+
+An escalated run has no one at work, so the bar shows instead why it stopped, with **Resume** and **Close run…**, the same two actions as its card in the Inbox. A finished run shows **Done** or **Aborted** with one line on how it ended.
 
 When the agent asks on its own screen, with no card in the Inbox, a line above the terminal says **The agent asks in its terminal**, with **Show the pane** when another pane is the one that asks. Attach and type the answer. While you are attached, your yes in the chat counts as an approval ([Workbench and terminals](./desktop.md#who-types-in-a-session)).
 
 Below that bar:
 
 - **Terminal** shows the run's main pane. The row above it lists the run's panes, each with its state. Click one to see it. **+ Shell** opens a shell pane of your own in this run.
+- Opening this screen starts nothing. A run that is driven in the background, or that nothing works on yet, has no terminal: the screen says **No session runs for this run**, and **Open a session** starts the host in a terminal. Once a session lives, its terminal shows by itself.
 - **Events** (key `t` switches) lists the run's activity: the time, the type, the source and what happened.
 - The line at the bottom sends one line of text to the session. A click into it attaches you first.
 
@@ -25,7 +28,7 @@ The boxes on the right:
 | Box | Shows |
 |---|---|
 | **Question** | the run's open question with a button per option. A click on a plain option answers. Reject and Other first ask for the reason, and a question with several answers lets you choose them, then **Send**. Empty when nothing waits |
-| **Apps** | the services of the worktree's environment, with their state and ports |
+| **Apps** | the services of the worktree's environment, with their state and their ports by name |
 | **Changes** | **Review** opens the run's change ([Read the change](./changes.md)); **Open in editor** opens the worktree; below are the branch and the path |
 | **Links** | the parent run and the steps, files this run shares with another run (with which to merge first), and messages from other runs |
 

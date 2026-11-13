@@ -180,6 +180,15 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
 
   test("connects, shows inbox zero, and creates a driven session from the dialog", async () => {
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
+    // `?` lists the keys on every screen: the app's own, and the workbench's with the real prefix key.
+    await page.locator("main.content").click();
+    await page.keyboard.press("?");
+    const help = page.getByRole("dialog", { name: "keyboard help" });
+    await help.waitFor({ timeout: 5000 });
+    expect(await help.getByTestId("help-workbench").textContent()).toContain("ctrl+b zZoom");
+    expect(await help.getByTestId("help-workbench").textContent()).not.toContain("prefix+");
+    await page.keyboard.press("Escape");
+    await until("the help closed", async () => ((await help.count()) === 0 ? true : undefined));
     await page.getByRole("button", { name: "Advanced…" }).click();
     const dialog = page.getByRole("dialog", { name: "new session" });
     await dialog.getByLabel("Task").fill("Add the discount to the invoice");
@@ -393,6 +402,8 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     // prefix+v splits the focused pane: a shell beside it, in the daemon's tree.
     await page.mouse.click(700, 400);
     await page.keyboard.press("Control+b");
+    // While the prefix waits for its key the tab bar shows the key itself, not the word "prefix".
+    expect(await page.getByTestId("prefix").textContent()).toContain("ctrl+b");
     await page.keyboard.press("v");
     await until("two frames", async () =>
       (await workbench.locator(".pane-frame").count()) === 2 ? true : undefined,
@@ -440,6 +451,15 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     const menu = page.getByRole("menu");
     await menu.waitFor({ timeout: 5000 });
     expect(await menu.textContent()).toContain("Split right");
+    // A menu item shows its key as it is pressed.
+    expect(await menu.textContent()).toContain("ctrl+b v");
+    // A shell at its prompt is idle on every screen: never "waiting", never "working".
+    await until("the idle shell", async () =>
+      (await shellFrame.getAttribute("data-state")) === "idle" ? true : undefined,
+    );
+    expect(
+      await workbench.locator(".sidebar .ag").filter({ hasNotText: "agent ·" }).first().textContent(),
+    ).toContain("idle");
     await page.keyboard.press("Escape");
     // "New task from here…" opens the backlog's form with the pane's run as what the task points at.
     await workbench.locator('.pane-frame[aria-label^="agent · "]').first().click({ button: "right" });

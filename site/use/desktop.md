@@ -16,7 +16,7 @@ When the daemon is restarted, the terminals reconnect by themselves once it answ
 
 The column on the left lists the repositories, and under them the panes of each tab with their state. A click on a pane focuses it.
 
-A right click on a pane opens its menu: **Take the keyboard**, **Zoom**, **Split right**, **Split down**, **Copy mode**, **Plan of the run**, **Changes**, **Open in editor**, **New task from here…** (the backlog's form, pointing at this run) and **Close pane**. A right click on a tab or the tab bar offers **New tab: shell**, **New tab: task in a new worktree…**, **Backlog…**, **New shell pane here** and **Close tab**. Closing a task's tab closes its panes. The worktree stays.
+A right click on a pane opens its menu: **Take the keyboard**, **Zoom**, **Split right**, **Split down**, **Copy mode**, **Plan of the run**, **Changes**, **Open in editor**, **New task from here…** (the backlog's form, pointing at this run) and **Close pane**. A right click on a tab or the tab bar offers **New tab: shell**, **New tab: tell the agent a task…**, **Backlog…**, **New shell pane here** and **Close tab**. Each item shows its key as you press it (`ctrl+b z`). Closing a task's tab closes its panes. The worktree stays.
 
 ## Keys
 
@@ -39,7 +39,9 @@ Every action also has a key: press the prefix, `ctrl+b`, then one key.
 
 Each key is an option (`keys.*`) that you can change ([Your settings](./settings.md#keys)).
 
-The prefix and `g` open the go-to picker. Type a part of an agent's name, a tab or a question, or filter by state with `b` (blocked), `w` (working), `i` (idle) and `d` (done). Enter goes there.
+The key `?` outside a terminal, the prefix and `?`, or the **?** button of the top bar open the list of keys: the ones that work on every screen, and the ones of this screen as they are set now. While the prefix waits for its key, the tab bar shows it (`ctrl+b …`).
+
+The prefix and `g` open the go-to picker. Type a part of an agent's name, a tab or a question, or filter by state with `b` (asks), `w` (working), `i` (idle) and `d` (done). Enter goes there.
 
 ![The go-to picker over the workbench: a search field, state filters and the panes of the run](../public/screens/goto.png)
 
@@ -77,6 +79,15 @@ The daemon reads each pane's state from the screen and the hooks, without asking
 | `waiting` | a question of the run waits in the inbox |
 | `idle` | the host's prompt line, or silence |
 | `exited` | the process ended |
+
+The app shows these states in four words, the same on every screen:
+
+| The app says | When |
+|---|---|
+| `working` | an agent whose pane is `working`; a shell only while it prints |
+| `asks` | an agent whose pane is `blocked` or `waiting`: it asks you, on its screen or on a card |
+| `idle` | nothing happens; a shell at its prompt is always `idle`, also in a run that has an open question |
+| `exited` | the process ended, or the pane has none |
 
 If the coordinating agent's session ends while its run is active, the supervisor in the daemon resumes it in the same pane, a limited number of times. A session a person holds is left alone.
 

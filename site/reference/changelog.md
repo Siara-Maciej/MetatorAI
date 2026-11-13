@@ -6,6 +6,10 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 
 ## November 2026
 
+- The desktop app, tidied: every screen about one run (Session, Plan, Changes, Briefing) has the same head with links to the other three. A pane reads the same on every screen, in four words: `working`, `asks`, `idle`, `exited`; a shell at its prompt is `idle`. **need you** in the top bar, **Needs you** in the Inbox, the Graph and the Daemon screen count the same runs, escalated ones included.
+- Opening a run's **Session** screen no longer starts a terminal session: **Open a session** does. An escalated run's Session screen offers **Resume** and **Close run…**; a finished one says how it ended.
+- `?` opens the list of keys on every screen. Menus and the prefix chip show the real prefix key (`ctrl+b z`) instead of the word "prefix".
+- The runs panel names runs whose record cannot be read, with the file to restore. Dialogs keep the focus inside them and give it back when they close; the lines of a diff are one Tab stop, moved through with the arrow keys.
 - `metator ui`, the full-screen view in the terminal, is removed: the desktop app is the graphical front. At a terminal `metator status`, `inbox`, `run status`, `doctor`, `help` and every `--help` now print text you can read on stderr; stdout keeps the one JSON line, and `--json` prints only that line.
 - New names, with the old ones still working: `metator run new` (was `run init`), `run take` (was `run attach`), `issue rm` (was `issue drop`), `system plan status` (was `system status`), `docs schema` (was `docs claims-schema`), `meta schema agents|skills` (was `meta agents-schema`, `meta skills-schema`).
 - `metator help --for person|agent|hook|ci` lists the commands of one audience.

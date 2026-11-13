@@ -20,14 +20,37 @@ function contracts(suites: ReadonlyMap<string, string>): Map<string, string> {
  */
 const SCRIPTED: ReadonlySet<string> = new Set(["ScriptedProcessRunner"]);
 
-/** Adapters (`class X implements Port`) whose package tests never call `portContract("X", ...)`. */
+/** The ports each class names after `implements`, by class name, over every given source. */
+function declaredPorts(sources: readonly ReadonlyMap<string, string>[]): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const files of sources) {
+    for (const text of files.values()) {
+      for (const [, cls, ports] of text.matchAll(
+        /class (\w+)(?:\s+extends \w+)?\s+implements ([\w\s,]+?)\s*\{/g,
+      )) {
+        out.set(
+          cls as string,
+          (ports as string).split(",").map((p) => p.trim()),
+        );
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Adapters whose package tests never call `portContract("X", ...)`: `class X implements Port`,
+ * and `class X extends Base` where `Base` (an adapter or a shared base in `bases`) implements it.
+ */
 function uncovered(
   suites: ReadonlyMap<string, string>,
   adapters: ReadonlyMap<string, string>,
   tests: ReadonlyMap<string, string>,
   scripted: ReadonlySet<string> = new Set(),
+  bases: ReadonlyMap<string, string> = new Map(),
 ): string[] {
   const byPort = contracts(suites);
+  const declared = declaredPorts([adapters, bases]);
   const out: string[] = [];
   for (const [file, text] of adapters) {
     const pkg = file.split("/").slice(0, 2).join("/");
@@ -35,8 +58,14 @@ function uncovered(
       .filter(([f]) => f.startsWith(`${pkg}/`))
       .map(([, t]) => t)
       .join("\n");
-    for (const [, cls, ports] of text.matchAll(/class (\w+)\s+implements ([\w\s,]+?)\s*\{/g)) {
-      for (const port of (ports as string).split(",").map((p) => p.trim())) {
+    for (const [, cls, base] of text.matchAll(
+      /class (\w+)(?:\s+extends (\w+))?(?:\s+implements [\w\s,]+?)?\s*\{/g,
+    )) {
+      const ports = new Set([
+        ...(declared.get(cls as string) ?? []),
+        ...(base ? (declared.get(base) ?? []) : []),
+      ]);
+      for (const port of ports) {
         const fn = byPort.get(port);
         if (
           fn &&
@@ -62,6 +91,8 @@ describe("MT-TEST-002", () => {
         await sources("packages/{plugin-*,testing}/src/**/*.ts"),
         await sources("packages/{plugin-*,testing}/test/**/*.ts"),
         SCRIPTED,
+        // Shared bases live in core: `class X extends PtyInteractiveHost` is an InteractiveHost too.
+        await sources("packages/core/src/application/*.ts"),
       ),
     ).toEqual([]);
   });
@@ -83,6 +114,23 @@ describe("MT-TEST-002", () => {
       'packages/plugin-x/src/a.ts: XFileSystem implements FileSystem but its tests never call fileSystemContract("XFileSystem", ...)',
       'packages/plugin-w/src/d.ts: WFileSystem implements FileSystem but its tests never call fileSystemContract("WFileSystem", ...)',
       'packages/testing/src/fakes.ts: FakeFileSystem implements FileSystem but its tests never call fileSystemContract("FakeFileSystem", ...)',
+    ]);
+  });
+
+  test("an adapter that extends a shared base answers for the base's ports", () => {
+    const suites = new Map([
+      ["c.ts", "export function interactiveHostContract(name: string, make: F): void {"],
+    ]);
+    const bases = new Map([
+      ["packages/core/src/application/pty.ts", "export class PtyHost implements InteractiveHost {\n}"],
+    ]);
+    const adapters = new Map([
+      ["packages/plugin-a/src/a.ts", "export class AHost extends PtyHost {\n}"],
+      ["packages/plugin-b/src/b.ts", "export class BHost extends PtyHost {\n}"],
+    ]);
+    const tests = new Map([["packages/plugin-b/test/b.test.ts", 'interactiveHostContract("BHost", make);']]);
+    expect(uncovered(suites, adapters, tests, new Set(), bases)).toEqual([
+      'packages/plugin-a/src/a.ts: AHost implements InteractiveHost but its tests never call interactiveHostContract("AHost", ...)',
     ]);
   });
 });
