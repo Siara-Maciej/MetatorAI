@@ -40,7 +40,6 @@ import {
   paneStateOf,
   repoOfTab,
   retryHost,
-  runCounts,
   tabOfPane,
   tabOfRun,
   toastOf,
