@@ -720,7 +720,8 @@ export class ReadRunArtifact {
 /** Why a path names no artifact of a run directory; undefined when it may. */
 export function artifactPathProblem(path: string): string | undefined {
   if (path === "") return "no path given";
-  if (path.includes("\0") || path.includes("\\")) return `${JSON.stringify(path)} is not a plain path`;
+  if (path.includes("\0") || path.includes("\\"))
+    return `${path.replaceAll("\0", "\\0")} is not a plain path`;
   if (path.startsWith("/") || /^[A-Za-z]:/.test(path)) return `${path} is an absolute path`;
   const parts = path.split("/");
   if (parts.some((p) => p === ".." || p === "." || p === ""))

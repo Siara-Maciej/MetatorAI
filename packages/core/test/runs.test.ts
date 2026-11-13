@@ -706,10 +706,7 @@ describe("reading a run artifact", () => {
     expect(await refused("a//b")).toEqual(["USAGE", "a//b does not stay inside the run directory"]);
     expect(await refused("/etc/passwd")).toEqual(["USAGE", "/etc/passwd is an absolute path"]);
     expect(await refused("C:/x")).toEqual(["USAGE", "C:/x is an absolute path"]);
-    expect(await refused("..\\..\\secret.txt")).toEqual([
-      "USAGE",
-      '"..\\\\..\\\\secret.txt" is not a plain path',
-    ]);
+    expect(await refused("..\\..\\secret.txt")).toEqual(["USAGE", "..\\..\\secret.txt is not a plain path"]);
     expect(await refused("")).toEqual(["USAGE", "no path given"]);
     expect(await refused("state.json")).toEqual(["USAGE", "state.json is the run's own bookkeeping"]);
     expect(await refused("questions/q001.json")).toEqual([

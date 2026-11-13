@@ -1391,7 +1391,7 @@ metator findings react [options] <finding>
 | `<finding>` | the finding id the comment carried (LOGIC-007) | |
 | `--pr <ref>` | the pull request (42, owner/repo#42) **Required.** |  |
 | `--state <state>` | what people did with it (one of: resolved, dismissed, open) **Required.** |  |
-| `--by <who>` | who reacted **Required.** |  |
+| `--by <who>` | who reacted (default: $METATOR_USER, else git's user.name) |  |
 | `--lens <lens>` | the lens that raised it (one of: logic, contracts, conventions, tests, security, equivalence) |  |
 | `--reason <text>` | why, in a few words |  |
 
@@ -1464,7 +1464,7 @@ metator review notes add [options] <text>
 | `--file <path>` | the file it is about (repo-relative) |  |
 | `--line <n>` | the line in it |  |
 | `--side <side>` | the old or the new side of the diff (one of: old, new) |  |
-| `--by <name>` | who writes it **Required.** |  |
+| `--by <name>` | who writes it (default: $METATOR_USER, else git's user.name) |  |
 
 ### `metator review notes send`
 
@@ -1477,7 +1477,7 @@ metator review notes send [options]
 | Argument or option | Description | Default |
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
-| `--by <name>` | who sends **Required.** |  |
+| `--by <name>` | who sends (default: $METATOR_USER, else git's user.name) |  |
 
 ### `metator review notes status`
 
@@ -1807,7 +1807,7 @@ metator run advance [options] <event>
 | `<event>` | event to send (one of: pass, fail, approve, abort) | |
 | `--run <id>` | run id (default: latest) |  |
 | `--reason <text>` | why (fail, abort) |  |
-| `--by <name>` | who decided (required for approve) |  |
+| `--by <name>` | who decided, recorded with an approve (default: $METATOR_USER, else git's user.name) |  |
 | `--choice <value>` | selected option at an approval |  |
 
 ### `metator run approve`
@@ -1821,7 +1821,7 @@ metator run approve [options] <gate>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<gate>` | the approval stage the run waits at, or push / comment | |
-| `--by <name>` | who approved **Required.** |  |
+| `--by <name>` | who approved (default: $METATOR_USER, else git's user.name); always given with --via chat |  |
 | `--choice <value>` | selected option |  |
 | `--run <id>` | run id (default: latest) |  |
 | `--via <channel>` | chat: the person said yes in the session's chat; counts only while they are attached (one of: chat) |  |
@@ -1866,7 +1866,7 @@ metator run message [options] <to>
 | `--topic <topic>` | what it is about (one of: info, contract, shared-file, done, review, review-reply) | `"info"` |
 | `--text <text>` | the message **Required.** |  |
 | `--ref <ref>` | a file, run or URL it points at (repeatable) | `[]` |
-| `--by <name>` | who sends: an agent of the run, or a person **Required.** |  |
+| `--by <name>` | who sends: an agent of the run, or a person (default: $METATOR_USER, else git's user.name) |  |
 
 ### `metator run messages`
 
@@ -1894,7 +1894,7 @@ metator run checkpoint [options]
 
 ### `metator run resume`
 
-Resume an escalated run at the stage it escalated from, once the cause is fixed; --drive carries it on at once
+Resume an escalated run at the stage it escalated from, or at an earlier stage with --to, once the cause is fixed; --drive carries it on at once
 
 ```bash
 metator run resume [options]
@@ -1904,6 +1904,8 @@ metator run resume [options]
 |---|---|---|
 | `--by <name>` | who resumes it, recorded in log.md (default: $METATOR_USER, else git's user.name) |  |
 | `--run <id>` | run id (default: latest) |  |
+| `--to <stage>` | go on at this stage: one the run already worked, or the one it escalated from (the default) |  |
+| `--note <text>` | what you say to the agent that works next; kept in the run and its log |  |
 | `--drive` | also start a drive in the background, as `run continue` does |  |
 | `--host <host>` | with --drive: the AI host (claude, copilot; default: the one the run used) |  |
 
@@ -2806,7 +2808,7 @@ metator mrs send [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` | the request | |
-| `--by <name>` | the person who decides to send them **Required.** |  |
+| `--by <name>` | the person who decides to send them (default: $METATOR_USER, else git's user.name) |  |
 
 ### `metator mrs resolve`
 
@@ -2820,7 +2822,7 @@ metator mrs resolve [options] <id>
 |---|---|---|
 | `<id>` | the request | |
 | `--thread <thread>` | the thread's id **Required.** |  |
-| `--by <name>` | the person who decides to close it **Required.** |  |
+| `--by <name>` | the person who decides to close it (default: $METATOR_USER, else git's user.name) |  |
 
 ## open
 

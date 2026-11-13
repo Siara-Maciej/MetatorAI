@@ -26,7 +26,7 @@ MetatorAI Desktop (D7, ADR-0078): the Vite + React app and its Tauri shell, a th
 ## Invariants
 
 - The app imports nothing from `@metator/*`: the daemon's shapes are typed in the client [[cite: packages/desktop/src/api.ts:2 | "The daemon's JSON and WebSockets, as the app sees them"]].
-- An answer from the decision card carries `origin: inbox`, what criterion 11a counts [[cite: packages/desktop/src/components/decision-card.tsx:33 | "origin: \"inbox\","]].
+- An answer from the decision card carries `origin: inbox`, what criterion 11a counts [[cite: packages/desktop/src/components/decision-card.tsx:34 | "origin: \"inbox\","]].
 - View logic is pure in `src/model.ts` and tested; components only render.
 - A request repeated on an interval goes through `usePolled`, the person's name through `useWho` (one dialog), a single-letter shortcut through `plainKey`, and an answer to a question through `useAnswer` (`src/components/answer.tsx`); none of these is written a second time in a screen.
 - With no daemon the shell draws one panel (`NoDaemon`) instead of the screens, so no screen shows empty data as if it were true.
