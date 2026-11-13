@@ -20,9 +20,9 @@ It works with GitHub Copilot and Claude Code. Everything stays on your machine, 
 
 ### 1. Describe the task
 
-Click **+ New session** and tell the agent what you want. It answers questions about the code with `file:line` references, and starts a run when you ask for a change. Each run gets its own tab and its own git worktree, so several can go on side by side.
+Click **+ New run** and tell the agent what you want. It answers questions about the code with `file:line` references, and starts a run when you ask for a change. Each run gets its own tab and its own git worktree, so several can go on side by side.
 
-![The Session screen of a run: its stages across the top, the agent's terminal, and the boxes with its question, the applications and the changed files](./public/screens/session.png)
+![The Terminal tab of a run: its stages across the top, the agent's terminal, and the boxes with its question, the applications and the changed files](./public/screens/session.png)
 
 ### 2. Watch the agents, or do something else
 
@@ -44,7 +44,7 @@ A run stops at each decision that is yours. The **Inbox** collects them from eve
 
 ### 5. Nothing leaves your machine before you say so
 
-The push waits for your approval. So does every comment on a pull request. When someone reviews your pull request, **MRs** shows the threads, the replies the agent proposes and the fixes it plans. It sends nothing until you press the button.
+The push waits for your approval. So does every comment on a pull request. When someone reviews your pull request, **Reviews** shows the threads, the replies the agent proposes and the fixes it plans. It sends nothing until you press the button.
 
 ![The MRs screen: a reviewed pull request, the threads sorted by kind, and a reply that waits to be sent](./public/screens/mrs.png)
 
@@ -74,7 +74,7 @@ metator setup     # reads the repository, installs rules, generates agents and h
 metator serve     # the local daemon the app talks to
 ```
 
-Then open the app and click **+ New session**. [Install](./guide/install.md) has the details.
+Then open the app and click **+ New run**. [Install](./guide/install.md) has the details.
 
 The app is a window over the `metator` command, which agents and CI call too. Whatever the app does, a terminal can do: `metator run` starts a task and `metator inbox` lists what waits for you. See the [command reference](./reference/commands.md).
 

@@ -1,10 +1,19 @@
 /** The Daemon part of the Overview: four figures as tiles, the open runs with who works on each, the hosts and how the daemon looks after runs. */
-import { attentionLabel, Dot } from "../components/chips.tsx";
+import { Glyph, StateWord } from "../components/glyph.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { duration, type HostStatus, noHostText, openRuns, plural, runCounts } from "../model.ts";
+import {
+  duration,
+  type HostStatus,
+  noHostText,
+  openRuns,
+  plural,
+  runCounts,
+  runStateOf,
+  seenKey,
+} from "../model.ts";
 
 export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
-  const { client, runs, repo, url } = useDaemon();
+  const { client, runs, repo, url, seen } = useDaemon();
   const { data: view, error } = usePolled(`supervisor:${repo ?? ""}`, () => client.supervisor(repo), 5000);
   const a = view?.acceptance;
   const fromInboxPct = a && a.answered > 0 ? Math.round((100 * a.fromInbox) / a.answered) : undefined;
@@ -74,7 +83,8 @@ export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
                   <td>{r.host ?? "—"}</td>
                   <td>{r.driver === "human" ? (r.attachedBy ?? "person") : "agent"}</td>
                   <td>
-                    <Dot attention={r.attention} /> {attentionLabel(r.attention)}
+                    <Glyph kind="run" state={runStateOf(r, seen[seenKey(r)])} />{" "}
+                    <StateWord kind="run" state={runStateOf(r, seen[seenKey(r)])} />
                     {r.died ? " · drive died" : ""}
                   </td>
                   <td>{duration(r.elapsedMs)}</td>

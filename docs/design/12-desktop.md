@@ -140,6 +140,20 @@ W `RunRecord.latest`: `driver: "agent" | "human"`, `attachedAt`, `attachedBy`. Z
 
 ## 5. Zachowania wspólne
 
+### 5.0 Stan po konsolidacji (2026-11-13)
+
+Wzorem herdr powłoka ma jeden pasek boczny, który jest całym pulpitem; reszta okna to praca. Punkty 5.1 i 5.2 oraz podział na ekrany w §6 opisują pierwotny projekt; obowiązuje to, co niżej.
+
+- **Pasek u góry** jest cienki: logo, zakres (repozytorium albo folder), `?` (lista klawiszy), imię osoby, stan połączenia. Liczniki zniknęły z paska: liczby są w nagłówkach sekcji paska bocznego.
+- **Pasek boczny** (`Sidebar`) zastępuje szynę ikon, panel sesji i boczną kolumnę siatki terminali. Od góry: **Needs you · N** (pytania na kartach, pytania na terminalu, runy eskalowane; wiersz otwiera decyzję), **Runs · N** per repozytorium z pane'ami pod runem i krokami rozbitego runu pod rodzicem, **Finished · N** (zwinięte), miejsca niebędące runem (Terminals, Backlog, Reviews, Overview, Settings) i przycisk **+ New run** z drugim **Form…**. Poniżej 1000 px pasek jest szufladą pod przyciskiem **Runs · N**.
+- **Jeden wzór wiersza**: glif stanu, nazwa, słowo stanu po prawej, jedna wyciszona linia (etap · host · wiek). Bez chipów w wierszach.
+- **Stany runu**: `needs you`, `working`, `escalated`, `done`, `idle`. `done` to run zakończony, którego ta osoba jeszcze nie otworzyła; po otwarciu jest `idle`. Stan zwija się pane → run → repozytorium jedną czystą funkcją (`rollUp` w `src/model.ts`). Stany pane'a bez zmian: `working`, `asks`, `idle`, `exited`. „Otwarte” jest pamiętane w magazynie okna (`metator.seen`), bo `RunOverview` nie niesie czasu ostatniego obejrzenia; po dodaniu pola `seenAt` do `RunOverview` magazyn okna można usunąć.
+- **Jedna strona runu** (`#/run/<run>/<zakładka>`) z zakładkami Overview, Terminal, Plan, Changes, Activity (klawisze `o` `t` `p` `d` `l`). Overview to dawna Odprawa (§6.8), Terminal to dawna Sesja (§6.4) bez tabeli zdarzeń, Activity to dawne Events. Stare adresy (`#/session`, `#/plan`, `#/review`, `#/briefing`) prowadzą na właściwą zakładkę. Liczba zmienionych plików w Overview pochodzi z tego samego źródła co zakładka Changes (diff runu).
+- **Overview** (`#/overview`) łączy Supervisora (§6.7, zakładka Daemon) i Graf (§6.6, zakładka Dependencies); `#/supervisor` i `#/graph` nadal działają.
+- **Słownik**: jednostka pracy to „run” („+ New run”), „session” to tylko żywy proces agenta („Open a session”), „task” to pozycja backlogu, ekran wielu pane'ów to „Terminals”, ekran diffu to „Changes”.
+- **Pusty start**: bez żadnego runu obszar główny pokazuje pole „Describe a task” z „Start” i „Use the form”; pane agenta startowego czyta się `idle · ready for your task`, nigdy `asks`.
+- **Klawisze**: `?` z filtrem pisanym w polu; `j`/`k` i strzałki w każdej liście (kolejka decyzji, kroki, pliki, zadania); jedna litera ma jedno znaczenie na wszystkich ekranach.
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.

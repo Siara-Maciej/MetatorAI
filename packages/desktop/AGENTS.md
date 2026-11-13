@@ -4,6 +4,7 @@ MetatorAI Desktop (D7, ADR-0078): a Vite + React app in `src/`, wrapped by Tauri
 
 - View logic that the daemon does not do (panel order, feature groups, routes, times, what a state reads as, the counts, the workbench's commands) is pure in `src/model.ts`, tested in `test/`; components only render.
 - Before writing markup or a request by hand, use what is shared: `<ListDetail>`/`<ListRow>`, `<RunHeader>`, `<StageBar>`, `<Glyph>`, `<Tabs>`, `<Modal>`, `<ActivityList>`; `usePolled`, `useAction`, `runControls`, `useOption` (`src/hooks.ts`). Sizes, gaps and colours are tokens of `:root` in `src/styles.css`.
+- The shell is one sidebar and one place (`src/app.tsx`, `src/components/sidebar.tsx`); a run is one page with tabs (`src/screens/run.tsx`, the tabs in `src/run/`); Overview is `src/screens/overview.tsx` with its parts in `src/overview/`. Words: run, session (the live agent process only), task (a backlog item only), Terminals, Changes.
 - An answer from the decision card is sent with `origin: inbox`: that is what acceptance 11a counts. Keep it on that path only.
 - `bun run build` makes `dist/`; `e2e/desktop.e2e.test.ts` builds it, starts the daemon and drives Chromium. `bun run tauri dev|build` needs Rust and the platform's webview (WebKitGTK on Linux).
 - Pitfall: the root `tsconfig.json` typechecks this package with `exactOptionalPropertyTypes`; optional props take `| undefined` explicitly.

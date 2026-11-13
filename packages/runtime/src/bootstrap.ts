@@ -10,6 +10,7 @@ import {
   AnalyzeEnvironment,
   AnalyzeSystem,
   AnswerPolicyStore,
+  AnswerQuestion,
   ApiSnapshots,
   ApproveRefactorPlan,
   ApproveRun,
@@ -20,6 +21,7 @@ import {
   AskQuestion,
   AuditAgents,
   BaseArchitectureFacts,
+  BriefRun,
   BuildImportGraph,
   BuildModuleCards,
   BuildReport,
@@ -48,6 +50,7 @@ import {
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
   DescribeReviewedChange,
+  type DetachedDrive,
   DiffContracts,
   DiffCoverage,
   DiffImportGraph,
@@ -60,6 +63,8 @@ import {
   DriveRun,
   DriverLock,
   declaresDependencies,
+  EndRun,
+  EnsureDriven,
   EnvironmentCatalog,
   EnvironmentServices,
   EvalCatalog,
@@ -143,6 +148,7 @@ import {
   ResumeRun,
   ReviewFeedback,
   ReviewNotes,
+  ReviveRuns,
   RuleCatalog,
   RunAffectedTests,
   RunArchEvals,
@@ -152,6 +158,7 @@ import {
   RunGate,
   RunJournal,
   RunMessages,
+  type RunPanes,
   RunQuarterlyReview,
   RunRefactorPlan,
   RunRepository,
@@ -170,6 +177,8 @@ import {
   SimulateRefactorPlan,
   SkillCatalog,
   SourceFiles,
+  StartDrive,
+  StartRun,
   StyleImports,
   Supervisor,
   type SupervisorDependencies,
@@ -275,6 +284,18 @@ export interface BootstrapOptions {
   readonly stateDir?: string;
   /** The person's own MetatorAI files (`userConfigDir`); default from the process env. */
   readonly userConfigDir?: string;
+  /**
+   * How this program starts a run's drive as a background process (its own command line): given
+   * by the driving adapter. Without it nothing here can start a drive.
+   */
+  readonly detachedDrive?: (deps: {
+    readonly runDrivers: RunDrivers;
+    readonly root: string;
+  }) => DetachedDrive;
+  /** The panes of a run as this process reaches them (a command: through the daemon); default: this process's own. */
+  readonly runPanes?: (deps: { readonly panes: RunPanes; readonly root: string }) => RunPanes;
+  /** The host a new drive uses when nothing names one (METATOR_HOST), when the runtime holds it. */
+  readonly defaultHost?: string;
 }
 
 /**
@@ -1436,6 +1457,60 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     closeRun: asFunction(
       ({ advanceRun, runRepository, fileSystem, clock, runDrivers, workflowCatalog }) =>
         new CloseRun(advanceRun, runRepository, fileSystem, clock, runDrivers, workflowCatalog),
+    ),
+    // What a person does to a run, once for every front (the commands, the daemon).
+    detachedDrive: asFunction(
+      ({ runDrivers, root }): DetachedDrive =>
+        options.detachedDrive?.({ runDrivers, root }) ?? {
+          start: async () =>
+            err(new MetatorError("COMMAND_FAILED", "this program cannot start a drive in the background")),
+        },
+    ),
+    runPanes: asFunction(({ panes, root }): RunPanes => options.runPanes?.({ panes, root }) ?? panes),
+    defaultDriveHost: asFunction(({ agentHosts, config }) => () => {
+      if (options.defaultHost && agentHosts.has(options.defaultHost)) return options.defaultHost;
+      const first = config.config.hosts.targets[0];
+      return first === "copilot" ? "copilot" : "claude";
+    }),
+    startDrive: asFunction(
+      ({ runRepository, agentHosts, driveHostProblem, detachedDrive }) =>
+        new StartDrive(runRepository, agentHosts, driveHostProblem, detachedDrive),
+    ),
+    ensureDriven: asFunction(
+      ({ runRepository, runDrivers, agentHosts, defaultDriveHost, startDrive }) =>
+        new EnsureDriven(runRepository, runDrivers, agentHosts, defaultDriveHost, startDrive),
+    ),
+    startRun: asFunction(
+      ({ initRun, setupWorktree, checkReadiness, workOverview, ensureDriven, config }) =>
+        new StartRun(
+          initRun,
+          setupWorktree,
+          checkReadiness,
+          workOverview,
+          ensureDriven,
+          config.config.supervisor.wipLimit,
+        ),
+    ),
+    answerQuestion: asFunction(
+      ({ runRepository, runJournal, answerPolicyStore, runDrivers, ensureDriven, clock, ptyBroker }) =>
+        new AnswerQuestion(
+          runRepository,
+          runJournal,
+          answerPolicyStore,
+          runDrivers,
+          ensureDriven,
+          clock,
+          (runId) => ptyBroker.byRun(runId).some((s: { readonly alive: boolean }) => s.alive),
+        ),
+    ),
+    briefRun: asFunction(({ runRepository, runJournal }) => new BriefRun(runRepository, runJournal)),
+    reviveRuns: asFunction(
+      ({ runRepository, runDrivers, runJournal, ensureDriven }) =>
+        new ReviveRuns(runRepository, runDrivers, runJournal, ensureDriven),
+    ),
+    endRun: asFunction(
+      ({ closeRun, runRepository, runPanes, removeWorktree }) =>
+        new EndRun(closeRun, runRepository, runPanes, removeWorktree),
     ),
     getRunStatus: asFunction(
       ({ workflowCatalog, runRepository }) => new GetRunStatus(workflowCatalog, runRepository),

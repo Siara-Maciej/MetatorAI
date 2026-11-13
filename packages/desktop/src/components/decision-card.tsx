@@ -176,7 +176,7 @@ export function DecisionCard({
           title={a.reason && !a.ready ? "write the reason first" : undefined}
           onClick={() => void a.send()}
         >
-          {a.choices.length > 0 ? a.choices.join(", ") : "choose"} ⏎
+          {a.choices.length > 0 ? a.choices.join(", ") : "Choose"} ⏎
         </button>
         {second ? (
           <button

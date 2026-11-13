@@ -430,7 +430,6 @@ export function WorkbenchScreen({
       />
     );
   };
-  const waitingForYou = runCounts(runs).needYou;
   return (
     <section
       className="workbench"
@@ -481,16 +480,12 @@ export function WorkbenchScreen({
           +
         </button>
         <span className="spacer" />
-        {waitingForYou > 0 ? <span className="amber waits">● waits for you {waitingForYou}</span> : null}
         <RepoSelect />
         {mode.kind === "prefix" ? (
           <span className="chip teal" data-testid="prefix">
             {keymap.prefix?.[0] ?? "prefix"} …
           </span>
         ) : null}
-        <button type="button" className="ghost" onClick={onHelp} title="the keys" aria-label="keyboard help">
-          ?
-        </button>
         <button
           type="button"
           className="ghost"
@@ -505,7 +500,9 @@ export function WorkbenchScreen({
         {run && run.stages.length > 0 ? (
           <StageBar stages={run.stages} variant="strip" onOpen={() => commands.plan?.(undefined, tab)} />
         ) : (
-          <span className="faint">{tab?.kind === "shell" ? "a shell tab: no run" : "no tab"}</span>
+          <span className="faint">
+            {tab?.kind === "shell" ? "No run in this tab: a shell, or the agent that starts one" : "No tab"}
+          </span>
         )}
         <span className="spacer" />
         {run && run.questions.length > 0 ? (

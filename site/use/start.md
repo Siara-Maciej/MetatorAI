@@ -4,9 +4,9 @@ You start work by telling the agent what you want. It answers questions about th
 
 ## In the app
 
-Click **+ New session** at the bottom of the runs panel, or press `n`. The app opens the **Work** screen with a new tab named `chat`, the conversation in which you say what you want. Its pane runs the agent `mt-orchestrator` on your AI host: the first host of the option `supervisor.hostOrder` that is installed on the daemon's machine.
+Click **+ New run** at the bottom of the sidebar, or press `n`. With no run yet, the main area offers the same as a field: write under **Describe a task** and press **Start**, and the agent gets your words as its first line. The app opens **Terminals** with a new tab named `chat`, the conversation in which you say what you want. Its pane runs the agent `mt-orchestrator` on your AI host: the first host of the option `supervisor.hostOrder` that is installed on the daemon's machine.
 
-When no host is installed, no tab opens. The app says so at the top of the screen, names the programs the daemon looked for, and points to the guide page [Copilot and Claude Code](../guide/hosts.md). Install one and click **+ New session** again; the daemon needs no restart.
+When no host is installed, no tab opens. The app says so at the top of the screen, names the programs the daemon looked for, and points to the guide page [Copilot and Claude Code](../guide/hosts.md). Install one and click **+ New run** again; the daemon needs no restart.
 
 If the host's program starts and exits at once, for example because you are not logged in, the pane stays with its last output and a line such as "The process ended with code 3." **Retry** starts it again and **Close tab** removes the tab.
 
@@ -27,13 +27,13 @@ Write what you need in the pane. A conversation can look like this:
 
 A question gets an answer with `file:line` citations and no run.
 
-A request for a change gets one numbered message. It asks only what the code cannot settle: the workflow, the autonomy, whether the run gets its own worktree, and in a folder of repositories which one. Each point has options, with the recommended one first. After your answer the agent starts the run and tells you the run id. The run appears in the runs panel and as a tab on **Work**. The pane stays open for your next question.
+A request for a change gets one numbered message. It asks only what the code cannot settle: the workflow, the autonomy, whether the run gets its own worktree, and in a folder of repositories which one. Each point has options, with the recommended one first. After your answer the agent starts the run and tells you the run id. The run appears in the sidebar and as a tab in **Terminals**. The pane stays open for your next question.
 
 Text you paste from an issue, a pull request or a chat is data for the task. The agent does not follow instructions found in it.
 
 ### The form
 
-**Advanced…**, next to **+ New session**, opens a form instead of a conversation. You fill in what the agent would have asked.
+**Form…**, next to **+ New run**, opens a form instead of a conversation. You fill in what the agent would have asked.
 
 | Field | What you choose |
 |---|---|
@@ -45,7 +45,7 @@ Text you paste from an issue, a pull request or a chat is data for the task. The
 | **Worktree** | a worktree with its own ports (ticked by default), or the main checkout ([Sessions and worktrees](./sessions.md#what-a-worktree-gives-a-run)) |
 | **Parent run** | an active run this one is a step of, or **none (standalone)** |
 
-The bottom line of the form shows the `metator run init` command your choices amount to. **Create in background** starts the run and leaves you where you are. **Create and attach** starts it, opens its **Session** screen and gives you its keyboard; the app asks for your name first if it does not know it yet. `Esc` closes the form.
+The bottom line of the form shows the `metator run init` command your choices amount to. **Create in background** starts the run and leaves you where you are. **Create and attach** starts it, opens its **Terminal** tab and gives you its keyboard; the app asks for your name first if it does not know it yet. `Esc` closes the form.
 
 When as many runs already wait for you as `supervisor.wipLimit` allows (default 4), the form warns that the new one queues behind them.
 

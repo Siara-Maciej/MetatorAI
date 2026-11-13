@@ -2,15 +2,10 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import {
   acceptanceStats,
-  briefOf,
-  byUrgency,
   DAEMON_FILE,
   DaemonInfoDocument,
   type ErrorCode,
-  type EscalatedItem,
-  escalatedOf,
-  type InboxItem,
-  inboxOf,
+  fleetInbox,
   type MessageTopic,
   MetatorError,
   OPTION_SCOPES,
@@ -22,6 +17,7 @@ import {
   type PaneState,
   type PtyEvent,
   type PtyView,
+  type RepoRuns,
   type Result,
   SplitNodeSchema,
   type Supervisor,
@@ -51,12 +47,6 @@ export interface ServeOptions {
     c: MetatorContainer,
     runId: string,
   ) => Promise<Result<{ readonly stage: string }, MetatorError>>;
-  /** How a run created from the app is driven at once (`POST /runs` with `drive`), on the given host. */
-  readonly start?: (
-    c: MetatorContainer,
-    runId: string,
-    host: string,
-  ) => Promise<Result<{ readonly stage: string; readonly started: boolean }, MetatorError>>;
 }
 
 export interface Served {
@@ -210,20 +200,20 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   };
   /** The same queue `metator inbox` prints. */
   const inbox = async (fresh: boolean): Promise<Json> => {
-    const items: (InboxItem & { repo?: string })[] = [];
-    const escalated: (EscalatedItem & { repo?: string })[] = [];
+    const repos: RepoRuns[] = [];
     for (const r of repoViews()) {
       const o = await overviewOf(r.key, r.c, fresh);
       if (o.isErr()) continue;
-      const now = r.c.resolve("clock").now();
-      for (const found of inboxOf(o.value.runs, now)) {
-        const item = { ...found, question: withNeedsText(found.question) };
-        items.push(folder ? { repo: r.name, ...item } : item);
-      }
-      for (const item of escalatedOf(o.value.runs, now))
-        escalated.push(folder ? { repo: r.name, ...item } : item);
+      repos.push({ name: r.name, runs: o.value.runs, now: r.c.resolve("clock").now() });
     }
-    return { ok: true, data: { decisions: items.sort(byUrgency), escalated } };
+    const queue = fleetInbox(repos, folder !== null);
+    return {
+      ok: true,
+      data: {
+        decisions: queue.decisions.map((d) => ({ ...d, question: withNeedsText(d.question) })),
+        escalated: queue.escalated,
+      },
+    };
   };
 
   const server = Bun.serve<Socket>({
@@ -538,32 +528,35 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       if (path === "/runs" && req.method === "POST") {
         const body = (await req.json().catch(() => ({}))) as Json;
         const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : undefined);
-        const init = await c.value.resolve("initRun").execute({
+        // The same start as `metator run new`: the run, its worktree's dependencies, its drive.
+        const host = str("drive");
+        const started = await c.value.resolve("startRun").execute({
           workflow: str("workflow") ?? "",
           task: str("task") ?? "",
           ...(str("autonomy") ? { autonomy: str("autonomy") as "L0" | "L1" | "L2" } : {}),
           ...(body.worktree === true
             ? { worktree: body.allowDirty === true ? { allowDirty: true } : {} }
-            : {}),
+            : body.allowDirty === true
+              ? { allowDirty: true }
+              : {}),
           ...(str("parent") ? { parent: str("parent") as string } : {}),
+          setup: body.setup !== false,
+          ...(host ? { drive: { host } } : {}),
         });
-        if (init.isErr()) return fromResult(init);
-        const runId = init.value.runId;
-        const setup =
-          body.worktree === true && body.setup !== false
-            ? await c.value.resolve("setupWorktree").execute({ run: runId })
-            : undefined;
-        const host = str("drive");
-        const drive = host && opts.start ? await opts.start(c.value, runId, host) : undefined;
+        if (started.isErr()) return fromResult(started);
+        const { run: created, setup, setupError, drive, driveError, warnings } = started.value;
         return json({
           ok: true,
           data: {
-            run: init.value,
-            ...(setup ? { setup: setup.isOk() ? setup.value : { error: setup.error.message } } : {}),
+            run: created,
+            ...(setup ? { setup } : setupError ? { setup: { error: setupError } } : {}),
             ...(drive
-              ? { drive: drive.isOk() ? { host, ...drive.value } : { error: drive.error.message } }
-              : {}),
+              ? { drive: { host, stage: drive.stage, started: drive.started } }
+              : driveError
+                ? { drive: { error: driveError.message } }
+                : {}),
           },
+          ...(warnings.length > 0 ? { warnings } : {}),
         });
       }
       const run = /^\/runs\/([^/]+)\/([a-z-]+)$/.exec(path);
@@ -687,27 +680,12 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           return fromResult(a.map((entries) => ({ runId, entries: tail ? entries.slice(-tail) : entries })));
         }
         case "GET brief": {
-          const journal = c.value.resolve("runJournal");
-          const record = await c.value.resolve("runRepository").load(runId);
-          if (record.isErr()) return fromResult(record);
-          const seen = await journal.seen(runId);
-          if (seen.isErr()) return fromResult(seen);
-          const given = url.searchParams.get("since");
-          const since =
-            given && !Number.isNaN(Date.parse(given))
-              ? new Date(given).toISOString()
-              : (seen.value ?? record.value.createdAt);
-          const activity = await journal.activity(runId);
-          if (activity.isErr()) return fromResult(activity);
-          return json({
-            ok: true,
-            data: {
-              runId,
-              status: record.value.state.status,
-              stage: record.value.state.stage,
-              ...briefOf(activity.value, since),
-            },
-          });
+          // The same brief as `metator run brief --peek`: a `since` that is no time is a usage error
+          // here too; reading it marks nothing (`POST seen` does).
+          const since = url.searchParams.get("since");
+          return fromResult(
+            await c.value.resolve("briefRun").execute({ runId, peek: true, ...(since ? { since } : {}) }),
+          );
         }
         case "POST seen":
           return fromResult(
@@ -730,17 +708,21 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
         case "POST release":
           return fromResult(await c.value.resolve("driverLock").release({ runId }));
         case "POST answer": {
-          const answered = await c.value.resolve("runJournal").answer(runId, str("question") ?? "", {
-            choices: list("choices"),
-            ...(str("text") ? { text: str("text") as string } : {}),
-            by: str("by") ?? "",
-            // From the decision card, without opening the session: what 11a counts.
-            ...(str("origin") === "inbox" ? { origin: "inbox" as const } : {}),
-          });
-          if (answered.isErr()) return fromResult(answered);
-          // An answer is carried out by a drive (as in the TUI): with none alive, the run is driven again.
-          const drive = await continueAnswered(c.value, runId, opts.start);
-          return json({ ok: true, data: { ...answered.value, ...(drive ? { drive } : {}) } });
+          // The same answer as `metator run answer` (`always`: also a policy); carried out by a drive:
+          // with none alive on an active run, the run is driven again. Never an escalated run.
+          return fromResult(
+            await c.value.resolve("answerQuestion").execute({
+              runId,
+              question: str("question") ?? "",
+              choices: list("choices"),
+              ...(str("text") ? { text: str("text") as string } : {}),
+              by: str("by") ?? "",
+              // From the decision card, without opening the session: what 11a counts.
+              ...(str("origin") === "inbox" ? { origin: "inbox" as const } : {}),
+              always: body.always === true,
+              drive: true,
+            }),
+          );
         }
         case "POST approve":
           return fromResult(
@@ -757,9 +739,11 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           const resumed = await c.value.resolve("resumeRun").execute({ runId, by: str("by") ?? "" });
           if (resumed.isErr()) return fromResult(resumed);
           const drive =
-            body.drive === false || !opts.start
+            body.drive === false
               ? undefined
-              : await opts.start(c.value, runId, str("host") ?? "");
+              : await c.value
+                  .resolve("ensureDriven")
+                  .execute({ runId, ...(str("host") ? { host: str("host") as string } : {}) });
           return json({
             ok: true,
             data: {
@@ -767,7 +751,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
               ...(drive
                 ? {
                     drive: drive.isOk()
-                      ? drive.value
+                      ? { stage: drive.value.stage, started: drive.value.started }
                       : {
                           error: drive.error.message,
                           ...(drive.error.hint ? { hint: drive.error.hint } : {}),
@@ -787,15 +771,15 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
             return fromResult(
               err(MetatorError.usage("say why the run is aborted: reason", "An abort records its reason.")),
             );
-          const closed = await c.value
-            .resolve("closeRun")
-            .execute({ runId, ...(reason ? { abortReason: reason } : {}) });
-          if (closed.isErr()) return fromResult(closed);
-          const panes = await c.value.resolve("panes").closeRun(runId);
-          return json({
-            ok: true,
-            data: { ...closed.value, ...(panes.isOk() ? { panes: panes.value } : {}) },
-          });
+          // The same close as `metator run close`: the panes go with the run, the worktree when asked.
+          return fromResult(
+            await c.value.resolve("endRun").execute({
+              runId,
+              ...(reason ? { abortReason: reason } : {}),
+              removeWorktree: body.removeWorktree === true,
+              force: body.force === true,
+            }),
+          );
         }
         case "POST message":
           return fromResult(
@@ -982,7 +966,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           for (const rule of r.value.rules) if (rule.error) say({ rule: rule.rule, error: rule.error });
           for (const s of r.value.rules.flatMap((x) => x.started)) {
             say({ started: s.runId, issue: s.issue });
-            if (opts.start) await opts.start(container, s.runId, "");
+            await container.resolve("ensureDriven").execute({ runId: s.runId });
           }
         })
         .finally(() => scanning.delete(key));
@@ -1010,7 +994,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           for (const q of r.value.requests) {
             if (!q.started) continue;
             say({ started: q.started, request: q.id, threads: q.fresh.length });
-            if (opts.start) await opts.start(container, q.started, "");
+            await container.resolve("ensureDriven").execute({ runId: q.started });
           }
         })
         .finally(() => reviewing.delete(key));
@@ -1084,32 +1068,6 @@ async function defaultShell(c: MetatorContainer): Promise<string> {
   const shell = await c.resolve("optionStore").get("terminal.shell");
   const configured = shell.isOk() && typeof shell.value.value === "string" ? shell.value.value : "";
   return configured !== "" ? configured : (process.env.SHELL ?? "sh");
-}
-
-/**
- * After an answer: the drive of an active run that nothing drives is started again, on the host
- * that drove it. Nothing is started for a run with a live drive (it reads the answer itself) or a
- * live terminal in a pane (the session there carries on), or when the daemon cannot start drives.
- */
-async function continueAnswered(
-  c: MetatorContainer,
-  runId: string,
-  start: ServeOptions["start"],
-): Promise<{ readonly started: boolean } | { readonly error: string } | undefined> {
-  if (!start) return undefined;
-  const record = await c.resolve("runRepository").load(runId);
-  if (record.isErr() || record.value.state.status !== "active") return undefined;
-  const driver = await c.resolve("runDrivers").status(runId);
-  if (driver.isOk() && driver.value?.alive) return undefined;
-  if (
-    c
-      .resolve("ptyBroker")
-      .byRun(runId)
-      .some((s) => s.alive)
-  )
-    return undefined;
-  const started = await start(c, runId, "");
-  return started.isOk() ? { started: started.value.started } : { error: started.error.message };
 }
 
 const ok = <T>(value: T) => ({ isOk: () => true, isErr: () => false, value }) as unknown as Result<T, never>;

@@ -4,13 +4,13 @@ When someone reviews your pull request, MetatorAI reads the threads, drafts the 
 
 ## The MRs screen
 
-The **MRs** screen lists your reviewed requests on the left, each with its number of open threads and of replies to send.
+**Reviews** lists your reviewed requests on the left, each with its number of open threads and of replies to send.
 
 ![The MRs screen: one reviewed request, its answering run, a question with a proposed reply and a planned change](../public/screens/mrs.png)
 
 The chosen request on the right shows:
 
-- the answering run with its stage and state, and **Open session** and **Plan** to go to it;
+- the answering run with its stage and state, and **Open run** and **Plan** to go to it;
 - **Send N replies**, which posts every proposed reply that was not sent yet;
 - every thread: its state, its kind, who wrote it and where, the reviewer's words, and the proposed reply;
 - **Resolve** on each thread, which closes it at the code host.

@@ -7,6 +7,7 @@ import type {
   AnalyzeEnvironment,
   AnalyzeSystem,
   AnswerPolicyStore,
+  AnswerQuestion,
   ApiSnapshots,
   ApproveRefactorPlan,
   ApproveRun,
@@ -21,6 +22,7 @@ import type {
   BinResolver,
   BranchHistory,
   BranchPublication,
+  BriefRun,
   BuildImportGraph,
   BuildModuleCards,
   BuildReport,
@@ -55,6 +57,7 @@ import type {
   DataIsolator,
   DeclarationEmitter,
   DescribeReviewedChange,
+  DetachedDrive,
   DiffContracts,
   DiffCoverage,
   DiffImportGraph,
@@ -66,6 +69,8 @@ import type {
   DocsLinks,
   DriveRun,
   DriverLock,
+  EndRun,
+  EnsureDriven,
   EnvironmentCatalog,
   EnvironmentServices,
   EvalCatalog,
@@ -156,6 +161,7 @@ import type {
   ReviewHost,
   ReviewNotes,
   RevisionReader,
+  ReviveRuns,
   RuleCatalog,
   RuleEngine,
   RuleScaffolder,
@@ -167,6 +173,7 @@ import type {
   RunGate,
   RunJournal,
   RunMessages,
+  RunPanes,
   RunQuarterlyReview,
   RunRefactorPlan,
   RunRepository,
@@ -187,6 +194,8 @@ import type {
   SkillCatalog,
   SkillGenerator,
   SourceFiles,
+  StartDrive,
+  StartRun,
   StyleImports,
   Supervisor,
   SupervisorDependencies,
@@ -353,6 +362,16 @@ export interface Cradle {
   resumeRun: ResumeRun;
   handoffRun: HandoffRun;
   closeRun: CloseRun;
+  detachedDrive: DetachedDrive;
+  runPanes: RunPanes;
+  defaultDriveHost: () => string;
+  startDrive: StartDrive;
+  ensureDriven: EnsureDriven;
+  startRun: StartRun;
+  answerQuestion: AnswerQuestion;
+  briefRun: BriefRun;
+  reviveRuns: ReviveRuns;
+  endRun: EndRun;
   listRuns: ListRuns;
   sourceFiles: SourceFiles;
   buildImportGraph: BuildImportGraph;

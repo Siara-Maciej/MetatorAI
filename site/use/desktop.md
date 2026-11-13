@@ -1,6 +1,6 @@
-# Workbench and terminals
+# Terminals
 
-The **Work** screen of [the app](./index.md) is the workbench: every run and every shell in a real terminal, side by side. This page covers its tabs and panes, the keys, and how you and the agents share a terminal.
+**Terminals** in [the app](./index.md) is the workbench: every run and every shell in a real terminal, side by side. This page covers its tabs and panes, the keys, and how you and the agents share a terminal.
 
 ## The workbench
 
@@ -14,9 +14,9 @@ A pane whose process ended keeps its last output. A line under it gives the exit
 
 When the daemon is restarted, the terminals reconnect by themselves once it answers again.
 
-The column on the left lists the repositories, and under them the panes of each tab with their state. A click on a pane focuses it.
+The panes of a run are also listed under the run in the app's sidebar, each with its state. When the daemon has more than one workspace (the checkout, and the agents that start runs), a select at the left of the tab bar switches between them.
 
-A right click on a pane opens its menu: **Take the keyboard**, **Zoom**, **Split right**, **Split down**, **Copy mode**, **Plan of the run**, **Changes**, **Open in editor**, **New task from here…** (the backlog's form, pointing at this run) and **Close pane**. A right click on a tab or the tab bar offers **New tab: shell**, **New tab: tell the agent a task…**, **Backlog…**, **New shell pane here** and **Close tab**. Each item shows its key as you press it (`ctrl+b z`). Closing a task's tab closes its panes. The worktree stays.
+A right click on a pane opens its menu: **Take the keyboard**, **Zoom**, **Split right**, **Split down**, **Copy mode**, **Plan of the run**, **Changes**, **Open in editor**, **New task from here…** (the backlog's form, pointing at this run) and **Close pane**. A right click on a tab or the tab bar offers **New tab: shell**, **New run: describe it to the agent…**, **Backlog…**, **New shell pane here** and **Close tab**. Each item shows its key as you press it (`ctrl+b z`). Closing a task's tab closes its panes. The worktree stays.
 
 ## Keys
 
@@ -39,7 +39,7 @@ Every action also has a key: press the prefix, `ctrl+b`, then one key.
 
 Each key is an option (`keys.*`) that you can change ([Your settings](./settings.md#keys)).
 
-The key `?` outside a terminal, the prefix and `?`, or the **?** button of the top bar open the list of keys: the ones that work on every screen, and the ones of this screen as they are set now. While the prefix waits for its key, the tab bar shows it (`ctrl+b …`).
+The key `?` outside a terminal, the prefix and `?`, or the **?** button of the top bar open the list of keys: the ones that work on every screen, and the ones of this screen as they are set now. Type in its field to filter the list. While the prefix waits for its key, the tab bar shows it (`ctrl+b …`).
 
 The prefix and `g` open the go-to picker. Type a part of an agent's name, a tab or a question, or filter by state with `b` (asks), `w` (working), `i` (idle) and `d` (done). Enter goes there.
 
@@ -51,7 +51,7 @@ A shell pane takes your keys at once. In an agent's pane the app asks before it 
 
 ## Who types in a session
 
-One at a time types in a session: the agent, or a person who attached. Attaching takes the keyboard and puts your name on the session. In the app you attach with **Take the keyboard**, the prefix and `a`, or **Attach** on the **Session** screen.
+One at a time types in a session: the agent, or a person who attached. Attaching takes the keyboard and puts your name on the session. In the app you attach with **Take the keyboard**, the prefix and `a`, or **Attach** on the run's **Terminal** tab.
 
 While you are attached, your yes in the chat counts: the agent records it with your name. This never applies to a push or a pull request comment. Those are always approved outside the chat. While you hold a session, another person is refused.
 
@@ -86,7 +86,7 @@ The app shows these states in four words, the same on every screen:
 |---|---|
 | `working` | an agent whose pane is `working`; a shell only while it prints |
 | `asks` | an agent whose pane is `blocked` or `waiting`: it asks you, on its screen or on a card |
-| `idle` | nothing happens; a shell at its prompt is always `idle`, also in a run that has an open question |
+| `idle` | nothing happens; a shell at its prompt is always `idle`, also in a run that has an open question. The agent that starts a run reads `idle · ready for your task` while it waits for you |
 | `exited` | the process ended, or the pane has none |
 
 If the coordinating agent's session ends while its run is active, the supervisor in the daemon resumes it in the same pane, a limited number of times. A session a person holds is left alone.

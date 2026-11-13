@@ -1,15 +1,13 @@
 import {
-  byUrgency,
-  type EscalatedItem,
   err,
-  escalatedOf,
+  fleetCounts,
+  fleetInbox,
   fleetReport,
-  type InboxItem,
-  inboxOf,
   MetatorError,
   normalizePath,
   type Overview,
   ok,
+  type RepoRuns,
   type RunFacts,
   readinessWarnings,
   unreadableRunWarning,
@@ -52,8 +50,6 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
           }
         }
         const folder = await ctx.containerAt(f.root).resolve("conversationRepository").list();
-        const sum = (k: "you" | "driving" | "stopped" | "questions" | "services") =>
-          repos.reduce((n, r) => n + ("counts" in r ? r.counts[k] : 0), 0);
         return {
           result: ok({
             folder: f.root,
@@ -67,13 +63,7 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
                   updatedAt: c.updatedAt,
                 }))
               : [],
-            counts: {
-              you: sum("you"),
-              driving: sum("driving"),
-              stopped: sum("stopped"),
-              questions: sum("questions"),
-              services: sum("services"),
-            },
+            counts: fleetCounts(repos),
           }),
           warnings,
         };
@@ -124,8 +114,7 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
       ctx.action(async () => {
         const f = ctx.folder();
         const roots = f ? f.repos.map((r) => ({ name: r.name, root: r.root })) : [{ name: "", root: "" }];
-        const items: (InboxItem & { repo?: string })[] = [];
-        const escalated: (EscalatedItem & { repo?: string })[] = [];
+        const repos: RepoRuns[] = [];
         const warnings: string[] = [];
         for (const r of roots) {
           const c = r.root ? ctx.containerAt(r.root) : ctx.container();
@@ -137,13 +126,10 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
           }
           for (const u of o.value.unreadable)
             warnings.push(f ? `${r.name}: ${unreadableRunWarning(u)}` : unreadableRunWarning(u));
-          const now = c.resolve("clock").now();
-          for (const item of inboxOf(o.value.runs, now)) items.push(f ? { repo: r.name, ...item } : item);
-          for (const item of escalatedOf(o.value.runs, now))
-            escalated.push(f ? { repo: r.name, ...item } : item);
+          repos.push({ name: r.name, runs: o.value.runs, now: c.resolve("clock").now() });
         }
         // One queue across repositories, in the same order as within one.
-        return { result: ok({ decisions: items.sort(byUrgency), escalated }), warnings };
+        return { result: ok(fleetInbox(repos, f !== null)), warnings };
       }),
     );
 

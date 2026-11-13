@@ -4,7 +4,7 @@ The **Plan** screen shows where one run stands and what is left. The **Backlog**
 
 ## See where a run stands
 
-Open **Plan** from the **Work** screen: click the stages under the tabs, or press the prefix and `p`.
+Open the **Plan** tab of a run's page (key `p`), or from **Terminals**: click the stages under the tabs, or press the prefix and `p`.
 
 ![The Plan screen of a run before its plan is written: the stage, what comes next, the artifacts and the last events](../public/screens/plan.png)
 
@@ -19,7 +19,7 @@ Open **Plan** from the **Work** screen: click the stages under the tabs, or pres
 | **workers** | the run's worker agents, each with its stage, pane and result so far |
 | Timeline, bottom | the last events of the run |
 
-Click a step to see it. **Show the pane** opens the step's worker on the workbench, and **The session** opens the run's **Session** screen.
+Click a step to see it. **Show the pane** opens the step's worker in **Terminals**.
 
 When a question waits, it is at the top with its answers as buttons, the recommended one highlighted. A click answers it. For a permission prompt of the host the button is **Answer in the pane**.
 
@@ -42,7 +42,7 @@ The **Backlog** screen lists **agents' proposals** first, then the **open** task
 | Button | On | Does |
 |---|---|---|
 | **+ task** | the top bar | opens a form: title, what and why, priority, labels |
-| **Start a run** | an open task | starts a run with the task's title and text, in a new worktree, and opens its **Session** screen. The select **a run starts on** beside the buttons names the workflow: `mt-feature` when the repository has it, else its first one |
+| **Start a run** | an open task | starts a run with the task's title and text, in a new worktree, and opens its page. The select **a run starts on** beside the buttons names the workflow: `mt-feature` when the repository has it, else its first one |
 | **Done**, **Drop** | an open task | closes it as done, or as not going to be done |
 | **Add** | a proposal | makes it a task |
 | **Add and start a run** | a proposal | makes it a task and starts a run on it |

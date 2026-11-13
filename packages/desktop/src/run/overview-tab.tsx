@@ -92,6 +92,10 @@ export function OverviewTab({
             <div className="muted">
               The agent asks in its terminal: open the Terminal tab and answer there.
             </div>
+          ) : run?.status === "escalated" ? (
+            <div className="muted">
+              The run escalated: remove the cause, then resume or close it in the bar above.
+            </div>
           ) : (
             <div className="muted">
               Nothing: the run {run?.attention === "driving" ? "is working" : (run?.status ?? "is not here")}.

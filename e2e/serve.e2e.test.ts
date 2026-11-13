@@ -203,7 +203,7 @@ describe("metator serve (real daemon)", () => {
     ws.close();
   }, 60_000);
 
-  test("an answer through the API to a run nothing drives starts its drive again, as the TUI does", async () => {
+  test("an answer through the API to a run nothing drives starts its drive again", async () => {
     const runId = data(await mt("run", "init", "--workflow", "demo", "--task", "Round the totals"))
       .runId as string;
     await mt("run", "drive", "--run", runId, "--host", "scenario", "--detach");
@@ -291,6 +291,125 @@ describe("metator serve (real daemon)", () => {
     const after = (await get("/inbox")).data as { decisions: { runId: string }[] };
     expect(after.decisions.some((x) => x.runId === live)).toBe(false);
   }, 90_000);
+});
+
+describe("one way to start, answer, brief and close a run, on the API as in the terminal", () => {
+  const status = async (path: string, init?: RequestInit) => {
+    const r = await fetch(`${base}${path}`, init);
+    return { http: r.status, body: (await r.json()) as { ok: boolean; data: Data; error?: Data } };
+  };
+
+  test("a since that is no time is a usage error on both fronts", async () => {
+    const runId = data(await mt("run", "new", "--workflow", "demo", "--task", "Brief me about it"))
+      .runId as string;
+    const api = await status(`/runs/${runId}/brief?since=yesterday-ish`);
+    const cli = await mt("run", "brief", runId, "--since", "yesterday-ish", "--peek");
+    expect([api.http, api.body.error?.code, api.body.error?.message]).toEqual([
+      400,
+      "USAGE",
+      "since yesterday-ish: expected an ISO time",
+    ]);
+    expect([cli.code, (cli.json.error as Data).code, (cli.json.error as Data).message]).toEqual([
+      64,
+      "USAGE",
+      "since yesterday-ish: expected an ISO time",
+    ]);
+    // A good one answers the same brief on both; reading it through the API marks nothing as read.
+    const good = await status(`/runs/${runId}/brief?since=2020-01-01T00:00:00Z`);
+    const same = await mt("run", "brief", runId, "--since", "2020-01-01T00:00:00Z", "--peek");
+    expect([good.http, good.body.data]).toEqual([200, data(same)]);
+  }, 60_000);
+
+  test("a run started through the API in a worktree gets its dependencies, as `run new --worktree` does; closing it removes the worktree when asked", async () => {
+    const started = await post("/runs", { workflow: "demo", task: "Start me in a worktree", worktree: true });
+    expect(started.ok).toBe(true);
+    const run = started.data.run as { runId: string; worktree?: { id: string } };
+    expect(run.worktree?.id).toBeDefined();
+    expect(started.data.setup).toBeDefined(); // the setup ran: its report, or its error
+    const declined = await post("/runs", {
+      workflow: "demo",
+      task: "Start me without the setup",
+      worktree: true,
+      setup: false,
+    });
+    expect(declined.data.setup).toBeUndefined();
+    const listed = async () =>
+      (await mt("worktree", "list")).json.data as { worktrees?: { id: string }[] } | { id: string }[];
+    const ids = async () => JSON.stringify(await listed());
+    expect(await ids()).toContain(run.worktree?.id as string);
+    const closed = await post(`/runs/${run.runId}/close`, {
+      aborted: true,
+      reason: "the test ends it",
+      removeWorktree: true,
+      force: true,
+    });
+    expect([closed.ok, (closed.data.worktree as Data)?.removed]).toEqual([true, true]);
+    expect(await ids()).not.toContain(`"${run.worktree?.id}"`);
+    // Without the option the worktree stays, as in the terminal.
+    const other = declined.data.run as { runId: string; worktree?: { id: string } };
+    const kept = await post(`/runs/${other.runId}/close`, { aborted: true, reason: "the test ends it" });
+    expect([kept.ok, kept.data.worktree]).toEqual([true, undefined]);
+    expect(await ids()).toContain(other.worktree?.id as string);
+    await mt("worktree", "rm", other.worktree?.id as string, "--force");
+  }, 120_000);
+
+  test("an answer through the API with `always` is a policy too, refused where the terminal refuses it", async () => {
+    const ask = async (task: string) => {
+      const runId = data(await mt("run", "new", "--workflow", "demo", "--task", task)).runId as string;
+      await mt("run", "drive", "--run", runId, "--host", "scenario", "--detach");
+      const q = await until("the gate", async () => {
+        const inbox = (await get("/inbox")).data as {
+          decisions: { runId: string; question: { id: string } }[];
+        };
+        return inbox.decisions.find((d) => d.runId === runId)?.question;
+      });
+      return { runId, q };
+    };
+    const policies = async () =>
+      ((await mt("policy", "list")).json.data as { policies: { id: string }[] }).policies.map((p) => p.id);
+    const before = await policies();
+    const first = await ask("Answer me for good through the API");
+    // Other needs a person's own words each time: no policy, on the API as in the terminal.
+    const refused = await status(`/runs/${first.runId}/answer`, {
+      method: "POST",
+      body: JSON.stringify({
+        question: first.q.id,
+        choices: ["Other"],
+        text: "x",
+        by: "maciej",
+        always: true,
+      }),
+    });
+    const cli = await mt(
+      "run",
+      "answer",
+      first.q.id,
+      "--run",
+      first.runId,
+      "--choice",
+      "Other",
+      "--text",
+      "x",
+      "--by",
+      "maciej",
+      "--always",
+    );
+    expect([refused.http, refused.body.error?.code]).toEqual([400, "USAGE"]);
+    expect(refused.body.error?.message).toBe((cli.json.error as Data).message as string);
+    expect(String(refused.body.error?.message)).toStartWith("no policy: ");
+    expect(await policies()).toEqual(before);
+    const answered = await post(`/runs/${first.runId}/answer`, {
+      question: first.q.id,
+      choices: ["approve"],
+      by: "maciej",
+      always: true,
+    });
+    expect(answered.ok).toBe(true);
+    const policy = answered.data.policy as { id: string } | undefined;
+    expect(policy?.id).toBeDefined();
+    expect(await policies()).toEqual([...before, policy?.id as string]);
+    await mt("policy", "rm", policy?.id as string);
+  }, 120_000);
 });
 
 describe("metator serve stops (last: the daemon is gone after it)", () => {

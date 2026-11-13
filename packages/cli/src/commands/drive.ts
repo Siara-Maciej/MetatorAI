@@ -1,21 +1,11 @@
-import {
-  briefOf,
-  err,
-  labelFor,
-  MetatorError,
-  ok,
-  policyFrom,
-  policyRefusal,
-  type Result,
-  unreadableRunWarning,
-} from "@metator/core";
+import { err, MetatorError, ok, type Result, unreadableRunWarning } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { follow, watch } from "../live.ts";
-import { byOption, positiveInt, RUN_ARGUMENT, runGiven, runOption } from "../options.ts";
-import { defaultHost, HOSTS, newRun, resume, sessionRows, startDetached } from "../sessions.ts";
+import { byOption, defined, positiveInt, RUN_ARGUMENT, runGiven, runOption } from "../options.ts";
+import { defaultHost, HOSTS, newRun, resume, sessionRows } from "../sessions.ts";
 import type { Terminal } from "../terminal.ts";
 import { who } from "../who.ts";
 
@@ -65,7 +55,7 @@ export async function offerResume(
 export function registerDriveCommands(
   program: Command,
   runs: Command,
-  { action, runs: container, terminal, root }: CommandContext,
+  { action, runs: container, terminal }: CommandContext,
 ): void {
   // `metator run` in a terminal: a new run, driven in the background, watched and answered here.
   runs.action(
@@ -80,7 +70,7 @@ export function registerDriveCommands(
           ),
         };
       }
-      return { result: await newRun(container(), terminal, root()) };
+      return { result: await newRun(container(), terminal) };
     }),
   );
 
@@ -125,7 +115,7 @@ export function registerDriveCommands(
           const offered = await offerResume(c, runId, terminal);
           if (offered.isErr()) return { result: offered };
         }
-        const resumed = await resume(c, root(), runId, opts.host);
+        const resumed = await resume(c, runId, opts.host);
         if (resumed.isErr()) return { result: resumed };
         if (!terminal) {
           const now = await c.resolve("runDrivers").status(runId);
@@ -161,8 +151,12 @@ export function registerDriveCommands(
           };
         const drivers = c.resolve("runDrivers");
         if (opts.detach) {
-          const started = await startDetached(c, root(), id.value, host, opts.maxSteps);
-          return { result: started.map((d) => ({ runId: id.value, detached: true, ...d })) };
+          const started = await c
+            .resolve("startDrive")
+            .execute({ runId: id.value, host, maxSteps: opts.maxSteps });
+          return {
+            result: started.map(({ stage: _stage, ...d }) => ({ runId: id.value, detached: true, ...d })),
+          };
         }
         const claimed = await drivers.claim(id.value, process.pid, host);
         if (claimed.isErr()) return { result: claimed };
@@ -187,39 +181,13 @@ export function registerDriveCommands(
     .option("--run <id>", "only this run (default: every run)")
     .action(
       action(async (opts: { run?: string }) => {
-        const c = container();
-        const ids = opts.run ? [opts.run] : await c.resolve("runRepository").list();
-        const revived: { runId: string; stage: string; died: number }[] = [];
-        const warnings: string[] = [];
-        for (const runId of ids) {
-          const record = await c.resolve("runRepository").load(runId);
-          if (record.isErr()) {
-            // The run a person named is their answer; among all runs, one broken record is skipped and said.
-            if (opts.run) return { result: record };
-            warnings.push(
-              unreadableRunWarning({
-                runId,
-                file: c.resolve("runRepository").stateFile(runId),
-                message: record.error.message,
-              }),
-            );
-            continue;
-          }
-          if (record.value.state.status !== "active") continue;
-          const driver = await c.resolve("runDrivers").status(runId);
-          if (driver.isErr()) return { result: driver };
-          // No file: nobody drove it, or its drive left on purpose (done, stopped, a host limit).
-          if (!driver.value || driver.value.alive) continue;
-          const logged = await c.resolve("runJournal").record(runId, {
-            type: "drive",
-            text: `revived: its drive (process ${driver.value.pid}) had died`,
-          });
-          if (logged.isErr()) return { result: logged };
-          const resumed = await resume(c, root(), runId);
-          if (resumed.isErr()) return { result: resumed };
-          revived.push({ runId, stage: resumed.value.stage, died: driver.value.pid });
-        }
-        return { result: ok({ revived }), warnings };
+        const r = await container()
+          .resolve("reviveRuns")
+          .execute(opts.run ? { runId: opts.run } : {});
+        return {
+          result: r.map(({ revived }) => ({ revived })),
+          warnings: r.isOk() ? r.value.unreadable.map(unreadableRunWarning) : [],
+        };
       }),
     );
 
@@ -283,41 +251,20 @@ export function registerDriveCommands(
           opts: { run?: string; choice?: string[]; text?: string; by?: string; always: boolean },
         ) => {
           const c = container();
-          const id = await c.resolve("runRepository").resolveId(opts.run);
-          if (id.isErr()) return { result: id };
           const by = await who(c, opts.by);
           if (by.isErr()) return { result: by };
           if (!opts.choice && !opts.text) {
             return { result: err(MetatorError.usage("give --choice <label> or --text <answer>")) };
           }
-          let input = { choices: opts.choice ?? [], ...(opts.text ? { text: opts.text } : {}) };
-          const journal = c.resolve("runJournal");
-          if (opts.always) {
-            const all = await journal.questions(id.value);
-            if (all.isErr()) return { result: all };
-            const q = all.value.find((x) => x.id === question);
-            if (!q) return { result: err(MetatorError.notFound(`question ${question} of run ${id.value}`)) };
-            // The policy is judged and written with the labels the question has, however they were typed.
-            const labels = q.options.map((o) => o.label);
-            input = { ...input, choices: input.choices.map((choice) => labelFor(labels, choice)) };
-            const refused = policyRefusal(q, input.choices.length > 0 ? input.choices : ["Other"]);
-            if (refused)
-              return { result: err(MetatorError.usage(`no policy: ${refused}`, "Answer without --always.")) };
-          }
-          const answered = await journal.answer(id.value, question, { ...input, by: by.value });
-          if (answered.isErr() || !opts.always) return { result: answered };
-          const store = c.resolve("answerPolicyStore");
-          const taken = await store.list();
-          if (taken.isErr()) return { result: taken };
-          const policy = policyFrom(
-            answered.value,
-            input,
-            by.value,
-            c.resolve("clock").now().toISOString(),
-            taken.value.map((p) => p.id),
-          );
-          const added = await store.add(policy);
-          return { result: added.map((p) => ({ ...answered.value, policy: p })) };
+          return {
+            result: await c.resolve("answerQuestion").execute({
+              ...defined({ runId: opts.run, text: opts.text }),
+              question,
+              choices: opts.choice ?? [],
+              by: by.value,
+              always: opts.always,
+            }),
+          };
         },
       ),
     );
@@ -332,35 +279,12 @@ export function registerDriveCommands(
     .argument(...RUN_ARGUMENT)
     .action(
       action(async (word: string | undefined, opts: { run?: string; since?: string; peek: boolean }) => {
-        const c = container();
         const run = runGiven(word, opts);
         if (run.isErr()) return { result: run };
-        const id = await c.resolve("runRepository").resolveId(run.value);
-        if (id.isErr()) return { result: id };
-        if (opts.since && Number.isNaN(Date.parse(opts.since)))
-          return { result: err(MetatorError.usage(`--since ${opts.since}: expected an ISO time`)) };
-        const journal = c.resolve("runJournal");
-        const seen = await journal.seen(id.value);
-        if (seen.isErr()) return { result: seen };
-        const record = await c.resolve("runRepository").load(id.value);
-        if (record.isErr()) return { result: record };
-        const since = opts.since
-          ? new Date(opts.since).toISOString()
-          : (seen.value ?? record.value.createdAt);
-        const activity = await journal.activity(id.value);
-        if (activity.isErr()) return { result: activity };
-        const brief = briefOf(activity.value, since);
-        if (!opts.peek) {
-          const marked = await journal.markSeen(id.value);
-          if (marked.isErr()) return { result: marked };
-        }
         return {
-          result: ok({
-            runId: id.value,
-            status: record.value.state.status,
-            stage: record.value.state.stage,
-            ...brief,
-          }),
+          result: await container()
+            .resolve("briefRun")
+            .execute({ ...defined({ runId: run.value, since: opts.since }), peek: opts.peek }),
         };
       }),
     );

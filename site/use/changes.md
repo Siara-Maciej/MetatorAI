@@ -4,11 +4,11 @@ You can read what a run changed, leave notes on lines, and send the notes to the
 
 ## The Changes screen
 
-Open it with **Review** on the run's **Session** screen, or from the workbench with the prefix and `r`, or **Changes** in a pane's menu.
+Open the **Changes** tab of a run's page (key `d`), or **Changes** on a decision card, or from **Terminals** with the prefix and `r` or **Changes** in a pane's menu.
 
 ![The change of a run: one added file on the left, its diff on the right with a note under line 2](../public/screens/changes.png)
 
-The left column lists the changed files, each with a letter (`A` added, `M` modified, `D` deleted, `R` renamed), its added and removed line counts, and a pencil where you left notes. Click a file to see its diff on the right. The head of the screen says what the change is compared against, next to the links to the run's other screens.
+The left column lists the changed files, each with a letter (`A` added, `M` modified, `D` deleted, `R` renamed), its added and removed line counts, and a pencil where you left notes. Click a file to see its diff on the right. The line on top says what the change is compared against.
 
 The lines of a diff are one stop of the Tab key: the arrow keys move from line to line, and Enter opens a note on the line.
 
@@ -18,7 +18,7 @@ A run in its own worktree is compared with the repository's `HEAD` as it stands 
 |---|---|
 | write a note on a line | click the line, type, **Add note** |
 | write a note on the whole change | with no file chosen, **+ note on the whole change** under the list |
-| send the notes | **Send N to agent** in the head of the screen |
+| send the notes | **Send N to agent** on the line on top |
 | open a line in your editor | double-click the line |
 | open the worktree in your editor | **Open in editor** |
 

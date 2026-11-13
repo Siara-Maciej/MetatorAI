@@ -92,7 +92,7 @@ metator run close --aborted --reason "scope changed"
 
 ## A run cannot be read
 
-`metator run list`, `metator status`, `metator inbox` and `metator doctor` warn that `run <id> cannot be read and is left out`, and name the run's `state.json`. The file is cut short or was edited by hand. The other runs are listed as usual. The desktop app says the same at the bottom of the runs panel (**N runs cannot be read**), with the file of each. Restore the file from git or a backup, or delete the run's directory `.metator/runs/<id>/` to drop the run.
+`metator run list`, `metator status`, `metator inbox` and `metator doctor` warn that `run <id> cannot be read and is left out`, and name the run's `state.json`. The file is cut short or was edited by hand. The other runs are listed as usual. The desktop app says the same at the bottom of the sidebar (**N runs cannot be read**), with the file of each. Restore the file from git or a backup, or delete the run's directory `.metator/runs/<id>/` to drop the run.
 
 ## A file is locked
 

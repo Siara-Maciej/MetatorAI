@@ -40,7 +40,6 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
           intakeMs?: number;
           reviewsMs?: number;
         }) => {
-          const root = ctx.root;
           const taken = daemonInTheWay(servedRoots(ctx));
           if (taken) return { result: err(taken) };
           const served = await startServer(ctx, {
@@ -51,8 +50,7 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
             superviseMs: opts.superviseMs,
             intakeMs: opts.intakeMs ?? true,
             reviewsMs: opts.reviewsMs ?? true,
-            restart: (c, runId) => resume(c, root(), runId),
-            start: (c, runId, host) => resume(c, root(), runId, host || undefined),
+            restart: (c, runId) => resume(c, runId),
           });
           const where = {
             port: served.port,

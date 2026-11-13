@@ -21,7 +21,7 @@ dir: packages/desktop
 
 ## Responsibility
 
-MetatorAI Desktop (D7, ADR-0078): the Vite + React app and its Tauri shell, a thin client over `metator serve`. It draws the inbox, the four screens of one run (session with its terminal over the daemon's PTY, plan, changes, briefing), the workbench of terminals, the backlog, the open MRs, the graph, the daemon screen, the settings and the new-session dialog; it decides nothing and keeps no state the daemon does not have.
+MetatorAI Desktop (D7, ADR-0078): the Vite + React app and its Tauri shell, a thin client over `metator serve`. It draws one sidebar that is the whole dashboard (what needs you, the runs with their panes, the other places), the Inbox's decision, the page of a run with five tabs (Overview, Terminal over the daemon's PTY, Plan, Changes, Activity), Terminals, the backlog, the reviews, the Overview (daemon, dependencies), the settings and the new-run form; it decides nothing and keeps no state the daemon does not have.
 
 ## Invariants
 
@@ -29,14 +29,18 @@ MetatorAI Desktop (D7, ADR-0078): the Vite + React app and its Tauri shell, a th
 - An answer from the decision card carries `origin: inbox`, what criterion 11a counts [[cite: packages/desktop/src/components/decision-card.tsx:33 | "origin: \"inbox\","]].
 - View logic is pure in `src/model.ts` and tested; components only render.
 - One vocabulary for states: what a pane reads as is `paneStateOf` (`working`, `asks`, `idle`, `exited`), and the glyph and colour of every state come from `LOOKS` through `<Glyph>`; a screen never has its own table. A shell is never `asks` and is `working` only while it prints.
-- One count of runs: the top bar, the Inbox heading, the graph and the daemon screen read `runCounts`; an escalated run needs a person and is counted among the runs that need you.
+- One count and one roll-up: what needs the person is `needsQueue` (the sidebar lists it, the Inbox shows the picked row); a run reads one of five words from `runStateOf` (`needs you`, `working`, `escalated`, `done`, `idle`) and states roll up pane → run → repository through `rollUp`. `done` is a finished run this person has not opened; what was opened is kept in the window's storage (`metator.seen`), read and written under try/catch.
+- One row pattern in the sidebar: glyph, name, the state's word, one dim line (`runLine`); no chips in rows, no counters in the top bar.
+- One page per run: `#/run/<run>/<tab>` with the tabs of `RUN_TABS`; the old routes of a run's screens and of the daemon and graph screens parse to the tab that holds what they showed.
+- One word per thing: a unit of work is a run, a session is the live agent process, a task is a backlog item, the multi-pane place is Terminals, the diff is Changes.
+- One letter, one meaning: the single-letter keys of `SHELL_KEYS` are listed once each and the tabs of a run use theirs (a test checks it).
 - Shared pieces are written once: a request on an interval is `usePolled`; an action with its refusal that stays is `useAction`; attach, release, the editor and "Open a session" of a run are `runControls`; one option is `useOption` (the options are read once, in `DaemonProvider`); an answer to a question is `useAnswer`; a single-letter shortcut is `plainKey`; the person's name is `who()` (one dialog).
-- Shared markup is written once: a list screen is `<ListDetail>` with `<ListRow>`; the top of a screen about one run is `<RunHeader>` (task, the four screens as links, the stages); the stages are `<StageBar>`; events are `<ActivityList>`; a row of tabs is `<Tabs>`; a dialog is `<Modal>` (the browser's `<dialog>`).
+- Shared markup is written once: a list screen is `<ListDetail>` with `<ListRow>` (the arrow keys and `j`/`k` move in it, `moveInList`); the top of a run's page is `<RunHeader>` (task, the tabs as links, the stages); the stages are `<StageBar>`; events are `<ActivityList>`; a row of tabs is `<Tabs>`; a dialog is `<Modal>` (the browser's `<dialog>`).
 - The workbench's commands are named once in `WORKBENCH_COMMANDS` (`src/model.ts`): the keys, both right-click menus and the help overlay read that table.
-- Coming to a screen starts no process: the session screen shows a run's terminal once its session lives or the person pressed "Open a session".
+- Coming to a screen starts no process: the Terminal tab shows a run's terminal once its session lives or the person pressed "Open a session".
 - With no daemon the shell draws one panel (`NoDaemon`) instead of the screens, so no screen shows empty data as if it were true.
 - A refusal the app can offer a way past is recognized by `error.details` (`refusedForDirtyTree`), never by the message; the way past is a button in the same `Notice`.
-- An escalated run is not finished (`isFinished` in `src/model.ts`): it stays in the sessions panel and is a row and a card in the Inbox (`EscalatedCard`), with Resume and Close run; its session screen shows the same two actions instead of the driver bar.
+- An escalated run is not finished (`isFinished` in `src/model.ts`): it stays in the sessions panel and is a row and a card in the Inbox (`EscalatedCard`), with Resume and Close run; its page shows the same two actions under the head, on every tab.
 
 ## Allowed dependencies
 

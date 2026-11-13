@@ -100,7 +100,7 @@ metator config set editor.command zed --scope user
 
 ## Keys
 
-On the workbench every action is the prefix and one key ([Workbench and terminals](./desktop.md#keys)). `keys.prefix` is the prefix, `ctrl+b` by default. Each action has its own option, such as `keys.zoom` or `keys.splitRight`. The group **keys** on the Settings screen lists them all with their bindings.
+In **Terminals** every action is the prefix and one key ([Terminals](./desktop.md#keys)). `keys.prefix` is the prefix, `ctrl+b` by default. Each action has its own option, such as `keys.zoom` or `keys.splitRight`. The group **keys** on the Settings screen lists them all with their bindings.
 
 A binding is written as `prefix+<key>`. An action can have several bindings: in the app, separate them with commas.
 

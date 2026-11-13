@@ -13,7 +13,6 @@ import type {
   ResolvedOption,
   RunOverview,
   SplitNode,
-  StageProgress,
   StateData,
   TabView,
   UnreadableRun,
@@ -176,9 +175,6 @@ export const clock = (iso: string): string => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toTimeString().slice(0, 8);
 };
-
-/** The glyph of a stage in the stage bar: `intake ✓ ─ plan ⟳ ─ gates ·` (the `stage` row of `LOOKS`). */
-export const stageGlyph = (s: Pick<StageProgress, "state">): string => lookOf("stage", s.state).glyph;
 
 /**
  * The command the card's footer shows: what the button does. The card answers the question
@@ -969,10 +965,6 @@ export function runCounts(runs: readonly Pick<RunOverview, "attention" | "status
 /** The runs that are not finished, escalated ones included. */
 export const openRuns = <R extends Pick<RunOverview, "status">>(runs: readonly R[]): R[] =>
   runs.filter((r) => !isFinished(r));
-
-/** The run a route is about, or none. */
-export const runIdOf = (route: Route): string | undefined =>
-  route.screen === "run" ? route.runId : undefined;
 
 /**
  * Where a run stands for the session screen's bar: `escalated` and `finished` runs have no

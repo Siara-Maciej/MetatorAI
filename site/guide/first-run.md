@@ -57,39 +57,39 @@ The daemon listens on `http://127.0.0.1:4310`. Leave it running and open the des
 
 ## Describe the task
 
-Click **+ New session** at the bottom of the runs panel. The **Work** screen opens with a pane in which the agent `mt-orchestrator` runs on your AI tool. Write the task there:
+Click **+ New run** at the bottom of the sidebar (or write under **Describe a task** and press **Start**). **Terminals** opens with a pane in which the agent `mt-orchestrator` runs on your AI tool. Write the task there:
 
 ```text
 Add a subtract function next to add, with a test
 ```
 
-The agent answers with one numbered message that asks what the code cannot settle, for example which workflow to use and whether the run gets its own worktree. Each point has options, with the recommended one first. Answer, for example `1 1, 2 yes`. The agent starts the run and names it. The run appears in the runs panel and as a tab on **Work**.
+The agent answers with one numbered message that asks what the code cannot settle, for example which workflow to use and whether the run gets its own worktree. Each point has options, with the recommended one first. Answer, for example `1 1, 2 yes`. The agent starts the run and names it. The run appears in the sidebar and as a tab in **Terminals**.
 
 ## Approve the plan
 
-The run surveys the code, writes a plan and checks it. Then it stops, and the counter **need you** in the top bar goes to 1. Open the **Inbox**.
+The run surveys the code, writes a plan and checks it. Then it stops, and **Needs you** at the top of the sidebar goes to 1. Click the row.
 
 ![The decision card of an approval in the Inbox, with Approve recommended](../public/screens/inbox.png)
 
-The decision card shows the task, what was done so far and the options. To read the plan first, go to **Work** and click the stages under the tabs: the **Plan** screen lists every step with its file and the tests that come first.
+The decision card shows the task, what was done so far and the options. To read the plan first, open the run from the sidebar and click its **Plan** tab: it lists every step with its file and the tests that come first.
 
 Back in the **Inbox**, choose **Approve** and click the **Approve** button. The first time, the app asks for your name. To send the plan back, choose **Reject** and write the reason in the field under the options; the answer is sent only with a reason.
 
 ## Watch the work
 
-After your approval the run builds. On **Work**, the run's tab shows the agents in panes, each with its state. You can watch without touching anything. When an agent needs you (a question, or a tool it may not run on its own), the question arrives in the **Inbox** like the approval did.
+After your approval the run builds. In **Terminals**, the run's tab shows the agents in panes, each with its state. You can watch without touching anything. When an agent needs you (a question, or a tool it may not run on its own), the question arrives in the **Inbox** like the approval did.
 
 The build is followed by the gates (your own `lint`, `typecheck` and `test` scripts) and by the review agents.
 
 ## Read the change and approve delivery
 
-Click the run in the runs panel to open its **Session** screen, then **Review** in the box **Changes**. The **Changes** screen lists the files and their diffs. Click a line to leave a note. The button **Send 1 to agent** (with the number of your notes) hands them to the run.
+Click the run in the sidebar, then its **Changes** tab. It lists the files and their diffs. Click a line to leave a note. The button **Send 1 to agent** (with the number of your notes) hands them to the run.
 
 At the `delivery` stage the run stops again. Nothing is pushed until you approve in the **Inbox**, at any autonomy level.
 
 ## When the run is done
 
-After you approve the delivery, the run commits its change and pushes its branch, `metator/<run id>`, to `origin`. It opens a pull request only when the task asked for one. The run then ends as `done` and moves to the finished runs at the bottom of the runs panel.
+After you approve the delivery, the run commits its change and pushes its branch, `metator/<run id>`, to `origin`. It opens a pull request only when the task asked for one. The run then ends as `done` and reads `done` in the sidebar, under **Finished**, until you open it.
 
 What is left on your machine:
 

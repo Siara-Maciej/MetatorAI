@@ -39,17 +39,17 @@ To answer:
 
 The first time you answer, the app asks for your name in a dialog and remembers it.
 
-The line under the buttons shows the command your answer amounts to. **Changes** opens the run's change ([Read the change](./changes.md)) and **Open session** (or the key `o`) the run's **Session** screen, when you want to look before you decide. The key `g` moves to the next item of the queue.
+The line under the buttons shows the command your answer amounts to. **Changes** opens the run's change ([Read the change](./changes.md)) and **Open run** (or the key `o`) the run's **Overview**, when you want to look before you decide. `j` and `k`, or the arrow keys, move along the queue; `g` moves to the next item. Once your answer went through, a line on top says so: **Answered: Approve. The run goes on.**
 
 The daemon carries out the answer. If no drive is running, it starts one again on the host the run used. What you write in your own words is passed to every later agent of the run as a decision to follow.
 
-With nothing open, and no escalated run, the screen reads **Inbox zero**. It says so only while the daemon answers.
+With nothing open, and no escalated run, the screen reads **Inbox zero**; with no run at all it offers to start one instead ([Start a task](./start.md)). It says so only while the daemon answers.
 
 ## Questions asked in the terminal
 
-The heading **Needs you** counts runs, the same number as **need you** in the top bar; escalated runs are in it. When one run has two open questions the heading adds the number of rows (`· 3 items`).
+The queue is the top of the sidebar, **Needs you · N**: one row per decision, with the number of rows in the heading; escalated runs are in it. The main area shows the row you picked.
 
-An agent can also stop at a question it wrote on its own screen, without a card. Such a run still counts in **need you**. The Inbox lists it under the queue as a row marked `TERMINAL`, with the task and **answers in its terminal**. A click opens the run's **Session** screen on the pane that asks. Attach and type the answer there ([Sessions and worktrees](./sessions.md)).
+An agent can also stop at a question it wrote on its own screen, without a card. Such a run still needs you. The queue lists it as a row marked `terminal`, with the task and **answers in its terminal**. A click opens the run's **Terminal** tab on the pane that asks. Attach and type the answer there ([Sessions and worktrees](./sessions.md)).
 
 ## Permission prompts of the host
 
@@ -57,13 +57,13 @@ Sometimes the AI host shows its own permission prompt in the terminal ("Allow ..
 
 ## Escalated runs
 
-A run that reaches a loop limit, or whose agent stays blocked, becomes `escalated`. It needs work from you and a yes or no is not enough. Escalated runs count in the heading **Needs you** and are listed in the queue as rows marked `ESCALATED`, with the task and the stage the run stopped at. In the runs panel a click on an escalated run opens the same card.
+A run that reaches a loop limit, or whose agent stays blocked, becomes `escalated`. It needs work from you and a yes or no is not enough. Escalated runs count in the heading **Needs you** and are listed in the queue as rows marked `escalated`, with the task and the stage the run stopped at. In the list of runs a click on an escalated run opens the same card.
 
 The card shows why the run stopped (the failure its last stage recorded) and has four buttons:
 
 - **Resume** puts the run back at the stage it escalated from and drives it on. Remove the cause first. The run gets a fresh set of tries for that stage. If no drive can start, the card says why.
 - **Close run…** asks for a reason and ends the run as aborted.
-- **Briefing** shows what happened in the run, and **Changes** shows its change.
+- **Briefing** opens the run's **Overview**, what happened in it, and **Changes** shows its change.
 
 The same from the terminal:
 

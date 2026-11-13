@@ -2,25 +2,25 @@
 
 A session is a conversation in an AI host's terminal, and a run has one for its agent. This page shows how to watch a run's session in the app and take its keyboard, what a worktree gives a run, and the commands that stop, continue, hand over and clean up runs.
 
-## The Session screen
+## The Terminal tab of a run
 
-A click on a run in the runs panel opens its **Session** screen.
+A click on a run in the sidebar opens the run's page on its **Terminal** tab; a finished run opens on **Overview**.
 
-![The Session screen while the agent works: the stages, the bar that says who works, the terminal, and the boxes on the right](../public/screens/session.png)
+![The Terminal tab while the agent works: the stages, the bar that says who works, the terminal, and the boxes on the right](../public/screens/session.png)
 
-The head is the same on every screen about one run: the task, the run id, and four links, **Session**, **Plan**, **Changes** and **Briefing**, with the shown one marked. On the Session screen it also has chips for the workflow, the autonomy level with what it means (**L0: every approval waits for you**), the AI host, the worktree's ports and the time since the run started. Under them is the line of stages, with the current one marked.
+The head is the same on every tab of the run's page: the task, the run id, and the tabs **Overview**, **Terminal**, **Plan**, **Changes** and **Activity**, with the shown one marked. It also has chips for the workflow, the autonomy level with what it means (**L0: every approval waits for you**), the AI host, the worktree's ports and the time since the run started. Under them is the line of stages, with the current one marked.
 
 The bar under the head says who types. With **Working: agent** you watch. Click **Attach** (key `a`) to take the keyboard; the app asks for your name the first time. **Release to agent** (key `c`) gives it back. With **Working: nobody** no agent works on the run and no session is open.
 
-An escalated run has no one at work, so the bar shows instead why it stopped, with **Resume** and **Close run…**, the same two actions as its card in the Inbox. A finished run shows **Done** or **Aborted** with one line on how it ended.
+An escalated run has no one at work, so under the head, on every tab, a bar shows why it stopped, with **Resume** and **Close run…**, the same two actions as its card in the Inbox. A finished run shows **Done** or **Aborted** with one line on how it ended.
 
-When the agent asks on its own screen, with no card in the Inbox, a line above the terminal says **The agent asks in its terminal**, with **Show the pane** when another pane is the one that asks. Attach and type the answer. While you are attached, your yes in the chat counts as an approval ([Workbench and terminals](./desktop.md#who-types-in-a-session)).
+When the agent asks on its own screen, with no card in the Inbox, a line above the terminal says **The agent asks in its terminal**, with **Show the pane** when another pane is the one that asks. Attach and type the answer. While you are attached, your yes in the chat counts as an approval ([Terminals](./desktop.md#who-types-in-a-session)).
 
 Below that bar:
 
-- **Terminal** shows the run's main pane. The row above it lists the run's panes, each with its state. Click one to see it. **+ Shell** opens a shell pane of your own in this run.
-- Opening this screen starts nothing. A run that is driven in the background, or that nothing works on yet, has no terminal: the screen says **No session runs for this run**, and **Open a session** starts the host in a terminal. Once a session lives, its terminal shows by itself.
-- **Events** (key `t` switches) lists the run's activity: the time, the type, the source and what happened.
+- The terminal shows the run's main pane. The row above it lists the run's panes, each with its state. Click one to see it. **+ Shell** opens a shell pane of your own in this run.
+- Opening this tab starts nothing. A run that is driven in the background, or that nothing works on yet, has no terminal: the screen says **No session runs for this run**, and **Open a session** starts the host in a terminal. Once a session lives, its terminal shows by itself.
+- The run's events are on the **Activity** tab (key `l`): the time, the type, the source and what happened.
 - The line at the bottom sends one line of text to the session. A click into it attaches you first.
 
 The boxes on the right:
@@ -29,14 +29,14 @@ The boxes on the right:
 |---|---|
 | **Question** | the run's open question with a button per option. A click on a plain option answers. Reject and Other first ask for the reason, and a question with several answers lets you choose them, then **Send**. Empty when nothing waits |
 | **Apps** | the services of the worktree's environment, with their state and their ports by name |
-| **Changes** | **Review** opens the run's change ([Read the change](./changes.md)); **Open in editor** opens the worktree; below are the branch and the path |
+| **Changes** | **Open changes** opens the run's **Changes** tab ([Read the change](./changes.md)); **Open in editor** opens the worktree; below are the branch and the path |
 | **Links** | the parent run and the steps, files this run shares with another run (with which to merge first), and messages from other runs |
 
-The **Work** screen shows the same panes side by side ([Workbench and terminals](./desktop.md)). A run whose drive process died shows the chip **drive died** here.
+**Terminals** shows the same panes side by side ([Terminals](./desktop.md)). A run whose drive process died shows the chip **drive died** here.
 
 ## What a worktree gives a run
 
-A run that edits your working tree blocks you, and two runs in one tree disturb each other. A git worktree gives a run its own checkout on its own branch. The agent offers it when you start a task, and the **Advanced…** form has it ticked by default ([Start a task](./start.md)).
+A run that edits your working tree blocks you, and two runs in one tree disturb each other. A git worktree gives a run its own checkout on its own branch. The agent offers it when you start a task, and the **Form…** form has it ticked by default ([Start a task](./start.md)).
 
 For a run with a worktree, MetatorAI:
 
@@ -68,7 +68,7 @@ metator run init --workflow mt-feature --task "Add combined discount" --worktree
 metator run init --workflow mt-bugfix --task "Fix rounding" --worktree --base main
 ```
 
-A worktree starts from the last commit. When tracked files have uncommitted changes, `run init --worktree` refuses and names them: commit or stash them, or pass `--allow-dirty` to start without them. `metator issue start` behaves the same. In the app, the **Advanced…** form and **Start a run** on the Backlog show the refusal with the button **Start from the last commit**, which starts the run without your changes. Runs that [intake](./intake.md) starts never ask: they start from the last commit. Untracked files do not stop a run. A run in your checkout, without `--worktree`, refuses on uncommitted changes when its workflow requires `clean-tree`; `--allow-dirty` starts it with them, and they become part of its change. `run init` also refuses in a directory that is not a git repository, and `run init --worktree` in a repository with no commit.
+A worktree starts from the last commit. When tracked files have uncommitted changes, `run init --worktree` refuses and names them: commit or stash them, or pass `--allow-dirty` to start without them. `metator issue start` behaves the same. In the app, the **Form…** form and **Start a run** on the Backlog show the refusal with the button **Start from the last commit**, which starts the run without your changes. Runs that [intake](./intake.md) starts never ask: they start from the last commit. Untracked files do not stop a run. A run in your checkout, without `--worktree`, refuses on uncommitted changes when its workflow requires `clean-tree`; `--allow-dirty` starts it with them, and they become part of its change. `run init` also refuses in a directory that is not a git repository, and `run init --worktree` in a repository with no commit.
 
 `--no-setup` skips the dependencies, and you can set them up later:
 
@@ -143,7 +143,7 @@ Removing a worktree keeps its `metator/<id>` branch, so committed work stays. `p
 
 ### Conflicts between runs
 
-Two runs that change the same file clash when their branches merge. The app shows such a pair in the **Links** box of both runs and on the **Graph** screen. From a terminal:
+Two runs that change the same file clash when their branches merge. The app shows such a pair in the **Links** box of both runs and under **Overview**, **Dependencies**. From a terminal:
 
 ```bash
 metator worktree conflicts

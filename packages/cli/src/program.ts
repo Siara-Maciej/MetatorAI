@@ -58,6 +58,7 @@ import { registerTestCommands } from "./commands/test.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
 import { registerWorktreeCommands } from "./commands/worktree.ts";
 import type { CommandContext, Folder, Outcome } from "./context.ts";
+import { detachedDrive, runPanes } from "./sessions.ts";
 
 export interface ProgramOptions {
   readonly cwd?: string;
@@ -108,6 +109,10 @@ export function buildProgram(
       ...(env.METATOR_DOCKER_BIN ? { dockerBin: env.METATOR_DOCKER_BIN } : {}),
       stateDir: machineStateDir(env),
       userConfigDir: userConfigDir(env),
+      // What only this program knows: how to start itself again, and where a run's panes are.
+      detachedDrive: detachedDrive(),
+      runPanes: runPanes(),
+      ...(env.METATOR_HOST ? { defaultHost: env.METATOR_HOST } : {}),
     });
   };
   const root = () => (program.opts() as { root?: string }).root;

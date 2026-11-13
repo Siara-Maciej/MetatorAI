@@ -285,7 +285,7 @@ export function TerminalTab({
           <h3>Changes</h3>
           <div className="row">
             <button type="button" className="ghost" onClick={() => onOpenChanges(runId)}>
-              Changes
+              Open changes
             </button>
             <button type="button" className="ghost" onClick={() => void openEditor()}>
               Open in editor

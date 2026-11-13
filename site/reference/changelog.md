@@ -6,6 +6,11 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 
 ## November 2026
 
+- The desktop app has one sidebar instead of three columns: **Needs you** on top (each row opens its decision), the runs with their panes under them, then Terminals, Backlog, Reviews, Overview and Settings, and **+ New run** with **Form…**. The counters left the top bar; the counts are in the headings.
+- A run has one page with the tabs Overview, Terminal, Plan, Changes and Activity (keys `o` `t` `p` `d` `l`). The old addresses (`#/session/…`, `#/plan/…`, `#/review/…`, `#/briefing/…`) open the right tab. The Overview counts the files of the run's change from the same source as Changes.
+- A run reads `needs you`, `working`, `escalated`, `done` or `idle`; `done` stays marked until you open the run. The Daemon and Graph screens are now **Overview** (Daemon, Dependencies).
+- With no run the app offers **Describe a task**. An answer is confirmed in words. `?` filters as you type; `j`/`k` and the arrows move in every list.
+- Words: a unit of work is a run (**+ New run**), a session is the live agent process, a task is a backlog item, the multi-pane screen is **Terminals**.
 - The desktop app, tidied: every screen about one run (Session, Plan, Changes, Briefing) has the same head with links to the other three. A pane reads the same on every screen, in four words: `working`, `asks`, `idle`, `exited`; a shell at its prompt is `idle`. **need you** in the top bar, **Needs you** in the Inbox, the Graph and the Daemon screen count the same runs, escalated ones included.
 - Opening a run's **Session** screen no longer starts a terminal session: **Open a session** does. An escalated run's Session screen offers **Resume** and **Close run…**; a finished one says how it ended.
 - `?` opens the list of keys on every screen. Menus and the prefix chip show the real prefix key (`ctrl+b z`) instead of the word "prefix".

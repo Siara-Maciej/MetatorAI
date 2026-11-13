@@ -65,7 +65,6 @@ import {
   rollUp,
   routeHash,
   runCounts,
-  runIdOf,
   runLine,
   runPhase,
   runStateOf,
@@ -77,7 +76,6 @@ import {
   seenFrom,
   seenKey,
   sidebarRuns,
-  stageGlyph,
   stepLabel,
   stepNeed,
   tabOfPane,
@@ -249,14 +247,6 @@ describe("formatting and routes", () => {
       "3 d",
     ]);
     expect(duration(-5)).toBe("0s");
-  });
-
-  test("stage glyphs", () => {
-    expect(
-      ["done", "current", "waiting", "stopped", "next"]
-        .map((state) => stageGlyph({ state: state as never }))
-        .join(""),
-    ).toBe("✓⟳?✕·");
   });
 
   test("routes parse and print both ways; anything unknown is the inbox", () => {
@@ -751,9 +741,10 @@ describe("one vocabulary for states", () => {
     expect(lookOf("file", "deleted")).toEqual({ glyph: "D", tone: "red" });
     expect(lookOf("note", "nonsense")).toEqual({ glyph: "·", tone: "faint" });
     expect(lookOf("thread", undefined)).toEqual({ glyph: "·", tone: "faint" });
-    // The stage bar's glyph is the table's.
-    for (const state of ["done", "current", "waiting", "stopped", "next"] as const)
-      expect(stageGlyph({ state })).toBe(LOOKS.stage[state].glyph);
+    // The run's five words and what needs you each have their look.
+    expect(Object.keys(LOOKS.run)).toEqual(["needs you", "working", "escalated", "done", "idle"]);
+    expect(lookOf("run", "done")).toEqual({ glyph: "✓", tone: "green" });
+    expect(lookOf("need", "escalated").tone).toBe("red");
   });
 });
 
@@ -804,7 +795,7 @@ describe("counts every screen agrees on", () => {
 });
 
 describe("the screens of one run", () => {
-  test("one page per run with five tabs, each with one letter; the other places are not about a run", () => {
+  test("one page per run with five tabs, each with one letter", () => {
     expect(RUN_TABS.map((t) => [t.tab, t.key])).toEqual([
       ["overview", "o"],
       ["terminal", "t"],
@@ -812,9 +803,6 @@ describe("the screens of one run", () => {
       ["changes", "d"],
       ["activity", "l"],
     ]);
-    for (const t of RUN_TABS) expect(runIdOf({ screen: "run", runId: "r1", tab: t.tab })).toBe("r1");
-    expect(runIdOf({ screen: "inbox" })).toBeUndefined();
-    expect(runIdOf({ screen: "grid", pane: "p" })).toBeUndefined();
     // From the sidebar a run opens where the work is; a finished one on its summary.
     expect(runTabFor(run("a"))).toBe("terminal");
     expect(runTabFor(run("a", { status: "escalated" }))).toBe("terminal");

@@ -593,3 +593,5 @@ export interface ReviewHost {
   ): Promise<Result<void, MetatorError>>;
   resolve(source: ReviewSource, number: number, threadId: string): Promise<Result<void, MetatorError>>;
 }
+
+export type * from "./run-drive.ts";

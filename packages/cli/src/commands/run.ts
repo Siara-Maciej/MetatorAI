@@ -1,7 +1,6 @@
 import {
   AnalysisDocument,
   AutonomySchema,
-  countAttention,
   err,
   FindingSetDocument,
   INPUT_NAME,
@@ -15,18 +14,14 @@ import {
   type Result,
   ReviewMetadataDocument,
   ReviewPlanDocument,
-  RUN_READINESS,
   type RunEvent,
   RunSummaryDocument,
-  readinessWarnings,
-  taskWarnings,
   unreadableRunWarning,
   VerdictDocument,
 } from "@metator/core";
 import { Argument, type Command, Option } from "commander";
 import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { callDaemon, findDaemon } from "../daemon-client.ts";
 import { byOption, defined, positiveInt, RUN_ARGUMENT, runGiven, runOption } from "../options.ts";
 import { renderRunStatus } from "../render.ts";
 import { HOSTS, resume } from "../sessions.ts";
@@ -83,7 +78,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
   const { action, stdin } = ctx;
   // In a worktree, the run is the one of the checkout it came from.
   const container = ctx.runs;
-  const root = ctx.start;
+  const _root = ctx.start;
   const runs = meta(program.command("run"), { audience: "person" }).description(
     "Start and drive workflow runs (state machine)",
   );
@@ -146,49 +141,24 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
                 };
               inputs[name] = pair.slice(at + 1);
             }
-            const input = {
-              ...(Object.keys(inputs).length > 0 ? { inputs } : {}),
-              workflow: opts.workflow,
-              task,
-              ...(opts.autonomy ? { autonomy: opts.autonomy } : {}),
-              ...(opts.worktree
-                ? { worktree: { base: opts.base, ...(opts.allowDirty ? { allowDirty: true } : {}) } }
-                : opts.allowDirty
-                  ? { allowDirty: true }
-                  : {}),
-              ...(opts.parent ? { parent: opts.parent } : {}),
-            };
-            const started = await container().resolve("initRun").execute(input);
+            // The run, its worktree's dependencies and what it will not do here: one start for every front.
+            const started = await container()
+              .resolve("startRun")
+              .execute({
+                workflow: opts.workflow,
+                task,
+                inputs,
+                setup: opts.setup,
+                ...defined({ autonomy: opts.autonomy, parent: opts.parent }),
+                ...(opts.worktree
+                  ? { worktree: { base: opts.base, ...(opts.allowDirty ? { allowDirty: true } : {}) } }
+                  : opts.allowDirty
+                    ? { allowDirty: true }
+                    : {}),
+              });
             if (started.isErr()) return { result: started };
-            // A worktree gets its dependencies now, so the run's tests and gates can run there.
-            const setup =
-              opts.worktree && opts.setup
-                ? await container().resolve("setupWorktree").execute({ run: started.value.runId })
-                : undefined;
-            // What this run will not do here (no dependencies, no gates), said once, as it starts.
-            const ready = await container()
-              .resolve("checkReadiness")
-              .execute(started.value.worktree ? { worktree: started.value.worktree.id } : {});
-            // The attention budget (SupervisorPolicy.wipLimit): too many runs already wait for a person.
-            const overview = await container().resolve("workOverview").execute();
-            const limit = container().resolve("config").config.supervisor.wipLimit;
-            const waiting = overview.isOk() ? countAttention(overview.value.runs).you : 0;
-            return {
-              result: ok({
-                ...started.value,
-                ...(setup?.isOk() ? { setup: setup.value } : {}),
-              }),
-              warnings: [
-                ...(waiting >= limit
-                  ? [
-                      `attention: ${waiting} run(s) already wait for a person (limit ${limit}): answer them first (metator inbox), or raise supervisor.wipLimit`,
-                    ]
-                  : []),
-                ...taskWarnings(task),
-                ...(setup?.isErr() ? [`worktree setup: ${setup.error.message}`] : []),
-                ...(ready.isOk() ? readinessWarnings(ready.value, RUN_READINESS) : []),
-              ],
-            };
+            const { run, setup, warnings } = started.value;
+            return { result: ok({ ...run, ...(setup ? { setup } : {}) }), warnings };
           },
         ),
       ),
@@ -350,7 +320,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
           .resolve("resumeRun")
           .execute({ by: by.value, ...(opts.run ? { runId: opts.run } : {}) });
         if (resumed.isErr() || !opts.drive) return { result: resumed };
-        const driven = await resume(c, root(), resumed.value.runId, opts.host);
+        const driven = await resume(c, resumed.value.runId, opts.host);
         if (driven.isErr())
           return {
             result: resumed,
@@ -418,39 +388,16 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
           if (run.isErr()) return { result: run };
           if (opts.aborted && !opts.reason)
             return { result: err(MetatorError.usage("--aborted needs --reason <text>")) };
-          const closed = await container()
-            .resolve("closeRun")
-            .execute({
-              ...defined({ runId: run.value }),
-              ...(opts.aborted && opts.reason ? { abortReason: opts.reason } : {}),
-            });
-          if (closed.isErr()) return { result: closed };
-          // The run's panes go with it (R5), when a daemon holds them; its worktree only when asked.
-          const runId = closed.value.runId;
-          const daemon = findDaemon(root());
-          const panes = daemon.isOk()
-            ? await callDaemon<{ closed: number }>(
-                daemon.value,
-                "POST",
-                `/runs/${encodeURIComponent(runId)}/close-panes`,
-                {},
-              )
-            : undefined;
-          const record = await container().resolve("runRepository").load(runId);
-          let worktree: { id: string; path: string; removed: boolean } | undefined;
-          if (opts.removeWorktree && record.isOk() && record.value.worktree) {
-            const removed = await container()
-              .resolve("removeWorktree")
-              .execute({ id: record.value.worktree.id, force: opts.force });
-            if (removed.isErr()) return { result: removed };
-            worktree = { id: removed.value.id, path: removed.value.path, removed: true };
-          }
+          // The summary, the run's panes (through the daemon that holds them), its worktree when asked.
           return {
-            result: ok({
-              ...closed.value,
-              ...(panes?.isOk() ? { panes: panes.value } : {}),
-              ...(worktree ? { worktree } : {}),
-            }),
+            result: await container()
+              .resolve("endRun")
+              .execute({
+                ...defined({ runId: run.value }),
+                ...(opts.aborted && opts.reason ? { abortReason: opts.reason } : {}),
+                removeWorktree: opts.removeWorktree,
+                force: opts.force,
+              }),
           };
         },
       ),

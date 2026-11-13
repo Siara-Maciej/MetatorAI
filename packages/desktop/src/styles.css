@@ -55,7 +55,7 @@
   --shadow: rgba(0, 0, 0, 0.5);
   /* The terminal's own background, the frame of the focused pane, text on the teal button. */
   --term-bg: #0b0e13;
-  --focus: #e8825a;
+  --focus: var(--blue);
   --on-teal: #052e2b;
 }
 * {
@@ -335,36 +335,7 @@ button.stagebar {
   border-radius: 0 6px 6px 0;
   min-height: 32px;
   white-space: nowrap;
-}
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 5px;
-  display: inline-block;
-}
-.dot.you {
-  background: var(--amber);
-  box-shadow: 0 0 0 2px var(--amber-halo);
-}
-.dot.driving {
-  background: var(--violet);
-}
-.dot.escalated {
-  background: var(--red);
-}
-.dot.done {
-  background: var(--green);
-  opacity: 0.8;
-}
-.dot.stopped,
-.dot.aborted {
-  background: var(--grey);
-}
-.dot.human {
-  background: var(--blue);
-}
-/* chips */
+} /* chips */
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -926,7 +897,7 @@ button.stagebar {
 }
 .workbench .body {
   display: grid;
-  grid-template-columns: 230px 1fr;
+  grid-template-columns: 1fr;
   min-height: 0;
 }
 .workbench .grid-area {

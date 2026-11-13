@@ -9,10 +9,7 @@ import { resume } from "../sessions.ts";
  * (read through the configured MCP servers) into issues of the backlog and runs. The daemon
  * scans on its own (`serve --intake-ms`); `scan` does one pass by hand.
  */
-export function registerIntakeCommands(
-  program: Command,
-  { action, container, root: given }: CommandContext,
-): void {
+export function registerIntakeCommands(program: Command, { action, container }: CommandContext): void {
   const intake = program
     .command("intake")
     .description("Automatic intake: outside issues become tasks and runs under the rules of metator.config");
@@ -38,14 +35,8 @@ export function registerIntakeCommands(
         if (report.isErr()) return { result: err(report.error) };
         const warnings = report.value.rules.flatMap((r) => (r.error ? [`${r.rule}: ${r.error}`] : []));
         if (opts.drive !== undefined && opts.drive !== false) {
-          const root = given();
           for (const s of report.value.rules.flatMap((r) => r.started)) {
-            const driven = await resume(
-              c,
-              root,
-              s.runId,
-              typeof opts.drive === "string" ? opts.drive : undefined,
-            );
+            const driven = await resume(c, s.runId, typeof opts.drive === "string" ? opts.drive : undefined);
             if (driven.isErr()) warnings.push(`${s.runId}: ${driven.error.message}`);
           }
         }

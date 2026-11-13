@@ -56,7 +56,7 @@ export function PlanTab({
       testId="plan"
       top={
         <>
-          <span className="faint">who worked each stage (hover)</span>
+          <span className="faint">Stages</span>
           <StageBar stages={board.stages} variant="strip" titleOf={stageTitle} testId="plan-stages" />
         </>
       }

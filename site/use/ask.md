@@ -4,7 +4,7 @@ You can ask a question about the repository and get an answer from the code, wit
 
 ## In the app
 
-The app has no screen of its own for questions. Click **+ New session** and ask the agent in the pane that opens ([Start a task](./start.md)). It answers a question with `file:line` citations and starts a run only when you ask for a change.
+The app has no screen of its own for questions. Click **+ New run** and ask the agent in the pane that opens ([Start a task](./start.md)). It answers a question with `file:line` citations and starts a run only when you ask for a change.
 
 The dedicated command, `metator ask`, exists only in the terminal. It keeps conversations you can return to, and it checks its own citations.
 
