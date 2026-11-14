@@ -2,6 +2,7 @@ import { err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { failWhen } from "../outcome.ts";
 
 export function registerApiCommands(program: Command, { action, container }: CommandContext): void {
   const api = program
@@ -48,23 +49,14 @@ export function registerApiCommands(program: Command, { action, container }: Com
     .argument("<package>", "workspace package name")
     .action(
       action(async (pkg: string) => {
-        const diff = await container().resolve("apiSnapshots").diff({ package: pkg });
-        if (diff.isErr()) return { result: diff };
-        if (diff.value.changed) {
-          return {
-            result: err(
-              new MetatorError(
-                "CHECK_FAILED",
-                `the public API of ${pkg} changed in ${diff.value.files.length} file(s)`,
-                {
-                  hint: "A refactor keeps the API; a planned change takes a new snapshot after review.",
-                  details: { ...diff.value },
-                },
-              ),
-            ),
-          };
-        }
-        return { result: ok(diff.value) };
+        return failWhen(
+          await container().resolve("apiSnapshots").diff({ package: pkg }),
+          (d) =>
+            d.changed && {
+              message: `the public API of ${pkg} changed in ${d.files.length} file(s)`,
+              hint: "A refactor keeps the API; a planned change takes a new snapshot after review.",
+            },
+        );
       }),
     );
 }

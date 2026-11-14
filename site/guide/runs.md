@@ -29,7 +29,7 @@ You can edit a workflow or add your own. `metator agents update` keeps the files
 
 ## What must hold before a run starts
 
-A workflow lists its `preconditions`. `metator run init` checks each one when the run starts and refuses with the precondition's name and the step that fixes it.
+A workflow lists its `preconditions`. `metator run new` checks each one when the run starts and refuses with the precondition's name and the step that fixes it.
 
 | Precondition | Holds when | When it does not |
 |---|---|---|
@@ -46,7 +46,7 @@ These three are the whole list. `metator workflow lint` rejects any other name, 
 A run is at exactly one stage. It moves only when the CLI receives an event for that stage:
 
 ```bash
-metator run init --workflow mt-feature --task "Add combined discount"   # a new run at the first stage
+metator run new --workflow mt-feature --task "Add combined discount"   # a new run at the first stage
 metator run status                                                      # the stage and the events it accepts
 metator run advance pass                                                # the stage is done
 metator run advance fail --reason "gates: 2 tests red"                  # the stage failed
@@ -118,7 +118,7 @@ You can also approve a gate with `metator run approve <stage> --by <name>` while
 Give a run its own git worktree and it does not touch your checkout or another run's files:
 
 ```bash
-metator run init --workflow mt-feature --task "Add combined discount" --worktree
+metator run new --workflow mt-feature --task "Add combined discount" --worktree
 ```
 
 `metator status` lists every run and which ones wait for you. `metator inbox` lists the questions alone. At a terminal both print text you can read. See [Sessions and worktrees](../use/sessions.md).

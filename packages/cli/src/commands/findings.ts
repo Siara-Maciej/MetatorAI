@@ -14,7 +14,7 @@ import {
 import { type Command, Option } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { byOption, defined, positiveInt, runOption } from "../options.ts";
+import { baseOption, byOption, defined, positiveInt, runOption } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
 import { asPerson } from "../who.ts";
 
@@ -254,7 +254,7 @@ export function registerReviewCommands(program: Command, { action, container, ru
   const review = program.command("review").description("Plan a review of the change and describe it");
   meta(review.command("metadata"), { reads: true, writesWith: ["--out"] })
     .description("The branch against its base: commits, authors, changed files, uncommitted work (pr.json)")
-    .option("--base <ref>", "the branch the change goes into", "HEAD")
+    .addOption(baseOption("the branch the change goes into", "HEAD"))
     .option("--out <path>", "also write it as a ReviewMetadata document")
     .action(
       action(async (opts: { base: string; out?: string }) => ({
@@ -266,7 +266,7 @@ export function registerReviewCommands(program: Command, { action, container, ru
   meta(review.command("diff"), { reads: true, writesWith: ["--out"] })
     .description("The change as a unified diff (new files whole), without MetatorAI's own files")
     .argument("[files...]", "only these files")
-    .option("--base <ref>", "the branch the change goes into", "HEAD")
+    .addOption(baseOption("the branch the change goes into", "HEAD"))
     .option("--out <path>", "write the patch to this file as plain text (read it with your Read tool)")
     .action(
       action(async (files: string[], opts: { base: string; out?: string }) => ({
@@ -353,7 +353,7 @@ export function registerReviewCommands(program: Command, { action, container, ru
     );
   meta(review.command("plan"), { audience: "person", reads: true, writesWith: ["--out"] })
     .description("Shards per package with card and rules; lenses run per shard")
-    .option("--base <ref>", "review files changed against this ref", "HEAD")
+    .addOption(baseOption("review files changed against this ref", "HEAD"))
     .option("--files <files...>", "review these files instead")
     .addOption(
       new Option("--lenses <lenses...>", "lenses to run").choices([...LENSES]).default([...DEFAULT_LENSES]),

@@ -18,7 +18,7 @@ model: opus
 
 # Output
 - `claims.md`: claims with status and evidence; proposed rules and fixes for drift.
-- After approval: the claims added to `docs/metator/claims.json` (`bun run metator docs claims-schema`), each verified one with evidence `{path, line, quote}`, so `bun run metator docs drift` keeps checking it.
+- After approval: the claims added to `docs/metator/claims.json` (`bun run metator docs schema`), each verified one with evidence `{path, line, quote}`, so `bun run metator docs drift` keeps checking it.
 - Summary of at most 15 lines.
 
 # Stop conditions

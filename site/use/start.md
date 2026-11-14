@@ -45,7 +45,7 @@ Text you paste from an issue, a pull request or a chat is data for the task. The
 | **Worktree** | a worktree with its own ports (ticked by default), or the main checkout ([Sessions and worktrees](./sessions.md#what-a-worktree-gives-a-run)) |
 | **Parent run** | an active run this one is a step of, or **none (standalone)** |
 
-The bottom line of the form shows the `metator run init` command your choices amount to. **Create in background** starts the run and leaves you where you are. **Create and attach** starts it, opens its **Terminal** tab and gives you its keyboard; the app asks for your name first if it does not know it yet. `Esc` closes the form.
+The bottom line of the form shows the `metator run new` command your choices amount to. **Create in background** starts the run and leaves you where you are. **Create and attach** starts it, opens its **Terminal** tab and gives you its keyboard; the app asks for your name first if it does not know it yet. `Esc` closes the form.
 
 When as many runs already wait for you as `supervisor.wipLimit` allows (default 4), the form warns that the new one queues behind them.
 
@@ -85,11 +85,11 @@ metator run continue <run>    # that run
 In a script or in CI, use the commands the prompt is made of:
 
 ```bash
-metator run init --workflow mt-feature --task "Add combined discount" --worktree
+metator run new --workflow mt-feature --task "Add combined discount" --worktree
 metator run drive --host claude --detach
 ```
 
-`run init` creates the run at its first stage. `run drive` carries it stage by stage. Without `--host` it uses the first of `hosts.targets`. The [command reference](../reference/commands.md#metator-run-new) lists every option.
+`run new` creates the run at its first stage. `run drive` carries it stage by stage. Without `--host` it uses the first of `hosts.targets`. The [command reference](../reference/commands.md#metator-run-new) lists every option.
 
 ## Pick a workflow
 

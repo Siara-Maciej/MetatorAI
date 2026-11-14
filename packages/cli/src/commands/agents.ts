@@ -3,6 +3,7 @@ import { Argument, type Command } from "commander";
 import { checkCommands, meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { positiveInt, ratio } from "../options.ts";
+import { failWhen } from "../outcome.ts";
 
 export function registerAgentCommands(
   program: Command,
@@ -134,20 +135,15 @@ export function registerAgentCommands(
     .description("Canonical skills: name = directory, trigger and anti-trigger, sections, size, files exist")
     .action(
       action(async () => {
-        const report = await container().resolve("lintSkills").execute();
-        if (report.isErr()) return { result: report };
-        const errors = report.value.problems.filter((p) => p.severity === "error");
-        if (errors.length > 0) {
-          return {
-            result: err(
-              new MetatorError("CHECK_FAILED", `${errors.length} skill problem(s)`, {
-                hint: "Fix metator/skills/<name>/SKILL.md; `metator meta schema skills` prints the front matter format.",
-                details: { ...report.value },
-              }),
-            ),
-          };
-        }
-        return { result: ok(report.value) };
+        return failWhen(await container().resolve("lintSkills").execute(), (r) => {
+          const errors = r.problems.filter((p) => p.severity === "error").length;
+          return (
+            errors > 0 && {
+              message: `${errors} skill problem(s)`,
+              hint: "Fix metator/skills/<name>/SKILL.md; `metator meta schema skills` prints the front matter format.",
+            }
+          );
+        });
       }),
     );
 

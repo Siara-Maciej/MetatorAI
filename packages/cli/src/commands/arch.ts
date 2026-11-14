@@ -2,6 +2,7 @@ import { ArchitecturePolicyDocument, DECLARATION_KINDS, err, MetatorError, type 
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { baseOption } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
 import { registerArchEvalCommands, registerArchPlanCommands } from "./arch-plan.ts";
 
@@ -39,7 +40,7 @@ export function registerArchCommands(program: Command, ctx: CommandContext): voi
 
   meta(arch.command("check"), { audience: "person", reads: true, writesWith: ["--sarif"] })
     .description("Fail on violations the change adds: not at the base, not in the baseline, not excepted")
-    .option("--base <ref>", "compare against the merge base with this ref")
+    .addOption(baseOption("compare against the merge base with this ref"))
     .option("--strict", "new warnings fail too", false)
     .option("--sarif <file>", "also write the new violations as SARIF 2.1.0 (code scanning)")
     .action(

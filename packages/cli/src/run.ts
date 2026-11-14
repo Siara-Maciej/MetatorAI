@@ -5,7 +5,7 @@ import { metaOf } from "./command-meta.ts";
 import { describeCommandFor, describeCommands } from "./commands/meta.ts";
 import type { Outcome } from "./context.ts";
 import { buildProgram, fromCommander, type ProgramOptions } from "./program.ts";
-import { renderCommandHelp } from "./render.ts";
+import { renderCommandHelp, renderError } from "./render.ts";
 
 export interface Io {
   readonly out: (text: string) => void;
@@ -74,6 +74,8 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
   }
   const render = ran ? metaOf(ran).render : undefined;
   if (render && final.result.isOk()) say((render as (data: unknown) => string)(final.result.value));
+  // A failure reads as text too, whatever the command: the message and the way out.
+  if (final.result.isErr()) say(renderError(final.result.error));
   io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));
   return final.result.isOk() ? 0 : exitCodeFor(final.result.error);
 }

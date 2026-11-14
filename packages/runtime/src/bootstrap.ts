@@ -86,6 +86,7 @@ import {
   GuardStop,
   GuardSubagentOutput,
   HandoffRun,
+  HOST_TARGETS,
   HostManifestCatalog,
   HostPrompts,
   IndexedImportGraphReader,
@@ -170,6 +171,7 @@ import {
   ScopePlan,
   ScoreEvals,
   SeedGoldenSet,
+  SetupRepository,
   SetupWorktree,
   ShowChangeDiff,
   ShowSystem,
@@ -1507,6 +1509,34 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     reviveRuns: asFunction(
       ({ runRepository, runDrivers, runJournal, ensureDriven }) =>
         new ReviveRuns(runRepository, runDrivers, runJournal, ensureDriven),
+    ),
+    // `metator setup` as typed calls; the steps after the config is written read it again.
+    setupRepository: asFunction(
+      ({ config, paths, fileSystem, launcher, installCanon, initProject, updateConfig }) =>
+        new SetupRepository({
+          config: { source: config.source, hosts: config.config.hosts.targets },
+          installLock: paths.installLock,
+          fs: fileSystem,
+          hostsOnPath: () => {
+            const found = launcher.available(HOST_TARGETS);
+            return HOST_TARGETS.filter((h) => found.includes(h));
+          },
+          installCanon,
+          initProject,
+          updateConfig,
+          configured: () =>
+            loadConfig(options.root).map((now) => {
+              const fresh = bootstrap({ ...options, config: now });
+              return {
+                installCanon: fresh.resolve("installCanon"),
+                generateHosts: fresh.resolve("generateHosts"),
+                generateSkills: fresh.resolve("generateSkills"),
+                lintAgents: fresh.resolve("lintAgents"),
+                lintSkills: fresh.resolve("lintSkills"),
+                lintWorkflows: fresh.resolve("lintWorkflows"),
+              };
+            }),
+        }),
     ),
     endRun: asFunction(
       ({ closeRun, runRepository, runPanes, removeWorktree }) =>

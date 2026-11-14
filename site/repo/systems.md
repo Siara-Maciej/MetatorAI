@@ -181,7 +181,7 @@ Once the plan is approved, `contract diff --check` lets the breaking change thro
 
 ```bash
 metator system plan run rename-refunds    # start the steps that can start
-metator system status rename-refunds      # read the child runs back; done when every step is
+metator system plan status rename-refunds      # read the child runs back; done when every step is
 ```
 
 Each step runs as its own run in its application's repository, with that repository's gates and approvals. No agent edits several repositories in one session. A step can start only when its application has a local checkout, so set `system.roots` first. The workflow around this is on [Change across applications](../use/system.md).

@@ -89,7 +89,7 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 | `Issue` | `.metator/issues/iNNN.json` | `metator issue ...`: one task of the backlog |
 | `PullRequestReview` | `.metator/mrs/<host>-<repo>-<number>.json` | the daemon and `metator mrs ...`: the review threads of your request |
 | `Conversation` | `.metator/conversations/<id>.json` | `metator ask` |
-| `WorktreeRegistry` | `.metator/worktrees.json` | `metator worktree ...`, `metator run init --worktree` |
+| `WorktreeRegistry` | `.metator/worktrees.json` | `metator worktree ...`, `metator run new --worktree` |
 | `EnvState` | `.metator/env/*.json` | `metator env up` and `env down` |
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |
 | `Layout` | `.metator/layout.json` | the daemon: workspaces, tabs and panes, restored after a restart |
@@ -119,7 +119,7 @@ metator memory schema          metator workflow schema      metator plan schema
 metator findings schema        metator eval schema          metator env schema
 metator system schema          metator system plan schema   metator system eval schema
 metator arch schema            metator arch plan schema     metator arch eval schema
-metator docs claims-schema     metator meta agents-schema   metator meta skills-schema
+metator docs schema     metator meta schema agents   metator meta schema skills
 metator run schema <artifact>
 ```
 

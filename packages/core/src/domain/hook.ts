@@ -193,6 +193,8 @@ const RUN_CONTROL = new Set([
   "resume",
   "drive",
   "continue",
+  // `run new` and its old spelling `run init`: both start a run.
+  "new",
   "init",
   "start",
   "delegate",

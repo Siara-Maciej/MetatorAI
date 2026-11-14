@@ -3,6 +3,7 @@ import { err, MetatorError, ok, SystemMapDocument } from "@metator/core";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { baseOption } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
 import { registerSystemPlanCommands } from "./system-plan.ts";
 
@@ -47,7 +48,7 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
 
   meta(system.command("impact"), { reads: true })
     .description("Where a change lands: changed files or named contracts → contracts → consumers → owners")
-    .option("--base <ref>", "the files changed since the merge base with this ref", "HEAD")
+    .addOption(baseOption("the files changed since the merge base with this ref", "HEAD"))
     .option("--files <files...>", "these files instead of git")
     .option("--contracts <ids...>", "contracts the change touches, by id")
     .action(

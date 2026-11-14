@@ -18,6 +18,11 @@ export interface CommandMeta {
   readonly writesWith?: readonly string[];
   /** Options an MCP tool always passes, so the command leaves no trace. */
   readonly readsWith?: readonly string[];
+  /**
+   * An MCP host shows this tool's own arguments and options as a form (typed fields), not only a
+   * command line: the tools an agent reaches for most.
+   */
+  readonly typed?: boolean;
   /** It runs in a folder of repositories and covers all of them. */
   readonly folder?: boolean;
   /** `meta check-all` runs it, with these options. */

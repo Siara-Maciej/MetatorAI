@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { describeCommands } from "../src/commands/meta.ts";
-import { alwaysOptions, mcpTools, refusedOptions, TYPED, toolArgv, toolCall } from "../src/mcp.ts";
+import { alwaysOptions, mcpTools, refusedOptions, toolArgv, toolCall, typedShapes } from "../src/mcp.ts";
 import { buildProgram } from "../src/program.ts";
 
 describe("the MCP tools (metator mcp)", () => {
@@ -8,6 +8,7 @@ describe("the MCP tools (metator mcp)", () => {
   const tools = mcpTools(program);
   const REFUSED = refusedOptions(program);
   const ALWAYS = alwaysOptions(program);
+  const TYPED = typedShapes(program);
   // A tool keeps its name: a renamed command is a tool (or not one) under its old words.
   const all = describeCommands(program, { renamed: true }).commands.map((c) => c.name);
 

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { EvalCaseDocument, err, MetatorError, normalizePath } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
-import { positiveInt, ratio, renamedOption } from "../options.ts";
+import { baseOption, positiveInt, ratio, renamedOption } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
 
 export function registerEvalCommands(program: Command, { action, container }: CommandContext): void {
@@ -77,7 +77,7 @@ export function registerEvalCommands(program: Command, { action, container }: Co
     .option("--seeded <n>", "how many seeded cases", positiveInt, 30)
     .option("--bugs <n>", "how many bug cases", positiveInt, 10)
     .option("--clean <n>", "how many clean cases", positiveInt, 10)
-    .option("--base <ref>", "the ref seeded cases are planted on", "HEAD")
+    .addOption(baseOption("the ref seeded cases are planted on", "HEAD"))
     .option("--history <n>", "how many commits back fixes and clean changes are looked for", positiveInt, 500)
     .action(
       action(

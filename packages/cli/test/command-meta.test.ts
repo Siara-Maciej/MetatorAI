@@ -13,7 +13,7 @@ import {
   renamedCommand,
 } from "../src/command-meta.ts";
 import { describeCommands, VERBS } from "../src/commands/meta.ts";
-import { alwaysOptions, mcpTools, refusedOptions } from "../src/mcp.ts";
+import { alwaysOptions, mcpTools, refusedOptions, typedShapes } from "../src/mcp.ts";
 import { buildProgram } from "../src/program.ts";
 import { run } from "../src/run.ts";
 
@@ -267,6 +267,25 @@ describe("what a command says of itself (meta)", () => {
     expect(alwaysOptions(program)).toEqual(BEFORE.always);
   });
 
+  test("the typed fields of the MCP tools, read from the commands themselves, are the ones written by hand before", () => {
+    expect(typedShapes(program)).toEqual({
+      "graph affected": { positionals: [], flags: { base: "string", files: "list" } },
+      "graph callers": { positionals: ["symbol"], flags: { file: "string" } },
+      "graph deps": { positionals: ["file"], flags: { transitive: "boolean" } },
+      "graph dependents": { positionals: ["file"], flags: { transitive: "boolean" } },
+      "graph path": { positionals: ["from", "to"], flags: {} },
+      "symbols find": { positionals: ["name"], flags: {} },
+      "rules pack": { positionals: [], flags: { files: "list", base: "string", budget: "number" } },
+      "rules show": { positionals: ["id"], flags: {} },
+      "plan scope": { positionals: ["file"], flags: {} },
+      "run status": { positionals: [], flags: { run: "string" } },
+      "pane read": { positionals: ["pane"], flags: { lines: "number" } },
+    });
+    // An option the tool refuses or always passes is no field; an optional argument neither.
+    expect(typedShapes(program)["plan scope"]?.flags).toEqual({});
+    expect(typedShapes(program)["run status"]?.positionals).toEqual([]);
+  });
+
   test("the commands of a folder of repositories are the ones listed before", () => {
     // `metator ui` was one of them; the full-screen view is withdrawn (ADR-0086).
     expect(folderCommands(program).sort()).toEqual(BEFORE.folder.filter((c) => c !== "ui").sort());
@@ -488,9 +507,17 @@ describe("what a person reads at a terminal (render)", () => {
     expect((await at(["help", "--for", "hook"], true)).stderr).toContain("6 commands for hook");
   });
 
-  test("an error and a command with nothing to render say nothing on stderr", async () => {
+  test("a failure reads as text on stderr at a terminal, with its hint; stdout is the same JSON line; --json and a pipe get no text", async () => {
     const failed = await at(["run", "status", "--run", "nope"], true);
-    expect([failed.code, failed.stderr]).toEqual([1, ""]);
+    const piped = await at(["run", "status", "--run", "nope"], false);
+    expect([failed.code, failed.stdout]).toEqual([1, piped.stdout]);
+    expect(failed.stderr).toBe('✗ Run "nope" not found (NOT_FOUND)\n  List runs with `metator run list`.\n');
+    expect(piped.stderr).toBe("");
+    expect((await at(["run", "status", "--run", "nope", "--json"], true)).stderr).toBe("");
+    const usage = await at(["stauts"], true);
+    expect([usage.code, usage.stderr.split("\n")[0]]).toEqual([64, "✗ unknown command 'stauts'"]);
+    expect(usage.stderr).toContain("(Did you mean status?) (USAGE)");
+    // A command with nothing to render and nothing wrong says nothing.
     expect((await at(["version"], true)).stderr).toBe("");
   });
 });

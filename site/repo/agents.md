@@ -87,7 +87,7 @@ metator meta audit           # the call graph: cycles, agents nothing reaches, n
 metator generate
 ```
 
-`metator meta agents-schema` prints the JSON Schema of the front matter.
+`metator meta schema agents` prints the JSON Schema of the front matter.
 
 ## Add your own skill
 
@@ -104,7 +104,7 @@ metator meta skills-lint     # name matches the directory, description says when
 metator generate
 ```
 
-`metator meta skills-schema` prints the JSON Schema of the front matter.
+`metator meta schema skills` prints the JSON Schema of the front matter.
 
 ## MCP servers for the agents
 

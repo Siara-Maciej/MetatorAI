@@ -121,11 +121,11 @@ To give it up: `metator run close --run <id> --aborted --reason "<why>"`. In the
 
 ## A run cannot start here
 
-`metator run init` fails with `a run cannot start here` when the directory is not a git repository, and with `--worktree` when the repository has no commit. The hint names the command. With `--worktree` it also fails with `the run would start without your changes` when tracked files have uncommitted changes: commit them, stash them, or pass `--allow-dirty` (in the app: **Start from the last commit**).
+`metator run new` fails with `a run cannot start here` when the directory is not a git repository, and with `--worktree` when the repository has no commit. The hint names the command. With `--worktree` it also fails with `the run would start without your changes` when tracked files have uncommitted changes: commit them, stash them, or pass `--allow-dirty` (in the app: **Start from the last commit**).
 
 ## A precondition does not hold
 
-`metator run init` fails with `precondition <name> does not hold` when the workflow requires something the checkout does not meet. The hint names the fix.
+`metator run new` fails with `precondition <name> does not hold` when the workflow requires something the checkout does not meet. The hint names the fix.
 
 | Message starts with | Fix |
 |---|---|
@@ -156,7 +156,7 @@ During a run, agents may edit only the files the approved plan lists. If the tas
 
 ## The repository has no commit yet
 
-Right after `git init` there is nothing to branch from, so `metator doctor` reports `commits` as `fail`, and `metator worktree new` and `metator run init --worktree` stop. Make the first commit:
+Right after `git init` there is nothing to branch from, so `metator doctor` reports `commits` as `fail`, and `metator worktree new` and `metator run new --worktree` stop. Make the first commit:
 
 ```bash
 git commit --allow-empty -m init

@@ -10,7 +10,7 @@ import {
 import { type Command, Option } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { byOption } from "../options.ts";
+import { baseOption, byOption } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
 import { asPerson, who } from "../who.ts";
@@ -156,7 +156,7 @@ export function registerArchPlanCommands(
     .command("run")
     .description("Start the next wave: one W3 refactor run per move, each in its own worktree")
     .argument("<id>", "the plan id")
-    .option("--base <ref>", "branch the worktrees from this ref")
+    .addOption(baseOption("branch the worktrees from this ref"))
     .action(
       action(async (id: string, opts: { base?: string }) => ({
         result: await container()

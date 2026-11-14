@@ -11,7 +11,7 @@ The `mt-bugfix` workflow fixes a bug with proof: a test that fails before the fi
 Or from a terminal:
 
 ```bash
-metator run init --workflow mt-bugfix --task "Invoices with a 100% discount show a negative total" --worktree
+metator run new --workflow mt-bugfix --task "Invoices with a 100% discount show a negative total" --worktree
 metator run drive --detach
 ```
 

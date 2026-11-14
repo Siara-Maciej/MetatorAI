@@ -82,7 +82,7 @@ The folder file is only a list. It holds no agents, rules or workflows, and chan
 Any other command in the folder stops with a `USAGE` error that names the repositories. Run it inside one, or pass `-C`:
 
 ```bash
-metator -C shop run init --workflow mt-feature --task "Add discount"
+metator -C shop run new --workflow mt-feature --task "Add discount"
 ```
 
 For questions across the folder see [Ask about the code](../use/ask.md). For sessions see [Sessions and worktrees](../use/sessions.md).

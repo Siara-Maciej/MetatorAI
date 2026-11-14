@@ -25,7 +25,7 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 
 ## Invariants
 
-- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:86 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
+- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:87 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
 
 ## Allowed dependencies
 
@@ -41,7 +41,8 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 - Who acts is one rule (`who()` in `src/who.ts`): `--by`, `$METATOR_USER`, git's `user.name`, the login name. Never record a made-up name; an approval keeps `--by` required (`byOption(..., "required")`).
 - Warnings go out once, in the envelope: a command strips them from its data unless the data is a stored document whose schema has the field (`discover`).
 - A new command must be added to the help list in `e2e/cli.e2e.test.ts`.
-- A detached drive is started only through `startDetached` (`src/sessions.ts`): it refuses a run that is not active and a host that cannot start, where the background process would end without a word.
-- The daemon's state and inbox sockets read one overview per repository per tick (`overviewOf` in `src/serve/server.ts`); a request that is not a GET clears it. Do not build a container per poll.
+- What a person does to a run lives in core, once (`StartRun`, `AnswerQuestion`, `BriefRun`, `ReviveRuns`, `EndRun`, `EnsureDriven`, `StartDrive`): a command and a daemon route only read their input and shape their output. The CLI gives two adapters through `bootstrap` (`src/sessions.ts`): `detachedDrive` (this program's own command line for `run drive`) and `runPanes` (the daemon over HTTP, or the daemon's own panes inside it). Never start a drive or close panes any other way.
+- The daemon (`src/serve/`): routes are data (`routes/*.ts`: `{method, pattern, body, handler}`), and `http.ts` dispatches them: the repository's container, the body checked by its zod schema (what does not fit is 400 USAGE), the envelope through `toEnvelope`, 404 for NOT_FOUND, 403 from a `guard`. Add a route to the table (pinned by `test/serve-http.test.ts`), never an `if` in `server.ts`. Sockets are `sockets.ts`, the clocks `timers.ts`. The state and inbox sockets read one overview per repository per tick (`overviewOf` in `server.ts`); a request that is not a GET clears it. Do not build a container per poll.
+- A socket on `/ws/pty/<run>` only finds the run's session; starting one is `POST /runs/<run>/pty-open`.
 - A hook must not fail the host's tool call: `guard *` always exits 0 and reports its own errors as `systemMessage`.
 - Only the command a person typed may ask questions (`ctx.prompter`, set by `main.ts` for a TTY); questions go to stderr so stdout stays one envelope, and commands run through `invoke` never ask (ADR-0049).

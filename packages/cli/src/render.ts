@@ -256,3 +256,12 @@ export function renderDoctor(r: {
   }
   return lines.join("\n");
 }
+
+/** A command that failed, as a person reads it: what is wrong, then what to do about it. */
+export function renderError(e: {
+  readonly code: string;
+  readonly message: string;
+  readonly hint?: string | undefined;
+}): string {
+  return [`✗ ${e.message} (${e.code})`, ...(e.hint ? [`  ${e.hint}`] : [])].join("\n");
+}

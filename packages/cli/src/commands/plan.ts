@@ -1,8 +1,8 @@
-import { err, MetatorError, normalizePath, ok, PlanDocument } from "@metator/core";
+import { err, MetatorError, normalizePath, PlanDocument } from "@metator/core";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { schemaCommand } from "../outcome.ts";
+import { failWhen, schemaCommand } from "../outcome.ts";
 
 export function registerPlanCommands(program: Command, { action, container }: CommandContext): void {
   const plan = program
@@ -16,26 +16,24 @@ export function registerPlanCommands(program: Command, { action, container }: Co
     .argument("<file>", "plan JSON, e.g. .metator/runs/<id>/plan.json")
     .action(
       action(async (file: string) => {
-        const report = await container()
-          .resolve("lintPlan")
-          .execute({ file: normalizePath(file) });
-        if (report.isErr()) return { result: report };
-        const errors = report.value.problems.filter((p) => p.severity === "error").length;
-        if (errors > 0) {
-          return {
-            result: err(
-              new MetatorError("CHECK_FAILED", `${errors} plan problem(s)`, {
+        return failWhen(
+          await container()
+            .resolve("lintPlan")
+            .execute({ file: normalizePath(file) }),
+          (r) => {
+            const errors = r.problems.filter((p) => p.severity === "error").length;
+            return (
+              errors > 0 && {
+                message: `${errors} plan problem(s)`,
                 hint: "Fix the plan before the build; `metator similar --file <path>` finds an exemplar for a created file.",
-                details: { ...report.value },
-              }),
-            ),
-          };
-        }
-        return { result: ok(report.value) };
+              }
+            );
+          },
+        );
       }),
     );
 
-  meta(plan.command("scope"), { reads: true, writesWith: ["--out"], readsWith: ["--dry-run"] })
+  meta(plan.command("scope"), { reads: true, typed: true, writesWith: ["--out"], readsWith: ["--dry-run"] })
     .description("Write the edit scope and independent shards (plan-scope.json next to the plan)")
     .argument("<file>", "plan JSON")
     .option("--out <file>", "where to write the PlanScope document")

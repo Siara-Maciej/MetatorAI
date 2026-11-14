@@ -33,8 +33,8 @@ stages:
     owner: "script:metator system plan run --run {runDir}"
   - id: status
     description: The child runs read back; the next wave starts when this one is done
-    owner: "script:metator system status --run {runDir}"
-    gate: { script: "metator system status --run {runDir} --check" }
+    owner: "script:metator system plan status --run {runDir}"
+    gate: { script: "metator system plan status --run {runDir} --check" }
     onFail: { goto: children, loop: waves }
   - id: delivery
     description: Every step done; the deploy order follows the plan's waves
@@ -50,7 +50,7 @@ done:
   - system plan lint clean and approved by a person
   - every step's child run done in its repository
   - contract diff passes in every provider's repository
-recovery: [a blocked child run is resolved in its repository, then system status again]
-resume: metator system status --run <run>, then continue at the last approved stage
+recovery: [a blocked child run is resolved in its repository, then system plan status again]
+resume: metator system plan status --run <run>, then continue at the last approved stage
 telemetry: [stage_duration, loops, escalations, outcome, child_runs]
 report: the plan's waves with each step's child run, repository and outcome

@@ -22,7 +22,7 @@ import {
 import { Argument, type Command, Option } from "commander";
 import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { byOption, defined, positiveInt, RUN_ARGUMENT, runGiven, runOption } from "../options.ts";
+import { baseOption, byOption, defined, positiveInt, RUN_ARGUMENT, runGiven, runOption } from "../options.ts";
 import { renderRunStatus } from "../render.ts";
 import { HOSTS, resume } from "../sessions.ts";
 import { asPerson, who } from "../who.ts";
@@ -96,7 +96,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
         ).choices(AutonomySchema.options),
       )
       .option("--worktree", "work in a new git worktree with its own ports (.metator/wt/<run>)", false)
-      .option("--base <ref>", "with --worktree: the ref to branch from", "HEAD")
+      .addOption(baseOption("with --worktree: the ref to branch from", "HEAD"))
       .option(
         "--no-setup",
         "with --worktree: leave the worktree without its dependencies (metator worktree setup later)",
@@ -403,7 +403,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       ),
     );
 
-  meta(runs.command("status"), { audience: "person", reads: true, render: renderRunStatus })
+  meta(runs.command("status"), { audience: "person", reads: true, typed: true, render: renderRunStatus })
     .description("Show the current stage, what it expects and recent history")
     .argument(...RUN_ARGUMENT)
     .addOption(runOption())

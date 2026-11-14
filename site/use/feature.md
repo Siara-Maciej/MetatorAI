@@ -12,7 +12,7 @@ Acceptance: discounts apply in that order; the total never goes below zero.
 Or from a terminal:
 
 ```bash
-metator run init --workflow mt-feature --task "Combine a percentage and a fixed discount" --worktree
+metator run new --workflow mt-feature --task "Combine a percentage and a fixed discount" --worktree
 metator run drive --detach
 ```
 

@@ -1,7 +1,8 @@
-import { err, MetatorError, normalizePath, ok } from "@metator/core";
+import { normalizePath } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
 import { positiveInt } from "../options.ts";
+import { failWhen } from "../outcome.ts";
 
 export function registerFlakyCommands(program: Command, { action, container }: CommandContext): void {
   program
@@ -14,24 +15,17 @@ export function registerFlakyCommands(program: Command, { action, container }: C
     .option("--script <name>", "package.json script that runs tests (the file is appended)", "test")
     .action(
       action(async (test: string, opts: { runs: number; script: string }) => {
-        const report = await container()
-          .resolve("checkFlaky")
-          .execute({ test: normalizePath(test), runs: opts.runs, script: opts.script });
-        if (report.isErr()) return { result: report };
-        if (report.value.failed > 0) {
-          return {
-            result: err(
-              new MetatorError(
-                "CHECK_FAILED",
-                report.value.flaky
-                  ? `${test} is flaky: ${report.value.failed} of ${report.value.runs} runs failed`
-                  : `${test} failed every run`,
-                { details: { ...report.value } },
-              ),
-            ),
-          };
-        }
-        return { result: ok(report.value) };
+        return failWhen(
+          await container()
+            .resolve("checkFlaky")
+            .execute({ test: normalizePath(test), runs: opts.runs, script: opts.script }),
+          (r) =>
+            r.failed > 0 && {
+              message: r.flaky
+                ? `${test} is flaky: ${r.failed} of ${r.runs} runs failed`
+                : `${test} failed every run`,
+            },
+        );
       }),
     );
 }

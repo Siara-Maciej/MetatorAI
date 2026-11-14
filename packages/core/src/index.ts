@@ -66,6 +66,7 @@ export * from "./application/rules.ts";
 export * from "./application/run-changes.ts";
 export * from "./application/run-close.ts";
 export * from "./application/run-operations.ts";
+export * from "./application/setup-repository.ts";
 export * from "./application/run-drivers.ts";
 export * from "./application/run-journal.ts";
 export * from "./application/run-messages.ts";

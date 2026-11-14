@@ -62,7 +62,7 @@ metator attach 20261109-feature-x --by alice     # the run's main pane, in your 
 metator attach w1:p2 --by alice                  # one pane; `metator pane list` names them
 ```
 
-`Ctrl-]` detaches and gives the session back to the agent. `--keep` keeps it yours. `metator run attach --by alice` and `metator run release` take and return the lock without opening the terminal.
+`Ctrl-]` detaches and gives the session back to the agent. `--keep` keeps it yours. `metator run take --by alice` and `metator run release` take and return the lock without opening the terminal.
 
 ## Agents in panes
 

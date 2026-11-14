@@ -27,7 +27,7 @@ export function registerPaneCommands(program: Command, ctx: CommandContext): voi
       }),
     );
 
-  meta(pane.command("read <pane>"), { reads: true })
+  meta(pane.command("read <pane>"), { reads: true, typed: true })
     .description("The last lines of a pane's output, without terminal escapes")
     .option("--lines <n>", "how many lines", positiveInt, 80)
     .action(

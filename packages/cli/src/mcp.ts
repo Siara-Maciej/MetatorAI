@@ -1,6 +1,6 @@
 import { err, MetatorError, ok, type Result } from "@metator/core";
 import type { Command } from "commander";
-import { everyCommand, reads } from "./command-meta.ts";
+import { everyCommand, metaOf, reads } from "./command-meta.ts";
 import { describeCommands } from "./commands/meta.ts";
 
 /**
@@ -11,6 +11,9 @@ import { describeCommands } from "./commands/meta.ts";
  *
  * Which commands read is what each says of itself where it is registered (`meta(cmd, { reads })`,
  * a group for all of its commands); nothing is a tool unless it says so.
+ * This is not core's `METATOR_QUERIES` (what an agent's shell may run without asking): that list
+ * answers another question and is kept apart on purpose; `test/command-meta.test.ts` pins where
+ * the two differ.
  */
 const tagged = (program: Command, key: "writesWith" | "readsWith"): Record<string, readonly string[]> =>
   Object.fromEntries(
@@ -39,22 +42,40 @@ export interface ToolShape {
 }
 
 /**
- * The tools an agent reaches for most, with typed fields besides the raw `args`, so a host shows
- * a form instead of a command line. Every other tool takes `args` alone.
+ * The typed fields of a tool, from the command itself: its required arguments in order, and its
+ * options (a flag is a boolean, `<values...>` a list, one with a parser a number, any other a
+ * string). An option the tool refuses (`writesWith`) or always passes (`readsWith`) is no field.
  */
-export const TYPED: Readonly<Record<string, ToolShape>> = {
-  "graph affected": { positionals: [], flags: { base: "string", files: "list" } },
-  "graph dependents": { positionals: ["file"], flags: { transitive: "boolean" } },
-  "graph deps": { positionals: ["file"], flags: { transitive: "boolean" } },
-  "graph path": { positionals: ["from", "to"], flags: {} },
-  "graph callers": { positionals: ["symbol"], flags: { file: "string" } },
-  "symbols find": { positionals: ["name"], flags: {} },
-  "rules show": { positionals: ["id"], flags: {} },
-  "rules pack": { positionals: [], flags: { files: "list", base: "string", budget: "number" } },
-  "plan scope": { positionals: ["file"], flags: {} },
-  "run status": { positionals: [], flags: { run: "string" } },
-  "pane read": { positionals: ["pane"], flags: { lines: "number" } },
-};
+export function toolShape(cmd: Command): ToolShape {
+  const { writesWith = [], readsWith = [] } = metaOf(cmd);
+  const flags: Record<string, "string" | "boolean" | "number" | "list"> = {};
+  for (const o of cmd.options) {
+    if (o.hidden || !o.long || writesWith.includes(o.long) || readsWith.includes(o.long)) continue;
+    flags[o.attributeName()] = o.isBoolean()
+      ? "boolean"
+      : o.variadic
+        ? "list"
+        : o.parseArg || typeof o.defaultValue === "number"
+          ? "number"
+          : "string";
+  }
+  return {
+    positionals: cmd.registeredArguments.filter((a) => a.required).map((a) => a.name()),
+    flags,
+  };
+}
+
+/**
+ * The tools an agent reaches for most (`typed` where they are registered), with typed fields
+ * besides the raw `args`, so a host shows a form instead of a command line. Every other tool
+ * takes `args` alone.
+ */
+export const typedShapes = (program: Command): Record<string, ToolShape> =>
+  Object.fromEntries(
+    everyCommand(program)
+      .filter((c) => c.meta.typed && !c.meta.renamedFrom)
+      .map((c) => [c.name, toolShape(c.cmd)]),
+  );
 
 export interface McpTool {
   /** `metator_graph_affected`: the command's words joined, as MCP names tools. */
@@ -85,7 +106,7 @@ export function mcpTools(program: Command): McpTool[] {
       return cmd !== undefined && reads(cmd.cmd) && !cmd.meta.renamedFrom;
     })
     .map((c) => {
-      const shape = TYPED[c.name];
+      const shape = said.get(c.name)?.meta.typed ? toolShape(said.get(c.name)?.cmd as Command) : undefined;
       const { writesWith: refused, readsWith: always } = said.get(c.name)?.meta ?? {};
       return {
         name: `metator_${c.name.replaceAll(" ", "_").replaceAll("-", "_")}`,

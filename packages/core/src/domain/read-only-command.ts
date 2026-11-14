@@ -138,7 +138,12 @@ function asMetator(argv: readonly string[]): readonly string[] | undefined {
   return undefined;
 }
 
-/** MetatorAI commands that only read and print: what any agent may look up without asking. */
+/**
+ * MetatorAI commands that only read and print: what any agent may look up without asking.
+ * This is not the list of MCP tools (the commands that say `reads` in `@metator/cli`): that one
+ * answers what an MCP host is shown, this one what an agent's shell may run unasked. The two are
+ * kept apart on purpose, and `packages/cli/test/command-meta.test.ts` pins where they differ.
+ */
 export const METATOR_QUERIES: ReadonlySet<string> = new Set([
   "version",
   "symbols find",

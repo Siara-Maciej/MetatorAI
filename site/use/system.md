@@ -13,7 +13,7 @@ In the repository that holds the system map:
 ```
 
 ```bash
-metator run init --workflow mt-system-change --task "Rename refunds to credit notes in the billing API"
+metator run new --workflow mt-system-change --task "Rename refunds to credit notes in the billing API"
 metator run drive --detach
 ```
 
@@ -28,7 +28,7 @@ metator run drive --detach
 | `plan-gate` | `metator system plan lint` | every consumer of a breaking change migrates, providers go first, the strategy matches the map's policy |
 | `plan-approval` | you | approve the system plan, then the gate |
 | `children` | `metator system plan run` | each step that can start becomes a child run in its application's repository |
-| `status` | `metator system status --check` | the child runs are read back; when a wave is done, the next one starts |
+| `status` | `metator system plan status --check` | the child runs are read back; when a wave is done, the next one starts |
 | `delivery` | you | every step is done; deploy in the order of the plan's waves |
 
 Neither approval can be skipped at any autonomy level.
@@ -59,7 +59,7 @@ The runs point at each other:
 ## Follow the steps
 
 ```bash
-metator system status rename-refunds
+metator system plan status rename-refunds
 ```
 
 It lists every step with its application, its status (`pending`, `running`, `done` or `blocked`), its child run and that run's stage.

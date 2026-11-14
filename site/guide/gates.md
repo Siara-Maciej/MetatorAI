@@ -85,7 +85,7 @@ A run has an autonomy level. It decides which approval stages ask you.
 Set the level when you start the run, or switch an `L0` run to `L1` while you approve:
 
 ```bash
-metator run init --workflow mt-feature --task "Bump the retry limit" --autonomy L1
+metator run new --workflow mt-feature --task "Bump the retry limit" --autonomy L1
 metator run approve plan-approval --by alice --choice autopilot
 ```
 
@@ -96,7 +96,7 @@ A stage passed by the level is logged that way, so the log always tells a person
 - 2026-11-11T01:41:08.932Z · plan-approval · skipped at L1 → build
 ```
 
-A stage marked `neverSkip` asks a person at every level. In the shipped workflows that includes every `delivery` stage, so no level pushes on its own. A workflow also lists the levels it supports, and `metator run init` refuses a level that is not on the list. `mt-review-response` supports only `L0`. Without `--autonomy` a run starts at `L0`, or at the first level the workflow lists when it does not list `L0`.
+A stage marked `neverSkip` asks a person at every level. In the shipped workflows that includes every `delivery` stage, so no level pushes on its own. A workflow also lists the levels it supports, and `metator run new` refuses a level that is not on the list. `mt-review-response` supports only `L0`. Without `--autonomy` a run starts at `L0`, or at the first level the workflow lists when it does not list `L0`.
 
 ## Answers that repeat
 

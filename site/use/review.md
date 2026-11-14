@@ -11,7 +11,7 @@ Two workflows review code. `mt-pr-review` reviews a pull request or a branch and
 From a terminal, pass the base to review the branch's commits. Without a base, only the uncommitted change against `HEAD` is reviewed.
 
 ```bash
-metator run init --workflow mt-pr-review --task "Review the reminder service" --input base=origin/main
+metator run new --workflow mt-pr-review --task "Review the reminder service" --input base=origin/main
 metator run drive --host claude
 ```
 

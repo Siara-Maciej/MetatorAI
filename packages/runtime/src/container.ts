@@ -186,6 +186,7 @@ import type {
   ScopePlan,
   ScoreEvals,
   SeedGoldenSet,
+  SetupRepository,
   SetupWorktree,
   ShowChangeDiff,
   ShowSystem,
@@ -372,6 +373,7 @@ export interface Cradle {
   briefRun: BriefRun;
   reviveRuns: ReviveRuns;
   endRun: EndRun;
+  setupRepository: SetupRepository;
   listRuns: ListRuns;
   sourceFiles: SourceFiles;
   buildImportGraph: BuildImportGraph;

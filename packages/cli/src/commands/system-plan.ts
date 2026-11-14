@@ -14,7 +14,7 @@ import {
 import { type Command, InvalidArgumentError, Option } from "commander";
 import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { byOption } from "../options.ts";
+import { baseOption, byOption } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
 import { asPerson, who } from "../who.ts";
@@ -44,7 +44,7 @@ const analyzeInput = (task: string[], opts: AnalyzeOptions) => ({
 
 const withAnalyzeOptions = (c: Command) =>
   c
-    .option("--base <ref>", "the files changed since the merge base with this ref", "HEAD")
+    .addOption(baseOption("the files changed since the merge base with this ref", "HEAD"))
     .option("--files <files...>", "these files instead of git")
     .option("--contracts <ids...>", "contracts the task changes")
     .option("--breaking <ids...>", "contracts the task changes in a breaking way");
@@ -228,7 +228,7 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
     .description("Start the steps that can start: a child run (W1) in each application's repository")
     .argument("[id]", "the plan id")
     .option("--run <run>", "the system run (W13) the child runs belong to; its plan when no id is given")
-    .option("--base <ref>", "start each child run in a new worktree branched from this ref")
+    .addOption(baseOption("start each child run in a new worktree branched from this ref"))
     .option("--workflow <id>", "the workflow of the child runs", STEP_WORKFLOW)
     .action(
       action(async (named: string | undefined, opts: { run?: string; base?: string; workflow: string }) => {

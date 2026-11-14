@@ -3,7 +3,7 @@ import type { MetatorContainer } from "@metator/runtime";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { positiveInt } from "../options.ts";
+import { baseOption, positiveInt } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
 
 /** `env *` (F8.5): how the application starts, started per worktree on its own ports. */
@@ -53,9 +53,8 @@ export function registerEnvCommands(program: Command, { action, container }: Com
       "start only the services the changes touch (their `paths`), and what they need",
       false,
     )
-    .option(
-      "--base <ref>",
-      "with --affected: compare against this ref (default: where the worktree branched off)",
+    .addOption(
+      baseOption("with --affected: compare against this ref (default: where the worktree branched off)"),
     )
     .action(
       action(

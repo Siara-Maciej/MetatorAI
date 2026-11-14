@@ -132,9 +132,39 @@ describe("metator serve (real daemon)", () => {
 
   test("a PTY session over a WebSocket: output streams, only the attached person types, the exit arrives", async () => {
     const runId = ((await get("/state")).data as { runs: { runId: string }[] }).runs[0]?.runId as string;
+    // Opening the socket starts nothing: a run without a session is told how to start one.
+    const early: Record<string, unknown>[] = [];
+    const none = new WebSocket(`${base.replace("http", "ws")}/ws/pty/${runId}?by=maciej`);
+    none.onmessage = (m) => early.push(JSON.parse(String(m.data)) as Record<string, unknown>);
+    await new Promise<void>((resolve) => {
+      none.onclose = () => resolve();
+    });
+    expect(early).toEqual([
+      {
+        type: "error",
+        error: {
+          code: "NOT_FOUND",
+          message: `run ${runId} has no terminal session`,
+          hint: `Start one first: POST /runs/${runId}/pty-open (\`metator run start --run ${runId}\`).`,
+        },
+      },
+    ]);
+    expect(((await get(`/runs/${runId}/pty`)).data as { session: unknown }).session).toBeNull();
+    // The explicit start; then the socket finds the session.
+    const openedSession = await post(`/runs/${runId}/pty-open`, {});
+    expect([openedSession.ok, (openedSession.data as { runId: string }).runId]).toEqual([true, runId]);
     const events: Record<string, unknown>[] = [];
     const ws = new WebSocket(`${base.replace("http", "ws")}/ws/pty/${runId}?by=maciej`);
     ws.onmessage = (m) => events.push(JSON.parse(String(m.data)) as Record<string, unknown>);
+    // A second socket on the same run is a reconnect: the same session and what it has printed so far.
+    const again: Record<string, unknown>[] = [];
+    const second = new WebSocket(`${base.replace("http", "ws")}/ws/pty/${runId}?by=maciej`);
+    second.onmessage = (m) => again.push(JSON.parse(String(m.data)) as Record<string, unknown>);
+    await until("the reconnect to see the session", async () =>
+      again.some((e) => e.type === "session") ? true : undefined,
+    );
+    expect((again[0] as { session: { runId: string } }).session.runId).toBe(runId);
+    second.close();
     await until("the session to greet", async () =>
       events.some((e) => e.type === "data" && String(e.data).includes("hello from the session"))
         ? true
@@ -298,6 +328,29 @@ describe("one way to start, answer, brief and close a run, on the API as in the 
     const r = await fetch(`${base}${path}`, init);
     return { http: r.status, body: (await r.json()) as { ok: boolean; data: Data; error?: Data } };
   };
+
+  test("the API's statuses: a body that does not fit is 400 USAGE, what is not there 404 NOT_FOUND", async () => {
+    const runId = data(await mt("run", "new", "--workflow", "demo", "--task", "Answer me with a bad body"))
+      .runId as string;
+    const bad = await status(`/runs/${runId}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ question: "q001", choices: "Approve", by: 7 }),
+    });
+    expect([bad.http, bad.body.ok, bad.body.error?.code]).toEqual([400, false, "USAGE"]);
+    expect(String(bad.body.error?.message)).toStartWith(
+      "the request's body does not fit POST /runs/:run/answer: ",
+    );
+    const nowhere = await status("/no/such/route");
+    expect([nowhere.http, nowhere.body.error]).toEqual([
+      404,
+      { code: "NOT_FOUND", message: "no route GET /no/such/route" },
+    ]);
+    const gone = await status("/runs/no-such-run/board");
+    expect([gone.http, gone.body.error?.code]).toEqual([404, "NOT_FOUND"]);
+    // A field a newer client sends is ignored, and the envelope is the terminal's.
+    const fine = await status(`/runs/${runId}/board?timeline=3`);
+    expect([fine.http, fine.body.ok]).toEqual([200, true]);
+  }, 60_000);
 
   test("a since that is no time is a usage error on both fronts", async () => {
     const runId = data(await mt("run", "new", "--workflow", "demo", "--task", "Brief me about it"))

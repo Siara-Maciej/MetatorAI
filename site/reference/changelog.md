@@ -6,6 +6,10 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 
 ## November 2026
 
+- The daemon's API answers with MetatorAI's envelope and these statuses: 404 when something is not there (`NOT_FOUND`), 403 when a pane may not do it, 400 for everything else. A request body that does not fit its route is refused with `USAGE` before anything runs. Paths and answers are unchanged.
+- Through the daemon, as in the terminal: a run started in a worktree gets its dependencies; an answer can carry `always` and becomes a policy; closing a run takes `removeWorktree` (and `force`); a `since` that is not a time is a usage error.
+- A WebSocket on `/ws/pty/<run>` no longer starts a session: it connects to the one the run has. Start one with `POST /runs/<run>/pty-open` or `metator run start`.
+- At a terminal a failed command also prints what is wrong and what to do about it on stderr.
 - The desktop app has one sidebar instead of three columns: **Needs you** on top (each row opens its decision), the runs with their panes under them, then Terminals, Backlog, Reviews, Overview and Settings, and **+ New run** with **Form…**. The counters left the top bar; the counts are in the headings.
 - A run has one page with the tabs Overview, Terminal, Plan, Changes and Activity (keys `o` `t` `p` `d` `l`). The old addresses (`#/session/…`, `#/plan/…`, `#/review/…`, `#/briefing/…`) open the right tab. The Overview counts the files of the run's change from the same source as Changes.
 - A run reads `needs you`, `working`, `escalated`, `done` or `idle`; `done` stays marked until you open the run. The Daemon and Graph screens are now **Overview** (Daemon, Dependencies).

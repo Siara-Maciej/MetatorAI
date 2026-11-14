@@ -2,7 +2,7 @@ import { portVariables } from "@metator/core";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { byOption, positiveInt } from "../options.ts";
+import { baseOption, byOption, positiveInt } from "../options.ts";
 import { asPerson } from "../who.ts";
 
 export function registerWorktreeCommands(program: Command, { action, container }: CommandContext): void {
@@ -14,7 +14,7 @@ export function registerWorktreeCommands(program: Command, { action, container }
     .command("new")
     .description("Create .metator/wt/<id> on branch metator/<id> with a free block of ports")
     .argument("<id>", "worktree id (lowercase letters, digits, -)")
-    .option("--base <ref>", "ref to branch from", "HEAD")
+    .addOption(baseOption("ref to branch from", "HEAD"))
     .option("--run <id>", "the run that works in it")
     .option("--ports <count>", "how many ports to lease", positiveInt, 20)
     .action(

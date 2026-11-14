@@ -1,0 +1,156 @@
+import { OPTION_SCOPES, ok } from "@metator/core";
+import { z } from "zod";
+import { body, type Call, flag, optional, type Route, route, strings, text } from "../http.ts";
+
+/** `/issues`, `/mrs`, `/options`: the backlog (S4), reviews of my requests (T3) and the options (S1). */
+
+const PRIORITY = optional(z.enum(["low", "normal", "high"]));
+const AUTONOMY = optional(z.enum(["L0", "L1", "L2"]));
+const REFS = optional(z.array(z.unknown()));
+
+/** What an issue's text can be changed to; a field left out is left as it is. */
+const patchShape = {
+  title: z.string().nullish(),
+  body: z.string().nullish(),
+  priority: PRIORITY,
+  labels: strings,
+  refs: REFS,
+};
+type PatchBody = {
+  title?: string | null | undefined;
+  body?: string | null | undefined;
+  priority?: "low" | "normal" | "high" | undefined;
+  labels?: string[] | undefined;
+  refs?: unknown[] | undefined;
+};
+const patchOf = (b: PatchBody) => ({
+  ...(typeof b.title === "string" ? { title: b.title } : {}),
+  ...(typeof b.body === "string" ? { body: b.body } : {}),
+  ...(b.priority ? { priority: b.priority } : {}),
+  ...(b.labels ? { labels: b.labels } : {}),
+  ...(b.refs ? { refs: b.refs as never[] } : {}),
+});
+const issue = ({ params }: Call<unknown>) => params.issue as string;
+
+export const BACKLOG_ROUTES: readonly Route[] = [
+  // Options: every option with its value and source; a set writes the scope's file.
+  route({
+    method: "GET",
+    pattern: "/options",
+    handler: ({ c, query }) => {
+      const runId = query.get("run");
+      return c
+        .resolve("optionStore")
+        .list({ ...(runId ? { runId } : {}), changed: query.get("changed") === "true" });
+    },
+  }),
+  route({
+    method: "GET",
+    pattern: "/options/schema",
+    handler: ({ c }) => ok(c.resolve("optionStore").schema()),
+  }),
+  route({
+    method: "POST",
+    pattern: "/options/:key+",
+    body: body({
+      scope: optional(z.enum(OPTION_SCOPES)),
+      runId: optional(z.string()),
+      reset: flag,
+      value: z.unknown().optional(),
+    }),
+    handler: ({ c, params, body: b }) => {
+      const store = c.resolve("optionStore");
+      const where = {
+        key: params.key as string,
+        scope: b.scope ?? "user",
+        ...(b.runId ? { runId: b.runId } : {}),
+      };
+      return b.reset === true ? store.unset(where) : store.set({ ...where, value: b.value });
+    },
+  }),
+  // The backlog: read, add (a person), decide, edit, close, drop, start.
+  route({
+    method: "GET",
+    pattern: "/issues",
+    handler: async ({ c, query }) => {
+      const runId = query.get("run");
+      return (await c.resolve("issues").list({ ...(runId ? { runId } : {}) })).map((issues) => ({ issues }));
+    },
+  }),
+  route({
+    method: "POST",
+    pattern: "/issues",
+    body: body({ ...patchShape, by: text }),
+    handler: ({ c, body: b }) => {
+      const { title: _title, ...rest } = patchOf(b);
+      return c.resolve("issues").add({ title: b.title ?? "", ...rest, by: b.by ?? "" });
+    },
+  }),
+  route({
+    method: "POST",
+    pattern: "/issues/:issue/decide",
+    body: body({ ...patchShape, by: text, decision: optional(z.enum(["add", "drop"])) }),
+    handler: (call) =>
+      call.c.resolve("issues").decide(issue(call), {
+        by: call.body.by ?? "",
+        decision: call.body.decision ?? "add",
+        ...patchOf(call.body),
+      }),
+  }),
+  route({
+    method: "POST",
+    pattern: "/issues/:issue/edit",
+    body: body(patchShape),
+    handler: (call) => call.c.resolve("issues").edit(issue(call), patchOf(call.body)),
+  }),
+  route({
+    method: "POST",
+    pattern: "/issues/:issue/close",
+    body: body({ by: text }),
+    handler: (call) => call.c.resolve("issues").close(issue(call), { by: call.body.by ?? "" }),
+  }),
+  route({
+    method: "POST",
+    pattern: "/issues/:issue/drop",
+    body: body({ by: text }),
+    handler: (call) => call.c.resolve("issues").drop(issue(call), { by: call.body.by ?? "" }),
+  }),
+  route({
+    method: "POST",
+    pattern: "/issues/:issue/start",
+    body: body({ workflow: text, worktree: flag, allowDirty: flag, autonomy: AUTONOMY }),
+    handler: (call) => {
+      const b = call.body;
+      return call.c.resolve("issues").start(issue(call), {
+        workflow: b.workflow ?? "",
+        ...(b.worktree === false ? { worktree: false } : {}),
+        ...(b.allowDirty === true ? { allowDirty: true } : {}),
+        ...(b.autonomy ? { autonomy: b.autonomy } : {}),
+      });
+    },
+  }),
+  route({
+    method: "GET",
+    pattern: "/mrs",
+    handler: async ({ c }) => (await c.resolve("myReviews").list()).map((requests) => ({ requests })),
+  }),
+  route({
+    method: "GET",
+    pattern: "/mrs/:request",
+    handler: ({ c, params }) => c.resolve("myReviews").show(params.request as string),
+  }),
+  route({
+    method: "POST",
+    pattern: "/mrs/:request/send",
+    body: body({ by: text }),
+    handler: ({ c, params, body: b }) =>
+      c.resolve("myReviews").send(params.request as string, { by: b.by ?? "" }),
+  }),
+  route({
+    method: "POST",
+    pattern: "/mrs/:request/resolve",
+    body: body({ by: text, thread: text }),
+    handler: ({ c, params, body: b }) =>
+      c.resolve("myReviews").resolve(params.request as string, b.thread ?? "", { by: b.by ?? "" }),
+  }),
+];

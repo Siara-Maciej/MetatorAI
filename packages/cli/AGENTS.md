@@ -10,3 +10,4 @@ The driving adapter on commander. It talks to use cases only through the runtime
 - Shared: `runOption`, `RUN_ARGUMENT` + `runGiven`, `byOption` + `who()` (the one rule for who acts), `defined`, `failWhen`, `schemaCommand`, `ctx.root()`.
 - A new leaf command needs a literal argv in an e2e test (MT-TEST-001) and its line in the help list of `e2e/cli.e2e.test.ts`.
 - No full-screen view (ADR-0086): prompts are `@clack/prompts` in `src/terminal.ts`.
+- `src/serve/`: the daemon. A route is a row in `routes/*.ts` with a zod `body`; `http.ts` dispatches. Run logic lives in core use cases, never in a command or a route.

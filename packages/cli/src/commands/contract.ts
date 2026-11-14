@@ -1,6 +1,7 @@
 import { err, MetatorError, ok } from "@metator/core";
 import type { Command } from "commander";
 import type { CommandContext } from "../context.ts";
+import { baseOption } from "../options.ts";
 
 export function registerContractCommands(program: Command, ctx: CommandContext): void {
   const { action, container } = ctx;
@@ -13,7 +14,7 @@ export function registerContractCommands(program: Command, ctx: CommandContext):
     .description(
       "Each provided contract's specification since a base: breaking or not, judged by the map's policy",
     )
-    .option("--base <ref>", "compare with the merge base of this ref", "HEAD")
+    .addOption(baseOption("compare with the merge base of this ref", "HEAD"))
     .option("--contracts <ids...>", "only these contracts")
     .option("--check", "fail when a change breaks a contract the map's policy protects", false)
     .action(

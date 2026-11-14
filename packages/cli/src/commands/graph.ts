@@ -2,6 +2,7 @@ import { err, MetatorError, normalizePath, ok } from "@metator/core";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { baseOption } from "../options.ts";
 
 /** Accepts `./src/a.ts` or `src\a.ts` as well as the canonical `src/a.ts`. */
 const repoPath = (file: string): string => normalizePath(file).replace(/^(\.\/)+/, "");
@@ -36,9 +37,9 @@ export function registerGraphCommands(program: Command, { action, container }: C
     "Query the file-level import graph",
   );
 
-  meta(graph.command("affected"), { audience: "person" })
+  meta(graph.command("affected"), { audience: "person", typed: true })
     .description("Files and tests affected by changes (against a git ref, or an explicit file list)")
-    .option("--base <ref>", "git ref to compare against", "HEAD")
+    .addOption(baseOption("git ref to compare against", "HEAD"))
     .option("--files <files...>", "explicit changed files instead of git")
     .action(
       action(async (opts: { base: string; files?: string[] }) => {
@@ -49,8 +50,7 @@ export function registerGraphCommands(program: Command, { action, container }: C
       }),
     );
 
-  graph
-    .command("callers")
+  meta(graph.command("callers"), { typed: true })
     .description("Files that import an exported symbol, also through re-exports and barrels")
     .argument("<symbol>", "exported name")
     .option("--file <path>", "the file that defines it (when several files export the name)")
@@ -65,7 +65,7 @@ export function registerGraphCommands(program: Command, { action, container }: C
   graph
     .command("diff")
     .description("Import edges added and removed since a base, new package dependencies and new cycles")
-    .option("--base <ref>", "git ref to compare against (its merge base with HEAD)", "HEAD")
+    .addOption(baseOption("git ref to compare against (its merge base with HEAD)", "HEAD"))
     .action(
       action(async (opts: { base: string }) => ({
         result: await container().resolve("diffImportGraph").execute({ base: opts.base }),
@@ -76,7 +76,10 @@ export function registerGraphCommands(program: Command, { action, container }: C
     ["deps", "Files the given file imports"],
     ["dependents", "Files that import the given file"],
   ] as const) {
-    meta(graph.command(name), name === "dependents" ? { audience: "person" } : {})
+    meta(graph.command(name), {
+      typed: true,
+      ...(name === "dependents" ? { audience: "person" as const } : {}),
+    })
       .description(description)
       .argument("<file>", "repo-relative source file")
       .option("--transitive", "follow imports transitively", false)
@@ -118,8 +121,7 @@ export function registerGraphCommands(program: Command, { action, container }: C
       }),
     );
 
-  graph
-    .command("path")
+  meta(graph.command("path"), { typed: true })
     .description("Shortest import chain from one file to another (null when there is none)")
     .argument("<from>", "repo-relative source file")
     .argument("<to>", "repo-relative source file")
@@ -154,6 +156,7 @@ export function registerGraphCommands(program: Command, { action, container }: C
     );
 
   meta(program.command("symbols").description("Exported symbols").command("find"), {
+    typed: true,
     audience: "person",
     reads: true,
   })

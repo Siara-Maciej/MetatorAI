@@ -189,6 +189,9 @@ describe("a worker pane (R2, ADR-0080)", () => {
       "metator run start",
       "metator run advance pass",
       "bun run metator run approve plan-approval --by m",
+      // Starting a run is steering too, under its new name and its old one.
+      'metator run new --workflow mt-feature --task "x y z w"',
+      'metator run init --workflow mt-feature --task "x y z w"',
     ]) {
       const d = preToolPolicy(hook("Bash", { command }), worker);
       expect([command, d.decision]).toEqual([command, "deny"]);
