@@ -127,6 +127,57 @@ describe("ClaudeGenerator.hooks (.claude/settings.json)", () => {
     expect(again.deny).toEqual(merged.deny);
   });
 
+  test("a sandbox policy becomes the host's sandbox: on, no way out, the lists merged with the person's (ADR-0088)", () => {
+    type Sandboxed = { sandbox?: Record<string, unknown> };
+    const policy = {
+      denyRead: ["~/.ssh", "~/.aws"],
+      allowWrite: ["/tmp/build"],
+      allowedDomains: ["registry.npmjs.org"],
+      excludedCommands: ["docker compose *"],
+    };
+    const settings = (existing?: string, p: typeof policy | "none" = policy) =>
+      JSON.parse(
+        new ClaudeGenerator().hooks("bun run metator", existing, p === "none" ? undefined : p)._unsafeUnwrap()
+          .content,
+      ) as Sandboxed;
+    expect(settings().sandbox).toEqual({
+      enabled: true,
+      allowUnsandboxedCommands: false,
+      filesystem: { denyRead: ["~/.ssh", "~/.aws"], allowWrite: ["/tmp/build"] },
+      network: { allowedDomains: ["registry.npmjs.org"] },
+      excludedCommands: ["docker compose *"],
+    });
+    // Without a policy nothing about the sandbox is written or taken away.
+    expect(settings(undefined, "none").sandbox).toBeUndefined();
+    const theirs = JSON.stringify({
+      sandbox: {
+        enabled: false,
+        failIfUnavailable: true,
+        filesystem: { denyRead: ["~/.kube", "~/.ssh"], allowRead: ["."] },
+        network: { allowedDomains: ["github.com"], allowLocalBinding: true },
+      },
+    });
+    expect(settings(theirs, "none").sandbox).toEqual(JSON.parse(theirs).sandbox);
+    const merged = settings(theirs).sandbox as {
+      enabled: boolean;
+      failIfUnavailable: boolean;
+      filesystem: Record<string, string[]>;
+      network: Record<string, unknown>;
+    };
+    expect([merged.enabled, merged.failIfUnavailable]).toEqual([true, true]);
+    expect(merged.filesystem).toEqual({
+      denyRead: ["~/.kube", "~/.ssh", "~/.aws"],
+      allowRead: ["."],
+      allowWrite: ["/tmp/build"],
+    });
+    expect(merged.network).toEqual({
+      allowedDomains: ["github.com", "registry.npmjs.org"],
+      allowLocalBinding: true,
+    });
+    // Generating again changes nothing.
+    expect(settings(JSON.stringify({ sandbox: merged })).sandbox).toEqual(merged as never);
+  });
+
   test("the user's settings and own hooks stay; earlier metator hooks are replaced, not duplicated", () => {
     const existing = JSON.stringify({
       model: "opus",

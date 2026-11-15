@@ -44,9 +44,13 @@ describe("CheckReadiness", () => {
       "dependencies:ok",
       "environment:ok",
       "mcp:ok",
+      "isolation:warn",
       "remote:ok",
     ]);
-    expect(readinessWarnings(v)).toEqual([]);
+    // Isolation is doctor's to say: a run does not repeat it at every start.
+    expect(RUN_READINESS).not.toContain("isolation");
+    expect(readinessWarnings(v, RUN_READINESS)).toEqual([]);
+    expect(readinessWarnings(v)).toEqual([expect.stringContaining("without a sandbox")]);
   });
 
   test("a run whose record cannot be read is a warning that names the file and the way out (R2)", async () => {
@@ -70,6 +74,7 @@ describe("CheckReadiness", () => {
     const v = r._unsafeUnwrap();
     expect(v.ready).toBe(true);
     expect(readinessWarnings(v)).toEqual([
+      "isolation: agents' shell commands run without a sandbox: a script or a dependency they start can read every file you can (fix: metator config set sandbox.enabled true --scope repo, then metator generate --hooks)",
       "runs: run r1 cannot be read and is left out of the overviews (not valid JSON) (fix: restore .metator/runs/r1/state.json (from git or a backup), or delete the run's directory)",
     ]);
   });
@@ -121,6 +126,7 @@ describe("CheckReadiness", () => {
       "canon: the agents and skills are not installed by MetatorAI here (fix: metator setup)",
       "gates: no gates configured: a run's gates stage checks nothing (fix: metator init (it proposes gates from the repository's scripts))",
       "dependencies: dependencies are not installed: in a run, tests, the type checker and linters cannot run, so gates check only rules (fix: pnpm install)",
+      "isolation: agents' shell commands run without a sandbox: a script or a dependency they start can read every file you can (fix: metator config set sandbox.enabled true --scope repo, then metator generate --hooks)",
       "remote: no git remote: a run's publish stage cannot push its branch (fix: git remote add origin <url>)",
     ]);
   });

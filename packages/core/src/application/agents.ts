@@ -12,6 +12,7 @@ import { MetatorError } from "../domain/errors.ts";
 import { DependencyGraph } from "../domain/graph.ts";
 import { type McpServers, mcpJson } from "../domain/mcp.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { sandboxPolicy } from "../domain/sandbox.ts";
 import { readFrontMatter } from "../domain/versioned.ts";
 import type { FileSystem, HostGenerator, ReadonlyFileSystem } from "../ports/index.ts";
 import type { MetatorPaths } from "./paths.ts";
@@ -212,7 +213,11 @@ export class GenerateHosts {
 
     for (const g of input.hooks ? hosts : []) {
       const current = await this.fs.read(g.hooksFile);
-      const hooks = g.hooks(this.config.hosts.metatorCommand, current.isOk() ? current.value : undefined);
+      const hooks = g.hooks(
+        this.config.hosts.metatorCommand,
+        current.isOk() ? current.value : undefined,
+        sandboxPolicy(this.config),
+      );
       if (hooks.isErr()) return err(hooks.error);
       expected.set(hooks.value.path, hooks.value.content);
     }

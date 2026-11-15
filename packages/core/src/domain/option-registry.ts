@@ -249,6 +249,40 @@ const issues: OptionDefinition[] = [
   }),
 ];
 
+const E2 = "E2";
+const sandboxList = (
+  name: string,
+  title: string,
+  description: string,
+  defaultValue: readonly string[] = [],
+) => new ListOption({ key: `sandbox.${name}`, scope: "repo", title, description, defaultValue, since: E2 });
+
+/** The sandbox of agents' shell commands (ADR-0088); written to the host by `metator generate --hooks`. */
+const sandbox: OptionDefinition[] = [
+  new BooleanOption({
+    key: "sandbox.enabled",
+    scope: "repo",
+    title: "Sandbox",
+    description:
+      "Hold agents' shell commands, and everything those start, in the operating system's sandbox (Claude Code).",
+    defaultValue: false,
+    since: E2,
+  }),
+  sandboxList(
+    "denyRead",
+    "Unreadable paths",
+    "Paths no sandboxed command reads, beside the repository's secret files.",
+    ["~/.ssh", "~/.aws", "~/.netrc"],
+  ),
+  sandboxList("allowWrite", "Writable paths", "Paths a sandboxed command may write beside the repository."),
+  sandboxList("allowedDomains", "Reachable hosts", "Hosts a sandboxed command may connect to."),
+  sandboxList(
+    "excludedCommands",
+    "Commands outside the sandbox",
+    "Command patterns that run outside the sandbox, for tools that cannot run inside one (docker compose *).",
+  ),
+];
+
 export const OPTIONS: readonly OptionDefinition[] = [
   ...ui,
   ...keys,
@@ -257,6 +291,7 @@ export const OPTIONS: readonly OptionDefinition[] = [
   ...editor,
   ...supervisor,
   ...issues,
+  ...sandbox,
 ];
 
 export const optionByKey = (key: string): OptionDefinition | undefined => OPTIONS.find((o) => o.key === key);

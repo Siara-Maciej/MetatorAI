@@ -480,6 +480,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
               config.config.hosts.targets.map((id: string) => ({ id, problem: driveHostProblem(id) })),
             modified: () => modifiedTracked(processRunner, root),
             detached: () => detachedHead(processRunner, root),
+            platform: () => process.platform,
             quickGate: () => runGate.execute({ gate: "quick" }),
           },
         ),

@@ -4,6 +4,7 @@ import type { GateReport } from "../domain/gate.ts";
 import type { McpServers } from "../domain/mcp.ts";
 import { isPrecondition, PRECONDITIONS, preconditionKinds } from "../domain/preconditions.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { LINUX_SANDBOX_PROGRAMS, sandboxIsolation, sandboxPolicy } from "../domain/sandbox.ts";
 import { declaresDependencies } from "../domain/worktree.ts";
 import type { FileSystem, Vcs } from "../ports/index.ts";
 import type { EnvironmentServices } from "./environments.ts";
@@ -32,6 +33,7 @@ export interface ReadinessCheck {
     | "environment"
     | "remote"
     | "mcp"
+    | "isolation"
     | "runs";
   readonly status: ReadinessStatus;
   /** What this means for a run, in one sentence. */
@@ -97,6 +99,8 @@ export class CheckReadiness {
       readonly hosts?: () => readonly { readonly id: string; readonly problem?: string | undefined }[];
       /** Tracked files with uncommitted changes in the checkout; undefined when git cannot say. */
       readonly modified?: () => Promise<readonly string[] | undefined>;
+      /** The operating system (`process.platform`): what a sandbox needs differs by it. */
+      readonly platform?: () => string;
       /** Whether HEAD is detached (on no branch); undefined when git cannot say. */
       readonly detached?: () => Promise<boolean | undefined>;
       /** Runs the quick gate in the checkout. */
@@ -190,6 +194,7 @@ export class CheckReadiness {
     checks.push(await this.dependencies(place));
     checks.push(await this.environment(input.worktree));
     checks.push(await this.mcpServers());
+    checks.push(await this.isolation());
     const remote = await this.vcs.remoteUrl();
     checks.push(
       remote.isOk() && remote.value
@@ -343,6 +348,17 @@ export class CheckReadiness {
   }
 
   /** Every configured MCP server starts from a command on the PATH or a URL (design/14 §2). */
+  /** Whether agents' shell commands are held in a sandbox here, and what that needs (ADR-0088). */
+  private async isolation(): Promise<ReadinessCheck> {
+    const missing: string[] = [];
+    for (const program of LINUX_SANDBOX_PROGRAMS)
+      if (!(await this.mcp.hasCommand(program))) missing.push(program);
+    return {
+      id: "isolation",
+      ...sandboxIsolation(sandboxPolicy(this.config.config), this.here.platform?.() ?? "", missing),
+    };
+  }
+
   private async mcpServers(): Promise<ReadinessCheck> {
     const servers = await this.mcp.servers();
     if (servers.isErr()) return { id: "mcp", status: "warn", message: servers.error.message };

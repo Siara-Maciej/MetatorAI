@@ -1635,6 +1635,30 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the in-process hook denies a merge too",
   },
   {
+    file: "packages/core/src/domain/sandbox.ts",
+    from: 'if (!value<boolean>("sandbox.enabled")) return undefined;',
+    to: "",
+    why: "the sandbox is off until the repository turns it on",
+  },
+  {
+    file: "packages/core/src/domain/sandbox.ts",
+    from: 'if (platform === "linux" && missing.length > 0)',
+    to: "if (false)",
+    why: "doctor says when the sandbox's programs are missing",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-generator.ts",
+    from: "allowUnsandboxedCommands: false,",
+    to: "",
+    why: "a sandboxed command is not retried outside the sandbox",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-generator.ts",
+    from: "return [...kept, ...ours.filter((o) => !kept.includes(o))];",
+    to: "return [...ours];",
+    why: "the person's own sandbox lists stay",
+  },
+  {
     file: "packages/desktop/src/model.ts",
     from: 'return a.tried === folder ? "none" : "start";',
     to: 'return "start";',

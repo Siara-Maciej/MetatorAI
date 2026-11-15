@@ -52,10 +52,11 @@ describe("metator doctor (real CLI)", () => {
       "dependencies:warn",
       "environment:ok",
       "mcp:ok",
+      "isolation:warn",
       "remote:warn",
     ]);
     expect(data.checks.find((c) => c.id === "dependencies")?.fix).toBe("bun install");
-    expect((r.json.warnings as string[]).length).toBe(5);
+    expect((r.json.warnings as string[]).length).toBe(6);
   });
 
   test("run init warns about an open question in the task and what this run cannot do; installed dependencies end that warning", async () => {
