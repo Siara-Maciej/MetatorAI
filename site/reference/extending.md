@@ -28,7 +28,7 @@ The ports are in `packages/core/src/ports/index.ts`. A port has at most five mem
 | Plugin | Ports it implements |
 |---|---|
 | `plugin-bun` | `FileSystem`, `ProcessRunner`, `BinResolver`, `MachineState`, `TreeCopier`, `DataIsolator`, `Sandbox`, `Launcher`, `Timer`, and a `RuleEngine` for conformance tests |
-| `plugin-git` | `Vcs`, `RevisionReader`, `WorktreeManager`, `BranchHistory`, `BranchPublication`, `ChangeHistory`, `ChangePatch`, `RepositoryCloner` |
+| `plugin-git` | `Vcs`, `RevisionReader`, `WorkingTree`, `WorktreeManager`, `BranchHistory`, `BranchPublication`, `ChangeHistory`, `ChangePatch`, `RepositoryCloner` |
 | `plugin-node` | `WorkspaceReader`, `PackageManagerDetector`, `PackageManager`, `ManifestReader`, `CoverageReader`, `Terminal`, `PortProbe`, `HealthProbe`, `ToolBoundariesReader` |
 | `plugin-typescript` | `ImportAnalyzer`, `SymbolAnalyzer`, `DeclarationEmitter`, and a `RuleEngine` for `tsc` |
 | `plugin-astgrep` | `RuleEngine`, `RuleScaffolder` |

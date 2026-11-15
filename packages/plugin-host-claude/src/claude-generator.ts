@@ -33,6 +33,9 @@ export const CLAUDE_MODELS: Readonly<Record<ModelTier, string>> = {
   fast: "haiku",
 };
 
+/** Where Claude Code reads an agent from, repo-relative. The one place that knows. */
+export const claudeAgentFile = (id: string): string => `.claude/agents/${id}.md`;
+
 /** `.claude/agents/<id>.md` (ADR-0030). */
 export class ClaudeGenerator implements HostGenerator {
   readonly host = "claude";
@@ -79,7 +82,7 @@ export class ClaudeGenerator implements HostGenerator {
       tools: [...tools].join(", "),
       model: context.model ?? CLAUDE_MODELS[agent.tier],
     };
-    return hostAgentFile(`.claude/agents/${agent.id}.md`, front, body, context);
+    return hostAgentFile(claudeAgentFile(agent.id), front, body, context);
   }
 }
 

@@ -21,11 +21,11 @@ dir: packages/runtime
 
 ## Responsibility
 
-Composition root: the awilix container, the typed Cradle and the JSON envelope. The only package that knows concrete adapters.
+Composition root: the awilix container, the typed Cradle and the JSON envelope. The only package that knows concrete adapters. Hosts are one static list (`HOSTS`, the descriptors the host plugins export): agent hosts, interactive hosts, their status, generators and agent files are all derived from it, so a new host is one entry (ADR-0084: the plugins never see the container).
 
 ## Invariants
 
-- The container is strict, so lifetime mistakes fail fast [[cite: packages/runtime/src/container.ts:498 | "createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true })"]].
+- The container is strict, so lifetime mistakes fail fast [[cite: packages/runtime/src/container.ts:509 | "createContainer<Cradle>({ injectionMode: InjectionMode.PROXY, strict: true })"]].
 
 - One adapter instance stands behind the ports it implements (git, the package manager, the oxc analyzer), so they agree with each other.
 
@@ -35,5 +35,5 @@ Composition root: the awilix container, the typed Cradle and the JSON envelope. 
 
 ## Pitfalls
 
-- A new use case needs both a Cradle entry (`container.ts`) and a registration (`bootstrap.ts`); missing either surfaces as `Could not resolve`.
+- A new use case needs both a Cradle entry (`container.ts`) and a registration (`bootstrap.ts`); `test/every-key.test.ts` resolves every key and compares the two lists, so a missing one fails there, not at a user's `Could not resolve`.
 - The shipped canon is found relative to this package (`src/canon.ts`, three levels up); a packaged release must keep `metator/` and `.github/metator/workflows` at that place, or set `METATOR_CANON` (ADR-0049).

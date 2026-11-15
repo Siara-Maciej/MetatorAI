@@ -30,6 +30,7 @@ export * from "./application/golden-seed.ts";
 export * from "./application/graph-diff.ts";
 export * from "./application/guard.ts";
 export * from "./application/host-files.ts";
+export * from "./application/host-descriptors.ts";
 export * from "./application/host-manifests.ts";
 export * from "./application/host-prompts.ts";
 export * from "./application/import-graph.ts";

@@ -271,6 +271,19 @@ export interface Vcs {
   hasCommits?(): Promise<Result<boolean, MetatorError>>;
 }
 
+/** What a checkout's working tree looks like now: asked before a run starts and between worktrees. */
+export interface WorkingTree {
+  /**
+   * Files the worktree at the repo-relative `path` changed since it branched off the main
+   * checkout's HEAD: committed on its branch, in its working tree, or new and not ignored.
+   */
+  worktreeChanges(path: string): Promise<Result<readonly string[], MetatorError>>;
+  /** Tracked files with uncommitted changes, MetatorAI's own state aside; undefined when git cannot say. */
+  modifiedTracked(): Promise<readonly string[] | undefined>;
+  /** Whether HEAD is on no branch; undefined when git cannot say (not a repository). */
+  detachedHead(): Promise<boolean | undefined>;
+}
+
 export interface BranchPublication {
   /** Asks `origin` itself (`git ls-remote`), not a remote-tracking ref a single-branch clone lacks. */
   published(): Promise<Result<PublishedBranch, MetatorError>>;

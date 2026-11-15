@@ -5,7 +5,7 @@ import type { McpServers } from "../domain/mcp.ts";
 import { isPrecondition, PRECONDITIONS, preconditionKinds } from "../domain/preconditions.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { declaresDependencies } from "../domain/worktree.ts";
-import type { FileSystem, Vcs } from "../ports/index.ts";
+import type { CheckoutReader, FileSystem, Vcs } from "../ports/index.ts";
 import type { EnvironmentServices } from "./environments.ts";
 import { emptyGateHint } from "./gate.ts";
 import type { MetatorPaths } from "./paths.ts";
@@ -485,4 +485,27 @@ function brokenPrecondition(
       ? `Run \`${green.fix}\` to see the failing steps, make them pass, then start the run again.`
       : (green?.fix ?? "Run `metator gate quick`."),
   };
+}
+
+/**
+ * What an agent must know about the directory it works in (an absolute path: a worktree or the
+ * checkout). A Node project without node_modules cannot run its tests, type checker or linters
+ * there, and installing is not the agent's call. The same condition `dependencies` warns about.
+ */
+export async function workNotes(
+  checkouts: Pick<CheckoutReader, "read" | "isDirectory">,
+  cwd: string,
+): Promise<string[]> {
+  const manifest = await checkouts.read(cwd, "package.json");
+  // A package.json that lists nothing to install has no node_modules and misses nothing (F5).
+  if (
+    manifest.isOk() &&
+    manifest.value !== undefined &&
+    declaresDependencies(manifest.value) &&
+    !(await checkouts.isDirectory(`${cwd.replace(/[\\/]$/, "")}/node_modules`))
+  )
+    return [
+      "The project's dependencies are not installed here (no node_modules): its tests, type checker and linters cannot run. Do not install anything or try to run them; write the code and tests, and say plainly that they were not run.",
+    ];
+  return [];
 }

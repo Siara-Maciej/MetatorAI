@@ -24,6 +24,9 @@ export const COPILOT_TOOLS: Readonly<Record<BasicCapability, readonly string[]>>
   web: ["web"],
 };
 
+/** Where Copilot reads an agent from, repo-relative. The one place that knows. */
+export const copilotAgentFile = (id: string): string => `.github/agents/${id}.agent.md`;
+
 /** `.github/agents/<id>.agent.md` (ADR-0030). */
 export class CopilotGenerator implements HostGenerator {
   readonly host = "copilot";
@@ -56,7 +59,7 @@ export class CopilotGenerator implements HostGenerator {
       "user-invocable": userInvocable(agent),
     };
     return hostAgentFile(
-      `.github/agents/${agent.id}.agent.md`,
+      copilotAgentFile(agent.id),
       front,
       body,
       context,

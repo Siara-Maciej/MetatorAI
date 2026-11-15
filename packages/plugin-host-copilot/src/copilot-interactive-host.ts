@@ -9,6 +9,7 @@ import {
   sessionEnv,
   type Terminal,
 } from "@metator/core";
+import { copilotAgentFile } from "./copilot-generator.ts";
 
 /** Copilot names its sessions itself: a started session is resumed as the directory's latest. */
 export const CONTINUE = CONTINUE_SESSION;
@@ -39,7 +40,7 @@ export class CopilotInteractiveHost extends PtyInteractiveHost {
 
 /** The Copilot CLI command line of a session: the mode (start or resume) first, then the run's context. */
 export function copilotArgv(bin: string, task: AgentTask, mode: readonly string[]): string[] {
-  const agentFile = join(task.projectRoot, ".github", "agents", `${task.agent}.agent.md`);
+  const agentFile = join(task.projectRoot, copilotAgentFile(task.agent));
   return [
     bin,
     ...mode,

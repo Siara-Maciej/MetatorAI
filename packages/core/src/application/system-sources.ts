@@ -354,3 +354,17 @@ export class SystemImpactQuery {
     });
   }
 }
+
+/** Where the map's applications' code already is on this machine (never a clone fetched for this). */
+export async function checkoutRoots(
+  sources: Pick<SystemSources, "locate" | "location">,
+): Promise<readonly string[]> {
+  const map = await sources.location.require();
+  if (map.isErr()) return [];
+  const roots: string[] = [];
+  for (const app of map.value.applications) {
+    const located = await sources.locate(app);
+    if (located.isOk() && located.value) roots.push(located.value.root);
+  }
+  return roots;
+}

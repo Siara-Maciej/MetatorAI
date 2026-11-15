@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { AgentScenario } from "@metator/core";
 import { NodePtyTerminal } from "@metator/plugin-node";
 import { FakeTerminal, interactiveHostContract, outputUntil } from "@metator/testing";
+import { scenarioHost } from "../src/scenario-host.ts";
 import { ScenarioInteractiveHost } from "../src/scenario-interactive-host.ts";
 
 const scenario: AgentScenario = {
@@ -96,5 +97,24 @@ describe("ScenarioInteractiveHost", () => {
       "scenario-mt-implementer-1",
       expect.stringContaining("Planning the change"),
     ]);
+  });
+});
+
+describe("scenarioHost", () => {
+  test("the descriptor: both hosts play the scenario given, and there is no program to install", async () => {
+    const host = scenarioHost(scenario);
+    expect([host.id, host.program, host.files, host.agent?.runsProgram]).toEqual([
+      "scenario",
+      undefined,
+      undefined,
+      false,
+    ]);
+    expect(host.agent?.host(undefined).id).toBe("scenario");
+    const terminal = new FakeTerminal();
+    const session = (
+      await host.interactive?.(terminal, undefined).start(task(tmpdir()), { cols: 80, rows: 24 })
+    )?._unsafeUnwrap();
+    expect(session?.sessionId).toBe("scenario-session-1");
+    expect(terminal.spawned[0]?.argv[2]).toContain("Planning the change");
   });
 });

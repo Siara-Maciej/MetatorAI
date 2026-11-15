@@ -93,6 +93,8 @@ import type {
   GuardSubagentOutput,
   HandoffRun,
   HealthProbe,
+  HostBins,
+  HostDescriptor,
   HostGenerator,
   HostManifestCatalog,
   HostPrompts,
@@ -220,6 +222,7 @@ import type {
   Vcs,
   WarmPool,
   WorkflowCatalog,
+  WorkingTree,
   WorkOverview,
   WorkspaceReader,
   WorktreeConflicts,
@@ -251,6 +254,8 @@ export interface Cradle {
   /** The one git adapter of the repository; the git ports below resolve to it. */
   git: Vcs & RevisionReader & ChangeHistory & BranchHistory & ChangePatch & BranchPublication;
   vcs: Vcs;
+  /** The working tree of the repository and of its worktrees, as git sees it now. */
+  workingTree: WorkingTree;
   /** The Vcs of another checkout (a worktree's directory): one reading of "changed files" everywhere. */
   vcsAt: (dir: string) => Vcs;
   revisionReader: RevisionReader;
@@ -316,6 +321,12 @@ export interface Cradle {
   driverLock: DriverLock;
   terminal: Terminal;
   interactiveHosts: ReadonlyMap<string, InteractiveHost>;
+  /** The scenario host while a test plays one; empty otherwise. */
+  played: readonly HostDescriptor[];
+  /** The hosts a session can take, the default first. */
+  sessionHosts: readonly HostDescriptor[];
+  /** The program given for a host, by host id. */
+  hostBins: HostBins;
   /** Why a host that drives agents cannot start on this machine; undefined when it can. */
   driveHostProblem: (host: string) => string | undefined;
   /** Every interactive host with the program it starts and whether that program is on this machine. */

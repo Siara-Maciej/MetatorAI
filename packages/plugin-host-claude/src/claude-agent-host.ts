@@ -22,6 +22,7 @@ import {
   secretPath,
   singleDeclaredCommand,
 } from "@metator/core";
+import { claudeAgentFile } from "./claude-generator.ts";
 
 /** The slice of the Agent SDK's `query()` this host uses; injected in tests, imported lazily otherwise. */
 export type ClaudeQuery = (params: {
@@ -233,7 +234,7 @@ export class ClaudeAgentHost implements AgentHost {
         ? { behavior: "allow", updatedInput: input }
         : { behavior: "deny", message: answer.text ?? "a person denied this tool call" };
     };
-    const agentFile = join(task.projectRoot, ".claude", "agents", `${task.agent}.md`);
+    const agentFile = join(task.projectRoot, claudeAgentFile(task.agent));
     const definition = agentDefinition(agentFile);
     // Secrets stay unread in-process too: the project's own deny rules and hooks may not apply
     // where the session works (a folder of repositories has no settings of its own).

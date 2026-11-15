@@ -7,6 +7,7 @@ export * from "./bun-machine-state.ts";
 export * from "./bun-process-runner.ts";
 export * from "./bun-sql-data-isolator.ts";
 export * from "./bun-test-engine.ts";
+export * from "./local-probe.ts";
 export * from "./node-bin-resolver.ts";
 export * from "./node-tree-copier.ts";
 export * from "./repo-root.ts";

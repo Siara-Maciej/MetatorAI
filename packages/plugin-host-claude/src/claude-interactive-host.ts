@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { type AgentTask, ok, PtyInteractiveHost, sessionEnv, type Terminal } from "@metator/core";
+import { claudeAgentFile } from "./claude-generator.ts";
 
 /**
  * InteractiveHost on Claude Code (D6, ADR-0077): `claude <task> --session-id <uuid>` in a PTY in
@@ -29,7 +30,7 @@ export class ClaudeInteractiveHost extends PtyInteractiveHost {
 
 /** The Claude Code command line of a session: the mode (start or resume) first, then the run's context. */
 export function claudeArgv(bin: string, task: AgentTask, mode: readonly string[]): string[] {
-  const agentFile = join(task.projectRoot, ".claude", "agents", `${task.agent}.md`);
+  const agentFile = join(task.projectRoot, claudeAgentFile(task.agent));
   return [
     bin,
     ...mode,

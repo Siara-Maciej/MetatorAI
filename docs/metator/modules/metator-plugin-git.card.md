@@ -21,7 +21,7 @@ dir: packages/plugin-git
 
 ## Responsibility
 
-`GitVcs` on simple-git implements `Vcs`, `RevisionReader`, `ChangeHistory`, `BranchHistory`, `ChangePatch` and `BranchPublication`: changed files and added lines against a base, the repository's file list as git sees it, file contents at the merge base, commit history, the branch against its base, the change as a patch, and whether the branch is published on origin. `GitWorktreeManager` implements `WorktreeManager` (`git worktree add|remove`, ADR-0050). `GitRepositoryCloner` implements `RepositoryCloner`: the commit a ref of another repository points to and a cached checkout of it.
+`GitVcs` on simple-git implements `Vcs`, `RevisionReader`, `ChangeHistory`, `BranchHistory`, `ChangePatch` and `BranchPublication`: changed files and added lines against a base, the repository's file list as git sees it, file contents at the merge base, commit history, the branch against its base, the change as a patch, and whether the branch is published on origin. `GitWorktreeManager` implements `WorktreeManager` (`git worktree add|remove`, ADR-0050). `GitRepositoryCloner` implements `RepositoryCloner`: the commit a ref of another repository points to and a cached checkout of it. `GitWorkingTree` implements `WorkingTree` on the git CLI through the `ProcessRunner`: what a worktree changed since it branched off, the tracked files with uncommitted changes (its own state aside) and whether HEAD is detached.
 
 ## Invariants
 

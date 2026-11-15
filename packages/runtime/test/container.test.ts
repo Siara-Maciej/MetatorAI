@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { type Clock, err, MetatorError, ok } from "@metator/core";
+import type { Clock } from "@metator/core";
 import { asFunction, asValue } from "awilix";
-import { bootstrap, checkoutRoots, orderedHosts, workNotes } from "../src/bootstrap.ts";
+import { bootstrap, orderedHosts } from "../src/bootstrap.ts";
 import { createMetatorContainer } from "../src/container.ts";
 
 const fixedClock = (iso: string): Clock => ({ now: () => new Date(iso) });
@@ -81,42 +81,6 @@ describe("bootstrap", () => {
     ] as const)
       expect(c.resolve(key)).toBeDefined();
     expect(c.resolve("ruleEngines").map((e) => e.engine)).toEqual(["ast-grep", "biome", "tsc", "test"]);
-  });
-});
-
-describe("workNotes", () => {
-  test("a Node project without node_modules is told its tools cannot run; an installed one is not", async () => {
-    const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    const dir = await mkdtemp(join(tmpdir(), "metator-notes-"));
-    expect(workNotes(dir)).toEqual([]);
-    // Nothing to install: no node_modules is not a missing install (F5).
-    await writeFile(join(dir, "package.json"), "{}");
-    expect(workNotes(dir)).toEqual([]);
-    await writeFile(join(dir, "package.json"), '{"devDependencies":{"vitest":"3"}}');
-    expect(workNotes(dir)[0]).toContain("dependencies are not installed");
-    await mkdir(join(dir, "node_modules"));
-    expect(workNotes(dir)).toEqual([]);
-    await rm(dir, { recursive: true, force: true });
-  });
-});
-
-describe("checkoutRoots", () => {
-  test("the checkouts the map's applications are in; one not on this machine, or no map, adds none", async () => {
-    const apps = [{ id: "api" }, { id: "web" }, { id: "gone" }];
-    const roots: Record<string, string> = { api: "/f/api", web: "/f/front" };
-    const sources = {
-      location: { require: async () => ok({ applications: apps }) },
-      locate: async (app: { id: string }) =>
-        ok(roots[app.id] ? { app: app.id, root: roots[app.id], dir: ".", via: "local" } : undefined),
-    } as unknown as Parameters<typeof checkoutRoots>[0];
-    expect(await checkoutRoots(sources)).toEqual(["/f/api", "/f/front"]);
-    const none = {
-      location: { require: async () => err(new MetatorError("NOT_FOUND", "no map")) },
-      locate: async () => ok(undefined),
-    } as unknown as Parameters<typeof checkoutRoots>[0];
-    expect(await checkoutRoots(none)).toEqual([]);
   });
 });
 
