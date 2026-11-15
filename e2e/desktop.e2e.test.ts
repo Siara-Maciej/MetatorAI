@@ -24,6 +24,35 @@ stages:
   - id: approval
     hitl: true
 `;
+const PLANNED = `kind: Workflow
+schemaVersion: 2
+id: planned
+stages:
+  - id: plan
+    owner: mt-planner
+    produces: [plan.json]
+  - id: plan-approval
+    hitl: true
+  - id: build
+    owner: mt-implementer
+`;
+const PLAN = {
+  kind: "Plan",
+  schemaVersion: 1,
+  task: "Round the totals",
+  scope: ["src"],
+  steps: [
+    {
+      id: "S1",
+      action: "modify",
+      path: "src/invoice.ts",
+      intent: "round the total half-up",
+      rules: [],
+      testsFirst: [],
+      dependsOn: [],
+    },
+  ],
+};
 const SCENARIO = `kind: AgentScenario
 schemaVersion: 1
 agents:
@@ -35,13 +64,10 @@ agents:
     - - ask: { question: "Which currencies to support?", options: [PLN, EUR, USD], multiSelect: true }
       - say: "STATUS: done"
   mt-orchestrator:
-    # The two panes "+ New run" opens, then the conductor "Open a session" starts for a run.
+    # Every start plays it: the panes "+ New run" opens greet, and the conductor "Open a session"
+    # starts for a run asks its question on its own screen.
     - - say: "Ask about the repository, or describe a task and I start the run."
-      - ask: { question: "What do you need?", options: [a question, a task] }
-      - say: "src/invoice.ts:1 total() sums the lines; the discount is not applied there."
-    - - say: "Ask about the repository, or describe a task and I start the run."
-      - ask: { question: "What do you need?", options: [a question, a task] }
-    - - say: "hello from the session"
+      - say: "hello from the session"
       - ask: { question: "Which rounding?", options: [half-up, half-even] }
       - say: "STATUS: done"
 `;
@@ -63,6 +89,17 @@ async function until<T>(what: string, probe: () => Promise<T | undefined>, ms = 
     if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
     await Bun.sleep(150);
   }
+}
+/** The name is asked for once in the app's life; a test run on its own gives it where it is asked. */
+async function nameIfAsked(): Promise<void> {
+  const named = page.getByRole("dialog", { name: "your name" });
+  const asked = await named.waitFor({ timeout: 2000 }).then(
+    () => true,
+    () => false,
+  );
+  if (!asked) return;
+  await named.getByLabel("Your name").fill("maciej");
+  await named.getByRole("button", { name: "Save" }).click();
 }
 const api = async (path: string) =>
   (await fetch(`${daemonUrl}${path}`)).json() as Promise<{ ok: boolean; data: Record<string, unknown> }>;
@@ -101,6 +138,8 @@ beforeAll(async () => {
     "kind: MetatorConfig\nschemaVersion: 9\nsupervisor:\n  hostOrder: [scenario]\n",
   );
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
+  // A workflow whose first stage writes the implementation plan and a person approves it.
+  await repo.write(".github/metator/workflows/planned.yml", PLANNED);
   // A second workflow, later in the alphabet, that runs at one level only (the form starts there).
   await repo.write(
     ".github/metator/workflows/mt-feature.yml",
@@ -349,6 +388,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     ).toEqual([]);
     expect(await term.count()).toBe(0);
     await page.getByRole("button", { name: "Open a session" }).click();
+    await nameIfAsked();
     await term.waitFor({ timeout: 20_000 });
     await until("the session to greet", async () =>
       (await term.textContent())?.includes("hello from the session") ? true : undefined,
@@ -608,8 +648,13 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/graph`);
     await page.getByRole("img", { name: "runs graph" }).waitFor({ timeout: 20_000 });
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/supervisor`);
+    // The tile is the daemon's own figure: the answers given from a card among all answers (the
+    // host's question in the pane, answered there, counts as not from a card).
+    const acceptance = (await api("/supervisor")).data.acceptance as { answered: number; fromInbox: number };
+    const share = `${Math.round((100 * acceptance.fromInbox) / acceptance.answered)}%`;
+    expect(acceptance.fromInbox).toBeGreaterThanOrEqual(2);
     await until("the KPI tiles", async () =>
-      (await page.getByTestId("kpi-inbox").textContent())?.includes("100%") ? true : undefined,
+      (await page.getByTestId("kpi-inbox").textContent())?.includes(share) ? true : undefined,
     );
     // The tiles say what they count in plain words, and the hosts say whether they can start.
     expect(await page.getByTestId("kpi-inbox").textContent()).toContain(
@@ -659,5 +704,134 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     );
     // The two refusals this test provokes (the locked task, the refused setting) are 400s by design.
     expect(errors.filter((e) => !/Notification|favicon|status of 400/.test(e))).toEqual([]);
+  }, 90_000);
+
+  test("the plan of a run is read, checked, changed and saved; a change made meanwhile is a conflict", async () => {
+    const created = await (
+      await fetch(`${daemonUrl}/runs`, {
+        method: "POST",
+        body: JSON.stringify({ workflow: "planned", task: "Round the totals in the plan" }),
+      })
+    ).json();
+    const runId = (created as { data: { run: { runId: string } } }).data.run.runId;
+    await Bun.write(join(repo.root, `.metator/runs/${runId}/plan.json`), JSON.stringify(PLAN, null, 2));
+    await page.goto(
+      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/run/${runId}/plan`,
+    );
+    const bar = page.getByTestId("plan-edit-bar");
+    await bar.waitFor({ timeout: 20_000 });
+    expect(await page.getByTestId("plan").textContent()).toContain("round the total half-up");
+    // Edit: a field changed, a step added; Check lints without saving; Save says what changes first.
+    await bar.getByRole("button", { name: "Edit plan" }).click();
+    await page.getByLabel("S1 intent").fill("round the total half-even");
+    await page.getByRole("button", { name: "+ Step" }).click();
+    await page.getByLabel("S2 file").fill("test/invoice.test.ts");
+    await page.getByLabel("S2 intent").fill("a test of the rounding");
+    await page.getByLabel("S2 action").selectOption("create");
+    // Alt+↑ moves the step the focus is in.
+    await page.getByLabel("S2 intent").focus();
+    await page.keyboard.press("Alt+ArrowUp");
+    expect(await page.locator(".pf-step").first().getAttribute("aria-label")).toBe("step S2");
+    await bar.getByRole("button", { name: "Check" }).click();
+    await until("the check", async () => ((await bar.textContent())?.includes("check:") ? true : undefined));
+    await bar.getByRole("button", { name: "Save…" }).click();
+    const review = page.getByRole("region", { name: "what the save changes" });
+    await review.waitFor({ timeout: 5000 });
+    expect(await review.textContent()).toContain("step added: S2");
+    expect(await review.textContent()).toContain("step S1 changed: intent");
+    await review.getByRole("button", { name: "Save", exact: true }).click();
+    // The name is asked for once in the app's life; a test run alone gives it here.
+    const named = page.getByRole("dialog", { name: "your name" });
+    if (
+      await named.waitFor({ timeout: 2000 }).then(
+        () => true,
+        () => false,
+      )
+    ) {
+      await named.getByLabel("Your name").fill("maciej");
+      await named.getByRole("button", { name: "Save" }).click();
+    }
+    const saved = await until("the saved plan", async () => {
+      const v = (await api(`/runs/${runId}/plan`)).data as {
+        plan: { steps: { id: string; intent: string }[] };
+      };
+      return v.plan.steps.length === 2 ? v : undefined;
+    });
+    expect(saved.plan.steps.map((st) => [st.id, st.intent])).toEqual([
+      ["S2", "a test of the rounding"],
+      ["S1", "round the total half-even"],
+    ]);
+    const edited = await until("the edit in the activity", async () => {
+      const entries = (await api(`/runs/${runId}/activity`)).data.entries as { type: string; text: string }[];
+      return entries.find((e) => e.type === "plan-edited");
+    });
+    expect(edited.text).toContain("maciej");
+    // A change made meanwhile (another window, the agent): the save is refused as a conflict.
+    await bar.getByRole("button", { name: "Edit plan" }).click();
+    await page.getByLabel("S1 intent").fill("my change");
+    const now = (await api(`/runs/${runId}/plan`)).data as { plan: object; digest: string };
+    const theirs = await fetch(`${daemonUrl}/runs/${runId}/plan`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        plan: { ...now.plan, task: "Round the totals, theirs" },
+        digest: now.digest,
+        by: "bob",
+      }),
+    });
+    expect(theirs.status).toBe(200);
+    await bar.getByRole("button", { name: "Save…" }).click();
+    await page
+      .getByRole("region", { name: "what the save changes" })
+      .getByRole("button", { name: "Save", exact: true })
+      .click();
+    const conflict = page.getByTestId("edit-conflict");
+    await conflict.waitFor({ timeout: 10_000 });
+    expect(await conflict.textContent()).toContain("The plan changed since you opened it");
+    await conflict.getByRole("button", { name: "Reload" }).click();
+    await until("the view again", async () =>
+      (await bar.getByRole("button", { name: "Edit plan" }).count()) === 1 ? true : undefined,
+    );
+    // As text: JSON the daemon checks; text that does not parse is said before anything is sent.
+    await bar.getByRole("button", { name: "Edit as text" }).click();
+    await page.getByLabel("the plan as JSON").fill('{ "task": ');
+    await bar.getByRole("button", { name: "Check" }).click();
+    await until("the text's problem", async () =>
+      (await page.getByTestId("text-problems").textContent())?.includes("not valid JSON") ? true : undefined,
+    );
+    await bar.getByRole("button", { name: "Cancel" }).click();
+    // Every artifact opens read-only.
+    await page.getByTestId("artifacts").getByRole("button", { name: "plan.json" }).click();
+    const viewer = page.getByRole("dialog", { name: "artifact plan.json" });
+    await viewer.waitFor({ timeout: 10_000 });
+    await until("the artifact's text", async () =>
+      (await viewer.getByTestId("artifact-text").textContent())?.includes("Round the totals, theirs")
+        ? true
+        : undefined,
+    );
+    await viewer.getByRole("button", { name: "Close" }).click();
+    // The System part of the Overview: no system map yet; one written as text is shown as tables.
+    await page.goto(
+      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/overview/system`,
+    );
+    const map = page.getByTestId("system-map");
+    await map.waitFor({ timeout: 20_000 });
+    const mapBar = page.getByTestId("system-map-edit-bar");
+    await mapBar.getByRole("button", { name: "Edit as text" }).click();
+    await page.getByLabel("the system map as JSON").fill(
+      JSON.stringify({
+        system: "shop",
+        applications: [{ id: "shop-api", kind: "service", source: { path: "." } }],
+      }),
+    );
+    await mapBar.getByRole("button", { name: "Save…" }).click();
+    await page
+      .getByRole("region", { name: "what the save changes" })
+      .getByRole("button", { name: "Save", exact: true })
+      .click();
+    await until("the map's table", async () =>
+      (await map.textContent())?.includes("shop-api") ? true : undefined,
+    );
+    expect(errors.filter((e) => !/Notification|favicon|status of 4\d\d/.test(e))).toEqual([]);
   }, 90_000);
 });

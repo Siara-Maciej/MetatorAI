@@ -28,7 +28,7 @@ stages:
   - id: status
     gate: { script: "./check.sh" }
     onFail: { goto: status, loop: tries }
-loops: { tries: 1 }
+loops: { tries: 2 }
 `;
 
 const envelope = (code: string, message: string, hint?: string) =>
@@ -153,16 +153,13 @@ describe("a gate that waits on other work (W13: a system run's children)", () =>
 
   test("exit 4 and 3 mean nothing special from a script that is not metator's own", async () => {
     const w = await world(
-      [
-        { exitCode: 4, stderr: "flaky" },
-        { exitCode: 3, stderr: "still" },
-      ],
+      [{ exitCode: 3, stderr: "flaky" }, { exitCode: 4, stderr: "still" }, { exitCode: 0 }],
       "plain",
     );
     const r = (await w.drive.execute({ runId: w.runId, host: "fake" }))._unsafeUnwrap();
-    expect(r.status).toBe("escalated");
+    expect(r.status).toBe("done");
     expect(w.sleeps()).toBe(0);
-    expect((await w.repo.load(w.runId))._unsafeUnwrap().state.context.loops).toEqual({ tries: 1 });
+    expect((await w.repo.load(w.runId))._unsafeUnwrap().state.context.loops).toEqual({ tries: 2 });
   });
 
   test("a run moved while the gate waits (aborted from another terminal): the drive stops waiting", async () => {

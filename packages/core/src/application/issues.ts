@@ -8,9 +8,9 @@ import {
   type IssueRef,
   issueTask,
   nextIssueId,
-  proposalDecision,
   PROPOSAL_ADD,
   PROPOSAL_DROP,
+  proposalDecision,
   proposalQuestion,
 } from "../domain/issue.ts";
 import { err, ok, type Result } from "../domain/result.ts";

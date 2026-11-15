@@ -1,4 +1,5 @@
 import slugify from "@sindresorhus/slugify";
+import { attemptsOf } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { escalatedNext } from "../domain/inbox.ts";
 import { type PublishedBranch, publicationProblem } from "../domain/publication.ts";
@@ -39,6 +40,8 @@ export interface RunView {
     readonly stage: string;
     readonly reason?: string;
     readonly next: readonly string[];
+    /** How often it tried the stage, of how often it could ("tried 1 of 13 times"). */
+    readonly attempts?: { readonly tried: number; readonly of: number };
   };
 }
 
@@ -58,16 +61,24 @@ function view(record: RunRecord, machine: RunStateMachine, repo: RunRepository):
     ...(record.worktree ? { worktree: record.worktree } : {}),
     ...(record.driver ? { driver: record.driver } : {}),
     updatedAt: record.updatedAt,
-    ...(record.state.status === "escalated" ? { escalated: escalation(record) } : {}),
+    ...(record.state.status === "escalated" ? { escalated: escalation(record, machine) } : {}),
   };
 }
 
-function escalation(record: RunRecord): NonNullable<RunView["escalated"]> {
+function escalation(record: RunRecord, machine: RunStateMachine): NonNullable<RunView["escalated"]> {
   const last = record.state.context.history.at(-1);
+  const stage = last?.stage ?? record.state.stage;
+  const attempts = attemptsOf(
+    machine.workflow.stages,
+    stage,
+    record.state.context.loops,
+    machine.workflow.loops ?? {},
+  );
   return {
-    stage: last?.stage ?? record.state.stage,
+    stage,
     ...(last?.detail ? { reason: last.detail } : {}),
     next: escalatedNext(record.runId),
+    ...(attempts ? { attempts } : {}),
   };
 }
 

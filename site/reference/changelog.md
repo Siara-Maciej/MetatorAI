@@ -6,6 +6,20 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 
 ## November 2026
 
+- A system run (`mt-system-change`) waits for its child runs instead of spending its waves in seconds: while they work it reads as working and says what it waits on; it starts the next wave when one is done, and escalates at once when a child escalates (or after six hours). Its gate is `metator system plan status --gate`; `run drive --gate-wait <ms>` says how often it looks.
+- A system run's child runs are driven as they start, on the system run's host; a run nobody chose a host for takes the first host of `supervisor.hostOrder` that can start here.
+- One Approve on a system run's plan-approval approves the system plan too; a plan with lint errors refuses it, and the daemon marks the card's Approve `disabled` with the reason.
+- A human gate always has its approval card, whoever moved the run there (a drive, a conductor, a person); answering it passes or rejects the gate.
+- In a folder, `run start`, `run delegate`, `run workers` and the other conductor commands reach the repository they run in, and a pane's own calls reach its repository.
+- `POST /runs/:run/pty-open` starts the run's conductor (as `run start`), not a plain session; `POST /runs/:run/drive` starts a background drive.
+- A proposal decided in the Backlog (or with `issue decide`, `issue rm`) leaves Needs you. A finished run's panes close.
+- In a folder, each repository scans its intake on its own `intake.everyMs`.
+- A worker's terminal question is the worker's, at its stage; it no longer makes the conductor read as waiting.
+- A step of a system plan without a worktree no longer shows the system run's plan files as its change.
+- An escalation says the failed command's message and hint (not its JSON) and how often the stage was tried (`attempts`).
+- `metator system discover --write` in a folder writes the folder's map into one of its repositories (`--repo`).
+- The desktop app: the Plan tab shows the run's plan with its lint at each step and field, and changes it (**Edit plan** as fields, **Edit as text** as JSON, **Check**, **Save…** with what changes, a conflict offers **Reload** or **Keep my edits**). A system run's Plan tab shows the system plan with its steps per repository, waves, child runs, approval and **Approve**; **Overview → System** lists the system plans and edits the system map, its roots and **Discover**. Every artifact of a run opens read-only.
+- A run nothing works on offers **Open a session** (its conductor, with the host to use) and **Drive in background**, on its page and in the Inbox, which now says what is true about the open runs. **Attach and answer in the pane** takes you to the pane. A finished run reads `done`; a worker that ended with code 0 reads `finished`. A system run's steps sit under it in the sidebar across repositories with the right count. The dependencies graph keeps finished runs of the last day, dimmed.
 - The daemon's API answers with MetatorAI's envelope and these statuses: 404 when something is not there (`NOT_FOUND`), 403 when a pane may not do it, 400 for everything else. A request body that does not fit its route is refused with `USAGE` before anything runs. Paths and answers are unchanged.
 - Through the daemon, as in the terminal: a run started in a worktree gets its dependencies; an answer can carry `always` and becomes a policy; closing a run takes `removeWorktree` (and `force`); a `since` that is not a time is a usage error.
 - A WebSocket on `/ws/pty/<run>` no longer starts a session: it connects to the one the run has. Start one with `POST /runs/<run>/pty-open` or `metator run start`.

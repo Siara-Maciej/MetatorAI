@@ -1,4 +1,4 @@
-import { err, MESSAGE_TOPICS, MetatorError, ok } from "@metator/core";
+import { err, MESSAGE_TOPICS, MetatorError, ok, type RunDriveStarted } from "@metator/core";
 import { z } from "zod";
 import { body, type Call, count, denied, flag, optional, type Route, route, strings, text } from "../http.ts";
 
@@ -408,7 +408,8 @@ export const RUN_ROUTES: readonly Route[] = [
         .resolve("runJournal")
         .record(run(call), { type: "drive", text: `drive on ${host} started by ${by}` });
       if (said.isErr()) return said;
-      return ok({ started: true, pid: started.value.pid, host });
+      const view: RunDriveStarted = { started: true, pid: started.value.pid, host };
+      return ok(view);
     },
   }),
   route({

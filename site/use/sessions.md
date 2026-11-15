@@ -19,7 +19,8 @@ When the agent asks on its own screen, with no card in the Inbox, a line above t
 Below that bar:
 
 - The terminal shows the run's main pane. The row above it lists the run's panes, each with its state. Click one to see it. **+ Shell** opens a shell pane of your own in this run.
-- Opening this tab starts nothing. A run that is driven in the background, or that nothing works on yet, has no terminal: the screen says **No session runs for this run**, and **Open a session** starts the host in a terminal. Once a session lives, its terminal shows by itself.
+- Opening this tab starts nothing. A run that is driven in the background, or that nothing works on yet, has no terminal: the screen says **No session runs for this run**. A run nothing works on has a bar under its head, on every tab, with **Open a session** (its agent, the conductor, in a terminal you can watch and take) and **Drive in background** (no terminal, as `metator run drive --detach`), and a **host** choice when several are installed. Starting a run's agent asks for your name the first time. An escalated run has **Resume** there instead, and a finished one nothing. Once a session lives, its terminal shows by itself.
+- A worker whose process finished its work (exit code 0) reads `finished` with ✓, and its pane offers only **Close pane**; a process that ended with any other code reads `exited` in red, with **Retry**.
 - The run's events are on the **Activity** tab (key `l`): the time, the type, the source and what happened.
 - The line at the bottom sends one line of text to the session. A click into it attaches you first.
 

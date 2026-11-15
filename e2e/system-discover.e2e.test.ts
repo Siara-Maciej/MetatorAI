@@ -245,11 +245,35 @@ describe("metator system discover in a folder of three repositories (real CLI)",
       ["served:billing /docs-json", false, "billing/src/server.ts:3"],
       ["consumes:web→billing /docs-json", false, "web/package.json"],
     ]);
-    // A folder has no map of its own: --write and --check say so instead of doing nothing.
-    for (const flag of ["--write", "--check"]) {
-      const r2 = await metator(["system", "discover", flag], folder);
-      expect([r2.code, (r2.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
-    }
+    // A folder has no map of its own: --check says so instead of doing nothing.
+    const check = await metator(["system", "discover", "--check"], folder);
+    expect([check.code, (check.json.error as { code: string }).code]).toEqual([64, "USAGE"]);
+  }, 120_000);
+
+  test("--write in the folder writes the folder's map into one of its repositories, once, by the person", async () => {
+    const env = { METATOR_USER: "ana" };
+    const wrong = await metator(["system", "discover", "--write", "--repo", "nowhere"], folder, env);
+    expect([wrong.code, (wrong.json.error as { message: string }).message]).toEqual([
+      64,
+      `no repository nowhere in ${folder}`,
+    ]);
+    const w = await metator(["system", "discover", "--write", "--repo", "billing"], folder, env);
+    expect(w.code).toBe(0);
+    const written = w.json.data as {
+      written: boolean;
+      repo: string;
+      proposed: { applications: { id: string }[] };
+    };
+    expect([written.written, written.repo]).toEqual([true, "billing"]);
+    expect(written.proposed.applications.map((a) => a.id)).toEqual(["billing", "notify", "web"]);
+    const map = await Bun.file(join(folder, "billing/docs/metator/system.yml")).text();
+    expect(map).toContain("kind: SystemMap");
+    // Never over a map a person may have changed: the second time writes nothing.
+    const again = await metator(["system", "discover", "--write"], folder, env);
+    expect([
+      (again.json.data as { written: boolean; repo: string }).written,
+      (again.json.data as { repo: string }).repo,
+    ]).toEqual([false, "billing"]);
   }, 120_000);
 });
 

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   DEFAULT_PATHS,
   InitRun,
+  LayoutPaneIdentity,
   LayoutStore,
   Panes,
   PtyBroker,
@@ -311,18 +312,55 @@ describe("Panes", () => {
     const w = world();
     const done = (await w.init("Done already"))._unsafeUnwrap();
     const open = (await w.init("Still working"))._unsafeUnwrap();
+    const aborted = (await w.init("Given up"))._unsafeUnwrap();
+    await w.panes.openRun({ runId: aborted.runId });
+    const gaveUp = (await w.repo.load(aborted.runId))._unsafeUnwrap();
+    await w.repo.save({ ...gaveUp, state: { ...gaveUp.state, status: "aborted" } });
     await w.panes.openRun({ runId: done.runId });
     const ws = (await w.panes.openWorkspace({ runId: done.runId }))._unsafeUnwrap();
-    await w.panes.openPane({ workspace: ws.id, role: "worker", runId: done.runId, process: { kind: "command", argv: ["sh"] } });
+    await w.panes.openPane({
+      workspace: ws.id,
+      role: "worker",
+      runId: done.runId,
+      process: { kind: "command", argv: ["sh"] },
+    });
     await w.panes.openRun({ runId: open.runId });
     const record = (await w.repo.load(done.runId))._unsafeUnwrap();
     await w.repo.save({ ...record, state: { ...record.state, status: "done", stage: "done" } });
     const r = (await w.panes.closeFinished())._unsafeUnwrap();
-    expect(r).toEqual([{ runId: done.runId, closed: 2 }]);
+    expect(r.map((x) => [x.runId, x.closed]).sort()).toEqual(
+      [
+        [aborted.runId, 1],
+        [done.runId, 2],
+      ].sort(),
+    );
     const left = (await w.layout.load())._unsafeUnwrap();
     expect(left.panes.map((p) => p.runId)).toEqual([open.runId]);
     // Nothing left to close: nothing is said twice.
     expect((await w.panes.closeFinished())._unsafeUnwrap()).toEqual([]);
+  });
+
+  test("a pane's identity: a worker by its name and stage, the conductor by its agent at the run's stage", async () => {
+    const w = world();
+    const r = (await w.init("Add discount"))._unsafeUnwrap();
+    const conductor = (await w.panes.openRun({ runId: r.runId, agent: "mt-orchestrator" }))._unsafeUnwrap();
+    const worker = (
+      await w.panes.openPane({
+        workspace: (await w.panes.openWorkspace({ runId: r.runId }))._unsafeUnwrap().id,
+        role: "worker",
+        runId: r.runId,
+        worker: { name: "mt-implementer-1", stage: "plan" },
+        process: { kind: "command", argv: ["sh"] },
+      })
+    )._unsafeUnwrap();
+    const who = new LayoutPaneIdentity(w.layout, w.repo);
+    expect(await who.of(conductor.id)).toEqual({
+      role: "conductor",
+      agent: "mt-orchestrator",
+      stage: "build",
+    });
+    expect(await who.of(worker.id)).toEqual({ role: "worker", agent: "mt-implementer-1", stage: "plan" });
+    expect(await who.of("w9:p9")).toBeUndefined();
   });
 
   test("splitPane opens a shell beside the pane and the tab's tree remembers it; setTree accepts only the tab's panes", async () => {

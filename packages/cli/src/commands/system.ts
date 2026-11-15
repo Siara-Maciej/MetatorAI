@@ -1,10 +1,12 @@
-import { basename } from "node:path";
-import { err, MetatorError, ok, SystemMapDocument } from "@metator/core";
+import { existsSync } from "node:fs";
+import { basename, join } from "node:path";
+import { err, MetatorError, ok, type Result, SystemMapDocument } from "@metator/core";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
-import type { CommandContext } from "../context.ts";
-import { baseOption } from "../options.ts";
+import type { CommandContext, Folder } from "../context.ts";
+import { baseOption, byOption } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
+import { asPerson } from "../who.ts";
 import { registerSystemPlanCommands } from "./system-plan.ts";
 
 export function registerSystemCommands(program: Command, ctx: CommandContext): void {
@@ -85,16 +87,40 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
     .description("Propose a system map from the code: applications, contracts and consumers, with evidence")
     .option("--write", "write the proposal to the map file when there is none (never overwrites)", false)
     .option("--check", "fail when the map lacks what the code shows", false)
+    .option(
+      "--repo <name>",
+      "in a folder, with --write: the repository that holds the map (default: the one that has one, else the first)",
+    )
+    .addOption(byOption("who writes the map (with --write)"))
     .action(
-      action(async (opts: { write: boolean; check: boolean }) => {
+      action(async (opts: { write: boolean; check: boolean; repo?: string; by?: string }) => {
         const f = ctx.folder();
-        // A folder has no map of its own: the map lives in one repository (the platform's).
-        if (f && (opts.write || opts.check))
+        // A folder's map lives in one of its repositories (the platform's): the proposal from every
+        // repository of the folder is written there, as the app's Discover does (never overwrites).
+        if (f && opts.write) {
+          const holder = mapHolder(
+            f,
+            opts.repo,
+            (root) => ctx.containerAt(root).resolve("systemCatalog").source,
+          );
+          if (holder.isErr()) return { result: holder };
+          const c = ctx.containerAt(holder.value.root);
+          return asPerson(c, opts.by, async (by) => ({
+            result: (
+              await c.resolve("systemMaps").discover({
+                write: true,
+                by,
+                folder: { root: f.root, repos: f.repos.map((r) => r.root) },
+              })
+            ).map((v) => ({ ...v, repo: holder.value.name })),
+          }));
+        }
+        if (f && opts.check)
           return {
             result: err(
               MetatorError.usage(
-                `--${opts.write ? "write" : "check"} needs a map, and a folder of repositories has none`,
-                "Run it in the repository that holds the map, or copy the proposal there.",
+                "--check needs a map, and a folder of repositories has none of its own",
+                "Run it in the repository that holds the map.",
               ),
             ),
           };
@@ -142,4 +168,26 @@ export function registerSystemCommands(program: Command, ctx: CommandContext): v
   registerSystemPlanCommands(system, ctx);
 
   schemaCommand(system, ctx, "Print the JSON Schema of the system map", SystemMapDocument);
+}
+
+/** The repository of a folder that holds (or is to hold) the system map: named, else the one with a map, else the first. */
+function mapHolder(
+  f: Folder,
+  named: string | undefined,
+  mapFile: (root: string) => string,
+): Result<Folder["repos"][number], MetatorError> {
+  if (named) {
+    const repo = f.repos.find((r) => r.name === named);
+    return repo
+      ? ok(repo)
+      : err(
+          MetatorError.usage(
+            `no repository ${named} in ${f.root}`,
+            `Its repositories: ${f.repos.map((r) => r.name).join(", ")}.`,
+          ),
+        );
+  }
+  for (const r of f.repos) if (existsSync(join(r.root, mapFile(r.root)))) return ok(r);
+  const first = f.repos[0];
+  return first ? ok(first) : err(MetatorError.usage(`${f.root} holds no repository`));
 }

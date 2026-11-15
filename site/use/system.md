@@ -26,21 +26,22 @@ metator run drive --detach
 | `analyze` | `mt-system-scout` | `metator system analyze <task>`: the contracts the task touches, whether each change is breaking, their consumers and owners |
 | `plan` | `mt-system-planner` | `metator system plan new <task>` drafts a plan by the map's policies; the planner refines it into one step per application |
 | `plan-gate` | `metator system plan lint` | every consumer of a breaking change migrates, providers go first, the strategy matches the map's policy |
-| `plan-approval` | you | approve the system plan, then the gate |
-| `children` | `metator system plan run` | each step that can start becomes a child run in its application's repository |
-| `status` | `metator system plan status --check` | the child runs are read back; when a wave is done, the next one starts |
+| `plan-approval` | you | one **Approve** approves the system plan and the gate |
+| `children` | `metator system plan run` | each step that can start becomes a child run in its application's repository, driven at once on the system run's host |
+| `status` | `metator system plan status --gate` | waits while the child runs work, starts the next wave when one is done, and stops at once when a child escalates |
 | `delivery` | you | every step is done; deploy in the order of the plan's waves |
 
 Neither approval can be skipped at any autonomy level.
 
 ## Approve the plan
 
+Approve the plan-approval card in the app, or at a terminal:
+
 ```bash
-metator system plan approve rename-refunds --by alice
 metator run approve plan-approval --by alice
 ```
 
-The first command approves the system plan itself. The second passes the run's gate.
+One approval does both: it approves the system plan as it is now, under your name, and passes the run's gate. When the plan's lint has errors (someone changed the plan after its lint passed), the approval is refused with the problems, and the card's **Approve** is disabled with the reason. `metator system plan approve <plan>` still approves the plan on its own.
 
 ### In the app
 
@@ -53,11 +54,11 @@ The first command approves the system plan itself. The second passes the run's g
 
 Every change is a line of the plan's edit log, `metator/system/plans/<id>.edits.jsonl`, with who made it and what changed.
 
-The **System map** screen shows `docs/metator/system.yml` with its lint and lets you change it the same way (a map pinned in another repository is changed there). **Discover** proposes a map from the code of this repository, or of every repository of the folder; it writes the map only when there is none. The checkouts of the applications come from the option `system.roots`.
+The **System map** screen shows `docs/metator/system.yml` with its lint and lets you change it the same way (a map pinned in another repository is changed there). **Discover** proposes a map from the code of this repository, or of every repository of the folder; it writes the map only when there is none. At a terminal in a folder, `metator system discover --write` writes the folder's map into the repository that holds it (`--repo <name>`; by default the one that has a map, else the first). The checkouts of the applications come from the option `system.roots`.
 
 ## Child runs
 
-Each step runs where its application's code is, as an `mt-feature` run with that repository's own gates, rules and approvals. You answer a child run's questions like those of any run. They are in the same [inbox](./inbox.md) when the repositories are in one folder.
+Each step runs where its application's code is, as an `mt-feature` run with that repository's own gates, rules and approvals. It is driven as soon as it starts: on the system run's host, else the first host of `supervisor.hostOrder` that can start there. A child in its own worktree gets its dependencies first. Nobody has to open a session for it. You answer a child run's questions like those of any run. They are in the same [inbox](./inbox.md) when the repositories are in one folder.
 
 A step can run only in a checkout you work in: this repository, or a checkout named for the application under `system.roots` in `metator.config.yml`. A step whose application has no checkout stops with a hint.
 
@@ -77,7 +78,7 @@ metator system plan status rename-refunds
 
 It lists every step with its application, its status (`pending`, `running`, `done` or `blocked`), its child run and that run's stage.
 
-A child run that escalates or is aborted makes its step `blocked`. Resolve it in that repository, then check the status again.
+While its children work, the system run waits at `status` without spending its waves, and reads as working: its activity says what it waits on, for example `waiting on children: shop-api working at build, shop-web not started`. When a wave is done, the next one starts. A child run that escalates or is aborted makes its step `blocked`, and the system run escalates at once, naming the step and where to resolve it. It also escalates after waiting six hours (`--timeout <ms>` on the gate's `metator system plan status --gate` changes that). Resolve the child in its repository, then resume the system run.
 
 ## Done
 

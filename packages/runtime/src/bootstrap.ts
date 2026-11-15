@@ -106,6 +106,7 @@ import {
   Issues,
   JudgeFindings,
   KnowledgeFiles,
+  LayoutPaneIdentity,
   LayoutStore,
   LintAdrs,
   LintAgents,
@@ -629,9 +630,19 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         }),
     ).singleton(),
     hostManifests: asFunction(({ fileSystem }) => new HostManifestCatalog(fileSystem)).singleton(),
+    // Who each pane is in its run: a worker's question is the worker's, never the conductor's.
+    paneIdentity: asFunction(
+      ({ layoutStore, runRepository }) => new LayoutPaneIdentity(layoutStore, runRepository),
+    ).singleton(),
     paneSensor: asFunction(
-      ({ ptyBroker, hostManifests, runJournal, clock }) =>
-        new PaneSensor({ broker: ptyBroker, manifests: hostManifests, journal: runJournal, clock }),
+      ({ ptyBroker, hostManifests, runJournal, clock, paneIdentity }) =>
+        new PaneSensor({
+          broker: ptyBroker,
+          manifests: hostManifests,
+          journal: runJournal,
+          clock,
+          identity: paneIdentity,
+        }),
     ).singleton(),
     notifier: asFunction(
       ({ runJournal, processRunner, root, config }) =>
@@ -643,8 +654,14 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         }),
     ).singleton(),
     hostPrompts: asFunction(
-      ({ paneSensor, runJournal, driverLock, notifier }) =>
-        new HostPrompts({ sensor: paneSensor, journal: runJournal, lock: driverLock, notify: notifier }),
+      ({ paneSensor, runJournal, driverLock, notifier, paneIdentity }) =>
+        new HostPrompts({
+          sensor: paneSensor,
+          journal: runJournal,
+          lock: driverLock,
+          notify: notifier,
+          identity: paneIdentity,
+        }),
     ),
     layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
     issues: asFunction(

@@ -25,6 +25,9 @@ import { TextEditor } from "../run/plan-form.tsx";
 import { Notice } from "./common.tsx";
 import { type DocSource, EditBar, FieldProblems, ProblemList, useDocEditor } from "./doc-editor.tsx";
 
+/** A repository as a person names it: the last part of its path. */
+const repoName = (path: string): string => path.replace(/\/+$/, "").split("/").pop() || path;
+
 export function SystemPlanPanel({
   planId,
   planOfRun,
@@ -167,7 +170,7 @@ function SystemPlanBody({
           </section>
           {repos.map((r) => (
             <section key={r} className="sp-repo" aria-label={`steps in ${r}`}>
-              <h3>{r}</h3>
+              <h3 title={r}>{repoName(r)}</h3>
               <table className="sp-steps">
                 <thead>
                   <tr>

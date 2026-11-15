@@ -5,13 +5,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { InboxItem } from "../api.ts";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { answerCommand, duration, needsReason, questionKind } from "../model.ts";
+import { answerCommand, duration, needsReason, questionKind, systemPlanOf } from "../model.ts";
 import { useAnswer } from "./answer.tsx";
 import { ArtifactViewer } from "./artifact-viewer.tsx";
 import { Chip } from "./chips.tsx";
 import { Notice } from "./common.tsx";
 import { FoldList } from "./fold-list.tsx";
-import { PlanApprovalLine } from "./plan-approval-line.tsx";
+import { PlanApprovalLine, SystemPlanLine } from "./plan-approval-line.tsx";
 
 export function DecisionCard({
   item,
@@ -25,7 +25,7 @@ export function DecisionCard({
   /** The run's change, straight from the card: what the decision is about. */
   onOpenChanges(runId: string): void;
 }) {
-  const { me, client } = useDaemon();
+  const { me, client, systemPlans, run: runOf, runs } = useDaemon();
   const q = item.question;
   const [viewing, setViewing] = useState<string>();
   // A gate's card about the plan shows the plan's lint and the way to read or change it.
@@ -37,6 +37,8 @@ export function DecisionCard({
         : Promise.resolve({ ok: false, error: { code: "NONE", message: "" } }),
     q.source === "gate" ? 5000 : 0,
   );
+  const owner = runOf(q.runId, item.repo);
+  const systemPlan = owner ? systemPlanOf(systemPlans, owner, runs) : undefined;
   const planView =
     plan.data?.plan && (plan.data.question === q.id || plan.data.approvalStage === q.stage)
       ? plan.data
@@ -126,16 +128,18 @@ export function DecisionCard({
           {card.artifacts.length > 0 ? (
             <div className="muted">
               see:{" "}
-              {card.artifacts.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  className="ghost link mono"
-                  onClick={() => setViewing(name)}
-                  title={`read ${name}`}
-                >
-                  {name}
-                </button>
+              {card.artifacts.map((name, i) => (
+                <span key={name}>
+                  {i > 0 ? " · " : null}
+                  <button
+                    type="button"
+                    className="ghost link mono"
+                    onClick={() => setViewing(name)}
+                    title={`read ${name}`}
+                  >
+                    {name}
+                  </button>
+                </span>
               ))}
             </div>
           ) : null}
@@ -143,6 +147,9 @@ export function DecisionCard({
         </section>
       ) : null}
       {planView ? <PlanApprovalLine view={planView} runId={q.runId} /> : null}
+      {!planView && systemPlan && q.source === "gate" ? (
+        <SystemPlanLine plan={systemPlan} runId={q.runId} />
+      ) : null}
       <section>
         <h3>Options{q.multiSelect ? " · choose one or more" : ""}</h3>
         <fieldset className="options">

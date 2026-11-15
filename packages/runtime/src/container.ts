@@ -113,6 +113,7 @@ import type {
   JudgeFindings,
   KnowledgeFiles,
   Launcher,
+  LayoutPaneIdentity,
   LayoutStore,
   LintAdrs,
   LintAgents,
@@ -381,6 +382,7 @@ export interface Cradle {
   writeRunArtifact: WriteRunArtifact;
   resumeRun: ResumeRun;
   gateQuestions: GateQuestions;
+  paneIdentity: LayoutPaneIdentity;
   gateApprovals: SystemPlanApprovals;
   handoffRun: HandoffRun;
   closeRun: CloseRun;

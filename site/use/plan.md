@@ -31,16 +31,29 @@ No model writes this screen. It is computed from the run's files when you look:
 
 Before the plan stage has written `plan.json`, the list of steps is empty. A plan written as Markdown (`plan.md`) is shown as text instead.
 
-The **artifacts** are the files this run's workflow produces, never another workflow's. A system run's Plan tab shows its **system plan**: the steps per repository, their waves, each step's child run and the stage it is at.
+The **artifacts** are the files this run's workflow produces, never another workflow's.
+
+## A system run's plan
+
+A system run's Plan tab shows its **system plan** instead: the change across repositories. On top are its status, its approval (with who approved it, or **approved … before it changed: approve again** once someone edited it after the approval), its lint and **Approve**. **Approve** waits while the lint has errors, and says the first one. Below are the **deploy order**, wave by wave, and the steps grouped by repository, each with what it does, the steps it comes after, its status, and the run it started with that run's state and stage. A click on a run opens it.
+
+**Edit system plan** and **Edit as text** work as for a run's plan. A step that already has a run is history: its fields are read-only and it cannot be removed. New steps can be added (**+ Step**, with the application they run in). An approved plan that is edited goes back to draft and must be approved again.
+
+In the sidebar a system run's steps sit under it, whatever repository they run in; a step of another repository names it (`step 2/2 · shop-web · plan · …`). The total comes from the system plan, so a step that has not started yet still counts.
 
 ## Change the run's plan
 
-Until the run passes the gate where a person approves the plan (`plan-approval` in `mt-feature`), you can change the plan in the app: open **Edit plan** on the Plan tab, change the steps, and save. The lint runs as you type; its errors do not stop a save, the gates still check them. When the approval question is open, its card shows the lint of the plan as it is now.
+Until the run passes the gate where a person approves the plan (`plan-approval` in `mt-feature`), you can change the plan in the app. A bar over the steps shows the plan's lint (`lint: 2 errors · 1 warning`); each problem also stands under the step and the field it is about.
 
+- **Edit plan** turns the steps into fields: the task and the scope, then for each step its action, file, intent, exemplar (`file:line`), rules, the tests written first and the steps it comes after. **↑** and **↓** move a step (or **Alt+↑** and **Alt+↓** while a field of the step has the focus), **✕** removes it, and **+ Step** adds one at the end with the next id.
+- **Edit as text** shows the plan as JSON instead. **As fields** and **As text** switch between the two while you edit.
+- **Check** lints your draft without saving. A draft that is not valid JSON says so, with the line, before anything is sent.
+- **Save…** first lists what the save changes (`step added: S3`, `step S1 changed: intent`, `steps reordered`) and whether the plan still has errors; **Save** then asks for your name the first time and writes it. Lint errors do not stop a save; the gates still check them. A plan that does not fit its format is not saved, and the app points at the fields.
 - Every save records who made it and what changed (`plan edited by ana: step added: S3`) in the run's activity, and writes the edit scope again.
-- If the plan changed since you opened it (an agent or another person saved first), the save is refused and the app shows the plan as it is now. Nothing is lost: make your change again on it.
-- A plan that does not fit its format is not saved; the app points at the fields.
-- After the approval gate, or when the run is done, the plan is read-only and the app says why.
+- If the plan changed since you opened it (an agent or another person saved first), the save is refused and the bar says **The plan changed since you opened it**: **Reload** drops your edits and shows the plan as it is now; **Keep my edits** keeps them and saves them over the new version on your next **Save**.
+- After the approval gate, or when the run is done, the plan is read-only and the bar says why.
+
+When the approval question is open, its card in the Inbox shows the plan's lint as it is now and a link **Review / edit the plan** to this tab.
 
 Agents never edit a plan through the app; they write the plan file their stage names.
 

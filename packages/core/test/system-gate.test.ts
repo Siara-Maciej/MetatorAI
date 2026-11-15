@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { driveHostOf } from "../src/domain/drive.ts";
+import { attemptsOf, driveHostOf } from "../src/domain/drive.ts";
 import { systemGate } from "../src/domain/system-gate.ts";
 
 const step = (id: string, app: string, status: string, run?: { status: string; stage: string }) => ({
@@ -89,5 +89,23 @@ describe("the host a drive takes when nobody names one (driveHostOf)", () => {
     // One the runtime does not drive agents with is passed over too; then the targets, then the first known.
     expect(pick({ order: ["opencode"], targets: ["claude"] })).toBe("claude");
     expect(pick({ chosen: "nope", order: [], targets: [] })).toBe("copilot");
+  });
+});
+
+describe("how often an escalated run tried its stage (attemptsOf)", () => {
+  const stages = [
+    { id: "plan" },
+    { id: "plan-gate", onFail: { goto: "plan", loop: "plan" } },
+    { id: "status", onFail: { goto: "plan", loop: "waves" } },
+    { id: "check" },
+  ];
+  const limits = { plan: 2, waves: 12 };
+  test("tries are the first one and the loops spent, of the first one and the loops allowed", () => {
+    expect(attemptsOf(stages, "plan-gate", { plan: 2 }, limits)).toEqual({ tried: 3, of: 3 });
+    // Stopped at once (a child escalated): one try of the thirteen it could have had.
+    expect(attemptsOf(stages, "status", {}, limits)).toEqual({ tried: 1, of: 13 });
+    // A stage without a loop has one try.
+    expect(attemptsOf(stages, "check", {}, limits)).toEqual({ tried: 1, of: 1 });
+    expect(attemptsOf(stages, "nowhere", {}, limits)).toBeUndefined();
   });
 });

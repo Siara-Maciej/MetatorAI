@@ -3,7 +3,7 @@ import { ANSWERED_IN_PANE, ATTACH_PANE, hostPromptText, LEAVE_PANE } from "../do
 import { err, ok, type Result } from "../domain/result.ts";
 import type { DriverLock } from "./driver-lock.ts";
 import type { Notifier } from "./notifier.ts";
-import type { PaneSensor } from "./pane-sensor.ts";
+import type { PaneIdentity, PaneSensor } from "./pane-sensor.ts";
 import type { RunJournal } from "./run-journal.ts";
 
 export interface HostPromptsDependencies {
@@ -11,6 +11,8 @@ export interface HostPromptsDependencies {
   readonly journal: Pick<RunJournal, "questions" | "ask" | "answer" | "record">;
   readonly lock: Pick<DriverLock, "attach">;
   readonly notify?: Pick<Notifier, "notify">;
+  /** Who a pane is in its run: its prompt is that agent's question, at its stage. */
+  readonly identity?: PaneIdentity;
 }
 
 export interface HostPromptsReport {
@@ -54,11 +56,14 @@ export class HostPrompts {
           }
           continue;
         }
+        // The agent in the pane asks (a worker by its name, the conductor by its agent), at its stage.
+        const who = await this.d.identity?.of(pane.paneId);
+        const asker = who?.agent ?? pane.host;
         const q = await this.d.journal.ask(pane.runId, {
-          stage: "session",
+          stage: who?.stage ?? "session",
           source: "permission",
-          agent: pane.host,
-          prompt: hostPromptText(pane.host, pane.paneId, pane.reason),
+          agent: asker,
+          prompt: hostPromptText(asker, pane.paneId, pane.reason),
           options: [
             {
               label: ATTACH_PANE,

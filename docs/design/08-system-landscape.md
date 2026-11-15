@@ -98,6 +98,8 @@ Zasady:
 
 ### 3.2 Jak agent analizuje zadanie (nowy etap „system impact”)
 
+> **Zmiana (2026-11-15, test scenariuszowy na dwóch repozytoriach).** Run systemowy czeka na runy potomne bramką `metator system plan status --gate`: dopóki dzieci pracują, skrypt kończy się kodem 4 (WAITING), a drive patrzy ponownie bez zużywania pętli `waves` i zapisuje w aktywności, na co czeka; dziecko eskalowane lub przerwane daje kod 3 (BLOCKED) i run eskaluje od razu (FAIL `final`); krok gotowy do startu daje kod 1 (nowa fala). Dzieci są od razu napędzane (`StartRun` z drive'em, host rodzica), a jedno Approve na bramce `plan-approval` zatwierdza też plan systemowy (`SystemPlanApprovals`); plan z błędami lintu odrzuca zatwierdzenie.
+
 ```
 zadanie ─► mt-system-scout
              1. metator system impact --task / --contracts / --files

@@ -278,6 +278,8 @@ metator system discover [options]
 |---|---|---|
 | `--write` | write the proposal to the map file when there is none (never overwrites) |  |
 | `--check` | fail when the map lacks what the code shows |  |
+| `--repo <name>` | in a folder, with --write: the repository that holds the map (default: the one that has one, else the first) |  |
+| `--by <name>` | who writes the map (with --write) (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator system analyze`
 
@@ -414,6 +416,8 @@ metator system plan status [options] [id]
 | `[id]` | the plan id | |
 | `--run <run>` | the plan of this system run (an id or its run directory) |  |
 | `--check` | fail until every step is done (a W13 gate) |  |
+| `--gate` | as the system run's gate: children still working are not yet (exit 4, the drive looks again), a child that escalated or was aborted stops the run (exit 3), a step that can start sends it back to start it (exit 1) |  |
+| `--timeout <ms>` | with --gate: how long the run waits on its children before it escalates |  |
 
 ### `metator system eval list`
 
@@ -2029,6 +2033,7 @@ metator run drive [options]
 | `--host <host>` | AI host for the agents: claude, copilot (default: first of hosts.targets) |  |
 | `--detach` | keep driving in the background after this command returns |  |
 | `--max-steps <n>` | stop after this many stage transitions | `200` |
+| `--gate-wait <ms>` | how often a gate that waits on other work (a system run's children) looks again (default: $METATOR_GATE_WAIT_MS, else 5000) |  |
 
 ### `metator run revive`
 

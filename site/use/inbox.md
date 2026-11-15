@@ -10,6 +10,8 @@ A run stops when a decision belongs to you. Every open question of every run is 
 | `agent` | an agent cannot decide from the code and asks | the answer goes back to the same agent, which continues |
 | `permission` | an agent wants to run a tool that is not pre-approved | Allow runs the call; Deny refuses it, with your reason |
 
+A gate's card is there whoever moved the run to the gate: a drive, a conductor in its pane (`metator run advance pass`) or a person at a terminal. Approve on the card passes the gate as `metator run approve` does, under your name; Reject sends the run back with your reason. A proposal of an agent you decide in the Backlog, or with `metator issue decide` or `issue rm`, leaves the queue too.
+
 An agent works without asking when it runs the MetatorAI commands its definition names, reads or searches the repository, writes its artifacts into the run directory, or edits files inside the run's own worktree. Anything else asks. A push always asks.
 
 ## The Inbox screen
@@ -43,7 +45,13 @@ The line under the buttons shows the command your answer amounts to. **Changes**
 
 The daemon carries out the answer. If no drive is running, it starts one again on the host the run used. What you write in your own words is passed to every later agent of the run as a decision to follow.
 
-With nothing open, and no escalated run, the screen reads **Inbox zero**; with no run at all it offers to start one instead ([Start a task](./start.md)). It says so only while the daemon answers.
+With nothing open, and no escalated run, the screen reads **Inbox zero** and says what is true about the open runs: that they are working, or that a run has no agent working on it (`Nothing needs you. 1 run has no agent working on it:`), with **Open a session** and **Drive in background** beside each such run. With no run at all it offers to start one instead ([Start a task](./start.md)). It says so only while the daemon answers.
+
+A long **Since you left** on a card is cut to its newest lines; a line that came many times (a loop) is one line with its count (`×12`), and **N more lines before these** opens the rest, so the options and the answer button stay on the screen. The files a card names under **see:** open read-only.
+
+A host's permission prompt in a pane comes as a card with **Attach and answer in the pane**: choosing it takes you to that pane, on the run's Terminal tab, with the keyboard yours; answer the host there and give the keyboard back. The card's line under the question names the worker that asks and its stage.
+
+A confirmation (**Answered: …**) goes after a few seconds, or when you go elsewhere; a refusal stays until you close it.
 
 ## Questions asked in the terminal
 
@@ -53,7 +61,7 @@ An agent can also stop at a question it wrote on its own screen, without a card.
 
 ## Permission prompts of the host
 
-Sometimes the AI host shows its own permission prompt in the terminal ("Allow ... to run?"). MetatorAI never types into that prompt. The daemon puts it in the inbox as a question with two choices: **Attach and answer in the pane**, which gives you the keyboard of that pane, and **Leave it**. When the prompt is gone from the screen, the inbox item closes.
+Sometimes the AI host shows its own permission prompt in the terminal ("Allow ... to run?"). MetatorAI never types into that prompt. The question names the agent in that pane (a worker by its name, such as `mt-implementer-1`, at its stage), and only that pane reads as waiting: a worker's question never makes the conductor's pane wait. The daemon puts it in the inbox as a question with two choices: **Attach and answer in the pane**, which gives you the keyboard of that pane, and **Leave it**. When the prompt is gone from the screen, the inbox item closes.
 
 ## Escalated runs
 

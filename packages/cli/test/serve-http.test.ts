@@ -330,6 +330,7 @@ describe("the daemon's route table", () => {
       "POST /runs/:run/pty-open",
       "POST /runs/:run/close-panes",
       "POST /runs/:run/pty-close",
+      "POST /runs/:run/drive",
       "GET /runs/:run/plan",
       "POST /runs/:run/plan/lint",
       "PUT /runs/:run/plan",
@@ -345,6 +346,6 @@ describe("the daemon's route table", () => {
       "GET /runs/:run/artifacts/:name+",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(73);
+    expect(keys.size).toBe(74);
   });
 });

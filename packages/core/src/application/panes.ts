@@ -173,7 +173,9 @@ export class Panes {
    * The panes of every run that is done or aborted, closed (conductor and workers): a finished
    * run has nothing left to work on, and its idle conductor must not read as a session that waits.
    */
-  async closeFinished(): Promise<Result<{ readonly runId: string; readonly closed: number }[], MetatorError>> {
+  async closeFinished(): Promise<
+    Result<{ readonly runId: string; readonly closed: number }[], MetatorError>
+  > {
     const layout = await this.d.layout.load();
     if (layout.isErr()) return err(layout.error);
     const runIds = [...new Set(layout.value.workspaces.flatMap((w) => (w.runId ? [w.runId] : [])))];

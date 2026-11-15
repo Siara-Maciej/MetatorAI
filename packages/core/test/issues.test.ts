@@ -202,9 +202,9 @@ describe("Issues", () => {
     const fourth = (
       await w.issues.propose({ title: "A contract test", agent: "mt-test-author-1", runId: run.runId })
     )._unsafeUnwrap();
-    expect((await w.issues.decide(fourth.issue.id, { by: "ana", decision: "drop" }))._unsafeUnwrap().status).toBe(
-      "dropped",
-    );
+    expect(
+      (await w.issues.decide(fourth.issue.id, { by: "ana", decision: "drop" }))._unsafeUnwrap().status,
+    ).toBe("dropped");
     expect(await answerOf(fourth.questionId)).toMatchObject({ choices: [PROPOSAL_DROP], by: "ana" });
     const fifth = (
       await w.issues.propose({ title: "Another idea", agent: "mt-test-author-1", runId: run.runId })

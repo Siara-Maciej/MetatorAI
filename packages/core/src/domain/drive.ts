@@ -498,6 +498,23 @@ export function envelopeError(stdout: string): string | undefined {
 }
 
 /**
+ * How often a run tried the stage it escalated at: the first try and the loops it spent, of the
+ * first try and the loops its workflow allows. "Tried 1 of 13 times" says it stopped at once.
+ */
+export function attemptsOf(
+  stages: readonly { readonly id: string; readonly onFail?: { readonly loop: string } | undefined }[],
+  stage: string,
+  loops: Readonly<Record<string, number>>,
+  limits: Readonly<Record<string, number>>,
+): { readonly tried: number; readonly of: number } | undefined {
+  const spec = stages.find((s) => s.id === stage);
+  if (!spec) return undefined;
+  const loop = spec.onFail?.loop;
+  if (!loop) return { tried: 1, of: 1 };
+  return { tried: 1 + (loops[loop] ?? 0), of: 1 + (limits[loop] ?? 0) };
+}
+
+/**
  * The host a drive takes when nobody names one: `$METATOR_HOST` when the runtime has it, else the
  * first of the team's order (`supervisor.hostOrder`) that drives agents and can start here, else
  * the first host the repository generates files for, else the first the runtime has.

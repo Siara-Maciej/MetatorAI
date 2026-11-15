@@ -154,6 +154,13 @@ Wzorem herdr powłoka ma jeden pasek boczny, który jest całym pulpitem; reszta
 - **Pusty start**: bez żadnego runu obszar główny pokazuje pole „Describe a task” z „Start” i „Use the form”; pane agenta startowego czyta się `idle · ready for your task`, nigdy `asks`.
 - **Klawisze**: `?` z filtrem pisanym w polu; `j`/`k` i strzałki w każdej liście (kolejka decyzji, kroki, pliki, zadania); jedna litera ma jedno znaczenie na wszystkich ekranach.
 
+### 5.0a Plany w aplikacji (runda 3, 2026-11-15)
+
+- Zakładka **Plan** strony runu pokazuje plan implementacji z lintem przy kroku i polu (`GET /runs/:run/plan`) i pozwala go zmienić do bramki, na której człowiek go zatwierdza: **Edit plan** (pola, kroki dodawane, usuwane i przesuwane przyciskami albo Alt+strzałkami), **Edit as text** (JSON sprawdzany przez demona), **Check** (lint bez zapisu), **Save…** (najpierw lista zmian, potem zapis z `digest`; `CONFLICT` pokazuje wersję bieżącą: **Reload** albo **Keep my edits**). Po bramce plan jest tylko do odczytu z powodem (`readOnlyBecause`).
+- Run systemowy ma w zakładce Plan **plan systemowy**: kroki per repozytorium, fale wdrożenia, run potomny każdego kroku z jego stanem, zatwierdzenie (nieaktualne po zmianie), **Approve** zablokowane błędami lintu i ta sama edycja (krok z runem jest tylko do odczytu). **Overview → System** listuje plany systemowe i edytuje mapę systemu (aplikacje, kontrakty), `system.roots` i **Discover** (podgląd przed zapisem).
+- Każdy artefakt runu otwiera się tylko do odczytu; tekst agenta nigdy nie jest renderowany jako HTML.
+- Run, nad którym nic nie pracuje, ma **Open a session** (konduktor, `POST /runs/:run/start`, z wyborem hosta) i **Drive in background** (`POST /runs/:run/drive`), na stronie runu i w Inboxie, który mówi prawdę o otwartych runach.
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.

@@ -127,6 +127,33 @@ describe("the engine in a folder of repositories (real daemon)", () => {
     expect(JSON.stringify((await api("/layout?repo=alpha")).body.data)).not.toContain(runId);
   }, 60_000);
 
+  test("a conductor's run at its human gate has the approval card; answering it moves the run; a finished run's panes close", async () => {
+    // The conductor moves the run on (here, a person at a terminal): the gate's question exists.
+    expect((await mt("beta", "run", "advance", "pass", "--run", runId)).code).toBe(0);
+    const card = (
+      (await api("/inbox")).body.data as {
+        decisions: { runId: string; repo?: string; question: { id: string; stage: string } }[];
+      }
+    ).decisions.find((d) => d.runId === runId);
+    expect([card?.repo, card?.question.stage]).toEqual(["beta", "approval"]);
+    const answered = await api(`/runs/${runId}/answer?repo=beta`, {
+      method: "POST",
+      body: JSON.stringify({ question: card?.question.id, choices: ["Approve"], by: "ana", origin: "inbox" }),
+    });
+    expect(answered.http).toBe(200);
+    const status = data(await mt("beta", "run", "status", runId)) as {
+      stage: string;
+      approvals: Record<string, { by: string }>;
+    };
+    expect([status.stage, status.approvals.approval?.by]).toEqual(["build", "ana"]);
+    // The run finishes: the daemon closes its panes (the conductor's too), so it reads as done, not idle.
+    expect((await mt("beta", "run", "advance", "pass", "--run", runId)).code).toBe(0);
+    await until("the finished run's panes to close", async () => {
+      const layout = (await api("/layout?repo=beta")).body.data as { panes: { runId?: string }[] };
+      return layout.panes.some((p) => p.runId === runId) ? undefined : true;
+    });
+  }, 60_000);
+
   test("a run's terminal socket finds its session and never starts one", async () => {
     const other = data(await mt("alpha", "run", "new", "--workflow", "demo", "--task", "No session yet"))
       .runId as string;

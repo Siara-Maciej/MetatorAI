@@ -428,6 +428,30 @@ describe("AnswerQuestion at a human gate (no drive waits on it: a conductor's ru
     )._unsafeUnwrap();
   });
 
+  test("a gate answer that cannot be carried out for another reason is said, not swallowed", async () => {
+    const w = world({ liveSession: true });
+    const answer = new AnswerQuestion(
+      w.repo,
+      w.journal,
+      w.policies,
+      w.drivers,
+      w.ensureDriven,
+      w.clock,
+      () => true,
+      {
+        approve: { execute: async () => err(MetatorError.usage("the gate's plan cannot be approved")) },
+        advance: w.advance,
+      },
+    );
+    const runId = await w.newRun();
+    await w.advance.execute({ runId, event: { type: "PASS" } });
+    const q = await w.ask(runId);
+    const r = (
+      await answer.execute({ runId, question: q.id, choices: ["Approve"], by: "ana" })
+    )._unsafeUnwrapErr();
+    expect(r.message).toBe("the gate's plan cannot be approved");
+  });
+
   test("a gate a drive already moved past: the answer is kept, nothing is sent twice", async () => {
     const g = gated();
     const { runId, q } = await atGate(g.w);

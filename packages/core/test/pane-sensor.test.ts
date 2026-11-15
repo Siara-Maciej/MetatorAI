@@ -178,3 +178,68 @@ describe("HostPrompts", () => {
     expect(q3?.answer).toMatchObject({ choices: ["Other"], text: ANSWERED_IN_PANE, by: "pane:w1:p1" });
   });
 });
+
+describe("whose question a pane reads (a conductor and its workers)", () => {
+  /** The layout as the panes know themselves: the conductor, and a worker of stage build. */
+  const identity = {
+    of: async (paneId: string) =>
+      paneId === "w1:p1"
+        ? { role: "conductor" as const, agent: "mt-orchestrator", stage: "build" }
+        : paneId === "w1:p2"
+          ? { role: "worker" as const, agent: "mt-implementer-1", stage: "build" }
+          : undefined,
+  };
+
+  test("a worker's own question makes the worker wait, never the conductor; a question for nobody in particular is the conductor's", async () => {
+    const w = world();
+    const sensor = new PaneSensor({
+      broker: w.broker,
+      manifests: w.manifests,
+      journal: w.journal,
+      clock: w.clock,
+      identity,
+    });
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    w.start("w1:p1", run.runId, "copilot").print("ok\n".repeat(6));
+    w.start("w1:p2", run.runId, "copilot", 1002).print("ok\n".repeat(6));
+    const ask = (agent?: string) =>
+      w.journal.ask(run.runId, {
+        stage: "build",
+        source: "agent",
+        ...(agent ? { agent } : {}),
+        prompt: `Round half up? (${agent ?? "nobody"})`,
+        options: [{ label: "yes" }],
+        multiSelect: false,
+      });
+    const q = (await ask("mt-implementer-1"))._unsafeUnwrap();
+    expect((await sensor.state("w1:p2"))._unsafeUnwrap().state).toBe("waiting");
+    expect((await sensor.state("w1:p1"))._unsafeUnwrap().state).not.toBe("waiting");
+    await w.journal.answer(run.runId, q.id, { choices: ["yes"], by: "ana" });
+    await ask();
+    expect((await sensor.state("w1:p1"))._unsafeUnwrap().state).toBe("waiting");
+    expect((await sensor.state("w1:p2"))._unsafeUnwrap().state).not.toBe("waiting");
+  });
+
+  test("a worker's host prompt is the worker's question at the run's stage, not the host's at stage session", async () => {
+    const w = world();
+    const sensor = new PaneSensor({
+      broker: w.broker,
+      manifests: w.manifests,
+      journal: w.journal,
+      clock: w.clock,
+      identity,
+    });
+    const prompts = new HostPrompts({ sensor, journal: w.journal, lock: w.lock, identity });
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    w.start("w1:p2", run.runId, "copilot", 1002).print("Allow copilot to run `bun test`? (y/n) ");
+    const asked = (await prompts.tick())._unsafeUnwrap().asked;
+    const q = (await w.journal.questions(run.runId))
+      ._unsafeUnwrap()
+      .find((x) => x.id === asked[0]?.questionId);
+    expect([q?.agent, q?.stage, q?.prompt]).toEqual([
+      "mt-implementer-1",
+      "build",
+      "mt-implementer-1 waits for your answer in pane w1:p2: Allow copilot to run `bun test`? (y/n)",
+    ]);
+  });
+});

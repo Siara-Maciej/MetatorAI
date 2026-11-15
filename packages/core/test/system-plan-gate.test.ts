@@ -21,7 +21,7 @@ stages:
     hitl: true
 `;
 const W1 =
-  "kind: Workflow\nschemaVersion: 2\nid: w1\nstages:\n  - id: plan\n  - id: approval\n    hitl: true\n";
+  "kind: Workflow\nschemaVersion: 2\nid: w1\nstages:\n  - id: plan\n  - id: approval\n    hitl: true\n  - id: build\n";
 
 function world(
   o: {

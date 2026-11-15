@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CLI_ENTRY, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
 
 const MAP = `kind: SystemMap
 schemaVersion: 2
@@ -153,8 +153,20 @@ describe("a driven system run (W13) in a folder of two repositories", () => {
       ),
     ).runId as string;
     expect(
-      (await mt("shop-api", "run", "drive", "--run", parent, "--host", "scenario", "--detach", "--gate-wait", "300"))
-        .code,
+      (
+        await mt(
+          "shop-api",
+          "run",
+          "drive",
+          "--run",
+          parent,
+          "--host",
+          "scenario",
+          "--detach",
+          "--gate-wait",
+          "300",
+        )
+      ).code,
     ).toBe(0);
 
     // The plan-approval waits as a card in the inbox: one Approve approves the gate and the plan.
@@ -227,7 +239,18 @@ describe("a driven system run (W13) in a folder of two repositories", () => {
     const parent = data(
       await mt("shop-api", "run", "new", "--workflow", "mt-system-change", "--task", "Show prices in EUR"),
     ).runId as string;
-    await mt("shop-api", "run", "drive", "--run", parent, "--host", "scenario", "--detach", "--gate-wait", "300");
+    await mt(
+      "shop-api",
+      "run",
+      "drive",
+      "--run",
+      parent,
+      "--host",
+      "scenario",
+      "--detach",
+      "--gate-wait",
+      "300",
+    );
     const card = await until("the plan-approval card", async () => {
       const inbox = data(await mt("shop-api", "inbox")) as {
         decisions: { runId: string; question: { id: string; stage: string } }[];
@@ -254,5 +277,76 @@ describe("a driven system run (W13) in a folder of two repositories", () => {
       await Bun.file(join(at("shop-api"), ".metator/runs", parent, "state.json")).text(),
     );
     expect(record.state.context.loops.waves ?? 0).toBeLessThanOrEqual(1);
+  }, 180_000);
+
+  test("a plan changed after its lint passed: the card's Approve is disabled with the reason, and an Approve is refused", async () => {
+    await Bun.write(join(at("shop-web"), ".github/metator/workflows/mt-feature.yml"), W1);
+    await Bun.write(join(folder, "scenario.yml"), scenario("show-the-tax", "Show the tax"));
+    const parent = data(
+      await mt("shop-api", "run", "new", "--workflow", "mt-system-change", "--task", "Show the tax"),
+    ).runId as string;
+    await mt(
+      "shop-api",
+      "run",
+      "drive",
+      "--run",
+      parent,
+      "--host",
+      "scenario",
+      "--detach",
+      "--gate-wait",
+      "300",
+    );
+    const card = await until("the plan-approval card", async () => {
+      const inbox = data(await mt("shop-api", "inbox")) as {
+        decisions: { runId: string; question: { id: string; stage: string } }[];
+      };
+      return inbox.decisions.find((d) => d.runId === parent && d.question.stage === "plan-approval")
+        ?.question;
+    });
+    // Someone edits the plan after the gate passed: a step names an application the map does not have.
+    const file = join(at("shop-api"), "metator/system/plans/show-the-tax.yml");
+    await Bun.write(file, (await Bun.file(file).text()).replace("app: shop-web", "app: shop-mobile"));
+    const daemon = Bun.spawn(
+      ["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100", "--supervise-ms", "0"],
+      {
+        cwd: at("shop-api"),
+        env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    try {
+      const reader = daemon.stderr.getReader();
+      let text = "";
+      const base = await until("the daemon to listen", async () => {
+        const { value, done } = await reader.read();
+        if (done) return "";
+        text += new TextDecoder().decode(value);
+        const line = text.split("\n").find((l) => l.includes('"serving"'));
+        return line ? (JSON.parse(line) as { serving: { url: string } }).serving.url : undefined;
+      });
+      const inbox = (await (await fetch(`${base}/inbox`)).json()) as {
+        data: {
+          decisions: {
+            runId: string;
+            question: { options: { label: string; disabled?: boolean; disabledBecause?: string }[] };
+          }[];
+        };
+      };
+      const approve = inbox.data.decisions
+        .find((d) => d.runId === parent)
+        ?.question.options.find((o) => o.label === "Approve");
+      expect(approve?.disabled).toBe(true);
+      expect(approve?.disabledBecause).toStartWith("the system plan show-the-tax has ");
+    } finally {
+      daemon.kill("SIGTERM");
+      await daemon.exited;
+    }
+    const refused = await mt("shop-api", "run", "answer", card.id, "--run", parent, "--choice", "Approve");
+    expect([refused.code, (refused.json.error as { code: string }).code]).toEqual([1, "CHECK_FAILED"]);
+    const s = data(await mt("shop-api", "run", "status", parent)) as { stage: string; status: string };
+    expect([s.stage, s.status]).toEqual(["plan-approval", "active"]);
+    await mt("shop-api", "run", "stop", parent);
   }, 180_000);
 });

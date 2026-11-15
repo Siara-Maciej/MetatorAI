@@ -31,6 +31,8 @@ export interface RunChangesView {
 
 /** MetatorAI's own files are not the change. */
 const OWN = [".metator/", ".github/metator/"];
+/** Where system runs keep their plans and analyses (`metator/system/plans`). */
+const SYSTEM_PLANS = "metator/system/";
 
 /**
  * `metator review changes`, `GET /runs/:id/review` (S5): the files a run changed with their line
@@ -58,8 +60,11 @@ export class RunChanges {
     const changes = this.d.changesAt(dir);
     const patch = await changes.patch(base);
     if (patch.isErr()) return err(patch.error);
+    // A step of a system plan works in the checkout of its system run when it has no worktree:
+    // the system run's plans are there too, and they are not this run's change.
+    const own = record.value.system ? [...OWN, SYSTEM_PLANS] : OWN;
     const parsed = parseUnifiedDiff(patch.value)
-      .filter((f) => !OWN.some((p) => f.path.startsWith(p)))
+      .filter((f) => !own.some((p) => f.path.startsWith(p)))
       .sort((a, b) => a.path.localeCompare(b.path));
     const files = parsed.map((f) => ({ path: f.path, added: f.added, removed: f.removed, status: f.status }));
     const diff = input.file ? parsed.find((f) => f.path === input.file) : undefined;

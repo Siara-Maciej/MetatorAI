@@ -8,6 +8,7 @@ import {
   MetatorError,
   type Overview,
   ok,
+  type Question,
   type RepoRuns,
   type Result,
   serializeJsonDocument,
@@ -141,10 +142,31 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
    * A served overview: each question's options say which ones ask for the person's own words
    * (`needsText`), so the app reads the rule as data instead of keeping its own.
    */
-  const served = (o: Overview): Overview => ({
+  const served = async (o: Overview, c: MetatorContainer): Promise<Overview> => ({
     ...o,
-    runs: o.runs.map((r) => ({ ...r, questions: r.questions.map(withNeedsText) })),
+    runs: await Promise.all(
+      o.runs.map(async (r) => ({
+        ...r,
+        questions: await Promise.all(r.questions.map((q) => approvable(withNeedsText(q), c))),
+      })),
+    ),
   });
+  /**
+   * A gate question whose Approve the gate refuses now (a system plan with lint errors): its
+   * Approve option says so (`disabled`, `disabledBecause`), so the card can show why.
+   */
+  const approvable = async <Q extends Question>(q: Q, c: MetatorContainer): Promise<Q> => {
+    if (q.source !== "gate" || q.answer) return q;
+    const refused = await c.resolve("gateApprovals").refusal(q.runId, q.stage);
+    if (refused.isErr() || !refused.value) return q;
+    const because = refused.value.message;
+    return {
+      ...q,
+      options: q.options.map((o) =>
+        o.label === "Approve" ? { ...o, disabled: true, disabledBecause: because } : o,
+      ),
+    };
+  };
   /** The same overview `metator status` prints: one repository, or each repository of a folder. */
   const state = async (fresh: boolean): Promise<Result<unknown, MetatorError>> => {
     const views = repoViews();
@@ -152,7 +174,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       const only = views[0] as (typeof views)[number];
       const o = await overviewOf(only.key, only.c, fresh);
       // The state says what is wrong in two words: the code and the message.
-      return o.map(served).mapErr((e) => new MetatorError(e.code, e.message));
+      if (o.isErr()) return err(new MetatorError(o.error.code, o.error.message));
+      return ok(await served(o.value, only.c));
     }
     const repos: Record<string, unknown>[] = [];
     for (const r of views) {
@@ -160,7 +183,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       repos.push({
         name: r.name,
         path: r.path,
-        ...(o.isOk() ? served(o.value) : { error: o.error.message }),
+        ...(o.isOk() ? await served(o.value, r.c) : { error: o.error.message }),
       });
     }
     return ok({ folder: folder.root, repos });
@@ -171,11 +194,11 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     for (const r of repoViews()) {
       const o = await overviewOf(r.key, r.c, fresh);
       if (o.isErr()) continue;
-      repos.push({ name: r.name, runs: o.value.runs, now: r.c.resolve("clock").now() });
+      repos.push({ name: r.name, runs: (await served(o.value, r.c)).runs, now: r.c.resolve("clock").now() });
     }
     const queue = fleetInbox(repos, folder !== null);
     return ok({
-      decisions: queue.decisions.map((d) => ({ ...d, question: withNeedsText(d.question) })),
+      decisions: queue.decisions,
       escalated: queue.escalated,
     });
   };
@@ -227,7 +250,6 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     websocket: socketHandlers({ pollMs, containerFor, state, inbox }, sockets),
   });
   bound = server.port ?? opts.port;
-  const config = () => ctx.container().resolve("config").config;
   const timers = startTimers({
     repos: () => (folder ? folder.repos.map((r) => r.name) : [undefined]),
     containerFor,
