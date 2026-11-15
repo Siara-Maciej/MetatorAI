@@ -62,6 +62,16 @@ const routes: readonly Route[] = [
   }),
   route({
     method: "POST",
+    pattern: "/things/:thing/save",
+    handler: () =>
+      err(
+        new MetatorError("CONFLICT", "the thing changed since you read it", {
+          details: { current: { v: 2 } },
+        }),
+      ),
+  }),
+  route({
+    method: "POST",
     pattern: "/things/:thing/break",
     handler: () => err(MetatorError.usage("that cannot be done")),
   }),
@@ -149,7 +159,7 @@ describe("the daemon's dispatcher", () => {
       expect((await call("POST", "/things/t1/rename", { raw })).status).toBe(200);
   });
 
-  test("statuses: what is not there 404, what the caller may not do 403 (the handler does not run), the rest 400", async () => {
+  test("statuses: what is not there 404, a stale write 409, what the caller may not do 403 (the handler does not run), the rest 400", async () => {
     const gone = await call("GET", "/things/gone");
     expect([gone.status, (gone.json.error as { code: string }).code]).toEqual([404, "NOT_FOUND"]);
     const refused = await call("POST", "/things/t1/steer", { headers: { "x-metator-pane": "other" } });
@@ -162,6 +172,18 @@ describe("the daemon's dispatcher", () => {
     ]);
     const own = await call("POST", "/things/t1/steer", { headers: { "x-metator-pane": "own" } });
     expect([own.status, own.json]).toEqual([200, { ok: true, data: { steered: true } }]);
+    const stale = await call("POST", "/things/t1/save");
+    expect([stale.status, stale.json]).toEqual([
+      409,
+      {
+        ok: false,
+        error: {
+          code: "CONFLICT",
+          message: "the thing changed since you read it",
+          details: { current: { v: 2 } },
+        },
+      },
+    ]);
     const usage = await call("POST", "/things/t1/break");
     expect([usage.status, (usage.json.error as { code: string }).code]).toEqual([400, "USAGE"]);
   });

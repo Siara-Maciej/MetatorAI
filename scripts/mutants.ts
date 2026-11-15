@@ -3056,6 +3056,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/serve/http.ts",
+    from: 'if (error.code === "CONFLICT") return 409;',
+    to: "",
+    why: "a write on a stale digest is 409, not 400",
+  },
+  {
+    file: "packages/cli/src/serve/http.ts",
     from: 'return error.code === "NOT_FOUND" ? 404 : 400;',
     to: "return 400;",
     why: "what is not there is 404",

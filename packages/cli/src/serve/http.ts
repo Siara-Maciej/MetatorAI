@@ -24,9 +24,13 @@ export const CORS = {
 export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...CORS } });
 
-/** The HTTP status of an error: what is not there is 404, what the caller may not do 403, the rest 400. */
+/**
+ * The HTTP status of an error: what is not there is 404, a write on a stale digest 409 (the
+ * document changed since it was read), what the caller may not do 403, the rest 400.
+ */
 export function statusOf(error: MetatorError, forbidden = false): number {
   if (forbidden) return 403;
+  if (error.code === "CONFLICT") return 409;
   return error.code === "NOT_FOUND" ? 404 : 400;
 }
 

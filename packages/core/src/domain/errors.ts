@@ -9,6 +9,8 @@ export type ErrorCode =
   | "TRANSITION_DENIED"
   | "PARSE_FAILED"
   | "CHECK_FAILED"
+  /** A write based on a stale `digest`: someone changed the document since; `details.current` is it now. */
+  | "CONFLICT"
   | "INTERNAL";
 
 export interface MetatorErrorInit {
