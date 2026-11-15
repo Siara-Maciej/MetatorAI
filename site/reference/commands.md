@@ -2530,6 +2530,8 @@ metator serve [options]
 | `--supervise-ms <n>` | how often the supervisor ticks (0: never) | `5000` |
 | `--intake-ms <n>` | how often the intake rules are scanned (0: never; default: the config's `intake.everyMs`) |  |
 | `--reviews-ms <n>` | how often reviews of my requests are read (0: never; default: the config's `reviews.everyMs`) |  |
+| `--ensure` | answer with the daemon that serves this repository, starting one in the background when none does |  |
+| `--timeout <ms>` | with --ensure: how long to wait for a started daemon | `20000` |
 
 ## pane
 

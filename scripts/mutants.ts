@@ -1635,6 +1635,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the in-process hook denies a merge too",
   },
   {
+    file: "packages/cli/src/serve/ensure.ts",
+    from: "if (serving) return ok({ ...serving, started: false });",
+    to: "",
+    why: "serve --ensure never starts a second daemon",
+  },
+  {
+    file: "packages/cli/src/serve/ensure.ts",
+    from: "if (waited >= request.timeoutMs)",
+    to: "if (false)",
+    why: "serve --ensure gives up after its timeout",
+  },
+  {
+    file: "packages/cli/src/serve/ensure.ts",
+    from: "if (!deps.alive(pid))",
+    to: "if (false)",
+    why: "a daemon that ended before it listened is reported with its log",
+  },
+  {
     file: "packages/plugin-host-claude/src/claude-generator.ts",
     from: "const deny = [...theirs, ...denyRules().filter((r) => !theirs.includes(r))];",
     to: "const deny = [...theirs];",
