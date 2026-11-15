@@ -1635,6 +1635,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the in-process hook denies a merge too",
   },
   {
+    file: "packages/core/src/application/plans.ts",
+    from: "if (open.length > 0)",
+    to: "if (false)",
+    why: "a step on top of an unchecked one is refused",
+  },
+  {
+    file: "packages/core/src/application/plans.ts",
+    from: "return ok({ done: passed === steps.length, passed, total: steps.length, steps });",
+    to: "return ok({ done: true, passed, total: steps.length, steps });",
+    why: "the build stage's gate waits for every step",
+  },
+  {
+    file: "packages/core/src/application/plans.ts",
+    from: "passed: run.value.passed,",
+    to: "passed: true,",
+    why: "a red step is recorded as failed",
+  },
+  {
     file: "packages/core/src/domain/sandbox.ts",
     from: 'if (!value<boolean>("sandbox.enabled")) return undefined;',
     to: "",

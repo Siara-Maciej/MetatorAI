@@ -176,6 +176,8 @@ describe("metator CLI (process e2e)", () => {
       "eval schema",
       "plan lint",
       "plan scope",
+      "plan done",
+      "plan progress",
       "plan schema",
       "test affected",
       "coverage diff",

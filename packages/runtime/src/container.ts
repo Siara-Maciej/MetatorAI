@@ -32,6 +32,7 @@ import type {
   CheckFlaky,
   CheckMemory,
   CheckoutReader,
+  CheckPlanStep,
   CheckPublished,
   CheckpointRun,
   CheckQuote,
@@ -133,6 +134,7 @@ import type {
   Panes,
   PatternCatalog,
   PlanBoard,
+  PlanProgress,
   PlanReview,
   PortProbe,
   ProcessRunner,
@@ -423,6 +425,8 @@ export interface Cradle {
   diffImportGraph: DiffImportGraph;
   lintPlan: LintPlan;
   scopePlan: ScopePlan;
+  checkPlanStep: CheckPlanStep;
+  planProgress: PlanProgress;
   lintAdrs: LintAdrs;
   measureRuleCoverage: MeasureRuleCoverage;
   scaffoldRule: ScaffoldRule;

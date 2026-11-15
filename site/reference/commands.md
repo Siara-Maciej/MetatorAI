@@ -1613,6 +1613,34 @@ metator plan scope [options] <file>
 | `--out <file>` | where to write the PlanScope document |  |
 | `--dry-run` | print the scope without writing it |  |
 
+### `metator plan done`
+
+Check one step: run the tests its file and its tests-first reach, and record the result in build-progress.json
+
+```bash
+metator plan done [options] <file> <step>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<file>` | plan JSON, e.g. .metator/runs/&lt;id&gt;/plan.json | |
+| `<step>` | the step id, e.g. S3 | |
+| `--script <name>` | package.json script that runs tests (files are appended) | `"test"` |
+| `--timeout <ms>` | time limit for the test run | `600000` |
+
+### `metator plan progress`
+
+Every step's checkpoint: passed, failed or pending (build-progress.json)
+
+```bash
+metator plan progress [options] <file>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<file>` | plan JSON | |
+| `--check` | fail unless every step passed (the build stage's gate) |  |
+
 ### `metator plan schema`
 
 Print the JSON Schema of a plan

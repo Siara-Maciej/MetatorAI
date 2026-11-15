@@ -92,3 +92,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0086](0086-host-deny-rules.md) | Nieodwracalne działania jako reguły deny hosta, nie tylko hook | Accepted |
 | [0087](0087-app-starts-the-daemon.md) | Aplikacja sama uruchamia demona (`metator serve --ensure`) | Accepted |
 | [0088](0088-local-sandbox.md) | Sandbox lokalny: środowisko ogranicza zasięg komend agenta | Accepted |
+| [0089](0089-build-checkpoints.md) | Punkty kontrolne w buildzie: krok jest zrobiony, gdy jego testy przeszły | Proposed |

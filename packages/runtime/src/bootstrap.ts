@@ -28,6 +28,7 @@ import {
   CheckDebugTags,
   CheckFlaky,
   CheckMemory,
+  CheckPlanStep,
   CheckPublished,
   CheckpointRun,
   CheckQuote,
@@ -125,6 +126,7 @@ import {
   PinnedSystemLocation,
   PlanBoard,
   PlannedBreakingChanges,
+  PlanProgress,
   PlanReview,
   type ProcessRunner,
   ProposeRefactorPlan,
@@ -1192,6 +1194,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new LintPlan(fileSystem, scanPatterns, ruleCatalog, buildImportGraph, testGlobs),
     ),
     scopePlan: asFunction(({ fileSystem, buildImportGraph }) => new ScopePlan(fileSystem, buildImportGraph)),
+    checkPlanStep: asFunction(
+      ({ fileSystem, runAffectedTests, clock }) => new CheckPlanStep(fileSystem, runAffectedTests, clock),
+    ),
+    planProgress: asFunction(({ fileSystem }) => new PlanProgress(fileSystem)),
     lintAdrs: asFunction(
       ({ fileSystem, paths, ruleCatalog }) => new LintAdrs(fileSystem, paths, ruleCatalog),
     ),
