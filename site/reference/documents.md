@@ -68,6 +68,7 @@ Each run has a folder, `.metator/runs/<id>/`. Only `metator` commands write the 
 | `Research` | `research.json` | `mt-pattern-miner` |
 | `Plan` | `plan.json` | `mt-planner` |
 | `PlanScope` | `plan-scope.json` | `metator plan scope` |
+| `BuildProgress` | `build-progress.json` | `metator plan done`: whether each plan step's own tests passed |
 | `ReviewMetadata` | `pr.json` | `metator review metadata` |
 | `ReviewPlan` | `review-plan.json` | `metator review plan` |
 | `FindingSet` | `findings/*.json`, `findings/merged.json` | the review agents; `metator findings merge` |
