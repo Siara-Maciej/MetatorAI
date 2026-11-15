@@ -2,7 +2,7 @@ id: mt-arch-desktop-type-imports-tsx
 language: Tsx
 severity: error
 message: "ADR-0085: the desktop app takes only types from @metator/core, with a whole-statement `import type`; no code of MetatorAI reaches its bundle."
-note: "Write `import type { X } from \"@metator/core\"`. `import { type X }` leaves an import behind (verbatimModuleSyntax); a value, another @metator package, a re-export or `import()` puts MetatorAI code in the app."
+note: 'Write `import type { X } from "@metator/core"`. `import { type X }` leaves an import behind (verbatimModuleSyntax); a value, another @metator package, a re-export or `import()` puts MetatorAI code in the app.'
 files:
   - packages/desktop/src/**
 rule:
