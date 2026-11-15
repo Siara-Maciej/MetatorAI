@@ -1,6 +1,6 @@
 # ADR-0011: DI: awilix
 
-- Status: Accepted
+- Status: Superseded by [ADR-0084](0084-di-static-registration.md)
 - Data: 2026-10-25
 
 ## Kontekst

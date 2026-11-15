@@ -235,7 +235,7 @@ import { type AwilixContainer, createContainer, InjectionMode } from "awilix";
 import type { LoadedConfig } from "./config.ts";
 
 /**
- * DI is awilix (ADR-0011): no decorators, lazy resolution and strict lifetime checks.
+ * DI is awilix (ADR-0084): no decorators, lazy resolution and strict lifetime checks.
  * The cradle types every port and use case; `bootstrap()` (bootstrap.ts) registers all of them
  * statically in one container per repository root. There are no scopes and no plugin loading.
  */

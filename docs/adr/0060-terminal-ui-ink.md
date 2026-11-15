@@ -1,6 +1,6 @@
 # ADR-0060: Pełnoekranowy `metator ui` na Ink
 
-- Status: Accepted
+- Status: Superseded by [ADR-0086](0086-withdraw-terminal-ui.md)
 - Data: 2026-10-28
 
 ## Kontekst

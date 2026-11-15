@@ -14,7 +14,7 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0008](0008-typescript-7-graph.md) | Graf importów przy TypeScript 7 (natywny kompilator) | Accepted, częściowo zastąpiony przez 0017 |
 | 0009 | *zarezerwowany: platforma hostów (spike F0)* | – |
 | [0010](0010-dependency-policy.md) | Polityka zależności: gotowe biblioteki zamiast własnych | Accepted |
-| [0011](0011-di-awilix.md) | DI: awilix | Accepted |
+| [0011](0011-di-awilix.md) | DI: awilix | Superseded by 0084 |
 | [0012](0012-graph-graphlib.md) | Graf zależności: @dagrejs/graphlib | Accepted |
 | [0013](0013-state-machine-xstate.md) | Maszyna stanów runu: XState v5 | Accepted |
 | [0014](0014-cli-commander.md) | Parser CLI: commander | Accepted |
@@ -63,7 +63,7 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0057](0057-folder-of-repositories.md) | Folder repozytoriów (`metator.repos.yml`, `repos *`) | Accepted |
 | [0058](0058-ask.md) | Pytania do kodu: `metator ask`, agent `mt-guide`, `Conversation` | Accepted |
 | [0059](0059-work-overview.md) | Przegląd pracy: `metator status` (`WorkOverview`) | Accepted |
-| [0060](0060-terminal-ui-ink.md) | Pełnoekranowy `metator ui` na Ink | Accepted |
+| [0060](0060-terminal-ui-ink.md) | Pełnoekranowy `metator ui` na Ink | Superseded by 0086 |
 | [0061](0061-package-architecture.md) | Architektura pakietów (`arch analyze`, `ArchitectureReport`, `ArchitecturePolicy`) | Accepted |
 | [0062](0062-architecture-ratchet.md) | Architektura w CI: zapadka, baseline, SARIF i pierwsza polityka | Accepted |
 | [0063](0063-architecture-metrics.md) | Metryki i granice pakietów, historia zmian, raport HTML | Accepted |
@@ -87,6 +87,6 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0081](0081-mcp-server.md) | MetatorAI jako serwer MCP (tylko komendy czytające) | Proposed |
 | [0082](0082-copilot-memory-policy.md) | Polityka Copilot Memory: co wolno zapamiętać, co jest kanonem | Proposed |
 | [0083](0083-agent-cli-entry-and-event-intake.md) | CLI agenta jako punkt wejścia; issue i review z zewnątrz jako drugie wejście do tej samej ścieżki | Accepted |
-| [0084](0084-di-static-registration.md) | DI: awilix ze statyczną rejestracją w runtime i kontenerem na repozytorium (zastąpi 0011 po akceptacji) | Proposed |
-| [0085](0085-desktop-type-imports-from-core.md) | Aplikacja desktopowa importuje z `@metator/core` wyłącznie typy (`import type`); zmienia jeden punkt 0078 | Proposed |
-| [0086](0086-withdraw-terminal-ui.md) | Wycofanie pełnoekranowego `metator ui`; frontem graficznym jest aplikacja desktopowa (zastąpi 0060 po akceptacji) | Proposed |
+| [0084](0084-di-static-registration.md) | DI: awilix ze statyczną rejestracją w runtime i kontenerem na repozytorium (zastępuje 0011) | Accepted |
+| [0085](0085-desktop-type-imports-from-core.md) | Aplikacja desktopowa importuje z `@metator/core` wyłącznie typy (`import type`); zmienia jeden punkt 0078 | Accepted |
+| [0086](0086-withdraw-terminal-ui.md) | Wycofanie pełnoekranowego `metator ui`; frontem graficznym jest aplikacja desktopowa (zastępuje 0060) | Accepted |

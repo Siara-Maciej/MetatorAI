@@ -1,6 +1,6 @@
 # ADR-0085: Aplikacja desktopowa importuje z `@metator/core` wyłącznie typy
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-13
 
 ## Kontekst
@@ -39,3 +39,6 @@ Po akceptacji ten ADR zmienia jeden punkt ADR-0078; reszta ADR-0078 pozostaje be
 | Test zgodności typów poza pakietem (`e2e/`), kopia zostaje | usuwa ryzyko rozjazdu, ale zostawia 480 linii do utrzymania w dwóch miejscach |
 | Generować typy klienta ze schematów (`metator config schema`, JSON Schema) | nowy krok budowy i nowa zależność dla narzędzia jednej osoby na localhost; typy widoków (`RunOverview`, `PlanBoardView`) nie mają schematów |
 | Pozwolić na import wartości z core (np. `duration`, `inboxOf`) | wciąga do paczki zod, xstate i logikę domenową; łamie zasadę „aplikacja tylko rysuje” |
+
+## Implikacje dla kodu
+Decyzję egzekwuje reguła kanonu MT-ARCH-010 (`metator rules show MT-ARCH-010`): `packages/desktop/src/**` importuje z MetatorAI wyłącznie typy `@metator/core`, całą instrukcją `import type`. Sprawdza ją `bun run arch` (reguły ast-grep `mt-arch-desktop-type-imports` i `mt-arch-desktop-type-imports-tsx`).

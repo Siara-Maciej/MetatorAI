@@ -1,6 +1,6 @@
 # ADR-0086: Wycofanie pełnoekranowego `metator ui`; frontem graficznym jest aplikacja desktopowa
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-13
 
 ## Kontekst
@@ -36,6 +36,8 @@ Użytkownik zdecydował, że TUI nie jest potrzebny: jedynym frontem graficznym 
 - **Wrócić do menu na `@clack/prompts` (ADR-0054).** ADR-0060 wykazał, że menu nie wystarcza do zarządzania pracą; tę rolę pełni aplikacja.
 
 ## Implikacje dla kodu
+Decyzję egzekwuje reguła kanonu MT-CODE-005 (`metator rules show MT-CODE-005`): zależności Ink znikają z `packages/cli/package.json` i z `docs/metator/dependencies.yml`.
+
 - `packages/cli/src/program.ts` nie rejestruje `ui`; podpowiedź w folderze repozytoriów wymienia `status`, `inbox`, `repos` i `ask`.
 - `packages/cli/src/render.ts` trzyma renderery tekstu z testami w `packages/cli/test/render.test.ts`; mutanty z `scripts/mutants.ts` wskazujące `tui/` są usunięte albo przeniesione.
 - `docs/metator/dependencies.yml`: wiersze `ink`, `@inkjs/ui`, `ink-testing-library` usunięte; `react` i `@types/react` wskazują ADR-0078.

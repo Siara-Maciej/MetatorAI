@@ -56,7 +56,7 @@ packages:
       adr: 0078-desktop-app-tauri-xterm.md,
     }
   - { package: "@sindresorhus/slugify", need: "ids from titles", adr: 0015-schemas-zod-yaml.md }
-  - { package: awilix, need: "dependency injection", adr: 0011-di-awilix.md }
+  - { package: awilix, need: "dependency injection", adr: 0084-di-static-registration.md }
   - { package: commander, need: "CLI arguments", adr: 0014-cli-commander.md }
   - { package: get-port, need: "free ports for worktree port blocks", adr: 0050-run-worktrees.md }
   - { package: github-slugger, need: "Markdown heading anchors", adr: 0020-rule-canon.md }

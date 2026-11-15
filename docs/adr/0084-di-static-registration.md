@@ -1,6 +1,6 @@
 # ADR-0084: DI: awilix ze statyczną rejestracją w runtime i kontenerem na repozytorium
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-12
 
 ## Kontekst
