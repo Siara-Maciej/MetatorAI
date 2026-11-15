@@ -1,6 +1,6 @@
 # ADR-0088: Sandbox lokalny: środowisko ogranicza zasięg komend agenta
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-15
 
 ## Kontekst
@@ -48,6 +48,7 @@ To nie jest test automatyczny: CI nie ma bubblewrap, a GitHub-hosted runnery ogr
 | Pola w `MetatorConfig` | nowa wersja schematu z migracją; rejestr opcji istnieje właśnie po to, by jej uniknąć |
 
 ## Implikacje dla kodu
+- Reguły kanonu, które to wiążą: polityka sandboxa jest czystą funkcją domeny (MT-ARCH-001), port `HostGenerator` zostaje mały (MT-ARCH-008), generator w pluginie zna tylko `@metator/core` (MT-ARCH-005); `generate --hooks` i `doctor` mają e2e (MT-TEST-001), polityka i generator zabite mutanty (MT-TEST-003).
 - `packages/core/src/domain/sandbox.ts`, `option-registry.ts`, port `HostGenerator`, `GenerateHostFiles`, `CheckReadiness` (`isolation`).
 - `packages/plugin-host-claude/src/claude-generator.ts`: `sandboxSettings()`.
 - Dokumentacja użytkownika: `site/repo/hooks.md` („Hold commands in a sandbox"), `site/reference/security.md`.

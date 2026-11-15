@@ -1,6 +1,6 @@
 # ADR-0085: Scalenie do gałęzi głównej należy do człowieka; agent co najwyżej otwiera MR/PR
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-15
 
 ## Kontekst
@@ -34,6 +34,7 @@ Do tej pory guard `pre-tool` traktował `gh pr merge` i narzędzie MCP `merge_pu
 | Merge-when-ready dla zmian niskiego ryzyka | wykluczone decyzją właściciela |
 
 ## Implikacje dla kodu
+- Reguły kanonu, które to wiążą: decyzja guarda jest czystą funkcją domeny bez I/O (MT-ARCH-001), host w pluginie importuje ją z `@metator/core` (MT-ARCH-005); zachowanie ma e2e na prawdziwym procesie hooka (MT-TEST-001) i zabite mutanty (MT-TEST-003).
 - `packages/core/src/domain/hook.ts`: `HEAD_BRANCHES`, `mergeAttempt`, `MERGE_IS_A_PERSONS`, kolejność w `preToolPolicy`.
 - `packages/plugin-host-claude/src/claude-agent-host.ts`: ta sama odmowa w hooku w procesie.
 - Dokumentacja użytkownika: `site/repo/hooks.md`, `site/reference/hooks.md`, `site/reference/security.md`.

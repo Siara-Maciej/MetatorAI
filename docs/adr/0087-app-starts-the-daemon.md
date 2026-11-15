@@ -1,6 +1,6 @@
 # ADR-0087: Aplikacja sama uruchamia demona (`metator serve --ensure`)
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-15
 
 ## Kontekst
@@ -41,5 +41,6 @@ Decyzje właściciela do tego ADR (2026-11-15):
 | Usługa systemowa (launchd, systemd, usługa Windows) | instalacja wymaga uprawnień i trzech osobnych implementacji |
 
 ## Implikacje dla kodu
+- Reguły kanonu, które to wiążą: błędy startu demona wracają jako wartości `MetatorError` (MT-CODE-001); `serve --ensure` ma e2e na prawdziwym demonie, a panel aplikacji e2e w Chromium (MT-TEST-001); logika startu i decyzja `autostart` mają zabite mutanty (MT-TEST-003).
 - `packages/cli/src/serve/ensure.ts`, `packages/cli/src/commands/serve.ts` (`--ensure`, `--timeout`).
 - `packages/desktop/src-tauri` i panel „no daemon" (otwarte).

@@ -88,7 +88,7 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0082](0082-copilot-memory-policy.md) | Polityka Copilot Memory: co wolno zapamiętać, co jest kanonem | Proposed |
 | [0083](0083-agent-cli-entry-and-event-intake.md) | CLI agenta jako punkt wejścia; issue i review z zewnątrz jako drugie wejście do tej samej ścieżki | Accepted |
 | [0084](0084-di-static-registration.md) | DI: awilix ze statyczną rejestracją w runtime i kontenerem na repozytorium (zastąpi 0011 po akceptacji) | Proposed |
-| [0085](0085-merge-is-a-persons.md) | Scalenie do gałęzi głównej należy do człowieka; agent co najwyżej otwiera MR/PR | Proposed |
-| [0086](0086-host-deny-rules.md) | Nieodwracalne działania jako reguły deny hosta, nie tylko hook | Proposed |
-| [0087](0087-app-starts-the-daemon.md) | Aplikacja sama uruchamia demona (`metator serve --ensure`) | Proposed |
-| [0088](0088-local-sandbox.md) | Sandbox lokalny: środowisko ogranicza zasięg komend agenta | Proposed |
+| [0085](0085-merge-is-a-persons.md) | Scalenie do gałęzi głównej należy do człowieka; agent co najwyżej otwiera MR/PR | Accepted |
+| [0086](0086-host-deny-rules.md) | Nieodwracalne działania jako reguły deny hosta, nie tylko hook | Accepted |
+| [0087](0087-app-starts-the-daemon.md) | Aplikacja sama uruchamia demona (`metator serve --ensure`) | Accepted |
+| [0088](0088-local-sandbox.md) | Sandbox lokalny: środowisko ogranicza zasięg komend agenta | Accepted |

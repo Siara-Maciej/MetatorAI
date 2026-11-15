@@ -1,6 +1,6 @@
 # ADR-0086: Nieodwracalne działania jako reguły deny hosta, nie tylko hook
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-15
 
 ## Kontekst
@@ -33,6 +33,7 @@ Kryterium, co ma być twardą regułą: „jeśli agent pomyli się raz, czy da 
 | Osobny plik ustawień zarządzanych | wymaga uprawnień administratora maszyny; poza zakresem `generate` |
 
 ## Implikacje dla kodu
+- Reguły kanonu, które to wiążą: listy żyją w domenie bez I/O (MT-ARCH-001), generator hosta w pluginie importuje je z `@metator/core` (MT-ARCH-005); `generate --hooks` ma e2e na prawdziwym procesie (MT-TEST-001), generator zabite mutanty (MT-TEST-003).
 - `packages/core/src/domain/hook.ts`: `DENIED_COMMANDS`, `MERGE_MCP_TOOLS`.
 - `packages/plugin-host-claude/src/claude-generator.ts`: `denyRules()` i scalanie z `permissions.deny` użytkownika.
 - Dokumentacja użytkownika: `site/repo/hooks.md`, `site/reference/security.md`.
