@@ -3,10 +3,22 @@
  * take it here. With nothing to decide it says so; with no run at all it offers to start one.
  */
 import { useState } from "react";
+import type { InboxItem } from "../api.ts";
+import { Notice } from "../components/common.tsx";
 import { DecisionCard } from "../components/decision-card.tsx";
 import { EscalatedCard } from "../components/escalated-card.tsx";
+import { StartRun } from "../components/start-run.tsx";
 import { useDaemon } from "../daemon.tsx";
-import { escalatedKey, isFirstRun, type NeedRow, plural } from "../model.ts";
+import { useAction } from "../hooks.ts";
+import {
+  escalatedKey,
+  idleRuns,
+  isFirstRun,
+  type NeedRow,
+  openRuns,
+  plural,
+  quietInboxText,
+} from "../model.ts";
 
 export function InboxScreen({
   needs,
@@ -23,7 +35,7 @@ export function InboxScreen({
   /** The row to show: the picked one, else the first. */
   readonly picked: NeedRow | undefined;
   /** An answer went through, or an escalated run was resumed or closed. */
-  onAnswered(choices?: readonly string[]): void;
+  onAnswered(choices?: readonly string[], item?: InboxItem): void;
   onOpenRun(runId: string, pane?: string): void;
   onOpenChanges(runId: string): void;
   onOverview(runId: string): void;
@@ -44,7 +56,7 @@ export function InboxScreen({
         <DecisionCard
           key={picked?.key}
           item={item}
-          onAnswered={onAnswered}
+          onAnswered={(choices) => onAnswered(choices, item)}
           onOpenSession={onOverview}
           onOpenChanges={onOpenChanges}
         />
@@ -73,10 +85,7 @@ export function InboxScreen({
       ) : isFirstRun(runs, needs) ? (
         <FirstRun onStart={onStart} onForm={onForm} />
       ) : (
-        <div className="empty">
-          <h2>Inbox zero</h2>
-          <p>Every run is working or finished. Open a run from the sidebar, or start a new one.</p>
-        </div>
+        <QuietInbox onOpenRun={onOpenRun} />
       )}
     </div>
   );
@@ -121,5 +130,36 @@ function FirstRun({ onStart, onForm }: { onStart(task: string): void; onForm(): 
         </span>
       </div>
     </form>
+  );
+}
+
+/** Nothing waits for a decision: say what is true about the open runs, and start the ones nothing works on. */
+function QuietInbox({ onOpenRun }: { onOpenRun(runId: string, pane?: string): void }) {
+  const { runs, panes } = useDaemon();
+  const action = useAction();
+  const open = openRuns(runs);
+  const idle = idleRuns(open, panes);
+  return (
+    <div className="empty quiet-inbox" data-testid="inbox-zero">
+      <h2>Inbox zero</h2>
+      <p>{quietInboxText(open.length, idle.length)}</p>
+      {idle.length > 0 ? (
+        <ul className="idle-runs">
+          {idle.map((r) => (
+            <li key={`${r.repo ?? ""}/${r.runId}`}>
+              <button type="button" className="ghost link" onClick={() => onOpenRun(r.runId)}>
+                {r.task}
+              </button>
+              <span className="faint">
+                {r.repo ? `${r.repo} · ` : ""}
+                {r.stage} · {r.host ?? "no host"}
+              </span>
+              <StartRun run={r} action={action} compact />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <Notice {...action.notice} />
+    </div>
   );
 }

@@ -87,11 +87,13 @@ afterAll(async () => {
 });
 
 describe("interactive hosts through the daemon (real processes)", () => {
-  test("the default host is the first of hostOrder: Copilot starts with the task and resumes with --continue", async () => {
+  test("the default host is the first of hostOrder: Copilot starts the run's conductor and resumes with --continue", async () => {
     const opened = await post(`/runs/${runId}/pty-open`, {});
     expect(opened.ok).toBe(true);
     expect((opened.data as { host: string }).host).toBe("copilot");
-    await said("args: -i Add the discount --add-dir");
+    // A run's session is its conductor: the host starts with the conductor's prompt, the task in it.
+    await said("args: -i You are the conductor of run");
+    await said("Task: Add the discount");
     expect(await backlog()).toContain("--deny-tool shell(git push)");
     await closed();
     const again = await post(`/runs/${runId}/pty-open`, {});
@@ -103,12 +105,13 @@ describe("interactive hosts through the daemon (real processes)", () => {
   test("Claude Code gets the task and a session id; OpenCode the worktree and the prompt", async () => {
     const claude = await post(`/runs/${runId}/pty-open`, { host: "claude" });
     expect((claude.data as { host: string }).host).toBe("claude");
-    await said("args: Add the discount --session-id");
+    await said("args: You are the conductor of run");
+    await said("--session-id");
     expect(await backlog()).toContain("--permission-mode default");
     await closed();
     const opencode = await post(`/runs/${runId}/pty-open`, { host: "opencode" });
     expect((opencode.data as { host: string }).host).toBe("opencode");
-    await said(`args: ${repo.root} --prompt Add the discount`);
+    await said(`args: ${repo.root} --prompt You are the conductor of run`);
     await closed();
     const activity = (await get(`/runs/${runId}/activity`)).data as {
       entries: { origin?: string; text: string }[];

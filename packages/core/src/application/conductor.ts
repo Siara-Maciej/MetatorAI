@@ -58,6 +58,8 @@ export class Conductor {
   async start(input: {
     readonly runId?: string;
     readonly host?: string;
+    /** The terminal's size, when a screen opens the session. */
+    readonly size?: { readonly cols: number; readonly rows: number };
   }): Promise<Result<PaneView, MetatorError>> {
     const id = await this.d.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
@@ -78,6 +80,7 @@ export class Conductor {
       ...(input.host ? { host: input.host } : {}),
       agent: DEFAULT_CONDUCTOR,
       prompt,
+      ...(input.size ? { size: input.size } : {}),
     });
   }
 

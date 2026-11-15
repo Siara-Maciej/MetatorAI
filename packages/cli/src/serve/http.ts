@@ -17,7 +17,7 @@ import type { Folder } from "../context.ts";
  */
 export const CORS = {
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-methods": "GET, POST, PUT, OPTIONS",
   "access-control-allow-headers": "content-type",
 };
 
@@ -74,10 +74,11 @@ export type Answer =
   | { readonly result: Result<unknown, MetatorError>; readonly warnings?: readonly string[] };
 
 export interface Route<B = unknown> {
-  readonly method: "GET" | "POST";
+  /** PUT replaces a document a person edits (ADR-0087); POST does everything else that changes. */
+  readonly method: "GET" | "POST" | "PUT";
   /** `/runs/:run/answer`; `:name` is one segment, `:name+` the rest of the path. */
   readonly pattern: string;
-  /** The body's schema (POST): what does not fit it is a usage error, before the handler runs. */
+  /** The body's schema (POST, PUT): what does not fit it is a usage error, before the handler runs. */
   readonly body?: z.ZodType<B>;
   /** Answers for every repository at once: it needs no container of its own. */
   readonly global?: true;
@@ -144,6 +145,11 @@ function compile(r: Route): Compiled {
 
 export interface Dispatch {
   readonly daemon: Daemon;
+  /**
+   * In a folder: the repository a pane's token belongs to, when a call names none (a conductor's
+   * or a worker's command, run in that repository). Undefined: none of them knows the token.
+   */
+  readonly repoOfToken?: (token: string) => Promise<string | undefined>;
   readonly containerFor: (
     repo: string | undefined,
   ) => Result<MetatorContainer, { readonly code: string; readonly message: string }>;
@@ -161,7 +167,7 @@ function problems(error: z.ZodError): string {
  * pattern fit; its repository; its body, read and checked; its guard; its handler's result as
  * the envelope. No route is NOT_FOUND (404), a body that does not fit USAGE (400).
  */
-export function dispatcher(routes: readonly Route[], { daemon, containerFor }: Dispatch) {
+export function dispatcher(routes: readonly Route[], { daemon, containerFor, repoOfToken }: Dispatch) {
   const table = routes.map(compile);
   return async (req: Request, url: URL, path: string): Promise<Response> => {
     let found: { route: Route; params: Record<string, string> } | undefined;
@@ -174,14 +180,18 @@ export function dispatcher(routes: readonly Route[], { daemon, containerFor }: D
       }
     }
     if (!found) return respond(err(new MetatorError("NOT_FOUND", `no route ${req.method} ${path}`)));
-    const repo = url.searchParams.get("repo") ?? undefined;
+    const token = req.headers.get("x-metator-pane");
+    const repo =
+      url.searchParams.get("repo") ??
+      (token && repoOfToken ? await repoOfToken(token) : undefined) ??
+      undefined;
     const c = containerFor(found.route.global ? undefined : repo);
     // A global route reads every repository through the daemon; it is given the first container.
     if (c.isErr()) {
       if (!found.route.global) return json({ ok: false, error: c.error }, 404);
     }
     let parsed: unknown = {};
-    if (req.method === "POST") {
+    if (req.method === "POST" || req.method === "PUT") {
       const raw = (await req.json().catch(() => ({}))) as unknown;
       const given = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
       if (found.route.body) {
@@ -202,7 +212,7 @@ export function dispatcher(routes: readonly Route[], { daemon, containerFor }: D
       params: found.params,
       query: url.searchParams,
       body: parsed,
-      token: req.headers.get("x-metator-pane"),
+      token,
       repo,
       daemon,
     };

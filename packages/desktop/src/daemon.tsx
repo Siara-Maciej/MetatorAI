@@ -20,12 +20,14 @@ import {
 import { Modal } from "./components/modal.tsx";
 import {
   flattenState,
+  type RepoSystemPlan,
   type Run,
   repoChoice,
   type SeenRuns,
   sameRepo,
   seenFrom,
   seenKey,
+  systemPlanOf,
   type Unreadable,
   withSeen,
   withTerminalAsks,
@@ -66,6 +68,10 @@ export interface Daemon {
   readonly optionsView: OptionsView | undefined;
   readonly optionsError: string | undefined;
   reloadOptions(): Promise<void>;
+  /** The system plans of every repository that are not done, with their steps and child runs. */
+  readonly systemPlans: readonly RepoSystemPlan[];
+  /** How many steps the system plan a run is the parent of has, when the app knows the plan. */
+  planStepsOf(run: Run): number | undefined;
   /** When this person last opened each run (per window): a finished run reads `done` until they look. */
   readonly seen: SeenRuns;
   /** The run was opened now. */
@@ -314,6 +320,25 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
   const down = !stateUp && error !== undefined;
   const repo = repoChoice(repos, savedRepo);
   const options = usePolled(`options:${url}:${repo ?? ""}`, () => client.options(repo), 3000);
+  // The system plans that are not done, every few seconds: the sidebar counts a plan's steps from
+  // them (a step not started yet still counts), and the Plan tab of a system run shows one.
+  const plans = usePolled(
+    `system-plans:${url}\n${names}`,
+    async () => {
+      const all = await Promise.all(
+        (repos.length > 0 ? repos.map((r) => r.name) : [undefined]).map(async (name) => {
+          const list = await client.systemPlans(name);
+          if (!list.ok || !Array.isArray(list.data)) return [];
+          const open = list.data.filter((p) => p.status !== "done");
+          const views = await Promise.all(open.map((p) => client.systemPlan(p.id, name)));
+          return views.flatMap((v) => (v.ok && v.data ? [{ ...v.data, repo: name }] : []));
+        }),
+      );
+      return { ok: true, data: all.flat() };
+    },
+    5000,
+  );
+  const systemPlans = plans.data ?? NO_PLANS;
   const shownRuns = down ? NO_RUNS : runs;
   const shownPanes = down ? NO_PANES : panes;
   const value: Daemon = {
@@ -335,6 +360,8 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     optionsView: options.data,
     optionsError: options.error,
     reloadOptions: options.reload,
+    systemPlans,
+    planStepsOf: (r) => systemPlanOf(systemPlans, r, shownRuns)?.steps.length,
     setRepo: (name) => {
       write("metator.repo", name);
       setSavedRepo(name);
@@ -370,6 +397,7 @@ const NO_PANES: Daemon["panes"] = [];
 const NO_WORKSPACES: Daemon["workspaces"] = [];
 const NO_UNREADABLE: readonly Unreadable[] = [];
 const NO_OPTIONS: readonly ResolvedOption[] = [];
+const NO_PLANS: readonly RepoSystemPlan[] = [];
 
 /** The one place the app asks who the person is: their name goes next to every answer they give. */
 function NameDialog({ initial, onDone }: { readonly initial: string; onDone(name: string): void }) {

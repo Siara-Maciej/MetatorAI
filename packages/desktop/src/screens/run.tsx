@@ -10,12 +10,15 @@ import { Chip } from "../components/chips.tsx";
 import { Notice } from "../components/common.tsx";
 import { EscalatedActions } from "../components/escalated-card.tsx";
 import { RunHeader } from "../components/run-header.tsx";
+import { StartRun } from "../components/start-run.tsx";
+import { StopReason } from "../components/stop-reason.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction, useRunControls } from "../hooks.ts";
 import {
   autonomyLabel,
   duration,
   finishedText,
+  idleRuns,
   plainKey,
   type Route,
   RUN_TABS,
@@ -43,7 +46,7 @@ export function RunScreen({
   /** Another run's page (a parent, a step), or this one's terminal with the keyboard taken. */
   onOpenRun(runId: string, attach?: boolean): void;
 }) {
-  const { run: runOf, markSeen } = useDaemon();
+  const { run: runOf, markSeen, panesOf } = useDaemon();
   const run = runOf(runId);
   const action = useAction();
   const { openEditor } = useRunControls(run, action);
@@ -89,11 +92,17 @@ export function RunScreen({
       {run && phase === "escalated" ? (
         <div className="driverbar escalated" data-testid="driverbar">
           <strong>Escalated at {run.stage}</strong>
-          <span className="note" data-testid="escalated-reason">
-            {run.reason ?? "The run recorded no reason. Its activity shows what happened last."}
+          <span className="note">
+            <StopReason reason={run.reason} testId="escalated-reason" />
           </span>
           <EscalatedActions run={run} />
         </div>
+      ) : run && idleRuns([run], panesOf(run.repo)).length > 0 ? (
+        <StartRun
+          run={run}
+          action={action}
+          onStarted={(how) => (how === "session" ? go({ screen: "run", runId, tab: "terminal" }) : undefined)}
+        />
       ) : run && phase === "finished" ? (
         <div className={`driverbar finished ${run.status}`} data-testid="driverbar">
           <strong>{run.status === "done" ? "Done" : "Aborted"}</strong>

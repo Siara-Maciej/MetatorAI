@@ -14,7 +14,7 @@ import type { CloseRun } from "./run-close.ts";
 import type { RunDrivers } from "./run-drivers.ts";
 import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository, UnreadableRun } from "./run-repository.ts";
-import type { InitRun } from "./runs.ts";
+import type { AdvanceRun, ApproveRun, GateApprovals, InitRun } from "./runs.ts";
 import type { SetupWorktree } from "./worktree-setup.ts";
 import type { RemoveWorktree } from "./worktrees.ts";
 
@@ -130,6 +130,8 @@ export interface StartRunInput {
   readonly allowDirty?: boolean;
   readonly parent?: string;
   readonly inputs?: Readonly<Record<string, string>>;
+  /** The system plan's step this run carries out (a child of a system run, F7.6). */
+  readonly system?: { readonly plan: string; readonly step: string; readonly app: string };
   /** False: leave a new worktree without its dependencies (`worktree setup` later). */
   readonly setup?: boolean;
   /** Also drive the run in the background, on this host (empty: the default). */
@@ -171,6 +173,7 @@ export class StartRun {
       ...(input.autonomy ? { autonomy: input.autonomy } : {}),
       ...(input.worktree ? { worktree: input.worktree } : input.allowDirty ? { allowDirty: true } : {}),
       ...(input.parent ? { parent: input.parent } : {}),
+      ...(input.system ? { system: input.system } : {}),
     } as Parameters<InitRun["execute"]>[0]);
     if (started.isErr()) return err(started.error);
     const run = started.value;
@@ -250,6 +253,16 @@ export class AnswerQuestion {
     private readonly clock: Clock,
     /** A live terminal session of the run: the agent there reads the answer itself. */
     private readonly liveSession: (runId: string) => boolean = () => false,
+    /**
+     * A human gate's question decides the gate (whoever drives the run, or nobody): Approve as
+     * `run approve` does, anything else sends the run back with the person's words.
+     */
+    private readonly gates?: {
+      readonly approve: Pick<ApproveRun, "execute">;
+      readonly advance: Pick<AdvanceRun, "execute">;
+      /** Why the gate cannot be approved now (its system plan's lint errors), or undefined. */
+      readonly refusal?: GateApprovals["refusal"];
+    },
   ) {}
 
   async execute(input: AnswerInput): Promise<Result<Answered, MetatorError>> {
@@ -259,6 +272,14 @@ export class AnswerQuestion {
     if (input.choices.length === 0 && !input.text)
       return err(MetatorError.usage("an answer needs a choice or your own words"));
     let choices = [...input.choices];
+    // A human gate the run stands at: its answer decides the gate (below); an Approve the gate
+    // refuses now (a system plan with lint errors) is refused before anything is recorded.
+    const gate = this.gates ? await this.openGate(runId, input.question) : undefined;
+    if (gate && this.gates?.refusal && choices.includes("Approve")) {
+      const refused = await this.gates.refusal(runId, gate);
+      if (refused.isErr()) return err(refused.error);
+      if (refused.value) return err(refused.value);
+    }
     if (input.always) {
       const all = await this.journal.questions(runId);
       if (all.isErr()) return err(all.error);
@@ -293,8 +314,34 @@ export class AnswerQuestion {
       if (added.isErr()) return err(added.error);
       policy = added.value;
     }
+    if (gate && this.gates) {
+      const decided = choices.includes("Approve")
+        ? await this.gates.approve.execute({
+            runId,
+            gate,
+            by: input.by,
+            ...(input.text ? { choice: input.text } : {}),
+          })
+        : await this.gates.advance.execute({
+            runId,
+            event: { type: "FAIL", reason: input.text ?? `rejected by ${input.by}` },
+          });
+      // A drive that waited on the question may have carried the answer out first: nothing twice.
+      if (decided.isErr() && decided.error.code !== "TRANSITION_DENIED") return err(decided.error);
+    }
     const drive = input.drive ? await this.carryOn(runId) : undefined;
     return ok({ ...answered.value, ...(policy ? { policy } : {}), ...(drive ? { drive } : {}) });
+  }
+
+  /** The stage of the gate this question decides: an open gate question of the stage the run stands at. */
+  private async openGate(runId: string, question: string): Promise<string | undefined> {
+    const all = await this.journal.questions(runId);
+    const q = all.isOk() ? all.value.find((x) => x.id === question) : undefined;
+    if (!q || q.answer || q.source !== "gate") return undefined;
+    const record = await this.repo.load(runId);
+    if (record.isErr() || record.value.state.status !== "active" || record.value.state.stage !== q.stage)
+      return undefined;
+    return q.stage;
   }
 
   /** The drive of an active run that nothing carries; nothing for any other run. */

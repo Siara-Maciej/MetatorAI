@@ -35,9 +35,15 @@ agents:
     - - ask: { question: "Which currencies to support?", options: [PLN, EUR, USD], multiSelect: true }
       - say: "STATUS: done"
   mt-orchestrator:
+    # The two panes "+ New run" opens, then the conductor "Open a session" starts for a run.
     - - say: "Ask about the repository, or describe a task and I start the run."
       - ask: { question: "What do you need?", options: [a question, a task] }
       - say: "src/invoice.ts:1 total() sums the lines; the discount is not applied there."
+    - - say: "Ask about the repository, or describe a task and I start the run."
+      - ask: { question: "What do you need?", options: [a question, a task] }
+    - - say: "hello from the session"
+      - ask: { question: "Which rounding?", options: [half-up, half-even] }
+      - say: "STATUS: done"
 `;
 
 let repo: ScratchRepo;

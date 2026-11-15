@@ -9,11 +9,11 @@ import {
   plural,
   runCounts,
   runStateOf,
-  seenKey,
+  whoWorks,
 } from "../model.ts";
 
 export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
-  const { client, runs, repo, url, seen } = useDaemon();
+  const { client, runs, repo, url } = useDaemon();
   const { data: view, error } = usePolled(`supervisor:${repo ?? ""}`, () => client.supervisor(repo), 5000);
   const a = view?.acceptance;
   const fromInboxPct = a && a.answered > 0 ? Math.round((100 * a.fromInbox) / a.answered) : undefined;
@@ -81,10 +81,9 @@ export function DaemonPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
                   </td>
                   <td>{r.repo ?? "—"}</td>
                   <td>{r.host ?? "—"}</td>
-                  <td>{r.driver === "human" ? (r.attachedBy ?? "person") : "agent"}</td>
+                  <td>{whoWorks(r, s?.alive === true)}</td>
                   <td>
-                    <Glyph kind="run" state={runStateOf(r, seen[seenKey(r)])} />{" "}
-                    <StateWord kind="run" state={runStateOf(r, seen[seenKey(r)])} />
+                    <Glyph kind="run" state={runStateOf(r)} /> <StateWord kind="run" state={runStateOf(r)} />
                     {r.died ? " · drive died" : ""}
                   </td>
                   <td>{duration(r.elapsedMs)}</td>

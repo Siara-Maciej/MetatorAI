@@ -8,6 +8,7 @@ import { Tabs } from "../components/tabs.tsx";
 import type { OverviewTab } from "../model.ts";
 import { DaemonPanel } from "../overview/daemon-panel.tsx";
 import { DependenciesPanel } from "../overview/dependencies-panel.tsx";
+import { SystemPanel } from "../overview/system-panel.tsx";
 
 export function OverviewScreen({
   tab,
@@ -27,13 +28,20 @@ export function OverviewScreen({
         items={[
           { id: "daemon", label: "Daemon" },
           { id: "dependencies", label: "Dependencies" },
+          { id: "system", label: "System" },
         ]}
       >
         <span className="spacer" />
         <RepoSelect />
       </Tabs>
       <div className="overview-body">
-        {tab === "daemon" ? <DaemonPanel onOpenRun={onOpenRun} /> : <DependenciesPanel />}
+        {tab === "daemon" ? (
+          <DaemonPanel onOpenRun={onOpenRun} />
+        ) : tab === "system" ? (
+          <SystemPanel onOpenRun={onOpenRun} />
+        ) : (
+          <DependenciesPanel />
+        )}
       </div>
     </div>
   );

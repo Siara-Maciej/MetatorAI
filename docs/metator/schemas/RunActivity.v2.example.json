@@ -1,0 +1,9 @@
+{
+  "kind": "RunActivity",
+  "schemaVersion": 2,
+  "at": "2026-11-01T09:00:00.000Z",
+  "type": "restart",
+  "stage": "build",
+  "text": "the daemon restarted; the run goes on",
+  "origin": "run"
+}

@@ -8,12 +8,16 @@ import type {
   InboxItem,
   IssueRef,
   PaneView,
+  PlanLintProblem,
+  PlanLintView,
   Question,
   RepoState,
   ResolvedOption,
+  RunArtifactKind,
   RunOverview,
   SplitNode,
   StateData,
+  SystemPlanView,
   TabView,
   UnreadableRun,
   WorkspaceView,
@@ -205,7 +209,7 @@ export const RUN_TABS = [
 export type RunTab = (typeof RUN_TABS)[number]["tab"];
 
 /** The two parts of the Overview place: the daemon with its figures, and what links the runs. */
-export type OverviewTab = "daemon" | "dependencies";
+export type OverviewTab = "daemon" | "dependencies" | "system";
 
 /**
  * The hash route, one per place: `#/inbox[/<run>%2F<question>]`, `#/run/<run>[/<tab>[/<pane or
@@ -275,7 +279,10 @@ export function parseRoute(hash: string): Route {
           : { screen: "grid", group: arg }
         : { screen: "grid" };
     case "overview":
-      return { screen: "overview", tab: arg === "dependencies" ? "dependencies" : "daemon" };
+      return {
+        screen: "overview",
+        tab: arg === "dependencies" ? "dependencies" : arg === "system" ? "system" : "daemon",
+      };
     case "supervisor":
       return { screen: "overview", tab: "daemon" };
     case "graph":
@@ -309,7 +316,7 @@ export function routeHash(route: Route): string {
     case "mrs":
       return `#/mrs${route.id ? `/${encodeURIComponent(route.id)}` : ""}`;
     case "overview":
-      return route.tab === "dependencies" ? "#/overview/dependencies" : "#/overview";
+      return route.tab === "daemon" ? "#/overview" : `#/overview/${route.tab}`;
     case "grid":
       return route.pane
         ? `#/grid/pane:${encodeURIComponent(route.pane)}`
@@ -664,7 +671,7 @@ export function gotoRows(
       case "idle":
         return r.state === "idle";
       case "done":
-        return r.state === "exited";
+        return r.state === "exited" || r.state === "finished";
       default:
         return true;
     }
@@ -774,7 +781,7 @@ export type Tone = "amber" | "violet" | "red" | "green" | "blue" | "teal" | "fai
  * What a pane reads as, on every screen: an agent at work, an agent that asks (on its own screen
  * or on a card), a pane where nothing happens, a process that ended.
  */
-export type PaneShown = "working" | "asks" | "idle" | "exited";
+export type PaneShown = "working" | "asks" | "idle" | "finished" | "exited";
 
 /** A shell with no output for this long sits at its prompt: it is idle, whatever the daemon's longer quiet time says. */
 export const SHELL_QUIET_MS = 2000;
@@ -785,16 +792,22 @@ export const SHELL_QUIET_MS = 2000;
  * shell of the same run does not ask, it is idle. A shell is "working" only while it prints: the
  * daemon calls a pane working for its host's whole quiet time (15 s for a program it does not
  * know), which a shell at its prompt is not. A live shell the daemon says nothing about is idle
- * too; a pane with no live process has exited.
+ * too. A process that ended with code 0 is `finished`; any other end, or no process at all, `exited`.
  */
 export function paneStateOf(
   pane: Pick<PaneView, "process" | "state"> & {
     readonly runId?: string | undefined;
-    readonly live?: Pick<NonNullable<PaneView["live"]>, "alive" | "lastOutputAt"> | undefined;
+    readonly live?:
+      | (Pick<NonNullable<PaneView["live"]>, "alive" | "lastOutputAt"> & {
+          readonly exitCode?: number | undefined;
+        })
+      | undefined;
   },
   now: number = Date.now(),
 ): PaneShown {
   const raw = pane.state?.state;
+  // A process that ended by itself with code 0 did its work: a finished worker, not a failure.
+  if (pane.live && !pane.live.alive && pane.live.exitCode === 0) return "finished";
   if (raw === "exited" || !pane.live?.alive) return "exited";
   const agent = pane.process.kind === "host";
   // The agent of a new run waits for the person to say what to do: that is not a question of a run.
@@ -827,6 +840,7 @@ export const LOOKS = {
     working: { glyph: "⋮", tone: "violet" },
     asks: { glyph: "?", tone: "amber" },
     idle: { glyph: "✓", tone: "faint" },
+    finished: { glyph: "✓", tone: "green" },
     exited: { glyph: "✕", tone: "red" },
     question: { glyph: "?", tone: "amber" },
   },
@@ -1223,20 +1237,28 @@ export const portsText = (ports: Readonly<Record<string, number>>): string =>
 export type RunShown = "needs you" | "working" | "escalated" | "done" | "idle";
 
 /**
- * The state of a run in one of five words. `done` is a finished run this person has not opened
- * since it finished: it stays marked until they look, then it is `idle`. A stopped or aborted run
- * is `idle`: nothing happens and nothing is asked.
+ * The state of a run in one of five words. A finished run reads `done` (its status wins over a
+ * pane that is still alive); `isNews` says whether this person has seen it since. A stopped or
+ * aborted run is `idle`: nothing happens and nothing is asked.
  */
-export function runStateOf(
-  run: Pick<RunOverview, "attention" | "status" | "updatedAt">,
-  seenAt?: string | undefined,
-): RunShown {
+export function runStateOf(run: Pick<RunOverview, "attention" | "status">): RunShown {
+  // The run's status wins over what its panes or its drive still say: a finished run is finished.
+  if (run.status === "done") return "done";
+  if (run.status === "aborted") return "idle";
+  if (run.status === "escalated" || run.attention === "escalated") return "escalated";
   if (run.attention === "you") return "needs you";
-  if (run.attention === "escalated") return "escalated";
   if (run.attention === "driving") return "working";
-  if (run.status === "done") return seenAt !== undefined && seenAt >= run.updatedAt ? "idle" : "done";
   return "idle";
 }
+
+/**
+ * A finished run this person has not opened since it finished: news, drawn in its colour until
+ * they look. Once seen it still reads `done`, quietly.
+ */
+export const isNews = (
+  run: Pick<RunOverview, "status" | "updatedAt">,
+  seenAt?: string | undefined,
+): boolean => run.status === "done" && !(seenAt !== undefined && seenAt >= run.updatedAt);
 
 /** What wins when states meet: a person is needed first, then work, then news, then quiet. */
 const RUN_RANK: Readonly<Record<RunShown, number>> = {
@@ -1249,6 +1271,7 @@ const RUN_RANK: Readonly<Record<RunShown, number>> = {
 
 /** A pane's state as a run's: an agent that asks needs you, one that works is working. */
 export const paneAsRun = (state: PaneShown): RunShown =>
+  // A finished worker is not news of the run: the run says when it is done.
   state === "asks" ? "needs you" : state === "working" ? "working" : "idle";
 
 /**
@@ -1260,10 +1283,9 @@ export const rollUp = (states: readonly RunShown[]): RunShown =>
 
 /** A run's state with its panes: the run's own word, unless one of its panes says more. */
 export const runWithPanes = (
-  run: Pick<RunOverview, "attention" | "status" | "updatedAt">,
+  run: Pick<RunOverview, "attention" | "status">,
   panes: readonly PaneShown[],
-  seenAt?: string | undefined,
-): RunShown => rollUp([runStateOf(run, seenAt), ...(isFinished(run) ? [] : panes.map(paneAsRun))]);
+): RunShown => rollUp([runStateOf(run), ...(isFinished(run) ? [] : panes.map(paneAsRun))]);
 
 /** When this person last opened each run, by `<repo>/<run>`: kept in the window's storage. */
 export type SeenRuns = Readonly<Record<string, string>>;
@@ -1316,16 +1338,33 @@ export const terminalKey = (r: { readonly runId: string; readonly repo?: string 
  * Everything that needs the person, in one queue: the questions in the inbox's order (the ones a
  * live drive waits on first), then the runs that ask on their terminal, then the escalated runs.
  */
-export function needsQueue(inbox: readonly InboxItem[], runs: readonly Run[]): NeedRow[] {
+export function needsQueue(
+  inbox: readonly InboxItem[],
+  runs: readonly Run[],
+  panes: readonly (Pick<PaneView, "id" | "worker" | "role" | "label" | "process"> & {
+    readonly repo?: string | undefined;
+  })[] = [],
+): NeedRow[] {
   const taskOf = (runId: string, repo: string | undefined) =>
     runs.find((r) => r.runId === runId && sameRepo(r.repo, repo))?.task;
+  /** Who asks and in which stage: the worker of the pane when the question names one, else the question's agent. */
+  const asker = (paneId: string | undefined, repo: string | undefined, agent?: string, stage?: string) => {
+    const pane = paneId ? panes.find((p) => p.id === paneId && sameRepo(p.repo, repo)) : undefined;
+    const who = pane ? paneLabel(pane) : agent;
+    return [who, pane?.worker?.stage ?? stage].filter((x) => x !== undefined && x !== "").join(" · ");
+  };
   return [
     ...inbox.map(
       (i): NeedRow => ({
         key: `${i.runId}/${i.question.id}`,
         kind: questionKind(i.question).toLowerCase() as NeedKind,
         title: i.question.prompt,
-        sub: [taskOf(i.runId, i.repo) ?? i.task, i.repo, i.stage, duration(i.waitedMs)]
+        sub: [
+          taskOf(i.runId, i.repo) ?? i.task,
+          i.repo,
+          asker(paneOfPrompt(i.question.prompt), i.repo, i.question.agent, i.stage),
+          duration(i.waitedMs),
+        ]
           .filter((x) => x !== undefined && x !== "")
           .join(" · "),
         runId: i.runId,
@@ -1340,7 +1379,9 @@ export function needsQueue(inbox: readonly InboxItem[], runs: readonly Run[]): N
           key: terminalKey(r),
           kind: "terminal",
           title: r.task,
-          sub: ["answers in its terminal", r.repo, r.stage].filter((x) => x !== undefined).join(" · "),
+          sub: ["answers in its terminal", r.repo, asker(r.terminalAsk, r.repo, undefined, r.stage)]
+            .filter((x) => x !== undefined && x !== "")
+            .join(" · "),
           runId: r.runId,
           repo: r.repo,
           pane: r.terminalAsk,
@@ -1383,22 +1424,64 @@ export interface SidebarRun<R> {
   readonly run: R;
   /** A step of the run above it. */
   readonly nested: boolean;
-  /** `step 2/3`, when it is one. */
+  /** `step 2/3` (or `step 2` while the number of steps is not known), when it is one. */
   readonly step?: string | undefined;
+  /** The repository of a step that lives in another repository than its parent. */
+  readonly elsewhere?: string | undefined;
+}
+
+/**
+ * Where a step stands in its parent's plan: its place among the parent's steps in the order they
+ * started, out of the plan's number of steps. The number is the system plan's when it is known
+ * (`planSteps`), else the parent's own list of children once every step exists; a count that
+ * would only be the steps started so far is left out (`step 1`, never a wrong `step 1/1`).
+ */
+export function stepOf(
+  step: Pick<RunOverview, "runId" | "createdAt">,
+  siblings: readonly Pick<RunOverview, "runId" | "createdAt">[],
+  parent: Pick<RunOverview, "children" | "status"> | undefined,
+  planSteps?: number | undefined,
+): string {
+  const ordered = [...siblings].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const i = ordered.findIndex((s) => s.runId === step.runId);
+  const at = i < 0 ? ordered.length + 1 : i + 1;
+  const known = parent?.children?.length ?? 0;
+  const of =
+    planSteps !== undefined && planSteps >= at
+      ? planSteps
+      : parent && isFinished(parent) && known >= at
+        ? known
+        : undefined;
+  return of === undefined ? `step ${at}` : `step ${at}/${of}`;
 }
 
 /**
  * The runs of one repository as the sidebar lists them: in the panel's order (who needs a person
- * first), each run that was split followed by its steps in the order they started.
+ * first), each run that was split followed by its steps in the order they started, whatever
+ * repository a step lives in (a system plan's steps are runs of other repositories). A step whose
+ * parent is listed is not listed again in its own repository. `all` is every run the sidebar can
+ * nest from; `planSteps` the number of steps of a parent's system plan, when it is known.
  */
-export function sidebarRuns<R extends RunOverview>(runs: readonly R[]): SidebarRun<R>[] {
-  const { groups } = groupByFeature(runs);
-  const stepIds = new Set(groups.flatMap((g) => g.steps.map((s) => s.runId)));
+export function sidebarRuns<R extends RunOverview & { readonly repo?: string | undefined }>(
+  runs: readonly R[],
+  all: readonly R[] = runs,
+  planSteps: (parent: R) => number | undefined = () => undefined,
+): SidebarRun<R>[] {
+  const listed = new Set(all.map((r) => r.runId));
+  const isStep = (r: R) => r.parent !== undefined && listed.has(r.parent);
   const out: SidebarRun<R>[] = [];
-  for (const run of byPanelOrder(runs.filter((r) => !stepIds.has(r.runId)))) {
+  for (const run of byPanelOrder(runs.filter((r) => !isStep(r)))) {
     out.push({ run, nested: false });
-    const steps = groups.find((g) => g.parent === run.runId)?.steps ?? [];
-    for (const step of steps) out.push({ run: step, nested: true, step: stepLabel(step, groups) });
+    const steps = all
+      .filter((r) => r.parent === run.runId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    for (const step of steps)
+      out.push({
+        run: step,
+        nested: true,
+        step: stepOf(step, steps, run, planSteps(run)),
+        ...(sameRepo(step.repo, run.repo) ? {} : { elsewhere: step.repo }),
+      });
   }
   return out;
 }
@@ -1407,9 +1490,11 @@ export function sidebarRuns<R extends RunOverview>(runs: readonly R[]): SidebarR
 export const runLine = (
   r: Pick<Run, "stage" | "host" | "elapsedMs" | "terminalAsk">,
   step?: string | undefined,
+  elsewhere?: string | undefined,
 ): string =>
   [
     step,
+    elsewhere,
     r.terminalAsk ? "asks in its terminal" : undefined,
     r.stage,
     r.host ?? "no host",
@@ -1429,3 +1514,354 @@ export const answeredText = (choices: readonly string[]): string =>
 /** The tab a run opens on from the sidebar: where the work is while it runs, the summary once it is finished. */
 export const runTabFor = (r: Pick<RunOverview, "status">): RunTab =>
   isFinished(r) ? "overview" : "terminal";
+
+/**
+ * Who works on a run, in one word for a table and the run's bar: the person who holds its
+ * keyboard, the agent while a drive or a live session runs it, else nobody.
+ */
+export const whoWorks = (
+  r: Pick<RunOverview, "driver" | "attachedBy" | "driving" | "status">,
+  sessionAlive: boolean,
+): string =>
+  isFinished(r)
+    ? "nobody"
+    : r.driver === "human"
+      ? (r.attachedBy ?? "a person")
+      : r.driving || sessionAlive
+        ? "agent"
+        : "nobody";
+
+/* ---------- round 3: what the scenario test found ---------- */
+
+/** The pane a host's permission prompt names (`… waits for your answer in pane w1:p4: …`). */
+export const paneOfPrompt = (prompt: string): string | undefined =>
+  /\bin pane (w\d+:p\d+)\b/.exec(prompt)?.[1];
+
+/**
+ * The answer that sends the person to the pane (`Attach and answer in the pane`): the card does
+ * not answer for them, it takes them to the terminal where they answer the host themselves.
+ */
+export const ATTACH_PANE = "Attach and answer in the pane";
+export const goesToPane = (q: Pick<Question, "source">, choice: string | undefined): boolean =>
+  q.source === "permission" && choice === ATTACH_PANE;
+
+/** One line of a list as shown: the text and how many times it came, in a row or not. */
+export interface ShownLine {
+  readonly text: string;
+  readonly times: number;
+}
+
+/**
+ * A long list cut to what a person reads first: the same line repeated is one line with a count
+ * (a loop that ran twelve times is one line `×12`), the newest `keep` are shown and the rest are
+ * counted. The order is the order of each line's last time.
+ */
+export function compactLines(
+  lines: readonly string[],
+  keep = 4,
+): { readonly shown: readonly ShownLine[]; readonly hidden: number } {
+  const last = new Map<string, number>();
+  const times = new Map<string, number>();
+  lines.forEach((l, i) => {
+    last.set(l, i);
+    times.set(l, (times.get(l) ?? 0) + 1);
+  });
+  const all = [...last.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .map(([text]) => ({ text, times: times.get(text) ?? 1 }));
+  const shown = all.slice(Math.max(0, all.length - keep));
+  return { shown, hidden: all.length - shown.length };
+}
+
+/**
+ * Why a run stopped, as a person reads it: a command's error answered as JSON
+ * (`… failed: {"ok":false,"error":{"message":…,"hint":…}}`) becomes its message and its hint;
+ * the tries the workflow allows (`loop 1 of 3`, `try 2 of 3`) are said apart.
+ */
+export function readableReason(reason: string | undefined): {
+  readonly text: string;
+  readonly hint?: string | undefined;
+  readonly command?: string | undefined;
+  readonly tries?: string | undefined;
+} {
+  if (!reason) return { text: "The run recorded no reason. Its activity shows what happened last." };
+  const tries = /\b(?:loop|tries|try|attempt)[^\d]{0,12}(\d+) of (\d+)/i.exec(reason);
+  // The JSON of an error starts `{"`: a `{runDir}` in the command is not it.
+  const brace = reason.indexOf('{"');
+  let text = reason.trim();
+  let hint: string | undefined;
+  let command: string | undefined;
+  if (brace >= 0) {
+    try {
+      const parsed = JSON.parse(reason.slice(brace, reason.lastIndexOf("}") + 1)) as {
+        error?: { message?: string; hint?: string };
+        message?: string;
+        hint?: string;
+      };
+      const message = parsed.error?.message ?? parsed.message;
+      if (message) {
+        text = message;
+        hint = parsed.error?.hint ?? parsed.hint;
+        command = /`([^`]+)`/.exec(reason.slice(0, brace))?.[1];
+      }
+    } catch {
+      /* not JSON: the reason as it is */
+    }
+  }
+  return {
+    text,
+    ...(hint ? { hint } : {}),
+    ...(command ? { command } : {}),
+    ...(tries ? { tries: `${tries[1]} of ${tries[2]}` } : {}),
+  };
+}
+
+/**
+ * Open runs nothing works on: active, no question, no drive, no live session and no person at the
+ * keyboard. The Inbox says so instead of "every run is working", with the way to start each.
+ */
+export function idleRuns<R extends Run>(
+  runs: readonly R[],
+  panes: readonly (Pick<PaneView, "runId" | "live"> & { readonly repo?: string | undefined })[],
+): R[] {
+  return runs.filter(
+    (r) =>
+      r.status === "active" &&
+      r.attention !== "you" &&
+      r.terminalAsk === undefined &&
+      r.questions.length === 0 &&
+      !r.driving &&
+      r.driver !== "human" &&
+      !panes.some((p) => p.runId === r.runId && sameRepo(p.repo, r.repo) && p.live?.alive),
+  );
+}
+
+/** What the Inbox says when nothing waits for a person: true words about the runs that are open. */
+export function quietInboxText(open: number, idle: number): string {
+  if (open === 0) return "No run is open. Open a finished run from the sidebar, or start a new one.";
+  if (idle === 0) return `Nothing needs you. ${plural(open, "run")} ${open === 1 ? "is" : "are"} working.`;
+  return `Nothing needs you. ${plural(idle, "run")} ${idle === 1 ? "has" : "have"} no agent working on ${idle === 1 ? "it" : "them"}:`;
+}
+
+/** A run as a card of the dependencies graph. */
+export interface GraphNode<R> {
+  readonly run: R;
+  readonly x: number;
+  readonly y: number;
+  /** Finished: drawn dimmed, kept so the picture of what was done stays. */
+  readonly finished: boolean;
+}
+
+export interface GraphEdge {
+  readonly from: string;
+  readonly to: string;
+  /** An SVG path from the parent's card to the child's, ending at the child's edge. */
+  readonly d: string;
+}
+
+export const GRAPH = { W: 220, H: 54, GAP: 40, LANE: 120, TOP: 40, LEFT: 24 } as const;
+
+/**
+ * The dependencies graph laid out: one lane per repository, a run's column its depth in the
+ * parent → child chain (a child is always right of its parent, so no arrow runs backwards), the
+ * next free column when two runs of a lane share one. Finished runs stay, dimmed, when they were
+ * updated in the last `keepMs` or are linked to a run shown. An arrow between lanes leaves the
+ * parent's right edge and enters the child's left edge with a curve that never crosses a card.
+ */
+export function graphLayout<R extends RunOverview & { readonly repo?: string | undefined }>(
+  runs: readonly R[],
+  lanes: readonly string[],
+  now: number = Date.now(),
+  keepMs = 24 * 60 * 60 * 1000,
+): {
+  readonly nodes: readonly GraphNode<R>[];
+  readonly edges: readonly GraphEdge[];
+  readonly width: number;
+  readonly height: number;
+} {
+  const recent = (r: R) => !isFinished(r) || now - Date.parse(r.updatedAt) <= keepMs;
+  const linked = new Set<string>();
+  for (const r of runs.filter((x) => !isFinished(x))) {
+    if (r.parent) linked.add(r.parent);
+    for (const c of r.children ?? []) linked.add(c);
+  }
+  const shown = runs.filter((r) => recent(r) || linked.has(r.runId));
+  const byId = new Map(shown.map((r) => [r.runId, r]));
+  const parentOf = (r: R): R | undefined =>
+    (r.parent ? byId.get(r.parent) : undefined) ?? shown.find((p) => p.children?.includes(r.runId));
+  const depth = (r: R, seen = new Set<string>()): number => {
+    const p = parentOf(r);
+    if (!p || seen.has(r.runId)) return 0;
+    seen.add(r.runId);
+    return depth(p, seen) + 1;
+  };
+  const taken = new Set<string>();
+  const nodes: GraphNode<R>[] = [];
+  const ordered = [...shown].sort((a, b) => depth(a) - depth(b) || a.createdAt.localeCompare(b.createdAt));
+  for (const r of ordered) {
+    const lane = Math.max(
+      0,
+      lanes.findIndex((l) => sameRepo(l, r.repo)),
+    );
+    let col = depth(r);
+    const p = parentOf(r);
+    const pNode = p ? nodes.find((n) => n.run.runId === p.runId) : undefined;
+    if (pNode) col = Math.max(col, Math.round((pNode.x - GRAPH.LEFT) / (GRAPH.W + GRAPH.GAP)) + 1);
+    while (taken.has(`${lane}:${col}`)) col++;
+    taken.add(`${lane}:${col}`);
+    nodes.push({
+      run: r,
+      x: GRAPH.LEFT + col * (GRAPH.W + GRAPH.GAP),
+      y: GRAPH.TOP + lane * GRAPH.LANE,
+      finished: isFinished(r),
+    });
+  }
+  const at = new Map(nodes.map((n) => [n.run.runId, n]));
+  const edges: GraphEdge[] = [];
+  for (const n of nodes) {
+    const p = parentOf(n.run);
+    const pn = p ? at.get(p.runId) : undefined;
+    if (!pn || pn === n) continue;
+    const x1 = pn.x + GRAPH.W;
+    const y1 = pn.y + GRAPH.H / 2;
+    const x2 = n.x;
+    const y2 = n.y + GRAPH.H / 2;
+    const bend = Math.max(16, (x2 - x1) / 2);
+    edges.push({
+      from: pn.run.runId,
+      to: n.run.runId,
+      d: `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`,
+    });
+  }
+  const cols = Math.max(1, ...nodes.map((n) => Math.round((n.x - GRAPH.LEFT) / (GRAPH.W + GRAPH.GAP)) + 1));
+  return {
+    nodes,
+    edges,
+    width: GRAPH.LEFT * 2 + cols * (GRAPH.W + GRAPH.GAP),
+    height: GRAPH.TOP + Math.max(1, lanes.length) * GRAPH.LANE,
+  };
+}
+
+/** A path between two cards that are linked by data (a message, a shared file), or none for a card and itself. */
+export function linkPath(
+  a: { readonly x: number; readonly y: number } | undefined,
+  b: { readonly x: number; readonly y: number } | undefined,
+): string | undefined {
+  if (!a || !b || a === b) return undefined;
+  const [l, r] = a.x <= b.x ? [a, b] : [b, a];
+  const x1 = l.x + GRAPH.W;
+  const y1 = l.y + GRAPH.H / 2 + 8;
+  const x2 = r.x;
+  const y2 = r.y + GRAPH.H / 2 + 8;
+  if (x2 <= x1) {
+    // Stacked cards: down the right side.
+    const x = Math.max(l.x, r.x) + GRAPH.W + 18;
+    return `M ${l.x + GRAPH.W} ${y1} C ${x} ${y1}, ${x} ${y2}, ${r.x + GRAPH.W} ${y2}`;
+  }
+  const bend = (x2 - x1) / 2;
+  return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
+}
+
+/** A system plan's view with the repository it was read from (in a folder). */
+export type RepoSystemPlan = SystemPlanView & { readonly repo?: string | undefined };
+
+/**
+ * The system plan a run carries out, as its parent: the plan one of whose steps is a child of the
+ * run, else the plan with the run's task (before its first step started).
+ */
+export function systemPlanOf<P extends Pick<SystemPlanView, "steps" | "plan">>(
+  plans: readonly P[],
+  run: Pick<RunOverview, "runId" | "task" | "children">,
+  runs: readonly Pick<RunOverview, "runId" | "parent">[],
+): P | undefined {
+  const children = new Set([
+    ...(run.children ?? []),
+    ...runs.filter((r) => r.parent === run.runId).map((r) => r.runId),
+  ]);
+  return (
+    plans.find((p) => p.steps.some((s) => s.run !== undefined && children.has(s.run))) ??
+    plans.find((p) => p.plan.task === run.task)
+  );
+}
+
+/** A block of an artifact as the viewer draws it: never HTML, only text in its place. */
+export interface ArtifactBlock {
+  readonly kind: "heading" | "text" | "code";
+  readonly text: string;
+}
+
+/**
+ * An artifact as blocks a person reads: Markdown's headings and fenced code blocks apart from its
+ * text (the rest stays as written, with no HTML made from an agent's words), JSON pretty-printed,
+ * YAML and plain text as they are, in a code block.
+ */
+export function artifactBlocks(kind: RunArtifactKind, text: string): ArtifactBlock[] {
+  if (kind === "json") {
+    try {
+      return [{ kind: "code", text: JSON.stringify(JSON.parse(text), null, 2) }];
+    } catch {
+      return [{ kind: "code", text }];
+    }
+  }
+  if (kind !== "markdown") return [{ kind: "code", text }];
+  const out: ArtifactBlock[] = [];
+  let buffer: string[] = [];
+  let fence: string[] | undefined;
+  const flush = () => {
+    const t = buffer.join("\n").trim();
+    if (t !== "") out.push({ kind: "text", text: t });
+    buffer = [];
+  };
+  for (const line of text.split("\n")) {
+    if (fence) {
+      if (/^\s*```/.test(line)) {
+        out.push({ kind: "code", text: fence.join("\n") });
+        fence = undefined;
+      } else fence.push(line);
+      continue;
+    }
+    if (/^\s*```/.test(line)) {
+      flush();
+      fence = [];
+      continue;
+    }
+    const heading = /^#{1,6}\s+(.*)$/.exec(line);
+    if (heading) {
+      flush();
+      out.push({ kind: "heading", text: heading[1] ?? "" });
+      continue;
+    }
+    buffer.push(line);
+  }
+  if (fence) out.push({ kind: "code", text: fence.join("\n") });
+  flush();
+  return out;
+}
+
+/** An artifact's size for a list: `812 B`, `4.2 KB`, `1.3 MB`; an expected one is not written yet. */
+export const sizeText = (bytes: number): string =>
+  bytes < 1024
+    ? `${bytes} B`
+    : bytes < 1024 * 1024
+      ? `${(bytes / 1024).toFixed(1)} KB`
+      : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+/** The lint of a plan in a few words: `2 errors · 1 warning`, or that it is clean. */
+export function lintSummary(lint: Pick<PlanLintView, "problems">): string {
+  const errors = lint.problems.filter((p) => p.severity === "error").length;
+  const warnings = lint.problems.length - errors;
+  if (errors + warnings === 0) return "no problems";
+  return [errors > 0 ? plural(errors, "error") : "", warnings > 0 ? plural(warnings, "warning") : ""]
+    .filter((x) => x !== "")
+    .join(" · ");
+}
+
+/** The problems of one step (or one field of it), and the ones about the whole plan. */
+export const problemsAt = <P extends Pick<PlanLintProblem, "step" | "field">>(
+  problems: readonly P[],
+  step: string | undefined,
+  field?: string | undefined,
+): P[] =>
+  problems.filter(
+    (p) => p.step === step && (field === undefined || p.field === field || p.field?.endsWith(`.${field}`)),
+  );

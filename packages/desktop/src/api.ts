@@ -24,7 +24,11 @@ import type {
   PaneRole,
   PaneState,
   PaneView,
+  Plan,
   PlanBoardView,
+  PlanLintProblem,
+  PlanLintView,
+  PlanStep,
   PtyView,
   PullRequestReview,
   Question,
@@ -32,13 +36,26 @@ import type {
   ReviewNote,
   ReviewThread,
   RunActivity,
+  RunArtifact,
+  RunArtifactKind,
+  RunArtifactText,
   RunBrief,
   RunChangesView,
+  RunDriveStarted,
   RunMessage,
   RunOverview,
+  RunPlanView,
   SplitNode,
   StageProgress,
   StageState,
+  SystemDiscoveryView,
+  SystemMap,
+  SystemMapView,
+  SystemPlan,
+  SystemPlanStepView,
+  SystemPlanSummary,
+  SystemPlanView,
+  SystemStep,
   Tab,
   UnreadableRun,
   Workspace,
@@ -71,16 +88,33 @@ export type {
   PaneRole,
   PaneState,
   PaneView,
+  Plan,
   PlanBoardView,
+  PlanLintProblem,
+  PlanLintView,
+  PlanStep,
   Question,
   ResolvedOption,
   ReviewNote,
+  RunArtifact,
+  RunArtifactKind,
+  RunArtifactText,
   RunChangesView,
+  RunDriveStarted,
   RunMessage,
   RunOverview,
+  RunPlanView,
   SplitNode,
   StageProgress,
   StageState,
+  SystemDiscoveryView,
+  SystemMap,
+  SystemMapView,
+  SystemPlan,
+  SystemPlanStepView,
+  SystemPlanSummary,
+  SystemPlanView,
+  SystemStep,
   UnreadableRun,
 };
 
@@ -197,10 +231,15 @@ export class DaemonClient {
     }
   }
 
-  async post<T>(path: string, body: unknown, repo?: string): Promise<Envelope<T>> {
+  async post<T>(
+    path: string,
+    body: unknown,
+    repo?: string,
+    method: "POST" | "PUT" = "POST",
+  ): Promise<Envelope<T>> {
     try {
       const r = await fetch(this.withRepo(path, repo), {
-        method: "POST",
+        method,
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -266,6 +305,41 @@ export class DaemonClient {
     );
   /** Starts (or finds) the terminal session of a run's conductor: the one explicit way a session opens. */
   ptyOpen = (runId: string, repo?: string) => this.post<PtySession>(`/runs/${runId}/pty-open`, {}, repo);
+  /** Starts the run's conductor: the agent that drives the run in a pane of its own (the app's "Open a session"). */
+  start = (runId: string, body: { by: string; host?: string | undefined }, repo?: string) =>
+    this.post<PaneView>(`/runs/${runId}/start`, body, repo);
+  /** Drives the run in the background, with no terminal (`metator run drive --detach`). */
+  drive = (runId: string, body: { by: string; host?: string | undefined }, repo?: string) =>
+    this.post<RunDriveStarted>(`/runs/${runId}/drive`, body, repo);
+  /** The run's implementation plan with its lint and whether a person may change it. */
+  runPlan = (runId: string, repo?: string) => this.get<RunPlanView>(`/runs/${runId}/plan`, repo);
+  lintRunPlan = (runId: string, plan: unknown, repo?: string) =>
+    this.post<PlanLintView>(`/runs/${runId}/plan/lint`, { plan }, repo);
+  saveRunPlan = (
+    runId: string,
+    body: { plan: unknown; digest: string | null; by: string; note?: string | undefined },
+    repo?: string,
+  ) => this.post<RunPlanView>(`/runs/${runId}/plan`, body, repo, "PUT");
+  systemPlans = (repo?: string) => this.get<SystemPlanSummary[]>("/system/plans", repo);
+  systemPlan = (id: string, repo?: string) =>
+    this.get<SystemPlanView>(`/system/plans/${encodeURIComponent(id)}`, repo);
+  lintSystemPlan = (id: string, plan: unknown, repo?: string) =>
+    this.post<PlanLintView>(`/system/plans/${encodeURIComponent(id)}/lint`, { plan }, repo);
+  saveSystemPlan = (id: string, body: { plan: unknown; digest: string | null; by: string }, repo?: string) =>
+    this.post<SystemPlanView>(`/system/plans/${encodeURIComponent(id)}`, body, repo, "PUT");
+  approveSystemPlan = (id: string, by: string, repo?: string) =>
+    this.post<SystemPlanView>(`/system/plans/${encodeURIComponent(id)}/approve`, { by }, repo);
+  systemMap = (repo?: string) => this.get<SystemMapView>("/system/map", repo);
+  saveSystemMap = (body: { map: unknown; digest: string | null; by: string }, repo?: string) =>
+    this.post<SystemMapView>("/system/map", body, repo, "PUT");
+  discover = (body: { write: boolean; by?: string | undefined }, repo?: string) =>
+    this.post<SystemDiscoveryView>("/system/discover", body, repo);
+  artifacts = (runId: string, repo?: string) => this.get<RunArtifact[]>(`/runs/${runId}/artifacts`, repo);
+  artifact = (runId: string, name: string, repo?: string) =>
+    this.get<RunArtifactText>(
+      `/runs/${runId}/artifacts/${name.split("/").map(encodeURIComponent).join("/")}`,
+      repo,
+    );
   message = (
     to: string,
     from: string,

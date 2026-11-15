@@ -101,20 +101,30 @@ const RunActivityV1Schema = z.strictObject({
  * ADR-0077) adds the driver lock, idleness, messages between runs and restarts, and where an
  * entry came from: a host hook, the PTY, a `metator` command, or the inbox.
  */
-export const RunActivitySchema = z.strictObject({
+const ACTIVITY_V2 = [...ACTIVITY_V1, "driver", "idle", "message", "restart"] as const;
+const RunActivityV2Schema = z.strictObject({
   at: z.iso.datetime(),
-  type: z.enum([...ACTIVITY_V1, "driver", "idle", "message", "restart"]),
+  type: z.enum(ACTIVITY_V2),
   stage: z.string().optional(),
   agent: z.string().optional(),
   text: z.string(),
   origin: z.enum(["hook", "pty", "run", "inbox"]).optional(),
 });
+
+/** v3 adds `plan-edited`: a person changed the run's plan in the app (ADR-0087). */
+export const RunActivitySchema = RunActivityV2Schema.extend({
+  type: z.enum([...ACTIVITY_V2, "plan-edited"]),
+});
 export type RunActivity = z.output<typeof RunActivitySchema>;
 
 export const RunActivityDocument = defineDocument("RunActivity", {
-  history: [{ schema: RunActivityV1Schema }],
+  history: [
+    { schema: RunActivityV1Schema },
+    // Every v1 type is a v2 type; `origin` is optional.
+    { schema: RunActivityV2Schema, fromPrevious: (previous) => previous },
+  ],
   latest: RunActivitySchema,
-  // Every v1 type is a v2 type; `origin` is optional.
+  // Every v2 type is a v3 type.
   upgrade: (previous) => previous,
   hint: "Written by MetatorAI as a run goes on (the drive, answers, messages, the terminals); one versioned JSON object per line.",
 });
@@ -463,6 +473,47 @@ export function failedSteps(stdout: string): string | undefined {
       return `${s.id}: ${first.trim().slice(0, 300)}`;
     });
   return [typeof error?.message === "string" ? error.message : "gate failed", ...failed].join("; ");
+}
+
+/**
+ * What a gate script of MetatorAI's own says by its exit code, besides pass (0) and fail (1): the
+ * work it waits on is not done yet (WAITING: look again later, no loop spent), or it stopped for
+ * good (BLOCKED: no retry passes it, the run escalates at once). Only a `metator` command means
+ * these; any other script's exit codes are pass or fail as ever.
+ */
+export const GATE_EXIT = { waiting: 4, blocked: 3 } as const;
+
+/**
+ * A failed `metator` command read for a person: the envelope's message and its hint, never its
+ * JSON. Undefined when the output is no failed envelope.
+ */
+export function envelopeError(stdout: string): string | undefined {
+  const parsed = parseJsonDocument(stdout.trim().split("\n").at(-1) ?? "", "command output");
+  if (parsed.isErr()) return undefined;
+  const error = (parsed.value as { error?: { message?: unknown; hint?: unknown } } | null)?.error;
+  if (typeof error?.message !== "string") return undefined;
+  return typeof error.hint === "string" && error.hint !== ""
+    ? `${error.message} (${error.hint})`
+    : error.message;
+}
+
+/**
+ * The host a drive takes when nobody names one: `$METATOR_HOST` when the runtime has it, else the
+ * first of the team's order (`supervisor.hostOrder`) that drives agents and can start here, else
+ * the first host the repository generates files for, else the first the runtime has.
+ */
+export function driveHostOf(input: {
+  readonly chosen?: string | undefined;
+  readonly order: readonly string[];
+  readonly targets: readonly string[];
+  readonly known: readonly string[];
+  readonly problem?: ((host: string) => string | undefined) | undefined;
+}): string {
+  if (input.chosen && input.known.includes(input.chosen)) return input.chosen;
+  const ordered = input.order.find((h) => input.known.includes(h) && !input.problem?.(h));
+  if (ordered) return ordered;
+  const target = input.targets.find((h) => input.known.includes(h));
+  return target ?? (input.known[0] as string);
 }
 
 /** Why a drive cannot use this host here (its program is not installed), with the hosts that can; undefined when it can. */

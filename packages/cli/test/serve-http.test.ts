@@ -61,6 +61,12 @@ const routes: readonly Route[] = [
     handler: () => ok({ steered: true }),
   }),
   route({
+    method: "PUT",
+    pattern: "/things/:thing",
+    body: body({ name: text }),
+    handler: ({ params, body: b }) => ok({ replaced: params.thing, name: b.name ?? "" }),
+  }),
+  route({
     method: "POST",
     pattern: "/things/:thing/save",
     handler: () =>
@@ -92,7 +98,7 @@ const call = async (
     new Request(url, {
       method,
       ...(init.headers ? { headers: init.headers } : {}),
-      ...(method === "POST" ? { body: init.raw ?? JSON.stringify(init.body ?? {}) } : {}),
+      ...(method === "POST" || method === "PUT" ? { body: init.raw ?? JSON.stringify(init.body ?? {}) } : {}),
     }),
     url,
     url.pathname,
@@ -112,6 +118,12 @@ describe("the daemon's dispatcher", () => {
       cors: "*",
     });
     expect((await call("GET", "/things/a%20b")).json).toEqual({ ok: true, data: { id: "a b" } });
+    // PUT replaces a document: its body is read and checked like a POST's.
+    expect((await call("PUT", "/things/t1", { body: { name: "new" } })).json).toEqual({
+      ok: true,
+      data: { replaced: "t1", name: "new" },
+    });
+    expect((await call("PUT", "/things/t1", { body: { name: 7 } })).status).toBe(400);
     // `:name+` takes the rest of the path, slashes too.
     expect((await call("POST", "/options/ui.pane/borders")).json).toEqual({
       ok: true,
@@ -201,6 +213,38 @@ describe("the daemon's dispatcher", () => {
   });
 });
 
+describe("which repository a call is for (a daemon serving a folder)", () => {
+  const whoami = route({
+    method: "GET",
+    pattern: "/whoami",
+    handler: ({ repo }) => ok({ repo: repo ?? null }),
+  });
+  const ask = async (path: string, headers: Record<string, string> = {}) => {
+    const asked: (string | undefined)[] = [];
+    const dispatch = dispatcher([whoami], {
+      daemon,
+      containerFor: (repo) => {
+        asked.push(repo);
+        return ok(container);
+      },
+      repoOfToken: async (token) => (token === "pane-of-web" ? "shop-web" : undefined),
+    });
+    const url = new URL(`http://localhost${path}`);
+    const r = await dispatch(new Request(url, { headers }), url, url.pathname);
+    return { json: (await r.json()) as { data: { repo: string | null } }, asked };
+  };
+
+  test("the repository the call names wins; else the one the pane's token belongs to; else none", async () => {
+    expect((await ask("/whoami?repo=shop-api", { "x-metator-pane": "pane-of-web" })).json.data.repo).toBe(
+      "shop-api",
+    );
+    const fromPane = await ask("/whoami", { "x-metator-pane": "pane-of-web" });
+    expect([fromPane.json.data.repo, fromPane.asked]).toEqual(["shop-web", ["shop-web"]]);
+    expect((await ask("/whoami", { "x-metator-pane": "unknown" })).json.data.repo).toBeNull();
+    expect((await ask("/whoami")).json.data.repo).toBeNull();
+  });
+});
+
 describe("the daemon's route table", () => {
   test("no two routes answer the same method and pattern; every POST with fields has a schema", () => {
     const keys = ROUTES.map((r) => `${r.method} ${r.pattern}`);
@@ -286,8 +330,21 @@ describe("the daemon's route table", () => {
       "POST /runs/:run/pty-open",
       "POST /runs/:run/close-panes",
       "POST /runs/:run/pty-close",
+      "GET /runs/:run/plan",
+      "POST /runs/:run/plan/lint",
+      "PUT /runs/:run/plan",
+      "GET /system/plans",
+      "GET /system/plans/:plan",
+      "POST /system/plans/:plan/lint",
+      "PUT /system/plans/:plan",
+      "POST /system/plans/:plan/approve",
+      "GET /system/map",
+      "PUT /system/map",
+      "POST /system/discover",
+      "GET /runs/:run/artifacts",
+      "GET /runs/:run/artifacts/:name+",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(60);
+    expect(keys.size).toBe(73);
   });
 });

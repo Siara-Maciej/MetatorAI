@@ -12,6 +12,7 @@ import { sendLine } from "./components/terminal.tsx";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
 import {
   answeredText,
+  goesToPane,
   hostChoice,
   keyMapOf,
   type NeedRow,
@@ -21,6 +22,7 @@ import {
   noHostText,
   notifies,
   openRuns,
+  paneOfPrompt,
   parseRoute,
   pickedNeed,
   plainKey,
@@ -55,7 +57,13 @@ function Shell() {
   const [help, setHelp] = useState(false);
   // What an action of the shell answered (a run that could not start, an answer that went
   // through): it stays until closed.
-  const [notice, setNotice] = useState<{ text: string; tone: "error" | "info" }>();
+  const [notice, setNotice] = useState<{ text: string; tone: "error" | "info"; sticky?: boolean }>();
+  // A confirmation goes by itself after a few seconds; a refusal stays until it is closed (D5).
+  useEffect(() => {
+    if (notice?.tone !== "info") return;
+    const t = setTimeout(() => setNotice((n) => (n === notice ? undefined : n)), 6000);
+    return () => clearTimeout(t);
+  }, [notice]);
   // Below about 1000 px the sidebar is a drawer behind a button of the top bar.
   const [panelOpen, setPanelOpen] = useState(false);
   // The draft of "New task from here…": held here, not in the hash, until the backlog is left.
@@ -67,6 +75,9 @@ function Shell() {
     const onHash = () => {
       const next = parseRoute(window.location.hash);
       setRoute(next);
+      // What an action of the last place said is about that place: it goes with it.
+      // A confirmation set together with a move lives through that one move.
+      setNotice((n) => (n?.tone !== "info" ? n : n.sticky ? { ...n, sticky: false } : undefined));
       setPanelOpen(false);
       if (next.screen !== "backlog") setBacklogDraft(undefined);
     };
@@ -166,7 +177,7 @@ function Shell() {
     [go, d],
   );
   // Everything that needs the person: the sidebar lists it, the Inbox shows the picked one.
-  const needs = useMemo(() => needsQueue(d.inbox, d.runs), [d.inbox, d.runs]);
+  const needs = useMemo(() => needsQueue(d.inbox, d.runs, d.panes), [d.inbox, d.runs, d.panes]);
   const picked = route.screen === "inbox" ? pickedNeed(needs, route.pick) : undefined;
   const openNeed = (n: NeedRow) =>
     n.kind === "terminal" ? openRun(n.runId, false, n.pane) : go({ screen: "inbox", pick: n.key });
@@ -211,8 +222,19 @@ function Shell() {
         <InboxScreen
           needs={needs}
           picked={picked}
-          onAnswered={(choices) => {
-            setNotice(choices ? { text: answeredText(choices), tone: "info" } : undefined);
+          onAnswered={(choices, item) => {
+            // "Attach and answer in the pane": the card took the answer; the person goes to the pane.
+            const pane = item ? paneOfPrompt(item.question.prompt) : undefined;
+            if (item && goesToPane(item.question, choices?.[0])) {
+              openRun(item.runId, true, pane);
+              setNotice({
+                text: "You hold the keyboard of the run: answer the host in its pane, then release it to the agent.",
+                tone: "info",
+                sticky: true,
+              });
+              return;
+            }
+            setNotice(choices ? { text: answeredText(choices), tone: "info", sticky: true } : undefined);
             go({ screen: "inbox" });
           }}
           onOpenRun={(id, pane) => openRun(id, false, pane)}

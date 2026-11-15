@@ -3,21 +3,31 @@ import type { MetatorContainer } from "@metator/runtime";
 
 /**
  * What the daemon does on its own, on a clock: the supervisor's tick (dead drives, idle agents),
- * the intake scan (T2) and the reviews of my requests (T3), each for every repository it serves.
- * What they find goes to stderr as one JSON line; a run they start is driven.
+ * the intake scan (T2), the reviews of my requests (T3) and closing the panes of finished runs,
+ * each for every repository it serves. What they find goes to stderr as one JSON line; a run they
+ * start is driven.
  */
 export interface TimerDeps {
   /** The repositories the daemon serves, by the name a request names them (`undefined`: the only one). */
   readonly repos: () => readonly (string | undefined)[];
   readonly containerFor: (repo: string | undefined) => Result<MetatorContainer, unknown>;
   readonly superviseMs: number;
-  readonly intakeMs: number;
-  readonly reviewsMs: number;
+  /** How often to scan the intake rules: a fixed interval, or each repository's own `intake.everyMs`. */
+  readonly intakeMs: number | "own";
+  /** How often to read the reviews of my requests: fixed, or each repository's own `reviews.everyMs`. */
+  readonly reviewsMs: number | "own";
+  /** How often the panes of runs that finished are closed (0: never). */
+  readonly sweepMs?: number;
   /** How the supervisor starts a drive again. */
   readonly restart?: (
     c: MetatorContainer,
     runId: string,
   ) => Promise<Result<{ readonly stage: string }, MetatorError>>;
+}
+
+/** One repository's interval: the fixed one, or what its own config says (`own`). */
+export function intervalOf(given: number | "own", own: number): number {
+  return given === "own" ? own : given;
 }
 
 export function startTimers(deps: TimerDeps): { stop(): void } {
@@ -29,71 +39,87 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
   };
   const say = (what: string, key: string) => (o: object) =>
     process.stderr.write(`${JSON.stringify({ [what]: { repo: key, ...o } })}\n`);
+  const timers: ReturnType<typeof setInterval>[] = [];
 
   // The supervisor: one tick per interval for every repository the daemon serves.
   const supervisors = new Map<string, Supervisor>();
   const restart = deps.restart;
-  const supervise = () =>
-    each((key, c) => {
-      if (!restart) return;
-      const s = supervisors.get(key) ?? c.resolve("supervisor")((runId) => restart(c, runId));
-      supervisors.set(key, s);
-      void s.tick().then((r) => {
-        if (r.isErr()) say("supervisor", key)({ error: r.error.message });
-      });
-    });
+  if (deps.superviseMs > 0 && restart)
+    timers.push(
+      setInterval(
+        () =>
+          each((key, c) => {
+            const s = supervisors.get(key) ?? c.resolve("supervisor")((runId) => restart(c, runId));
+            supervisors.set(key, s);
+            void s.tick().then((r) => {
+              if (r.isErr()) say("supervisor", key)({ error: r.error.message });
+            });
+          }),
+        deps.superviseMs,
+      ),
+    );
 
-  // Intake (T2): one scan per interval for every repository with rules; started runs are driven.
-  const scanning = new Set<string>();
-  const intake = () =>
-    each((key, c) => {
-      if (c.resolve("config").config.intake.rules.length === 0 || scanning.has(key)) return;
-      scanning.add(key);
+  // Intake (T2) and reviews (T3): each repository on its own interval (a folder's repositories
+  // each keep their own `everyMs`); a run either starts is driven.
+  const busy = new Set<string>();
+  const once = (what: string, key: string, work: () => Promise<unknown>) => {
+    const k = `${what}:${key}`;
+    if (busy.has(k)) return;
+    busy.add(k);
+    void work().finally(() => busy.delete(k));
+  };
+  const intake = (key: string, c: MetatorContainer) =>
+    once("intake", key, async () => {
       const tell = say("intake", key);
-      void c
-        .resolve("scanIntake")
-        .execute()
-        .then(async (r) => {
-          if (r.isErr()) return tell({ error: r.error.message });
-          for (const rule of r.value.rules) if (rule.error) tell({ rule: rule.rule, error: rule.error });
-          for (const s of r.value.rules.flatMap((x) => x.started)) {
-            tell({ started: s.runId, issue: s.issue });
-            await c.resolve("ensureDriven").execute({ runId: s.runId });
-          }
-        })
-        .finally(() => scanning.delete(key));
+      const r = await c.resolve("scanIntake").execute();
+      if (r.isErr()) return tell({ error: r.error.message });
+      for (const rule of r.value.rules) if (rule.error) tell({ rule: rule.rule, error: rule.error });
+      for (const s of r.value.rules.flatMap((x) => x.started)) {
+        tell({ started: s.runId, issue: s.issue });
+        await c.resolve("ensureDriven").execute({ runId: s.runId });
+      }
     });
-
-  // Reviews of my requests (T3): one scan per interval for every repository with sources.
-  const reviewing = new Set<string>();
-  const reviews = () =>
-    each((key, c) => {
-      if (c.resolve("config").config.reviews.sources.length === 0 || reviewing.has(key)) return;
-      reviewing.add(key);
+  const reviews = (key: string, c: MetatorContainer) =>
+    once("reviews", key, async () => {
       const tell = say("reviews", key);
-      void c
-        .resolve("myReviews")
-        .scan()
-        .then(async (r) => {
-          if (r.isErr()) return tell({ error: r.error.message });
-          for (const e of r.value.errors) tell({ error: e });
-          for (const q of r.value.requests) {
-            if (!q.started) continue;
-            tell({ started: q.started, request: q.id, threads: q.fresh.length });
-            await c.resolve("ensureDriven").execute({ runId: q.started });
-          }
-        })
-        .finally(() => reviewing.delete(key));
+      const r = await c.resolve("myReviews").scan();
+      if (r.isErr()) return tell({ error: r.error.message });
+      for (const e of r.value.errors) tell({ error: e });
+      for (const q of r.value.requests) {
+        if (!q.started) continue;
+        tell({ started: q.started, request: q.id, threads: q.fresh.length });
+        await c.resolve("ensureDriven").execute({ runId: q.started });
+      }
     });
+  each((key, c) => {
+    const config = c.resolve("config").config;
+    const intakeEvery = intervalOf(deps.intakeMs, config.intake.everyMs);
+    if (config.intake.rules.length > 0 && intakeEvery > 0)
+      timers.push(setInterval(() => intake(key, c), intakeEvery));
+    const reviewsEvery = intervalOf(deps.reviewsMs, config.reviews.everyMs);
+    if (config.reviews.sources.length > 0 && reviewsEvery > 0)
+      timers.push(setInterval(() => reviews(key, c), reviewsEvery));
+  });
 
-  const timers = [
-    deps.superviseMs > 0 && restart ? setInterval(supervise, deps.superviseMs) : undefined,
-    deps.intakeMs > 0 ? setInterval(intake, deps.intakeMs) : undefined,
-    deps.reviewsMs > 0 ? setInterval(reviews, deps.reviewsMs) : undefined,
-  ];
+  // A run that finished (done, aborted) keeps no panes: its idle conductor would read as a session.
+  if ((deps.sweepMs ?? 0) > 0)
+    timers.push(
+      setInterval(
+        () =>
+          each((key, c) =>
+            once("sweep", key, async () => {
+              const r = await c.resolve("panes").closeFinished();
+              if (r.isErr()) return say("panes", key)({ error: r.error.message });
+              for (const x of r.value) say("panes", key)({ closed: x.closed, finished: x.runId });
+            }),
+          ),
+        deps.sweepMs,
+      ),
+    );
+
   return {
     stop: () => {
-      for (const t of timers) if (t) clearInterval(t);
+      for (const t of timers) clearInterval(t);
     },
   };
 }

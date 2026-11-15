@@ -307,6 +307,24 @@ describe("Panes", () => {
     expect(after.panes).toEqual([]);
   });
 
+  test("closeFinished closes the panes of every run that is done or aborted, conductor and workers; an open run keeps its own", async () => {
+    const w = world();
+    const done = (await w.init("Done already"))._unsafeUnwrap();
+    const open = (await w.init("Still working"))._unsafeUnwrap();
+    await w.panes.openRun({ runId: done.runId });
+    const ws = (await w.panes.openWorkspace({ runId: done.runId }))._unsafeUnwrap();
+    await w.panes.openPane({ workspace: ws.id, role: "worker", runId: done.runId, process: { kind: "command", argv: ["sh"] } });
+    await w.panes.openRun({ runId: open.runId });
+    const record = (await w.repo.load(done.runId))._unsafeUnwrap();
+    await w.repo.save({ ...record, state: { ...record.state, status: "done", stage: "done" } });
+    const r = (await w.panes.closeFinished())._unsafeUnwrap();
+    expect(r).toEqual([{ runId: done.runId, closed: 2 }]);
+    const left = (await w.layout.load())._unsafeUnwrap();
+    expect(left.panes.map((p) => p.runId)).toEqual([open.runId]);
+    // Nothing left to close: nothing is said twice.
+    expect((await w.panes.closeFinished())._unsafeUnwrap()).toEqual([]);
+  });
+
   test("splitPane opens a shell beside the pane and the tab's tree remembers it; setTree accepts only the tab's panes", async () => {
     const w = world();
     const r = (await w.init("Split"))._unsafeUnwrap();

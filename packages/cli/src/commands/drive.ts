@@ -134,43 +134,62 @@ export function registerDriveCommands(
     .option("--host <host>", `AI host for the agents: ${HOSTS.join(", ")} (default: first of hosts.targets)`)
     .option("--detach", "keep driving in the background after this command returns", false)
     .option("--max-steps <n>", "stop after this many stage transitions", positiveInt, 200)
+    .option(
+      "--gate-wait <ms>",
+      "how often a gate that waits on other work (a system run's children) looks again (default: $METATOR_GATE_WAIT_MS, else 5000)",
+      positiveInt,
+    )
     .action(
-      action(async (opts: { run?: string; host?: string; detach: boolean; maxSteps: number }) => {
-        const c = container();
-        const id = await c.resolve("runRepository").resolveId(opts.run);
-        if (id.isErr()) return { result: id };
-        const host = opts.host ?? defaultHost(c);
-        if (!c.resolve("agentHosts").has(host))
-          return {
-            result: err(
-              MetatorError.usage(
-                `unknown AI host ${host}`,
-                `Hosts: ${[...c.resolve("agentHosts").keys()].join(", ")}.`,
+      action(
+        async (opts: {
+          run?: string;
+          host?: string;
+          detach: boolean;
+          maxSteps: number;
+          gateWait?: number;
+        }) => {
+          const c = container();
+          const id = await c.resolve("runRepository").resolveId(opts.run);
+          if (id.isErr()) return { result: id };
+          const host = opts.host ?? defaultHost(c);
+          if (!c.resolve("agentHosts").has(host))
+            return {
+              result: err(
+                MetatorError.usage(
+                  `unknown AI host ${host}`,
+                  `Hosts: ${[...c.resolve("agentHosts").keys()].join(", ")}.`,
+                ),
               ),
-            ),
-          };
-        const drivers = c.resolve("runDrivers");
-        if (opts.detach) {
-          const started = await c
-            .resolve("startDrive")
-            .execute({ runId: id.value, host, maxSteps: opts.maxSteps });
-          return {
-            result: started.map(({ stage: _stage, ...d }) => ({ runId: id.value, detached: true, ...d })),
-          };
-        }
-        const claimed = await drivers.claim(id.value, process.pid, host);
-        if (claimed.isErr()) return { result: claimed };
-        // At a terminal the drive says what it does as it does it; a script gets the one JSON line.
-        const watched = terminal ? watch(c, id.value, terminal) : undefined;
-        try {
-          return {
-            result: await c.resolve("driveRun").execute({ runId: id.value, host, maxSteps: opts.maxSteps }),
-          };
-        } finally {
-          await watched?.stop();
-          await drivers.release(id.value, process.pid);
-        }
-      }),
+            };
+          const drivers = c.resolve("runDrivers");
+          if (opts.detach) {
+            const started = await c
+              .resolve("startDrive")
+              .execute({ runId: id.value, host, maxSteps: opts.maxSteps });
+            return {
+              result: started.map(({ stage: _stage, ...d }) => ({ runId: id.value, detached: true, ...d })),
+            };
+          }
+          const claimed = await drivers.claim(id.value, process.pid, host);
+          if (claimed.isErr()) return { result: claimed };
+          // At a terminal the drive says what it does as it does it; a script gets the one JSON line.
+          const watched = terminal ? watch(c, id.value, terminal) : undefined;
+          try {
+            return {
+              result: await c.resolve("driveRun").execute({
+                runId: id.value,
+                host,
+                maxSteps: opts.maxSteps,
+                // A drive started in the background inherits the variable, not the option.
+                ...(gateWait(opts.gateWait) ? { gateWaitMs: gateWait(opts.gateWait) as number } : {}),
+              }),
+            };
+          } finally {
+            await watched?.stop();
+            await drivers.release(id.value, process.pid);
+          }
+        },
+      ),
     );
 
   runs
@@ -328,3 +347,10 @@ export function registerDriveCommands(
       action(async (id: string) => ({ result: await container().resolve("answerPolicyStore").remove(id) })),
     );
 }
+
+/** How often a waiting gate looks again: the option, else `$METATOR_GATE_WAIT_MS`, else the drive's own. */
+const gateWait = (given: number | undefined): number | undefined => {
+  if (given) return given;
+  const env = Number(process.env.METATOR_GATE_WAIT_MS);
+  return Number.isInteger(env) && env > 0 ? env : undefined;
+};

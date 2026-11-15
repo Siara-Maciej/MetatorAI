@@ -269,6 +269,11 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await page.goto(app(`session/${runId}`));
     const term = page.getByTestId(`terminal-${runId}`);
     await page.getByRole("button", { name: "Open a session" }).click();
+    // Starting a run's agent is a person's act: the app asks for the name once.
+    const named = page.getByRole("dialog", { name: "your name" });
+    await named.waitFor({ timeout: 5000 });
+    await named.getByLabel("Your name").fill("maciej");
+    await named.getByRole("button", { name: "Save" }).click();
     await term.waitFor({ timeout: 20_000 });
     await until("the session to greet", async () =>
       (await term.textContent())?.includes("hello from the session") ? true : undefined,
@@ -346,10 +351,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     // The cause removed, then Resume: the app asks who, the daemon resumes the run and drives it.
     await Bun.write(repo.path(`.metator/runs/${runId}/fixed`), "");
     await card.getByRole("button", { name: "Resume" }).click();
-    const who = page.getByRole("dialog", { name: "your name" });
-    await who.waitFor({ timeout: 5000 });
-    await who.getByLabel("Your name").fill("maciej");
-    await who.getByRole("button", { name: "Save" }).click();
+    // The name was given when a session was opened earlier: the app does not ask again.
     await until("the resumed run to finish", async () =>
       (await statusOf(runId)) === "done" ? true : undefined,
     );

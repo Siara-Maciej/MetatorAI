@@ -4,7 +4,9 @@ import {
   type AgentAnswer,
   type AgentQuestion,
   blockedPrompt,
+  envelopeError,
   failedSteps,
+  GATE_EXIT,
   gatePrompt,
   hostLimit,
   hostRefusal,
@@ -28,6 +30,7 @@ import type { StageSpec } from "../domain/workflow-spec.ts";
 import type { AgentHost, FileSystem, ProcessRunner, Timer } from "../ports/index.ts";
 import { decisionCard } from "./decision-card.ts";
 import { loadDocument } from "./document-io.ts";
+import { gateQuestionOf } from "./gate-questions.ts";
 import type { Notifier } from "./notifier.ts";
 import type { CloseRun } from "./run-close.ts";
 import { type ActivityInput, OTHER, type RunJournal } from "./run-journal.ts";
@@ -52,6 +55,8 @@ export interface DriveInput {
   /** A safety net against endless loops; the workflow's own loop limits come first. */
   readonly maxSteps?: number;
   readonly pollMs?: number;
+  /** How long a gate that waits on other work (a system run's children) sleeps between looks. */
+  readonly gateWaitMs?: number;
 }
 
 export interface DriveReport {
@@ -187,6 +192,7 @@ export class DriveRun {
         children: record.value.children ?? [],
         ...(await this.ports(record.value.worktree?.id)),
         pollMs: input.pollMs ?? 500,
+        gateWaitMs: input.gateWaitMs ?? 5000,
         inputs: record.value.inputs ?? {},
       };
       const outcome = stage.hitl ? await this.humanGate(ctx) : await this.work(ctx);
@@ -260,17 +266,12 @@ export class DriveRun {
 
   /** A HITL stage: the person approves, or rejects with a reason (FAIL). */
   private async humanGate(ctx: StageContext): Promise<Result<Outcome, MetatorError>> {
+    // The question every front asks at a human gate (`GateQuestions`): the one already asked when
+    // the run reached the gate is found again, not asked twice.
     const q = await this.ask(
       ctx.runId,
       {
-        stage: ctx.stage.id,
-        source: "gate",
-        prompt: `${ctx.stage.description ?? ctx.stage.id}: approve to continue`,
-        options: [
-          { label: "Approve", description: "Continue with the next stage" },
-          { label: "Reject", description: "Send the run back, with your reason" },
-        ],
-        multiSelect: false,
+        ...gateQuestionOf(ctx.stage),
         // The stage before passed its checks: the evidence points to approving. A gate that grants
         // an external action (the push) starts something approving cannot take back.
         card: await decisionCard(this.d, ctx, {
@@ -330,9 +331,9 @@ export class DriveRun {
 
     const gate = ctx.stage.gate;
     if (gate?.script) {
-      const r = await this.script(ctx, gate.script);
+      const r = await this.gateScript(ctx, gate.script);
       if (r.isErr()) return err(r.error);
-      if (!r.value.ok) return ok({ type: "FAIL", reason: `gate \`${gate.script}\`: ${r.value.tail}` });
+      if (r.value.type !== "PASS") return ok(r.value);
       await this.d.journal.record(ctx.runId, {
         type: "gate",
         stage: ctx.stage.id,
@@ -347,10 +348,38 @@ export class DriveRun {
     return ok({ type: "PASS" });
   }
 
+  /**
+   * A gate script. MetatorAI's own command may say "not yet" (WAITING): the drive looks again
+   * after a while, saying what it waits on whenever that changes, and spends no loop; the run
+   * reads as working meanwhile. BLOCKED fails the stage for good: the run escalates at once.
+   */
+  private async gateScript(ctx: StageContext, script: string): Promise<Result<Outcome, MetatorError>> {
+    let said: string | undefined;
+    for (let look = 0; ; look++) {
+      const r = await this.script(ctx, script, look > 0);
+      if (r.isErr()) return err(r.error);
+      if (r.value.ok) return ok({ type: "PASS" });
+      const reason = `gate \`${script}\`: ${r.value.tail}`;
+      if (r.value.metator && r.value.exitCode === GATE_EXIT.blocked)
+        return ok({ type: "FAIL", reason, final: true });
+      if (!(r.value.metator && r.value.exitCode === GATE_EXIT.waiting)) return ok({ type: "FAIL", reason });
+      if (r.value.tail !== said) {
+        said = r.value.tail;
+        await this.d.journal.record(ctx.runId, { type: "gate", stage: ctx.stage.id, text: r.value.tail });
+      }
+      await this.d.timer.sleep(ctx.gateWaitMs);
+      // Someone moved the run meanwhile (an abort, a person in another terminal): stop waiting.
+      const now = await this.d.repo.load(ctx.runId);
+      if (now.isErr()) return err(now.error);
+      if (now.value.state.stage !== ctx.stage.id || now.value.state.status !== "active") return ok(MOVED);
+    }
+  }
+
   private async script(
     ctx: StageContext,
     script: string,
-  ): Promise<Result<{ ok: boolean; tail: string }, MetatorError>> {
+    quiet = false,
+  ): Promise<Result<{ ok: boolean; tail: string; exitCode: number; metator: boolean }, MetatorError>> {
     // `{runDir}` is repository-relative: the same path in the checkout and in a run's worktree (it
     // links the run directory in), where an absolute path to the checkout would be outside the root.
     const filled = fillInputs(script, ctx.inputs);
@@ -358,18 +387,23 @@ export class DriveRun {
     const words = parseShell(filled.value.replaceAll("{runDir}", this.d.repo.runDir(ctx.runId))).filter(
       (w) => typeof w === "string",
     );
-    if (words[0] === "metator") {
+    const metator = words[0] === "metator";
+    if (metator) {
       words.splice(0, 1, ...parseShell(this.d.metatorCommand).filter((w) => typeof w === "string"));
     }
     if (words.length === 0) return err(MetatorError.usage(`empty script in stage ${ctx.stage.id}`));
-    await this.d.journal.record(ctx.runId, { type: "tool", stage: ctx.stage.id, text: `$ ${script}` });
+    if (!quiet)
+      await this.d.journal.record(ctx.runId, { type: "tool", stage: ctx.stage.id, text: `$ ${script}` });
     const r = await this.d.process.run(
       { argv: words, cwd: ctx.cwd, env: { METATOR_RUN: ctx.runId, METATOR_RUN_DIR: ctx.runDir } },
       { timeoutMs: 30 * 60_000 },
     );
+    // A MetatorAI command's failure is its message and hint, never its JSON (a person reads it).
     const tail =
-      failedSteps(r.stdout) ?? `${r.stdout}\n${r.stderr}`.trim().split("\n").slice(-5).join("\n").slice(-800);
-    return ok({ ok: r.exitCode === 0, tail });
+      failedSteps(r.stdout) ??
+      (metator ? envelopeError(r.stdout) : undefined) ??
+      `${r.stdout}\n${r.stderr}`.trim().split("\n").slice(-5).join("\n").slice(-800);
+    return ok({ ok: r.exitCode === 0, tail, exitCode: r.exitCode, metator });
   }
 
   /** One worker: runs until it reports done; a blocked worker asks a person, then continues. */
@@ -743,6 +777,8 @@ interface StageContext {
   /** When the run last changed: answers given after it are still to be acted on. */
   readonly since: string;
   readonly pollMs: number;
+  /** How long a gate that waits (WAITING) sleeps before it looks again. */
+  readonly gateWaitMs: number;
   /** The run's inputs, for `{name}` in its scripts. */
   readonly inputs: Readonly<Record<string, string>>;
   /** L2 is headless: what a person would decide in one click is decided by the evidence. */

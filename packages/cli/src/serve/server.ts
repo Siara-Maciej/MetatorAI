@@ -18,10 +18,13 @@ import type { ServerWebSocket } from "bun";
 import type { CommandContext } from "../context.ts";
 import { liveDaemonAt } from "../daemon-client.ts";
 import { CORS, type Daemon, dispatcher, json, type Route } from "./http.ts";
+import { ARTIFACT_ROUTES } from "./routes/artifacts.ts";
 import { BACKLOG_ROUTES } from "./routes/backlog.ts";
 import { OVERVIEW_ROUTES } from "./routes/overview.ts";
 import { PANE_ROUTES } from "./routes/panes.ts";
+import { PLAN_ROUTES } from "./routes/plans.ts";
 import { RUN_ROUTES } from "./routes/runs.ts";
+import { SYSTEM_ROUTES } from "./routes/system.ts";
 import { type Socket, socketHandlers, upgrade } from "./sockets.ts";
 import { startTimers } from "./timers.ts";
 
@@ -31,6 +34,9 @@ export const ROUTES: readonly Route[] = [
   ...BACKLOG_ROUTES,
   ...PANE_ROUTES,
   ...RUN_ROUTES,
+  ...PLAN_ROUTES,
+  ...SYSTEM_ROUTES,
+  ...ARTIFACT_ROUTES,
 ];
 
 /** What a browser or the desktop app gets from the daemon (D3, ADR-0077). */
@@ -105,7 +111,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     repo: string | undefined,
   ): Result<MetatorContainer, { code: string; message: string }> => {
     if (!folder) return ok(cached(".", () => ctx.container()));
-    const entry = repo ? folder.repos.find((r) => r.name === repo) : folder.repos[0];
+    // A repository by its name in the folder, or by its root (what a command run inside it knows).
+    const entry = repo ? folder.repos.find((r) => r.name === repo || r.root === repo) : folder.repos[0];
     if (!entry)
       return err({ code: "NOT_FOUND", message: `repository ${repo ?? "(none)"} is not in ${folder.root}` });
     return ok(cached(entry.root, () => ctx.containerAt(entry.root)));
@@ -183,7 +190,18 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     state,
     inbox,
   };
-  const dispatch = dispatcher(ROUTES, { daemon, containerFor });
+  /** The repository whose panes know this token: a call from a pane acts in its own repository. */
+  const repoOfToken = async (token: string): Promise<string | undefined> => {
+    if (!folder) return undefined;
+    for (const r of folder.repos) {
+      const pane = await cached(r.root, () => ctx.containerAt(r.root))
+        .resolve("panes")
+        .authorize(token);
+      if (pane) return r.name;
+    }
+    return undefined;
+  };
+  const dispatch = dispatcher(ROUTES, { daemon, containerFor, repoOfToken });
 
   const server = Bun.serve<Socket>({
     port: opts.port,
@@ -214,8 +232,10 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     repos: () => (folder ? folder.repos.map((r) => r.name) : [undefined]),
     containerFor,
     superviseMs: opts.superviseMs ?? 0,
-    intakeMs: opts.intakeMs === true ? config().intake.everyMs : (opts.intakeMs ?? 0),
-    reviewsMs: opts.reviewsMs === true ? config().reviews.everyMs : (opts.reviewsMs ?? 0),
+    // Each repository's own interval unless one is given: in a folder each keeps its own.
+    intakeMs: opts.intakeMs === true ? "own" : (opts.intakeMs ?? 0),
+    reviewsMs: opts.reviewsMs === true ? "own" : (opts.reviewsMs ?? 0),
+    sweepMs: Math.max(1000, pollMs * 2),
     ...(opts.restart ? { restart: opts.restart } : {}),
   });
   const port = bound;

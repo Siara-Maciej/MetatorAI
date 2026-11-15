@@ -9,6 +9,8 @@ import {
   issueTask,
   nextIssueId,
   proposalDecision,
+  PROPOSAL_ADD,
+  PROPOSAL_DROP,
   proposalQuestion,
 } from "../domain/issue.ts";
 import { err, ok, type Result } from "../domain/result.ts";
@@ -23,7 +25,7 @@ export interface IssuesDependencies {
   readonly fs: FileSystem;
   readonly paths: Pick<MetatorPaths, "issues">;
   readonly clock: Clock;
-  readonly journal: Pick<RunJournal, "ask" | "questions">;
+  readonly journal: Pick<RunJournal, "ask" | "questions" | "answer">;
   readonly repo: Pick<RunRepository, "resolveId" | "load">;
   readonly initRun: Pick<InitRun, "execute">;
   /** `issues.proposeFromAgents`: false refuses proposals. */
@@ -206,7 +208,22 @@ export class Issues {
       updatedAt: now,
     };
     const saved = await this.save(next);
-    return saved.map(() => next);
+    if (saved.isErr()) return err(saved.error);
+    await this.settleProposal(issue.value, input.decision === "add" ? PROPOSAL_ADD : PROPOSAL_DROP, input.by);
+    return ok(next);
+  }
+
+  /**
+   * A proposal decided outside the inbox (Backlog, `issue decide`, `issue rm`): its question gets
+   * the same answer, so it leaves Needs you. A run that ended asks nothing any more: nothing to settle.
+   */
+  private async settleProposal(issue: Issue, choice: string, by: string): Promise<void> {
+    const p = issue.proposedBy;
+    if (issue.status !== "proposed" || !p?.runId || !p.questionId) return;
+    const questions = await this.d.journal.questions(p.runId);
+    const q = questions.isOk() ? questions.value.find((x) => x.id === p.questionId) : undefined;
+    if (!q || q.answer) return;
+    await this.d.journal.answer(p.runId, q.id, { choices: [choice], by });
   }
 
   async edit(id: string, patch: IssuePatch): Promise<Result<Issue, MetatorError>> {
@@ -298,7 +315,9 @@ export class Issues {
       updatedAt: now,
     };
     const saved = await this.save(next);
-    return saved.map(() => next);
+    if (saved.isErr()) return err(saved.error);
+    if (status === "dropped") await this.settleProposal(issue.value, PROPOSAL_DROP, by);
+    return ok(next);
   }
 
   /** Proposals whose inbox question was answered take the answer: open, open and started, or dropped. */

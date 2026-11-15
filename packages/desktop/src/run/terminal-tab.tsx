@@ -59,10 +59,7 @@ export function TerminalTab({
   const messages = data?.messages ?? [];
   const conflicts = data?.conflicts ?? [];
   const action = useAction(refresh);
-  const { attached, taken, attach, release, openEditor, closePane, openSession } = useRunControls(
-    run,
-    action,
-  );
+  const { attached, taken, attach, release, openEditor, closePane } = useRunControls(run, action);
   /**
    * The run's own terminal is shown once its session lives, or once the person opened one here.
    * Coming to this screen never starts a process: a run driven in the background, or one that
@@ -74,9 +71,6 @@ export function TerminalTab({
     if (live) setTerminalOf(runId);
   }, [live, runId]);
   const hasTerminal = terminalOf === runId;
-  const open = async () => {
-    if (await openSession()) setTerminalOf(runId);
-  };
   const openShell = async () => {
     let pane: string | undefined;
     await action.run(async () => {
@@ -206,11 +200,7 @@ export function TerminalTab({
                   ? "The run stopped. Resume it above; its events say what happened."
                   : "The run is finished. Its events and its changes are what is left."}
             </p>
-            {phase === "active" ? (
-              <button type="button" className="primary" disabled={action.busy} onClick={() => void open()}>
-                Open a session
-              </button>
-            ) : (
+            {phase === "active" ? null : (
               <a href={routeHash({ screen: "run", runId, tab: "activity" })}>Activity</a>
             )}
           </div>

@@ -8,6 +8,7 @@ import { useDaemon } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import { duration, type Run, resumeNotice } from "../model.ts";
 import { Notice } from "./common.tsx";
+import { StopReason } from "./stop-reason.tsx";
 
 /** Resume and Close of an escalated run, with the reason field Close needs and what the daemon answered. */
 export function EscalatedActions({
@@ -104,9 +105,7 @@ export function EscalatedCard({
         {run.repo ? ` · ${run.repo}` : ""} · stopped at {run.stage} {duration(run.elapsedMs)} after it started
       </p>
       <h3>Why it stopped</h3>
-      <div className="reason-text mono" data-testid="escalated-reason">
-        {run.reason ?? "The run recorded no reason. Its briefing shows what happened last."}
-      </div>
+      <StopReason reason={run.reason} testId="escalated-reason" />
       <p>
         The run tried this stage as often as its workflow allows. Remove the cause, then resume: the run goes
         back to {run.stage} with a fresh set of tries and is driven on. Or close it: it ends as aborted.

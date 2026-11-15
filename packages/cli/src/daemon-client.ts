@@ -106,3 +106,11 @@ export async function callDaemon<T>(
 export const paneHeaders = (
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Record<string, string> => (env.METATOR_PANE_TOKEN ? { "x-metator-pane": env.METATOR_PANE_TOKEN } : {});
+
+/**
+ * A daemon path for the repository at `root`: a daemon that serves a folder takes the repository
+ * by its root (`?repo=`), so a command run in the folder's second repository reaches that one.
+ */
+export function inRepo(path: string, root: string): string {
+  return `${path}${path.includes("?") ? "&" : "?"}repo=${encodeURIComponent(root)}`;
+}

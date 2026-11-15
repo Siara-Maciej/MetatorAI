@@ -109,14 +109,18 @@ export function PaneFrame({
           data-testid={`ended-${p.id}`}
           title={p.live ? "The pane keeps the last output of the process." : undefined}
         >
-          <span className="msg">
-            {p.live
-              ? `The process ended${p.live.exitCode !== undefined ? ` with code ${p.live.exitCode}` : ""}.`
-              : "Nothing runs in this pane: its process did not start, or the daemon was restarted."}
+          <span className={state === "finished" ? "msg done" : "msg"}>
+            {state === "finished"
+              ? "The process finished its work (code 0)."
+              : p.live
+                ? `The process ended${p.live.exitCode !== undefined ? ` with code ${p.live.exitCode}` : ""}.`
+                : "Nothing runs in this pane: its process did not start, or the daemon was restarted."}
           </span>
-          <button type="button" className="primary" onClick={onRetry}>
-            Retry
-          </button>
+          {state === "finished" ? null : (
+            <button type="button" className="primary" onClick={onRetry}>
+              Retry
+            </button>
+          )}
           <button type="button" onClick={onClose}>
             {lastOfTab ? "Close tab" : "Close pane"}
           </button>

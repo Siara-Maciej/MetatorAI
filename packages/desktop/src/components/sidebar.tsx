@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useDaemon } from "../daemon.tsx";
 import {
   isFinished,
+  isNews,
   lookOf,
   type NeedRow,
   openRuns,
@@ -102,27 +103,28 @@ export function Sidebar({
   /** The form: workflow, autonomy, host and worktree chosen by hand. */
   onForm(): void;
 }) {
-  const { runs, repos, panesOf, down, unreadable, seen } = useDaemon();
+  const { runs, repos, panesOf, down, unreadable, seen, planStepsOf } = useDaemon();
   const [showFinished, setShowFinished] = useState(false);
   const current = route.screen === "run" ? route.runId : undefined;
   const stateOf = (r: Run) =>
     runWithPanes(
       r,
       panesOfRun(panesOf(r.repo), r.runId).map((p) => paneStateOf(p)),
-      seen[seenKey(r)],
     );
-  const runRows = (r: Run, nested: boolean, step?: string) => {
+  const runRows = (r: Run, nested: boolean, step?: string, elsewhere?: string) => {
     const state = stateOf(r);
+    // A finished run reads `done`; it is drawn in its colour only until this person opens it.
+    const quiet = state === "done" && !isNews(r, seen[seenKey(r)]);
     // A run with more than its conductor shows its panes under it (R4): who works, in what state.
     const own = isFinished(r) ? [] : panesOfRun(panesOf(r.repo), r.runId);
     return (
       <div key={`${r.repo ?? ""}/${r.runId}`}>
         <Row
-          glyph={<Glyph kind="run" state={state} />}
+          glyph={<Glyph kind="run" state={quiet ? "idle" : state} />}
           name={r.task}
-          sub={runLine(r, step)}
+          sub={runLine(r, step, elsewhere)}
           word={state}
-          tone={lookOf("run", state).tone}
+          tone={quiet ? "faint" : lookOf("run", state).tone}
           current={r.runId === current}
           nested={nested}
           title={r.task}
@@ -187,15 +189,33 @@ export function Sidebar({
               {needs.length === 0 ? <div className="quiet">Nothing needs you.</div> : null}
             </div>
             {(repos.length > 0 ? repos.map((x) => x.name) : [""]).map((repo) => {
-              const here = openRuns(runs.filter((r) => sameRepo(r.repo, repo)));
+              const open = openRuns(runs);
+              const here = open.filter((r) => sameRepo(r.repo, repo));
+              const rows = sidebarRuns(here, open, planStepsOf);
+              // A step of a run of another repository is listed under its parent, there.
+              const away = here.filter((r) => !rows.some((x) => x.run === r));
               return (
                 <div key={repo || "."} className="repo">
                   <div className="section">
-                    <Glyph kind="run" state={rollUp(here.map(stateOf))} />
-                    {repo || "Runs"} · {here.length}
+                    <Glyph kind="run" state={rollUp(rows.map((x) => stateOf(x.run)))} />
+                    {repo || "Runs"} · {rows.length}
                   </div>
-                  {sidebarRuns(here).map((x) => runRows(x.run, x.nested, x.step))}
-                  {here.length === 0 ? <div className="quiet">No run is open.</div> : null}
+                  {rows.map((x) => runRows(x.run, x.nested, x.step, x.elsewhere))}
+                  {away.length > 0 ? (
+                    <div className="quiet">
+                      {plural(away.length, "step")} of a run of{" "}
+                      {[
+                        ...new Set(
+                          away.map(
+                            (r) => open.find((p) => p.runId === r.parent)?.repo ?? "another repository",
+                          ),
+                        ),
+                      ].join(", ")}
+                      , listed under it
+                    </div>
+                  ) : rows.length === 0 ? (
+                    <div className="quiet">No run is open.</div>
+                  ) : null}
                 </div>
               );
             })}

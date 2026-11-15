@@ -195,6 +195,22 @@ describe("Issues", () => {
       )._unsafeUnwrap(),
     ).toMatchObject({ status: "open", priority: "low" });
     expect((await w.issues.decide(third.issue.id, { by: "maciej", decision: "add" })).isErr()).toBe(true);
+    // Decided outside the inbox, either way: its question is settled, so it leaves Needs you.
+    const answerOf = async (q: string) =>
+      (await w.journal.questions(run.runId))._unsafeUnwrap().find((x) => x.id === q)?.answer;
+    expect(await answerOf(third.questionId)).toMatchObject({ choices: [PROPOSAL_ADD], by: "maciej" });
+    const fourth = (
+      await w.issues.propose({ title: "A contract test", agent: "mt-test-author-1", runId: run.runId })
+    )._unsafeUnwrap();
+    expect((await w.issues.decide(fourth.issue.id, { by: "ana", decision: "drop" }))._unsafeUnwrap().status).toBe(
+      "dropped",
+    );
+    expect(await answerOf(fourth.questionId)).toMatchObject({ choices: [PROPOSAL_DROP], by: "ana" });
+    const fifth = (
+      await w.issues.propose({ title: "Another idea", agent: "mt-test-author-1", runId: run.runId })
+    )._unsafeUnwrap();
+    expect((await w.issues.drop(fifth.issue.id, { by: "ana" }))._unsafeUnwrap().status).toBe("dropped");
+    expect(await answerOf(fifth.questionId)).toMatchObject({ choices: [PROPOSAL_DROP], by: "ana" });
     // Proposals can be switched off.
     const off = world(false);
     const r = (await off.init("x"))._unsafeUnwrap();

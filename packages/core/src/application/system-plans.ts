@@ -180,18 +180,23 @@ export class LintSystemPlan {
   async execute(id: string): Promise<Result<LintedSystemPlan, MetatorError>> {
     const plan = await this.store.load(id);
     if (plan.isErr()) return err(plan.error);
+    return this.check(plan.value);
+  }
+
+  /** The same checks for a plan as given (a person's edit in the app), against the saved analysis. */
+  async check(plan: SystemPlan): Promise<Result<LintedSystemPlan, MetatorError>> {
     const map = await this.location.require();
     if (map.isErr()) return err(map.error);
-    const analysis = await this.store.loadAnalysis(id);
+    const analysis = await this.store.loadAnalysis(plan.id);
     if (analysis.isErr()) return err(analysis.error);
-    const problems = lintSystemPlan(plan.value, map.value, analysis.value);
+    const problems = lintSystemPlan(plan, map.value, analysis.value);
     // Without an analysis nobody said what breaks: nothing to approve against.
     if (!analysis.value)
       problems.push({
         severity: "error",
-        message: `no analysis (${this.store.analysisFile(id)}): run \`metator system analyze\` for the task`,
+        message: `no analysis (${this.store.analysisFile(plan.id)}): run \`metator system analyze\` for the task`,
       });
-    return ok({ plan: plan.value, problems });
+    return ok({ plan, problems });
   }
 }
 

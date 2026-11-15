@@ -14,7 +14,7 @@ import {
 import { type Command, InvalidArgumentError, Option } from "commander";
 import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { baseOption, byOption } from "../options.ts";
+import { baseOption, byOption, positiveInt } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
 import { asPerson, who } from "../who.ts";
@@ -269,24 +269,63 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       .argument("[id]", "the plan id")
       .option("--run <run>", "the plan of this system run (an id or its run directory)")
       .option("--check", "fail until every step is done (a W13 gate)", false)
+      .option(
+        "--gate",
+        "as the system run's gate: children still working are not yet (exit 4, the drive looks again), a child that escalated or was aborted stops the run (exit 3), a step that can start sends it back to start it (exit 1)",
+        false,
+      )
+      .option(
+        "--timeout <ms>",
+        "with --gate: how long the run waits on its children before it escalates",
+        positiveInt,
+      )
       .action(
-        action(async (named: string | undefined, opts: { run?: string; check: boolean }) => {
-          const which = await planOf(named, opts.run);
-          if (which.isErr()) return { result: which };
-          const r = await container().resolve("systemPlanStatus").execute(which.value.id);
-          if (r.isErr() || !opts.check || r.value.plan.status === "done") return { result: r };
-          const open = r.value.steps.filter((s) => s.status !== "done");
-          return {
-            result: err(
-              new MetatorError("CHECK_FAILED", `${open.length} step(s) of ${which.value.id} are not done`, {
-                hint: open.some((s) => s.status === "blocked")
-                  ? "A child run escalated or was aborted: resolve it in its repository."
-                  : "Start the next steps with `metator system plan run`, then check again.",
-                details: { steps: r.value.steps },
-              }),
-            ),
-          };
-        }),
+        action(
+          async (
+            named: string | undefined,
+            opts: { run?: string; check: boolean; gate: boolean; timeout?: number },
+          ) => {
+            const which = await planOf(named, opts.run);
+            if (which.isErr()) return { result: which };
+            if (opts.gate) {
+              const g = await container()
+                .resolve("systemRunGate")
+                .execute({
+                  id: which.value.id,
+                  ...(which.value.parent ? { run: which.value.parent } : {}),
+                  ...(opts.timeout ? { timeoutMs: opts.timeout } : {}),
+                });
+              if (g.isErr() || g.value.kind === "pass") return { result: g };
+              const code =
+                g.value.kind === "waiting"
+                  ? "WAITING"
+                  : g.value.kind === "blocked"
+                    ? "BLOCKED"
+                    : "CHECK_FAILED";
+              return {
+                result: err(
+                  new MetatorError(code, g.value.message, {
+                    ...("hint" in g.value && g.value.hint ? { hint: g.value.hint } : {}),
+                    details: { steps: g.value.steps },
+                  }),
+                ),
+              };
+            }
+            const r = await container().resolve("systemPlanStatus").execute(which.value.id);
+            if (r.isErr() || !opts.check || r.value.plan.status === "done") return { result: r };
+            const open = r.value.steps.filter((s) => s.status !== "done");
+            return {
+              result: err(
+                new MetatorError("CHECK_FAILED", `${open.length} step(s) of ${which.value.id} are not done`, {
+                  hint: open.some((s) => s.status === "blocked")
+                    ? "A child run escalated or was aborted: resolve it in its repository."
+                    : "Start the next steps with `metator system plan run`, then check again.",
+                  details: { steps: r.value.steps },
+                }),
+              ),
+            };
+          },
+        ),
       ),
   );
 

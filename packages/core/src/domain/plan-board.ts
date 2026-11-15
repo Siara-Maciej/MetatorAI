@@ -3,6 +3,7 @@ import type { Question, RunActivity } from "./drive.ts";
 import type { GateReport } from "./gate.ts";
 import { type StageProgress, stageProgress } from "./overview.ts";
 import type { Plan, PlanStep } from "./plan.ts";
+import type { SystemPlanView } from "./plan-edit.ts";
 import { isRunBookkeeping } from "./run-record.ts";
 
 /**
@@ -84,6 +85,24 @@ export interface PlanBoardView {
   readonly next: readonly { readonly id: string; readonly owners: readonly string[] }[];
   /** The last events, the oldest first. */
   readonly timeline: readonly RunActivity[];
+  /** The run's plan as a person reads it: `plan.json` (the steps above), else `plan.md`. */
+  readonly planFile?: { readonly name: string; readonly kind: "json" | "markdown" } | undefined;
+  /**
+   * The system plan the run carries out (a system run's own; a child run's, with its step): the
+   * steps per repository, their waves and child runs. The steps above are a run plan's.
+   */
+  readonly system?: BoardSystemPlan | undefined;
+}
+
+export interface BoardSystemPlan {
+  readonly id: string;
+  readonly status: SystemPlanView["status"];
+  readonly approval?: SystemPlanView["approval"];
+  readonly waves: SystemPlanView["waves"];
+  readonly steps: SystemPlanView["steps"];
+  /** The step this run is (a child run of the plan). */
+  readonly step?: string | undefined;
+  readonly lint: SystemPlanView["lint"];
 }
 
 export interface PlanBoardInput {
@@ -113,20 +132,15 @@ export interface PlanBoardInput {
   readonly gates: readonly GateReport[];
   /** How many events the timeline keeps. */
   readonly timelineLength?: number;
+  /** The system plan the run carries out, when it carries one out. */
+  readonly system?: BoardSystemPlan | undefined;
 }
 
-/** Always shown, whether or not a stage declares them. */
-const KNOWN_ARTIFACTS = [
-  "task.md",
-  "analysis.json",
-  "research.json",
-  "rulepack.md",
-  "plan.json",
-  "plan-scope.json",
-  "plan-review.md",
-  "build-log.md",
-  "verdict.json",
-];
+/** The run plan's files, the structured one first. */
+const PLAN_FILES = [
+  { name: "plan.json", kind: "json" },
+  { name: "plan.md", kind: "markdown" },
+] as const;
 
 export function planBoardOf(input: PlanBoardInput): PlanBoardView {
   const open = input.questions.filter((q) => !q.answer);
@@ -151,9 +165,8 @@ export function planBoardOf(input: PlanBoardInput): PlanBoardView {
   const steps = input.plan ? input.plan.steps.map((s) => stepOf(s, input)) : [];
   const declared = new Map<string, string>();
   for (const s of input.stages) for (const a of s.produces) declared.set(a, s.id);
-  const names = [
-    ...new Set([...KNOWN_ARTIFACTS, ...declared.keys(), ...input.files.filter((f) => !f.includes("/"))]),
-  ];
+  // What this run's workflow produces, and what is there: never another workflow's artifacts.
+  const names = [...new Set([...declared.keys(), ...input.files.filter((f) => !f.includes("/"))])];
   const artifacts: BoardArtifact[] = names
     .filter((n) => !isRunBookkeeping(n))
     .map((name) => ({ name, present: input.files.includes(name), stage: declared.get(name) }));
@@ -169,6 +182,7 @@ export function planBoardOf(input: PlanBoardInput): PlanBoardView {
       steps: g.steps.map((s) => ({ id: s.id, ok: s.status === "pass" || s.status === "skipped" })),
     }));
   const length = input.timelineLength ?? 30;
+  const planFile = PLAN_FILES.find((f) => input.files.includes(f.name));
   return {
     runId: input.runId,
     task: input.task,
@@ -185,6 +199,8 @@ export function planBoardOf(input: PlanBoardInput): PlanBoardView {
     gates,
     next,
     timeline: input.activity.slice(-length),
+    ...(planFile ? { planFile } : {}),
+    ...(input.system ? { system: input.system } : {}),
   };
 }
 

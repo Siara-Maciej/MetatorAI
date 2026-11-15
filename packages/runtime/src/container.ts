@@ -75,12 +75,14 @@ import type {
   EnvironmentServices,
   EvalCatalog,
   FileLock,
+  FileStats,
   FileSystem,
   FindMemoryDupes,
   FindOwners,
   FindSimilar,
   FormatReviewComments,
   GateChecks,
+  GateQuestions,
   GenerateHosts,
   GenerateRuleAdapters,
   GenerateSkills,
@@ -169,6 +171,7 @@ import type {
   RuleScaffolder,
   RunAffectedTests,
   RunArchEvals,
+  RunArtifacts,
   RunChanges,
   RunDrivers,
   RunEvals,
@@ -176,6 +179,7 @@ import type {
   RunJournal,
   RunMessages,
   RunPanes,
+  RunPlans,
   RunQuarterlyReview,
   RunRefactorPlan,
   RunRepository,
@@ -208,8 +212,12 @@ import type {
   SystemCatalog,
   SystemImpactQuery,
   SystemLocation,
+  SystemMaps,
+  SystemPlanApprovals,
   SystemPlanStatus,
   SystemPlanStore,
+  SystemPlans,
+  SystemRunGate,
   SystemSources,
   Terminal,
   Timer,
@@ -372,6 +380,8 @@ export interface Cradle {
   checkpointRun: CheckpointRun;
   writeRunArtifact: WriteRunArtifact;
   resumeRun: ResumeRun;
+  gateQuestions: GateQuestions;
+  gateApprovals: SystemPlanApprovals;
   handoffRun: HandoffRun;
   closeRun: CloseRun;
   detachedDrive: DetachedDrive;
@@ -422,6 +432,7 @@ export interface Cradle {
   repositoryRuns: (root: string) => RepositoryRuns;
   runSystemPlan: RunSystemPlan;
   systemPlanStatus: SystemPlanStatus;
+  systemRunGate: SystemRunGate;
   runSystemEvals: RunSystemEvals;
   runArchEvals: RunArchEvals;
   systemPlanStore: SystemPlanStore;
@@ -467,6 +478,11 @@ export interface Cradle {
   diffImportGraph: DiffImportGraph;
   lintPlan: LintPlan;
   scopePlan: ScopePlan;
+  runPlans: RunPlans;
+  systemPlans: SystemPlans;
+  systemMaps: SystemMaps;
+  fileStats: FileStats;
+  runArtifacts: RunArtifacts;
   lintAdrs: LintAdrs;
   measureRuleCoverage: MeasureRuleCoverage;
   scaffoldRule: ScaffoldRule;

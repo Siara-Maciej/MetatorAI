@@ -26,6 +26,21 @@ export interface ReadonlyFileSystem {
   glob(patterns: readonly string[]): Promise<readonly string[]>;
 }
 
+/** What a file is beyond its text: how large, when it changed, and where it really is. */
+export interface FileStat {
+  readonly directory: boolean;
+  readonly size: number;
+  readonly modifiedAt: string;
+  /** Where it really is, every link followed: an absolute path, to compare with another's. */
+  readonly real: string;
+}
+
+/** Sizes, times and link targets of files (`GET /runs/:run/artifacts` lists what it may show). */
+export interface FileStats {
+  /** A repo-relative or absolute path; undefined when nothing is there. */
+  stat(path: string): Promise<FileStat | undefined>;
+}
+
 export interface FileSystem extends ReadonlyFileSystem {
   write(path: string, content: string): Promise<Result<void, MetatorError>>;
   /** Adds to the end of a file (created when missing) in one step: two writers never lose a line. */

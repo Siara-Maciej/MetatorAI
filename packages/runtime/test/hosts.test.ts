@@ -112,20 +112,36 @@ describe("the hosts of a repository", () => {
 });
 
 describe("defaultDriveHost", () => {
-  const withTargets = (targets: ("copilot" | "claude")[], defaultHost?: string) =>
+  const withTargets = (
+    targets: ("copilot" | "claude")[],
+    defaultHost?: string,
+    hostOrder: string[] = [],
+    agentScenario?: string,
+  ) =>
     bootstrap({
       root: "/repo",
       config: {
-        config: { ...DEFAULT_CONFIG, hosts: { ...DEFAULT_CONFIG.hosts, targets } },
+        config: {
+          ...DEFAULT_CONFIG,
+          hosts: { ...DEFAULT_CONFIG.hosts, targets },
+          supervisor: { ...DEFAULT_CONFIG.supervisor, hostOrder },
+        },
         source: undefined,
       },
       ...(defaultHost ? { defaultHost } : {}),
+      ...(agentScenario ? { agentScenario } : {}),
     }).resolve("defaultDriveHost")();
 
-  test("the first host the repository generates files for; Claude when it names none", () => {
+  test("the first host the repository generates files for, when the team names no order; Claude when it names none", () => {
     expect([withTargets(["copilot", "claude"]), withTargets(["claude", "copilot"]), withTargets([])]).toEqual(
       ["copilot", "claude", "claude"],
     );
+  });
+
+  test("the team's order (supervisor.hostOrder) before the targets: the host every run nobody chose one for takes", () => {
+    expect(withTargets(["claude"], undefined, ["scenario", "claude"], "/repo/scenario.yml")).toBe("scenario");
+    // An entry the runtime does not drive agents with is passed over.
+    expect(withTargets(["claude"], undefined, ["opencode"])).toBe("claude");
   });
 
   test("the host this program was told to prefer wins, when it drives agents", () => {

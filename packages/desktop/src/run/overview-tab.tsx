@@ -5,6 +5,7 @@
  */
 import { ActivityList } from "../components/activity-list.tsx";
 import { QuickAnswer } from "../components/answer.tsx";
+import { ArtifactList } from "../components/artifact-list.tsx";
 import { Notice } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
@@ -141,6 +142,10 @@ export function OverviewTab({
           ) : (
             <div className="muted">{files ? "No change yet." : "The change could not be read."}</div>
           )}
+        </div>
+        <div className="box">
+          <h3>Artifacts</h3>
+          <ArtifactList runId={runId} repo={repo} />
         </div>
         <div className="box">
           <h3>Where this comes from</h3>

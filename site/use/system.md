@@ -42,6 +42,19 @@ metator run approve plan-approval --by alice
 
 The first command approves the system plan itself. The second passes the run's gate.
 
+### In the app
+
+**System** lists the system plans with their status and steps done. A plan shows its steps per repository, the waves (the deploy order), the lint and who approved it. You can change it there:
+
+- add, remove or reorder steps, change a step's summary, contracts or dependencies; the waves and the lint follow as you type;
+- a step that already has a child run cannot be changed or removed; add a new step instead;
+- changing an approved plan sends it back to draft: the approval is shown as stale and someone approves it again (**Approve** refuses a plan whose lint has errors);
+- if someone saved the plan since you opened it, your save is refused and the app shows the plan as it is now.
+
+Every change is a line of the plan's edit log, `metator/system/plans/<id>.edits.jsonl`, with who made it and what changed.
+
+The **System map** screen shows `docs/metator/system.yml` with its lint and lets you change it the same way (a map pinned in another repository is changed there). **Discover** proposes a map from the code of this repository, or of every repository of the folder; it writes the map only when there is none. The checkouts of the applications come from the option `system.roots`.
+
 ## Child runs
 
 Each step runs where its application's code is, as an `mt-feature` run with that repository's own gates, rules and approvals. You answer a child run's questions like those of any run. They are in the same [inbox](./inbox.md) when the repositories are in one folder.

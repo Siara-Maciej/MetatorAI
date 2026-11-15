@@ -379,14 +379,36 @@ export const RUN_ROUTES: readonly Route[] = [
     method: "POST",
     pattern: "/runs/:run/pty-open",
     body: body({ host: optional(z.string()), cols: count, rows: count }),
+    // A run's session is its conductor (what `run start` opens), never a plain session with only
+    // the task as its prompt: the conductor knows the workflow, delegates and collects.
     handler: async (call) => {
       const b = call.body;
-      const opened = await call.c.resolve("panes").openRun({
+      const opened = await call.c.resolve("conductor").start({
         runId: run(call),
         ...(b.host ? { host: b.host } : {}),
         ...(b.cols !== undefined && b.rows !== undefined ? { size: { cols: b.cols, rows: b.rows } } : {}),
       });
       return opened.map((p) => p.live);
+    },
+  }),
+  // A background drive, as `metator run drive --detach`: refused for an escalated run (resuming
+  // it is a person's explicit act) and for a run a drive already carries.
+  route({
+    method: "POST",
+    pattern: "/runs/:run/drive",
+    body: body({ by: text, host: optional(z.string()) }),
+    handler: async (call) => {
+      const by = call.body.by?.trim() ?? "";
+      if (by === "")
+        return err(MetatorError.usage("say who starts the drive: by", "A drive records who started it."));
+      const host = call.body.host || call.c.resolve("defaultDriveHost")();
+      const started = await call.c.resolve("startDrive").execute({ runId: run(call), host });
+      if (started.isErr()) return started;
+      const said = await call.c
+        .resolve("runJournal")
+        .record(run(call), { type: "drive", text: `drive on ${host} started by ${by}` });
+      if (said.isErr()) return said;
+      return ok({ started: true, pid: started.value.pid, host });
     },
   }),
   route({

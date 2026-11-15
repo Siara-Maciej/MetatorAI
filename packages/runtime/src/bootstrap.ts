@@ -63,6 +63,7 @@ import {
   DocsLinks,
   DriveRun,
   DriverLock,
+  driveHostOf,
   driveHostProblem,
   EndRun,
   EnsureDriven,
@@ -75,6 +76,7 @@ import {
   FindSimilar,
   FormatReviewComments,
   GateChecks,
+  GateQuestions,
   GenerateHosts,
   GenerateRuleAdapters,
   GenerateSkills,
@@ -155,6 +157,7 @@ import {
   RuleCatalog,
   RunAffectedTests,
   RunArchEvals,
+  RunArtifacts,
   RunChanges,
   RunDrivers,
   RunEvals,
@@ -162,6 +165,7 @@ import {
   RunJournal,
   RunMessages,
   type RunPanes,
+  RunPlans,
   RunQuarterlyReview,
   RunRefactorPlan,
   RunRepository,
@@ -190,8 +194,12 @@ import {
   SyncRefactorPlan,
   SystemCatalog,
   SystemImpactQuery,
+  SystemMaps,
+  SystemPlanApprovals,
   SystemPlanStatus,
   SystemPlanStore,
+  SystemPlans,
+  SystemRunGate,
   SystemSources,
   UpdateConfig,
   ValidateCitations,
@@ -209,6 +217,7 @@ import {
   BunBackgroundProcess,
   BunCheckoutReader,
   BunFileLock,
+  BunFileStats,
   BunFileSystem,
   BunLauncher,
   BunMachineState,
@@ -703,7 +712,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         }),
     ),
     planBoard: asFunction(
-      ({ fileSystem, runRepository, runJournal, workflowCatalog, conductor, paths }) =>
+      ({ fileSystem, runRepository, runJournal, workflowCatalog, conductor, paths, systemPlans }) =>
         new PlanBoard({
           fs: fileSystem,
           repo: runRepository,
@@ -711,6 +720,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           catalog: workflowCatalog,
           conductor,
           paths,
+          systemPlans,
         }),
     ),
     openEditor: asFunction(
@@ -1049,7 +1059,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     // Run tools of another repository on this machine: its own container, with its own config.
     repositoryRuns: asValue((root: string): RepositoryRuns => {
       const there = root === options.root ? c : elsewhere(root);
-      return { init: there.resolve("initRun"), runs: there.resolve("runRepository") };
+      return { start: there.resolve("startRun"), runs: there.resolve("runRepository") };
     }),
     runSystemPlan: asFunction(
       ({ systemPlanStore, systemSources, repositoryRuns, clock, runRepository }) =>
@@ -1058,6 +1068,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     systemPlanStatus: asFunction(
       ({ systemPlanStore, systemSources, repositoryRuns }) =>
         new SystemPlanStatus(systemPlanStore, systemSources, repositoryRuns),
+    ),
+    systemRunGate: asFunction(
+      ({ systemPlanStatus, runRepository, clock }) =>
+        new SystemRunGate(systemPlanStatus, runRepository, clock),
     ),
     runSystemEvals: asFunction(
       ({ fileSystem, paths, sandbox }) =>
@@ -1216,6 +1230,67 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new LintPlan(fileSystem, scanPatterns, ruleCatalog, buildImportGraph, testGlobs),
     ),
     scopePlan: asFunction(({ fileSystem, buildImportGraph }) => new ScopePlan(fileSystem, buildImportGraph)),
+    // A person edits plans in the app (ADR-0087): the run's plan, system plans, the map; reads run files.
+    runPlans: asFunction(
+      ({ fileSystem, runRepository, runJournal, workflowCatalog, lintPlan, scopePlan }) =>
+        new RunPlans({
+          fs: fileSystem,
+          repo: runRepository,
+          journal: runJournal,
+          catalog: workflowCatalog,
+          lint: lintPlan,
+          scope: scopePlan,
+        }),
+    ),
+    systemPlans: asFunction(
+      ({
+        fileSystem,
+        systemPlanStore,
+        lintSystemPlan,
+        approveSystemPlan,
+        systemSources,
+        repositoryRuns,
+        clock,
+      }) =>
+        new SystemPlans({
+          fs: fileSystem,
+          store: systemPlanStore,
+          lint: lintSystemPlan,
+          approve: approveSystemPlan,
+          sources: systemSources,
+          at: repositoryRuns,
+          clock,
+        }),
+    ),
+    systemMaps: asFunction(
+      ({
+        fileSystem,
+        systemLocation,
+        contractKinds,
+        systemSources,
+        discoverSystem,
+        discoverySource,
+        root,
+        clock,
+      }) =>
+        new SystemMaps({
+          fs: fileSystem,
+          location: systemLocation,
+          kinds: contractKinds,
+          roots: () => checkoutRoots(systemSources),
+          discover: discoverSystem,
+          here: discoverySource,
+          sourceAt: (at: string) =>
+            at === root ? discoverySource : elsewhere(at).resolve("discoverySource"),
+          system: basename(root),
+          clock,
+        }),
+    ),
+    fileStats: asFunction(({ root }: { root: string }) => new BunFileStats(root)).singleton(),
+    runArtifacts: asFunction(
+      ({ fileSystem, fileStats, runRepository, workflowCatalog }) =>
+        new RunArtifacts({ fs: fileSystem, stats: fileStats, repo: runRepository, catalog: workflowCatalog }),
+    ),
     lintAdrs: asFunction(
       ({ fileSystem, paths, ruleCatalog }) => new LintAdrs(fileSystem, paths, ruleCatalog),
     ),
@@ -1411,13 +1486,35 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ worktreeRegistry, removeWorktree, worktreeManager, runRepository, clock }) =>
         new PruneWorktrees(worktreeRegistry, removeWorktree, worktreeManager, runRepository, clock),
     ),
+    // A run moved into a human gate gets its question, whoever moved it (a drive, a conductor, a person).
+    gateQuestions: asFunction(
+      ({ workflowCatalog, runRepository, runJournal, fileSystem, paths }) =>
+        new GateQuestions({
+          catalog: workflowCatalog,
+          repo: runRepository,
+          journal: runJournal,
+          fs: fileSystem,
+          gatesDir: paths.gates,
+        }),
+    ),
     advanceRun: asFunction(
-      ({ workflowCatalog, runRepository, clock, runJournal }) =>
-        new AdvanceRun(workflowCatalog, runRepository, clock, runJournal),
+      ({ workflowCatalog, runRepository, clock, runJournal, gateQuestions }) =>
+        new AdvanceRun(workflowCatalog, runRepository, clock, runJournal, gateQuestions),
+    ),
+    // A system run's plan-approval approves its system plan too (F7.5).
+    gateApprovals: asFunction(
+      ({ runRepository, workflowCatalog, systemPlanStore, lintSystemPlan, approveSystemPlan }) =>
+        new SystemPlanApprovals(
+          runRepository,
+          workflowCatalog,
+          systemPlanStore,
+          lintSystemPlan,
+          approveSystemPlan,
+        ),
     ),
     approveRun: asFunction(
-      ({ advanceRun, runRepository, clock, workflowCatalog }) =>
-        new ApproveRun(advanceRun, runRepository, clock, workflowCatalog),
+      ({ advanceRun, runRepository, clock, workflowCatalog, gateApprovals }) =>
+        new ApproveRun(advanceRun, runRepository, clock, workflowCatalog, gateApprovals),
     ),
     guardPreTool: asFunction(
       ({ getRunStatus, runRepository, agentCatalog, fileSystem, root, role }) =>
@@ -1435,7 +1532,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ getRunStatus, fileSystem, paths }) => new GuardSessionStart(getRunStatus, fileSystem, paths),
     ),
     resumeRun: asFunction(
-      ({ workflowCatalog, runRepository, clock }) => new ResumeRun(workflowCatalog, runRepository, clock),
+      ({ workflowCatalog, runRepository, clock, gateQuestions }) =>
+        new ResumeRun(workflowCatalog, runRepository, clock, gateQuestions),
     ),
     writeRunArtifact: asFunction(
       ({ workflowCatalog, runRepository, fileSystem }) =>
@@ -1462,12 +1560,19 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         },
     ),
     runPanes: asFunction(({ panes, root }): RunPanes => options.runPanes?.({ panes, root }) ?? panes),
-    defaultDriveHost: asFunction(({ agentHosts, config }) => () => {
-      if (options.defaultHost && agentHosts.has(options.defaultHost)) return options.defaultHost;
-      // The first host the repository generates files for, when it drives agents; else the first that does.
-      const first = config.config.hosts.targets[0];
-      return first !== undefined && agentHosts.has(first) ? first : ([...agentHosts.keys()][0] as string);
-    }),
+    // The team's order first (`supervisor.hostOrder`): a run nobody chose a host for (intake, a
+    // system run's child) takes the host the team works with.
+    defaultDriveHost: asFunction(
+      ({ agentHosts, config, driveHostProblem }) =>
+        () =>
+          driveHostOf({
+            chosen: options.defaultHost,
+            order: config.config.supervisor.hostOrder,
+            targets: config.config.hosts.targets,
+            known: [...agentHosts.keys()],
+            problem: driveHostProblem,
+          }),
+    ),
     startDrive: asFunction(
       ({ runRepository, agentHosts, driveHostProblem, detachedDrive }) =>
         new StartDrive(runRepository, agentHosts, driveHostProblem, detachedDrive),
@@ -1488,7 +1593,18 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         ),
     ),
     answerQuestion: asFunction(
-      ({ runRepository, runJournal, answerPolicyStore, runDrivers, ensureDriven, clock, ptyBroker }) =>
+      ({
+        runRepository,
+        runJournal,
+        answerPolicyStore,
+        runDrivers,
+        ensureDriven,
+        clock,
+        ptyBroker,
+        approveRun,
+        advanceRun,
+        gateApprovals,
+      }) =>
         new AnswerQuestion(
           runRepository,
           runJournal,
@@ -1497,6 +1613,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           ensureDriven,
           clock,
           (runId) => ptyBroker.byRun(runId).some((s: { readonly alive: boolean }) => s.alive),
+          // A human gate's question decides the gate, whoever drives the run.
+          {
+            approve: approveRun,
+            advance: advanceRun,
+            refusal: (runId: string, stage: string) => gateApprovals.refusal(runId, stage),
+          },
         ),
     ),
     briefRun: asFunction(({ runRepository, runJournal }) => new BriefRun(runRepository, runJournal)),

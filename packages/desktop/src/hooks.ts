@@ -112,10 +112,26 @@ export function runControls(client: DaemonClient, action: Action, me: string, ru
     openEditor: (at: { file?: string; line?: number } = {}) =>
       runId ? action.run(() => client.openEditor(runId, at, repo), { done: "opened in the editor" }) : none(),
     closePane: (paneId: string) => action.run(() => client.closePane(paneId, repo)),
-    /** Starts the run's terminal session: the one explicit way a process starts from a screen. */
-    openSession: () =>
+    /**
+     * Starts the run's conductor in a pane of its own (`POST /runs/:run/start`): the agent that
+     * drives the run, in a terminal the person can watch and take. One of the two explicit ways a
+     * process starts from a screen.
+     */
+    openSession: (host?: string) =>
       runId
-        ? action.run(() => client.ptyOpen(runId, repo), { refused: "the session did not start" })
+        ? action.run((by) => client.start(runId, { by, ...(host ? { host } : {}) }, repo), {
+            who: true,
+            refused: "the session did not start",
+          })
+        : none(),
+    /** The other: drives the run in the background, with no terminal (`metator run drive --detach`). */
+    drive: (host?: string) =>
+      runId
+        ? action.run((by) => client.drive(runId, { by, ...(host ? { host } : {}) }, repo), {
+            who: true,
+            refused: "the drive did not start",
+            done: "the run is driven in the background",
+          })
         : none(),
   };
 }

@@ -29,7 +29,24 @@ No model writes this screen. It is computed from the run's files when you look:
 - A step is `in-progress` when the activity shows a tool call on its file.
 - A step is `blocked` when a worker reported blocked or failed and named the step.
 
-Before the plan stage has written `plan.json`, the list of steps is empty.
+Before the plan stage has written `plan.json`, the list of steps is empty. A plan written as Markdown (`plan.md`) is shown as text instead.
+
+The **artifacts** are the files this run's workflow produces, never another workflow's. A system run's Plan tab shows its **system plan**: the steps per repository, their waves, each step's child run and the stage it is at.
+
+## Change the run's plan
+
+Until the run passes the gate where a person approves the plan (`plan-approval` in `mt-feature`), you can change the plan in the app: open **Edit plan** on the Plan tab, change the steps, and save. The lint runs as you type; its errors do not stop a save, the gates still check them. When the approval question is open, its card shows the lint of the plan as it is now.
+
+- Every save records who made it and what changed (`plan edited by ana: step added: S3`) in the run's activity, and writes the edit scope again.
+- If the plan changed since you opened it (an agent or another person saved first), the save is refused and the app shows the plan as it is now. Nothing is lost: make your change again on it.
+- A plan that does not fit its format is not saved; the app points at the fields.
+- After the approval gate, or when the run is done, the plan is read-only and the app says why.
+
+Agents never edit a plan through the app; they write the plan file their stage names.
+
+## The run's files
+
+The **artifacts** list opens any text file of the run directory (`.md`, `.json`, `.yml`, `.txt`, `.log`): the plan, the build log, a worker's result, the log. Files the workflow will write but has not yet are listed as expected. Only files inside the run directory open, at most 512 KiB of each.
 
 ## Backlog
 
@@ -67,7 +84,7 @@ metator run board                 # the latest run
 metator run board --run <id>      # one run
 ```
 
-The board is the data of the **Plan** screen as JSON: `stages`, `plan`, `waiting`, `artifacts`, `gates` and `next`. `--timeline <n>` sets how many recent events it includes (default 30).
+The board is the data of the **Plan** screen as JSON: `stages`, `plan`, `waiting`, `artifacts`, `gates` and `next`, with `planFile` (the plan's file) and, for a run that carries out a system plan, `system`. `--timeline <n>` sets how many recent events it includes (default 30).
 
 ```bash
 metator issue add "ADR for rounding" --body "Half-up or half-even." --priority high --labels adr,billing --by maciej

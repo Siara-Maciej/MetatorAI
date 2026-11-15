@@ -73,9 +73,28 @@ function repository(root: string, shared: InMemoryFileSystem) {
   const clock = new FixedClock(new Date("2026-10-29T09:00:00.000Z"));
   const runs = new RunRepository(fs, paths);
   const catalog = new WorkflowCatalog(fs, paths);
+  const init = new InitRun(catalog, runs, clock);
+  /** The drives asked for: each child run is driven as it starts. */
+  const drives: { runId: string; host?: string }[] = [];
   return {
     runs,
-    init: new InitRun(catalog, runs, clock),
+    init,
+    drives,
+    // StartRun as the runtime wires it, reduced to what a child run needs: the run, then its drive.
+    start: {
+      execute: async (input: Parameters<RepositoryRuns["start"]["execute"]>[0]) =>
+        (await init.execute(input as Parameters<InitRun["execute"]>[0])).map((run) => {
+          if (input.drive)
+            drives.push({ runId: run.runId, ...(input.drive.host ? { host: input.drive.host } : {}) });
+          return {
+            run,
+            warnings: [],
+            ...(input.drive
+              ? { drive: { stage: run.stage, started: true, host: input.drive.host ?? "claude" } }
+              : {}),
+          };
+        }),
+    },
     advance: new AdvanceRun(catalog, runs, clock),
     clock,
   };
@@ -126,6 +145,9 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     )._unsafeUnwrap();
     const first = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
     expect(first.started.map((s) => [s.step, s.root])).toEqual([["billing-bump", "/src/platform"]]);
+    // Each child is driven as it starts: nobody has to open a session for it (defect 2).
+    expect(w.platform.drives).toEqual([{ runId: first.started[0]?.run as string }]);
+    expect(first.started[0]?.drive).toEqual({ stage: "build", started: true, host: "claude" });
     const child = (await w.platform.runs.load(first.started[0]?.run as string))._unsafeUnwrap();
     expect([child.parent, child.system]).toEqual([
       parent.runId,
@@ -158,6 +180,42 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     const blocked = (await w.status.execute("rename"))._unsafeUnwrap();
     expect([blocked.steps[1]?.status, blocked.plan.status]).toEqual(["blocked", "running"]);
     expect((await w.platform.runs.load(parent.runId))._unsafeUnwrap().children).toHaveLength(2);
+  });
+
+  test("a child run is driven on its parent's host; one that cannot be driven still starts, and says why", async () => {
+    const w = world([step("billing-bump", "billing")]);
+    await w.save();
+    const parent = (
+      await w.platform.init.execute({ workflow: "mt-feature", task: "Rename refunds" })
+    )._unsafeUnwrap();
+    const record = (await w.platform.runs.load(parent.runId))._unsafeUnwrap();
+    (await w.platform.runs.save({ ...record, host: "scenario" }))._unsafeUnwrap();
+    const started = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    expect(w.platform.drives).toEqual([{ runId: started.started[0]?.run as string, host: "scenario" }]);
+
+    const failing = world([step("billing-bump", "billing")]);
+    await failing.save();
+    const at = (root: string): RepositoryRuns => ({
+      runs: failing.at(root).runs,
+      start: {
+        execute: async (input) =>
+          (await failing.at(root).start.execute({ ...input, drive: undefined } as never)).map((v) => ({
+            ...v,
+            driveError: { message: "AI host claude cannot start here" },
+          })),
+      },
+    });
+    const run = new RunSystemPlan(
+      failing.store,
+      failing.sources,
+      at,
+      failing.platform.clock,
+      failing.platform.runs,
+    );
+    const r = (await run.execute({ id: "rename" }))._unsafeUnwrap();
+    expect(r.started.map((s) => [s.step, s.driveError])).toEqual([
+      ["billing-bump", "AI host claude cannot start here"],
+    ]);
   });
 
   test("every step done finishes the plan", async () => {
@@ -210,14 +268,14 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     let n = 0;
     const at = (root: string): RepositoryRuns => ({
       runs: w.at(root).runs,
-      init: {
+      start: {
         execute: async (input) => {
           n++;
           const noted = await w.platform.runs.update(parent.runId, (r) =>
             ok({ ...r, options: { ...(r.options ?? {}), [`note.${n}`]: true } }),
           );
           expect(noted.isOk()).toBe(true);
-          return w.at(root).init.execute(input);
+          return w.at(root).start.execute(input);
         },
       },
     });

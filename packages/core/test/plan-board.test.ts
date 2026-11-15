@@ -13,6 +13,7 @@ import {
   RunJournal,
   RunRepository,
   serializeJsonDocument,
+  systemPlanOf,
   type WorkerResult,
   WorkflowCatalog,
   withLiveWorker,
@@ -211,10 +212,12 @@ describe("planBoardOf", () => {
     expect(present).toMatchObject({
       "task.md": true,
       "plan.json": true,
-      "plan-review.md": false,
       "build-log.md": false,
       "verdict.json": false,
     });
+    // Only this workflow's artifacts: another workflow's (mt-feature's plan-review.md) are not listed.
+    expect(b.artifacts.some((a) => a.name === "plan-review.md")).toBe(false);
+    expect(b.planFile).toEqual({ name: "plan.json", kind: "json" });
     expect(b.artifacts.find((a) => a.name === "build-log.md")?.stage).toBe("build");
     expect(b.artifacts.some((a) => a.name === "state.json")).toBe(false);
   });
@@ -311,5 +314,86 @@ describe("PlanBoard (the use case)", () => {
     expect(view.gates).toEqual([expect.objectContaining({ gate: "quick", passed: true })]);
     expect(view.stages.map((s) => [s.id, s.owners])).toEqual([["build", ["mt-implementer"]]]);
     expect((await board.execute({ runId: "nope" })).isErr()).toBe(true);
+  });
+});
+
+describe("the plan board knows the run's workflow (defect 10)", () => {
+  const system = {
+    id: "add-currency",
+    status: "approved" as const,
+    approval: { by: "ana", at: T(1), digest: "d1", stale: false },
+    waves: [
+      { wave: 1, steps: ["api"] },
+      { wave: 2, steps: ["web"] },
+    ],
+    steps: [
+      {
+        id: "api",
+        app: "shop-api",
+        repo: "/src/shop-api",
+        task: "add the field",
+        dependsOn: [],
+        status: "running" as const,
+        run: "r1",
+        runState: "active",
+        runStage: "build",
+      },
+      {
+        id: "web",
+        app: "shop-web",
+        repo: "/src/shop-web",
+        task: "show it",
+        dependsOn: ["api"],
+        status: "pending" as const,
+      },
+    ],
+    lint: { problems: [] },
+  };
+
+  test("a system run's board lists its own artifacts and its system plan: steps per repository, waves, child runs", () => {
+    const b = planBoardOf({
+      ...base,
+      workflow: "mt-system-change",
+      plan: undefined,
+      stages: [
+        { id: "analyze", owners: ["mt-system-scout"], produces: ["system-analysis.md"] },
+        { id: "plan", owners: ["mt-system-planner"], produces: ["system-plan.md"] },
+        { id: "plan-approval", hitl: true, owners: [], produces: [] },
+      ],
+      stage: "plan-approval",
+      files: ["system-analysis.md", "state.json"],
+      system,
+    });
+    expect(b.artifacts.map((a) => [a.name, a.present])).toEqual([
+      ["system-analysis.md", true],
+      ["system-plan.md", false],
+    ]);
+    expect(b.plan).toBeUndefined();
+    expect(b.system?.steps.map((s) => [s.id, s.repo, s.run ?? null, s.runStage ?? null])).toEqual([
+      ["api", "/src/shop-api", "r1", "build"],
+      ["web", "/src/shop-web", null, null],
+    ]);
+    expect(b.system?.waves).toEqual(system.waves);
+    expect(planBoardOf(base).system).toBeUndefined();
+  });
+
+  test("a plan written as Markdown is the board's plan file when there is no plan.json", () => {
+    const md = planBoardOf({ ...base, plan: undefined, files: ["plan.md", "state.json"] });
+    expect(md.planFile).toEqual({ name: "plan.md", kind: "markdown" });
+    expect(md.artifacts.find((a) => a.name === "plan.md")?.present).toBe(true);
+    expect(planBoardOf({ ...base, files: ["state.json"] }).planFile).toBeUndefined();
+  });
+
+  test("the system plan a run carries out: a child names it with its step; a system run's is its task's", () => {
+    expect(systemPlanOf({ task: "x", system: { plan: "p", step: "s", app: "a" } }, [])).toEqual({
+      id: "p",
+      step: "s",
+    });
+    expect(
+      systemPlanOf({ task: "Add currency to prices" }, ["script:metator system plan lint --run {runDir}"]),
+    ).toEqual({
+      id: "add-currency-to-prices",
+    });
+    expect(systemPlanOf({ task: "Add currency" }, ["mt-planner"])).toBeUndefined();
   });
 });

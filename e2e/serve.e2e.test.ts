@@ -32,6 +32,10 @@ agents:
     - - say: "hello from the session"
       - ask: { question: "Which rounding?", options: [half-up, half-even] }
       - say: "STATUS: done"
+  mt-orchestrator:
+    - - say: "hello from the session"
+      - ask: { question: "Which rounding?", options: [half-up, half-even] }
+      - say: "STATUS: done"
   mt-implementer:
     - - say: "STATUS: done"
 `;

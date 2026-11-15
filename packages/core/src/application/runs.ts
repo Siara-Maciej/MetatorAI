@@ -233,6 +233,20 @@ export interface GateSettler {
   settleGate(runId: string, stage: string, by: string): Promise<Result<unknown, MetatorError>>;
 }
 
+/**
+ * What approving a human gate depends on besides the gate (a system run's plan-approval approves
+ * its system plan, F7.5): why it cannot be approved now, and what approving it approves too.
+ */
+export interface GateApprovals {
+  refusal(runId: string, stage: string): Promise<Result<MetatorError | undefined, MetatorError>>;
+  approve(runId: string, stage: string, by: string): Promise<Result<unknown, MetatorError>>;
+}
+
+/** Asks a human gate's question when a run stands at one (`GateQuestions`); declared here for the same reason. */
+export interface GateAsker {
+  ask(runId: string): Promise<Result<unknown, MetatorError>>;
+}
+
 export class AdvanceRun {
   constructor(
     private readonly catalog: WorkflowCatalog,
@@ -240,6 +254,8 @@ export class AdvanceRun {
     private readonly clock: Clock,
     /** The run's questions: a gate approved here answers the gate's open question (R8). */
     private readonly journal?: GateSettler,
+    /** A run moved into a human gate gets the gate's question, whoever moved it. */
+    private readonly gates?: GateAsker,
   ) {}
 
   async execute(input: {
@@ -315,6 +331,10 @@ export class AdvanceRun {
       const settled = await this.journal.settleGate(id.value, seen.stage, input.event.by);
       if (settled.isErr()) return err(settled.error);
     }
+    if (this.gates) {
+      const asked = await this.gates.ask(id.value);
+      if (asked.isErr()) return err(asked.error);
+    }
     return ok(view(updated.value, machine, this.repo));
   }
 }
@@ -336,6 +356,8 @@ export class ResumeRun {
     private readonly catalog: WorkflowCatalog,
     private readonly repo: RunRepository,
     private readonly clock: Clock,
+    /** A run resumed at a human gate gets the gate's question. */
+    private readonly gates?: GateAsker,
   ) {}
 
   async execute(input: {
@@ -360,6 +382,10 @@ export class ResumeRun {
       `${now} · resumed at ${updated.value.state.stage} · by ${input.by}`,
     );
     if (logged.isErr()) return err(logged.error);
+    if (this.gates) {
+      const asked = await this.gates.ask(id.value);
+      if (asked.isErr()) return err(asked.error);
+    }
     return ok(view(updated.value, resolved.value.machine, this.repo));
   }
 }
@@ -418,6 +444,8 @@ export class ApproveRun {
     private readonly repo: RunRepository,
     private readonly clock: Clock,
     private readonly catalog: Pick<WorkflowCatalog, "get">,
+    /** What approving a gate approves too (a system run's plan); refused when that cannot be approved. */
+    private readonly gates?: GateApprovals,
   ) {}
 
   async execute(input: {
@@ -475,8 +503,16 @@ export class ApproveRun {
     }
     const decision = { by: input.by, ...(input.choice === undefined ? {} : { choice: input.choice }) };
 
-    if (record.value.state.stage === input.gate)
+    if (record.value.state.stage === input.gate) {
+      if (this.gates) {
+        const refused = await this.gates.refusal(id.value, input.gate);
+        if (refused.isErr()) return err(refused.error);
+        if (refused.value) return err(refused.value);
+        const approved = await this.gates.approve(id.value, input.gate, input.by);
+        if (approved.isErr()) return err(approved.error);
+      }
       return this.advance.execute({ runId: id.value, event: { type: "APPROVE", ...decision } });
+    }
     if (!(APPROVAL_ACTIONS as readonly string[]).includes(input.gate)) {
       return err(
         MetatorError.usage(

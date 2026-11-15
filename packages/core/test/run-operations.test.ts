@@ -15,7 +15,7 @@ import {
   StartRun,
 } from "../src/application/run-operations.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
-import { AdvanceRun, InitRun } from "../src/application/runs.ts";
+import { AdvanceRun, ApproveRun, InitRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import { MetatorError } from "../src/domain/errors.ts";
 import { fleetCounts, fleetInbox } from "../src/domain/fleet.ts";
@@ -29,8 +29,9 @@ stages:
   - id: plan
   - id: approval
     hitl: true
+    onFail: { goto: plan, loop: plan }
   - id: build
-loops: {}
+loops: { plan: 2 }
 `;
 
 function world(opts: { hostProblem?: (h: string) => string | undefined; liveSession?: boolean } = {}) {
@@ -347,6 +348,95 @@ describe("AnswerQuestion", () => {
     expect([d.code, d.hint?.includes(`metator run resume --run ${stuck}`)]).toEqual(["USAGE", true]);
     expect((await w.repo.load(stuck))._unsafeUnwrap().state.status).toBe("escalated");
     expect(w.spawned).toHaveLength(1);
+  });
+});
+
+describe("AnswerQuestion at a human gate (no drive waits on it: a conductor's run)", () => {
+  const gated = () => {
+    const w = world({ liveSession: true });
+    const approve = new ApproveRun(w.advance, w.repo, w.clock, w.catalog);
+    const refusals: string[] = [];
+    let refuse: string | undefined;
+    const answer = new AnswerQuestion(
+      w.repo,
+      w.journal,
+      w.policies,
+      w.drivers,
+      w.ensureDriven,
+      w.clock,
+      () => true,
+      {
+        approve,
+        advance: w.advance,
+        refusal: async (runId, stage) => {
+          refusals.push(`${runId} ${stage}`);
+          return ok(refuse ? MetatorError.usage(refuse) : undefined);
+        },
+      },
+    );
+    return { w, answer, refusals, refuseWith: (why: string | undefined) => (refuse = why) };
+  };
+  const atGate = async (w: ReturnType<typeof world>) => {
+    const runId = await w.newRun();
+    await w.advance.execute({ runId, event: { type: "PASS" } });
+    const q = await w.ask(runId);
+    return { runId, q };
+  };
+
+  test("Approve moves the run on, as `run approve` does, with the person as its approver", async () => {
+    const g = gated();
+    const { runId, q } = await atGate(g.w);
+    const a = (
+      await g.answer.execute({ runId, question: q.id, choices: ["Approve"], by: "ana", origin: "inbox" })
+    )._unsafeUnwrap();
+    expect(a.answer?.choices).toEqual(["Approve"]);
+    const record = (await g.w.repo.load(runId))._unsafeUnwrap();
+    expect([record.state.stage, record.approvals.approval?.by]).toEqual(["build", "ana"]);
+    expect(g.refusals).toEqual([`${runId} approval`]);
+  });
+
+  test("Reject sends the run back with the person's reason", async () => {
+    const g = gated();
+    const { runId, q } = await atGate(g.w);
+    (
+      await g.answer.execute({ runId, question: q.id, choices: ["Reject"], text: "no fallback", by: "ana" })
+    )._unsafeUnwrap();
+    const record = (await g.w.repo.load(runId))._unsafeUnwrap();
+    expect(record.state.stage).toBe("plan");
+    expect(record.state.context.history.at(-1)).toEqual({
+      stage: "approval",
+      event: "FAIL",
+      detail: "no fallback",
+    });
+  });
+
+  test("an Approve the gate refuses (its plan's lint errors) records nothing and moves nothing", async () => {
+    const g = gated();
+    const { runId, q } = await atGate(g.w);
+    g.refuseWith("the system plan has 1 lint error");
+    const refused = (
+      await g.answer.execute({ runId, question: q.id, choices: ["Approve"], by: "ana" })
+    )._unsafeUnwrapErr();
+    expect(refused.message).toBe("the system plan has 1 lint error");
+    expect(
+      (await g.w.journal.questions(runId))._unsafeUnwrap().find((x) => x.id === q.id)?.answer,
+    ).toBeUndefined();
+    expect((await g.w.repo.load(runId))._unsafeUnwrap().state.stage).toBe("approval");
+    // Reject is never refused.
+    (
+      await g.answer.execute({ runId, question: q.id, choices: ["Reject"], text: "fix it", by: "ana" })
+    )._unsafeUnwrap();
+  });
+
+  test("a gate a drive already moved past: the answer is kept, nothing is sent twice", async () => {
+    const g = gated();
+    const { runId, q } = await atGate(g.w);
+    (await g.w.advance.execute({ runId, event: { type: "APPROVE", by: "bob" } }))._unsafeUnwrap();
+    const record = (await g.w.repo.load(runId))._unsafeUnwrap();
+    expect(record.state.stage).toBe("build");
+    // The run left the gate: the answer is recorded, and nothing moves the run a second time.
+    (await g.answer.execute({ runId, question: q.id, choices: ["Approve"], by: "ana" }))._unsafeUnwrap();
+    expect((await g.w.repo.load(runId))._unsafeUnwrap().state.stage).toBe("build");
   });
 });
 

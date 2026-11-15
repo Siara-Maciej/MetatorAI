@@ -37,7 +37,8 @@ The product's inside: domain model (versioned documents, rules, memory map, impo
 - Local state has no path override: `MetatorConfig` v12 dropped `paths.runs`, `index`, `discovery` and `gates`, and a config rewritten at the current version loses them (`RETIRED_CONFIG_KEYS`).
 - Refactor plans and system plans share one lifecycle (`domain/plan-progress.ts`: `approvePlan`, `requireApproved`, `asDraft`, `settled`, `progressOf`): a rule about approval is changed there, once.
 - `analyzeArchitecture` derives everything once (`archContext`, `domain/architecture-context.ts`) and then only reads it: violations come from the ordered `ARCH_RULES` (`architecture-rules.ts`), the report's sections from `architecture-boundaries.ts`. The whole report is pinned for four inputs (`test/architecture-characterization.test.ts`, `test/fixtures/architecture`); a new rule is one function added to the list.
-- Errors cross layers as one type [[cite: packages/core/src/domain/errors.ts:20 | "export class MetatorError extends Error {"]].
+- A person's edit of a plan or the map (`RunPlans`, `SystemPlans`, `SystemMaps`, ADR-0087) names the digest it was based on (`CONFLICT` otherwise), is checked by the document's schema before it is written, and is recorded with `by`: a `plan-edited` activity line, or the `<file>.edits.jsonl` log. A run's plan freezes at its approval gate (`planReadOnlyBecause`); a system plan step with a run never changes.
+- Errors cross layers as one type [[cite: packages/core/src/domain/errors.ts:26 | "export class MetatorError extends Error {"]].
 
 ## Allowed dependencies
 

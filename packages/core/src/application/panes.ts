@@ -170,6 +170,26 @@ export class Panes {
   }
 
   /**
+   * The panes of every run that is done or aborted, closed (conductor and workers): a finished
+   * run has nothing left to work on, and its idle conductor must not read as a session that waits.
+   */
+  async closeFinished(): Promise<Result<{ readonly runId: string; readonly closed: number }[], MetatorError>> {
+    const layout = await this.d.layout.load();
+    if (layout.isErr()) return err(layout.error);
+    const runIds = [...new Set(layout.value.workspaces.flatMap((w) => (w.runId ? [w.runId] : [])))];
+    const out: { runId: string; closed: number }[] = [];
+    for (const runId of runIds) {
+      const record = await this.d.repo.load(runId);
+      if (record.isErr() || (record.value.state.status !== "done" && record.value.state.status !== "aborted"))
+        continue;
+      const closed = await this.closeRun(runId);
+      if (closed.isErr()) return err(closed.error);
+      if (closed.value.closed > 0) out.push({ runId, closed: closed.value.closed });
+    }
+    return ok(out);
+  }
+
+  /**
    * The pane's area split in two (S6): a new pane (a shell by default) takes the second half,
    * and the tab's tree remembers it. `right` puts it beside, `down` below.
    */

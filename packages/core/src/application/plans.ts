@@ -44,19 +44,24 @@ export class LintPlan {
   async execute(input: { readonly file: string }): Promise<Result<PlanLint, MetatorError>> {
     const plan = await readPlan(this.fs, input.file);
     if (plan.isErr()) return err(plan.error);
+    return this.check(plan.value);
+  }
+
+  /** The same checks for a plan that is not a file yet (a person's edit in the app). */
+  async check(plan: Plan): Promise<Result<PlanLint, MetatorError>> {
     const scan = await this.patterns.execute();
     if (scan.isErr()) return err(scan.error);
     const imports = await internalImports(this.graph);
     if (imports.isErr()) return err(imports.error);
 
     const files = new Set<string>();
-    const named = plan.value.steps.flatMap((s) => [
+    const named = plan.steps.flatMap((s) => [
       s.path,
       ...(s.patternSource ? [s.patternSource.exemplar.replace(/:\d+$/, "")] : []),
     ]);
     for (const path of new Set(named)) if (await this.fs.exists(path)) files.add(path);
     return ok(
-      lintPlan(plan.value, {
+      lintPlan(plan, {
         files,
         patterns: new Map(scan.value.patterns.map((p) => [p.id, new Set(p.occurrences.map((o) => o.file))])),
         rules: new Set((await this.rules.scan()).rules.map((r) => r.rule.id)),

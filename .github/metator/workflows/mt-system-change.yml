@@ -2,7 +2,7 @@
 kind: Workflow
 schemaVersion: 2
 id: mt-system-change
-revision: 3
+revision: 4
 description: Analyze the system, plan steps per application, approve, carry them out as child runs in each repository
 entry: { prompt: mt-system-change }
 input:
@@ -32,9 +32,9 @@ stages:
     description: The steps that can start, each a child run (W1) in its application's repository
     owner: "script:metator system plan run --run {runDir}"
   - id: status
-    description: The child runs read back; the next wave starts when this one is done
+    description: "The child runs read back: it waits while they work, starts the next wave when one is done, and stops when a child escalates"
     owner: "script:metator system plan status --run {runDir}"
-    gate: { script: "metator system plan status --run {runDir} --check" }
+    gate: { script: "metator system plan status --run {runDir} --gate" }
     onFail: { goto: children, loop: waves }
   - id: delivery
     description: Every step done; the deploy order follows the plan's waves

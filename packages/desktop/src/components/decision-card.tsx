@@ -2,13 +2,16 @@
  * The decision card (screen 1, spec §6.3): everything a person needs to answer without opening
  * the session, composed by the daemon; the app only draws it and sends the answer back.
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { InboxItem } from "../api.ts";
-import { useDaemon } from "../daemon.tsx";
+import { useDaemon, usePolled } from "../daemon.tsx";
 import { answerCommand, duration, needsReason, questionKind } from "../model.ts";
 import { useAnswer } from "./answer.tsx";
+import { ArtifactViewer } from "./artifact-viewer.tsx";
 import { Chip } from "./chips.tsx";
 import { Notice } from "./common.tsx";
+import { FoldList } from "./fold-list.tsx";
+import { PlanApprovalLine } from "./plan-approval-line.tsx";
 
 export function DecisionCard({
   item,
@@ -22,8 +25,22 @@ export function DecisionCard({
   /** The run's change, straight from the card: what the decision is about. */
   onOpenChanges(runId: string): void;
 }) {
-  const { me } = useDaemon();
+  const { me, client } = useDaemon();
   const q = item.question;
+  const [viewing, setViewing] = useState<string>();
+  // A gate's card about the plan shows the plan's lint and the way to read or change it.
+  const plan = usePolled(
+    `card-plan:${item.repo ?? ""}:${q.runId}:${q.id}`,
+    () =>
+      q.source === "gate"
+        ? client.runPlan(q.runId, item.repo)
+        : Promise.resolve({ ok: false, error: { code: "NONE", message: "" } }),
+    q.source === "gate" ? 5000 : 0,
+  );
+  const planView =
+    plan.data?.plan && (plan.data.question === q.id || plan.data.approvalStage === q.stage)
+      ? plan.data
+      : undefined;
   const card = q.card;
   // The recommended option is chosen first; a multi-select question starts with nothing chosen.
   const first = card?.recommended ?? q.options[0]?.label;
@@ -99,11 +116,7 @@ export function DecisionCard({
       {card?.soFar?.length ? (
         <section>
           <h3>Since you left</h3>
-          <ul>
-            {card.soFar.map((s) => (
-              <li key={s}>{s}</li>
-            ))}
-          </ul>
+          <FoldList lines={card.soFar} label="since you left" />
         </section>
       ) : null}
       {card && (card.done.length > 0 || card.artifacts.length > 0) ? (
@@ -113,20 +126,23 @@ export function DecisionCard({
           {card.artifacts.length > 0 ? (
             <div className="muted">
               see:{" "}
-              {card.artifacts.map((a) => (
-                <code key={a}>{a} </code>
+              {card.artifacts.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className="ghost link mono"
+                  onClick={() => setViewing(name)}
+                  title={`read ${name}`}
+                >
+                  {name}
+                </button>
               ))}
             </div>
           ) : null}
-          {card.evidence?.length ? (
-            <ul>
-              {card.evidence.map((e) => (
-                <li key={e}>{e}</li>
-              ))}
-            </ul>
-          ) : null}
+          {card.evidence?.length ? <FoldList lines={card.evidence} keep={3} label="evidence" /> : null}
         </section>
       ) : null}
+      {planView ? <PlanApprovalLine view={planView} runId={q.runId} /> : null}
       <section>
         <h3>Options{q.multiSelect ? " · choose one or more" : ""}</h3>
         <fieldset className="options">
@@ -203,6 +219,14 @@ export function DecisionCard({
       </div>
       <Notice text={a.error} onClose={a.clearError} />
       <div className="footer-cmd mono">writes: {answerCommand(q, a.choices, me, a.text)}</div>
+      {viewing ? (
+        <ArtifactViewer
+          runId={q.runId}
+          repo={item.repo}
+          name={viewing}
+          onClose={() => setViewing(undefined)}
+        />
+      ) : null}
     </article>
   );
 }

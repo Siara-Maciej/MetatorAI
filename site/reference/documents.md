@@ -37,9 +37,10 @@ These live in the repository and are reviewed like code.
 | `ArchitecturePolicy` | `metator/architecture.yml` | you; `metator arch init` proposes it |
 | `ArchitectureBaseline` | `metator/arch-baseline.json` | `metator arch baseline` |
 | `RefactorPlan` | `metator/arch/plans/<id>.yml` | you or `mt-arch-planner`; `metator arch plan` simulates, approves and runs it |
-| `SystemMap` | `docs/metator/system.yml` | you; `metator system discover` proposes it |
+| `SystemMap` | `docs/metator/system.yml` | you (also in the app); `metator system discover` proposes it |
 | `SystemAnalysis` | `metator/system/plans/<id>.analysis.yml` | `metator system analyze`, then you or `mt-system-scout` |
-| `SystemPlan` | `metator/system/plans/<id>.yml` | `metator system plan new`, then you or `mt-system-planner`; `system plan approve` is yours |
+| `SystemPlan` | `metator/system/plans/<id>.yml` | `metator system plan new`, then you (also in the app) or `mt-system-planner`; `system plan approve` is yours |
+| `PlanEdit` | `metator/system/plans/<id>.edits.jsonl`, `docs/metator/system.edits.jsonl`, one line per edit | the app, when a person changes a system plan or the map |
 | `EvalCase` | `docs/metator/evals/golden/*.yml` | you; `metator eval seed` adds cases |
 | `ArchEvalCase` | `docs/metator/evals/arch/*.yml` | you |
 | `SystemEvalCase` | `docs/metator/evals/system/*.yml` | you |
@@ -54,7 +55,7 @@ Each run has a folder, `.metator/runs/<id>/`. Only `metator` commands write the 
 |---|---|---|
 | `RunRecord` | `state.json` | `metator run ...` only |
 | `RunLog` | `log.md` | `metator run ...` only; append-only |
-| `RunActivity` | `activity.jsonl`, one document per line | `metator run drive` |
+| `RunActivity` | `activity.jsonl`, one document per line | `metator run drive`; a `plan-edited` line when a person changes the plan in the app |
 | `RunDriver` | `driver.json` | `metator run drive` |
 | `RunHandoff` | `handoff.md` | `metator run handoff` |
 | `RunSummary` | `summary.json` | `metator run close` |
@@ -66,7 +67,7 @@ Each run has a folder, `.metator/runs/<id>/`. Only `metator` commands write the 
 | `ReviewNotes` | `review/notes.json` | `metator review notes ...` and the app's Changes screen |
 | `Analysis` | `analysis.json` | `mt-scout` |
 | `Research` | `research.json` | `mt-pattern-miner` |
-| `Plan` | `plan.json` | `mt-planner` |
+| `Plan` | `plan.json` | `mt-planner`; you in the app, until the plan is approved |
 | `PlanScope` | `plan-scope.json` | `metator plan scope` |
 | `ReviewMetadata` | `pr.json` | `metator review metadata` |
 | `ReviewPlan` | `review-plan.json` | `metator review plan` |

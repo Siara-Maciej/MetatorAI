@@ -2,7 +2,7 @@ import type { WaitOutcome, WorkerResult } from "@metator/core";
 import { type Command, Option } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { callDaemon, findDaemon, paneHeaders } from "../daemon-client.ts";
+import { callDaemon, findDaemon, inRepo, paneHeaders } from "../daemon-client.ts";
 import { positiveInt, runOption } from "../options.ts";
 
 /**
@@ -12,10 +12,12 @@ import { positiveInt, runOption } from "../options.ts";
  */
 export function registerConductorCommands(_program: Command, runs: Command, ctx: CommandContext): void {
   const root = ctx.start;
+  // The daemon may serve a folder: the call names this repository (the checkout its runs are in).
   const call = async <T>(method: "GET" | "POST", path: string, body?: unknown) => {
     const daemon = findDaemon(root());
     if (daemon.isErr()) return daemon;
-    return callDaemon<T>(daemon.value, method, path, body, paneHeaders());
+    const repo = ctx.runs().resolve("root");
+    return callDaemon<T>(daemon.value, method, inRepo(path, repo), body, paneHeaders());
   };
   const runPath = async (run: string | undefined, rest: string) => {
     const id = await ctx.runs().resolve("runRepository").resolveId(run);

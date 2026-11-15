@@ -3,7 +3,18 @@ import type { Conflict, RunMessage } from "../api.ts";
 import { Notice } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
-import { lookOf, openRuns, routeHash, runTabFor, sameRepo, type Tone } from "../model.ts";
+import {
+  GRAPH,
+  graphLayout,
+  linkPath,
+  lookOf,
+  openRuns,
+  routeHash,
+  runStateOf,
+  runTabFor,
+  sameRepo,
+  type Tone,
+} from "../model.ts";
 
 /** The custom property of a tone, for an SVG stroke. */
 const TONE_VAR: Record<Tone, string> = {
@@ -15,9 +26,6 @@ const TONE_VAR: Record<Tone, string> = {
   teal: "teal",
   faint: "grey",
 };
-
-const W = 220;
-const H = 54;
 
 export function DependenciesPanel() {
   const { runs, repos, client } = useDaemon();
@@ -46,19 +54,9 @@ export function DependenciesPanel() {
   const messages: readonly RunMessage[] = links0.data?.messages ?? [];
   const action = useAction(links0.reload);
   const lanes = repos.length > 0 ? repos.map((r) => r.name) : [""];
-  const pos = new Map<string, { x: number; y: number }>();
-  lanes.forEach((lane, li) => {
-    active
-      .filter((r) => sameRepo(r.repo, lane))
-      .forEach((r, i) => {
-        pos.set(r.runId, { x: 120 + i * (W + 30), y: 40 + li * (H + 60) });
-      });
-  });
-  const edges = active.flatMap((r) =>
-    (r.children ?? [])
-      .filter((c) => pos.has(c))
-      .map((c) => ({ from: r.runId, to: c, kind: "child" as const })),
-  );
+  // Every open run, and the finished ones of the last day (dimmed) or linked to one shown.
+  const graph = graphLayout(runs, lanes);
+  const at = new Map(graph.nodes.map((n) => [n.run.runId, n]));
   const links = [
     ...conflicts.map((c) => ({
       from: c.runs[0],
@@ -68,18 +66,12 @@ export function DependenciesPanel() {
       data: c,
     })),
     ...messages
-      .filter((m) => pos.has(m.fromRun) && pos.has(m.toRun))
+      .filter((m) => m.fromRun !== m.toRun && at.has(m.fromRun) && at.has(m.toRun))
       .map((m) => ({ from: m.fromRun, to: m.toRun, label: m.topic, kind: "message" as const, data: m })),
   ];
-  const line = (a: string, b: string) => {
-    const p = pos.get(a);
-    const q = pos.get(b);
-    if (!p || !q) return undefined;
-    return `M ${p.x + W} ${p.y + H / 2} C ${p.x + W + 40} ${p.y + H / 2}, ${q.x - 40} ${q.y + H / 2}, ${q.x} ${q.y + H / 2}`;
-  };
-  const width =
-    160 + Math.max(1, ...lanes.map((l) => active.filter((r) => sameRepo(r.repo, l)).length)) * (W + 30);
-  const height = 40 + lanes.length * (H + 60);
+  const { W, H } = GRAPH;
+  const width = graph.width;
+  const height = graph.height;
   const notify = (c: Conflict & { repo?: string }) =>
     action.run(
       async (by) => {
@@ -97,10 +89,11 @@ export function DependenciesPanel() {
     <div className="graph">
       <div className="canvas">
         <svg
+          width={width}
+          height={height}
           viewBox={`0 0 ${width} ${height}`}
           role="img"
           aria-label="runs graph"
-          style={{ minWidth: width, minHeight: height }}
         >
           <defs>
             <marker
@@ -117,44 +110,49 @@ export function DependenciesPanel() {
           </defs>
           {lanes.map((lane, li) => (
             <g key={lane || "."}>
-              <rect className="lane" x={8} y={20 + li * (H + 60)} width={width - 16} height={H + 40} rx={8} />
-              <text className="lanename" x={16} y={36 + li * (H + 60)}>
-                {(lane || "this repository").toUpperCase()} ·{" "}
-                {active.filter((r) => sameRepo(r.repo, lane)).length}
+              <rect
+                className="lane"
+                x={8}
+                y={GRAPH.TOP - 20 + li * GRAPH.LANE}
+                width={width - 16}
+                height={GRAPH.LANE - 12}
+                rx={8}
+              />
+              <text className="lanename" x={16} y={GRAPH.TOP - 4 + li * GRAPH.LANE}>
+                {lane || "this repository"} · {graph.nodes.filter((n) => sameRepo(n.run.repo, lane)).length}
               </text>
             </g>
           ))}
-          {edges.map((e) => (
-            <path key={`${e.from}>${e.to}`} className="edge" d={line(e.from, e.to)} />
+          {graph.edges.map((e) => (
+            <path key={`${e.from}>${e.to}`} className="edge" d={e.d} markerEnd="url(#arrow)" />
           ))}
-          {links.map((l, i) => (
-            <g key={`${l.from}~${l.to}-${String(i)}`}>
-              <path className="edge msg" d={line(l.from, l.to)} />
-            </g>
-          ))}
-          {active.map((r) => {
-            const p = pos.get(r.runId);
-            if (!p) return null;
+          {links.map((l, i) => {
+            const d = linkPath(at.get(l.from), at.get(l.to));
+            return d ? <path key={`${l.from}~${l.to}-${String(i)}`} className="edge msg" d={d} /> : null;
+          })}
+          {graph.nodes.map(({ run: r, x, y, finished }) => {
+            const state = runStateOf(r);
             return (
               <a
-                key={r.runId}
+                key={`${r.repo ?? ""}/${r.runId}`}
                 href={routeHash({ screen: "run", runId: r.runId, tab: runTabFor(r) })}
-                aria-label={r.task}
+                aria-label={`${r.task} · ${state}`}
+                className={finished ? "finished" : undefined}
               >
                 <rect
                   className="node"
-                  x={p.x}
-                  y={p.y}
+                  x={x}
+                  y={y}
                   width={W}
                   height={H}
                   rx={8}
-                  stroke={`var(--${TONE_VAR[lookOf("attention", r.attention).tone ?? "faint"]})`}
+                  stroke={`var(--${TONE_VAR[lookOf("run", state).tone ?? "faint"]})`}
                 />
-                <text x={p.x + 10} y={p.y + 20} fontWeight={600}>
+                <text x={x + 10} y={y + 20} fontWeight={600}>
                   {r.task.length > 28 ? `${r.task.slice(0, 27)}…` : r.task}
                 </text>
-                <text x={p.x + 10} y={p.y + 38} fill="var(--muted)">
-                  {r.stage} · {r.host ?? "no host"} · {r.driver === "human" ? "you" : "agent"}
+                <text x={x + 10} y={y + 38} className="sub">
+                  {state} · {r.stage} · {r.host ?? "no host"}
                 </text>
               </a>
             );
@@ -165,7 +163,7 @@ export function DependenciesPanel() {
         <div className="box">
           <h3>Links</h3>
           {links.length === 0 ? (
-            <div className="muted">no messages or shared files between active runs</div>
+            <div className="muted">No messages or shared files between the runs shown.</div>
           ) : null}
           <ul>
             {links.map((l, i) => (
@@ -191,8 +189,8 @@ export function DependenciesPanel() {
         <div className="box">
           <h3>Waves</h3>
           <div className="muted">
-            parent → child arrows follow the system plan; a dashed amber link is data between runs, never an
-            instruction
+            An arrow runs from a run to the runs it started (the steps of its plan). A dashed amber line is
+            data between two runs, never an instruction. Finished runs of the last day stay, dimmed.
           </div>
         </div>
         <Notice {...action.notice} />

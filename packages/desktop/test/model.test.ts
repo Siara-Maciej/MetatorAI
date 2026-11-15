@@ -27,6 +27,7 @@ import {
   isFinished,
   isFirstRun,
   isIntake,
+  isNews,
   keyLabel,
   keyMapOf,
   keyText,
@@ -1036,10 +1037,19 @@ describe("the sidebar: one state that rolls up (wave 2)", () => {
     expect(runStateOf(run("a", { attention: "stopped" }))).toBe("idle");
     const done = run("a", { attention: "done", status: "done", updatedAt: at });
     expect(runStateOf(done)).toBe("done");
-    // Opened before it finished: still news. Opened after: quiet.
-    expect(runStateOf(done, "2026-11-13T09:59:59.000Z")).toBe("done");
-    expect(runStateOf(done, at)).toBe("idle");
-    expect(runStateOf(done, "2026-11-13T10:05:00.000Z")).toBe("idle");
+    // A finished run reads done, seen or not; it is news until opened after it finished.
+    expect(isNews(done)).toBe(true);
+    expect(isNews(done, "2026-11-13T09:59:59.000Z")).toBe(true);
+    expect(isNews(done, at)).toBe(false);
+    expect(isNews(done, "2026-11-13T10:05:00.000Z")).toBe(false);
+    expect(isNews(run("a", { status: "active" }))).toBe(false);
+    // The status wins over what the run's attention or its panes still say (defect 8).
+    expect(runStateOf(run("a", { status: "done", attention: "driving" }))).toBe("done");
+    expect(runStateOf(run("a", { status: "done", attention: "you" }))).toBe("done");
+    expect(runWithPanes(run("a", { status: "done", attention: "driving" }), ["working", "asks"])).toBe(
+      "done",
+    );
+    expect(runStateOf(run("a", { status: "escalated", attention: "stopped" }))).toBe("escalated");
     // An aborted run is not news: the person closed it.
     expect(runStateOf(run("a", { attention: "aborted", status: "aborted" }))).toBe("idle");
   });
@@ -1159,8 +1169,8 @@ describe("the sidebar: one state that rolls up (wave 2)", () => {
     expect(sidebarRuns(runs).map((x) => [x.run.runId, x.nested, x.step])).toEqual([
       ["solo", false, undefined],
       ["p", false, undefined],
-      ["s1", true, "step 1/2"],
-      ["s2", true, "step 2/2"],
+      ["s1", true, "step 1"],
+      ["s2", true, "step 2"],
       ["orphan", false, undefined],
     ]);
     expect(sidebarRuns([])).toEqual([]);

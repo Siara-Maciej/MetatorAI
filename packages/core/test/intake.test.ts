@@ -29,7 +29,11 @@ function world(config: unknown, items: Record<string, IntakeItem[] | MetatorErro
     fs,
     paths: DEFAULT_PATHS,
     clock: new FixedClock(new Date("2026-11-10T12:00:00.000Z")),
-    journal: { ask: async () => ok({ id: "q001" } as never), questions: async () => ok([]) },
+    journal: {
+      ask: async () => ok({ id: "q001" } as never),
+      questions: async () => ok([]),
+      answer: async () => ok({} as never),
+    },
     repo: {
       resolveId: async (id) => ok(id ?? "latest"),
       load: async () => err(MetatorError.notFound("run")),

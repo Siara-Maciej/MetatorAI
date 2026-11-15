@@ -2,7 +2,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { err, MetatorError, ok, type Result } from "@metator/core";
 import type { BootstrapOptions, MetatorContainer } from "@metator/runtime";
-import { callDaemon, findDaemon } from "./daemon-client.ts";
+import { callDaemon, findDaemon, inRepo } from "./daemon-client.ts";
 import { type FollowResult, follow } from "./live.ts";
 import type { Terminal } from "./terminal.ts";
 import { who } from "./who.ts";
@@ -13,7 +13,6 @@ import { who } from "./who.ts";
  * list it does hold (a test's scenario host is one only while a scenario is given).
  */
 export const HOSTS = ["claude", "copilot"] as const;
-const HOST_OF: Record<string, (typeof HOSTS)[number]> = { claude: "claude", copilot: "copilot" };
 
 /** The host a new run or question uses: `$METATOR_HOST` when it names a host, else the first of hosts.targets. */
 export const defaultHost = (
@@ -22,7 +21,8 @@ export const defaultHost = (
 ): string => {
   const chosen = env.METATOR_HOST;
   if (chosen && c.resolve("agentHosts").has(chosen)) return chosen;
-  return HOST_OF[c.resolve("config").config.hosts.targets[0] ?? "claude"] ?? "claude";
+  // The same choice every front makes: the team's order (`supervisor.hostOrder`), then the targets.
+  return c.resolve("defaultDriveHost")();
 };
 
 /**
@@ -68,7 +68,12 @@ export const runPanes =
       const daemon = findDaemon(root);
       if (daemon.isErr()) return err(daemon.error);
       if (daemon.value.pid === process.pid) return panes.closeRun(runId);
-      return callDaemon(daemon.value, "POST", `/runs/${encodeURIComponent(runId)}/close-panes`, {});
+      return callDaemon(
+        daemon.value,
+        "POST",
+        inRepo(`/runs/${encodeURIComponent(runId)}/close-panes`, root),
+        {},
+      );
     },
   });
 

@@ -20,7 +20,13 @@ agents:
       - say: "STATUS: done"
     - - say: "resumed session"
       - ask: { question: "Still there?", options: [yes] }
-`;
+
+  mt-orchestrator:
+    - - say: "first session"
+      - ask: { question: "Go on?", options: [yes, no] }
+      - say: "STATUS: done"
+    - - say: "resumed session"
+      - ask: { question: "Still there?", options: [yes] }`;
 
 let repo: ScratchRepo;
 let env: Record<string, string>;

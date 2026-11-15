@@ -114,7 +114,9 @@ describe("metator run board (real CLI)", () => {
       ["S3", "todo", null],
     ]);
     const present = Object.fromEntries(board.artifacts.map((a) => [a.name, a.present]));
-    expect(present).toMatchObject({ "plan.json": true, "build-log.md": false, "task.md": false });
+    expect(present).toMatchObject({ "plan.json": true, "build-log.md": false });
+    // Only the run's workflow's artifacts: this one writes no task.md (defect 10).
+    expect(Object.keys(present)).not.toContain("task.md");
     expect(board.artifacts.find((a) => a.name === "build-log.md")?.stage).toBe("build");
     // The run's own bookkeeping is not an artifact of the work.
     for (const own of ["state.json", "log.md", "summary.json", "activity.jsonl"])
