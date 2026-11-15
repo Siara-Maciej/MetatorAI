@@ -115,7 +115,8 @@ const deny = (reason: string): ToolDecision => ({ decision: "deny", reason });
 function externalAction(argv: readonly string[]): "push" | "comment" | undefined {
   const [tool, sub, verb] = argv;
   if (tool === "git" && argv.includes("push")) return "push";
-  if (tool === "gh" && sub === "pr" && (verb === "create" || verb === "merge")) return "push";
+  if (tool === "gh" && sub === "pr" && verb === "create") return "push";
+  if (tool === "glab" && sub === "mr" && verb === "create") return "push";
   if (tool === "gh" && (sub === "pr" || sub === "issue") && (verb === "comment" || verb === "review"))
     return "comment";
   if (tool === "gh" && sub === "api" && argv.some((a) => /\/(comments|reviews)\b/.test(a))) return "comment";
@@ -125,7 +126,7 @@ function externalAction(argv: readonly string[]): "push" | "comment" | undefined
 function mcpAction(tool: string): "push" | "comment" | undefined {
   if (!tool.startsWith("mcp__")) return undefined;
   if (
-    /(create_pull_request|merge_pull_request|push_files|create_or_update_file|delete_file|create_branch)$/.test(
+    /(create_pull_request|create_merge_request|push_files|create_or_update_file|delete_file|create_branch)$/.test(
       tool,
     )
   )
@@ -147,6 +148,64 @@ function destructive(argv: readonly string[]): string | undefined {
     argv.some((a) => ["/", "~", ".", "..", "*", "/*"].includes(a))
   )
     return "rm -r of a root, home or the whole tree";
+  return undefined;
+}
+
+/** Branches a change reaches only through a person's merge of a pull (merge) request. */
+export const HEAD_BRANCHES: readonly string[] = ["main", "master"];
+
+/** What agents hear when they try to merge: no approval and no autonomy level changes it (ADR-0085). */
+export const MERGE_IS_A_PERSONS = (what: string) =>
+  `${what} is blocked: merging into the head branch is a person's, whatever was approved. Open a pull (merge) request and stop there.`;
+
+/** Where a `git push` argument lands: `src:dst`, `+name` and `refs/heads/…` name the branch `dst`. */
+const pushTarget = (arg: string) =>
+  (arg.includes(":") ? arg.slice(arg.lastIndexOf(":") + 1) : arg)
+    .replace(/^\+/, "")
+    .replace(/^refs\/heads\//, "");
+
+/**
+ * Commands that put a change on the head branch: merging a request at the code host (also its
+ * auto-merge and the REST call), or pushing straight to the branch.
+ */
+function merge(argv: readonly string[]): string | undefined {
+  const [tool, sub, verb] = argv;
+  if (tool === "gh" && sub === "pr" && verb === "merge") return "gh pr merge";
+  if (tool === "glab" && sub === "mr" && (verb === "merge" || verb === "accept")) return `glab mr ${verb}`;
+  if (
+    (tool === "gh" || tool === "glab") &&
+    sub === "api" &&
+    argv.some((a) => /\/(pulls|merge_requests)\/\d+\/merge\b/.test(a))
+  )
+    return `${tool} api …/merge`;
+  if (tool === "git" && sub === "push") {
+    // The first plain argument is the remote; the rest say which branches the push writes.
+    const head = argv
+      .slice(2)
+      .filter((a) => !a.startsWith("-"))
+      .slice(1)
+      .map(pushTarget)
+      .find((b) => HEAD_BRANCHES.includes(b));
+    if (head) return `git push to ${head}`;
+  }
+  return undefined;
+}
+
+/** MCP tools of a code host that merge a request or switch its auto-merge on. */
+const MCP_MERGE =
+  /(merge_pull_request|merge_merge_request|accept_merge_request|enable_pr_auto_merge|enable_auto_merge)$/;
+
+/**
+ * The merge a tool call would make (a shell command, also inside a composite one, or an MCP tool),
+ * or undefined. Hosts check it in-process too, where no hook runs.
+ */
+export function mergeAttempt(hook: HookInput): string | undefined {
+  if (hook.tool.startsWith("mcp__")) return MCP_MERGE.test(hook.tool) ? hook.tool : undefined;
+  if (!SHELL_TOOL.test(hook.tool)) return undefined;
+  for (const argv of commandsOf(text(hook.input.command) ?? "")) {
+    const what = merge(argv);
+    if (what) return what;
+  }
   return undefined;
 }
 
@@ -252,6 +311,9 @@ export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecisio
     if (!chatApproval(hook)) return deny(DRIVEN_RUN_CONTROL(control));
     if (ctx.run?.driver !== "human") return deny(CHAT_APPROVAL_NEEDS_DRIVER);
   }
+  // The head branch moves only by a person's merge, with or without a run (ADR-0085).
+  const merging = mergeAttempt(hook);
+  if (merging) return deny(MERGE_IS_A_PERSONS(merging));
   for (const argv of shell) {
     const what = destructive(argv);
     if (what) return deny(`${what} is blocked: it can lose work. Ask the user to run it.`);

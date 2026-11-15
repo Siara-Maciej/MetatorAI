@@ -1618,6 +1618,24 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/hook.ts",
+    from: "if (merging) return deny(MERGE_IS_A_PERSONS(merging));",
+    to: "",
+    why: "a merge into the head branch is denied with any approval",
+  },
+  {
+    file: "packages/core/src/domain/hook.ts",
+    from: ".find((b) => HEAD_BRANCHES.includes(b));",
+    to: ".find(() => false);",
+    why: "a push straight to the head branch is a merge",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: 'if (merging) return permissionResponse({ decision: "deny", reason: MERGE_IS_A_PERSONS(merging) });',
+    to: "",
+    why: "the in-process hook denies a merge too",
+  },
+  {
+    file: "packages/core/src/domain/hook.ts",
     from: "if (ctx.editScope && !ctx.editScope.includes(rel))",
     to: "if (false)",
     why: "edits outside plan-scope.json are denied",

@@ -118,6 +118,21 @@ describe("metator guard (real hook processes)", () => {
     await metator(["run", "approve", "push", "--by", "maciej"], repo.root);
     expect((await hook(["guard", "pre-tool"], push, repo.root)).json).toBeNull();
 
+    // The push approval opens the run's branch and a request, never a merge into the head branch
+    // (ADR-0085): by the code host's CLI, its MCP tool, or a push straight to the branch.
+    for (const call of [
+      { tool_name: "Bash", tool_input: { command: "gh pr merge 12 --squash" } },
+      { tool_name: "Bash", tool_input: { command: "glab mr merge 7" } },
+      { tool_name: "Bash", tool_input: { command: "git push origin HEAD:main" } },
+      { tool_name: "mcp__github__merge_pull_request", tool_input: { pullNumber: 12 } },
+    ]) {
+      const merged = decision(await hook(["guard", "pre-tool"], call, repo.root));
+      expect([call, merged?.permissionDecision]).toEqual([call, "deny"]);
+      expect(merged?.permissionDecisionReason).toContain("a person");
+    }
+    const request = { tool_name: "Bash", tool_input: { command: "gh pr create --fill" } };
+    expect((await hook(["guard", "pre-tool"], request, repo.root)).json).toBeNull();
+
     const stop = await hook(["guard", "stop"], { stop_hook_active: false }, repo.root);
     expect(stop.json).toMatchObject({ decision: "block" });
     // In a session `metator run drive` started, the drive moves the run: the agent may stop, and

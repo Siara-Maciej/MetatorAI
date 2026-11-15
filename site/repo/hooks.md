@@ -1,6 +1,6 @@
 # Hooks and guardrails
 
-Hooks are scripts your AI host runs around an agent's tool calls. MetatorAI uses them to enforce what a prompt cannot guarantee: no secrets, no destructive commands, no edits outside the plan, no push without your approval. This page shows how to install them and what they block.
+Hooks are scripts your AI host runs around an agent's tool calls. MetatorAI uses them to enforce what a prompt cannot guarantee: no secrets, no destructive commands, no merge into the head branch, no edits outside the plan, no push without your approval. This page shows how to install them and what they block.
 
 ## Install the hooks
 
@@ -34,6 +34,7 @@ Always, with or without a run:
 |---|---|
 | Secrets | reading or writing `.env`, `.env.*` (except `.env.example` and `.env.sample`), `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `.npmrc`, `.netrc` |
 | Destructive commands | `git push --force`, `git reset --hard`, `git clean -f`, `rm -r` of `/`, `~`, `.` or `*` |
+| Merging into the head branch | `gh pr merge` (also `--auto`), `glab mr merge`, the code host's merge API and MCP merge tools, `git push origin main` or `HEAD:master`: a person merges, whatever was approved |
 | Approving a plan | `metator arch plan approve` and `metator system plan approve`: those are yours to run |
 
 Only while a run is active:
@@ -42,7 +43,7 @@ Only while a run is active:
 |---|---|
 | Edits outside the plan | a file not listed in the run's `plan-scope.json`, or outside the repository |
 | A coordinator editing | `mt-orchestrator` or `mt-pr-review` editing a file (they delegate) |
-| Push without approval | `git push`, `gh pr create`, `gh pr merge` and GitHub MCP tools that write, before `metator run approve push` |
+| Push without approval | `git push` of the run's branch, `gh pr create`, `glab mr create` and code host MCP tools that write, before `metator run approve push` |
 | Comment without approval | `gh pr comment`, `gh pr review` and MCP tools that comment, before `metator run approve comment` |
 | Moving a driven run | `metator run advance`, `approve`, `stop` and the like from an agent that `metator run drive` started: the drive moves the run |
 

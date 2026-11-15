@@ -86,16 +86,17 @@ The first rule that matches decides.
 
 1. Secrets. A path or a shell argument that matches `.env`, `.env.*` (except `.env.example` and `.env.sample`), `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `.npmrc` or `.netrc` is denied, for reading and for writing.
 2. Run control. In a session that `metator run drive` started, or in a worker's pane, the agent may not move the run itself (`metator run advance`, `approve`, `answer`, `close` and the like). The one exception is `metator run approve ... --via chat` while a person is attached to the session.
-3. Destructive commands. `git push --force` (also `--force-with-lease`), `git reset --hard`, `git clean -f`, and `rm -r` of `/`, `~`, `.`, `..` or `*` are denied.
-4. Plan approvals. `metator arch plan approve` and `metator system plan approve` are denied: a person runs them.
-5. No active run. Everything else is left to the host.
-6. Actions outside the repository, until a person approves them with `metator run approve push` or `metator run approve comment`:
-   - `git push`, `gh pr create`, `gh pr merge` and MCP tools that create branches, files or pull requests need `push`;
+3. Merges into the head branch. `gh pr merge` (also `--auto`), `glab mr merge` and `glab mr accept`, a `gh api` or `glab api` call to a request's `/merge`, MCP tools that merge a request or switch its auto-merge on, and a `git push` whose target is `main` or `master` are denied. No approval and no autonomy level changes this: an agent opens a pull (merge) request and a person merges it.
+4. Destructive commands. `git push --force` (also `--force-with-lease`), `git reset --hard`, `git clean -f`, and `rm -r` of `/`, `~`, `.`, `..` or `*` are denied.
+5. Plan approvals. `metator arch plan approve` and `metator system plan approve` are denied: a person runs them.
+6. No active run. Everything else is left to the host.
+7. Actions outside the repository, until a person approves them with `metator run approve push` or `metator run approve comment`:
+   - `git push` of another branch, `gh pr create`, `glab mr create` and MCP tools that create branches, files or pull (merge) requests need `push`;
    - `gh pr comment`, `gh pr review`, `gh issue comment` and MCP comment or review tools need `comment`.
-7. File edits:
+8. File edits:
    - by a coordinator: denied;
    - of a file outside the repository: denied;
    - of a file under `.metator/`: allowed, so agents can write run artifacts;
    - of a file that `plan-scope.json` does not list, when the run has one: denied.
 
-Rules 1 to 4 apply with or without a run.
+Rules 1 to 5 apply with or without a run.

@@ -121,6 +121,45 @@ describe("preToolPolicy", () => {
       expect([command, decide(hook("Bash", { command }), free)]).toEqual([command, "allow"]);
   });
 
+  test("a merge into the head branch is never an agent's, with any approval (ADR-0085)", () => {
+    const by = { by: "maciej", at: AT };
+    const approved = run({ push: by, comment: by, delivery: by });
+    for (const command of [
+      "gh pr merge 12 --squash",
+      "gh pr merge --auto",
+      "glab mr merge 7",
+      "glab mr accept 7",
+      "gh api -X PUT repos/acme/shop/pulls/12/merge",
+      "glab api -X PUT projects/3/merge_requests/7/merge",
+      "git push origin main",
+      "git push origin HEAD:master",
+      "git push -u origin feature:refs/heads/main",
+      "git push origin +main",
+      "bun test && gh pr merge 12",
+    ])
+      for (const ctx of [free, approved])
+        expect([command, decide(hook("Bash", { command }), ctx)]).toEqual([command, "deny"]);
+    for (const tool of [
+      "mcp__github__merge_pull_request",
+      "mcp__github__enable_pr_auto_merge",
+      "mcp__gitlab__merge_merge_request",
+      "mcp__gitlab__accept_merge_request",
+    ])
+      for (const ctx of [free, approved]) expect([tool, decide(hook(tool, {}), ctx)]).toEqual([tool, "deny"]);
+    // Opening the request and pushing the run's own branch stay with the push approval.
+    for (const command of [
+      "gh pr create --fill",
+      "glab mr create --fill",
+      "git push -u origin feature",
+      "git push origin feature/main-menu",
+      "git push origin main-menu:main-menu",
+    ])
+      expect([command, decide(hook("Bash", { command }), approved)]).toEqual([command, "allow"]);
+    for (const tool of ["mcp__github__create_pull_request", "mcp__github__update_pull_request_branch"])
+      expect([tool, decide(hook(tool, {}), approved)]).toEqual([tool, "allow"]);
+    expect(preToolPolicy(hook("Bash", { command: "gh pr merge 12" }), approved).reason).toContain("a person");
+  });
+
   test("without an active run, everything else is allowed (free mode)", () => {
     expect(preToolPolicy(hook("Bash", { command: "git push origin feature" }), free)).toEqual({
       decision: "allow",
