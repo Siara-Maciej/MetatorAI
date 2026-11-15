@@ -10,7 +10,7 @@ metator generate --hooks
 
 This writes the hook configuration for both hosts:
 
-- `.claude/settings.json` for Claude Code. Your other settings and your own hooks stay.
+- `.claude/settings.json` for Claude Code. Your other settings and your own hooks stay. The same file gets deny rules under `permissions.deny` for what cannot be taken back: reading files that may hold secrets, merging a pull (merge) request, `git push --force`, `git reset --hard` and `git clean -f`. Claude Code applies a deny rule before any hook, prompt or auto mode, so these hold even when a hook does not run. Your own deny rules stay first.
 - `.github/hooks/metator.json` for Copilot.
 
 Review the diff and commit it. The hooks call `metator`, so it must be on your `PATH` (see [Install](../guide/install.md)). If you run it another way, set that command in `hosts.metatorCommand` in `metator.config.yml` before you generate.

@@ -219,7 +219,12 @@ describe("metator generate --hooks writes both hosts' hook configuration", () =>
       permissions: unknown;
       hooks: Record<string, { hooks: { command: string }[] }[]>;
     };
-    expect(claude.permissions).toEqual({ allow: ["Bash(ls)"] });
+    // The person's rules stay; what cannot be taken back is denied before any hook or classifier.
+    const permissions = claude.permissions as { allow: string[]; deny: string[] };
+    expect(permissions.allow).toEqual(["Bash(ls)"]);
+    expect(permissions.deny).toEqual(
+      expect.arrayContaining(["Read(.env)", "Bash(gh pr merge *)", "mcp__*__merge_pull_request"]),
+    );
     expect(claude.hooks.PreToolUse?.[0]?.hooks[0]?.command).toBe("npx metator guard pre-tool");
     const copilot = JSON.parse(await repo.read(".github/hooks/metator.json")) as {
       hooks: Record<string, unknown[]>;

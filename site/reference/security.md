@@ -9,6 +9,7 @@ This page lists what MetatorAI enforces with code, what it records, and where yo
 | Files that may hold secrets (`.env`, `.env.*`, `*.pem`, `*.key`, SSH keys, `.npmrc`, `.netrc`) are never read or written by an agent | `metator guard pre-tool` | always |
 | Destructive commands are blocked (`git push --force`, `git reset --hard`, `git clean -f`, `rm -r` of a root) | `metator guard pre-tool` | always |
 | An agent never merges into the head branch (`gh pr merge`, `glab mr merge`, merge API and MCP tools, a push to `main` or `master`); the most it does is open a pull (merge) request | `metator guard pre-tool`, and the Claude host in-process | always |
+| The same secrets, merges and work-losing commands are deny rules of the host (`permissions.deny` in `.claude/settings.json`), applied before hooks and before auto mode | `metator generate --hooks` | Claude Code, always |
 | An agent cannot approve an architecture plan or a system plan | `metator guard pre-tool` | always |
 | Edits stay inside the repository and inside the files the plan lists (`plan-scope.json`) | `metator guard pre-tool` | during a run |
 | Coordinators delegate and do not edit files | `metator guard pre-tool` | during a run |

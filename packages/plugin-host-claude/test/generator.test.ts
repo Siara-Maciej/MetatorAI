@@ -91,6 +91,42 @@ describe("ClaudeGenerator.hooks (.claude/settings.json)", () => {
     expect(settings.hooks.PostToolUse?.[0]?.matcher?.split("|")).toContain("Write");
   });
 
+  test("what cannot be taken back is a deny rule too: secrets, merges and lost work (ADR-0086)", () => {
+    type Denied = { permissions: { allow?: string[]; deny: string[] } };
+    const deny = (existing?: string) =>
+      (JSON.parse(new ClaudeGenerator().hooks("bun run metator", existing)._unsafeUnwrap().content) as Denied)
+        .permissions;
+    const rules = deny().deny;
+    // Secrets by name at any depth, the examples carved out after the pattern they belong to.
+    expect(rules).toEqual(
+      expect.arrayContaining(["Read(.env)", "Read(.env.*)", "Read(*.pem)", "Read(id_rsa*)"]),
+    );
+    expect(rules.indexOf("Read(!.env.example)")).toBeGreaterThan(rules.indexOf("Read(.env.*)"));
+    // A command with and without arguments; MCP tools of any server.
+    expect(rules).toEqual(
+      expect.arrayContaining([
+        "Bash(gh pr merge)",
+        "Bash(gh pr merge *)",
+        "Bash(glab mr merge *)",
+        "Bash(git push --force *)",
+        "Bash(git reset --hard *)",
+        "mcp__*__merge_pull_request",
+        "mcp__*__enable_pr_auto_merge",
+      ]),
+    );
+    expect(rules.some((r) => r.includes("pr create"))).toBe(false);
+    // The person's own rules stay, ours are added once.
+    const existing = JSON.stringify({
+      permissions: { allow: ["Bash(ls)"], deny: ["Bash(curl *)", "Read(.env)"] },
+    });
+    const merged = deny(existing);
+    expect(merged.allow).toEqual(["Bash(ls)"]);
+    expect(merged.deny.slice(0, 2)).toEqual(["Bash(curl *)", "Read(.env)"]);
+    expect(merged.deny.filter((r) => r === "Read(.env)")).toHaveLength(1);
+    const again = deny(JSON.stringify({ permissions: merged }));
+    expect(again.deny).toEqual(merged.deny);
+  });
+
   test("the user's settings and own hooks stay; earlier metator hooks are replaced, not duplicated", () => {
     const existing = JSON.stringify({
       model: "opus",

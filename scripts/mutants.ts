@@ -1635,6 +1635,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the in-process hook denies a merge too",
   },
   {
+    file: "packages/plugin-host-claude/src/claude-generator.ts",
+    from: "const deny = [...theirs, ...denyRules().filter((r) => !theirs.includes(r))];",
+    to: "const deny = [...theirs];",
+    why: "the generated settings deny what cannot be taken back",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-generator.ts",
+    from: "[...secrets, ...examples].map(",
+    to: "[...secrets].map(",
+    why: "example env files stay readable under the deny rules",
+  },
+  {
     file: "packages/core/src/domain/hook.ts",
     from: "if (ctx.editScope && !ctx.editScope.includes(rel))",
     to: "if (false)",

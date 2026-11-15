@@ -1,6 +1,7 @@
 import {
   type Agent,
   type BasicCapability,
+  DENIED_COMMANDS,
   err,
   type GeneratedFile,
   generatedMarker,
@@ -8,11 +9,13 @@ import {
   type HostAgentContext,
   type HostGenerator,
   isGuardCommand,
+  MERGE_MCP_TOOLS,
   MetatorError,
   type ModelTier,
   metatorGroups,
   ok,
   type Result,
+  SECRET_GLOBS,
   withMetatorCommand,
 } from "@metator/core";
 import { stringify } from "yaml";
@@ -60,7 +63,15 @@ export class ClaudeGenerator implements HostGenerator {
       };
       hooks[b.event] = [...theirs, ours];
     }
-    return ok({ path: this.hooksFile, content: `${JSON.stringify({ ...settings, hooks }, null, 2)}\n` });
+    // What cannot be taken back is a deny rule as well (ADR-0086): Claude Code reads those before
+    // any hook, prompt or classifier. The person's rules stay first; ours are added once.
+    const permissions = { ...((settings.permissions as Record<string, unknown> | undefined) ?? {}) };
+    const theirs = Array.isArray(permissions.deny) ? (permissions.deny as unknown[]) : [];
+    const deny = [...theirs, ...denyRules().filter((r) => !theirs.includes(r))];
+    return ok({
+      path: this.hooksFile,
+      content: `${JSON.stringify({ ...settings, permissions: { ...permissions, deny }, hooks }, null, 2)}\n`,
+    });
   }
 
   agent(agent: Agent, body: string, context: HostAgentContext): GeneratedFile {
@@ -86,6 +97,22 @@ export class ClaudeGenerator implements HostGenerator {
       content: `---\n${stringify(front, { lineWidth: 0 }).trimEnd()}\n---\n${generatedMarker(context.source)}\n${prose(body, context)}`,
     };
   }
+}
+
+/**
+ * Claude Code deny rules for secrets, merges and commands that lose work. A path without a slash
+ * matches at any depth; a `!` rule carves its files out of the rules before it, so the examples
+ * follow the patterns they belong to. A command is listed with and without arguments.
+ */
+function denyRules(): string[] {
+  const name = (glob: string) => glob.replace(/^(!?)\*\*\//, "$1");
+  const secrets = SECRET_GLOBS.filter((g) => !g.startsWith("!"));
+  const examples = SECRET_GLOBS.filter((g) => g.startsWith("!"));
+  return [
+    ...[...secrets, ...examples].map((g) => `Read(${name(g)})`),
+    ...DENIED_COMMANDS.flatMap((c) => [`Bash(${c})`, `Bash(${c} *)`]),
+    ...MERGE_MCP_TOOLS.map((t) => `mcp__*__${t}`),
+  ];
 }
 
 function prose(body: string, context: HostAgentContext): string {

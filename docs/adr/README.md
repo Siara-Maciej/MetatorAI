@@ -89,3 +89,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0083](0083-agent-cli-entry-and-event-intake.md) | CLI agenta jako punkt wejścia; issue i review z zewnątrz jako drugie wejście do tej samej ścieżki | Accepted |
 | [0084](0084-di-static-registration.md) | DI: awilix ze statyczną rejestracją w runtime i kontenerem na repozytorium (zastąpi 0011 po akceptacji) | Proposed |
 | [0085](0085-merge-is-a-persons.md) | Scalenie do gałęzi głównej należy do człowieka; agent co najwyżej otwiera MR/PR | Proposed |
+| [0086](0086-host-deny-rules.md) | Nieodwracalne działania jako reguły deny hosta, nie tylko hook | Proposed |
