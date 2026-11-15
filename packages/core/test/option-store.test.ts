@@ -54,6 +54,7 @@ describe("OptionStore", () => {
       "issues",
       "keys",
       "notify",
+      "sandbox",
       "supervisor",
       "terminal",
       "ui",
