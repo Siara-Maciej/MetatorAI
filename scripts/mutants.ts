@@ -1635,6 +1635,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the in-process hook denies a merge too",
   },
   {
+    file: "packages/desktop/src/model.ts",
+    from: 'return a.tried === folder ? "none" : "start";',
+    to: 'return "start";',
+    why: "the app starts the daemon once per folder, not in a loop",
+  },
+  {
+    file: "packages/desktop/src/model.ts",
+    from: 'if (!a.shell || !a.down || a.starting) return "none";',
+    to: 'if (!a.down || a.starting) return "none";',
+    why: "a browser tab never tries to start the daemon",
+  },
+  {
     file: "packages/cli/src/serve/ensure.ts",
     from: "if (serving) return ok({ ...serving, started: false });",
     to: "",

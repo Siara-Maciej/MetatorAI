@@ -17,7 +17,8 @@ import {
   type WorkspaceView,
   wsUrl,
 } from "./api.ts";
-import { type Run, repoChoice, withTerminalAsks } from "./model.ts";
+import { autostart, type Run, repoChoice, withTerminalAsks } from "./model.ts";
+import { appShell } from "./shell.ts";
 
 export interface Daemon {
   readonly client: DaemonClient;
@@ -43,6 +44,15 @@ export interface Daemon {
   readonly me: string;
   setMe(name: string): void;
   setUrl(url: string): void;
+  /** The app's shell can start the daemon itself (ADR-0087); false in a browser. */
+  readonly startable: boolean;
+  /** The folder the app starts the daemon for: the last one it was started for ("" when none). */
+  readonly folder: string;
+  readonly starting: boolean;
+  /** Why the last start did not work. */
+  readonly startError?: string;
+  /** Starts (or finds) the daemon of a folder and points the app at it; remembers the folder. */
+  start(folder: string): void;
   /** Tries the daemon again now, without waiting for the next attempt. */
   retry(): void;
   /** The person's name: the saved one, or asked for once in the app's own dialog ("" when they cancel). */
@@ -296,6 +306,40 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
   };
   // Down: the socket is closed and the last request failed. A socket that only blinked is not down.
   const down = !stateUp && error !== undefined;
+  const setUrl = useCallback((u: string) => {
+    const clean = u.trim().replace(/\/+$/, "");
+    write("metator.daemon", clean);
+    setUrlState(clean);
+    setError(undefined);
+  }, []);
+  // In the app's shell the daemon is started for the remembered folder, without a terminal.
+  const shell = useMemo(() => appShell(), []);
+  const [folder, setFolder] = useState(() => read("metator.folder") ?? "");
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string>();
+  const tried = useRef<string | undefined>(undefined);
+  const start = useCallback(
+    (dir: string) => {
+      const clean = dir.trim();
+      if (!shell || clean === "") return;
+      write("metator.folder", clean);
+      setFolder(clean);
+      tried.current = clean;
+      setStarting(true);
+      setStartError(undefined);
+      shell
+        .ensureDaemon(clean)
+        .then(setUrl, (e: unknown) => setStartError(e instanceof Error ? e.message : String(e)))
+        .finally(() => setStarting(false));
+    },
+    [shell, setUrl],
+  );
+  useEffect(() => {
+    // A daemon that answered and then went away is started again, by itself.
+    if (stateUp) tried.current = undefined;
+    if (autostart({ shell: shell !== undefined, down, folder, tried: tried.current, starting }) === "start")
+      start(folder);
+  }, [shell, down, stateUp, folder, starting, start]);
   const value: Daemon = {
     client,
     url,
@@ -314,12 +358,12 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     workspaces: down ? NO_WORKSPACES : workspaces,
     me,
     setMe,
-    setUrl: (u) => {
-      const clean = u.trim().replace(/\/+$/, "");
-      write("metator.daemon", clean);
-      setUrlState(clean);
-      setError(undefined);
-    },
+    setUrl,
+    startable: shell !== undefined,
+    folder,
+    starting,
+    ...(startError ? { startError } : {}),
+    start,
     retry: () => setAttempt((n) => n + 1),
     who,
     changeName: () => setAsking(true),

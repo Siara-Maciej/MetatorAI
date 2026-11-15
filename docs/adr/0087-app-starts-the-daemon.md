@@ -20,7 +20,8 @@ Decyzje właściciela do tego ADR (2026-11-15):
 
 ## Stan realizacji
 - Zrobione: `serve --ensure` w CLI z testami jednostkowymi (`packages/cli/test/ensure-daemon.test.ts`) i e2e na prawdziwym demonie (`e2e/serve-ensure.e2e.test.ts`).
-- Otwarte: wywołanie z powłoki Tauri i z panelu aplikacji; binarka w paczce (zależy od pakowania F8.8 i od tego, czy `node-pty` działa w skompilowanym programie); zamykanie demona z aplikacją.
+- Zrobione: komenda powłoki `ensure_daemon` (`packages/desktop/src-tauri/src/daemon.rs`, testy `rustc --test`), most `src/shell.ts`, decyzja `autostart` w `src/model.ts`, panel „no daemon" z polem folderu; e2e w Chromium z powłoką zastąpioną prawdziwym CLI (`e2e/desktop-daemon.e2e.test.ts`). Folder wpisuje się jako ścieżkę; natywne okno wyboru folderu wymaga pluginu `dialog` (nowa zależność) i jest osobnym krokiem.
+- Otwarte: binarka w paczce (zależy od pakowania F8.8 i od tego, czy `node-pty` działa w skompilowanym programie; do tego czasu `METATOR_BIN` lub `PATH`); zamykanie demona z aplikacją; budowa powłoki Tauri sprawdzona tylko przez workflow `desktop`, nie lokalnie.
 
 ## Konsekwencje
 ### Pozytywne

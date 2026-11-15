@@ -53,7 +53,7 @@ The gate takes as long as your checks take, so `doctor` runs it only when you as
 metator serve
 ```
 
-The daemon listens on `http://127.0.0.1:4310`. Leave it running and open the desktop app ([The app](../use/index.md#start-it) says where the installers are). The chip at the top right reads **connected**, and the **Inbox** is empty.
+The installed desktop app starts the daemon itself once you named the repository's folder in it ([The app](../use/index.md#the-app-starts-the-daemon-itself)), so this step is for the browser and for scripts. The daemon listens on `http://127.0.0.1:4310`. Leave it running and open the desktop app ([The app](../use/index.md#start-it) says where the installers are). The chip at the top right reads **connected**, and the **Inbox** is empty.
 
 ## Describe the task
 

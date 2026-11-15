@@ -22,9 +22,17 @@ Then open the app. The installers are built by the `desktop` workflow of the Met
 cd packages/desktop && bun run tauri dev     # needs Rust and the platform's webview
 ```
 
+### The app starts the daemon itself
+
+You do not have to run `metator serve` before you open the installed app. The first time, the app shows a panel with a field **folder to serve**: type the path of your repository, or of a folder that holds several, and click **Start the daemon**. The app runs `metator serve --ensure` for that folder, connects to the daemon it started (or to the one that already ran there), and remembers the folder. From then on it starts the daemon for that folder every time it opens, and again by itself when the daemon went away.
+
+The daemon keeps running after you close the app, because the agents' terminals live in it; stop it with `kill <pid>` (the pid is in `.metator/daemon.json`). The app needs the `metator` program: it uses `METATOR_BIN` when that is set, and otherwise `metator` from your `PATH` (on macOS and Linux as your login shell sees it). When the start does not work, the panel says why under the field.
+
+In a browser tab (`bun run dev`, or the built page served by anything) there is no shell to start a program, so the rest of this section applies.
+
 The app looks for the daemon at the default address. The chip on the right of the top bar reads **connected** when it found it.
 
-When nothing answers at that address, the chip reads **no daemon** and the main area shows one panel on every screen: what is wrong, the command `metator serve`, a field with the daemon's address, and **Retry**. If your daemon listens elsewhere, type its address in the field and click **Retry**; the app remembers it. The app also tries again by itself every two seconds, and the screen you were on returns as soon as the daemon answers. The same address is in **Settings**, group **app**, as **daemon url** ([Your settings](./settings.md#daemon-address-and-your-name)).
+When nothing answers at that address, the chip reads **no daemon** and the main area shows one panel on every screen: what is wrong, how to start the daemon (in the installed app the folder field above; in a browser the command `metator serve`), a field with the daemon's address, and **Retry**. If your daemon listens elsewhere, type its address in the field and click **Retry**; the app remembers it. The app also tries again by itself every two seconds, and the screen you were on returns as soon as the daemon answers. The same address is in **Settings**, group **app**, as **daemon url** ([Your settings](./settings.md#daemon-address-and-your-name)).
 
 ![The app with an empty Inbox: the screens on the left edge, the runs panel, and the queue](../public/screens/inbox-empty.png)
 
