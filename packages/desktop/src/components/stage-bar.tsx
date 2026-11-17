@@ -3,7 +3,7 @@ import { lookOf } from "../model.ts";
 
 /**
  * The stages of a run in one line, everywhere they are shown: `intake ✓ ─ plan ✓ ─ [build ⟳] ─
- * gates ·` under a run's header, the same with dots on the workbench's strip and on the plan.
+ * gates ·` under a run's header, the same with ` › ` on the workbench's strip and on the plan.
  * With `onOpen` the line is a button (the workbench: it opens the plan).
  */
 export function StageBar<S extends Pick<StageProgress, "id" | "state">>({
@@ -14,14 +14,15 @@ export function StageBar<S extends Pick<StageProgress, "id" | "state">>({
   testId,
 }: {
   readonly stages: readonly S[];
-  /** `bar`: wraps, ` ─ ` between, the current stage in brackets. `strip`: one line, ` · ` between. */
+  /** `bar`: wraps, ` ─ ` between, the current stage in brackets. `strip`: one line, ` › ` between. */
   readonly variant?: "bar" | "strip";
   /** What a stage says on hover (the plan: who worked on it, and when). */
   titleOf?: ((stage: S) => string) | undefined;
   onOpen?: (() => void) | undefined;
   readonly testId?: string | undefined;
 }) {
-  const separator = variant === "bar" ? " ─ " : " · ";
+  // Not ` · `: a stage still to come shows a dot of its own (`build ·`).
+  const separator = variant === "bar" ? " ─ " : " › ";
   const item = (s: S, i: number) => {
     const look = lookOf("stage", s.state);
     const text = `${s.id} ${look.glyph}`;

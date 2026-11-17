@@ -6,6 +6,7 @@ import {
   GRAPH,
   goesToPane,
   graphLayout,
+  groupStepText,
   idleRuns,
   linkPath,
   lintSummary,
@@ -473,3 +474,18 @@ describe("editing a system plan and the map", () => {
 
 // Keep the type import used.
 export type { RunOverview };
+
+describe("groupStepText", () => {
+  test("the system plan's step count wins over the children started so far", () => {
+    expect(groupStepText({ step: 1, of: 1 }, 2, false)).toBe("step 1 of 2");
+  });
+  test("without a plan, an open parent's total is not known yet", () => {
+    expect(groupStepText({ step: 1, of: 1 }, undefined, false)).toBe("step 1");
+  });
+  test("a finished parent's children are all there", () => {
+    expect(groupStepText({ step: 2, of: 3 }, undefined, true)).toBe("step 2 of 3");
+  });
+  test("a plan smaller than the step does not shrink the count", () => {
+    expect(groupStepText({ step: 3, of: 3 }, 2, false)).toBe("step 3");
+  });
+});

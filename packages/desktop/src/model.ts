@@ -1456,6 +1456,20 @@ export function stepOf(
 }
 
 /**
+ * The step chip of a decision card. The daemon counts the parent's children started so far, so a
+ * system run's first child reads `1 of 1`; the system plan's step count wins when it is known, and
+ * with neither a plan nor a finished parent the total is left out.
+ */
+export function groupStepText(
+  group: { readonly step: number; readonly of: number },
+  planSteps: number | undefined,
+  parentFinished: boolean,
+): string {
+  if (planSteps !== undefined && planSteps >= group.step) return `step ${group.step} of ${planSteps}`;
+  return parentFinished ? `step ${group.step} of ${group.of}` : `step ${group.step}`;
+}
+
+/**
  * The runs of one repository as the sidebar lists them: in the panel's order (who needs a person
  * first), each run that was split followed by its steps in the order they started, whatever
  * repository a step lives in (a system plan's steps are runs of other repositories). A step whose

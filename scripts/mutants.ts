@@ -4939,9 +4939,15 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/run-changes.ts",
-    from: "      .filter((f) => !OWN.some((p) => f.path.startsWith(p)))\n",
+    from: "      .filter((f) => !own.some((p) => f.path.startsWith(p)))\n",
     to: "",
     why: "MetatorAI's own files are not the change",
+  },
+  {
+    file: "packages/core/src/application/run-changes.ts",
+    from: "const own = record.value.system ? [...OWN, SYSTEM_PLANS] : OWN;",
+    to: "const own = OWN;",
+    why: "a child run of a system plan does not show the parent's plan files as its change",
   },
   {
     file: "packages/core/src/domain/review-feedback.ts",

@@ -17,6 +17,16 @@ stages:
   - id: approval
     hitl: true
 `;
+/** A gate first, then work: an answer to the gate decides it and the work still needs a drive. */
+const GATED = `kind: Workflow
+schemaVersion: 2
+id: gated
+stages:
+  - id: approval
+    hitl: true
+  - id: build
+    owner: mt-implementer
+`;
 /** A run of this workflow escalates at once: its only stage is a gate that fails until a file exists. */
 const STUCK = `kind: Workflow
 schemaVersion: 2
@@ -71,6 +81,7 @@ beforeAll(async () => {
   await repo.write(".gitignore", ".metator/\n");
   await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
   await repo.write(".github/metator/workflows/stuck.yml", STUCK);
+  await repo.write(".github/metator/workflows/gated.yml", GATED);
   await repo.write("scenario.yml", SCENARIO);
   await repo.commit("init");
   // Drives the daemon starts use the scenario host too: no real AI host is ever started.
@@ -237,8 +248,8 @@ describe("metator serve (real daemon)", () => {
     ws.close();
   }, 60_000);
 
-  test("an answer through the API to a run nothing drives starts its drive again", async () => {
-    const runId = data(await mt("run", "init", "--workflow", "demo", "--task", "Round the totals"))
+  test("an answer through the API to a gate nothing drives decides it and starts the drive again", async () => {
+    const runId = data(await mt("run", "init", "--workflow", "gated", "--task", "Round the totals"))
       .runId as string;
     await mt("run", "drive", "--run", runId, "--host", "scenario", "--detach");
     const q = await until("the gate", async () => {

@@ -213,6 +213,7 @@ function SystemPlanBody({
                           <td>
                             {s.run ? (
                               <a
+                                title={child?.task ?? s.run}
                                 href={routeHash({ screen: "run", runId: s.run, tab: "overview" })}
                                 onClick={(e) => {
                                   if (!onOpenRun) return;
@@ -220,7 +221,7 @@ function SystemPlanBody({
                                   onOpenRun(s.run as string);
                                 }}
                               >
-                                {child?.task ?? s.run}
+                                open run
                               </a>
                             ) : (
                               <span className="faint">not started</span>
@@ -230,7 +231,9 @@ function SystemPlanBody({
                                 {" "}
                                 · {s.runState}
                                 {s.runStage ? ` at ${s.runStage}` : ""}
-                                {child && !sameRepo(child.repo, repo) && child.repo ? ` · ${child.repo}` : ""}
+                                {child && !sameRepo(child.repo, repo) && child.repo
+                                  ? ` · ${repoName(child.repo)}`
+                                  : ""}
                               </span>
                             ) : null}
                           </td>

@@ -5,7 +5,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { InboxItem } from "../api.ts";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { answerCommand, duration, needsReason, questionKind, systemPlanOf } from "../model.ts";
+import {
+  answerCommand,
+  duration,
+  groupStepText,
+  isFinished,
+  needsReason,
+  questionKind,
+  systemPlanOf,
+} from "../model.ts";
 import { useAnswer } from "./answer.tsx";
 import { ArtifactViewer } from "./artifact-viewer.tsx";
 import { Chip } from "./chips.tsx";
@@ -25,7 +33,7 @@ export function DecisionCard({
   /** The run's change, straight from the card: what the decision is about. */
   onOpenChanges(runId: string): void;
 }) {
-  const { me, client, systemPlans, run: runOf, runs } = useDaemon();
+  const { me, client, systemPlans, run: runOf, runs, planStepsOf } = useDaemon();
   const q = item.question;
   const [viewing, setViewing] = useState<string>();
   // A gate's card about the plan shows the plan's lint and the way to read or change it.
@@ -38,6 +46,11 @@ export function DecisionCard({
     q.source === "gate" ? 5000 : 0,
   );
   const owner = runOf(q.runId, item.repo);
+  const groupText = (g: { readonly parent: string; readonly step: number; readonly of: number }) => {
+    // The parent can live in another repository (a system run's step).
+    const parent = runOf(g.parent, item.repo) ?? runs.find((r) => r.runId === g.parent);
+    return groupStepText(g, parent ? planStepsOf(parent) : undefined, parent ? isFinished(parent) : false);
+  };
   const systemPlan = owner ? systemPlanOf(systemPlans, owner, runs) : undefined;
   const planView =
     plan.data?.plan && (plan.data.question === q.id || plan.data.approvalStage === q.stage)
@@ -103,11 +116,7 @@ export function DecisionCard({
         {card?.costOfDelay?.map((c) => (
           <Chip key={c}>{c}</Chip>
         ))}
-        {card?.group ? (
-          <Chip tone="blue">
-            step {card.group.step} of {card.group.of}
-          </Chip>
-        ) : null}
+        {card?.group ? <Chip tone="blue">{groupText(card.group)}</Chip> : null}
       </div>
       {card ? (
         <section>

@@ -2033,6 +2033,11 @@ dialog.goto {
 .graph .canvas {
   overflow: auto;
 }
+/* The layout gives the drawing its size; stretching it would centre it far from the top. */
+.graph .canvas svg {
+  width: auto;
+  height: auto;
+}
 .settings-screen .pick {
   display: flex;
   flex-direction: column;
