@@ -73,10 +73,12 @@ describe("ClaudeAgentHost", () => {
       [Symbol.asyncIterator]();
     await events.next();
     await events.return?.(undefined);
-    expect((calls[0]?.options.abortController as AbortController).signal.aborted).toBe(true);
+    expect((calls[0]?.options.abortController as AbortController | undefined)?.signal.aborted).toBe(true);
     const whole = fakeQuery(async () => [init, success]);
     await collect(new ClaudeAgentHost(whole.query), task);
-    expect((whole.calls[0]?.options.abortController as AbortController).signal.aborted).toBe(false);
+    expect((whole.calls[0]?.options.abortController as AbortController | undefined)?.signal.aborted).toBe(
+      false,
+    );
   });
 
   test("a cd into a working directory before a declared command asks no one; elsewhere it asks", async () => {

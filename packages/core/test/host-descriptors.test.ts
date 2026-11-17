@@ -129,16 +129,13 @@ describe("withoutRealHosts (METATOR_NO_REAL_HOSTS)", () => {
     expect(problem("sdk")).toContain("sdk is a real AI host");
     expect(problem("played")).toBeUndefined();
     const agent = guarded[0]?.agent?.host(undefined);
-    const events = agent?.run(
+    const events: unknown[] = [];
+    for await (const e of agent?.run(
       { agent: "a", prompt: "p", cwd: "." } as never,
       async () => ({ choices: [] }) as never,
-    );
-    await expect(
-      (async () => {
-        for await (const _ of events ?? []) {
-        }
-      })(),
-    ).rejects.toThrow("METATOR_NO_REAL_HOSTS");
+    ) ?? [])
+      events.push(e);
+    expect(events).toEqual([{ type: "result", ok: false, text: problem("cli") }]);
     const started = await guarded[0]
       ?.interactive?.({} as never, undefined)
       .start({} as never, { cols: 80, rows: 24 });

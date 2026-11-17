@@ -149,11 +149,11 @@ export function withoutRealHosts(hosts: readonly HostDescriptor[], bins: HostBin
     const sessionWhy = h.interactive ? realHostRefusal(h, bins, "interactive") : undefined;
     if (!agentWhy && !sessionWhy) return h;
     const { agent, interactive, ...rest } = h;
+    // A refused host starts nothing: its one event says why, as a failed result.
     const refusedAgent = (why: string): AgentHost => ({
       id: h.id,
-      // biome-ignore lint/correctness/useYield: a refused host yields nothing; it says why.
       run: async function* () {
-        throw MetatorError.usage(why);
+        yield { type: "result", ok: false, text: why };
       },
     });
     const refusedSession = (why: string): InteractiveHost => ({

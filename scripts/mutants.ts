@@ -3213,7 +3213,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
-    from: "if (next === GONE) {",
+    from: "if (read === GONE) {",
     to: "if (false) {",
     why: "a drive whose run's directory is gone stops its agent and itself",
   },

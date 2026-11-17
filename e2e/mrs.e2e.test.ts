@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { CLI_ENTRY, E2E_STATE_DIR, metator as cli } from "./helpers/cli.ts";
+import { CLI_ENTRY, metator as cli, E2E_STATE_DIR } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 type Data = Record<string, unknown>;

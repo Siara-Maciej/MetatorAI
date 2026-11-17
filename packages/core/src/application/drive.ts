@@ -77,6 +77,15 @@ const GONE = Symbol("gone");
 /** How often a drive looks whether its run's directory is still there while an agent works. */
 const GONE_WATCH_MS = 2000;
 
+/** A moment that elapses after `ms`, unless cancelled first (no timer is left behind). */
+function after(ms: number): { readonly elapsed: Promise<void>; cancel(): void } {
+  let handle: ReturnType<typeof setTimeout> | undefined;
+  const elapsed = new Promise<void>((resolve) => {
+    handle = setTimeout(resolve, ms);
+  });
+  return { elapsed, cancel: () => clearTimeout(handle) };
+}
+
 /** Why the drive stopped on a host limit, and how the person carries on. */
 const limitReason = (agent: string, limit: string) =>
   `the AI host is out of capacity for ${agent} (${limit}); the run waits at this stage: continue it when the limit resets (metator run continue)`;
@@ -727,13 +736,18 @@ export class DriveRun {
         )
         [Symbol.asyncIterator]();
       for (;;) {
-        const next = await this.unlessGone(ctx, events.next());
+        const read = await this.unlessGone(ctx, events.next());
         // The repository went away under the agent (a deleted checkout): the agent is stopped
         // and so is the drive; nothing outlives the directory it works in.
-        if (next === GONE) {
+        if (read === GONE) {
           void events.return?.(undefined);
           return err(MetatorError.usage(`the run's directory is gone (${this.d.root}): the drive stops`));
         }
+        if ("error" in read) {
+          const why = read.error instanceof Error ? read.error.message : String(read.error);
+          return ok({ ok: false, text: `${ctx.host.id} failed: ${why}` });
+        }
+        const next = read.value;
         if (next.done) break;
         const event = next.value;
         if (event.type === "session") {
@@ -780,31 +794,27 @@ export class DriveRun {
    * The next event of an agent, or GONE once the run's directory disappears meanwhile (looked at
    * every few seconds while the agent works).
    */
-  private async unlessGone<T>(ctx: StageContext, next: Promise<T>): Promise<T | typeof GONE> {
-    let settled = false;
+  private async unlessGone<T>(
+    ctx: StageContext,
+    next: Promise<T>,
+  ): Promise<{ readonly value: T } | { readonly error: unknown } | typeof GONE> {
+    let settled: { readonly value: T } | { readonly error: unknown } | undefined;
     const done = next.then(
-      (v) => {
-        settled = true;
-        return v;
+      (value) => {
+        settled = { value };
       },
-      (e) => {
-        settled = true;
-        throw e;
+      (error: unknown) => {
+        settled = { error };
       },
     );
     // A clock of its own, not the timer port: the drive's waits (and a test's instant timer) stay
     // the drive's; this only looks at the directory while the agent works.
     const every = this.d.goneWatchMs ?? GONE_WATCH_MS;
     for (;;) {
-      let tick: ReturnType<typeof setTimeout> | undefined;
-      await Promise.race([
-        done.catch(() => undefined),
-        new Promise((resolve) => {
-          tick = setTimeout(resolve, every);
-        }),
-      ]);
-      clearTimeout(tick);
-      if (settled) return done;
+      const tick = after(every);
+      await Promise.race([done, tick.elapsed]);
+      tick.cancel();
+      if (settled) return settled;
       if (!(await this.d.fs.exists(`${this.d.repo.runDir(ctx.runId)}/state.json`))) return GONE;
     }
   }
