@@ -317,7 +317,7 @@ export class DriveRun {
     for (const script of work.scripts) {
       const r = await this.script(ctx, script);
       if (r.isErr()) return err(r.error);
-      if (!r.value.ok) return ok({ type: "FAIL", reason: `\`${script}\` failed: ${r.value.tail}` });
+      if (!r.value.ok) return ok({ type: "FAIL", reason: failedScript(`\`${script}\` failed`, r.value) });
     }
     for (const agent of work.agents) {
       const r = await this.agent(ctx, agent, work.skills);
@@ -379,7 +379,7 @@ export class DriveRun {
       const r = await this.script(ctx, script, look > 0);
       if (r.isErr()) return err(r.error);
       if (r.value.ok) return ok({ type: "PASS" });
-      const reason = `gate \`${script}\`: ${r.value.tail}`;
+      const reason = failedScript(`gate \`${script}\``, r.value);
       if (r.value.metator && r.value.exitCode === GATE_EXIT.blocked)
         return ok({ type: "FAIL", reason, final: true });
       if (!(r.value.metator && r.value.exitCode === GATE_EXIT.waiting)) return ok({ type: "FAIL", reason });
@@ -870,3 +870,12 @@ const lastEventOf = (history: readonly { readonly event: string }[]) => {
   const last = history.at(-1);
   return last ? { lastEvent: last.event } : {};
 };
+
+/** Why a script failed: its last output, or its exit code when it printed nothing (never a bare colon). */
+export function failedScript(
+  what: string,
+  run: { readonly tail: string; readonly exitCode: number },
+): string {
+  const tail = run.tail.trim();
+  return tail ? `${what}: ${tail}` : `${what} with exit code ${run.exitCode}`;
+}

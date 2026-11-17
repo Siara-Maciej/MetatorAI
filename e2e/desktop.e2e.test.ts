@@ -279,7 +279,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await dialog.getByLabel("AI host").selectOption("scenario");
     await dialog.getByLabel("Worktree").uncheck();
     await expect(await dialog.locator("code").textContent()).toContain(
-      "metator run init --workflow demo --task",
+      "metator run new --workflow demo --task",
     );
     await dialog.getByRole("button", { name: "Create in background" }).click();
     const state = await until("the run", async () => {

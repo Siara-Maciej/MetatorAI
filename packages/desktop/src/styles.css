@@ -2187,7 +2187,7 @@ dialog.goto {
 
 /* ---------- round 3: plans a person reads and changes, artifacts, starting a run ---------- */
 .dialog .field select,
-.dialog .field input,
+.dialog .field input:not([type="checkbox"]):not([type="radio"]),
 .dialog .field textarea {
   width: 100%;
   min-width: 0;

@@ -1,4 +1,4 @@
-/** The new-run form, a dialog; the footer shows the `metator run init` it amounts to. */
+/** The new-run form, a dialog; the footer shows the `metator run new` it amounts to. */
 import { useState } from "react";
 import type { Workflow } from "../api.ts";
 import { Notice } from "../components/common.tsx";
@@ -69,7 +69,7 @@ export function NewSessionDialog({
   /** The last start was refused for uncommitted changes: how to start without them. */
   const [dirty, setDirty] = useState<{ andAttach: boolean }>();
   const waiting = runs.filter((r) => r.attention === "you").length;
-  const command = `metator run init --workflow ${workflow || "<workflow>"} --task ${JSON.stringify(task || "<task>")}${autonomy !== "L0" ? ` --autonomy ${autonomy}` : ""}${worktree ? " --worktree" : ""}${parent ? ` --parent ${parent}` : ""}${host ? ` && metator run drive --host ${host} --detach` : ""}`;
+  const command = `metator run new --workflow ${workflow || "<workflow>"} --task ${JSON.stringify(task || "<task>")}${autonomy !== "L0" ? ` --autonomy ${autonomy}` : ""}${worktree ? " --worktree" : ""}${parent ? ` --parent ${parent}` : ""}${host ? ` && metator run drive --host ${host} --detach` : ""}`;
   const create = async (andAttach: boolean, allowDirty = false) => {
     setDirty(undefined);
     if (!workflow || !task.trim()) {

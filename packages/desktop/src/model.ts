@@ -2117,3 +2117,7 @@ export const problemsAt = <P extends Pick<PlanLintProblem, "step" | "field">>(
   problems.filter(
     (p) => p.step === step && (field === undefined || p.field === field || p.field?.endsWith(`.${field}`)),
   );
+
+/** A question in one line: "<who> asks: <prompt>", unless the prompt already starts with who asks. */
+export const askText = (who: string, prompt: string): string =>
+  prompt.startsWith(`${who} `) ? prompt : `${who} asks: ${prompt}`;

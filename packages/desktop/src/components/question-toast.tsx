@@ -1,4 +1,5 @@
 import type { InboxItem } from "../api.ts";
+import { askText } from "../model.ts";
 
 /** The workbench's one toast (`notify.channel: app`): the newest question, how to answer it, a way to hide it. */
 export function QuestionToast({
@@ -17,7 +18,7 @@ export function QuestionToast({
     <div className="toast" role="status">
       <button type="button" className="open" data-testid="toast" title={q.prompt} onClick={onOpen}>
         <span className="q">
-          <span className="amber">?</span> {q.agent ?? q.source} asks: {q.prompt}
+          <span className="amber">?</span> {askText(q.agent ?? q.source, q.prompt)}
         </span>
         <span className="faint how">{inPane ? "answer in the pane ›" : "open the card ›"}</span>
       </button>

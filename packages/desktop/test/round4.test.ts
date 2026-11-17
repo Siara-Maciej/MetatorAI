@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { RunOverview } from "../src/api.ts";
 import {
+  askText,
   groupStepText,
   hostPromptOf,
   optionClosed,
@@ -312,5 +313,14 @@ describe("a question the daemon read from a terminal, as the agent's (round 4, i
     expect(paneOfQuestion({ prompt: "Which?", agent: "mt-orchestrator", runId: "r" }, panes)).toBe("w1:p1");
     expect(paneOfQuestion({ prompt: "Which?", agent: "nobody", runId: "r" }, panes)).toBeUndefined();
     expect(paneOfQuestion({ prompt: "Which?", runId: "r" }, panes)).toBeUndefined();
+  });
+});
+
+describe("askText", () => {
+  test("names who asks once", () => {
+    expect(askText("mt-implementer-1", "mt-implementer-1 proposes a task: Cap the discount")).toBe(
+      "mt-implementer-1 proposes a task: Cap the discount",
+    );
+    expect(askText("mt-planner-1", "Which rounding?")).toBe("mt-planner-1 asks: Which rounding?");
   });
 });

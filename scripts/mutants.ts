@@ -339,6 +339,18 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
+    from: `return tail ? \`\${what}: \${tail}\` : \`\${what} with exit code \${run.exitCode}\`;`,
+    to: `return \`\${what}: \${tail}\`;`,
+    why: "a script that printed nothing is named by its exit code, not by a bare colon",
+  },
+  {
+    file: "packages/desktop/src/model.ts",
+    from: `prompt.startsWith(\`\${who} \`) ? prompt : \`\${who} asks: \${prompt}\`;`,
+    to: `\`\${who} asks: \${prompt}\`;`,
+    why: "a question that already names who asks does not name them twice",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
     from: 'if (limit) return ok({ type: "STOP", reason: limitReason(agent, limit) });\n        return ok({ type: "FAIL"',
     to: 'return ok({ type: "FAIL"',
     why: "an AI host out of capacity stops the drive instead of escalating the run",
