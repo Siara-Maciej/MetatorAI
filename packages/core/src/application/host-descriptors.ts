@@ -21,7 +21,7 @@ export interface HostDescriptor {
   /** Runs one agent on one task; `runsProgram` says whether that needs `program` installed. */
   readonly agent?: {
     readonly runsProgram: boolean;
-    /** Why this host may not drive agents here at all (the guard of `METATOR_NO_REAL_HOSTS`). */
+    /** Why this host may not start an agent here (the guard of `METATOR_NO_REAL_HOSTS`); it still counts as here. */
     readonly refused?: string;
     host(bin: string | undefined): AgentHost;
   };
@@ -75,7 +75,6 @@ export function driveHostProblem(
 ): (id: string) => string | undefined {
   return (id) => {
     const host = hosts.find((h) => h.id === id);
-    if (host?.agent?.refused) return host.agent.refused;
     if (!host?.agent?.runsProgram) return undefined;
     const command = hostCommand(host, bins);
     return command === undefined || exists(command) ? undefined : `\`${command}\` is not installed`;

@@ -159,7 +159,11 @@ describe("the system map in the app", () => {
     here.asked.length = 0;
     const found = (await here.maps.discover({ write: false }))._unsafeUnwrap();
     expect(found.mapExists).toBe(true);
-    expect((await world({}).maps.discover({ write: false }))._unsafeUnwrap().mapExists).toBe(false);
+    // No map yet: the whole proposal is what the map lacks, so Write has something to add.
+    const none = (await world({}).maps.discover({ write: false }))._unsafeUnwrap();
+    expect(none.mapExists).toBe(false);
+    expect(none.changes.length).toBeGreaterThan(0);
+    expect(none.changes.every((c) => c.endsWith("is not in the map"))).toBe(true);
     expect([found.written, found.changes, here.asked]).toEqual([
       false,
       ["web is not in the map"],

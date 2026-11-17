@@ -1539,27 +1539,24 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ workflowCatalog, runRepository, clock, runJournal, gateQuestions }) =>
         new AdvanceRun(workflowCatalog, runRepository, clock, runJournal, gateQuestions),
     ),
-    // A system run's plan-approval approves its system plan too (F7.5).
-    // What a human gate refuses and carries out on Approve: a system plan's gate approves that
-    // plan; the gate of a run's own plan refuses while the plan has lint errors.
+    // A system run's plan-approval approves its system plan too (F7.5); a plan with lint errors
+    // refuses the approval, at a terminal (`run approve`) as on a card.
+    systemPlanApprovals: asFunction(
+      ({ runRepository, workflowCatalog, systemPlanStore, lintSystemPlan, approveSystemPlan }) =>
+        new SystemPlanApprovals(
+          runRepository,
+          workflowCatalog,
+          systemPlanStore,
+          lintSystemPlan,
+          approveSystemPlan,
+        ),
+    ),
+    // What a gate's card and answer refuse: the system plan's rule, and the gate of a run's own
+    // plan while the plan has lint errors (a person at a terminal can still `run approve` it).
     gateApprovals: asFunction(
-      ({
-        runRepository,
-        workflowCatalog,
-        systemPlanStore,
-        lintSystemPlan,
-        approveSystemPlan,
-        fileSystem,
-        lintPlan,
-      }) =>
+      ({ systemPlanApprovals, runRepository, workflowCatalog, fileSystem, lintPlan }) =>
         new AllGateApprovals([
-          new SystemPlanApprovals(
-            runRepository,
-            workflowCatalog,
-            systemPlanStore,
-            lintSystemPlan,
-            approveSystemPlan,
-          ),
+          systemPlanApprovals,
           new RunPlanApprovals({
             fs: fileSystem,
             repo: runRepository,
@@ -1569,8 +1566,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         ]),
     ),
     approveRun: asFunction(
-      ({ advanceRun, runRepository, clock, workflowCatalog, gateApprovals }) =>
-        new ApproveRun(advanceRun, runRepository, clock, workflowCatalog, gateApprovals),
+      ({ advanceRun, runRepository, clock, workflowCatalog, systemPlanApprovals }) =>
+        new ApproveRun(advanceRun, runRepository, clock, workflowCatalog, systemPlanApprovals),
     ),
     guardPreTool: asFunction(
       ({ getRunStatus, runRepository, agentCatalog, fileSystem, root, role }) =>

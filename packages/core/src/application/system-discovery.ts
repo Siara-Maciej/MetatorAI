@@ -528,10 +528,7 @@ export class DiscoverSystem {
       const existing = await input.map.load();
       if (existing.isErr()) return err(existing.error);
       if (existing.value) drift = systemDrift(existing.value, discovery.proposal);
-      // No map yet: everything the code shows is what the map lacks, and a write adds it.
-      else if (!input.write)
-        drift = systemDrift({ ...discovery.proposal, applications: [], contracts: [] }, discovery.proposal);
-      else {
+      else if (input.write) {
         const doc = SystemMapDocument.stamp(discovery.proposal);
         const saved = await input.map.fs.write(
           input.map.file,

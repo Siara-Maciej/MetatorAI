@@ -112,7 +112,12 @@ beforeAll(async () => {
     ])
       Bun.spawnSync(["git", ...args], { cwd: dir });
   }
-  env = { METATOR_AGENT_SCENARIO: join(folder, "scenario.yml"), METATOR_USER: "ana" };
+  // Every drive and session here uses the scenario host: no real AI host is ever started.
+  env = {
+    METATOR_AGENT_SCENARIO: join(folder, "scenario.yml"),
+    METATOR_USER: "ana",
+    METATOR_HOST: "scenario",
+  };
   daemon = Bun.spawn(["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100", "--supervise-ms", "0"], {
     cwd: folder,
     env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
@@ -223,7 +228,11 @@ describe("the engine in a folder of repositories (real daemon)", () => {
       body: JSON.stringify({ question: q?.id, choices: ["Approve"], by: "ana" }),
     });
     expect(answered.http).toBe(200);
-    expect((data(await mt("alpha", "run", "status", planned)) as { stage: string }).stage).toBe("build");
+    // Approved by the person (the drive the answer starts may already be past build).
+    const status = data(await mt("alpha", "run", "status", planned)) as {
+      approvals: Record<string, { by: string }>;
+    };
+    expect(status.approvals["plan-approval"]?.by).toBe("ana");
     await mt("alpha", "run", "close", planned, "--aborted", "--reason", "the test ends it");
   }, 60_000);
 

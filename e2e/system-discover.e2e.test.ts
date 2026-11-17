@@ -298,7 +298,10 @@ describe("metator system discover in a folder of three repositories (real CLI)",
     ]);
     const elsewhere = await mkdtemp(join(tmpdir(), "metator-roots-"));
     const map = join(billing, "docs/metator/system.yml");
-    await Bun.write(map, (await Bun.file(map).text()).replace("repo: ../web", "repo: git@example.com:shop/web.git"));
+    await Bun.write(
+      map,
+      (await Bun.file(map).text()).replace("repo: ../web", "repo: git@example.com:shop/web.git"),
+    );
     await Bun.write(join(elsewhere, "web/README.md"), "web\n");
     expect(via(await metator(["system", "sources"], billing)).find(([a]) => a === "web")?.[1]).toBe("none");
     const set = await metator(["config", "set", "system.roots", elsewhere, "--scope", "repo"], billing);

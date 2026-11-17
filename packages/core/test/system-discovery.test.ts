@@ -521,16 +521,6 @@ describe("DiscoverSystem", () => {
     });
     expect(again._unsafeUnwrapErr().code).toBe("USAGE");
   });
-
-  test("no map yet: everything the code shows is what the map lacks, so a write has something to add", async () => {
-    const fs = new InMemoryFileSystem();
-    const map = { file: "docs/metator/system.yml", load: async () => ok(undefined), fs };
-    const preview = (
-      await new DiscoverSystem(detectors).execute({ system: "s", sources: [source("s")], map })
-    )._unsafeUnwrap();
-    expect(preview.drift).toEqual(["application s is not in the map"]);
-    expect(preview.written).toBeUndefined();
-  });
 });
 
 describe("RepositoryDiscoverySource", () => {

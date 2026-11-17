@@ -8,7 +8,7 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 
 - A system run no longer escalates when a child escalates: it waits, `blocked by <child>: needs you`, and goes on by itself once the child is resumed. It escalates when a child is closed as aborted, or after six hours.
 - An escalated run says why in one sentence (`stop`): a person's Reject reads `stopped: ana rejected plan-approval: <reason>`; the tries wording (`tried build 3 of 3 times`) only when the tries are really spent.
-- The gate that approves a run's plan refuses Approve while the plan (`plan.json`) has lint errors; the card's Approve is `disabled` with the problems.
+- The gate that approves a run's plan refuses Approve on its card and in an answer while the plan (`plan.json`) has lint errors; the card's Approve is `disabled` with the problems. `metator run approve` at a terminal still approves.
 - `system.roots` is an option (repository scope): the directories that hold the applications' checkouts. **Save roots** in the app writes it.
 - Discover in a place with no map lists everything as what the map lacks (`mapExists: false`), and Write creates it.
 - A question an agent asks in its terminal with options (`Which currency? [PLN / EUR]`) reaches the inbox as that agent's question, in its own words, with its options; the option you pick is typed into the pane. A host's own permission prompt stays a permission.

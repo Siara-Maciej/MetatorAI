@@ -3201,9 +3201,9 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/host-descriptors.ts",
-    from: "if (host?.agent?.refused) return host.agent.refused;",
-    to: "",
-    why: "a host refused by METATOR_NO_REAL_HOSTS never drives",
+    from: "agent: agentWhy",
+    to: "agent: false",
+    why: "a host refused by METATOR_NO_REAL_HOSTS never starts an agent",
   },
   {
     file: "packages/core/src/application/host-descriptors.ts",
@@ -3242,9 +3242,9 @@ export const MUTANTS: readonly Mutant[] = [
     why: "the folder map's own repository is its path, not a repo named from elsewhere",
   },
   {
-    file: "packages/core/src/application/system-discovery.ts",
-    from: "else if (!input.write)",
-    to: "else if (false)",
+    file: "packages/core/src/application/system-map-edit.ts",
+    from: "existing.value === undefined && !written",
+    to: "false",
     why: "with no map, discovery lists everything the map lacks",
   },
   {
@@ -6368,14 +6368,14 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/runtime/src/bootstrap.ts",
-    from: "      ...played,\n      ...orderedHosts(config.config.supervisor.hostOrder, HOSTS),",
-    to: "      ...orderedHosts(config.config.supervisor.hostOrder, HOSTS),\n      ...played,",
+    from: "      ...played,\n      ...orderedHosts(config.config.supervisor.hostOrder, knownHosts),",
+    to: "      ...orderedHosts(config.config.supervisor.hostOrder, knownHosts),\n      ...played,",
     why: "the scenario a test plays is the default host of a new session",
   },
   {
     file: "packages/runtime/src/bootstrap.ts",
-    from: "driveHostProblem([...HOSTS, ...played], bins, commandExists)",
-    to: "driveHostProblem([...HOSTS, ...played], {}, commandExists)",
+    from: "driveHostProblem([...knownHosts, ...played], bins, commandExists)",
+    to: "driveHostProblem([...knownHosts, ...played], {}, commandExists)",
     why: "the program given for a host decides whether it can drive",
   },
   {

@@ -122,9 +122,14 @@ describe("withoutRealHosts (METATOR_NO_REAL_HOSTS)", () => {
   const interactive = { ...viaProgram, interactive: () => session };
   const sdkSession = { ...viaSdk, interactive: () => ({ ...session, id: "sdk" }) };
 
-  test("a real host is refused as a driver and as a session, with the reason; the drive never starts it", async () => {
+  const refusal = (hosts: readonly HostDescriptor[]) => (id: string) =>
+    hosts.find((h) => h.id === id)?.agent?.refused;
+
+  test("a real host is refused as a driver and as a session, with the reason; it still counts as here", async () => {
     const guarded = withoutRealHosts([interactive, sdkSession, played], {});
-    const problem = driveHostProblem(guarded, {}, () => true);
+    const problem = refusal(guarded);
+    // Whether a host is here is unchanged (doctor, the wizard): only starting it is refused.
+    expect(driveHostProblem(guarded, {}, () => true)("cli")).toBeUndefined();
     expect(problem("cli")).toContain("cli is a real AI host and METATOR_NO_REAL_HOSTS is set");
     expect(problem("sdk")).toContain("sdk is a real AI host");
     expect(problem("played")).toBeUndefined();
@@ -147,15 +152,13 @@ describe("withoutRealHosts (METATOR_NO_REAL_HOSTS)", () => {
   test("a stand-in program named for a host runs; an SDK host is real whatever program is named", () => {
     const bins = { cli: "/tmp/fake-cli", sdk: "/tmp/fake-sdk" };
     const guarded = withoutRealHosts([interactive, sdkSession], bins);
-    const problem = driveHostProblem(guarded, bins, () => true);
+    const problem = refusal(guarded);
     expect(problem("cli")).toBeUndefined();
     expect(guarded[0]).toBe(interactive);
     expect(problem("sdk")).toContain("sdk is a real AI host");
     // Its interactive CLI runs the named program: a stand-in.
     expect(guarded[1]?.interactive).toBe(sdkSession.interactive);
     // The default program's own name is no stand-in.
-    expect(
-      driveHostProblem(withoutRealHosts([interactive], { cli: "cli" }), {}, () => true)("cli"),
-    ).toContain("real AI host");
+    expect(refusal(withoutRealHosts([interactive], { cli: "cli" }))("cli")).toContain("real AI host");
   });
 });

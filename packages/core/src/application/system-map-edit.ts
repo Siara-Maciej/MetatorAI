@@ -13,6 +13,7 @@ import {
   staleDigest,
 } from "../domain/plan-edit.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { systemDrift } from "../domain/system-discovery.ts";
 import { lintSystemMap, type SystemMap, SystemMapDocument } from "../domain/system-map.ts";
 import { serializeJsonLine } from "../domain/versioned.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
@@ -167,9 +168,14 @@ export class SystemMaps {
       });
       if (logged.isErr()) return err(logged.error);
     }
+    // No map yet: everything the code shows is what the map lacks, and Write adds it.
+    const changes =
+      existing.value === undefined && !written
+        ? systemDrift({ ...found.value.proposal, applications: [], contracts: [] }, found.value.proposal)
+        : found.value.drift;
     return ok({
       proposed: found.value.proposal,
-      changes: found.value.drift,
+      changes,
       written,
       file,
       mapExists: existing.value !== undefined || written,

@@ -3,6 +3,7 @@ import type {
   AdvanceRun,
   AgentCatalog,
   AgentHost,
+  AllGateApprovals,
   AnalyzeArchitecture,
   AnalyzeEnvironment,
   AnalyzeSystem,
@@ -384,7 +385,8 @@ export interface Cradle {
   resumeRun: ResumeRun;
   gateQuestions: GateQuestions;
   paneIdentity: LayoutPaneIdentity;
-  gateApprovals: SystemPlanApprovals;
+  gateApprovals: AllGateApprovals;
+  systemPlanApprovals: SystemPlanApprovals;
   handoffRun: HandoffRun;
   closeRun: CloseRun;
   detachedDrive: DetachedDrive;

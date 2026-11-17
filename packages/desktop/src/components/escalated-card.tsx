@@ -107,8 +107,8 @@ export function EscalatedCard({
       <h3>Why it stopped</h3>
       <StopReason reason={run.reason} stop={run.stop} testId="escalated-reason" />
       <p>
-        The run tried this stage as often as its workflow allows. Remove the cause, then resume: the run goes
-        back to {run.stage} with a fresh set of tries and is driven on. Or close it: it ends as aborted.
+        Remove the cause, then resume: the run goes back to {run.stage} with a fresh set of tries and is
+        driven on. Or close it: it ends as aborted.
       </p>
       <EscalatedActions run={run} onDone={onDone}>
         <button type="button" className="ghost" onClick={() => onBriefing(run.runId)}>
