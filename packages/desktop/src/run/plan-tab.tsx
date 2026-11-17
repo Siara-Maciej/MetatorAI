@@ -98,6 +98,11 @@ function RunPlanTab({
     : [];
   const bar = planned.data ? (
     <EditBar editor={editor} source={source} noun="plan" testId="plan-edit-bar" />
+  ) : planned.error ? (
+    // A plan file that does not fit its format cannot be shown as fields: the daemon says where.
+    <div className="banner" data-testid="plan-unreadable">
+      The plan cannot be read: {planned.error}
+    </div>
   ) : null;
   if (editor.mode !== "view" && planned.data)
     return (

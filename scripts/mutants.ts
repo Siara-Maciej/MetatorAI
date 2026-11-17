@@ -3194,6 +3194,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a gate answer that cannot be carried out is said",
   },
   {
+    file: "packages/core/src/application/run-operations.ts",
+    from: "if (gate && this.gates && !(await this.drivenNow(runId))) {",
+    to: "if (gate && this.gates) {",
+    why: "a gate a live drive waits on is carried out by that drive",
+  },
+  {
     file: "packages/core/src/application/issues.ts",
     from: 'if (status === "dropped") await this.settleProposal(issue.value, PROPOSAL_DROP, by);',
     to: "",

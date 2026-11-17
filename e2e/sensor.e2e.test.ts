@@ -105,7 +105,7 @@ describe("pane sensor and host prompts (real daemon, real PTYs)", () => {
     });
     expect([q.source, q.prompt]).toEqual([
       "permission",
-      "scenario waits for your answer in pane w1:p1: Go on? [yes / no]",
+      "mt-orchestrator waits for your answer in pane w1:p1: Go on? [yes / no]",
     ]);
     expect(q.options.map((o) => o.label)).toEqual(["Attach and answer in the pane", "Leave it", "Other"]);
     await Bun.sleep(700);

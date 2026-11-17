@@ -181,7 +181,7 @@ describe("panes (real daemon, real PTYs)", () => {
     );
     const activity = (await get(`/runs/${runId}/activity`)).data as { entries: { text: string }[] };
     expect(
-      activity.entries.some((e) => e.text.startsWith("resumed session scenario-session-2 in pane w1:p1")),
+      activity.entries.some((e) => /^resumed session scenario-mt-orchestrator-\d+ in pane w1:p1/.test(e.text)),
     ).toBe(true);
   }, 60_000);
 

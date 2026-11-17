@@ -452,6 +452,18 @@ describe("AnswerQuestion at a human gate (no drive waits on it: a conductor's ru
     expect(r.message).toBe("the gate's plan cannot be approved");
   });
 
+  test("a gate a live drive waits on: the drive carries the answer out, the answer only records it", async () => {
+    const g = gated();
+    const { runId, q } = await atGate(g.w);
+    (await g.w.drivers.claim(runId, 4321, "claude"))._unsafeUnwrap();
+    g.w.processes.alive.add(4321);
+    (await g.answer.execute({ runId, question: q.id, choices: ["Approve"], by: "ana" }))._unsafeUnwrap();
+    expect((await g.w.repo.load(runId))._unsafeUnwrap().state.stage).toBe("approval");
+    expect(
+      (await g.w.journal.questions(runId))._unsafeUnwrap().find((x) => x.id === q.id)?.answer?.choices,
+    ).toEqual(["Approve"]);
+  });
+
   test("a gate a drive already moved past: the answer is kept, nothing is sent twice", async () => {
     const g = gated();
     const { runId, q } = await atGate(g.w);

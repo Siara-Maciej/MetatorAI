@@ -254,7 +254,7 @@ export class AnswerQuestion {
     /** A live terminal session of the run: the agent there reads the answer itself. */
     private readonly liveSession: (runId: string) => boolean = () => false,
     /**
-     * A human gate's question decides the gate (whoever drives the run, or nobody): Approve as
+     * A human gate's question nothing drives decides the gate here: Approve as
      * `run approve` does, anything else sends the run back with the person's words.
      */
     private readonly gates?: {
@@ -314,7 +314,9 @@ export class AnswerQuestion {
       if (added.isErr()) return err(added.error);
       policy = added.value;
     }
-    if (gate && this.gates) {
+    // A live drive waits on the question and carries the answer out itself (its own FAIL or
+    // approval, said in its activity); only a gate nothing drives is decided here.
+    if (gate && this.gates && !(await this.drivenNow(runId))) {
       const decided = choices.includes("Approve")
         ? await this.gates.approve.execute({
             runId,
@@ -342,6 +344,12 @@ export class AnswerQuestion {
     if (record.isErr() || record.value.state.status !== "active" || record.value.state.stage !== q.stage)
       return undefined;
     return q.stage;
+  }
+
+  /** A live drive carries the run now. */
+  private async drivenNow(runId: string): Promise<boolean> {
+    const driver = await this.drivers.status(runId);
+    return driver.isOk() && driver.value?.alive === true;
   }
 
   /** The drive of an active run that nothing carries; nothing for any other run. */
