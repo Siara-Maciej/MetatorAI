@@ -889,6 +889,7 @@ export const LOOKS = {
     working: { glyph: "⋮", tone: "violet" },
     escalated: { glyph: "!", tone: "red" },
     done: { glyph: "✓", tone: "green" },
+    aborted: { glyph: "⊘", tone: "faint" },
     idle: { glyph: "·", tone: "faint" },
   },
   need: {
@@ -1234,17 +1235,17 @@ export const portsText = (ports: Readonly<Record<string, number>>): string =>
 /* ---------- the sidebar: what needs you, the runs, and one state that rolls up ---------- */
 
 /** What a run reads as, in the sidebar and everywhere a run is one row. */
-export type RunShown = "needs you" | "working" | "escalated" | "done" | "idle";
+export type RunShown = "needs you" | "working" | "escalated" | "done" | "aborted" | "idle";
 
 /**
  * The state of a run in one of five words. A finished run reads `done` (its status wins over a
- * pane that is still alive); `isNews` says whether this person has seen it since. A stopped or
- * aborted run is `idle`: nothing happens and nothing is asked.
+ * pane that is still alive); `isNews` says whether this person has seen it since. An aborted run
+ * reads `aborted`, its own word: it ended without its work. A stopped run is `idle`.
  */
 export function runStateOf(run: Pick<RunOverview, "attention" | "status">): RunShown {
   // The run's status wins over what its panes or its drive still say: a finished run is finished.
   if (run.status === "done") return "done";
-  if (run.status === "aborted") return "idle";
+  if (run.status === "aborted") return "aborted";
   if (run.status === "escalated" || run.attention === "escalated") return "escalated";
   if (run.attention === "you") return "needs you";
   if (run.attention === "driving") return "working";
@@ -1267,6 +1268,7 @@ const RUN_RANK: Readonly<Record<RunShown, number>> = {
   working: 2,
   done: 3,
   idle: 4,
+  aborted: 5,
 };
 
 /** A pane's state as a run's: an agent that asks needs you, one that works is working. */
@@ -1500,17 +1502,20 @@ export function sidebarRuns<R extends RunOverview & { readonly repo?: string | u
   return out;
 }
 
-/** The one dim line under a run's name: its step, that it asks on its terminal, stage · host · age. */
+/**
+ * The one dim line under a run's name: its step, that it asks on its terminal, stage · host · age.
+ * A finished run says how it ended (`done`, `aborted`), never the stage it stopped at.
+ */
 export const runLine = (
-  r: Pick<Run, "stage" | "host" | "elapsedMs" | "terminalAsk">,
+  r: Pick<Run, "stage" | "host" | "elapsedMs" | "terminalAsk"> & Partial<Pick<Run, "status">>,
   step?: string | undefined,
   elsewhere?: string | undefined,
 ): string =>
   [
     step,
     elsewhere,
-    r.terminalAsk ? "asks in its terminal" : undefined,
-    r.stage,
+    r.terminalAsk && !(r.status && isFinished({ status: r.status })) ? "asks in its terminal" : undefined,
+    r.status && isFinished({ status: r.status }) ? r.status : r.stage,
     r.host ?? "no host",
     duration(r.elapsedMs),
   ]

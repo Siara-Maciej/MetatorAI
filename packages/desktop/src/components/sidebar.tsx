@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { useDaemon } from "../daemon.tsx";
 import {
+  finishedText,
   isFinished,
   isNews,
   lookOf,
@@ -127,7 +128,7 @@ export function Sidebar({
           tone={quiet ? "faint" : lookOf("run", state).tone}
           current={r.runId === current}
           nested={nested}
-          title={r.task}
+          title={isFinished(r) ? `${r.task}\n${finishedText(r)}` : r.task}
           onClick={() => onRun(r, r.terminalAsk)}
         />
         {own.length < 2
