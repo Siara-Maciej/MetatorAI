@@ -6284,7 +6284,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/plan-edit.ts",
-    from: 'if (kept(before).join("\\u0000") !== kept(after).join("\\u0000")) out.push(`${noun}s reordered`);',
+    from: `if (kept(before).join("\\u0000") !== kept(after).join("\\u0000")) out.push(\`\${noun}s reordered\`);`,
     to: "",
     why: "an edit that moves steps says they were reordered",
   },
@@ -6320,7 +6320,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/plan-edit.ts",
-    from: "if (await this.d.fs.exists(`${this.d.repo.runDir(id.value)}/plan-scope.json`)) {",
+    from: `if (await this.d.fs.exists(\`\${this.d.repo.runDir(id.value)}/plan-scope.json\`)) {`,
     to: "if (false) {",
     why: "the edit scope follows the edited plan",
   },
@@ -6356,7 +6356,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/run-artifacts.ts",
-    from: 'if (!home?.directory || !stat.real.startsWith(`${home.real.replace(/\\/+$/, "")}/`)) return null;',
+    from: `if (!home?.directory || !stat.real.startsWith(\`\${home.real.replace(/\\/+$/, "")}/\`)) return null;`,
     to: "",
     why: "a link out of the run directory is not read as an artifact",
   },

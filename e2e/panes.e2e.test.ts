@@ -211,11 +211,13 @@ describe("panes (real daemon, real PTYs)", () => {
       panes: { closed: number };
       worktree: { id: string; path: string; removed: boolean };
     };
-    expect([closed.status, closed.panes.closed, closed.worktree]).toEqual([
+    expect([closed.status, closed.worktree]).toEqual([
       "done",
-      1,
       { id: wt.worktree.id, path: wt.worktree.path, removed: true },
     ]);
+    // The close closes the conductor's pane, unless the daemon's sweep of finished runs (it sees
+    // the run done the moment the close records it) got there first: either way it is gone.
+    expect([0, 1]).toContain(closed.panes.closed);
     const after = (await get("/layout")).data as { workspaces: { runId?: string }[] };
     expect(after.workspaces.some((w) => w.runId === wt.runId)).toBe(false);
     expect(existsSync(repo.path(wt.worktree.path))).toBe(false);
