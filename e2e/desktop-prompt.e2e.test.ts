@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
 import { browser, closeBrowser } from "./helpers/browser.ts";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -155,6 +155,8 @@ afterAll(async () => {
   await closeBrowser();
   daemon?.kill("SIGTERM");
   await daemon?.exited;
+  // The conductors the test started work in the repository: nothing outlives the test.
+  stopProcessesUnder(repo.root);
   site.stop(true);
   await repo.dispose();
   await rm(dist, { recursive: true, force: true });

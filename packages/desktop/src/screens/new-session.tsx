@@ -110,7 +110,7 @@ export function NewSessionDialog({
       {repos.length > 0 ? (
         <label className="field">
           <span>Repository</span>
-          <select value={repo} onChange={(e) => setRepo(e.target.value)}>
+          <select aria-label="Start in repository" value={repo} onChange={(e) => setRepo(e.target.value)}>
             {repos.map((r) => (
               <option key={r.name} value={r.name}>
                 {r.name}
@@ -121,7 +121,7 @@ export function NewSessionDialog({
       ) : null}
       <label className="field">
         <span>Workflow</span>
-        <select value={workflow} onChange={(e) => setWorkflow(e.target.value)}>
+        <select aria-label="Workflow" value={workflow} onChange={(e) => setWorkflow(e.target.value)}>
           {workflows.map((w) => (
             <option key={w.id} value={w.id}>
               {w.id}
@@ -140,7 +140,7 @@ export function NewSessionDialog({
       </label>
       <label className="field">
         <span>AI host</span>
-        <select value={host} onChange={(e) => setHost(e.target.value)}>
+        <select aria-label="AI host" value={host} onChange={(e) => setHost(e.target.value)}>
           <option value="">create only, start the agent later</option>
           {(hosts ?? []).map((h) => (
             <option key={h.id} value={h.id} disabled={!h.installed}>
@@ -157,7 +157,7 @@ export function NewSessionDialog({
       ) : null}
       <label className="field">
         <span>Autonomy</span>
-        <select value={autonomy} onChange={(e) => setAutonomy(e.target.value)}>
+        <select aria-label="Autonomy" value={autonomy} onChange={(e) => setAutonomy(e.target.value)}>
           {levels.map((level) => (
             <option key={level} value={level}>
               {autonomyLabel(level)}
@@ -176,7 +176,7 @@ export function NewSessionDialog({
       </label>
       <label className="field">
         <span>Parent run</span>
-        <select value={parent} onChange={(e) => setParent(e.target.value)}>
+        <select aria-label="Parent run" value={parent} onChange={(e) => setParent(e.target.value)}>
           <option value="">none (standalone)</option>
           {runs
             .filter((r) => r.status === "active" && sameRepo(r.repo, repo || undefined))

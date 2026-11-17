@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
 import { browser, closeBrowser } from "./helpers/browser.ts";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -167,6 +167,9 @@ beforeAll(async () => {
 afterAll(async () => {
   await closeBrowser();
   await stop();
+  // A drive or a pane the daemon started works in the repository or the folder: nothing outlives the test.
+  stopProcessesUnder(repo.root);
+  stopProcessesUnder(folder);
   site.stop(true);
   await repo.dispose();
   await rm(folder, { recursive: true, force: true });
@@ -383,11 +386,11 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     const runsNow = async () =>
       ((await api("/state")).data.runs as { runId: string; task: string; worktree?: { path: string } }[]) ??
       [];
+    const dialog = page.getByRole("dialog", { name: "new run" });
     try {
       await page.goto(app("inbox"));
       await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
       await page.getByRole("button", { name: "New run from the form" }).click();
-      const dialog = page.getByRole("dialog", { name: "new run" });
       await dialog.getByLabel("Workflow", { exact: true }).selectOption("demo");
       await dialog.getByLabel("Task").fill("Start from a dirty tree");
       await dialog.getByLabel("AI host").selectOption("scenario");
@@ -426,6 +429,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
         );
     } finally {
       await repo.write("scenario.yml", SCENARIO);
+      // What this test opened is closed, whatever happened: the next test starts on a bare screen.
+      if (await dialog.count()) await dialog.getByRole("button", { name: "Cancel" }).click();
     }
     expect(errors).toEqual([]);
   }, 120_000);

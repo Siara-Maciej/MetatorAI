@@ -10,12 +10,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
 import { browser, closeBrowser } from "./helpers/browser.ts";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const FAKE = join(import.meta.dir, "helpers/fake-mcp-server.ts");
 const ID = "github-acme-shop-45";
+// The answering run a scan starts is driven by the scenario host: its responder waits on a
+// question until the test moves the run itself. No real AI host is ever started.
+const SCENARIO = `kind: AgentScenario
+schemaVersion: 1
+agents:
+  mt-review-responder:
+    - - ask: { question: "Wait for the test?", options: [yes] }
+`;
 /** Where a screenshot of the screen is kept when METATOR_SHOTS names a directory. */
 const SHOTS = process.env.METATOR_SHOTS;
 
@@ -58,7 +66,8 @@ beforeAll(async () => {
   });
   configDir = await mkdtemp(join(tmpdir(), "metator-desktop-mrs-config-"));
   repo = await ScratchRepo.create();
-  await repo.write(".gitignore", ".metator/\npulls.json\nmcp.log\n");
+  await repo.write(".gitignore", ".metator/\npulls.json\nmcp.log\nscenario.yml\n");
+  await repo.write("scenario.yml", SCENARIO);
   await repo.write("src/discount.ts", "export const discount = 0.1;\nexport const cap = 100;\n");
   await repo.write(
     ".github/metator/workflows/mt-review-response.yml",
@@ -131,7 +140,13 @@ reviews:
     ["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100", "--supervise-ms", "0", "--intake-ms", "0"],
     {
       cwd: repo.root,
-      env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, METATOR_CONFIG_DIR: configDir },
+      env: {
+        ...process.env,
+        METATOR_STATE_DIR: E2E_STATE_DIR,
+        METATOR_CONFIG_DIR: configDir,
+        METATOR_HOST: "scenario",
+        METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
+      },
       stdout: "ignore",
       stderr: "pipe",
     },
@@ -154,6 +169,8 @@ afterAll(async () => {
   await closeBrowser();
   daemon.kill("SIGTERM");
   await daemon.exited;
+  // A drive the daemon started for the answering run works in the repository: nothing outlives it.
+  stopProcessesUnder(repo.root);
   site.stop(true);
   await repo.dispose();
   await rm(dist, { recursive: true, force: true });
@@ -175,7 +192,11 @@ describe("MetatorAI Desktop: Open MRs (real daemon, real Chromium, real MCP serv
     await until("the answering run", async () =>
       (await screen.textContent())?.includes("Open session") ? true : undefined,
     );
-    const env = { METATOR_CONFIG_DIR: configDir };
+    const env = {
+      METATOR_CONFIG_DIR: configDir,
+      METATOR_HOST: "scenario",
+      METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
+    };
     await metator(
       ["mrs", "triage", ID, "--thread", "T1", "--kind", "question", "--reply", "Cents: src/discount.ts:2."],
       repo.root,

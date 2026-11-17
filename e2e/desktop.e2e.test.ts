@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
 import { browser, closeBrowser } from "./helpers/browser.ts";
-import { CLI_ENTRY, E2E_STATE_DIR } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -154,6 +154,11 @@ beforeAll(async () => {
       METATOR_STATE_DIR: E2E_STATE_DIR,
       METATOR_CONFIG_DIR: configDir,
       METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
+      // Only the scenario host answers: no real AI host is started, whatever this machine has.
+      METATOR_HOST: "scenario",
+      METATOR_COPILOT_BIN: "/nonexistent/copilot",
+      METATOR_CLAUDE_BIN: "/nonexistent/claude",
+      METATOR_OPENCODE_BIN: "/nonexistent/opencode",
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -181,6 +186,8 @@ afterAll(async () => {
   await closeBrowser();
   daemon.kill("SIGTERM");
   await daemon.exited;
+  // A drive or a pane the daemon started works in the repository: nothing outlives the test.
+  stopProcessesUnder(repo.root);
   site.stop(true);
   await repo.dispose();
   await rm(dist, { recursive: true, force: true });

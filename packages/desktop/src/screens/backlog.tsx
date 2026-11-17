@@ -235,6 +235,7 @@ export function BacklogScreen({
             <label>
               <span className="dim">priority</span>
               <select
+                aria-label="priority"
                 value={draft.priority}
                 onChange={(e) => setDraft({ ...draft, priority: e.target.value as Issue["priority"] })}
               >
