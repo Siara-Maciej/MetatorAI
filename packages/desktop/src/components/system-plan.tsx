@@ -33,12 +33,15 @@ export function SystemPlanPanel({
   planOfRun,
   repo,
   onOpenRun,
+  edit,
 }: {
   /** The plan, by its id; or the system run whose plan it is (found by its task). */
   readonly planId?: string | undefined;
   readonly planOfRun?: Run | undefined;
   readonly repo: string | undefined;
   onOpenRun?: ((runId: string) => void) | undefined;
+  /** Open in the edit mode ("Fix the plan"). */
+  readonly edit?: boolean | undefined;
 }) {
   const { client } = useDaemon();
   // A finished system run's plan is not among the open ones: it is found in the repository's list.
@@ -59,17 +62,19 @@ export function SystemPlanPanel({
         </p>
       </div>
     );
-  return <SystemPlanBody id={id} repo={repo} onOpenRun={onOpenRun} />;
+  return <SystemPlanBody id={id} repo={repo} onOpenRun={onOpenRun} edit={edit} />;
 }
 
 function SystemPlanBody({
   id,
   repo,
   onOpenRun,
+  edit,
 }: {
   readonly id: string;
   readonly repo: string | undefined;
   onOpenRun?: ((runId: string) => void) | undefined;
+  readonly edit?: boolean | undefined;
 }) {
   const { client, runs } = useDaemon();
   const plan = usePolled(`system-plan:${repo ?? ""}:${id}`, () => client.systemPlan(id, repo), 3000);
@@ -86,7 +91,7 @@ function SystemPlanBody({
     save: (p, digest, by) => client.saveSystemPlan(id, { plan: p, digest, by }, repo),
     changes: systemPlanChanges,
   };
-  const editor = useDocEditor(source);
+  const editor = useDocEditor(source, edit === true);
   const view = plan.data;
   if (!view) return <div className="empty">{plan.error ?? `reading the system plan ${id}…`}</div>;
   const errors = editor.problems.filter((p) => p.severity === "error");

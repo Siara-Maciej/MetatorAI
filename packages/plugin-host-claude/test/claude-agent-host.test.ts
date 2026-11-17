@@ -66,6 +66,19 @@ describe("ClaudeAgentHost", () => {
     expect(inRepo.calls[0]?.options.projectConfigRoot).toBeUndefined();
   });
 
+  test("a reader that stops early aborts the agent's process; one that reads to the end does not", async () => {
+    const { query, calls } = fakeQuery(async () => [init, said("Planning"), said("still"), success]);
+    const events = new ClaudeAgentHost(query)
+      .run(task, async () => ({ choices: [] }))
+      [Symbol.asyncIterator]();
+    await events.next();
+    await events.return?.(undefined);
+    expect((calls[0]?.options.abortController as AbortController).signal.aborted).toBe(true);
+    const whole = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(whole.query), task);
+    expect((whole.calls[0]?.options.abortController as AbortController).signal.aborted).toBe(false);
+  });
+
   test("a cd into a working directory before a declared command asks no one; elsewhere it asks", async () => {
     const root = await mkdtemp(join(tmpdir(), "metator-claude-"));
     await Bun.write(

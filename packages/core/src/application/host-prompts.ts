@@ -1,5 +1,11 @@
 import type { MetatorError } from "../domain/errors.ts";
-import { ANSWERED_IN_PANE, ATTACH_PANE, hostPromptText, LEAVE_PANE } from "../domain/host-manifest.ts";
+import {
+  ANSWERED_IN_PANE,
+  ATTACH_PANE,
+  hostPromptText,
+  LEAVE_PANE,
+  terminalQuestionOf,
+} from "../domain/host-manifest.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { DriverLock } from "./driver-lock.ts";
 import type { Notifier } from "./notifier.ts";
@@ -13,6 +19,8 @@ export interface HostPromptsDependencies {
   readonly notify?: Pick<Notifier, "notify">;
   /** Who a pane is in its run: its prompt is that agent's question, at its stage. */
   readonly identity?: PaneIdentity;
+  /** Types a person's answer to a terminal question into its pane (never over a person). */
+  readonly type?: (paneId: string, text: string) => Promise<Result<void, MetatorError>>;
 }
 
 export interface HostPromptsReport {
@@ -59,17 +67,24 @@ export class HostPrompts {
         // The agent in the pane asks (a worker by its name, the conductor by its agent), at its stage.
         const who = await this.d.identity?.of(pane.paneId);
         const asker = who?.agent ?? pane.host;
+        // A question the agent asks in its terminal (its words, its options) is the agent's
+        // question; the host's own prompt for leave to use a tool is a permission.
+        const read = terminalQuestionOf(pane.reason);
+        const asks = read.kind === "question" && this.d.type !== undefined;
         const q = await this.d.journal.ask(pane.runId, {
           stage: who?.stage ?? "session",
-          source: "permission",
+          source: asks ? "agent" : "permission",
           agent: asker,
-          prompt: hostPromptText(asker, pane.paneId, pane.reason),
+          prompt: asks ? read.prompt : hostPromptText(asker, pane.paneId, pane.reason),
           options: [
+            ...(asks ? read.options.map((label) => ({ label })) : []),
             {
               label: ATTACH_PANE,
               description: "Take the keyboard of the session and answer the host yourself",
             },
-            { label: LEAVE_PANE, description: "Leave the prompt as it is; the session waits" },
+            ...(asks
+              ? []
+              : [{ label: LEAVE_PANE, description: "Leave the prompt as it is; the session waits" }]),
           ],
           multiSelect: false,
         });
@@ -103,10 +118,23 @@ export class HostPrompts {
     if (questions.isErr()) return err(questions.error);
     const q = questions.value.find((x) => x.id === item.questionId);
     if (!q?.answer) return ok(undefined);
-    if (q.answer.choices[0] === ATTACH_PANE) {
+    const choice = q.answer.choices[0];
+    if (choice === ATTACH_PANE) {
       const lock = await this.d.lock.attach({ runId: item.runId, by: q.answer.by });
       // Already attached (by them or another): the pane shows who; nothing to force.
       if (lock.isOk()) attached.push({ paneId, runId: item.runId, by: q.answer.by });
+    } else if (
+      q.source === "agent" &&
+      this.d.type &&
+      choice !== LEAVE_PANE &&
+      q.answer.by !== `pane:${paneId}`
+    ) {
+      // The person's answer to the agent's terminal question: typed into the pane for them.
+      const words = choice === "Other" || choice === undefined ? q.answer.text : choice;
+      if (words) {
+        const typed = await this.d.type(paneId, words);
+        if (typed.isErr()) return err(typed.error);
+      }
     }
     item.handled = true;
     return ok(undefined);

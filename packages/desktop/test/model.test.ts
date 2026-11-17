@@ -743,7 +743,7 @@ describe("one vocabulary for states", () => {
     expect(lookOf("note", "nonsense")).toEqual({ glyph: "·", tone: "faint" });
     expect(lookOf("thread", undefined)).toEqual({ glyph: "·", tone: "faint" });
     // The run's five words and what needs you each have their look.
-    expect(Object.keys(LOOKS.run)).toEqual(["needs you", "working", "escalated", "done", "idle"]);
+    expect(Object.keys(LOOKS.run)).toEqual(["needs you", "working", "escalated", "done", "aborted", "idle"]);
     expect(lookOf("run", "done")).toEqual({ glyph: "✓", tone: "green" });
     expect(lookOf("need", "escalated").tone).toBe("red");
   });
@@ -1029,7 +1029,7 @@ describe("shapes the daemon passes through from core (ADR-0085)", () => {
 });
 
 describe("the sidebar: one state that rolls up (wave 2)", () => {
-  test("a run reads one of five words; done is a finished run not opened since it finished", () => {
+  test("a run reads one of six words; done is a finished run not opened since it finished", () => {
     const at = "2026-11-13T10:00:00.000Z";
     expect(runStateOf(run("a", { attention: "you" }))).toBe("needs you");
     expect(runStateOf(run("a", { attention: "driving" }))).toBe("working");
@@ -1050,8 +1050,9 @@ describe("the sidebar: one state that rolls up (wave 2)", () => {
       "done",
     );
     expect(runStateOf(run("a", { status: "escalated", attention: "stopped" }))).toBe("escalated");
-    // An aborted run is not news: the person closed it.
-    expect(runStateOf(run("a", { attention: "aborted", status: "aborted" }))).toBe("idle");
+    // An aborted run reads aborted, its own word (round 4): not news, and never a stale stage.
+    expect(runStateOf(run("a", { attention: "aborted", status: "aborted" }))).toBe("aborted");
+    expect(isNews(run("a", { status: "aborted" }))).toBe(false);
   });
 
   test("states roll up pane → run → repository: a person is needed first, then work, then news, then quiet", () => {

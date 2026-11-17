@@ -49,7 +49,9 @@ With nothing open, and no escalated run, the screen reads **Inbox zero** and say
 
 A long **Since you left** on a card is cut to its newest lines; a line that came many times (a loop) is one line with its count (`×12`), and **N more lines before these** opens the rest, so the options and the answer button stay on the screen. The files a card names under **see:** open read-only.
 
-A host's permission prompt in a pane comes as a card with **Attach and answer in the pane**: choosing it takes you to that pane, on the run's Terminal tab, with the keyboard yours; answer the host there and give the keyboard back. The card's line under the question names the worker that asks and its stage.
+A question an agent asks on its own terminal (`Which currency? [PLN / EUR]`) comes as a `TERMINAL` card with the question in the agent's words, a line naming the agent, its pane and stage, and its answers as options: an answer chosen on the card is typed into the pane for you. A host's permission prompt comes as a `PERMISSION` card. Both offer **Attach and answer in the pane**: it opens the run's Terminal tab on that pane, takes the keyboard under your name, puts the cursor in the pane at the question and scrolls to it; type the answer and give the keyboard back.
+
+A plan-approval card whose plan has lint errors shows **Approve** closed, with the reason under the options and **Fix the plan**, which opens the Plan tab in its edit mode. A system plan's card does the same for **Approve the system plan**.
 
 A confirmation (**Answered: …**) goes after a few seconds, or when you go elsewhere; a refusal stays until you close it.
 

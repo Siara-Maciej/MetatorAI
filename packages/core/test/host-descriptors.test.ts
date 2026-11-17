@@ -6,6 +6,8 @@ import {
   hostBins,
   hostCommand,
   hostStatus,
+  type InteractiveHost,
+  withoutRealHosts,
 } from "@metator/core";
 import { FakeAgentHost, InMemoryFileSystem } from "@metator/testing";
 
@@ -104,5 +106,59 @@ describe("agentDefinitionFiles", () => {
       ".sdk/mt-a.md": "sdk a",
       ".sdk/mt-b.md": "sdk b",
     });
+  });
+});
+
+describe("withoutRealHosts (METATOR_NO_REAL_HOSTS)", () => {
+  const session: InteractiveHost = {
+    id: "cli",
+    start: async () => {
+      throw new Error("a real session started");
+    },
+    resume: async () => {
+      throw new Error("a real session started");
+    },
+  };
+  const interactive = { ...viaProgram, interactive: () => session };
+  const sdkSession = { ...viaSdk, interactive: () => ({ ...session, id: "sdk" }) };
+
+  test("a real host is refused as a driver and as a session, with the reason; the drive never starts it", async () => {
+    const guarded = withoutRealHosts([interactive, sdkSession, played], {});
+    const problem = driveHostProblem(guarded, {}, () => true);
+    expect(problem("cli")).toContain("cli is a real AI host and METATOR_NO_REAL_HOSTS is set");
+    expect(problem("sdk")).toContain("sdk is a real AI host");
+    expect(problem("played")).toBeUndefined();
+    const agent = guarded[0]?.agent?.host(undefined);
+    const events = agent?.run(
+      { agent: "a", prompt: "p", cwd: "." } as never,
+      async () => ({ choices: [] }) as never,
+    );
+    await expect(
+      (async () => {
+        for await (const _ of events ?? []) {
+        }
+      })(),
+    ).rejects.toThrow("METATOR_NO_REAL_HOSTS");
+    const started = await guarded[0]
+      ?.interactive?.({} as never, undefined)
+      .start({} as never, { cols: 80, rows: 24 });
+    expect(started?._unsafeUnwrapErr().message).toContain("cli is a real AI host");
+    // The scenario host is the same object: nothing about it changes.
+    expect(guarded[2]).toBe(played);
+  });
+
+  test("a stand-in program named for a host runs; an SDK host is real whatever program is named", () => {
+    const bins = { cli: "/tmp/fake-cli", sdk: "/tmp/fake-sdk" };
+    const guarded = withoutRealHosts([interactive, sdkSession], bins);
+    const problem = driveHostProblem(guarded, bins, () => true);
+    expect(problem("cli")).toBeUndefined();
+    expect(guarded[0]).toBe(interactive);
+    expect(problem("sdk")).toContain("sdk is a real AI host");
+    // Its interactive CLI runs the named program: a stand-in.
+    expect(guarded[1]?.interactive).toBe(sdkSession.interactive);
+    // The default program's own name is no stand-in.
+    expect(
+      driveHostProblem(withoutRealHosts([interactive], { cli: "cli" }), {}, () => true)("cli"),
+    ).toContain("real AI host");
   });
 });

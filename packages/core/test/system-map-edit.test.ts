@@ -158,6 +158,8 @@ describe("the system map in the app", () => {
     expect([over.written, here.asked.at(-1)?.write]).toEqual([false, false]);
     here.asked.length = 0;
     const found = (await here.maps.discover({ write: false }))._unsafeUnwrap();
+    expect(found.mapExists).toBe(true);
+    expect((await world({}).maps.discover({ write: false }))._unsafeUnwrap().mapExists).toBe(false);
     expect([found.written, found.changes, here.asked]).toEqual([
       false,
       ["web is not in the map"],

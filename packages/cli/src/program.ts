@@ -1,6 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { MetatorError, parseYamlDocument, REPO_SET_FILE, RepoSetDocument, reposOf } from "@metator/core";
+import {
+  MetatorError,
+  NO_REAL_HOSTS,
+  parseYamlDocument,
+  REPO_SET_FILE,
+  RepoSetDocument,
+  reposOf,
+} from "@metator/core";
 import {
   bootstrap,
   findChildRepos,
@@ -105,6 +112,7 @@ export function buildProgram(
       ...(env.METATOR_CANON ? { canon: env.METATOR_CANON } : {}),
       ...(env.METATOR_AGENT_SCENARIO ? { agentScenario: env.METATOR_AGENT_SCENARIO } : {}),
       bins: hostBinsOf(env),
+      ...(env[NO_REAL_HOSTS] === "1" ? { noRealHosts: true } : {}),
       ...(env.METATOR_DOCKER_BIN ? { dockerBin: env.METATOR_DOCKER_BIN } : {}),
       stateDir: machineStateDir(env),
       userConfigDir: userConfigDir(env),

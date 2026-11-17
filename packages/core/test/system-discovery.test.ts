@@ -393,6 +393,26 @@ describe("DiscoverSystem", () => {
       ["tools-web", { repo: "tools", path: "apps/web" }, []],
     ]);
     expect(r.evidence.find((e) => e.subject === "consumes:web→billing-api")?.file).toBe("web/package.json");
+    // Written into one of the repositories (`home`): that one is the map's own checkout, the
+    // others without a remote are named from there.
+    const home = (
+      await new DiscoverSystem(detectors).execute({
+        system: "landscape",
+        home: "web",
+        sources: [
+          source("billing", { remote: "git@github.com:acme/billing.git", specs: [SPEC] }),
+          source("web", { texts: [{ path: "package.json", text: "../billing/openapi.yaml" }] }),
+          source("tools", {
+            apps: [{ name: "web", dir: "apps/web", deps: [], signals: ["s"], docker: false, bin: false }],
+          }),
+        ],
+      })
+    )._unsafeUnwrap();
+    expect(home.proposal.applications.map((a) => [a.id, a.source])).toEqual([
+      ["billing", { repo: "git@github.com:acme/billing.git" }],
+      ["web", { path: "." }],
+      ["tools-web", { repo: "../tools", path: "apps/web" }],
+    ]);
   });
 
   test("a hand-written HTTP client consumes the API whose routes it calls, two routes at least", async () => {
@@ -500,6 +520,16 @@ describe("DiscoverSystem", () => {
       write: true,
     });
     expect(again._unsafeUnwrapErr().code).toBe("USAGE");
+  });
+
+  test("no map yet: everything the code shows is what the map lacks, so a write has something to add", async () => {
+    const fs = new InMemoryFileSystem();
+    const map = { file: "docs/metator/system.yml", load: async () => ok(undefined), fs };
+    const preview = (
+      await new DiscoverSystem(detectors).execute({ system: "s", sources: [source("s")], map })
+    )._unsafeUnwrap();
+    expect(preview.drift).toEqual(["application s is not in the map"]);
+    expect(preview.written).toBeUndefined();
   });
 });
 

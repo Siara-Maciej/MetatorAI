@@ -41,11 +41,13 @@ export function RunTerminal({
   repo,
   canType,
   onStatus,
+  onReady,
 }: {
   readonly runId: string;
   readonly repo?: string | undefined;
   readonly canType: boolean;
   onStatus?: ((s: TerminalStatus) => void) | undefined;
+  onReady?: ((handle: TerminalHandle) => void) | undefined;
 }) {
   return (
     <SocketTerminal
@@ -54,6 +56,7 @@ export function RunTerminal({
       repo={repo}
       canType={canType}
       onStatus={onStatus}
+      onReady={onReady}
     />
   );
 }

@@ -3,13 +3,14 @@
  * one Approve on the plan-approval card approves the gate and the system plan; each child run is
  * driven as it starts, on the system run's host; the system run waits for its children without
  * spending its waves and reads as working meanwhile, starts the next wave when the first is done,
- * and reaches its delivery approval. A child that escalates stops it at once.
+ * and reaches its delivery approval. A child that escalates makes it wait (blocked by that child)
+ * until a person resumes the child.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 
 const MAP = `kind: SystemMap
 schemaVersion: 2
@@ -136,6 +137,7 @@ afterAll(async () => {
     const runs = ((await mt(repo, "run", "list")).json.data ?? []) as { runId: string }[];
     for (const r of runs) await mt(repo, "run", "stop", r.runId);
   }
+  stopProcessesUnder(folder);
   await rm(folder, { recursive: true, force: true });
 });
 
@@ -179,11 +181,15 @@ describe("a driven system run (W13) in a folder of two repositories", () => {
     });
     const approved = await mt("shop-api", "run", "answer", card.id, "--run", parent, "--choice", "Approve");
     expect(approved.code).toBe(0);
-    const shown = data(await mt("shop-api", "system", "plan", "show", "add-currency-to-prices")) as {
-      plan?: { approval?: { by: string } };
-      approval?: { by: string };
-    };
-    expect((shown.plan ?? shown).approval?.by).toBe("ana");
+    // The drive waiting on the card carries the answer out: the gate and the plan, by ana.
+    const by = await until("the system plan's approval", async () => {
+      const shown = data(await mt("shop-api", "system", "plan", "show", "add-currency-to-prices")) as {
+        plan?: { approval?: { by: string } };
+        approval?: { by: string };
+      };
+      return (shown.plan ?? shown).approval?.by;
+    });
+    expect(by).toBe("ana");
 
     // While the first child works, the system run waits and says on what; it does not escalate.
     const waiting = await until("the system run to say what it waits on", async () => {
@@ -233,7 +239,7 @@ describe("a driven system run (W13) in a folder of two repositories", () => {
     expect(record.children).toHaveLength(2);
   }, 180_000);
 
-  test("a child that escalates stops the system run at once, saying which and where", async () => {
+  test("a child that escalates makes the system run wait, blocked by it; resumed, the system run goes on by itself", async () => {
     await Bun.write(join(at("shop-web"), ".github/metator/workflows/mt-feature.yml"), W1_STUCK);
     await Bun.write(join(folder, "scenario.yml"), scenario("show-prices-in-eur", "Show prices in EUR"));
     const parent = data(
@@ -259,20 +265,38 @@ describe("a driven system run (W13) in a folder of two repositories", () => {
         ?.question;
     });
     await mt("shop-api", "run", "answer", card.id, "--run", parent, "--choice", "Approve");
-    const stopped = await until(
-      "the system run to escalate",
+    // The child in shop-web escalates: the system run does not; it waits, blocked by that child.
+    const child = await until(
+      "the child in shop-web to escalate",
       async () => {
-        const s = data(await mt("shop-api", "run", "status", parent)) as {
-          status: string;
-          escalated?: { stage: string; reason?: string };
-        };
-        return s.status === "escalated" ? s : undefined;
+        const runs =
+          (data(await mt("shop-web", "run", "list")) as unknown as { runId: string; status: string }[]) ?? [];
+        return runs.find((r) => r.status === "escalated" && r.runId.includes("show-price"))?.runId;
       },
       120_000,
     );
-    expect(stopped.escalated?.stage).toBe("status");
-    expect(stopped.escalated?.reason).toContain("step shop-web-show is blocked: its run");
-    expect(stopped.escalated?.reason).not.toContain('{"ok"');
+    const blockedBy = await until("the system run to say which child blocks it", async () => {
+      const activity = data(await mt("shop-api", "run", "activity", "--run", parent)) as {
+        entries: { type: string; text: string }[];
+      };
+      return activity.entries.find((e) => e.type === "gate" && e.text.startsWith("blocked by"))?.text;
+    });
+    expect(blockedBy).toBe(`blocked by ${child} (shop-web, at build): needs you`);
+    // The child names the host that drove it (the system run's).
+    expect((data(await mt("shop-web", "run", "status", child)) as { host?: string }).host).toBe("scenario");
+    expect((data(await mt("shop-api", "run", "status", parent)) as { status: string }).status).toBe("active");
+    // The person fixes the cause and resumes the child: the system run goes on by itself.
+    await Bun.write(join(at("shop-web"), "never-there"), "now it is\n");
+    expect((await mt("shop-web", "run", "resume", "--run", child, "--by", "ana", "--drive")).code).toBe(0);
+    await until(
+      "the system run's delivery approval",
+      async () => {
+        const s = data(await mt("shop-api", "run", "status", parent)) as { status: string; stage: string };
+        if (s.status === "escalated") throw new Error("the system run escalated");
+        return s.stage === "delivery" ? true : undefined;
+      },
+      120_000,
+    );
     const record = JSON.parse(
       await Bun.file(join(at("shop-api"), ".metator/runs", parent, "state.json")).text(),
     );

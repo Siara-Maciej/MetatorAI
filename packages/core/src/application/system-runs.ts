@@ -1,6 +1,7 @@
 import { stageWork } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { planId } from "../domain/ids.ts";
+import { stoppedAt } from "../domain/overview.ts";
 import { progressOf, requireApproved, settled } from "../domain/plan-progress.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type SystemGate, systemGate } from "../domain/system-gate.ts";
@@ -196,7 +197,8 @@ export class SystemPlanStatus {
         status,
         run: step.run,
         runStatus: run.value.state.status,
-        stage: run.value.state.stage,
+        // Where it stands, or where it stopped (an escalated run's stage is the one it failed at).
+        stage: stoppedAt(run.value.state.stage, run.value.state.status, run.value.state.context.history),
         root: located.value.root,
       });
     }

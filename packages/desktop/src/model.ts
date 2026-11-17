@@ -141,8 +141,60 @@ export function nextWaiting<R extends Pick<RunOverview, "runId" | "attention">>(
   return waiting[(i + 1) % waiting.length];
 }
 
-export const questionKind = (q: Pick<Question, "source">): "APPROVAL" | "PERMISSION" | "QUESTION" =>
-  q.source === "gate" ? "APPROVAL" : q.source === "permission" ? "PERMISSION" : "QUESTION";
+/**
+ * What a question is: a gate's APPROVAL, an agent's QUESTION, a host's PERMISSION prompt, or a
+ * TERMINAL question (an agent asking a person in its pane what it should do: not a permission).
+ * A kind the daemon sends on the question wins.
+ */
+export function questionKind(
+  q: Pick<Question, "source"> & Partial<Pick<Question, "prompt" | "options">>,
+): "APPROVAL" | "PERMISSION" | "QUESTION" | "TERMINAL" {
+  const sent = (q as { readonly kind?: unknown }).kind;
+  if (sent === "terminal" || sent === "permission" || sent === "question" || sent === "approval")
+    return sent.toUpperCase() as "APPROVAL" | "PERMISSION" | "QUESTION" | "TERMINAL";
+  if (q.source === "gate") return "APPROVAL";
+  if (q.options && isTerminalQuestion({ source: q.source, options: q.options })) return "TERMINAL";
+  if (q.source !== "permission") return "QUESTION";
+  const host = q.prompt ? hostPromptOf(q.prompt) : undefined;
+  return host && !PERMISSION_WORDS.test(host.text) ? "TERMINAL" : "PERMISSION";
+}
+
+/** A host's prompt that asks for a permission: to allow, run, trust, proceed. */
+const PERMISSION_WORDS = /\b(allow|permission|permit|proceed|trust|approve|run this|execute|grant)\b/i;
+
+/** What a host prompt in a pane asks, read from the daemon's line: who, where, the question, its answers. */
+export interface HostPrompt {
+  readonly asker: string;
+  readonly pane: string;
+  /** The question as the agent wrote it, without the screen's frame and the answers in brackets. */
+  readonly text: string;
+  /** The answers the agent offered (`[PLN / EUR]`), when it offered some. */
+  readonly options: readonly string[];
+}
+
+/**
+ * `mt-planner-1 waits for your answer in pane w1:p2: Which currency …? [PLN / EUR]` read into its
+ * parts; nothing for another prompt. The screen's frame (`│ ❯ ╭`) is dropped.
+ */
+export function hostPromptOf(prompt: string): HostPrompt | undefined {
+  const m = /^(\S+) waits for your answer in pane (\S+?): ([\s\S]*)$/.exec(prompt.trim());
+  if (!m) return undefined;
+  const line = (m[3] ?? "").replace(/^[\s│┃|╭╮╰╯─❯›>●○◯✻*]+|[\s│┃|╭╮╰╯─]+$/g, "");
+  const offered = /\[([^\]]+)\]\s*$/.exec(line);
+  const options = offered
+    ? (offered[1] ?? "")
+        .split("/")
+        .map((o) => o.trim())
+        .filter((o) => o !== "")
+    : [];
+  const fits = options.length >= 2 && options.length <= 6 && options.every((o) => o.length <= 40);
+  return {
+    asker: m[1] ?? "",
+    pane: m[2] ?? "",
+    text: (fits && offered ? line.slice(0, offered.index) : line).trim(),
+    options: fits ? options : [],
+  };
+}
 
 /** The chips of an inbox row (spec §6.3): reversible, how many files it touches, whether the answer can be remembered, blocks a wave. */
 export function inboxChips(item: Pick<InboxItem, "question" | "driving">): string[] {
@@ -212,8 +264,8 @@ export type RunTab = (typeof RUN_TABS)[number]["tab"];
 export type OverviewTab = "daemon" | "dependencies" | "system";
 
 /**
- * The hash route, one per place: `#/inbox[/<run>%2F<question>]`, `#/run/<run>[/<tab>[/<pane or
- * file>]]`, `#/grid[/<group>|/pane:<pane>]` (Terminals), `#/overview[/dependencies]`,
+ * The hash route, one per place: `#/inbox[/<run>%2F<question>]`, `#/run/<run>[/<tab>[/<pane,
+ * file or edit>]]`, `#/grid[/<group>|/pane:<pane>]` (Terminals), `#/overview[/dependencies]`,
  * `#/mrs[/<id>]`, `#/settings`, `#/backlog`. The routes of the four screens a run once had
  * (`#/session`, `#/plan`, `#/review`, `#/briefing`) and of the two the Overview once was
  * (`#/supervisor`, `#/graph`) still parse: they land on the tab that holds what they showed.
@@ -228,6 +280,8 @@ export type Route =
       readonly pane?: string;
       /** The file the Changes tab shows. */
       readonly file?: string;
+      /** The Plan tab opens in its edit mode (`#/run/<run>/plan/edit`): "Fix the plan". */
+      readonly edit?: boolean;
     }
   | { readonly screen: "grid"; readonly group?: string; readonly pane?: string }
   | { readonly screen: "overview"; readonly tab: OverviewTab }
@@ -247,7 +301,15 @@ const OLD_RUN_ROUTES: Readonly<Record<string, RunTab>> = {
 function runRoute(runId: string, tab: RunTab, rest: readonly string[]): Route {
   const pane = tab === "terminal" ? rest[0] : undefined;
   const file = tab === "changes" ? rest.join("/") : "";
-  return { screen: "run", runId, tab, ...(pane ? { pane } : {}), ...(file ? { file } : {}) };
+  const edit = tab === "plan" && rest[0] === "edit";
+  return {
+    screen: "run",
+    runId,
+    tab,
+    ...(pane ? { pane } : {}),
+    ...(file ? { file } : {}),
+    ...(edit ? { edit: true } : {}),
+  };
 }
 
 export function parseRoute(hash: string): Route {
@@ -308,7 +370,9 @@ export function routeHash(route: Route): string {
           ? `/${encodeURIComponent(route.pane)}`
           : route.tab === "changes" && route.file
             ? `/${route.file.split("/").map(encodeURIComponent).join("/")}`
-            : "";
+            : route.tab === "plan" && route.edit
+              ? "/edit"
+              : "";
       return `#/run/${encodeURIComponent(route.runId)}/${route.tab}${rest}`;
     }
     case "inbox":
@@ -1234,6 +1298,15 @@ export const portsText = (ports: Readonly<Record<string, number>>): string =>
 
 /* ---------- the sidebar: what needs you, the runs, and one state that rolls up ---------- */
 
+/**
+ * A run's id short enough for a line: the date prefix dropped (`20261117-`), the rest cut at 32
+ * characters. The full id and the task go on hover.
+ */
+export function shortRunId(runId: string): string {
+  const rest = runId.replace(/^\d{8}-/, "");
+  return rest.length > 32 ? `${rest.slice(0, 31)}…` : rest;
+}
+
 /** What a run reads as, in the sidebar and everywhere a run is one row. */
 export type RunShown = "needs you" | "working" | "escalated" | "done" | "aborted" | "idle";
 
@@ -1281,7 +1354,9 @@ export const paneAsRun = (state: PaneShown): RunShown =>
  * repository. The strongest one wins; nothing to roll up is `idle`.
  */
 export const rollUp = (states: readonly RunShown[]): RunShown =>
-  states.reduce<RunShown>((best, s) => (RUN_RANK[s] < RUN_RANK[best] ? s : best), "idle");
+  states.length === 0
+    ? "idle"
+    : states.reduce<RunShown>((best, s) => (RUN_RANK[s] < RUN_RANK[best] ? s : best), states[0] as RunShown);
 
 /** A run's state with its panes: the run's own word, unless one of its panes says more. */
 export const runWithPanes = (
@@ -1337,6 +1412,12 @@ export const terminalKey = (r: { readonly runId: string; readonly repo?: string 
   `terminal:${r.repo ?? ""}:${r.runId}`;
 
 /**
+ * A run that asks on its terminal with no card for it: the row opens the pane. A question the
+ * daemon read from a terminal (kind `terminal` too) has its card in the Inbox.
+ */
+export const isTerminalAsk = (n: Pick<NeedRow, "key">): boolean => n.key.startsWith("terminal:");
+
+/**
  * Everything that needs the person, in one queue: the questions in the inbox's order (the ones a
  * live drive waits on first), then the runs that ask on their terminal, then the escalated runs.
  */
@@ -1360,11 +1441,12 @@ export function needsQueue(
       (i): NeedRow => ({
         key: `${i.runId}/${i.question.id}`,
         kind: questionKind(i.question).toLowerCase() as NeedKind,
-        title: i.question.prompt,
+        // A host prompt reads as its question; who asks, and in which pane, is in the line below.
+        title: hostPromptOf(i.question.prompt)?.text || i.question.prompt,
         sub: [
           taskOf(i.runId, i.repo) ?? i.task,
           i.repo,
-          asker(paneOfPrompt(i.question.prompt), i.repo, i.question.agent, i.stage),
+          asker(paneOfQuestion(i.question, panes), i.repo, i.question.agent, i.stage),
           duration(i.waitedMs),
         ]
           .filter((x) => x !== undefined && x !== "")
@@ -1443,7 +1525,10 @@ export function stepOf(
   siblings: readonly Pick<RunOverview, "runId" | "createdAt">[],
   parent: Pick<RunOverview, "children" | "status"> | undefined,
   planSteps?: number | undefined,
+  place?: StepPlace | undefined,
 ): string {
+  // The step's own place in its system plan wins: the second step is step 2 whatever started first.
+  if (place) return `step ${place.at}/${place.of}`;
   const ordered = [...siblings].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const i = ordered.findIndex((s) => s.runId === step.runId);
   const at = i < 0 ? ordered.length + 1 : i + 1;
@@ -1466,7 +1551,9 @@ export function groupStepText(
   group: { readonly step: number; readonly of: number },
   planSteps: number | undefined,
   parentFinished: boolean,
+  place?: StepPlace | undefined,
 ): string {
+  if (place) return `step ${place.at} of ${place.of}`;
   if (planSteps !== undefined && planSteps >= group.step) return `step ${group.step} of ${planSteps}`;
   return parentFinished ? `step ${group.step} of ${group.of}` : `step ${group.step}`;
 }
@@ -1482,6 +1569,7 @@ export function sidebarRuns<R extends RunOverview & { readonly repo?: string | u
   runs: readonly R[],
   all: readonly R[] = runs,
   planSteps: (parent: R) => number | undefined = () => undefined,
+  placeOf: (step: R) => StepPlace | undefined = () => undefined,
 ): SidebarRun<R>[] {
   const listed = new Set(all.map((r) => r.runId));
   const isStep = (r: R) => r.parent !== undefined && listed.has(r.parent);
@@ -1495,7 +1583,7 @@ export function sidebarRuns<R extends RunOverview & { readonly repo?: string | u
       out.push({
         run: step,
         nested: true,
-        step: stepOf(step, steps, run, planSteps(run)),
+        step: stepOf(step, steps, run, planSteps(run), placeOf(step)),
         ...(sameRepo(step.repo, run.repo) ? {} : { elsewhere: step.repo }),
       });
   }
@@ -1561,8 +1649,35 @@ export const paneOfPrompt = (prompt: string): string | undefined =>
  * not answer for them, it takes them to the terminal where they answer the host themselves.
  */
 export const ATTACH_PANE = "Attach and answer in the pane";
-export const goesToPane = (q: Pick<Question, "source">, choice: string | undefined): boolean =>
-  q.source === "permission" && choice === ATTACH_PANE;
+export const goesToPane = (_q: Pick<Question, "source">, choice: string | undefined): boolean =>
+  choice === ATTACH_PANE;
+
+/**
+ * A question an agent asks on its terminal, as the daemon reads it: the agent's own words and
+ * options, plus the way into the pane. An answer chosen on the card is typed there for the person.
+ */
+export const isTerminalQuestion = (q: Pick<Question, "source" | "options">): boolean =>
+  q.source === "agent" && q.options.some((o) => o.label === ATTACH_PANE);
+
+/**
+ * The pane a question asks in: the one its prompt names (a host's prompt), else the pane of the
+ * agent that asks (a worker by its name, the conductor by its agent), in the question's run.
+ */
+export function paneOfQuestion(
+  q: Pick<Question, "prompt" | "agent" | "runId">,
+  panes: readonly (Pick<PaneView, "id" | "runId" | "role" | "label" | "worker" | "process"> & {
+    readonly repo?: string | undefined;
+  })[],
+): string | undefined {
+  const named = paneOfPrompt(q.prompt);
+  if (named) return named;
+  if (!q.agent) return undefined;
+  const own = panes.filter((p) => p.runId === q.runId);
+  return (
+    own.find((p) => p.worker?.name === q.agent)?.id ??
+    own.find((p) => p.role === "conductor" && p.process.kind === "host" && p.process.agent === q.agent)?.id
+  );
+}
 
 /** One line of a list as shown: the text and how many times it came, in a row or not. */
 export interface ShownLine {
@@ -1803,6 +1918,84 @@ export function systemPlanOf<P extends Pick<SystemPlanView, "steps" | "plan">>(
   );
 }
 
+/** Where a step stands in its system plan: its place in the deploy order, out of every step. */
+export interface StepPlace {
+  readonly at: number;
+  readonly of: number;
+}
+
+/**
+ * The steps of a system plan in the order they deploy: wave by wave, then any step no wave names
+ * (a plan whose steps depend on each other in a circle has no waves at all).
+ */
+export function planOrder(plan: Pick<SystemPlanView, "waves" | "steps">): string[] {
+  const order = plan.waves.flatMap((w) => w.steps);
+  const seen = new Set(order);
+  return [...order, ...plan.steps.map((s) => s.id).filter((id) => !seen.has(id))];
+}
+
+/** The place of the step a run carries out, in the system plan that started it; none for another run. */
+export function stepPlace(
+  plans: readonly Pick<SystemPlanView, "waves" | "steps">[],
+  runId: string,
+): StepPlace | undefined {
+  for (const plan of plans) {
+    const step = plan.steps.find((s) => s.run === runId);
+    if (!step) continue;
+    const order = planOrder(plan);
+    return { at: order.indexOf(step.id) + 1, of: order.length };
+  }
+  return undefined;
+}
+
+/** A system run in one line: how far its plan is, and what it waits for. */
+export interface SystemRunSummary {
+  readonly planId: string;
+  readonly done: number;
+  readonly total: number;
+  /** The child run a person must act on before the system run goes on (it asks, or it stopped). */
+  readonly blocker?: {
+    readonly runId: string;
+    readonly repo?: string | undefined;
+    readonly task: string;
+    readonly state: RunShown;
+  };
+  /** What the run waits for, in words: the gate's own line when the daemon wrote one. */
+  readonly waiting?: string | undefined;
+}
+
+/**
+ * The summary on a system run's page: steps done of all, and the first child in deploy order that
+ * waits for a person (`blocked by <child>: needs you`); else what the gate said last
+ * (`waiting on children: …`).
+ */
+export function systemRunSummary<R extends RunOverview & { readonly repo?: string | undefined }>(
+  plan: Pick<SystemPlanView, "steps" | "waves" | "plan">,
+  run: Pick<RunOverview, "last">,
+  runs: readonly R[],
+): SystemRunSummary {
+  const byId = new Map(plan.steps.map((s) => [s.id, s]));
+  let blocker: SystemRunSummary["blocker"];
+  for (const id of planOrder(plan)) {
+    const step = byId.get(id);
+    const child = step?.run ? runs.find((r) => r.runId === step.run) : undefined;
+    if (!child) continue;
+    const state = runStateOf(child);
+    if (state === "needs you" || state === "escalated" || state === "aborted") {
+      blocker = { runId: child.runId, repo: child.repo, task: child.task, state };
+      break;
+    }
+  }
+  const said = run.last?.text?.replace(/^gate:\s*/, "");
+  return {
+    planId: plan.plan.id,
+    done: plan.steps.filter((s) => s.status === "done").length,
+    total: plan.steps.length,
+    ...(blocker ? { blocker } : {}),
+    ...(!blocker && said && /waiting|blocked|wave|step/.test(said) ? { waiting: said } : {}),
+  };
+}
+
 /** A block of an artifact as the viewer draws it: never HTML, only text in its place. */
 export interface ArtifactBlock {
   readonly kind: "heading" | "text" | "code";
@@ -1873,6 +2066,46 @@ export function lintSummary(lint: Pick<PlanLintView, "problems">): string {
   return [errors > 0 ? plural(errors, "error") : "", warnings > 0 ? plural(warnings, "warning") : ""]
     .filter((x) => x !== "")
     .join(" · ");
+}
+
+/**
+ * Why an option of a card cannot be chosen now, or nothing. The daemon closes an option itself
+ * (`disabled`, `disabledBecause`: Approve on a plan whose lint has errors); for a card read before
+ * it did, the plan's own lint closes Approve the same way.
+ */
+export function optionClosed(
+  option: { readonly label: string },
+  planLint?: Pick<PlanLintView, "problems"> | undefined,
+): string | undefined {
+  const o = option as {
+    readonly label: string;
+    readonly disabled?: boolean;
+    readonly disabledBecause?: string;
+  };
+  if (o.disabled === true) return o.disabledBecause ?? "the daemon closed this answer";
+  if (o.label !== "Approve" || !planLint) return undefined;
+  const errors = planLint.problems.filter((p) => p.severity === "error");
+  if (errors.length === 0) return undefined;
+  return `the plan has ${plural(errors.length, "error")}: ${errors[0]?.message ?? ""}`;
+}
+
+/**
+ * What is wrong with a list of `system.roots` before it is saved, one line per problem: an empty
+ * entry, a path that is not absolute (`/…`, `~/…` or `C:\\…`), the same path twice.
+ */
+export function rootsProblems(paths: readonly string[]): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  paths.forEach((raw, i) => {
+    const p = raw.trim();
+    const at = `path ${i + 1}`;
+    if (p === "") problems.push(`${at} is empty`);
+    else if (!/^(\/|~\/|~$|[A-Za-z]:[\\/])/.test(p))
+      problems.push(`${at} (${p}) is not absolute: start it with / or ~/`);
+    else if (seen.has(p.replace(/\/+$/, ""))) problems.push(`${at} (${p}) is listed twice`);
+    seen.add(p.replace(/\/+$/, ""));
+  });
+  return problems;
 }
 
 /** The problems of one step (or one field of it), and the ones about the whole plan. */

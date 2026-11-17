@@ -11,6 +11,7 @@ import {
   finishedText,
   isFinished,
   isNews,
+  isTerminalAsk,
   lookOf,
   type NeedRow,
   openRuns,
@@ -104,7 +105,7 @@ export function Sidebar({
   /** The form: workflow, autonomy, host and worktree chosen by hand. */
   onForm(): void;
 }) {
-  const { runs, repos, panesOf, down, unreadable, seen, planStepsOf } = useDaemon();
+  const { runs, repos, panesOf, down, unreadable, seen, planStepsOf, stepPlaceOf } = useDaemon();
   const [showFinished, setShowFinished] = useState(false);
   const current = route.screen === "run" ? route.runId : undefined;
   const stateOf = (r: Run) =>
@@ -178,7 +179,7 @@ export function Sidebar({
                   current={route.screen === "inbox" && picked === n.key}
                   title={n.hint}
                   data-testid={
-                    n.kind === "terminal"
+                    isTerminalAsk(n)
                       ? `terminal-ask-${n.runId}`
                       : n.kind === "escalated"
                         ? `escalated-${n.runId}`
@@ -192,7 +193,7 @@ export function Sidebar({
             {(repos.length > 0 ? repos.map((x) => x.name) : [""]).map((repo) => {
               const open = openRuns(runs);
               const here = open.filter((r) => sameRepo(r.repo, repo));
-              const rows = sidebarRuns(here, open, planStepsOf);
+              const rows = sidebarRuns(here, open, planStepsOf, (r) => stepPlaceOf(r.runId));
               // A step of a run of another repository is listed under its parent, there.
               const away = here.filter((r) => !rows.some((x) => x.run === r));
               return (

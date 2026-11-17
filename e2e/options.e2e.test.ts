@@ -9,7 +9,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const WORKFLOW =
@@ -38,6 +38,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await repo.dispose();
+  stopProcessesUnder(configDir);
   await rm(configDir, { recursive: true, force: true });
 });
 

@@ -29,7 +29,7 @@ MetatorAI Desktop (D7, ADR-0078): the Vite + React app and its Tauri shell, a th
 - An answer from the decision card carries `origin: inbox`, what criterion 11a counts [[cite: packages/desktop/src/components/decision-card.tsx:33 | "origin: \"inbox\","]].
 - View logic is pure in `src/model.ts` and tested; components only render.
 - One vocabulary for states: what a pane reads as is `paneStateOf` (`working`, `asks`, `idle`, `exited`), and the glyph and colour of every state come from `LOOKS` through `<Glyph>`; a screen never has its own table. A shell is never `asks` and is `working` only while it prints.
-- One count and one roll-up: what needs the person is `needsQueue` (the sidebar lists it, the Inbox shows the picked row); a run reads one of five words from `runStateOf` (`needs you`, `working`, `escalated`, `done`, `idle`) and states roll up pane → run → repository through `rollUp`. `done` is a finished run this person has not opened; what was opened is kept in the window's storage (`metator.seen`), read and written under try/catch.
+- One count and one roll-up: what needs the person is `needsQueue` (the sidebar lists it, the Inbox shows the picked row); a run reads one of six words from `runStateOf` (`needs you`, `working`, `escalated`, `done`, `aborted`, `idle`) and states roll up pane → run → repository through `rollUp`. `done` is a finished run this person has not opened; what was opened is kept in the window's storage (`metator.seen`), read and written under try/catch.
 - One row pattern in the sidebar: glyph, name, the state's word, one dim line (`runLine`); no chips in rows, no counters in the top bar.
 - One page per run: `#/run/<run>/<tab>` with the tabs of `RUN_TABS`; the old routes of a run's screens and of the daemon and graph screens parse to the tab that holds what they showed.
 - One word per thing: a unit of work is a run, a session is the live agent process, a task is a backlog item, the multi-pane place is Terminals, the diff is Changes.
@@ -43,6 +43,10 @@ MetatorAI Desktop (D7, ADR-0078): the Vite + React app and its Tauri shell, a th
 - Coming to a screen starts no process: the Terminal tab shows a run's terminal once its session lives or the person pressed "Open a session".
 - With no daemon the shell draws one panel (`NoDaemon`) instead of the screens, so no screen shows empty data as if it were true.
 - A refusal the app can offer a way past is recognized by `error.details` (`refusedForDirtyTree`), never by the message; the way past is a button in the same `Notice`.
+- A system plan's step is numbered by its place in the plan's deploy order (`stepPlace`), the same in the sidebar (`stepOf`) and on a card (`groupStepText`); the count of children started so far is never the total.
+- A question read from a terminal (`isTerminalQuestion`: an agent's question with `Attach and answer in the pane`) is answered on the card; Attach goes through `answerIn` to the run's Terminal tab, which attaches, focuses the pane and scrolls to its question. A row is a terminal ask that opens the pane only when its key is `terminal:` (`isTerminalAsk`).
+- An option the app cannot send is closed with its reason (`optionClosed`: the daemon's `disabled`/`disabledBecause`, or Approve on a plan whose lint has errors), never hidden; **Fix the plan** is `#/run/<run>/plan/edit`.
+- The app sends no request it knows will fail: an option the daemon does not list (`system.roots` on an older daemon) has no control.
 - An escalated run is not finished (`isFinished` in `src/model.ts`): it stays in the sessions panel and is a row and a card in the Inbox (`EscalatedCard`), with Resume and Close run; its page shows the same two actions under the head, on every tab.
 
 ## Allowed dependencies

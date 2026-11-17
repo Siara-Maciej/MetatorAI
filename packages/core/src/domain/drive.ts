@@ -514,6 +514,68 @@ export function attemptsOf(
   return { tried: 1 + (loops[loop] ?? 0), of: 1 + (limits[loop] ?? 0) };
 }
 
+/** Why an escalated run stopped, as one sentence a person reads, and what kind of stop it was. */
+export interface RunStop {
+  /** rejected: a person's Reject at a gate; exhausted: every try spent; stopped: no try left to spend. */
+  readonly kind: "rejected" | "exhausted" | "stopped";
+  readonly text: string;
+  /** Who rejected (rejected). */
+  readonly by?: string;
+  readonly tried?: number;
+  readonly of?: number;
+}
+
+/**
+ * Why a run escalated at `stage`: a person's Reject at a human gate reads "stopped: ana rejected
+ * plan-approval: <reason>"; the tries wording only when the loop's tries are really spent ("tried
+ * build 3 of 3 times: <reason>"); anything else "stopped at <stage>: <reason>".
+ */
+export function stopOf(input: {
+  readonly stages: readonly {
+    readonly id: string;
+    readonly hitl?: boolean | undefined;
+    readonly onFail?: { readonly loop: string } | undefined;
+  }[];
+  readonly stage: string;
+  readonly reason?: string | undefined;
+  readonly loops: Readonly<Record<string, number>>;
+  readonly limits: Readonly<Record<string, number>>;
+  /** The run's questions: the gate's answer says who rejected. */
+  readonly questions?: readonly Pick<Question, "stage" | "source" | "answer">[];
+}): RunStop {
+  const spec = input.stages.find((s) => s.id === input.stage);
+  const reason = input.reason?.trim() || undefined;
+  if (spec?.hitl) {
+    const answer = [...(input.questions ?? [])]
+      .reverse()
+      .find(
+        (q) =>
+          q.stage === input.stage && q.source === "gate" && q.answer && !q.answer.choices.includes("Approve"),
+      )?.answer;
+    const named = /^rejected by (.+)$/.exec(reason ?? "")?.[1];
+    const by = answer?.by ?? named;
+    const why = named ? undefined : reason;
+    return {
+      kind: "rejected",
+      text: `stopped: ${by ?? "a person"} rejected ${input.stage}${why ? `: ${why}` : ""}`,
+      ...(by ? { by } : {}),
+    };
+  }
+  const at = attemptsOf(input.stages, input.stage, input.loops, input.limits);
+  if (at && at.of > 1 && at.tried >= at.of)
+    return {
+      kind: "exhausted",
+      text: `tried ${input.stage} ${at.tried} of ${at.of} times${reason ? `: ${reason}` : ""}`,
+      tried: at.tried,
+      of: at.of,
+    };
+  return {
+    kind: "stopped",
+    text: `stopped at ${input.stage}${reason ? `: ${reason}` : ""}`,
+    ...(at ? { tried: at.tried, of: at.of } : {}),
+  };
+}
+
 /**
  * The host a drive takes when nobody names one: `$METATOR_HOST` when the runtime has it, else the
  * first of the team's order (`supervisor.hostOrder`) that drives agents and can start here, else

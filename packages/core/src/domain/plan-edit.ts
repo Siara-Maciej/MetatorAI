@@ -113,6 +113,8 @@ export interface SystemDiscoveryView {
   readonly changes: readonly string[];
   readonly written: boolean;
   readonly file?: string;
+  /** Whether the place has a map yet: without one, a write creates it from the proposal. */
+  readonly mapExists?: boolean;
 }
 
 /** The digest a write names: of the document's body, so formatting and key order do not count. */

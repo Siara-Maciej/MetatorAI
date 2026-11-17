@@ -1,4 +1,4 @@
-import { attemptsOf, type Question, type RunActivity } from "../domain/drive.ts";
+import { attemptsOf, type Question, type RunActivity, type RunStop, stopOf } from "../domain/drive.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import {
   type Attention,
@@ -31,6 +31,8 @@ export interface RunOverview {
   readonly reason?: string;
   /** An escalated run: how often it tried the stage it stopped at, of how often it could. */
   readonly attempts?: { readonly tried: number; readonly of: number };
+  /** An escalated run: why it stopped, as one sentence (a person's Reject, spent tries, or where). */
+  readonly stop?: RunStop;
   readonly attention: Attention;
   readonly stages: readonly StageProgress[];
   /** Open questions: what to answer, in order. */
@@ -145,6 +147,18 @@ export class WorkOverview {
               );
               return at ? { attempts: at } : {};
             })()
+          : {}),
+        ...(r.state.status === "escalated" && spec.isOk()
+          ? {
+              stop: stopOf({
+                stages: spec.value.spec.stages,
+                stage,
+                reason,
+                loops: r.state.context.loops,
+                limits: spec.value.spec.loops ?? {},
+                questions: questions.isOk() ? questions.value : [],
+              }),
+            }
           : {}),
         attention: attentionOf(r.state.status, open.length, driving, atGate),
         stages,

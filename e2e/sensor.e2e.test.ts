@@ -19,7 +19,7 @@ agents:
       - ask: { question: "Go on?", options: [yes, no] }
       - say: "STATUS: done"
     - - say: "conducting again"
-      - ask: { question: "Still on?", options: [yes] }
+      - ask: { question: "Still on?", options: [yes, no] }
 `;
 const CONFIG = `kind: MetatorConfig
 schemaVersion: 6
@@ -103,11 +103,9 @@ describe("pane sensor and host prompts (real daemon, real PTYs)", () => {
       };
       return inbox.decisions.find((d) => d.runId === runId)?.question;
     });
-    expect([q.source, q.prompt]).toEqual([
-      "permission",
-      "mt-orchestrator waits for your answer in pane w1:p1: Go on? [yes / no]",
-    ]);
-    expect(q.options.map((o) => o.label)).toEqual(["Attach and answer in the pane", "Leave it", "Other"]);
+    // The agent's question in its terminal: its own words and options, not a host's permission.
+    expect([q.source, q.prompt]).toEqual(["agent", "Go on?"]);
+    expect(q.options.map((o) => o.label)).toEqual(["yes", "no", "Attach and answer in the pane", "Other"]);
     await Bun.sleep(700);
     const questions = data(await mt("run", "questions")) as { questions: unknown[] };
     expect(questions.questions.length).toBe(1);
@@ -210,6 +208,21 @@ describe("pane sensor and host prompts (real daemon, real PTYs)", () => {
     expect(restarts.length).toBe(1);
     expect(restarts[0]).toStartWith(
       "resumed conductor 1 of 3: its session scenario-mt-orchestrator-1 had exited with 0 (pane w1:p1)",
+    );
+    // The resumed conductor asks in its terminal; the person picks an option on the card and it is
+    // typed into the pane for them: the session reads it and ends.
+    const q = await until("the conductor's question", async () => {
+      const inbox = (await get("/inbox")).data as {
+        decisions: { runId: string; question: { id: string; prompt: string } }[];
+      };
+      return inbox.decisions.find((d) => d.runId === runId && d.question.prompt === "Still on?")?.question;
+    });
+    expect(
+      (await (await post(`/runs/${runId}/answer`, { question: q.id, choices: ["yes"], by: "ana" })).json())
+        .ok,
+    ).toBe(true);
+    await until("the typed answer", async () =>
+      ((await get("/panes/w1:p1")).data.text as string).includes("answer: yes") ? true : undefined,
     );
   }, 30_000);
 });

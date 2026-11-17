@@ -19,6 +19,7 @@ import { readDocument, writeDocument } from "./document-io.ts";
 import type { LintPlan, ScopePlan } from "./plans.ts";
 import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
+import type { GateApprovals } from "./runs.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 
 /** The run's implementation plan, in its run directory. */
@@ -213,3 +214,52 @@ export class RunPlans {
 const noPlan = (): PlanLint => ({ steps: 0, problems: [], adrRequired: [] });
 
 const describe = (p: PlanLintProblem): string => (p.field ? `${p.field}: ${p.message}` : p.message);
+
+export type RunPlanApprovalsDependencies = Pick<RunPlansDependencies, "fs" | "repo" | "catalog" | "lint">;
+
+/**
+ * The gate that approves a run's plan (the first person's gate after the stage that writes
+ * `plan.json`) refuses Approve while the plan has lint errors: approving it would freeze a plan
+ * its own lint says is wrong. The rule every front reads (the card's Approve says why it cannot).
+ */
+export class RunPlanApprovals implements GateApprovals {
+  constructor(private readonly d: RunPlanApprovalsDependencies) {}
+
+  async refusal(runId: string, stage: string): Promise<Result<MetatorError | undefined, MetatorError>> {
+    const record = await this.d.repo.load(runId);
+    if (record.isErr()) return ok(undefined);
+    const spec = await this.d.catalog.get(record.value.workflow.id);
+    if (spec.isErr()) return ok(undefined);
+    const stages = spec.value.spec.stages;
+    const where = planStages(stages);
+    if (where?.approval === undefined || stages[where.approval]?.id !== stage) return ok(undefined);
+    const plan = await readDocument(
+      this.d.fs,
+      `${this.d.repo.runDir(runId)}/${RUN_PLAN_FILE}`,
+      PlanDocument,
+      "json",
+    );
+    if (plan.isErr() || !plan.value) return ok(undefined);
+    const lint = await this.d.lint.check(plan.value);
+    if (lint.isErr()) return err(lint.error);
+    const errors = lint.value.problems.filter((p) => p.severity === "error");
+    if (errors.length === 0) return ok(undefined);
+    return ok(
+      new MetatorError(
+        "CHECK_FAILED",
+        `the plan of run ${runId} has ${errors.length} lint error${errors.length === 1 ? "" : "s"}: ${errors
+          .map((e) => (e.step ? `${e.step}: ${e.message}` : e.message))
+          .join("; ")}`,
+        {
+          hint: `Fix the plan (its Plan tab, or \`metator plan lint ${this.d.repo.runDir(runId)}/${RUN_PLAN_FILE}\`), then approve.`,
+          details: { problems: lintView(lint.value).problems },
+        },
+      ),
+    );
+  }
+
+  /** Nothing to do beyond the gate's own approval: the plan is what the gate approves. */
+  async approve(_runId: string, _stage: string, _by: string): Promise<Result<unknown, MetatorError>> {
+    return ok(undefined);
+  }
+}

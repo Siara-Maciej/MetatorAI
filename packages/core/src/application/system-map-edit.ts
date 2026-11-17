@@ -149,6 +149,8 @@ export class SystemMaps {
       system: input.folder ? basename(input.folder.root) : this.d.system,
       map: { file, load: () => this.d.location.load(), fs: this.d.fs },
       write,
+      // The map is this repository's: the others are named from here.
+      ...(input.folder ? { home: this.d.here.name } : {}),
     });
     if (found.isErr()) return err(found.error);
     const written = found.value.written !== undefined;
@@ -170,6 +172,7 @@ export class SystemMaps {
       changes: found.value.drift,
       written,
       file,
+      mapExists: existing.value !== undefined || written,
     });
   }
 

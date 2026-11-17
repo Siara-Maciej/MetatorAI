@@ -191,6 +191,8 @@ export class SystemSources {
     private readonly clones: Pick<CloneCache, "at">,
     private readonly reader: Pick<CheckoutReader, "isDirectory" | "read">,
     private readonly vcs: Pick<Vcs, "remoteUrl">,
+    /** Directories that hold checkouts of the applications (the `system.roots` option). */
+    private readonly searchRoots: () => Promise<readonly string[]> = async () => [],
   ) {}
 
   private origin(): Promise<string | undefined> {
@@ -246,6 +248,8 @@ export class SystemSources {
     // Repositories cloned side by side: a sibling named like the repository, with its remote. A
     // pinned ref is a commit, not a working tree, so it is still cloned.
     if (!ref) {
+      const found = await this.inSearchRoots(app.id, repo);
+      if (found) return ok({ app: app.id, root: found, dir, via: "local" });
       const sibling = await this.sibling(repo);
       if (sibling) return ok({ app: app.id, root: sibling, dir, via: "local" });
     }
@@ -254,14 +258,23 @@ export class SystemSources {
     return cloned.isErr() ? err(cloned.error) : ok({ app: app.id, root: cloned.value, dir, via: "clone" });
   }
 
+  /** `<directory>/<application id>` or `<directory>/<repository name>` in a directory of `system.roots`. */
+  private async inSearchRoots(id: string, repo: string): Promise<string | undefined> {
+    const name = repoName(repo);
+    for (const raw of await this.searchRoots()) {
+      const base = absolute(this.here, raw).replace(/\/+$/, "");
+      for (const n of [id, ...(name && name !== id ? [name] : [])]) {
+        const candidate = `${base}/${n}`;
+        if (await this.reader.isDirectory(candidate)) return candidate;
+      }
+    }
+    return undefined;
+  }
+
   /** `../<name>` next to this repository when its git remote is `repo`. */
   private async sibling(repo: string): Promise<string | undefined> {
-    const name = repo
-      .replace(/\/+$/, "")
-      .replace(/\.git$/, "")
-      .split(/[/:]/)
-      .at(-1);
-    if (!name || name === "." || name === "..") return undefined;
+    const name = repoName(repo);
+    if (!name) return undefined;
     const candidate = `${this.here.replace(/\/[^/]+\/?$/, "")}/${name}`;
     if (candidate === this.here || !(await this.reader.isDirectory(candidate))) return undefined;
     const config = await this.reader.read(candidate, ".git/config");
@@ -367,4 +380,14 @@ export async function checkoutRoots(
     if (located.isOk() && located.value) roots.push(located.value.root);
   }
   return roots;
+}
+
+/** The last segment of a repository's address (`git@x:acme/web.git` → `web`); none for `.` or `..`. */
+function repoName(repo: string): string | undefined {
+  const name = repo
+    .replace(/\/+$/, "")
+    .replace(/\.git$/, "")
+    .split(/[/:]/)
+    .at(-1);
+  return !name || name === "." || name === ".." ? undefined : name;
 }

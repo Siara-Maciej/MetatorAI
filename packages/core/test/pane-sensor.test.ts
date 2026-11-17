@@ -17,6 +17,7 @@ import {
   WorkflowCatalog,
 } from "@metator/core";
 import { FakePty, FixedClock, InMemoryFileSystem, ScriptedProcessRunner } from "@metator/testing";
+import { ok } from "../src/domain/result.ts";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -241,5 +242,47 @@ describe("whose question a pane reads (a conductor and its workers)", () => {
       "build",
       "mt-implementer-1 waits for your answer in pane w1:p2: Allow copilot to run `bun test`? (y/n)",
     ]);
+  });
+
+  test("a worker's question with options in its terminal is a question (its words, its options), and the person's choice is typed into the pane", async () => {
+    const w = world();
+    const sensor = new PaneSensor({
+      broker: w.broker,
+      manifests: w.manifests,
+      journal: w.journal,
+      clock: w.clock,
+      identity,
+    });
+    const typed: string[] = [];
+    const prompts = new HostPrompts({
+      sensor,
+      journal: w.journal,
+      lock: w.lock,
+      identity,
+      type: async (paneId, text) => {
+        typed.push(`${paneId} ${text}`);
+        return ok(undefined);
+      },
+    });
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const pty = w.start("w1:p2", run.runId, "scenario", 1002);
+    pty.print("\u001b[1mWhich currency does a product without one get? [PLN / EUR]\u001b[0m\n");
+    const asked = (await prompts.tick())._unsafeUnwrap().asked;
+    const q = (await w.journal.questions(run.runId))
+      ._unsafeUnwrap()
+      .find((x) => x.id === asked[0]?.questionId) as Question;
+    expect([q.source, q.agent, q.stage, q.prompt]).toEqual([
+      "agent",
+      "mt-implementer-1",
+      "build",
+      "Which currency does a product without one get?",
+    ]);
+    expect(q.options.map((o) => o.label)).toEqual(["PLN", "EUR", ATTACH_PANE, "Other"]);
+    await w.journal.answer(run.runId, q.id, { choices: ["EUR"], by: "ana" });
+    await prompts.tick();
+    expect(typed).toEqual(["w1:p2 EUR"]);
+    // Asked once; typed once.
+    await prompts.tick();
+    expect(typed).toEqual(["w1:p2 EUR"]);
   });
 });

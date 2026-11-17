@@ -24,9 +24,11 @@ import {
   type Run,
   repoChoice,
   type SeenRuns,
+  type StepPlace,
   sameRepo,
   seenFrom,
   seenKey,
+  stepPlace,
   systemPlanOf,
   type Unreadable,
   withSeen,
@@ -72,6 +74,8 @@ export interface Daemon {
   readonly systemPlans: readonly RepoSystemPlan[];
   /** How many steps the system plan a run is the parent of has, when the app knows the plan. */
   planStepsOf(run: Run): number | undefined;
+  /** The place of a run's step in the system plan that started it (wave order), when it is one. */
+  stepPlaceOf(runId: string): StepPlace | undefined;
   /** When this person last opened each run (per window): a finished run reads `done` until they look. */
   readonly seen: SeenRuns;
   /** The run was opened now. */
@@ -362,6 +366,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     reloadOptions: options.reload,
     systemPlans,
     planStepsOf: (r) => systemPlanOf(systemPlans, r, shownRuns)?.steps.length,
+    stepPlaceOf: (runId) => stepPlace(systemPlans, runId),
     setRepo: (name) => {
       write("metator.repo", name);
       setSavedRepo(name);

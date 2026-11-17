@@ -18,6 +18,12 @@ export function PlanApprovalLine({ view, runId }: { readonly view: RunPlanView; 
         </span>
         {errors[0] ? <span className="muted"> · {errors[0].message}</span> : null}{" "}
         <a href={routeHash({ screen: "run", runId, tab: "plan" })}>Review / edit the plan</a>
+        {errors.length > 0 ? (
+          <>
+            {" · "}
+            <a href={routeHash({ screen: "run", runId, tab: "plan", edit: true })}>Fix the plan</a>
+          </>
+        ) : null}
       </div>
     </section>
   );
@@ -43,6 +49,12 @@ export function SystemPlanLine({ plan, runId }: { readonly plan: RepoSystemPlan;
           lint: {lintSummary(plan.lint)}
         </span>{" "}
         <a href={routeHash({ screen: "run", runId, tab: "plan" })}>Review / edit the system plan</a>
+        {errors.length > 0 ? (
+          <>
+            {" · "}
+            <a href={routeHash({ screen: "run", runId, tab: "plan", edit: true })}>Fix the plan</a>
+          </>
+        ) : null}
         {waits ? (
           <button
             type="button"
@@ -60,6 +72,12 @@ export function SystemPlanLine({ plan, runId }: { readonly plan: RepoSystemPlan;
           </button>
         ) : null}
       </div>
+      {waits && errors.length > 0 ? (
+        <div className="red" data-testid="system-plan-closed">
+          Approve the system plan is closed: the plan has {errors.length} error
+          {errors.length === 1 ? "" : "s"}.
+        </div>
+      ) : null}
       <Notice {...action.notice} />
     </section>
   );

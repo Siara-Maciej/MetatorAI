@@ -707,6 +707,8 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
   }, 90_000);
 
   test("the plan of a run is read, checked, changed and saved; a change made meanwhile is a conflict", async () => {
+    // What the earlier tests provoked on purpose is theirs: this test counts its own console errors.
+    const before = errors.length;
     const created = await (
       await fetch(`${daemonUrl}/runs`, {
         method: "POST",
@@ -832,6 +834,40 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the map's table", async () =>
       (await map.textContent())?.includes("shop-api") ? true : undefined,
     );
-    expect(errors.filter((e) => !/Notification|favicon|status of 4\d\d/.test(e))).toEqual([]);
+    // The roots are a list to edit when the daemon has the option; never a request bound to fail.
+    const roots = page.getByTestId("system-roots");
+    if (await roots.count()) {
+      await page.getByRole("button", { name: "+ Path" }).click();
+      await page
+        .getByLabel(/^root \d+$/)
+        .last()
+        .fill("code");
+      expect(await page.getByTestId("roots-problems").textContent()).toContain("is not absolute");
+      expect(await page.getByRole("button", { name: "Save roots" }).isDisabled()).toBe(true);
+    } else await page.getByTestId("roots-unknown").waitFor({ timeout: 5000 });
+    // "Fix the plan" lands on the Plan tab in its edit mode.
+    await page.goto(
+      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/run/${runId}/plan/edit`,
+    );
+    await bar.getByRole("button", { name: "Cancel" }).waitFor({ timeout: 20_000 });
+    expect(await page.getByLabel("S1 intent").count()).toBe(1);
+    await bar.getByRole("button", { name: "Cancel" }).click();
+    // An aborted run reads aborted in the sidebar, with how it ended, not the stage it stopped at.
+    const closed = await fetch(`${daemonUrl}/runs/${runId}/close`, {
+      method: "POST",
+      body: JSON.stringify({ aborted: true, reason: "the demo ends here" }),
+    });
+    expect(closed.status).toBe(200);
+    const sidebar = page.getByRole("complementary", { name: "runs" });
+    const finished = sidebar.getByRole("button", { name: /Finished/ });
+    if ((await finished.getAttribute("aria-expanded")) === "false") await finished.click();
+    const row = sidebar.locator(".row", { hasText: "Round the totals in the plan" }).first();
+    await until("the aborted row", async () =>
+      (await row.textContent())?.includes("aborted · ") ? true : undefined,
+    );
+    expect(await row.textContent()).not.toContain("plan-approval");
+    expect(await row.getAttribute("title")).toContain("the demo ends here");
+    // No request of the app failed but the conflict this test provokes on purpose.
+    expect(errors.slice(before).filter((e) => !/Notification|favicon|status of 409/.test(e))).toEqual([]);
   }, 90_000);
 });

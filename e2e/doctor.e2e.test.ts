@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir } from "node:fs/promises";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const WORKFLOW = `kind: Workflow
@@ -144,6 +144,7 @@ describe("metator doctor (real CLI)", () => {
       }
       expect((await metator(["run", "list"], dir)).json.data).toEqual([]);
     } finally {
+      stopProcessesUnder(dir);
       await rm(dir, { recursive: true, force: true });
     }
   }, 60_000);

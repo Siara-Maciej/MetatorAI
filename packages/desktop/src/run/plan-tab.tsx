@@ -30,6 +30,8 @@ const or = (items: readonly string[]): string => (items.length > 0 ? items.join(
 export function PlanTab(props: {
   readonly run: Run | undefined;
   readonly runId: string;
+  /** Open in the edit mode ("Fix the plan"). */
+  readonly edit?: boolean | undefined;
   onOpenPane(paneId: string, runId: string): void;
   onOpenRun(runId: string, attach?: boolean): void;
 }) {
@@ -38,21 +40,30 @@ export function PlanTab(props: {
   // A system run's plan is its system plan: the steps across repositories and their child runs.
   const system = run ? systemPlanOf(systemPlans, run, runs) : undefined;
   if (system)
-    return <SystemPlanPanel planId={system.plan.id} repo={system.repo} onOpenRun={props.onOpenRun} />;
+    return (
+      <SystemPlanPanel
+        planId={system.plan.id}
+        repo={system.repo}
+        onOpenRun={props.onOpenRun}
+        edit={props.edit}
+      />
+    );
   if (run && /system/.test(run.workflow))
-    return <SystemPlanPanel planOfRun={run} repo={run.repo} onOpenRun={props.onOpenRun} />;
+    return <SystemPlanPanel planOfRun={run} repo={run.repo} onOpenRun={props.onOpenRun} edit={props.edit} />;
   return <RunPlanTab {...props} />;
 }
 
 function RunPlanTab({
   run,
   runId,
+  edit,
   onOpenPane,
   onOpenRun,
 }: {
   /** The run from the state; the board is read for a run the state no longer lists too. */
   readonly run: Run | undefined;
   readonly runId: string;
+  readonly edit?: boolean | undefined;
   /** Shows a pane in Terminals (the step's worker). */
   onOpenPane(paneId: string, runId: string): void;
   /** The run's Terminal tab, with the keyboard taken when asked. */
@@ -79,7 +90,7 @@ function RunPlanTab({
     save: (plan, digest, by) => client.saveRunPlan(runId, { plan, digest, by }, repo),
     changes: planChanges,
   };
-  const editor = useDocEditor(source);
+  const editor = useDocEditor(source, edit === true);
   const [chosen, setChosen] = useState<string>();
   const steps = board?.plan?.steps ?? [];
   const step = steps.find((s) => s.id === chosen) ?? steps.find((s) => s.state === "in-progress") ?? steps[0];

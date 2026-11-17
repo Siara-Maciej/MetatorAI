@@ -14,6 +14,7 @@ import {
   answeredText,
   goesToPane,
   hostChoice,
+  isTerminalAsk,
   keyMapOf,
   type NeedRow,
   needsQueue,
@@ -22,7 +23,7 @@ import {
   noHostText,
   notifies,
   openRuns,
-  paneOfPrompt,
+  paneOfQuestion,
   parseRoute,
   pickedNeed,
   plainKey,
@@ -163,6 +164,11 @@ function Shell() {
     },
     [client, repo, down, url, me, go],
   );
+  /**
+   * "Attach and answer in the pane": the run whose pane the person answers in. Its Terminal tab
+   * attaches, shows that pane, focuses it and scrolls to the question, then clears this.
+   */
+  const [answerIn, setAnswerIn] = useState<{ runId: string; pane?: string | undefined }>();
   const openRun = useCallback(
     (runId: string, attach = false, pane?: string) => {
       const run = d.run(runId);
@@ -172,7 +178,7 @@ function Shell() {
         tab: attach || pane ? "terminal" : run ? runTabFor(run) : "overview",
         ...(pane ? { pane } : {}),
       });
-      if (attach) void d.who().then((by) => (by ? d.client.attach(runId, by, run?.repo) : undefined));
+      if (attach) setAnswerIn({ runId, pane });
     },
     [go, d],
   );
@@ -180,7 +186,7 @@ function Shell() {
   const needs = useMemo(() => needsQueue(d.inbox, d.runs, d.panes), [d.inbox, d.runs, d.panes]);
   const picked = route.screen === "inbox" ? pickedNeed(needs, route.pick) : undefined;
   const openNeed = (n: NeedRow) =>
-    n.kind === "terminal" ? openRun(n.runId, false, n.pane) : go({ screen: "inbox", pick: n.key });
+    isTerminalAsk(n) ? openRun(n.runId, false, n.pane) : go({ screen: "inbox", pick: n.key });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Escape closes the runs drawer; a dialog closes itself (the browser's own <dialog>, D7).
@@ -224,7 +230,7 @@ function Shell() {
           picked={picked}
           onAnswered={(choices, item) => {
             // "Attach and answer in the pane": the card took the answer; the person goes to the pane.
-            const pane = item ? paneOfPrompt(item.question.prompt) : undefined;
+            const pane = item ? paneOfQuestion(item.question, d.panes) : undefined;
             if (item && goesToPane(item.question, choices?.[0])) {
               openRun(item.runId, true, pane);
               setNotice({
@@ -250,8 +256,11 @@ function Shell() {
           tab={route.tab}
           pane={route.pane}
           file={route.file}
+          edit={route.edit}
           go={go}
           onOpenRun={openRun}
+          answerIn={answerIn?.runId === route.runId ? answerIn : undefined}
+          onAnswering={() => setAnswerIn(undefined)}
         />
       ) : null}
       {route.screen === "grid" ? (

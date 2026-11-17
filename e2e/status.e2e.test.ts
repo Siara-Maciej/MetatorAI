@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const WORKFLOW = `kind: Workflow
@@ -67,6 +67,7 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(async () => {
   await repo.dispose();
+  if (folder) stopProcessesUnder(folder);
   if (folder) await rm(folder, { recursive: true, force: true });
 });
 

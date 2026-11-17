@@ -9,7 +9,8 @@ import type { RunStatus } from "./run-record.ts";
 export function progressOf<S extends string>(run: RunStatus, current: S): S | "done" | "blocked" | "running" {
   if (run === "done") return "done";
   if (run === "aborted" || run === "escalated") return "blocked";
-  return current === "pending" ? "running" : current;
+  // Active again (a person resumed it): a step blocked by its run runs again.
+  return current === "pending" || current === "blocked" ? "running" : current;
 }
 
 /** Who approved a plan, when, and the digest of what they approved. */

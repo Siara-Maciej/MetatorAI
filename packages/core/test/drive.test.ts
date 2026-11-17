@@ -15,9 +15,10 @@ import { CloseRun } from "../src/application/run-close.ts";
 import { RunDrivers } from "../src/application/run-drivers.ts";
 import { OTHER, RunJournal } from "../src/application/run-journal.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
-import { AdvanceRun, ApproveRun, InitRun, ResumeRun } from "../src/application/runs.ts";
+import { AdvanceRun, ApproveRun, GetRunStatus, InitRun, ResumeRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import {
+  type AgentEvent,
   blockedPrompt,
   cardLine,
   consequencesOf,
@@ -37,6 +38,7 @@ import {
 } from "../src/domain/drive.ts";
 import { ok } from "../src/domain/result.ts";
 import type { StageSpec } from "../src/domain/workflow-spec.ts";
+import type { AgentHost } from "../src/ports/index.ts";
 
 describe("drive domain", () => {
   test("a stage's work: agents in order, skills offered, scripts, parallel workers", () => {
@@ -1456,5 +1458,56 @@ describe("RunDrivers", () => {
     expect((await d.status("r"))._unsafeUnwrap()?.pid).toBe(1);
     await d.release("r", 1);
     expect((await d.status("r"))._unsafeUnwrap()).toBeNull();
+  });
+});
+
+describe("a drive whose run's directory goes away", () => {
+  test("the agent at work is stopped and the drive ends with the reason; nothing outlives the directory", async () => {
+    const w = world({}, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start();
+    let stopped = false;
+    const hanging: AgentHost = {
+      id: "hang",
+      run: () => {
+        let release: () => void = () => {};
+        const forever = new Promise<IteratorResult<AgentEvent>>((resolve) => {
+          release = () => resolve({ done: true, value: undefined });
+        });
+        const events: AsyncIterableIterator<AgentEvent> = {
+          [Symbol.asyncIterator]() {
+            return events;
+          },
+          next: () => forever,
+          return: async () => {
+            stopped = true;
+            release();
+            return { done: true, value: undefined };
+          },
+        };
+        return events;
+      },
+    };
+    const drive = new DriveRun({ ...driveDeps(w), hosts: new Map([["hang", hanging]]), goneWatchMs: 5 });
+    const driving = drive.execute({ runId, host: "hang" });
+    await Bun.sleep(20);
+    // The checkout is deleted under the working agent.
+    (await w.fs.remove(`.metator/runs/${runId}/state.json`))._unsafeUnwrap();
+    const r = (await driving)._unsafeUnwrapErr();
+    expect(r.message).toBe("the run's directory is gone (/repo): the drive stops");
+    expect(stopped).toBe(true);
+  });
+});
+
+describe("the host a drive works with", () => {
+  test("is the run's from the drive's first step: `run status` names it even when the host keeps no session", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start();
+    expect((await w.repo.load(runId))._unsafeUnwrap().host).toBeUndefined();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 1 });
+    expect((await w.repo.load(runId))._unsafeUnwrap().host).toBe("fake");
+    const status = (await new GetRunStatus(w.catalog, w.repo).execute({ runId }))._unsafeUnwrap();
+    expect(status.host).toBe("fake");
   });
 });

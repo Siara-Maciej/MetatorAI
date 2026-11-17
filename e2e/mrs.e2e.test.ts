@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator as cli } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 type Data = Record<string, unknown>;
@@ -34,9 +34,21 @@ const state = (threads: object[]) =>
   });
 
 let repo: ScratchRepo;
+// The answering run a scan starts is driven by the scenario host: its responder waits on a
+// question until the test moves the run itself. No real AI host is ever started.
+const SCENARIO = `kind: AgentScenario
+schemaVersion: 1
+agents:
+  mt-review-responder:
+    - - ask: { question: "Wait for the test?", options: [yes] }
+`;
+const hostEnv = () => ({ METATOR_HOST: "scenario", METATOR_AGENT_SCENARIO: repo.path("scenario.yml") });
+const metator = (args: readonly string[], cwd: string, env: Record<string, string> = {}) =>
+  cli(args, cwd, { ...hostEnv(), ...env });
 beforeAll(async () => {
   repo = await ScratchRepo.create();
-  await repo.write(".gitignore", ".metator/\npulls.json\nmcp.log\nnotified.txt\n");
+  await repo.write("scenario.yml", SCENARIO);
+  await repo.write(".gitignore", ".metator/\npulls.json\nmcp.log\nnotified.txt\nscenario.yml\n");
   await repo.write("src/discount.ts", "export const discount = 0.1;\nexport const cap = 100;\n");
   await repo.write(
     ".github/metator/workflows/mt-review-response.yml",
@@ -201,7 +213,7 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
       ],
       {
         cwd: repo.root,
-        env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR },
+        env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...hostEnv() },
         stdout: "ignore",
         stderr: "pipe",
       },

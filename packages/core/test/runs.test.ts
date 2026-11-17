@@ -659,6 +659,7 @@ describe("resuming an escalated run", () => {
       reason: "again",
       // Its loop of one spent: two tries of two.
       attempts: { tried: 2, of: 2 },
+      stop: { kind: "exhausted", text: "tried plan-gate 2 of 2 times: again", tried: 2, of: 2 },
       next: [
         `metator run resume --run ${runId} --by <name> --drive`,
         `metator run close --run ${runId} --aborted --reason <why>`,

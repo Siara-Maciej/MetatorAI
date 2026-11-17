@@ -28,7 +28,7 @@ metator run drive --detach
 | `plan-gate` | `metator system plan lint` | every consumer of a breaking change migrates, providers go first, the strategy matches the map's policy |
 | `plan-approval` | you | one **Approve** approves the system plan and the gate |
 | `children` | `metator system plan run` | each step that can start becomes a child run in its application's repository, driven at once on the system run's host |
-| `status` | `metator system plan status --gate` | waits while the child runs work, starts the next wave when one is done, and stops at once when a child escalates |
+| `status` | `metator system plan status --gate` | waits while the child runs work (also while one waits for you), starts the next wave when one is done, and stops when a child is closed as aborted |
 | `delivery` | you | every step is done; deploy in the order of the plan's waves |
 
 Neither approval can be skipped at any autonomy level.
@@ -54,7 +54,7 @@ One approval does both: it approves the system plan as it is now, under your nam
 
 Every change is a line of the plan's edit log, `metator/system/plans/<id>.edits.jsonl`, with who made it and what changed.
 
-The **System map** screen shows `docs/metator/system.yml` with its lint and lets you change it the same way (a map pinned in another repository is changed there). **Discover** proposes a map from the code of this repository, or of every repository of the folder; it writes the map only when there is none. At a terminal in a folder, `metator system discover --write` writes the folder's map into the repository that holds it (`--repo <name>`; by default the one that has a map, else the first). The checkouts of the applications come from the option `system.roots`.
+The **System map** screen shows `docs/metator/system.yml` with its lint and lets you change it the same way (a map pinned in another repository is changed there). **Discover** proposes a map from the code of this repository, or of every repository of the folder; it writes the map only when there is none. With no map yet, everything it found is listed as what the map lacks, and **Write** creates the map. A map written in a folder names the repository that holds it as `path: .` and the others beside it as `../<name>`. At a terminal in a folder, `metator system discover --write` writes the folder's map into the repository that holds it (`--repo <name>`; by default the one that has a map, else the first). The checkouts of the applications come from the option `system.roots`: the directories on this machine that hold them (`metator config set system.roots ~/code --scope repo`, or **Save roots** in the app). An application is found in `<directory>/<its id>` or `<directory>/<its repository's name>`.
 
 ## Child runs
 
@@ -78,7 +78,7 @@ metator system plan status rename-refunds
 
 It lists every step with its application, its status (`pending`, `running`, `done` or `blocked`), its child run and that run's stage.
 
-While its children work, the system run waits at `status` without spending its waves, and reads as working: its activity says what it waits on, for example `waiting on children: shop-api working at build, shop-web not started`. When a wave is done, the next one starts. A child run that escalates or is aborted makes its step `blocked`, and the system run escalates at once, naming the step and where to resolve it. It also escalates after waiting six hours (`--timeout <ms>` on the gate's `metator system plan status --gate` changes that). Resolve the child in its repository, then resume the system run.
+While its children work, the system run waits at `status` without spending its waves, and reads as working: its activity says what it waits on, for example `waiting on children: shop-api working at build, shop-web not started`. When a wave is done, the next one starts. A child run that escalates does not stop the system run: it waits, and reads `blocked by <child run> (<app>, at <stage>): needs you`. Act on the child's own card (resume it, or close it); once the child is resumed, the system run goes on by itself. A child closed as aborted blocks its step for good: the system run escalates, naming the step. It also escalates after waiting six hours (`--timeout <ms>` on the gate's `metator system plan status --gate` changes that).
 
 ## Done
 

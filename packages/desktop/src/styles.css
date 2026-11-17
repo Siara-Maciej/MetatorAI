@@ -509,6 +509,13 @@ button.stagebar {
 .term .xterm {
   height: 100%;
 }
+/* The Terminal tab's terminal: the place "Attach and answer in the pane" scrolls to and focuses. */
+.term-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .events {
   flex: 1;
   overflow: auto;
@@ -2522,4 +2529,33 @@ dialog.goto {
   border: 1px solid var(--edge);
   border-radius: var(--radius);
   padding: 8px 12px;
+}
+
+/* round 4 */
+.run-link a {
+  color: var(--blue);
+}
+.closed-option {
+  margin-top: var(--sp-2);
+}
+.option:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.roots-list {
+  list-style: none;
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.system-run-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  align-items: baseline;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--edge);
+  font-size: var(--fs-code);
 }

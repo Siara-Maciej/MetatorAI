@@ -214,6 +214,7 @@ describe("WorkOverview", () => {
         reason: "no plan.json",
         // One try of one: the stage has no loop to go back on.
         attempts: { tried: 1, of: 1 },
+        stop: { kind: "stopped", text: "stopped at plan: no plan.json", tried: 1, of: 1 },
         waitedMs: 1_800_000,
         next: [
           "metator run resume --run 20261028-mt-feature-d --by <name> --drive",

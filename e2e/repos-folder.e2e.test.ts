@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { inTerminal } from "./helpers/terminal.ts";
 
 let folder: string;
@@ -35,6 +35,7 @@ beforeAll(async () => {
   await mkdir(join(folder, "notes"));
 });
 afterAll(async () => {
+  stopProcessesUnder(folder);
   await rm(folder, { recursive: true, force: true });
 });
 

@@ -161,6 +161,15 @@ Wzorem herdr powłoka ma jeden pasek boczny, który jest całym pulpitem; reszta
 - Każdy artefakt runu otwiera się tylko do odczytu; tekst agenta nigdy nie jest renderowany jako HTML.
 - Run, nad którym nic nie pracuje, ma **Open a session** (konduktor, `POST /runs/:run/start`, z wyborem hosta) i **Drive in background** (`POST /runs/:run/drive`), na stronie runu i w Inboxie, który mówi prawdę o otwartych runach.
 
+### 5.0b Runda 4 (2026-11-17)
+
+- Przebieg przerwany czyta się `aborted` (własny znak `⊘`, powód w podpowiedzi); linia pod skończonym przebiegiem mówi, jak się skończył, nie etap, na którym stanął.
+- Krok planu systemowego ma numer według swojego miejsca w kolejności wdrożenia (fale), tak samo w panelu bocznym i na karcie.
+- Pytanie agenta w terminalu jest kartą `TERMINAL` w jego słowach, z jego odpowiedziami; „Attach and answer in the pane" prowadzi na zakładkę Terminal z tym panelem, przejmuje klawiaturę, ustawia kursor w panelu i przewija do pytania.
+- Approve na karcie planu z błędami lintu jest zamknięty z powodem i linkiem „Fix the plan" (`#/run/<run>/plan/edit`); tak samo na karcie planu systemowego.
+- Nagłówek przebiegu systemowego pokazuje kroki zrobione z wszystkich i dziecko, które go blokuje (z linkiem).
+- `system.roots` edytowane jako lista z walidacją; Discover bez mapy pokazuje proponowaną mapę. Aplikacja nie wysyła żądania, o którym wie, że się nie uda.
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.

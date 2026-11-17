@@ -39,6 +39,8 @@ A system run's Plan tab shows its **system plan** instead: the change across rep
 
 **Edit system plan** and **Edit as text** work as for a run's plan. A step that already has a run is history: its fields are read-only and it cannot be removed. New steps can be added (**+ Step**, with the application they run in). An approved plan that is edited goes back to draft and must be approved again.
 
+Under a system run's header a line says how far its plan is (`1/2 steps done`) and what it waits for: **blocked by** the child run that needs you, with a link to it, or the gate's own words (`waiting on children: …`).
+
 In the sidebar a system run's steps sit under it, whatever repository they run in; a step of another repository names it (`step 2/2 · shop-web · plan · …`). The total comes from the system plan, so a step that has not started yet still counts.
 
 ## Change the run's plan
@@ -53,7 +55,7 @@ Until the run passes the gate where a person approves the plan (`plan-approval` 
 - If the plan changed since you opened it (an agent or another person saved first), the save is refused and the bar says **The plan changed since you opened it**: **Reload** drops your edits and shows the plan as it is now; **Keep my edits** keeps them and saves them over the new version on your next **Save**.
 - After the approval gate, or when the run is done, the plan is read-only and the bar says why.
 
-When the approval question is open, its card in the Inbox shows the plan's lint as it is now and a link **Review / edit the plan** to this tab.
+When the approval question is open, its card in the Inbox shows the plan's lint as it is now and a link **Review / edit the plan** to this tab. While the lint has errors, **Approve** on the card is closed with the reason, and **Fix the plan** opens this tab in its edit mode (`#/run/<run>/plan/edit`).
 
 Agents never edit a plan through the app; they write the plan file their stage names.
 

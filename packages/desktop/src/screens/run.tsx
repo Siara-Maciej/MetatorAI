@@ -12,6 +12,7 @@ import { EscalatedActions } from "../components/escalated-card.tsx";
 import { RunHeader } from "../components/run-header.tsx";
 import { StartRun } from "../components/start-run.tsx";
 import { StopReason } from "../components/stop-reason.tsx";
+import { SystemRunBar } from "../components/system-run-bar.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction, useRunControls } from "../hooks.ts";
 import {
@@ -37,10 +38,18 @@ export function RunScreen({
   file,
   go,
   onOpenRun,
+  answerIn,
+  onAnswering,
+  edit,
 }: {
+  /** The Plan tab opens in its edit mode. */
+  readonly edit?: boolean | undefined;
   readonly runId: string;
   readonly tab: RunTab;
   readonly pane?: string | undefined;
+  /** The person chose to answer in a pane of this run: the Terminal tab takes them there. */
+  readonly answerIn?: { readonly pane?: string | undefined } | undefined;
+  onAnswering?: (() => void) | undefined;
   readonly file?: string | undefined;
   go(route: Route): void;
   /** Another run's page (a parent, a step), or this one's terminal with the keyboard taken. */
@@ -89,11 +98,12 @@ export function RunScreen({
           </div>
         ) : null}
       </RunHeader>
+      {run ? <SystemRunBar run={run} /> : null}
       {run && phase === "escalated" ? (
         <div className="driverbar escalated" data-testid="driverbar">
           <strong>Escalated at {run.stage}</strong>
           <span className="note">
-            <StopReason reason={run.reason} testId="escalated-reason" />
+            <StopReason reason={run.reason} stop={run.stop} testId="escalated-reason" />
           </span>
           <EscalatedActions run={run} />
         </div>
@@ -117,6 +127,8 @@ export function RunScreen({
             <TerminalTab
               run={run}
               pane={pane}
+              answerIn={answerIn}
+              onAnswering={onAnswering}
               onOpenRun={onOpenRun}
               onOpenChanges={(id) => go({ screen: "run", runId: id, tab: "changes" })}
             />
@@ -128,6 +140,7 @@ export function RunScreen({
           <PlanTab
             run={run}
             runId={runId}
+            edit={edit}
             onOpenPane={(p) => go({ screen: "grid", pane: p })}
             onOpenRun={onOpenRun}
           />

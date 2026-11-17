@@ -1,5 +1,48 @@
+import { readdirSync, readlinkSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+/**
+ * Nothing the suites start may reach a real AI host: every `metator` process they spawn inherits
+ * this, and its host resolution refuses claude, copilot and opencode unless a stand-in program is
+ * named (`withoutRealHosts`). Tests drive with the scenario host.
+ */
+process.env.METATOR_NO_REAL_HOSTS = "1";
+
+/**
+ * Stops every process that works under a temporary directory a test is about to remove (a
+ * detached `run drive`, a daemon, an agent): none may outlive its repository. Linux only (`/proc`).
+ */
+export function stopProcessesUnder(dir: string): number {
+  let root: string;
+  try {
+    root = realpathSync(dir);
+  } catch {
+    return 0;
+  }
+  let stopped = 0;
+  let pids: string[] = [];
+  try {
+    pids = readdirSync("/proc").filter((p) => /^\d+$/.test(p));
+  } catch {
+    return 0;
+  }
+  for (const pid of pids) {
+    if (Number(pid) === process.pid) continue;
+    let cwd: string;
+    try {
+      cwd = readlinkSync(`/proc/${pid}/cwd`).replace(/ \(deleted\)$/, "");
+    } catch {
+      continue;
+    }
+    if (cwd !== root && !cwd.startsWith(`${root}/`)) continue;
+    try {
+      process.kill(Number(pid), "SIGKILL");
+      stopped++;
+    } catch {}
+  }
+  return stopped;
+}
 
 export const CLI_ENTRY = join(import.meta.dir, "../../packages/cli/src/main.ts");
 

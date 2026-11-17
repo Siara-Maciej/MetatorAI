@@ -14,6 +14,7 @@ import {
   escalatedKey,
   idleRuns,
   isFirstRun,
+  isTerminalAsk,
   type NeedRow,
   openRuns,
   plural,
@@ -49,7 +50,7 @@ export function InboxScreen({
     picked?.kind === "escalated"
       ? runs.find((r) => r.status === "escalated" && escalatedKey(r) === picked.key)
       : undefined;
-  const inTerminal = needs.filter((n) => n.kind === "terminal");
+  const inTerminal = needs.filter(isTerminalAsk);
   return (
     <div className="inbox">
       {item ? (
@@ -68,7 +69,7 @@ export function InboxScreen({
           onBriefing={onOverview}
           onOpenChanges={onOpenChanges}
         />
-      ) : picked?.kind === "terminal" ? (
+      ) : picked && isTerminalAsk(picked) ? (
         <div className="empty">
           <h2>
             {inTerminal.length === 1 ? "1 run asks" : `${plural(inTerminal.length, "run")} ask`} in the

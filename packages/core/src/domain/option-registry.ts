@@ -249,6 +249,18 @@ const issues: OptionDefinition[] = [
   }),
 ];
 
+const system: OptionDefinition[] = [
+  new ListOption({
+    key: "system.roots",
+    scope: "repo",
+    title: "Where the code is",
+    description:
+      "Directories on this machine that hold checkouts of the system's applications: an application is found in <directory>/<its id> or <directory>/<its repository's name>.",
+    defaultValue: [],
+    since: "F7",
+  }),
+];
+
 export const OPTIONS: readonly OptionDefinition[] = [
   ...ui,
   ...keys,
@@ -257,6 +269,7 @@ export const OPTIONS: readonly OptionDefinition[] = [
   ...editor,
   ...supervisor,
   ...issues,
+  ...system,
 ];
 
 export const optionByKey = (key: string): OptionDefinition | undefined => OPTIONS.find((o) => o.key === key);

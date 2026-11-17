@@ -1,5 +1,5 @@
 import slugify from "@sindresorhus/slugify";
-import { attemptsOf } from "../domain/drive.ts";
+import { attemptsOf, type RunStop, stopOf } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { escalatedNext } from "../domain/inbox.ts";
 import { type PublishedBranch, publicationProblem } from "../domain/publication.ts";
@@ -34,6 +34,8 @@ export interface RunView {
   readonly files: { readonly state: string; readonly log: string };
   readonly worktree?: RunRecord["worktree"];
   readonly driver?: RunRecord["driver"];
+  /** The AI host that works on it (the last drive's or session's). */
+  readonly host?: string;
   readonly updatedAt: string;
   /** An escalated run: where and why it stopped, and the commands that get it going or end it. */
   readonly escalated?: {
@@ -42,6 +44,8 @@ export interface RunView {
     readonly next: readonly string[];
     /** How often it tried the stage, of how often it could ("tried 1 of 13 times"). */
     readonly attempts?: { readonly tried: number; readonly of: number };
+    /** Why it stopped, as one sentence (a person's Reject, spent tries, or where it stopped). */
+    readonly stop?: RunStop;
   };
 }
 
@@ -60,6 +64,7 @@ function view(record: RunRecord, machine: RunStateMachine, repo: RunRepository):
     files: { state: repo.stateFile(record.runId), log: repo.logFile(record.runId) },
     ...(record.worktree ? { worktree: record.worktree } : {}),
     ...(record.driver ? { driver: record.driver } : {}),
+    ...(record.host ? { host: record.host } : {}),
     updatedAt: record.updatedAt,
     ...(record.state.status === "escalated" ? { escalated: escalation(record, machine) } : {}),
   };
@@ -79,6 +84,13 @@ function escalation(record: RunRecord, machine: RunStateMachine): NonNullable<Ru
     ...(last?.detail ? { reason: last.detail } : {}),
     next: escalatedNext(record.runId),
     ...(attempts ? { attempts } : {}),
+    stop: stopOf({
+      stages: machine.workflow.stages,
+      stage,
+      reason: last?.detail,
+      loops: record.state.context.loops,
+      limits: machine.workflow.loops ?? {},
+    }),
   };
 }
 
@@ -251,6 +263,27 @@ export interface GateSettler {
 export interface GateApprovals {
   refusal(runId: string, stage: string): Promise<Result<MetatorError | undefined, MetatorError>>;
   approve(runId: string, stage: string, by: string): Promise<Result<unknown, MetatorError>>;
+}
+
+/** The rules of several gates as one: the first refusal wins; an approval is carried out by each. */
+export class AllGateApprovals implements GateApprovals {
+  constructor(private readonly gates: readonly GateApprovals[]) {}
+
+  async refusal(runId: string, stage: string): Promise<Result<MetatorError | undefined, MetatorError>> {
+    for (const g of this.gates) {
+      const r = await g.refusal(runId, stage);
+      if (r.isErr() || r.value) return r;
+    }
+    return ok(undefined);
+  }
+
+  async approve(runId: string, stage: string, by: string): Promise<Result<unknown, MetatorError>> {
+    for (const g of this.gates) {
+      const r = await g.approve(runId, stage, by);
+      if (r.isErr()) return r;
+    }
+    return ok(undefined);
+  }
 }
 
 /** Asks a human gate's question when a run stands at one (`GateQuestions`); declared here for the same reason. */

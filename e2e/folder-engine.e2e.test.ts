@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 
 const WORKFLOW = `kind: Workflow
 schemaVersion: 2
@@ -23,6 +23,29 @@ stages:
   - id: build
     owner: mt-implementer
 `;
+// A run whose plan is a document (plan.json): its approval gate reads the plan's lint.
+const PLANNED = `kind: Workflow
+schemaVersion: 2
+id: planned
+stages:
+  - id: plan
+    owner: mt-planner
+    produces: [plan.json]
+  - id: plan-approval
+    hitl: true
+  - id: build
+    owner: mt-implementer
+`;
+const planJson = (path: string) =>
+  JSON.stringify({
+    kind: "Plan",
+    schemaVersion: 1,
+    task: "Change a",
+    scope: ["*.ts"],
+    steps: [
+      { id: "S1", action: "modify", path, intent: "change it", rules: [], testsFirst: [], dependsOn: [] },
+    ],
+  });
 const SCENARIO = `kind: AgentScenario
 schemaVersion: 1
 agents:
@@ -64,8 +87,13 @@ beforeAll(async () => {
     const dir = at(name);
     await mkdir(join(dir, ".github/metator/workflows"), { recursive: true });
     await Bun.write(join(dir, ".github/metator/workflows/demo.yml"), WORKFLOW);
+    await Bun.write(join(dir, ".github/metator/workflows/planned.yml"), PLANNED);
     await Bun.write(join(dir, ".gitignore"), ".metator/\n");
     await Bun.write(join(dir, "a.ts"), `export const ${name} = 1;\n`);
+    await Bun.write(
+      join(dir, "package.json"),
+      JSON.stringify({ name, private: true, scripts: { start: "bun a.ts" } }),
+    );
     for (const args of [
       ["init", "-q", "-b", "main"],
       ["add", "-A"],
@@ -104,6 +132,7 @@ beforeAll(async () => {
 afterAll(async () => {
   daemon.kill("SIGTERM");
   await daemon.exited;
+  stopProcessesUnder(folder);
   await rm(folder, { recursive: true, force: true });
 });
 
@@ -152,6 +181,76 @@ describe("the engine in a folder of repositories (real daemon)", () => {
       const layout = (await api("/layout?repo=beta")).body.data as { panes: { runId?: string }[] };
       return layout.panes.some((p) => p.runId === runId) ? undefined : true;
     });
+  }, 60_000);
+
+  test("a run's plan with lint errors: Approve on its gate card is disabled with the reason and refused; fixed, it approves", async () => {
+    const planned = data(await mt("alpha", "run", "new", "--workflow", "planned", "--task", "Change a"))
+      .runId as string;
+    const planFile = join(at("alpha"), ".metator/runs", planned, "plan.json");
+    await Bun.write(planFile, planJson("nowhere.ts"));
+    expect((await mt("alpha", "run", "advance", "pass", "--run", planned)).code).toBe(0);
+    const cardOf = async () =>
+      (
+        (await api("/inbox")).body.data as {
+          decisions: {
+            runId: string;
+            question: {
+              id: string;
+              options: { label: string; disabled?: boolean; disabledBecause?: string }[];
+            };
+          }[];
+        }
+      ).decisions.find((d) => d.runId === planned)?.question;
+    const q = await cardOf();
+    const approve = q?.options.find((o) => o.label === "Approve");
+    expect(approve?.disabled).toBe(true);
+    expect(approve?.disabledBecause).toBe(
+      `the plan of run ${planned} has 1 lint error: S1: nowhere.ts does not exist`,
+    );
+    const refused = await api(`/runs/${planned}/answer?repo=alpha`, {
+      method: "POST",
+      body: JSON.stringify({ question: q?.id, choices: ["Approve"], by: "ana" }),
+    });
+    expect([refused.http, refused.body.error?.code]).toEqual([400, "CHECK_FAILED"]);
+    expect((data(await mt("alpha", "run", "status", planned)) as { stage: string }).stage).toBe(
+      "plan-approval",
+    );
+    // The plan fixed: the same card approves.
+    await Bun.write(planFile, planJson("a.ts"));
+    expect((await cardOf())?.options.find((o) => o.label === "Approve")?.disabled).toBeUndefined();
+    const answered = await api(`/runs/${planned}/answer?repo=alpha`, {
+      method: "POST",
+      body: JSON.stringify({ question: q?.id, choices: ["Approve"], by: "ana" }),
+    });
+    expect(answered.http).toBe(200);
+    expect((data(await mt("alpha", "run", "status", planned)) as { stage: string }).stage).toBe("build");
+    await mt("alpha", "run", "close", planned, "--aborted", "--reason", "the test ends it");
+  }, 60_000);
+
+  test("Discover in a folder with no map yet proposes the whole map, and Write creates it", async () => {
+    const preview = await api("/system/discover?repo=alpha", {
+      method: "POST",
+      body: JSON.stringify({ write: false }),
+    });
+    const found = preview.body.data as { changes: string[]; mapExists: boolean; written: boolean };
+    expect(found.mapExists).toBe(false);
+    expect(found.changes).toEqual(
+      expect.arrayContaining(["application alpha is not in the map", "application beta is not in the map"]),
+    );
+    const written = await api("/system/discover?repo=alpha", {
+      method: "POST",
+      body: JSON.stringify({ write: true, by: "ana" }),
+    });
+    expect((written.body.data as { written: boolean; mapExists: boolean }).written).toBe(true);
+    expect(await Bun.file(join(at("alpha"), "docs/metator/system.yml")).exists()).toBe(true);
+    const after = await api("/system/discover?repo=alpha", {
+      method: "POST",
+      body: JSON.stringify({ write: false }),
+    });
+    expect([
+      (after.body.data as { mapExists: boolean }).mapExists,
+      (after.body.data as { changes: string[] }).changes,
+    ]).toEqual([true, []]);
   }, 60_000);
 
   test("a run's terminal socket finds its session and never starts one", async () => {

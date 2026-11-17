@@ -318,6 +318,7 @@ export interface Cradle {
   initEnvironment: InitEnvironment;
   environmentServices: EnvironmentServices;
   backgroundProcess: BackgroundProcess;
+  knownHosts: readonly HostDescriptor[];
   agentHosts: ReadonlyMap<string, AgentHost>;
   conversationRepository: ConversationRepository;
   askQuestion: AskQuestion;

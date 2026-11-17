@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 
 const MAP = `kind: SystemMap
 schemaVersion: 1
@@ -32,8 +32,20 @@ const git = (dir: string, ...a: string[]) =>
   Bun.spawnSync(["git", "-c", "user.name=T", "-c", "user.email=t@e", "-c", "commit.gpgsign=false", ...a], {
     cwd: dir,
   });
-const env = { METATOR_USER: "ana" };
-const mt = (repo: string, ...args: string[]) => metator(args, at(repo), env);
+// The child runs the plan starts are driven: by the scenario host, whose implementer waits on a
+// question until the test moves the run itself. No real AI host is ever started.
+const SCENARIO = `kind: AgentScenario
+schemaVersion: 1
+agents:
+  mt-implementer:
+    - - ask: { question: "Wait for the test?", options: [yes] }
+`;
+const env = () => ({
+  METATOR_USER: "ana",
+  METATOR_HOST: "scenario",
+  METATOR_AGENT_SCENARIO: join(folder, "scenario.yml"),
+});
+const mt = (repo: string, ...args: string[]) => metator(args, at(repo), env());
 
 interface Step {
   id: string;
@@ -44,6 +56,7 @@ interface Step {
 
 beforeAll(async () => {
   folder = await mkdtemp(join(tmpdir(), "metator-linked-"));
+  await Bun.write(join(folder, "scenario.yml"), SCENARIO);
   const W13 = await Bun.file(
     join(import.meta.dir, "..", ".github/metator/workflows/mt-system-change.yml"),
   ).text();
@@ -67,6 +80,7 @@ beforeAll(async () => {
     });
 });
 afterAll(async () => {
+  stopProcessesUnder(folder);
   await rm(folder, { recursive: true, force: true });
 });
 

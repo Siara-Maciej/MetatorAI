@@ -12,7 +12,7 @@ import { EmptyRow, ListRow, ListSection } from "../components/list-detail.tsx";
 import { SystemPlanPanel } from "../components/system-plan.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
-import { lookOf, plural } from "../model.ts";
+import { lookOf, plural, rootsProblems } from "../model.ts";
 import {
   blankApplication,
   blankContract,
@@ -117,7 +117,8 @@ function SystemMapEditor() {
   const [found, setFound] = useState<SystemDiscoveryView>();
   const rootsOption = optionsView?.options.find((o) => o.key === "system.roots");
   const roots = Array.isArray(rootsOption?.value) ? (rootsOption?.value as string[]) : [];
-  const [rootsText, setRootsText] = useState<string>();
+  // The roots as a list being edited: one path per row; undefined while nothing changed.
+  const [rootsDraft, setRootsDraft] = useState<string[]>();
   const view = map.data;
   const m = view?.map;
   const discover = async (write: boolean) => {
@@ -132,19 +133,25 @@ function SystemMapEditor() {
     );
     if (ok) setFound(write ? undefined : answer);
   };
-  const saveRoots = (text: string) =>
+  const rootsList = rootsDraft ?? roots;
+  const rootsWrong = rootsDraft ? rootsProblems(rootsDraft) : [];
+  const editRoots = (next: string[]) => setRootsDraft(next);
+  const saveRoots = (paths: readonly string[]) =>
     action
       .run(
         () =>
           client.setOption(
             "system.roots",
-            { scope: rootsOption?.definition.scope === "user" ? "user" : "repo", value: listOf(text) },
+            {
+              scope: rootsOption?.definition.scope === "user" ? "user" : "repo",
+              value: paths.map((p) => p.trim()),
+            },
             repo,
           ),
         { done: "the roots are saved" },
       )
       .then(async (r) => {
-        setRootsText(undefined);
+        if (r) setRootsDraft(undefined);
         await reloadOptions();
         return r;
       });
@@ -163,7 +170,15 @@ function SystemMapEditor() {
       {found ? (
         <section className="discovery" aria-label="what discovery found" data-testid="discovery">
           <h3>What the code shows that the map lacks</h3>
-          {found.changes.length === 0 ? (
+          {!m ? (
+            <>
+              <div className="faint">
+                There is no map yet: this is the map the code shows. "Write the map" saves it to{" "}
+                <span className="mono">{found.file ?? view?.file ?? "the map's file"}</span>.
+              </div>
+              <MapTables map={found.proposed} />
+            </>
+          ) : found.changes.length === 0 ? (
             <div className="faint">Nothing: the map says what the code shows.</div>
           ) : (
             <ul>
@@ -176,7 +191,7 @@ function SystemMapEditor() {
             <button
               type="button"
               className="primary"
-              disabled={found.changes.length === 0 || action.busy}
+              disabled={(m !== null && m !== undefined && found.changes.length === 0) || action.busy}
               onClick={() => void discover(true)}
             >
               Write the map
@@ -189,22 +204,69 @@ function SystemMapEditor() {
       ) : null}
       <section className="roots" aria-label="where the code is">
         <h3>Where the applications' code is</h3>
-        <div className="row">
-          <input
-            aria-label="system roots"
-            className="mono"
-            placeholder="directories holding the repositories, separated by commas"
-            value={rootsText ?? textOf(roots)}
-            onChange={(e) => setRootsText(e.target.value)}
-          />
-          <button
-            type="button"
-            disabled={rootsText === undefined || action.busy}
-            onClick={() => void saveRoots(rootsText ?? "")}
-          >
-            Save roots
-          </button>
-        </div>
+        {rootsOption ? (
+          <>
+            <p className="faint">
+              The directories that hold the applications' checkouts (option{" "}
+              <span className="mono">system.roots</span>, {rootsOption.definition.scope} scope).
+            </p>
+            <ul className="roots-list" aria-label="system roots" data-testid="system-roots">
+              {rootsList.length === 0 ? (
+                <li className="faint">No root yet: the map's own paths are used.</li>
+              ) : null}
+              {rootsList.map((path, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: a row is its place in the list
+                <li key={i} className="row">
+                  <input
+                    aria-label={`root ${i + 1}`}
+                    className="mono"
+                    placeholder="/home/you/code"
+                    value={path}
+                    onChange={(e) => editRoots(rootsList.map((p, j) => (j === i ? e.target.value : p)))}
+                  />
+                  <button
+                    type="button"
+                    className="ghost"
+                    aria-label={`remove root ${i + 1}`}
+                    title="remove this path"
+                    onClick={() => editRoots(rootsList.filter((_, j) => j !== i))}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {rootsWrong.length > 0 ? (
+              <ul className="red" data-testid="roots-problems">
+                {rootsWrong.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="actions">
+              <button type="button" onClick={() => editRoots([...rootsList, ""])}>
+                + Path
+              </button>
+              <button
+                type="button"
+                className="primary"
+                disabled={rootsDraft === undefined || rootsWrong.length > 0 || action.busy}
+                onClick={() => void saveRoots(rootsList)}
+              >
+                Save roots
+              </button>
+              {rootsDraft ? (
+                <button type="button" onClick={() => setRootsDraft(undefined)}>
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </>
+        ) : (
+          <p className="faint" data-testid="roots-unknown">
+            This daemon has no option <span className="mono">system.roots</span>: the paths come from the map.
+          </p>
+        )}
         {view && view.roots.length > 0 ? (
           <div className="faint">
             Found: <span className="mono">{view.roots.join(", ")}</span>

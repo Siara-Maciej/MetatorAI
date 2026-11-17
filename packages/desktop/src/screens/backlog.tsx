@@ -8,6 +8,7 @@ import type { Issue, IssueRef } from "../api.ts";
 import { Notice, RepoSelect } from "../components/common.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../components/list-detail.tsx";
+import { RunLink } from "../components/run-link.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { type Answer, useAction } from "../hooks.ts";
 import {
@@ -282,14 +283,7 @@ export function BacklogScreen({
           ) : null}
           {current.runId ? (
             <div className="dim">
-              run:{" "}
-              <button
-                type="button"
-                className="ghost mono"
-                onClick={() => onOpenSession(current.runId as string)}
-              >
-                {taskOf(current.runId)}
-              </button>
+              run: <RunLink runId={current.runId} repo={repo} onOpen={onOpenSession} />
             </div>
           ) : null}
           <div className="actions">

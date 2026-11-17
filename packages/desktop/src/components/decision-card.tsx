@@ -9,9 +9,14 @@ import {
   answerCommand,
   duration,
   groupStepText,
+  hostPromptOf,
   isFinished,
+  isTerminalQuestion,
   needsReason,
+  optionClosed,
+  paneOfQuestion,
   questionKind,
+  routeHash,
   systemPlanOf,
 } from "../model.ts";
 import { useAnswer } from "./answer.tsx";
@@ -33,7 +38,7 @@ export function DecisionCard({
   /** The run's change, straight from the card: what the decision is about. */
   onOpenChanges(runId: string): void;
 }) {
-  const { me, client, systemPlans, run: runOf, runs, planStepsOf } = useDaemon();
+  const { me, client, systemPlans, run: runOf, runs, planStepsOf, stepPlaceOf, panes } = useDaemon();
   const q = item.question;
   const [viewing, setViewing] = useState<string>();
   // A gate's card about the plan shows the plan's lint and the way to read or change it.
@@ -49,7 +54,12 @@ export function DecisionCard({
   const groupText = (g: { readonly parent: string; readonly step: number; readonly of: number }) => {
     // The parent can live in another repository (a system run's step).
     const parent = runOf(g.parent, item.repo) ?? runs.find((r) => r.runId === g.parent);
-    return groupStepText(g, parent ? planStepsOf(parent) : undefined, parent ? isFinished(parent) : false);
+    return groupStepText(
+      g,
+      parent ? planStepsOf(parent) : undefined,
+      parent ? isFinished(parent) : false,
+      stepPlaceOf(q.runId),
+    );
   };
   const systemPlan = owner ? systemPlanOf(systemPlans, owner, runs) : undefined;
   const planView =
@@ -57,8 +67,33 @@ export function DecisionCard({
       ? plan.data
       : undefined;
   const card = q.card;
-  // The recommended option is chosen first; a multi-select question starts with nothing chosen.
-  const first = card?.recommended ?? q.options[0]?.label;
+  // A host's prompt in a pane reads as its question, with who asks and the answers it offered.
+  const host = q.source === "permission" ? hostPromptOf(q.prompt) : undefined;
+  // A question the agent asks on its terminal: its words; an answer chosen here is typed in its pane.
+  const terminal = isTerminalQuestion(q);
+  const askPane = terminal ? paneOfQuestion(q, panes) : undefined;
+  const heading = host?.text || q.prompt;
+  // A plan with lint errors closes Approve: the daemon says so on the option, or the lint does.
+  const lintOfPlan =
+    planView?.lint ??
+    (q.source === "gate" && systemPlan && (systemPlan.status === "draft" || systemPlan.approval?.stale)
+      ? systemPlan.lint
+      : undefined);
+  const closed = new Map(
+    q.options.flatMap((o) => {
+      const why = optionClosed(o, lintOfPlan);
+      return why ? [[o.label, why] as const] : [];
+    }),
+  );
+  const open = q.options.filter((o) => !closed.has(o.label));
+  // The recommended option is chosen first; nothing is chosen for the person when it is closed
+  // (the next one may be a Reject that needs a reason), and a multi-select starts empty.
+  const first =
+    card?.recommended !== undefined
+      ? closed.has(card.recommended)
+        ? undefined
+        : card.recommended
+      : open[0]?.label;
   const a = useAnswer(q, item.repo, {
     initial: q.multiSelect || !first ? [] : [first],
     // From the card, without opening the session: the daemon notes the origin.
@@ -86,7 +121,7 @@ export function DecisionCard({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
-  const others = q.multiSelect ? [] : q.options.filter((o) => o.label !== choice);
+  const others = q.multiSelect ? [] : open.filter((o) => o.label !== choice);
   const second = others[0];
   return (
     <article className="card" aria-label="decision card">
@@ -98,7 +133,24 @@ export function DecisionCard({
         <span className="mono">{q.runId}</span>
         {q.agent ? <span>{q.agent}</span> : null}
       </div>
-      <h1 className={q.prompt.length > 160 ? "long" : undefined}>{q.prompt}</h1>
+      <h1 className={heading.length > 160 ? "long" : undefined}>{heading}</h1>
+      {terminal ? (
+        <div className="muted" data-testid="host-asker">
+          {q.agent ?? "the agent"} asks on its terminal
+          {askPane ? (
+            <>
+              , in pane <span className="mono">{askPane}</span>
+            </>
+          ) : null}
+          {item.stage ? ` · stage ${item.stage}` : ""} · an answer chosen here is typed there for you
+        </div>
+      ) : null}
+      {host ? (
+        <div className="muted" data-testid="host-asker">
+          {host.asker} asks on its terminal, in pane <span className="mono">{host.pane}</span>
+          {item.stage ? ` · stage ${item.stage}` : ""}
+        </div>
+      ) : null}
       <div className="chips">
         {card ? (
           <Chip tone={card.reversible ? "green" : "red"}>
@@ -169,6 +221,8 @@ export function DecisionCard({
               key={o.label}
               className="option"
               aria-pressed={a.choices.includes(o.label)}
+              disabled={closed.has(o.label)}
+              title={closed.get(o.label)}
               onClick={() => a.toggle(o.label)}
             >
               <span className="label">
@@ -179,9 +233,20 @@ export function DecisionCard({
               {card?.consequences?.[o.label] ? (
                 <span className="cons">→ {card.consequences[o.label]}</span>
               ) : null}
+              {closed.has(o.label) ? <span className="cons red">closed: the reason is below</span> : null}
             </button>
           ))}
         </fieldset>
+        {[...closed].map(([label, why]) => (
+          <div key={label} className="closed-option" data-testid="closed-option">
+            <span className="red">
+              {label} is closed: {why}.
+            </span>{" "}
+            {lintOfPlan ? (
+              <a href={routeHash({ screen: "run", runId: q.runId, tab: "plan", edit: true })}>Fix the plan</a>
+            ) : null}
+          </div>
+        ))}
       </section>
       <label className="reason">
         <span className={a.reason ? "amber" : "dim"}>

@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { browser, closeBrowser } from "./helpers/browser.ts";
+import { stopProcessesUnder } from "./helpers/cli.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const read = (path: string) => Bun.file(join(ROOT, path)).text();
@@ -54,6 +55,7 @@ beforeAll(async () => {
 afterAll(async () => {
   server?.stop(true);
   await closeBrowser();
+  stopProcessesUnder(out);
   await rm(out, { recursive: true, force: true });
 });
 

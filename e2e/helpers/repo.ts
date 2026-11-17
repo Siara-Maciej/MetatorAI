@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { stopProcessesUnder } from "./cli.ts";
 
 /** A throwaway git repository for e2e tests: real files, real git, nothing mocked. */
 export class ScratchRepo {
@@ -61,6 +62,8 @@ export class ScratchRepo {
   }
 
   async dispose(): Promise<void> {
+    // A drive or an agent the test started never outlives the repository.
+    stopProcessesUnder(this.root);
     await rm(this.root, { recursive: true, force: true });
   }
 }

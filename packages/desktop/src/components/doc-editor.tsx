@@ -4,7 +4,7 @@
  * saving, "Save…" first says what changes, then asks who and writes with the digest it was read
  * at. A write on an old version shows what is there now: Reload, or keep my edits and save over it.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Envelope, PlanLintProblem, PlanLintView } from "../api.ts";
 import { useDaemon } from "../daemon.tsx";
 import { lintSummary, refusalText } from "../model.ts";
@@ -59,7 +59,11 @@ export interface DocEditor<V, D> {
   readonly notice: { text: string | undefined; tone: "error" | "info"; onClose(): void };
 }
 
-export function useDocEditor<V, D>(source: DocSource<V, D>): DocEditor<V, D> {
+/**
+ * `startEditing`: open in the edit mode once the document is read and may be changed ("Fix the
+ * plan" from an approval card lands here).
+ */
+export function useDocEditor<V, D>(source: DocSource<V, D>, startEditing = false): DocEditor<V, D> {
   const { who } = useDaemon();
   const [mode, setMode] = useState<EditMode>("view");
   const [draft, setDraftState] = useState<D>();
@@ -105,6 +109,16 @@ export function useDocEditor<V, D>(source: DocSource<V, D>): DocEditor<V, D> {
     setPending(undefined);
     setConflict(undefined);
   };
+  const started = useRef(false);
+  useEffect(() => {
+    if (!startEditing) {
+      started.current = false;
+      return;
+    }
+    if (started.current || !view || mode !== "view" || !source.editable(view)) return;
+    started.current = true;
+    edit("form");
+  });
   const check = async () => {
     const doc = current();
     if (!doc.ok) {

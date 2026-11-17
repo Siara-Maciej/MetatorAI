@@ -1,19 +1,30 @@
 /** The Terminal tab of a run: its live session, who types, its panes, the question and the links. */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QuickAnswer } from "../components/answer.tsx";
 import { Chip } from "../components/chips.tsx";
 import { Notice } from "../components/common.tsx";
 import { Tabs } from "../components/tabs.tsx";
-import { PaneTerminal, RunTerminal, sendLine, type TerminalStatus } from "../components/terminal.tsx";
+import {
+  PaneTerminal,
+  RunTerminal,
+  sendLine,
+  type TerminalHandle,
+  type TerminalStatus,
+} from "../components/terminal.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction, useRunControls } from "../hooks.ts";
 import {
+  goesToPane,
+  hostPromptOf,
+  isTerminalQuestion,
   lookOf,
   paneLabel,
+  paneOfQuestion,
   paneStateOf,
   panesOfRun,
   plainKey,
   portsText,
+  questionKind,
   type Run,
   routeHash,
   runPhase,
@@ -22,12 +33,17 @@ import {
 export function TerminalTab({
   run,
   pane: wantedPane,
+  answerIn,
+  onAnswering,
   onOpenRun,
   onOpenChanges,
 }: {
   readonly run: Run;
   /** The pane to show first (from the sidebar); the conductor otherwise. */
   readonly pane?: string | undefined;
+  /** "Attach and answer in the pane": attach, show the pane, focus it, scroll to its question. */
+  readonly answerIn?: { readonly pane?: string | undefined } | undefined;
+  onAnswering?: (() => void) | undefined;
   onOpenRun(runId: string): void;
   onOpenChanges(runId: string): void;
 }) {
@@ -103,7 +119,41 @@ export function TerminalTab({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+  // "Attach and answer in the pane" chosen here, in the run's own Question box.
+  const [here, setHere] = useState<{ readonly pane?: string | undefined }>();
+  const answering = answerIn ?? here;
+  // Answering in a pane: attach once, then focus the pane's terminal at its last line (the question).
+  const handle = useRef<TerminalHandle>(undefined);
+  const view = useRef<HTMLDivElement>(null);
+  const asked = useRef(false);
+  // A new terminal handle renders again, so the effect below runs once the pane is there.
+  const [, setHandleReady] = useState(0);
+  useEffect(() => {
+    if (!answering) {
+      asked.current = false;
+      return;
+    }
+    if (answering.pane && answering.pane !== chosenPane) setChosenPane(answering.pane);
+    if (!attached) {
+      if (!asked.current && !taken) {
+        asked.current = true;
+        void attach();
+      }
+      return;
+    }
+    if (!handle.current) return;
+    handle.current.scrollToBottom();
+    handle.current.focus();
+    view.current?.scrollIntoView({ block: "end" });
+    setHere(undefined);
+    onAnswering?.();
+  });
+  const onReady = (h: TerminalHandle) => {
+    handle.current = h;
+    setHandleReady((n) => n + 1);
+  };
   const question = run.questions[0];
+  const host = question?.source === "permission" ? hostPromptOf(question.prompt) : undefined;
   return (
     <div className="session">
       <div className="main">
@@ -185,9 +235,19 @@ export function TerminalTab({
           </button>
         </Tabs>
         {shown && shown !== conductor?.id ? (
-          <PaneTerminal key={shown} paneId={shown} repo={repo} canType={attached} />
+          <div ref={view} className="term-view">
+            <PaneTerminal key={shown} paneId={shown} repo={repo} canType={attached} onReady={onReady} />
+          </div>
         ) : hasTerminal ? (
-          <RunTerminal runId={runId} repo={repo} canType={attached} onStatus={setTermStatus} />
+          <div ref={view} className="term-view">
+            <RunTerminal
+              runId={runId}
+              repo={repo}
+              canType={attached}
+              onStatus={setTermStatus}
+              onReady={onReady}
+            />
+          </div>
         ) : (
           <div className="empty no-session" data-testid="no-session">
             <h2>No session runs for this run</h2>
@@ -239,10 +299,27 @@ export function TerminalTab({
           {question ? (
             <>
               <div className="clamp" title={question.prompt}>
-                {question.prompt}
+                {host?.text || question.prompt}
               </div>
-              <QuickAnswer question={question} repo={repo} onDone={() => void refresh()} />
-              {question.source === "permission" ? (
+              {isTerminalQuestion(question) ? (
+                <div className="dim" data-testid="host-asker">
+                  {question.agent ?? "the agent"} asks on its terminal: an answer chosen here is typed there
+                </div>
+              ) : null}
+              {host ? (
+                <div className="dim" data-testid="host-asker">
+                  {host.asker} asks on its terminal, in pane <span className="mono">{host.pane}</span>
+                </div>
+              ) : null}
+              <QuickAnswer
+                question={question}
+                repo={repo}
+                onDone={(choices) => {
+                  if (goesToPane(question, choices[0])) setHere({ pane: paneOfQuestion(question, panes) });
+                  void refresh();
+                }}
+              />
+              {questionKind(question) === "PERMISSION" ? (
                 <div className="dim">
                   The host asks in its terminal. To give the same answer every time, answer with{" "}
                   <code>metator run answer --always</code>.

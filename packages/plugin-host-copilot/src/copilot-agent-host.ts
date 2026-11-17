@@ -40,22 +40,29 @@ export class CopilotAgentHost implements AgentHost {
     const texts: string[] = [];
     let buffer = "";
     const decoder = new TextDecoder();
-    for await (const chunk of proc.stdout as ReadableStream<Uint8Array>) {
-      buffer += decoder.decode(chunk, { stream: true });
-      let nl = buffer.indexOf("\n");
-      while (nl >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        for (const event of parseLine(line)) {
-          if (event.type === "text") texts.push(event.text);
-          yield event;
+    // A drive that stops reading (its run's directory is gone) ends the agent's process with it.
+    let finished = false;
+    try {
+      for await (const chunk of proc.stdout as ReadableStream<Uint8Array>) {
+        buffer += decoder.decode(chunk, { stream: true });
+        let nl = buffer.indexOf("\n");
+        while (nl >= 0) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          for (const event of parseLine(line)) {
+            if (event.type === "text") texts.push(event.text);
+            yield event;
+          }
+          nl = buffer.indexOf("\n");
         }
-        nl = buffer.indexOf("\n");
       }
-    }
-    for (const event of parseLine(buffer.trim())) {
-      if (event.type === "text") texts.push(event.text);
-      yield event;
+      for (const event of parseLine(buffer.trim())) {
+        if (event.type === "text") texts.push(event.text);
+        yield event;
+      }
+      finished = true;
+    } finally {
+      if (!finished) proc.kill();
     }
     const code = await proc.exited;
     const stderr = await new Response(proc.stderr as ReadableStream<Uint8Array>).text();

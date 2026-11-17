@@ -89,7 +89,8 @@ export function QuickAnswer({
   readonly repo: string | undefined;
   /** Show only the first options (the plan's bar is one line). */
   readonly max?: number;
-  onDone(): void;
+  /** After the answer is taken, with what was chosen. */
+  onDone(choices: readonly string[]): void;
 }) {
   const a = useAnswer(q, repo, { onDone });
   const recommended = q.card?.recommended;

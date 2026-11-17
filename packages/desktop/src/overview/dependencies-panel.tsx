@@ -4,6 +4,7 @@ import { Notice } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import {
+  finishedText,
   GRAPH,
   graphLayout,
   linkPath,
@@ -152,8 +153,9 @@ export function DependenciesPanel() {
                   {r.task.length > 28 ? `${r.task.slice(0, 27)}…` : r.task}
                 </text>
                 <text x={x + 10} y={y + 38} className="sub">
-                  {state} · {r.stage} · {r.host ?? "no host"}
+                  {finished ? state : `${state} · ${r.stage}`} · {r.host ?? "no host"}
                 </text>
+                {finished ? <title>{finishedText(r)}</title> : null}
               </a>
             );
           })}

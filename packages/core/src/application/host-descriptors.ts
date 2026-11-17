@@ -1,3 +1,5 @@
+import { MetatorError } from "../domain/errors.ts";
+import { err } from "../domain/result.ts";
 import type {
   AgentHost,
   HostGenerator,
@@ -17,7 +19,12 @@ export interface HostDescriptor {
   /** The program the host runs: its name on PATH, and the variable that names another one. */
   readonly program?: { readonly env: string; readonly default: string };
   /** Runs one agent on one task; `runsProgram` says whether that needs `program` installed. */
-  readonly agent?: { readonly runsProgram: boolean; host(bin: string | undefined): AgentHost };
+  readonly agent?: {
+    readonly runsProgram: boolean;
+    /** Why this host may not drive agents here at all (the guard of `METATOR_NO_REAL_HOSTS`). */
+    readonly refused?: string;
+    host(bin: string | undefined): AgentHost;
+  };
   /** The host as an interactive CLI in a PTY. */
   interactive?(terminal: Terminal, bin: string | undefined): InteractiveHost;
   /** Writes the host's agent files and hooks; `agentFile` is where an agent's file goes. */
@@ -68,6 +75,7 @@ export function driveHostProblem(
 ): (id: string) => string | undefined {
   return (id) => {
     const host = hosts.find((h) => h.id === id);
+    if (host?.agent?.refused) return host.agent.refused;
     if (!host?.agent?.runsProgram) return undefined;
     const command = hostCommand(host, bins);
     return command === undefined || exists(command) ? undefined : `\`${command}\` is not installed`;
@@ -106,4 +114,63 @@ export async function agentDefinitionFiles(
       if (text.isOk()) out[file] = text.value;
     }
   return out;
+}
+
+/**
+ * The variable a test suite sets so that nothing it does can reach a real AI host: only the
+ * scenario host (no program of its own) and a stand-in program named by `METATOR_<HOST>_BIN` run.
+ */
+export const NO_REAL_HOSTS = "METATOR_NO_REAL_HOSTS";
+
+/**
+ * Why a host would be a real AI host here, as an agent driver or as an interactive CLI; undefined
+ * for a host with no program of its own and for a stand-in program. An agent that does not run
+ * through its program (an SDK) is real whatever program is named.
+ */
+export function realHostRefusal(
+  host: HostDescriptor,
+  bins: HostBins,
+  use: "agent" | "interactive",
+): string | undefined {
+  if (!host.program) return undefined;
+  const bin = bins[host.id];
+  const standIn =
+    bin !== undefined &&
+    bin !== host.program.default &&
+    !(use === "agent" && host.agent?.runsProgram === false);
+  if (standIn) return undefined;
+  return `${host.id} is a real AI host and ${NO_REAL_HOSTS} is set here: use the scenario host (METATOR_AGENT_SCENARIO) or a stand-in program (${host.program.env})`;
+}
+
+/** The hosts with every real AI host refused, as `METATOR_NO_REAL_HOSTS` asks: it says why instead of starting. */
+export function withoutRealHosts(hosts: readonly HostDescriptor[], bins: HostBins): HostDescriptor[] {
+  return hosts.map((h) => {
+    const agentWhy = h.agent ? realHostRefusal(h, bins, "agent") : undefined;
+    const sessionWhy = h.interactive ? realHostRefusal(h, bins, "interactive") : undefined;
+    if (!agentWhy && !sessionWhy) return h;
+    const { agent, interactive, ...rest } = h;
+    const refusedAgent = (why: string): AgentHost => ({
+      id: h.id,
+      // biome-ignore lint/correctness/useYield: a refused host yields nothing; it says why.
+      run: async function* () {
+        throw MetatorError.usage(why);
+      },
+    });
+    const refusedSession = (why: string): InteractiveHost => ({
+      id: h.id,
+      start: async () => err(MetatorError.usage(why)),
+      resume: async () => err(MetatorError.usage(why)),
+    });
+    return {
+      ...rest,
+      ...(agent
+        ? {
+            agent: agentWhy
+              ? { runsProgram: agent.runsProgram, refused: agentWhy, host: () => refusedAgent(agentWhy) }
+              : agent,
+          }
+        : {}),
+      ...(interactive ? { interactive: sessionWhy ? () => refusedSession(sessionWhy) : interactive } : {}),
+    };
+  });
 }

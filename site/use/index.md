@@ -38,17 +38,18 @@ The sidebar is the whole dashboard. Every row is built the same way: the state's
 
 **Needs you · N** is on top: every question that waits on a card, every run whose agent asks on its own terminal, and every escalated run. A click on a row opens its decision in the Inbox ([Answer questions](./inbox.md)); a row marked `terminal` opens the run on the pane that asks. The number in the heading is the number of rows.
 
-**Runs · N** follows, one group per repository when the daemon serves a folder. A run's dim line is its stage, its AI host and the time since it started; a step of a run that was split sits under its parent, with `step 2/3`. A run with more than one pane lists its panes under it. A click on a run opens its page; a click on an escalated run opens its card. Finished runs fold into **Finished · N** at the end.
+**Runs · N** follows, one group per repository when the daemon serves a folder. A run's dim line is its stage, its AI host and the time since it started; a finished run says how it ended (`done`, `aborted`) instead of a stage. A step of a run that was split sits under its parent, with `step 2/3`: a system plan's step is numbered by its place in the plan's deploy order, the same in the sidebar and on its cards. A run with more than one pane lists its panes under it. A click on a run opens its page; a click on an escalated run opens its card. Finished runs fold into **Finished · N** at the end.
 
-A run reads one of five words, and the mark of a group is the strongest of its runs:
+A run reads one of six words, and the mark of a group is the strongest of its runs:
 
 | Word | Means |
 |---|---|
 | `needs you` | it asks: on a card in the Inbox, or in its terminal |
 | `escalated` | it stopped and needs work from you |
 | `working` | an agent works on it |
-| `done` | it finished and you have not opened it since; once you open it, it is `idle` |
-| `idle` | nothing happens and nothing is asked: stopped, aborted, or finished and seen |
+| `done` | it finished; drawn in green until you open it, quiet after |
+| `aborted` | it was closed without its work (`⊘`); the reason is on hover |
+| `idle` | nothing happens and nothing is asked: stopped, or nothing works on it |
 
 The app remembers which finished runs you opened in the window's own storage; another browser or computer starts with every finished run as `done`.
 
@@ -92,7 +93,7 @@ When you come back to the window after ten minutes away and a run's page is open
 
 **Daemon** is the daemon's own view. Four tiles show the median time from a question to its answer, the share of answers given from the decision card without opening the run, how many runs the daemon started again in the last 24 hours, and how many reminders it typed to an idle agent. Below is a table of the open runs with their host, who works, state, terminal and last activity; a click on a run's name opens it. The side column shows how the daemon looks after runs (the waiting limit, restarts, the host order) and, under **AI hosts**, each host with **installed** or **not installed**. The daemon looks the hosts up each time, so a host you install while it runs is found without a restart. You change the settings in `metator.config.yml` ([Configuration](../reference/configuration.md#supervisor)).
 
-**System** lists the system plans of the repository; one opens with its steps, waves, approval and editing ([A system run's plan](./plan.md#a-system-runs-plan)). **System map** under it shows the applications and the contracts of the system as tables and is edited the same way (**Edit system map**, **Edit as text**, **Save…**). Its line **Where the applications' code is** sets the option `system.roots`. **Discover…** reads the code and lists what the map lacks; nothing is written until **Write the map**.
+**System** lists the system plans of the repository; one opens with its steps, waves, approval and editing ([A system run's plan](./plan.md#a-system-runs-plan)). **System map** under it shows the applications and the contracts of the system as tables and is edited the same way (**Edit system map**, **Edit as text**, **Save…**). **Where the applications' code is** edits the option `system.roots` as a list: **+ Path** adds a directory, **✕** removes one, and a path that is not absolute, or is listed twice, is said under the list before **Save roots** can send it. **Discover…** reads the code and lists what the map lacks; with no map yet it shows the whole map the code suggests. Nothing is written until **Write the map**.
 
 **Dependencies** is the graph. Each repository is a lane and each run a card with its state, stage and AI host. Finished runs of the last day stay, dimmed, so the picture of a system change is still there when it is done. A click on a card opens the run. An arrow runs from a parent run to each run it started, to the right of it, also across lanes. A dashed line joins two runs that exchanged a message or changed the same file. The **Links** box lists those pairs. For a shared file it says which run to merge first, and **Notify both** sends each of the two runs a message about the file.
 

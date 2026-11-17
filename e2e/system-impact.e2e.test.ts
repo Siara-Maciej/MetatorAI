@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 
 const SPEC = "openapi: 3.0.3\ninfo: { title: Billing API, version: 2.0.0 }\npaths: {}\n";
 const MAP = `kind: SystemMap
@@ -71,6 +71,7 @@ beforeAll(async () => {
   });
 });
 afterAll(async () => {
+  stopProcessesUnder(folder);
   await rm(folder, { recursive: true, force: true });
 });
 
@@ -177,6 +178,7 @@ describe("library changes and checkouts side by side (real CLI)", () => {
     await repo("api", { "src/server.ts": "export const s = 1;\n" }, "git@github.com:acme/api.git");
   }, 60_000);
   afterAll(async () => {
+    stopProcessesUnder(dir);
     await rm(dir, { recursive: true, force: true });
   });
 

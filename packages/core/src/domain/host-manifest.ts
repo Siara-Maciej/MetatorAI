@@ -176,3 +176,39 @@ export const ANSWERED_IN_PANE = "Answered in the pane";
 export function hostPromptText(host: string, paneId: string, line: string): string {
   return `${host} waits for your answer in pane ${paneId}: ${line}`;
 }
+
+/** What a blocked pane's screen line asks: a question an agent asks with its options, or a host's permission prompt. */
+export interface TerminalQuestion {
+  readonly kind: "question" | "permission";
+  /** The question in its own words (a permission prompt: the line as it is). */
+  readonly prompt: string;
+  /** The choices a question names (`[PLN / EUR]`); none for a permission prompt. */
+  readonly options: readonly string[];
+}
+
+/** The words of a host asking leave to use a tool, whatever its choices. */
+const PERMISSION_WORDS =
+  /\b(allow|permission|proceed|make this edit|don't ask again|esc to cancel|press enter)\b|\(y\/n\)|\[y\/n\]|do you want to (run|allow|continue)/i;
+
+/**
+ * A blocked pane's screen line read as a person reads it: `Which currency? [PLN / EUR]` is a
+ * question with two options; `Allow … (y/n)` or a single choice is the host's own prompt. The
+ * frame and escapes of the terminal are not part of the words.
+ */
+export function terminalQuestionOf(line: string): TerminalQuestion {
+  const clean = line
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: terminal escapes are what is removed
+    .replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "")
+    .replace(/^[\s│|>❯•*?-]+/, "")
+    .trim();
+  const m = /^(.*?)\s*\[([^\]]+)\]\s*$/.exec(clean);
+  const options = m
+    ? (m[2] as string)
+        .split(/\s*\/\s*/)
+        .map((o) => o.trim())
+        .filter((o) => o !== "")
+    : [];
+  if (PERMISSION_WORDS.test(clean) || options.length < 2)
+    return { kind: "permission", prompt: clean, options: [] };
+  return { kind: "question", prompt: (m?.[1] ?? clean).trim(), options };
+}

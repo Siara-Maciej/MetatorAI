@@ -289,6 +289,7 @@ export class ClaudeAgentHost implements AgentHost {
       }
       return {};
     };
+    const stop = new AbortController();
     const options: Record<string, unknown> = {
       cwd: task.cwd,
       agent: task.agent,
@@ -311,8 +312,16 @@ export class ClaudeAgentHost implements AgentHost {
         ...(task.driven ? { METATOR_DRIVEN: "1" } : {}),
       },
       ...(task.resume ? { resume: task.resume } : {}),
+      abortController: stop,
     };
-    for await (const message of query({ prompt: task.prompt, options })) yield* toEvents(message);
+    // A drive that stops reading (its run's directory is gone) ends the agent's process with it.
+    let finished = false;
+    try {
+      for await (const message of query({ prompt: task.prompt, options })) yield* toEvents(message);
+      finished = true;
+    } finally {
+      if (!finished) stop.abort();
+    }
   }
 }
 

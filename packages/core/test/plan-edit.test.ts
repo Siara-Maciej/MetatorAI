@@ -2,11 +2,18 @@ import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { PlanBoard } from "../src/application/plan-board.ts";
-import { planReadOnlyBecause, planStages, RunPlans } from "../src/application/plan-edit.ts";
+import {
+  planReadOnlyBecause,
+  planStages,
+  RunPlanApprovals,
+  type RunPlanApprovalsDependencies,
+  RunPlans,
+} from "../src/application/plan-edit.ts";
 import { RunJournal } from "../src/application/run-journal.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
-import { InitRun } from "../src/application/runs.ts";
+import { AllGateApprovals, InitRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
+import { MetatorError } from "../src/domain/errors.ts";
 import { lintPlan, type Plan, PlanDocument } from "../src/domain/plan.ts";
 import { changeSummary, documentDigest, documentFromBody, itemChanges } from "../src/domain/plan-edit.ts";
 import { ok } from "../src/domain/result.ts";
@@ -355,5 +362,61 @@ describe("RunActivity v3", () => {
     expect(RunActivityDocument.parse({ ...v2, schemaVersion: 3, type: "plan-edited" }, "a").isOk()).toBe(
       true,
     );
+  });
+});
+
+describe("the plan's gate refuses Approve while the plan has lint errors", () => {
+  const BAD: Plan = {
+    ...PLAN,
+    steps: [
+      {
+        ...(PLAN.steps[1] as Plan["steps"][number]),
+        id: "S1",
+        path: "src/nowhere.ts",
+        testsFirst: [],
+        dependsOn: [],
+      },
+    ],
+  };
+  const approvals = (w: Awaited<ReturnType<typeof world>>) =>
+    new RunPlanApprovals({
+      fs: w.fs,
+      repo: w.repo,
+      catalog: new WorkflowCatalog(w.fs, DEFAULT_PATHS),
+      lint: (w.plans as unknown as { d: { lint: RunPlanApprovalsDependencies["lint"] } }).d.lint,
+    });
+
+  test("at the gate that approves the plan: the errors, by message, with the way to fix them", async () => {
+    const w = await world({ plan: BAD });
+    await w.moveTo("plan-approval");
+    const refused = (await approvals(w).refusal(w.run.runId, "plan-approval"))._unsafeUnwrap();
+    expect(refused?.code).toBe("CHECK_FAILED");
+    expect(refused?.message).toBe(
+      `the plan of run ${w.run.runId} has 1 lint error: S1: src/nowhere.ts does not exist`,
+    );
+    expect(refused?.hint).toContain("metator plan lint");
+    // Another stage, a plan without errors, no plan at all: nothing is refused.
+    expect((await approvals(w).refusal(w.run.runId, "build"))._unsafeUnwrap()).toBeUndefined();
+    const good = await world({ plan: PLAN });
+    expect((await approvals(good).refusal(good.run.runId, "plan-approval"))._unsafeUnwrap()).toBeUndefined();
+    const none = await world();
+    expect((await approvals(none).refusal(none.run.runId, "plan-approval"))._unsafeUnwrap()).toBeUndefined();
+    expect((await approvals(w).approve(w.run.runId, "plan-approval", "ana")).isOk()).toBe(true);
+  });
+
+  test("several gates' rules: the first refusal wins; an approval runs each", async () => {
+    const said: string[] = [];
+    const gate = (name: string, why?: string) => ({
+      refusal: async () => ok(why ? MetatorError.usage(why) : undefined),
+      approve: async (_r: string, _s: string, by: string) => {
+        said.push(`${name} ${by}`);
+        return ok(undefined);
+      },
+    });
+    const all = new AllGateApprovals([gate("system"), gate("plan", "plan errors"), gate("x", "later")]);
+    expect((await all.refusal("r", "s"))._unsafeUnwrap()?.message).toBe("plan errors");
+    expect((await new AllGateApprovals([gate("a")]).refusal("r", "s"))._unsafeUnwrap()).toBeUndefined();
+    (await all.approve("r", "s", "ana"))._unsafeUnwrap();
+    expect(said).toEqual(["system ana", "plan ana", "x ana"]);
   });
 });

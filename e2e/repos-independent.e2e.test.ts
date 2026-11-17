@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { metator } from "./helpers/cli.ts";
+import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 let shop: ScratchRepo;
@@ -32,6 +32,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   for (const repo of [shop, billing]) await repo.dispose();
+  stopProcessesUnder(state);
   await rm(state, { recursive: true, force: true });
 });
 

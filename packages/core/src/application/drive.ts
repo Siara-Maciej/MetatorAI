@@ -72,6 +72,10 @@ type Outcome =
   /** The run left the stage while it waited for a person: the drive looks at the run again. */
   | { readonly type: "MOVED" };
 const MOVED = { type: "MOVED" } as const;
+/** The run's directory went away while an agent worked. */
+const GONE = Symbol("gone");
+/** How often a drive looks whether its run's directory is still there while an agent works. */
+const GONE_WATCH_MS = 2000;
 
 /** Why the drive stopped on a host limit, and how the person carries on. */
 const limitReason = (agent: string, limit: string) =>
@@ -106,6 +110,8 @@ export interface DriveDependencies {
   readonly worktrees?: Pick<WorktreeRegistry, "get">;
   /** Why a host cannot start here (its program is not installed); undefined when it can (F3). */
   readonly hostProblem?: (host: string) => string | undefined;
+  /** How often to look whether the run's directory is still there while an agent works (ms). */
+  readonly goneWatchMs?: number;
 }
 
 /**
@@ -135,6 +141,11 @@ export class DriveRun {
     if (refused) return err(refused);
     const say = (entry: ActivityInput) => this.d.journal.record(runId, entry);
     await say({ type: "drive", text: `driving with ${host.id}` });
+    // The run's host is the one that drives it now, whether or not the host keeps a session.
+    if (first.value.host !== host.id) {
+      const named = await this.d.repo.update(runId, (record) => ok({ ...record, host: host.id }));
+      if (named.isErr()) return err(named.error);
+    }
 
     let steps = 0;
     // A run resumed after it escalated starts where it failed: its agents hear why (F1).
@@ -700,19 +711,31 @@ export class DriveRun {
     let usage: HostUsage | undefined;
     const started = this.d.journal.now().getTime();
     try {
-      for await (const event of ctx.host.run(
-        {
-          agent,
-          prompt,
-          cwd: ctx.cwd,
-          projectRoot: this.d.root,
-          runDir: ctx.runDir,
-          driven: true,
-          ...(approved.length > 0 ? { approved } : {}),
-          ...(resume ? { resume } : {}),
-        },
-        ask,
-      )) {
+      const events = ctx.host
+        .run(
+          {
+            agent,
+            prompt,
+            cwd: ctx.cwd,
+            projectRoot: this.d.root,
+            runDir: ctx.runDir,
+            driven: true,
+            ...(approved.length > 0 ? { approved } : {}),
+            ...(resume ? { resume } : {}),
+          },
+          ask,
+        )
+        [Symbol.asyncIterator]();
+      for (;;) {
+        const next = await this.unlessGone(ctx, events.next());
+        // The repository went away under the agent (a deleted checkout): the agent is stopped
+        // and so is the drive; nothing outlives the directory it works in.
+        if (next === GONE) {
+          void events.return?.(undefined);
+          return err(MetatorError.usage(`the run's directory is gone (${this.d.root}): the drive stops`));
+        }
+        if (next.done) break;
+        const event = next.value;
         if (event.type === "session") {
           session = event.id;
           const saved = await this.rememberSession(ctx, event.id);
@@ -751,6 +774,39 @@ export class DriveRun {
     });
     if (measured.isErr()) return err(measured.error);
     return ok({ ok: okResult, text: text.trim(), ...(session ? { session } : {}) });
+  }
+
+  /**
+   * The next event of an agent, or GONE once the run's directory disappears meanwhile (looked at
+   * every few seconds while the agent works).
+   */
+  private async unlessGone<T>(ctx: StageContext, next: Promise<T>): Promise<T | typeof GONE> {
+    let settled = false;
+    const done = next.then(
+      (v) => {
+        settled = true;
+        return v;
+      },
+      (e) => {
+        settled = true;
+        throw e;
+      },
+    );
+    // A clock of its own, not the timer port: the drive's waits (and a test's instant timer) stay
+    // the drive's; this only looks at the directory while the agent works.
+    const every = this.d.goneWatchMs ?? GONE_WATCH_MS;
+    for (;;) {
+      let tick: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        done.catch(() => undefined),
+        new Promise((resolve) => {
+          tick = setTimeout(resolve, every);
+        }),
+      ]);
+      clearTimeout(tick);
+      if (settled) return done;
+      if (!(await this.d.fs.exists(`${this.d.repo.runDir(ctx.runId)}/state.json`))) return GONE;
+    }
   }
 
   /** The host session goes into the run, so `run continue` can resume the agent where it was. */

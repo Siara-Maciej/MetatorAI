@@ -167,7 +167,8 @@ describe("the Inbox's cards (defects 9, 12, 17, 19)", () => {
     expect(paneOfPrompt("Approve the plan?")).toBeUndefined();
     expect(goesToPane({ source: "permission" }, "Attach and answer in the pane")).toBe(true);
     expect(goesToPane({ source: "permission" }, "Leave it")).toBe(false);
-    expect(goesToPane({ source: "gate" }, "Attach and answer in the pane")).toBe(false);
+    // Round 4: the daemon offers the pane on an agent's terminal question too; the answer, not the source, decides.
+    expect(goesToPane({ source: "agent" }, "Attach and answer in the pane")).toBe(true);
   });
 
   test("a long list keeps the newest lines and counts a line repeated, so the options stay in view", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { attemptsOf, driveHostOf } from "../src/domain/drive.ts";
+import { attemptsOf, driveHostOf, stopOf } from "../src/domain/drive.ts";
+import { progressOf } from "../src/domain/plan-progress.ts";
 import { systemGate } from "../src/domain/system-gate.ts";
 
 const step = (id: string, app: string, status: string, run?: { status: string; stage: string }) => ({
@@ -46,7 +47,7 @@ describe("the gate of a system run that waits on its children (systemGate)", () 
     expect(g).toEqual({ kind: "wave", message: "a step can start: b" });
   });
 
-  test("a child escalated or aborted: blocked at once, naming the run and where to resolve it", () => {
+  test("a child escalated: the system run waits, blocked by that child, whose card the person acts on", () => {
     const g = systemGate({
       steps: [
         step("a", "shop-api", "blocked", { status: "escalated", stage: "build" }),
@@ -57,9 +58,22 @@ describe("the gate of a system run that waits on its children (systemGate)", () 
       timeoutMs: HOUR,
     });
     expect(g).toEqual({
+      kind: "waiting",
+      message: "blocked by r-a (shop-api, at build): needs you; shop-web working at plan",
+    });
+  });
+
+  test("a child closed as aborted: blocked at once, naming the run and what to do", () => {
+    const g = systemGate({
+      steps: [step("a", "shop-api", "blocked", { status: "aborted", stage: "build" })],
+      ready: [],
+      waitedMs: 0,
+      timeoutMs: HOUR,
+    });
+    expect(g).toEqual({
       kind: "blocked",
-      message: "step a is blocked: its run r-a in shop-api escalated at build",
-      hint: "Resolve that run in shop-api (resume or close it), then resume this run.",
+      message: "step a is blocked: its run r-a in shop-api aborted at build",
+      hint: "Its step cannot finish: change the system plan or close this run.",
     });
   });
 
@@ -107,5 +121,65 @@ describe("how often an escalated run tried its stage (attemptsOf)", () => {
     // A stage without a loop has one try.
     expect(attemptsOf(stages, "check", {}, limits)).toEqual({ tried: 1, of: 1 });
     expect(attemptsOf(stages, "nowhere", {}, limits)).toBeUndefined();
+  });
+});
+
+describe("stopOf: why an escalated run stopped", () => {
+  const stages = [
+    { id: "plan" },
+    { id: "plan-approval", hitl: true, onFail: { loop: "plan" } },
+    { id: "build", onFail: { loop: "build" } },
+    { id: "status" },
+  ];
+  const limits = { plan: 2, build: 2 };
+
+  test("a person's Reject reads as their decision, with their reason; never as spent tries", () => {
+    const rejected = stopOf({
+      stages,
+      stage: "plan-approval",
+      reason: "the plan skips the fallback",
+      loops: { plan: 2 },
+      limits,
+      questions: [
+        { stage: "plan-approval", source: "gate", answer: { choices: ["Approve"], by: "bob", at: "t" } },
+        { stage: "plan-approval", source: "gate", answer: { choices: ["Reject"], by: "ana", at: "t" } },
+      ],
+    });
+    expect(rejected).toEqual({
+      kind: "rejected",
+      text: "stopped: ana rejected plan-approval: the plan skips the fallback",
+      by: "ana",
+    });
+    // No words: the default reason names the person.
+    expect(
+      stopOf({ stages, stage: "plan-approval", reason: "rejected by ola", loops: {}, limits }).text,
+    ).toBe("stopped: ola rejected plan-approval");
+  });
+
+  test("the tries wording only when the loop's tries are spent, with N of M; else where and why it stopped", () => {
+    expect(stopOf({ stages, stage: "build", reason: "tests fail", loops: { build: 2 }, limits })).toEqual({
+      kind: "exhausted",
+      text: "tried build 3 of 3 times: tests fail",
+      tried: 3,
+      of: 3,
+    });
+    expect(stopOf({ stages, stage: "build", reason: "blocked", loops: { build: 0 }, limits })).toEqual({
+      kind: "stopped",
+      text: "stopped at build: blocked",
+      tried: 1,
+      of: 3,
+    });
+    expect(stopOf({ stages, stage: "status", reason: "a child escalated", loops: {}, limits }).text).toBe(
+      "stopped at status: a child escalated",
+    );
+  });
+});
+
+describe("a step's progress from its run (progressOf)", () => {
+  test("done, blocked while its run escalated or aborted, running again once the run is resumed", () => {
+    expect(progressOf("done", "running")).toBe("done");
+    expect(progressOf("escalated", "running")).toBe("blocked");
+    expect(progressOf("active", "pending")).toBe("running");
+    expect(progressOf("active", "blocked")).toBe("running");
   });
 });

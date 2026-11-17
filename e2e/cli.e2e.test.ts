@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CLI_ENTRY, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, metator, stopProcessesUnder } from "./helpers/cli.ts";
 
 let repo: string;
 
@@ -17,6 +17,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  stopProcessesUnder(repo);
   await rm(repo, { recursive: true, force: true });
 });
 

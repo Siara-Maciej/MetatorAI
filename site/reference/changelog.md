@@ -6,6 +6,17 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 
 ## November 2026
 
+- A system run no longer escalates when a child escalates: it waits, `blocked by <child>: needs you`, and goes on by itself once the child is resumed. It escalates when a child is closed as aborted, or after six hours.
+- An escalated run says why in one sentence (`stop`): a person's Reject reads `stopped: ana rejected plan-approval: <reason>`; the tries wording (`tried build 3 of 3 times`) only when the tries are really spent.
+- The gate that approves a run's plan refuses Approve while the plan (`plan.json`) has lint errors; the card's Approve is `disabled` with the problems.
+- `system.roots` is an option (repository scope): the directories that hold the applications' checkouts. **Save roots** in the app writes it.
+- Discover in a place with no map lists everything as what the map lacks (`mapExists: false`), and Write creates it.
+- A question an agent asks in its terminal with options (`Which currency? [PLN / EUR]`) reaches the inbox as that agent's question, in its own words, with its options; the option you pick is typed into the pane. A host's own permission prompt stays a permission.
+- `run status` names the host that drives the run (`host`), also for a host that keeps no session.
+- A drive whose repository disappears stops its agent and itself.
+
+- The app: an aborted run reads `aborted` (with its reason on hover) and a finished run's line says how it ended; a system plan's step is numbered by its place in the deploy order (`step 2/2`) in the sidebar and on its cards; a task's run is a link with its state.
+- The app: an agent's question on its terminal is a `TERMINAL` card in its own words, with its answers; **Attach and answer in the pane** lands on that pane, focused, with the keyboard taken. A plan with lint errors closes **Approve** on its card, with **Fix the plan**. A system run's page says its steps done and which child it is blocked by. `system.roots` is edited as a list, and Discover with no map shows the map it proposes.
 - A system run (`mt-system-change`) waits for its child runs instead of spending its waves in seconds: while they work it reads as working and says what it waits on; it starts the next wave when one is done, and escalates at once when a child escalates (or after six hours). Its gate is `metator system plan status --gate`; `run drive --gate-wait <ms>` says how often it looks.
 - A system run's child runs are driven as they start, on the system run's host; a run nobody chose a host for takes the first host of `supervisor.hostOrder` that can start here.
 - One Approve on a system run's plan-approval approves the system plan too; a plan with lint errors refuses it, and the daemon marks the card's Approve `disabled` with the reason.

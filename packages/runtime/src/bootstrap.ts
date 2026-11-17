@@ -5,6 +5,7 @@ import {
   AdvanceRun,
   AgentCatalog,
   type AgentHost,
+  AllGateApprovals,
   AnalyzeArchitecture,
   AnalyzeEnvironment,
   AnalyzeSystem,
@@ -166,6 +167,7 @@ import {
   RunJournal,
   RunMessages,
   type RunPanes,
+  RunPlanApprovals,
   RunPlans,
   RunQuarterlyReview,
   RunRefactorPlan,
@@ -212,6 +214,7 @@ import {
   WorktreeConflicts,
   WorktreeRegistry,
   WriteRunArtifact,
+  withoutRealHosts,
   workNotes,
 } from "@metator/core";
 import {
@@ -288,6 +291,8 @@ export interface BootstrapOptions {
   readonly agentScenario?: string;
   /** The program of a host, by host id, where its default name on PATH is not the one (`hostBinsOf`). */
   readonly bins?: HostBins;
+  /** No real AI host may start (`METATOR_NO_REAL_HOSTS`, which the test suites set): they say why instead. */
+  readonly noRealHosts?: boolean;
   /** The Docker CLI (METATOR_DOCKER_BIN); default `docker` on PATH. */
   readonly dockerBin?: string;
   /** Machine-wide state shared by every repository (`machineStateDir`, which the driving adapter asks with its environment); under the home directory when omitted. */
@@ -587,18 +592,20 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     // The scenario a test plays is a host only while one is given.
     played: asValue(options.agentScenario ? [scenarioHost(options.agentScenario)] : []),
     hostBins: asValue(options.bins ?? {}),
-    agentHosts: asFunction(({ played, hostBins: bins }) => {
+    // The hosts this process may use: every one, or with the real AI hosts refused (the suites' guard).
+    knownHosts: asValue(options.noRealHosts ? withoutRealHosts(HOSTS, options.bins ?? {}) : HOSTS),
+    agentHosts: asFunction(({ played, hostBins: bins, knownHosts }) => {
       const hosts = new Map<string, AgentHost>();
-      for (const h of [...orderedHosts(DRIVE_ORDER, HOSTS), ...played])
+      for (const h of [...orderedHosts(DRIVE_ORDER, knownHosts), ...played])
         if (h.agent) hosts.set(h.id, h.agent.host(bins[h.id]));
       return hosts;
     }).singleton(),
     terminal: asFunction(() => new NodePtyTerminal()).singleton(),
     // The first host is the default of a new session: the scenario when a test plays one, else
     // the first of `supervisor.hostOrder`.
-    sessionHosts: asFunction(({ played, config }) => [
+    sessionHosts: asFunction(({ played, config, knownHosts }) => [
       ...played,
-      ...orderedHosts(config.config.supervisor.hostOrder, HOSTS),
+      ...orderedHosts(config.config.supervisor.hostOrder, knownHosts),
     ]).singleton(),
     interactiveHosts: asFunction(({ terminal, sessionHosts, hostBins: bins }) => {
       const hosts = new Map<string, InteractiveHost>();
@@ -606,8 +613,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       return hosts;
     }).singleton(),
     // Why a host that drives agents cannot start here (its program is not installed).
-    driveHostProblem: asFunction(({ played, hostBins: bins }) =>
-      driveHostProblem([...HOSTS, ...played], bins, commandExists),
+    driveHostProblem: asFunction(({ played, hostBins: bins, knownHosts }) =>
+      driveHostProblem([...knownHosts, ...played], bins, commandExists),
     ).singleton(),
     // Which interactive hosts can start here: the program each one runs, looked up when asked
     // (a host installed while the daemon runs is found without a restart).
@@ -654,13 +661,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         }),
     ).singleton(),
     hostPrompts: asFunction(
-      ({ paneSensor, runJournal, driverLock, notifier, paneIdentity }) =>
+      ({ paneSensor, runJournal, driverLock, notifier, paneIdentity, ptyBroker }) =>
         new HostPrompts({
           sensor: paneSensor,
           journal: runJournal,
           lock: driverLock,
           notify: notifier,
           identity: paneIdentity,
+          // A person's answer to an agent's terminal question, typed for them (never over a person).
+          type: async (paneId, text) => (await ptyBroker.nudge(paneId, text)).map(() => undefined),
         }),
     ),
     layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
@@ -1025,8 +1034,20 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         : new LocalSystemLocation(systemCatalog, root);
     }),
     systemSources: asFunction(
-      ({ config, root, systemLocation, cloneCache, checkoutReader, vcs }) =>
-        new SystemSources(config.config.system, root, systemLocation, cloneCache, checkoutReader, vcs),
+      ({ config, root, systemLocation, cloneCache, checkoutReader, vcs, optionStore }) =>
+        new SystemSources(
+          config.config.system,
+          root,
+          systemLocation,
+          cloneCache,
+          checkoutReader,
+          vcs,
+          // The directories the person set where the applications' checkouts are (`system.roots`).
+          async () => {
+            const o = await optionStore.get("system.roots");
+            return o.isOk() && Array.isArray(o.value.value) ? (o.value.value as string[]) : [];
+          },
+        ),
     ),
     systemImpactQuery: asFunction(
       ({ systemSources, vcs, importGraphReader }) =>
@@ -1519,15 +1540,33 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new AdvanceRun(workflowCatalog, runRepository, clock, runJournal, gateQuestions),
     ),
     // A system run's plan-approval approves its system plan too (F7.5).
+    // What a human gate refuses and carries out on Approve: a system plan's gate approves that
+    // plan; the gate of a run's own plan refuses while the plan has lint errors.
     gateApprovals: asFunction(
-      ({ runRepository, workflowCatalog, systemPlanStore, lintSystemPlan, approveSystemPlan }) =>
-        new SystemPlanApprovals(
-          runRepository,
-          workflowCatalog,
-          systemPlanStore,
-          lintSystemPlan,
-          approveSystemPlan,
-        ),
+      ({
+        runRepository,
+        workflowCatalog,
+        systemPlanStore,
+        lintSystemPlan,
+        approveSystemPlan,
+        fileSystem,
+        lintPlan,
+      }) =>
+        new AllGateApprovals([
+          new SystemPlanApprovals(
+            runRepository,
+            workflowCatalog,
+            systemPlanStore,
+            lintSystemPlan,
+            approveSystemPlan,
+          ),
+          new RunPlanApprovals({
+            fs: fileSystem,
+            repo: runRepository,
+            catalog: workflowCatalog,
+            lint: lintPlan,
+          }),
+        ]),
     ),
     approveRun: asFunction(
       ({ advanceRun, runRepository, clock, workflowCatalog, gateApprovals }) =>

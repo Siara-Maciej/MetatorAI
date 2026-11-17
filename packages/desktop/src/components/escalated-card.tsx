@@ -105,7 +105,7 @@ export function EscalatedCard({
         {run.repo ? ` · ${run.repo}` : ""} · stopped at {run.stage} {duration(run.elapsedMs)} after it started
       </p>
       <h3>Why it stopped</h3>
-      <StopReason reason={run.reason} testId="escalated-reason" />
+      <StopReason reason={run.reason} stop={run.stop} testId="escalated-reason" />
       <p>
         The run tried this stage as often as its workflow allows. Remove the cause, then resume: the run goes
         back to {run.stage} with a fresh set of tries and is driven on. Or close it: it ends as aborted.
