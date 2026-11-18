@@ -3213,6 +3213,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/host-prompts.ts",
+    from: 'if (asks && answerAfter(this.d.screen?.(pane.paneId) ?? "", pane.reason) !== undefined) continue;',
+    to: "",
+    why: "a question answered in the pane is not asked again",
+  },
+  {
+    file: "packages/core/src/application/host-prompts.ts",
     from: "(pane.reason !== item.prompt || this.answeredThere(pane.paneId, item))",
     to: "(false)",
     why: "each question a pane asks gets its own card",

@@ -107,11 +107,7 @@ export class RunSystemPlan {
       const created = await this.at(at.root).start.execute({
         workflow: input.workflow ?? STEP_WORKFLOW,
         task,
-        ...(input.base
-          ? { worktree: { base: input.base } }
-          : busy(at.root, step)
-            ? { worktree: {} }
-            : {}),
+        ...(input.base ? { worktree: { base: input.base } } : busy(at.root, step) ? { worktree: {} } : {}),
         ...(input.parent ? { parent: input.parent } : {}),
         system: { plan: plan.id, step: step.id, app: step.app },
         drive: host ? { host } : {},

@@ -27,7 +27,8 @@ applications:
   - { id: shop-web, kind: frontend, source: { repo: github.com/shop/shop-web }, owners: ["@shop/web"], consumes: [prices-api] }
 contracts:
   - { id: prices-api, kind: openapi, owner: shop-api, spec: { path: openapi.yaml } }
-policies: { deployOrder: providers-first, breaking: expand-contract }
+# The plan says the order itself: the price tag is built alongside the API, its integration after both.
+policies: { deployOrder: none, breaking: expand-contract }
 `;
 const SYSTEM_PLAN = `kind: SystemPlan
 schemaVersion: 1
@@ -60,6 +61,7 @@ id: mt-feature
 stages:
   - id: plan
     owner: mt-planner
+    produces: [plan.json]
   - id: plan-approval
     hitl: true
   - id: build
@@ -67,6 +69,33 @@ stages:
   - id: delivery
     hitl: true
 `;
+// Each child's own plan: a test first, then the change, in files both repositories have.
+const CHILD_PLAN = JSON.stringify({
+  kind: "Plan",
+  schemaVersion: 1,
+  task: "The step of the system plan",
+  scope: ["src/**", "test/**"],
+  steps: [
+    {
+      id: "S1",
+      action: "create",
+      path: "test/currency.test.ts",
+      intent: "a failing test of the currency",
+      rules: [],
+      testsFirst: [],
+      dependsOn: [],
+    },
+    {
+      id: "S2",
+      action: "modify",
+      path: "src/index.ts",
+      intent: "the currency, as the step says",
+      rules: [],
+      testsFirst: ["test/currency.test.ts"],
+      dependsOn: ["S1"],
+    },
+  ],
+});
 const SCENARIO = `kind: AgentScenario
 schemaVersion: 1
 agents:
@@ -79,7 +108,8 @@ agents:
       - write: { path: "{runDir}/system-plan.md", text: "# Plan\\n" }
       - say: "STATUS: done"
   mt-planner:
-    - - say: "STATUS: done"
+    - - write: { path: "{runDir}/plan.json", text: ${JSON.stringify(CHILD_PLAN)} }
+      - say: "STATUS: done"
   mt-implementer:
     - - say: "STATUS: done"
 `;
@@ -199,13 +229,15 @@ beforeAll(async () => {
     "docs/metator/system.yml": MAP,
     "openapi.yaml": "openapi: 3.0.0\ninfo: { title: prices, version: 1.0.0 }\npaths: {}\n",
     "src/prices.ts": "export const price = (amount: number) => ({ amount });\n",
+    "src/index.ts": "export * from './prices.ts';\n",
     "metator.config.yml": config,
     ".github/metator/workflows/mt-system-change.yml": W13,
     ".github/metator/workflows/mt-feature.yml": W1,
     ".gitignore": ".metator/\nmetator/system/\n",
   });
   await repo("shop-web", {
-    "src/price-tag.ts": "export const tag = (amount: number) => `${amount}`;\n",
+    "src/price-tag.ts": "export const tag = (amount: number) => String(amount);\n",
+    "src/index.ts": "export * from './price-tag.ts';\n",
     "metator.config.yml": `kind: MetatorConfig\nschemaVersion: 12\nhosts:\n  metatorCommand: bun ${CLI_ENTRY}\nsupervisor:\n  hostOrder: [scenario]\n`,
     ".github/metator/workflows/mt-feature.yml": W1,
     ".gitignore": ".metator/\n",
@@ -278,6 +310,11 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
     await until("the plan-approval card", async () => {
       const inbox = data(await mt("shop-api", "inbox")) as { decisions: Decision[] };
       return inbox.decisions.find((d) => d.runId === parent && d.question.stage === "plan-approval");
+    }).catch(async (e) => {
+      // What the system run did instead: its log says.
+      throw new Error(
+        `${(e as Error).message}\n${(await Bun.file(join(at("shop-api"), ".metator/runs", parent, "log.md")).text()).slice(-1500)}`,
+      );
     });
     // A person approves the plan itself first; the gate card still waits.
     expect((await mt("shop-api", "system", "plan", "approve", PLAN_ID, "--by", "ana")).code).toBe(0);
@@ -291,9 +328,12 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
         : undefined;
     });
     // The flow: the task into wave 1, the three steps of wave 1 into the integration.
-    const edges = await flow
-      .locator("[data-edge]")
-      .evaluateAll((els) => els.map((e) => e.getAttribute("data-edge")));
+    const edges = await until("the six arrows", async () => {
+      const e = await flow
+        .locator("[data-edge]")
+        .evaluateAll((els) => els.map((x) => x.getAttribute("data-edge") as string));
+      return e.length === 6 ? e : undefined;
+    });
     expect(edges.sort()).toEqual(
       [
         "@task>api-model",
@@ -356,14 +396,16 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
     // The child runs are drawn in the flow, not again in the runs graph below it.
     expect(await page.locator(".graph > .canvas > svg").first().locator("a").count()).toBe(0);
     await page.goto(app("board"));
-    await until("three in Planning", async () => ((await boardColumns()).planning === 4 ? true : undefined));
+    // The three children wait at their plan's approval; the system run waits for them, in progress.
+    await until("three in Planning", async () => ((await boardColumns()).planning === 3 ? true : undefined));
+    expect((await boardColumns())["in-progress"]).toBe(1);
     expect(await page.getByTestId("board-head-planning").textContent()).toContain("3 need you");
     // Filtered to this task, grouped, and to shop-web only.
-    await page.getByLabel("parent task").selectOption({ label: `only ${TASK}` });
+    await page.getByLabel("parent task", { exact: true }).selectOption({ label: `only ${TASK}` });
     expect(await page.locator(".board-card").count()).toBe(5);
     await page.getByLabel("group by parent task").check();
     expect(await page.locator(".lane-title").first().textContent()).toContain(TASK);
-    await page.getByLabel("parent task").selectOption("");
+    await page.getByLabel("parent task", { exact: true }).selectOption("");
     await page.getByLabel("group by parent task").uncheck();
     await page.getByLabel("repositories").getByRole("button", { name: "shop-web" }).click();
     await until("shop-web only", async () =>

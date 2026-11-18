@@ -2645,6 +2645,9 @@ dialog.goto {
 .plan-flow .arrowhead {
   fill: var(--grey);
 }
+.plan-flow .arrowhead.critical {
+  fill: var(--teal);
+}
 .plan-flow a:hover .flow-node,
 .plan-flow a:focus .flow-node {
   fill: var(--panel);

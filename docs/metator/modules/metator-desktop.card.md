@@ -44,6 +44,7 @@ MetatorAI Desktop (D7, ADR-0078): the Vite + React app and its Tauri shell, a th
 - A question read from a terminal (`isTerminalQuestion`: an agent's question with `Attach and answer in the pane`) is answered on the card; Attach goes through `answerIn` to the run's Terminal tab, which attaches, focuses the pane and scrolls to its question. A row is a terminal ask that opens the pane only when its key is `terminal:` (`isTerminalAsk`).
 - An option the app cannot send is closed with its reason (`optionClosed`: the daemon's `disabled`/`disabledBecause`, or Approve on a plan whose lint has errors), never hidden; **Fix the plan** is `#/run/<run>/plan/edit`.
 - The app sends no request it knows will fail: an option the daemon does not list (`system.roots` on an older daemon) has no control.
+- A run's board column is the daemon's `phase` (core `workPhase`), never guessed from stage names (`board.ts`); a system plan's flow is `plan-flow.ts` (pure), drawn by `PlanFlowGraph`.
 - An escalated run is not finished (`isFinished` in `src/model.ts`): it stays in the sessions panel and is a row and a card in the Inbox (`EscalatedCard`), with Resume and Close run; its page shows the same two actions under the head, on every tab.
 
 ## Allowed dependencies

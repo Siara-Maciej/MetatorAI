@@ -356,10 +356,12 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await until("the inbox to empty", async () =>
       (await page.locator(".needs .item").count()) === 0 ? true : undefined,
     );
-    // The answer is confirmed in words.
-    expect(await page.locator("main.content > .notice").textContent()).toContain(
-      "Answered: Approve. The run goes on.",
-    );
+    // The answer is confirmed in words, with what the run did with it (read back from the daemon).
+    const said = await until("the confirmation", async () => {
+      const t = await page.locator("main.content > .notice").textContent().catch(() => null);
+      return t?.includes("Answered: Approve.") ? t : undefined;
+    });
+    expect(said).toMatch(/Answered: Approve\. The run (goes on|is done)\./);
     const runId = ((await api("/state")).data.runs as { runId: string }[])[0]?.runId as string;
     const activity = (await api(`/runs/${runId}/activity`)).data.entries as {
       type: string;

@@ -62,7 +62,7 @@ An agent in a terminal asks you with `metator run ask "<question>" --option <a> 
 
 A plan-approval card whose plan has lint errors shows **Approve** closed, with the reason under the options and **Fix the plan**, which opens the Plan tab in its edit mode. A system plan's card does the same for **Approve the system plan**.
 
-A confirmation (**Answered: …**) goes after a few seconds, or when you go elsewhere; a refusal stays until you close it.
+A confirmation says what the run did with your answer: **Rejected: the run escalated with your reason**, **Rejected: the run goes back to plan**, **The run is done**, or **The run goes on**. It goes after a few seconds, or when you go elsewhere; a refusal stays until you close it.
 
 ## Questions asked in the terminal
 

@@ -127,12 +127,15 @@ describe("questions an agent asks in its terminal (real daemon, real PTYs)", () 
     await new Promise<void>((resolve) => {
       ws.onopen = () => resolve();
     });
+    const typedAt = Date.now();
     ws.send(JSON.stringify({ type: "input", data: "EUR\r" }));
     const answered = await until("the pane's answer recorded", async () => {
       const q = (await questions()).find((x) => x.id === q2.id);
       return q?.answer;
     });
     expect([answered.choices, answered.by]).toEqual([["EUR"], "bob"]);
+    // Recorded as soon as the pane echoed it, not on the daemon's next check.
+    expect(Date.now() - typedAt).toBeLessThan(SUPERVISE_MS);
     const activity = data(await mt("run", "activity", "--run", runId)) as { entries: { text: string }[] };
     expect(activity.entries.some((e) => e.text.startsWith(`${q2.id}: EUR · bob`))).toBe(true);
     // While bob holds the keyboard, a card's answer to the next question is refused, never typed over him.

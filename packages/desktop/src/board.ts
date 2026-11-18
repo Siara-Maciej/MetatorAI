@@ -36,6 +36,8 @@ export interface BoardCard {
   readonly parent?: { readonly key: string; readonly label: string } | undefined;
   /** Its place among the parent's steps. */
   readonly step?: { readonly at: number; readonly of: number } | undefined;
+  /** The head of a task made of steps (a system run): how far its steps are. */
+  readonly head?: { readonly done: number; readonly of: number } | undefined;
   /** A step not started: the steps it waits for. */
   readonly waitsFor?: readonly string[] | undefined;
   readonly needsYou: boolean;
@@ -92,11 +94,15 @@ export function boardCards(input: {
   for (const r of runs) {
     const state = runStateOf(r);
     const place = stepPlace(plans, r.runId);
+    const asStep = planOfStepRun(r.runId);
+    const stepOfRun = asStep?.steps.find((s) => s.run === r.runId);
+    const own = asStep ? undefined : systemPlanOf(plans, r, runs);
     cards.push({
       key: `run:${r.repo ?? ""}/${r.runId}`,
       kind: "run",
       column: r.phase ?? (r.status === "done" || r.status === "aborted" ? "done" : "in-progress"),
-      title: r.task,
+      // A step's run reads as its step (`api-model: …`), not the long task the engine composed.
+      title: stepOfRun ? `${stepOfRun.id}: ${stepOfRun.task}` : r.task,
       repo: r.repo,
       state,
       stage: r.stage,
@@ -105,6 +111,9 @@ export function boardCards(input: {
       updatedAt: r.updatedAt,
       parent: parentOf(r),
       ...(place ? { step: place } : {}),
+      ...(own
+        ? { head: { done: own.steps.filter((s) => s.status === "done").length, of: own.steps.length } }
+        : {}),
       needsYou: state === "needs you",
       escalated: state === "escalated",
       runId: r.runId,
@@ -277,7 +286,9 @@ export function cardLine(c: BoardCard): string {
   return [
     c.repo,
     c.kind === "run"
-      ? c.stage
+      ? c.column === "done"
+        ? undefined
+        : c.stage
       : c.kind === "proposal"
         ? "proposal"
         : c.kind === "step"
@@ -291,6 +302,7 @@ export function cardLine(c: BoardCard): string {
 
 /** The card's part-of line: `step 2 of 4 · Add a currency to prices`. */
 export function partOfLine(c: BoardCard): string | undefined {
+  if (c.head) return `the whole task · ${c.head.done} of ${c.head.of} steps done`;
   if (!c.parent && !c.step) return undefined;
   return [
     c.step ? `step ${c.step.at} of ${c.step.of}` : undefined,

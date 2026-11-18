@@ -6,6 +6,7 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 
 ## November 2026
 
+- The app: Overview → Dependencies and a system run's Plan tab draw a system plan as a flow (waves, repositories, an arrow per dependsOn, pending steps dashed, the critical path). A new **Board** puts every piece of work in To do · Planning · In progress · Review · Done, with filters and swimlanes. Each run of `/state` carries its `phase`. Two steps of one repository in one wave each get a worktree. An answer's confirmation says what the run did with it.
 - Every question an agent asks in its terminal gets its own card, not only the first. A card's answer is typed into the pane at once (it used to wait up to the daemon's next check). An answer typed in the pane is recorded with the person at its keyboard and the words typed, and its card goes. A card that comes after the pane answered is refused and types nothing; while a person holds the pane's keyboard, a card answer is refused with their name.
 - `metator run ask "<question>" --option <a> … [--wait] [--timeout <ms>]`: an agent in a terminal asks the person through the inbox and, with `--wait`, gets the answer printed; `--question <id> --wait` waits again.
 

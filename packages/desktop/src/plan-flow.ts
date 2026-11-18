@@ -10,7 +10,7 @@ import { planOrder, type RunShown, runStateOf } from "./model.ts";
 
 export const FLOW = {
   /** A step's node. */
-  W: 210,
+  W: 236,
   H: 58,
   /** The task's node, on the left. */
   TASK_W: 180,
@@ -77,35 +77,51 @@ function stateOfStatus(status: string | undefined, stepStatus: string): FlowStat
 }
 
 /**
- * The longest chain of steps (by count) through the plan: the steps the task's end waits on
- * longest. Ties go to the chain met first in the deploy order.
+ * The critical path: the steps on a longest chain (by count) through the plan, every chain of
+ * that length together (the owner's three steps of wave 1 all lead into the integration), by
+ * level from the first step to the last. Steps that wait for nothing, alone, have none.
  */
-export function criticalPath(plan: Pick<SystemPlanView, "steps" | "waves">): string[] {
+export function criticalPath(plan: Pick<SystemPlanView, "steps" | "waves">): {
+  readonly steps: readonly string[];
+  readonly levels: readonly (readonly string[])[];
+  /** The chains' length, in steps. */
+  readonly length: number;
+  /** Whether the edge `from → to` lies on the path. */
+  on(from: string, to: string): boolean;
+} {
   const byId = new Map(plan.steps.map((s) => [s.id, s]));
-  const memo = new Map<string, string[]>();
-  const longest = (id: string, seen: Set<string>): string[] => {
-    const cached = memo.get(id);
-    if (cached) return cached;
-    if (seen.has(id)) return [id];
-    seen.add(id);
-    const step = byId.get(id);
-    let best: string[] = [];
-    for (const dep of step?.dependsOn ?? []) {
-      if (!byId.has(dep)) continue;
-      const chain = longest(dep, seen);
-      if (chain.length > best.length) best = chain;
-    }
-    seen.delete(id);
-    const chain = [...best, id];
-    memo.set(id, chain);
-    return chain;
+  const deps = (id: string) => (byId.get(id)?.dependsOn ?? []).filter((d) => byId.has(d));
+  const after = (id: string) => plan.steps.filter((s) => s.dependsOn.includes(id)).map((s) => s.id);
+  const memo = (next: (id: string) => string[]) => {
+    const m = new Map<string, number>();
+    const f = (id: string, seen: Set<string>): number => {
+      const known = m.get(id);
+      if (known !== undefined) return known;
+      if (seen.has(id)) return 1;
+      seen.add(id);
+      const n = 1 + Math.max(0, ...next(id).map((d) => f(d, seen)));
+      seen.delete(id);
+      m.set(id, n);
+      return n;
+    };
+    return (id: string) => f(id, new Set());
   };
-  let best: string[] = [];
-  for (const id of planOrder(plan)) {
-    const chain = longest(id, new Set());
-    if (chain.length > best.length) best = chain;
-  }
-  return best.length > 1 ? best : [];
+  // depth: the longest chain that ends at a step; height: the longest that starts there.
+  const depth = memo(deps);
+  const height = memo(after);
+  const order = planOrder(plan);
+  const length = Math.max(0, ...order.map((id) => depth(id)));
+  const steps = length > 1 ? order.filter((id) => depth(id) + height(id) - 1 === length) : [];
+  const on = new Set(steps);
+  const levels = Array.from({ length: steps.length > 0 ? length : 0 }, (_, i) =>
+    steps.filter((id) => depth(id) === i + 1),
+  );
+  return {
+    steps,
+    levels,
+    length: steps.length > 0 ? length : 0,
+    on: (from, to) => on.has(from) && on.has(to) && depth(to) === depth(from) + 1,
+  };
 }
 
 /** The column of each step: its wave (1-based), or after the last wave for a step no wave names. */
@@ -164,7 +180,8 @@ export function planFlow(
   const height = Math.max(y - FLOW.LANE_GAP + FLOW.TOP / 2, FLOW.TOP + FLOW.H + 20);
   const colX = (c: number) => FLOW.LEFT + FLOW.TASK_W + FLOW.COL_GAP + (c - 1) * (FLOW.W + FLOW.COL_GAP);
   const width = colX(columns) + FLOW.W + FLOW.LEFT;
-  const critical = new Set(criticalPath(view));
+  const chain = criticalPath(view);
+  const critical = new Set(chain.steps);
   const done = new Set(view.steps.filter((s) => s.status === "done").map((s) => s.id));
   const nodes: FlowNode[] = [];
   const taskY = Math.max(FLOW.TOP, (height - FLOW.H) / 2);
@@ -230,7 +247,7 @@ export function planFlow(
         from: "@task",
         to: step.id,
         d: path(task, b),
-        critical: critical.has(step.id),
+        critical: critical.has(step.id) && chain.levels[0]?.includes(step.id) === true,
         met: false,
       });
     for (const dep of deps) {
@@ -239,7 +256,7 @@ export function planFlow(
         from: dep,
         to: step.id,
         d: path(a, b),
-        critical: critical.has(dep) && critical.has(step.id),
+        critical: chain.on(dep, step.id),
         met: done.has(dep),
       });
     }

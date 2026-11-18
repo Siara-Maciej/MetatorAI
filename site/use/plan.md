@@ -39,6 +39,8 @@ A system run's Plan tab shows its **system plan** instead: the change across rep
 
 **Edit system plan** and **Edit as text** work as for a run's plan. A step that already has a run is history: its fields are read-only and it cannot be removed. New steps can be added (**+ Step**, with the application they run in). An approved plan that is edited goes back to draft and must be approved again.
 
+On a system run's Plan tab the deploy order is drawn as a flow: a column per wave, a lane per repository, an arrow for each step it waits for, pending steps dashed. Two steps of the same repository in one wave run side by side, each in a worktree of its own.
+
 Under a system run's header a line says how far its plan is (`1/2 steps done`) and what it waits for: **blocked by** the child run that needs you, with a link to it, or the gate's own words (`waiting on children: …`).
 
 In the sidebar a system run's steps sit under it, whatever repository they run in; a step of another repository names it (`step 2/2 · shop-web · plan · …`). The total comes from the system plan, so a step that has not started yet still counts.

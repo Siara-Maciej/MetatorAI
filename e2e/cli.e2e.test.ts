@@ -214,6 +214,7 @@ describe("metator CLI (process e2e)", () => {
       "run revive",
       "run stop",
       "run questions",
+      "run ask",
       "run answer",
       "run brief",
       "run activity",

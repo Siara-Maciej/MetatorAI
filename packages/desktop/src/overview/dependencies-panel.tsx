@@ -9,6 +9,7 @@ import {
   finishedText,
   GRAPH,
   graphLayout,
+  isFinished,
   linkPath,
   lookOf,
   openRuns,
@@ -117,7 +118,7 @@ export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) 
                   <PlanFlowGraph
                     view={p}
                     runs={runs}
-                    dim={p.status === "done"}
+                    dim={p.status === "done" || (head !== undefined && isFinished(head))}
                     onOpenRun={go}
                     onOpenStep={() => {
                       window.location.hash = head
@@ -128,80 +129,87 @@ export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) 
                 </div>
               );
             })}
-            <h3 className="runs-title">Other runs</h3>
+            <h3 className="runs-title">
+              Other runs
+              {graph.nodes.length === 0 ? (
+                <span className="faint"> · none: every run is a step of a task above</span>
+              ) : null}
+            </h3>
           </section>
         ) : null}
-        <svg
-          width={width}
-          height={height}
-          viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label="runs graph"
-        >
-          <defs>
-            <marker
-              id="arrow"
-              viewBox="0 0 10 10"
-              refX="9"
-              refY="5"
-              markerWidth="7"
-              markerHeight="7"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--teal)" />
-            </marker>
-          </defs>
-          {lanes.map((lane, li) => (
-            <g key={lane || "."}>
-              <rect
-                className="lane"
-                x={8}
-                y={GRAPH.TOP - 20 + li * GRAPH.LANE}
-                width={width - 16}
-                height={GRAPH.LANE - 12}
-                rx={8}
-              />
-              <text className="lanename" x={16} y={GRAPH.TOP - 4 + li * GRAPH.LANE}>
-                {lane || "this repository"} · {graph.nodes.filter((n) => sameRepo(n.run.repo, lane)).length}
-              </text>
-            </g>
-          ))}
-          {graph.edges.map((e) => (
-            <path key={`${e.from}>${e.to}`} className="edge" d={e.d} markerEnd="url(#arrow)" />
-          ))}
-          {links.map((l, i) => {
-            const d = linkPath(at.get(l.from), at.get(l.to));
-            return d ? <path key={`${l.from}~${l.to}-${String(i)}`} className="edge msg" d={d} /> : null;
-          })}
-          {graph.nodes.map(({ run: r, x, y, finished }) => {
-            const state = runStateOf(r);
-            return (
-              <a
-                key={`${r.repo ?? ""}/${r.runId}`}
-                href={routeHash({ screen: "run", runId: r.runId, tab: runTabFor(r) })}
-                aria-label={`${r.task} · ${state}`}
-                className={finished ? "finished" : undefined}
+        {systemPlans.length > 0 && graph.nodes.length === 0 ? null : (
+          <svg
+            width={width}
+            height={height}
+            viewBox={`0 0 ${width} ${height}`}
+            role="img"
+            aria-label="runs graph"
+          >
+            <defs>
+              <marker
+                id="arrow"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
               >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--teal)" />
+              </marker>
+            </defs>
+            {lanes.map((lane, li) => (
+              <g key={lane || "."}>
                 <rect
-                  className="node"
-                  x={x}
-                  y={y}
-                  width={W}
-                  height={H}
+                  className="lane"
+                  x={8}
+                  y={GRAPH.TOP - 20 + li * GRAPH.LANE}
+                  width={width - 16}
+                  height={GRAPH.LANE - 12}
                   rx={8}
-                  stroke={`var(--${TONE_VAR[lookOf("run", state).tone ?? "faint"]})`}
                 />
-                <text x={x + 10} y={y + 20} fontWeight={600}>
-                  {r.task.length > 28 ? `${r.task.slice(0, 27)}…` : r.task}
+                <text className="lanename" x={16} y={GRAPH.TOP - 4 + li * GRAPH.LANE}>
+                  {lane || "this repository"} · {graph.nodes.filter((n) => sameRepo(n.run.repo, lane)).length}
                 </text>
-                <text x={x + 10} y={y + 38} className="sub">
-                  {finished ? state : `${state} · ${r.stage}`} · {r.host ?? "no host"}
-                </text>
-                {finished ? <title>{finishedText(r)}</title> : null}
-              </a>
-            );
-          })}
-        </svg>
+              </g>
+            ))}
+            {graph.edges.map((e) => (
+              <path key={`${e.from}>${e.to}`} className="edge" d={e.d} markerEnd="url(#arrow)" />
+            ))}
+            {links.map((l, i) => {
+              const d = linkPath(at.get(l.from), at.get(l.to));
+              return d ? <path key={`${l.from}~${l.to}-${String(i)}`} className="edge msg" d={d} /> : null;
+            })}
+            {graph.nodes.map(({ run: r, x, y, finished }) => {
+              const state = runStateOf(r);
+              return (
+                <a
+                  key={`${r.repo ?? ""}/${r.runId}`}
+                  href={routeHash({ screen: "run", runId: r.runId, tab: runTabFor(r) })}
+                  aria-label={`${r.task} · ${state}`}
+                  className={finished ? "finished" : undefined}
+                >
+                  <rect
+                    className="node"
+                    x={x}
+                    y={y}
+                    width={W}
+                    height={H}
+                    rx={8}
+                    stroke={`var(--${TONE_VAR[lookOf("run", state).tone ?? "faint"]})`}
+                  />
+                  <text x={x + 10} y={y + 20} fontWeight={600}>
+                    {r.task.length > 28 ? `${r.task.slice(0, 27)}…` : r.task}
+                  </text>
+                  <text x={x + 10} y={y + 38} className="sub">
+                    {finished ? state : `${state} · ${r.stage}`} · {r.host ?? "no host"}
+                  </text>
+                  {finished ? <title>{finishedText(r)}</title> : null}
+                </a>
+              );
+            })}
+          </svg>
+        )}
       </div>
       <aside className="side">
         <div className="box">
@@ -233,8 +241,10 @@ export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) 
         <div className="box">
           <h3>Waves</h3>
           <div className="muted">
-            An arrow runs from a run to the runs it started (the steps of its plan). A dashed amber line is
-            data between two runs, never an instruction. Finished runs of the last day stay, dimmed.
+            A task split by a system plan is drawn as its flow: a column per wave, a lane per repository, an
+            arrow from each step to the steps that wait for it, a dashed step not started yet. Below, an arrow
+            runs from a run to the runs it started; a dashed amber line is data between two runs, never an
+            instruction. Finished work of the last day stays, dimmed.
           </div>
         </div>
         <Notice {...action.notice} />

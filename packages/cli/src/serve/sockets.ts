@@ -3,6 +3,8 @@ import type { MetatorContainer } from "@metator/runtime";
 import { toEnvelope } from "@metator/runtime";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
 
+/** When a line typed in a pane is looked at: after its echo, and once more for a slow host. */
+const ANSWER_LOOK_MS = [150, 600] as const;
 /**
  * The daemon's WebSockets (D3): `/ws/state` and `/ws/inbox` send the overview when it changes,
  * `/ws/activity/<run>` streams a run's activity, `/ws/pty/<run>` and `/ws/pane/<pane>` are a
@@ -164,6 +166,12 @@ export function socketHandlers(
       if (msg.type === "input" && typeof msg.data === "string") {
         const r = await broker.write({ paneId: d.paneId, data: msg.data, by: d.by ?? "" });
         if (r.isErr()) ws.send(JSON.stringify({ type: "refused", reason: r.error.message }));
+        // A line typed in a pane may answer its question: looked at as soon as the pane has
+        // echoed it, not on the daemon's next check, so its card goes and the answer is recorded.
+        else if (/[\r\n]/.test(msg.data)) {
+          const prompts = c.value.resolve("hostPrompts");
+          for (const ms of ANSWER_LOOK_MS) setTimeout(() => void prompts.tick(), ms);
+        }
       } else if (msg.type === "resize" && typeof msg.cols === "number" && typeof msg.rows === "number") {
         broker.resize(d.paneId, { cols: msg.cols, rows: msg.rows });
       }

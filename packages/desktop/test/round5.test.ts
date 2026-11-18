@@ -126,19 +126,48 @@ describe("a decomposed task as a flow", () => {
     expect(waitsText({ state: "working", waitsFor: [] })).toBeUndefined();
   });
 
-  test("the critical path is the longest chain of steps, drawn heavier", () => {
-    expect(criticalPath(owner())).toEqual(["api-model", "web-integration"]);
+  test("the critical path is every longest chain of steps, drawn heavier", () => {
+    // The owner's flow: each step of wave 1 leads into the integration; all three chains are the longest.
+    const p = criticalPath(owner());
+    expect([p.steps, p.levels, p.length]).toEqual([
+      ["api-model", "api-endpoint", "web-price-tag", "web-integration"],
+      [["api-model", "api-endpoint", "web-price-tag"], ["web-integration"]],
+      2,
+    ]);
     const long = {
       waves: [],
       steps: [step("a", "x"), step("b", "x", ["a"]), step("c", "y", ["b"]), step("d", "y", ["a"])],
     };
-    expect(criticalPath(long)).toEqual(["a", "b", "c"]);
-    // One step alone, or steps that wait for nothing: no path to draw.
-    expect(criticalPath({ waves: [], steps: [step("a", "x"), step("b", "y")] })).toEqual([]);
+    const l = criticalPath(long);
+    expect([l.steps, l.length, l.on("a", "b"), l.on("b", "c"), l.on("a", "d")]).toEqual([
+      ["a", "b", "c"],
+      3,
+      true,
+      true,
+      false,
+    ]);
+    // Steps that wait for nothing: no path to draw.
+    expect(criticalPath({ waves: [], steps: [step("a", "x"), step("b", "y")] }).steps).toEqual([]);
     const f = planFlow(owner(), []);
-    expect(f.edges.filter((e) => e.critical).map((e) => `${e.from}>${e.to}`)).toEqual([
-      "@task>api-model",
-      "api-model>web-integration",
+    expect(f.edges.filter((e) => e.critical)).toHaveLength(6);
+    const shortcut = planFlow(
+      {
+        plan: { id: "p", task: "t" },
+        status: "approved",
+        waves: [
+          { wave: 1, steps: ["a"] },
+          { wave: 2, steps: ["b"] },
+          { wave: 3, steps: ["c", "d"] },
+        ],
+        steps: [step("a", "x"), step("b", "x", ["a"]), step("c", "y", ["b"]), step("d", "y", ["a"])],
+      } as never,
+      [],
+    );
+    // An arrow that skips a level (a → d) is not on the path, nor the task's arrow into it.
+    expect(shortcut.edges.filter((e) => e.critical).map((e) => `${e.from}>${e.to}`)).toEqual([
+      "@task>a",
+      "a>b",
+      "b>c",
     ]);
   });
 
@@ -246,7 +275,10 @@ describe("the board", () => {
     const c1 = byKey("/c1");
     expect([c1?.parent?.key, c1?.step, c1?.needsYou]).toEqual(["plan:add-currency", { at: 1, of: 4 }, true]);
     expect(partOfLine(c1 as never)).toBe("step 1 of 4 · of Add a currency to prices");
+    // The system run is the whole task: how far its steps are, not "of" itself.
+    expect(partOfLine(byKey("/sys") as never)).toBe("the whole task · 0 of 4 steps done");
     expect(cardLine(c1 as never)).toBe("shop-api · plan-approval · scenario");
+    expect(c1?.title).toBe("api-model: do api-model");
     expect([byKey("/c3")?.escalated, byKey("/c3")?.state]).toEqual([true, "escalated"]);
     // The system run heads its own task: "only this task" keeps it.
     expect(byKey("/sys")?.parent?.key).toBe("plan:add-currency");

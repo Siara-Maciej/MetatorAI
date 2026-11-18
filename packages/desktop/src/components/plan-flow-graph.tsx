@@ -58,17 +58,21 @@ export function PlanFlowGraph({
           aria-label={`flow of ${view.plan.task}`}
         >
           <defs>
-            <marker
-              id={`flow-arrow-${view.plan.id}`}
-              viewBox="0 0 10 10"
-              refX="9"
-              refY="5"
-              markerWidth="7"
-              markerHeight="7"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 0 L 10 5 L 0 10 z" className="arrowhead" />
-            </marker>
+            {(["plain", "critical"] as const).map((kind) => (
+              <marker
+                key={kind}
+                id={`flow-arrow-${kind}-${view.plan.id}`}
+                viewBox="0 0 10 10"
+                refX="10"
+                refY="5"
+                markerWidth="5"
+                markerHeight="5"
+                markerUnits="strokeWidth"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" className={`arrowhead ${kind}`} />
+              </marker>
+            ))}
           </defs>
           {flow.lanes.map((l) => (
             <g key={l.name}>
@@ -95,7 +99,7 @@ export function PlanFlowGraph({
               key={`${e.from}>${e.to}`}
               className={`flow-edge${e.critical ? " critical" : ""}${e.met ? " met" : ""}`}
               d={e.d}
-              markerEnd={`url(#flow-arrow-${view.plan.id})`}
+              markerEnd={`url(#flow-arrow-${e.critical ? "critical" : "plain"}-${view.plan.id})`}
               data-edge={`${e.from}>${e.to}`}
             />
           ))}
@@ -118,13 +122,11 @@ export function PlanFlowGraph({
                   stroke={`var(--${TONE_VAR[tone]})`}
                 />
                 <text x={n.x + 10} y={n.y + 22} className="flow-title">
-                  {n.kind === "step"
-                    ? `${lookOf("run", n.state === "pending" ? "idle" : n.state).glyph} `
-                    : ""}
+                  {n.kind === "step" ? `${n.state === "pending" ? "◌" : lookOf("run", n.state).glyph} ` : ""}
                   {cut(n.label, n.kind === "task" ? 22 : 26)}
                 </text>
                 <text x={n.x + 10} y={n.y + 42} className={`flow-sub ${tone}`}>
-                  {cut(line, n.kind === "task" ? 26 : 32)}
+                  {cut(line, n.kind === "task" ? 26 : 36)}
                 </text>
                 <title>
                   {[n.label, line, waits && n.state === "pending" ? waits : undefined]
@@ -159,7 +161,8 @@ export function PlanFlowGraph({
       <figcaption className="faint">
         {chain.length > 1 ? (
           <>
-            critical path: <span className="mono">{chain.join(" → ")}</span>
+            critical path ({chain.length} steps):{" "}
+            <span className="mono">{chain.levels.map((l) => l.join(" | ")).join(" → ")}</span>
           </>
         ) : (
           "every step waits only for the task"

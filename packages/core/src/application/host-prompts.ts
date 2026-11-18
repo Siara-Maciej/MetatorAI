@@ -104,6 +104,8 @@ export class HostPrompts {
         // question; the host's own prompt for leave to use a tool is a permission.
         const read = terminalQuestionOf(pane.reason);
         const asks = read.kind === "question" && this.d.type !== undefined;
+        // Its line is still on the screen, but words were typed after it: answered, not asked anew.
+        if (asks && answerAfter(this.d.screen?.(pane.paneId) ?? "", pane.reason) !== undefined) continue;
         const q = await this.d.journal.ask(pane.runId, {
           stage: who?.stage ?? "session",
           source: asks ? "agent" : "permission",
@@ -249,7 +251,12 @@ export class HostPrompts {
             : { choices: [], text: ANSWERED_IN_PANE }),
         by,
       });
-      if (answered.isErr()) return err(answered.error);
+      // Another look got there first (the daemon's check and a typed line at once): one answer.
+      if (answered.isErr()) {
+        const now = await this.d.journal.questions(item.runId);
+        if (!(now.isOk() && now.value.find((x) => x.id === item.questionId)?.answer))
+          return err(answered.error);
+      }
     }
     const noted = await this.d.journal.record(item.runId, {
       type: "agent",

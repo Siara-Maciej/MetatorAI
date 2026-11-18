@@ -379,4 +379,16 @@ describe("whose question a pane reads (a conductor and its workers)", () => {
       "bob is answering in pane w1:p2: answer there, or wait until they release it",
     ]);
   });
+
+  test("a question answered in the pane is not asked again while its line is still on the screen", async () => {
+    const t = await terminal();
+    t.pty.print("Which currency? [PLN / EUR]\n");
+    await t.prompts.tick();
+    t.pty.print("EUR\nanswer: EUR\n");
+    await t.prompts.tick();
+    await t.prompts.tick();
+    await t.prompts.tick();
+    expect((await t.questions()).map((q) => [q.id, q.answer?.choices])).toEqual([["q001", ["EUR"]]]);
+  });
 });
+

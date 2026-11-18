@@ -170,6 +170,12 @@ Wzorem herdr powłoka ma jeden pasek boczny, który jest całym pulpitem; reszta
 - Nagłówek przebiegu systemowego pokazuje kroki zrobione z wszystkich i dziecko, które go blokuje (z linkiem).
 - `system.roots` edytowane jako lista z walidacją; Discover bez mapy pokazuje proponowaną mapę. Aplikacja nie wysyła żądania, o którym wie, że się nie uda.
 
+### 5.0c Przepływ zadania i tablica (2026-11-18)
+
+- Zadanie rozłożone planem systemowym rysujemy jako przepływ: kolumny = fale, tory = repozytoria, węzeł na każdy krok (także nierozpoczęty, przerywany, z „waits for”), strzałki = `dependsOn`, ścieżka krytyczna pogrubiona; w Overview → Dependencies i na zakładce Plan przebiegu systemowego.
+- Tablica (Board): kolumny To do · Planning · In progress · Review · Done. Faza przebiegu liczona raz w core (`workPhase`, z workflow i etapu) i wysyłana przez demona jako `phase`; aplikacja nie zgaduje z nazw etapów i nie pozwala przeciągać kart.
+- Dwa kroki jednego repozytorium w jednej fali dostają osobne worktree.
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.
