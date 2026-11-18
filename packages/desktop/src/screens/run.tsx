@@ -41,10 +41,7 @@ export function RunScreen({
   onOpenRun,
   answerIn,
   onAnswering,
-  edit,
 }: {
-  /** The Plan tab opens in its edit mode. */
-  readonly edit?: boolean | undefined;
   readonly runId: string;
   readonly tab: RunTab;
   readonly pane?: string | undefined;
@@ -158,7 +155,6 @@ export function RunScreen({
           <PlanTab
             run={run}
             runId={runId}
-            edit={edit}
             onOpenPane={(p) => go({ screen: "grid", pane: p })}
             onOpenRun={onOpenRun}
           />

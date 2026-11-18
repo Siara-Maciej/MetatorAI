@@ -280,7 +280,6 @@ function Shell() {
           tab={route.tab}
           pane={route.pane}
           file={route.file}
-          edit={route.edit}
           go={go}
           onOpenRun={openRun}
           answerIn={answerIn?.runId === route.runId ? answerIn : undefined}

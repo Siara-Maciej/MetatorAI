@@ -2893,3 +2893,29 @@ dialog.goto {
 .ld-detail {
   min-width: 0;
 }
+
+/* A step of a task of another repository, listed in its own repository with a link to the task. */
+.step-elsewhere .part-of {
+  display: block;
+  padding: 0 12px 6px 32px;
+  margin-top: -4px;
+  font-size: var(--fs-small);
+  color: var(--blue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-flows .task-line {
+  display: block;
+  padding: 6px 0;
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--edge);
+}
+.plan-flows .task-line:hover strong {
+  color: var(--teal);
+}
+.plan-flows .task-line.finished {
+  opacity: 0.6;
+}

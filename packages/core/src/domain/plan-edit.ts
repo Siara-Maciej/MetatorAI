@@ -42,6 +42,10 @@ export interface RunPlanView {
   readonly approvalStage?: string;
   /** The open question of that stage, when one waits: its card is about this plan. */
   readonly question?: string;
+  /** The planner's previous version, when it revised the plan (a person asked for changes). */
+  readonly previous?: { readonly plan: Plan; readonly digest: string; readonly at: string };
+  /** What changed since `previous`, by step id (`step added: S3`, `step S1 changed: intent`). */
+  readonly changes?: readonly string[];
 }
 
 export interface SystemPlanSummary {
@@ -91,6 +95,10 @@ export interface SystemPlanView {
   readonly readOnlyBecause?: string;
   /** The plan's file, relative to the repository. */
   readonly file: string;
+  /** The planner's previous version, when it revised the plan. */
+  readonly previous?: { readonly plan: SystemPlan; readonly digest: string; readonly at: string };
+  /** What changed since `previous`, by step id. */
+  readonly changes?: readonly string[];
 }
 
 /** `GET /system/map`. */

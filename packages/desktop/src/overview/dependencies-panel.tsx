@@ -2,7 +2,6 @@
 import type { Conflict, RunMessage } from "../api.ts";
 import { systemRunOf } from "../board.ts";
 import { Notice } from "../components/common.tsx";
-import { PlanFlowGraph } from "../components/plan-flow-graph.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import {
@@ -109,27 +108,27 @@ export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) 
     <div className="graph">
       <div className="canvas">
         {systemPlans.length > 0 ? (
-          <section className="plan-flows" aria-label="tasks as flows">
+          <section className="plan-flows" aria-label="tasks split into steps">
             {systemPlans.map((p) => {
               const head = systemRunOf(p, runs);
+              const done = p.steps.filter((x) => x.status === "done").length;
+              // A task split by a system plan is drawn on its own page: here it is one line to it.
               return (
-                <div key={`${p.repo ?? ""}/${p.plan.id}`} className="plan-flow-box">
-                  <h3>
-                    {p.plan.task} <span className="faint mono">{p.plan.id}</span>
-                    <span className="faint"> · {p.status}</span>
-                  </h3>
-                  <PlanFlowGraph
-                    view={p}
-                    runs={runs}
-                    dim={p.status === "done" || (head !== undefined && isFinished(head))}
-                    onOpenRun={go}
-                    onOpenStep={() => {
-                      window.location.hash = head
-                        ? routeHash({ screen: "run", runId: head.runId, tab: "plan" })
-                        : routeHash({ screen: "overview", tab: "system" });
-                    }}
-                  />
-                </div>
+                <a
+                  key={`${p.repo ?? ""}/${p.plan.id}`}
+                  className={`task-line${p.status === "done" || (head !== undefined && isFinished(head)) ? " finished" : ""}`}
+                  data-testid={`task-line-${p.plan.id}`}
+                  href={
+                    head
+                      ? routeHash({ screen: "run", runId: head.runId, tab: "plan" })
+                      : routeHash({ screen: "overview", tab: "system" })
+                  }
+                >
+                  <strong>{p.plan.task}</strong>{" "}
+                  <span className="faint">
+                    · {p.status} · {done} of {p.steps.length} steps done · its flow is on its page ›
+                  </span>
+                </a>
               );
             })}
             <h3 className="runs-title">
@@ -248,12 +247,11 @@ export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) 
           </ul>
         </div>
         <div className="box">
-          <h3>Waves</h3>
+          <h3>How to read it</h3>
           <div className="muted">
-            A task split by a system plan is drawn as its flow: a column per wave, a lane per repository, an
-            arrow from each step to the steps that wait for it, a dashed step not started yet. Below, an arrow
-            runs from a run to the runs it started; a dashed amber line is data between two runs, never an
-            instruction. Finished work of the last day stays, dimmed.
+            A task split by a system plan is one line here; its flow (waves, repositories, what waits for
+            what) is on its own page. Below, an arrow runs from a run to the runs it started; a dashed amber
+            line is data between two runs, never an instruction. Finished work of the last day stays, dimmed.
           </div>
         </div>
         <Notice {...action.notice} />

@@ -1,29 +1,15 @@
 /**
- * A system plan: one change across repositories. Its steps grouped by repository with the run
- * each started and that run's state (a click opens it), the waves as the deploy order, the
- * approval (stale once the plan changed), the lint, Approve (closed while the lint has errors,
- * with the reason), and the same editing as a run's plan: a step that already has a run is
- * history and stays as it is.
+ * A system plan: one change across repositories, read-only. The planner writes it; a person reads
+ * it here (its flow on the task's own page), approves it, and asks for changes on its approval card.
+ * Its steps are grouped by repository with the run each started and that run's state.
  */
-import { useState } from "react";
-import type { SystemPlan, SystemPlanView } from "../api.ts";
+import type { SystemPlanView } from "../api.ts";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
-import { clock, lookOf, plural, type Run, routeHash, sameRepo } from "../model.ts";
-import {
-  blankSystemStep,
-  listOf,
-  stepLocked,
-  systemPlanChanges,
-  textOf,
-  withoutSystemStep,
-  withSystemStep,
-  withSystemStepChanged,
-  withSystemStepMoved,
-} from "../plan-edit.ts";
-import { TextEditor } from "../run/plan-form.tsx";
+import { clock, lintSummary, lookOf, plural, type Run, routeHash, sameRepo } from "../model.ts";
 import { Notice } from "./common.tsx";
-import { type DocSource, EditBar, FieldProblems, ProblemList, useDocEditor } from "./doc-editor.tsx";
+import { ProblemList } from "./doc-editor.tsx";
+import { PlanChanges } from "./plan-changes.tsx";
 import { PlanFlowGraph } from "./plan-flow-graph.tsx";
 
 /** A repository as a person names it: the last part of its path. */
@@ -34,15 +20,15 @@ export function SystemPlanPanel({
   planOfRun,
   repo,
   onOpenRun,
-  edit,
+  flow = true,
 }: {
   /** The plan, by its id; or the system run whose plan it is (found by its task). */
   readonly planId?: string | undefined;
   readonly planOfRun?: Run | undefined;
   readonly repo: string | undefined;
   onOpenRun?: ((runId: string) => void) | undefined;
-  /** Open in the edit mode ("Fix the plan"). */
-  readonly edit?: boolean | undefined;
+  /** Its flow: shown on the task's own page only. */
+  readonly flow?: boolean | undefined;
 }) {
   const { client } = useDaemon();
   // A finished system run's plan is not among the open ones: it is found in the repository's list.
@@ -63,46 +49,32 @@ export function SystemPlanPanel({
         </p>
       </div>
     );
-  return <SystemPlanBody id={id} repo={repo} onOpenRun={onOpenRun} edit={edit} />;
+  return <SystemPlanBody id={id} repo={repo} onOpenRun={onOpenRun} flow={flow} />;
 }
 
 function SystemPlanBody({
   id,
   repo,
   onOpenRun,
-  edit,
+  flow = true,
 }: {
   readonly id: string;
   readonly repo: string | undefined;
   onOpenRun?: ((runId: string) => void) | undefined;
-  readonly edit?: boolean | undefined;
+  readonly flow?: boolean | undefined;
 }) {
-  const { client, runs } = useDaemon();
+  const { client } = useDaemon();
   const plan = usePolled(`system-plan:${repo ?? ""}:${id}`, () => client.systemPlan(id, repo), 3000);
   const action = useAction(plan.reload);
-  const source: DocSource<SystemPlanView, SystemPlan> = {
-    view: plan.data,
-    reload: plan.reload,
-    docOf: (v) => v.plan,
-    digestOf: (v) => v.digest,
-    lintOf: (v) => v.lint,
-    editable: (v) => v.editable,
-    readOnlyBecause: (v) => v.readOnlyBecause,
-    check: (p) => client.lintSystemPlan(id, p, repo),
-    save: (p, digest, by) => client.saveSystemPlan(id, { plan: p, digest, by }, repo),
-    changes: systemPlanChanges,
-  };
-  const editor = useDocEditor(source, edit === true);
   const view = plan.data;
   if (!view) return <div className="empty">{plan.error ?? `reading the system plan ${id}…`}</div>;
-  const errors = editor.problems.filter((p) => p.severity === "error");
+  const errors = view.lint.problems.filter((p) => p.severity === "error");
   const approve = () =>
     action.run((by) => client.approveSystemPlan(id, by, repo), {
       who: true,
       refused: "the plan was not approved",
       done: "approved: its steps start in the deploy order",
     });
-  const repos = [...new Set(view.steps.map((s) => s.repo))];
   return (
     <div className="system-plan" data-testid="system-plan">
       <header className="sp-head">
@@ -122,64 +94,78 @@ function SystemPlanBody({
         <span className="faint mono">{view.file}</span>
       </header>
       <div className="sp-task">{view.plan.task}</div>
-      <EditBar editor={editor} source={source} noun="system plan" testId="system-plan-edit-bar">
+      <div className="lint-bar" data-testid="system-plan-lint">
+        <span className={errors.length > 0 ? "red" : view.lint.problems.length > 0 ? "amber" : "green"}>
+          lint: {lintSummary(view.lint)}
+        </span>
+        <span className="faint">
+          {" "}
+          · the planner writes this plan; ask it for changes on the plan's approval card
+        </span>
+        <span className="spacer" />
         {view.status === "draft" || view.approval?.stale ? (
           <button
             type="button"
             className="primary"
             disabled={errors.length > 0 || action.busy}
-            title={errors.length > 0 ? `fix the lint first: ${errors[0]?.message}` : "approve the plan"}
+            title={errors.length > 0 ? `the lint has an error: ${errors[0]?.message}` : "approve the plan"}
             onClick={() => void approve()}
           >
             Approve
           </button>
         ) : null}
-      </EditBar>
-      {editor.mode === "view" && (view.status === "draft" || view.approval?.stale) && errors.length > 0 ? (
-        <div className="amber" data-testid="approve-blocked">
-          Approve waits until the lint has no error: {errors[0]?.message}
-        </div>
-      ) : null}
+      </div>
       <Notice {...action.notice} />
-      {editor.mode === "text" ? (
-        <TextEditor
-          text={editor.text}
-          label="the system plan as JSON"
-          problems={editor.problems}
-          onChange={editor.setText}
-        />
-      ) : editor.mode === "form" && editor.draft ? (
-        <SystemPlanForm
-          plan={editor.draft}
-          view={view}
-          onChange={editor.setDraft}
-          problems={editor.problems}
-        />
+      <SystemPlanContent view={view} repo={repo} onOpenRun={onOpenRun} flow={flow} />
+    </div>
+  );
+}
+
+/**
+ * What a system plan says, read-only: its lint, what changed since the planner's previous version,
+ * its flow (on the task's own page), and its steps per repository with the run each started.
+ */
+export function SystemPlanContent({
+  view,
+  repo,
+  onOpenRun,
+  flow = true,
+}: {
+  readonly view: SystemPlanView;
+  readonly repo: string | undefined;
+  onOpenRun?: ((runId: string) => void) | undefined;
+  readonly flow?: boolean | undefined;
+}) {
+  const { runs } = useDaemon();
+  const repos = [...new Set(view.steps.map((s) => s.repo))];
+  return (
+    <>
+      <ProblemList problems={view.lint.problems} testId="system-plan-problems" />
+      <PlanChanges changes={view.changes} previousAt={view.previous?.at} />
+      {flow ? (
+        <section className="sp-waves" aria-label="deploy order">
+          <h3>Deploy order</h3>
+          {view.waves.length === 0 ? (
+            <div className="faint">No order: the steps wait on each other in a circle (the lint says where).</div>
+          ) : (
+            <PlanFlowGraph
+              view={view}
+              runs={runs}
+              onOpenRun={(runId) => {
+                if (onOpenRun) onOpenRun(runId);
+                else window.location.hash = routeHash({ screen: "run", runId, tab: "overview" });
+              }}
+              onOpenStep={(stepId) =>
+                document.querySelector(`[data-testid="system-step-${stepId}"]`)?.scrollIntoView({ block: "center" })
+              }
+            />
+          )}
+        </section>
       ) : (
-        <>
-          <ProblemList problems={editor.problems} testId="system-plan-problems" />
-          <section className="sp-waves" aria-label="deploy order">
-            <h3>Deploy order</h3>
-            {view.waves.length === 0 ? (
-              <div className="faint">
-                No order: the steps wait on each other in a circle (the lint says where).
-              </div>
-            ) : (
-              <PlanFlowGraph
-                view={view}
-                runs={runs}
-                onOpenRun={(runId) => {
-                  if (onOpenRun) onOpenRun(runId);
-                  else window.location.hash = routeHash({ screen: "run", runId, tab: "overview" });
-                }}
-                onOpenStep={(stepId) =>
-                  document
-                    .querySelector(`[data-testid="system-step-${stepId}"]`)
-                    ?.scrollIntoView({ block: "center" })
-                }
-              />
-            )}
-          </section>
+        <div className="faint" data-testid="deploy-order">
+          deploy order: {view.waves.map((w) => `wave ${w.wave}: ${w.steps.join(", ")}`).join(" → ") || "none"}
+        </div>
+      )}
           {repos.map((r) => (
             <section key={r} className="sp-repo" aria-label={`steps in ${r}`}>
               <h3 title={r}>{repoName(r)}</h3>
@@ -256,147 +242,10 @@ function SystemPlanBody({
               </table>
             </section>
           ))}
-          {view.steps.length === 0 ? <div className="faint">The plan has no step yet.</div> : null}
-          <div className="faint">
-            {plural(view.steps.length, "step")} in {plural(repos.length, "repository", "repositories")}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function SystemPlanForm({
-  plan,
-  view,
-  problems,
-  onChange,
-}: {
-  readonly plan: SystemPlan;
-  readonly view: SystemPlanView;
-  readonly problems: SystemPlanView["lint"]["problems"];
-  onChange(change: (p: SystemPlan) => SystemPlan): void;
-}) {
-  const apps = [...new Set(view.steps.map((s) => s.app).concat(plan.steps.map((s) => s.app)))].filter(
-    (a) => a !== "",
-  );
-  const [newApp, setNewApp] = useState(apps[0] ?? "");
-  return (
-    <div className="plan-form" data-testid="system-plan-form">
-      <label className="pf-field wide">
-        <span>Task</span>
-        <input
-          aria-label="system plan task"
-          value={plan.task}
-          onChange={(e) => onChange((p) => ({ ...p, task: e.target.value }))}
-        />
-      </label>
-      <ol className="pf-steps">
-        {plan.steps.map((s, i) => {
-          const locked = stepLocked(s);
-          const mine = problems.filter((p) => p.step === s.id);
-          return (
-            <li
-              key={s.id}
-              className={locked ? "pf-step locked" : "pf-step"}
-              aria-label={`step ${s.id}`}
-              data-testid={`system-plan-step-${s.id}`}
-              onKeyDown={(e) => {
-                if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
-                e.preventDefault();
-                onChange((p) => withSystemStepMoved(p, s.id, e.key === "ArrowUp" ? -1 : 1));
-              }}
-            >
-              <div className="pf-head">
-                <b className="mono">{s.id}</b>
-                <span className="faint">
-                  {locked ? `has a run (${s.run}): kept as it is` : `step ${i + 1} of ${plan.steps.length}`}
-                </span>
-                <span className="spacer" />
-                <button
-                  type="button"
-                  className="ghost"
-                  aria-label={`move ${s.id} up`}
-                  disabled={i === 0}
-                  onClick={() => onChange((p) => withSystemStepMoved(p, s.id, -1))}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className="ghost"
-                  aria-label={`move ${s.id} down`}
-                  disabled={i === plan.steps.length - 1}
-                  onClick={() => onChange((p) => withSystemStepMoved(p, s.id, 1))}
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  className="ghost"
-                  aria-label={`remove ${s.id}`}
-                  disabled={locked}
-                  title={locked ? "a step that has a run cannot be removed" : undefined}
-                  onClick={() => onChange((p) => withoutSystemStep(p, s.id))}
-                >
-                  ✕
-                </button>
-              </div>
-              <ProblemList problems={mine} />
-              <div className="pf-grid">
-                <label className="pf-field">
-                  <span>Application</span>
-                  <input
-                    aria-label={`${s.id} application`}
-                    className="mono"
-                    value={s.app}
-                    disabled={locked}
-                    onChange={(e) => onChange((p) => withSystemStepChanged(p, s.id, { app: e.target.value }))}
-                  />
-                </label>
-                <label className="pf-field wide">
-                  <span>What it does</span>
-                  <input
-                    aria-label={`${s.id} summary`}
-                    value={s.summary}
-                    disabled={locked}
-                    onChange={(e) =>
-                      onChange((p) => withSystemStepChanged(p, s.id, { summary: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="pf-field">
-                  <span>After</span>
-                  <input
-                    aria-label={`${s.id} after`}
-                    className="mono"
-                    value={textOf(s.dependsOn)}
-                    disabled={locked}
-                    onChange={(e) =>
-                      onChange((p) => withSystemStepChanged(p, s.id, { dependsOn: listOf(e.target.value) }))
-                    }
-                  />
-                  <FieldProblems problems={mine.filter((p) => (p.field ?? "").endsWith("dependsOn"))} />
-                </label>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-      <div className="row">
-        <label className="pf-field">
-          <span>New step in</span>
-          <input
-            aria-label="application of the new step"
-            className="mono"
-            value={newApp}
-            onChange={(e) => setNewApp(e.target.value)}
-          />
-        </label>
-        <button type="button" onClick={() => onChange((p) => withSystemStep(p, blankSystemStep(p, newApp)))}>
-          + Step
-        </button>
+      {view.steps.length === 0 ? <div className="faint">The plan has no step yet.</div> : null}
+      <div className="faint">
+        {plural(view.steps.length, "step")} in {plural(repos.length, "repository", "repositories")}
       </div>
-    </div>
+    </>
   );
 }

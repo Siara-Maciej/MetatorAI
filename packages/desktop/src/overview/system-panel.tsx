@@ -12,7 +12,7 @@ import { EmptyRow, ListRow, ListSection } from "../components/list-detail.tsx";
 import { SystemPlanPanel } from "../components/system-plan.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
-import { lookOf, plural, rootsProblems } from "../model.ts";
+import { lookOf, plural, rootsProblems, routeHash } from "../model.ts";
 import {
   blankApplication,
   blankContract,
@@ -35,11 +35,13 @@ const PLAN_LOOK: Record<string, string> = {
 };
 
 export function SystemPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
-  const { client, repo } = useDaemon();
+  const { client, repo, runs } = useDaemon();
   const list = usePolled(`system-plans-all:${repo ?? ""}`, () => client.systemPlans(repo), 5000);
   const [chosen, setChosen] = useState<string>();
   const plans = Array.isArray(list.data) ? list.data : [];
-  const current = plans.find((p) => p.id === chosen) ?? plans.find((p) => p.status !== "done") ?? plans[0];
+  const current = plans.find((p) => p.id === chosen);
+  // A plan's page is its system run's: the row opens it there (its flow, steps and runs).
+  const headOf = (task: string) => runs.find((r) => /system/.test(r.workflow) && r.task === task);
   return (
     <div className="system-tab" data-testid="overview-system">
       <div className="ld-body system-body">
@@ -50,7 +52,11 @@ export function SystemPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
               key={p.id}
               className="item"
               selected={current?.id === p.id}
-              onSelect={() => setChosen(p.id)}
+              onSelect={() => {
+                const head = headOf(p.task);
+                if (head) window.location.hash = routeHash({ screen: "run", runId: head.runId, tab: "plan" });
+                else setChosen(p.id);
+              }}
               testId={`system-plan-${p.id}`}
               glyph={
                 <span className={`g ${lookOf("step", PLAN_LOOK[p.status]).tone ?? ""}`}>
@@ -83,7 +89,8 @@ export function SystemPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
           {chosen === "map" || !current ? (
             <SystemMapEditor />
           ) : (
-            <SystemPlanPanel planId={current.id} repo={repo} onOpenRun={onOpenRun} />
+            // A plan whose system run is not here (another repository's, or gone): shown as it is.
+            <SystemPlanPanel planId={current.id} repo={repo} onOpenRun={onOpenRun} flow={false} />
           )}
         </section>
       </div>

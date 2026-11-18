@@ -195,30 +195,30 @@ export function Sidebar({
               const open = openRuns(runs);
               const here = open.filter((r) => sameRepo(r.repo, repo));
               const rows = sidebarRuns(here, open, planStepsOf, (r) => stepPlaceOf(r.runId));
-              // A step of a run of another repository is listed under its parent, there.
-              const away = here.filter((r) => !rows.some((x) => x.run === r));
               return (
                 <div key={repo || "."} className="repo">
                   <div className="section">
                     <Glyph kind="run" state={rollUp(rows.map((x) => stateOf(x.run)))} />
                     {repo || "Runs"} · {rows.length}
                   </div>
-                  {rows.map((x) => runRows(x.run, x.nested, x.step, x.elsewhere))}
-                  {away.length > 0 ? (
-                    <div className="quiet">
-                      {plural(away.length, "step")} of a run of{" "}
-                      {[
-                        ...new Set(
-                          away.map(
-                            (r) => open.find((p) => p.runId === r.parent)?.repo ?? "another repository",
-                          ),
-                        ),
-                      ].join(", ")}
-                      , listed under it
-                    </div>
-                  ) : rows.length === 0 ? (
-                    <div className="quiet">No run is open.</div>
-                  ) : null}
+                  {rows.map((x) =>
+                    x.partOf ? (
+                      <div key={`${x.run.repo ?? ""}/${x.run.runId}`} className="step-elsewhere">
+                        {runRows(x.run, false, x.step?.replace("/", " of "))}
+                        <a
+                          className="part-of"
+                          href={routeHash({ screen: "run", runId: x.partOf.runId, tab: "plan" })}
+                          title={`the task this is a step of, in ${x.partOf.repo ?? "this repository"}`}
+                          data-testid={`part-of-${x.run.runId}`}
+                        >
+                          ↳ {x.partOf.task}
+                        </a>
+                      </div>
+                    ) : (
+                      runRows(x.run, x.nested, x.step, x.elsewhere)
+                    ),
+                  )}
+                  {rows.length === 0 ? <div className="quiet">No run is open.</div> : null}
                 </div>
               );
             })}

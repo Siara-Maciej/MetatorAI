@@ -108,13 +108,14 @@ describe("a step is numbered by its place in the system plan (round 4, item 2)",
     expect(groupStepText({ step: 1, of: 2 }, 2, false, place)).toBe("step 2 of 2");
     const sys = run("sys", { repo: "api" });
     const w = run("w", { parent: "sys", repo: "web" });
+    // Listed in its own repository (web), with its place in the plan.
     const rows = sidebarRuns(
-      [sys],
+      [w],
       [sys, w],
       () => 2,
       (r) => stepPlace([p], r.runId),
     );
-    expect(rows.map((r) => r.step)).toEqual([undefined, "step 2/2"]);
+    expect(rows.map((r) => r.step)).toEqual(["step 2/2"]);
   });
 });
 

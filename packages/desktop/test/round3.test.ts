@@ -87,18 +87,22 @@ describe("the steps of a system plan across repositories (defect 13)", () => {
     expect(stepOf(b, [a, b], parent, 1)).toBe("step 2");
   });
 
-  test("a step in another repository sits under its parent, with its repository named", () => {
+  test("each run is listed in its own repository; a step of another repository's task says whose step it is", () => {
     const all = [parent, a, b];
+    // The parent's repository: the parent, and its step of the same repository under it.
     const api = sidebarRuns([parent, a], all, () => 2);
-    expect(api.map((x) => [x.run.runId, x.nested, x.step, x.elsewhere])).toEqual([
+    expect(api.map((x) => [x.run.runId, x.nested, x.step, x.partOf?.runId])).toEqual([
       ["sys", false, undefined, undefined],
       ["a", true, "step 1/2", undefined],
-      ["b", true, "step 2/2", "shop-web"],
     ]);
-    // In its own repository the step is not listed again.
-    expect(sidebarRuns([b], all).map((x) => x.run.runId)).toEqual([]);
-    // Its parent not open: it stands alone.
-    expect(sidebarRuns([b], [b]).map((x) => [x.run.runId, x.nested])).toEqual([["b", false]]);
+    // The step's own repository: a row of its own, with its place and the task it is a step of.
+    expect(sidebarRuns([b], all, () => 2).map((x) => [x.run.runId, x.nested, x.step, x.partOf])).toEqual([
+      ["b", false, "step 2/2", { runId: "sys", repo: "shop-api", task: "sys" }],
+    ]);
+    // Its parent not known at all: it stands alone.
+    expect(sidebarRuns([b], [b]).map((x) => [x.run.runId, x.nested, x.partOf])).toEqual([
+      ["b", false, undefined],
+    ]);
   });
 
   test("the system plan of a run: by a step's child run, else by the run's task", () => {

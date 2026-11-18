@@ -1,84 +1,137 @@
+/**
+ * A plan at its approval, in full: the run's plan (steps with files, tests first and what each
+ * waits for) or the system plan (its flow and its steps per repository), its lint, what the
+ * planner changed since its previous version, and "Ask for changes": the person says in words
+ * what should be different, the gate is rejected with those words, and the planner writes a new
+ * plan. Nobody edits a plan by hand.
+ */
+import { useState } from "react";
 import type { RunPlanView } from "../api.ts";
-import { useDaemon } from "../daemon.tsx";
-import { useAction } from "../hooks.ts";
 import type { RepoSystemPlan } from "../model.ts";
-import { lintSummary, routeHash } from "../model.ts";
-import { Notice } from "./common.tsx";
+import { lintSummary } from "../model.ts";
+import { ProblemList } from "./doc-editor.tsx";
+import { PlanChanges } from "./plan-changes.tsx";
+import { SystemPlanContent } from "./system-plan.tsx";
 
-/** On a plan's approval card: the plan in one line, its lint now, and the way to read or change it. */
-export function PlanApprovalLine({ view, runId }: { readonly view: RunPlanView; readonly runId: string }) {
+const or = (items: readonly string[] | undefined) => (items && items.length > 0 ? items.join(", ") : "—");
+
+/** The run's plan in full, read-only. */
+export function RunPlanFull({ view }: { readonly view: RunPlanView }) {
   const errors = view.lint.problems.filter((p) => p.severity === "error");
+  const plan = view.plan;
   return (
-    <section className="plan-line" data-testid="plan-approval-line">
-      <h3>The plan</h3>
-      <div>
-        {view.plan ? `${view.plan.steps.length} steps` : "no plan written"} ·{" "}
+    <section className="plan-full" data-testid="plan-approval-line" aria-label="the plan">
+      <h3>
+        The plan{plan ? ` · ${plan.steps.length} steps` : ""} ·{" "}
         <span className={errors.length > 0 ? "red" : view.lint.problems.length > 0 ? "amber" : "green"}>
           lint: {lintSummary(view.lint)}
         </span>
-        {errors[0] ? <span className="muted"> · {errors[0].message}</span> : null}{" "}
-        <a href={routeHash({ screen: "run", runId, tab: "plan" })}>Review / edit the plan</a>
-        {errors.length > 0 ? (
-          <>
-            {" · "}
-            <a href={routeHash({ screen: "run", runId, tab: "plan", edit: true })}>Fix the plan</a>
-          </>
-        ) : null}
-      </div>
+      </h3>
+      <PlanChanges changes={view.changes} previousAt={view.previous?.at} />
+      {plan ? (
+        <>
+          <div className="muted">
+            {plan.task}
+            {plan.scope.length > 0 ? <span className="faint mono"> · scope {plan.scope.join(", ")}</span> : null}
+          </div>
+          <table className="sp-steps plan-steps" data-testid="plan-steps">
+            <thead>
+              <tr>
+                {["step", "file", "what", "tests first", "after"].map((h) => (
+                  <th key={h} scope="col">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {plan.steps.map((s) => (
+                <tr key={s.id} data-testid={`plan-step-${s.id}`}>
+                  <td className="mono">{s.id}</td>
+                  <td className="mono">
+                    {s.action} {s.path}
+                  </td>
+                  <td>{s.intent}</td>
+                  <td className="mono">{or(s.testsFirst)}</td>
+                  <td className="mono">{or(s.dependsOn)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      ) : (
+        <div className="faint">No plan written yet.</div>
+      )}
+      <ProblemList problems={view.lint.problems} testId="plan-card-problems" />
     </section>
   );
 }
 
-/**
- * On a system run's approval card: the system plan in one line (its steps, status, lint), the way
- * to read or change it, and Approve for the plan itself while it waits for one, closed with the
- * reason while the lint has errors.
- */
-export function SystemPlanLine({ plan, runId }: { readonly plan: RepoSystemPlan; readonly runId: string }) {
-  const { client } = useDaemon();
-  const action = useAction();
+/** A system plan in full on its approval card: its flow and its steps per repository. */
+export function SystemPlanFull({ plan }: { readonly plan: RepoSystemPlan }) {
   const errors = plan.lint.problems.filter((p) => p.severity === "error");
-  const waits = plan.status === "draft" || plan.approval?.stale === true;
   return (
-    <section className="plan-line" data-testid="system-plan-line">
-      <h3>The system plan</h3>
-      <div>
-        <span className="mono">{plan.plan.id}</span> · {plan.steps.length} steps · {plan.status}
-        {plan.approval?.stale ? " · approval stale" : ""} ·{" "}
+    <section className="plan-full" data-testid="system-plan-line" aria-label="the system plan">
+      <h3>
+        The system plan <span className="mono">{plan.plan.id}</span> · {plan.steps.length} steps · {plan.status} ·{" "}
         <span className={errors.length > 0 ? "red" : plan.lint.problems.length > 0 ? "amber" : "green"}>
           lint: {lintSummary(plan.lint)}
-        </span>{" "}
-        <a href={routeHash({ screen: "run", runId, tab: "plan" })}>Review / edit the system plan</a>
-        {errors.length > 0 ? (
-          <>
-            {" · "}
-            <a href={routeHash({ screen: "run", runId, tab: "plan", edit: true })}>Fix the plan</a>
-          </>
-        ) : null}
-        {waits ? (
-          <button
-            type="button"
-            className="approve-plan"
-            disabled={errors.length > 0 || action.busy}
-            title={errors.length > 0 ? `fix the lint first: ${errors[0]?.message}` : undefined}
-            onClick={() =>
-              void action.run((by) => client.approveSystemPlan(plan.plan.id, by, plan.repo), {
-                who: true,
-                done: "the system plan is approved",
-              })
-            }
-          >
-            Approve the system plan
-          </button>
-        ) : null}
-      </div>
-      {waits && errors.length > 0 ? (
-        <div className="red" data-testid="system-plan-closed">
-          Approve the system plan is closed: the plan has {errors.length} error
-          {errors.length === 1 ? "" : "s"}.
+        </span>
+      </h3>
+      <SystemPlanContent view={plan} repo={plan.repo} />
+    </section>
+  );
+}
+
+/** The lint's errors as words for the planner: what "Ask the planner to fix it" starts with. */
+export const lintRequest = (problems: readonly { readonly severity: string; readonly message: string; readonly step?: string | undefined }[]): string => {
+  const errors = problems.filter((p) => p.severity === "error");
+  return errors.length === 0
+    ? ""
+    : `Fix the plan's lint errors: ${errors.map((p) => (p.step ? `${p.step}: ${p.message}` : p.message)).join("; ")}.`;
+};
+
+/**
+ * "Ask for changes": the words go to the gate as its Reject with them as the reason, which sends
+ * the run back to its planner. With lint errors the request can start from them.
+ */
+export function AskForChanges({
+  blocked,
+  lintText,
+  busy,
+  onSend,
+}: {
+  /** Why Approve is closed (the lint has errors), when it is. */
+  readonly blocked?: string | undefined;
+  readonly lintText: string;
+  readonly busy: boolean;
+  onSend(text: string): void;
+}) {
+  const [text, setText] = useState("");
+  return (
+    <section className="ask-changes" data-testid="ask-for-changes" aria-label="ask for changes">
+      {blocked ? (
+        <div className="red" data-testid="closed-option">
+          Approve is closed: {blocked}.{" "}
+          {lintText ? (
+            <button type="button" onClick={() => setText(lintText)}>
+              Ask the planner to fix it
+            </button>
+          ) : null}
         </div>
       ) : null}
-      <Notice {...action.notice} />
+      <label>
+        <span className="dim">What should be different? The planner writes a new plan.</span>
+        <textarea
+          aria-label="what should change in the plan"
+          placeholder="for example: S2 also needs a test for a product without a currency"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+      </label>
+      <button type="button" disabled={busy || text.trim() === ""} onClick={() => onSend(text.trim())}>
+        Ask for changes
+      </button>
     </section>
   );
 }

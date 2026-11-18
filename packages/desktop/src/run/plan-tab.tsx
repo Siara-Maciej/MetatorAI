@@ -5,33 +5,24 @@
  * the artifacts below, the last events at the bottom. Everything comes from `GET /runs/:id/board`.
  */
 import { useState } from "react";
-import type { Plan, PlanBoardView, RunPlanView } from "../api.ts";
+import type { PlanBoardView } from "../api.ts";
 import { ActivityList } from "../components/activity-list.tsx";
 import { QuickAnswer } from "../components/answer.tsx";
 import { ArtifactList } from "../components/artifact-list.tsx";
-import {
-  type DocSource,
-  EditBar,
-  FieldProblems,
-  ProblemList,
-  useDocEditor,
-} from "../components/doc-editor.tsx";
+import { FieldProblems, ProblemList } from "../components/doc-editor.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../components/list-detail.tsx";
 import { StageBar } from "../components/stage-bar.tsx";
 import { SystemPlanPanel } from "../components/system-plan.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { clock, duration, plural, problemsAt, type Run, systemPlanOf } from "../model.ts";
-import { planChanges } from "../plan-edit.ts";
-import { PlanForm, TextEditor } from "./plan-form.tsx";
+import { PlanChanges } from "../components/plan-changes.tsx";
+import { clock, duration, lintSummary, plural, problemsAt, type Run, systemPlanOf } from "../model.ts";
 
 const or = (items: readonly string[]): string => (items.length > 0 ? items.join(", ") : "—");
 
 export function PlanTab(props: {
   readonly run: Run | undefined;
   readonly runId: string;
-  /** Open in the edit mode ("Fix the plan"). */
-  readonly edit?: boolean | undefined;
   onOpenPane(paneId: string, runId: string): void;
   onOpenRun(runId: string, attach?: boolean): void;
 }) {
@@ -45,25 +36,22 @@ export function PlanTab(props: {
         planId={system.plan.id}
         repo={system.repo}
         onOpenRun={props.onOpenRun}
-        edit={props.edit}
       />
     );
   if (run && /system/.test(run.workflow))
-    return <SystemPlanPanel planOfRun={run} repo={run.repo} onOpenRun={props.onOpenRun} edit={props.edit} />;
+    return <SystemPlanPanel planOfRun={run} repo={run.repo} onOpenRun={props.onOpenRun} />;
   return <RunPlanTab {...props} />;
 }
 
 function RunPlanTab({
   run,
   runId,
-  edit,
   onOpenPane,
   onOpenRun,
 }: {
   /** The run from the state; the board is read for a run the state no longer lists too. */
   readonly run: Run | undefined;
   readonly runId: string;
-  readonly edit?: boolean | undefined;
   /** Shows a pane in Terminals (the step's worker). */
   onOpenPane(paneId: string, runId: string): void;
   /** The run's Terminal tab, with the keyboard taken when asked. */
@@ -78,26 +66,13 @@ function RunPlanTab({
   } = usePolled(`plan:${repo ?? ""}:${runId}`, () => client.board(runId, repo), 2000);
   // The plan as a document: its lint, and whether a person may still change it.
   const planned = usePolled(`run-plan:${repo ?? ""}:${runId}`, () => client.runPlan(runId, repo), 3000);
-  const source: DocSource<RunPlanView, Plan> = {
-    view: planned.data,
-    reload: () => Promise.all([planned.reload(), load()]),
-    docOf: (v) => v.plan,
-    digestOf: (v) => v.digest,
-    lintOf: (v) => v.lint,
-    editable: (v) => v.editable,
-    readOnlyBecause: (v) => v.readOnlyBecause,
-    check: (plan) => client.lintRunPlan(runId, plan, repo),
-    save: (plan, digest, by) => client.saveRunPlan(runId, { plan, digest, by }, repo),
-    changes: planChanges,
-  };
-  const editor = useDocEditor(source, edit === true);
   const [chosen, setChosen] = useState<string>();
   const steps = board?.plan?.steps ?? [];
   const step = steps.find((s) => s.id === chosen) ?? steps.find((s) => s.state === "in-progress") ?? steps[0];
   const waiting = board?.waiting[0];
   if (!board) return <div className="empty">{error ?? `reading the plan of ${runId}…`}</div>;
   const planStep = planned.data?.plan?.steps.find((s) => s.id === step?.id);
-  const problems = editor.problems;
+  const problems = planned.data?.lint.problems ?? [];
   const facts: [string, string, string][] = step
     ? [
         ["file", "path", `${step.action} ${step.path}`],
@@ -107,33 +82,25 @@ function RunPlanTab({
         ["after", "dependsOn", or(step.dependsOn)],
       ]
     : [];
+  // The planner writes the plan; a person reads it here and asks for changes on its approval card.
+  const errors = problems.filter((p) => p.severity === "error");
   const bar = planned.data ? (
-    <EditBar editor={editor} source={source} noun="plan" testId="plan-edit-bar" />
+    <div className="lint-bar" data-testid="plan-lint-bar">
+      <span className={errors.length > 0 ? "red" : problems.length > 0 ? "amber" : "green"}>
+        lint: {lintSummary(planned.data.lint)}
+      </span>
+      <span className="faint"> · the planner writes this plan; ask it for changes on the plan's approval card</span>
+    </div>
   ) : planned.error ? (
-    // A plan file that does not fit its format cannot be shown as fields: the daemon says where.
+    // A plan file that does not fit its format: the daemon says where.
     <div className="banner" data-testid="plan-unreadable">
       The plan cannot be read: {planned.error}
     </div>
   ) : null;
-  if (editor.mode !== "view" && planned.data)
-    return (
-      <div className="plan-editing" data-testid="plan">
-        {bar}
-        {editor.mode === "form" && editor.draft ? (
-          <PlanForm plan={editor.draft} problems={problems} onChange={editor.setDraft} />
-        ) : (
-          <TextEditor
-            text={editor.text}
-            label="the plan as JSON"
-            problems={problems}
-            onChange={editor.setText}
-          />
-        )}
-      </div>
-    );
   return (
     <div className="plan-view">
       {bar}
+      <PlanChanges changes={planned.data?.changes} previousAt={planned.data?.previous?.at} />
       <ListDetail
         className="plan"
         testId="plan"

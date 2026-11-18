@@ -280,8 +280,6 @@ export type Route =
       readonly pane?: string;
       /** The file the Changes tab shows. */
       readonly file?: string;
-      /** The Plan tab opens in its edit mode (`#/run/<run>/plan/edit`): "Fix the plan". */
-      readonly edit?: boolean;
     }
   | { readonly screen: "grid"; readonly group?: string; readonly pane?: string }
   | { readonly screen: "overview"; readonly tab: OverviewTab }
@@ -302,14 +300,12 @@ const OLD_RUN_ROUTES: Readonly<Record<string, RunTab>> = {
 function runRoute(runId: string, tab: RunTab, rest: readonly string[]): Route {
   const pane = tab === "terminal" ? rest[0] : undefined;
   const file = tab === "changes" ? rest.join("/") : "";
-  const edit = tab === "plan" && rest[0] === "edit";
   return {
     screen: "run",
     runId,
     tab,
     ...(pane ? { pane } : {}),
     ...(file ? { file } : {}),
-    ...(edit ? { edit: true } : {}),
   };
 }
 
@@ -373,9 +369,7 @@ export function routeHash(route: Route): string {
           ? `/${encodeURIComponent(route.pane)}`
           : route.tab === "changes" && route.file
             ? `/${route.file.split("/").map(encodeURIComponent).join("/")}`
-            : route.tab === "plan" && route.edit
-              ? "/edit"
-              : "";
+            : "";
       return `#/run/${encodeURIComponent(route.runId)}/${route.tab}${rest}`;
     }
     case "inbox":
@@ -1515,6 +1509,10 @@ export interface SidebarRun<R> {
   readonly step?: string | undefined;
   /** The repository of a step that lives in another repository than its parent. */
   readonly elsewhere?: string | undefined;
+  /** A step listed in its own repository, away from its parent: the task it is a step of. */
+  readonly partOf?:
+    | { readonly runId: string; readonly repo?: string | undefined; readonly task: string }
+    | undefined;
 }
 
 /**
@@ -1574,21 +1572,36 @@ export function sidebarRuns<R extends RunOverview & { readonly repo?: string | u
   planSteps: (parent: R) => number | undefined = () => undefined,
   placeOf: (step: R) => StepPlace | undefined = () => undefined,
 ): SidebarRun<R>[] {
-  const listed = new Set(all.map((r) => r.runId));
-  const isStep = (r: R) => r.parent !== undefined && listed.has(r.parent);
+  // Every run is listed in its own repository: a step of the same repository sits under its
+  // parent; a step of a task of another repository is a row of its own here, saying whose step it is.
+  const here = new Set(runs.map((r) => r.runId));
+  const parentOf = (r: R) => (r.parent ? all.find((p) => p.runId === r.parent) : undefined);
+  const nestedHere = (r: R) => {
+    const p = parentOf(r);
+    return p !== undefined && here.has(p.runId) && sameRepo(p.repo, r.repo);
+  };
   const out: SidebarRun<R>[] = [];
-  for (const run of byPanelOrder(runs.filter((r) => !isStep(r)))) {
-    out.push({ run, nested: false });
-    const steps = all
+  for (const run of byPanelOrder(runs.filter((r) => !nestedHere(r)))) {
+    const p = parentOf(run);
+    if (p) {
+      const siblings = all
+        .filter((r) => r.parent === p.runId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      out.push({
+        run,
+        nested: false,
+        step: stepOf(run, siblings, p, planSteps(p), placeOf(run)),
+        partOf: { runId: p.runId, repo: p.repo, task: p.task },
+      });
+    } else out.push({ run, nested: false });
+    const steps = runs
+      .filter((r) => r.parent === run.runId && sameRepo(r.repo, run.repo))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const siblings = all
       .filter((r) => r.parent === run.runId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     for (const step of steps)
-      out.push({
-        run: step,
-        nested: true,
-        step: stepOf(step, steps, run, planSteps(run), placeOf(step)),
-        ...(sameRepo(step.repo, run.repo) ? {} : { elsewhere: step.repo }),
-      });
+      out.push({ run: step, nested: true, step: stepOf(step, siblings, run, planSteps(run), placeOf(step)) });
   }
   return out;
 }
