@@ -376,3 +376,36 @@ describe("the board", () => {
     expect(plansShown(list, NOW).map((p) => p.id)).toEqual(["a", "b"]);
   });
 });
+
+describe("bigflow fixes", () => {
+  test("a gate's prompt reads as a sentence: the command in backticks is dropped", async () => {
+    const { humanPrompt } = await import("../src/model.ts");
+    expect(
+      humanPrompt(
+        "A person approves the system plan (`metator system plan approve`) and this gate: approve to continue",
+      ),
+    ).toBe("A person approves the system plan and this gate: approve to continue");
+    expect(humanPrompt("Run `bun test` first")).toBe("Run bun test first");
+    expect(humanPrompt("Which rounding?")).toBe("Which rounding?");
+  });
+
+  test("a run its conductor moves on: active, no gate, no question, nothing in the background, its conductor alive", async () => {
+    const { conductorMoves } = await import("../src/model.ts");
+    const r = run("c", {
+      driving: false,
+      stages: [{ id: "build", state: "current", hitl: false }],
+      repo: "shop-api",
+    } as Partial<Run>);
+    const pane = { runId: "c", role: "conductor", live: { alive: true }, repo: "shop-api" } as never;
+    expect(conductorMoves(r, [pane])).toBe(true);
+    expect(conductorMoves(r, [])).toBe(false);
+    expect(conductorMoves({ ...r, driving: true }, [pane])).toBe(false);
+    expect(conductorMoves({ ...r, questions: [{}] as never }, [pane])).toBe(false);
+    expect(
+      conductorMoves({ ...r, stages: [{ id: "approval", state: "waiting", hitl: true }] } as never, [pane]),
+    ).toBe(false);
+    expect(conductorMoves({ ...r, status: "done" }, [pane])).toBe(false);
+    expect(conductorMoves(r, [{ ...(pane as object), repo: "shop-web" } as never])).toBe(false);
+    expect(conductorMoves(r, [{ ...(pane as object), live: { alive: false } } as never])).toBe(false);
+  });
+});

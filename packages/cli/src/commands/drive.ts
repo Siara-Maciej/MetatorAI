@@ -5,6 +5,7 @@ import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { follow, watch } from "../live.ts";
 import { byOption, defined, positiveInt, RUN_ARGUMENT, runGiven, runOption } from "../options.ts";
+import { renderAsked, renderAsking } from "../render.ts";
 import { defaultHost, HOSTS, newRun, resume, sessionRows } from "../sessions.ts";
 import type { Terminal } from "../terminal.ts";
 import { who } from "../who.ts";
@@ -249,7 +250,7 @@ export function registerDriveCommands(
       }),
     );
 
-  meta(runs.command("ask"), {})
+  meta(runs.command("ask"), { render: renderAsked })
     .description(
       "Ask the person a question from a terminal: it reaches their inbox like any agent's question; --wait blocks until they answer and prints it",
     )
@@ -296,12 +297,18 @@ export function registerDriveCommands(
             opts.agent ??
             process.env.METATOR_WORKER ??
             (process.env.METATOR_ROLE === "conductor" ? "mt-orchestrator" : undefined);
+          // At a terminal the person sees the question and that it waits; the answer comes after.
+          const asked = await ask.execute({
+            ...defined({ runId: opts.run, agent }),
+            prompt,
+            options: opts.option ?? [],
+          });
+          if (asked.isErr() || !opts.wait) return { result: asked };
+          terminal?.raw(`${renderAsking(asked.value.question)}\n`);
           return {
-            result: await ask.execute({
-              ...defined({ runId: opts.run, agent, timeoutMs: opts.timeout }),
-              prompt,
-              options: opts.option ?? [],
-              wait: opts.wait,
+            result: await ask.wait({
+              ...defined({ runId: opts.run, timeoutMs: opts.timeout }),
+              question: asked.value.question.id,
             }),
           };
         },

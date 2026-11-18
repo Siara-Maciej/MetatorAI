@@ -3213,6 +3213,24 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/host-prompts.ts",
+    from: "if (holder && holder !== by)",
+    to: "if (holder)",
+    why: "the holder answering on the card is no conflict",
+  },
+  {
+    file: "packages/core/src/application/issues.ts",
+    from: "      task: issue.value.title,",
+    to: `      task: \`\${issue.value.title}\\n\\n\${issue.value.body}\`,`,
+    why: "a run started from an issue has the issue's title as its task",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
+    from: `return more ? \`\${task}\\nThe task in full (task.md):\\n\${more}\` : task;`,
+    to: "return task;",
+    why: "agents read the run's task.md with the task",
+  },
+  {
+    file: "packages/core/src/application/host-prompts.ts",
     from: 'if (asks && answerAfter(this.d.screen?.(pane.paneId) ?? "", pane.reason) !== undefined) continue;',
     to: "",
     why: "a question answered in the pane is not asked again",
@@ -3222,12 +3240,6 @@ export const MUTANTS: readonly Mutant[] = [
     from: "(pane.reason !== item.prompt || this.answeredThere(pane.paneId, item))",
     to: "(false)",
     why: "each question a pane asks gets its own card",
-  },
-  {
-    file: "packages/core/src/application/host-prompts.ts",
-    from: "    if (holder)\n",
-    to: "    if (false)\n",
-    why: "a card answer is never typed over a person at the pane's keyboard",
   },
   {
     file: "packages/core/src/application/host-prompts.ts",
@@ -3363,7 +3375,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/host-prompts.ts",
-    from: "const typed = await this.d.type(paneId, words);",
+    from: "const typed = await this.d.type(paneId, words, holder === q.answer.by ? holder : undefined);",
     to: "const typed = ok(undefined);",
     why: "a person's answer to a terminal question is typed into the pane",
   },

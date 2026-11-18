@@ -8,6 +8,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
+import { inTerminal } from "./helpers/terminal.ts";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -233,5 +234,30 @@ describe("questions an agent asks in its terminal (real daemon, real PTYs)", () 
       ["VAT8"],
       "ana",
     ]);
+  }, 60_000);
+
+  test("`metator run ask --wait` at a terminal: the question, its options, that it waits, then the answer and who gave it", async () => {
+    // A run of its own, with nothing in a pane: only the terminal and the card.
+    const own = data(await mt("run", "init", "--workflow", "demo", "--task", "Ship the cart"))
+      .runId as string;
+    const answering = (async () => {
+      const q = await until("the question", async () =>
+        ((data(await mt("run", "questions", "--run", own)).questions ?? []) as Q[]).find(
+          (x) => x.prompt === "Ship it behind a flag?",
+        ),
+      );
+      await post(`/runs/${own}/answer`, { question: q.id, choices: ["no"], by: "ana" });
+    })();
+    const shown = await inTerminal(
+      ["run", "ask", "Ship it behind a flag?", "--option", "yes", "no", "--run", own, "--wait"],
+      repo.root,
+      [],
+      30_000,
+      env,
+    );
+    await answering;
+    expect(shown.screen).toContain("waiting for an answer…");
+    expect(shown.screen).toContain("options: yes · no · Other");
+    expect(shown.screen).toContain("answer: no · ana");
   }, 60_000);
 });

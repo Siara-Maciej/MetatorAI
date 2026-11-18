@@ -37,6 +37,7 @@ function world(config: unknown, items: Record<string, IntakeItem[] | MetatorErro
     repo: {
       resolveId: async (id) => ok(id ?? "latest"),
       load: async () => err(MetatorError.notFound("run")),
+      runDir: (runId: string) => `.metator/runs/${runId}`,
     },
     initRun: {
       execute: async (input) => {

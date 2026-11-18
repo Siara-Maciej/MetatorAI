@@ -232,6 +232,9 @@ function Shell() {
         <InboxScreen
           needs={needs}
           picked={picked}
+          onRefused={(message) =>
+            setNotice({ text: `The answer was not taken: ${message}`, tone: "error", sticky: true })
+          }
           onAnswered={(choices, item) => {
             // "Attach and answer in the pane": the card took the answer; the person goes to the pane.
             const pane = item ? paneOfQuestion(item.question, d.panes) : undefined;

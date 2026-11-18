@@ -16,6 +16,7 @@ import {
   type Question,
   stagePrompt,
   stageWork,
+  taskInFull,
 } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { stoppedAt } from "../domain/overview.ts";
@@ -194,7 +195,7 @@ export class DriveRun {
       const runsIn = cwd;
       const ctx: StageContext = {
         runId,
-        task: record.value.task,
+        task: taskInFull(record.value.task, await this.brief(runId)),
         stage,
         host,
         cwd,
@@ -817,6 +818,14 @@ export class DriveRun {
       if (settled) return settled;
       if (!(await this.d.fs.exists(`${this.d.repo.runDir(ctx.runId)}/state.json`))) return GONE;
     }
+  }
+
+  /** The run's task.md, when it has one. */
+  private async brief(runId: string): Promise<string | undefined> {
+    const file = `${this.d.repo.runDir(runId)}/task.md`;
+    if (!(await this.d.fs.exists(file))) return undefined;
+    const text = await this.d.fs.read(file);
+    return text.isOk() ? text.value : undefined;
   }
 
   /** The host session goes into the run, so `run continue` can resume the agent where it was. */

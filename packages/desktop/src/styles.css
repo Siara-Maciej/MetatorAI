@@ -2226,6 +2226,12 @@ dialog.goto {
 .card .plan-line {
   margin-top: 12px;
 }
+.plan-line .approve-plan {
+  margin-left: 14px;
+}
+.plan-line a {
+  margin-left: 4px;
+}
 .stop-reason .msg {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -2810,4 +2816,39 @@ dialog.goto {
   margin-left: var(--sp-3);
   color: var(--blue);
   font-size: var(--fs-compact);
+}
+
+.driverbar.conductor {
+  background: var(--violet-wash);
+  color: var(--violet);
+}
+/* The graph's notes go below the drawing on a narrow window; a flow scrolls in its own box. */
+.graph {
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+.graph > .canvas,
+.plan-flows,
+.plan-flow,
+.plan-flow .canvas {
+  min-width: 0;
+  max-width: 100%;
+}
+.plan-flow .canvas {
+  overflow-x: auto;
+}
+@media (max-width: 1500px) {
+  .graph {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    height: auto;
+  }
+  .graph .side {
+    border-left: 0;
+    border-top: 1px solid var(--edge);
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .graph .side .box {
+    flex: 1 1 320px;
+  }
 }

@@ -4,9 +4,14 @@ import {
   duration,
   fit,
   nextStep,
+  renderAsked,
+  renderAsking,
   renderCommandHelp,
   renderDoctor,
   renderInbox,
+  renderIssues,
+  renderPlanShow,
+  renderPlanStatus,
   renderRunStatus,
   renderStatus,
   stageBar,
@@ -249,6 +254,109 @@ describe("the text a person reads (render)", () => {
       "",
       "Commands",
       "  metator run board x  sub",
+    ]);
+  });
+});
+
+describe("the text a person reads for plans, questions and the backlog", () => {
+  const plan = {
+    id: "prices",
+    task: "Prices with tax",
+    status: "running",
+    approval: { by: "ana", at: "2026-11-18T10:00:00.000Z", digest: "x" },
+    steps: [
+      { id: "tax-rates", app: "billing", summary: "Tax rates", dependsOn: [], status: "done", run: "r-tax" },
+      {
+        id: "price-model",
+        app: "shop-api",
+        summary: "A price carries currency",
+        dependsOn: [],
+        status: "running",
+        run: "r-price",
+      },
+      {
+        id: "price-tag",
+        app: "shop-web",
+        summary: "Show it",
+        dependsOn: ["tax-rates", "price-model"],
+        status: "pending",
+      },
+    ],
+  };
+
+  test("system plan status: the waves, each step with its repository, state and run", () => {
+    const text = renderPlanStatus({
+      plan,
+      steps: [
+        {
+          id: "tax-rates",
+          app: "billing",
+          status: "done",
+          run: "r-tax",
+          runStatus: "done",
+          stage: "delivery",
+        },
+        {
+          id: "price-model",
+          app: "shop-api",
+          status: "running",
+          run: "r-price",
+          runStatus: "escalated",
+          stage: "build",
+        },
+        { id: "price-tag", app: "shop-web", status: "pending" },
+      ],
+    } as never);
+    expect(text.split("\n")).toEqual([
+      "prices · running · approved by ana",
+      "  Prices with tax",
+      "  Wave 1",
+      "    ✓ tax-rates    billing   done     r-tax (done)",
+      "    ! price-model  shop-api  running  r-price (escalated at build)",
+      "  Wave 2",
+      "    · price-tag    shop-web  pending  not started",
+    ]);
+  });
+
+  test("system plan show: the waves with each step's summary and what it waits for", () => {
+    const text = renderPlanShow({
+      plan,
+      waves: [["tax-rates", "price-model"], ["price-tag"]],
+      analysis: null,
+    } as never);
+    expect(text).toContain("  Wave 2\n    price-tag  shop-web  Show it  (after tax-rates, price-model)");
+  });
+
+  test("run ask: the question with its options, then the answer and who gave it", () => {
+    const question = {
+      id: "q003",
+      prompt: "Ship behind a flag?",
+      options: [{ label: "yes" }, { label: "no" }, { label: "Other" }],
+    };
+    expect(renderAsking(question as never)).toBe(
+      "q003 · Ship behind a flag?\n  options: yes · no · Other\n  waiting for an answer…",
+    );
+    expect(
+      renderAsked({
+        question,
+        answer: { choices: ["Other"], text: "after the release", by: "ana", at: "t" },
+      } as never),
+    ).toBe("q003 · Ship behind a flag?\n  answer: after the release · ana");
+    expect(renderAsked({ question } as never)).toBe(
+      "q003 · Ship behind a flag?\n  options: yes · no · Other\n  asked: it waits in the person's inbox",
+    );
+  });
+
+  test("issue list: one line per task, the most pressing first, with its run", () => {
+    const text = renderIssues({
+      issues: [
+        { id: "i002", title: "Sold-out products", status: "in-progress", priority: "high", runId: "r-sold" },
+        { id: "i001", title: "Contract test", status: "proposed", priority: "normal" },
+      ],
+    } as never);
+    expect(text.split("\n")).toEqual([
+      "i002  in-progress  high    Sold-out products  → r-sold",
+      "i001  proposed     normal  Contract test",
     ]);
   });
 });

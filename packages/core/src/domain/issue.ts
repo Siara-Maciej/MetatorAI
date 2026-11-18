@@ -137,8 +137,12 @@ export function proposalDecision(
 }
 
 /** The task text a run on the issue gets: its title, then its body. */
-export const issueTask = (issue: Issue): string =>
-  issue.body.trim() ? `${issue.title}\n\n${issue.body.trim()}` : issue.title;
+/**
+ * A run's `task.md` from the issue it started from: the title, the body, and where it came from.
+ * The run's task is the title alone; the agents read the rest from here.
+ */
+export const issueBrief = (issue: Issue): string =>
+  `# ${issue.title}\n\n${issue.body.trim() ? `${issue.body.trim()}\n\n` : ""}From issue ${issue.id}.\n`;
 
 /** Open first by priority (high first), then in progress, then proposed, then done and dropped; ties by id. */
 const STATUS_RANK: Record<IssueStatus, number> = {

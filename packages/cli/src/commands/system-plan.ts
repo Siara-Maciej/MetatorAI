@@ -16,6 +16,7 @@ import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { baseOption, byOption, positiveInt } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
+import { renderPlanShow, renderPlanStatus } from "../render.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
 import { asPerson, who } from "../who.ts";
 
@@ -157,7 +158,7 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       })),
     );
 
-  meta(plan.command("show"), { reads: true })
+  meta(plan.command("show"), { reads: true, render: renderPlanShow })
     .description("One system plan with its waves and its analysis")
     .argument("<id>", "the plan id")
     .action(
@@ -264,7 +265,7 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
 
   // `system plan status`, beside the plan's other commands (as `arch plan status`); `system status` is its old name.
   renamedCommand({ parent: system, name: "status" }, { parent: plan, name: "status" }, (cmd) =>
-    meta(cmd, { reads: true })
+    meta(cmd, { reads: true, render: renderPlanStatus })
       .description("Each step's child run read back from its repository; the plan done when every step is")
       .argument("[id]", "the plan id")
       .option("--run <run>", "the plan of this system run (an id or its run directory)")

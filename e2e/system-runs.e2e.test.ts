@@ -9,6 +9,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { metator, stopProcessesUnder } from "./helpers/cli.ts";
+import { inTerminal } from "./helpers/terminal.ts";
 
 const MAP = `kind: SystemMap
 schemaVersion: 1
@@ -146,6 +147,17 @@ describe("linked runs (real CLI, three repositories)", () => {
       [],
       ["no step can start yet: the steps before them are not done (`metator system plan status`)"],
     ]);
+    // At a terminal the plan's status reads as waves of steps, each with its repository and run.
+    const shown = await inTerminal(
+      ["system", "plan", "status", "rename-refunds"],
+      at("platform"),
+      [],
+      20_000,
+      env(),
+    );
+    expect(shown.screen).toContain("rename-refunds · ");
+    expect(shown.screen).toMatch(/Wave 1\s+\S+ billing-bump\s+billing\s+running\s+\S+ \(active at build\)/);
+    expect(shown.screen).toMatch(/Wave 2\s+· web-migrate\s+web\s+pending\s+not started/);
     const check = await mt("platform", "system", "status", "--run", parent, "--check");
     expect([check.code, (check.json.error as { message: string }).message]).toEqual([
       1,

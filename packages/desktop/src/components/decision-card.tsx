@@ -10,6 +10,7 @@ import {
   duration,
   groupStepText,
   hostPromptOf,
+  humanPrompt,
   isFinished,
   isTerminalQuestion,
   needsReason,
@@ -29,11 +30,14 @@ import { PlanApprovalLine, SystemPlanLine } from "./plan-approval-line.tsx";
 export function DecisionCard({
   item,
   onAnswered,
+  onRefused,
   onOpenSession,
   onOpenChanges,
 }: {
   readonly item: InboxItem;
   onAnswered(choices: readonly string[]): void;
+  /** The daemon refused the answer (a person answers in the pane meanwhile): said where it stays. */
+  onRefused?: ((message: string) => void) | undefined;
   onOpenSession(runId: string): void;
   /** The run's change, straight from the card: what the decision is about. */
   onOpenChanges(runId: string): void;
@@ -72,7 +76,7 @@ export function DecisionCard({
   // A question the agent asks on its terminal: its words; an answer chosen here is typed in its pane.
   const terminal = isTerminalQuestion(q);
   const askPane = terminal ? paneOfQuestion(q, panes) : undefined;
-  const heading = host?.text || q.prompt;
+  const heading = host?.text || humanPrompt(q.prompt);
   // A plan with lint errors closes Approve: the daemon says so on the option, or the lint does.
   const lintOfPlan =
     planView?.lint ??
@@ -99,6 +103,7 @@ export function DecisionCard({
     // From the card, without opening the session: the daemon notes the origin.
     origin: "inbox",
     onDone: onAnswered,
+    ...(onRefused ? { onRefused } : {}),
   });
   const choice = a.choices[0];
   const reasonField = useRef<HTMLInputElement>(null);

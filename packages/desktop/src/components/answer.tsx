@@ -20,6 +20,8 @@ export function useAnswer(
     readonly origin?: "inbox";
     /** The answer went through, with what was chosen. */
     onDone(choices: readonly string[]): void;
+    /** The answer was refused: what the daemon said (the card may close before it is read). */
+    onRefused?(message: string): void;
   },
 ) {
   const { client, who } = useDaemon();
@@ -53,8 +55,11 @@ export function useAnswer(
       repo,
     );
     setBusy(false);
-    if (!r.ok) setError(r.error?.message ?? "the answer was refused");
-    else {
+    if (!r.ok) {
+      const said = r.error?.message ?? "the answer was refused";
+      setError(said);
+      options.onRefused?.(said);
+    } else {
       setError(undefined);
       options.onDone(picked);
     }

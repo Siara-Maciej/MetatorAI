@@ -7,6 +7,7 @@ import {
   workerName,
   workerPrompt,
 } from "../domain/conductor.ts";
+import { taskInFull } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { Pane } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
@@ -68,9 +69,11 @@ export class Conductor {
     const workflow = await this.d.catalog.get(record.value.workflow.id);
     if (workflow.isErr()) return err(workflow.error);
     const cwd = record.value.worktree ? `${this.d.root}/${record.value.worktree.path}` : this.d.root;
+    const briefFile = `${this.d.repo.runDir(id.value)}/task.md`;
+    const brief = (await this.d.fs.exists(briefFile)) ? await this.d.fs.read(briefFile) : undefined;
     const prompt = conductorPrompt({
       runId: id.value,
-      task: record.value.task,
+      task: taskInFull(record.value.task, brief?.isOk() ? brief.value : undefined),
       workflow: record.value.workflow.id,
       stages: workflow.value.spec.stages,
       runDir: `${cwd}/${this.d.repo.runDir(id.value)}`,

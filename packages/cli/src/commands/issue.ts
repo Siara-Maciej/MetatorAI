@@ -11,6 +11,7 @@ import { type Command, Option } from "commander";
 import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { byOption } from "../options.ts";
+import { renderIssues } from "../render.ts";
 import { who } from "../who.ts";
 
 /**
@@ -41,7 +42,7 @@ export function registerIssueCommands(program: Command, { action, runs }: Comman
       : undefined;
   const priority = new Option("--priority <level>", "how urgent").choices(ISSUE_PRIORITIES);
 
-  meta(issue.command("list"), { audience: "person", reads: true })
+  meta(issue.command("list"), { audience: "person", reads: true, render: renderIssues })
     .description("The backlog, the most pressing first")
     .addOption(new Option("--status <status>", "only these").choices(ISSUE_STATUSES))
     .option("--run <id>", "only the tasks of this run (proposed from it, started as it, or pointing at it)")

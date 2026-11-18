@@ -291,6 +291,15 @@ export interface StagePromptInput {
   readonly messages?: readonly string[];
 }
 
+/**
+ * The task as an agent reads it: the run's task, then its `task.md` when the run has one (the
+ * body of the issue it started from, or intake's criteria and decisions).
+ */
+export function taskInFull(task: string, brief: string | undefined): string {
+  const more = brief?.trim();
+  return more ? `${task}\nThe task in full (task.md):\n${more}` : task;
+}
+
 /** The message a worker gets: one stage, its artifacts, and how to report back. */
 export function stagePrompt(input: StagePromptInput): string {
   const produces = input.stage.produces ?? [];

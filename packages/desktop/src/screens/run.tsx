@@ -17,9 +17,9 @@ import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction, useRunControls } from "../hooks.ts";
 import {
   autonomyLabel,
+  conductorMoves,
   duration,
   finishedText,
-  conductorMoves,
   idleRuns,
   plainKey,
   type Route,

@@ -7,7 +7,7 @@ import {
   type Issue,
   IssueDocument,
   Issues,
-  issueTask,
+  issueBrief,
   nextIssueId,
   PROPOSAL_ADD,
   PROPOSAL_DROP,
@@ -60,14 +60,14 @@ const issue = (over: Partial<Issue> = {}): Issue => ({
 });
 
 describe("issue domain", () => {
-  test("ids count up past the ones taken; refs read as text; the task of a run is title and body", () => {
+  test("ids count up past the ones taken; refs read as text; a run's task.md is the title and the body", () => {
     expect(nextIssueId([])).toBe("i001");
     expect(nextIssueId(["i001", "i007", "i003"])).toBe("i008");
     expect(issue().refs.map(refText)).toEqual(["src/invoice.ts:10", "run r1/S2", "see the plan"]);
-    expect(issueTask(issue())).toBe(
-      "Negative amounts in round2\n\nMath.round is half-up for positives only.",
+    expect(issueBrief(issue())).toBe(
+      "# Negative amounts in round2\n\nMath.round is half-up for positives only.\n\nFrom issue i001.\n",
     );
-    expect(issueTask(issue({ body: " " }))).toBe("Negative amounts in round2");
+    expect(issueBrief(issue({ body: " " }))).toBe("# Negative amounts in round2\n\nFrom issue i001.\n");
     expect(IssueDocument.parse({ kind: "Issue", schemaVersion: 1, ...issue() }, "i001.json").isOk()).toBe(
       true,
     );
@@ -237,7 +237,7 @@ describe("Issues", () => {
     expect(await w.repo.list()).toEqual([won?.runId as string]);
   });
 
-  test("start makes a run on the task (title and body), the issue is in progress and remembers the run; 'Add and start' does both", async () => {
+  test("start makes a run on the task (its title; the body in task.md), the issue is in progress and remembers the run; 'Add and start' does both", async () => {
     const w = world();
     const added = (
       await w.issues.add({ title: "PDF cents", body: "Round sums to cents.", by: "maciej" })
@@ -245,7 +245,10 @@ describe("Issues", () => {
     const started = (await w.issues.start(added.id, { workflow: "demo", worktree: false }))._unsafeUnwrap();
     expect(started.issue).toMatchObject({ status: "in-progress", runId: started.runId });
     const record = (await w.repo.load(started.runId))._unsafeUnwrap();
-    expect(record.task).toBe("PDF cents\n\nRound sums to cents.");
+    expect(record.task).toBe("PDF cents");
+    expect((await w.fs.read(`.metator/runs/${started.runId}/task.md`))._unsafeUnwrap()).toBe(
+      `# PDF cents\n\nRound sums to cents.\n\nFrom issue ${added.id}.\n`,
+    );
     expect((await w.issues.list({ runId: started.runId }))._unsafeUnwrap().map((i) => i.id)).toEqual([
       added.id,
     ]);

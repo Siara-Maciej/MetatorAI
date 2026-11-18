@@ -1511,3 +1511,16 @@ describe("the host a drive works with", () => {
     expect(status.host).toBe("fake");
   });
 });
+
+describe("the task the agents read", () => {
+  test("is the run's task with its task.md (an issue's body, intake's criteria) when the run has one", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => undefined, okScripts());
+    w0 = w;
+    const runId = await w.start();
+    await w.fs.write(`.metator/runs/${runId}/task.md`, "# Add discount\n\nCap it at 100 PLN.\n");
+    await w.drive.execute({ runId, host: "fake", maxSteps: 2 });
+    const prompt = w.host.tasks.at(-1)?.prompt ?? "";
+    expect(prompt).toContain("Task: Add discount");
+    expect(prompt).toContain("Cap it at 100 PLN.");
+  });
+});

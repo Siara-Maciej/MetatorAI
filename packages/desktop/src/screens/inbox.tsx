@@ -25,6 +25,7 @@ export function InboxScreen({
   needs,
   picked,
   onAnswered,
+  onRefused,
   onOpenRun,
   onOpenChanges,
   onOverview,
@@ -37,6 +38,8 @@ export function InboxScreen({
   readonly picked: NeedRow | undefined;
   /** An answer went through, or an escalated run was resumed or closed. */
   onAnswered(choices?: readonly string[], item?: InboxItem): void;
+  /** A card's answer was refused: the app says it where it stays (the card may close). */
+  onRefused?: ((message: string) => void) | undefined;
   onOpenRun(runId: string, pane?: string): void;
   onOpenChanges(runId: string): void;
   onOverview(runId: string): void;
@@ -58,6 +61,7 @@ export function InboxScreen({
           key={picked?.key}
           item={item}
           onAnswered={(choices) => onAnswered(choices, item)}
+          onRefused={onRefused}
           onOpenSession={onOverview}
           onOpenChanges={onOpenChanges}
         />

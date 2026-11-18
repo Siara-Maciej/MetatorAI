@@ -6,7 +6,7 @@ import {
   IssueDocument,
   type IssuePriority,
   type IssueRef,
-  issueTask,
+  issueBrief,
   nextIssueId,
   PROPOSAL_ADD,
   PROPOSAL_DROP,
@@ -21,12 +21,15 @@ import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { InitRun } from "./runs.ts";
 
+/** A run's task in full (intake writes it; a run started from an issue starts with it). */
+export const TASK_BRIEF = "task.md";
+
 export interface IssuesDependencies {
   readonly fs: FileSystem;
   readonly paths: Pick<MetatorPaths, "issues">;
   readonly clock: Clock;
   readonly journal: Pick<RunJournal, "ask" | "questions" | "answer">;
-  readonly repo: Pick<RunRepository, "resolveId" | "load">;
+  readonly repo: Pick<RunRepository, "resolveId" | "load" | "runDir">;
   readonly initRun: Pick<InitRun, "execute">;
   /** `issues.proposeFromAgents`: false refuses proposals. */
   readonly proposalsAllowed?: () => Promise<boolean>;
@@ -283,11 +286,17 @@ export class Issues {
     }
     const started = await this.d.initRun.execute({
       workflow: input.workflow,
-      task: issueTask(issue.value),
+      // The task is the issue's title; its body is the run's task.md, which every agent reads.
+      task: issue.value.title,
       ...(input.autonomy ? { autonomy: input.autonomy } : {}),
       ...(input.worktree === false ? {} : { worktree: input.allowDirty ? { allowDirty: true } : {} }),
     });
     if (started.isErr()) return err(started.error);
+    const brief = await this.d.fs.write(
+      `${this.d.repo.runDir(started.value.runId)}/${TASK_BRIEF}`,
+      issueBrief(issue.value),
+    );
+    if (brief.isErr()) return err(brief.error);
     const next: Issue = {
       ...issue.value,
       status: "in-progress",

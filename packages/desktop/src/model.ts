@@ -1445,7 +1445,7 @@ export function needsQueue(
         key: `${i.runId}/${i.question.id}`,
         kind: questionKind(i.question).toLowerCase() as NeedKind,
         // A host prompt reads as its question; who asks, and in which pane, is in the line below.
-        title: hostPromptOf(i.question.prompt)?.text || i.question.prompt,
+        title: hostPromptOf(i.question.prompt)?.text || humanPrompt(i.question.prompt),
         sub: [
           taskOf(i.runId, i.repo) ?? i.task,
           i.repo,
@@ -1807,7 +1807,9 @@ export function conductorMoves(
   if (r.status !== "active" || r.driving || r.driver === "human") return false;
   if (r.questions.length > 0 || r.terminalAsk !== undefined) return false;
   if (r.stages.some((s) => s.state === "waiting" && s.hitl)) return false;
-  return panes.some((p) => p.runId === r.runId && sameRepo(p.repo, r.repo) && p.role === "conductor" && p.live?.alive);
+  return panes.some(
+    (p) => p.runId === r.runId && sameRepo(p.repo, r.repo) && p.role === "conductor" && p.live?.alive,
+  );
 }
 
 /**

@@ -143,8 +143,10 @@ describe("metator issue (real CLI)", () => {
       runId: string;
     };
     expect(started.issue).toMatchObject({ status: "in-progress", runId: started.runId });
-    expect(data(await mt("run", "status", "--run", started.runId)).task).toBe(
-      "ADR for rounding\n\nHalf-up or half-even.",
+    // The run's task is the issue's title; its body is the run's task.md, which the agents read.
+    expect(data(await mt("run", "status", "--run", started.runId)).task).toBe("ADR for rounding");
+    expect(await repo.read(`.metator/runs/${started.runId}/task.md`)).toBe(
+      "# ADR for rounding\n\nHalf-up or half-even.\n\nFrom issue i001.\n",
     );
     // A task whose run is still active is not started a second time: the refusal names the run.
     const twice = await mt("issue", "start", "i001", "--workflow", "demo", "--no-worktree");

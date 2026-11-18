@@ -265,3 +265,159 @@ export function renderError(e: {
 }): string {
   return [`✗ ${e.message} (${e.code})`, ...(e.hint ? [`  ${e.hint}`] : [])].join("\n");
 }
+
+/** Columns padded to the widest cell of each, joined by two spaces; trailing blanks dropped. */
+function columns(rows: readonly (readonly string[])[]): string[] {
+  const widths: number[] = [];
+  for (const row of rows) row.forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.length)));
+  return rows.map((row) =>
+    row
+      .map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i] ?? 0)))
+      .join("  ")
+      .trimEnd(),
+  );
+}
+
+interface PlanStep {
+  readonly id: string;
+  readonly app: string;
+  readonly summary?: string;
+  readonly dependsOn?: readonly string[];
+}
+interface PlanView {
+  readonly id: string;
+  readonly task: string;
+  readonly status: string;
+  readonly approval?: { readonly by: string } | undefined;
+  readonly steps: readonly PlanStep[];
+}
+
+const planHead = (plan: PlanView): string[] => [
+  `${plan.id} · ${plan.status}${plan.approval ? ` · approved by ${plan.approval.by}` : ""}`,
+  `  ${fit(plan.task, WIDTH - 2)}`,
+];
+
+/** The steps in waves (each after the steps it depends on); one wave when they cannot be ordered. */
+function wavesOf(steps: readonly PlanStep[]): string[][] {
+  const done = new Set<string>();
+  const waves: string[][] = [];
+  let left = [...steps];
+  while (left.length > 0) {
+    const wave = left.filter((s) => (s.dependsOn ?? []).every((d) => done.has(d)));
+    if (wave.length === 0) return [...waves, left.map((s) => s.id)];
+    waves.push(wave.map((s) => s.id));
+    for (const s of wave) done.add(s.id);
+    left = left.filter((s) => !wave.includes(s));
+  }
+  return waves;
+}
+
+const STEP_MARK: Readonly<Record<string, string>> = { done: "✓", running: "…", blocked: "!", pending: "·" };
+
+/** `metator system plan status`: the waves, each step with its repository, its state and its run. */
+export function renderPlanStatus(v: {
+  readonly plan: PlanView;
+  readonly steps: readonly {
+    readonly id: string;
+    readonly app: string;
+    readonly status: string;
+    readonly run?: string;
+    readonly runStatus?: string;
+    readonly stage?: string;
+  }[];
+}): string {
+  const lines = planHead(v.plan);
+  const byId = new Map(v.steps.map((s) => [s.id, s]));
+  const rows: string[][] = [];
+  const waves = wavesOf(v.plan.steps);
+  const heads = new Map<number, string>();
+  waves.forEach((wave, i) => {
+    heads.set(rows.length, `  Wave ${i + 1}`);
+    for (const id of wave) {
+      const s = byId.get(id);
+      if (!s) continue;
+      const stuck = s.runStatus === "escalated" || s.runStatus === "aborted";
+      const mark = stuck ? "!" : (STEP_MARK[s.status] ?? "·");
+      const run = s.run
+        ? `${s.run} (${s.runStatus ?? s.status}${s.runStatus && s.runStatus !== "done" && s.stage ? ` at ${s.stage}` : ""})`
+        : "not started";
+      rows.push([`    ${mark} ${s.id}`, s.app, s.status, run]);
+    }
+  });
+  columns(rows).forEach((row, i) => {
+    const head = heads.get(i);
+    if (head) lines.push(head);
+    lines.push(row);
+  });
+  return lines.join("\n");
+}
+
+/** `metator system plan show`: the plan's waves with each step's repository, summary and what it waits for. */
+export function renderPlanShow(v: {
+  readonly plan: PlanView;
+  readonly waves: readonly (readonly string[])[] | null;
+}): string {
+  const lines = planHead(v.plan);
+  const byId = new Map(v.plan.steps.map((s) => [s.id, s]));
+  const waves = v.waves ?? wavesOf(v.plan.steps);
+  waves.forEach((wave, i) => {
+    lines.push(`  Wave ${i + 1}`);
+    const rows = wave.flatMap((id) => {
+      const s = byId.get(id);
+      if (!s) return [];
+      const after = (s.dependsOn ?? []).length > 0 ? `(after ${(s.dependsOn ?? []).join(", ")})` : "";
+      return [[`    ${s.id}`, s.app, fit(s.summary ?? "", 60), after]];
+    });
+    lines.push(...columns(rows));
+  });
+  return lines.join("\n");
+}
+
+interface AskedQuestion {
+  readonly id: string;
+  readonly prompt: string;
+  readonly options: readonly { readonly label: string }[];
+}
+
+const askedHead = (q: AskedQuestion) => `${q.id} · ${fit(q.prompt, WIDTH - 8)}`;
+const optionsLine = (q: AskedQuestion) => `  options: ${q.options.map((o) => o.label).join(" · ")}`;
+
+/** `metator run ask --wait`, before the answer: the question, its options, that it waits. */
+export function renderAsking(q: AskedQuestion): string {
+  return [askedHead(q), optionsLine(q), "  waiting for an answer…"].join("\n");
+}
+
+/** `metator run ask`: the answer and who gave it, or that the question waits in the inbox. */
+export function renderAsked(v: {
+  readonly question: AskedQuestion;
+  readonly answer?: { readonly choices: readonly string[]; readonly text?: string; readonly by: string };
+}): string {
+  if (!v.answer)
+    return [askedHead(v.question), optionsLine(v.question), "  asked: it waits in the person's inbox"].join(
+      "\n",
+    );
+  const chosen = v.answer.choices.filter((c) => c !== "Other");
+  const words = [...chosen, ...(v.answer.text ? [v.answer.text] : [])].join(", ");
+  return [askedHead(v.question), `  answer: ${words || "(none)"} · ${v.answer.by}`].join("\n");
+}
+
+/** `metator issue list`: one line per task, the most pressing first, with the run working on it. */
+export function renderIssues(v: {
+  readonly issues: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly status: string;
+    readonly priority: string;
+    readonly runId?: string;
+  }[];
+}): string {
+  if (v.issues.length === 0) return "The backlog is empty.";
+  return columns(
+    v.issues.map((i) => [
+      i.id,
+      i.status,
+      i.priority,
+      `${fit(i.title, 60)}${i.runId ? `  → ${i.runId}` : ""}`,
+    ]),
+  ).join("\n");
+}
