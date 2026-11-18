@@ -55,7 +55,6 @@ React, Vite, xterm.js and the Tauri API (ADR-0078). From MetatorAI only the type
 
 - The daemon answers with permissive CORS because the app is another origin; the daemon stays on localhost.
 - `react` and `react-dom` are pinned to one exact version: a mismatch is React error #527 at start, with a blank window.
-- Building the Tauri package needs Rust and the platform's webview; the web bundle alone (`bun run build`) is what CI tests.
-- A focused xterm stops the propagation of the keys it handles: a window-level key listener (the prefix, Escape for a menu) must register in the capture phase (S6).
+- Building the Tauri package needs Rust and the platform's webview; the web bundle alone (`bun run build`) is what CI tests. A focused xterm stops the propagation of the keys it handles: a window-level key listener (the prefix, Escape for a menu) must register in the capture phase (S6).
 - A `<dialog>` opened with `showModal()` makes the page behind it inert: a window-level key listener must give way while `dialog[open]` exists, or a key meant for the dialog also runs a shortcut.
 - The e2e tests find parts of the screens by class (`.needs .item`, `.backlog .notice`, `.review .line.add`, `.session .head`): renaming a class is a change of the tests too.

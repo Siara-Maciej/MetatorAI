@@ -391,4 +391,3 @@ describe("whose question a pane reads (a conductor and its workers)", () => {
     expect((await t.questions()).map((q) => [q.id, q.answer?.choices])).toEqual([["q001", ["EUR"]]]);
   });
 });
-

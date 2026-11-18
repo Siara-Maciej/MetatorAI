@@ -358,7 +358,10 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     );
     // The answer is confirmed in words, with what the run did with it (read back from the daemon).
     const said = await until("the confirmation", async () => {
-      const t = await page.locator("main.content > .notice").textContent().catch(() => null);
+      const t = await page
+        .locator("main.content > .notice")
+        .textContent()
+        .catch(() => null);
       return t?.includes("Answered: Approve.") ? t : undefined;
     });
     expect(said).toMatch(/Answered: Approve\. The run (goes on|is done)\./);
