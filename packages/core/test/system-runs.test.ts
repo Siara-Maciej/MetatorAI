@@ -76,14 +76,20 @@ function repository(root: string, shared: InMemoryFileSystem) {
   const init = new InitRun(catalog, runs, clock);
   /** The drives asked for: each child run is driven as it starts. */
   const drives: { runId: string; host?: string }[] = [];
+  /** Where each child was asked to work: in a worktree of its own, or in the checkout. */
+  const worktrees: { task: string; worktree: boolean }[] = [];
   return {
     runs,
     init,
     drives,
+    worktrees,
     // StartRun as the runtime wires it, reduced to what a child run needs: the run, then its drive.
     start: {
-      execute: async (input: Parameters<RepositoryRuns["start"]["execute"]>[0]) =>
-        (await init.execute(input as Parameters<InitRun["execute"]>[0])).map((run) => {
+      execute: async (input: Parameters<RepositoryRuns["start"]["execute"]>[0]) => {
+        worktrees.push({ task: input.task, worktree: input.worktree !== undefined });
+        // The in-memory world has no git: the run is made where it is, its worktree only asked for.
+        const { worktree: _asked, ...rest } = input;
+        return (await init.execute(rest as Parameters<InitRun["execute"]>[0])).map((run) => {
           if (input.drive)
             drives.push({ runId: run.runId, ...(input.drive.host ? { host: input.drive.host } : {}) });
           return {
@@ -93,7 +99,8 @@ function repository(root: string, shared: InMemoryFileSystem) {
               ? { drive: { stage: run.stage, started: true, host: input.drive.host ?? "claude" } }
               : {}),
           };
-        }),
+        });
+      },
     },
     advance: new AdvanceRun(catalog, runs, clock),
     clock,
@@ -180,6 +187,41 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     const blocked = (await w.status.execute("rename"))._unsafeUnwrap();
     expect([blocked.steps[1]?.status, blocked.plan.status]).toEqual(["blocked", "running"]);
     expect((await w.platform.runs.load(parent.runId))._unsafeUnwrap().children).toHaveLength(2);
+  });
+
+  test("two steps of one repository at once each work in a worktree of their own; a step alone works in the checkout", async () => {
+    const w = world([
+      step("billing-model", "billing"),
+      step("billing-endpoint", "billing"),
+      step("web-tag", "web"),
+      step("web-integration", "web", ["billing-model", "billing-endpoint", "web-tag"]),
+    ]);
+    await w.save();
+    const wave = (await w.run.execute({ id: "rename" }))._unsafeUnwrap();
+    // The owner's flow: two backend steps and one frontend step in parallel, three child runs.
+    expect(wave.started.map((s) => [s.step, s.root])).toEqual([
+      ["billing-model", "/src/platform"],
+      ["billing-endpoint", "/src/platform"],
+      ["web-tag", "/src/web"],
+    ]);
+    const web = w.repos.get("/src/web") as ReturnType<typeof repository>;
+    expect(w.platform.worktrees.map((t) => t.worktree)).toEqual([true, true]);
+    expect(web.worktrees.map((t) => t.worktree)).toEqual([false]);
+    // The last step waits for all three; while web-tag still runs, it is not started.
+    expect(wave.plan.steps.find((s) => s.id === "web-integration")?.status).toBe("pending");
+    expect((await w.run.execute({ id: "rename" }))._unsafeUnwrap().started).toEqual([]);
+  });
+
+  test("a step while another step of its application still runs gets a worktree too", async () => {
+    const w = world([step("billing-model", "billing"), step("billing-docs", "billing", ["billing-model"])]);
+    const running = plan([
+      { ...step("billing-model", "billing"), status: "running" as const, run: "r1" },
+      step("billing-late", "billing"),
+    ]);
+    (await w.store.save(running))._unsafeUnwrap();
+    const started = (await w.run.execute({ id: "rename" }))._unsafeUnwrap();
+    expect(started.started.map((s) => s.step)).toEqual(["billing-late"]);
+    expect(w.platform.worktrees.map((t) => t.worktree)).toEqual([true]);
   });
 
   test("a child run is driven on its parent's host; one that cannot be driven still starts, and says why", async () => {

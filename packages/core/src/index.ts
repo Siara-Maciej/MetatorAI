@@ -201,6 +201,7 @@ export * from "./domain/unified-diff.ts";
 export * from "./domain/verdict.ts";
 export * from "./domain/versioned.ts";
 export * from "./domain/workflow-lint.ts";
+export * from "./domain/work-phase.ts";
 export * from "./domain/workflow-spec.ts";
 export * from "./domain/worktree.ts";
 export type * from "./ports/index.ts";

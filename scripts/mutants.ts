@@ -6492,4 +6492,28 @@ export const MUTANTS: readonly Mutant[] = [
     to: "real: target,",
     why: "a link's real path says where it leads",
   },
+  {
+    file: "packages/core/src/domain/work-phase.ts",
+    from: 'if (status === "done" || status === "aborted") return "done";',
+    to: 'if (status === "done") return "done";',
+    why: "an aborted run is finished: the board shows it under Done",
+  },
+  {
+    file: "packages/core/src/domain/work-phase.ts",
+    from: 'return prior === "planning" ? "planning" : "review";',
+    to: 'return "review";',
+    why: "an approval right after planning is still planning",
+  },
+  {
+    file: "packages/core/src/domain/work-phase.ts",
+    from: "if (named) return named;",
+    to: "",
+    why: "a stage the words name is in their phase (review, gates, delivery)",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: "ready.some((r) => r.at.root === root && r.step.id !== step.id) ||",
+    to: "false ||",
+    why: "two steps of one repository in one wave each get a worktree of their own",
+  },
 ];

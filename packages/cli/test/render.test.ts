@@ -33,6 +33,7 @@ function runOf(id: string, over: Partial<RunOverview> = {}): RunOverview {
     status: "active",
     stage: "build",
     attention: "stopped",
+    phase: "in-progress",
     stages: [
       { id: "plan", state: "done", hitl: false },
       { id: "build", state: "current", hitl: false },

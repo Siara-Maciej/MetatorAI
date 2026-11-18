@@ -203,6 +203,9 @@ describe("WorkOverview", () => {
     const o = (await overview.execute())._unsafeUnwrap();
     const d = o.runs.find((r) => r.runId.endsWith("-d"));
     expect([d?.stage, d?.attention, d?.reason]).toEqual(["plan", "escalated", "no plan.json"]);
+    // Its place on the board comes with it: the stage it stopped at is planning; a done run is done.
+    expect(d?.phase).toBe("planning");
+    expect(o.runs.filter((r) => r.status === "done").every((r) => r.phase === "done")).toBe(true);
     expect(d?.stages.map((s) => s.state)).toEqual(["done", "stopped", "next", "next"]);
     expect([o.counts.escalated, o.counts.finished]).toEqual([1, 1]);
     // What the inbox shows of it: the stage, the reason, how long, the two commands out.

@@ -11,6 +11,7 @@ import {
   stoppedAt,
 } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import { type WorkPhase, workPhase } from "../domain/work-phase.ts";
 import type { Clock } from "../ports/index.ts";
 import type { ConversationRepository } from "./ask.ts";
 import type { EnvironmentServices, ServiceReport } from "./environments.ts";
@@ -34,6 +35,8 @@ export interface RunOverview {
   /** An escalated run: why it stopped, as one sentence (a person's Reject, spent tries, or where). */
   readonly stop?: RunStop;
   readonly attention: Attention;
+  /** Where the run is on the board (planning, in progress, review, done), from its workflow and stage. */
+  readonly phase: Exclude<WorkPhase, "todo">;
   readonly stages: readonly StageProgress[];
   /** Open questions: what to answer, in order. */
   readonly questions: readonly Question[];
@@ -161,6 +164,7 @@ export class WorkOverview {
             }
           : {}),
         attention: attentionOf(r.state.status, open.length, driving, atGate),
+        phase: workPhase(declared, stage, r.state.status),
         stages,
         questions: open,
         driving,
