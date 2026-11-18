@@ -1132,8 +1132,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new SystemPlanStatus(systemPlanStore, systemSources, repositoryRuns),
     ),
     systemRunGate: asFunction(
-      ({ systemPlanStatus, runRepository, clock }) =>
-        new SystemRunGate(systemPlanStatus, runRepository, clock),
+      ({ systemPlanStatus, runRepository, clock, runSystemPlan }) =>
+        new SystemRunGate(systemPlanStatus, runRepository, clock, runSystemPlan),
     ),
     runSystemEvals: asFunction(
       ({ fileSystem, paths, sandbox }) =>

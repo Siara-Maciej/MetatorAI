@@ -149,7 +149,9 @@ describe("a run its conductor moves on (real daemon, real Chromium)", () => {
       page.url().includes(`#/run/${runId}/terminal`) ? true : undefined,
     );
     // On the terminal tab the bar stays, without the button that would lead where the person is.
-    expect(await page.getByTestId("conductor-moves").getByRole("button").count()).toBe(0);
+    await until("the bar without its button", async () =>
+      (await page.getByTestId("conductor-moves").getByRole("button").count()) === 0 ? true : undefined,
+    );
     await metator(
       ["run", "close", "--run", runId, "--aborted", "--reason", "the test ends here"],
       repo.root,

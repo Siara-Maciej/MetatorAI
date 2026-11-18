@@ -10,7 +10,7 @@ export interface TerminalRun {
   readonly code: number;
   /** Everything the program printed, ANSI stripped. */
   readonly screen: string;
-  /** The JSON envelope (the last line starting with `{"ok"`). */
+  /** The JSON envelope (the last line starting with `{"ok"`); empty when only text was printed. */
   readonly json: Record<string, unknown>;
 }
 
@@ -40,7 +40,6 @@ export async function inTerminal(
       },
     },
   });
-  const seen = (text: string) => Bun.stripANSI(raw).includes(text);
   const deadline = Date.now() + timeoutMs;
   let from = 0;
   for (const step of steps) {
@@ -67,13 +66,17 @@ export async function inTerminal(
       throw new Error(`timed out:\n${Bun.stripANSI(raw)}`);
     }),
   ]);
-  while (!seen('{"ok"') && Date.now() < deadline) await Bun.sleep(25);
+  // What the program printed last can still be on its way: wait until the screen is quiet.
+  for (let before = -1; before !== raw.length && Date.now() < deadline; ) {
+    before = raw.length;
+    await Bun.sleep(100);
+  }
   proc.terminal?.close();
   const screen = Bun.stripANSI(raw);
   const line = screen
     .split(/\r?\n/)
     .reverse()
     .find((l) => l.trimStart().startsWith('{"ok"'));
-  if (!line) throw new Error(`no JSON envelope on the screen:\n${screen}`);
-  return { code, screen, json: JSON.parse(line.trim()) as Record<string, unknown> };
+  // A command with a text for people prints only that text at a terminal: no envelope then.
+  return { code, screen, json: line ? (JSON.parse(line.trim()) as Record<string, unknown>) : {} };
 }

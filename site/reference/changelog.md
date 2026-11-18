@@ -6,6 +6,10 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 
 ## November 2026
 
+- At a terminal, a command with a text for people prints only that text, with no JSON line after it: `status`, `inbox`, `run status`, `doctor`, `run ask`, `system plan status`, `system plan show`, `issue list` and the help. A pipe, a script and `--json` get the JSON line as before.
+- A system run's status gate starts the next wave itself and goes on waiting. The waits between waves are no longer failures in its history, and they spend no loop. A decision card shows them as `status waits: started the next wave: …`. A gate's command reads with its paths filled in (no `{runDir}`).
+- `system plan status`, `system plan show` and `issue list` print text at a terminal. A run started from a Backlog task takes the task's title as its task; the body is the run's `task.md`, which its agents read.
+
 - The app: Overview → Dependencies and a system run's Plan tab draw a system plan as a flow (waves, repositories, an arrow per dependsOn, pending steps dashed, the critical path). A new **Board** puts every piece of work in To do · Planning · In progress · Review · Done, with filters and swimlanes. Each run of `/state` carries its `phase`. Two steps of one repository in one wave each get a worktree. An answer's confirmation says what the run did with it.
 - Every question an agent asks in its terminal gets its own card, not only the first. A card's answer is typed into the pane at once (it used to wait up to the daemon's next check). An answer typed in the pane is recorded with the person at its keyboard and the words typed, and its card goes. A card that comes after the pane answered is refused and types nothing; while a person holds the pane's keyboard, a card answer is refused with their name.
 - `metator run ask "<question>" --option <a> … [--wait] [--timeout <ms>]`: an agent in a terminal asks the person through the inbox and, with `--wait`, gets the answer printed; `--question <id> --wait` waits again.

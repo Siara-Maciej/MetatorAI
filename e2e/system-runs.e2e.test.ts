@@ -160,15 +160,15 @@ describe("linked runs (real CLI, three repositories)", () => {
     expect(shown.screen).toMatch(/Wave 2\s+· web-migrate\s+web\s+pending\s+not started/);
     // Only the text a person reads: the JSON line is for a pipe (or `--json`).
     expect(shown.screen).not.toContain('{"ok"');
-    const plan = await inTerminal(
+    const shownPlan = await inTerminal(
       ["system", "plan", "show", "rename-refunds"],
       at("platform"),
       [],
       20_000,
       env(),
     );
-    expect(plan.screen).toMatch(/Wave 2\s+web-migrate\s+web/);
-    expect(plan.screen).not.toContain('{"ok"');
+    expect(shownPlan.screen).toMatch(/Wave 2\s+web-migrate\s+web/);
+    expect(shownPlan.screen).not.toContain('{"ok"');
     const asJson = await inTerminal(
       ["system", "plan", "show", "rename-refunds", "--json"],
       at("platform"),

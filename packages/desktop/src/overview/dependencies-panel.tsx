@@ -6,6 +6,7 @@ import { PlanFlowGraph } from "../components/plan-flow-graph.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import {
+  drawnLanes,
   finishedText,
   GRAPH,
   graphLayout,
@@ -72,7 +73,9 @@ export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) 
     else window.location.hash = routeHash({ screen: "run", runId, tab: "overview" });
   };
   // Every open run, and the finished ones of the last day (dimmed) or linked to one shown.
-  const graph = graphLayout(loose, lanes);
+  // Only the repositories that have a run to draw get a lane: never an empty box.
+  const drawn = drawnLanes(lanes, graphLayout(loose, lanes).nodes);
+  const graph = graphLayout(loose, drawn);
   const at = new Map(graph.nodes.map((n) => [n.run.runId, n]));
   const links = [
     ...conflicts.map((c) => ({
@@ -137,7 +140,13 @@ export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) 
             </h3>
           </section>
         ) : null}
-        {systemPlans.length > 0 && graph.nodes.length === 0 ? null : (
+        {graph.nodes.length === 0 ? (
+          systemPlans.length > 0 ? null : (
+            <div className="empty-line faint" data-testid="runs-graph-empty">
+              No run to draw: open runs and the ones finished in the last day appear here.
+            </div>
+          )
+        ) : (
           <svg
             width={width}
             height={height}
@@ -158,7 +167,7 @@ export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) 
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--teal)" />
               </marker>
             </defs>
-            {lanes.map((lane, li) => (
+            {drawn.map((lane, li) => (
               <g key={lane || "."}>
                 <rect
                   className="lane"

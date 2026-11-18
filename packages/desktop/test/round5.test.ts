@@ -452,3 +452,60 @@ describe("the confirmation of an answer", () => {
     expect([said, n]).toEqual([["Answered: Approve. The run goes on."], 2]);
   });
 });
+
+describe("a flow that fits its box", () => {
+  test("FLOW's widths when they fit; narrower nodes in a narrow box, never below the minimum", async () => {
+    const { flowWidths, MIN_STEP_W } = await import("../src/plan-flow.ts");
+    expect(flowWidths(3)).toEqual({ stepW: FLOW.W, taskW: FLOW.TASK_W, colGap: FLOW.COL_GAP });
+    expect(flowWidths(3, 1600)).toEqual({ stepW: FLOW.W, taskW: FLOW.TASK_W, colGap: FLOW.COL_GAP });
+    // 3 waves in the 860 px of a 900 px window, and in the System tab's detail at 1440.
+    for (const fit of [860, 1100]) {
+      const w = flowWidths(3, fit);
+      expect(2 * FLOW.LEFT + w.taskW + 3 * (w.colGap + w.stepW)).toBeLessThanOrEqual(fit);
+      expect(w.stepW).toBeGreaterThanOrEqual(MIN_STEP_W);
+    }
+    expect(flowWidths(6, 600).stepW).toBe(MIN_STEP_W);
+  });
+
+  test("3 waves × 3 repositories × 2 steps per lane: drawn within 860 px, every node inside the drawing", () => {
+    const s = (id: string, app: string, deps: string[] = []) => step(id, app, deps);
+    const view = {
+      plan: { id: "big", task: "A big task" },
+      status: "running",
+      waves: [
+        { wave: 1, steps: ["a1", "a2", "b1", "b2", "c1", "c2"] },
+        { wave: 2, steps: ["a3", "b3"] },
+        { wave: 3, steps: ["c3"] },
+      ],
+      steps: [
+        s("a1", "billing"),
+        s("a2", "billing"),
+        s("b1", "shop-api"),
+        s("b2", "shop-api"),
+        s("c1", "shop-web"),
+        s("c2", "shop-web"),
+        s("a3", "billing", ["a1"]),
+        s("b3", "shop-api", ["b1", "a1"]),
+        s("c3", "shop-web", ["b3", "c1"]),
+      ],
+    } as never;
+    for (const fit of [860, 1100, 1400]) {
+      const f = planFlow(view, [], fit);
+      expect(f.width).toBeLessThanOrEqual(fit);
+      for (const n of f.nodes) expect(n.x + n.w).toBeLessThanOrEqual(f.width);
+      expect(f.columns.map((c) => c.label)).toEqual(["wave 1", "wave 2", "wave 3"]);
+      expect(f.lanes.map((l) => l.name)).toEqual(["billing", "shop-api", "shop-web"]);
+    }
+  });
+});
+
+describe("the runs graph below the flows", () => {
+  test("only the repositories with a run get a lane", async () => {
+    const { drawnLanes } = await import("../src/model.ts");
+    const nodes = [{ run: { repo: "shop-api" } }];
+    expect(drawnLanes(["billing", "shop-api", "shop-web"], nodes)).toEqual(["shop-api"]);
+    expect(drawnLanes(["billing"], [])).toEqual([]);
+    // One repository (no folder): the lane named "" holds the runs that have no repository.
+    expect(drawnLanes([""], [{ run: {} }])).toEqual([""]);
+  });
+});

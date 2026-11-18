@@ -1719,7 +1719,7 @@ kbd {
 }
 .ld-body {
   display: grid;
-  grid-template-columns: var(--ld-list) 1fr;
+  grid-template-columns: var(--ld-list) minmax(0, 1fr);
   min-height: 0;
 }
 .ld-list {
@@ -2851,4 +2851,45 @@ dialog.goto {
   .graph .side .box {
     flex: 1 1 320px;
   }
+}
+
+/* A flow wider than its box scrolls inside it, with a visible bar and a hint (plan-flow-graph.tsx). */
+.plan-flow .canvas.scrolls {
+  scrollbar-width: auto;
+  scrollbar-color: var(--grey) var(--panel);
+  border-right: 2px solid var(--edge);
+  padding-bottom: 6px;
+}
+.plan-flow .canvas::-webkit-scrollbar {
+  height: 10px;
+}
+.plan-flow .canvas::-webkit-scrollbar-thumb {
+  background: var(--grey);
+  border-radius: 5px;
+}
+.flow-scroll-hint {
+  font-size: var(--fs-small);
+  margin: 2px 0;
+}
+.empty-line {
+  padding: 8px 14px;
+  font-size: var(--fs-small);
+}
+/* Overview → System: the plans list goes above the plan on a window that cannot hold both side by side. */
+@media (max-width: 1700px) {
+  .system-tab .system-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .system-tab .system-body > .ld-list {
+    max-height: 180px;
+    overflow: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--edge);
+  }
+}
+.sp-waves,
+.system-plan,
+.ld-detail {
+  min-width: 0;
 }

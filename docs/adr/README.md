@@ -91,3 +91,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0085](0085-desktop-type-imports-from-core.md) | Aplikacja desktopowa importuje z `@metator/core` wyłącznie typy (`import type`); zmienia jeden punkt 0078 | Accepted |
 | [0086](0086-withdraw-terminal-ui.md) | Wycofanie pełnoekranowego `metator ui`; frontem graficznym jest aplikacja desktopowa (zastępuje 0060) | Accepted |
 | [0087](0087-person-edits-plans-in-the-app.md) | Osoba edytuje plany w aplikacji | Proposed |
+| [0088](0088-text-only-at-a-terminal.md) | Przy terminalu tylko tekst dla osoby | Proposed |

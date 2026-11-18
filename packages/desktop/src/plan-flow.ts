@@ -62,6 +62,28 @@ export interface PlanFlowLayout {
   readonly columns: readonly { readonly label: string; readonly x: number }[];
   readonly width: number;
   readonly height: number;
+  /** The widths it was drawn with: narrower than FLOW's in a narrow box. */
+  readonly stepW: number;
+  readonly taskW: number;
+  readonly colGap: number;
+}
+
+/** The narrowest a step's node gets before the flow scrolls instead. */
+export const MIN_STEP_W = 132;
+
+/**
+ * The widths a flow of `columns` waves is drawn with in a box `fit` wide: FLOW's own when they fit;
+ * else the task's node, the gaps and the steps shrink together (never below MIN_STEP_W, past which
+ * the box scrolls).
+ */
+export function flowWidths(columns: number, fit?: number): { stepW: number; taskW: number; colGap: number } {
+  const full = { stepW: FLOW.W, taskW: FLOW.TASK_W, colGap: FLOW.COL_GAP };
+  const need = (w: typeof full) => 2 * FLOW.LEFT + w.taskW + columns * (w.colGap + w.stepW);
+  if (fit === undefined || need(full) <= fit) return full;
+  const taskW = 140;
+  const colGap = 34;
+  const stepW = Math.floor((fit - 2 * FLOW.LEFT - taskW - columns * colGap) / columns);
+  return { stepW: Math.max(MIN_STEP_W, Math.min(FLOW.W, stepW)), taskW, colGap };
 }
 
 /** A repository as a person names it: the last part of its path. */
@@ -144,9 +166,12 @@ export function planFlow(
   runs: readonly (Pick<RunOverview, "runId" | "status" | "attention" | "stage"> & {
     readonly repo?: string | undefined;
   })[],
+  /** The width of the box it is drawn in: the nodes narrow to fit it. */
+  fit?: number,
 ): PlanFlowLayout {
   const col = columnsOf(view);
   const columns = Math.max(1, ...[...col.values()]);
+  const { stepW, taskW, colGap } = flowWidths(columns, fit);
   const order = planOrder(view);
   // Lanes in the order their first step deploys.
   const lanes: string[] = [];
@@ -178,8 +203,8 @@ export function planFlow(
     y += h + FLOW.LANE_GAP;
   });
   const height = Math.max(y - FLOW.LANE_GAP + FLOW.TOP / 2, FLOW.TOP + FLOW.H + 20);
-  const colX = (c: number) => FLOW.LEFT + FLOW.TASK_W + FLOW.COL_GAP + (c - 1) * (FLOW.W + FLOW.COL_GAP);
-  const width = colX(columns) + FLOW.W + FLOW.LEFT;
+  const colX = (c: number) => FLOW.LEFT + taskW + colGap + (c - 1) * (stepW + colGap);
+  const width = colX(columns) + stepW + FLOW.LEFT;
   const chain = criticalPath(view);
   const critical = new Set(chain.steps);
   const done = new Set(view.steps.filter((s) => s.status === "done").map((s) => s.id));
@@ -192,7 +217,7 @@ export function planFlow(
     sub: `system plan · ${view.status}`,
     x: FLOW.LEFT,
     y: taskY,
-    w: FLOW.TASK_W,
+    w: taskW,
     h: FLOW.H,
     state: view.status === "done" ? "done" : view.status === "draft" ? "pending" : "working",
     waitsFor: [],
@@ -212,7 +237,7 @@ export function planFlow(
       sub: step.app,
       x: colX(col.get(id) ?? 1),
       y: (lane?.y ?? FLOW.TOP) + FLOW.LANE_TOP + (rowOf.get(id) ?? 0) * (FLOW.H + FLOW.ROW_GAP),
-      w: FLOW.W,
+      w: stepW,
       h: FLOW.H,
       state: state === "pending" && step.run ? "idle" : state,
       ...(stage && state !== "done" ? { stage } : {}),
@@ -271,6 +296,9 @@ export function planFlow(
     })),
     width,
     height,
+    stepW,
+    taskW,
+    colGap,
   };
 }
 

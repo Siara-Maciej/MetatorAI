@@ -108,7 +108,7 @@ describe("a gate that waits on other work (W13: a system run's children)", () =>
     expect(activity.filter((a) => a.type === "gate").map((a) => a.text)).toEqual([
       "waiting on children: shop-api working, shop-web not started",
       "waiting on children: shop-api done, shop-web working",
-      "metator system plan status --run {runDir} --check --gate: pass",
+      `metator system plan status --run .metator/runs/${w.runId} --check --gate: pass`,
     ]);
     // The command is said once, not once per look.
     expect(activity.filter((a) => a.type === "tool" && a.text.includes("plan status")).length).toBe(1);
@@ -132,8 +132,8 @@ describe("a gate that waits on other work (W13: a system run's children)", () =>
     expect(record.state.context.history.at(-1)).toEqual({
       stage: "status",
       event: "FAIL",
-      detail:
-        "gate `metator system plan status --run {runDir} --check --gate`: step shop-web-show is blocked: its run escalated (Resolve it in shop-web, then resume this run.)",
+      // The command as it ran: no placeholder left in what a person reads.
+      detail: `gate \`metator system plan status --run .metator/runs/${w.runId} --check --gate\`: step shop-web-show is blocked: its run escalated (Resolve it in shop-web, then resume this run.)`,
     });
   });
 
@@ -147,7 +147,7 @@ describe("a gate that waits on other work (W13: a system run's children)", () =>
     const record = (await w.repo.load(w.runId))._unsafeUnwrap();
     expect(record.state.context.loops).toEqual({ waves: 1 });
     expect(record.state.context.history.find((h) => h.event === "FAIL")?.detail).toBe(
-      "gate `metator system plan status --run {runDir} --check --gate`: a step can start: shop-web-show",
+      `gate \`metator system plan status --run .metator/runs/${w.runId} --check --gate\`: a step can start: shop-web-show`,
     );
   });
 

@@ -3212,6 +3212,30 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a gate a live drive waits on is carried out by that drive",
   },
   {
+    file: "packages/cli/src/run.ts",
+    from: "if (!(rendered && textOnly)) io.out(",
+    to: "if (true) io.out(",
+    why: "at a terminal a command with a text for people prints only that text",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: 'if (gate.kind === "wave" && input.run && this.start) {',
+    to: "if (false) {",
+    why: "the system run's gate starts the next wave and keeps waiting",
+  },
+  {
+    file: "packages/core/src/domain/drive.ts",
+    from: 'const waits = (a: RunActivity) => a.type === "gate" && !a.agent && !a.text.endsWith(": pass");',
+    to: 'const waits = (a: RunActivity) => a.type === "nothing";',
+    why: "a gate's wait is shown as a wait on the card",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: 'return (filled.isOk() ? filled.value : script).replaceAll("{runDir}", this.d.repo.runDir(ctx.runId));',
+    to: "return script;",
+    why: "a script is shown with its placeholders filled",
+  },
+  {
     file: "packages/core/src/application/host-prompts.ts",
     from: "if (holder && holder !== by)",
     to: "if (holder)",
@@ -6599,5 +6623,23 @@ export const MUTANTS: readonly Mutant[] = [
     from: "if (f.parent && c.parent?.key !== f.parent) return false;",
     to: "",
     why: "the parent-task filter keeps only that task's steps and runs",
+  },
+  {
+    file: "packages/desktop/src/confirm.ts",
+    from: "const mine = ++latest;",
+    to: "const mine = latest;",
+    why: "only the latest answer's confirmation speaks (a stale one named the earlier answer)",
+  },
+  {
+    file: "packages/desktop/src/plan-flow.ts",
+    from: "if (fit === undefined || need(full) <= fit) return full;",
+    to: "return full;",
+    why: "a flow narrows its nodes to fit a narrow box instead of being clipped",
+  },
+  {
+    file: "packages/desktop/src/model.ts",
+    from: "lanes.filter((l) => nodes.some((n) => sameRepo(n.run.repo, l)));",
+    to: "[...lanes];",
+    why: "the runs graph draws no empty lane",
   },
 ];

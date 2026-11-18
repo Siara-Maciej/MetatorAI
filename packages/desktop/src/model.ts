@@ -1830,6 +1830,12 @@ export function quietInboxText(open: number, idle: number): string {
   return `Nothing needs you. ${plural(idle, "run")} ${idle === 1 ? "has" : "have"} no agent working on ${idle === 1 ? "it" : "them"}:`;
 }
 
+/** The lanes of the runs graph that have a card in them, in their order. */
+export const drawnLanes = (
+  lanes: readonly string[],
+  nodes: readonly { readonly run: { readonly repo?: string | undefined } }[],
+): string[] => lanes.filter((l) => nodes.some((n) => sameRepo(n.run.repo, l)));
+
 /** A run as a card of the dependencies graph. */
 export interface GraphNode<R> {
   readonly run: R;

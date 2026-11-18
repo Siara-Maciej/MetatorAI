@@ -28,7 +28,7 @@ metator run drive --detach
 | `plan-gate` | `metator system plan lint` | every consumer of a breaking change migrates, providers go first, the strategy matches the map's policy |
 | `plan-approval` | you | one **Approve** approves the system plan and the gate |
 | `children` | `metator system plan run` | each step that can start becomes a child run in its application's repository, driven at once on the system run's host |
-| `status` | `metator system plan status --gate` | waits while the child runs work (also while one waits for you), starts the next wave when one is done, and stops when a child is closed as aborted |
+| `status` | `metator system plan status --gate` | waits while the child runs work (also while one waits for you), starts the next wave itself when one is done (a wait, not a failure: no loop is spent), and stops when a child is closed as aborted |
 | `delivery` | you | every step is done; deploy in the order of the plan's waves |
 
 Neither approval can be skipped at any autonomy level.

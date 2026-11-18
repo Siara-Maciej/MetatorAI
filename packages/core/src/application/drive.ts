@@ -318,7 +318,8 @@ export class DriveRun {
     for (const script of work.scripts) {
       const r = await this.script(ctx, script);
       if (r.isErr()) return err(r.error);
-      if (!r.value.ok) return ok({ type: "FAIL", reason: failedScript(`\`${script}\` failed`, r.value) });
+      if (!r.value.ok)
+        return ok({ type: "FAIL", reason: failedScript(`\`${this.shown(ctx, script)}\` failed`, r.value) });
     }
     for (const agent of work.agents) {
       const r = await this.agent(ctx, agent, work.skills);
@@ -358,7 +359,7 @@ export class DriveRun {
       await this.d.journal.record(ctx.runId, {
         type: "gate",
         stage: ctx.stage.id,
-        text: `${gate.script}: pass`,
+        text: `${this.shown(ctx, gate.script)}: pass`,
       });
     }
     if (gate?.llm) {
@@ -380,7 +381,7 @@ export class DriveRun {
       const r = await this.script(ctx, script, look > 0);
       if (r.isErr()) return err(r.error);
       if (r.value.ok) return ok({ type: "PASS" });
-      const reason = failedScript(`gate \`${script}\``, r.value);
+      const reason = failedScript(`gate \`${this.shown(ctx, script)}\``, r.value);
       if (r.value.metator && r.value.exitCode === GATE_EXIT.blocked)
         return ok({ type: "FAIL", reason, final: true });
       if (!(r.value.metator && r.value.exitCode === GATE_EXIT.waiting)) return ok({ type: "FAIL", reason });
@@ -394,6 +395,12 @@ export class DriveRun {
       if (now.isErr()) return err(now.error);
       if (now.value.state.stage !== ctx.stage.id || now.value.state.status !== "active") return ok(MOVED);
     }
+  }
+
+  /** A script as it runs, for what a person reads: its inputs and `{runDir}` filled in. */
+  private shown(ctx: StageContext, script: string): string {
+    const filled = fillInputs(script, ctx.inputs);
+    return (filled.isOk() ? filled.value : script).replaceAll("{runDir}", this.d.repo.runDir(ctx.runId));
   }
 
   private async script(
@@ -414,7 +421,11 @@ export class DriveRun {
     }
     if (words.length === 0) return err(MetatorError.usage(`empty script in stage ${ctx.stage.id}`));
     if (!quiet)
-      await this.d.journal.record(ctx.runId, { type: "tool", stage: ctx.stage.id, text: `$ ${script}` });
+      await this.d.journal.record(ctx.runId, {
+        type: "tool",
+        stage: ctx.stage.id,
+        text: `$ ${this.shown(ctx, script)}`,
+      });
     const r = await this.d.process.run(
       { argv: words, cwd: ctx.cwd, env: { METATOR_RUN: ctx.runId, METATOR_RUN_DIR: ctx.runDir } },
       { timeoutMs: 30 * 60_000 },

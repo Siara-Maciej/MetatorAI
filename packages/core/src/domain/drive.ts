@@ -647,7 +647,11 @@ export function sinceLastAnswer(activity: readonly RunActivity[]): string[] {
   const last = activity.map((a) => a.type).lastIndexOf("answer");
   const after = activity.slice(last + 1);
   // One line each, for a card: the first line of a failure's reason, cut where a sentence still reads.
-  const out = after.filter((a) => a.type === "advance").map((a) => `${a.stage ?? "?"} ${cardLine(a.text)}`);
+  // A gate that waited (no agent's verdict, no pass) is a wait, in its place among the transitions.
+  const waits = (a: RunActivity) => a.type === "gate" && !a.agent && !a.text.endsWith(": pass");
+  const out = after
+    .filter((a) => a.type === "advance" || waits(a))
+    .map((a) => `${a.stage ?? "?"} ${waits(a) ? "waits: " : ""}${cardLine(a.text)}`);
   const tools = after.filter((a) => a.type === "tool").length;
   if (tools > 0) out.push(`${tools} tool call(s)`);
   return out;

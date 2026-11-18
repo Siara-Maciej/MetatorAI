@@ -228,6 +228,11 @@ export class SystemRunGate {
     private readonly status: Pick<SystemPlanStatus, "execute">,
     private readonly runs: Pick<RunRepository, "load">,
     private readonly clock: Clock,
+    /**
+     * Starts the next wave from the gate itself (the system run named): a new wave is part of
+     * waiting on the children, never a failure that sends the run back and spends a loop.
+     */
+    private readonly start?: Pick<RunSystemPlan, "execute">,
   ) {}
 
   async execute(input: {
@@ -246,6 +251,18 @@ export class SystemRunGate {
       waitedMs: Math.max(0, this.clock.now().getTime() - since),
       timeoutMs: input.timeoutMs ?? SYSTEM_GATE_TIMEOUT_MS,
     });
+    if (gate.kind === "wave" && input.run && this.start) {
+      const started = await this.start.execute({ id: input.id, parent: input.run });
+      if (started.isErr())
+        return ok({
+          kind: "blocked",
+          message: `the next wave could not start: ${started.error.message}`,
+          ...(started.error.hint ? { hint: started.error.hint } : {}),
+          steps: read.value.steps,
+        });
+      const names = started.value.started.map((s) => `${s.step} in ${s.app}`).join(", ");
+      return ok({ kind: "waiting", message: `started the next wave: ${names}`, steps: read.value.steps });
+    }
     return ok({ ...gate, steps: read.value.steps });
   }
 }

@@ -96,6 +96,25 @@ describe("drive domain", () => {
     const [line] = sinceLastAnswer([{ at, type: "advance" as const, stage: "gates", text: dump }]);
     expect([line?.length, line?.endsWith("…"), line?.includes("{")]).toEqual([246, true, false]);
     expect(cardLine("\n\n  FAIL: lint  \nmore")).toBe("FAIL: lint");
+    // A gate that waits (a system run's next wave, its children working) is a wait, not a FAIL.
+    expect(
+      sinceLastAnswer([
+        {
+          at,
+          type: "gate" as const,
+          stage: "status",
+          text: "started the next wave: web-integration in shop-web",
+        },
+        {
+          at,
+          type: "gate" as const,
+          stage: "status",
+          text: "metator system plan status --run .metator/runs/r --gate: pass",
+        },
+        { at, type: "gate" as const, stage: "review", agent: "mt-judge", text: "PASS" },
+        { at, type: "advance" as const, stage: "status", text: "PASS" },
+      ]),
+    ).toEqual(["status waits: started the next wave: web-integration in shop-web", "status PASS"]);
     const stages = [
       { id: "plan" },
       { id: "plan-approval", hitl: true, onFail: { goto: "plan", loop: "plan" } },
@@ -1126,7 +1145,7 @@ loops:
     const fail = (await w.journal.activity(runId))._unsafeUnwrap().find((a) => a.type === "advance");
     expect([r.status, fail?.text]).toEqual([
       "escalated",
-      "FAIL: `metator index build --base {base|HEAD}` failed: index: parse error in a.ts",
+      "FAIL: `metator index build --base HEAD` failed: index: parse error in a.ts",
     ]);
 
     const w2 = world({ "mt-planner": [{ ok: false, text: "tool crashed" }] }, () => undefined, okScripts());

@@ -1,8 +1,8 @@
 /**
  * The command surface as a person and a script meet it, end to end with the real `metator`:
  * a renamed command under its new and its old words, the run named as a word or as `--run`, who
- * acts when `--by` is left out, `help --for`, and at a terminal the text a person reads beside the
- * JSON line (`--json`: the line alone), and `run continue` offering an escalated run its resume.
+ * acts when `--by` is left out, `help --for`, and at a terminal the text a person reads only,
+ * without the JSON line (`--json`: the line alone), and `run continue` offering an escalated run its resume.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { metator } from "./helpers/cli.ts";
@@ -210,7 +210,7 @@ describe("the command surface (real CLI)", () => {
     expect(plain.stderr).toBe(""); // a pipe: the JSON line alone, as ever
   }, 60_000);
 
-  test("at a terminal: status, inbox, run status and doctor are text a person reads, with the JSON line; --json is the line alone", async () => {
+  test("at a terminal: status, inbox, run status and doctor are text a person reads, without the JSON line; --json is the line alone", async () => {
     const id = data(await mt("run", "new", "--workflow", "demo", "--task", "Read me at a terminal"))
       .runId as string;
     const status = await inTerminal(["status"], repo.root, [], 30_000, env);
@@ -218,17 +218,19 @@ describe("the command surface (real CLI)", () => {
     expect(status.screen).toMatch(/\d+ need you · \d+ working · \d+ stopped/);
     expect(status.screen).toContain("Read me at a terminal");
     expect(status.screen).toContain("[plan ⟳] ─ approval · ─ check ·");
-    expect((status.json.data as { runs: unknown[] }).runs.length).toBeGreaterThan(0);
+    expect(status.screen).not.toContain('{"ok"');
     const one = await inTerminal(["run", "status", id], repo.root, [], 30_000, env);
     expect(one.screen).toContain(`${id} · demo · L0`);
     expect(one.screen).toContain("active at plan");
-    expect((one.json.data as { runId: string }).runId).toBe(id);
+    expect(one.screen).not.toContain('{"ok"');
     const inbox = await inTerminal(["inbox"], repo.root, [], 30_000, env);
     expect(inbox.screen).toContain("Nothing waits for you.");
+    expect(inbox.screen).not.toContain('{"ok"');
     const doctor = await inTerminal(["doctor"], repo.root, [], 30_000, env);
     expect(doctor.screen).toMatch(/[✓!✗] workflows/);
     const help = await inTerminal(["run", "status", "--help"], repo.root, [], 30_000, env);
     expect(help.screen).toContain("metator run status [options] [run]");
+    expect(help.screen).not.toContain('{"ok"');
     const quiet = await inTerminal(["status", "--json"], repo.root, [], 30_000, env);
     expect(quiet.screen).not.toContain("need you");
     expect((quiet.json.data as { runs: unknown[] }).runs.length).toBeGreaterThan(0);

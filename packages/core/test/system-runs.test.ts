@@ -5,7 +5,12 @@ import { RunRepository } from "../src/application/run-repository.ts";
 import { AdvanceRun, InitRun } from "../src/application/runs.ts";
 import { SystemCatalog } from "../src/application/system.ts";
 import { SystemPlanStore } from "../src/application/system-plans.ts";
-import { type RepositoryRuns, RunSystemPlan, SystemPlanStatus } from "../src/application/system-runs.ts";
+import {
+  type RepositoryRuns,
+  RunSystemPlan,
+  SystemPlanStatus,
+  SystemRunGate,
+} from "../src/application/system-runs.ts";
 import { CloneCache, LocalSystemLocation, SystemSources } from "../src/application/system-sources.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import { ok } from "../src/domain/result.ts";
@@ -186,6 +191,20 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     });
     const blocked = (await w.status.execute("rename"))._unsafeUnwrap();
     expect([blocked.steps[1]?.status, blocked.plan.status]).toEqual(["blocked", "running"]);
+    expect((await w.platform.runs.load(parent.runId))._unsafeUnwrap().children).toHaveLength(2);
+  });
+
+  test("the system run's gate starts the next wave itself and keeps waiting: a new wave is a wait, never a failure", async () => {
+    const w = world([step("billing-bump", "billing"), step("web-migrate", "web", ["billing-bump"])]);
+    await w.save();
+    const parent = (
+      await w.platform.init.execute({ workflow: "mt-feature", task: "Rename refunds" })
+    )._unsafeUnwrap();
+    const first = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    await w.platform.advance.execute({ runId: first.started[0]?.run as string, event: { type: "PASS" } });
+    const gate = new SystemRunGate(w.status, w.platform.runs, w.platform.clock, w.run);
+    const g = (await gate.execute({ id: "rename", run: parent.runId }))._unsafeUnwrap();
+    expect([g.kind, g.message]).toEqual(["waiting", "started the next wave: web-migrate in web"]);
     expect((await w.platform.runs.load(parent.runId))._unsafeUnwrap().children).toHaveLength(2);
   });
 

@@ -31,10 +31,10 @@ Two kinds of command do not follow this. The hook commands (`metator guard ...`)
 
 ## At a terminal
 
-Stdout is always the one JSON line. When you type a command at a terminal, some commands also write text for you to read on **stderr**: `metator status`, `inbox`, `run status`, `doctor`, `help` and any `--help`. A pipe or a script sees the same JSON line as before, because the text is not on stdout.
+A script, a pipe and an agent's tool always get the one JSON line on stdout. When you type a command at a terminal, the commands that have a text for people print only that text: `metator status`, `inbox`, `run status`, `doctor`, `run ask`, `system plan status`, `system plan show`, `issue list`, `help` and any `--help`. A failure prints its message and what to do, and still its JSON line. `--json` gives the JSON line alone, also at a terminal.
 
 ```bash
-metator status            # text on stderr, the JSON line on stdout
+metator status            # at a terminal: the text, no JSON line
 metator status --json     # the JSON line alone, also at a terminal
 metator status | jq .data # a pipe gets the JSON line; nothing is rendered
 ```

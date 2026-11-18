@@ -3,6 +3,7 @@
  * every `dependsOn`, each step in the colour of its child run (dashed while it has none), the
  * critical path drawn heavier. A click opens the step's child run, or its plan while it has none.
  */
+import { useEffect, useRef, useState } from "react";
 import { lookOf, type Tone } from "../model.ts";
 import { criticalPath, FLOW, type FlowNode, type PlanFlowLayout, planFlow, waitsText } from "../plan-flow.ts";
 
@@ -37,7 +38,20 @@ export function PlanFlowGraph({
   onOpenStep(stepId: string): void;
   readonly testId?: string;
 }) {
-  const flow: PlanFlowLayout = planFlow(view, runs);
+  // The box's width: the nodes narrow to fit it; past their narrowest, the box scrolls.
+  const box = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState<number>();
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const seen = new ResizeObserver(() => setFit(el.clientWidth || undefined));
+    seen.observe(el);
+    setFit(el.clientWidth || undefined);
+    return () => seen.disconnect();
+  }, []);
+  const flow: PlanFlowLayout = planFlow(view, runs, fit);
+  const scrolls = fit !== undefined && flow.width > fit + 1;
+  const chars = (w: number) => Math.max(10, Math.floor((w - 22) / 7));
   const chain = criticalPath(view);
   const open = (n: FlowNode) => {
     if (n.kind === "task") return;
@@ -49,7 +63,7 @@ export function PlanFlowGraph({
       className={`plan-flow${dim ? " finished" : ""}`}
       data-testid={testId ?? `plan-flow-${view.plan.id}`}
     >
-      <div className="canvas">
+      <div className={`canvas${scrolls ? " scrolls" : ""}`} ref={box}>
         <svg
           width={flow.width}
           height={flow.height}
@@ -78,13 +92,13 @@ export function PlanFlowGraph({
             <g key={l.name}>
               <rect
                 className="lane"
-                x={FLOW.LEFT + FLOW.TASK_W + FLOW.COL_GAP / 2}
+                x={FLOW.LEFT + flow.taskW + flow.colGap / 2}
                 y={l.y}
-                width={flow.width - FLOW.TASK_W - FLOW.COL_GAP / 2 - FLOW.LEFT * 1.5}
+                width={flow.width - flow.taskW - flow.colGap / 2 - FLOW.LEFT * 1.5}
                 height={l.h}
                 rx={8}
               />
-              <text className="lanename" x={FLOW.LEFT + FLOW.TASK_W + FLOW.COL_GAP / 2 + 10} y={l.y + 15}>
+              <text className="lanename" x={FLOW.LEFT + flow.taskW + flow.colGap / 2 + 10} y={l.y + 15}>
                 {l.name}
               </text>
             </g>
@@ -123,10 +137,10 @@ export function PlanFlowGraph({
                 />
                 <text x={n.x + 10} y={n.y + 22} className="flow-title">
                   {n.kind === "step" ? `${n.state === "pending" ? "◌" : lookOf("run", n.state).glyph} ` : ""}
-                  {cut(n.label, n.kind === "task" ? 22 : 26)}
+                  {cut(n.label, chars(n.w) - 2)}
                 </text>
                 <text x={n.x + 10} y={n.y + 42} className={`flow-sub ${tone}`}>
-                  {cut(line, n.kind === "task" ? 26 : 36)}
+                  {cut(line, chars(n.w))}
                 </text>
                 <title>
                   {[n.label, line, waits && n.state === "pending" ? waits : undefined]
@@ -158,6 +172,11 @@ export function PlanFlowGraph({
           })}
         </svg>
       </div>
+      {scrolls ? (
+        <div className="flow-scroll-hint faint" data-testid="flow-scrolls">
+          ← the flow is wider than this window: scroll it sideways →
+        </div>
+      ) : null}
       <figcaption className="faint">
         {chain.length > 1 ? (
           <>
