@@ -19,6 +19,7 @@ agents:
       - ask: { question: "Which currency?", options: [PLN, EUR] }
       - ask: { question: "Which locale?", options: [pl-PL, en-US] }
       - ask: { question: "Which tax?", options: [VAT23, VAT8] }
+      - ask: { question: "Which unit?", options: [kg, g] }
       - say: "all chosen"
 `;
 // The daemon's own check is slow here: what arrives sooner than it is the answer route's doing.
@@ -178,6 +179,18 @@ describe("questions an agent asks in its terminal (real daemon, real PTYs)", () 
       choices: ["VAT23"],
       by: "bob",
     });
+  }, 60_000);
+
+  test("the person who holds the keyboard answers on the card: no conflict, typed as theirs", async () => {
+    const q5 = await cardFor("Which unit?");
+    expect((await post(`/runs/${runId}/attach`, { by: "bob" })).ok).toBe(true);
+    expect((await post(`/runs/${runId}/answer`, { question: q5.id, choices: ["kg"], by: "bob" })).ok).toBe(
+      true,
+    );
+    await until("the pane to take kg", async () =>
+      (await screen()).includes("answer: kg") ? true : undefined,
+    );
+    expect((await post(`/runs/${runId}/release`, {})).ok).toBe(true);
   }, 60_000);
 
   test("`metator run ask --wait` blocks a terminal agent until the person answers, then prints it", async () => {

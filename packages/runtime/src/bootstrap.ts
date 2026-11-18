@@ -682,7 +682,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           identity: paneIdentity,
           open: openPrompts,
           // A person's answer to an agent's terminal question, typed for them (never over a person).
-          type: async (paneId, text) => (await ptyBroker.nudge(paneId, text)).map(() => undefined),
+          // As the person who holds the run's keyboard when it is theirs (their own keystrokes).
+          type: async (paneId, text, by) =>
+            by
+              ? ptyBroker.write({ paneId, data: `${text}\r`, by })
+              : (await ptyBroker.nudge(paneId, text)).map(() => undefined),
           screen: (paneId) => ptyBroker.backlog(paneId),
           holder: async (runId) => {
             const record = await runRepository.load(runId);

@@ -301,8 +301,8 @@ describe("whose question a pane reads (a conductor and its workers)", () => {
       journal: w.journal,
       lock: w.lock,
       identity,
-      type: async (paneId, text) => {
-        typed.push(`${paneId} ${text}`);
+      type: async (paneId, text, by) => {
+        typed.push(`${paneId} ${text}${by ? ` as ${by}` : ""}`);
         return ok(undefined);
       },
       screen: (paneId) => w.broker.backlog(paneId),
@@ -373,7 +373,7 @@ describe("whose question a pane reads (a conductor and its workers)", () => {
     const t = await terminal("bob");
     t.pty.print("Which locale? [pl-PL / en-US]\n");
     await t.prompts.tick();
-    const refused = (await t.prompts.settle(t.run.runId, "q001"))._unsafeUnwrapErr();
+    const refused = (await t.prompts.settle(t.run.runId, "q001", "ana"))._unsafeUnwrapErr();
     expect([refused.code, refused.message]).toEqual([
       "CONFLICT",
       "bob is answering in pane w1:p2: answer there, or wait until they release it",
@@ -389,5 +389,15 @@ describe("whose question a pane reads (a conductor and its workers)", () => {
     await t.prompts.tick();
     await t.prompts.tick();
     expect((await t.questions()).map((q) => [q.id, q.answer?.choices])).toEqual([["q001", ["EUR"]]]);
+  });
+
+  test("the person who holds the run's keyboard answers on the card: no conflict, typed under their name", async () => {
+    const t = await terminal("ana");
+    t.pty.print("Anything else before the plan? [no / yes]\n");
+    await t.prompts.tick();
+    (await t.prompts.settle(t.run.runId, "q001", "ana"))._unsafeUnwrap();
+    await t.w.journal.answer(t.run.runId, "q001", { choices: ["no"], by: "ana" });
+    (await t.prompts.deliver(t.run.runId, "q001"))._unsafeUnwrap();
+    expect(t.typed).toEqual(["w1:p2 no as ana"]);
   });
 });

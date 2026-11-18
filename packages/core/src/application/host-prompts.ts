@@ -21,7 +21,7 @@ export interface HostPromptsDependencies {
   /** Who a pane is in its run: its prompt is that agent's question, at its stage. */
   readonly identity?: PaneIdentity;
   /** Types a person's answer to a terminal question into its pane (never over a person). */
-  readonly type?: (paneId: string, text: string) => Promise<Result<void, MetatorError>>;
+  readonly type?: (paneId: string, text: string, by?: string) => Promise<Result<void, MetatorError>>;
   /** The pane's screen as printed: what was typed at a prompt is read back from it. */
   readonly screen?: (paneId: string) => string;
   /** Who holds the keyboard of the run's panes (the driver lock), if a person does. */
@@ -150,10 +150,10 @@ export class HostPrompts {
   /**
    * Before a card's answer to a pane's question is recorded: when the screen moved on (the
    * question was answered in the pane), the pane's answer is recorded now and the card's then
-   * finds the question answered; when a person holds the pane's keyboard, the card is refused
-   * (nothing is ever typed over them).
+   * finds the question answered; when another person holds the run's keyboard, the card is
+   * refused (nothing is ever typed over them). The holder answering on the card is no conflict.
    */
-  async settle(runId: string, questionId: string): Promise<Result<void, MetatorError>> {
+  async settle(runId: string, questionId: string, by?: string): Promise<Result<void, MetatorError>> {
     const found = this.itemOf(runId, questionId);
     if (!found) return ok(undefined);
     const [paneId, item] = found;
@@ -163,7 +163,7 @@ export class HostPrompts {
     if (pane?.state !== "blocked" || pane.reason !== item.prompt || this.answeredThere(paneId, item))
       return this.close(paneId, item);
     const holder = item.asks ? await this.d.holder?.(runId) : undefined;
-    if (holder)
+    if (holder && holder !== by)
       return err(
         new MetatorError(
           "CONFLICT",
@@ -218,8 +218,19 @@ export class HostPrompts {
       // The person's answer to the agent's terminal question: typed into the pane for them.
       const words = choice === "Other" || choice === undefined ? q.answer.text : choice;
       if (words) {
-        const typed = await this.d.type(paneId, words);
-        if (typed.isErr()) return err(typed.error);
+        // The run's keyboard held by the one who answered: their own keystrokes; else typed for them.
+        const holder = await this.d.holder?.(item.runId);
+        const typed = await this.d.type(paneId, words, holder === q.answer.by ? holder : undefined);
+        if (typed.isErr()) {
+          // Not typed (someone else took the keyboard meanwhile): said in the activity, never forced.
+          const noted = await this.d.journal.record(item.runId, {
+            type: "agent",
+            origin: "pty",
+            agent: item.host,
+            text: `the answer to ${q.id} was not typed into pane ${paneId}: ${typed.error.message}`,
+          });
+          if (noted.isErr()) return err(noted.error);
+        }
       }
     }
     item.handled = true;

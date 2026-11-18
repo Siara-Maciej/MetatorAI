@@ -19,6 +19,7 @@ import {
   autonomyLabel,
   duration,
   finishedText,
+  conductorMoves,
   idleRuns,
   plainKey,
   type Route,
@@ -120,8 +121,27 @@ export function RunScreen({
         </div>
       ) : null}
       <Notice {...action.notice} />
+      {run && conductorMoves(run, panesOf(run.repo)) ? (
+        <div className="driverbar conductor" data-testid="conductor-moves">
+          <strong>Conductor</strong>
+          <span className="note">
+            The conductor moves this run on at {run.stage}: talk to it in its terminal.
+          </span>
+          {tab !== "terminal" ? (
+            <button type="button" onClick={() => go({ screen: "run", runId, tab: "terminal" })}>
+              Open the terminal
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="run-tab">
-        {tab === "overview" ? <OverviewTab run={run} runId={runId} onOpenRun={onOpenRun} /> : null}
+        {!run ? (
+          // A run just started is not in the state yet: its files are asked for once it is, in its repository.
+          <div className="empty" data-testid="run-not-yet">
+            Run <span className="mono">{runId}</span> is not in the state yet: it appears here in a moment.
+          </div>
+        ) : null}
+        {run && tab === "overview" ? <OverviewTab run={run} runId={runId} onOpenRun={onOpenRun} /> : null}
         {tab === "terminal" ? (
           run ? (
             <TerminalTab
@@ -132,11 +152,9 @@ export function RunScreen({
               onOpenRun={onOpenRun}
               onOpenChanges={(id) => go({ screen: "run", runId: id, tab: "changes" })}
             />
-          ) : (
-            <div className="empty">Run {runId} is not in the state yet.</div>
-          )
+          ) : null
         ) : null}
-        {tab === "plan" ? (
+        {run && tab === "plan" ? (
           <PlanTab
             run={run}
             runId={runId}
@@ -145,7 +163,7 @@ export function RunScreen({
             onOpenRun={onOpenRun}
           />
         ) : null}
-        {tab === "changes" ? (
+        {run && tab === "changes" ? (
           <ChangesTab
             run={run}
             runId={runId}
@@ -155,7 +173,7 @@ export function RunScreen({
             }
           />
         ) : null}
-        {tab === "activity" ? <ActivityTab runId={runId} repo={repo} /> : null}
+        {run && tab === "activity" ? <ActivityTab runId={runId} repo={repo} /> : null}
       </div>
     </div>
   );

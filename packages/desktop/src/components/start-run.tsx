@@ -34,7 +34,7 @@ export function StartRun({
   };
   return (
     <div className={compact ? "start-run compact" : "start-run"} data-testid={`start-${run.runId}`}>
-      {compact ? null : <span className="note">Nothing works on this run. Start its agent:</span>}
+      {compact ? null : <span className="note">Nothing drives this run. Start its agent:</span>}
       {hosts.length > 1 ? (
         <label className="host">
           <span className="faint">host</span>

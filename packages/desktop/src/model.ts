@@ -1795,6 +1795,32 @@ export function idleRuns<R extends Run>(
   );
 }
 
+/**
+ * A run its conductor moves on: active, at a stage that is no human gate, nothing driving it in
+ * the background and nobody asked, while its conductor's pane lives. Without this it would look
+ * stuck; the person talks to the conductor in its terminal.
+ */
+export function conductorMoves(
+  r: Pick<Run, "status" | "driving" | "driver" | "questions" | "terminalAsk" | "stages" | "runId" | "repo">,
+  panes: readonly (Pick<PaneView, "runId" | "role" | "live"> & { readonly repo?: string | undefined })[],
+): boolean {
+  if (r.status !== "active" || r.driving || r.driver === "human") return false;
+  if (r.questions.length > 0 || r.terminalAsk !== undefined) return false;
+  if (r.stages.some((s) => s.state === "waiting" && s.hitl)) return false;
+  return panes.some((p) => p.runId === r.runId && sameRepo(p.repo, r.repo) && p.role === "conductor" && p.live?.alive);
+}
+
+/**
+ * A gate's prompt as a person reads it: the command a script would run, in backticks and
+ * parentheses, is dropped (`A person approves the system plan (\`metator …\`) and …`).
+ */
+export const humanPrompt = (prompt: string): string =>
+  prompt
+    .replace(/\s*\(`[^`]*`\)/g, "")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
 /** What the Inbox says when nothing waits for a person: true words about the runs that are open. */
 export function quietInboxText(open: number, idle: number): string {
   if (open === 0) return "No run is open. Open a finished run from the sidebar, or start a new one.";

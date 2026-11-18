@@ -268,7 +268,7 @@ export class AnswerQuestion {
      * the pane already, or a person at its keyboard), and typed into it right after.
      */
     private readonly terminal?: {
-      settle(runId: string, question: string): Promise<Result<void, MetatorError>>;
+      settle(runId: string, question: string, by: string): Promise<Result<void, MetatorError>>;
       deliver(runId: string, question: string): Promise<Result<void, MetatorError>>;
     },
   ) {}
@@ -301,7 +301,7 @@ export class AnswerQuestion {
     }
     const answer = { choices, ...(input.text ? { text: input.text } : {}) };
     if (this.terminal) {
-      const settled = await this.terminal.settle(runId, input.question);
+      const settled = await this.terminal.settle(runId, input.question, input.by);
       if (settled.isErr()) return err(settled.error);
     }
     const answered = await this.journal.answer(runId, input.question, {
