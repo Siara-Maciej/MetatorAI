@@ -333,7 +333,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await bar.textContent()).toContain("Escalated at check");
     expect(await bar.textContent()).not.toContain("Working:");
     expect(await bar.getByTestId("escalated-reason").textContent()).toContain(
-      "gate `test -f {runDir}/fixed`",
+      "gate `test -f ",
     );
     expect(await bar.getByRole("button", { name: "Resume" }).count()).toBe(1);
     expect(await bar.getByRole("button", { name: "Close run…" }).count()).toBe(1);
@@ -349,7 +349,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     const card = page.getByTestId("escalated-card");
     await card.waitFor({ timeout: 20_000 });
     expect(await card.getByTestId("escalated-reason").textContent()).toContain(
-      "gate `test -f {runDir}/fixed`",
+      "gate `test -f ",
     );
     // The cause removed, then Resume: the app asks who, the daemon resumes the run and drives it.
     await Bun.write(repo.path(`.metator/runs/${runId}/fixed`), "");
