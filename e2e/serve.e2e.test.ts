@@ -292,7 +292,7 @@ describe("metator serve (real daemon)", () => {
       "check",
       `metator run resume --run ${runId} --by <name> --drive`,
     ]);
-    expect(item?.reason).toStartWith("gate `test -f {runDir}/fixed`");
+    expect(item?.reason).toStartWith(`gate \`test -f .metator/runs/${runId}/fixed\``);
     const counts = (await get("/state")).data.counts as { escalated: number; finished: number };
     expect(counts.escalated).toBe(1);
     // A resume needs a name; with one the run is active again and a drive is started.
