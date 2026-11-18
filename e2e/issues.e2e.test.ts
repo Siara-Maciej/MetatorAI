@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
+import { inTerminal } from "./helpers/terminal.ts";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -131,6 +132,10 @@ describe("metator issue (real CLI)", () => {
       ["i002", "open"],
       ["i003", "dropped"],
     ]);
+    // At a terminal: one line per task, and no JSON line.
+    const shown = await inTerminal(["issue", "list"], repo.root, []);
+    expect(shown.screen).toMatch(/i001\s+open\s+\S+\s+/);
+    expect(shown.screen).not.toContain('{"ok"');
     expect((data(await mt("issue", "list", "--status", "open")) as { issues: Data[] }).issues).toHaveLength(
       2,
     );

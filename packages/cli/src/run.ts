@@ -52,10 +52,12 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
   const say = (text: string) => {
     if (!asksForJsonOnly(argv)) options.terminal?.raw(`${text}\n`);
   };
+  // A person reads the text at a terminal; the JSON line is for a pipe or a script (or `--json`).
+  const textOnly = options.terminal != null && options.stdoutTty === true && !asksForJsonOnly(argv);
   const help = describeCommandFor(program, argv);
   if (help) {
     say(renderCommandHelp(help));
-    io.out(serialize(toEnvelope(ok(help), [])));
+    if (!textOnly) io.out(serialize(toEnvelope(ok(help), [])));
     return 0;
   }
   try {
@@ -75,15 +77,18 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
   const render = ran ? metaOf(ran).render : undefined;
   // Text only for a person at a terminal; a renderer that fails never fails the command (a gate
   // script, an agent and a pipe read the JSON line, and its exit code, only).
+  let rendered = false;
   if (render && final.result.isOk() && options.terminal && !asksForJsonOnly(argv)) {
     try {
       say((render as (data: unknown) => string)(final.result.value));
+      rendered = true;
     } catch {
       // The JSON line below says everything.
     }
   }
   // A failure reads as text too, whatever the command: the message and the way out.
   if (final.result.isErr()) say(renderError(final.result.error));
-  io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));
+  // A command answered in text at a terminal prints only that; anything else keeps its JSON line.
+  if (!(rendered && textOnly)) io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));
   return final.result.isOk() ? 0 : exitCodeFor(final.result.error);
 }

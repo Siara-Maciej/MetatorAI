@@ -76,6 +76,11 @@ export interface ProgramOptions {
   readonly invoke?: CommandContext["invoke"];
   /** The person at a terminal (main.ts sets it when stdin and stderr are TTYs). */
   readonly terminal?: CommandContext["terminal"];
+  /**
+   * stdout is a terminal too: a command whose answer has a text for people prints only that text
+   * (the JSON line goes to a pipe, a script, or with `--json`).
+   */
+  readonly stdoutTty?: boolean;
 }
 
 /**

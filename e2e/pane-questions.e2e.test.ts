@@ -259,5 +259,6 @@ describe("questions an agent asks in its terminal (real daemon, real PTYs)", () 
     expect(shown.screen).toContain("waiting for an answer…");
     expect(shown.screen).toContain("options: yes · no · Other");
     expect(shown.screen).toContain("answer: no · ana");
+    expect(shown.screen).not.toContain('{"ok"');
   }, 60_000);
 });

@@ -409,3 +409,46 @@ describe("bigflow fixes", () => {
     expect(conductorMoves(r, [{ ...(pane as object), live: { alive: false } } as never])).toBe(false);
   });
 });
+
+describe("the confirmation of an answer", () => {
+  test("names the answer just given: a slower confirmation of an earlier answer never speaks over it", async () => {
+    const { createConfirmer } = await import("../src/confirm.ts");
+    const said: string[] = [];
+    let wake: () => void = () => undefined;
+    // The first answer's run stays where it was (a proposal moves no stage): it keeps looking.
+    const states: Record<string, Run> = {
+      a: run("a", { stage: "build" }),
+      b: run("b", { stage: "delivery", status: "escalated" }),
+    };
+    const c = createConfirmer({
+      read: async (id) => states[id],
+      say: (t) => said.push(t),
+      sleep: () =>
+        new Promise<void>((done) => {
+          wake = done;
+        }),
+    });
+    const first = c.confirm(["Add to the backlog"], { runId: "a", stage: "build" });
+    await Bun.sleep(0);
+    const second = c.confirm(["Reject"], { runId: "b", stage: "delivery" });
+    await second;
+    wake();
+    await first;
+    expect(said).toEqual([
+      "Rejected: the run escalated with your reason. It waits for a person to resume or close it.",
+    ]);
+  });
+
+  test("alone, it waits for the run to move and says where it went", async () => {
+    const { createConfirmer } = await import("../src/confirm.ts");
+    const said: string[] = [];
+    let n = 0;
+    const c = createConfirmer({
+      read: async () => (n++ === 0 ? run("a", { stage: "plan-approval" }) : run("a", { stage: "build" })),
+      say: (t) => said.push(t),
+      sleep: async () => undefined,
+    });
+    await c.confirm(["Approve"], { runId: "a", stage: "plan-approval" });
+    expect([said, n]).toEqual([["Answered: Approve. The run goes on."], 2]);
+  });
+});

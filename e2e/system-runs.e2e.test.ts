@@ -158,6 +158,25 @@ describe("linked runs (real CLI, three repositories)", () => {
     expect(shown.screen).toContain("rename-refunds · ");
     expect(shown.screen).toMatch(/Wave 1\s+\S+ billing-bump\s+billing\s+running\s+\S+ \(active at build\)/);
     expect(shown.screen).toMatch(/Wave 2\s+· web-migrate\s+web\s+pending\s+not started/);
+    // Only the text a person reads: the JSON line is for a pipe (or `--json`).
+    expect(shown.screen).not.toContain('{"ok"');
+    const plan = await inTerminal(
+      ["system", "plan", "show", "rename-refunds"],
+      at("platform"),
+      [],
+      20_000,
+      env(),
+    );
+    expect(plan.screen).toMatch(/Wave 2\s+web-migrate\s+web/);
+    expect(plan.screen).not.toContain('{"ok"');
+    const asJson = await inTerminal(
+      ["system", "plan", "show", "rename-refunds", "--json"],
+      at("platform"),
+      [],
+      20_000,
+      env(),
+    );
+    expect(asJson.json.ok).toBe(true);
     const check = await mt("platform", "system", "status", "--run", parent, "--check");
     expect([check.code, (check.json.error as { message: string }).message]).toEqual([
       1,

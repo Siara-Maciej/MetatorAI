@@ -9,9 +9,9 @@ import { NoDaemon, Notice } from "./components/common.tsx";
 import { HelpOverlay } from "./components/help-overlay.tsx";
 import { Sidebar } from "./components/sidebar.tsx";
 import { sendLine } from "./components/terminal.tsx";
+import { createConfirmer } from "./confirm.ts";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
 import {
-  answeredText,
   flattenState,
   goesToPane,
   hostChoice,
@@ -29,7 +29,6 @@ import {
   pickedNeed,
   plainKey,
   type Route,
-  type Run,
   routeHash,
   runTabFor,
   sameRepo,
@@ -173,6 +172,19 @@ function Shell() {
    * attaches, shows that pane, focuses it and scrolls to the question, then clears this.
    */
   const [answerIn, setAnswerIn] = useState<{ runId: string; pane?: string | undefined }>();
+  // The confirmation of the latest answer only (confirm.ts): a slower one never speaks over it.
+  const daemonNow = useRef(d);
+  daemonNow.current = d;
+  const confirmer = useRef(
+    createConfirmer({
+      read: async (runId, repo) =>
+        flattenState((await daemonNow.current.client.state()).data).runs.find(
+          (x) => x.runId === runId && sameRepo(x.repo, repo),
+        ),
+      say: (text) => setNotice({ text, tone: "info", sticky: true }),
+      sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
+    }),
+  );
   const openRun = useCallback(
     (runId: string, attach = false, pane?: string) => {
       const run = d.run(runId);
@@ -253,19 +265,7 @@ function Shell() {
               return;
             }
             // What the run did with the answer, read back: a Reject may have escalated it.
-            // A drive that waits on the gate moves the run a moment later: look a few times.
-            void (async () => {
-              let after: Run | undefined;
-              for (let i = 0; i < 6; i++) {
-                const r = await d.client.state();
-                after = flattenState(r.data).runs.find(
-                  (x) => x.runId === item.runId && sameRepo(x.repo, item.repo),
-                );
-                if (after?.status !== "active" || after.stage !== item.stage) break;
-                await new Promise((done) => setTimeout(done, 500));
-              }
-              setNotice({ text: answeredText(choices, after, item.stage), tone: "info", sticky: true });
-            })();
+            void confirmer.current.confirm(choices, item);
           }}
           onOpenRun={(id, pane) => openRun(id, false, pane)}
           onOpenChanges={(runId) => go({ screen: "run", runId, tab: "changes" })}
