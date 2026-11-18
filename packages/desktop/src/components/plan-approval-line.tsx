@@ -32,7 +32,9 @@ export function RunPlanFull({ view }: { readonly view: RunPlanView }) {
         <>
           <div className="muted">
             {plan.task}
-            {plan.scope.length > 0 ? <span className="faint mono"> · scope {plan.scope.join(", ")}</span> : null}
+            {plan.scope.length > 0 ? (
+              <span className="faint mono"> · scope {plan.scope.join(", ")}</span>
+            ) : null}
           </div>
           <table className="sp-steps plan-steps" data-testid="plan-steps">
             <thead>
@@ -73,7 +75,8 @@ export function SystemPlanFull({ plan }: { readonly plan: RepoSystemPlan }) {
   return (
     <section className="plan-full" data-testid="system-plan-line" aria-label="the system plan">
       <h3>
-        The system plan <span className="mono">{plan.plan.id}</span> · {plan.steps.length} steps · {plan.status} ·{" "}
+        The system plan <span className="mono">{plan.plan.id}</span> · {plan.steps.length} steps ·{" "}
+        {plan.status} ·{" "}
         <span className={errors.length > 0 ? "red" : plan.lint.problems.length > 0 ? "amber" : "green"}>
           lint: {lintSummary(plan.lint)}
         </span>
@@ -84,7 +87,13 @@ export function SystemPlanFull({ plan }: { readonly plan: RepoSystemPlan }) {
 }
 
 /** The lint's errors as words for the planner: what "Ask the planner to fix it" starts with. */
-export const lintRequest = (problems: readonly { readonly severity: string; readonly message: string; readonly step?: string | undefined }[]): string => {
+export const lintRequest = (
+  problems: readonly {
+    readonly severity: string;
+    readonly message: string;
+    readonly step?: string | undefined;
+  }[],
+): string => {
   const errors = problems.filter((p) => p.severity === "error");
   return errors.length === 0
     ? ""

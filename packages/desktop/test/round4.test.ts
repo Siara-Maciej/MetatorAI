@@ -177,16 +177,9 @@ describe("a closed answer on a plan's card (round 4, item 6)", () => {
     expect(optionClosed({ label: "Reject" }, lint("error") as never)).toBeUndefined();
     expect(optionClosed({ label: "Approve" })).toBeUndefined();
   });
-  test("Fix the plan opens the Plan tab in its edit mode", () => {
-    const hash = routeHash({ screen: "run", runId: "r1", tab: "plan", edit: true });
-    expect(hash).toBe("#/run/r1/plan/edit");
-    expect(parseRoute(hash)).toEqual({ screen: "run", runId: "r1", tab: "plan", edit: true });
-    expect(parseRoute("#/run/r1/terminal/edit")).toEqual({
-      screen: "run",
-      runId: "r1",
-      tab: "terminal",
-      pane: "edit",
-    });
+  test("a plan is not edited by hand: the old edit route lands on the Plan tab, read-only", () => {
+    expect(parseRoute("#/run/r1/plan/edit")).toEqual({ screen: "run", runId: "r1", tab: "plan" });
+    expect(routeHash({ screen: "run", runId: "r1", tab: "plan" })).toBe("#/run/r1/plan");
   });
 });
 

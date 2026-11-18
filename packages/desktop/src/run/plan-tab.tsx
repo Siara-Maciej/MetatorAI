@@ -12,10 +12,10 @@ import { ArtifactList } from "../components/artifact-list.tsx";
 import { FieldProblems, ProblemList } from "../components/doc-editor.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../components/list-detail.tsx";
+import { PlanChanges } from "../components/plan-changes.tsx";
 import { StageBar } from "../components/stage-bar.tsx";
 import { SystemPlanPanel } from "../components/system-plan.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { PlanChanges } from "../components/plan-changes.tsx";
 import { clock, duration, lintSummary, plural, problemsAt, type Run, systemPlanOf } from "../model.ts";
 
 const or = (items: readonly string[]): string => (items.length > 0 ? items.join(", ") : "—");
@@ -31,13 +31,7 @@ export function PlanTab(props: {
   // A system run's plan is its system plan: the steps across repositories and their child runs.
   const system = run ? systemPlanOf(systemPlans, run, runs) : undefined;
   if (system)
-    return (
-      <SystemPlanPanel
-        planId={system.plan.id}
-        repo={system.repo}
-        onOpenRun={props.onOpenRun}
-      />
-    );
+    return <SystemPlanPanel planId={system.plan.id} repo={system.repo} onOpenRun={props.onOpenRun} />;
   if (run && /system/.test(run.workflow))
     return <SystemPlanPanel planOfRun={run} repo={run.repo} onOpenRun={props.onOpenRun} />;
   return <RunPlanTab {...props} />;
@@ -89,7 +83,10 @@ function RunPlanTab({
       <span className={errors.length > 0 ? "red" : problems.length > 0 ? "amber" : "green"}>
         lint: {lintSummary(planned.data.lint)}
       </span>
-      <span className="faint"> · the planner writes this plan; ask it for changes on the plan's approval card</span>
+      <span className="faint">
+        {" "}
+        · the planner writes this plan; ask it for changes on the plan's approval card
+      </span>
     </div>
   ) : planned.error ? (
     // A plan file that does not fit its format: the daemon says where.

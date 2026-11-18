@@ -146,7 +146,9 @@ export function SystemPlanContent({
         <section className="sp-waves" aria-label="deploy order">
           <h3>Deploy order</h3>
           {view.waves.length === 0 ? (
-            <div className="faint">No order: the steps wait on each other in a circle (the lint says where).</div>
+            <div className="faint">
+              No order: the steps wait on each other in a circle (the lint says where).
+            </div>
           ) : (
             <PlanFlowGraph
               view={view}
@@ -156,7 +158,9 @@ export function SystemPlanContent({
                 else window.location.hash = routeHash({ screen: "run", runId, tab: "overview" });
               }}
               onOpenStep={(stepId) =>
-                document.querySelector(`[data-testid="system-step-${stepId}"]`)?.scrollIntoView({ block: "center" })
+                document
+                  .querySelector(`[data-testid="system-step-${stepId}"]`)
+                  ?.scrollIntoView({ block: "center" })
               }
             />
           )}
@@ -166,82 +170,82 @@ export function SystemPlanContent({
           deploy order: {view.waves.map((w) => `wave ${w.wave}: ${w.steps.join(", ")}`).join(" → ") || "none"}
         </div>
       )}
-          {repos.map((r) => (
-            <section key={r} className="sp-repo" aria-label={`steps in ${r}`}>
-              <h3 title={r}>{repoName(r)}</h3>
-              <table className="sp-steps">
-                <thead>
-                  <tr>
-                    {["step", "what", "after", "status", "run"].map((h) => (
-                      <th key={h} scope="col">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {view.steps
-                    .filter((s) => s.repo === r)
-                    .map((s) => {
-                      const child = s.run ? runs.find((x) => x.runId === s.run) : undefined;
-                      return (
-                        <tr key={s.id} data-testid={`system-step-${s.id}`}>
-                          <td className="mono">{s.id}</td>
-                          <td>
-                            {s.task}
-                            <div className="faint">{s.app}</div>
-                          </td>
-                          <td className="mono">{s.dependsOn.join(", ") || "—"}</td>
-                          <td>
-                            <span
-                              className={
-                                lookOf(
-                                  "step",
-                                  s.status === "running"
-                                    ? "in-progress"
-                                    : s.status === "pending"
-                                      ? "todo"
-                                      : s.status,
-                                ).tone
-                              }
-                            >
-                              {s.status}
-                            </span>
-                          </td>
-                          <td>
-                            {s.run ? (
-                              <a
-                                title={child?.task ?? s.run}
-                                href={routeHash({ screen: "run", runId: s.run, tab: "overview" })}
-                                onClick={(e) => {
-                                  if (!onOpenRun) return;
-                                  e.preventDefault();
-                                  onOpenRun(s.run as string);
-                                }}
-                              >
-                                open run
-                              </a>
-                            ) : (
-                              <span className="faint">not started</span>
-                            )}
-                            {s.runState ? (
-                              <span className="faint">
-                                {" "}
-                                · {s.runState}
-                                {s.runStage ? ` at ${s.runStage}` : ""}
-                                {child && !sameRepo(child.repo, repo) && child.repo
-                                  ? ` · ${repoName(child.repo)}`
-                                  : ""}
-                              </span>
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </section>
-          ))}
+      {repos.map((r) => (
+        <section key={r} className="sp-repo" aria-label={`steps in ${r}`}>
+          <h3 title={r}>{repoName(r)}</h3>
+          <table className="sp-steps">
+            <thead>
+              <tr>
+                {["step", "what", "after", "status", "run"].map((h) => (
+                  <th key={h} scope="col">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {view.steps
+                .filter((s) => s.repo === r)
+                .map((s) => {
+                  const child = s.run ? runs.find((x) => x.runId === s.run) : undefined;
+                  return (
+                    <tr key={s.id} data-testid={`system-step-${s.id}`}>
+                      <td className="mono">{s.id}</td>
+                      <td>
+                        {s.task}
+                        <div className="faint">{s.app}</div>
+                      </td>
+                      <td className="mono">{s.dependsOn.join(", ") || "—"}</td>
+                      <td>
+                        <span
+                          className={
+                            lookOf(
+                              "step",
+                              s.status === "running"
+                                ? "in-progress"
+                                : s.status === "pending"
+                                  ? "todo"
+                                  : s.status,
+                            ).tone
+                          }
+                        >
+                          {s.status}
+                        </span>
+                      </td>
+                      <td>
+                        {s.run ? (
+                          <a
+                            title={child?.task ?? s.run}
+                            href={routeHash({ screen: "run", runId: s.run, tab: "overview" })}
+                            onClick={(e) => {
+                              if (!onOpenRun) return;
+                              e.preventDefault();
+                              onOpenRun(s.run as string);
+                            }}
+                          >
+                            open run
+                          </a>
+                        ) : (
+                          <span className="faint">not started</span>
+                        )}
+                        {s.runState ? (
+                          <span className="faint">
+                            {" "}
+                            · {s.runState}
+                            {s.runStage ? ` at ${s.runStage}` : ""}
+                            {child && !sameRepo(child.repo, repo) && child.repo
+                              ? ` · ${repoName(child.repo)}`
+                              : ""}
+                          </span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </section>
+      ))}
       {view.steps.length === 0 ? <div className="faint">The plan has no step yet.</div> : null}
       <div className="faint">
         {plural(view.steps.length, "step")} in {plural(repos.length, "repository", "repositories")}

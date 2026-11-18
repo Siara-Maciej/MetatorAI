@@ -35,7 +35,7 @@ The boxes on the right:
 
 **Terminals** shows the same panes side by side ([Terminals](./desktop.md)). A run whose drive process died shows the chip **drive died** here.
 
-A run whose conductor's pane lives, asks nothing and has no drive behind it is moved on by the conductor: its page says **The conductor moves this run on at <stage>: talk to it in its terminal**, with **Open the terminal**. With no conductor alive, the bar says **Nothing drives this run** and offers **Open a session** and **Drive in background**.
+A run whose conductor's pane lives, asks nothing and has no drive behind it is moved on by the conductor: its page says **The conductor moves this run on at `<stage>`: talk to it in its terminal**, with **Open the terminal**. With no conductor alive, the bar says **Nothing drives this run** and offers **Open a session** and **Drive in background**.
 
 ## What a worktree gives a run
 

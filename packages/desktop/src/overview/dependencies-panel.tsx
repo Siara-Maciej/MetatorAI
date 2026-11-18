@@ -32,7 +32,7 @@ const TONE_VAR: Record<Tone, string> = {
   faint: "grey",
 };
 
-export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) => void) | undefined } = {}) {
+export function DependenciesPanel(_props: { onOpenRun?: ((runId: string) => void) | undefined } = {}) {
   const { runs, repos, client, systemPlans } = useDaemon();
   // Every run that is not finished, escalated ones included: what the panel and the top bar count.
   const active = openRuns(runs);
@@ -67,10 +67,6 @@ export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) 
     ]),
   );
   const loose = runs.filter((r) => !inPlans.has(r.runId));
-  const go = (runId: string) => {
-    if (onOpenRun) onOpenRun(runId);
-    else window.location.hash = routeHash({ screen: "run", runId, tab: "overview" });
-  };
   // Every open run, and the finished ones of the last day (dimmed) or linked to one shown.
   // Only the repositories that have a run to draw get a lane: never an empty box.
   const drawn = drawnLanes(lanes, graphLayout(loose, lanes).nodes);

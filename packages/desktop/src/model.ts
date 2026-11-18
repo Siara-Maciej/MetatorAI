@@ -286,7 +286,7 @@ export type Route =
   | { readonly screen: "mrs"; readonly id?: string }
   | { readonly screen: "settings" }
   | { readonly screen: "backlog" }
-  | { readonly screen: "board" };
+  | { readonly screen: "board"; readonly task?: string };
 
 /** The tab an old run route showed. */
 const OLD_RUN_ROUTES: Readonly<Record<string, RunTab>> = {
@@ -351,7 +351,7 @@ export function parseRoute(hash: string): Route {
     case "backlog":
       return { screen: "backlog" };
     case "board":
-      return { screen: "board" };
+      return arg ? { screen: "board", task: arg } : { screen: "board" };
     case "mrs":
       return arg ? { screen: "mrs", id: arg } : { screen: "mrs" };
     case "inbox":
@@ -376,6 +376,8 @@ export function routeHash(route: Route): string {
       return `#/inbox${route.pick ? `/${encodeURIComponent(route.pick)}` : ""}`;
     case "mrs":
       return `#/mrs${route.id ? `/${encodeURIComponent(route.id)}` : ""}`;
+    case "board":
+      return `#/board${route.task ? `/${encodeURIComponent(route.task)}` : ""}`;
     case "overview":
       return route.tab === "daemon" ? "#/overview" : `#/overview/${route.tab}`;
     case "grid":

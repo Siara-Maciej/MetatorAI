@@ -38,8 +38,10 @@ export function useAnswer(
     setText("");
     setError(undefined);
   }, [id, initial]);
-  const send = async (picked: readonly string[] = choices) => {
-    if (busy || !canAnswer(picked, text)) return;
+  /** `words`: the reason given elsewhere on the card (Ask for changes), instead of the note field. */
+  const send = async (picked: readonly string[] = choices, words?: string) => {
+    const said = words ?? text;
+    if (busy || !canAnswer(picked, said)) return;
     const by = await who();
     if (!by) return;
     setBusy(true);
@@ -49,7 +51,7 @@ export function useAnswer(
         question: q.id,
         choices: picked,
         by,
-        text: text.trim() || undefined,
+        text: said.trim() || undefined,
         origin: options.origin,
       },
       repo,

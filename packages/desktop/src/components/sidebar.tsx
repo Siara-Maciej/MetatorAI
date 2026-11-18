@@ -1,34 +1,33 @@
 /**
- * The sidebar: the whole dashboard in one column. On top what needs the person (each row opens
- * its decision), then the runs of each repository with their panes under them, then the places
- * that are not a run, and the one button that starts a run. Every row is the same: the state's
- * glyph, a name, the state's word at the end, and one dim line under the name.
+ * The sidebar: the work as parent tasks. One row per task (a system task, a run with child runs,
+ * a standalone run), with one state word, its progress and how many of its steps need the
+ * person; what needs the person sorts first. A task expands to its own tree: its steps and child
+ * runs by repository (pending steps with what they wait for); a standalone run expands to its
+ * panes. The Inbox lists every decision; the sidebar only counts them. The places are at the bottom.
  */
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { type BoardCard, boardCards } from "../board.ts";
 import { useDaemon } from "../daemon.tsx";
 import {
   finishedText,
   isFinished,
   isNews,
-  isTerminalAsk,
   lookOf,
   type NeedRow,
-  openRuns,
   paneLabel,
   paneStateOf,
   panesOfRun,
   plural,
   type Route,
   type Run,
-  rollUp,
   routeHash,
   runLine,
   runWithPanes,
   sameRepo,
   seenKey,
-  sidebarRuns,
 } from "../model.ts";
+import { byAttentionFirst, subtasksByRepo, taskLine, type WorkTask, workTasks } from "../tasks.ts";
 import { Glyph } from "./glyph.tsx";
 import { moveInList } from "./list-keys.ts";
 
@@ -43,7 +42,7 @@ const PLACES: readonly { readonly route: Route; readonly label: string; readonly
 ];
 
 /** One row of the sidebar: glyph, name, the state's word, one dim line. */
-function Row({
+export function Row({
   glyph,
   name,
   sub,
@@ -86,8 +85,6 @@ function Row({
 export function Sidebar({
   route,
   needs,
-  picked,
-  onNeed,
   onRun,
   onInbox,
   onNew,
@@ -96,9 +93,6 @@ export function Sidebar({
   readonly route: Route;
   /** Everything that needs the person (model.ts `needsQueue`). */
   readonly needs: readonly NeedRow[];
-  /** The row the Inbox shows, when the Inbox is the screen. */
-  readonly picked: string | undefined;
-  onNeed(row: NeedRow): void;
   onRun(run: Run, pane?: string): void;
   onInbox(): void;
   /** Opens the agent that starts a run: the person describes it. */
@@ -106,56 +100,133 @@ export function Sidebar({
   /** The form: workflow, autonomy, host and worktree chosen by hand. */
   onForm(): void;
 }) {
-  const { runs, repos, panesOf, down, unreadable, seen, planStepsOf, stepPlaceOf } = useDaemon();
+  const { runs, panesOf, down, unreadable, seen, systemPlans } = useDaemon();
   const [showFinished, setShowFinished] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const current = route.screen === "run" ? route.runId : undefined;
   const stateOf = (r: Run) =>
     runWithPanes(
       r,
       panesOfRun(panesOf(r.repo), r.runId).map((p) => paneStateOf(p)),
     );
-  const runRows = (r: Run, nested: boolean, step?: string, elsewhere?: string) => {
-    const state = stateOf(r);
-    // A finished run reads `done`; it is drawn in its colour only until this person opens it.
-    const quiet = state === "done" && !isNews(r, seen[seenKey(r)]);
-    // A run with more than its conductor shows its panes under it (R4): who works, in what state.
-    const own = isFinished(r) ? [] : panesOfRun(panesOf(r.repo), r.runId);
+  // The work as parent tasks (tasks.ts), from the same cards the Board shows.
+  const tasks = byAttentionFirst(
+    workTasks(boardCards({ runs, issues: [], plans: systemPlans, now: Date.now() }), systemPlans),
+  );
+  const isDone = (t: WorkTask) => t.column === "done";
+  const open = tasks.filter((t) => !isDone(t));
+  const done = tasks.filter(isDone);
+  const runOf = (c: BoardCard) =>
+    c.runId ? runs.find((r) => r.runId === c.runId && sameRepo(r.repo, c.repo)) : undefined;
+  const holds = (t: WorkTask) =>
+    current !== undefined && (t.head?.runId === current || t.subtasks.some((c) => c.runId === current));
+  const expandedNow = (t: WorkTask) => expanded[t.key] ?? holds(t);
+  const taskRows = (t: WorkTask) => {
+    const headRun = t.head ? runOf(t.head) : undefined;
+    const quiet = t.state === "done" && headRun !== undefined && !isNews(headRun, seen[seenKey(headRun)]);
+    const word = t.state === "todo" || t.state === "pending" || t.state === "proposed" ? undefined : t.state;
+    const look = word ? lookOf("run", word) : { glyph: "·", tone: "faint" };
+    const open = expandedNow(t);
+    const kids =
+      t.kind === "run" && headRun && !isFinished(headRun)
+        ? panesOfRun(panesOf(headRun.repo), headRun.runId)
+        : [];
+    const canOpen = t.subtasks.length > 0 || kids.length > 0;
     return (
-      <div key={`${r.repo ?? ""}/${r.runId}`}>
-        <Row
-          glyph={<Glyph kind="run" state={quiet ? "idle" : state} />}
-          name={r.task}
-          sub={runLine(r, step, elsewhere)}
-          word={state}
-          tone={quiet ? "faint" : lookOf("run", state).tone}
-          current={r.runId === current}
-          nested={nested}
-          title={isFinished(r) ? `${r.task}\n${finishedText(r)}` : r.task}
-          onClick={() => onRun(r, r.terminalAsk)}
-        />
-        {own.length < 2
-          ? null
-          : own.map((p) => {
-              const s = paneStateOf(p);
+      <div key={t.key} className="task" data-testid={`side-task-${t.key}`}>
+        <div className="task-row">
+          {canOpen ? (
+            <button
+              type="button"
+              className="ghost expander"
+              aria-expanded={open}
+              aria-label={`${open ? "fold" : "unfold"} ${t.title}`}
+              onClick={() => setExpanded({ ...expanded, [t.key]: !open })}
+            >
+              {open ? "▾" : "▸"}
+            </button>
+          ) : (
+            <span className="expander" />
+          )}
+          <Row
+            glyph={<Glyph kind="run" state={quiet ? "idle" : word} />}
+            name={t.title}
+            sub={t.kind === "run" && headRun ? runLine(headRun) : taskLine(t)}
+            word={word}
+            tone={quiet ? "faint" : look.tone}
+            current={t.head?.runId !== undefined && t.head.runId === current}
+            title={headRun && isFinished(headRun) ? `${t.title}\n${finishedText(headRun)}` : t.title}
+            onClick={() => {
+              if (headRun) onRun(headRun, headRun.terminalAsk);
+              else if (t.kind === "system" || t.kind === "parent")
+                window.location.hash = routeHash({ screen: "board", task: t.key });
+            }}
+          />
+        </div>
+        {open && t.kind === "run"
+          ? kids.map((p) => {
+              const st = paneStateOf(p);
               return (
                 <Row
                   key={p.id}
                   className="pane-row"
                   nested
-                  glyph={<Glyph kind="pane" state={s} />}
+                  glyph={<Glyph kind="pane" state={st} />}
                   name={paneLabel(p)}
-                  word={s}
-                  tone={lookOf("pane", s).tone}
-                  current={r.runId === current && route.screen === "run" && route.pane === p.id}
+                  word={st}
+                  tone={lookOf("pane", st).tone}
+                  current={headRun?.runId === current && route.screen === "run" && route.pane === p.id}
                   title={`${p.id} · ${p.state?.reason ?? ""}`}
-                  onClick={() => onRun(r, p.id)}
+                  onClick={() => headRun && onRun(headRun, p.id)}
                 />
               );
-            })}
+            })
+          : null}
+        {open && t.kind !== "run"
+          ? subtasksByRepo(t).map((g) => (
+              <div key={g.repo || "."} className="task-repo">
+                <div className="repo-name">{g.repo || "this repository"}</div>
+                {g.cards.map((c) => {
+                  const r = runOf(c);
+                  const st = r ? stateOf(r) : undefined;
+                  return (
+                    <Row
+                      key={c.key}
+                      nested
+                      className={c.kind === "step" ? "pending-step" : ""}
+                      glyph={<Glyph kind="run" state={st ?? "idle"} />}
+                      name={c.title}
+                      sub={
+                        r
+                          ? [c.step ? `step ${c.step.at} of ${c.step.of}` : undefined, r.stage, r.host]
+                              .filter(Boolean)
+                              .join(" · ")
+                          : c.waitsFor && c.waitsFor.length > 0
+                            ? `not started · waits for ${c.waitsFor.join(", ")}`
+                            : "not started · can start"
+                      }
+                      word={st ?? "pending"}
+                      tone={st ? lookOf("run", st).tone : "faint"}
+                      current={r !== undefined && r.runId === current}
+                      title={c.title}
+                      onClick={() => {
+                        if (r) onRun(r, r.terminalAsk);
+                        else if (c.systemRunId)
+                          window.location.hash = routeHash({
+                            screen: "run",
+                            runId: c.systemRunId,
+                            tab: "plan",
+                          });
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ))
+          : null}
       </div>
     );
   };
-  const finished = runs.filter(isFinished);
   return (
     <aside className="sessions" aria-label="runs" onKeyDown={(e) => moveInList(e, ".row")}>
       <div className="list">
@@ -163,77 +234,27 @@ export function Sidebar({
           <div className="section">No daemon: nothing to list</div>
         ) : (
           <>
-            <div className="needs">
-              <button type="button" className="section" data-testid="needs-count" onClick={onInbox}>
-                <Glyph kind="run" state={needs.length > 0 ? "needs you" : "idle"} />
-                Needs you · {needs.length}
-              </button>
-              {needs.map((n) => (
-                <Row
-                  key={n.key}
-                  className="item"
-                  glyph={<Glyph kind="need" state={n.kind} />}
-                  name={n.title}
-                  sub={n.sub}
-                  word={n.kind}
-                  tone={lookOf("need", n.kind).tone}
-                  current={route.screen === "inbox" && picked === n.key}
-                  title={n.hint}
-                  data-testid={
-                    isTerminalAsk(n)
-                      ? `terminal-ask-${n.runId}`
-                      : n.kind === "escalated"
-                        ? `escalated-${n.runId}`
-                        : undefined
-                  }
-                  onClick={() => onNeed(n)}
-                />
-              ))}
-              {needs.length === 0 ? <div className="quiet">Nothing needs you.</div> : null}
-            </div>
-            {(repos.length > 0 ? repos.map((x) => x.name) : [""]).map((repo) => {
-              const open = openRuns(runs);
-              const here = open.filter((r) => sameRepo(r.repo, repo));
-              const rows = sidebarRuns(here, open, planStepsOf, (r) => stepPlaceOf(r.runId));
-              return (
-                <div key={repo || "."} className="repo">
-                  <div className="section">
-                    <Glyph kind="run" state={rollUp(rows.map((x) => stateOf(x.run)))} />
-                    {repo || "Runs"} · {rows.length}
-                  </div>
-                  {rows.map((x) =>
-                    x.partOf ? (
-                      <div key={`${x.run.repo ?? ""}/${x.run.runId}`} className="step-elsewhere">
-                        {runRows(x.run, false, x.step?.replace("/", " of "))}
-                        <a
-                          className="part-of"
-                          href={routeHash({ screen: "run", runId: x.partOf.runId, tab: "plan" })}
-                          title={`the task this is a step of, in ${x.partOf.repo ?? "this repository"}`}
-                          data-testid={`part-of-${x.run.runId}`}
-                        >
-                          ↳ {x.partOf.task}
-                        </a>
-                      </div>
-                    ) : (
-                      runRows(x.run, x.nested, x.step, x.elsewhere)
-                    ),
-                  )}
-                  {rows.length === 0 ? <div className="quiet">No run is open.</div> : null}
-                </div>
-              );
-            })}
-            {finished.length > 0 ? (
-              <div className="repo">
+            <button type="button" className="section needs-head" data-testid="needs-count" onClick={onInbox}>
+              <Glyph kind="run" state={needs.length > 0 ? "needs you" : "idle"} />
+              Needs you · {needs.length}
+            </button>
+            <section className="tasks" aria-label="tasks">
+              <div className="section">Tasks · {open.length}</div>
+              {open.map((t) => taskRows(t))}
+              {open.length === 0 ? <div className="quiet">No task is open.</div> : null}
+            </section>
+            {done.length > 0 ? (
+              <div className="tasks">
                 <button
                   type="button"
                   className="section"
                   aria-expanded={showFinished}
                   onClick={() => setShowFinished(!showFinished)}
                 >
-                  <Glyph kind="run" state={rollUp(finished.map(stateOf))} />
-                  {showFinished ? "▾" : "▸"} Finished · {finished.length}
+                  <Glyph kind="run" state="done" />
+                  {showFinished ? "▾" : "▸"} Finished · {done.length}
                 </button>
-                {showFinished ? finished.map((r) => runRows(r, false)) : null}
+                {showFinished ? done.map((t) => taskRows(t)) : null}
               </div>
             ) : null}
           </>

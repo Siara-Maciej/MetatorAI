@@ -8,9 +8,7 @@ import {
   filterCards,
   filterFromStorage,
   NO_FILTER,
-  parentOptions,
   partOfLine,
-  swimlanes,
   systemRunOf,
 } from "../src/board.ts";
 import { plansShown, type Run } from "../src/model.ts";
@@ -296,25 +294,13 @@ describe("the board", () => {
     expect(partOfLine(byKey("/i001") as never)).toBeUndefined();
   });
 
-  test("filters: repositories, one parent task across repositories, states, host and words", () => {
+  test("filters: repositories, states, host and words", () => {
     const keys = (f: Partial<typeof NO_FILTER>) =>
       filterCards(cards, { ...NO_FILTER, ...f }).map((c) => c.key);
     expect(keys({ repos: ["shop-api"] })).toEqual(["run:shop-api/sys", "run:shop-api/c1", "run:shop-api/c2"]);
-    expect(keys({ parent: "plan:add-currency" })).toEqual([
-      "run:shop-api/sys",
-      "run:shop-api/c1",
-      "run:shop-api/c2",
-      "run:shop-web/c3",
-      "step:shop-api/add-currency/web-integration",
-    ]);
     expect(keys({ states: ["needs you", "escalated"] })).toEqual(["run:shop-api/c1", "run:shop-web/c3"]);
     expect(keys({ host: "claude" })).toEqual(["run:shop-web/alone"]);
     expect(keys({ text: "INTEGRATION" })).toEqual(["step:shop-api/add-currency/web-integration"]);
-    expect(keys({ repos: ["shop-web"], parent: "plan:add-currency" })).toEqual([
-      "run:shop-web/c3",
-      "step:shop-api/add-currency/web-integration",
-    ]);
-    expect(parentOptions(cards)).toEqual([{ key: "plan:add-currency", label: "Add a currency to prices" }]);
   });
 
   test("a column puts what needs a person first; Done keeps the last day, the rest behind show more", () => {
@@ -330,35 +316,77 @@ describe("the board", () => {
     });
   });
 
-  test("swimlanes: one per parent task, then the standalone work", () => {
-    const lanes = swimlanes(cards);
-    expect(lanes.map((l) => [l.label, l.cards.length])).toEqual([
-      ["Add a currency to prices", 5],
-      ["Standalone work", 4],
+  test("the top level: one card per parent task, in its head's phase, its steps' needs summed", async () => {
+    const { workTasks, byAttentionFirst, subtasksByRepo, taskLine, filterTasks } = await import(
+      "../src/tasks.ts"
+    );
+    const tasks = workTasks(cards, [plan]);
+    const byKey2 = (k: string) => tasks.find((t) => t.key === k);
+    expect(tasks.map((t) => [t.key, t.kind, t.column]).sort()).toEqual(
+      [
+        ["plan:add-currency", "system", "in-progress"],
+        ["run:shop-web/alone", "run", "done"],
+        ["run:shop-web/old", "run", "done"],
+        ["issue:shop-web/i001", "issue", "todo"],
+        ["issue:shop-web/i002", "proposal", "todo"],
+      ].sort(),
+    );
+    const sys = byKey2("plan:add-currency");
+    expect([sys?.title, sys?.progress, sys?.needsYou, sys?.escalated, sys?.state, sys?.head?.runId]).toEqual([
+      "Add a currency to prices",
+      { done: 0, of: 4 },
+      1,
+      1,
+      "needs you",
+      "sys",
     ]);
-    expect(swimlanes(cards.filter((c) => c.parent)).map((l) => l.key)).toEqual(["plan:add-currency"]);
+    // Its own board: the three child runs and the pending step, not the system run again.
+    expect(sys?.subtasks.map((c) => c.key)).toEqual([
+      "run:shop-api/c1",
+      "run:shop-api/c2",
+      "run:shop-web/c3",
+      "step:shop-api/add-currency/web-integration",
+    ]);
+    expect(subtasksByRepo(sys as never).map((g) => [g.repo, g.cards.map((c) => c.step?.at)])).toEqual([
+      ["shop-api", [1, 2]],
+      ["shop-web", [3, 4]],
+    ]);
+    expect(taskLine(sys as never)).toBe("0/4 · 1 needs you · 1 escalated · 2 repositories · scenario");
+    // What needs the person first.
+    expect(byAttentionFirst(tasks)[0]?.key).toBe("plan:add-currency");
+    // Filters on the top level: a task works in every repository its steps do.
+    const f = (x: object) => filterTasks(tasks, { repos: [], states: [], text: "", ...x }).map((t) => t.key);
+    expect(f({ repos: ["shop-api"] })).toEqual(["plan:add-currency"]);
+    expect(f({ states: ["escalated"] })).toEqual(["plan:add-currency"]);
+    expect(f({ text: "integration" })).toEqual(["plan:add-currency"]);
+    expect(f({ host: "claude" })).toEqual(["run:shop-web/alone"]);
+  });
+
+  test("a run with child runs is a task of its own; a plan not approved yet is in Planning", async () => {
+    const { workTasks } = await import("../src/tasks.ts");
+    const parentRuns = [
+      run("p", { children: ["k"], phase: "review", stage: "delivery" }),
+      run("k", { parent: "p", phase: "done", status: "done", attention: "done" }),
+    ];
+    const t = workTasks(boardCards({ runs: parentRuns, issues: [], plans: [], now: NOW }), []);
+    expect(t.map((x) => [x.key, x.kind, x.column, x.progress])).toEqual([
+      ["run:p", "parent", "review", { done: 1, of: 1 }],
+    ]);
+    const draft = owner({}, "draft");
+    const noHead = workTasks(boardCards({ runs: [], issues: [], plans: [draft], now: NOW }), [draft]);
+    expect(noHead.map((x) => [x.key, x.column, x.subtasks.length])).toEqual([
+      ["plan:add-currency", "planning", 4],
+    ]);
   });
 
   test("a stored filter is read back; anything that does not fit is the default", () => {
-    const f = {
-      repos: ["shop-web"],
-      parent: "plan:x",
-      states: ["working"],
-      host: "scenario",
-      text: "a",
-      grouped: true,
-    };
+    const f = { repos: ["shop-web"], states: ["working"], host: "scenario", text: "a" };
     expect(filterFromStorage(JSON.stringify(f))).toEqual(f as never);
     expect(filterFromStorage(null)).toEqual(NO_FILTER);
     expect(filterFromStorage("{not json")).toEqual(NO_FILTER);
     expect(
       filterFromStorage(JSON.stringify({ repos: [1, "a"], states: ["bogus", "escalated"], grouped: "yes" })),
-    ).toEqual({
-      repos: ["a"],
-      states: ["escalated"],
-      text: "",
-      grouped: false,
-    });
+    ).toEqual({ repos: ["a"], states: ["escalated"], text: "" });
   });
 
   test("the system run of a plan, and the plans the app reads in full", () => {

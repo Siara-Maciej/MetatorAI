@@ -244,6 +244,7 @@ function Shell() {
         <InboxScreen
           needs={needs}
           picked={picked}
+          onNeed={openNeed}
           onRefused={(message) =>
             setNotice({ text: `The answer was not taken: ${message}`, tone: "error", sticky: true })
           }
@@ -320,7 +321,7 @@ function Shell() {
         />
       ) : null}
       {route.screen === "settings" ? <SettingsScreen /> : null}
-      {route.screen === "board" ? <BoardScreen onOpenRun={(id) => openRun(id)} /> : null}
+      {route.screen === "board" ? <BoardScreen task={route.task} onOpenRun={(id) => openRun(id)} /> : null}
     </>
   );
   return (
@@ -364,8 +365,6 @@ function Shell() {
       <Sidebar
         route={route}
         needs={needs}
-        picked={picked?.key}
-        onNeed={openNeed}
         onRun={(r, pane) =>
           r.status === "escalated"
             ? go({ screen: "inbox", pick: `escalated:${r.repo ?? ""}:${r.runId}` })

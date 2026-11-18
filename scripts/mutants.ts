@@ -3285,7 +3285,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/run-operations.ts",
-    from: "const settled = await this.terminal.settle(runId, input.question);",
+    from: "const settled = await this.terminal.settle(runId, input.question, input.by);",
     to: "const settled = ok(undefined);",
     why: "a card answer is settled with its pane first",
   },

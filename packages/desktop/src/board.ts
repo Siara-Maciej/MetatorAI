@@ -169,16 +169,12 @@ export function boardCards(input: {
 /** What the board shows, chosen above it; kept per viewer in the window's storage. */
 export interface BoardFilter {
   readonly repos: readonly string[];
-  /** One task made of many: its steps and child runs across repositories. */
-  readonly parent?: string | undefined;
   readonly states: readonly ("needs you" | "escalated" | "working")[];
   readonly host?: string | undefined;
   readonly text: string;
-  /** One swimlane per parent task, and one for standalone work. */
-  readonly grouped: boolean;
 }
 
-export const NO_FILTER: BoardFilter = { repos: [], states: [], text: "", grouped: false };
+export const NO_FILTER: BoardFilter = { repos: [], states: [], text: "" };
 
 /** A stored filter read back: anything that does not fit is the default. */
 export function filterFromStorage(raw: string | null | undefined): BoardFilter {
@@ -192,11 +188,9 @@ export function filterFromStorage(raw: string | null | undefined): BoardFilter {
     );
     return {
       repos: strings(v.repos),
-      ...(typeof v.parent === "string" && v.parent ? { parent: v.parent } : {}),
       states,
       ...(typeof v.host === "string" && v.host ? { host: v.host } : {}),
       text: typeof v.text === "string" ? v.text : "",
-      grouped: v.grouped === true,
     };
   } catch {
     return NO_FILTER;
@@ -208,7 +202,6 @@ export function filterCards(cards: readonly BoardCard[], f: BoardFilter): BoardC
   const text = f.text.trim().toLowerCase();
   return cards.filter((c) => {
     if (f.repos.length > 0 && !(c.repo && f.repos.includes(c.repo))) return false;
-    if (f.parent && c.parent?.key !== f.parent) return false;
     if (f.states.length > 0 && !f.states.includes(c.state as BoardFilter["states"][number])) return false;
     if (f.host && c.host !== f.host) return false;
     if (text) {
@@ -255,30 +248,6 @@ export function columnCounts(cards: readonly BoardCard[]): {
     needsYou: cards.filter((c) => c.needsYou).length,
     escalated: cards.filter((c) => c.escalated).length,
   };
-}
-
-/** The parent tasks the filter offers: every task some card is a step of, by its label. */
-export function parentOptions(
-  cards: readonly BoardCard[],
-): { readonly key: string; readonly label: string }[] {
-  const seen = new Map<string, string>();
-  for (const c of cards) if (c.parent && !seen.has(c.parent.key)) seen.set(c.parent.key, c.parent.label);
-  return [...seen.entries()]
-    .map(([key, label]) => ({ key, label }))
-    .sort((a, b) => a.label.localeCompare(b.label));
-}
-
-/** Swimlanes: one per parent task (in the order of their labels), then standalone work. */
-export function swimlanes(
-  cards: readonly BoardCard[],
-): { readonly key: string; readonly label: string; readonly cards: BoardCard[] }[] {
-  const lanes = parentOptions(cards).map((p) => ({
-    key: p.key,
-    label: p.label,
-    cards: cards.filter((c) => c.parent?.key === p.key),
-  }));
-  const alone = cards.filter((c) => !c.parent);
-  return alone.length > 0 ? [...lanes, { key: "standalone", label: "Standalone work", cards: alone }] : lanes;
 }
 
 /** The line under a card's title: where it is, what it is part of. */

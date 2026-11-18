@@ -7,6 +7,8 @@ import type { InboxItem } from "../api.ts";
 import { Notice } from "../components/common.tsx";
 import { DecisionCard } from "../components/decision-card.tsx";
 import { EscalatedCard } from "../components/escalated-card.tsx";
+import { Glyph } from "../components/glyph.tsx";
+import { Row } from "../components/sidebar.tsx";
 import { StartRun } from "../components/start-run.tsx";
 import { useDaemon } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
@@ -15,6 +17,7 @@ import {
   idleRuns,
   isFirstRun,
   isTerminalAsk,
+  lookOf,
   type NeedRow,
   openRuns,
   plural,
@@ -24,6 +27,7 @@ import {
 export function InboxScreen({
   needs,
   picked,
+  onNeed,
   onAnswered,
   onRefused,
   onOpenRun,
@@ -36,6 +40,8 @@ export function InboxScreen({
   readonly needs: readonly NeedRow[];
   /** The row to show: the picked one, else the first. */
   readonly picked: NeedRow | undefined;
+  /** A row of the list was chosen. */
+  onNeed(row: NeedRow): void;
   /** An answer went through, or an escalated run was resumed or closed. */
   onAnswered(choices?: readonly string[], item?: InboxItem): void;
   /** A card's answer was refused: the app says it where it stays (the card may close). */
@@ -55,43 +61,71 @@ export function InboxScreen({
       : undefined;
   const inTerminal = needs.filter(isTerminalAsk);
   return (
-    <div className="inbox">
-      {item ? (
-        <DecisionCard
-          key={picked?.key}
-          item={item}
-          onAnswered={(choices) => onAnswered(choices, item)}
-          onRefused={onRefused}
-          onOpenSession={onOverview}
-          onOpenChanges={onOpenChanges}
-        />
-      ) : stopped ? (
-        <EscalatedCard
-          key={picked?.key}
-          run={stopped}
-          onDone={() => onAnswered()}
-          onBriefing={onOverview}
-          onOpenChanges={onOpenChanges}
-        />
-      ) : picked && isTerminalAsk(picked) ? (
-        <div className="empty">
-          <h2>
-            {inTerminal.length === 1 ? "1 run asks" : `${plural(inTerminal.length, "run")} ask`} in the
-            terminal
-          </h2>
-          <p>
-            There is no card to answer from: the agent wrote its question on its own screen. Open the run,
-            take the keyboard and answer there.
-          </p>
-          <button type="button" className="primary" onClick={() => onOpenRun(picked.runId, picked.pane)}>
-            Open the run
-          </button>
-        </div>
-      ) : isFirstRun(runs, needs) ? (
-        <FirstRun onStart={onStart} onForm={onForm} />
-      ) : (
-        <QuietInbox onOpenRun={onOpenRun} />
-      )}
+    <div className={needs.length > 0 ? "inbox with-needs" : "inbox"}>
+      {needs.length > 0 ? (
+        <aside className="needs needs-pane" aria-label="what needs you">
+          <div className="section">Needs you · {needs.length}</div>
+          {needs.map((n) => (
+            <Row
+              key={n.key}
+              className="item"
+              glyph={<Glyph kind="need" state={n.kind} />}
+              name={n.title}
+              sub={n.sub}
+              word={n.kind}
+              tone={lookOf("need", n.kind).tone}
+              current={picked?.key === n.key}
+              title={n.hint}
+              data-testid={
+                isTerminalAsk(n)
+                  ? `terminal-ask-${n.runId}`
+                  : n.kind === "escalated"
+                    ? `escalated-${n.runId}`
+                    : undefined
+              }
+              onClick={() => onNeed(n)}
+            />
+          ))}
+        </aside>
+      ) : null}
+      <div className="inbox-main">
+        {item ? (
+          <DecisionCard
+            key={picked?.key}
+            item={item}
+            onAnswered={(choices) => onAnswered(choices, item)}
+            onRefused={onRefused}
+            onOpenSession={onOverview}
+            onOpenChanges={onOpenChanges}
+          />
+        ) : stopped ? (
+          <EscalatedCard
+            key={picked?.key}
+            run={stopped}
+            onDone={() => onAnswered()}
+            onBriefing={onOverview}
+            onOpenChanges={onOpenChanges}
+          />
+        ) : picked && isTerminalAsk(picked) ? (
+          <div className="empty">
+            <h2>
+              {inTerminal.length === 1 ? "1 run asks" : `${plural(inTerminal.length, "run")} ask`} in the
+              terminal
+            </h2>
+            <p>
+              There is no card to answer from: the agent wrote its question on its own screen. Open the run,
+              take the keyboard and answer there.
+            </p>
+            <button type="button" className="primary" onClick={() => onOpenRun(picked.runId, picked.pane)}>
+              Open the run
+            </button>
+          </div>
+        ) : isFirstRun(runs, needs) ? (
+          <FirstRun onStart={onStart} onForm={onForm} />
+        ) : (
+          <QuietInbox onOpenRun={onOpenRun} />
+        )}
+      </div>
     </div>
   );
 }

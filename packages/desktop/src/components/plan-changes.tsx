@@ -12,7 +12,8 @@ export function PlanChanges({
   return (
     <section className="plan-changes" aria-label="what changed in the plan" data-testid="plan-changes">
       <h3>
-        Changed since the previous plan{previousAt ? <span className="faint"> of {clock(previousAt)}</span> : null}
+        Changed since the previous plan
+        {previousAt ? <span className="faint"> of {clock(previousAt)}</span> : null}
       </h3>
       <ul>
         {changes.map((c) => (

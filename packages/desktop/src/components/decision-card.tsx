@@ -17,7 +17,6 @@ import {
   optionClosed,
   paneOfQuestion,
   questionKind,
-  routeHash,
   systemPlanOf,
 } from "../model.ts";
 import { useAnswer } from "./answer.tsx";
@@ -25,7 +24,7 @@ import { ArtifactViewer } from "./artifact-viewer.tsx";
 import { Chip } from "./chips.tsx";
 import { Notice } from "./common.tsx";
 import { FoldList } from "./fold-list.tsx";
-import { PlanApprovalLine, SystemPlanLine } from "./plan-approval-line.tsx";
+import { AskForChanges, lintRequest, RunPlanFull, SystemPlanFull } from "./plan-approval-line.tsx";
 
 export function DecisionCard({
   item,
@@ -90,6 +89,11 @@ export function DecisionCard({
     }),
   );
   const open = q.options.filter((o) => !closed.has(o.label));
+  // A plan's approval: the plan in full on the card, and "Ask for changes" in place of Reject.
+  const planGate =
+    q.source === "gate" &&
+    (planView !== undefined || systemPlan !== undefined) &&
+    q.options.some((o) => o.label === "Reject");
   // The recommended option is chosen first; nothing is chosen for the person when it is closed
   // (the next one may be a Reject that needs a reason), and a multi-select starts empty.
   const first =
@@ -126,7 +130,9 @@ export function DecisionCard({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
-  const others = q.multiSelect ? [] : open.filter((o) => o.label !== choice);
+  const others = q.multiSelect
+    ? []
+    : open.filter((o) => o.label !== choice && !(planGate && o.label === "Reject"));
   const second = others[0];
   return (
     <article className="card" aria-label="decision card">
@@ -212,47 +218,54 @@ export function DecisionCard({
           {card.evidence?.length ? <FoldList lines={card.evidence} keep={3} label="evidence" /> : null}
         </section>
       ) : null}
-      {planView ? <PlanApprovalLine view={planView} runId={q.runId} /> : null}
-      {!planView && systemPlan && q.source === "gate" ? (
-        <SystemPlanLine plan={systemPlan} runId={q.runId} />
-      ) : null}
+      {planView ? <RunPlanFull view={planView} /> : null}
+      {!planView && systemPlan && q.source === "gate" ? <SystemPlanFull plan={systemPlan} /> : null}
       <section>
         <h3>Options{q.multiSelect ? " · choose one or more" : ""}</h3>
         <fieldset className="options">
           <legend className="dim">options</legend>
-          {q.options.map((o) => (
-            <button
-              type="button"
-              key={o.label}
-              className="option"
-              aria-pressed={a.choices.includes(o.label)}
-              disabled={closed.has(o.label)}
-              title={closed.get(o.label)}
-              onClick={() => a.toggle(o.label)}
-            >
-              <span className="label">
-                <span>{o.label}</span>
-                {card?.recommended === o.label ? <span className="rec">RECOMMENDED</span> : null}
-              </span>
-              {o.description ? <span className="cons">{o.description}</span> : null}
-              {card?.consequences?.[o.label] ? (
-                <span className="cons">→ {card.consequences[o.label]}</span>
-              ) : null}
-              {closed.has(o.label) ? <span className="cons red">closed: the reason is below</span> : null}
-            </button>
-          ))}
+          {q.options
+            .filter((o) => !(planGate && o.label === "Reject"))
+            .map((o) => (
+              <button
+                type="button"
+                key={o.label}
+                className="option"
+                aria-pressed={a.choices.includes(o.label)}
+                disabled={closed.has(o.label)}
+                title={closed.get(o.label)}
+                onClick={() => a.toggle(o.label)}
+              >
+                <span className="label">
+                  <span>{o.label}</span>
+                  {card?.recommended === o.label ? <span className="rec">RECOMMENDED</span> : null}
+                </span>
+                {o.description ? <span className="cons">{o.description}</span> : null}
+                {card?.consequences?.[o.label] ? (
+                  <span className="cons">→ {card.consequences[o.label]}</span>
+                ) : null}
+                {closed.has(o.label) ? <span className="cons red">closed: the reason is below</span> : null}
+              </button>
+            ))}
         </fieldset>
-        {[...closed].map(([label, why]) => (
-          <div key={label} className="closed-option" data-testid="closed-option">
-            <span className="red">
-              {label} is closed: {why}.
-            </span>{" "}
-            {lintOfPlan ? (
-              <a href={routeHash({ screen: "run", runId: q.runId, tab: "plan", edit: true })}>Fix the plan</a>
-            ) : null}
-          </div>
-        ))}
+        {planGate
+          ? null
+          : [...closed].map(([label, why]) => (
+              <div key={label} className="closed-option" data-testid="closed-option">
+                <span className="red">
+                  {label} is closed: {why}.
+                </span>
+              </div>
+            ))}
       </section>
+      {planGate ? (
+        <AskForChanges
+          blocked={closed.get("Approve")}
+          lintText={lintRequest(lintOfPlan?.problems ?? [])}
+          busy={a.busy}
+          onSend={(words) => void a.send(["Reject"], words)}
+        />
+      ) : null}
       <label className="reason">
         <span className={a.reason ? "amber" : "dim"}>
           {a.reason

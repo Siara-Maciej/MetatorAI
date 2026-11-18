@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
 import { browser, closeBrowser } from "./helpers/browser.ts";
-import { CLI_ENTRY, E2E_STATE_DIR, stopProcessesUnder } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -33,8 +33,10 @@ stages:
     produces: [plan.json]
   - id: plan-approval
     hitl: true
+    onFail: { goto: plan, loop: plan }
   - id: build
     owner: mt-implementer
+loops: { plan: 2 }
 `;
 const PLAN = {
   kind: "Plan",
@@ -72,6 +74,8 @@ agents:
       - say: "STATUS: done"
 `;
 
+/** The CLI as a person at a terminal, with the daemon's hosts. */
+let cliEnv: Record<string, string> = {};
 let repo: ScratchRepo;
 let daemon: Bun.Subprocess<"ignore", "pipe", "pipe">;
 let daemonUrl = "";
@@ -147,6 +151,11 @@ beforeAll(async () => {
   );
   await repo.write("scenario.yml", SCENARIO);
   await repo.commit("init");
+  cliEnv = {
+    METATOR_CONFIG_DIR: configDir,
+    METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
+    METATOR_HOST: "scenario",
+  };
   daemon = Bun.spawn(["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100", "--supervise-ms", "0"], {
     cwd: repo.root,
     env: {
@@ -718,7 +727,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     expect(errors.filter((e) => !/Notification|favicon|status of 400/.test(e))).toEqual([]);
   }, 90_000);
 
-  test("the plan of a run is read, checked, changed and saved; a change made meanwhile is a conflict", async () => {
+  test("a plan is shown in full at its approval; changes are asked for in words and the run goes back to its planner", async () => {
     // What the earlier tests provoked on purpose is theirs: this test counts its own console errors.
     const before = errors.length;
     const created = await (
@@ -729,32 +738,21 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     ).json();
     const runId = (created as { data: { run: { runId: string } } }).data.run.runId;
     await Bun.write(join(repo.root, `.metator/runs/${runId}/plan.json`), JSON.stringify(PLAN, null, 2));
-    await page.goto(
-      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/run/${runId}/plan`,
-    );
-    const bar = page.getByTestId("plan-edit-bar");
-    await bar.waitFor({ timeout: 20_000 });
-    expect(await page.getByTestId("plan").textContent()).toContain("round the total half-up");
-    // Edit: a field changed, a step added; Check lints without saving; Save says what changes first.
-    await bar.getByRole("button", { name: "Edit plan" }).click();
-    await page.getByLabel("S1 intent").fill("round the total half-even");
-    await page.getByRole("button", { name: "+ Step" }).click();
-    await page.getByLabel("S2 file").fill("test/invoice.test.ts");
-    await page.getByLabel("S2 intent").fill("a test of the rounding");
-    await page.getByLabel("S2 action").selectOption("create");
-    // Alt+↑ moves the step the focus is in.
-    await page.getByLabel("S2 intent").focus();
-    await page.keyboard.press("Alt+ArrowUp");
-    expect(await page.locator(".pf-step").first().getAttribute("aria-label")).toBe("step S2");
-    await bar.getByRole("button", { name: "Check" }).click();
-    await until("the check", async () => ((await bar.textContent())?.includes("check:") ? true : undefined));
-    await bar.getByRole("button", { name: "Save…" }).click();
-    const review = page.getByRole("region", { name: "what the save changes" });
-    await review.waitFor({ timeout: 5000 });
-    expect(await review.textContent()).toContain("step added: S2");
-    expect(await review.textContent()).toContain("step S1 changed: intent");
-    await review.getByRole("button", { name: "Save", exact: true }).click();
-    // The name is asked for once in the app's life; a test run alone gives it here.
+    // The planner is done: the run waits at the plan's approval.
+    expect((await metator(["run", "advance", "pass", "--run", runId], repo.root, cliEnv)).code).toBe(0);
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
+    await page.locator(".needs .item", { hasText: "plan-approval" }).first().click();
+    const card = page.getByRole("article", { name: "decision card" });
+    // The plan in full on the card, with no click: its steps with their files, tests and order.
+    const steps = card.getByTestId("plan-steps");
+    await steps.waitFor({ timeout: 20_000 });
+    expect(await steps.textContent()).toContain("modify src/invoice.ts");
+    expect(await steps.textContent()).toContain("round the total half-up");
+    // No editor anywhere: changes are asked for in words; Reject is that request.
+    expect(await card.getByRole("button", { name: /Edit plan|Fix the plan/ }).count()).toBe(0);
+    expect(await card.locator(".option", { hasText: "Reject" }).count()).toBe(0);
+    await card.getByLabel("what should change in the plan").fill("Round half-even, and add a test first.");
+    await card.getByRole("button", { name: "Ask for changes" }).click();
     const named = page.getByRole("dialog", { name: "your name" });
     if (
       await named.waitFor({ timeout: 2000 }).then(
@@ -765,61 +763,40 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
       await named.getByLabel("Your name").fill("maciej");
       await named.getByRole("button", { name: "Save" }).click();
     }
-    const saved = await until("the saved plan", async () => {
-      const v = (await api(`/runs/${runId}/plan`)).data as {
-        plan: { steps: { id: string; intent: string }[] };
-      };
-      return v.plan.steps.length === 2 ? v : undefined;
+    // The gate's Reject with the words as its reason: the run goes back to its planner.
+    await until("the run back at plan", async () => {
+      const r = ((await api("/state")).data.runs as { runId: string; stage: string }[]).find(
+        (x) => x.runId === runId,
+      );
+      return r?.stage === "plan" ? true : undefined;
     });
-    expect(saved.plan.steps.map((st) => [st.id, st.intent])).toEqual([
-      ["S2", "a test of the rounding"],
-      ["S1", "round the total half-even"],
-    ]);
-    const edited = await until("the edit in the activity", async () => {
-      const entries = (await api(`/runs/${runId}/activity`)).data.entries as { type: string; text: string }[];
-      return entries.find((e) => e.type === "plan-edited");
-    });
-    expect(edited.text).toContain("maciej");
-    // A change made meanwhile (another window, the agent): the save is refused as a conflict.
-    await bar.getByRole("button", { name: "Edit plan" }).click();
-    await page.getByLabel("S1 intent").fill("my change");
-    const now = (await api(`/runs/${runId}/plan`)).data as { plan: object; digest: string };
-    const theirs = await fetch(`${daemonUrl}/runs/${runId}/plan`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        plan: { ...now.plan, task: "Round the totals, theirs" },
-        digest: now.digest,
-        by: "bob",
-      }),
-    });
-    expect(theirs.status).toBe(200);
-    await bar.getByRole("button", { name: "Save…" }).click();
-    await page
-      .getByRole("region", { name: "what the save changes" })
-      .getByRole("button", { name: "Save", exact: true })
-      .click();
-    const conflict = page.getByTestId("edit-conflict");
-    await conflict.waitFor({ timeout: 10_000 });
-    expect(await conflict.textContent()).toContain("The plan changed since you opened it");
-    await conflict.getByRole("button", { name: "Reload" }).click();
-    await until("the view again", async () =>
-      (await bar.getByRole("button", { name: "Edit plan" }).count()) === 1 ? true : undefined,
+    await until("the confirmation", async () =>
+      (
+        await page
+          .locator("main.content > .notice")
+          .textContent()
+          .catch(() => "")
+      )?.includes("Rejected: the run goes back to plan with your reason.")
+        ? true
+        : undefined,
     );
-    // As text: JSON the daemon checks; text that does not parse is said before anything is sent.
-    await bar.getByRole("button", { name: "Edit as text" }).click();
-    await page.getByLabel("the plan as JSON").fill('{ "task": ');
-    await bar.getByRole("button", { name: "Check" }).click();
-    await until("the text's problem", async () =>
-      (await page.getByTestId("text-problems").textContent())?.includes("not valid JSON") ? true : undefined,
+    const said = ((await api(`/runs/${runId}/activity`)).data.entries as { type: string; text: string }[])
+      .filter((e) => e.type === "answer")
+      .at(-1);
+    expect(said?.text).toContain("Reject");
+    // The Plan tab shows the plan read-only, with its lint and its files.
+    await page.goto(
+      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/run/${runId}/plan`,
     );
-    await bar.getByRole("button", { name: "Cancel" }).click();
+    await page.getByTestId("plan-lint-bar").waitFor({ timeout: 20_000 });
+    expect(await page.getByRole("button", { name: /Edit plan|Edit as text/ }).count()).toBe(0);
+    expect(await page.getByTestId("plan").textContent()).toContain("round the total half-up");
     // Every artifact opens read-only.
     await page.getByTestId("artifacts").getByRole("button", { name: "plan.json" }).click();
     const viewer = page.getByRole("dialog", { name: "artifact plan.json" });
     await viewer.waitFor({ timeout: 10_000 });
     await until("the artifact's text", async () =>
-      (await viewer.getByTestId("artifact-text").textContent())?.includes("Round the totals, theirs")
+      (await viewer.getByTestId("artifact-text").textContent())?.includes("round the total half-up")
         ? true
         : undefined,
     );
@@ -857,13 +834,6 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
       expect(await page.getByTestId("roots-problems").textContent()).toContain("is not absolute");
       expect(await page.getByRole("button", { name: "Save roots" }).isDisabled()).toBe(true);
     } else await page.getByTestId("roots-unknown").waitFor({ timeout: 5000 });
-    // "Fix the plan" lands on the Plan tab in its edit mode.
-    await page.goto(
-      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/run/${runId}/plan/edit`,
-    );
-    await bar.getByRole("button", { name: "Cancel" }).waitFor({ timeout: 20_000 });
-    expect(await page.getByLabel("S1 intent").count()).toBe(1);
-    await bar.getByRole("button", { name: "Cancel" }).click();
     // An aborted run reads aborted in the sidebar, with how it ended, not the stage it stopped at.
     const closed = await fetch(`${daemonUrl}/runs/${runId}/close`, {
       method: "POST",

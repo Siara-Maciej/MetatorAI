@@ -1,7 +1,9 @@
 /**
- * The Board: every piece of work by phase (To do · Planning · In progress · Review · Done). A
- * run's column is the phase the daemon computed (board.ts); nothing here moves a card: the engine
- * decides. Filters above it are kept per viewer in the window's storage.
+ * The Board in two levels. The top level shows only parent tasks (a system task, a run with child
+ * runs, a standalone run, a backlog task), each once, in the column of its own phase, with its
+ * progress and how many of its steps need the person. A task opens its own board: the same
+ * columns with its steps and child runs across repositories, pending steps in To do with what they
+ * wait for. A run's column is the phase the daemon computed; nothing here moves a card.
  */
 import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import type { Issue } from "../api.ts";
@@ -11,19 +13,17 @@ import {
   type BoardFilter,
   boardCards,
   cardLine,
-  columnCards,
-  columnCounts,
+  DAY_MS,
   filterCards,
   filterFromStorage,
   NO_FILTER,
-  parentOptions,
   partOfLine,
-  swimlanes,
 } from "../board.ts";
 import { Notice } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import { duration, lookOf, routeHash, workflowChoice } from "../model.ts";
+import { filterTasks, taskLine, type WorkTask, workTasks } from "../tasks.ts";
 
 const STORE = "metator.board";
 const STATES = ["needs you", "escalated", "working"] as const;
@@ -43,17 +43,37 @@ function saveFilter(f: BoardFilter): void {
   }
 }
 
-/** The word and look of a card's state: a run's own word, or what a task without a run is. */
-function stateLook(c: BoardCard): { glyph: string; tone: string; word: string } {
-  if (c.state === "todo") return { glyph: "○", tone: "faint", word: "to do" };
-  if (c.state === "proposed") return { glyph: "?", tone: "amber", word: "proposed" };
-  if (c.state === "pending")
-    return { glyph: "◌", tone: "faint", word: c.waitsFor?.length ? "waits" : "can start" };
-  const look = lookOf("run", c.state);
-  return { glyph: look.glyph, tone: look.tone ?? "faint", word: c.state };
+/** The word and look of a state: a run's own word, or what a task without a run is. */
+function stateLook(
+  state: BoardCard["state"],
+  waits?: readonly string[],
+): { glyph: string; tone: string; word: string } {
+  if (state === "todo") return { glyph: "○", tone: "faint", word: "to do" };
+  if (state === "proposed") return { glyph: "?", tone: "amber", word: "proposed" };
+  if (state === "pending") return { glyph: "◌", tone: "faint", word: waits?.length ? "waits" : "can start" };
+  const look = lookOf("run", state);
+  return { glyph: look.glyph, tone: look.tone ?? "faint", word: state };
 }
 
-export function BoardScreen({ onOpenRun }: { onOpenRun(runId: string): void }) {
+/** One tile of a column: a task (top level) or a subtask (a task's board). */
+interface Tile {
+  readonly key: string;
+  readonly column: BoardCard["column"];
+  readonly updatedAt: string;
+  readonly needsYou: boolean;
+  readonly escalated: boolean;
+  readonly task?: WorkTask;
+  readonly card?: BoardCard;
+}
+
+export function BoardScreen({
+  task: openKey,
+  onOpenRun,
+}: {
+  /** The task whose board is shown; none for the top level. */
+  readonly task?: string | undefined;
+  onOpenRun(runId: string): void;
+}) {
   const { runs, repos, systemPlans, client } = useDaemon();
   const names = repos.length > 0 ? repos.map((r) => r.name) : [undefined];
   const issues = usePolled(
@@ -82,26 +102,64 @@ export function BoardScreen({ onOpenRun }: { onOpenRun(runId: string): void }) {
     () => boardCards({ runs, issues: issues.data ?? [], plans: systemPlans, now }),
     [runs, issues.data, systemPlans, now],
   );
-  const parents = parentOptions(cards);
+  const tasks = useMemo(() => workTasks(cards, systemPlans), [cards, systemPlans]);
+  const opened = openKey ? tasks.find((t) => t.key === openKey) : undefined;
   const hosts = [...new Set(cards.flatMap((c) => (c.host ? [c.host] : [])))].sort();
   const repoNames = [
     ...new Set([...repos.map((r) => r.name), ...cards.flatMap((c) => (c.repo ? [c.repo] : []))]),
   ];
-  const shown = filterCards(cards, filter);
-  const lanes = filter.grouped ? swimlanes(shown) : [{ key: "all", label: "", cards: shown }];
+  const tiles: Tile[] = opened
+    ? filterCards(opened.subtasks, filter).map((c) => ({
+        key: c.key,
+        column: c.column,
+        updatedAt: c.updatedAt,
+        needsYou: c.needsYou,
+        escalated: c.escalated,
+        card: c,
+      }))
+    : filterTasks(tasks, filter).map((t) => ({
+        key: t.key,
+        column: t.column,
+        updatedAt: t.updatedAt,
+        needsYou: t.needsYou > 0,
+        escalated: t.escalated > 0,
+        task: t,
+      }));
+  const total = opened ? opened.subtasks.length : tasks.length;
   useEffect(() => {
     if (!dragged) return;
     const t = setTimeout(() => setDragged(false), 4000);
     return () => clearTimeout(t);
   }, [dragged]);
+  const back = () => {
+    window.location.hash = routeHash({ screen: "board" });
+  };
+  useEffect(() => {
+    if (!openKey) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const field = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
+      if (e.key === "Escape" || (e.key === "Backspace" && !field)) {
+        e.preventDefault();
+        back();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
-  const open = (c: BoardCard) => {
+  const openCard = (c: BoardCard) => {
     if (c.runId) onOpenRun(c.runId);
     else if (c.kind === "step")
       window.location.hash = c.systemRunId
         ? routeHash({ screen: "run", runId: c.systemRunId, tab: "plan" })
         : routeHash({ screen: "overview", tab: "system" });
     else window.location.hash = routeHash({ screen: "backlog" });
+  };
+  const openTask = (t: WorkTask) => {
+    // A task made of steps opens its board; a run of its own opens its page; a backlog task the Backlog.
+    if (t.kind === "system" || t.kind === "parent")
+      window.location.hash = routeHash({ screen: "board", task: t.key });
+    else if (t.head) openCard(t.head);
   };
   const start = (c: BoardCard) =>
     action.run(
@@ -127,26 +185,17 @@ export function BoardScreen({ onOpenRun }: { onOpenRun(runId: string): void }) {
       el.click();
       return;
     }
-    const lane = Number(el.dataset.lane);
     const col = Number(el.dataset.col);
     const row = Number(el.dataset.row);
     const all = [...document.querySelectorAll<HTMLElement>("[data-card]")];
-    const at = (l: number, c: number) =>
-      all.filter((x) => Number(x.dataset.lane) === l && Number(x.dataset.col) === c);
+    const at = (c: number) => all.filter((x) => Number(x.dataset.col) === c);
     let next: HTMLElement | undefined;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      const step = e.key === "ArrowDown" ? 1 : -1;
-      next = at(lane, col)[row + step];
-      // Past a lane's end: the same column of the next (or previous) lane.
-      for (let l = lane + step; !next && l >= 0 && l < lanes.length; l += step) {
-        const cards = at(l, col);
-        next = step > 0 ? cards[0] : cards.at(-1);
-      }
-    } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") next = at(col)[row + (e.key === "ArrowDown" ? 1 : -1)];
+    else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       const step = e.key === "ArrowRight" ? 1 : -1;
       for (let c = col + step; !next && c >= 0 && c < BOARD_COLUMNS.length; c += step) {
-        const cards = at(lane, c);
-        next = cards[Math.min(row, cards.length - 1)];
+        const cs = at(c);
+        next = cs[Math.min(row, cs.length - 1)];
       }
     } else return;
     e.preventDefault();
@@ -154,17 +203,49 @@ export function BoardScreen({ onOpenRun }: { onOpenRun(runId: string): void }) {
   };
   const toggle = <T,>(list: readonly T[], v: T): T[] =>
     list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
-  const changed =
-    filter.repos.length > 0 ||
-    filter.parent ||
-    filter.states.length > 0 ||
-    filter.host ||
-    filter.text ||
-    filter.grouped;
+  const changed = filter.repos.length > 0 || filter.states.length > 0 || filter.host || filter.text;
+  const ordered = (column: BoardCard["column"]) => {
+    const mine = tiles.filter((t) => t.column === column);
+    const rank = (t: Tile) => (t.needsYou ? 0 : t.escalated ? 1 : 2);
+    const sorted = [...mine].sort(
+      (a, b) => rank(a) - rank(b) || b.updatedAt.localeCompare(a.updatedAt) || a.key.localeCompare(b.key),
+    );
+    if (column !== "done" || allDone) return { shown: sorted, older: 0 };
+    const recent = sorted.filter((t) => now - Date.parse(t.updatedAt) <= DAY_MS);
+    return { shown: recent, older: sorted.length - recent.length };
+  };
   return (
     <div className="board-screen" data-testid="board">
       <section className="board-filters" aria-label="board filters">
-        <strong>Board</strong>
+        <nav className="breadcrumb" aria-label="where on the board">
+          {opened ? (
+            <>
+              <a href={routeHash({ screen: "board" })} data-testid="board-back">
+                Board
+              </a>{" "}
+              › <strong data-testid="board-task">{opened.title}</strong>
+              {opened.progress ? (
+                <span className="faint">
+                  {" "}
+                  · {opened.progress.done} of {opened.progress.of} steps done
+                </span>
+              ) : null}
+              {opened.head?.runId ? (
+                <>
+                  {" "}
+                  <a
+                    href={routeHash({ screen: "run", runId: opened.head.runId, tab: "plan" })}
+                    title="the task's own page: its plan and its flow"
+                  >
+                    its page ›
+                  </a>
+                </>
+              ) : null}
+            </>
+          ) : (
+            <strong>Board</strong>
+          )}
+        </nav>
         <fieldset className="chips" aria-label="repositories">
           {repoNames.map((r) => (
             <button
@@ -178,18 +259,6 @@ export function BoardScreen({ onOpenRun }: { onOpenRun(runId: string): void }) {
             </button>
           ))}
         </fieldset>
-        <select
-          aria-label="parent task"
-          value={filter.parent ?? ""}
-          onChange={(e) => setFilter({ ...filter, parent: e.target.value || undefined })}
-        >
-          <option value="">every task</option>
-          {parents.map((p) => (
-            <option key={p.key} value={p.key}>
-              only {p.label}
-            </option>
-          ))}
-        </select>
         <fieldset className="chips" aria-label="states">
           {STATES.map((s) => (
             <button
@@ -221,14 +290,6 @@ export function BoardScreen({ onOpenRun }: { onOpenRun(runId: string): void }) {
           value={filter.text}
           onChange={(e) => setFilter({ ...filter, text: e.target.value })}
         />
-        <label className="group-by">
-          <input
-            type="checkbox"
-            checked={filter.grouped}
-            onChange={(e) => setFilter({ ...filter, grouped: e.target.checked })}
-          />{" "}
-          group by parent task
-        </label>
         {changed ? (
           <button type="button" className="ghost" onClick={() => setFilter(NO_FILTER)}>
             Clear
@@ -236,131 +297,238 @@ export function BoardScreen({ onOpenRun }: { onOpenRun(runId: string): void }) {
         ) : null}
         <span className="spacer" />
         <span className="faint">
-          {shown.length} of {cards.length}
+          {tiles.length} of {total} {opened ? "steps and runs" : "tasks"}
         </span>
       </section>
       <Notice {...action.notice} />
       {issues.error && !issues.data ? <div className="banner">{issues.error}</div> : null}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: the arrows move between the cards inside */}
-      <div className="board" onKeyDown={onKey}>
-        <div className="board-head" aria-hidden="true">
-          {BOARD_COLUMNS.map((c) => {
-            const { shown: inCol } = columnCards(shown, c.id, now, true);
-            const n = columnCounts(inCol);
-            return (
-              <div key={c.id} className="board-col-head" data-testid={`board-head-${c.id}`}>
-                <span>{c.label}</span> <span className="faint">{n.total}</span>
-                {n.needsYou > 0 ? <span className="amber"> · {n.needsYou} need you</span> : null}
-                {n.escalated > 0 ? <span className="red"> · {n.escalated} escalated</span> : null}
-              </div>
-            );
-          })}
+      {openKey && !opened ? (
+        <div className="empty" data-testid="board-task-gone">
+          <h2>This task is not on the board any more</h2>
+          <p>
+            <a href={routeHash({ screen: "board" })}>Back to all tasks</a>
+          </p>
         </div>
-        {lanes.map((lane, li) => (
-          <section key={lane.key} className="board-lane" aria-label={lane.label || "all work"}>
-            {filter.grouped ? (
-              <h3 className="lane-title">
-                {lane.label} <span className="faint">{lane.cards.length}</span>
-              </h3>
-            ) : null}
-            <div className="board-row">
-              {BOARD_COLUMNS.map((col, ci) => {
-                const { shown: inCol, older } = columnCards(lane.cards, col.id, now, allDone);
-                return (
-                  <section
-                    key={col.id}
-                    className="board-col"
-                    data-testid={`board-col-${col.id}${filter.grouped ? `-${li}` : ""}`}
-                    aria-label={`${col.label}${filter.grouped ? ` · ${lane.label}` : ""}`}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDragged(true);
-                    }}
-                    onDrop={(e) => e.preventDefault()}
-                  >
-                    {inCol.map((c, ri) => {
-                      const look = stateLook(c);
-                      const part = partOfLine(c);
-                      return (
-                        // biome-ignore lint/a11y/useSemanticElements: a card holds a button of its own (Start a run)
-                        <div
-                          key={c.key}
-                          role="button"
-                          tabIndex={0}
-                          draggable
-                          onDragStart={() => setDragged(true)}
-                          className={`board-card${c.needsYou ? " needs" : ""}${c.escalated ? " escalated" : ""}${c.state === "aborted" ? " aborted" : ""}${c.kind === "step" ? " pending" : ""}`}
-                          data-card={c.key}
-                          data-lane={li}
-                          data-col={ci}
-                          data-row={ri}
-                          data-testid={`card-${c.kind}-${c.runId ?? c.issueId ?? c.key}`}
-                          title={c.title}
-                          onClick={() => open(c)}
-                          onKeyDown={(e) => {
-                            // Enter is the board's (it opens); a space opens too, as on a button.
-                            if (e.key === " ") {
-                              e.preventDefault();
-                              open(c);
-                            }
-                          }}
-                        >
-                          <div className="card-top">
-                            <span className={`card-state ${look.tone}`}>
-                              {look.glyph} {look.word}
-                            </span>
-                            <span className="faint">{duration(c.ageMs)}</span>
-                          </div>
-                          <div className="card-title">{c.title}</div>
-                          <div className="card-line faint">{cardLine(c)}</div>
-                          {part ? <div className="card-part">{part}</div> : null}
-                          {c.waitsFor && c.waitsFor.length > 0 ? (
-                            <div className="card-waits faint">waits for: {c.waitsFor.join(", ")}</div>
-                          ) : null}
-                          {c.kind === "issue" ? (
-                            <button
-                              type="button"
-                              className="card-action"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void start(c);
-                              }}
-                            >
-                              Start a run
-                            </button>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                    {inCol.length === 0 ? (
-                      <div className="board-empty faint">
-                        {dragged
-                          ? "Cards move by themselves: the engine sets a card's phase from its run's stage."
-                          : "—"}
-                      </div>
-                    ) : dragged ? (
-                      <div className="board-empty faint">
-                        The engine decides the phase; a drop changes nothing.
-                      </div>
-                    ) : null}
-                    {older > 0 ? (
-                      <button type="button" className="ghost show-more" onClick={() => setAllDone(true)}>
-                        show {older} more
-                      </button>
-                    ) : null}
-                  </section>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-        {cards.length === 0 ? (
-          <div className="empty">
-            <h2>Nothing on the board yet</h2>
-            <p>A task in the Backlog, a run, or a system plan's steps appear here, each in its phase.</p>
+      ) : (
+        // biome-ignore lint/a11y/noStaticElementInteractions: the arrows move between the cards inside
+        <div className="board" onKeyDown={onKey}>
+          <div className="board-head" aria-hidden="true">
+            {BOARD_COLUMNS.map((c) => {
+              const inCol = tiles.filter((t) => t.column === c.id);
+              const needs = opened
+                ? inCol.filter((t) => t.needsYou).length
+                : inCol.reduce((n, t) => n + (t.task?.needsYou ?? 0), 0);
+              const esc = opened
+                ? inCol.filter((t) => t.escalated).length
+                : inCol.reduce((n, t) => n + (t.task?.escalated ?? 0), 0);
+              return (
+                <div key={c.id} className="board-col-head" data-testid={`board-head-${c.id}`}>
+                  <span>{c.label}</span> <span className="faint">{inCol.length}</span>
+                  {needs > 0 ? <span className="amber"> · {needs} need you</span> : null}
+                  {esc > 0 ? <span className="red"> · {esc} escalated</span> : null}
+                </div>
+              );
+            })}
           </div>
-        ) : null}
+          <div className="board-row">
+            {BOARD_COLUMNS.map((col, ci) => {
+              const { shown, older } = ordered(col.id);
+              return (
+                <section
+                  key={col.id}
+                  className="board-col"
+                  data-testid={`board-col-${col.id}`}
+                  aria-label={col.label}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragged(true);
+                  }}
+                  onDrop={(e) => e.preventDefault()}
+                >
+                  {shown.map((t, ri) =>
+                    t.task ? (
+                      <TaskTile
+                        key={t.key}
+                        task={t.task}
+                        col={ci}
+                        row={ri}
+                        onOpen={openTask}
+                        onStart={start}
+                        onDrag={() => setDragged(true)}
+                      />
+                    ) : t.card ? (
+                      <CardTile
+                        key={t.key}
+                        card={t.card}
+                        col={ci}
+                        row={ri}
+                        onOpen={openCard}
+                        onStart={start}
+                        onDrag={() => setDragged(true)}
+                      />
+                    ) : null,
+                  )}
+                  {shown.length === 0 ? (
+                    <div className="board-empty faint">
+                      {dragged
+                        ? "Cards move by themselves: the engine sets a card's phase from its run's stage."
+                        : "—"}
+                    </div>
+                  ) : dragged ? (
+                    <div className="board-empty faint">
+                      The engine decides the phase; a drop changes nothing.
+                    </div>
+                  ) : null}
+                  {older > 0 ? (
+                    <button type="button" className="ghost show-more" onClick={() => setAllDone(true)}>
+                      show {older} more
+                    </button>
+                  ) : null}
+                </section>
+              );
+            })}
+          </div>
+          {total === 0 && !opened ? (
+            <div className="empty">
+              <h2>Nothing on the board yet</h2>
+              <p>A task in the Backlog, a run, or a system task appears here, in its phase.</p>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskTile({
+  task: t,
+  col,
+  row,
+  onOpen,
+  onStart,
+  onDrag,
+}: {
+  readonly task: WorkTask;
+  readonly col: number;
+  readonly row: number;
+  onOpen(t: WorkTask): void;
+  onStart(c: BoardCard): void;
+  onDrag(): void;
+}) {
+  const look = stateLook(t.state);
+  const opens = t.kind === "system" || t.kind === "parent";
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a card holds a button of its own (Start a run)
+    <div
+      role="button"
+      tabIndex={0}
+      draggable
+      onDragStart={onDrag}
+      className={`board-card task${t.needsYou > 0 ? " needs" : ""}${t.escalated > 0 ? " escalated" : ""}${t.state === "aborted" ? " aborted" : ""}`}
+      data-card={t.key}
+      data-col={col}
+      data-row={row}
+      data-testid={`task-${t.key}`}
+      title={opens ? `${t.title}: open its board` : t.title}
+      onClick={() => onOpen(t)}
+      onKeyDown={(e) => {
+        if (e.key === " ") {
+          e.preventDefault();
+          onOpen(t);
+        }
+      }}
+    >
+      <div className="card-top">
+        <span className={`card-state ${look.tone}`}>
+          {look.glyph} {look.word}
+        </span>
+        <span className="faint">{duration(t.ageMs)}</span>
       </div>
+      <div className="card-title">{t.title}</div>
+      <div className="card-line faint">{taskLine(t)}</div>
+      {t.progress ? (
+        <div className="card-part" data-testid="task-progress">
+          {t.progress.done} of {t.progress.of} steps done{opens ? " · open its board ›" : ""}
+        </div>
+      ) : null}
+      {t.kind === "issue" && t.head ? (
+        <button
+          type="button"
+          className="card-action"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (t.head) onStart(t.head);
+          }}
+        >
+          Start a run
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function CardTile({
+  card: c,
+  col,
+  row,
+  onOpen,
+  onStart,
+  onDrag,
+}: {
+  readonly card: BoardCard;
+  readonly col: number;
+  readonly row: number;
+  onOpen(c: BoardCard): void;
+  onStart(c: BoardCard): void;
+  onDrag(): void;
+}) {
+  const look = stateLook(c.state, c.waitsFor);
+  const part = partOfLine(c);
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a card holds a button of its own (Start a run)
+    <div
+      role="button"
+      tabIndex={0}
+      draggable
+      onDragStart={onDrag}
+      className={`board-card${c.needsYou ? " needs" : ""}${c.escalated ? " escalated" : ""}${c.state === "aborted" ? " aborted" : ""}${c.kind === "step" ? " pending" : ""}`}
+      data-card={c.key}
+      data-col={col}
+      data-row={row}
+      data-testid={`card-${c.kind}-${c.runId ?? c.issueId ?? c.key}`}
+      title={c.title}
+      onClick={() => onOpen(c)}
+      onKeyDown={(e) => {
+        if (e.key === " ") {
+          e.preventDefault();
+          onOpen(c);
+        }
+      }}
+    >
+      <div className="card-top">
+        <span className={`card-state ${look.tone}`}>
+          {look.glyph} {look.word}
+        </span>
+        <span className="faint">{duration(c.ageMs)}</span>
+      </div>
+      <div className="card-title">{c.title}</div>
+      <div className="card-line faint">{cardLine(c)}</div>
+      {part ? <div className="card-part">{part}</div> : null}
+      {c.waitsFor && c.waitsFor.length > 0 ? (
+        <div className="card-waits faint">waits for: {c.waitsFor.join(", ")}</div>
+      ) : null}
+      {c.kind === "issue" ? (
+        <button
+          type="button"
+          className="card-action"
+          onClick={(e) => {
+            e.stopPropagation();
+            onStart(c);
+          }}
+        >
+          Start a run
+        </button>
+      ) : null}
     </div>
   );
 }
