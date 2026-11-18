@@ -18,6 +18,7 @@ import {
   ArchitectureBaselineStore,
   ArchitectureFacts,
   ArchitecturePolicyCatalog,
+  AskInRun,
   AskQuestion,
   AuditAgents,
   agentDefinitionFiles,
@@ -660,16 +661,35 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           ...(config.config.notify ? { command: config.config.notify.command } : {}),
         }),
     ).singleton(),
+    // One per daemon: the panes' open prompts are the same for its check and for an answer.
+    openPrompts: asFunction(() => new Map()).singleton(),
     hostPrompts: asFunction(
-      ({ paneSensor, runJournal, driverLock, notifier, paneIdentity, ptyBroker }) =>
+      ({
+        paneSensor,
+        runJournal,
+        driverLock,
+        notifier,
+        paneIdentity,
+        ptyBroker,
+        runRepository,
+        openPrompts,
+      }) =>
         new HostPrompts({
           sensor: paneSensor,
           journal: runJournal,
           lock: driverLock,
           notify: notifier,
           identity: paneIdentity,
+          open: openPrompts,
           // A person's answer to an agent's terminal question, typed for them (never over a person).
           type: async (paneId, text) => (await ptyBroker.nudge(paneId, text)).map(() => undefined),
+          screen: (paneId) => ptyBroker.backlog(paneId),
+          holder: async (runId) => {
+            const record = await runRepository.load(runId);
+            return record.isOk() && record.value.driver?.by === "human"
+              ? record.value.driver.attachedBy
+              : undefined;
+          },
         }),
     ),
     layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
@@ -1657,6 +1677,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         approveRun,
         advanceRun,
         gateApprovals,
+        hostPrompts,
       }) =>
         new AnswerQuestion(
           runRepository,
@@ -1672,7 +1693,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
             advance: advanceRun,
             refusal: (runId: string, stage: string) => gateApprovals.refusal(runId, stage),
           },
+          hostPrompts,
         ),
+    ),
+    askInRun: asFunction(
+      ({ runRepository, runJournal, timer }) => new AskInRun(runRepository, runJournal, timer),
     ),
     briefRun: asFunction(({ runRepository, runJournal }) => new BriefRun(runRepository, runJournal)),
     reviveRuns: asFunction(

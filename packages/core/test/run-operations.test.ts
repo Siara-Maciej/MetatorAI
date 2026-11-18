@@ -476,6 +476,56 @@ describe("AnswerQuestion at a human gate (no drive waits on it: a conductor's ru
   });
 });
 
+describe("AnswerQuestion of a question asked in a pane", () => {
+  const withTerminal = (refuse?: string) => {
+    const w = world();
+    const calls: string[] = [];
+    const answer = new AnswerQuestion(
+      w.repo,
+      w.journal,
+      w.policies,
+      w.drivers,
+      w.ensureDriven,
+      w.clock,
+      () => true,
+      undefined,
+      {
+        settle: async (_runId, q) => {
+          calls.push(`settle ${q}`);
+          return refuse ? err(new MetatorError("CONFLICT", refuse)) : ok(undefined);
+        },
+        deliver: async (_runId, q) => {
+          calls.push(`deliver ${q}`);
+          return ok(undefined);
+        },
+      },
+    );
+    return { w, answer, calls };
+  };
+
+  test("the pane is settled before the answer is recorded, and the answer is delivered to it right after", async () => {
+    const t = withTerminal();
+    const runId = await t.w.newRun();
+    const q = await t.w.ask(runId);
+    (await t.answer.execute({ runId, question: q.id, choices: ["Approve"], by: "ana" }))._unsafeUnwrap();
+    expect(t.calls).toEqual([`settle ${q.id}`, `deliver ${q.id}`]);
+  });
+
+  test("a pane that refuses (a person types there) records nothing and says why", async () => {
+    const t = withTerminal("bob is answering in pane w1:p2");
+    const runId = await t.w.newRun();
+    const q = await t.w.ask(runId);
+    const r = (
+      await t.answer.execute({ runId, question: q.id, choices: ["Approve"], by: "ana" })
+    )._unsafeUnwrapErr();
+    expect([r.code, r.message]).toEqual(["CONFLICT", "bob is answering in pane w1:p2"]);
+    expect(
+      (await t.w.journal.questions(runId))._unsafeUnwrap().find((x) => x.id === q.id)?.answer,
+    ).toBeUndefined();
+    expect(t.calls).toEqual([`settle ${q.id}`]);
+  });
+});
+
 describe("BriefRun", () => {
   test("a since that is not a time is a usage error; the brief marks the run as read unless it peeks", async () => {
     const w = world();

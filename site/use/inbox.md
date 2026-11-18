@@ -51,6 +51,15 @@ A long **Since you left** on a card is cut to its newest lines; a line that came
 
 A question an agent asks on its own terminal (`Which currency? [PLN / EUR]`) comes as a `TERMINAL` card with the question in the agent's words, a line naming the agent, its pane and stage, and its answers as options: an answer chosen on the card is typed into the pane for you. A host's permission prompt comes as a `PERMISSION` card. Both offer **Attach and answer in the pane**: it opens the run's Terminal tab on that pane, takes the keyboard under your name, puts the cursor in the pane at the question and scrolls to it; type the answer and give the keyboard back.
 
+Either side can answer, and both see the result:
+
+- Each question the pane asks gets its own card, one after the other.
+- An answer chosen on a card is typed into the pane at once.
+- An answer typed in the pane is recorded like a card answer: the words you typed (an option when they name one), under the name of the person at the pane's keyboard, else `pane:<id>`. Its card goes, and the run's Activity shows the answer.
+- If the pane was answered first, a card answer that comes after is refused with "question … is already answered", and nothing is typed. While someone holds the pane's keyboard, a card answer is refused with their name: answer in the pane, or wait until they give the keyboard back.
+
+An agent in a terminal asks you with `metator run ask "<question>" --option <a> --option <b> --wait`. The question comes as a card like any agent's question, and the command prints your answer when you give it, from the app or with `metator run answer`. `--timeout <ms>` ends the wait with `WAITING`; `metator run ask --question <id> --wait` waits again.
+
 A plan-approval card whose plan has lint errors shows **Approve** closed, with the reason under the options and **Fix the plan**, which opens the Plan tab in its edit mode. A system plan's card does the same for **Approve the system plan**.
 
 A confirmation (**Answered: …**) goes after a few seconds, or when you go elsewhere; a refusal stays until you close it.

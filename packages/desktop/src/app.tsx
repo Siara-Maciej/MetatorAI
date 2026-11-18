@@ -12,6 +12,7 @@ import { sendLine } from "./components/terminal.tsx";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
 import {
   answeredText,
+  flattenState,
   goesToPane,
   hostChoice,
   isTerminalAsk,
@@ -28,13 +29,16 @@ import {
   pickedNeed,
   plainKey,
   type Route,
+  type Run,
   routeHash,
   runTabFor,
+  sameRepo,
   stepNeed,
   wasAway,
 } from "./model.ts";
 import { systemNotifier } from "./notify.ts";
 import { BacklogScreen } from "./screens/backlog.tsx";
+import { BoardScreen } from "./screens/board.tsx";
 import { InboxScreen } from "./screens/inbox.tsx";
 import { MrsScreen } from "./screens/mrs.tsx";
 import { NewSessionDialog } from "./screens/new-session.tsx";
@@ -240,8 +244,25 @@ function Shell() {
               });
               return;
             }
-            setNotice(choices ? { text: answeredText(choices), tone: "info", sticky: true } : undefined);
             go({ screen: "inbox" });
+            if (!choices || !item) {
+              setNotice(undefined);
+              return;
+            }
+            // What the run did with the answer, read back: a Reject may have escalated it.
+            // A drive that waits on the gate moves the run a moment later: look a few times.
+            void (async () => {
+              let after: Run | undefined;
+              for (let i = 0; i < 6; i++) {
+                const r = await d.client.state();
+                after = flattenState(r.data).runs.find(
+                  (x) => x.runId === item.runId && sameRepo(x.repo, item.repo),
+                );
+                if (after?.status !== "active" || after.stage !== item.stage) break;
+                await new Promise((done) => setTimeout(done, 500));
+              }
+              setNotice({ text: answeredText(choices, after, item.stage), tone: "info", sticky: true });
+            })();
           }}
           onOpenRun={(id, pane) => openRun(id, false, pane)}
           onOpenChanges={(runId) => go({ screen: "run", runId, tab: "changes" })}
@@ -297,6 +318,7 @@ function Shell() {
         />
       ) : null}
       {route.screen === "settings" ? <SettingsScreen /> : null}
+      {route.screen === "board" ? <BoardScreen onOpenRun={(id) => openRun(id)} /> : null}
     </>
   );
   return (

@@ -249,6 +249,65 @@ export function registerDriveCommands(
       }),
     );
 
+  meta(runs.command("ask"), {})
+    .description(
+      "Ask the person a question from a terminal: it reaches their inbox like any agent's question; --wait blocks until they answer and prints it",
+    )
+    .argument("[prompt]", "the question, in your own words")
+    .addOption(runOption())
+    .option("--option <labels...>", "the choices you offer (Other, in their own words, is always added)")
+    .option(
+      "--agent <id>",
+      "who asks (default: $METATOR_WORKER in a worker's pane, mt-orchestrator in the conductor's)",
+    )
+    .option("--question <id>", "wait for the answer of a question already asked (with --wait)")
+    .option("--wait", "block until the answer is recorded, then print it", false)
+    .option(
+      "--timeout <ms>",
+      "with --wait: how long to wait before saying there is no answer yet",
+      positiveInt,
+    )
+    .action(
+      action(
+        async (
+          prompt: string | undefined,
+          opts: {
+            run?: string;
+            option?: string[];
+            agent?: string;
+            question?: string;
+            wait: boolean;
+            timeout?: number;
+          },
+        ) => {
+          const ask = container().resolve("askInRun");
+          if (opts.question) {
+            if (!opts.wait) return { result: err(MetatorError.usage("--question needs --wait")) };
+            return {
+              result: await ask.wait({
+                ...defined({ runId: opts.run, timeoutMs: opts.timeout }),
+                question: opts.question,
+              }),
+            };
+          }
+          if (!prompt)
+            return { result: err(MetatorError.usage("say what you ask, or wait with --question <id>")) };
+          const agent =
+            opts.agent ??
+            process.env.METATOR_WORKER ??
+            (process.env.METATOR_ROLE === "conductor" ? "mt-orchestrator" : undefined);
+          return {
+            result: await ask.execute({
+              ...defined({ runId: opts.run, agent, timeoutMs: opts.timeout }),
+              prompt,
+              options: opts.option ?? [],
+              wait: opts.wait,
+            }),
+          };
+        },
+      ),
+    );
+
   meta(runs.command("answer"), { audience: "person" })
     .description(
       "Record the answer to a question; the run continues when a drive is waiting for it (with none, `metator run continue` starts one)",

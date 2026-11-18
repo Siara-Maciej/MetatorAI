@@ -5,7 +5,7 @@
  */
 import { RepoSelect } from "../components/common.tsx";
 import { Tabs } from "../components/tabs.tsx";
-import type { OverviewTab } from "../model.ts";
+import { type OverviewTab, routeHash } from "../model.ts";
 import { DaemonPanel } from "../overview/daemon-panel.tsx";
 import { DependenciesPanel } from "../overview/dependencies-panel.tsx";
 import { SystemPanel } from "../overview/system-panel.tsx";
@@ -31,6 +31,9 @@ export function OverviewScreen({
           { id: "system", label: "System" },
         ]}
       >
+        <a className="board-link" href={routeHash({ screen: "board" })}>
+          Board ›
+        </a>
         <span className="spacer" />
         <RepoSelect />
       </Tabs>
@@ -40,7 +43,7 @@ export function OverviewScreen({
         ) : tab === "system" ? (
           <SystemPanel onOpenRun={onOpenRun} />
         ) : (
-          <DependenciesPanel />
+          <DependenciesPanel onOpenRun={onOpenRun} />
         )}
       </div>
     </div>

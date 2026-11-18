@@ -263,6 +263,14 @@ export class AnswerQuestion {
       /** Why the gate cannot be approved now (its system plan's lint errors), or undefined. */
       readonly refusal?: GateApprovals["refusal"];
     },
+    /**
+     * A question a pane asked (`HostPrompts`): settled before the answer is recorded (answered in
+     * the pane already, or a person at its keyboard), and typed into it right after.
+     */
+    private readonly terminal?: {
+      settle(runId: string, question: string): Promise<Result<void, MetatorError>>;
+      deliver(runId: string, question: string): Promise<Result<void, MetatorError>>;
+    },
   ) {}
 
   async execute(input: AnswerInput): Promise<Result<Answered, MetatorError>> {
@@ -292,12 +300,21 @@ export class AnswerQuestion {
       if (refused) return err(MetatorError.usage(`no policy: ${refused}`, "Answer without --always."));
     }
     const answer = { choices, ...(input.text ? { text: input.text } : {}) };
+    if (this.terminal) {
+      const settled = await this.terminal.settle(runId, input.question);
+      if (settled.isErr()) return err(settled.error);
+    }
     const answered = await this.journal.answer(runId, input.question, {
       ...answer,
       by: input.by,
       ...(input.origin ? { origin: input.origin } : {}),
     });
     if (answered.isErr()) return err(answered.error);
+    // The pane that asked gets the answer now, not on the next check.
+    if (this.terminal) {
+      const delivered = await this.terminal.deliver(runId, input.question);
+      if (delivered.isErr()) return err(delivered.error);
+    }
     let policy: AnswerPolicy | undefined;
     if (input.always) {
       const taken = await this.policies.list();

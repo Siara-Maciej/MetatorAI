@@ -20,6 +20,7 @@ import {
 import { Modal } from "./components/modal.tsx";
 import {
   flattenState,
+  plansShown,
   type RepoSystemPlan,
   type Run,
   repoChoice,
@@ -28,7 +29,6 @@ import {
   sameRepo,
   seenFrom,
   seenKey,
-  plansShown,
   stepPlace,
   systemPlanOf,
   type Unreadable,

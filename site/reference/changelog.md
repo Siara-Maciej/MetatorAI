@@ -6,6 +6,9 @@ Every file MetatorAI writes carries a `schemaVersion`. When a document gets a ne
 
 ## November 2026
 
+- Every question an agent asks in its terminal gets its own card, not only the first. A card's answer is typed into the pane at once (it used to wait up to the daemon's next check). An answer typed in the pane is recorded with the person at its keyboard and the words typed, and its card goes. A card that comes after the pane answered is refused and types nothing; while a person holds the pane's keyboard, a card answer is refused with their name.
+- `metator run ask "<question>" --option <a> … [--wait] [--timeout <ms>]`: an agent in a terminal asks the person through the inbox and, with `--wait`, gets the answer printed; `--question <id> --wait` waits again.
+
 - A system run no longer escalates when a child escalates: it waits, `blocked by <child>: needs you`, and goes on by itself once the child is resumed. It escalates when a child is closed as aborted, or after six hours.
 - An escalated run says why in one sentence (`stop`): a person's Reject reads `stopped: ana rejected plan-approval: <reason>`; the tries wording (`tried build 3 of 3 times`) only when the tries are really spent.
 - The gate that approves a run's plan refuses Approve on its card and in an answer while the plan (`plan.json`) has lint errors; the card's Approve is `disabled` with the problems. `metator run approve` at a terminal still approves.

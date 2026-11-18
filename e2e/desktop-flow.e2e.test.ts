@@ -1,0 +1,449 @@
+/**
+ * The owner's flow, end to end in the app: a folder of two repositories (shop-api, shop-web), one
+ * system task whose plan has four steps (`api-model` and `api-endpoint` in shop-api and
+ * `web-price-tag` in shop-web at once, then `web-integration` in shop-web after all three),
+ * driven with the scenario host. Overview → Dependencies draws the plan as a flow (every step, the
+ * pending ones dashed, an arrow per dependsOn) and the Board puts every piece of work in the
+ * column of the phase the daemon sends. The two backend steps run side by side, each in a
+ * worktree of its own.
+ */
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Page } from "playwright";
+import { browser, closeBrowser } from "./helpers/browser.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
+
+const ROOT = join(import.meta.dir, "..");
+const TASK = "Add a currency to prices";
+const PLAN_ID = "add-a-currency-to-prices";
+const MAP = `kind: SystemMap
+schemaVersion: 2
+system: shop
+applications:
+  - { id: shop-api, kind: service, source: { path: . }, owners: ["@shop/api"] }
+  - { id: shop-web, kind: frontend, source: { repo: github.com/shop/shop-web }, owners: ["@shop/web"], consumes: [prices-api] }
+contracts:
+  - { id: prices-api, kind: openapi, owner: shop-api, spec: { path: openapi.yaml } }
+policies: { deployOrder: providers-first, breaking: expand-contract }
+`;
+const SYSTEM_PLAN = `kind: SystemPlan
+schemaVersion: 1
+id: ${PLAN_ID}
+task: ${TASK}
+status: draft
+createdBy: mt-system-planner
+strategies: []
+steps:
+  - { id: api-model, app: shop-api, summary: A price carries its currency, contracts: [{ id: prices-api, role: change }], dependsOn: [], status: pending }
+  - { id: api-endpoint, app: shop-api, summary: "GET /prices/{sku} returns the currency", contracts: [{ id: prices-api, role: change }], dependsOn: [], status: pending }
+  - { id: web-price-tag, app: shop-web, summary: The price tag has room for a currency, contracts: [], dependsOn: [], status: pending }
+  - { id: web-integration, app: shop-web, summary: The price tag shows the currency the API sends, contracts: [], dependsOn: [api-model, api-endpoint, web-price-tag], status: pending }
+`;
+const ANALYSIS = `kind: SystemAnalysis
+schemaVersion: 1
+task: ${TASK}
+map: docs/metator/system.yml
+base: HEAD
+contracts:
+  - { id: prices-api, owner: shop-api, change: compatible, why: "a new optional field", consumers: [{ app: shop-web }] }
+applications:
+  - { id: shop-api, roles: [changed, provider], owners: ["@shop/api"], files: [openapi.yaml] }
+  - { id: shop-web, roles: [consumer], owners: ["@shop/web"], files: [] }
+`;
+// A child's feature flow: a plan a person approves, the work, a delivery a person approves.
+const W1 = `kind: Workflow
+schemaVersion: 2
+id: mt-feature
+stages:
+  - id: plan
+    owner: mt-planner
+  - id: plan-approval
+    hitl: true
+  - id: build
+    owner: mt-implementer
+  - id: delivery
+    hitl: true
+`;
+const SCENARIO = `kind: AgentScenario
+schemaVersion: 1
+agents:
+  mt-system-scout:
+    - - write: { path: "metator/system/plans/${PLAN_ID}.analysis.yml", text: ${JSON.stringify(ANALYSIS)} }
+      - write: { path: "{runDir}/system-analysis.md", text: "# Analysis\\n" }
+      - say: "STATUS: done"
+  mt-system-planner:
+    - - write: { path: "metator/system/plans/${PLAN_ID}.yml", text: ${JSON.stringify(SYSTEM_PLAN)} }
+      - write: { path: "{runDir}/system-plan.md", text: "# Plan\\n" }
+      - say: "STATUS: done"
+  mt-planner:
+    - - say: "STATUS: done"
+  mt-implementer:
+    - - say: "STATUS: done"
+`;
+const NOWHERE = {
+  METATOR_COPILOT_BIN: "/nonexistent/copilot",
+  METATOR_CLAUDE_BIN: "/nonexistent/claude",
+  METATOR_OPENCODE_BIN: "/nonexistent/opencode",
+};
+
+let folder: string;
+let dist: string;
+let configDir: string;
+let site: ReturnType<typeof Bun.serve>;
+let page: Page;
+let daemon: Bun.Subprocess<"ignore", "ignore", "pipe">;
+let base = "";
+let env: Record<string, string>;
+let parent = "";
+const errors: string[] = [];
+const at = (name: string) => join(folder, name);
+const git = (dir: string, ...a: string[]) =>
+  Bun.spawnSync(["git", "-c", "user.name=T", "-c", "user.email=t@e", "-c", "commit.gpgsign=false", ...a], {
+    cwd: dir,
+  });
+const mt = (repo: string, ...args: string[]) => metator(args, at(repo), env);
+type Data = Record<string, unknown>;
+const data = (r: { json: Record<string, unknown> }) => r.json.data as Data;
+const app = (hash: string) => `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(base)}#/${hash}`;
+
+async function until<T>(what: string, probe: () => Promise<T | undefined>, ms = 60_000): Promise<T> {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    const v = await probe();
+    if (v !== undefined) return v;
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await Bun.sleep(250);
+  }
+}
+type Decision = { runId: string; question: { id: string; stage: string } };
+/** Approves every human gate of `runs` that waits now, in either repository. */
+async function approveWaiting(runIds: readonly string[], stage?: string): Promise<number> {
+  let n = 0;
+  for (const repo of ["shop-api", "shop-web"]) {
+    const inbox = data(await mt(repo, "inbox")) as { decisions: Decision[] };
+    for (const d of inbox.decisions)
+      if (runIds.includes(d.runId) && (!stage || d.question.stage === stage)) {
+        expect(
+          (await mt(repo, "run", "answer", d.question.id, "--run", d.runId, "--choice", "Approve")).code,
+        ).toBe(0);
+        n++;
+      }
+  }
+  return n;
+}
+type ListedRun = { runId: string; workflow: string; status: string };
+const childRuns = async () => [
+  ...((data(await mt("shop-api", "run", "list")) as unknown as ListedRun[]) ?? [])
+    .filter((r) => r.workflow === "mt-feature")
+    .map((r) => ({ ...r, repo: "shop-api" })),
+  ...((data(await mt("shop-web", "run", "list")) as unknown as ListedRun[]) ?? []).map((r) => ({
+    ...r,
+    repo: "shop-web",
+  })),
+];
+const stageOf = async (repo: string, runId: string) =>
+  (data(await mt(repo, "run", "status", runId)) as { stage: string }).stage;
+/** The state of each node of the plan's flow, as the graph draws it. */
+const flowStates = async () =>
+  Object.fromEntries(
+    await page
+      .getByTestId(`plan-flow-${PLAN_ID}`)
+      .first()
+      .locator("[data-node][data-state]")
+      .evaluateAll((els) => els.map((e) => [e.getAttribute("data-node"), e.getAttribute("data-state")])),
+  ) as Record<string, string>;
+/** The cards of each column of the board, by their titles' first words. */
+const boardColumns = async () =>
+  Object.fromEntries(
+    await Promise.all(
+      ["todo", "planning", "in-progress", "review", "done"].map(async (c) => [
+        c,
+        await page.getByTestId(`board-col-${c}`).locator(".board-card").count(),
+      ]),
+    ),
+  ) as Record<string, number>;
+
+beforeAll(async () => {
+  dist = await mkdtemp(join(tmpdir(), "metator-desktop-flow-"));
+  const build = Bun.spawn(["bunx", "vite", "build", "--outDir", dist], {
+    cwd: join(ROOT, "packages/desktop"),
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  if ((await build.exited) !== 0) throw new Error(await new Response(build.stderr).text());
+  site = Bun.serve({
+    port: 0,
+    fetch(request) {
+      const path = decodeURIComponent(new URL(request.url).pathname);
+      const file = join(dist, path === "/" ? "index.html" : path);
+      return file.startsWith(dist) && existsSync(file)
+        ? new Response(Bun.file(file))
+        : new Response(Bun.file(join(dist, "index.html")));
+    },
+  });
+  folder = await mkdtemp(join(tmpdir(), "metator-flow-"));
+  configDir = await mkdtemp(join(tmpdir(), "metator-flow-config-"));
+  const W13 = await Bun.file(join(ROOT, ".github/metator/workflows/mt-system-change.yml")).text();
+  const config = `kind: MetatorConfig\nschemaVersion: 12\nhosts:\n  metatorCommand: bun ${CLI_ENTRY}\nsupervisor:\n  hostOrder: [scenario]\nsystem:\n  roots: { shop-web: ../shop-web }\n`;
+  const repo = async (name: string, files: Record<string, string>) => {
+    for (const [p, t] of Object.entries(files)) await Bun.write(join(at(name), p), t);
+    git(at(name), "init", "-q", "-b", "main");
+    git(at(name), "add", "-A");
+    git(at(name), "commit", "-q", "-m", "init");
+  };
+  await Bun.write(join(folder, "scenario.yml"), SCENARIO);
+  await repo("shop-api", {
+    "docs/metator/system.yml": MAP,
+    "openapi.yaml": "openapi: 3.0.0\ninfo: { title: prices, version: 1.0.0 }\npaths: {}\n",
+    "src/prices.ts": "export const price = (amount: number) => ({ amount });\n",
+    "metator.config.yml": config,
+    ".github/metator/workflows/mt-system-change.yml": W13,
+    ".github/metator/workflows/mt-feature.yml": W1,
+    ".gitignore": ".metator/\nmetator/system/\n",
+  });
+  await repo("shop-web", {
+    "src/price-tag.ts": "export const tag = (amount: number) => `${amount}`;\n",
+    "metator.config.yml": `kind: MetatorConfig\nschemaVersion: 12\nhosts:\n  metatorCommand: bun ${CLI_ENTRY}\nsupervisor:\n  hostOrder: [scenario]\n`,
+    ".github/metator/workflows/mt-feature.yml": W1,
+    ".gitignore": ".metator/\n",
+  });
+  env = {
+    ...NOWHERE,
+    METATOR_USER: "ana",
+    METATOR_AGENT_SCENARIO: join(folder, "scenario.yml"),
+    METATOR_HOST: "scenario",
+    METATOR_GATE_WAIT_MS: "300",
+    METATOR_CONFIG_DIR: configDir,
+  };
+  daemon = Bun.spawn(
+    ["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100", "--supervise-ms", "0", "--intake-ms", "0"],
+    {
+      cwd: folder,
+      env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
+      stdout: "ignore",
+      stderr: "pipe",
+    },
+  );
+  const reader = daemon.stderr.getReader();
+  let text = "";
+  base = await until("the daemon to listen", async () => {
+    const { value, done } = await reader.read();
+    if (done) return "";
+    text += new TextDecoder().decode(value);
+    const line = text.split("\n").find((l) => l.includes('"serving"'));
+    return line ? (JSON.parse(line) as { serving: { url: string } }).serving.url : undefined;
+  });
+  const b = await browser();
+  page = await b.newPage({ viewport: { width: 1440, height: 900 } });
+  page.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") errors.push(m.text());
+  });
+}, 120_000);
+
+afterAll(async () => {
+  await closeBrowser();
+  for (const repo of ["shop-api", "shop-web"]) {
+    const runs = ((await mt(repo, "run", "list")).json.data ?? []) as { runId: string }[];
+    for (const r of runs) await mt(repo, "run", "stop", r.runId);
+  }
+  daemon?.kill("SIGTERM");
+  await daemon?.exited;
+  stopProcessesUnder(folder);
+  site.stop(true);
+  await rm(folder, { recursive: true, force: true });
+  await rm(dist, { recursive: true, force: true });
+  await rm(configDir, { recursive: true, force: true });
+});
+
+describe("a decomposed task as a flow and on the board (real daemon, real Chromium)", () => {
+  test("the plan approved: every step is on the graph (pending, dashed) and in To do with what it waits for", async () => {
+    parent = data(await mt("shop-api", "run", "new", "--workflow", "mt-system-change", "--task", TASK))
+      .runId as string;
+    await mt(
+      "shop-api",
+      "run",
+      "drive",
+      "--run",
+      parent,
+      "--host",
+      "scenario",
+      "--detach",
+      "--gate-wait",
+      "300",
+    );
+    await until("the plan-approval card", async () => {
+      const inbox = data(await mt("shop-api", "inbox")) as { decisions: Decision[] };
+      return inbox.decisions.find((d) => d.runId === parent && d.question.stage === "plan-approval");
+    });
+    // A person approves the plan itself first; the gate card still waits.
+    expect((await mt("shop-api", "system", "plan", "approve", PLAN_ID, "--by", "ana")).code).toBe(0);
+    await page.goto(app("overview/dependencies"));
+    const flow = page.getByTestId(`plan-flow-${PLAN_ID}`).first();
+    await flow.waitFor({ timeout: 30_000 });
+    await until("four pending steps", async () => {
+      const s = await flowStates();
+      return Object.values(s).length === 4 && Object.values(s).every((v) => v === "pending")
+        ? true
+        : undefined;
+    });
+    // The flow: the task into wave 1, the three steps of wave 1 into the integration.
+    const edges = await flow
+      .locator("[data-edge]")
+      .evaluateAll((els) => els.map((e) => e.getAttribute("data-edge")));
+    expect(edges.sort()).toEqual(
+      [
+        "@task>api-model",
+        "@task>api-endpoint",
+        "@task>web-price-tag",
+        "api-model>web-integration",
+        "api-endpoint>web-integration",
+        "web-price-tag>web-integration",
+      ].sort(),
+    );
+    expect(await flow.locator('[data-node="web-integration"]').getAttribute("aria-label")).toBe(
+      "web-integration · waits for: api-model, api-endpoint, web-price-tag",
+    );
+    expect(await flow.textContent()).toContain("wave 2");
+    // The board: four steps not started in To do, the system run in Planning.
+    await page.goto(app("board"));
+    await page.getByTestId("board").waitFor({ timeout: 20_000 });
+    await until("the steps in To do", async () => ((await boardColumns()).todo === 4 ? true : undefined));
+    expect((await boardColumns()).planning).toBe(1);
+    expect(await page.getByTestId("board-col-todo").textContent()).toContain(
+      "waits for: api-model, api-endpoint, web-price-tag",
+    );
+  }, 120_000);
+
+  test("wave 1: three child runs at once, the two backend ones each in a worktree; the graph and the board follow", async () => {
+    await approveWaiting([parent], "plan-approval");
+    const children = await until(
+      "three children",
+      async () => {
+        const c = await childRuns();
+        return c.length === 3 ? c : undefined;
+      },
+      90_000,
+    );
+    expect(children.map((c) => c.repo).sort()).toEqual(["shop-api", "shop-api", "shop-web"]);
+    // The two steps of shop-api work side by side: each in a worktree of its own.
+    const worktrees = children
+      .filter((c) => c.repo === "shop-api")
+      .map(
+        (c) =>
+          JSON.parse(readFileSync(join(at("shop-api"), ".metator/runs", c.runId, "state.json"), "utf8"))
+            .worktree?.path as string | undefined,
+      );
+    expect(worktrees.every((w) => typeof w === "string")).toBe(true);
+    expect(new Set(worktrees).size).toBe(2);
+    // Each child waits at its plan's approval: Planning, needs you.
+    await until("the children at plan-approval", async () => {
+      const stages = await Promise.all(children.map((c) => stageOf(c.repo, c.runId)));
+      return stages.every((s) => s === "plan-approval") ? true : undefined;
+    });
+    await page.goto(app("overview/dependencies"));
+    await until("wave 1 on the graph", async () => {
+      const s = await flowStates();
+      return s["api-model"] === "needs you" &&
+        s["web-price-tag"] === "needs you" &&
+        s["web-integration"] === "pending"
+        ? true
+        : undefined;
+    });
+    // The child runs are drawn in the flow, not again in the runs graph below it.
+    expect(await page.locator(".graph > .canvas > svg").first().locator("a").count()).toBe(0);
+    await page.goto(app("board"));
+    await until("three in Planning", async () => ((await boardColumns()).planning === 4 ? true : undefined));
+    expect(await page.getByTestId("board-head-planning").textContent()).toContain("3 need you");
+    // Filtered to this task, grouped, and to shop-web only.
+    await page.getByLabel("parent task").selectOption({ label: `only ${TASK}` });
+    expect(await page.locator(".board-card").count()).toBe(5);
+    await page.getByLabel("group by parent task").check();
+    expect(await page.locator(".lane-title").first().textContent()).toContain(TASK);
+    await page.getByLabel("parent task").selectOption("");
+    await page.getByLabel("group by parent task").uncheck();
+    await page.getByLabel("repositories").getByRole("button", { name: "shop-web" }).click();
+    await until("shop-web only", async () =>
+      (await page.locator(".board-card").count()) === 2 ? true : undefined,
+    );
+    // The filter is kept for this viewer: back on the board, it is still shop-web.
+    await page.reload();
+    await page.getByTestId("board").waitFor({ timeout: 20_000 });
+    expect(
+      await page
+        .getByLabel("repositories")
+        .getByRole("button", { name: "shop-web" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    await page.getByRole("button", { name: "Clear" }).click();
+    // A card opens with Enter; the arrows move between cards.
+    await page.getByTestId("board-col-planning").locator(".board-card").first().focus();
+    await page.keyboard.press("ArrowLeft");
+    expect(
+      await page.evaluate(() =>
+        document.activeElement?.closest("[data-testid]")?.getAttribute("data-testid"),
+      ),
+    ).toMatch(/^card-step-/);
+  }, 180_000);
+
+  test("wave 1 done: web-integration starts; then everything is done, the graph dimmed and the board in Done", async () => {
+    const firstWave = (await childRuns()).map((c) => c.runId);
+    // Each child: its plan approved, then its delivery.
+    await until(
+      "wave 1 done",
+      async () => {
+        await approveWaiting(firstWave);
+        const c = await childRuns();
+        return firstWave.every((id) => c.find((x) => x.runId === id)?.status === "done") ? true : undefined;
+      },
+      120_000,
+    );
+    const integration = await until(
+      "web-integration started",
+      async () => (await childRuns()).find((c) => !firstWave.includes(c.runId)),
+      120_000,
+    );
+    expect(integration.repo).toBe("shop-web");
+    await page.goto(app("overview/dependencies"));
+    await until("web-integration on the graph", async () => {
+      const s = await flowStates();
+      return s["api-model"] === "done" && s["web-integration"] !== "pending" ? true : undefined;
+    });
+    await until(
+      "web-integration done and the system run at its delivery",
+      async () => {
+        await approveWaiting([integration.runId]);
+        const s = data(await mt("shop-api", "run", "status", parent)) as { stage: string; status: string };
+        if (s.status === "escalated") throw new Error(`the system run escalated: ${JSON.stringify(s)}`);
+        return s.stage === "delivery" ? true : undefined;
+      },
+      120_000,
+    );
+    await approveWaiting([parent], "delivery");
+    await until("the system run done", async () =>
+      (data(await mt("shop-api", "run", "status", parent)) as { status: string }).status === "done"
+        ? true
+        : undefined,
+    );
+    await page.goto(app("board"));
+    await until(
+      "everything in Done",
+      async () => ((await boardColumns()).done === 5 ? true : undefined),
+      30_000,
+    );
+    expect((await boardColumns()).todo).toBe(0);
+    await page.goto(app("overview/dependencies"));
+    // A plan done in the last day stays, dimmed.
+    const flow = page.getByTestId(`plan-flow-${PLAN_ID}`).first();
+    await flow.waitFor({ timeout: 20_000 });
+    expect(await flow.getAttribute("class")).toContain("finished");
+    await until("every step done", async () => {
+      const s = await flowStates();
+      return Object.values(s).every((v) => v === "done") ? true : undefined;
+    });
+    expect(errors.filter((e) => !/Notification|favicon/.test(e))).toEqual([]);
+  }, 300_000);
+});

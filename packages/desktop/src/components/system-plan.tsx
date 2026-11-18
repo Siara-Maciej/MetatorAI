@@ -24,6 +24,7 @@ import {
 import { TextEditor } from "../run/plan-form.tsx";
 import { Notice } from "./common.tsx";
 import { type DocSource, EditBar, FieldProblems, ProblemList, useDocEditor } from "./doc-editor.tsx";
+import { PlanFlowGraph } from "./plan-flow-graph.tsx";
 
 /** A repository as a person names it: the last part of its path. */
 const repoName = (path: string): string => path.replace(/\/+$/, "").split("/").pop() || path;
@@ -164,13 +165,19 @@ function SystemPlanBody({
                 No order: the steps wait on each other in a circle (the lint says where).
               </div>
             ) : (
-              <ol>
-                {view.waves.map((w) => (
-                  <li key={w.wave}>
-                    wave {w.wave}: <span className="mono">{w.steps.join(", ")}</span>
-                  </li>
-                ))}
-              </ol>
+              <PlanFlowGraph
+                view={view}
+                runs={runs}
+                onOpenRun={(runId) => {
+                  if (onOpenRun) onOpenRun(runId);
+                  else window.location.hash = routeHash({ screen: "run", runId, tab: "overview" });
+                }}
+                onOpenStep={(stepId) =>
+                  document
+                    .querySelector(`[data-testid="system-step-${stepId}"]`)
+                    ?.scrollIntoView({ block: "center" })
+                }
+              />
             )}
           </section>
           {repos.map((r) => (

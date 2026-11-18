@@ -3212,6 +3212,60 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a gate a live drive waits on is carried out by that drive",
   },
   {
+    file: "packages/core/src/application/host-prompts.ts",
+    from: "(pane.reason !== item.prompt || this.answeredThere(pane.paneId, item))",
+    to: "(false)",
+    why: "each question a pane asks gets its own card",
+  },
+  {
+    file: "packages/core/src/application/host-prompts.ts",
+    from: "    if (holder)\n",
+    to: "    if (false)\n",
+    why: "a card answer is never typed over a person at the pane's keyboard",
+  },
+  {
+    file: "packages/core/src/application/host-prompts.ts",
+    from: "return this.followUp(found[0], found[1], []);",
+    to: "return ok(undefined);",
+    why: "a card's answer is typed into the pane at once",
+  },
+  {
+    file: "packages/core/src/application/host-prompts.ts",
+    from: "? q.options.find((o) => o.label.toLowerCase() === typed.toLowerCase())?.label",
+    to: "? undefined",
+    why: "words typed in the pane that name an option are that option",
+  },
+  {
+    file: "packages/core/src/application/host-prompts.ts",
+    from: `const by = (item.asks ? await this.d.holder?.(item.runId) : undefined) ?? \`pane:\${paneId}\`;`,
+    to: `const by = \`pane:\${paneId}\`;`,
+    why: "an answer typed in the pane is the person's at its keyboard",
+  },
+  {
+    file: "packages/core/src/application/run-operations.ts",
+    from: "const settled = await this.terminal.settle(runId, input.question);",
+    to: "const settled = ok(undefined);",
+    why: "a card answer is settled with its pane first",
+  },
+  {
+    file: "packages/core/src/application/run-operations.ts",
+    from: "const delivered = await this.terminal.deliver(runId, input.question);",
+    to: "const delivered = ok(undefined);",
+    why: "a card answer reaches its pane at once",
+  },
+  {
+    file: "packages/core/src/application/ask-in-run.ts",
+    from: "if (q.answer) return ok({ question: q, answer: q.answer });",
+    to: "",
+    why: "run ask --wait returns the answer",
+  },
+  {
+    file: "packages/core/src/application/ask-in-run.ts",
+    from: "      if (waited >= timeout)\n",
+    to: "      if (false)\n",
+    why: "run ask --wait ends at its timeout",
+  },
+  {
     file: "packages/core/src/application/host-descriptors.ts",
     from: "agent: agentWhy",
     to: "agent: false",
@@ -6515,5 +6569,17 @@ export const MUTANTS: readonly Mutant[] = [
     from: "ready.some((r) => r.at.root === root && r.step.id !== step.id) ||",
     to: "false ||",
     why: "two steps of one repository in one wave each get a worktree of their own",
+  },
+  {
+    file: "packages/desktop/src/plan-flow.ts",
+    from: "waitsFor: step.run ? [] : step.dependsOn.filter((d) => !done.has(d)),",
+    to: "waitsFor: step.dependsOn,",
+    why: "a pending step waits only for the steps not done yet",
+  },
+  {
+    file: "packages/desktop/src/board.ts",
+    from: "if (f.parent && c.parent?.key !== f.parent) return false;",
+    to: "",
+    why: "the parent-task filter keeps only that task's steps and runs",
   },
 ];

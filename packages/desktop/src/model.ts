@@ -287,7 +287,8 @@ export type Route =
   | { readonly screen: "overview"; readonly tab: OverviewTab }
   | { readonly screen: "mrs"; readonly id?: string }
   | { readonly screen: "settings" }
-  | { readonly screen: "backlog" };
+  | { readonly screen: "backlog" }
+  | { readonly screen: "board" };
 
 /** The tab an old run route showed. */
 const OLD_RUN_ROUTES: Readonly<Record<string, RunTab>> = {
@@ -353,6 +354,8 @@ export function parseRoute(hash: string): Route {
       return { screen: "settings" };
     case "backlog":
       return { screen: "backlog" };
+    case "board":
+      return { screen: "board" };
     case "mrs":
       return arg ? { screen: "mrs", id: arg } : { screen: "mrs" };
     case "inbox":
@@ -1615,8 +1618,30 @@ export const isFirstRun = (runs: readonly unknown[], needs: readonly unknown[]):
   runs.length === 0 && needs.length === 0;
 
 /** What the app says once an answer went through. */
-export const answeredText = (choices: readonly string[]): string =>
-  `Answered: ${choices.join(", ")}. The run goes on.`;
+/**
+ * The confirmation of an answer, saying what the run did with it (read back from the daemon
+ * after the answer): escalated, closed, done, sent back to an earlier stage, or going on. With
+ * nothing read back it claims nothing about the run.
+ */
+export function answeredText(
+  choices: readonly string[],
+  after?: Pick<RunOverview, "status" | "stage"> | undefined,
+  askedAt?: string | undefined,
+): string {
+  const said = choices.join(", ");
+  const rejected = choices.length === 1 && choices[0] === "Reject";
+  const head = rejected ? "Rejected" : `Answered: ${said}`;
+  if (!after) return `${head}.`;
+  if (after.status === "escalated")
+    return rejected
+      ? "Rejected: the run escalated with your reason. It waits for a person to resume or close it."
+      : `${head}. The run escalated: it waits for a person to resume or close it.`;
+  if (after.status === "aborted") return `${head}. The run is closed.`;
+  if (after.status === "done") return `${head}. The run is done.`;
+  if (rejected && askedAt && after.stage !== askedAt)
+    return `Rejected: the run goes back to ${after.stage} with your reason.`;
+  return `${head}. The run goes on.`;
+}
 
 /** The tab a run opens on from the sidebar: where the work is while it runs, the summary once it is finished. */
 export const runTabFor = (r: Pick<RunOverview, "status">): RunTab =>
@@ -1908,7 +1933,9 @@ export const plansShown = <P extends { readonly status: string; readonly updated
   now: number,
   keepMs = 24 * 60 * 60 * 1000,
 ): P[] =>
-  plans.filter((p) => p.status !== "done" || (p.updatedAt !== null && now - Date.parse(p.updatedAt) <= keepMs));
+  plans.filter(
+    (p) => p.status !== "done" || (p.updatedAt !== null && now - Date.parse(p.updatedAt) <= keepMs),
+  );
 
 /**
  * The system plan a run carries out, as its parent: the plan one of whose steps is a child of the

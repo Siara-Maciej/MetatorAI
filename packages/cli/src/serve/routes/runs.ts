@@ -251,7 +251,11 @@ export const RUN_ROUTES: readonly Route[] = [
   route({
     method: "POST",
     pattern: "/runs/:run/release",
-    handler: (call) => call.c.resolve("driverLock").release({ runId: run(call) }),
+    // What the person typed in a pane before giving the keyboard back is recorded under their name.
+    handler: async (call) => {
+      await call.c.resolve("hostPrompts").tick();
+      return call.c.resolve("driverLock").release({ runId: run(call) });
+    },
   }),
   // The same answer as `metator run answer` (`always`: also a policy); carried out by a drive:
   // with none alive on an active run, the run is driven again. Never an escalated run.

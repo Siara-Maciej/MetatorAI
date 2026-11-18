@@ -16,6 +16,7 @@ import type {
   ArchitectureBaselineStore,
   ArchitectureFacts,
   ArchitecturePolicyCatalog,
+  AskInRun,
   AskQuestion,
   AuditAgents,
   BackgroundProcess,
@@ -138,6 +139,7 @@ import type {
   MyReviews,
   Notifier,
   OpenEditor,
+  OpenPrompt,
   OptionStore,
   PackageManager,
   PackageManagerDetector,
@@ -354,6 +356,7 @@ export interface Cradle {
   hostManifests: HostManifestCatalog;
   paneSensor: PaneSensor;
   hostPrompts: HostPrompts;
+  openPrompts: Map<string, OpenPrompt>;
   notifier: Notifier;
   runMessages: RunMessages;
   runJournal: RunJournal;
@@ -396,6 +399,7 @@ export interface Cradle {
   ensureDriven: EnsureDriven;
   startRun: StartRun;
   answerQuestion: AnswerQuestion;
+  askInRun: AskInRun;
   briefRun: BriefRun;
   reviveRuns: ReviveRuns;
   endRun: EndRun;

@@ -212,3 +212,24 @@ export function terminalQuestionOf(line: string): TerminalQuestion {
     return { kind: "permission", prompt: clean, options: [] };
   return { kind: "question", prompt: (m?.[1] ?? clean).trim(), options };
 }
+
+/**
+ * What a person typed at a terminal prompt, read back from the screen: the first line after the
+ * prompt's last showing (the terminal echoes what was typed). Undefined when nothing follows it.
+ */
+export function answerAfter(screen: string, prompt: string): string | undefined {
+  const lines = screen
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: terminal escapes are what is removed
+    .replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "")
+    .split(/\r?\n|\r/)
+    .map((l) => l.trim());
+  let at = -1;
+  for (let i = lines.length - 1; i >= 0; i--)
+    if ((lines[i] as string).includes(prompt)) {
+      at = i;
+      break;
+    }
+  if (at < 0) return undefined;
+  const typed = lines.slice(at + 1).find((l) => l !== "");
+  return typed === undefined || typed === "" ? undefined : typed;
+}

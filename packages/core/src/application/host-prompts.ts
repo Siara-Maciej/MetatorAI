@@ -1,7 +1,8 @@
-import type { MetatorError } from "../domain/errors.ts";
+import { MetatorError } from "../domain/errors.ts";
 import {
   ANSWERED_IN_PANE,
   ATTACH_PANE,
+  answerAfter,
   hostPromptText,
   LEAVE_PANE,
   terminalQuestionOf,
@@ -21,6 +22,24 @@ export interface HostPromptsDependencies {
   readonly identity?: PaneIdentity;
   /** Types a person's answer to a terminal question into its pane (never over a person). */
   readonly type?: (paneId: string, text: string) => Promise<Result<void, MetatorError>>;
+  /** The pane's screen as printed: what was typed at a prompt is read back from it. */
+  readonly screen?: (paneId: string) => string;
+  /** Who holds the keyboard of the run's panes (the driver lock), if a person does. */
+  readonly holder?: (runId: string) => Promise<string | undefined>;
+  /** The open prompts, kept by the caller so the daemon's check and an answer share them. */
+  readonly open?: Map<string, OpenPrompt>;
+}
+
+/** One host prompt in the inbox: the question it became, and the screen line it was asked for. */
+export interface OpenPrompt {
+  readonly runId: string;
+  readonly questionId: string;
+  /** The blocked line the question was asked for: another line is another question. */
+  readonly prompt: string;
+  readonly host: string;
+  /** A question the agent asks (typed for the person), or the host's own permission prompt. */
+  readonly asks: boolean;
+  handled: boolean;
 }
 
 export interface HostPromptsReport {
@@ -41,9 +60,11 @@ export interface HostPromptsReport {
  */
 export class HostPrompts {
   /** The inbox item per blocked pane; `handled` once the person answered it (attached or left it). */
-  private readonly open = new Map<string, { runId: string; questionId: string; handled: boolean }>();
+  private readonly open: Map<string, OpenPrompt>;
 
-  constructor(private readonly d: HostPromptsDependencies) {}
+  constructor(private readonly d: HostPromptsDependencies) {
+    this.open = d.open ?? new Map();
+  }
 
   async tick(): Promise<Result<HostPromptsReport, MetatorError>> {
     const panes = await this.d.sensor.all();
@@ -55,7 +76,19 @@ export class HostPrompts {
     for (const pane of panes.value) {
       if (!pane.runId) continue;
       seen.add(pane.paneId);
-      const item = this.open.get(pane.paneId);
+      let item = this.open.get(pane.paneId);
+      // Another question on the screen, or words typed after this one: it was answered there;
+      // each question gets its own card.
+      if (
+        item &&
+        pane.state === "blocked" &&
+        (pane.reason !== item.prompt || this.answeredThere(pane.paneId, item))
+      ) {
+        const closed = await this.close(pane.paneId, item);
+        if (closed.isErr()) return err(closed.error);
+        resolved.push(pane.paneId);
+        item = undefined;
+      }
       if (pane.state === "blocked") {
         if (item) {
           if (!item.handled) {
@@ -89,14 +122,21 @@ export class HostPrompts {
           multiSelect: false,
         });
         if (q.isErr()) return err(q.error);
-        this.open.set(pane.paneId, { runId: pane.runId, questionId: q.value.id, handled: false });
+        this.open.set(pane.paneId, {
+          runId: pane.runId,
+          questionId: q.value.id,
+          prompt: pane.reason,
+          host: pane.host,
+          asks,
+          handled: false,
+        });
         asked.push({ paneId: pane.paneId, runId: pane.runId, questionId: q.value.id });
         if (this.d.notify) await this.d.notify.notify(q.value);
         continue;
       }
       if (item) {
         // The prompt went away: someone answered the host in the pane (or it moved on).
-        const closed = await this.close(pane.paneId, item, pane.host);
+        const closed = await this.close(pane.paneId, item);
         if (closed.isErr()) return err(closed.error);
         resolved.push(pane.paneId);
       }
@@ -106,12 +146,56 @@ export class HostPrompts {
   }
 
   /**
+   * Before a card's answer to a pane's question is recorded: when the screen moved on (the
+   * question was answered in the pane), the pane's answer is recorded now and the card's then
+   * finds the question answered; when a person holds the pane's keyboard, the card is refused
+   * (nothing is ever typed over them).
+   */
+  async settle(runId: string, questionId: string): Promise<Result<void, MetatorError>> {
+    const found = this.itemOf(runId, questionId);
+    if (!found) return ok(undefined);
+    const [paneId, item] = found;
+    const panes = await this.d.sensor.all();
+    if (panes.isErr()) return err(panes.error);
+    const pane = panes.value.find((p) => p.paneId === paneId);
+    if (pane?.state !== "blocked" || pane.reason !== item.prompt || this.answeredThere(paneId, item))
+      return this.close(paneId, item);
+    const holder = item.asks ? await this.d.holder?.(runId) : undefined;
+    if (holder)
+      return err(
+        new MetatorError(
+          "CONFLICT",
+          `${holder} is answering in pane ${paneId}: answer there, or wait until they release it`,
+        ),
+      );
+    return ok(undefined);
+  }
+
+  /** Right after a card's answer is recorded: typed into its pane at once, not on the next check. */
+  async deliver(runId: string, questionId: string): Promise<Result<void, MetatorError>> {
+    const found = this.itemOf(runId, questionId);
+    if (!found || found[1].handled) return ok(undefined);
+    return this.followUp(found[0], found[1], []);
+  }
+
+  /** Words were typed after the agent's question (the terminal echoes them): it was answered there. */
+  private answeredThere(paneId: string, item: OpenPrompt): boolean {
+    return item.asks && answerAfter(this.d.screen?.(paneId) ?? "", item.prompt) !== undefined;
+  }
+
+  private itemOf(runId: string, questionId: string): [string, OpenPrompt] | undefined {
+    for (const entry of this.open)
+      if (entry[1].runId === runId && entry[1].questionId === questionId) return entry;
+    return undefined;
+  }
+
+  /**
    * A person's answer to an open host prompt: attach them (the driver lock under their name),
    * or note that they leave it. The item stays until the prompt goes away, so it is asked once.
    */
   private async followUp(
     paneId: string,
-    item: { runId: string; questionId: string; handled: boolean },
+    item: OpenPrompt,
     attached: HostPromptsReport["attached"][number][],
   ): Promise<Result<void, MetatorError>> {
     const questions = await this.d.journal.questions(item.runId);
@@ -140,28 +224,37 @@ export class HostPrompts {
     return ok(undefined);
   }
 
-  private async close(
-    paneId: string,
-    item: { runId: string; questionId: string },
-    host: string,
-  ): Promise<Result<void, MetatorError>> {
+  /**
+   * The prompt went away (or another took its place): an unanswered question is answered by the
+   * pane, as a card answer would be: the words typed after the prompt (an option's label when they
+   * name one), by the person at the pane's keyboard, else by the pane.
+   */
+  private async close(paneId: string, item: OpenPrompt): Promise<Result<void, MetatorError>> {
     this.open.delete(paneId);
     const questions = await this.d.journal.questions(item.runId);
     if (questions.isErr()) return err(questions.error);
     const q = questions.value.find((x) => x.id === item.questionId);
     if (q && !q.answer) {
-      // Not one of the two choices: the pane itself says, in words, that the prompt is gone.
+      const typed = item.asks ? answerAfter(this.d.screen?.(paneId) ?? "", item.prompt) : undefined;
+      const option = typed
+        ? q.options.find((o) => o.label.toLowerCase() === typed.toLowerCase())?.label
+        : undefined;
+      const by = (item.asks ? await this.d.holder?.(item.runId) : undefined) ?? `pane:${paneId}`;
+      // Not one of the choices and nothing read back: the pane says, in words, that the prompt is gone.
       const answered = await this.d.journal.answer(item.runId, item.questionId, {
-        choices: [],
-        text: ANSWERED_IN_PANE,
-        by: `pane:${paneId}`,
+        ...(option
+          ? { choices: [option] }
+          : typed
+            ? { choices: ["Other"], text: typed }
+            : { choices: [], text: ANSWERED_IN_PANE }),
+        by,
       });
       if (answered.isErr()) return err(answered.error);
     }
     const noted = await this.d.journal.record(item.runId, {
       type: "agent",
       origin: "pty",
-      agent: host,
+      agent: item.host,
       text: `the host prompt in pane ${paneId} went away`,
     });
     return noted.isErr() ? err(noted.error) : ok(undefined);

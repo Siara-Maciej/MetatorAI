@@ -1206,8 +1206,27 @@ describe("the sidebar: one state that rolls up (wave 2)", () => {
     expect(isFirstRun([], [])).toBe(true);
     expect(isFirstRun([run("a")], [])).toBe(false);
     expect(isFirstRun([], [{}])).toBe(false);
-    expect(answeredText(["Approve"])).toBe("Answered: Approve. The run goes on.");
-    expect(answeredText(["EUR", "USD"])).toBe("Answered: EUR, USD. The run goes on.");
+    const active = { status: "active", stage: "build" };
+    expect(answeredText(["Approve"], active, "plan-approval")).toBe("Answered: Approve. The run goes on.");
+    expect(answeredText(["EUR", "USD"], active, "build")).toBe("Answered: EUR, USD. The run goes on.");
+    // What the run did with the answer is said, never assumed (a Reject that escalated it).
+    expect(answeredText(["Reject"], { status: "escalated", stage: "delivery" }, "delivery")).toBe(
+      "Rejected: the run escalated with your reason. It waits for a person to resume or close it.",
+    );
+    expect(answeredText(["Reject"], { status: "active", stage: "plan" }, "plan-approval")).toBe(
+      "Rejected: the run goes back to plan with your reason.",
+    );
+    expect(answeredText(["Approve"], { status: "done", stage: "done" }, "delivery")).toBe(
+      "Answered: Approve. The run is done.",
+    );
+    expect(answeredText(["Other"], { status: "aborted", stage: "aborted" }, "x")).toBe(
+      "Answered: Other. The run is closed.",
+    );
+    expect(answeredText(["Approve"], { status: "escalated", stage: "gates" }, "x")).toBe(
+      "Answered: Approve. The run escalated: it waits for a person to resume or close it.",
+    );
+    // Nothing read back: nothing claimed about the run.
+    expect(answeredText(["Approve"])).toBe("Answered: Approve.");
   });
 
   test("the help filters by a key or by what it does; each letter of the shell means one thing", () => {

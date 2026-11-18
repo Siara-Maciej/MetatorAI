@@ -35,6 +35,7 @@ import { moveInList } from "./list-keys.ts";
 /** The places that are not a run, in the order of the sidebar's bottom. */
 const PLACES: readonly { readonly route: Route; readonly label: string; readonly glyph: string }[] = [
   { route: { screen: "grid" }, label: "Terminals", glyph: "▦" },
+  { route: { screen: "board" }, label: "Board", glyph: "▥" },
   { route: { screen: "backlog" }, label: "Backlog", glyph: "☷" },
   { route: { screen: "mrs" }, label: "Reviews", glyph: "⇄" },
   { route: { screen: "overview", tab: "daemon" }, label: "Overview", glyph: "◎" },

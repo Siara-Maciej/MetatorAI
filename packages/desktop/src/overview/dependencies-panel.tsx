@@ -1,6 +1,8 @@
 /** Screen 3: lanes per repository, sessions as cards, parent → child arrows, dashed links for messages and shared files. */
 import type { Conflict, RunMessage } from "../api.ts";
+import { systemRunOf } from "../board.ts";
 import { Notice } from "../components/common.tsx";
+import { PlanFlowGraph } from "../components/plan-flow-graph.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import {
@@ -10,6 +12,7 @@ import {
   linkPath,
   lookOf,
   openRuns,
+  type Run,
   routeHash,
   runStateOf,
   runTabFor,
@@ -28,8 +31,8 @@ const TONE_VAR: Record<Tone, string> = {
   faint: "grey",
 };
 
-export function DependenciesPanel() {
-  const { runs, repos, client } = useDaemon();
+export function DependenciesPanel({ onOpenRun }: { onOpenRun?: ((runId: string) => void) | undefined } = {}) {
+  const { runs, repos, client, systemPlans } = useDaemon();
   // Every run that is not finished, escalated ones included: what the panel and the top bar count.
   const active = openRuns(runs);
   // Asked again when the set of runs changes, not on every refresh of the state.
@@ -55,8 +58,20 @@ export function DependenciesPanel() {
   const messages: readonly RunMessage[] = links0.data?.messages ?? [];
   const action = useAction(links0.reload);
   const lanes = repos.length > 0 ? repos.map((r) => r.name) : [""];
+  // A decomposed task is drawn as its plan's flow; the runs graph keeps the runs of no plan.
+  const inPlans = new Set(
+    systemPlans.flatMap((p) => [
+      ...p.steps.flatMap((s) => (s.run ? [s.run] : [])),
+      ...(systemRunOf(p, runs) ? [(systemRunOf(p, runs) as Run).runId] : []),
+    ]),
+  );
+  const loose = runs.filter((r) => !inPlans.has(r.runId));
+  const go = (runId: string) => {
+    if (onOpenRun) onOpenRun(runId);
+    else window.location.hash = routeHash({ screen: "run", runId, tab: "overview" });
+  };
   // Every open run, and the finished ones of the last day (dimmed) or linked to one shown.
-  const graph = graphLayout(runs, lanes);
+  const graph = graphLayout(loose, lanes);
   const at = new Map(graph.nodes.map((n) => [n.run.runId, n]));
   const links = [
     ...conflicts.map((c) => ({
@@ -89,6 +104,33 @@ export function DependenciesPanel() {
   return (
     <div className="graph">
       <div className="canvas">
+        {systemPlans.length > 0 ? (
+          <section className="plan-flows" aria-label="tasks as flows">
+            {systemPlans.map((p) => {
+              const head = systemRunOf(p, runs);
+              return (
+                <div key={`${p.repo ?? ""}/${p.plan.id}`} className="plan-flow-box">
+                  <h3>
+                    {p.plan.task} <span className="faint mono">{p.plan.id}</span>
+                    <span className="faint"> · {p.status}</span>
+                  </h3>
+                  <PlanFlowGraph
+                    view={p}
+                    runs={runs}
+                    dim={p.status === "done"}
+                    onOpenRun={go}
+                    onOpenStep={() => {
+                      window.location.hash = head
+                        ? routeHash({ screen: "run", runId: head.runId, tab: "plan" })
+                        : routeHash({ screen: "overview", tab: "system" });
+                    }}
+                  />
+                </div>
+              );
+            })}
+            <h3 className="runs-title">Other runs</h3>
+          </section>
+        ) : null}
         <svg
           width={width}
           height={height}

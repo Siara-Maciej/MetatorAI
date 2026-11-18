@@ -2073,6 +2073,24 @@ metator run questions [options]
 | `--run <id>` | only this run (default: every run) |  |
 | `--all` | include answered questions |  |
 
+### `metator run ask`
+
+Ask the person a question from a terminal: it reaches their inbox like any agent's question; --wait blocks until they answer and prints it
+
+```bash
+metator run ask [options] [prompt]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[prompt]` | the question, in your own words | |
+| `--run <id>` | run id (default: latest) |  |
+| `--option <labels...>` | the choices you offer (Other, in their own words, is always added) |  |
+| `--agent <id>` | who asks (default: $METATOR_WORKER in a worker's pane, mt-orchestrator in the conductor's) |  |
+| `--question <id>` | wait for the answer of a question already asked (with --wait) |  |
+| `--wait` | block until the answer is recorded, then print it |  |
+| `--timeout <ms>` | with --wait: how long to wait before saying there is no answer yet |  |
+
 ### `metator run answer`
 
 Record the answer to a question; the run continues when a drive is waiting for it (with none, `metator run continue` starts one)

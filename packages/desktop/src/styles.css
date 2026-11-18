@@ -2559,3 +2559,252 @@ dialog.goto {
   border-bottom: 1px solid var(--edge);
   font-size: var(--fs-code);
 }
+
+/* A decomposed task as a flow (plan-flow-graph.tsx): waves left to right, a lane per repository. */
+.plan-flows {
+  padding: 10px 12px 0;
+}
+.plan-flows h3 {
+  font-size: var(--fs-head);
+  margin: 6px 0;
+}
+.plan-flows .runs-title {
+  color: var(--muted);
+  margin-top: 14px;
+}
+.plan-flow {
+  margin: 0 0 8px;
+}
+.plan-flow .canvas {
+  overflow: auto;
+}
+.plan-flow svg {
+  width: auto;
+  height: auto;
+}
+.plan-flow.finished {
+  opacity: 0.55;
+}
+.plan-flow .lane {
+  fill: var(--panel);
+  stroke: var(--edge);
+}
+.plan-flow text {
+  fill: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-small);
+}
+.plan-flow .lanename,
+.plan-flow .colname {
+  fill: var(--dim);
+  font-size: var(--fs-micro);
+}
+.plan-flow .flow-node {
+  fill: var(--bg);
+  stroke-width: 1.5;
+}
+.plan-flow .flow-node.task {
+  fill: var(--panel);
+}
+.plan-flow .flow-node.pending {
+  stroke-dasharray: 5 4;
+}
+.plan-flow .flow-node.critical {
+  stroke-width: 2.5;
+}
+.plan-flow .flow-title {
+  font-weight: 600;
+}
+.plan-flow .flow-sub {
+  fill: var(--muted);
+}
+.plan-flow .flow-sub.amber {
+  fill: var(--amber);
+}
+.plan-flow .flow-sub.red {
+  fill: var(--red);
+}
+.plan-flow .flow-sub.violet {
+  fill: var(--violet);
+}
+.plan-flow .flow-sub.green {
+  fill: var(--green);
+}
+.plan-flow .flow-edge {
+  stroke: var(--grey);
+  stroke-width: 1.5;
+  fill: none;
+}
+.plan-flow .flow-edge.critical {
+  stroke: var(--teal);
+  stroke-width: 2.5;
+}
+.plan-flow .flow-edge.met {
+  stroke-opacity: 0.45;
+}
+.plan-flow .arrowhead {
+  fill: var(--grey);
+}
+.plan-flow a:hover .flow-node,
+.plan-flow a:focus .flow-node {
+  fill: var(--panel);
+}
+.plan-flow figcaption {
+  font-size: var(--fs-small);
+  margin-top: 2px;
+}
+.sp-waves .plan-flow {
+  margin-top: 4px;
+}
+
+/* The board (screens/board.tsx). */
+.board-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.board-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--edge);
+}
+.board-filters fieldset.chips {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: var(--sp-1);
+}
+.board-filters .chip {
+  cursor: pointer;
+}
+.board-filters .chip[aria-pressed="true"] {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+.board-filters input[type="text"],
+.board-filters input:not([type]) {
+  width: 160px;
+}
+.board-filters .group-by {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+.board {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 10px 12px;
+}
+.board-head,
+.board-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.board-head {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  padding: 8px 0 6px;
+  z-index: 1;
+}
+.board-col-head {
+  font-weight: 600;
+  font-size: var(--fs-compact);
+}
+.board-lane .lane-title {
+  font-size: var(--fs-compact);
+  color: var(--muted);
+  margin: 10px 0 4px;
+  border-top: 1px solid var(--edge);
+  padding-top: 8px;
+}
+.board-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.board-card {
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--bg);
+  padding: 7px 9px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-small);
+}
+.board-card:focus,
+.board-card:hover {
+  border-color: var(--teal);
+  outline: none;
+}
+.board-card.needs {
+  border-left: 3px solid var(--amber);
+}
+.board-card.escalated {
+  border-left: 3px solid var(--red);
+}
+.board-card.pending {
+  border-style: dashed;
+}
+.board-card.aborted {
+  opacity: 0.6;
+}
+.board-card .card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.board-card .card-state.amber {
+  color: var(--amber);
+}
+.board-card .card-state.red {
+  color: var(--red);
+}
+.board-card .card-state.violet {
+  color: var(--violet);
+}
+.board-card .card-state.green {
+  color: var(--green);
+}
+.board-card .card-state.faint {
+  color: var(--dim);
+}
+.board-card .card-title {
+  font-size: var(--fs-compact);
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.board-card .card-part {
+  color: var(--blue);
+}
+.board-card .card-action {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.board-empty {
+  font-size: var(--fs-small);
+  padding: 4px 2px;
+}
+.board-col .show-more {
+  align-self: flex-start;
+}
+.overview .board-link {
+  margin-left: var(--sp-3);
+  color: var(--blue);
+  font-size: var(--fs-compact);
+}
