@@ -58,6 +58,7 @@ import type {
   SystemStep,
   Tab,
   UnreadableRun,
+  WorkPhase,
   Workspace,
   WorktreeConflict,
 } from "@metator/core";
@@ -116,6 +117,7 @@ export type {
   SystemPlanView,
   SystemStep,
   UnreadableRun,
+  WorkPhase,
 };
 
 /** One option of a question. */

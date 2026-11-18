@@ -1896,8 +1896,19 @@ export function linkPath(
   return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
 }
 
-/** A system plan's view with the repository it was read from (in a folder). */
-export type RepoSystemPlan = SystemPlanView & { readonly repo?: string | undefined };
+/** A system plan's view with the repository it was read from (in a folder), and when it last changed. */
+export type RepoSystemPlan = SystemPlanView & {
+  readonly repo?: string | undefined;
+  readonly updatedAt?: string | null | undefined;
+};
+
+/** The system plans the app reads in full: the open ones, and the ones done in the last `keepMs`. */
+export const plansShown = <P extends { readonly status: string; readonly updatedAt: string | null }>(
+  plans: readonly P[],
+  now: number,
+  keepMs = 24 * 60 * 60 * 1000,
+): P[] =>
+  plans.filter((p) => p.status !== "done" || (p.updatedAt !== null && now - Date.parse(p.updatedAt) <= keepMs));
 
 /**
  * The system plan a run carries out, as its parent: the plan one of whose steps is a child of the

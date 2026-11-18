@@ -28,6 +28,7 @@ import {
   sameRepo,
   seenFrom,
   seenKey,
+  plansShown,
   stepPlace,
   systemPlanOf,
   type Unreadable,
@@ -333,9 +334,12 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
         (repos.length > 0 ? repos.map((r) => r.name) : [undefined]).map(async (name) => {
           const list = await client.systemPlans(name);
           if (!list.ok || !Array.isArray(list.data)) return [];
-          const open = list.data.filter((p) => p.status !== "done");
+          // Open plans, and the ones finished in the last day (the graph keeps them, dimmed).
+          const open = plansShown(list.data, Date.now());
           const views = await Promise.all(open.map((p) => client.systemPlan(p.id, name)));
-          return views.flatMap((v) => (v.ok && v.data ? [{ ...v.data, repo: name }] : []));
+          return views.flatMap((v, i) =>
+            v.ok && v.data ? [{ ...v.data, repo: name, updatedAt: open[i]?.updatedAt ?? null }] : [],
+          );
         }),
       );
       return { ok: true, data: all.flat() };
