@@ -286,6 +286,11 @@ export class AllGateApprovals implements GateApprovals {
   }
 }
 
+/** Keeps what a stage a run goes back to will revise (`PlanRevisions`); declared here for the same reason. */
+export interface PlanKeeper {
+  keep(runId: string, stage: string): Promise<Result<void, MetatorError>>;
+}
+
 /** Asks a human gate's question when a run stands at one (`GateQuestions`); declared here for the same reason. */
 export interface GateAsker {
   ask(runId: string): Promise<Result<unknown, MetatorError>>;
@@ -300,6 +305,8 @@ export class AdvanceRun {
     private readonly journal?: GateSettler,
     /** A run moved into a human gate gets the gate's question, whoever moved it. */
     private readonly gates?: GateAsker,
+    /** A run sent back keeps what the stage it goes back to will revise (`PlanRevisions`). */
+    private readonly revisions?: PlanKeeper,
   ) {}
 
   async execute(input: {
@@ -374,6 +381,14 @@ export class AdvanceRun {
     if (input.event.type === "APPROVE" && this.journal) {
       const settled = await this.journal.settleGate(id.value, seen.stage, input.event.by);
       if (settled.isErr()) return err(settled.error);
+    }
+    // Sent back to an earlier stage: the version it is to revise is kept before anyone writes.
+    if (input.event.type === "FAIL" && this.revisions) {
+      const now2 = await this.repo.load(id.value);
+      if (now2.isOk() && now2.value.state.status === "active" && now2.value.state.stage !== seen.stage) {
+        const kept = await this.revisions.keep(id.value, now2.value.state.stage);
+        if (kept.isErr()) return err(kept.error);
+      }
     }
     if (this.gates) {
       const asked = await this.gates.ask(id.value);

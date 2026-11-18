@@ -318,7 +318,8 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
     });
     // A person approves the plan itself first; the gate card still waits.
     expect((await mt("shop-api", "system", "plan", "approve", PLAN_ID, "--by", "ana")).code).toBe(0);
-    await page.goto(app("overview/dependencies"));
+    // The flow is on the task's own page: the system run's Plan tab, at the top.
+    await page.goto(app(`run/${parent}/plan`));
     const flow = page.getByTestId(`plan-flow-${PLAN_ID}`).first();
     await flow.waitFor({ timeout: 30_000 });
     await until("four pending steps", async () => {
@@ -348,11 +349,21 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
       "web-integration · waits for: api-model, api-endpoint, web-price-tag",
     );
     expect(await flow.textContent()).toContain("wave 2");
-    // The board: four steps not started in To do, the system run in Planning.
+    // Nowhere else: Overview → Dependencies has one line that leads to the task's page.
+    await page.goto(app("overview/dependencies"));
+    await page.getByTestId(`task-line-${PLAN_ID}`).waitFor({ timeout: 20_000 });
+    expect(await page.getByTestId(`plan-flow-${PLAN_ID}`).count()).toBe(0);
+    // The board's top level: the task once, in Planning (its plan's approval waits), 0 of 4 steps done.
     await page.goto(app("board"));
     await page.getByTestId("board").waitFor({ timeout: 20_000 });
+    const task = page.getByTestId(`task-plan:${PLAN_ID}`);
+    await task.waitFor({ timeout: 20_000 });
+    expect(await page.getByTestId("board-col-planning").getByTestId(`task-plan:${PLAN_ID}`).count()).toBe(1);
+    expect(await task.textContent()).toContain("0 of 4 steps done");
+    // Its own board: the four steps not started in To do, with what they wait for.
+    await task.click();
+    await page.getByTestId("board-task").waitFor({ timeout: 20_000 });
     await until("the steps in To do", async () => ((await boardColumns()).todo === 4 ? true : undefined));
-    expect((await boardColumns()).planning).toBe(1);
     expect(await page.getByTestId("board-col-todo").textContent()).toContain(
       "waits for: api-model, api-endpoint, web-price-tag",
     );
@@ -384,7 +395,7 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
       const stages = await Promise.all(children.map((c) => stageOf(c.repo, c.runId)));
       return stages.every((s) => s === "plan-approval") ? true : undefined;
     });
-    await page.goto(app("overview/dependencies"));
+    await page.goto(app(`run/${parent}/plan`));
     await until("wave 1 on the graph", async () => {
       const s = await flowStates();
       return s["api-model"] === "needs you" &&
@@ -393,20 +404,34 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
         ? true
         : undefined;
     });
-    // The child runs are drawn in the flow, not again in the runs graph below it.
-    expect(await page.locator(".graph > .canvas > svg").first().locator("a").count()).toBe(0);
+    // The sidebar: one row for the task, its progress and what needs you; unfolded, its steps by repository.
+    const side = page.getByTestId(`side-task-plan:${PLAN_ID}`);
+    await until("the task in the sidebar", async () =>
+      (await side.textContent())?.includes("3 need you") ? true : undefined,
+    );
+    expect(await side.textContent()).toContain("0/4");
+    expect(await page.locator("aside.sessions .needs .item").count()).toBe(0);
+    if ((await side.locator(".task-repo").count()) === 0)
+      await side.getByRole("button", { name: /^unfold/ }).click();
+    expect(await side.locator(".repo-name").allTextContents()).toEqual(["shop-api", "shop-web"]);
+    expect(await side.locator(".task-repo").last().textContent()).toContain(
+      "waits for api-model, api-endpoint, web-price-tag",
+    );
+    // The top level: the task in progress, its three steps that need you counted on it.
     await page.goto(app("board"));
-    // The three children wait at their plan's approval; the system run waits for them, in progress.
+    const task = page.getByTestId(`task-plan:${PLAN_ID}`);
+    await until("the task in progress", async () =>
+      (await page.getByTestId("board-col-in-progress").getByTestId(`task-plan:${PLAN_ID}`).count()) === 1
+        ? true
+        : undefined,
+    );
+    expect(await page.getByTestId("board-head-in-progress").textContent()).toContain("3 need you");
+    // Its board: the three children wait at their plan's approval, the last step in To do.
+    await task.press("Enter");
     await until("three in Planning", async () => ((await boardColumns()).planning === 3 ? true : undefined));
-    expect((await boardColumns())["in-progress"]).toBe(1);
+    expect((await boardColumns()).todo).toBe(1);
     expect(await page.getByTestId("board-head-planning").textContent()).toContain("3 need you");
-    // Filtered to this task, grouped, and to shop-web only.
-    await page.getByLabel("parent task", { exact: true }).selectOption({ label: `only ${TASK}` });
-    expect(await page.locator(".board-card").count()).toBe(5);
-    await page.getByLabel("group by parent task").check();
-    expect(await page.locator(".lane-title").first().textContent()).toContain(TASK);
-    await page.getByLabel("parent task", { exact: true }).selectOption("");
-    await page.getByLabel("group by parent task").uncheck();
+    // Filtered to shop-web only.
     await page.getByLabel("repositories").getByRole("button", { name: "shop-web" }).click();
     await until("shop-web only", async () =>
       (await page.locator(".board-card").count()) === 2 ? true : undefined,
@@ -421,6 +446,7 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
         .getAttribute("aria-pressed"),
     ).toBe("true");
     await page.getByRole("button", { name: "Clear" }).click();
+    await page.getByTestId("board-task").waitFor({ timeout: 20_000 });
     // A card opens with Enter; the arrows move between cards.
     await page.getByTestId("board-col-planning").locator(".board-card").first().focus();
     await page.keyboard.press("ArrowLeft");
@@ -429,9 +455,15 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
         document.activeElement?.closest("[data-testid]")?.getAttribute("data-testid"),
       ),
     ).toMatch(/^card-step-/);
+    // Escape goes back to all tasks.
+    await page.keyboard.press("Escape");
+    await until("the top level", async () =>
+      (await page.getByTestId("board-task").count()) === 0 ? true : undefined,
+    );
+    expect(page.url()).toMatch(/#\/board$/);
   }, 180_000);
 
-  test("wave 1 done: web-integration starts; then everything is done, the graph dimmed and the board in Done", async () => {
+  test("wave 1 done: web-integration starts; then everything is done, on the task's page and on the board", async () => {
     const firstWave = (await childRuns()).map((c) => c.runId);
     // Each child: its plan approved, then its delivery.
     await until(
@@ -449,7 +481,7 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
       120_000,
     );
     expect(integration.repo).toBe("shop-web");
-    await page.goto(app("overview/dependencies"));
+    await page.goto(app(`run/${parent}/plan`));
     await until("web-integration on the graph", async () => {
       const s = await flowStates();
       return s["api-model"] === "done" && s["web-integration"] !== "pending" ? true : undefined;
@@ -471,17 +503,22 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
         : undefined,
     );
     await page.goto(app("board"));
+    await until("the task done", async () =>
+      (await page.getByTestId("board-col-done").getByTestId(`task-plan:${PLAN_ID}`).count()) === 1
+        ? true
+        : undefined,
+    );
+    expect(await page.getByTestId(`task-plan:${PLAN_ID}`).textContent()).toContain("4 of 4 steps done");
+    await page.goto(app(`board/${encodeURIComponent(`plan:${PLAN_ID}`)}`));
     await until(
-      "everything in Done",
-      async () => ((await boardColumns()).done === 5 ? true : undefined),
+      "its steps in Done",
+      async () => ((await boardColumns()).done === 4 ? true : undefined),
       30_000,
     );
     expect((await boardColumns()).todo).toBe(0);
-    await page.goto(app("overview/dependencies"));
-    // A plan done in the last day stays, dimmed.
+    await page.goto(app(`run/${parent}/plan`));
     const flow = page.getByTestId(`plan-flow-${PLAN_ID}`).first();
     await flow.waitFor({ timeout: 20_000 });
-    expect(await flow.getAttribute("class")).toContain("finished");
     await until("every step done", async () => {
       const s = await flowStates();
       return Object.values(s).every((v) => v === "done") ? true : undefined;

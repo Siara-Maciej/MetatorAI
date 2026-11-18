@@ -90,5 +90,6 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0084](0084-di-static-registration.md) | DI: awilix ze statyczną rejestracją w runtime i kontenerem na repozytorium (zastępuje 0011) | Accepted |
 | [0085](0085-desktop-type-imports-from-core.md) | Aplikacja desktopowa importuje z `@metator/core` wyłącznie typy (`import type`); zmienia jeden punkt 0078 | Accepted |
 | [0086](0086-withdraw-terminal-ui.md) | Wycofanie pełnoekranowego `metator ui`; frontem graficznym jest aplikacja desktopowa (zastępuje 0060) | Accepted |
-| [0087](0087-person-edits-plans-in-the-app.md) | Osoba edytuje plany w aplikacji | Proposed |
+| [0087](0087-person-edits-plans-in-the-app.md) | Osoba edytuje plany w aplikacji | Superseded by 0089 (odrzucony przez właściciela) |
 | [0088](0088-text-only-at-a-terminal.md) | Przy terminalu tylko tekst dla osoby | Proposed |
+| [0089](0089-plan-changes-go-through-the-agent.md) | Zmiany planu idą przez agenta | Proposed |

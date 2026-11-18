@@ -1543,3 +1543,89 @@ describe("the task the agents read", () => {
     expect(prompt).toContain("Cap it at 100 PLN.");
   });
 });
+
+describe("a plan a person sent back", () => {
+  test("the planner hears the person's words and revises its plan, keeping what they did not object to", () => {
+    const prompt = stagePrompt({
+      runId: "r1",
+      task: "Add discount",
+      stage: { id: "plan", owner: "mt-planner", produces: ["plan.json"] } as StageSpec,
+      agent: "mt-planner",
+      skills: [],
+      runDir: "/repo/.metator/runs/r1",
+      retry: "the cap must be in cents",
+      retryFrom: "plan-approval",
+      rejectedBy: "ana",
+    });
+    expect(prompt).toContain(
+      'ana rejected the plan at plan-approval and asks for changes: "the cap must be in cents"',
+    );
+    expect(prompt).toContain(
+      "Revise the plan you wrote (plan.json in /repo/.metator/runs/r1) against these words: keep what they did not object to, change what they asked for. Do not start over.",
+    );
+    expect(prompt).not.toContain("failed and sent the run back here");
+  });
+});
+
+describe("a Reject at the plan's gate (a drive waits on it)", () => {
+  test("sends the run back to its planner, whose prompt carries the person's words and asks for a revision", async () => {
+    let asked = 0;
+    const w = world(
+      { "mt-planner": [writesPlan, writesPlan], "mt-implementer": [{}], "mt-scout": [{}] },
+      (q) =>
+        q.source === "gate"
+          ? asked++ === 0
+            ? { choices: ["Reject"], text: "the cap must be in cents" }
+            : { choices: ["Approve"] }
+          : undefined,
+      okScripts(),
+    );
+    w0 = w;
+    await w.fs.write(
+      ".github/metator/workflows/demo.yml",
+      WORKFLOW.replace(
+        "  - id: approval\n    hitl: true\n",
+        "  - id: approval\n    hitl: true\n    onFail: { goto: plan, loop: plan }\n",
+      ),
+    );
+    const runId = await w.start();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 5 });
+    const planners = w.host.tasks.filter((t) => t.agent === "mt-planner").map((t) => t.prompt);
+    expect(planners).toHaveLength(2);
+    expect(planners[1]).toContain(
+      'maciej rejected the plan at approval and asks for changes: "the cap must be in cents"',
+    );
+    expect(planners[1]).toContain("Do not start over.");
+  });
+});
+
+describe("a drive started after the plan was sent back (a card's Reject, no drive alive)", () => {
+  test("its planner still hears who asked for what", async () => {
+    const w = world({ "mt-planner": [writesPlan] }, () => ({ choices: ["Approve"] }), okScripts());
+    w0 = w;
+    await w.fs.write(
+      ".github/metator/workflows/demo.yml",
+      WORKFLOW.replace(
+        "  - id: approval\n    hitl: true\n",
+        "  - id: approval\n    hitl: true\n    onFail: { goto: plan, loop: plan }\n",
+      ),
+    );
+    const runId = await w.start();
+    (await w.advance.execute({ runId, event: { type: "PASS" } }))._unsafeUnwrap();
+    (await w.advance.execute({ runId, event: { type: "PASS" } }))._unsafeUnwrap();
+    const q = (
+      await w.journal.ask(runId, {
+        stage: "approval",
+        source: "gate",
+        prompt: "approval: approve to continue",
+        options: [{ label: "Approve" }, { label: "Reject" }],
+        multiSelect: false,
+      })
+    )._unsafeUnwrap();
+    await w.journal.answer(runId, q.id, { choices: ["Reject"], text: "cents, not zloty", by: "ola" });
+    (await w.advance.execute({ runId, event: { type: "FAIL", reason: "cents, not zloty" } }))._unsafeUnwrap();
+    await w.drive.execute({ runId, host: "fake", maxSteps: 1 });
+    const planner = w.host.tasks.find((t) => t.agent === "mt-planner")?.prompt ?? "";
+    expect(planner).toContain('ola rejected the plan at approval and asks for changes: "cents, not zloty"');
+  });
+});

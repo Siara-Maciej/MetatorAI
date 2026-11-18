@@ -35,31 +35,20 @@ The **artifacts** are the files this run's workflow produces, never another work
 
 ## A system run's plan
 
-A system run's Plan tab shows its **system plan** instead: the change across repositories. On top are its status, its approval (with who approved it, or **approved … before it changed: approve again** once someone edited it after the approval), its lint and **Approve**. **Approve** waits while the lint has errors, and says the first one. Below are the **deploy order**, wave by wave, and the steps grouped by repository, each with what it does, the steps it comes after, its status, and the run it started with that run's state and stage. A click on a run opens it.
-
-**Edit system plan** and **Edit as text** work as for a run's plan. A step that already has a run is history: its fields are read-only and it cannot be removed. New steps can be added (**+ Step**, with the application they run in). An approved plan that is edited goes back to draft and must be approved again.
-
-On a system run's Plan tab the deploy order is drawn as a flow: a column per wave, a lane per repository, an arrow for each step it waits for, pending steps dashed. Two steps of the same repository in one wave run side by side, each in a worktree of its own.
+A system run's page is the task's page. Its Plan tab shows the **system plan** at the top: its status, its approval, its lint, and its flow: a column per wave of the deploy order, a lane per repository, one node per step (dashed while it has not started, with what it waits for), an arrow from each step to the steps that wait for it, and the critical path drawn heavier. A node is in the colour of its child run, with its stage; a click opens the run. In a narrow window the nodes narrow to fit; past their narrowest the flow scrolls sideways in its own box. Below are the steps grouped by repository, each with what it does, the steps it comes after, its status and the run it started. Two steps of the same repository in one wave run side by side, each in a worktree of its own.
 
 Under a system run's header a line says how far its plan is (`1/2 steps done`) and what it waits for: **blocked by** the child run that needs you, with a link to it, or the gate's own words (`waiting on children: …`).
 
-In the sidebar a system run's steps sit under it, whatever repository they run in; a step of another repository names it (`step 2/2 · shop-web · plan · …`). The total comes from the system plan, so a step that has not started yet still counts.
+## Change a plan
 
-## Change the run's plan
+A plan is not edited by hand: its planner writes it, and you tell the planner what should be different. The Plan tab shows the plan read-only, with its lint (`lint: 2 errors · 1 warning`) and each problem under the step it is about.
 
-Until the run passes the gate where a person approves the plan (`plan-approval` in `mt-feature`), you can change the plan in the app. A bar over the steps shows the plan's lint (`lint: 2 errors · 1 warning`); each problem also stands under the step and the field it is about.
+At the plan's approval the card in the Inbox shows the plan **in full**, without a click: for a run, its steps with their files, the tests written first and what each step waits for; for a system plan, its flow and its steps per repository. Under it:
 
-- **Edit plan** turns the steps into fields: the task and the scope, then for each step its action, file, intent, exemplar (`file:line`), rules, the tests written first and the steps it comes after. **↑** and **↓** move a step (or **Alt+↑** and **Alt+↓** while a field of the step has the focus), **✕** removes it, and **+ Step** adds one at the end with the next id.
-- **Edit as text** shows the plan as JSON instead. **As fields** and **As text** switch between the two while you edit.
-- **Check** lints your draft without saving. A draft that is not valid JSON says so, with the line, before anything is sent.
-- **Save…** first lists what the save changes (`step added: S3`, `step S1 changed: intent`, `steps reordered`) and whether the plan still has errors; **Save** then asks for your name the first time and writes it. Lint errors do not stop a save; the gates still check them. A plan that does not fit its format is not saved, and the app points at the fields.
-- Every save records who made it and what changed (`plan edited by ana: step added: S3`) in the run's activity, and writes the edit scope again.
-- If the plan changed since you opened it (an agent or another person saved first), the save is refused and the bar says **The plan changed since you opened it**: **Reload** drops your edits and shows the plan as it is now; **Keep my edits** keeps them and saves them over the new version on your next **Save**.
-- After the approval gate, or when the run is done, the plan is read-only and the bar says why.
-
-When the approval question is open, its card in the Inbox shows the plan's lint as it is now and a link **Review / edit the plan** to this tab. While the lint has errors, **Approve** on the card is closed with the reason, and **Fix the plan** opens this tab in its edit mode (`#/run/<run>/plan/edit`).
-
-Agents never edit a plan through the app; they write the plan file their stage names.
+- **Approve** approves the plan, and the run goes on.
+- **Ask for changes** takes your words (`S2 also needs a test for a product without a currency`) and sends them as the gate's Reject with your words as the reason: the run goes back to its planner, which writes a new plan.
+- While the lint has errors, **Approve** is closed and the card says why; **Ask the planner to fix it** fills the box with the lint's problems.
+- When the planner has written a new version, the card and the Plan tab show **Changed since the previous plan**: the steps added, removed or changed, by id.
 
 ## The run's files
 

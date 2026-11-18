@@ -5,7 +5,7 @@ import { SystemPlans } from "../src/application/system-plan-edit.ts";
 import { ApproveSystemPlan, LintSystemPlan, SystemPlanStore } from "../src/application/system-plans.ts";
 import { LocalSystemLocation } from "../src/application/system-sources.ts";
 import { MetatorError } from "../src/domain/errors.ts";
-import { documentDigest, editLogOf, PlanEditDocument } from "../src/domain/plan-edit.ts";
+import { documentDigest, PlanRevisionDocument, previousOf } from "../src/domain/plan-edit.ts";
 import { err, ok } from "../src/domain/result.ts";
 import type { RunRecord } from "../src/domain/run-record.ts";
 import { SystemMapDocument } from "../src/domain/system-map.ts";
@@ -16,6 +16,7 @@ import {
   SystemPlanDocument,
   systemPlanDigest,
 } from "../src/domain/system-plan.ts";
+import { serializeJsonDocument } from "../src/domain/versioned.ts";
 
 const MAP = `kind: SystemMap
 schemaVersion: 2
@@ -83,13 +84,6 @@ async function world() {
   return { fs, store, plans, draft };
 }
 
-const log = async (fs: InMemoryFileSystem) =>
-  (await fs.read(editLogOf(`${PLANS}/rename-refunds.yml`)))
-    ._unsafeUnwrap()
-    .trim()
-    .split("\n")
-    .map((l) => PlanEditDocument.parse(JSON.parse(l), "log")._unsafeUnwrap());
-
 describe("system plans in the app", () => {
   test("the list and the view: lint, waves, steps per repository, editable", async () => {
     const w = await world();
@@ -129,7 +123,7 @@ describe("system plans in the app", () => {
     expect((await w.plans.view("nope"))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
   });
 
-  test("approve: lint must be clean; then an edit of an approved plan sends it back to draft and logs who and what", async () => {
+  test("approve: lint must be clean, and the approval is the person's", async () => {
     const w = await world();
     const approved = (await w.plans.approve("rename-refunds", "ana"))._unsafeUnwrap();
     expect([approved.status, approved.approval?.by, approved.approval?.stale]).toEqual([
@@ -137,127 +131,12 @@ describe("system plans in the app", () => {
       "ana",
       false,
     ]);
-    const plan = approved.plan;
-    const edited: SystemPlan = {
-      ...plan,
-      steps: [
-        ...plan.steps.map((s, i) => (i === 0 ? { ...s, summary: `${s.summary}, carefully` } : s)),
-        {
-          id: "web-docs",
-          app: "web",
-          summary: "Document it",
-          contracts: [],
-          dependsOn: [],
-          status: "done",
-          run: "forged",
-        },
-      ],
-    };
-    const saved = (
-      await w.plans.save("rename-refunds", { plan: edited, digest: approved.digest, by: "bob" })
-    )._unsafeUnwrap();
-    expect([saved.status, saved.approval]).toEqual(["draft", undefined]);
-    // Progress is never typed: a new step is pending without a run.
-    expect(saved.plan.steps.at(-1)).toMatchObject({ id: "web-docs", status: "pending" });
-    expect(saved.plan.steps.at(-1)?.run).toBeUndefined();
-    const [edit] = await log(w.fs);
-    expect(edit).toMatchObject({
-      by: "bob",
-      target: "system-plan",
-      id: "rename-refunds",
-      before: approved.digest,
-      after: saved.digest,
-      unapproved: { by: "ana" },
-    });
-    expect(edit?.changes).toEqual([
-      "step added: web-docs",
-      `step ${plan.steps[0]?.id} changed: summary`,
-      "approval by ana dropped: the plan is a draft again",
-    ]);
-    const list = (await w.plans.list())._unsafeUnwrap();
-    expect(list[0]?.updatedAt).toBe("2026-11-15T10:00:00.000Z");
   });
-
-  test("an edit that leaves what the approval covers keeps the approval", async () => {
-    const w = await world();
-    const approved = (await w.plans.approve("rename-refunds", "ana"))._unsafeUnwrap();
-    const same = { ...approved.plan, createdBy: "someone else", status: "draft", approval: undefined };
-    const saved = (
-      await w.plans.save("rename-refunds", { plan: same, digest: approved.digest, by: "bob" })
-    )._unsafeUnwrap();
-    expect([saved.status, saved.approval?.by, saved.approval?.stale]).toEqual(["approved", "ana", false]);
-  });
-
-  test("a step with a run cannot be changed or removed; new steps may be added", async () => {
-    const w = await world();
-    const first = w.draft.steps[0] as SystemPlan["steps"][number];
-    const running: SystemPlan = {
-      ...w.draft,
-      status: "running",
-      steps: w.draft.steps.map((s) => (s.id === first.id ? { ...s, status: "running", run: "r1" } : s)),
-    };
-    await w.store.save(running);
-    const view = (await w.plans.view("rename-refunds"))._unsafeUnwrap();
-    expect(view.steps.find((s) => s.id === first.id)).toMatchObject({
-      run: "r1",
-      runState: "active",
-      runStage: "build",
-    });
-    const changed = {
-      ...running,
-      steps: running.steps.map((s) => (s.id === first.id ? { ...s, summary: "else" } : s)),
-    };
-    const refused = await w.plans.save("rename-refunds", { plan: changed, digest: view.digest, by: "bob" });
-    expect(refused._unsafeUnwrapErr()).toMatchObject({
-      code: "TRANSITION_DENIED",
-      details: { step: first.id },
-    });
-    const removed = { ...running, steps: running.steps.filter((s) => s.id !== first.id) };
-    expect(
-      (
-        await w.plans.save("rename-refunds", { plan: removed, digest: view.digest, by: "bob" })
-      )._unsafeUnwrapErr().message,
-    ).toContain("cannot be removed");
-    // The editor sends the step as it read it, status and run included: that is no change.
-    const added = {
-      ...running,
-      steps: [...running.steps, { id: "extra", app: "web", summary: "More", contracts: [], dependsOn: [] }],
-    };
-    const ok1 = (
-      await w.plans.save("rename-refunds", { plan: added, digest: view.digest, by: "bob" })
-    )._unsafeUnwrap();
-    expect(ok1.plan.steps.find((s) => s.id === first.id)).toMatchObject({ status: "running", run: "r1" });
-  });
-
-  test("a stale digest is CONFLICT with the current view; an invalid plan is USAGE by field; nothing is written", async () => {
-    const w = await world();
-    const stale = (
-      await w.plans.save("rename-refunds", { plan: w.draft, digest: "x", by: "bob" })
-    )._unsafeUnwrapErr();
-    expect(stale.code).toBe("CONFLICT");
-    expect((stale.details as { current: { digest: string } }).current.digest).toBe(documentDigest(w.draft));
-    const digest = documentDigest(w.draft);
-    const invalid = { ...w.draft, steps: [{ id: "BAD ID", app: "web", summary: "x" }] };
-    const usage = (
-      await w.plans.save("rename-refunds", { plan: invalid, digest, by: "bob" })
-    )._unsafeUnwrapErr();
-    expect(usage.code).toBe("USAGE");
-    expect((usage.details as { problems: { field: string }[] }).problems[0]?.field).toBe("steps.0.id");
-    const other = (
-      await w.plans.save("rename-refunds", { plan: { ...w.draft, id: "other" }, digest, by: "bob" })
-    )._unsafeUnwrapErr();
-    expect(other.code).toBe("USAGE");
-    expect((await w.store.load("rename-refunds"))._unsafeUnwrap()).toEqual(w.draft);
-    expect(await w.fs.exists(editLogOf(`${PLANS}/rename-refunds.yml`))).toBe(false);
-  });
-
   test("a done plan is read-only", async () => {
     const w = await world();
     await w.store.save({ ...w.draft, status: "done" });
     const view = (await w.plans.view("rename-refunds"))._unsafeUnwrap();
     expect([view.editable, view.readOnlyBecause]).toEqual([false, "the plan is done: every step's run is"]);
-    const r = await w.plans.save("rename-refunds", { plan: view.plan, digest: view.digest, by: "bob" });
-    expect(r._unsafeUnwrapErr().code).toBe("TRANSITION_DENIED");
   });
 
   test("lint without writing; approve refuses lint errors and names no one", async () => {
@@ -291,5 +170,40 @@ describe("system plans in the app", () => {
     await w.store.save(holds);
     expect((await w.plans.list())._unsafeUnwrap()[0]?.approval).toEqual({ by: "ana", at: "t", stale: false });
     expect(SystemPlanDocument.kind).toBe("SystemPlan");
+  });
+});
+
+describe("a system plan's previous version (its planner revised it)", () => {
+  test("the view shows the version kept when the run went back, and what changed by step", async () => {
+    const w = await world();
+    expect((await w.plans.view(w.draft.id))._unsafeUnwrap().previous).toBeUndefined();
+    await w.fs.write(
+      previousOf(w.store.file(w.draft.id)),
+      serializeJsonDocument(
+        PlanRevisionDocument.stamp({
+          at: "2026-11-18T12:00:00.000Z",
+          digest: documentDigest(w.draft),
+          plan: w.draft as unknown as Record<string, unknown>,
+        }),
+      ),
+    );
+    const [first, ...rest] = w.draft.steps;
+    const revised = {
+      ...w.draft,
+      steps: [
+        { ...(first as (typeof w.draft.steps)[number]), summary: "Cents everywhere" },
+        ...rest.slice(1),
+      ],
+    };
+    (await w.store.save(revised))._unsafeUnwrap();
+    const view = (await w.plans.view(w.draft.id))._unsafeUnwrap();
+    expect([view.previous?.digest, view.previous?.at]).toEqual([
+      documentDigest(w.draft),
+      "2026-11-18T12:00:00.000Z",
+    ]);
+    expect(view.changes).toEqual([
+      ...(rest.length > 0 ? [`step removed: ${rest[0]?.id}`] : []),
+      `step ${first?.id} changed: summary`,
+    ]);
   });
 });

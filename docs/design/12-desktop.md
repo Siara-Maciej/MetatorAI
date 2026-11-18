@@ -176,6 +176,13 @@ Wzorem herdr powłoka ma jeden pasek boczny, który jest całym pulpitem; reszta
 - Tablica (Board): kolumny To do · Planning · In progress · Review · Done. Faza przebiegu liczona raz w core (`workPhase`, z workflow i etapu) i wysyłana przez demona jako `phase`; aplikacja nie zgaduje z nazw etapów i nie pozwala przeciągać kart.
 - Dwa kroki jednego repozytorium w jednej fali dostają osobne worktree.
 
+### 5.0d Zadania nadrzędne i plan bez edytora (2026-11-18, ADR-0089)
+
+- Panel boczny pokazuje zadania nadrzędne (zadanie systemowe, run z runami potomnymi, samodzielny run): jedno słowo stanu, postęp („3/6”), liczba „needs you”; rozwinięte zadanie pokazuje swoje drzewo według repozytoriów (także kroki nierozpoczęte, z tym, na co czekają). Lista decyzji jest w Inboxie; panel tylko ją liczy.
+- Przepływ zadania jest w jednym miejscu: na stronie zadania (zakładka Plan runu systemowego). Overview → Dependencies i Overview → System mają tylko linię prowadzącą do tej strony. Zakładka Dependencies zostaje dla runów spoza planów i wiadomości/wspólnych plików (przycisk Notify both działa tylko tam).
+- Plan nie jest edytowany ręcznie: karta zatwierdzenia pokazuje go w całości, a „Ask for changes” wysyła Reject bramki z tekstem jako powodem; planner pisze nowy plan, a karta pokazuje zmiany od poprzedniej wersji (`previous`, `changes`).
+- Tablica ma dwa poziomy: zadania nadrzędne, a po kliknięciu tablicę zadania z jego krokami.
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.

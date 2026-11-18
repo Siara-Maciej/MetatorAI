@@ -751,6 +751,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     // No editor anywhere: changes are asked for in words; Reject is that request.
     expect(await card.getByRole("button", { name: /Edit plan|Fix the plan/ }).count()).toBe(0);
     expect(await card.locator(".option", { hasText: "Reject" }).count()).toBe(0);
+    expect(await card.locator(".option", { hasText: "Other" }).count()).toBe(0);
     await card.getByLabel("what should change in the plan").fill("Round half-even, and add a test first.");
     await card.getByRole("button", { name: "Ask for changes" }).click();
     const named = page.getByRole("dialog", { name: "your name" });

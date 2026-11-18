@@ -410,6 +410,19 @@ describe("AnswerQuestion at a human gate (no drive waits on it: a conductor's ru
     });
   });
 
+  test("a Reject while the plan has lint errors carries them to the planner with the person's words", async () => {
+    const g = gated();
+    const { runId, q } = await atGate(g.w);
+    g.refuseWith("the plan has 1 lint error: S2: src/x.ts does not exist");
+    (
+      await g.answer.execute({ runId, question: q.id, choices: ["Reject"], text: "fix the plan", by: "ana" })
+    )._unsafeUnwrap();
+    const detail = (await g.w.repo.load(runId))._unsafeUnwrap().state.context.history.at(-1)?.detail;
+    expect(detail).toBe("fix the plan\nthe plan has 1 lint error: S2: src/x.ts does not exist");
+    const answer = (await g.w.journal.questions(runId))._unsafeUnwrap().find((x) => x.id === q.id)?.answer;
+    expect(answer?.text).toBe("fix the plan\nthe plan has 1 lint error: S2: src/x.ts does not exist");
+  });
+
   test("an Approve the gate refuses (its plan's lint errors) records nothing and moves nothing", async () => {
     const g = gated();
     const { runId, q } = await atGate(g.w);

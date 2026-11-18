@@ -16,7 +16,7 @@ An agent works without asking when it runs the MetatorAI commands its definition
 
 ## The Inbox screen
 
-**Inbox** is the first screen of the app. The column **Needs you** lists the open decisions. Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
+**Inbox** is the first screen of the app. Its left column, **Needs you**, lists the open decisions (the sidebar only counts them). Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
 
 ![The Inbox with the decision card of an approval: the goal, what happened since you left, three options and the answer buttons](../public/screens/inbox.png)
 
@@ -60,7 +60,7 @@ Either side can answer, and both see the result:
 
 An agent in a terminal asks you with `metator run ask "<question>" --option <a> --option <b> --wait`. The question comes as a card like any agent's question, and the command prints your answer when you give it, from the app or with `metator run answer`. `--timeout <ms>` ends the wait with `WAITING`; `metator run ask --question <id> --wait` waits again.
 
-A plan-approval card whose plan has lint errors shows **Approve** closed, with the reason under the options and **Fix the plan**, which opens the Plan tab in its edit mode. A system plan's card does the same for **Approve the system plan**.
+A plan-approval card shows the plan in full, with **Approve** and **Ask for changes**: your words go to the planner, which writes a new plan ([Change a plan](./plan.md#change-a-plan)). While the plan's lint has errors, **Approve** is closed with the reason and **Ask the planner to fix it** fills in the problems.
 
 A confirmation says what the run did with your answer: **Rejected: the run escalated with your reason**, **Rejected: the run goes back to plan**, **The run is done**, or **The run goes on**. It goes after a few seconds, or when you go elsewhere; a refusal stays until you close it.
 

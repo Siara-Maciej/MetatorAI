@@ -313,22 +313,11 @@ export class DaemonClient {
   /** Drives the run in the background, with no terminal (`metator run drive --detach`). */
   drive = (runId: string, body: { by: string; host?: string | undefined }, repo?: string) =>
     this.post<RunDriveStarted>(`/runs/${runId}/drive`, body, repo);
-  /** The run's implementation plan with its lint and whether a person may change it. */
+  /** The run's implementation plan with its lint, and what changed since the planner's previous version. */
   runPlan = (runId: string, repo?: string) => this.get<RunPlanView>(`/runs/${runId}/plan`, repo);
-  lintRunPlan = (runId: string, plan: unknown, repo?: string) =>
-    this.post<PlanLintView>(`/runs/${runId}/plan/lint`, { plan }, repo);
-  saveRunPlan = (
-    runId: string,
-    body: { plan: unknown; digest: string | null; by: string; note?: string | undefined },
-    repo?: string,
-  ) => this.post<RunPlanView>(`/runs/${runId}/plan`, body, repo, "PUT");
   systemPlans = (repo?: string) => this.get<SystemPlanSummary[]>("/system/plans", repo);
   systemPlan = (id: string, repo?: string) =>
     this.get<SystemPlanView>(`/system/plans/${encodeURIComponent(id)}`, repo);
-  lintSystemPlan = (id: string, plan: unknown, repo?: string) =>
-    this.post<PlanLintView>(`/system/plans/${encodeURIComponent(id)}/lint`, { plan }, repo);
-  saveSystemPlan = (id: string, body: { plan: unknown; digest: string | null; by: string }, repo?: string) =>
-    this.post<SystemPlanView>(`/system/plans/${encodeURIComponent(id)}`, body, repo, "PUT");
   approveSystemPlan = (id: string, by: string, repo?: string) =>
     this.post<SystemPlanView>(`/system/plans/${encodeURIComponent(id)}/approve`, { by }, repo);
   systemMap = (repo?: string) => this.get<SystemMapView>("/system/map", repo);

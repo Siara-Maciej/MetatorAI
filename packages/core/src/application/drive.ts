@@ -164,7 +164,11 @@ export class DriveRun {
     let retry: string | undefined = resumed ? failed.detail : undefined;
     let retryFrom: string | undefined = resumed && failed.detail ? failed.stage : undefined;
     // A later stage that failed and sent the run back: every stage until it is reached again hears it.
-    let sentBack: { readonly from: string; readonly reason: string } | undefined;
+    // Sent back before this drive started (a Reject on a card with no drive alive): the same.
+    let sentBack: { readonly from: string; readonly reason: string } | undefined =
+      failed?.event === "FAIL" && failed.stage !== first.value.state.stage && failed.detail
+        ? { from: failed.stage, reason: failed.detail }
+        : undefined;
     for (; steps < (input.maxSteps ?? 200); steps++) {
       const record = await this.d.repo.load(runId);
       if (record.isErr()) return err(record.error);
@@ -176,9 +180,13 @@ export class DriveRun {
         return err(new MetatorError("INTERNAL", `stage ${record.value.state.stage} is not in the workflow`));
       await say({ type: "stage", stage: stage.id, text: stage.description ?? stage.id });
       if (sentBack?.from === stage.id) sentBack = undefined;
+      const rejectedBy =
+        sentBack && retryFrom !== stage.id
+          ? await this.rejecter(runId, entry.value.spec.stages, sentBack.from)
+          : undefined;
       const why =
         sentBack && retryFrom !== stage.id
-          ? { retry: sentBack.reason, retryFrom: sentBack.from }
+          ? { retry: sentBack.reason, retryFrom: sentBack.from, ...(rejectedBy ? { rejectedBy } : {}) }
           : retry
             ? { retry, ...(retryFrom ? { retryFrom } : {}) }
             : {};
@@ -463,6 +471,7 @@ export class DriveRun {
         ...(answer ? { answer } : {}),
         ...(ctx.retry ? { retry: ctx.retry } : {}),
         ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
+        ...(ctx.rejectedBy ? { rejectedBy: ctx.rejectedBy } : {}),
         ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
         ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
         ...(await this.messageLines(ctx.runId)),
@@ -831,6 +840,23 @@ export class DriveRun {
     }
   }
 
+  /** Who rejected at a human gate: the last answer of its gate question that was not Approve. */
+  private async rejecter(
+    runId: string,
+    stages: readonly StageSpec[],
+    gate: string,
+  ): Promise<string | undefined> {
+    if (!stages.find((s) => s.id === gate)?.hitl) return undefined;
+    const all = await this.d.journal.questions(runId);
+    if (all.isErr()) return undefined;
+    const q = [...all.value]
+      .reverse()
+      .find(
+        (x) => x.stage === gate && x.source === "gate" && x.answer && !x.answer.choices.includes("Approve"),
+      );
+    return q?.answer?.by ?? "a person";
+  }
+
   /** The run's task.md, when it has one. */
   private async brief(runId: string): Promise<string | undefined> {
     const file = `${this.d.repo.runDir(runId)}/task.md`;
@@ -858,6 +884,8 @@ interface StageContext {
   readonly runDir: string;
   readonly retry?: string;
   readonly retryFrom?: string;
+  /** The person whose Reject at `retryFrom` (a human gate) sent the run back. */
+  readonly rejectedBy?: string;
   readonly decisions?: readonly string[];
   readonly resume?: string;
   /** When the run last changed: answers given after it are still to be acted on. */

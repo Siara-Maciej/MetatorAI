@@ -333,11 +333,9 @@ describe("the daemon's route table", () => {
       "POST /runs/:run/drive",
       "GET /runs/:run/plan",
       "POST /runs/:run/plan/lint",
-      "PUT /runs/:run/plan",
       "GET /system/plans",
       "GET /system/plans/:plan",
       "POST /system/plans/:plan/lint",
-      "PUT /system/plans/:plan",
       "POST /system/plans/:plan/approve",
       "GET /system/map",
       "PUT /system/map",
@@ -346,6 +344,6 @@ describe("the daemon's route table", () => {
       "GET /runs/:run/artifacts/:name+",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(74);
+    expect(keys.size).toBe(72);
   });
 });

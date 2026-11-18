@@ -795,3 +795,23 @@ describe("no workflow installed", () => {
     expect(known.hint).toBe("Known workflows: feature. Specs live in .github/metator/workflows/*.yml.");
   });
 });
+
+describe("a run sent back to an earlier stage", () => {
+  test("the stage it goes back to keeps what it is to revise (its plan); a stage moved on to keeps nothing", async () => {
+    const w = world();
+    const kept: string[] = [];
+    const advance = new AdvanceRun(w.catalog, w.repo, w.clock, undefined, undefined, {
+      keep: async (runId, stage) => {
+        kept.push(`${runId} ${stage}`);
+        return ok(undefined);
+      },
+    });
+    const run = (await w.init.execute({ workflow: "feature", task: "Add discount" }))._unsafeUnwrap();
+    (await advance.execute({ runId: run.runId, event: { type: "PASS" } }))._unsafeUnwrap();
+    expect(kept).toEqual([]);
+    const back = (
+      await advance.execute({ runId: run.runId, event: { type: "FAIL", reason: "no" } })
+    )._unsafeUnwrap();
+    expect(kept).toEqual([`${run.runId} ${back.stage}`]);
+  });
+});

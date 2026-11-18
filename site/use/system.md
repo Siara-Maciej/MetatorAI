@@ -26,7 +26,7 @@ metator run drive --detach
 | `analyze` | `mt-system-scout` | `metator system analyze <task>`: the contracts the task touches, whether each change is breaking, their consumers and owners |
 | `plan` | `mt-system-planner` | `metator system plan new <task>` drafts a plan by the map's policies; the planner refines it into one step per application |
 | `plan-gate` | `metator system plan lint` | every consumer of a breaking change migrates, providers go first, the strategy matches the map's policy |
-| `plan-approval` | you | one **Approve** approves the system plan and the gate |
+| `plan-approval` | you | one **Approve** approves the system plan and the gate; asking for changes sends the plan back to `mt-system-planner` with your words |
 | `children` | `metator system plan run` | each step that can start becomes a child run in its application's repository, driven at once on the system run's host |
 | `status` | `metator system plan status --gate` | waits while the child runs work (also while one waits for you), starts the next wave itself when one is done (a wait, not a failure: no loop is spent), and stops when a child is closed as aborted |
 | `delivery` | you | every step is done; deploy in the order of the plan's waves |

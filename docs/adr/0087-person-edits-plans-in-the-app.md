@@ -1,6 +1,6 @@
 # ADR-0087: Osoba edytuje plany w aplikacji
 
-- Status: Proposed
+- Status: Superseded by [ADR-0089](0089-plan-changes-go-through-the-agent.md) (odrzucony przez właściciela produktu: planu nie zmienia się ręcznie; osoba mówi agentowi, co ma być inaczej, a agent poprawia plan)
 - Data: 2026-11-15
 
 ## Kontekst

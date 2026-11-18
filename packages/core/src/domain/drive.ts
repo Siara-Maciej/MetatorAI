@@ -285,6 +285,8 @@ export interface StagePromptInput {
   readonly decisions?: readonly string[];
   /** The stage whose failure brought the run here: a later one when it was sent back. */
   readonly retryFrom?: string;
+  /** Who rejected at `retryFrom`, when it was a person's gate: the reason is their words. */
+  readonly rejectedBy?: string;
   /** What the agent must know about where it works (dependencies not installed). */
   readonly notes?: readonly string[];
   /** Messages other runs sent this run, already rendered as data (`messageLines`). */
@@ -352,8 +354,20 @@ function decisionLines(input: Pick<StagePromptInput, "decisions">): string[] {
  * Why the stage runs again. Sent back by a later stage, it is told that the work of the stages
  * since is already in the working tree: redoing it from the old plan would do it twice.
  */
-function retryLines(input: Pick<StagePromptInput, "stage" | "retry" | "retryFrom">): string[] {
+function retryLines(
+  input: Pick<StagePromptInput, "stage" | "retry" | "retryFrom" | "rejectedBy" | "runDir">,
+): string[] {
   if (!input.retry) return [];
+  // A person's Reject at a gate: revise against their words, do not start over.
+  if (input.rejectedBy && input.retryFrom && input.retryFrom !== input.stage.id) {
+    const produces = (input.stage.produces ?? []).filter((p) => !p.endsWith("-scope.json"));
+    const what = produces.length > 0 ? `${produces.join(", ")} in ${input.runDir}` : `in ${input.runDir}`;
+    const noun = produces.some((p) => p.includes("plan")) ? "the plan" : "your work";
+    return [
+      `${input.rejectedBy} rejected ${noun} at ${input.retryFrom} and asks for changes: "${input.retry}"`,
+      `Revise ${noun === "the plan" ? "the plan you wrote" : "what you did"} (${what}) against these words: keep what they did not object to, change what they asked for. Do not start over.`,
+    ];
+  }
   if (!input.retryFrom || input.retryFrom === input.stage.id)
     return [`The previous attempt failed its gate: ${input.retry}`];
   return [

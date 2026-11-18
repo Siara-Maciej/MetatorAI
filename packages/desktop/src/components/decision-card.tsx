@@ -94,6 +94,8 @@ export function DecisionCard({
     q.source === "gate" &&
     (planView !== undefined || systemPlan !== undefined) &&
     q.options.some((o) => o.label === "Reject");
+  // On a plan's approval, Reject and Other are both "in your own words": Ask for changes carries them.
+  const askedInWords = (label: string) => planGate && (label === "Reject" || label === "Other");
   // The recommended option is chosen first; nothing is chosen for the person when it is closed
   // (the next one may be a Reject that needs a reason), and a multi-select starts empty.
   const first =
@@ -132,7 +134,7 @@ export function DecisionCard({
   });
   const others = q.multiSelect
     ? []
-    : open.filter((o) => o.label !== choice && !(planGate && o.label === "Reject"));
+    : open.filter((o) => o.label !== choice && !askedInWords(o.label));
   const second = others[0];
   return (
     <article className="card" aria-label="decision card">
@@ -225,7 +227,7 @@ export function DecisionCard({
         <fieldset className="options">
           <legend className="dim">options</legend>
           {q.options
-            .filter((o) => !(planGate && o.label === "Reject"))
+            .filter((o) => !askedInWords(o.label))
             .map((o) => (
               <button
                 type="button"

@@ -3,6 +3,7 @@ import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { PlanBoard } from "../src/application/plan-board.ts";
 import {
+  PlanRevisions,
   planReadOnlyBecause,
   planStages,
   RunPlanApprovals,
@@ -119,98 +120,12 @@ describe("the run's plan in the app", () => {
     expect([empty.plan, empty.digest, empty.lint.problems]).toEqual([null, null, []]);
   });
 
-  test("a save writes the plan, records who changed what in the activity, re-scopes, and answers the new view", async () => {
-    const w = await world({ plan: PLAN, scope: true });
-    const edited: Plan = {
-      ...PLAN,
-      steps: [
-        { ...(PLAN.steps[0] as Plan["steps"][number]), intent: "tests first" },
-        PLAN.steps[1] as Plan["steps"][number],
-        {
-          id: "S3",
-          action: "modify",
-          path: "src/missing.ts",
-          intent: "x",
-          rules: [],
-          testsFirst: [],
-          dependsOn: [],
-        },
-      ],
-    };
-    const saved = (
-      await w.plans.save(w.run.runId, {
-        plan: edited,
-        digest: documentDigest(PLAN),
-        by: "ana",
-        note: "one more",
-      })
-    )._unsafeUnwrap();
-    expect(saved.plan).toEqual(edited);
-    expect(saved.digest).toBe(documentDigest(edited));
-    // Lint errors do not block a save: they are shown.
-    expect(saved.lint.problems.map((p) => [p.step, p.message])).toContainEqual([
-      "S3",
-      "src/missing.ts does not exist",
-    ]);
-    const onDisk = PlanDocument.parse(
-      JSON.parse((await w.fs.read(`${w.dir}/plan.json`))._unsafeUnwrap()),
-      "p",
-    );
-    expect(onDisk._unsafeUnwrap()).toEqual(edited);
-    expect(w.scoped).toEqual([`${w.dir}/plan.json`]);
-    const line = (await w.journal.activity(w.run.runId))._unsafeUnwrap().at(-1);
-    expect(line).toMatchObject({
-      type: "plan-edited",
-      stage: "plan",
-      text: "plan edited by ana: step added: S3; step S1 changed: intent (one more)",
-    });
-  });
-
-  test("a save on a stale digest is CONFLICT with the current view; nothing is written", async () => {
-    const w = await world({ plan: PLAN });
-    const stale = await w.plans.save(w.run.runId, { plan: PLAN, digest: "00000000", by: "ana" });
-    const error = stale._unsafeUnwrapErr();
-    expect(error.code).toBe("CONFLICT");
-    expect((error.details as { current: { digest: string } }).current.digest).toBe(documentDigest(PLAN));
-    const first = await w.plans.save(w.run.runId, { plan: PLAN, digest: null, by: "ana" });
-    expect(first._unsafeUnwrapErr().code).toBe("CONFLICT");
-    expect(
-      (await w.journal.activity(w.run.runId))._unsafeUnwrap().some((a) => a.type === "plan-edited"),
-    ).toBe(false);
-  });
-
-  test("a plan that does not fit its schema is USAGE with each problem's field; nothing is written", async () => {
-    const w = await world({ plan: PLAN });
-    const bad = { ...PLAN, steps: [{ ...(PLAN.steps[0] as object), id: "one" }] };
-    const r = await w.plans.save(w.run.runId, { plan: bad, digest: documentDigest(PLAN), by: "ana" });
-    const error = r._unsafeUnwrapErr();
-    expect(error.code).toBe("USAGE");
-    expect(error.details?.problems).toEqual([
-      { severity: "error", field: "steps.0.id", message: "expected an id like S3" },
-    ]);
-    const kept = PlanDocument.parse(JSON.parse((await w.fs.read(`${w.dir}/plan.json`))._unsafeUnwrap()), "p");
-    expect(kept._unsafeUnwrap()).toEqual(PLAN);
-    expect(
-      (await w.plans.save(w.run.runId, { plan: PLAN, digest: documentDigest(PLAN), by: " " })).isErr(),
-    ).toBe(true);
-  });
-
-  test("the first plan of a run is saved on digest null", async () => {
-    const w = await world();
-    const r = (await w.plans.save(w.run.runId, { plan: PLAN, digest: null, by: "ana" }))._unsafeUnwrap();
-    expect(r.digest).toBe(documentDigest(PLAN));
-    const line = (await w.journal.activity(w.run.runId))._unsafeUnwrap().at(-1);
-    expect(line?.text).toBe("plan edited by ana: plan written with 2 step(s)");
-  });
-
   test("past the approval gate the plan is read-only with the reason; an escalated run before it may still change it", async () => {
     const w = await world({ plan: PLAN });
     await w.moveTo("build");
     const view = (await w.plans.view(w.run.runId))._unsafeUnwrap();
     expect(view.editable).toBe(false);
     expect(view.readOnlyBecause).toContain("passed plan-approval");
-    const refused = await w.plans.save(w.run.runId, { plan: PLAN, digest: documentDigest(PLAN), by: "ana" });
-    expect(refused._unsafeUnwrapErr().code).toBe("TRANSITION_DENIED");
     await w.moveTo("plan-approval", "escalated");
     expect((await w.plans.view(w.run.runId))._unsafeUnwrap().editable).toBe(true);
     await w.moveTo("plan-approval", "done");
@@ -418,5 +333,54 @@ describe("the plan's gate refuses Approve while the plan has lint errors", () =>
     expect((await new AllGateApprovals([gate("a")]).refusal("r", "s"))._unsafeUnwrap()).toBeUndefined();
     (await all.approve("r", "s", "ana"))._unsafeUnwrap();
     expect(said).toEqual(["system ana", "plan ana", "x ana"]);
+  });
+});
+
+describe("the planner's previous version (a person asked for changes)", () => {
+  test("sent back to the plan stage, the plan it replaces is kept; the view shows it and what changed by step", async () => {
+    const w = await world({ plan: PLAN });
+    await w.moveTo("plan-approval");
+    const revisions = new PlanRevisions({
+      fs: w.fs,
+      repo: w.repo,
+      catalog: new WorkflowCatalog(w.fs, DEFAULT_PATHS),
+      clock: new FixedClock(new Date("2026-11-18T12:00:00.000Z")),
+    });
+    // No previous version before any revision.
+    expect((await w.plans.view(w.run.runId))._unsafeUnwrap().previous).toBeUndefined();
+    (await revisions.keep(w.run.runId, "plan"))._unsafeUnwrap();
+    // The planner revises: S2 gets another intent, S3 is added.
+    const revised: Plan = {
+      ...PLAN,
+      steps: [
+        PLAN.steps[0] as Plan["steps"][number],
+        { ...(PLAN.steps[1] as Plan["steps"][number]), intent: "discount() capped in cents" },
+        { ...(PLAN.steps[1] as Plan["steps"][number]), id: "S3", path: "src/cap.ts", action: "create" },
+      ],
+    };
+    await w.fs.write(`${w.dir}/plan.json`, serializeJsonDocument(PlanDocument.stamp(revised)));
+    const view = (await w.plans.view(w.run.runId))._unsafeUnwrap();
+    expect(view.previous).toEqual({
+      plan: PLAN,
+      digest: documentDigest(PLAN),
+      at: "2026-11-18T12:00:00.000Z",
+    });
+    expect(view.changes).toEqual(["step added: S3", "step S2 changed: intent"]);
+    // A stage that does not write the plan keeps nothing.
+    (await revisions.keep(w.run.runId, "build"))._unsafeUnwrap();
+    expect((await w.plans.view(w.run.runId))._unsafeUnwrap().previous?.digest).toBe(documentDigest(PLAN));
+  });
+
+  test("a revision that changed nothing shows no previous version", async () => {
+    const w = await world({ plan: PLAN });
+    const revisions = new PlanRevisions({
+      fs: w.fs,
+      repo: w.repo,
+      catalog: new WorkflowCatalog(w.fs, DEFAULT_PATHS),
+      clock: new FixedClock(new Date("2026-11-18T12:00:00.000Z")),
+    });
+    (await revisions.keep(w.run.runId, "plan"))._unsafeUnwrap();
+    const view = (await w.plans.view(w.run.runId))._unsafeUnwrap();
+    expect([view.previous, view.changes]).toEqual([undefined, undefined]);
   });
 });

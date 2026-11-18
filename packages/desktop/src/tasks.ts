@@ -76,7 +76,15 @@ export function workTasks(cards: readonly BoardCard[], plans: readonly TaskPlan[
             : "in-progress"
         : "in-progress");
     const progress = plan
-      ? { done: plan.steps.filter((s) => s.status === "done").length, of: plan.steps.length }
+      ? {
+          // A step is done when its plan says so, or when its run is (the plan is read back a moment later).
+          done: plan.steps.filter(
+            (s) =>
+              s.status === "done" ||
+              (s.run !== undefined && group.some((c) => c.runId === s.run && c.column === "done")),
+          ).length,
+          of: plan.steps.length,
+        }
       : parentRun
         ? { done: subtasks.filter((c) => c.column === "done").length, of: subtasks.length }
         : undefined;

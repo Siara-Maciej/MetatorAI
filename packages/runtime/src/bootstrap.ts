@@ -142,6 +142,7 @@ import {
   PlanBoard,
   PlannedBreakingChanges,
   PlanReview,
+  PlanRevisions,
   ProposeRefactorPlan,
   ProposeSystemPlan,
   ProvideWorktree,
@@ -1559,9 +1560,24 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           gatesDir: paths.gates,
         }),
     ),
+    // The plan a planner is sent back to revise is kept as its previous version (shown with what changed).
+    planRevisions: asFunction(
+      ({ fileSystem, runRepository, workflowCatalog, clock, systemPlanStore }) =>
+        new PlanRevisions({
+          fs: fileSystem,
+          repo: runRepository,
+          catalog: workflowCatalog,
+          clock,
+          systemPlans: {
+            file: (id: string) => systemPlanStore.file(id),
+            load: async (id: string) =>
+              (await systemPlanStore.exists(id)) ? systemPlanStore.load(id) : ok(undefined),
+          },
+        }),
+    ),
     advanceRun: asFunction(
-      ({ workflowCatalog, runRepository, clock, runJournal, gateQuestions }) =>
-        new AdvanceRun(workflowCatalog, runRepository, clock, runJournal, gateQuestions),
+      ({ workflowCatalog, runRepository, clock, runJournal, gateQuestions, planRevisions }) =>
+        new AdvanceRun(workflowCatalog, runRepository, clock, runJournal, gateQuestions, planRevisions),
     ),
     // A system run's plan-approval approves its system plan too (F7.5); a plan with lint errors
     // refuses the approval, at a terminal (`run approve`) as on a card.

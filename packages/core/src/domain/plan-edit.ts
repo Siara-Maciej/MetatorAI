@@ -227,3 +227,22 @@ export const editLogOf = (file: string): string => `${file.replace(/\.[^./]+$/, 
 /** A conflict's message: the document changed since the client read it. */
 export const staleDigest = (what: string): string =>
   `${what} changed since you read it: reload, then make your change again`;
+
+/**
+ * The version of a plan its planner replaced (kept when the run went back to the plan's stage):
+ * the plan as it was, its digest, and when it was kept.
+ */
+const PlanRevisionSchema = z.strictObject({
+  at: z.iso.datetime(),
+  digest: z.string().min(1),
+  plan: z.record(z.string(), z.unknown()),
+});
+export type PlanRevision = z.output<typeof PlanRevisionSchema>;
+
+export const PlanRevisionDocument = defineDocument("PlanRevision", {
+  latest: PlanRevisionSchema,
+  hint: "Written by MetatorAI when a run goes back to its plan's stage: the plan its planner is to revise.",
+});
+
+/** Where the previous version of a plan file is kept: next to it, `<file without extension>.previous.json`. */
+export const previousOf = (file: string): string => `${file.replace(/\.[^./]+$/, "")}.previous.json`;

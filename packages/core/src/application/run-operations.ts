@@ -283,10 +283,16 @@ export class AnswerQuestion {
     // A human gate the run stands at: its answer decides the gate (below); an Approve the gate
     // refuses now (a system plan with lint errors) is refused before anything is recorded.
     const gate = this.gates ? await this.openGate(runId, input.question) : undefined;
+    let text = input.text;
     if (gate && this.gates?.refusal && choices.includes("Approve")) {
       const refused = await this.gates.refusal(runId, gate);
       if (refused.isErr()) return err(refused.error);
       if (refused.value) return err(refused.value);
+    } else if (gate && this.gates?.refusal && choices.includes("Reject")) {
+      // Sent back while the plan has lint errors: the planner hears them with the person's words.
+      const refused = await this.gates.refusal(runId, gate);
+      if (refused.isOk() && refused.value)
+        text = text ? `${text}\n${refused.value.message}` : refused.value.message;
     }
     if (input.always) {
       const all = await this.journal.questions(runId);
@@ -299,7 +305,7 @@ export class AnswerQuestion {
       const refused = policyRefusal(q, choices.length > 0 ? choices : ["Other"]);
       if (refused) return err(MetatorError.usage(`no policy: ${refused}`, "Answer without --always."));
     }
-    const answer = { choices, ...(input.text ? { text: input.text } : {}) };
+    const answer = { choices, ...(text ? { text: text } : {}) };
     if (this.terminal) {
       const settled = await this.terminal.settle(runId, input.question, input.by);
       if (settled.isErr()) return err(settled.error);
@@ -339,11 +345,11 @@ export class AnswerQuestion {
             runId,
             gate,
             by: input.by,
-            ...(input.text ? { choice: input.text } : {}),
+            ...(text ? { choice: text } : {}),
           })
         : await this.gates.advance.execute({
             runId,
-            event: { type: "FAIL", reason: input.text ?? `rejected by ${input.by}` },
+            event: { type: "FAIL", reason: text ?? `rejected by ${input.by}` },
           });
       // A drive that waited on the question may have carried the answer out first: nothing twice.
       if (decided.isErr() && decided.error.code !== "TRANSITION_DENIED") return err(decided.error);

@@ -1,20 +1,22 @@
+import { stageWork } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
+import { planId } from "../domain/ids.ts";
 import { type Plan, PlanDocument, type PlanLint } from "../domain/plan.ts";
 import {
-  changeSummary,
   documentDigest,
   documentFromBody,
   fieldChanges,
   itemChanges,
-  type PlanLintProblem,
   type PlanLintView,
+  PlanRevisionDocument,
+  previousOf,
   type RunPlanView,
-  staleDigest,
 } from "../domain/plan-edit.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunRecord } from "../domain/run-record.ts";
+import type { SystemPlan } from "../domain/system-plan.ts";
 import type { StageSpec } from "../domain/workflow-spec.ts";
-import type { FileSystem } from "../ports/index.ts";
+import type { Clock, FileSystem } from "../ports/index.ts";
 import { readDocument, writeDocument } from "./document-io.ts";
 import type { LintPlan, ScopePlan } from "./plans.ts";
 import type { RunJournal } from "./run-journal.ts";
@@ -33,14 +35,6 @@ export interface RunPlansDependencies {
   readonly lint: Pick<LintPlan, "check">;
   /** Writes the edit scope next to the plan again, when the run has one (`plan-scope.json`). */
   readonly scope: Pick<ScopePlan, "execute">;
-}
-
-export interface SaveRunPlanInput {
-  readonly plan: unknown;
-  /** The digest of the plan the edit is based on; null when the run has no plan yet. */
-  readonly digest: string | null;
-  readonly by: string;
-  readonly note?: string;
 }
 
 /** Problems of the plan's lint as the app lists them. */
@@ -118,65 +112,26 @@ export class RunPlans {
     return (await this.d.lint.check(parsed.value)).map(lintView);
   }
 
-  async save(runId: string | undefined, input: SaveRunPlanInput): Promise<Result<RunPlanView, MetatorError>> {
-    const by = input.by.trim();
-    if (by === "") return err(MetatorError.usage("say who changes the plan: by"));
-    const id = await this.d.repo.resolveId(runId);
-    if (id.isErr()) return err(id.error);
-    const record = await this.d.repo.load(id.value);
-    if (record.isErr()) return err(record.error);
-    const file = this.file(id.value);
-    const current = await readDocument(this.d.fs, file, PlanDocument, "json");
-    if (current.isErr()) return err(current.error);
-    const before = current.value ?? null;
-    const now = before ? documentDigest(before) : null;
-    if (input.digest !== now) {
-      const view = await this.viewOf(record.value, before);
-      return err(
-        new MetatorError("CONFLICT", staleDigest(`the plan of run ${id.value}`), {
-          hint: "Reload the plan; your change is not saved.",
-          details: { current: view.isOk() ? view.value : null },
-        }),
-      );
-    }
-    const stages = await this.stagesOf(record.value);
-    const refused = planReadOnlyBecause(record.value, stages);
-    if (refused)
-      return err(
-        new MetatorError("TRANSITION_DENIED", `the plan of run ${id.value} cannot be changed: ${refused}`),
-      );
-    const parsed = documentFromBody(PlanDocument, input.plan, file);
-    if (!parsed.ok)
-      return err(
-        new MetatorError(
-          "USAGE",
-          `the plan does not fit its schema: ${parsed.problems.map(describe).join("; ")}`,
-          { hint: "Nothing was saved.", details: { problems: parsed.problems } },
-        ),
-      );
-    const plan = parsed.value;
-    const changes = before
-      ? [...fieldChanges(before, plan, ["task", "scope"]), ...itemChanges("step", before.steps, plan.steps)]
-      : [`plan written with ${plan.steps.length} step(s)`];
-    const saved = await writeDocument(this.d.fs, file, PlanDocument, plan, "json");
-    if (saved.isErr()) return err(saved.error);
-    // The edit scope the hooks enforce follows the plan it was made from.
-    if (await this.d.fs.exists(`${this.d.repo.runDir(id.value)}/plan-scope.json`)) {
-      const scoped = await this.d.scope.execute({ file });
-      if (scoped.isErr()) return err(scoped.error);
-    }
-    const noted = await this.d.journal.record(id.value, {
-      type: "plan-edited",
-      stage: record.value.state.stage,
-      text: `plan edited by ${by}: ${changeSummary(changes)}${input.note ? ` (${input.note})` : ""}`,
-      origin: "run",
-    });
-    if (noted.isErr()) return err(noted.error);
-    return this.viewOf(record.value, plan);
-  }
-
   private file(runId: string): string {
     return `${this.d.repo.runDir(runId)}/${RUN_PLAN_FILE}`;
+  }
+
+  /** The version the planner replaced and what changed since, when the plan is not that version. */
+  private async previous(
+    runId: string,
+    plan: Plan,
+  ): Promise<{ previous: NonNullable<RunPlanView["previous"]>; changes: string[] } | undefined> {
+    const kept = await readDocument(this.d.fs, previousOf(this.file(runId)), PlanRevisionDocument, "json");
+    if (kept.isErr() || !kept.value || kept.value.digest === documentDigest(plan)) return undefined;
+    const before = PlanDocument.parse({ ...PlanDocument.stamp(kept.value.plan as Plan) }, "previous");
+    if (before.isErr()) return undefined;
+    return {
+      previous: { plan: before.value, digest: kept.value.digest, at: kept.value.at },
+      changes: [
+        ...fieldChanges(before.value, plan, ["task", "scope"]),
+        ...itemChanges("step", before.value.steps, plan.steps),
+      ],
+    };
   }
 
   private async stagesOf(record: RunRecord): Promise<readonly StageSpec[]> {
@@ -196,9 +151,11 @@ export class RunPlans {
     const question = approvalStage
       ? questions.value.find((q) => q.stage === approvalStage && q.source === "gate" && !q.answer)
       : undefined;
+    const previous = plan ? await this.previous(record.runId, plan) : undefined;
     return ok({
       plan,
       digest: plan ? documentDigest(plan) : null,
+      ...(previous ? { previous: previous.previous, changes: previous.changes } : {}),
       lint: lintView(lint.value),
       editable: refused === undefined,
       ...(refused ? { readOnlyBecause: refused } : {}),
@@ -212,8 +169,6 @@ export class RunPlans {
 }
 
 const noPlan = (): PlanLint => ({ steps: 0, problems: [], adrRequired: [] });
-
-const describe = (p: PlanLintProblem): string => (p.field ? `${p.field}: ${p.message}` : p.message);
 
 export type RunPlanApprovalsDependencies = Pick<RunPlansDependencies, "fs" | "repo" | "catalog" | "lint">;
 
@@ -263,3 +218,65 @@ export class RunPlanApprovals implements GateApprovals {
     return ok(undefined);
   }
 }
+
+export interface PlanRevisionsDependencies {
+  readonly fs: FileSystem;
+  readonly repo: Pick<RunRepository, "load" | "runDir">;
+  readonly catalog: Pick<WorkflowCatalog, "get">;
+  readonly clock: Clock;
+  /** The system plans: a system run's planner revises its system plan. */
+  readonly systemPlans?: {
+    readonly file: (id: string) => string;
+    readonly load: (id: string) => Promise<Result<SystemPlan | undefined, MetatorError>>;
+  };
+}
+
+/**
+ * The plan a planner is about to revise, kept when the run goes back to the stage that writes it
+ * (a person's Reject, a failed plan gate): the run's `plan.json`, or a system run's system plan.
+ * The views show it as `previous` with what the planner changed.
+ */
+export class PlanRevisions {
+  constructor(private readonly d: PlanRevisionsDependencies) {}
+
+  async keep(runId: string, stage: string): Promise<Result<void, MetatorError>> {
+    const record = await this.d.repo.load(runId);
+    if (record.isErr()) return err(record.error);
+    const spec = await this.d.catalog.get(record.value.workflow.id);
+    if (spec.isErr()) return ok(undefined);
+    const stages = spec.value.spec.stages;
+    const at = stages.find((s) => s.id === stage);
+    if (!at) return ok(undefined);
+    const where = planStages(stages);
+    if (where && stages[where.plan]?.id === stage) {
+      const file = `${this.d.repo.runDir(runId)}/${RUN_PLAN_FILE}`;
+      const plan = await readDocument(this.d.fs, file, PlanDocument, "json");
+      if (plan.isErr() || !plan.value) return ok(undefined);
+      return this.write(previousOf(file), plan.value);
+    }
+    if (this.d.systemPlans && stageWork(at).agents.includes(SYSTEM_PLANNER)) {
+      const id = planId(record.value.task);
+      const plan = await this.d.systemPlans.load(id);
+      if (plan.isErr() || !plan.value) return ok(undefined);
+      return this.write(previousOf(this.d.systemPlans.file(id)), plan.value);
+    }
+    return ok(undefined);
+  }
+
+  private write(file: string, plan: object): Promise<Result<void, MetatorError>> {
+    return writeDocument(
+      this.d.fs,
+      file,
+      PlanRevisionDocument,
+      {
+        at: this.d.clock.now().toISOString(),
+        digest: documentDigest(plan),
+        plan: plan as Record<string, unknown>,
+      },
+      "json",
+    );
+  }
+}
+
+/** The agent that writes a system run's system plan. */
+const SYSTEM_PLANNER = "mt-system-planner";

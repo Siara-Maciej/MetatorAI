@@ -150,6 +150,7 @@ import type {
   PlanBoard,
   PlannedBreakingChanges,
   PlanReview,
+  PlanRevisions,
   PortProbe,
   ProcessRunner,
   ProposeRefactorPlan,
@@ -488,6 +489,7 @@ export interface Cradle {
   lintPlan: LintPlan;
   scopePlan: ScopePlan;
   runPlans: RunPlans;
+  planRevisions: PlanRevisions;
   systemPlans: SystemPlans;
   systemMaps: SystemMaps;
   fileStats: FileStats;
