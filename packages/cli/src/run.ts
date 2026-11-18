@@ -73,7 +73,15 @@ export async function run(argv: readonly string[], io: Io, options: RunOptions =
     return 0; // a hook never fails the host's tool call by exit code
   }
   const render = ran ? metaOf(ran).render : undefined;
-  if (render && final.result.isOk()) say((render as (data: unknown) => string)(final.result.value));
+  // Text only for a person at a terminal; a renderer that fails never fails the command (a gate
+  // script, an agent and a pipe read the JSON line, and its exit code, only).
+  if (render && final.result.isOk() && options.terminal && !asksForJsonOnly(argv)) {
+    try {
+      say((render as (data: unknown) => string)(final.result.value));
+    } catch {
+      // The JSON line below says everything.
+    }
+  }
   // A failure reads as text too, whatever the command: the message and the way out.
   if (final.result.isErr()) say(renderError(final.result.error));
   io.out(serialize(toEnvelope(final.result, final.warnings ?? [])));

@@ -360,3 +360,14 @@ describe("the text a person reads for plans, questions and the backlog", () => {
     ]);
   });
 });
+
+describe("system plan status as the system run's gate (--gate)", () => {
+  test("the gate's answer (no plan in it) renders as its message; it never throws", () => {
+    const gate = {
+      kind: "pass",
+      message: "every step is done",
+      steps: [{ id: "a", app: "web", status: "done" }],
+    };
+    expect(renderPlanStatus(gate as never)).toBe("every step is done");
+  });
+});

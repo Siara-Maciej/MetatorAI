@@ -269,7 +269,10 @@ export function renderError(e: {
 /** Columns padded to the widest cell of each, joined by two spaces; trailing blanks dropped. */
 function columns(rows: readonly (readonly string[])[]): string[] {
   const widths: number[] = [];
-  for (const row of rows) row.forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.length)));
+  for (const row of rows)
+    row.forEach((cell, i) => {
+      widths[i] = Math.max(widths[i] ?? 0, cell.length);
+    });
   return rows.map((row) =>
     row
       .map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i] ?? 0)))
@@ -316,7 +319,9 @@ const STEP_MARK: Readonly<Record<string, string>> = { done: "✓", running: "…
 
 /** `metator system plan status`: the waves, each step with its repository, its state and its run. */
 export function renderPlanStatus(v: {
-  readonly plan: PlanView;
+  readonly plan?: PlanView;
+  /** `--gate`: what the children say about going on, without the plan. */
+  readonly message?: string;
   readonly steps: readonly {
     readonly id: string;
     readonly app: string;
@@ -326,6 +331,7 @@ export function renderPlanStatus(v: {
     readonly stage?: string;
   }[];
 }): string {
+  if (!v.plan) return v.message ?? "";
   const lines = planHead(v.plan);
   const byId = new Map(v.steps.map((s) => [s.id, s]));
   const rows: string[][] = [];
