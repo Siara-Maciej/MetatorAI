@@ -116,7 +116,7 @@ export function DependenciesPanel(_props: { onOpenRun?: ((runId: string) => void
                   data-testid={`task-line-${p.plan.id}`}
                   href={
                     head
-                      ? routeHash({ screen: "run", runId: head.runId, tab: "plan" })
+                      ? routeHash({ screen: "run", runId: head.runId, tab: "overview" })
                       : routeHash({ screen: "overview", tab: "system" })
                   }
                 >

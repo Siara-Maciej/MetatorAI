@@ -67,17 +67,17 @@ The agent answers with one numbered message that asks what the code cannot settl
 
 ## Approve the plan
 
-The run surveys the code, writes a plan and checks it. Then it stops, and **Needs you** at the top of the sidebar goes to 1. Click the row.
+The run surveys the code, writes a plan and checks it. Then it stops, and **Needs you** at the top of the sidebar goes to 1. Click it: **Home** shows the decision.
 
-![The decision card of an approval in the Inbox, with Approve recommended](../public/screens/inbox.png)
+![The decision card of an approval on Home, with Approve recommended](../public/screens/inbox.png)
 
-The decision card shows the task, what was done so far and the options. To read the plan first, open the run from the sidebar and click its **Plan** tab: it lists every step with its file and the tests that come first.
+The decision card shows the plan in full: every step with its file and the tests that come first. What was done so far, the ids and what each answer does are under **Details** at the bottom of the card.
 
-Back in the **Inbox**, choose **Approve** and click the **Approve** button. The first time, the app asks for your name. To send the plan back, choose **Reject** and write the reason in the field under the options; the answer is sent only with a reason.
+Click the **Approve** button. The first time, the app asks for your name. To send the plan back, write what should change in **Ask for changes** and click it; the planner writes a new plan with your words.
 
 ## Watch the work
 
-After your approval the run builds. In **Terminals**, the run's tab shows the agents in panes, each with its state. You can watch without touching anything. When an agent needs you (a question, or a tool it may not run on its own), the question arrives in the **Inbox** like the approval did.
+After your approval the run builds. In **Terminals**, the run's tab shows the agents in panes, each with its state. You can watch without touching anything. When an agent needs you (a question, or a tool it may not run on its own), the question arrives on **Home** like the approval did.
 
 The build is followed by the gates (your own `lint`, `typecheck` and `test` scripts) and by the review agents.
 
@@ -85,7 +85,7 @@ The build is followed by the gates (your own `lint`, `typecheck` and `test` scri
 
 Click the run in the sidebar, then its **Changes** tab. It lists the files and their diffs. Click a line to leave a note. The button **Send 1 to agent** (with the number of your notes) hands them to the run.
 
-At the `delivery` stage the run stops again. Nothing is pushed until you approve in the **Inbox**, at any autonomy level.
+At the `delivery` stage the run stops again. Nothing is pushed until you approve on **Home**, at any autonomy level.
 
 ## When the run is done
 

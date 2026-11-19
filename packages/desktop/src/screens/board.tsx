@@ -13,6 +13,7 @@ import {
   type BoardFilter,
   boardCards,
   cardLine,
+  cardState,
   DAY_MS,
   filterCards,
   filterFromStorage,
@@ -22,11 +23,11 @@ import {
 import { Notice } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
-import { duration, lookOf, routeHash, workflowChoice } from "../model.ts";
-import { filterTasks, taskLine, type WorkTask, workTasks } from "../tasks.ts";
+import { blockedReason, type FirstLevel, lookOf, routeHash, sameRepo, workflowChoice } from "../model.ts";
+import { filterTasks, taskLine, taskState, type WorkTask, workTasks } from "../tasks.ts";
 
 const STORE = "metator.board";
-const STATES = ["needs you", "escalated", "working"] as const;
+const STATES = ["needs you", "working", "blocked"] as const;
 
 function readFilter(): BoardFilter {
   try {
@@ -43,15 +44,9 @@ function saveFilter(f: BoardFilter): void {
   }
 }
 
-/** The word and look of a state: a run's own word, or what a task without a run is. */
-function stateLook(
-  state: BoardCard["state"],
-  waits?: readonly string[],
-): { glyph: string; tone: string; word: string } {
-  if (state === "todo") return { glyph: "○", tone: "faint", word: "to do" };
-  if (state === "proposed") return { glyph: "?", tone: "amber", word: "proposed" };
-  if (state === "pending") return { glyph: "◌", tone: "faint", word: waits?.length ? "waits" : "can start" };
-  const look = lookOf("run", state);
+/** The word and look of a card: one of the first level's four (`firstLevel`). */
+function stateLook(state: FirstLevel): { glyph: string; tone: string; word: string } {
+  const look = lookOf("first", state);
   return { glyph: look.glyph, tone: look.tone ?? "faint", word: state };
 }
 
@@ -96,6 +91,13 @@ export function BoardScreen({
     saveFilter(f);
   };
   const [allDone, setAllDone] = useState(false);
+  // Finished work is folded: Done shows its count until the person asks for it.
+  const [showDone, setShowDone] = useState(false);
+  // Each board (the top level, a task's) starts with Done folded.
+  useEffect(() => {
+    void openKey;
+    setShowDone(false);
+  }, [openKey]);
   const [dragged, setDragged] = useState(false);
   const now = Date.now();
   const cards = useMemo(
@@ -151,7 +153,7 @@ export function BoardScreen({
     if (c.runId) onOpenRun(c.runId);
     else if (c.kind === "step")
       window.location.hash = c.systemRunId
-        ? routeHash({ screen: "run", runId: c.systemRunId, tab: "plan" })
+        ? routeHash({ screen: "run", runId: c.systemRunId, tab: "overview" })
         : routeHash({ screen: "overview", tab: "system" });
     else window.location.hash = routeHash({ screen: "backlog" });
   };
@@ -201,6 +203,11 @@ export function BoardScreen({
     e.preventDefault();
     next?.focus();
   };
+  // On a task's board a blocked run says why, in one line (a pending step says what it waits for).
+  const whyOf = (c: BoardCard): string | undefined => {
+    if (!c.runId || cardState(c) !== "blocked") return undefined;
+    return blockedReason({ run: runs.find((r) => r.runId === c.runId && sameRepo(r.repo, c.repo)) });
+  };
   const toggle = <T,>(list: readonly T[], v: T): T[] =>
     list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
   const changed = filter.repos.length > 0 || filter.states.length > 0 || filter.host || filter.text;
@@ -234,7 +241,7 @@ export function BoardScreen({
                 <>
                   <span className="faint"> · </span>
                   <a
-                    href={routeHash({ screen: "run", runId: opened.head.runId, tab: "plan" })}
+                    href={routeHash({ screen: "run", runId: opened.head.runId, tab: "overview" })}
                     title="the task's own page: its plan and its flow"
                   >
                     its page ›
@@ -318,21 +325,24 @@ export function BoardScreen({
               const needs = opened
                 ? inCol.filter((t) => t.needsYou).length
                 : inCol.reduce((n, t) => n + (t.task?.needsYou ?? 0), 0);
-              const esc = opened
-                ? inCol.filter((t) => t.escalated).length
-                : inCol.reduce((n, t) => n + (t.task?.escalated ?? 0), 0);
+              const stuck = opened
+                ? inCol.filter((t) => t.card?.runId !== undefined && cardState(t.card) === "blocked").length
+                : inCol.reduce((n, t) => n + (t.task?.blocked ?? 0), 0);
               return (
                 <div key={c.id} className="board-col-head" data-testid={`board-head-${c.id}`}>
                   <span>{c.label}</span> <span className="faint">{inCol.length}</span>
                   {needs > 0 ? <span className="amber"> · {needs} need you</span> : null}
-                  {esc > 0 ? <span className="red"> · {esc} escalated</span> : null}
+                  {stuck > 0 ? <span className="red"> · {stuck} blocked</span> : null}
                 </div>
               );
             })}
           </div>
           <div className="board-row">
             {BOARD_COLUMNS.map((col, ci) => {
-              const { shown, older } = ordered(col.id);
+              const all = ordered(col.id);
+              const folded = col.id === "done" && !showDone;
+              const shown = folded ? [] : all.shown;
+              const older = folded ? 0 : all.older;
               return (
                 <section
                   key={col.id}
@@ -360,6 +370,7 @@ export function BoardScreen({
                       <CardTile
                         key={t.key}
                         card={t.card}
+                        why={whyOf(t.card)}
                         col={ci}
                         row={ri}
                         onOpen={openCard}
@@ -368,7 +379,16 @@ export function BoardScreen({
                       />
                     ) : null,
                   )}
-                  {shown.length === 0 ? (
+                  {folded && all.shown.length + all.older > 0 ? (
+                    <button
+                      type="button"
+                      className="ghost show-more"
+                      data-testid="show-finished"
+                      onClick={() => setShowDone(true)}
+                    >
+                      Show finished ({all.shown.length})
+                    </button>
+                  ) : shown.length === 0 ? (
                     <div className="board-empty faint">
                       {dragged
                         ? "Cards move by themselves: the engine sets a card's phase from its run's stage."
@@ -415,7 +435,7 @@ function TaskTile({
   onStart(c: BoardCard): void;
   onDrag(): void;
 }) {
-  const look = stateLook(t.state);
+  const look = stateLook(taskState(t));
   const opens = t.kind === "system" || t.kind === "parent";
   return (
     // biome-ignore lint/a11y/useSemanticElements: a card holds a button of its own (Start a run)
@@ -442,7 +462,6 @@ function TaskTile({
         <span className={`card-state ${look.tone}`}>
           {look.glyph} {look.word}
         </span>
-        <span className="faint">{duration(t.ageMs)}</span>
       </div>
       <div className="card-title">{t.title}</div>
       <div className="card-line faint">{taskLine(t, false)}</div>
@@ -469,6 +488,7 @@ function TaskTile({
 
 function CardTile({
   card: c,
+  why,
   col,
   row,
   onOpen,
@@ -476,13 +496,15 @@ function CardTile({
   onDrag,
 }: {
   readonly card: BoardCard;
+  /** Why a blocked run stands still. */
+  readonly why?: string | undefined;
   readonly col: number;
   readonly row: number;
   onOpen(c: BoardCard): void;
   onStart(c: BoardCard): void;
   onDrag(): void;
 }) {
-  const look = stateLook(c.state, c.waitsFor);
+  const look = stateLook(cardState(c));
   const part = partOfLine(c);
   return (
     // biome-ignore lint/a11y/useSemanticElements: a card holds a button of its own (Start a run)
@@ -509,7 +531,6 @@ function CardTile({
         <span className={`card-state ${look.tone}`}>
           {look.glyph} {look.word}
         </span>
-        <span className="faint">{duration(c.ageMs)}</span>
       </div>
       <div className="card-title">{c.title}</div>
       <div className="card-line faint">{cardLine(c)}</div>
@@ -517,6 +538,7 @@ function CardTile({
       {c.waitsFor && c.waitsFor.length > 0 ? (
         <div className="card-waits faint">waits for: {c.waitsFor.join(", ")}</div>
       ) : null}
+      {why ? <div className="card-waits red">{why}</div> : null}
       {c.kind === "issue" ? (
         <button
           type="button"

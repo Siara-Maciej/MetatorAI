@@ -324,8 +324,9 @@ describe("artifacts and lint", () => {
 
   test("the System tab of Overview has its own address", () => {
     expect(parseRoute("#/overview/system")).toEqual({ screen: "overview", tab: "system" });
-    expect(routeHash({ screen: "overview", tab: "system" })).toBe("#/overview/system");
-    expect(routeHash({ screen: "overview", tab: "daemon" })).toBe("#/overview");
+    expect(routeHash({ screen: "overview", tab: "system" })).toBe("#/settings/system/system");
+    expect(routeHash({ screen: "overview", tab: "daemon" })).toBe("#/settings/system");
+    expect(parseRoute("#/settings/system/system")).toEqual({ screen: "overview", tab: "system" });
   });
 });
 

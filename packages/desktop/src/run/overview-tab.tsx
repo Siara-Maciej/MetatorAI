@@ -1,7 +1,7 @@
 /**
- * The Overview tab of a run: what happened since you left, deterministic, from the run's own
- * events; the question that waits, with its answers; and the run's change, counted from the same
- * source as the Changes tab.
+ * The Overview of a step (level 3): the question that waits, with its answers; its plan,
+ * read-only (there is no Plan tab); its artefacts and its change, counted from the same source
+ * as the Changes tab; and what happened since you left, deterministic, from the run's own events.
  */
 import { ActivityList } from "../components/activity-list.tsx";
 import { QuickAnswer } from "../components/answer.tsx";
@@ -10,16 +10,20 @@ import { Notice } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import { duration, plural, type Run, routeHash } from "../model.ts";
+import { StepPlan } from "./step-plan.tsx";
 
 export function OverviewTab({
   run,
   runId,
   onOpenRun,
+  onOpenPane,
 }: {
   readonly run: Run | undefined;
   readonly runId: string;
   /** The run's Terminal tab, with the keyboard taken when asked. */
   onOpenRun(runId: string, attach?: boolean): void;
+  /** Shows a pane in Terminals (a step's worker). */
+  onOpenPane(paneId: string, runId: string): void;
 }) {
   const { client } = useDaemon();
   const repo = run?.repo;
@@ -64,16 +68,6 @@ export function OverviewTab({
   return (
     <div className="briefing">
       <div className="main">
-        <div className="since">
-          <h2>Since you left · {duration(since)}</h2>
-          <span className="spacer" />
-          <button type="button" onClick={() => onOpenRun(runId, true)}>
-            Open terminal and attach
-          </button>
-          <button type="button" onClick={() => void action.run(() => client.seen(runId, repo))}>
-            Mark as read
-          </button>
-        </div>
         {error && !data ? <div className="banner">{error}</div> : null}
         <Notice {...action.notice} />
         <section className="box needs-box" aria-label="what it needs from you">
@@ -103,6 +97,20 @@ export function OverviewTab({
             </div>
           )}
         </section>
+        <section className="step-plan" aria-label="its plan" data-testid="step-plan">
+          <h3>Its plan</h3>
+          <StepPlan run={run} runId={runId} onOpenPane={onOpenPane} onOpenRun={onOpenRun} asks={false} />
+        </section>
+        <div className="since">
+          <h2>Since you left · {duration(since)}</h2>
+          <span className="spacer" />
+          <button type="button" onClick={() => onOpenRun(runId, true)}>
+            Open terminal and attach
+          </button>
+          <button type="button" onClick={() => void action.run(() => client.seen(runId, repo))}>
+            Mark as read
+          </button>
+        </div>
         <div className="kpis">
           {figures.map(([value, label]) => (
             <div className="kpi" key={label}>

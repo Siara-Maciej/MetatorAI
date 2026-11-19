@@ -2,9 +2,9 @@
  * The owner's flow, end to end in the app: a folder of two repositories (shop-api, shop-web), one
  * system task whose plan has four steps (`api-model` and `api-endpoint` in shop-api and
  * `web-price-tag` in shop-web at once, then `web-integration` in shop-web after all three),
- * driven with the scenario host. Overview → Dependencies draws the plan as a flow (every step, the
- * pending ones dashed, an arrow per dependsOn) and the Board puts every piece of work in the
- * column of the phase the daemon sends. The two backend steps run side by side, each in a
+ * driven with the scenario host. The task's page draws the plan as a flow (every step, the
+ * pending ones dashed, an arrow per dependsOn) and the Board puts every task, then every step of
+ * a task, in the column of the phase the daemon sends; a step's page leads back to its task. The two backend steps run side by side, each in a
  * worktree of its own.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -318,10 +318,21 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
     });
     // A person approves the plan itself first; the gate card still waits.
     expect((await mt("shop-api", "system", "plan", "approve", PLAN_ID, "--by", "ana")).code).toBe(0);
-    // The flow is on the task's own page: the system run's Plan tab, at the top.
+    // The flow is on the task's own page: the system run's Overview (the old Plan tab leads there).
     await page.goto(app(`run/${parent}/plan`));
     const flow = page.getByTestId(`plan-flow-${PLAN_ID}`).first();
     await flow.waitFor({ timeout: 30_000 });
+    // A task's page: its name, one state word, the progress of its steps; no terminal, no ids in sight.
+    expect(await page.getByLabel("tabs of this run").getByRole("link").allTextContents()).toEqual([
+      "Overview",
+      "Changes",
+      "Activity",
+    ]);
+    expect(await page.getByTestId("page-progress").textContent()).toContain("0 of 4 steps done");
+    expect(await page.getByTestId("page-state").textContent()).toContain("needs you");
+    expect(await page.getByTestId("run-details").getAttribute("open")).toBeNull();
+    // The one thing to decide is on the task's page: the plan's approval, the plan in full.
+    expect(await page.getByTestId("task-decide").getByTestId("system-plan-line").count()).toBe(1);
     await until("four pending steps", async () => {
       const s = await flowStates();
       return Object.values(s).length === 4 && Object.values(s).every((v) => v === "pending")
@@ -417,6 +428,23 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
     expect(await side.locator(".task-repo").last().textContent()).toContain(
       "waits for api-model, api-endpoint, web-price-tag",
     );
+    // A step's page: Overview · Terminal · Changes · Activity, and the breadcrumb back to its task.
+    const model = children.find((c) => c.repo === "shop-web") ?? children[0];
+    await page.goto(app(`run/${model?.runId}/overview`));
+    const crumb = page.getByTestId("breadcrumb");
+    await crumb.waitFor({ timeout: 20_000 });
+    expect(await crumb.textContent()).toContain(TASK);
+    expect(await page.getByLabel("tabs of this run").getByRole("link").allTextContents()).toEqual([
+      "Overview",
+      "Terminal",
+      "Changes",
+      "Activity",
+    ]);
+    expect(await page.getByTestId("step-plan").count()).toBe(1);
+    await crumb.getByRole("link").click();
+    await until("the task's page", async () =>
+      page.url().includes(`#/run/${parent}/overview`) ? true : undefined,
+    );
     // The top level: the task in progress, its three steps that need you counted on it.
     await page.goto(app("board"));
     const task = page.getByTestId(`task-plan:${PLAN_ID}`);
@@ -502,14 +530,18 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
         ? true
         : undefined,
     );
+    // Finished work is folded on the Board: Done says how many until it is asked for.
     await page.goto(app("board"));
+    const showDone = page.getByTestId("board-col-done").getByTestId("show-finished");
     await until("the task done", async () =>
-      (await page.getByTestId("board-col-done").getByTestId(`task-plan:${PLAN_ID}`).count()) === 1
-        ? true
-        : undefined,
+      (await showDone.textContent().catch(() => ""))?.includes("Show finished (1)") ? true : undefined,
     );
+    expect(await page.getByTestId("board-col-done").getByTestId(`task-plan:${PLAN_ID}`).count()).toBe(0);
+    await showDone.click();
+    await page.getByTestId("board-col-done").getByTestId(`task-plan:${PLAN_ID}`).waitFor({ timeout: 10_000 });
     expect(await page.getByTestId(`task-plan:${PLAN_ID}`).textContent()).toContain("4 of 4 steps done");
     await page.goto(app(`board/${encodeURIComponent(`plan:${PLAN_ID}`)}`));
+    await page.getByTestId("board-col-done").getByTestId("show-finished").click();
     await until(
       "its steps in Done",
       async () => ((await boardColumns()).done === 4 ? true : undefined),

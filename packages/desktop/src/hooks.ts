@@ -2,10 +2,21 @@
  * The hooks the screens share (D11): one option of the shown repository, an action with what it
  * answered, and the controls of one run (attach, release, the editor, its panes).
  */
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { DaemonClient } from "./api.ts";
+import { boardCards } from "./board.ts";
 import { useDaemon } from "./daemon.tsx";
 import { type Run, refusalText } from "./model.ts";
+import { type WorkTask, workTasks } from "./tasks.ts";
+
+/** The work as parent tasks (tasks.ts), from the runs and system plans: the sidebar's, Home's and a page's. */
+export function useTasks(): WorkTask[] {
+  const { runs, systemPlans } = useDaemon();
+  return useMemo(
+    () => workTasks(boardCards({ runs, issues: [], plans: systemPlans, now: Date.now() }), systemPlans),
+    [runs, systemPlans],
+  );
+}
 
 /** The value of one option (S1), or the fallback while the options are not here yet. */
 export function useOption<T>(key: string, fallback: T): T {

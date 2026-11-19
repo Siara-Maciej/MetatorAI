@@ -30,15 +30,15 @@ Every agent works in a real terminal. You can read along, type into it, or open 
 
 ### 3. Decide when it asks
 
-A run stops at each decision that is yours. The **Inbox** collects them from every run: what the run wants, the evidence, what each answer leads to, and a recommended answer.
+A run stops at each decision that is yours. **Home** shows them from every run, one at a time: the question or the plan, and its answers, with a recommended one. The evidence, what happened since you left and what each answer leads to are one click away, under **Details**.
 
-![The Inbox: a run asks for approval; the card shows the goal, what happened since you left, and the options with their consequences](./public/screens/inbox.png)
+![Home: a run asks for approval; the card shows the question and its answers](./public/screens/inbox.png)
 
 ### 4. See the plan and the change
 
-**Plan** shows where a run stands: its stages, the steps of the plan, the files each stage left. **Changes** shows the diff. Write a note on a line and send it to the agent, the way you would review a colleague.
+A task's page shows how it goes: its flow and its steps. A step's page shows where it stands: its plan, its stages, the files each stage left. **Changes** shows the diff. Write a note on a line and send it to the agent, the way you would review a colleague.
 
-![The Plan screen: the stages of the run, what comes next, the files each stage produced and the checks that ran](./public/screens/plan.png)
+![A step's plan: the stages of the run, what comes next and the checks that ran](./public/screens/plan.png)
 
 ![The change of a run: the changed files on the left, the diff on the right, and a note under one line](./public/screens/changes.png)
 

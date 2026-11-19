@@ -134,155 +134,71 @@ export function DecisionCard({
   });
   const others = q.multiSelect ? [] : open.filter((o) => o.label !== choice && !askedInWords(o.label));
   const second = others[0];
+  // The options on the card's face: on a plan's approval only Approve, sent by the button itself.
+  const faceOptions = q.options.filter((o) => !askedInWords(o.label));
+  const onlyApprove = planGate && faceOptions.every((o) => o.label === "Approve");
   return (
     <article className="card" aria-label="decision card">
-      <div className="ctx">
-        <span className="mono">{q.id}</span>
-        <span>{questionKind(q)}</span>
-        <span>{item.stage}</span>
-        {item.repo ? <span>{item.repo}</span> : null}
-        <span className="mono">{q.runId}</span>
-        {q.agent ? <span>{q.agent}</span> : null}
-      </div>
       <h1 className={heading.length > 160 ? "long" : undefined}>{heading}</h1>
-      {terminal ? (
+      {terminal || host ? (
         <div className="muted" data-testid="host-asker">
-          {q.agent ?? "the agent"} asks on its terminal
-          {askPane ? (
-            <>
-              , in pane <span className="mono">{askPane}</span>
-            </>
-          ) : null}
-          {item.stage ? ` · stage ${item.stage}` : ""} · an answer chosen here is typed there for you
+          {host?.asker ?? q.agent ?? "the agent"} asks on its terminal
+          {terminal ? " · an answer chosen here is typed there for you" : ""}
         </div>
-      ) : null}
-      {host ? (
-        <div className="muted" data-testid="host-asker">
-          {host.asker} asks on its terminal, in pane <span className="mono">{host.pane}</span>
-          {item.stage ? ` · stage ${item.stage}` : ""}
-        </div>
-      ) : null}
-      <div className="chips">
-        {card ? (
-          <Chip tone={card.reversible ? "green" : "red"}>
-            {card.reversible ? "reversible" : "not reversible"}
-          </Chip>
-        ) : null}
-        {card?.blastRadius ? (
-          <Chip tone="violet">
-            touches {card.blastRadius.files} file{card.blastRadius.files === 1 ? "" : "s"}
-            {card.blastRadius.areas.length > 0 ? ` · ${card.blastRadius.areas.join(", ")}` : ""}
-          </Chip>
-        ) : null}
-        <Chip tone="amber">waiting {duration(item.waitedMs)}</Chip>
-        {item.driving ? <Chip tone="amber">agent idle</Chip> : null}
-        {card?.costOfDelay?.map((c) => (
-          <Chip key={c}>{c}</Chip>
-        ))}
-        {card?.group ? <Chip tone="blue">{groupText(card.group)}</Chip> : null}
-      </div>
-      {card ? (
-        <section>
-          <h3>Goal</h3>
-          <div>{card.task}</div>
-        </section>
-      ) : null}
-      {card?.soFar?.length ? (
-        <section>
-          <h3>Since you left</h3>
-          <FoldList lines={card.soFar} label="since you left" />
-        </section>
-      ) : null}
-      {card && (card.done.length > 0 || card.artifacts.length > 0) ? (
-        <section>
-          <h3>Proposal and evidence</h3>
-          {card.done.length > 0 ? <div className="muted">done: {card.done.join(" → ")}</div> : null}
-          {card.artifacts.length > 0 ? (
-            <div className="muted">
-              see:{" "}
-              {card.artifacts.map((name, i) => (
-                <span key={name}>
-                  {i > 0 ? " · " : null}
-                  <button
-                    type="button"
-                    className="ghost link mono"
-                    onClick={() => setViewing(name)}
-                    title={`read ${name}`}
-                  >
-                    {name}
-                  </button>
-                </span>
-              ))}
-            </div>
-          ) : null}
-          {card.evidence?.length ? <FoldList lines={card.evidence} keep={3} label="evidence" /> : null}
-        </section>
       ) : null}
       {planView ? <RunPlanFull view={planView} /> : null}
       {!planView && systemPlan && q.source === "gate" ? <SystemPlanFull plan={systemPlan} /> : null}
-      <section>
-        <h3>Options{q.multiSelect ? " · choose one or more" : ""}</h3>
-        <fieldset className="options">
-          <legend className="dim">options</legend>
-          {q.options
-            .filter((o) => !askedInWords(o.label))
-            .map((o) => (
+      {onlyApprove ? null : (
+        <section>
+          {q.multiSelect ? <h3>Choose one or more</h3> : null}
+          <fieldset className="options">
+            <legend className="dim">options</legend>
+            {faceOptions.map((o) => (
               <button
                 type="button"
                 key={o.label}
                 className="option"
                 aria-pressed={a.choices.includes(o.label)}
                 disabled={closed.has(o.label)}
-                title={closed.get(o.label)}
+                title={closed.get(o.label) ?? o.description}
                 onClick={() => a.toggle(o.label)}
               >
                 <span className="label">
                   <span>{o.label}</span>
                   {card?.recommended === o.label ? <span className="rec">RECOMMENDED</span> : null}
                 </span>
-                {o.description ? <span className="cons">{o.description}</span> : null}
-                {card?.consequences?.[o.label] ? (
-                  <span className="cons">→ {card.consequences[o.label]}</span>
-                ) : null}
                 {closed.has(o.label) ? <span className="cons red">closed: the reason is below</span> : null}
               </button>
             ))}
-        </fieldset>
-        {planGate
-          ? null
-          : [...closed].map(([label, why]) => (
-              <div key={label} className="closed-option" data-testid="closed-option">
-                <span className="red">
-                  {label} is closed: {why}.
-                </span>
-              </div>
-            ))}
-      </section>
-      {planGate ? (
-        <AskForChanges
-          blocked={closed.get("Approve")}
-          lintText={lintRequest(lintOfPlan?.problems ?? [])}
-          busy={a.busy}
-          onSend={(words) => void a.send(["Reject"], words)}
-        />
+          </fieldset>
+          {planGate
+            ? null
+            : [...closed].map(([label, why]) => (
+                <div key={label} className="closed-option" data-testid="closed-option">
+                  <span className="red">
+                    {label} is closed: {why}.
+                  </span>
+                </div>
+              ))}
+        </section>
+      )}
+      {a.reason ? (
+        <label className="reason">
+          <span className="amber">
+            {`Reason for ${a.choices.find((c) => needsReason([c])) ?? "this answer"} (required)`}
+          </span>
+          <input
+            ref={reasonField}
+            aria-label="reason (required)"
+            placeholder="the run gets your words; say what must change"
+            value={a.text}
+            onChange={(e) => a.setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && a.ready) void a.send();
+            }}
+          />
+        </label>
       ) : null}
-      <label className="reason">
-        <span className={a.reason ? "amber" : "dim"}>
-          {a.reason
-            ? `Reason for ${a.choices.find((c) => needsReason([c])) ?? "this answer"} (required)`
-            : "Note (optional)"}
-        </span>
-        <input
-          ref={reasonField}
-          aria-label={a.reason ? "reason (required)" : "note"}
-          placeholder={a.reason ? "the run gets your words; say what must change" : "a note for the log"}
-          value={a.text}
-          onChange={(e) => a.setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && a.ready) void a.send();
-          }}
-        />
-      </label>
       <div className="actions">
         <button
           type="button"
@@ -301,23 +217,129 @@ export function DecisionCard({
               // An answer that needs a reason is chosen, and the cursor goes to the reason.
               if (needsReason([second.label]) && a.text.trim() === "") {
                 a.toggle(second.label);
-                reasonField.current?.focus();
+                setTimeout(() => reasonField.current?.focus(), 0);
               } else void a.send([second.label]);
             }}
           >
             {second.label}
           </button>
         ) : null}
-        <span className="spacer" />
-        <button type="button" onClick={() => onOpenChanges(q.runId)}>
-          Changes
-        </button>
-        <button type="button" onClick={() => onOpenSession(q.runId)}>
-          Open run · o
-        </button>
       </div>
+      {planGate ? (
+        <AskForChanges
+          blocked={closed.get("Approve")}
+          lintText={lintRequest(lintOfPlan?.problems ?? [])}
+          busy={a.busy}
+          onSend={(words) => void a.send(["Reject"], words)}
+        />
+      ) : null}
       <Notice text={a.error} onClose={a.clearError} />
-      <div className="footer-cmd mono">writes: {answerCommand(q, a.choices, me, a.text)}</div>
+      <details className="card-details" data-testid="card-details">
+        <summary>Details</summary>
+        <div className="ctx">
+          <span className="mono">{q.id}</span>
+          <span>{questionKind(q)}</span>
+          <span>{item.stage}</span>
+          {item.repo ? <span>{item.repo}</span> : null}
+          <span className="mono">{q.runId}</span>
+          {q.agent ? <span>{q.agent}</span> : null}
+          {askPane ? <span className="mono">pane {askPane}</span> : null}
+          {host ? <span className="mono">pane {host.pane}</span> : null}
+        </div>
+        <div className="chips">
+          {card ? (
+            <Chip tone={card.reversible ? "green" : "red"}>
+              {card.reversible ? "reversible" : "not reversible"}
+            </Chip>
+          ) : null}
+          {card?.blastRadius ? (
+            <Chip tone="violet">
+              touches {card.blastRadius.files} file{card.blastRadius.files === 1 ? "" : "s"}
+              {card.blastRadius.areas.length > 0 ? ` · ${card.blastRadius.areas.join(", ")}` : ""}
+            </Chip>
+          ) : null}
+          <Chip tone="amber">waiting {duration(item.waitedMs)}</Chip>
+          {item.driving ? <Chip tone="amber">agent idle</Chip> : null}
+          {card?.costOfDelay?.map((c) => (
+            <Chip key={c}>{c}</Chip>
+          ))}
+          {card?.group ? <Chip tone="blue">{groupText(card.group)}</Chip> : null}
+        </div>
+        {card ? (
+          <section>
+            <h3>Goal</h3>
+            <div>{card.task}</div>
+          </section>
+        ) : null}
+        {card?.soFar?.length ? (
+          <section>
+            <h3>Since you left</h3>
+            <FoldList lines={card.soFar} label="since you left" />
+          </section>
+        ) : null}
+        {card && (card.done.length > 0 || card.artifacts.length > 0) ? (
+          <section>
+            <h3>Proposal and evidence</h3>
+            {card.done.length > 0 ? <div className="muted">done: {card.done.join(" → ")}</div> : null}
+            {card.artifacts.length > 0 ? (
+              <div className="muted">
+                see:{" "}
+                {card.artifacts.map((name, i) => (
+                  <span key={name}>
+                    {i > 0 ? " · " : null}
+                    <button
+                      type="button"
+                      className="ghost link mono"
+                      onClick={() => setViewing(name)}
+                      title={`read ${name}`}
+                    >
+                      {name}
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {card.evidence?.length ? <FoldList lines={card.evidence} keep={3} label="evidence" /> : null}
+          </section>
+        ) : null}
+        <section>
+          <h3>What each answer does</h3>
+          <ul className="consequences" data-testid="consequences">
+            {q.options.map((o) => (
+              <li key={o.label}>
+                <strong>{o.label}</strong>
+                {o.description ? <span className="muted"> · {o.description}</span> : null}
+                {card?.consequences?.[o.label] ? (
+                  <span className="cons"> → {card.consequences[o.label]}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+        {a.reason ? null : (
+          <label className="reason">
+            <span className="dim">Note (optional)</span>
+            <input
+              aria-label="note"
+              placeholder="a note for the log"
+              value={a.text}
+              onChange={(e) => a.setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && a.ready) void a.send();
+              }}
+            />
+          </label>
+        )}
+        <div className="actions">
+          <button type="button" onClick={() => onOpenChanges(q.runId)}>
+            Changes
+          </button>
+          <button type="button" onClick={() => onOpenSession(q.runId)}>
+            Open run · o
+          </button>
+        </div>
+        <div className="footer-cmd mono">writes: {answerCommand(q, a.choices, me, a.text)}</div>
+      </details>
       {viewing ? (
         <ArtifactViewer
           runId={q.runId}

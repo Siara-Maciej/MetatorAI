@@ -183,6 +183,21 @@ Wzorem herdr powłoka ma jeden pasek boczny, który jest całym pulpitem; reszta
 - Plan nie jest edytowany ręcznie: karta zatwierdzenia pokazuje go w całości, a „Ask for changes” wysyła Reject bramki z tekstem jako powodem; planner pisze nowy plan, a karta pokazuje zmiany od poprzedniej wersji (`previous`, `changes`).
 - Tablica ma dwa poziomy: zadania nadrzędne, a po kliknięciu tablicę zadania z jego krokami.
 
+### 5.0e Trzy poziomy: najpierw proste, szczegóły po wejściu głębiej (2026-11-19)
+
+Zasada właściciela: pierwszy poziom ma być prosty poznawczo, szczegóły dopiero po wejściu głębiej.
+
+1. **Zadania** (co się dzieje, czy coś czeka na mnie): panel boczny, Home i Tablica pokazują zadanie z nazwą, jednym słowem stanu, postępem i liczbą „needs you”.
+2. **Zadanie** (jak idzie to zadanie): strona zadania (run systemowy albo run z runami potomnymi) z przepływem, krokami według repozytoriów i jedną rzeczą do decyzji; zakładki tylko Overview · Changes · Activity.
+3. **Krok / run** (co dokładnie robi agent): strona kroku z zakładkami Overview · Terminal · Changes · Activity; zakładki Plan nie ma, plan kroku (tylko do odczytu), jego artefakty i pytanie są na Overview; okruszek „Zadanie › krok” prowadzi z powrotem. Samodzielny run jest zadaniem jednokrokowym: ma stronę kroku, bez okruszka.
+
+- Home pokazuje jedną decyzję naraz: dużą kartę z pytaniem albo planem i jego akcjami, licznik kolejki („3 waiting”) z poprzednią i następną (`j`/`k`, przyciski). Reszta karty (identyfikatory, dowody, „since you left”, skutki opcji, linia `writes: metator run answer…`, notatka) jest w zwiniętym „Details”. Lista wszystkich decyzji po lewej znika. Gdy nic nie czeka: zadania w skrócie ze stanami, runy, których nic nie prowadzi, i „Describe a task”.
+- Cztery słowa na pierwszym poziomie: needs you · working · blocked · done. Blocked obejmuje eskalację, czekanie na inny krok i brak czegokolwiek, co prowadzi run; powód stoi w jednej linii na poziomie 2 i 3 („escalated at build: …”, „waits for price-endpoint”, „nothing drives it: Open a session”). Mapowanie robi jedna czysta funkcja `firstLevel` w `model.ts` (przetestowana, z mutantem); na pierwszym poziomie są tylko cztery wyglądy (`LOOKS.first`). Drobniejsze słowa (asks, idle, exited, aborted, escalated, done nieobejrzany) są tylko w terminalu i w „Details” kroku.
+- Z pierwszego poziomu (wiersze panelu, karty Tablicy, twarz karty decyzji, nagłówki stron) znikają: identyfikatory runów, host, autonomia, czasy, pełny pasek etapów (zostaje nazwa bieżącego etapu). Wszystko to jest w zwiniętym „Details” nagłówka strony kroku i na jego Overview.
+- Panel boczny ma mniej miejsc: Board · Terminals · Backlog oraz Settings; Reviews i Overview (teraz System: Daemon, Dependencies, System map, hosty) są częściami Settings (`#/settings/system`, `#/settings/reviews`), a stare adresy (`#/overview`, `#/mrs`, `#/supervisor`, `#/graph`) do nich prowadzą.
+- Zakończone zadania są domyślnie ukryte: „Show finished (N)” w panelu bocznym i w kolumnie Done Tablicy (każda tablica zaczyna zwinięta).
+- Zostają: skróty klawiszowe (nakładka `?` zaktualizowana), panel bez demona, okno imienia, terminale i ekran Terminals, edytor mapy systemu.
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.

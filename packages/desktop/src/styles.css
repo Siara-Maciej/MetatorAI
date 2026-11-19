@@ -252,8 +252,7 @@ button.stagebar {
   flex: 1;
   padding-bottom: 8px;
 }
-.sessions .section,
-.needs-pane .section {
+.sessions .section {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -272,8 +271,7 @@ button.stagebar {
   color: var(--text);
   background: none;
 }
-.sessions .section .g,
-.needs-pane .section .g {
+.sessions .section .g {
   width: 12px;
   text-align: center;
 }
@@ -282,8 +280,7 @@ button.stagebar {
   font-size: var(--fs-small);
   color: var(--dim);
 }
-.sessions .row,
-.needs-pane .row {
+.sessions .row {
   display: grid;
   grid-template-columns: 12px 1fr auto;
   gap: var(--sp-3);
@@ -298,25 +295,20 @@ button.stagebar {
   color: var(--text);
   text-decoration: none;
 }
-.sessions .row.nested,
-.needs-pane .row.nested {
+.sessions .row.nested {
   padding-left: 32px;
 }
-.sessions .row:hover,
-.needs-pane .row:hover {
+.sessions .row:hover {
   background: var(--hover);
 }
-.sessions .row[aria-current],
-.needs-pane .row[aria-current] {
+.sessions .row[aria-current] {
   background: var(--hover);
   box-shadow: inset 2px 0 0 var(--teal);
 }
-.sessions .row .g,
-.needs-pane .row .g {
+.sessions .row .g {
   text-align: center;
 }
-.sessions .row .word,
-.needs-pane .row .word {
+.sessions .row .word {
   font-size: var(--fs-small);
   white-space: nowrap;
 }
@@ -2074,20 +2066,17 @@ dialog.goto {
 }
 
 /* ---------- wave 2: one sidebar, one run page, one typographic system ---------- */
-.sessions .row .text,
-.needs-pane .row .text {
+.sessions .row .text {
   min-width: 0;
 }
 .sessions .row .title,
-.sessions .row .sub,
-.needs-pane .row .sub {
+.sessions .row .sub {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sessions .row .sub,
-.needs-pane .row .sub {
+.sessions .row .sub {
   font-size: var(--fs-small);
   color: var(--dim);
 }
@@ -2980,34 +2969,108 @@ dialog.goto {
   font-size: var(--fs-compact);
 }
 
-/* The Inbox lists every decision on its left; the card is on the right. */
-.inbox.with-needs {
-  display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  padding: 0;
+/* Home: one decision at a time, the queue's counter above it. */
+.home {
   height: 100%;
   min-height: 0;
-}
-.inbox.with-needs > .needs-pane {
-  border-right: 1px solid var(--edge);
-  overflow: auto;
-  padding: 6px 0;
-}
-.inbox.with-needs > .inbox-main {
   overflow: auto;
   padding: 16px 20px;
-  min-width: 0;
 }
-@media (max-width: 1000px) {
-  .inbox.with-needs {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  .inbox.with-needs > .needs-pane {
-    max-height: 200px;
-    border-right: 0;
-    border-bottom: 1px solid var(--edge);
-  }
+.home > .card {
+  max-width: 980px;
+}
+.home .queue {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  max-width: 980px;
+  padding: 0 18px 8px;
+  font-size: var(--fs-compact);
+}
+.home .card h1 {
+  font-size: 20px;
+}
+.card details.card-details {
+  margin-top: 14px;
+  border-top: 1px solid var(--edge);
+  padding-top: 8px;
+}
+.card details.card-details > summary,
+.run-header details.head-details > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+.card .consequences li {
+  margin: 2px 0;
+}
+.quiet-home {
+  max-width: 720px;
+  margin: 6vh auto 0;
+}
+.quiet-home .home-tasks {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+.quiet-home .home-tasks li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--edge);
+}
+.quiet-home .first-run {
+  margin-top: 24px;
+}
+/* A page's head: the first level, the rest in Details. */
+.run-header .state-word {
+  font-size: var(--fs-compact);
+  white-space: nowrap;
+}
+.run-header .head-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  font-size: var(--fs-small);
+}
+.run-header .progress {
+  width: 220px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--edge);
+  overflow: hidden;
+}
+.run-header .progress .fill {
+  display: block;
+  height: 100%;
+  background: currentColor;
+}
+.run-header .why {
+  font-size: var(--fs-compact);
+}
+.run-header .breadcrumb {
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+.run-header details.head-details[open] {
+  padding: 4px 0;
+}
+.task-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding: 12px 14px;
+}
+.task-page .decide .card {
+  padding: 0;
+  overflow: visible;
+}
+.task-steps .step-line {
+  padding: 3px 0 3px 12px;
+}
+.briefing .step-plan {
+  margin: 12px 0;
+}
+.settings-parts {
+  padding: 10px 14px 0;
 }
 /* The sidebar's tasks: a row per task, its tree under it when unfolded. */
 .sessions .task-row {

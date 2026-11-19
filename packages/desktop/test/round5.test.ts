@@ -3,6 +3,7 @@ import type { Issue, SystemPlanView } from "../src/api.ts";
 import {
   boardCards,
   cardLine,
+  cardState,
   columnCards,
   columnCounts,
   filterCards,
@@ -275,7 +276,8 @@ describe("the board", () => {
     expect(partOfLine(c1 as never)).toBe("step 1 of 4");
     // The system run is the whole task: how far its steps are, not "of" itself.
     expect(partOfLine(byKey("/sys") as never)).toBe("the whole task · 0 of 4 steps done");
-    expect(cardLine(c1 as never)).toBe("shop-api · plan-approval · scenario");
+    // No host and no age on the first level: those are in the run's Details.
+    expect(cardLine(c1 as never)).toBe("shop-api · plan-approval");
     expect(c1?.title).toBe("api-model: do api-model");
     expect([byKey("/c3")?.escalated, byKey("/c3")?.state]).toEqual([true, "escalated"]);
     // The system run heads its own task: "only this task" keeps it.
@@ -298,7 +300,17 @@ describe("the board", () => {
     const keys = (f: Partial<typeof NO_FILTER>) =>
       filterCards(cards, { ...NO_FILTER, ...f }).map((c) => c.key);
     expect(keys({ repos: ["shop-api"] })).toEqual(["run:shop-api/sys", "run:shop-api/c1", "run:shop-api/c2"]);
-    expect(keys({ states: ["needs you", "escalated"] })).toEqual(["run:shop-api/c1", "run:shop-web/c3"]);
+    // Four words: a proposal needs you; a backlog task and a pending step stand still (blocked).
+    expect(keys({ states: ["needs you", "blocked"] })).toEqual([
+      "run:shop-api/c1",
+      "run:shop-web/c3",
+      "issue:shop-web/i001",
+      "issue:shop-web/i002",
+      "step:shop-api/add-currency/web-integration",
+    ]);
+    expect(keys({ states: ["working"] })).toEqual(
+      cards.filter((c) => cardState(c) === "working").map((c) => c.key),
+    );
     expect(keys({ host: "claude" })).toEqual(["run:shop-web/alone"]);
     expect(keys({ text: "INTEGRATION" })).toEqual(["step:shop-api/add-currency/web-integration"]);
   });
@@ -312,7 +324,7 @@ describe("the board", () => {
     expect(columnCounts(cards.filter((c) => c.column === "in-progress"))).toEqual({
       total: 2,
       needsYou: 0,
-      escalated: 1,
+      blocked: 1,
     });
   });
 
@@ -351,15 +363,15 @@ describe("the board", () => {
       ["shop-api", [1, 2]],
       ["shop-web", [3, 4]],
     ]);
-    expect(taskLine(sys as never)).toBe("0/4 · 1 needs you · 1 escalated · 2 repositories · scenario");
+    expect(taskLine(sys as never)).toBe("0/4 · 1 needs you · 1 blocked · 2 repositories");
     // On the Board the progress has its own line ("0 of 4 steps done"), so the line leaves it out.
-    expect(taskLine(sys as never, false)).toBe("1 needs you · 1 escalated · 2 repositories · scenario");
+    expect(taskLine(sys as never, false)).toBe("1 needs you · 1 blocked · 2 repositories");
     // What needs the person first.
     expect(byAttentionFirst(tasks)[0]?.key).toBe("plan:add-currency");
     // Filters on the top level: a task works in every repository its steps do.
     const f = (x: object) => filterTasks(tasks, { repos: [], states: [], text: "", ...x }).map((t) => t.key);
     expect(f({ repos: ["shop-api"] })).toEqual(["plan:add-currency"]);
-    expect(f({ states: ["escalated"] })).toEqual(["plan:add-currency"]);
+    expect(f({ states: ["blocked"] })).toEqual(["plan:add-currency", "issue:shop-web/i001"]);
     expect(f({ text: "integration" })).toEqual(["plan:add-currency"]);
     expect(f({ host: "claude" })).toEqual(["run:shop-web/alone"]);
   });
@@ -387,8 +399,10 @@ describe("the board", () => {
     expect(filterFromStorage(null)).toEqual(NO_FILTER);
     expect(filterFromStorage("{not json")).toEqual(NO_FILTER);
     expect(
-      filterFromStorage(JSON.stringify({ repos: [1, "a"], states: ["bogus", "escalated"], grouped: "yes" })),
-    ).toEqual({ repos: ["a"], states: ["escalated"], text: "" });
+      filterFromStorage(
+        JSON.stringify({ repos: [1, "a"], states: ["bogus", "escalated", "blocked"], grouped: "yes" }),
+      ),
+    ).toEqual({ repos: ["a"], states: ["blocked"], text: "" });
   });
 
   test("the system run of a plan, and the plans the app reads in full", () => {

@@ -117,7 +117,7 @@ metator run status --run <id>                      # the stage, the reason, the 
 metator run resume --run <id> --by alice --drive
 ```
 
-To give it up: `metator run close --run <id> --aborted --reason "<why>"`. In the app, the run's card in the Inbox has **Resume** and **Close run…**.
+To give it up: `metator run close --run <id> --aborted --reason "<why>"`. In the app, the run's card on Home has **Resume** and **Close run…**.
 
 ## A run cannot start here
 

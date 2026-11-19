@@ -1,6 +1,6 @@
 # Answer questions
 
-A run stops when a decision belongs to you. Every open question of every run is in one queue, the inbox. This page shows how to read it and answer, in the app and from a terminal.
+A run stops when a decision belongs to you. Every open question of every run is in one queue; **Home** shows it one decision at a time. This page shows how to read it and answer, in the app and from a terminal.
 
 ## What stops a run
 
@@ -14,42 +14,45 @@ A gate's card is there whoever moved the run to the gate: a drive, a conductor i
 
 An agent works without asking when it runs the MetatorAI commands its definition names, reads or searches the repository, writes its artifacts into the run directory, or edits files inside the run's own worktree. Anything else asks. A push always asks.
 
-## The Inbox screen
+## Home
 
-**Inbox** is the first screen of the app. Its left column, **Needs you**, lists the open decisions (the sidebar only counts them). Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
+**Home** is the first screen of the app. It shows one decision at a time, as a big card: the question, or the plan to approve, and its answers. Above the card, **3 waiting · 1 of 3** says how many decisions wait, with **‹ Previous** and **Next ›**; `k` and `j`, or the arrow keys, do the same. The sidebar only counts them (**Needs you · N**). Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
 
-![The Inbox with the decision card of an approval: the goal, what happened since you left, three options and the answer buttons](../public/screens/inbox.png)
+![Home with the decision card of an approval: the question, its options and the answer buttons](../public/screens/inbox.png)
 
-Each row shows the kind (`APPROVAL`, `PERMISSION` or `QUESTION`), how long the question has waited, the first two lines of its text and its run. A click on a row opens its decision card on the right:
+The card's face has only the question and how to answer it. Everything else is folded under **Details** at the bottom of the card:
 
-| Part | What it tells you |
+| Part of Details | What it tells you |
 |---|---|
-| Header | the question id, its kind, the stage, the run and the agent |
+| The ids | the question id, its kind (`APPROVAL`, `PERMISSION`, `QUESTION` or `TERMINAL`), the stage, the repository, the run, the agent and its pane |
 | Chips | whether the decision can be taken back, how many files it touches, how long it has waited |
 | **Goal** | the run's task |
 | **Since you left** | what happened since your last answer |
 | **Proposal and evidence** | the stages done so far, the artifacts to read, the checks that ran |
-| **Options** | each option with what it leads to; one may be marked **RECOMMENDED** |
+| **What each answer does** | each option with what it leads to |
+| **Note (optional)** | a note for the log with your answer |
+| **Changes**, **Open run** | the run's change, and its page |
+| `writes:` | the command your answer amounts to |
 
 The card is assembled from the run's files when the question is asked. No model writes it. The recommendation comes from a fixed rule: for example, Approve is recommended at an approval when the stage before it passed.
 
 To answer:
 
-1. Click an option. The recommended one is chosen when the card opens. A question that allows several answers says **choose one or more**: each click adds or removes an option, and nothing is chosen for you.
-2. The field under the options is **Note (optional)**. With Reject or Other it becomes **Reason for Reject (required)**, and the answer cannot be sent until you have written it.
+1. Click an option. The recommended one is chosen when the card opens, and marked **RECOMMENDED**. A question that allows several answers says **Choose one or more**: each click adds or removes an option, and nothing is chosen for you.
+2. With Reject or Other a field **Reason for Reject (required)** comes under the options, and the answer cannot be sent until you have written it. A note with any other answer is under **Details**.
 3. Click the first button, or press `Enter`. The button carries the options you chose, such as **Approve**. The button next to it sends the first of the other options in one click; when that option is Reject, it chooses it and puts the cursor in the reason field.
 
 The first time you answer, the app asks for your name in a dialog and remembers it.
 
-The line under the buttons shows the command your answer amounts to. **Changes** opens the run's change ([Read the change](./changes.md)) and **Open run** (or the key `o`) the run's **Overview**, when you want to look before you decide. `j` and `k`, or the arrow keys, move along the queue; `g` moves to the next item. Once your answer went through, a line on top says so: **Answered: Approve. The run goes on.**
+Under **Details**, **Changes** opens the run's change ([Read the change](./changes.md)) and **Open run** (or the key `o`) the run's **Overview**, when you want to look before you decide. `g` moves to the next run that needs you. Once your answer went through, a line on top says so: **Answered: Approve. The run goes on.**, and Home shows the next decision.
 
 The daemon carries out the answer. If no drive is running, it starts one again on the host the run used. What you write in your own words is passed to every later agent of the run as a decision to follow.
 
-With nothing open, and no escalated run, the screen reads **Inbox zero** and says what is true about the open runs: that they are working, or that a run has no agent working on it (`Nothing needs you. 1 run has no agent working on it:`), with **Open a session** and **Drive in background** beside each such run. With no run at all it offers to start one instead ([Start a task](./start.md)). It says so only while the daemon answers.
+With nothing to decide, and no escalated run, Home reads **Nothing waits for you** and says what is true about the open runs: that they are working, or that a run has no agent working on it (`Nothing needs you. 1 run has no agent working on it:`), with **Open a session** and **Drive in background** beside each such run. Under it are the open tasks in short, each with its word and progress, and **Describe a task** to start a new one. With no run at all only **Describe a task** is there ([Start a task](./start.md)). It says so only while the daemon answers.
 
 A long **Since you left** on a card is cut to its newest lines; a line that came many times (a loop) is one line with its count (`×12`), and **N more lines before these** opens the rest, so the options and the answer button stay on the screen. The files a card names under **see:** open read-only.
 
-A question an agent asks on its own terminal (`Which currency? [PLN / EUR]`) comes as a `TERMINAL` card with the question in the agent's words, a line naming the agent, its pane and stage, and its answers as options: an answer chosen on the card is typed into the pane for you. A host's permission prompt comes as a `PERMISSION` card. Both offer **Attach and answer in the pane**: it opens the run's Terminal tab on that pane, takes the keyboard under your name, puts the cursor in the pane at the question and scrolls to it; type the answer and give the keyboard back.
+A question an agent asks on its own terminal (`Which currency? [PLN / EUR]`) comes as a `TERMINAL` card with the question in the agent's words, a line naming the agent (its pane and stage are under **Details**), and its answers as options: an answer chosen on the card is typed into the pane for you. A host's permission prompt comes as a `PERMISSION` card. Both offer **Attach and answer in the pane**: it opens the run's Terminal tab on that pane, takes the keyboard under your name, puts the cursor in the pane at the question and scrolls to it; type the answer and give the keyboard back.
 
 Either side can answer, and both see the result:
 
@@ -66,9 +69,7 @@ A confirmation says what the run did with your answer: **Rejected: the run escal
 
 ## Questions asked in the terminal
 
-The queue is the top of the sidebar, **Needs you · N**: one row per decision, with the number of rows in the heading; escalated runs are in it. The main area shows the row you picked.
-
-An agent can also stop at a question it wrote on its own screen, without a card. Such a run still needs you. The queue lists it as a row marked `terminal`, with the task and **answers in its terminal**. A click opens the run's **Terminal** tab on the pane that asks. Attach and type the answer there ([Sessions and worktrees](./sessions.md)).
+An agent can also stop at a question it wrote on its own screen, without a card. Such a run still needs you. Home shows it in its turn as a card with the task and **answers in its terminal**; **Open the run** opens the run's **Terminal** tab on the pane that asks. Attach and type the answer there ([Sessions and worktrees](./sessions.md)).
 
 ## Permission prompts of the host
 
@@ -76,7 +77,7 @@ Sometimes the AI host shows its own permission prompt in the terminal ("Allow ..
 
 ## Escalated runs
 
-A run that reaches a loop limit, or whose agent stays blocked, becomes `escalated`. It needs work from you and a yes or no is not enough. Escalated runs count in the heading **Needs you** and are listed in the queue as rows marked `escalated`, with the task and the stage the run stopped at. In the list of runs a click on an escalated run opens the same card.
+A run that reaches a loop limit, or whose agent stays blocked, becomes `escalated`. It needs work from you and a yes or no is not enough. Escalated runs count in the heading **Needs you** and come on Home in their turn, as a card with the task and the stage the run stopped at. In the sidebar an escalated run reads `blocked`; a click on it opens the same card.
 
 The card shows why the run stopped (the failure its last stage recorded) and has four buttons:
 

@@ -1,6 +1,9 @@
 /**
- * The Inbox: the one decision the sidebar's "Needs you" has picked, with everything needed to
- * take it here. With nothing to decide it says so; with no run at all it offers to start one.
+ * Home: one decision at a time. A big card with the question or the plan and its actions; above
+ * it, how many wait and the next and previous one (also `j` and `k`). Everything else about the
+ * decision (its ids, evidence, "since you left", what each answer does, the command it writes)
+ * is folded under the card's Details. With nothing to decide: the tasks in short with their
+ * state, the runs nothing drives, and "Describe a task"; with no run at all, only the latter.
  */
 import { useState } from "react";
 import type { InboxItem } from "../api.ts";
@@ -8,10 +11,9 @@ import { Notice } from "../components/common.tsx";
 import { DecisionCard } from "../components/decision-card.tsx";
 import { EscalatedCard } from "../components/escalated-card.tsx";
 import { Glyph } from "../components/glyph.tsx";
-import { Row } from "../components/sidebar.tsx";
 import { StartRun } from "../components/start-run.tsx";
 import { useDaemon } from "../daemon.tsx";
-import { useAction } from "../hooks.ts";
+import { useAction, useTasks } from "../hooks.ts";
 import {
   escalatedKey,
   idleRuns,
@@ -20,14 +22,16 @@ import {
   lookOf,
   type NeedRow,
   openRuns,
-  plural,
   quietInboxText,
+  routeHash,
+  stepNeed,
 } from "../model.ts";
+import { byAttentionFirst, taskLine, taskState } from "../tasks.ts";
 
 export function InboxScreen({
   needs,
   picked,
-  onNeed,
+  onPick,
   onAnswered,
   onRefused,
   onOpenRun,
@@ -36,12 +40,12 @@ export function InboxScreen({
   onStart,
   onForm,
 }: {
-  /** Everything that needs the person, as the sidebar lists it. */
+  /** Everything that needs the person, in the queue's order. */
   readonly needs: readonly NeedRow[];
-  /** The row to show: the picked one, else the first. */
+  /** The decision to show: the picked one, else the first. */
   readonly picked: NeedRow | undefined;
-  /** A row of the list was chosen. */
-  onNeed(row: NeedRow): void;
+  /** The next or the previous decision was chosen. */
+  onPick(key: string): void;
   /** An answer went through, or an escalated run was resumed or closed. */
   onAnswered(choices?: readonly string[], item?: InboxItem): void;
   /** A card's answer was refused: the app says it where it stays (the card may close). */
@@ -59,46 +63,48 @@ export function InboxScreen({
     picked?.kind === "escalated"
       ? runs.find((r) => r.status === "escalated" && escalatedKey(r) === picked.key)
       : undefined;
-  const inTerminal = needs.filter(isTerminalAsk);
+  const at = picked ? needs.findIndex((n) => n.key === picked.key) : -1;
+  const move = (step: 1 | -1) => {
+    const next = stepNeed(needs, picked?.key, step);
+    if (next) onPick(next.key);
+  };
+  if (needs.length === 0)
+    return (
+      <div className="home">
+        {isFirstRun(runs, needs) ? (
+          <FirstRun onStart={onStart} onForm={onForm} />
+        ) : (
+          <QuietHome onOpenRun={onOpenRun} onStart={onStart} onForm={onForm} />
+        )}
+      </div>
+    );
   return (
-    <div className={needs.length > 0 ? "inbox with-needs" : "inbox"}>
-      {needs.length > 0 ? (
-        <aside className="needs needs-pane" aria-label="what needs you">
-          <div className="section">Needs you · {needs.length}</div>
-          {needs.map((n) => (
-            <Row
-              key={n.key}
-              className="item"
-              glyph={<Glyph kind="need" state={n.kind} />}
-              name={n.title}
-              sub={n.sub}
-              word={n.kind}
-              tone={lookOf("need", n.kind).tone}
-              current={picked?.key === n.key}
-              title={n.hint}
-              data-testid={
-                isTerminalAsk(n)
-                  ? `terminal-ask-${n.runId}`
-                  : n.kind === "escalated"
-                    ? `escalated-${n.runId}`
-                    : undefined
-              }
-              onClick={() => onNeed(n)}
-            />
-          ))}
-        </aside>
-      ) : null}
-      <div className="inbox-main">
-        {item ? (
-          <DecisionCard
-            key={picked?.key}
-            item={item}
-            onAnswered={(choices) => onAnswered(choices, item)}
-            onRefused={onRefused}
-            onOpenSession={onOverview}
-            onOpenChanges={onOpenChanges}
-          />
-        ) : stopped ? (
+    <div className="home">
+      <nav className="queue" data-testid="queue" aria-label="decisions that wait">
+        <strong>{needs.length} waiting</strong>
+        <span className="faint">
+          {" "}
+          · {at + 1} of {needs.length}
+        </span>
+        <span className="spacer" />
+        <button type="button" disabled={needs.length < 2} onClick={() => move(-1)} title="key k">
+          ‹ Previous
+        </button>
+        <button type="button" disabled={needs.length < 2} onClick={() => move(1)} title="key j">
+          Next ›
+        </button>
+      </nav>
+      {item ? (
+        <DecisionCard
+          key={picked?.key}
+          item={item}
+          onAnswered={(choices) => onAnswered(choices, item)}
+          onRefused={onRefused}
+          onOpenSession={onOverview}
+          onOpenChanges={onOpenChanges}
+        />
+      ) : stopped ? (
+        <div data-testid={`escalated-${stopped.runId}`}>
           <EscalatedCard
             key={picked?.key}
             run={stopped}
@@ -106,26 +112,24 @@ export function InboxScreen({
             onBriefing={onOverview}
             onOpenChanges={onOpenChanges}
           />
-        ) : picked && isTerminalAsk(picked) ? (
-          <div className="empty">
-            <h2>
-              {inTerminal.length === 1 ? "1 run asks" : `${plural(inTerminal.length, "run")} ask`} in the
-              terminal
-            </h2>
-            <p>
-              There is no card to answer from: the agent wrote its question on its own screen. Open the run,
-              take the keyboard and answer there.
-            </p>
+        </div>
+      ) : picked && isTerminalAsk(picked) ? (
+        <article className="card terminal-ask" data-testid={`terminal-ask-${picked.runId}`}>
+          <h1>{picked.title}</h1>
+          {picked.sub ? <div className="dim">{picked.sub}</div> : null}
+          <p className="muted">
+            The agent asks in its terminal: there is no card to answer from. Open the run, take the keyboard
+            and answer there.
+          </p>
+          <div className="actions">
             <button type="button" className="primary" onClick={() => onOpenRun(picked.runId, picked.pane)}>
               Open the run
             </button>
           </div>
-        ) : isFirstRun(runs, needs) ? (
-          <FirstRun onStart={onStart} onForm={onForm} />
-        ) : (
-          <QuietInbox onOpenRun={onOpenRun} />
-        )}
-      </div>
+        </article>
+      ) : (
+        <div className="empty">Reading the decision…</div>
+      )}
     </div>
   );
 }
@@ -172,16 +176,28 @@ function FirstRun({ onStart, onForm }: { onStart(task: string): void; onForm(): 
   );
 }
 
-/** Nothing waits for a decision: say what is true about the open runs, and start the ones nothing works on. */
-function QuietInbox({ onOpenRun }: { onOpenRun(runId: string, pane?: string): void }) {
+/**
+ * Nothing waits for a decision: the tasks in short with their state, the runs nothing drives
+ * with the way to start each, and "Describe a task".
+ */
+function QuietHome({
+  onOpenRun,
+  onStart,
+  onForm,
+}: {
+  onOpenRun(runId: string, pane?: string): void;
+  onStart(task: string): void;
+  onForm(): void;
+}) {
   const { runs, panes } = useDaemon();
+  const tasks = byAttentionFirst(useTasks()).filter((t) => t.column !== "done");
   const action = useAction();
   const open = openRuns(runs);
   const idle = idleRuns(open, panes);
   return (
-    <div className="empty quiet-inbox" data-testid="inbox-zero">
-      <h2>Inbox zero</h2>
-      <p>{quietInboxText(open.length, idle.length)}</p>
+    <div className="quiet-home" data-testid="inbox-zero">
+      <h2>Nothing waits for you</h2>
+      <p className="muted">{quietInboxText(open.length, idle.length)}</p>
       {idle.length > 0 ? (
         <ul className="idle-runs">
           {idle.map((r) => (
@@ -189,16 +205,31 @@ function QuietInbox({ onOpenRun }: { onOpenRun(runId: string, pane?: string): vo
               <button type="button" className="ghost link" onClick={() => onOpenRun(r.runId)}>
                 {r.task}
               </button>
-              <span className="faint">
-                {r.repo ? `${r.repo} · ` : ""}
-                {r.stage} · {r.host ?? "no host"}
-              </span>
+              <span className="faint">{r.repo ? `${r.repo} · ` : ""}nothing drives it</span>
               <StartRun run={r} action={action} compact />
             </li>
           ))}
         </ul>
       ) : null}
       <Notice {...action.notice} />
+      {tasks.length > 0 ? (
+        <ul className="home-tasks" aria-label="tasks" data-testid="home-tasks">
+          {tasks.map((t) => {
+            const word = taskState(t);
+            const href = t.head?.runId
+              ? routeHash({ screen: "run", runId: t.head.runId, tab: "overview" })
+              : routeHash({ screen: "board", task: t.key });
+            return (
+              <li key={t.key}>
+                <Glyph kind="first" state={word} /> <a href={href}>{t.title}</a>{" "}
+                <span className={lookOf("first", word).tone}>{word}</span>
+                <span className="faint"> · {taskLine(t)}</span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      <FirstRun onStart={onStart} onForm={onForm} />
     </div>
   );
 }

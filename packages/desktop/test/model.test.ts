@@ -81,6 +81,7 @@ import {
   stepNeed,
   tabOfPane,
   tabOfRun,
+  tabsOf,
   terminalKey,
   toastOf,
   toggleChoice,
@@ -278,17 +279,16 @@ describe("formatting and routes", () => {
       "#/run/r/overview",
       "#/run/r/terminal",
       "#/run/r/terminal/w1%3Ap2",
-      "#/run/r/plan",
       "#/run/r/changes",
       "#/run/r/changes/src/discount.ts",
       "#/run/r/activity",
       "#/grid",
       "#/grid/p",
       "#/grid/pane:w1%3Ap2",
-      "#/overview",
-      "#/overview/dependencies",
-      "#/mrs",
-      "#/mrs/gh-45",
+      "#/settings/system",
+      "#/settings/system/dependencies",
+      "#/settings/reviews",
+      "#/settings/reviews/gh-45",
       "#/backlog",
       "#/settings",
     ])
@@ -303,7 +303,15 @@ describe("formatting and routes", () => {
       tab: "terminal",
       pane: "w1:p2",
     });
-    expect(parseRoute("#/plan/r")).toEqual({ screen: "run", runId: "r", tab: "plan" });
+    // There is no Plan tab: a step's plan is on its Overview.
+    expect(parseRoute("#/plan/r")).toEqual({ screen: "run", runId: "r", tab: "overview" });
+    expect(parseRoute("#/run/r/plan")).toEqual({ screen: "run", runId: "r", tab: "overview" });
+    // The System and the Reviews are parts of Settings; their old addresses still lead there.
+    expect(parseRoute("#/overview/dependencies")).toEqual({ screen: "overview", tab: "dependencies" });
+    expect(parseRoute("#/mrs/gh-45")).toEqual({ screen: "mrs", id: "gh-45" });
+    expect(routeHash(parseRoute("#/overview"))).toBe("#/settings/system");
+    expect(routeHash(parseRoute("#/supervisor"))).toBe("#/settings/system");
+    expect(routeHash(parseRoute("#/mrs"))).toBe("#/settings/reviews");
     expect(parseRoute("#/review/r/src/a.ts")).toEqual({
       screen: "run",
       runId: "r",
@@ -796,14 +804,18 @@ describe("counts every screen agrees on", () => {
 });
 
 describe("the screens of one run", () => {
-  test("one page per run with five tabs, each with one letter", () => {
+  test("one page per run with four tabs, each with one letter; a task's page has no terminal", () => {
     expect(RUN_TABS.map((t) => [t.tab, t.key])).toEqual([
       ["overview", "o"],
       ["terminal", "t"],
-      ["plan", "p"],
       ["changes", "d"],
       ["activity", "l"],
     ]);
+    expect(tabsOf(true).map((t) => t.tab)).toEqual(["overview", "changes", "activity"]);
+    expect(tabsOf(false)).toEqual(RUN_TABS);
+    // A task's page opens on its Overview: a system run, a run with child runs.
+    expect(runTabFor(run("s", { workflow: "mt-system-change" }))).toBe("overview");
+    expect(runTabFor(run("p", { children: ["k"] }))).toBe("overview");
     // From the sidebar a run opens where the work is; a finished one on its summary.
     expect(runTabFor(run("a"))).toBe("terminal");
     expect(runTabFor(run("a", { status: "escalated" }))).toBe("terminal");
@@ -1177,10 +1189,10 @@ describe("the sidebar: one state that rolls up (wave 2)", () => {
     expect(sidebarRuns([])).toEqual([]);
   });
 
-  test("one dim line under a run: its step, that it asks on its terminal, stage · host · age", () => {
-    expect(runLine({ stage: "build", host: "copilot", elapsedMs: 240_000 })).toBe("build · copilot · 4 min");
-    expect(runLine({ stage: "plan", elapsedMs: 5000, terminalAsk: "w1:p1" }, "step 2/3")).toBe(
-      "step 2/3 · asks in its terminal · plan · no host · 5s",
+  test("one dim line under a run: its step, that it asks on its terminal, its stage; no host, no age", () => {
+    expect(runLine({ stage: "build" })).toBe("build");
+    expect(runLine({ stage: "plan", terminalAsk: "w1:p1" }, "step 2/3")).toBe(
+      "step 2/3 · asks in its terminal · plan",
     );
   });
 

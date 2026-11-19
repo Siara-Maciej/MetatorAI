@@ -15,9 +15,7 @@ import {
   flattenState,
   goesToPane,
   hostChoice,
-  isTerminalAsk,
   keyMapOf,
-  type NeedRow,
   needsQueue,
   newQuestions,
   nextWaiting,
@@ -198,11 +196,18 @@ function Shell() {
     },
     [go, d],
   );
-  // Everything that needs the person: the sidebar lists it, the Inbox shows the picked one.
+  // Everything that needs the person: the sidebar counts it, Home shows one at a time.
   const needs = useMemo(() => needsQueue(d.inbox, d.runs, d.panes), [d.inbox, d.runs, d.panes]);
   const picked = route.screen === "inbox" ? pickedNeed(needs, route.pick) : undefined;
-  const openNeed = (n: NeedRow) =>
-    isTerminalAsk(n) ? openRun(n.runId, false, n.pane) : go({ screen: "inbox", pick: n.key });
+  // Settings holds the places that are not daily work: the System and the Reviews.
+  const settingsPart =
+    route.screen === "overview"
+      ? "system"
+      : route.screen === "mrs"
+        ? "reviews"
+        : route.screen === "settings"
+          ? "options"
+          : undefined;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Escape closes the runs drawer; a dialog closes itself (the browser's own <dialog>, D7).
@@ -240,11 +245,26 @@ function Shell() {
   // The place the route names: an expression, not a component, so a render keeps its state.
   const screen = (
     <>
+      {settingsPart ? (
+        <nav className="settings-parts run-tabs" aria-label="parts of the settings">
+          {(
+            [
+              ["options", "Options", routeHash({ screen: "settings" })],
+              ["system", "System", routeHash({ screen: "overview", tab: "daemon" })],
+              ["reviews", "Reviews", routeHash({ screen: "mrs" })],
+            ] as const
+          ).map(([id, label, href]) => (
+            <a key={id} href={href} aria-current={settingsPart === id ? "page" : undefined}>
+              {label}
+            </a>
+          ))}
+        </nav>
+      ) : null}
       {route.screen === "inbox" ? (
         <InboxScreen
           needs={needs}
           picked={picked}
-          onNeed={openNeed}
+          onPick={(pick) => go({ screen: "inbox", pick })}
           onRefused={(message) =>
             setNotice({ text: `The answer was not taken: ${message}`, tone: "error", sticky: true })
           }
@@ -291,7 +311,7 @@ function Shell() {
         <WorkbenchScreen
           onNewTask={() => void openIntake()}
           onOpenSettings={() => go({ screen: "settings" })}
-          onOpenPlan={(runId) => go({ screen: "run", runId, tab: "plan" })}
+          onOpenPlan={(runId) => go({ screen: "run", runId, tab: "overview" })}
           onOpenReview={(runId) => go({ screen: "run", runId, tab: "changes" })}
           onHelp={() => setHelp(true)}
           onOpenInbox={(pick) => go({ screen: "inbox", pick })}
@@ -310,7 +330,7 @@ function Shell() {
           id={route.id}
           onOpen={(id) => go({ screen: "mrs", id })}
           onOpenSession={openRun}
-          onOpenPlan={(runId) => go({ screen: "run", runId, tab: "plan" })}
+          onOpenPlan={(runId) => go({ screen: "run", runId, tab: "overview" })}
         />
       ) : null}
       {route.screen === "overview" ? (

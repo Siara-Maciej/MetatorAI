@@ -175,8 +175,10 @@ describe("a question on an agent's terminal, in the app (real daemon, real Chrom
     expect(await card.locator("h1").textContent()).toBe("Which currency does a product without one get?");
     expect(await card.locator(".ctx").textContent()).toContain("TERMINAL");
     expect(await card.getByTestId("host-asker").textContent()).toContain(
-      "mt-orchestrator asks on its terminal, in pane w1:p1",
+      "mt-orchestrator asks on its terminal",
     );
+    // Which pane is an id: it is in the card's Details, with the run's.
+    expect(await card.getByTestId("card-details").locator(".ctx").textContent()).toContain("pane w1:p1");
     expect(await card.locator(".option .label > span:first-child").allTextContents()).toEqual([
       "PLN",
       "EUR",

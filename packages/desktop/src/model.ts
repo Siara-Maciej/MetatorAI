@@ -250,15 +250,24 @@ export function answerCommand(
 
 const quote = (s: string) => (/^[\w./-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\"')}"`);
 
-/** The tabs of the one page about a run, in the order of its header. */
+/**
+ * The tabs of the one page about a run, in the order of its header. A step's plan, its
+ * artefacts and its question are on its Overview; there is no Plan tab.
+ */
 export const RUN_TABS = [
   { tab: "overview", label: "Overview", key: "o" },
   { tab: "terminal", label: "Terminal", key: "t" },
-  { tab: "plan", label: "Plan", key: "p" },
   { tab: "changes", label: "Changes", key: "d" },
   { tab: "activity", label: "Activity", key: "l" },
 ] as const;
 export type RunTab = (typeof RUN_TABS)[number]["tab"];
+
+/**
+ * The tabs a page shows: a task's page (a system run, a run with child runs) is Overview ·
+ * Changes · Activity, its steps have the terminals; a step's page (or a run of its own) all four.
+ */
+export const tabsOf = (task: boolean): readonly (typeof RUN_TABS)[number][] =>
+  task ? RUN_TABS.filter((t) => t.tab !== "terminal") : RUN_TABS;
 
 /** The two parts of the Overview place: the daemon with its figures, and what links the runs. */
 export type OverviewTab = "daemon" | "dependencies" | "system";
@@ -291,7 +300,7 @@ export type Route =
 /** The tab an old run route showed. */
 const OLD_RUN_ROUTES: Readonly<Record<string, RunTab>> = {
   session: "terminal",
-  plan: "plan",
+  plan: "overview",
   review: "changes",
   briefing: "overview",
 };
@@ -328,6 +337,7 @@ export function parseRoute(hash: string): Route {
   switch (screen) {
     case "run": {
       if (!arg) return { screen: "inbox" };
+      // The old Plan tab is on the Overview now.
       const tab = RUN_TABS.find((t) => t.tab === parts[2])?.tab;
       return runRoute(arg, tab ?? "overview", parts.slice(3));
     }
@@ -347,6 +357,16 @@ export function parseRoute(hash: string): Route {
     case "graph":
       return { screen: "overview", tab: "dependencies" };
     case "settings":
+      // Settings holds the places that are not daily work: the System (the daemon, the
+      // dependencies, the system map) and the Reviews.
+      if (arg === "system") {
+        const t = parts[2];
+        return {
+          screen: "overview",
+          tab: t === "dependencies" ? "dependencies" : t === "system" ? "system" : "daemon",
+        };
+      }
+      if (arg === "reviews") return parts[2] ? { screen: "mrs", id: parts[2] } : { screen: "mrs" };
       return { screen: "settings" };
     case "backlog":
       return { screen: "backlog" };
@@ -375,11 +395,11 @@ export function routeHash(route: Route): string {
     case "inbox":
       return `#/inbox${route.pick ? `/${encodeURIComponent(route.pick)}` : ""}`;
     case "mrs":
-      return `#/mrs${route.id ? `/${encodeURIComponent(route.id)}` : ""}`;
+      return `#/settings/reviews${route.id ? `/${encodeURIComponent(route.id)}` : ""}`;
     case "board":
       return `#/board${route.task ? `/${encodeURIComponent(route.task)}` : ""}`;
     case "overview":
-      return route.tab === "daemon" ? "#/overview" : `#/overview/${route.tab}`;
+      return route.tab === "daemon" ? "#/settings/system" : `#/settings/system/${route.tab}`;
     case "grid":
       return route.pane
         ? `#/grid/pane:${encodeURIComponent(route.pane)}`
@@ -946,6 +966,13 @@ export const LOOKS = {
     modified: { glyph: "M", tone: "amber" },
     renamed: { glyph: "R", tone: "amber" },
   },
+  /** The first level's four words (`firstLevel`): the only looks the sidebar, Board and Home draw. */
+  first: {
+    "needs you": { glyph: "?", tone: "amber" },
+    working: { glyph: "⋮", tone: "violet" },
+    blocked: { glyph: "!", tone: "red" },
+    done: { glyph: "✓", tone: "green" },
+  },
   /** A run, a repository: `runStateOf` and `rollUp`. */
   run: {
     "needs you": { glyph: "?", tone: "amber" },
@@ -973,6 +1000,51 @@ export const LOOKS = {
 } as const satisfies Record<string, Record<string, Look>>;
 
 export type LookKind = keyof typeof LOOKS;
+
+/**
+ * The four words of the first level (the sidebar, the Board, Home, a page's head): what needs
+ * the person, what works, what stands still and what is finished. The finer words (asks, idle,
+ * exited, aborted, escalated, done not seen) are inside a step's Details and its terminal.
+ */
+export type FirstLevel = "needs you" | "working" | "blocked" | "done";
+
+/**
+ * A fine state in one of the four words. Blocked is everything that stands still without asking:
+ * escalated, waiting for another step, nothing driving it (idle, exited, a task not started).
+ */
+export function firstLevel(fine: string | undefined): FirstLevel {
+  switch (fine) {
+    case "needs you":
+    case "asks":
+    case "proposed":
+    case "question":
+    case "approval":
+    case "permission":
+    case "terminal":
+      return "needs you";
+    case "working":
+      return "working";
+    case "done":
+    case "aborted":
+    case "finished":
+      return "done";
+    default:
+      return "blocked";
+  }
+}
+
+/** Why something is blocked, in one line for its task's page and its own: what to do about it. */
+export function blockedReason(x: {
+  readonly run?: Pick<RunOverview, "status" | "stage" | "reason"> | undefined;
+  readonly waitsFor?: readonly string[] | undefined;
+}): string {
+  if (x.run?.status === "escalated") {
+    const why = readableReason(x.run.reason).text;
+    return `escalated at ${x.run.stage}: ${why.length > 120 ? `${why.slice(0, 119)}…` : why}`;
+  }
+  if (x.waitsFor && x.waitsFor.length > 0) return `waits for ${x.waitsFor.join(", ")}`;
+  return x.run ? "nothing drives it: Open a session" : "not started: nothing drives it yet";
+}
 
 /** The glyph and colour of a state; a state the table does not know is a faint dot. */
 export function lookOf(kind: LookKind, state: string | undefined): Look {
@@ -1250,10 +1322,11 @@ export const SHELL_KEYS: readonly { readonly keys: string; readonly label: strin
   { keys: "?", label: "This help" },
   { keys: "g", label: "Next run that needs you" },
   { keys: "n", label: "New run: describe it to the agent" },
-  { keys: "j / k  ↓ / ↑", label: "Move in a list: the decisions, the tasks, the steps, the files" },
+  { keys: "j / k  ↓ / ↑", label: "Home: the next or the previous decision; elsewhere, move in a list" },
   { keys: "↵", label: "Decision: send the chosen answer" },
   { keys: "o", label: "Overview of the run (from a decision, or on a run)" },
-  { keys: "t / p / d / l", label: "Run: its terminal, plan, changes, activity" },
+  { keys: "t / d / l", label: "Step: its terminal, changes, activity" },
+  { keys: "⌫ / esc", label: "Board: back from a task's board to all tasks" },
   { keys: "a / c", label: "Run: attach to its session / release it to the agent" },
   { keys: "e", label: "Run: open in the editor" },
   { keys: "esc", label: "Close a dialog, a menu or the runs drawer" },
@@ -1609,11 +1682,12 @@ export function sidebarRuns<R extends RunOverview & { readonly repo?: string | u
 }
 
 /**
- * The one dim line under a run's name: its step, that it asks on its terminal, stage · host · age.
- * A finished run says how it ended (`done`, `aborted`), never the stage it stopped at.
+ * The one dim line under a run's name: its step, that it asks on its terminal, its current
+ * stage. A finished run says how it ended (`done`, `aborted`), never the stage it stopped at.
+ * No host and no age: those are in the run's Details.
  */
 export const runLine = (
-  r: Pick<Run, "stage" | "host" | "elapsedMs" | "terminalAsk"> & Partial<Pick<Run, "status">>,
+  r: Pick<Run, "stage" | "terminalAsk"> & Partial<Pick<Run, "status">>,
   step?: string | undefined,
   elsewhere?: string | undefined,
 ): string =>
@@ -1622,8 +1696,6 @@ export const runLine = (
     elsewhere,
     r.terminalAsk && !(r.status && isFinished({ status: r.status })) ? "asks in its terminal" : undefined,
     r.status && isFinished({ status: r.status }) ? r.status : r.stage,
-    r.host ?? "no host",
-    duration(r.elapsedMs),
   ]
     .filter((x) => x !== undefined)
     .join(" · ");
@@ -1658,9 +1730,14 @@ export function answeredText(
   return `${head}. The run goes on.`;
 }
 
-/** The tab a run opens on from the sidebar: where the work is while it runs, the summary once it is finished. */
-export const runTabFor = (r: Pick<RunOverview, "status">): RunTab =>
-  isFinished(r) ? "overview" : "terminal";
+/**
+ * The tab a run opens on from the sidebar: where the work is while it runs, the summary once it
+ * is finished. A task's page (a system run, a run with child runs) has no terminal: its Overview.
+ */
+export const runTabFor = (
+  r: Pick<RunOverview, "status"> & Partial<Pick<RunOverview, "workflow" | "children">>,
+): RunTab =>
+  isFinished(r) || /system/.test(r.workflow ?? "") || (r.children?.length ?? 0) > 0 ? "overview" : "terminal";
 
 /**
  * Who works on a run, in one word for a table and the run's bar: the person who holds its

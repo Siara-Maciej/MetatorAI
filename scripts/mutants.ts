@@ -6643,6 +6643,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a task's needs-you count sums its steps",
   },
   {
+    file: "packages/desktop/src/model.ts",
+    from: '    case "working":\n      return "working";\n    case "done":',
+    to: '    case "working":\n    case "escalated":\n      return "working";\n    case "done":',
+    why: "an escalated run reads blocked on the first level, never working",
+  },
+  {
+    file: "packages/desktop/src/model.ts",
+    from: `if (x.waitsFor && x.waitsFor.length > 0) return \`waits for \${x.waitsFor.join(", ")}\`;`,
+    to: `if (x.waitsFor && x.waitsFor.length > 1) return \`waits for \${x.waitsFor.join(", ")}\`;`,
+    why: "a step that waits for one other step says which",
+  },
+  {
+    file: "packages/desktop/src/tasks.ts",
+    from: "...(partOf ? { partOf: { key: partOf.key, title: partOf.title, runId: partOf.head?.runId } } : {}),",
+    to: "...(partOf ? { partOf: { key: partOf.key, title: partOf.title } } : {}),",
+    why: "a step's breadcrumb leads to its task's page, the system run",
+  },
+  {
     file: "packages/desktop/src/confirm.ts",
     from: "const mine = ++latest;",
     to: "const mine = latest;",

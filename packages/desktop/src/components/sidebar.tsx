@@ -3,7 +3,10 @@
  * a standalone run), with one state word, its progress and how many of its steps need the
  * person; what needs the person sorts first. A task expands to its own tree: its steps and child
  * runs by repository (pending steps with what they wait for); a standalone run expands to its
- * panes. The Inbox lists every decision; the sidebar only counts them. The places are at the bottom.
+ * panes. Home shows the decisions one at a time; the sidebar only counts them. Every row reads
+ * one of the first level's four words (`firstLevel`); no ids, hosts or ages. Finished tasks are
+ * hidden behind "Show finished (N)". The places are at the bottom: Board, Terminals, Backlog,
+ * and Settings, which holds the System and the Reviews.
  */
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -11,8 +14,8 @@ import { type BoardCard, boardCards } from "../board.ts";
 import { useDaemon } from "../daemon.tsx";
 import {
   finishedText,
+  firstLevel,
   isFinished,
-  isNews,
   lookOf,
   type NeedRow,
   paneLabel,
@@ -25,20 +28,23 @@ import {
   runLine,
   runWithPanes,
   sameRepo,
-  seenKey,
 } from "../model.ts";
-import { byAttentionFirst, subtasksByRepo, taskLine, type WorkTask, workTasks } from "../tasks.ts";
+import { byAttentionFirst, subtasksByRepo, taskLine, taskState, type WorkTask, workTasks } from "../tasks.ts";
 import { Glyph } from "./glyph.tsx";
 import { moveInList } from "./list-keys.ts";
 
 /** The places that are not a run, in the order of the sidebar's bottom. */
-const PLACES: readonly { readonly route: Route; readonly label: string; readonly glyph: string }[] = [
-  { route: { screen: "grid" }, label: "Terminals", glyph: "▦" },
-  { route: { screen: "board" }, label: "Board", glyph: "▥" },
-  { route: { screen: "backlog" }, label: "Backlog", glyph: "☷" },
-  { route: { screen: "mrs" }, label: "Reviews", glyph: "⇄" },
-  { route: { screen: "overview", tab: "daemon" }, label: "Overview", glyph: "◎" },
-  { route: { screen: "settings" }, label: "Settings", glyph: "⚙" },
+const PLACES: readonly {
+  readonly route: Route;
+  readonly label: string;
+  readonly glyph: string;
+  /** The screens the place holds (Settings: the System and the Reviews too). */
+  readonly holds: readonly Route["screen"][];
+}[] = [
+  { route: { screen: "board" }, label: "Board", glyph: "▥", holds: ["board"] },
+  { route: { screen: "grid" }, label: "Terminals", glyph: "▦", holds: ["grid"] },
+  { route: { screen: "backlog" }, label: "Backlog", glyph: "☷", holds: ["backlog"] },
+  { route: { screen: "settings" }, label: "Settings", glyph: "⚙", holds: ["settings", "overview", "mrs"] },
 ];
 
 /** One row of the sidebar: glyph, name, the state's word, one dim line. */
@@ -100,7 +106,7 @@ export function Sidebar({
   /** The form: workflow, autonomy, host and worktree chosen by hand. */
   onForm(): void;
 }) {
-  const { runs, panesOf, down, unreadable, seen, systemPlans } = useDaemon();
+  const { runs, panesOf, down, unreadable, systemPlans } = useDaemon();
   const [showFinished, setShowFinished] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const current = route.screen === "run" ? route.runId : undefined;
@@ -123,9 +129,10 @@ export function Sidebar({
   const expandedNow = (t: WorkTask) => expanded[t.key] ?? holds(t);
   const taskRows = (t: WorkTask) => {
     const headRun = t.head ? runOf(t.head) : undefined;
-    const quiet = t.state === "done" && headRun !== undefined && !isNews(headRun, seen[seenKey(headRun)]);
-    const word = t.state === "todo" || t.state === "pending" || t.state === "proposed" ? undefined : t.state;
-    const look = word ? lookOf("run", word) : { glyph: "·", tone: "faint" };
+    // A run of its own reads its panes too: a conductor at work is working.
+    const word =
+      t.kind === "run" && headRun && !isFinished(headRun) ? firstLevel(stateOf(headRun)) : taskState(t);
+    const look = lookOf("first", word);
     const open = expandedNow(t);
     const kids =
       t.kind === "run" && headRun && !isFinished(headRun)
@@ -149,11 +156,11 @@ export function Sidebar({
             <span className="expander" />
           )}
           <Row
-            glyph={<Glyph kind="run" state={quiet ? "idle" : word} />}
+            glyph={<Glyph kind="first" state={word} />}
             name={t.title}
             sub={t.kind === "run" && headRun ? runLine(headRun) : taskLine(t)}
             word={word}
-            tone={quiet ? "faint" : look.tone}
+            tone={look.tone}
             current={t.head?.runId !== undefined && t.head.runId === current}
             title={headRun && isFinished(headRun) ? `${t.title}\n${finishedText(headRun)}` : t.title}
             onClick={() => {
@@ -165,16 +172,19 @@ export function Sidebar({
         </div>
         {open && t.kind === "run"
           ? kids.map((p) => {
+              // A pane on the first level: it asks (needs you), it works, or nothing (its finer
+              // word, idle or exited, is in the run's terminal).
               const st = paneStateOf(p);
+              const pw = st === "asks" ? "needs you" : st === "working" ? "working" : undefined;
               return (
                 <Row
                   key={p.id}
                   className="pane-row"
                   nested
-                  glyph={<Glyph kind="pane" state={st} />}
+                  glyph={<Glyph kind="first" state={pw} />}
                   name={paneLabel(p)}
-                  word={st}
-                  tone={lookOf("pane", st).tone}
+                  word={pw}
+                  tone={pw ? lookOf("first", pw).tone : "faint"}
                   current={headRun?.runId === current && route.screen === "run" && route.pane === p.id}
                   title={`${p.id} · ${p.state?.reason ?? ""}`}
                   onClick={() => headRun && onRun(headRun, p.id)}
@@ -188,25 +198,28 @@ export function Sidebar({
                 <div className="repo-name">{g.repo || "this repository"}</div>
                 {g.cards.map((c) => {
                   const r = runOf(c);
-                  const st = r ? stateOf(r) : undefined;
+                  const st = r ? firstLevel(stateOf(r)) : firstLevel(c.state);
                   return (
                     <Row
                       key={c.key}
                       nested
                       className={c.kind === "step" ? "pending-step" : ""}
-                      glyph={<Glyph kind="run" state={st ?? "idle"} />}
+                      glyph={<Glyph kind="first" state={st} />}
                       name={c.title}
                       sub={
                         r
-                          ? [c.step ? `step ${c.step.at} of ${c.step.of}` : undefined, r.stage, r.host]
+                          ? [
+                              c.step ? `step ${c.step.at} of ${c.step.of}` : undefined,
+                              isFinished(r) ? undefined : r.stage,
+                            ]
                               .filter(Boolean)
                               .join(" · ")
                           : c.waitsFor && c.waitsFor.length > 0
                             ? `not started · waits for ${c.waitsFor.join(", ")}`
                             : "not started · can start"
                       }
-                      word={st ?? "pending"}
-                      tone={st ? lookOf("run", st).tone : "faint"}
+                      word={st}
+                      tone={lookOf("first", st).tone}
                       current={r !== undefined && r.runId === current}
                       title={c.title}
                       onClick={() => {
@@ -215,7 +228,7 @@ export function Sidebar({
                           window.location.hash = routeHash({
                             screen: "run",
                             runId: c.systemRunId,
-                            tab: "plan",
+                            tab: "overview",
                           });
                       }}
                     />
@@ -235,7 +248,7 @@ export function Sidebar({
         ) : (
           <>
             <button type="button" className="section needs-head" data-testid="needs-count" onClick={onInbox}>
-              <Glyph kind="run" state={needs.length > 0 ? "needs you" : "idle"} />
+              <Glyph kind="first" state={needs.length > 0 ? "needs you" : undefined} />
               Needs you · {needs.length}
             </button>
             <section className="tasks" aria-label="tasks">
@@ -249,10 +262,11 @@ export function Sidebar({
                   type="button"
                   className="section"
                   aria-expanded={showFinished}
+                  data-testid="show-finished"
                   onClick={() => setShowFinished(!showFinished)}
                 >
-                  <Glyph kind="run" state="done" />
-                  {showFinished ? "▾" : "▸"} Finished · {done.length}
+                  <Glyph kind="first" state="done" />
+                  {showFinished ? `Hide finished (${done.length})` : `Show finished (${done.length})`}
                 </button>
                 {showFinished ? done.map((t) => taskRows(t)) : null}
               </div>
@@ -280,7 +294,7 @@ export function Sidebar({
             key={p.label}
             className="row place"
             href={routeHash(p.route)}
-            aria-current={route.screen === p.route.screen ? "page" : undefined}
+            aria-current={p.holds.includes(route.screen) ? "page" : undefined}
           >
             <span className="g faint" aria-hidden="true">
               {p.glyph}

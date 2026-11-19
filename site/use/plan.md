@@ -1,12 +1,12 @@
 # Plan and backlog
 
-The **Plan** screen shows where one run stands and what is left. The **Backlog** screen is the repository's list of tasks that are not runs yet. This page covers both, in the app and from a terminal.
+A step's plan shows where one run stands and what is left; it is on the step's **Overview**. The **Backlog** screen is the repository's list of tasks that are not runs yet. This page covers both, in the app and from a terminal.
 
 ## See where a run stands
 
-Open the **Plan** tab of a run's page (key `p`), or from **Terminals**: click the stages under the tabs, or press the prefix and `p`.
+Open the **Overview** of a step's page (key `o`): under what the run needs from you is **Its plan**, read-only. From **Terminals**, click the stages under the tabs, or press the prefix and `p`. There is no Plan tab; its old address (`#/run/<run>/plan`) opens the Overview.
 
-![The Plan screen of a run before its plan is written: the stage, what comes next, the artifacts and the last events](../public/screens/plan.png)
+![A step's plan before it is written: the stage, what comes next and the last events](../public/screens/plan.png)
 
 | Part | Shows |
 |---|---|
@@ -15,7 +15,6 @@ Open the **Plan** tab of a run's page (key `p`), or from **Terminals**: click th
 | **waits for you**, left | the open questions, oldest first |
 | The chosen step, right | its file, the tests that come first, the exemplar, the rules, and the steps it comes after |
 | **what comes next** | the stages still to come, and the last results of the quick and the full gate |
-| **artifacts** | the files the stages produce, and whether each is there |
 | **workers** | the run's worker agents, each with its stage, pane and result so far |
 | Timeline, bottom | the last events of the run |
 
@@ -23,7 +22,7 @@ Click a step to see it. **Show the pane** opens the step's worker in **Terminals
 
 When a question waits, it is at the top with its answers as buttons, the recommended one highlighted. A click answers it. For a permission prompt of the host the button is **Answer in the pane**.
 
-No model writes this screen. It is computed from the run's files when you look:
+The step's **artifacts**, the files its stages produce and whether each is there, are beside it on the Overview. No model writes the plan's view. It is computed from the run's files when you look:
 
 - A step is `done` when a worker reported done and named the step's file or id.
 - A step is `in-progress` when the activity shows a tool call on its file.
@@ -35,20 +34,20 @@ The **artifacts** are the files this run's workflow produces, never another work
 
 ## A system run's plan
 
-A system run's page is the task's page. Its Plan tab shows the **system plan** at the top: its status, its approval, its lint, and its flow: a column per wave of the deploy order, a lane per repository, one node per step (dashed while it has not started, with what it waits for), an arrow from each step to the steps that wait for it, and the critical path drawn heavier. A node is in the colour of its child run, with its stage; a click opens the run. In a narrow window the nodes narrow to fit; past their narrowest the flow scrolls sideways in its own box. Below are the steps grouped by repository, each with what it does, the steps it comes after, its status and the run it started. Two steps of the same repository in one wave run side by side, each in a worktree of its own.
+A system run's page is the task's page. Its Overview shows the one thing to decide in the task, if any, then the **system plan**: its status, its approval, its lint, and its flow: a column per wave of the deploy order, a lane per repository, one node per step (dashed while it has not started, with what it waits for), an arrow from each step to the steps that wait for it, and the critical path drawn heavier. A node is in the colour of its child run, with its stage; a click opens the run. In a narrow window the nodes narrow to fit; past their narrowest the flow scrolls sideways in its own box. Below are the steps grouped by repository, each with what it does, the steps it comes after, its status and the run it started. Two steps of the same repository in one wave run side by side, each in a worktree of its own.
 
-Under a system run's header a line says how far its plan is (`1/2 steps done`) and what it waits for: **blocked by** the child run that needs you, with a link to it, or the gate's own words (`waiting on children: …`).
+The head of the task's page has a bar of its steps done (`1 of 2 steps done`) and, when the task is blocked, why: the step that escalated (`price-endpoint: escalated at delivery: …`) or what a step waits for. Under **Details** a line names the system plan and the child run it is blocked by, with a link to it.
 
 ## Change a plan
 
-A plan is not edited by hand: its planner writes it, and you tell the planner what should be different. The Plan tab shows the plan read-only, with its lint (`lint: 2 errors · 1 warning`) and each problem under the step it is about.
+A plan is not edited by hand: its planner writes it, and you tell the planner what should be different. A step's Overview shows its plan read-only, with its lint (`lint: 2 errors · 1 warning`) and each problem under the step it is about.
 
-At the plan's approval the card in the Inbox shows the plan **in full**, without a click: for a run, its steps with their files, the tests written first and what each step waits for; for a system plan, its flow and its steps per repository. Under it:
+At the plan's approval the card on Home, and on the task's page, shows the plan **in full**, without a click: for a run, its steps with their files, the tests written first and what each step waits for; for a system plan, its flow and its steps per repository. Under it:
 
 - **Approve** approves the plan, and the run goes on.
 - **Ask for changes** takes your words (`S2 also needs a test for a product without a currency`) and sends them as the gate's Reject with your words as the reason: the run goes back to its planner, which writes a new plan.
 - While the lint has errors, **Approve** is closed and the card says why; **Ask the planner to fix it** fills the box with the lint's problems.
-- When the planner has written a new version, the card and the Plan tab show **Changed since the previous plan**: the steps added, removed or changed, by id.
+- When the planner has written a new version, the card and the step's Overview show **Changed since the previous plan**: the steps added, removed or changed, by id.
 
 ## The run's files
 
@@ -90,7 +89,7 @@ metator run board                 # the latest run
 metator run board --run <id>      # one run
 ```
 
-The board is the data of the **Plan** screen as JSON: `stages`, `plan`, `waiting`, `artifacts`, `gates` and `next`, with `planFile` (the plan's file) and, for a run that carries out a system plan, `system`. `--timeline <n>` sets how many recent events it includes (default 30).
+The board is the data of a step's plan view as JSON: `stages`, `plan`, `waiting`, `artifacts`, `gates` and `next`, with `planFile` (the plan's file) and, for a run that carries out a system plan, `system`. `--timeline <n>` sets how many recent events it includes (default 30).
 
 ```bash
 metator issue add "ADR for rounding" --body "Half-up or half-even." --priority high --labels adr,billing --by maciej

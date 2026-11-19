@@ -27,7 +27,7 @@ The terms this site uses, in alphabetical order.
 | Guard | the `metator guard ...` commands a host runs as hooks |
 | Hook | a command the host runs at a fixed moment of a session, such as before a tool call |
 | Host | the AI tool that runs the agents: GitHub Copilot or Claude Code |
-| Inbox | the list of every question that waits for you, across runs |
+| Inbox | the queue of every question that waits for you, across runs; **Home** in the app shows it one decision at a time |
 | Intake | rules that turn issues from GitHub, GitLab or Jira into tasks and runs |
 | Lens | a review agent with one focus: logic, contracts, conventions, tests, security or equivalence |
 | Lesson | a short note of what a run taught, saved in `docs/metator/lessons/` after a person approves it |

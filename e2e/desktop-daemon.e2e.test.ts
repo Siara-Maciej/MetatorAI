@@ -9,7 +9,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
-import { browser, closeBrowser } from "./helpers/browser.ts";
+import { browser, closeBrowser, decisionOnHome } from "./helpers/browser.ts";
 import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
@@ -189,7 +189,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await panel.getByLabel("daemon address").inputValue()).toBe(base());
     expect(await page.getByTestId("connection").textContent()).toBe("no daemon");
     // Nothing claims an empty inbox, and nothing can be started.
-    expect(await page.locator("main.content").textContent()).not.toContain("Inbox zero");
+    expect(await page.locator("main.content").textContent()).not.toContain("Nothing waits for you");
     expect(await page.getByRole("button", { name: "+ New run" }).isDisabled()).toBe(true);
     for (const screen of ["grid", "backlog", "mrs", "settings", "supervisor", "session/nope"]) {
       await page.goto(app(screen));
@@ -311,14 +311,16 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     const runId = await escalate("Check the totals");
     await page.goto(app("inbox"));
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
-    // It is listed among what needs the person, and in the sessions panel, not under "finished".
+    // It is among what needs the person on Home, and in the sidebar, not under "finished",
+    // where it reads blocked: one of the first level's four words.
     const row = page.getByTestId(`escalated-${runId}`);
+    await decisionOnHome(page, ["Check the totals", "Why it stopped"]);
     await row.waitFor({ timeout: 20_000 });
-    expect(await page.locator("aside.sessions .list").textContent()).toContain("Check the totals");
-    expect(await page.locator("main.content").textContent()).not.toContain("Inbox zero");
-    // One count everywhere: the escalated run is among the runs that need you, in the sidebar,
-    // counted in its heading, and it is listed in the Overview.
-    const needYou = await page.locator(".needs .item").count();
+    const side = page.locator("aside.sessions .list .row", { hasText: "Check the totals" }).first();
+    expect(await side.locator(".word").textContent()).toBe("blocked");
+    expect(await page.locator("main.content").textContent()).not.toContain("Nothing waits for you");
+    // One count everywhere: Home's queue and the sidebar's heading.
+    const needYou = Number(/(\d+) waiting/.exec((await page.getByTestId("queue").textContent()) ?? "")?.[1]);
     expect(needYou).toBeGreaterThan(0);
     expect(await page.getByTestId("needs-count").textContent()).toContain(`Needs you · ${needYou}`);
     await page.goto(app("supervisor"));
@@ -342,8 +344,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
       ((await api("/layout")).data.panes as { runId?: string }[]).filter((p) => p.runId === runId),
     ).toEqual([]);
     await page.goto(app("inbox"));
-    await row.waitFor({ timeout: 20_000 });
-    await row.click();
+    await decisionOnHome(page, ["Check the totals", "Why it stopped"]);
     const card = page.getByTestId("escalated-card");
     await card.waitFor({ timeout: 20_000 });
     expect(await card.getByTestId("escalated-reason").textContent()).toContain("gate `test -f ");
@@ -360,7 +361,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
 
     // Another one is closed from its card: a reason is required, and the run ends as aborted.
     const other = await escalate("Check the taxes");
-    await page.getByTestId(`escalated-${other}`).click();
+    await decisionOnHome(page, ["Check the taxes", "Why it stopped"]);
     await card.getByRole("button", { name: "Close run…" }).click();
     const close = card.getByRole("button", { name: "Close as aborted" });
     expect(await close.isDisabled()).toBe(true);

@@ -5,7 +5,7 @@
  * it is part of (its parent task and its step); filters and swimlanes read only the cards.
  */
 import type { Issue, RunOverview, SystemPlanView, WorkPhase } from "./api.ts";
-import { planOrder, type RunShown, runStateOf, stepPlace, systemPlanOf } from "./model.ts";
+import { firstLevel, planOrder, type RunShown, runStateOf, stepPlace, systemPlanOf } from "./model.ts";
 import { repoLabel } from "./plan-flow.ts";
 
 export const BOARD_COLUMNS: readonly { readonly id: WorkPhase; readonly label: string }[] = [
@@ -169,7 +169,8 @@ export function boardCards(input: {
 /** What the board shows, chosen above it; kept per viewer in the window's storage. */
 export interface BoardFilter {
   readonly repos: readonly string[];
-  readonly states: readonly ("needs you" | "escalated" | "working")[];
+  /** The first level's words a card or task must read (`firstLevel`). */
+  readonly states: readonly ("needs you" | "working" | "blocked")[];
   readonly host?: string | undefined;
   readonly text: string;
 }
@@ -184,7 +185,7 @@ export function filterFromStorage(raw: string | null | undefined): BoardFilter {
     const strings = (x: unknown) =>
       Array.isArray(x) ? x.filter((s): s is string => typeof s === "string") : [];
     const states = strings(v.states).filter(
-      (s): s is BoardFilter["states"][number] => s === "needs you" || s === "escalated" || s === "working",
+      (s): s is BoardFilter["states"][number] => s === "needs you" || s === "working" || s === "blocked",
     );
     return {
       repos: strings(v.repos),
@@ -202,7 +203,8 @@ export function filterCards(cards: readonly BoardCard[], f: BoardFilter): BoardC
   const text = f.text.trim().toLowerCase();
   return cards.filter((c) => {
     if (f.repos.length > 0 && !(c.repo && f.repos.includes(c.repo))) return false;
-    if (f.states.length > 0 && !f.states.includes(c.state as BoardFilter["states"][number])) return false;
+    if (f.states.length > 0 && !f.states.includes(cardState(c) as BoardFilter["states"][number]))
+      return false;
     if (f.host && c.host !== f.host) return false;
     if (text) {
       const words = [c.title, c.repo, c.stage, c.parent?.label, c.host]
@@ -216,6 +218,10 @@ export function filterCards(cards: readonly BoardCard[], f: BoardFilter): BoardC
 }
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** A card in one of the first level's four words. */
+export const cardState = (c: Pick<BoardCard, "state" | "needsYou">) =>
+  c.needsYou ? ("needs you" as const) : firstLevel(c.state);
 
 /**
  * The cards of one column, in the order a person reads them: what needs them first (needs you,
@@ -237,20 +243,20 @@ export function columnCards(
   return { shown: recent, older: sorted.length - recent.length };
 }
 
-/** What a column's header counts: its cards, and how many need a person or escalated. */
+/** What a column's header counts: its cards, how many need a person, how many runs are blocked. */
 export function columnCounts(cards: readonly BoardCard[]): {
   total: number;
   needsYou: number;
-  escalated: number;
+  blocked: number;
 } {
   return {
     total: cards.length,
     needsYou: cards.filter((c) => c.needsYou).length,
-    escalated: cards.filter((c) => c.escalated).length,
+    blocked: cards.filter((c) => c.runId !== undefined && cardState(c) === "blocked").length,
   };
 }
 
-/** The line under a card's title: where it is, what it is part of. */
+/** The line under a card's title: where it is and its current stage (no host, no age: the run's Details). */
 export function cardLine(c: BoardCard): string {
   return [
     c.repo,
@@ -263,7 +269,6 @@ export function cardLine(c: BoardCard): string {
         : c.kind === "step"
           ? "not started"
           : "task",
-    c.host,
   ]
     .filter((x) => x !== undefined && x !== "")
     .join(" · ");

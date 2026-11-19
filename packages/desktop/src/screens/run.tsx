@@ -1,8 +1,10 @@
 /**
- * The page about one run: one header and five tabs. Overview is what happened since you left and
- * what the run needs; Terminal is its live session; Plan, Changes and Activity are where it
- * stands, what it changed and everything it did. The routes a run's four screens once had still
- * lead here, each to its tab.
+ * The page about one run, in two kinds. A task's page (a system run, a run with child runs; level
+ * 2) is how the task goes: Overview (the one thing to decide, the flow, the steps by repository) ·
+ * Changes · Activity. A step's page (a step, a child run, a run of its own; level 3) is what the
+ * agent does: Overview (its question, its plan read-only, its artefacts) · Terminal · Changes ·
+ * Activity, with a breadcrumb back to its task. The head says the first level only; what the run
+ * is goes in its Details. The routes a run's screens once had (the Plan tab too) still lead here.
  */
 import { useEffect } from "react";
 import { ActivityList } from "../components/activity-list.tsx";
@@ -14,23 +16,28 @@ import { StartRun } from "../components/start-run.tsx";
 import { StopReason } from "../components/stop-reason.tsx";
 import { SystemRunBar } from "../components/system-run-bar.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { useAction, useRunControls } from "../hooks.ts";
+import { useAction, useRunControls, useTasks } from "../hooks.ts";
 import {
   autonomyLabel,
   conductorMoves,
   duration,
   finishedText,
   idleRuns,
+  paneStateOf,
+  panesOfRun,
   plainKey,
   type Route,
-  RUN_TABS,
   type RunTab,
+  routeHash,
   runPhase,
+  runWithPanes,
+  tabsOf,
 } from "../model.ts";
 import { ChangesTab } from "../run/changes-tab.tsx";
 import { OverviewTab } from "../run/overview-tab.tsx";
-import { PlanTab } from "../run/plan-tab.tsx";
+import { TaskOverview } from "../run/task-overview.tsx";
 import { TerminalTab } from "../run/terminal-tab.tsx";
+import { runPage } from "../tasks.ts";
 
 export function RunScreen({
   runId,
@@ -55,6 +62,15 @@ export function RunScreen({
 }) {
   const { run: runOf, markSeen, panesOf } = useDaemon();
   const run = runOf(runId);
+  const tasks = useTasks();
+  const fine = run
+    ? runWithPanes(
+        run,
+        panesOfRun(panesOf(run.repo), run.runId).map((p) => paneStateOf(p)),
+      )
+    : "idle";
+  const page = run ? runPage(run, fine, tasks, (id) => runOf(id)) : undefined;
+  const isTask = page?.task ?? false;
   const action = useAction();
   const { openEditor } = useRunControls(run, action);
   // The person looks at the run now: a finished run stops reading `done` in the sidebar.
@@ -69,7 +85,7 @@ export function RunScreen({
     const onKey = (e: KeyboardEvent) => {
       if (document.querySelector("dialog[open]")) return;
       const k = plainKey(e);
-      const to = RUN_TABS.find((t) => t.key === k);
+      const to = tabsOf(isTask).find((t) => t.key === k);
       if (to) go({ screen: "run", runId, tab: to.tab });
       if (k === "e") void openEditor();
     };
@@ -79,24 +95,47 @@ export function RunScreen({
   const phase = run ? runPhase(run) : "active";
   return (
     <div className="run-screen" data-testid="run" data-tab={tab}>
-      <RunHeader runId={runId} run={run} tab={tab} showStages={tab !== "plan"}>
-        {run ? (
-          <div className="chips">
-            {run.repo ? <Chip>{run.repo}</Chip> : null}
-            <Chip>{run.workflow}</Chip>
-            <Chip>{autonomyLabel(run.autonomy)}</Chip>
-            <Chip>{run.host ?? "no host"}</Chip>
-            {run.worktree?.ports ? (
-              <Chip>
-                ports {run.worktree.ports.from}–{run.worktree.ports.from + run.worktree.ports.count - 1}
-              </Chip>
-            ) : null}
-            <Chip>{duration(run.elapsedMs)}</Chip>
-            {run.died ? <Chip tone="red">drive died</Chip> : null}
-          </div>
-        ) : null}
-      </RunHeader>
-      {run ? <SystemRunBar run={run} /> : null}
+      <RunHeader
+        runId={runId}
+        run={run}
+        tab={tab}
+        task={isTask}
+        title={page?.title ?? runId}
+        state={page?.state ?? "blocked"}
+        why={page?.why}
+        progress={page?.progress ?? { done: 0, of: 0, text: "" }}
+        partOf={
+          page?.partOf
+            ? {
+                title: page.partOf.title,
+                href: page.partOf.runId
+                  ? routeHash({ screen: "run", runId: page.partOf.runId, tab: "overview" })
+                  : routeHash({ screen: "board", task: page.partOf.key }),
+              }
+            : undefined
+        }
+        details={
+          run ? (
+            <>
+              <div className="chips">
+                {run.repo ? <Chip>{run.repo}</Chip> : null}
+                <Chip>{run.workflow}</Chip>
+                <Chip>{autonomyLabel(run.autonomy)}</Chip>
+                <Chip>{run.host ?? "no host"}</Chip>
+                {run.worktree?.ports ? (
+                  <Chip>
+                    ports {run.worktree.ports.from}–{run.worktree.ports.from + run.worktree.ports.count - 1}
+                  </Chip>
+                ) : null}
+                <Chip>{duration(run.elapsedMs)}</Chip>
+                {run.died ? <Chip tone="red">drive died</Chip> : null}
+                <Chip>{fine}</Chip>
+              </div>
+              <SystemRunBar run={run} />
+            </>
+          ) : null
+        }
+      />
       {run && phase === "escalated" ? (
         <div className="driverbar escalated" data-testid="driverbar">
           <strong>Escalated at {run.stage}</strong>
@@ -138,7 +177,21 @@ export function RunScreen({
             Run <span className="mono">{runId}</span> is not in the state yet: it appears here in a moment.
           </div>
         ) : null}
-        {run && tab === "overview" ? <OverviewTab run={run} runId={runId} onOpenRun={onOpenRun} /> : null}
+        {run && tab === "overview" && isTask ? (
+          <TaskOverview
+            run={run}
+            onOpenRun={(id) => onOpenRun(id)}
+            onOpenChanges={(id) => go({ screen: "run", runId: id, tab: "changes" })}
+          />
+        ) : null}
+        {run && tab === "overview" && !isTask ? (
+          <OverviewTab
+            run={run}
+            runId={runId}
+            onOpenRun={onOpenRun}
+            onOpenPane={(p) => go({ screen: "grid", pane: p })}
+          />
+        ) : null}
         {tab === "terminal" ? (
           run ? (
             <TerminalTab
@@ -150,14 +203,6 @@ export function RunScreen({
               onOpenChanges={(id) => go({ screen: "run", runId: id, tab: "changes" })}
             />
           ) : null
-        ) : null}
-        {run && tab === "plan" ? (
-          <PlanTab
-            run={run}
-            runId={runId}
-            onOpenPane={(p) => go({ screen: "grid", pane: p })}
-            onOpenRun={onOpenRun}
-          />
         ) : null}
         {run && tab === "changes" ? (
           <ChangesTab

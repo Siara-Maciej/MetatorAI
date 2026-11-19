@@ -1,5 +1,5 @@
 /**
- * The plan (S2, design/13 §2, mockup "Plan"): where the run stands and what is left. The stages
+ * A step's plan, read-only, on its Overview (there is no Plan tab): where the run stands and what is left. The stages
  * in one line, the plan's steps on the left with their live state, one step on the right with
  * its file, tests, exemplar and rules, what waits for a person at the top, what comes next and
  * the artifacts below, the last events at the bottom. Everything comes from `GET /runs/:id/board`.
@@ -8,41 +8,25 @@ import { useState } from "react";
 import type { PlanBoardView } from "../api.ts";
 import { ActivityList } from "../components/activity-list.tsx";
 import { QuickAnswer } from "../components/answer.tsx";
-import { ArtifactList } from "../components/artifact-list.tsx";
 import { FieldProblems, ProblemList } from "../components/doc-editor.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../components/list-detail.tsx";
 import { PlanChanges } from "../components/plan-changes.tsx";
 import { StageBar } from "../components/stage-bar.tsx";
-import { SystemPlanPanel } from "../components/system-plan.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { clock, duration, lintSummary, plural, problemsAt, type Run, systemPlanOf } from "../model.ts";
+import { clock, duration, lintSummary, plural, problemsAt, type Run } from "../model.ts";
 
 const or = (items: readonly string[]): string => (items.length > 0 ? items.join(", ") : "—");
 
-export function PlanTab(props: {
-  readonly run: Run | undefined;
-  readonly runId: string;
-  onOpenPane(paneId: string, runId: string): void;
-  onOpenRun(runId: string, attach?: boolean): void;
-}) {
-  const { systemPlans, runs } = useDaemon();
-  const { run } = props;
-  // A system run's plan is its system plan: the steps across repositories and their child runs.
-  const system = run ? systemPlanOf(systemPlans, run, runs) : undefined;
-  if (system)
-    return <SystemPlanPanel planId={system.plan.id} repo={system.repo} onOpenRun={props.onOpenRun} />;
-  if (run && /system/.test(run.workflow))
-    return <SystemPlanPanel planOfRun={run} repo={run.repo} onOpenRun={props.onOpenRun} />;
-  return <RunPlanTab {...props} />;
-}
-
-function RunPlanTab({
+export function StepPlan({
   run,
   runId,
   onOpenPane,
   onOpenRun,
+  asks = true,
 }: {
+  /** Show what waits for the person here too; the Overview shows it once, above the plan. */
+  readonly asks?: boolean;
   /** The run from the state; the board is read for a run the state no longer lists too. */
   readonly run: Run | undefined;
   readonly runId: string;
@@ -133,7 +117,7 @@ function RunPlanTab({
               <EmptyRow>The plan stage writes plan.json; the steps appear here as it does.</EmptyRow>
             ) : null}
             <span className="spacer" />
-            {board.waiting.length > 0 ? (
+            {asks && board.waiting.length > 0 ? (
               <>
                 <ListSection>waits for you · {board.waiting.length}</ListSection>
                 {board.waiting.map((q) => (
@@ -158,7 +142,7 @@ function RunPlanTab({
       >
         {error ? <div className="banner">{error}</div> : null}
         <ProblemList problems={problems.filter((p) => p.step === undefined)} testId="plan-problems" />
-        {waiting ? (
+        {asks && waiting ? (
           <div className="ask" data-testid="plan-ask">
             <span className="clamp" title={waiting.prompt}>
               <span className="amber">?</span> {waiting.agent ?? waiting.source} asks: <b>{waiting.prompt}</b>{" "}
@@ -241,10 +225,6 @@ function RunPlanTab({
                 ))}
               </div>
             ) : null}
-          </div>
-          <div>
-            <ListSection>artifacts</ListSection>
-            <ArtifactList runId={runId} repo={repo} />
           </div>
           {board.workers.length > 0 ? (
             <div>

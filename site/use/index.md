@@ -24,7 +24,26 @@ The app looks for the daemon at the default address. The word on the right of th
 
 When nothing answers at that address, it reads **no daemon** and the main area shows one panel on every screen: what is wrong, the command `metator serve`, a field with the daemon's address, and **Retry**. If your daemon listens elsewhere, type its address in the field and click **Retry**; the app remembers it. The app also tries again by itself every two seconds, and the screen you were on returns as soon as the daemon answers. The same address is in **Settings**, group **app**, as **daemon url** ([Your settings](./settings.md#daemon-address-and-your-name)).
 
-![The app with nothing to decide: the sidebar and the Inbox](../public/screens/inbox-empty.png)
+![The app with nothing to decide: the sidebar and Home](../public/screens/inbox-empty.png)
+
+## Three levels
+
+The app is built so that the first thing you see is simple, and the details come only when you open something:
+
+1. **Tasks**: what is going on, and does anything wait for me. The sidebar, Home and the Board show each task with its name, one state word, its progress and how many of its steps need you.
+2. **A task**: how this task goes. Its page has its flow, its steps by repository and the one thing to decide.
+3. **A step**: what the agent does exactly. Its page has its terminal, its changes, its activity, its plan and its artifacts.
+
+On the first level a thing reads one of four words:
+
+| Word | Means |
+|---|---|
+| `needs you` | it asks: a decision on Home, or a question in its terminal |
+| `working` | an agent works on it |
+| `blocked` | it stands still and does not ask: it escalated, it waits for another step, or nothing drives it |
+| `done` | it finished, also when it was closed without its work |
+
+A blocked thing says why in one line on its task's page and its own: `escalated at build: …`, `waits for price-endpoint`, `nothing drives it: Open a session`. The finer words of a run or a pane (`asks`, `idle`, `exited`, `aborted`, `escalated`) are in its terminal and in **Details** on its page.
 
 ## The window
 
@@ -34,53 +53,53 @@ Everything else is two parts: the sidebar on the left, which stays on every scre
 
 ## The sidebar
 
-The sidebar is the whole dashboard. Every row is built the same way: the state's glyph, a name, the state's word at the right, and one dim line under the name.
+The sidebar is the first level. Every row is built the same way: the glyph of one of the four words, a name, the word at the right, and one dim line under the name. A row has no run id, no host and no age: those are on the run's page, under **Details**.
 
-**Needs you · N** is on top: how many questions, terminal questions and escalated runs wait for you. A click opens the Inbox, which lists them ([Answer questions](./inbox.md)).
+**Needs you · N** is on top: how many questions, terminal questions and escalated runs wait for you. A click opens Home, which shows them one at a time ([Answer questions](./inbox.md)).
 
-**Tasks · N** follows: one row per parent task, whatever repositories it works in. A task is a system task (a system plan with its system run and its steps), a run that started child runs, or a run of its own. Its row has one state word, its progress (`3/6`) and how many of its steps need you (`2 need you`); tasks that need you come first. **▸** unfolds a task into its own tree: the repositories it works in, each with its steps and child runs and their state, steps not started too, with what they wait for (`not started · waits for api-model, api-endpoint`). A run of its own unfolds into its panes. A click on a run opens its page; a click on a system task opens its board. Finished tasks fold into **Finished · N** at the end; a finished run says how it ended (`done`, `aborted`) instead of a stage.
+**Tasks · N** follows: one row per task, whatever repositories it works in. A task is a system task (a system plan with its system run and its steps), a run that started child runs, or a run of its own. Its row has one state word, its progress (`3/6`), how many of its steps need you (`2 need you`) and how many are blocked; tasks that need you come first. **▸** unfolds a task into its own tree: the repositories it works in, each with its steps and child runs and their word, steps not started too, with what they wait for (`not started · waits for api-model, api-endpoint`). A run of its own unfolds into its panes. A click on a task opens its page; a click on a step opens the step's page.
 
-A run reads one of six words, and a task reads the strongest of its runs:
+Finished tasks are hidden. **Show finished (N)** at the end shows them; a finished run reads `done`, and its line says how it ended (`done`, `aborted`), with the reason on hover.
 
-| Word | Means |
-|---|---|
-| `needs you` | it asks: on a card in the Inbox, or in its terminal |
-| `escalated` | it stopped and needs work from you |
-| `working` | an agent works on it |
-| `done` | it finished; drawn in green until you open it, quiet after |
-| `aborted` | it was closed without its work (`⊘`); the reason is on hover |
-| `idle` | nothing happens and nothing is asked: stopped, or nothing works on it |
-
-The app remembers which finished runs you opened in the window's own storage; another browser or computer starts with every finished run as `done`.
-
-Under the runs are the places that are not a run:
+Under the tasks are the places that are not a task:
 
 | Place | Shows |
 |---|---|
+| **Board** | every task by phase: To do · Planning · In progress · Review · Done ([The Board](#the-board)) |
 | **Terminals** | a tab per run or shell, with the agents' terminals and your own in split panes ([Terminals](./desktop.md)) |
-| **Board** | every piece of work by phase: To do · Planning · In progress · Review · Done ([The Board](#the-board)) |
 | **Backlog** | tasks for later: agents' proposals and your own ([Plan and backlog](./plan.md)) |
-| **Reviews** | reviews of your pull requests, the proposed replies, and the buttons that send them ([Answer a review](./reviews.md)) |
-| **Overview** | the daemon with its figures, hosts and settings, and under **Dependencies** what links the runs |
-| **Settings** | the options ([Your settings](./settings.md)) |
+| **Settings** | the options, and under it **System** (the daemon, the dependencies, the system map) and **Reviews** ([Settings](#settings)) |
 
 At the bottom, **+ New run** opens a pane with the agent, and you tell it what you want; **Form…** beside it opens a form where you choose the workflow, host, autonomy and worktree yourself ([Start a task](./start.md)). With no run at all the main area offers the same: a field **Describe a task** with **Start**, and **Use the form**.
 
-When the daemon serves a folder of repositories, **Terminals**, **Backlog**, **Reviews**, **Overview** and **Settings** show one repository at a time. Each has a **repository** select at the top; the choice is shared by these places and remembered. The page of a run always uses the run's own repository.
+When the daemon serves a folder of repositories, **Terminals**, **Backlog** and the parts of **Settings** show one repository at a time. Each has a **repository** select at the top; the choice is shared by these places and remembered. The page of a run always uses the run's own repository.
 
-## The page of a run
+## Home
 
-A run has one page with five tabs. The head is the same on every tab: the task, the run id, the tabs, what the run is (workflow, autonomy, host, ports, age) and its stages in one line. An escalated run shows why it stopped under the head, with **Resume** and **Close run…**; a finished one says how it ended.
+**Home** is the first screen. It shows one decision at a time: a big card with the question, or the plan to approve, and its answers. Above it, **3 waiting** says how many wait, with **‹ Previous** and **Next ›** (also `k` and `j`). Everything else about the decision is folded under **Details**: its ids, the evidence, what happened since you left, what each answer does, and the command your answer amounts to ([Answer questions](./inbox.md)).
+
+With nothing to decide, Home lists the open tasks in short, with their word and progress, the runs nothing drives with **Open a session** and **Drive in background**, and **Describe a task** to start a new one.
+
+## The page of a task
+
+A system task, or a run that started child runs, has a page of its own: how the task goes. Its head has the task's name, its word, a bar of its steps done (`3 of 6 steps done`) and, when it is blocked, why. Its tabs are **Overview**, **Changes** and **Activity**; its steps have the terminals.
+
+Its **Overview** has the one thing to decide in the task, if any: the decision card of the first of its steps that asks, the same card as on Home. Under it, for a system task, the plan's flow and its steps by repository ([A system run's plan](./plan.md#a-system-runs-plan)); for a run with child runs, its child runs by repository. A click on a step opens the step's page.
+
+## The page of a step
+
+A step, a child run and a run of its own have the page of a step: what the agent does exactly. A step's page starts with **Task › step**, which leads back to its task. The head has the name, the word, a bar of its stages done and the stage it is at now. **Details** in the head folds what the run is: its id, repository, workflow, autonomy, host, ports and age, its finer state, and every stage in one line.
 
 | Tab | Key | Shows |
 |---|---|---|
-| **Overview** | `o` | what happened since you left, the question that waits with its answers, the run's change |
+| **Overview** | `o` | the question that waits with its answers, the step's plan read-only, its artifacts and change, what happened since you left |
 | **Terminal** | `t` | the run's live session, who types, its panes, its applications and links ([Sessions and worktrees](./sessions.md)) |
-| **Plan** | `p` | the plan's steps with their state, what comes next, the artifacts ([Plan and backlog](./plan.md)) |
 | **Changes** | `d` | the files the run changed, their diffs and your notes ([Read the change](./changes.md)) |
 | **Activity** | `l` | everything the run did: the time, the type, the source and what happened |
 
-### Overview of a run
+An escalated run shows why it stopped under the head, with **Resume** and **Close run…**; one nothing drives offers **Open a session** and **Drive in background**; a finished one says how it ended. The old address of a run's Plan tab (`#/run/<run>/plan`) opens its Overview.
+
+### Overview of a step
 
 When you come back to the window after ten minutes away and a run's page is open, its **Overview** opens first. It counts the stage transitions, the decisions taken and the errors since you left, lists the events by stage, and shows what the run needs from you now, with the answers as buttons. The files it counts are the run's change, the same files the **Changes** tab lists.
 
@@ -88,9 +107,11 @@ When you come back to the window after ten minutes away and a run's page is open
 
 **Open terminal and attach** goes to the Terminal tab and gives you the keyboard. **Mark as read** starts the next "since you left" from now.
 
-## Overview
+## Settings
 
-**Overview** has two parts.
+**Settings** has three parts: **Options** ([Your settings](./settings.md)), **System** and **Reviews** ([Answer a review](./reviews.md)). The old addresses `#/overview` and `#/mrs` lead to System and Reviews.
+
+**System** has three tabs.
 
 **Daemon** is the daemon's own view. Four tiles show the median time from a question to its answer, the share of answers given from the decision card without opening the run, how many runs the daemon started again in the last 24 hours, and how many reminders it typed to an idle agent. Below is a table of the open runs with their host, who works, state, terminal and last activity; a click on a run's name opens it. The side column shows how the daemon looks after runs (the waiting limit, restarts, the host order) and, under **AI hosts**, each host with **installed** or **not installed**. The daemon looks the hosts up each time, so a host you install while it runs is found without a restart. You change the settings in `metator.config.yml` ([Configuration](../reference/configuration.md#supervisor)).
 
@@ -108,9 +129,10 @@ When you come back to the window after ten minutes away and a run's page is open
 |---|---|
 | `n` | a new run: the pane with the agent |
 | `g` | the next run that needs you |
-| `j` `k`, `↓` `↑` | move in a list: the decisions, the tasks, the steps, the files |
+| `j` `k`, `↓` `↑` | on Home, the next or the previous decision; elsewhere, move in a list: the tasks, the steps, the files |
 | `o` | the overview of the run, from a decision or on a run's page |
-| `t` `p` `d` `l` | on a run's page: Terminal, Plan, Changes, Activity |
+| `t` `d` `l` | on a step's page: Terminal, Changes, Activity |
+| `Backspace`, `Esc` | on a task's board: back to all tasks |
 | `a` `c` | on a run's Terminal tab: attach, release to the agent |
 | `e` | on a run's page: open it in the editor |
 | `Esc` | closes a dialog, also from a field, and the sidebar's drawer |
@@ -119,12 +141,12 @@ The keys of **Terminals** come after a prefix ([Terminals](./desktop.md#keys)).
 
 ## Notifications
 
-A question that was not in the queue before raises a system notification, "MetatorAI needs you", with the question's text. The first time, the system asks whether the app may notify you. On **Terminals**, a waiting question of an open tab also shows as a toast with the first two lines of the question. A click on the toast opens the question's decision card in the Inbox; for a permission prompt of the host, which is answered in the terminal, it opens the tab and gives you the keyboard of the run's main pane. The `✕` on the toast hides it; the question stays in the Inbox.
+A question that was not in the queue before raises a system notification, "MetatorAI needs you", with the question's text. The first time, the system asks whether the app may notify you. On **Terminals**, a waiting question of an open tab also shows as a toast with the first two lines of the question. A click on the toast opens the question's decision card on Home; for a permission prompt of the host, which is answered in the terminal, it opens the tab and gives you the keyboard of the run's main pane. The `✕` on the toast hides it; the question stays on Home.
 
 ## The Board
 
-**Board** shows the work in five columns by phase: **To do**, **Planning**, **In progress**, **Review** and **Done** (the last day; older ones behind **show N more**). Its top level shows only parent tasks, each once: a system task, a run with child runs, a run of its own, a backlog task or an agent's proposal. A task is in the column of its own phase: a system task is in Planning until its plan is approved, In progress while its steps run, Review at its delivery and Done at the end. Its card says how many of its steps are done (`3 of 6 steps done`), and the needs-you and escalated counts of its steps are summed on it and in the column's header.
+**Board** shows the work in five columns by phase: **To do**, **Planning**, **In progress**, **Review** and **Done**. Done is folded: **Show finished (N)** shows the last day, older ones behind **show N more**. Its top level shows only parent tasks, each once: a system task, a run with child runs, a run of its own, a backlog task or an agent's proposal. A task is in the column of its own phase: a system task is in Planning until its plan is approved, In progress while its steps run, Review at its delivery and Done at the end. Its card has the task's word, its name and how many of its steps are done (`3 of 6 steps done`); the needs-you and blocked counts of its steps are summed on it and in the column's header. A card has no host and no age.
 
-A click on a system task (or Enter) opens **its** board: the same columns with its steps and their child runs across repositories, steps not started in To do with what they wait for, and **Board ›** `<task>` at the top to go back (also Backspace or Escape). A run's column is the phase the daemon sends with it (`phase`), computed from its workflow and stage: understanding and planning stages and the plan's approval are Planning, the work is In progress, checks, reviews, delivery and publishing are Review, a done or aborted run is Done.
+A click on a system task (or Enter) opens **its** board: the same columns with its steps and their child runs across repositories, steps not started in To do with what they wait for, a blocked run with why, and **Board ›** `<task>` at the top to go back (also Backspace or Escape). A run's column is the phase the daemon sends with it (`phase`), computed from its workflow and stage: understanding and planning stages and the plan's approval are Planning, the work is In progress, checks, reviews, delivery and publishing are Review, a done or aborted run is Done.
 
-Above the board: the repositories (several at once; a task shows when any of its steps works in one), the states needs you / escalated / working, the host and a search. The filters are kept in this window. Arrows move between cards. **Start a run** on a To-do task starts it. Cards cannot be dragged to another column: the engine decides the phase.
+Above the board: the repositories (several at once; a task shows when any of its steps works in one), the words needs you / working / blocked, the host and a search. The filters are kept in this window. Arrows move between cards. **Start a run** on a To-do task starts it. Cards cannot be dragged to another column: the engine decides the phase.

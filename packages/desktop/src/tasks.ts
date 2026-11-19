@@ -4,9 +4,9 @@
  * child runs, a standalone run, or a backlog task or proposal not started yet. Its subtasks are
  * the board cards of its steps and child runs (pending steps too); its phase is its head's.
  */
-import type { SystemPlanView, WorkPhase } from "./api.ts";
+import type { RunOverview, SystemPlanView, WorkPhase } from "./api.ts";
 import type { BoardCard, CardState } from "./board.ts";
-import { type RunShown, rollUp } from "./model.ts";
+import { blockedReason, type FirstLevel, firstLevel, type RunShown, rollUp } from "./model.ts";
 
 export interface WorkTask {
   readonly key: string;
@@ -20,6 +20,8 @@ export interface WorkTask {
   /** How many of its cards need a person, and how many escalated. */
   readonly needsYou: number;
   readonly escalated: number;
+  /** How many of its runs stand still without asking (escalated, nothing drives them). */
+  readonly blocked: number;
   /** The repositories it works in, in the order its cards name them. */
   readonly repos: readonly string[];
   readonly host?: string | undefined;
@@ -107,6 +109,7 @@ export function workTasks(cards: readonly BoardCard[], plans: readonly TaskPlan[
       ...(progress ? { progress } : {}),
       needsYou: group.filter((c) => c.needsYou).length,
       escalated: group.filter((c) => c.escalated).length,
+      blocked: group.filter((c) => c.runId !== undefined && firstLevel(c.state) === "blocked").length,
       repos,
       host: head?.host,
       ageMs: head?.ageMs ?? Math.max(0, ...group.map((c) => c.ageMs)),
@@ -141,17 +144,86 @@ export function subtasksByRepo(task: Pick<WorkTask, "subtasks">): { repo: string
   return out;
 }
 
-/** The task's line under its name: progress (unless shown apart), who it needs, where it works. */
+/**
+ * The task's line under its name, the first level only: progress (unless shown apart), how many
+ * need the person, how many are blocked, where it works. No host and no age.
+ */
 export function taskLine(t: WorkTask, withProgress = true): string {
   return [
     t.progress ? (withProgress ? `${t.progress.done}/${t.progress.of}` : undefined) : t.head?.stage,
     t.needsYou > 0 ? `${t.needsYou} need${t.needsYou === 1 ? "s" : ""} you` : undefined,
-    t.escalated > 0 ? `${t.escalated} escalated` : undefined,
+    t.blocked > 0 ? `${t.blocked} blocked` : undefined,
     t.repos.length > 1 ? `${t.repos.length} repositories` : t.repos[0],
-    t.host,
   ]
     .filter((x) => x !== undefined && x !== "")
     .join(" · ");
+}
+
+/** A task in one of the four words: it needs the person when any of its steps does. */
+export const taskState = (t: Pick<WorkTask, "needsYou" | "state">): FirstLevel =>
+  t.needsYou > 0 ? "needs you" : firstLevel(t.state);
+
+/** What the page of a run says at its top (pure): a task's page or a step's, and its first level. */
+export interface RunPage {
+  /** A task's page: a system run or a run with child runs (Overview · Changes · Activity). */
+  readonly task: boolean;
+  readonly title: string;
+  readonly state: FirstLevel;
+  /** Why it is blocked, in one line. */
+  readonly why?: string | undefined;
+  readonly progress: { readonly done: number; readonly of: number; readonly text: string };
+  /** The task a step is part of, and the run whose page is that task's. */
+  readonly partOf?:
+    | { readonly key: string; readonly title: string; readonly runId?: string | undefined }
+    | undefined;
+}
+
+type PageRun = Pick<RunOverview, "runId" | "task" | "workflow" | "status" | "stage" | "reason" | "stages">;
+
+export function runPage(
+  run: PageRun,
+  /** The run's own word with its panes (model.ts `runWithPanes`). */
+  fine: string,
+  tasks: readonly WorkTask[],
+  runOf: (runId: string) => PageRun | undefined = () => undefined,
+): RunPage {
+  const madeOfSteps = (t: WorkTask) => t.kind === "system" || t.kind === "parent";
+  const own = tasks.find((t) => madeOfSteps(t) && t.head?.runId === run.runId);
+  const partOf = own
+    ? undefined
+    : tasks.find((t) => madeOfSteps(t) && t.subtasks.some((c) => c.runId === run.runId));
+  const card = partOf?.subtasks.find((c) => c.runId === run.runId);
+  if (own || /system/.test(run.workflow)) {
+    const state = own ? taskState(own) : firstLevel(fine);
+    const stuck = own?.subtasks.find((c) => c.runId !== undefined && firstLevel(c.state) === "blocked");
+    const waiting = own?.subtasks.find((c) => c.kind === "step" && (c.waitsFor?.length ?? 0) > 0);
+    const why =
+      state !== "blocked"
+        ? undefined
+        : stuck?.runId
+          ? `${stuck.title.split(":")[0]}: ${blockedReason({ run: runOf(stuck.runId) })}`
+          : waiting
+            ? `${waiting.title.split(":")[0]} ${blockedReason({ waitsFor: waiting.waitsFor })}`
+            : blockedReason({ run });
+    const p = own?.progress ?? { done: 0, of: 0 };
+    return {
+      task: true,
+      title: own?.title ?? run.task,
+      state,
+      ...(why ? { why } : {}),
+      progress: { ...p, text: `${p.done} of ${p.of} steps done` },
+    };
+  }
+  const state = firstLevel(fine);
+  const done = run.stages.filter((s) => s.state === "done").length;
+  return {
+    task: false,
+    title: card?.title ?? run.task,
+    state,
+    ...(state === "blocked" ? { why: blockedReason({ run, waitsFor: card?.waitsFor }) } : {}),
+    progress: { done, of: run.stages.length, text: `${done} of ${run.stages.length} stages done` },
+    ...(partOf ? { partOf: { key: partOf.key, title: partOf.title, runId: partOf.head?.runId } } : {}),
+  };
 }
 
 /** The tasks a filter keeps at the Board's top level: by any repository it works in, its state, host and words. */
@@ -168,8 +240,13 @@ export function filterTasks(
   return tasks.filter((t) => {
     if (f.repos.length > 0 && !t.repos.some((r) => f.repos.includes(r))) return false;
     if (f.states.length > 0) {
+      // The four words: a task is in "needs you" or "blocked" when any of its runs is.
       const has = (s: string) =>
-        s === "needs you" ? t.needsYou > 0 : s === "escalated" ? t.escalated > 0 : t.state === s;
+        s === "needs you"
+          ? t.needsYou > 0
+          : s === "blocked"
+            ? t.blocked > 0 || taskState(t) === "blocked"
+            : taskState(t) === s;
       if (!f.states.some(has)) return false;
     }
     if (f.host && t.host !== f.host && !t.subtasks.some((c) => c.host === f.host)) return false;

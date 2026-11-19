@@ -34,7 +34,7 @@ Every action also has a key: press the prefix, `ctrl+b`, then one key.
 | `a`, `escape` | take the keyboard of the pane's session, give it back |
 | `[` | copy mode: select and search in the scrollback |
 | `x` | close the pane |
-| `p`, `r`, `b` | the run's plan, its changes, the backlog |
+| `p`, `r`, `b` | the run's Overview (with its plan), its changes, the backlog |
 | `?` | the list of keys |
 
 Each key is an option (`keys.*`) that you can change ([Your settings](./settings.md#keys)).

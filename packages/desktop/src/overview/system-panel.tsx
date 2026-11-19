@@ -54,7 +54,8 @@ export function SystemPanel({ onOpenRun }: { onOpenRun(runId: string): void }) {
               selected={current?.id === p.id}
               onSelect={() => {
                 const head = headOf(p.task);
-                if (head) window.location.hash = routeHash({ screen: "run", runId: head.runId, tab: "plan" });
+                if (head)
+                  window.location.hash = routeHash({ screen: "run", runId: head.runId, tab: "overview" });
                 else setChosen(p.id);
               }}
               testId={`system-plan-${p.id}`}

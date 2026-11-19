@@ -10,7 +10,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
-import { browser, closeBrowser } from "./helpers/browser.ts";
+import { browser, closeBrowser, decisionOnHome } from "./helpers/browser.ts";
 import { CLI_ENTRY, E2E_STATE_DIR, metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
@@ -300,10 +300,12 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
   }, 60_000);
 
   test("a multi-select question takes several choices; the name is asked for once, in the app's own dialog", async () => {
-    const item = page.locator(".needs .item").first();
-    await item.waitFor({ timeout: 40_000 });
-    await expect(await item.locator(".kind").textContent()).toBe("question");
+    // Home shows one decision at a time; its kind and ids are in the card's Details.
+    await page.getByTestId("queue").waitFor({ timeout: 40_000 });
+    expect(await page.getByTestId("queue").textContent()).toContain("1 waiting");
     const card = page.getByLabel("decision card");
+    expect(await card.getByTestId("card-details").locator(".ctx").textContent()).toContain("QUESTION");
+    expect(await card.getByTestId("card-details").getAttribute("open")).toBeNull();
     await expect(await card.locator("h1").textContent()).toContain("Which currencies");
     // Nothing is chosen for the person: the button waits for a choice.
     expect(await card.locator('.option[aria-pressed="true"]').count()).toBe(0);
@@ -320,7 +322,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     const who = page.getByRole("dialog", { name: "your name" });
     await who.waitFor({ timeout: 5000 });
     await who.getByRole("button", { name: "Cancel" }).click();
-    expect(await page.locator(".needs .item").count()).toBe(1);
+    expect(await page.getByTestId("queue").textContent()).toContain("1 waiting");
     await card.locator(".actions .primary").click();
     await who.getByLabel("Your name").fill("maciej");
     await who.getByRole("button", { name: "Save" }).click();
@@ -335,11 +337,18 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
   }, 60_000);
 
   test("the gate question arrives in the inbox and is answered from the card without opening the session", async () => {
-    const item = page.locator(".needs .item", { hasText: "approval" }).first();
-    await item.waitFor({ timeout: 40_000 });
-    await expect(await item.locator(".kind").textContent()).toBe("approval");
     const card = page.getByLabel("decision card");
-    await expect(await card.locator("h1").textContent()).toContain("approval");
+    await until("the approval on Home", async () =>
+      (
+        await card
+          .locator("h1")
+          .textContent()
+          .catch(() => "")
+      )?.includes("approval")
+        ? true
+        : undefined,
+    );
+    expect(await card.getByTestId("card-details").locator(".ctx").textContent()).toContain("APPROVAL");
     // Reject promises a reason (D8): without it neither the button nor Enter sends the answer.
     await card.locator(".option", { hasText: "Reject" }).click();
     expect(await card.locator(".reason span").textContent()).toBe("Reason for Reject (required)");
@@ -351,7 +360,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await expect(await card.locator(".footer-cmd").textContent()).toContain(
       '--choice Reject --text "the cap is in cents" --by maciej',
     );
-    expect(await page.locator(".needs .item", { hasText: "approval" }).count()).toBe(1);
+    expect(await page.getByTestId("queue").textContent()).toContain("1 waiting");
     await card.getByLabel("reason (required)").fill("");
     await card.locator(".option", { hasText: "Approve" }).click();
     // The footer is the command that does what the button does: the answer to the gate's question.
@@ -363,7 +372,7 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     await card.locator("h1").click();
     await page.keyboard.press("Enter");
     await until("the inbox to empty", async () =>
-      (await page.locator(".needs .item").count()) === 0 ? true : undefined,
+      (await page.getByTestId("queue").count()) === 0 ? true : undefined,
     );
     // The answer is confirmed in words, with what the run did with it (read back from the daemon).
     const said = await until("the confirmation", async () => {
@@ -426,8 +435,8 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     const asks = page.getByTestId(`terminal-ask-${runId}`);
     await asks.waitFor({ timeout: 20_000 });
     expect(await asks.textContent()).toContain("answers in its terminal");
-    expect(await page.locator("main.content").textContent()).not.toContain("Inbox zero");
-    await asks.click();
+    expect(await page.locator("main.content").textContent()).not.toContain("Nothing waits for you");
+    await asks.getByRole("button", { name: "Open the run" }).click();
     await term.waitFor({ timeout: 20_000 });
     expect(page.url()).toContain(`#/run/${runId}/terminal/`);
     // A single-letter shortcut is the bare key (D7): Ctrl+A is not "attach".
@@ -741,8 +750,10 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     // The planner is done: the run waits at the plan's approval.
     expect((await metator(["run", "advance", "pass", "--run", runId], repo.root, cliEnv)).code).toBe(0);
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
-    await page.locator(".needs .item", { hasText: "plan-approval" }).first().click();
-    const card = page.getByRole("article", { name: "decision card" });
+    // Home: one decision at a time; the next one until this run's plan approval.
+    const card = await decisionOnHome(page, ["plan-approval", runId]);
+    // The card's face is the plan and its two actions; everything else is under Details, folded.
+    expect(await card.getByTestId("card-details").getAttribute("open")).toBeNull();
     // The plan in full on the card, with no click: its steps with their files, tests and order.
     const steps = card.getByTestId("plan-steps");
     await steps.waitFor({ timeout: 20_000 });
@@ -785,10 +796,18 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
       .filter((e) => e.type === "answer")
       .at(-1);
     expect(said?.text).toContain("Reject");
-    // The Plan tab shows the plan read-only, with its lint and its files.
+    // The old Plan tab leads to the step's Overview: its plan read-only, with its lint and its files.
     await page.goto(
       `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/run/${runId}/plan`,
     );
+    await page.getByTestId("step-plan").waitFor({ timeout: 20_000 });
+    expect(page.url()).toContain(`#/run/${runId}/plan`);
+    expect(await page.getByLabel("tabs of this run").getByRole("link").allTextContents()).toEqual([
+      "Overview",
+      "Terminal",
+      "Changes",
+      "Activity",
+    ]);
     await page.getByTestId("plan-lint-bar").waitFor({ timeout: 20_000 });
     expect(await page.getByRole("button", { name: /Edit plan|Edit as text/ }).count()).toBe(0);
     expect(await page.getByTestId("plan").textContent()).toContain("round the total half-up");
@@ -842,12 +861,17 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     });
     expect(closed.status).toBe(200);
     const sidebar = page.getByRole("complementary", { name: "runs" });
-    const finished = sidebar.getByRole("button", { name: /Finished/ });
+    // Finished tasks are hidden until "Show finished (N)"; a finished run reads done on the
+    // first level and its line says how it ended.
+    const finished = sidebar.getByTestId("show-finished");
+    await finished.waitFor({ timeout: 20_000 });
+    expect(await finished.textContent()).toMatch(/Show finished \(\d+\)/);
     if ((await finished.getAttribute("aria-expanded")) === "false") await finished.click();
     const row = sidebar.locator(".row", { hasText: "Round the totals in the plan" }).first();
     await until("the aborted row", async () =>
-      (await row.textContent())?.includes("aborted · ") ? true : undefined,
+      (await row.locator(".sub").textContent())?.includes("aborted") ? true : undefined,
     );
+    expect(await row.locator(".word").textContent()).toBe("done");
     expect(await row.textContent()).not.toContain("plan-approval");
     expect(await row.getAttribute("title")).toContain("the demo ends here");
     // No request of the app failed but the conflict this test provokes on purpose.

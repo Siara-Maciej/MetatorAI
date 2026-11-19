@@ -4,15 +4,15 @@ A session is a conversation in an AI host's terminal, and a run has one for its 
 
 ## The Terminal tab of a run
 
-A click on a run in the sidebar opens the run's page on its **Terminal** tab; a finished run opens on **Overview**.
+A click on a step or a run of its own in the sidebar opens its page on its **Terminal** tab; a finished run, and a task's page, open on **Overview**.
 
 ![The Terminal tab while the agent works: the stages, the bar that says who works, the terminal, and the boxes on the right](../public/screens/session.png)
 
-The head is the same on every tab of the run's page: the task, the run id, and the tabs **Overview**, **Terminal**, **Plan**, **Changes** and **Activity**, with the shown one marked. It also has chips for the workflow, the autonomy level with what it means (**L0: every approval waits for you**), the AI host, the worktree's ports and the time since the run started. Under them is the line of stages, with the current one marked.
+The head is the same on every tab of a step's page: **Task › step** back to its task, the name, its word (`needs you`, `working`, `blocked`, `done`), a bar of its stages done with the stage it is at, and the tabs **Overview**, **Terminal**, **Changes** and **Activity**, with the shown one marked. **Details** in the head folds the rest: the run id, chips for the repository, the workflow, the autonomy level with what it means (**L0: every approval waits for you**), the AI host, the worktree's ports, the time since the run started and its finer state, and the line of every stage, with the current one marked.
 
 The bar under the head says who types. With **Working: agent** you watch. Click **Attach** (key `a`) to take the keyboard; the app asks for your name the first time. **Release to agent** (key `c`) gives it back. With **Working: nobody** no agent works on the run and no session is open.
 
-An escalated run has no one at work, so under the head, on every tab, a bar shows why it stopped, with **Resume** and **Close run…**, the same two actions as its card in the Inbox. A finished run shows **Done** or **Aborted** with one line on how it ended.
+An escalated run has no one at work, so under the head, on every tab, a bar shows why it stopped, with **Resume** and **Close run…**, the same two actions as its card on Home. A finished run shows **Done** or **Aborted** with one line on how it ended.
 
 When the agent asks on its own screen, with no card in the Inbox, a line above the terminal says **The agent asks in its terminal**, with **Show the pane** when another pane is the one that asks. Attach and type the answer. While you are attached, your yes in the chat counts as an approval ([Terminals](./desktop.md#who-types-in-a-session)).
 

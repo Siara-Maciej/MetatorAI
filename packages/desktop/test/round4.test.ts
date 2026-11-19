@@ -10,7 +10,6 @@ import {
   questionKind,
   type Run,
   rootsProblems,
-  routeHash,
   runLine,
   runStateOf,
   shortRunId,
@@ -73,13 +72,13 @@ describe("a finished run says how it ended (round 4, item 1)", () => {
       host: "scenario",
     });
     expect(runStateOf(aborted)).toBe("aborted");
-    expect(runLine(aborted)).toBe("aborted · scenario · 0s");
+    expect(runLine(aborted)).toBe("aborted");
     expect(runLine(run("y", { status: "done", attention: "done", stage: "done", host: "scenario" }))).toBe(
-      "done · scenario · 0s",
+      "done",
     );
     // An open run still shows its stage, and that it asks on its terminal.
     expect(runLine(run("z", { stage: "plan", host: "scenario", terminalAsk: "w1:p2" }))).toBe(
-      "asks in its terminal · plan · scenario · 0s",
+      "asks in its terminal · plan",
     );
   });
 });
@@ -177,9 +176,8 @@ describe("a closed answer on a plan's card (round 4, item 6)", () => {
     expect(optionClosed({ label: "Reject" }, lint("error") as never)).toBeUndefined();
     expect(optionClosed({ label: "Approve" })).toBeUndefined();
   });
-  test("a plan is not edited by hand: the old edit route lands on the Plan tab, read-only", () => {
-    expect(parseRoute("#/run/r1/plan/edit")).toEqual({ screen: "run", runId: "r1", tab: "plan" });
-    expect(routeHash({ screen: "run", runId: "r1", tab: "plan" })).toBe("#/run/r1/plan");
+  test("a plan is not edited by hand: the old edit route lands on the Overview, where the plan is read-only", () => {
+    expect(parseRoute("#/run/r1/plan/edit")).toEqual({ screen: "run", runId: "r1", tab: "overview" });
   });
 });
 
