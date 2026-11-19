@@ -1,6 +1,6 @@
 # ADR-0089: Zmiany planu idą przez agenta
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-18
 
 ## Kontekst

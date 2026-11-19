@@ -1,6 +1,6 @@
 # ADR-0088: Przy terminalu tylko tekst dla osoby
 
-- Status: Proposed
+- Status: Accepted
 - Data: 2026-11-18
 
 ## Kontekst
@@ -15,3 +15,6 @@ ADR-0052 ustalił, że stdout zawsze niesie jedną kopertę JSON, a tekst dla os
 ## Konsekwencje
 - Kontrakt „stdout zawsze JSON” z ADR-0052 obowiązuje dla każdego wywołania bez terminala na stdout; skrypty i agenci nie widzą zmiany.
 - Testy e2e w pseudoterminalu czytają tekst z ekranu; JSON tylko z `--json`.
+
+## Implikacje dla kodu
+Decyzję opisuje reguła kanonu MT-CODE-004 (`metator rules show MT-CODE-004`): komenda wypisuje jedną kopertę JSON, a przy terminalu komenda z tekstem dla osoby wypisuje tylko ten tekst. Każdą zmianę widoczną dla osoby przy terminalu sprawdza test e2e na prawdziwym procesie w pseudoterminalu (MT-TEST-001).
