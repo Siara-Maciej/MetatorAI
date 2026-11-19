@@ -9,9 +9,10 @@ const RUN_BRANCH = /^(HEAD:(refs\/heads\/)?)?metator\/[A-Za-z0-9][\w.-]*$/;
 const COMMIT_OPTIONS = /^(-m|--message|-a|--all|-q|--quiet)$/;
 
 /**
- * After a person approved the push (the delivery gate): staging, committing and pushing the run's
- * branch, nothing else that writes. `git add -A`, `git commit -m "<msg>"`, `git push -u origin
- * <branch>`, each alone or chained with `&&`, and any read-only part. Never a force push, an amend,
+ * After a person approved the push (the delivery gate): making the run's own branch when it worked
+ * in the checkout (`git switch -c metator/<run>`), staging, committing and pushing it, nothing else
+ * that writes. `git add -A`, `git commit -m "<msg>"`, `git push -u origin <branch>`, each alone or
+ * chained with `&&`, and any read-only part. Never a force push, an amend,
  * a skipped hook (`--no-verify`), a `-c` setting, or a path outside the directories.
  */
 export function deliveryCommand(command: string, dirs: readonly string[]): boolean {
@@ -45,6 +46,9 @@ export function deliveryCommand(command: string, dirs: readonly string[]): boole
       }
       return args.includes("-m") || args.includes("--message");
     }
+    // A run that worked in the checkout makes its own branch to publish on (never the default one).
+    if ((sub === "switch" && args[0] === "-c") || (sub === "checkout" && args[0] === "-b"))
+      return args.length === 2 && /^metator\/[A-Za-z0-9][\w.-]*$/.test(args[1] as string);
     if (sub === "push") {
       const words = args.filter((a) => !/^(-u|--set-upstream|-q|--quiet)$/.test(a));
       return words.length === 2 && words[0] === "origin" && RUN_BRANCH.test(words[1] as string);

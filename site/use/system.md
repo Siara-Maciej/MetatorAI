@@ -58,7 +58,7 @@ The **System map** screen shows `docs/metator/system.yml` with its lint and lets
 
 ## Child runs
 
-Each step runs where its application's code is, as an `mt-feature` run with that repository's own gates, rules and approvals. It is driven as soon as it starts: on the system run's host, else the first host of `supervisor.hostOrder` that can start there. A child in its own worktree gets its dependencies first. Nobody has to open a session for it. You answer a child run's questions like those of any run. They are in the same [inbox](./inbox.md) when the repositories are in one folder.
+Each step runs where its application's code is, as an `mt-feature` run with that repository's own gates, rules and approvals. It is driven as soon as it starts: on the system run's host, else the first host of `supervisor.hostOrder` that can start there. Every child works on a branch of its own (`metator/<worktree>`) in a worktree of its own, made from the repository's HEAD (or `--base`), so its agents never commit on the default branch and two steps of one repository never share a checkout. The worktree gets its dependencies first. Nobody has to open a session for it. You answer a child run's questions like those of any run. They are in the same [inbox](./inbox.md) when the repositories are in one folder.
 
 A step can run only in a checkout you work in: this repository, or a checkout named for the application under `system.roots` in `metator.config.yml`. A step whose application has no checkout stops with a hint.
 

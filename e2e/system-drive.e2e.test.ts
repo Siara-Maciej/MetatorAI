@@ -286,7 +286,12 @@ describe("a driven system run (W13) in a folder of two repositories", () => {
     expect((data(await mt("shop-web", "run", "status", child)) as { host?: string }).host).toBe("scenario");
     expect((data(await mt("shop-api", "run", "status", parent)) as { status: string }).status).toBe("active");
     // The person fixes the cause and resumes the child: the system run goes on by itself.
-    await Bun.write(join(at("shop-web"), "never-there"), "now it is\n");
+    // The child works on its own branch, in its own worktree: the fix goes there.
+    const childStatus = data(await mt("shop-web", "run", "status", child)) as {
+      worktree?: { path: string; branch?: string };
+    };
+    expect(childStatus.worktree?.branch).toStartWith("metator/");
+    await Bun.write(join(at("shop-web"), childStatus.worktree?.path ?? "", "never-there"), "now it is\n");
     expect((await mt("shop-web", "run", "resume", "--run", child, "--by", "ana", "--drive")).code).toBe(0);
     await until(
       "the system run's delivery approval",

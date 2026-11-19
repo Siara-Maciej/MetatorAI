@@ -236,6 +236,21 @@ describe("readOnlyCommand", () => {
 describe("deliveryCommand", () => {
   const wt = ["/repo/.metator/wt/r"];
   const go = (command: string) => deliveryCommand(command, wt);
+  test("a run in the checkout makes its own branch first: `metator/<run>` only, never another or the default", () => {
+    expect(
+      [
+        "git switch -c metator/20261119-add-rates",
+        "git checkout -b metator/20261119-add-rates",
+        "git switch -c metator/20261119-add-rates && git add -A && git commit -m 'x' && git push -u origin metator/20261119-add-rates",
+        "git switch main",
+        "git switch -c feature/rates",
+        "git checkout -b main",
+        "git switch -C metator/20261119-add-rates",
+        "git checkout metator/20261119-add-rates -- src/a.ts",
+      ].map(go),
+    ).toEqual([true, true, true, false, false, false, false, false]);
+  });
+
   test("staging, committing and pushing the run's branch", () => {
     expect(
       [

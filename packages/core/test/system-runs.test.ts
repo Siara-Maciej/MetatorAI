@@ -208,7 +208,7 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     expect((await w.platform.runs.load(parent.runId))._unsafeUnwrap().children).toHaveLength(2);
   });
 
-  test("two steps of one repository at once each work in a worktree of their own; a step alone works in the checkout", async () => {
+  test("every step works on a branch and in a worktree of its own, never on the checkout's branch", async () => {
     const w = world([
       step("billing-model", "billing"),
       step("billing-endpoint", "billing"),
@@ -225,7 +225,8 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     ]);
     const web = w.repos.get("/src/web") as ReturnType<typeof repository>;
     expect(w.platform.worktrees.map((t) => t.worktree)).toEqual([true, true]);
-    expect(web.worktrees.map((t) => t.worktree)).toEqual([false]);
+    // A step alone in its repository too: its agents commit and publish on the run's own branch.
+    expect(web.worktrees.map((t) => t.worktree)).toEqual([true]);
     // The last step waits for all three; while web-tag still runs, it is not started.
     expect(wave.plan.steps.find((s) => s.id === "web-integration")?.status).toBe("pending");
     expect((await w.run.execute({ id: "rename" }))._unsafeUnwrap().started).toEqual([]);

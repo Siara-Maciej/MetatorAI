@@ -92,12 +92,6 @@ export class RunSystemPlan {
       ready.push({ step, at: located.value });
     }
 
-    // Two steps in one repository at once (the owner's two backend tasks of one wave, or a step
-    // while another of the same application still runs) work side by side: each in a worktree of
-    // its own, never in the same checkout.
-    const busy = (root: string, step: SystemPlan["steps"][number]) =>
-      ready.some((r) => r.at.root === root && r.step.id !== step.id) ||
-      plan.steps.some((s) => s.status === "running" && s.id !== step.id && s.app === step.app);
     const started: StartedStep[] = [];
     for (const { step, at } of ready) {
       const task = stepTask(plan, step, at.dir);
@@ -107,7 +101,11 @@ export class RunSystemPlan {
       const created = await this.at(at.root).start.execute({
         workflow: input.workflow ?? STEP_WORKFLOW,
         task,
-        ...(input.base ? { worktree: { base: input.base } } : busy(at.root, step) ? { worktree: {} } : {}),
+        // Every step on a branch and in a worktree of its own (from the repository's HEAD unless
+        // a base is given): its agents commit and publish there, never on the checkout's branch,
+        // and two steps of one repository never share a checkout. A step starts from the last
+        // commit even while the checkout has changes (the system run's own plan files among them).
+        worktree: { ...(input.base ? { base: input.base } : {}), allowDirty: true },
         ...(input.parent ? { parent: input.parent } : {}),
         system: { plan: plan.id, step: step.id, app: step.app },
         drive: host ? { host } : {},

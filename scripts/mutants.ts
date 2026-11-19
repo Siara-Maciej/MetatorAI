@@ -3212,6 +3212,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a gate a live drive waits on is carried out by that drive",
   },
   {
+    file: "packages/core/src/application/system-runs.ts",
+    from: "worktree: { ...(input.base ? { base: input.base } : {}), allowDirty: true },",
+    to: "",
+    why: "every step of a system plan works on a branch and in a worktree of its own",
+  },
+  {
+    file: "packages/core/src/domain/permitted-writes.ts",
+    from: 'if ((sub === "switch" && args[0] === "-c") || (sub === "checkout" && args[0] === "-b"))',
+    to: "if (false)",
+    why: "a run in the checkout makes its own branch to publish on",
+  },
+  {
     file: "packages/core/src/domain/drive.ts",
     from: "if (input.rejectedBy && input.retryFrom && input.retryFrom !== input.stage.id) {",
     to: "if (false) {",
@@ -6617,12 +6629,6 @@ export const MUTANTS: readonly Mutant[] = [
     from: "if (named) return named;",
     to: "",
     why: "a stage the words name is in their phase (review, gates, delivery)",
-  },
-  {
-    file: "packages/core/src/application/system-runs.ts",
-    from: "ready.some((r) => r.at.root === root && r.step.id !== step.id) ||",
-    to: "false ||",
-    why: "two steps of one repository in one wave each get a worktree of their own",
   },
   {
     file: "packages/desktop/src/plan-flow.ts",
