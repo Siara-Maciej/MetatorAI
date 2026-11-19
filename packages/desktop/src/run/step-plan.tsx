@@ -160,9 +160,9 @@ export function StepPlan({
         ) : null}
         {step ? (
           <>
-            <h2>
+            <h4>
               {steps.indexOf(step) + 1} · {step.intent} <span className="dim">in {step.path}</span>
-            </h2>
+            </h4>
             <div className="dim">
               {step.worker
                 ? `${step.worker.name}${step.worker.paneId ? ` · ${step.worker.paneId}` : ""} · `
@@ -199,9 +199,9 @@ export function StepPlan({
             ) : null}
           </>
         ) : (
-          <h2 className="dim">
+          <h4 className="dim">
             {board.stage} · {board.status}
-          </h2>
+          </h4>
         )}
         <div className="cols">
           <div>

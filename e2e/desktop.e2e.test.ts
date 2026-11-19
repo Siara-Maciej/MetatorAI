@@ -349,6 +349,9 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
         : undefined,
     );
     expect(await card.getByTestId("card-details").locator(".ctx").textContent()).toContain("APPROVAL");
+    // One set of controls, as everywhere a decision is shown: the options are the choice, one
+    // button sends the chosen one (no second button beside it).
+    expect(await card.locator(".actions").first().getByRole("button").count()).toBe(1);
     // Reject promises a reason (D8): without it neither the button nor Enter sends the answer.
     await card.locator(".option", { hasText: "Reject" }).click();
     expect(await card.locator(".reason span").textContent()).toBe("Reason for Reject (required)");

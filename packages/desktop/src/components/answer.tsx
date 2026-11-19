@@ -1,8 +1,8 @@
 /**
  * Answering a question (D8), the same everywhere it can be answered: which options are chosen
  * (several for a multi-select question), the person's own words where Reject or Other promise
- * them, and the request. The decision card draws its own layout over `useAnswer`; the session's
- * side box and the plan's bar use `QuickAnswer`.
+ * them, and the request. The decision card draws its own layout over `useAnswer`; a step's
+ * Overview and the Terminal tab's side box use `QuickAnswer`, in the same pattern.
  */
 import { useEffect, useState } from "react";
 import type { Question } from "../api.ts";
@@ -82,9 +82,9 @@ export function useAnswer(
 }
 
 /**
- * The options as buttons. A click on a plain option of a single-choice question is the answer;
- * Reject, Other and every option of a multi-select question are chosen first, then sent with
- * the reason field and "Send".
+ * A question answered in a small place (a step's Overview, the Terminal tab's side box), the way
+ * Home answers it: the options are the choice (the recommended one chosen first), one button
+ * sends the chosen one, and Reject or Other ask for their reason inline before it can be sent.
  */
 export function QuickAnswer({
   question: q,
@@ -94,60 +94,57 @@ export function QuickAnswer({
 }: {
   readonly question: Question;
   readonly repo: string | undefined;
-  /** Show only the first options (the plan's bar is one line). */
+  /** Show only the first options (a one-line place). */
   readonly max?: number;
   /** After the answer is taken, with what was chosen. */
   onDone(choices: readonly string[]): void;
 }) {
-  const a = useAnswer(q, repo, { onDone });
   const recommended = q.card?.recommended;
-  const staged = q.multiSelect || a.reason;
+  const a = useAnswer(q, repo, {
+    initial: !q.multiSelect && recommended ? [recommended] : [],
+    onDone,
+  });
   return (
-    <div className="quick-answer" data-testid="quick-answer">
+    <form
+      className="quick-answer"
+      data-testid="quick-answer"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void a.send();
+      }}
+    >
       <div className="chips">
         {q.options.slice(0, max ?? q.options.length).map((o) => (
           <button
             type="button"
             key={o.label}
-            className={o.label === recommended && a.choices.length === 0 ? "primary" : undefined}
+            className="option-chip"
             aria-pressed={a.choices.includes(o.label)}
             title={o.description}
             disabled={a.busy}
-            onClick={() => {
-              if (!q.multiSelect && !needsReason([o.label])) void a.send([o.label]);
-              else a.toggle(o.label);
-            }}
+            onClick={() => a.toggle(o.label)}
           >
             {o.label}
           </button>
         ))}
       </div>
-      {staged ? (
-        <form
+      {a.reason ? (
+        <input
+          // biome-ignore lint/a11y/noAutofocus: the field appears because the chosen option needs it
+          autoFocus
           className="reason"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void a.send();
-          }}
-        >
-          {q.multiSelect && !a.reason ? (
-            <span className="dim">choose one or more</span>
-          ) : (
-            <input
-              // biome-ignore lint/a11y/noAutofocus: the field appears because the chosen option needs it
-              autoFocus
-              aria-label="reason (required)"
-              placeholder={`why ${a.choices.find((c) => needsReason([c])) ?? ""}? (required)`}
-              value={a.text}
-              onChange={(e) => a.setText(e.target.value)}
-            />
-          )}
-          <button type="submit" className="primary" disabled={!a.ready}>
-            Send{q.multiSelect && a.choices.length > 0 ? ` ${a.choices.length}` : ""}
-          </button>
-        </form>
+          aria-label="reason (required)"
+          placeholder={`Reason for ${a.choices.find((c) => needsReason([c])) ?? "this answer"} (required)`}
+          value={a.text}
+          onChange={(e) => a.setText(e.target.value)}
+        />
+      ) : q.multiSelect && a.choices.length === 0 ? (
+        <span className="dim">choose one or more</span>
       ) : null}
+      <button type="submit" className="primary" disabled={!a.ready}>
+        {a.choices.length > 0 ? a.choices.join(", ") : "Choose"} ⏎
+      </button>
       <Notice text={a.error} onClose={a.clearError} />
-    </div>
+    </form>
   );
 }

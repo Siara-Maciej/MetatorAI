@@ -111,7 +111,6 @@ export function DecisionCard({
     onDone: onAnswered,
     ...(onRefused ? { onRefused } : {}),
   });
-  const choice = a.choices[0];
   const reasonField = useRef<HTMLInputElement>(null);
   // Enter sends the selected answer (the ⏎ on the button), unless a field or a button has the key.
   useEffect(() => {
@@ -132,11 +131,40 @@ export function DecisionCard({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
-  const others = q.multiSelect ? [] : open.filter((o) => o.label !== choice && !askedInWords(o.label));
-  const second = others[0];
+  // Reject or Other chosen: the cursor goes to the reason it asks for.
+  const asksReason = a.reason;
+  useEffect(() => {
+    if (asksReason) reasonField.current?.focus();
+  }, [asksReason]);
   // The options on the card's face: on a plan's approval only Approve, sent by the button itself.
   const faceOptions = q.options.filter((o) => !askedInWords(o.label));
   const onlyApprove = planGate && faceOptions.every((o) => o.label === "Approve");
+  // One set of controls everywhere a decision is shown (Home's): the options are the choice and
+  // one button sends it; Reject and Other ask for their reason inline. On a plan's approval the
+  // two actions (Approve, Ask for changes) stand above the plan, so they are seen first.
+  const actions = (
+    <>
+      <div className="actions">
+        <button
+          type="button"
+          className="primary"
+          disabled={!a.ready}
+          title={a.reason && !a.ready ? "write the reason first" : undefined}
+          onClick={() => void a.send()}
+        >
+          {a.choices.length > 0 ? a.choices.join(", ") : "Choose"} ⏎
+        </button>
+      </div>
+      {planGate ? (
+        <AskForChanges
+          blocked={closed.get("Approve")}
+          lintText={lintRequest(lintOfPlan?.problems ?? [])}
+          busy={a.busy}
+          onSend={(words) => void a.send(["Reject"], words)}
+        />
+      ) : null}
+    </>
+  );
   return (
     <article className="card" aria-label="decision card">
       <h1 className={heading.length > 160 ? "long" : undefined}>{heading}</h1>
@@ -144,6 +172,11 @@ export function DecisionCard({
         <div className="muted" data-testid="host-asker">
           {host?.asker ?? q.agent ?? "the agent"} asks on its terminal
           {terminal ? " · an answer chosen here is typed there for you" : ""}
+        </div>
+      ) : null}
+      {planGate ? (
+        <div className="decide-bar" data-testid="decide-bar">
+          {actions}
         </div>
       ) : null}
       {planView ? <RunPlanFull view={planView} /> : null}
@@ -199,40 +232,7 @@ export function DecisionCard({
           />
         </label>
       ) : null}
-      <div className="actions">
-        <button
-          type="button"
-          className="primary"
-          disabled={!a.ready}
-          title={a.reason && !a.ready ? "write the reason first" : undefined}
-          onClick={() => void a.send()}
-        >
-          {a.choices.length > 0 ? a.choices.join(", ") : "Choose"} ⏎
-        </button>
-        {second ? (
-          <button
-            type="button"
-            disabled={a.busy}
-            onClick={() => {
-              // An answer that needs a reason is chosen, and the cursor goes to the reason.
-              if (needsReason([second.label]) && a.text.trim() === "") {
-                a.toggle(second.label);
-                setTimeout(() => reasonField.current?.focus(), 0);
-              } else void a.send([second.label]);
-            }}
-          >
-            {second.label}
-          </button>
-        ) : null}
-      </div>
-      {planGate ? (
-        <AskForChanges
-          blocked={closed.get("Approve")}
-          lintText={lintRequest(lintOfPlan?.problems ?? [])}
-          busy={a.busy}
-          onSend={(words) => void a.send(["Reject"], words)}
-        />
-      ) : null}
+      {planGate ? null : actions}
       <Notice text={a.error} onClose={a.clearError} />
       <details className="card-details" data-testid="card-details">
         <summary>Details</summary>

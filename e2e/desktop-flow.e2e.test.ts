@@ -333,6 +333,17 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
     expect(await page.getByTestId("run-details").getAttribute("open")).toBeNull();
     // The one thing to decide is on the task's page: the plan's approval, the plan in full.
     expect(await page.getByTestId("task-decide").getByTestId("system-plan-line").count()).toBe(1);
+    // On Home the same card: its two actions above the plan, in view at 1440x900 without a scroll;
+    // the flow open, the step tables folded under it.
+    await page.goto(app("inbox"));
+    const bar = page.getByRole("article", { name: "decision card" }).getByTestId("decide-bar");
+    await bar.waitFor({ timeout: 20_000 });
+    const box = await bar.getByRole("button", { name: "Ask for changes" }).boundingBox();
+    expect(box && box.y + box.height).toBeLessThanOrEqual(900);
+    expect(await bar.locator(".actions .primary").textContent()).toContain("Approve");
+    const tables = page.getByRole("article", { name: "decision card" }).getByTestId("system-plan-steps");
+    expect(await tables.getAttribute("open")).toBeNull();
+    expect(await tables.locator("summary").textContent()).toBe("4 steps in 2 repositories");
     await until("four pending steps", async () => {
       const s = await flowStates();
       return Object.values(s).length === 4 && Object.values(s).every((v) => v === "pending")

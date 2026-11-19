@@ -81,7 +81,7 @@ export function SystemPlanFull({ plan }: { readonly plan: RepoSystemPlan }) {
           lint: {lintSummary(plan.lint)}
         </span>
       </h3>
-      <SystemPlanContent view={plan} repo={plan.repo} />
+      <SystemPlanContent view={plan} repo={plan.repo} foldSteps />
     </section>
   );
 }

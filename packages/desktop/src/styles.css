@@ -1163,7 +1163,7 @@ kbd {
 }
 
 /* plan (S2) */
-.plan .detail h2 {
+.plan .detail h4 {
   font-size: var(--fs-head);
 }
 .plan .ask {
@@ -3102,4 +3102,26 @@ dialog.goto {
 .sessions .needs-head {
   width: 100%;
   text-align: left;
+}
+/* A decision's controls: the choice, then one button that sends it. */
+.quick-answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.quick-answer .option-chip[aria-pressed="true"] {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+.quick-answer input.reason {
+  flex: 1 1 240px;
+}
+.card .decide-bar {
+  margin: 4px 0 12px;
+}
+.card details.sp-steps-fold > summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin: 8px 0;
 }
