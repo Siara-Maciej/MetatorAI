@@ -139,7 +139,7 @@ afterAll(async () => {
   }
   stopProcessesUnder(folder);
   await rm(folder, { recursive: true, force: true });
-});
+}, 60_000);
 
 describe("a driven system run (W13) in a folder of two repositories", () => {
   test("one Approve on the card; the children are driven; the run waits for them, then reaches delivery", async () => {
@@ -378,4 +378,110 @@ describe("a driven system run (W13) in a folder of two repositories", () => {
     expect([s.stage, s.status]).toEqual(["plan-approval", "active"]);
     await mt("shop-api", "run", "stop", parent);
   }, 180_000);
+
+  test("a step whose child run was aborted is retried by a person: a new child in a fresh worktree, the old one kept in its history", async () => {
+    const before = new Set(
+      ((data(await mt("shop-web", "run", "list")) as unknown as { runId: string }[]) ?? []).map(
+        (r) => r.runId,
+      ),
+    );
+    await Bun.write(join(at("shop-web"), ".github/metator/workflows/mt-feature.yml"), W1_STUCK);
+    await Bun.write(join(folder, "scenario.yml"), scenario("add-a-badge", "Add a badge"));
+    const parent = data(
+      await mt("shop-api", "run", "new", "--workflow", "mt-system-change", "--task", "Add a badge"),
+    ).runId as string;
+    await mt(
+      "shop-api",
+      "run",
+      "drive",
+      "--run",
+      parent,
+      "--host",
+      "scenario",
+      "--detach",
+      "--gate-wait",
+      "300",
+    );
+    const card = await until("the plan-approval card", async () => {
+      const inbox = data(await mt("shop-api", "inbox")) as {
+        decisions: { runId: string; question: { id: string; stage: string } }[];
+      };
+      return inbox.decisions.find((d) => d.runId === parent && d.question.stage === "plan-approval")
+        ?.question;
+    });
+    await mt("shop-api", "run", "answer", card.id, "--run", parent, "--choice", "Approve");
+    const old = await until(
+      "the child in shop-web to escalate",
+      async () => {
+        const runs =
+          (data(await mt("shop-web", "run", "list")) as unknown as { runId: string; status: string }[]) ?? [];
+        return runs.find((r) => r.status === "escalated" && !before.has(r.runId))?.runId;
+      },
+      120_000,
+    );
+    const oldWorktree = (data(await mt("shop-web", "run", "status", old)) as { worktree?: { path: string } })
+      .worktree?.path;
+    // The person gives that run up: its step is blocked, and the system run escalates for it.
+    expect((await mt("shop-web", "run", "close", old, "--aborted", "--reason", "wrong approach")).code).toBe(
+      0,
+    );
+    await until(
+      "the system run to escalate",
+      async () =>
+        (data(await mt("shop-api", "run", "status", parent)) as { status: string }).status === "escalated"
+          ? true
+          : undefined,
+      120_000,
+    );
+    // Retry this step: pending again, the old run and its worktree in its history.
+    await Bun.write(join(at("shop-web"), ".github/metator/workflows/mt-feature.yml"), W1);
+    const retried = await mt(
+      "shop-api",
+      "system",
+      "plan",
+      "retry",
+      "add-a-badge",
+      "shop-web-show",
+      "--by",
+      "ana",
+    );
+    expect(retried.code).toBe(0);
+    const step = (
+      retried.json.data as {
+        steps: {
+          id: string;
+          status: string;
+          previousRuns?: { run: string; worktree?: string; retriedBy: string }[];
+        }[];
+      }
+    ).steps.find((x) => x.id === "shop-web-show");
+    expect([step?.status, step?.previousRuns?.[0]?.run, step?.previousRuns?.[0]?.retriedBy]).toEqual([
+      "pending",
+      old,
+      "ana",
+    ]);
+    expect(step?.previousRuns?.[0]?.worktree).toBe(oldWorktree);
+    // The old worktree is left as it was, for a person to look at.
+    if (oldWorktree)
+      expect(
+        await Bun.file(
+          join(at("shop-web"), oldWorktree, ".github/metator/workflows/mt-feature.yml"),
+        ).exists(),
+      ).toBe(true);
+    // Resumed, the system run starts a new child for the step, which finishes; then delivery.
+    expect((await mt("shop-api", "run", "resume", "--run", parent, "--by", "ana", "--drive")).code).toBe(0);
+    await until(
+      "the system run's delivery approval",
+      async () => {
+        const st = data(await mt("shop-api", "run", "status", parent)) as { status: string; stage: string };
+        return st.stage === "delivery" ? true : undefined;
+      },
+      120_000,
+    );
+    const runs = (
+      data(await mt("shop-web", "run", "list")) as unknown as { runId: string; status: string }[]
+    ).filter((r) => !before.has(r.runId));
+    expect(runs.map((r) => r.status).sort()).toEqual(["aborted", "done"]);
+    await mt("shop-api", "run", "stop", parent);
+  }, 300_000);
 });

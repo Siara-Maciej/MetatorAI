@@ -2960,15 +2960,9 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/drive.ts",
-    from: 'if (ctx.autonomy === "L2") return ok({ type: "ABORT", reason });',
-    to: "",
-    why: "a headless run closes on the evidence instead of asking",
-  },
-  {
-    file: "packages/core/src/application/drive.ts",
-    from: 'if (a.value.choices.includes(CLOSE_RUN)) return ok({ type: "ABORT", reason });',
-    to: "",
-    why: "closing the run ends it",
+    from: 'if (ctx.autonomy === "L2") {',
+    to: "if (false) {",
+    why: "a headless run finishes the stage on the evidence instead of asking",
   },
   {
     file: "packages/core/src/domain/task-lint.ts",
@@ -3210,6 +3204,24 @@ export const MUTANTS: readonly Mutant[] = [
     from: "if (gate && this.gates && !(await this.drivenNow(runId))) {",
     to: "if (gate && this.gates) {",
     why: "a gate a live drive waits on is carried out by that drive",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: '    if (status !== "aborted")\n',
+    to: "    if (false)\n",
+    why: "only a step whose run was aborted is retried",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: "previousRuns: [...(step.previousRuns ?? []), previous]",
+    to: "previousRuns: []",
+    why: "a retried step keeps its old run in its history",
+  },
+  {
+    file: "packages/core/src/application/drive.ts",
+    from: 'if (a.value.choices.includes(FINISH_STAGE)) return ok({ type: "PASS" });',
+    to: "",
+    why: "finishing the stage passes it; an answer never ends the run",
   },
   {
     file: "packages/core/src/application/system-runs.ts",

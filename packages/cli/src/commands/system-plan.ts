@@ -225,6 +225,22 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
     );
 
   plan
+    .command("retry")
+    .description(
+      "Retry a step whose child run was aborted: the step is pending again, its old run kept in its history; the system run starts a new child for it (a person, never an agent)",
+    )
+    .argument("<id>", "the plan id")
+    .argument("<step>", "the step id")
+    .addOption(byOption("who retries the step"))
+    .action(
+      action(async (id: string, step: string, opts: { by?: string }) =>
+        asPerson(container(), opts.by, async (by) => ({
+          result: await container().resolve("retrySystemStep").execute({ id, step, by }),
+        })),
+      ),
+    );
+
+  plan
     .command("run")
     .description("Start the steps that can start: a child run (W1) in each application's repository")
     .argument("[id]", "the plan id")

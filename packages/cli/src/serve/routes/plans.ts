@@ -51,6 +51,17 @@ export const PLAN_ROUTES: readonly Route[] = [
     body: body({ plan: document }),
     handler: (call) => call.c.resolve("systemPlans").lint(plan(call), call.body.plan),
   }),
+  // "Retry this step": a person re-opens a step whose child run was aborted; the system run starts a new one.
+  route({
+    method: "POST",
+    pattern: "/system/plans/:plan/steps/:step/retry",
+    body: body({ by: text }),
+    guard: personOnly,
+    handler: (call) =>
+      call.c
+        .resolve("retrySystemStep")
+        .execute({ id: plan(call), step: call.params.step as string, by: call.body.by ?? "" }),
+  }),
   route({
     method: "POST",
     pattern: "/system/plans/:plan/approve",

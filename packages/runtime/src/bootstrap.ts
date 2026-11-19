@@ -155,6 +155,7 @@ import {
   RepositoryDiscoverySource,
   type RepositoryRuns,
   ResumeRun,
+  RetrySystemStep,
   ReviewFeedback,
   ReviewNotes,
   ReviveRuns,
@@ -1131,6 +1132,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     systemPlanStatus: asFunction(
       ({ systemPlanStore, systemSources, repositoryRuns }) =>
         new SystemPlanStatus(systemPlanStore, systemSources, repositoryRuns),
+    ),
+    retrySystemStep: asFunction(
+      ({ systemPlanStore, systemSources, repositoryRuns, clock }) =>
+        new RetrySystemStep(systemPlanStore, systemSources, repositoryRuns, clock),
     ),
     systemRunGate: asFunction(
       ({ systemPlanStatus, runRepository, clock, runSystemPlan }) =>

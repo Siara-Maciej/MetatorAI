@@ -8,6 +8,7 @@ import { useDaemon } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import { duration, type Run, resumeNotice } from "../model.ts";
 import { Notice } from "./common.tsx";
+import { RetryAbortedSteps } from "./retry-step.tsx";
 import { StopReason } from "./stop-reason.tsx";
 
 /** Resume and Close of an escalated run, with the reason field Close needs and what the daemon answered. */
@@ -51,6 +52,8 @@ export function EscalatedActions({
   };
   return (
     <>
+      {/* A system run blocked by an aborted child: its step can be retried, then the run resumed. */}
+      <RetryAbortedSteps run={run} />
       <div className="actions">
         <button type="button" className="primary" disabled={action.busy} onClick={() => void resume()}>
           Resume

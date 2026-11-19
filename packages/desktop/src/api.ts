@@ -320,6 +320,13 @@ export class DaemonClient {
     this.get<SystemPlanView>(`/system/plans/${encodeURIComponent(id)}`, repo);
   approveSystemPlan = (id: string, by: string, repo?: string) =>
     this.post<SystemPlanView>(`/system/plans/${encodeURIComponent(id)}/approve`, { by }, repo);
+  /** "Retry this step": a step whose child run was aborted is pending again; the system run starts a new child. */
+  retrySystemStep = (id: string, step: string, by: string, repo?: string) =>
+    this.post<unknown>(
+      `/system/plans/${encodeURIComponent(id)}/steps/${encodeURIComponent(step)}/retry`,
+      { by },
+      repo,
+    );
   systemMap = (repo?: string) => this.get<SystemMapView>("/system/map", repo);
   saveSystemMap = (body: { map: unknown; digest: string | null; by: string }, repo?: string) =>
     this.post<SystemMapView>("/system/map", body, repo, "PUT");

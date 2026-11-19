@@ -70,30 +70,51 @@ const StepSchema = z.strictObject({
   /** The child run in the application's repository (F7.6). */
   run: z.string().optional(),
 });
-export type SystemStep = z.output<typeof StepSchema>;
+export type SystemStepV1 = z.output<typeof StepSchema>;
 
-export const SystemPlanSchema = z.strictObject({
-  id,
-  task: z.string().min(1),
-  status: z.enum(["draft", "approved", "running", "done"]).default("draft"),
-  createdBy: z.string().optional(),
-  approval: z.strictObject({ by: z.string().min(1), at: z.string(), digest: z.string() }).optional(),
-  /** How each breaking change is introduced. */
-  strategies: z
-    .array(
-      z.strictObject({
-        contract: id,
-        strategy: z.enum(["expand-contract", "versioned"]),
-        note: z.string().optional(),
-      }),
-    )
-    .default([]),
-  steps: z.array(StepSchema).default([]),
+/** A run of a step that a person retried: kept with the step, its worktree left as it was. */
+const PreviousRunSchema = z.strictObject({
+  run: z.string().min(1),
+  status: z.string().min(1),
+  /** The old run's worktree (repository-relative), left for a person to look at. */
+  worktree: z.string().optional(),
+  retriedBy: z.string().min(1),
+  at: z.string(),
 });
+
+/** v2 adds, optionally, the runs of a step a person retried (`previousRuns`). */
+const StepSchemaV2 = StepSchema.extend({
+  previousRuns: z.array(PreviousRunSchema).optional(),
+});
+export type SystemStep = z.output<typeof StepSchemaV2>;
+
+const planShape = <S extends z.ZodType>(steps: S) =>
+  z.strictObject({
+    id,
+    task: z.string().min(1),
+    status: z.enum(["draft", "approved", "running", "done"]).default("draft"),
+    createdBy: z.string().optional(),
+    approval: z.strictObject({ by: z.string().min(1), at: z.string(), digest: z.string() }).optional(),
+    /** How each breaking change is introduced. */
+    strategies: z
+      .array(
+        z.strictObject({
+          contract: id,
+          strategy: z.enum(["expand-contract", "versioned"]),
+          note: z.string().optional(),
+        }),
+      )
+      .default([]),
+    steps: z.array(steps).default([]),
+  });
+const SystemPlanV1Schema = planShape(StepSchema);
+export const SystemPlanSchema = planShape(StepSchemaV2);
 export type SystemPlan = z.output<typeof SystemPlanSchema>;
 
 export const SystemPlanDocument = defineDocument("SystemPlan", {
+  history: [{ schema: SystemPlanV1Schema }],
   latest: SystemPlanSchema,
+  upgrade: (v1) => v1,
   errorCode: "INVALID_CONFIG",
   hint: "`metator system plan schema` prints the format; `metator system plan new` drafts one.",
 });

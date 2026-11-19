@@ -42,8 +42,12 @@ import type { WorktreeRegistry } from "./worktrees.ts";
 
 /** How many times one worker may ask a person in a stage before the stage fails. */
 const MAX_ANSWERS = 3;
-/** The two answers to a worker that found nothing to do. */
-export const CLOSE_RUN = "Close the run";
+/**
+ * The two answers to a worker that found nothing to do. Ending the run is never one of them: a
+ * person closes a run on purpose, with a reason (`run close --aborted`); here the stage finishes
+ * and its gate and tests judge what is there.
+ */
+export const FINISH_STAGE = "Finish the stage";
 export const DO_IT = "Do it anyway";
 
 /** How many of a person's latest answers go into every prompt. */
@@ -488,7 +492,7 @@ export class DriveRun {
       if (status?.kind === "nothing") {
         const decided = await this.nothingToDo(ctx, agent, status.evidence, result.value.text);
         if (decided.isErr()) return err(decided.error);
-        if (decided.value.type === "ABORT" || decided.value.type === "MOVED") return ok(decided.value);
+        if (decided.value.type === "PASS" || decided.value.type === "MOVED") return ok(decided.value);
         if (answers === MAX_ANSWERS)
           return ok({ type: "FAIL", reason: `${agent} found nothing to do after ${MAX_ANSWERS} answers` });
         answer = decided.value.answer;
@@ -519,8 +523,10 @@ export class DriveRun {
   }
 
   /**
-   * A worker found the task already done (or asking for no change): one decision with two
-   * answers instead of a question in prose. Headless (L2), the run ends with the evidence.
+   * A worker found the task already done (or asking for no change, the work already in the
+   * worktree): one decision with two answers instead of a question in prose. Finishing the stage
+   * passes it, and the gates and tests judge what is there; the run is never ended from here.
+   * Headless (L2), the stage finishes without asking.
    */
   private async nothingToDo(
     ctx: StageContext,
@@ -529,28 +535,34 @@ export class DriveRun {
     text: string,
   ): Promise<
     Result<
-      | { readonly type: "ABORT"; readonly reason: string }
+      | { readonly type: "PASS" }
       | { readonly type: "MOVED" }
       | { readonly type: "GO_ON"; readonly answer: string },
       MetatorError
     >
   > {
-    const reason = `nothing to do: ${evidence}`;
-    if (ctx.autonomy === "L2") return ok({ type: "ABORT", reason });
+    const said = `${agent} found nothing to do: ${evidence}`;
+    if (ctx.autonomy === "L2") {
+      await this.d.journal.record(ctx.runId, { type: "agent", stage: ctx.stage.id, agent, text: said });
+      return ok({ type: "PASS" });
+    }
     const q = await this.ask(
       ctx.runId,
       {
         stage: ctx.stage.id,
         source: "agent",
         agent,
-        prompt: blockedPrompt(text, `${agent} found nothing to do: ${evidence}`),
+        prompt: blockedPrompt(text, said),
         options: [
-          { label: CLOSE_RUN, description: "Nothing changes; the run ends as aborted, with this evidence" },
+          {
+            label: FINISH_STAGE,
+            description: "The stage is done as it is; its gate and tests judge what is there",
+          },
           { label: DO_IT, description: "The agent goes on with the task as written" },
         ],
         multiSelect: false,
-        // The worker's evidence points to closing; a closed run does not come back.
-        card: await decisionCard(this.d, ctx, { recommended: CLOSE_RUN, reversible: false }),
+        // The worker's evidence points to finishing; the gates still check it, so it can be undone.
+        card: await decisionCard(this.d, ctx, { recommended: FINISH_STAGE, reversible: true }),
       },
       ctx.since,
     );
@@ -558,7 +570,7 @@ export class DriveRun {
     const a = await this.d.journal.waitFor(ctx.runId, q.value.id, this.d.timer, ctx.pollMs);
     if (a.isErr()) return err(a.error);
     if (!a.value) return ok({ type: "MOVED" });
-    if (a.value.choices.includes(CLOSE_RUN)) return ok({ type: "ABORT", reason });
+    if (a.value.choices.includes(FINISH_STAGE)) return ok({ type: "PASS" });
     return ok({
       type: "GO_ON",
       answer: a.value.text ?? "A person decided the task is not done yet: do it as written.",

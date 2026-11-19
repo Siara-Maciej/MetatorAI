@@ -376,6 +376,20 @@ metator system plan approve [options] <id>
 | `<id>` | the plan id | |
 | `--by <name>` | who approves (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
+### `metator system plan retry`
+
+Retry a step whose child run was aborted: the step is pending again, its old run kept in its history; the system run starts a new child for it (a person, never an agent)
+
+```bash
+metator system plan retry [options] <id> <step>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+| `<step>` | the step id | |
+| `--by <name>` | who retries the step (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
 ### `metator system plan run`
 
 Start the steps that can start: a child run (W1) in each application's repository

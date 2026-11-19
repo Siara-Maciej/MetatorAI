@@ -166,6 +166,7 @@ import type {
   RepositoryDiscoverySource,
   RepositoryRuns,
   ResumeRun,
+  RetrySystemStep,
   ReviewFeedback,
   ReviewHost,
   ReviewNotes,
@@ -442,6 +443,7 @@ export interface Cradle {
   repositoryRuns: (root: string) => RepositoryRuns;
   runSystemPlan: RunSystemPlan;
   systemPlanStatus: SystemPlanStatus;
+  retrySystemStep: RetrySystemStep;
   systemRunGate: SystemRunGate;
   runSystemEvals: RunSystemEvals;
   runArchEvals: RunArchEvals;

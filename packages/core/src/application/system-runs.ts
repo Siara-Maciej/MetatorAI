@@ -213,6 +213,74 @@ export class SystemPlanStatus {
   }
 }
 
+/**
+ * "Retry this step" (`system plan retry`): a person re-opens a step whose child run was aborted.
+ * The step is pending again, its old run kept in `previousRuns` (with its worktree, left as it
+ * was, for a person to look at); the system run's next look starts a new child for it in a fresh
+ * worktree. Progress is not what a person approved, so the approval still holds.
+ */
+export class RetrySystemStep {
+  constructor(
+    private readonly store: SystemPlanStore,
+    private readonly sources: Pick<SystemSources, "locate" | "location">,
+    private readonly at: (root: string) => Pick<RepositoryRuns, "runs">,
+    private readonly clock: Clock,
+  ) {}
+
+  async execute(input: {
+    readonly id: string;
+    readonly step: string;
+    readonly by: string;
+  }): Promise<Result<SystemPlan, MetatorError>> {
+    const by = input.by.trim();
+    if (by === "") return err(MetatorError.usage("say who retries the step: --by <name>"));
+    const loaded = await this.store.load(input.id);
+    if (loaded.isErr()) return err(loaded.error);
+    const step = loaded.value.steps.find((s) => s.id === input.step);
+    if (!step) return err(MetatorError.notFound(`step ${input.step} of system plan ${input.id}`));
+    if (!step.run)
+      return err(MetatorError.usage(`step ${step.id} has no run to retry: it is ${step.status}`));
+    const map = await this.sources.location.require();
+    if (map.isErr()) return err(map.error);
+    const app = map.value.applications.find((a) => a.id === step.app);
+    const located = app ? await this.sources.locate(app) : ok(undefined);
+    if (located.isErr()) return err(located.error);
+    if (!located.value)
+      return err(MetatorError.usage(`no checkout of ${step.app} here: its run ${step.run} cannot be read`));
+    const run = await this.at(located.value.root).runs.load(step.run);
+    if (run.isErr()) return err(run.error);
+    const status = run.value.state.status;
+    if (status !== "aborted")
+      return err(
+        MetatorError.usage(
+          `step ${step.id}'s run ${step.run} is ${status}: only an aborted run's step is retried`,
+          status === "escalated"
+            ? `Resume that run instead: \`metator run resume --run ${step.run} --by ${by} --drive\`.`
+            : undefined,
+        ),
+      );
+    const previous = {
+      run: step.run,
+      status,
+      ...(run.value.worktree ? { worktree: run.value.worktree.path } : {}),
+      retriedBy: by,
+      at: this.clock.now().toISOString(),
+    };
+    const { run: _old, ...rest } = step;
+    const plan: SystemPlan = {
+      ...loaded.value,
+      ...(loaded.value.status === "done" ? { status: "running" as const } : {}),
+      steps: loaded.value.steps.map((s) =>
+        s.id === step.id
+          ? { ...rest, status: "pending" as const, previousRuns: [...(step.previousRuns ?? []), previous] }
+          : s,
+      ),
+    };
+    const saved = await this.store.save(plan);
+    return saved.isErr() ? err(saved.error) : ok(plan);
+  }
+}
+
 /** How long a system run waits on its children before it escalates (6 h), unless its gate says. */
 export const SYSTEM_GATE_TIMEOUT_MS = 6 * 3_600_000;
 

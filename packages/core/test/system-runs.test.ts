@@ -7,6 +7,7 @@ import { SystemCatalog } from "../src/application/system.ts";
 import { SystemPlanStore } from "../src/application/system-plans.ts";
 import {
   type RepositoryRuns,
+  RetrySystemStep,
   RunSystemPlan,
   SystemPlanStatus,
   SystemRunGate,
@@ -347,5 +348,53 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     const record = (await w.platform.runs.load(parent.runId))._unsafeUnwrap();
     expect(record.options).toEqual({ "note.1": true, "note.2": true });
     expect(record.children).toEqual(started.started.map((s) => s.run));
+  });
+});
+
+describe("RetrySystemStep: a person re-opens a step whose child run was aborted", () => {
+  test("the step is pending again with the old run in its history; the next wave starts a new child for it", async () => {
+    const w = world([step("billing-bump", "billing")]);
+    await w.save();
+    const parent = (
+      await w.platform.init.execute({ workflow: "mt-feature", task: "Rename refunds" })
+    )._unsafeUnwrap();
+    const first = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    const old = first.started[0]?.run as string;
+    await w.platform.advance.execute({ runId: old, event: { type: "ABORT", reason: "nothing to do" } });
+    expect((await w.status.execute("rename"))._unsafeUnwrap().steps[0]?.status).toBe("blocked");
+    const retry = new RetrySystemStep(w.store, w.sources, w.at, w.platform.clock);
+    // Who retries is named.
+    expect(
+      (await retry.execute({ id: "rename", step: "billing-bump", by: " " }))._unsafeUnwrapErr().code,
+    ).toBe("USAGE");
+    const plan = (await retry.execute({ id: "rename", step: "billing-bump", by: "ana" }))._unsafeUnwrap();
+    const again = plan.steps[0];
+    expect([again?.status, again?.run]).toEqual(["pending", undefined]);
+    expect(again?.previousRuns).toEqual([
+      { run: old, status: "aborted", retriedBy: "ana", at: "2026-10-29T09:00:00.000Z" },
+    ]);
+    // The approval still holds (progress is not what a person approved): a new child starts.
+    const second = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
+    expect(second.started.map((s) => s.step)).toEqual(["billing-bump"]);
+    expect(second.started[0]?.run).not.toBe(old);
+    expect((await w.status.execute("rename"))._unsafeUnwrap().steps[0]?.status).toBe("running");
+  });
+
+  test("only a step whose run ended aborted is retried; one still running, done or escalated is not", async () => {
+    const w = world([step("billing-bump", "billing")]);
+    await w.save();
+    const retry = new RetrySystemStep(w.store, w.sources, w.at, w.platform.clock);
+    expect(
+      (await retry.execute({ id: "rename", step: "billing-bump", by: "ana" }))._unsafeUnwrapErr().message,
+    ).toBe("step billing-bump has no run to retry: it is pending");
+    const first = (await w.run.execute({ id: "rename" }))._unsafeUnwrap();
+    expect(
+      (await retry.execute({ id: "rename", step: "billing-bump", by: "ana" }))._unsafeUnwrapErr().message,
+    ).toBe(
+      `step billing-bump's run ${first.started[0]?.run} is active: only an aborted run's step is retried`,
+    );
+    expect((await retry.execute({ id: "rename", step: "nope", by: "ana" }))._unsafeUnwrapErr().code).toBe(
+      "NOT_FOUND",
+    );
   });
 });

@@ -76,6 +76,7 @@ describe("metator CLI (process e2e)", () => {
       "system plan show",
       "system plan lint",
       "system plan approve",
+      "system plan retry",
       "system plan run",
       "system plan schema",
       "system plan status",

@@ -8,7 +8,7 @@ import {
   InstantTimer,
   ScriptedProcessRunner,
 } from "@metator/testing";
-import { CLOSE_RUN, DO_IT, DriveRun } from "../src/application/drive.ts";
+import { DO_IT, DriveRun, FINISH_STAGE } from "../src/application/drive.ts";
 import { Notifier } from "../src/application/notifier.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { CloseRun } from "../src/application/run-close.ts";
@@ -1019,30 +1019,43 @@ loops:
     expect(critic).toContain("- build: which currency? → EUR");
   });
 
-  test("a worker that finds nothing to do asks one decision; closing ends the run with the evidence", async () => {
+  test("a worker that finds nothing to do asks one decision; finishing the stage lets the gate judge it, never ends the run", async () => {
     const w = world(
       {
         "mt-planner": [
-          { text: "discount() exists\nSTATUS: nothing to do: src/discount.ts:3 already applies it" },
+          // The plan is already there (in the worktree): nothing to do, the stage's checks see it.
+          {
+            ...writesPlan,
+            text: "discount() exists\nSTATUS: nothing to do: src/discount.ts:3 already applies it",
+          },
         ],
+        "mt-implementer": [{ text: "STATUS: done" }],
+        "mt-plan-critic": [{ text: "VERDICT: PASS" }],
       },
-      (q) => (q.source === "gate" ? { choices: ["Approve"] } : { choices: [CLOSE_RUN] }),
+      (q) => (q.source === "gate" ? { choices: ["Approve"] } : { choices: [FINISH_STAGE] }),
       okScripts(),
     );
     w0 = w;
     const runId = await w.start();
-    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).toBe("aborted");
+    // The stage passed; the run went on (and its gates judged the work), it did not abort.
+    expect((await w.drive.execute({ runId, host: "fake" }))._unsafeUnwrap().status).not.toBe("aborted");
     const q = w.asked.find((a) => a.source === "agent");
-    expect(q?.options.map((o) => o.label)).toEqual([CLOSE_RUN, DO_IT, OTHER]);
-    expect([q?.card?.recommended, q?.card?.reversible, q?.card?.done]).toEqual([CLOSE_RUN, false, ["setup"]]);
+    expect(q?.options.map((o) => o.label)).toEqual([FINISH_STAGE, DO_IT, OTHER]);
+    expect(q?.options.map((o) => o.label)).not.toContain("Close the run");
+    expect([q?.card?.recommended, q?.card?.reversible, q?.card?.done]).toEqual([
+      FINISH_STAGE,
+      true,
+      ["setup"],
+    ]);
     expect(q?.prompt).toBe(
       "discount() exists\n\nmt-planner found nothing to do: src/discount.ts:3 already applies it",
     );
-    const log = (await w.fs.read(`.metator/runs/${runId}/log.md`))._unsafeUnwrap();
-    expect(log).toContain("nothing to do: src/discount.ts:3 already applies it");
+    const history = (await w.repo.load(runId))._unsafeUnwrap().state.context.history;
+    expect(history.find((h) => h.stage === "plan")?.event).toBe("PASS");
+    expect(history.some((h) => h.event === "ABORT")).toBe(false);
   });
 
-  test("do it anyway: the worker goes on with the person's words; headless (L2) closes without asking", async () => {
+  test("do it anyway: the worker goes on with the person's words; headless (L2) finishes the stage without asking", async () => {
     const w = world(
       {
         "mt-planner": [{ text: "STATUS: nothing to do: done in a.ts:1" }, writesPlan],
@@ -1060,13 +1073,15 @@ loops:
     expect(planner[1]?.prompt).toContain("A person answered your question: a.ts:1 is the old API");
 
     const h = world(
-      { "mt-planner": [{ text: "STATUS: nothing to do: done in a.ts:1" }] },
+      { "mt-planner": [{ ...writesPlan, text: "STATUS: nothing to do: done in a.ts:1" }] },
       () => undefined,
       okScripts(),
     );
     w0 = h;
     const headless = await h.start(undefined, "demo", "L2");
-    expect((await h.drive.execute({ runId: headless, host: "fake" }))._unsafeUnwrap().status).toBe("aborted");
+    await h.drive.execute({ runId: headless, host: "fake", maxSteps: 2 });
+    const headlessHistory = (await h.repo.load(headless))._unsafeUnwrap().state.context.history;
+    expect(headlessHistory.find((x) => x.stage === "plan")?.event).toBe("PASS");
     expect(h.asked).toEqual([]);
   });
 

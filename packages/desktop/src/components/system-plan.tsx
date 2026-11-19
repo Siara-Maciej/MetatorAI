@@ -11,6 +11,7 @@ import { Notice } from "./common.tsx";
 import { ProblemList } from "./doc-editor.tsx";
 import { PlanChanges } from "./plan-changes.tsx";
 import { PlanFlowGraph } from "./plan-flow-graph.tsx";
+import { RetryStepButton } from "./retry-step.tsx";
 
 /** A repository as a person names it: the last part of its path. */
 const repoName = (path: string): string => path.replace(/\/+$/, "").split("/").pop() || path;
@@ -246,6 +247,9 @@ export function SystemPlanContent({
                                   : ""}
                               </span>
                             ) : null}
+                            {s.runState === "aborted" ? (
+                              <RetryStepButton planId={view.plan.id} step={s.id} repo={repo} />
+                            ) : null}
                           </td>
                         </tr>
                       );
@@ -324,6 +328,9 @@ export function SystemPlanContent({
                                   ? ` · ${repoName(child.repo)}`
                                   : ""}
                               </span>
+                            ) : null}
+                            {s.runState === "aborted" ? (
+                              <RetryStepButton planId={view.plan.id} step={s.id} repo={repo} />
                             ) : null}
                           </td>
                         </tr>

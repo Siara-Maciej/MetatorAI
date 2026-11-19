@@ -80,6 +80,8 @@ It lists every step with its application, its status (`pending`, `running`, `don
 
 While its children work, the system run waits at `status` without spending its waves, and reads as working: its activity says what it waits on, for example `waiting on children: shop-api working at build, shop-web not started`. When a wave is done, the next one starts. A child run that escalates does not stop the system run: it waits, and reads `blocked by <child run> (<app>, at <stage>): needs you`. Act on the child's own card (resume it, or close it); once the child is resumed, the system run goes on by itself. A child closed as aborted blocks its step for good: the system run escalates, naming the step. It also escalates after waiting six hours (`--timeout <ms>` on the gate's `metator system plan status --gate` changes that).
 
+A step whose child run was closed as aborted can be tried again: **Retry this step** on the system run's bar (and on the step in its plan), or `metator system plan retry <plan> <step> --by <name>`. The step is pending again, with the old run, who retried it and when in its `previousRuns`. The old run's worktree is left as it was, for you to look at. Resume the system run, or let it go on waiting: it starts a new child for the step in a fresh worktree.
+
 ## Done
 
 - the system plan lints clean and a person approved it;

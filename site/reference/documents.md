@@ -39,7 +39,7 @@ These live in the repository and are reviewed like code.
 | `RefactorPlan` | `metator/arch/plans/<id>.yml` | you or `mt-arch-planner`; `metator arch plan` simulates, approves and runs it |
 | `SystemMap` | `docs/metator/system.yml` | you (also in the app); `metator system discover` proposes it |
 | `SystemAnalysis` | `metator/system/plans/<id>.analysis.yml` | `metator system analyze`, then you or `mt-system-scout` |
-| `SystemPlan` | `metator/system/plans/<id>.yml` | `metator system plan new`, then `mt-system-planner` (you ask for changes at its approval); `system plan approve` is yours |
+| `SystemPlan` | `metator/system/plans/<id>.yml` | `metator system plan new`, then `mt-system-planner` (you ask for changes at its approval); `system plan approve` and `system plan retry` are yours |
 | `PlanRevision` | `.metator/runs/<id>/plan.previous.json`, `metator/system/plans/<id>.previous.json` | MetatorAI, when a run goes back to its plan's stage: the version its planner revises |
 | `PlanEdit` | `docs/metator/system.edits.jsonl`, one line per edit | the app, when a person changes the map |
 | `EvalCase` | `docs/metator/evals/golden/*.yml` | you; `metator eval seed` adds cases |
