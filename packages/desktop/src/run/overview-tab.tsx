@@ -9,7 +9,7 @@ import { ArtifactList } from "../components/artifact-list.tsx";
 import { Notice } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
-import { duration, plural, type Run, routeHash } from "../model.ts";
+import { decisionKey, duration, plural, type Run, routeHash } from "../model.ts";
 import { StepPlan } from "./step-plan.tsx";
 
 export function OverviewTab({
@@ -74,7 +74,18 @@ export function OverviewTab({
           <h3>What it needs from you</h3>
           {question ? (
             <>
-              <div>{question.prompt}</div>
+              <div>
+                {question.prompt}{" "}
+                <a
+                  data-testid="decision-link"
+                  href={routeHash({
+                    screen: "inbox",
+                    pick: decisionKey({ repo, runId, question }),
+                  })}
+                >
+                  its card on Home ›
+                </a>
+              </div>
               {question.source === "permission" ? (
                 <button type="button" className="primary" onClick={() => onOpenRun(runId, true)}>
                   Answer in the pane

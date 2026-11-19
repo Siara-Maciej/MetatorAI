@@ -137,3 +137,43 @@ describe("the page of a task and of a step (simplify, items 2 and 3)", () => {
     expect([p.task, p.state, p.progress.text]).toEqual([true, "needs you", "0 of 1 steps done"]);
   });
 });
+
+describe("a decision has one address; a run that asks can still get a session (polish)", () => {
+  test("a decision's address is its repository, run and question; it parses back to the same pick", async () => {
+    const { decisionKey, parseRoute, routeHash, needsQueue, pickedNeed } = await import("../src/model.ts");
+    const q = { id: "q002", runId: "r1", prompt: "ok?", source: "gate", options: [], askedAt: "" };
+    const item = (repo?: string) =>
+      ({ runId: "r1", repo, question: q, stage: "plan-approval", waitedMs: 0, driving: false }) as never;
+    expect(decisionKey(item("shop-api"))).toBe("shop-api/r1/q002");
+    expect(decisionKey(item())).toBe("r1/q002");
+    const route = { screen: "inbox" as const, pick: "shop-api/r1/q002" };
+    expect(routeHash(route)).toBe("#/inbox/shop-api/r1/q002");
+    expect(parseRoute("#/inbox/shop-api/r1/q002")).toEqual(route);
+    // The old encoded form still opens it.
+    expect(parseRoute("#/inbox/shop-api%2Fr1%2Fq002")).toEqual(route);
+    // Opening it shows exactly that card, not the queue's first; two runs with one question id
+    // in two repositories are two decisions.
+    const rows = needsQueue([item("a"), item("shop-api")], []);
+    expect(pickedNeed(rows, "shop-api/r1/q002")?.repo).toBe("shop-api");
+  });
+
+  test("a run that asks on a card with no session and no drive can still open its conductor", async () => {
+    const { asksWithoutSession, idleRuns } = await import("../src/model.ts");
+    const asks = run("a", {
+      attention: "you",
+      driving: false,
+      questions: [{ id: "q1" }] as never,
+    });
+    expect(asksWithoutSession(asks, [])).toBe(true);
+    // idleRuns never offers it (it asks), so the page offers the session this way.
+    expect(idleRuns([asks], [])).toEqual([]);
+    expect(asksWithoutSession(asks, [{ runId: "a", live: { alive: true } } as never])).toBe(false);
+    expect(asksWithoutSession(run("b", { driving: true, questions: [{ id: "q1" }] as never }), [])).toBe(
+      false,
+    );
+    expect(asksWithoutSession(run("c", { driving: false }), [])).toBe(false);
+    expect(asksWithoutSession(run("d", { status: "done", questions: [{ id: "q1" }] as never }), [])).toBe(
+      false,
+    );
+  });
+});

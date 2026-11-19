@@ -275,7 +275,8 @@ describe("formatting and routes", () => {
     expect(parseRoute("#/nope")).toEqual({ screen: "inbox" });
     for (const hash of [
       "#/inbox",
-      "#/inbox/r%2Fq001",
+      "#/inbox/r/q001",
+      "#/inbox/shop-api/r/q001",
       "#/run/r/overview",
       "#/run/r/terminal",
       "#/run/r/terminal/w1%3Ap2",
@@ -1143,7 +1144,8 @@ describe("the sidebar: one state that rolls up (wave 2)", () => {
     );
     expect(rows.map((r) => [r.key, r.kind, r.title])).toEqual([
       ["r1/q1", "approval", "prompt q1"],
-      ["r1/q2", "permission", "prompt q2"],
+      // A decision of a repository carries it in its address (`decisionKey`).
+      ["fe/r1/q2", "permission", "prompt q2"],
       ["terminal::r2", "terminal", "Round the totals"],
       ["escalated::r3", "escalated", "Check the totals"],
     ]);

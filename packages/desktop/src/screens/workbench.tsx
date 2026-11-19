@@ -24,6 +24,7 @@ import {
   type CommandContext,
   chordOf,
   closesWorkspace,
+  decisionKey,
   evenTree,
   type GotoRow,
   type KeyMap,
@@ -329,7 +330,7 @@ export function WorkbenchScreen({
     if (!toast) return;
     // The host's own prompt is answered in its pane; every other question on its card.
     if (toast.question.source !== "permission") {
-      onOpenInbox(`${toast.runId}/${toast.question.id}`);
+      onOpenInbox(decisionKey(toast));
       return;
     }
     const conductor = panes.find((p) => p.runId === toast.runId && p.role === "conductor");

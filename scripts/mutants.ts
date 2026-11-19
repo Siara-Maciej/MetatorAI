@@ -6661,6 +6661,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a step's breadcrumb leads to its task's page, the system run",
   },
   {
+    file: "packages/desktop/src/model.ts",
+    from: '}): string => [i.repo, i.runId, i.question.id].filter((x) => x !== undefined && x !== "").join("/");',
+    to: '}): string => [i.runId, i.question.id].filter((x) => x !== undefined && x !== "").join("/");',
+    why: "a decision's address names its repository: the same run and question id in two repositories are two cards",
+  },
+  {
+    file: "packages/desktop/src/model.ts",
+    from: "    r.questions.length > 0 &&\n    !r.driving &&",
+    to: "    !r.driving &&",
+    why: "Open a session for a run that asks is offered only while it asks",
+  },
+  {
     file: "packages/desktop/src/confirm.ts",
     from: "const mine = ++latest;",
     to: "const mine = latest;",

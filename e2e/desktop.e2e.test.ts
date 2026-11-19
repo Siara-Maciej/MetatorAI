@@ -753,6 +753,20 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     // The planner is done: the run waits at the plan's approval.
     expect((await metator(["run", "advance", "pass", "--run", runId], repo.root, cliEnv)).code).toBe(0);
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
+    // The run asks and nothing drives it: its page still offers its conductor in a terminal
+    // (the question stays on its card), and says why there is no drive to start.
+    await page.goto(
+      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/run/${runId}/overview`,
+    );
+    const start = page.getByTestId(`start-${runId}`).first();
+    await until("the bar of a run that asks", async () =>
+      (await start.textContent().catch(() => ""))?.includes("Its question waits for you on Home")
+        ? true
+        : undefined,
+    );
+    expect(await start.getByRole("button", { name: "Open a session" }).count()).toBe(1);
+    expect(await start.getByRole("button", { name: "Drive in background" }).count()).toBe(0);
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
     // Home: one decision at a time; the next one until this run's plan approval.
     const card = await decisionOnHome(page, ["plan-approval", runId]);
     // The card's face is the plan and its two actions; everything else is under Details, folded.

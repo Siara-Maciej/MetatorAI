@@ -15,6 +15,7 @@ import { StartRun } from "../components/start-run.tsx";
 import { useDaemon } from "../daemon.tsx";
 import { useAction, useTasks } from "../hooks.ts";
 import {
+  decisionKey,
   escalatedKey,
   idleRuns,
   isFirstRun,
@@ -58,7 +59,7 @@ export function InboxScreen({
   onForm(): void;
 }) {
   const { inbox, runs } = useDaemon();
-  const item = picked ? inbox.find((i) => `${i.runId}/${i.question.id}` === picked.key) : undefined;
+  const item = picked ? inbox.find((i) => decisionKey(i) === picked.key) : undefined;
   const stopped =
     picked?.kind === "escalated"
       ? runs.find((r) => r.status === "escalated" && escalatedKey(r) === picked.key)

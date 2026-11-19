@@ -42,7 +42,7 @@ The head of the task's page has a bar of its steps done (`1 of 2 steps done`) an
 
 A plan is not edited by hand: its planner writes it, and you tell the planner what should be different. A step's Overview shows its plan read-only, with its lint (`lint: 2 errors · 1 warning`) and each problem under the step it is about.
 
-At the plan's approval the card on Home, and on the task's page, shows the plan **in full**, without a click: for a run, its steps with their files, the tests written first and what each step waits for; for a system plan, its flow and its steps per repository. Under it:
+At the plan's approval the card on Home, and on the task's page, shows the plan **in full**, without a click: for a run, its steps with their files, the tests written first and what each step waits for; for a system plan, its flow, with its steps per repository folded under it (**6 steps in 3 repositories**). Its two actions stand above the plan, so they are on the screen without scrolling:
 
 - **Approve** approves the plan, and the run goes on.
 - **Ask for changes** takes your words (`S2 also needs a test for a product without a currency`) and sends them as the gate's Reject with your words as the reason: the run goes back to its planner, which writes a new plan.

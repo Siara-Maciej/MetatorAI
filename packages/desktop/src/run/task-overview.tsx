@@ -10,7 +10,16 @@ import { Glyph } from "../components/glyph.tsx";
 import { SystemPlanPanel } from "../components/system-plan.tsx";
 import { useDaemon } from "../daemon.tsx";
 import { useTasks } from "../hooks.ts";
-import { blockedReason, firstLevel, lookOf, type Run, routeHash, sameRepo, systemPlanOf } from "../model.ts";
+import {
+  blockedReason,
+  decisionKey,
+  firstLevel,
+  lookOf,
+  type Run,
+  routeHash,
+  sameRepo,
+  systemPlanOf,
+} from "../model.ts";
 import { subtasksByRepo, type WorkTask } from "../tasks.ts";
 
 export function TaskOverview({
@@ -40,7 +49,10 @@ export function TaskOverview({
             {item.runId === run.runId
               ? "The task itself asks:"
               : `${own?.subtasks.find((c) => c.runId === item.runId)?.title ?? item.runId} asks:`}{" "}
-            <a href={routeHash({ screen: "run", runId: item.runId, tab: "overview" })}>its page ›</a>
+            <a href={routeHash({ screen: "run", runId: item.runId, tab: "overview" })}>its page ›</a>{" "}
+            <a href={routeHash({ screen: "inbox", pick: decisionKey(item) })} data-testid="decision-link">
+              on Home ›
+            </a>
           </div>
         ) : null}
         {item ? (

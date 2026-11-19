@@ -57,7 +57,7 @@ The sidebar is the first level. Every row is built the same way: the glyph of on
 
 **Needs you · N** is on top: how many questions, terminal questions and escalated runs wait for you. A click opens Home, which shows them one at a time ([Answer questions](./inbox.md)).
 
-**Tasks · N** follows: one row per task, whatever repositories it works in. A task is a system task (a system plan with its system run and its steps), a run that started child runs, or a run of its own. Its row has one state word, its progress (`3/6`), how many of its steps need you (`2 need you`) and how many are blocked; tasks that need you come first. **▸** unfolds a task into its own tree: the repositories it works in, each with its steps and child runs and their word, steps not started too, with what they wait for (`not started · waits for api-model, api-endpoint`). A run of its own unfolds into its panes. A click on a task opens its page; a click on a step opens the step's page.
+**Tasks · N** follows: one row per task, whatever repositories it works in. A task is a system task (a system plan with its system run and its steps), a run that started child runs, or a run of its own. Its row has one state word, its progress (`3/6`), how many of its steps need you (`2 need you`) and how many are blocked; tasks that need you come first. **▸** unfolds a task into its own tree: the repositories it works in, each with its steps and child runs and their word, steps not started too, with what they wait for (`not started · waits for api-model, api-endpoint`). A run of its own unfolds into its panes. A click on a task opens its page; a click on a step opens the step's page, or, when the step asks on a card, that decision on Home.
 
 Finished tasks are hidden. **Show finished (N)** at the end shows them; a finished run reads `done`, and its line says how it ended (`done`, `aborted`), with the reason on hover.
 
@@ -97,7 +97,7 @@ A step, a child run and a run of its own have the page of a step: what the agent
 | **Changes** | `d` | the files the run changed, their diffs and your notes ([Read the change](./changes.md)) |
 | **Activity** | `l` | everything the run did: the time, the type, the source and what happened |
 
-An escalated run shows why it stopped under the head, with **Resume** and **Close run…**; one nothing drives offers **Open a session** and **Drive in background**; a finished one says how it ended. The old address of a run's Plan tab (`#/run/<run>/plan`) opens its Overview.
+An escalated run shows why it stopped under the head, with **Resume** and **Close run…**; one nothing drives offers **Open a session** and **Drive in background**; one that asks on a card with no session open says its question waits on Home and still offers **Open a session**, to talk to its conductor (the question stays on its card); a finished one says how it ended. **its card on Home ›** beside its question opens exactly that decision. The old address of a run's Plan tab (`#/run/<run>/plan`) opens its Overview.
 
 ### Overview of a step
 

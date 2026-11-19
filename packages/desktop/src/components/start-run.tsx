@@ -12,8 +12,14 @@ export function StartRun({
   run,
   action,
   compact = false,
+  sessionOnly = false,
   onStarted,
 }: {
+  /**
+   * The run asks on a card and no session runs for it: only "Open a session" (its conductor in a
+   * terminal; the question stays on its card), with why there is no drive to start.
+   */
+  readonly sessionOnly?: boolean;
   readonly run: Run;
   readonly action: Action;
   /** One line (a row of the Inbox) instead of the bar under a run's head. */
@@ -34,7 +40,14 @@ export function StartRun({
   };
   return (
     <div className={compact ? "start-run compact" : "start-run"} data-testid={`start-${run.runId}`}>
-      {compact ? null : <span className="note">Nothing drives this run. Start its agent:</span>}
+      {compact ? null : sessionOnly ? (
+        <span className="note">
+          Its question waits for you on Home, so nothing drives it until it is answered. You can open a
+          session to talk to its conductor; the question stays on its card.
+        </span>
+      ) : (
+        <span className="note">Nothing drives this run. Start its agent:</span>
+      )}
       {hosts.length > 1 ? (
         <label className="host">
           <span className="faint">host</span>
@@ -57,14 +70,16 @@ export function StartRun({
       >
         Open a session
       </button>
-      <button
-        type="button"
-        disabled={action.busy}
-        title="Drive the run in the background, with no terminal"
-        onClick={() => void start("drive")}
-      >
-        Drive in background
-      </button>
+      {sessionOnly ? null : (
+        <button
+          type="button"
+          disabled={action.busy}
+          title="Drive the run in the background, with no terminal"
+          onClick={() => void start("drive")}
+        >
+          Drive in background
+        </button>
+      )}
     </div>
   );
 }

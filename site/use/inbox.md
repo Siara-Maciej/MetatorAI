@@ -16,7 +16,7 @@ An agent works without asking when it runs the MetatorAI commands its definition
 
 ## Home
 
-**Home** is the first screen of the app. It shows one decision at a time, as a big card: the question, or the plan to approve, and its answers. Above the card, **3 waiting · 1 of 3** says how many decisions wait, with **‹ Previous** and **Next ›**; `k` and `j`, or the arrow keys, do the same. The sidebar only counts them (**Needs you · N**). Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
+**Home** is the first screen of the app. It shows one decision at a time, as a big card: the question, or the plan to approve, and its answers. Above the card, **3 waiting · 1 of 3** says how many decisions wait, with **‹ Previous** and **Next ›**; `k` and `j`, or the arrow keys, do the same. The sidebar only counts them (**Needs you · N**). Each decision has its own address, `#/inbox/<repository>/<run>/<question>`: a step that asks in the sidebar, **its card on Home ›** on a step's page and **on Home ›** on a task's page open exactly that card, and **‹ Previous** and **Next ›** go on from it. Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
 
 ![Home with the decision card of an approval: the question, its options and the answer buttons](../public/screens/inbox.png)
 
@@ -40,7 +40,7 @@ To answer:
 
 1. Click an option. The recommended one is chosen when the card opens, and marked **RECOMMENDED**. A question that allows several answers says **Choose one or more**: each click adds or removes an option, and nothing is chosen for you.
 2. With Reject or Other a field **Reason for Reject (required)** comes under the options, and the answer cannot be sent until you have written it. A note with any other answer is under **Details**.
-3. Click the first button, or press `Enter`. The button carries the options you chose, such as **Approve**. The button next to it sends the first of the other options in one click; when that option is Reject, it chooses it and puts the cursor in the reason field.
+3. Click the button under the options, or press `Enter`. It carries the options you chose, such as **Approve**; it is the only button that sends. Choosing Reject or Other puts the cursor in its reason field. A decision is answered the same way wherever it is shown: on Home, on a task's page, on a step's Overview and beside its terminal.
 
 The first time you answer, the app asks for your name in a dialog and remembers it.
 

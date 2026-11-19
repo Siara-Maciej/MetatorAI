@@ -374,8 +374,11 @@ export function parseRoute(hash: string): Route {
       return arg ? { screen: "board", task: arg } : { screen: "board" };
     case "mrs":
       return arg ? { screen: "mrs", id: arg } : { screen: "mrs" };
-    case "inbox":
-      return arg ? { screen: "inbox", pick: arg } : { screen: "inbox" };
+    case "inbox": {
+      // A decision's address has its repository, run and question as parts (`decisionKey`).
+      const pick = parts.slice(1).join("/");
+      return pick ? { screen: "inbox", pick } : { screen: "inbox" };
+    }
     default:
       return { screen: "inbox" };
   }
@@ -393,7 +396,7 @@ export function routeHash(route: Route): string {
       return `#/run/${encodeURIComponent(route.runId)}/${route.tab}${rest}`;
     }
     case "inbox":
-      return `#/inbox${route.pick ? `/${encodeURIComponent(route.pick)}` : ""}`;
+      return `#/inbox${route.pick ? `/${route.pick.split("/").map(encodeURIComponent).join("/")}` : ""}`;
     case "mrs":
       return `#/settings/reviews${route.id ? `/${encodeURIComponent(route.id)}` : ""}`;
     case "board":
@@ -1511,7 +1514,7 @@ export function needsQueue(
   return [
     ...inbox.map(
       (i): NeedRow => ({
-        key: `${i.runId}/${i.question.id}`,
+        key: decisionKey(i),
         kind: questionKind(i.question).toLowerCase() as NeedKind,
         // A host prompt reads as its question; who asks, and in which pane, is in the line below.
         title: hostPromptOf(i.question.prompt)?.text || humanPrompt(i.question.prompt),
@@ -1558,6 +1561,34 @@ export function needsQueue(
         }),
       ),
   ];
+}
+
+/**
+ * The stable address of one decision on Home: its repository (when the daemon serves a folder),
+ * its run and its question, `#/inbox/<repo>/<run>/<question>`. Opening it from anywhere shows
+ * exactly that card; Previous and Next go on from there.
+ */
+export const decisionKey = (i: {
+  readonly repo?: string | undefined;
+  readonly runId: string;
+  readonly question: { readonly id: string };
+}): string => [i.repo, i.runId, i.question.id].filter((x) => x !== undefined && x !== "").join("/");
+
+/**
+ * A run that asks on a card while no session runs for it and nothing drives it: its question
+ * waits on Home, and its conductor can still be opened in a terminal (the question stays).
+ */
+export function asksWithoutSession<R extends Run>(
+  r: R,
+  panes: readonly (Pick<PaneView, "runId" | "live"> & { readonly repo?: string | undefined })[],
+): boolean {
+  return (
+    r.status === "active" &&
+    r.questions.length > 0 &&
+    !r.driving &&
+    r.driver !== "human" &&
+    !panes.some((p) => p.runId === r.runId && sameRepo(p.repo, r.repo) && p.live?.alive)
+  );
 }
 
 /** The row the Inbox shows: the picked one while it is there, else the first. */

@@ -18,6 +18,7 @@ import { SystemRunBar } from "../components/system-run-bar.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction, useRunControls, useTasks } from "../hooks.ts";
 import {
+  asksWithoutSession,
   autonomyLabel,
   conductorMoves,
   duration,
@@ -144,6 +145,14 @@ export function RunScreen({
           </span>
           <EscalatedActions run={run} />
         </div>
+      ) : run && asksWithoutSession(run, panesOf(run.repo)) ? (
+        // Its question waits on its card; its conductor can still be opened, the question stays.
+        <StartRun
+          run={run}
+          action={action}
+          sessionOnly
+          onStarted={(how) => (how === "session" ? go({ screen: "run", runId, tab: "terminal" }) : undefined)}
+        />
       ) : run && idleRuns([run], panesOf(run.repo)).length > 0 ? (
         <StartRun
           run={run}

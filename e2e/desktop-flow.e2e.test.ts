@@ -439,6 +439,66 @@ describe("a decomposed task as a flow and on the board (real daemon, real Chromi
     expect(await side.locator(".task-repo").last().textContent()).toContain(
       "waits for api-model, api-endpoint, web-price-tag",
     );
+    // Opening one decision from anywhere shows exactly that card on Home, and Next goes on from it.
+    const card = page.getByRole("article", { name: "decision card" });
+    const seen = new Set<string>();
+    for (let i = 0; i < 3; i++) {
+      await page.goto(app(`run/${parent}/overview`));
+      await side.waitFor({ timeout: 20_000 });
+      if ((await side.locator(".task-repo").count()) === 0)
+        await side.getByRole("button", { name: /^unfold/ }).click();
+      await side.locator(".task-repo .row").filter({ hasText: "needs you" }).nth(i).click();
+      // The address names the decision; Home shows exactly that card, not the queue's first.
+      const shown = await until(`the address of step row ${i}`, async () =>
+        children.find((c) => page.url().includes(`#/inbox/${c.repo}/${c.runId}/`)),
+      );
+      await until(`the card of ${shown.runId}`, async () =>
+        (
+          await card
+            .getByTestId("card-details")
+            .locator(".ctx")
+            .textContent()
+            .catch(() => "")
+        )?.includes(shown.runId)
+          ? true
+          : undefined,
+      );
+      seen.add(shown.runId);
+    }
+    // Each row opened its own card, not the queue's first.
+    expect(seen.size).toBe(3);
+    // Next goes on from the card that was opened: another card, and its address follows.
+    const before = page.url();
+    await page.getByRole("button", { name: "Next ›" }).click();
+    const after = await until("the next card", async () => (page.url() !== before ? page.url() : undefined));
+    const next = children.find((c) => after.includes(`#/inbox/${c.repo}/${c.runId}/`));
+    expect(next && !before.includes(next.runId)).toBe(true);
+    await until("the next card shown", async () =>
+      (
+        await card
+          .getByTestId("card-details")
+          .locator(".ctx")
+          .textContent()
+          .catch(() => "")
+      )?.includes(next?.runId ?? "?")
+        ? true
+        : undefined,
+    );
+    // From a step's page: the link of its question opens its own card.
+    const one = children[0] as { runId: string; repo: string };
+    await page.goto(app(`run/${one.runId}/overview`));
+    await page.getByTestId("decision-link").click();
+    await until("that step's card", async () =>
+      (
+        await card
+          .getByTestId("card-details")
+          .locator(".ctx")
+          .textContent()
+          .catch(() => "")
+      )?.includes(one.runId)
+        ? true
+        : undefined,
+    );
     // A step's page: Overview · Terminal · Changes · Activity, and the breadcrumb back to its task.
     const model = children.find((c) => c.repo === "shop-web") ?? children[0];
     await page.goto(app(`run/${model?.runId}/overview`));

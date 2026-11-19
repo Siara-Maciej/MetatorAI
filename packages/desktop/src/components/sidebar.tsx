@@ -13,6 +13,7 @@ import { useState } from "react";
 import { type BoardCard, boardCards } from "../board.ts";
 import { useDaemon } from "../daemon.tsx";
 import {
+  decisionKey,
   finishedText,
   firstLevel,
   isFinished,
@@ -106,7 +107,14 @@ export function Sidebar({
   /** The form: workflow, autonomy, host and worktree chosen by hand. */
   onForm(): void;
 }) {
-  const { runs, panesOf, down, unreadable, systemPlans } = useDaemon();
+  const { runs, panesOf, down, unreadable, systemPlans, inbox } = useDaemon();
+  // A run that asks on a card opens that decision on Home, exactly that one.
+  const decisionOf = (r: Run) => inbox.find((i) => i.runId === r.runId && sameRepo(i.repo, r.repo));
+  const openDecisionOr = (r: Run, pane?: string) => {
+    const d = decisionOf(r);
+    if (d) window.location.hash = routeHash({ screen: "inbox", pick: decisionKey(d) });
+    else onRun(r, pane);
+  };
   const [showFinished, setShowFinished] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const current = route.screen === "run" ? route.runId : undefined;
@@ -164,7 +172,8 @@ export function Sidebar({
             current={t.head?.runId !== undefined && t.head.runId === current}
             title={headRun && isFinished(headRun) ? `${t.title}\n${finishedText(headRun)}` : t.title}
             onClick={() => {
-              if (headRun) onRun(headRun, headRun.terminalAsk);
+              if (headRun && t.kind === "run") openDecisionOr(headRun, headRun.terminalAsk);
+              else if (headRun) onRun(headRun, headRun.terminalAsk);
               else if (t.kind === "system" || t.kind === "parent")
                 window.location.hash = routeHash({ screen: "board", task: t.key });
             }}
@@ -223,7 +232,7 @@ export function Sidebar({
                       current={r !== undefined && r.runId === current}
                       title={c.title}
                       onClick={() => {
-                        if (r) onRun(r, r.terminalAsk);
+                        if (r) openDecisionOr(r, r.terminalAsk);
                         else if (c.systemRunId)
                           window.location.hash = routeHash({
                             screen: "run",
