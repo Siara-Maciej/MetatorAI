@@ -269,14 +269,10 @@ export function cardLine(c: BoardCard): string {
     .join(" · ");
 }
 
-/** The card's part-of line: `step 2 of 4 · Add a currency to prices`. */
+/** The card's part-of line on its task's board: `step 2 of 4`, `a run it started`, or the task's own card. */
 export function partOfLine(c: BoardCard): string | undefined {
   if (c.head) return `the whole task · ${c.head.done} of ${c.head.of} steps done`;
-  if (!c.parent && !c.step) return undefined;
-  return [
-    c.step ? `step ${c.step.at} of ${c.step.of}` : undefined,
-    c.parent ? `of ${c.parent.label}` : undefined,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // A card is shown on its task's own board, under the task's name: only its place in the task.
+  if (c.step) return `step ${c.step.at} of ${c.step.of}`;
+  return c.parent ? "a run it started" : undefined;
 }

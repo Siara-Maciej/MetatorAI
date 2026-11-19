@@ -332,9 +332,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await bar.waitFor({ timeout: 20_000 });
     expect(await bar.textContent()).toContain("Escalated at check");
     expect(await bar.textContent()).not.toContain("Working:");
-    expect(await bar.getByTestId("escalated-reason").textContent()).toContain(
-      "gate `test -f ",
-    );
+    expect(await bar.getByTestId("escalated-reason").textContent()).toContain("gate `test -f ");
     expect(await bar.getByRole("button", { name: "Resume" }).count()).toBe(1);
     expect(await bar.getByRole("button", { name: "Close run…" }).count()).toBe(1);
     expect(await page.getByRole("button", { name: /^Attach/ }).count()).toBe(0);
@@ -348,9 +346,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await row.click();
     const card = page.getByTestId("escalated-card");
     await card.waitFor({ timeout: 20_000 });
-    expect(await card.getByTestId("escalated-reason").textContent()).toContain(
-      "gate `test -f ",
-    );
+    expect(await card.getByTestId("escalated-reason").textContent()).toContain("gate `test -f ");
     // The cause removed, then Resume: the app asks who, the daemon resumes the run and drives it.
     await Bun.write(repo.path(`.metator/runs/${runId}/fixed`), "");
     await card.getByRole("button", { name: "Resume" }).click();

@@ -141,10 +141,10 @@ export function subtasksByRepo(task: Pick<WorkTask, "subtasks">): { repo: string
   return out;
 }
 
-/** The task's line under its name: progress, who it needs, where it works. */
-export function taskLine(t: WorkTask): string {
+/** The task's line under its name: progress (unless shown apart), who it needs, where it works. */
+export function taskLine(t: WorkTask, withProgress = true): string {
   return [
-    t.progress ? `${t.progress.done}/${t.progress.of}` : t.head?.stage,
+    t.progress ? (withProgress ? `${t.progress.done}/${t.progress.of}` : undefined) : t.head?.stage,
     t.needsYou > 0 ? `${t.needsYou} need${t.needsYou === 1 ? "s" : ""} you` : undefined,
     t.escalated > 0 ? `${t.escalated} escalated` : undefined,
     t.repos.length > 1 ? `${t.repos.length} repositories` : t.repos[0],

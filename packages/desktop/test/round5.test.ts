@@ -272,7 +272,7 @@ describe("the board", () => {
   test("a card says what it is part of and where it stands; needs you and escalated are marked", () => {
     const c1 = byKey("/c1");
     expect([c1?.parent?.key, c1?.step, c1?.needsYou]).toEqual(["plan:add-currency", { at: 1, of: 4 }, true]);
-    expect(partOfLine(c1 as never)).toBe("step 1 of 4 · of Add a currency to prices");
+    expect(partOfLine(c1 as never)).toBe("step 1 of 4");
     // The system run is the whole task: how far its steps are, not "of" itself.
     expect(partOfLine(byKey("/sys") as never)).toBe("the whole task · 0 of 4 steps done");
     expect(cardLine(c1 as never)).toBe("shop-api · plan-approval · scenario");
@@ -352,6 +352,8 @@ describe("the board", () => {
       ["shop-web", [3, 4]],
     ]);
     expect(taskLine(sys as never)).toBe("0/4 · 1 needs you · 1 escalated · 2 repositories · scenario");
+    // On the Board the progress has its own line ("0 of 4 steps done"), so the line leaves it out.
+    expect(taskLine(sys as never, false)).toBe("1 needs you · 1 escalated · 2 repositories · scenario");
     // What needs the person first.
     expect(byAttentionFirst(tasks)[0]?.key).toBe("plan:add-currency");
     // Filters on the top level: a task works in every repository its steps do.

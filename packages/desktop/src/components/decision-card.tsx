@@ -132,9 +132,7 @@ export function DecisionCard({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
-  const others = q.multiSelect
-    ? []
-    : open.filter((o) => o.label !== choice && !askedInWords(o.label));
+  const others = q.multiSelect ? [] : open.filter((o) => o.label !== choice && !askedInWords(o.label));
   const second = others[0];
   return (
     <article className="card" aria-label="decision card">

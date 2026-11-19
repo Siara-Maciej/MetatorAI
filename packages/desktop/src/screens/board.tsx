@@ -232,7 +232,7 @@ export function BoardScreen({
               ) : null}
               {opened.head?.runId ? (
                 <>
-                  {" "}
+                  <span className="faint"> · </span>
                   <a
                     href={routeHash({ screen: "run", runId: opened.head.runId, tab: "plan" })}
                     title="the task's own page: its plan and its flow"
@@ -445,7 +445,7 @@ function TaskTile({
         <span className="faint">{duration(t.ageMs)}</span>
       </div>
       <div className="card-title">{t.title}</div>
-      <div className="card-line faint">{taskLine(t)}</div>
+      <div className="card-line faint">{taskLine(t, false)}</div>
       {t.progress ? (
         <div className="card-part" data-testid="task-progress">
           {t.progress.done} of {t.progress.of} steps done{opens ? " · open its board ›" : ""}
