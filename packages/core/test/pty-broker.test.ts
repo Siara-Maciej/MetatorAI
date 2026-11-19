@@ -3,6 +3,7 @@ import {
   DEFAULT_PATHS,
   DriverLock,
   InitRun,
+  NUDGE_ENTER_MS,
   PtyBroker,
   type PtyEvent,
   RunJournal,
@@ -173,7 +174,12 @@ describe("PtyBroker", () => {
     const pty = new FakePty(1001);
     w.start("w1:p1", run.runId, pty);
     expect((await w.broker.nudge("w1:p1", "go on")).isOk()).toBe(true);
-    expect(pty.typed).toEqual(["go on\r"]);
+    // The words first; Enter on its own a moment later (a burst ending in Enter is a paste).
+    expect(pty.typed).toEqual(["go on"]);
+    const enter = w.timers.find((t) => t.ms === NUDGE_ENTER_MS);
+    expect(enter).toBeDefined();
+    enter?.fn();
+    expect(pty.typed).toEqual(["go on", "\r"]);
     await w.lock.attach({ runId: run.runId, by: "maciej" });
     expect((await w.broker.nudge("w1:p1", "go on"))._unsafeUnwrapErr().message).toContain(
       "no nudge over a person",

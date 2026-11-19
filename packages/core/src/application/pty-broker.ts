@@ -8,6 +8,9 @@ import type { RunRepository } from "./run-repository.ts";
 /** How much of a pane's output a late viewer gets. */
 const BACKLOG_BYTES = 200_000;
 
+/** How long after the nudge's words its Enter follows, so the two are not taken as one paste. */
+export const NUDGE_ENTER_MS = 150;
+
 export interface PtyBrokerDependencies {
   readonly repo: Pick<RunRepository, "load">;
   readonly journal: Pick<RunJournal, "record" | "questions">;
@@ -171,7 +174,18 @@ export class PtyBroker {
           ),
         );
     }
-    entry.pty.write(`${text}\r`);
+    // The words, then Enter on its own a moment later: a terminal UI takes a burst of text that
+    // ends in "\r" as a paste, and the Enter would land in the input instead of sending it.
+    entry.pty.write(text);
+    const after =
+      this.d.after ??
+      ((delay, fn) => {
+        const t = setTimeout(fn, delay);
+        return () => clearTimeout(t);
+      });
+    after(NUDGE_ENTER_MS, () => {
+      if (entry.alive) entry.pty.write("\r");
+    });
     entry.idle = false;
     this.armIdle(paneId, entry);
     return ok(undefined);

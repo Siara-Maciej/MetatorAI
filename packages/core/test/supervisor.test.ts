@@ -159,7 +159,8 @@ describe("Supervisor", () => {
     await w.idle();
     const first = (await w.supervisor.tick())._unsafeUnwrap();
     expect([first.nudged, first.asked]).toEqual([[run.runId], []]);
-    expect(pty?.typed).toEqual([`${NUDGE}\r`]);
+    // The words; their Enter follows as its own write (pty-broker.test.ts pins that).
+    expect(pty?.typed).toEqual([NUDGE]);
     expect(w.broker.status("w1:p1")?.idle).toBe(false);
     // Idle again after the nudge: the person is asked, once.
     await w.idle();

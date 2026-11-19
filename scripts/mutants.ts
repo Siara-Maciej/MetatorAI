@@ -2652,6 +2652,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/pty-broker.ts",
+    from: "entry.pty.write(text);",
+    to: `entry.pty.write(\`\${text}\\r\`);`,
+    why: "a nudge's Enter is its own write, or a terminal UI takes the words and Enter as one paste",
+  },
+  {
+    file: "packages/core/src/application/pty-broker.ts",
     from: '      if (record.value.driver?.by === "human")\n        return err(',
     to: "      if (false)\n        return err(",
     why: "no nudge over a person at the keyboard",
