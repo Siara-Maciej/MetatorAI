@@ -81,15 +81,28 @@ const routes: readonly Route[] = [
     pattern: "/things/:thing/break",
     handler: () => err(MetatorError.usage("that cannot be done")),
   }),
+  route({
+    method: "GET",
+    pattern: "/things/:thing/wait",
+    longPoll: true,
+    handler: () => ok({ waited: true }),
+  }),
 ];
 
 const call = async (
   method: string,
   path: string,
-  init: { body?: unknown; raw?: string; headers?: Record<string, string>; unknownRepo?: boolean } = {},
+  init: {
+    body?: unknown;
+    raw?: string;
+    headers?: Record<string, string>;
+    unknownRepo?: boolean;
+    untimed?: (req: Request) => void;
+  } = {},
 ) => {
   const dispatch = dispatcher(routes, {
     daemon,
+    ...(init.untimed ? { untimed: init.untimed } : {}),
     containerFor: () =>
       init.unknownRepo ? err({ code: "NOT_FOUND", message: "repository x is not in /work" }) : ok(container),
   });
@@ -246,6 +259,22 @@ describe("which repository a call is for (a daemon serving a folder)", () => {
 });
 
 describe("the daemon's route table", () => {
+  test("a long poll is not cut off by the server's idle timeout; any other request is", async () => {
+    const lifted: string[] = [];
+    const untimed = (req: Request) => lifted.push(new URL(req.url).pathname);
+    expect((await call("GET", "/things/a/wait", { untimed })).json).toEqual({
+      ok: true,
+      data: { waited: true },
+    });
+    await call("GET", "/things/a", { untimed });
+    expect(lifted).toEqual(["/things/a/wait"]);
+    // The daemon's own waits are long polls: a worker may work for minutes.
+    expect(ROUTES.filter((r) => r.longPoll).map((r) => `${r.method} ${r.pattern}`)).toEqual([
+      "GET /panes/:pane/wait",
+      "GET /runs/:run/wait",
+    ]);
+  });
+
   test("no two routes answer the same method and pattern; every POST with fields has a schema", () => {
     const keys = ROUTES.map((r) => `${r.method} ${r.pattern}`);
     expect(keys.filter((k, i) => keys.indexOf(k) !== i)).toEqual([]);

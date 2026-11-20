@@ -248,4 +248,16 @@ describe("panes (real daemon, real PTYs)", () => {
     expect((await post(`/panes/${paneId}/close`, {})).ok).toBe(true);
     await mt("run", "close", "--run", started, "--aborted", "--reason", "the test ends it");
   }, 60_000);
+  test("a wait longer than the server's idle timeout (10 s) answers when it ends, not with a reset", async () => {
+    const shell = await post("/panes", {
+      runId,
+      role: "shell",
+      label: "long",
+      argv: ["sh", "-c", "sleep 60"],
+    });
+    const id = (shell.data as { id: string }).id;
+    const waited = data(await mt("pane", "wait", id, "--until", "exited", "--timeout", "12000"));
+    expect(waited).toEqual({ state: "timeout" });
+    expect((await post(`/panes/${id}/close`, {})).data).toEqual({ closed: true });
+  }, 30_000);
 });

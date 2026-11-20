@@ -115,6 +115,7 @@ export const RUN_ROUTES: readonly Route[] = [
   route({
     method: "GET",
     pattern: "/runs/:run/wait",
+    longPoll: true,
     handler: (call) =>
       call.c.resolve("conductor").wait({
         runId: run(call),

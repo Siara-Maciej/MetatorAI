@@ -103,8 +103,8 @@ export function PaneFrame({
       ) : (
         <div className="empty" />
       )}
-      {p.ended ? (
-        // The pane's work is over: it stays, read-only, with what ended it, until it is closed.
+      {p.ended || (p.live && !p.live.alive) ? (
+        // The pane's work is over (the daemon says so, or its process is gone a moment before): it stays, read-only, with what ended it, until it is closed.
         <div
           className={`pane-ended finished-banner ${endedBanner(p).tone}`}
           role="status"
@@ -123,24 +123,13 @@ export function PaneFrame({
           </button>
         </div>
       ) : p.live?.alive ? null : (
-        <div
-          className="pane-ended"
-          role="status"
-          data-testid={`ended-${p.id}`}
-          title={p.live ? "The pane keeps the last output of the process." : undefined}
-        >
-          <span className={state === "finished" ? "msg done" : "msg"}>
-            {state === "finished"
-              ? "The process finished its work (code 0)."
-              : p.live
-                ? `The process ended${p.live.exitCode !== undefined ? ` with code ${p.live.exitCode}` : ""}.`
-                : "Nothing runs in this pane: its process did not start, or the daemon was restarted."}
+        <div className="pane-ended" role="status" data-testid={`ended-${p.id}`}>
+          <span className="msg">
+            Nothing runs in this pane: its process did not start, or the daemon was restarted.
           </span>
-          {state === "finished" ? null : (
-            <button type="button" className="primary" onClick={onRetry}>
-              Retry
-            </button>
-          )}
+          <button type="button" className="primary" onClick={onRetry}>
+            Retry
+          </button>
           <button type="button" onClick={onClose}>
             {lastOfTab ? "Close tab" : "Close pane"}
           </button>

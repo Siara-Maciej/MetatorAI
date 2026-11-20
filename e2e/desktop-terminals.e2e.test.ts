@@ -240,8 +240,9 @@ describe("terminals by task (real daemon, real Chromium)", () => {
     await until("the badge with the finished worker", async () =>
       (await badge.textContent())?.includes("1 sub-terminal · 1 finished") ? true : undefined,
     );
-    // "Close finished (1)" in the session's view closes it; the badge goes.
-    await badge.click();
+    // "Close finished (1)" on the task's view closes it too: a finished sub-terminal is the
+    // task's, though no tile of this view shows it.
+    expect(await page.getByTestId("close-finished").textContent()).toBe("Close finished (1)");
     await page.getByTestId("close-finished").click();
     await until("the finished pane closed", async () =>
       (await layout()).some((p) => p.id === worker) ? undefined : true,

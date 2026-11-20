@@ -224,7 +224,14 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     }
     return undefined;
   };
-  const dispatch = dispatcher(ROUTES, { daemon, containerFor, repoOfToken });
+  // Bun ends a request that sends nothing for 10 s; a long poll waits as long as it was asked to.
+  let listening: { timeout(req: Request, seconds: number): void } | undefined;
+  const dispatch = dispatcher(ROUTES, {
+    daemon,
+    containerFor,
+    repoOfToken,
+    untimed: (req) => listening?.timeout(req, 0),
+  });
 
   const server = Bun.serve<Socket>({
     port: opts.port,
@@ -249,6 +256,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     },
     websocket: socketHandlers({ pollMs, containerFor, state, inbox }, sockets),
   });
+  listening = server;
   bound = server.port ?? opts.port;
   const timers = startTimers({
     repos: () => (folder ? folder.repos.map((r) => r.name) : [undefined]),

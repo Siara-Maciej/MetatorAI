@@ -3068,6 +3068,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/cli/src/serve/http.ts",
+    from: "if (found.route.longPoll) untimed?.(req);",
+    to: "",
+    why: "a long poll (run wait, pane wait) is not cut off by the server's 10 s idle timeout",
+  },
+  {
+    file: "packages/cli/src/serve/http.ts",
     from: 'if (error.code === "CONFLICT") return 409;',
     to: "",
     why: "a write on a stale digest is 409, not 400",
@@ -6695,6 +6701,18 @@ export const MUTANTS: readonly Mutant[] = [
     from: "    r.questions.length > 0 &&\n    !r.driving &&",
     to: "    !r.driving &&",
     why: "Open a session for a run that asks is offered only while it asks",
+  },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: "(s ? sessionView(s) : panesOfTask(t))",
+    to: "(s ? sessionView(s) : taskView(t))",
+    why: "Close finished on a task's view closes its finished sub-terminals too, not only its tiles",
+  },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: `(p.repo ? \`\${p.repo}|\${p.id}\` : p.id)`,
+    to: "p.id",
+    why: "two repositories' panes with the same id are two tiles of a task, not one",
   },
   {
     file: "packages/desktop/src/terminals.ts",

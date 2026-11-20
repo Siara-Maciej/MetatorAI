@@ -82,6 +82,11 @@ export interface Route<B = unknown> {
   readonly body?: z.ZodType<B>;
   /** Answers for every repository at once: it needs no container of its own. */
   readonly global?: true;
+  /**
+   * Answers when what it waits for happens (a worker reports, a pane goes idle), which can be
+   * minutes: the server's idle timeout does not cut it off.
+   */
+  readonly longPoll?: true;
   /** Who may call: an error here is 403, and the handler does not run. */
   readonly guard?: (call: Call<B>) => Promise<MetatorError | undefined>;
   readonly handler: (call: Call<B>) => Promise<Answer> | Answer;
@@ -153,6 +158,8 @@ export interface Dispatch {
   readonly containerFor: (
     repo: string | undefined,
   ) => Result<MetatorContainer, { readonly code: string; readonly message: string }>;
+  /** Lifts the server's idle timeout for one request: a long poll's. */
+  readonly untimed?: (req: Request) => void;
 }
 
 /** What is wrong with a body, as one line a person can act on: `by: expected string`. */
@@ -167,7 +174,10 @@ function problems(error: z.ZodError): string {
  * pattern fit; its repository; its body, read and checked; its guard; its handler's result as
  * the envelope. No route is NOT_FOUND (404), a body that does not fit USAGE (400).
  */
-export function dispatcher(routes: readonly Route[], { daemon, containerFor, repoOfToken }: Dispatch) {
+export function dispatcher(
+  routes: readonly Route[],
+  { daemon, containerFor, repoOfToken, untimed }: Dispatch,
+) {
   const table = routes.map(compile);
   return async (req: Request, url: URL, path: string): Promise<Response> => {
     let found: { route: Route; params: Record<string, string> } | undefined;
@@ -180,6 +190,7 @@ export function dispatcher(routes: readonly Route[], { daemon, containerFor, rep
       }
     }
     if (!found) return respond(err(new MetatorError("NOT_FOUND", `no route ${req.method} ${path}`)));
+    if (found.route.longPoll) untimed?.(req);
     const token = req.headers.get("x-metator-pane");
     const repo =
       url.searchParams.get("repo") ??

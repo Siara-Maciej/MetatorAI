@@ -8,7 +8,7 @@ Click **+ New run** at the bottom of the sidebar, or press `n`. With no run yet,
 
 When no host is installed, no tab opens. The app says so at the top of the screen, names the programs the daemon looked for, and points to the guide page [Copilot and Claude Code](../guide/hosts.md). Install one and click **+ New run** again; the daemon needs no restart.
 
-If the host's program starts and exits at once, for example because you are not logged in, the pane stays with its last output and a line such as "The process ended with code 3." **Retry** starts it again and **Close tab** removes the tab.
+If the host's program starts and exits at once, for example because you are not logged in, the pane stays with its last output and a red banner such as **Ended with code 3 — its process ended**. **Retry** starts it again and **Close tab** removes the tab.
 
 Write what you need in the pane. A conversation can look like this:
 

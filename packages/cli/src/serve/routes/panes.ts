@@ -89,6 +89,7 @@ export const PANE_ROUTES: readonly Route[] = [
   route({
     method: "GET",
     pattern: "/panes/:pane/wait",
+    longPoll: true,
     handler: ({ c, params, query }) => {
       const until = (query.get("until") ?? "idle,exited")
         .split(",")

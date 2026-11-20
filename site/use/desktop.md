@@ -13,7 +13,7 @@ A task's view shows, side by side (two or three across, more wrap below):
 
 The workers a session starts are not on this view. A session's tile has a badge, **2 sub-terminals · 1 working · 1 finished**; a click opens the session's own view: its conductor, then its sub-terminals (its workers and shells), with **Tasks › task › shop-api** back. Every tile is a live terminal: you watch, take the keyboard and type as in any pane.
 
-A terminal whose work is over stays on the screen, read-only, with a banner on its frame: **Finished — tests pass** (its summary, or why it ended: its run finished, its result was collected, the host ended it), or, after a failure, **Ended with code 2 — …** in red with **Retry**. **Close** closes it; **Close finished (N)** in the bar closes every finished terminal of the view. A finished worker also counts on its session's badge (`2 sub-terminals · 2 finished`).
+A terminal whose work is over stays on the screen, read-only, with a banner on its frame: **Finished — tests pass** (its summary, or why it ended: its run finished, its result was collected, the host ended it), or, after a failure, **Ended with code 2 — …** in red with **Retry**. **Close** closes it; **Close finished (N)** in the bar closes the finished terminals: on a session's view the session's, on a task's view every one of the task, its sub-terminals too, so none stays open where no view shows it. A finished worker also counts on its session's badge (`2 sub-terminals · 2 finished`).
 
 **Workspaces** in the bar shows the daemon's workspaces and their tabs, as below: your shells, and the chat of a run not started yet. **By task ›** there leads back.
 

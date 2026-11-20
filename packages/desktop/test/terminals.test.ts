@@ -3,7 +3,9 @@ import type { PaneView } from "../src/api.ts";
 import { gotoRows, paneStateOf, parseRoute, type Run, routeHash } from "../src/model.ts";
 import {
   endedBanner,
+  finishedOf,
   isEnded,
+  paneKey,
   pathOf,
   sessionIn,
   sessionView,
@@ -107,6 +109,42 @@ describe("terminals by task (round 8)", () => {
     expect(whereIs(tasks, apiWorker1.id)).toEqual({ task: sys as never, session: "api" });
     expect(whereIs(tasks, aloneWorker.id)).toEqual({ task: alone as never, session: "alone" });
     expect(whereIs(tasks, "w9:p9")).toBeUndefined();
+  });
+
+  test("each repository numbers its own panes: the same id in two repositories is two panes", () => {
+    const same = [
+      run("t", { children: ["b", "s"], repo: "platform" }),
+      run("b", { parent: "t", repo: "billing" }),
+      run("s", { parent: "t", repo: "shop-api" }),
+    ];
+    const intake = pane({ id: "w1:p1", role: "apps", startedRun: "t", repo: "platform" });
+    const billing = pane({ id: "w1:p1", role: "conductor", runId: "b", repo: "billing" });
+    const billingWorker = pane({ id: "w1:p2", runId: "b", repo: "billing" });
+    const shop = pane({ id: "w1:p1", role: "conductor", runId: "s", repo: "shop-api" });
+    const shopWorker = pane({ id: "w1:p2", runId: "s", repo: "shop-api" });
+    const [task] = terminalTasks(same, [intake, billing, billingWorker, shop, shopWorker]);
+    if (!task) throw new Error("no task");
+    expect(taskView(task)).toEqual([intake, billing, shop]);
+    expect(taskView(task).map(paneKey)).toEqual(["platform|w1:p1", "billing|w1:p1", "shop-api|w1:p1"]);
+    expect(whereIs([task], paneKey(shopWorker))).toEqual({ task: task as never, session: "s" });
+    expect(whereIs([task], paneKey(billing))).toEqual({ task: task as never });
+    const rows = taskGotoRows([task]);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(rows.length);
+    expect(rows.find((r) => r.focusKey === paneKey(shopWorker))?.task).toEqual({ runId: "t", session: "s" });
+  });
+
+  test("Close finished on a task's view takes every finished terminal of the task, its sub-terminals too", () => {
+    const [sys] = terminalTasks(runs, panes);
+    if (!sys) throw new Error("no task");
+    // apiWorker2 is a finished sub-terminal: not a tile of the task's view, yet the task's.
+    expect(taskView(sys)).not.toContain(apiWorker2);
+    expect(finishedOf(sys)).toEqual([apiWorker2]);
+    const api = sessionIn(sys, "api");
+    if (!api) throw new Error("no session");
+    expect(finishedOf(sys, api)).toEqual([apiWorker2]);
+    const web = sessionIn(sys, "web");
+    if (!web) throw new Error("no session");
+    expect(finishedOf(sys, web)).toEqual([]);
   });
 
   test("an ended pane says why in its banner: done, or the error tone with its code", () => {

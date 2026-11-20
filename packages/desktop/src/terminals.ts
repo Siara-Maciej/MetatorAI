@@ -101,6 +101,12 @@ export function terminalTasks(
   return out;
 }
 
+/**
+ * A pane's key in a task's views: its repository and its id. Each repository numbers its own
+ * panes (`w1:p1` in billing and in shop-api), so the id alone names two panes in one task.
+ */
+export const paneKey = (p: Pick<TPane, "id" | "repo">): string => (p.repo ? `${p.repo}|${p.id}` : p.id);
+
 /** Every pane a task holds: its main terminal, its sessions and all their sub-terminals. */
 export const panesOfTask = (t: TerminalTask): TPane[] =>
   [
@@ -124,18 +130,30 @@ export const sessionView = (s: Session): TPane[] =>
 export const sessionIn = (t: TerminalTask, runId: string): Session | undefined =>
   t.sessions.find((s) => s.runId === runId) ?? (t.own.runId === runId ? t.own : undefined);
 
-/** Where a pane is shown: its task, and the session whose own view holds it (a sub-terminal). */
+/**
+ * Where a pane is shown: its task, and the session whose own view holds it (a sub-terminal).
+ * `key` is the pane's key (`paneKey`); a bare id (a route from a tab) is looked for after it.
+ */
 export function whereIs(
   tasks: readonly TerminalTask[],
-  paneId: string,
+  key: string,
 ): { readonly task: TerminalTask; readonly session?: string | undefined } | undefined {
-  for (const t of tasks) {
-    if (taskView(t).some((p) => p.id === paneId)) return { task: t };
-    const s = [t.own, ...t.sessions].find((x) => x.subs.some((p) => p.id === paneId));
-    if (s) return { task: t, session: s.runId };
-  }
+  for (const fits of [(p: TPane) => paneKey(p) === key, (p: TPane) => p.id === key])
+    for (const t of tasks) {
+      if (taskView(t).some(fits)) return { task: t };
+      const s = [t.own, ...t.sessions].find((x) => x.subs.some(fits));
+      if (s) return { task: t, session: s.runId };
+    }
   return undefined;
 }
+
+/**
+ * What "Close finished" closes: on a session's view its finished terminals; on a task's view
+ * every finished terminal of the task, its sub-terminals too (the badges count them), so none is
+ * left open where no view shows it.
+ */
+export const finishedOf = (t: TerminalTask, s?: Session): TPane[] =>
+  (s ? sessionView(s) : panesOfTask(t)).filter((p) => p.ended !== undefined);
 
 /** A pane whose work is over: the daemon says so (`ended`), or its process is gone. */
 export const isEnded = (p: Pick<PaneView, "ended" | "live">): boolean =>
@@ -189,10 +207,10 @@ export function taskGotoRows(tasks: readonly TerminalTask[]): GotoRow[] {
   const rows: GotoRow[] = [];
   for (const t of tasks)
     for (const p of panesOfTask(t)) {
-      const where = whereIs([t], p.id);
+      const where = whereIs([t], paneKey(p));
       rows.push({
         kind: "pane",
-        id: `task:${t.runId}:${p.id}`,
+        id: `task:${t.runId}:${paneKey(p)}`,
         path: pathOf(t, p),
         task: { runId: t.runId, session: where?.session },
         label: paneLabel(p),
@@ -200,6 +218,7 @@ export function taskGotoRows(tasks: readonly TerminalTask[]): GotoRow[] {
         detail: paneLabel(p),
         state: isEnded(p) ? "finished" : paneStateOf(p),
         paneId: p.id,
+        focusKey: paneKey(p),
       });
     }
   return rows;

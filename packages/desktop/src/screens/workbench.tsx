@@ -55,6 +55,8 @@ import {
   workspaceOfPane,
 } from "../model.ts";
 import {
+  finishedOf,
+  paneKey,
   type Session,
   sessionIn,
   sessionView,
@@ -175,12 +177,15 @@ export function WorkbenchScreen({
       : view === "task" && chosen
         ? taskView(chosen)
         : (tab?.panes ?? []).map((id) => panes.find((p) => p.id === id)).filter((p): p is PaneView => !!p);
+  /**
+   * A pane's key on this screen: its id in a tab (one repository), its repository and id in a
+   * task's views, where two repositories' panes may have the same id.
+   */
+  const keyOf = (p: PaneView & { readonly repo?: string | undefined }) =>
+    view === "tabs" ? p.id : paneKey(p);
+  const byKey = (key: string | undefined) => tabPanes.find((p) => keyOf(p) === key);
   const tree: SplitNode | undefined =
-    view === "tabs"
-      ? tab
-        ? (tab.tree ?? evenTree(tab.panes))
-        : undefined
-      : evenTree(tabPanes.map((p) => p.id));
+    view === "tabs" ? (tab ? (tab.tree ?? evenTree(tab.panes)) : undefined) : evenTree(tabPanes.map(keyOf));
   /** The repository a pane is in (a task's panes are in several). */
   const repoOf = (p: PaneView | undefined) => (p as { repo?: string } | undefined)?.repo ?? repoName;
   const [focus, setFocus] = useState<string>();
@@ -199,7 +204,7 @@ export function WorkbenchScreen({
       showTab(t, showPane);
     }
   }
-  const focused = tabPanes.find((p) => p.id === focus) ?? tabPanes[0];
+  const focused = byKey(focus) ?? tabPanes[0];
   const [zoom, setZoom] = useState<string>();
   // The zoom is the tab's: a tab change drops it.
   const zoomTab = useRef<string | undefined>(undefined);
@@ -223,8 +228,8 @@ export function WorkbenchScreen({
   const scrollback = useOption("terminal.scrollbackLines", 5000);
   const attach = async (p: PaneView) => {
     await controlsOf(p).attach();
-    setFocus(p.id);
-    handles.current.get(p.id)?.focus();
+    setFocus(keyOf(p));
+    handles.current.get(keyOf(p))?.focus();
   };
   /** A request whose answer is a pane: the pane gets the focus. */
   const opening = async (fn: () => ReturnType<typeof client.openPane>, refused?: string) => {
@@ -288,10 +293,10 @@ export function WorkbenchScreen({
   const commands: Record<string, (p: PaneView | undefined, t: WorkbenchTab | undefined) => void> = {
     attach: (p) => p && void attach(p),
     release: (p) => void controlsOf(p).release(),
-    zoom: (p) => setZoom((z) => (z ? undefined : p?.id)),
+    zoom: (p) => setZoom((z) => (z || !p ? undefined : keyOf(p))),
     splitRight: (p) => p && void opening(() => client.splitPane(p.id, "right", repoName)),
     splitDown: (p) => p && void opening(() => client.splitPane(p.id, "down", repoName)),
-    copyMode: (p) => p && setMode({ kind: "copy", pane: p.id }),
+    copyMode: (p) => p && setMode({ kind: "copy", pane: keyOf(p) }),
     plan: (p, t) => {
       const runId = p?.runId ?? t?.runId;
       if (runId) onOpenPlan(runId);
@@ -336,10 +341,10 @@ export function WorkbenchScreen({
         client.openPane({ workspace: t.workspaceId, tab: t.tabId, role: "shell", label: "shell" }, repoName),
       ),
     closeTab: (_p, t) => t && void closeTab(t),
-    focusLeft: (p) => setFocus(neighborPane(tree, p?.id, -1)),
-    focusUp: (p) => setFocus(neighborPane(tree, p?.id, -1)),
-    focusRight: (p) => setFocus(neighborPane(tree, p?.id, 1)),
-    focusDown: (p) => setFocus(neighborPane(tree, p?.id, 1)),
+    focusLeft: (p) => setFocus(neighborPane(tree, p && keyOf(p), -1)),
+    focusUp: (p) => setFocus(neighborPane(tree, p && keyOf(p), -1)),
+    focusRight: (p) => setFocus(neighborPane(tree, p && keyOf(p), 1)),
+    focusDown: (p) => setFocus(neighborPane(tree, p && keyOf(p), 1)),
     goto: () => setMode({ kind: "goto" }),
     nextWaiting: () => {
       const next = nextWaitingTab(repos, tab?.key);
@@ -353,7 +358,7 @@ export function WorkbenchScreen({
       pane: p ? { runId: p.runId, role: p.role, asks: paneStateOf(p) === "asks" } : undefined,
       attached: c.attached,
       taken: c.taken,
-      zoomed: p !== undefined && zoom === p.id,
+      zoomed: p !== undefined && zoom === keyOf(p),
       tab: t ? { kind: t.kind, runId: t.runId, panes: t.panes.length } : undefined,
     };
   };
@@ -366,7 +371,7 @@ export function WorkbenchScreen({
   ) => {
     e.preventDefault();
     e.stopPropagation();
-    if (p) setFocus(p.id);
+    if (p) setFocus(keyOf(p));
     const items: MenuItem[] = menuCommands(menus, contextOf(p, t)).map((c) => ({
       label: c.label,
       key: keyLabel(keymap, c.id),
@@ -382,7 +387,7 @@ export function WorkbenchScreen({
     setMode(IDLE);
     if (row.task) {
       window.location.hash = routeHash({ screen: "grid", task: row.task.runId, session: row.task.session });
-      if (row.paneId) setFocus(row.paneId);
+      if (row.focusKey ?? row.paneId) setFocus(row.focusKey ?? row.paneId);
       return;
     }
     const t = row.tab;
@@ -390,8 +395,9 @@ export function WorkbenchScreen({
     showTab(t, row.paneId ?? panes.find((p) => p.runId === t.runId && p.role === "conductor")?.id);
   };
   const gotoTaskRows = useMemo(() => taskGotoRows(tasks), [tasks]);
-  /** The ended panes of the view: "Close finished (N)" closes them. */
-  const endedHere = tabPanes.filter((p) => p.ended !== undefined);
+  /** The ended panes "Close finished (N)" closes: a task's all, a session's, a tab's. */
+  const endedHere =
+    chosen && view !== "tabs" ? finishedOf(chosen, session) : tabPanes.filter((p) => p.ended !== undefined);
   const closeFinished = async () => {
     for (const p of endedHere) await action.run(() => client.closePane(p.id, repoOf(p)));
   };
@@ -414,7 +420,7 @@ export function WorkbenchScreen({
   const blockedKey = (p: PaneView) => {
     if (attachOnType === "never") return;
     if (attachOnType === "always") void attach(p);
-    else setMode({ kind: "ask", pane: p.id });
+    else setMode({ kind: "ask", pane: keyOf(p) });
   };
   // Keys: the prefix, then one chord; the terminals' own keys are left alone otherwise.
   useEffect(() => {
@@ -426,7 +432,7 @@ export function WorkbenchScreen({
       if (mode.kind === "goto" || mode.kind === "menu" || document.querySelector("dialog[open]")) return;
       if (mode.kind === "ask") {
         if (chord === "enter") {
-          const p = panes.find((x) => x.id === mode.pane);
+          const p = byKey(mode.pane) ?? panes.find((x) => x.id === mode.pane);
           setMode(IDLE);
           if (p) void attach(p);
         } else if (chord === "escape") setMode(IDLE);
@@ -473,28 +479,28 @@ export function WorkbenchScreen({
   // A task's tiles have their own border and head: their frames draw none.
   const framed = view === "tabs" && (borders === "always" || (borders === "auto" && tabPanes.length > 1));
   const renderPane = (id: string): ReactNode => {
-    const p = tabPanes.find((x) => x.id === id);
+    const p = byKey(id);
     if (!p) return <div className="empty">pane {id}</div>;
     return (
       <PaneFrame
         pane={p}
         state={paneStateOf(p)}
         repo={repoOf(p)}
-        focused={focused?.id === p.id}
+        focused={focused === p}
         framed={framed}
         labels={labels}
         symbols={symbols}
         mine={controlsOf(p).attached}
         canType={canType(p)}
         scrollback={scrollback}
-        asking={mode.kind === "ask" && mode.pane === p.id}
-        copying={mode.kind === "copy" && mode.pane === p.id}
+        asking={mode.kind === "ask" && mode.pane === keyOf(p)}
+        copying={mode.kind === "copy" && mode.pane === keyOf(p)}
         lastOfTab={view === "tabs" && tabPanes.length === 1}
-        onFocus={() => setFocus(p.id)}
+        onFocus={() => setFocus(keyOf(p))}
         onMenu={(e) => openMenu(e, ["pane"], p, tab, `pane ${p.id}`)}
-        onZoom={() => setZoom(zoom === p.id ? undefined : p.id)}
+        onZoom={() => setZoom(zoom === keyOf(p) ? undefined : keyOf(p))}
         onBlockedKey={() => blockedKey(p)}
-        onReady={(h) => handles.current.set(p.id, h)}
+        onReady={(h) => handles.current.set(keyOf(p), h)}
         onRetry={() => void retryPane(p)}
         onClose={() =>
           view === "tabs" && tab && tabPanes.length === 1
@@ -558,7 +564,12 @@ export function WorkbenchScreen({
             : (own?.label ?? paneLabel(p));
       const badge = view === "task" && own ? subBadge(own) : undefined;
       return (
-        <div key={p.id} className={`tile${main ? " main" : ""}`} data-testid={`tile-${p.id}`}>
+        <div
+          key={keyOf(p)}
+          className={`tile${main ? " main" : ""}`}
+          data-testid={`tile-${p.id}`}
+          data-repo={p.repo}
+        >
           <div className="tile-head">
             <span className="tile-label">{label}</span>
             {view === "task" && own && !main ? (
@@ -579,11 +590,11 @@ export function WorkbenchScreen({
               </a>
             ) : null}
           </div>
-          {renderPane(p.id)}
+          {renderPane(keyOf(p))}
         </div>
       );
     };
-    const shownTiles = zoom ? tabPanes.filter((p) => p.id === zoom) : tabPanes;
+    const shownTiles = zoom ? tabPanes.filter((p) => keyOf(p) === zoom) : tabPanes;
     return (
       <section
         className="workbench by-task"

@@ -726,6 +726,8 @@ export interface GotoRow {
   readonly detail: string;
   readonly state: PaneShown | "question";
   readonly paneId?: string | undefined;
+  /** A task's pane: its key in the task's views (its repository and id; terminals.ts `paneKey`). */
+  readonly focusKey?: string | undefined;
   readonly questionId?: string | undefined;
 }
 
