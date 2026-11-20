@@ -631,7 +631,8 @@ export class Panes {
     if (conductor) {
       const live = this.d.broker.status(conductor.id);
       if (live?.alive) return ok({ ...conductor, live });
-      return this.spawn(conductor, input.size ?? DEFAULT_SIZE);
+      // Its session again in its pane: what the last one showed stays above what this one prints.
+      return this.spawn(conductor, input.size ?? DEFAULT_SIZE, await this.keptScreen(conductor.id));
     }
     const known = record.value.host && this.d.hosts.has(record.value.host) ? record.value.host : undefined;
     const host = input.host ?? known ?? [...this.d.hosts.keys()][0];

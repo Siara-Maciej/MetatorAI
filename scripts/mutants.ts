@@ -7158,4 +7158,10 @@ export const MUTANTS: readonly Mutant[] = [
     to: "",
     why: "a conductor Continue brings back is told to go on",
   },
+  {
+    file: "packages/core/src/application/panes.ts",
+    from: "      return this.spawn(conductor, input.size ?? DEFAULT_SIZE, await this.keptScreen(conductor.id));",
+    to: "      return this.spawn(conductor, input.size ?? DEFAULT_SIZE);",
+    why: "a conductor started again in its pane keeps the screen it left",
+  },
 ];

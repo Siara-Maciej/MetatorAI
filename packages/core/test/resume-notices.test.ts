@@ -79,6 +79,11 @@ describe("ResumeNotices: a resumed session is told, once, to go on", () => {
     w.hold(undefined);
     w.set("working");
     expect((await w.notices.tick())._unsafeUnwrap()).toEqual([]);
+    // Never into a question that waits for the person: the host's prompt on its screen, or a card.
+    for (const state of ["blocked", "waiting"]) {
+      w.set(state);
+      expect((await w.notices.tick())._unsafeUnwrap()).toEqual([]);
+    }
     expect(w.pending).toHaveLength(1);
     w.set("idle");
     await w.notices.tick();

@@ -425,6 +425,20 @@ describe("Panes", () => {
     expect((await w.panes.setStartedRun("w9:p9", run.runId))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
   });
 
+  test("a conductor started again in its pane (the supervisor's resume, `run start`) keeps the screen it left above the new one", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const conductor = (await w.panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    w.copilot.started.at(-1)?.pty.print("answer: yes\n");
+    w.copilot.started.at(-1)?.pty.exit(0);
+    await Bun.sleep(5);
+    (await w.panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    w.copilot.started.at(-1)?.pty.print("conducting again\n");
+    const shown = await w.panes.read(conductor.id);
+    expect(shown).toContain("answer: yes");
+    expect(shown.indexOf("answer: yes")).toBeLessThan(shown.indexOf("conducting again"));
+  });
+
   test("a host session a signal ended is paused, not ended, its session kept; a command's end is an end", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();
