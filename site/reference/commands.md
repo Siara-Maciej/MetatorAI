@@ -2022,7 +2022,7 @@ metator run list [options]
 
 ### `metator run continue`
 
-Continue a run: pick one that waits for you or stopped, drive it again and watch it
+Continue a task: with the daemon, resume its paused sessions and carry again every run of it (children in every repository) that nothing drives; without one, drive the run again and watch it
 
 ```bash
 metator run continue [options] [run]
@@ -2031,6 +2031,7 @@ metator run continue [options] [run]
 | Argument or option | Description | Default |
 |---|---|---|
 | `[run]` | run id (default: pick in a terminal, else the latest active run) | |
+| `--run <id>` | the task's run (as the word after the command) |  |
 | `--host <host>` | AI host: claude, copilot (default: the one the run used) |  |
 
 ### `metator run drive`
@@ -2557,6 +2558,8 @@ metator serve [options]
 | `--poll-ms <n>` | how often sockets look for a change | `1000` |
 | `--supervise-ms <n>` | how often the supervisor ticks (0: never) | `5000` |
 | `--intake-ms <n>` | how often the intake rules are scanned (0: never; default: the config's `intake.everyMs`) |  |
+| `--no-restore` | leave the agents' sessions of the last daemon paused (continue them with `metator run continue`) |  |
+| `--screens-ms <n>` | how often every pane's screen is kept on disk (0: only when it stops) | `5000` |
 | `--reviews-ms <n>` | how often reviews of my requests are read (0: never; default: the config's `reviews.everyMs`) |  |
 
 ## pane

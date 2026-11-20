@@ -462,6 +462,10 @@ describe("Panes", () => {
     w.copilot.started.at(-1)?.pty.exit(129);
     await Bun.sleep(5);
     expect((await w.panes.pane(conductor.id))._unsafeUnwrap().paused?.why).toBe("daemon-stopped");
+    // Its exit, however it is reported, is no end of its work.
+    expect((await w.panes.end(conductor.id, { reason: "exited", exitCode: 0 }))._unsafeUnwrap().ended).toBe(
+      false,
+    );
     expect(await w.fs.exists(`.metator/panes/${conductor.id.replace(":", "-")}.screen`)).toBe(true);
     // The next daemon: the same pane, its session resumed, the screen it left above the new output.
     const next = w.make();
@@ -473,6 +477,8 @@ describe("Panes", () => {
       "copilot-1",
     ]);
     expect(await next.read(conductor.id)).toContain("planned step 1");
+    // A viewer that joins now gets it too (the backlog), above what the session prints now.
+    expect(w.broker.backlog(conductor.id)).toStartWith("planned step 1");
     const texts = (await w.journal.activity(run.runId))._unsafeUnwrap().map((a) => a.text);
     expect(texts).toContain(
       `pane ${conductor.id} paused (daemon-stopped): session copilot-1 can be continued`,
@@ -507,6 +513,48 @@ describe("Panes", () => {
     expect((await next.resumePane(conductor.id))._unsafeUnwrapErr().message).toContain(
       "has ended (run-finished)",
     );
+  });
+
+  test("a pane a person closes is gone, not paused: the exit its close causes is nobody's to read", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const conductor = (await w.panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    // The fake's kill reports the hang-up a real terminal gives (129).
+    const pty = w.copilot.started.at(-1)?.pty;
+    const kill = pty?.kill.bind(pty);
+    if (pty)
+      pty.kill = () => {
+        kill?.();
+        pty.exit(129);
+      };
+    (await w.panes.closePane(conductor.id))._unsafeUnwrap();
+    await Bun.sleep(5);
+    const texts = (await w.journal.activity(run.runId))._unsafeUnwrap().map((a) => a.text);
+    expect(texts.some((t) => t.includes("paused"))).toBe(false);
+    expect((await w.layout.load())._unsafeUnwrap().panes).toEqual([]);
+  });
+
+  test("a paused pane's own Continue resumes only it; a pane that is not paused is refused, with why", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const conductor = (await w.panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    const live = (await w.panes.continuePane(conductor.id, "ana"))._unsafeUnwrapErr();
+    expect([live.code, live.message]).toEqual([
+      "TRANSITION_DENIED",
+      `pane ${conductor.id} is not paused: there is nothing to continue`,
+    ]);
+    w.copilot.started.at(-1)?.pty.exit(129);
+    await Bun.sleep(5);
+    expect((await w.panes.continuePane(conductor.id, " "))._unsafeUnwrapErr().message).toBe(
+      "say who continues: by",
+    );
+    expect((await w.panes.continuePane(conductor.id, "ana"))._unsafeUnwrap()).toEqual({
+      paneId: conductor.id,
+      role: "conductor",
+      sessionId: "copilot-1",
+    });
+    const texts = (await w.journal.activity(run.runId))._unsafeUnwrap().map((a) => a.text);
+    expect(texts).toContain(`continued by ana: resumed pane ${conductor.id} (session copilot-1)`);
   });
 
   test("an ended pane is not started again after a restart; a pane started again is no longer ended", async () => {

@@ -9,7 +9,14 @@ const ESC = "\u001b";
  * a program wrote to it, as a person reads it: the last drawing of each cell, no escapes, rows
  * without trailing blanks, the last blank rows left out.
  */
-export function screenRendererContract(name: string, make: () => ScreenRenderer): void {
+export function screenRendererContract(
+  name: string,
+  make: () => ScreenRenderer,
+  /** What a renderer does not model, and so is not asked: only the unit tests' fake leaves these out. */
+  limits: { readonly wideGlyphs?: false; readonly scrollRegions?: false } = {},
+): void {
+  const wide = limits.wideGlyphs === false ? test.skip : test;
+  const regions = limits.scrollRegions === false ? test.skip : test;
   const render = async (raw: string, cols = 80, rows = 24) => {
     const s = make().open({ cols, rows });
     s.write(raw);
@@ -51,14 +58,14 @@ export function screenRendererContract(name: string, make: () => ScreenRenderer)
       expect(await render(`abcdefgh${erase}new`, 4)).toBe("new");
     });
 
-    test("a wide glyph takes two cells: an emoji and an East Asian letter, as a UI counts them", async () => {
+    wide("a wide glyph takes two cells: an emoji and an East Asian letter, as a UI counts them", async () => {
       expect(await render(`😀${ESC}[3Gx\r\n`)).toBe("😀x");
       expect(await render(`漢字${ESC}[5Gok\r\n`)).toBe("漢字ok");
       // A frame with an emoji, redrawn by column: the cursor lands where the UI meant.
       expect(await render(`● ✅ done ${ESC}[1G● ✅ DONE\r\n`)).toBe("● ✅ DONE");
     });
 
-    test("a scroll region scrolls inside itself: the rows below it stay where they are", async () => {
+    regions("a scroll region scrolls inside itself: the rows below it stay where they are", async () => {
       // Rows 1-3 scroll; row 4 is a footer the UI drew once.
       const raw = `${ESC}[4;1Hfooter${ESC}[1;3r${ESC}[1;1H${["a", "b", "c", "d", "e"].join("\r\n")}${ESC}[r`;
       const shown = (await render(raw, 20, 4)).split("\n");
@@ -90,17 +97,20 @@ export function screenRendererContract(name: string, make: () => ScreenRenderer)
       expect(text.split("\n").filter((l) => l.includes("Thinking"))).toHaveLength(1);
     });
 
-    test("Claude Code's output scrolled in its region above the prompt: the last lines and the prompt, once", async () => {
-      const text = await render(CLAUDE_SCROLLED_RAW, 60, 12);
-      const rows = text.split("\n");
-      // The region scrolled, not the screen: the tool's line stays on top, nothing went to scrollback.
-      expect(rows).toHaveLength(12);
-      expect(rows[0]).toBe("● Bash(bun test)");
-      expect(rows.at(-1)).toBe(" Do you want to proceed? ✅");
-      expect(rows.filter((r) => r.includes("Do you want to proceed?"))).toHaveLength(1);
-      expect(text).toContain("↑ 37 more lines");
-      expect(text).toContain("test 40 passed");
-    });
+    regions(
+      "Claude Code's output scrolled in its region above the prompt: the last lines and the prompt, once",
+      async () => {
+        const text = await render(CLAUDE_SCROLLED_RAW, 60, 12);
+        const rows = text.split("\n");
+        // The region scrolled, not the screen: the tool's line stays on top, nothing went to scrollback.
+        expect(rows).toHaveLength(12);
+        expect(rows[0]).toBe("● Bash(bun test)");
+        expect(rows.at(-1)).toBe(" Do you want to proceed? ✅");
+        expect(rows.filter((r) => r.includes("Do you want to proceed?"))).toHaveLength(1);
+        expect(text).toContain("↑ 37 more lines");
+        expect(text).toContain("test 40 passed");
+      },
+    );
 
     test("a resize keeps what is shown", async () => {
       const s = make().open({ cols: 40, rows: 10 });

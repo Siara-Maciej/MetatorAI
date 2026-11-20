@@ -95,3 +95,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0089](0089-plan-changes-go-through-the-agent.md) | Zmiany planu idą przez agenta | Accepted |
 | [0090](0090-child-runs-as-visible-sessions.md) | Runy potomne planu systemowego startują jako widoczne sesje | Proposed |
 | [0091](0091-pane-questions-and-rendered-screen.md) | Pytania paneli bez runu i ekran czytany tak, jak widzi go osoba | Proposed |
+| [0092](0092-paused-panes-and-continue.md) | Panel zabity razem z demonem jest wstrzymany, a nie zakończony; jedno „Continue” dla zadania | Proposed |

@@ -5,9 +5,11 @@ import { fileSystemContract } from "../src/contracts/file-system.contract.ts";
 import { interactiveHostContract } from "../src/contracts/interactive-host.contract.ts";
 import { machineStateContract } from "../src/contracts/machine-state.contract.ts";
 import { ruleEngineContract } from "../src/contracts/rule-engine.contract.ts";
+import { screenRendererContract } from "../src/contracts/screen-renderer.contract.ts";
 import { treeCopierContract } from "../src/contracts/tree-copier.contract.ts";
 import { vcsContract } from "../src/contracts/vcs.contract.ts";
 import { worktreeManagerContract } from "../src/contracts/worktree-manager.contract.ts";
+import { FakeScreenRenderer } from "../src/fake-screen.ts";
 import {
   FakeAgentHost,
   FakeDataIsolator,
@@ -129,3 +131,9 @@ treeCopierContract(
     missing: "/repo/none",
   }),
 );
+
+// The unit tests' screen: the contract, without the wide glyphs and scroll regions it does not model.
+screenRendererContract("FakeScreenRenderer", () => new FakeScreenRenderer(), {
+  wideGlyphs: false,
+  scrollRegions: false,
+});

@@ -109,6 +109,23 @@ metator run revive
 
 It does nothing when no drive died, so you can schedule it at boot.
 
+### When the daemon stops
+
+The agents' sessions in Terminals survive the daemon (`metator serve`). When it stops, with Ctrl+C, SIGTERM or even SIGKILL, every agent's pane is **paused**, not ended. The pane keeps its host session id and its last screen; the daemon saves every pane's screen to disk every 5 seconds (`--screens-ms`). On its next start the daemon resumes each paused session in the same pane (`claude --resume <session>`, or your host's own resume), with the screen it left above what it prints now. Panes of a run that is no longer active are not resumed. A pane whose host exited by itself is ended, as before.
+
+```bash
+metator serve --no-restore        # start, but leave the sessions paused
+metator run continue --run <id>   # continue the task: every paused pane, and what carried each run
+```
+
+`metator run continue` with a daemon running continues the whole task: the run, every run under it (the steps of a system run in their repositories, the runs started with `--parent`), and the chat where you gave the task. Each paused pane is resumed. Each active run that nothing carries gets back what carried it: its conductor's session, or else its background drive (a system run waiting at `status`, for example). An escalated run is left for you to resume. It prints what it resumed, what drives it started and what it skipped, with why, and each run's activity says so. Without a daemon, it drives the run again as before. `POST /runs/<run>/continue` with `{ "by": "<name>" }` does the same; `POST /panes/<pane>/continue` continues one paused pane.
+
+A paused pane's terminal shows its last screen, read-only, until it is continued.
+
+### The chat learns about its task
+
+When a run you started from a chat (the pane where you described the task) is done, is closed, stops for you, or waits for your approval, the daemon types one line into that chat's agent, such as `[metator] The task 20261120-… (Prices in the customer's currency) is done. Tell the person what was done.` It does so once for each event, and only while the agent is idle at its prompt; until then the line waits. The run's activity records each line.
+
 ### Hand a run over
 
 ```bash

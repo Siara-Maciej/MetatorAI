@@ -14,14 +14,14 @@ dir: packages/plugin-node
 - Test-only dependencies: `@metator/testing`
 - Used by: `(root)`, `@metator/runtime`
 - Imported by other packages: `packages/plugin-node/package.json`, `packages/plugin-node/src/index.ts`
-- Third-party: `@friedemannsommer/lcov-parser`, `@manypkg/get-packages`, `get-port`, `package-manager-detector`, `wait-on`
+- Third-party: `@friedemannsommer/lcov-parser`, `@manypkg/get-packages`, `@xterm/headless`, `get-port`, `package-manager-detector`, `wait-on`
 - Owners: `@Siara-Maciej`
 - Patterns with their exemplar here: none
 <!-- metator:generated:end -->
 
 ## Responsibility
 
-`WorkspaceReader` and `ManifestReader` ports on @manypkg/get-packages: workspace packages of npm, yarn, pnpm, bun, lerna and rush repositories, and their manifests with Nx and Turborepo tags. `PackageManagerDetector` and `PackageManager` ports on package-manager-detector: which package manager the repo uses and how to run its scripts (ADR-0028). `ToolBoundariesReader` (`JsonToolBoundariesReader`): the boundary rules `arch init` imports from root-level tool files. `CoverageReader` (`LcovCoverageReader`): line coverage from an LCOV report. `PortProbe` on get-port and `HealthProbe` on wait-on: free ports for worktrees and readiness of started services. `Terminal` on node-pty (`NodePtyTerminal`): pseudo-terminals for interactive host sessions.
+`WorkspaceReader` and `ManifestReader` ports on @manypkg/get-packages: workspace packages of npm, yarn, pnpm, bun, lerna and rush repositories, and their manifests with Nx and Turborepo tags. `PackageManagerDetector` and `PackageManager` ports on package-manager-detector: which package manager the repo uses and how to run its scripts (ADR-0028). `ToolBoundariesReader` (`JsonToolBoundariesReader`): the boundary rules `arch init` imports from root-level tool files. `CoverageReader` (`LcovCoverageReader`): line coverage from an LCOV report. `PortProbe` on get-port and `HealthProbe` on wait-on: free ports for worktrees and readiness of started services. `Terminal` on node-pty (`NodePtyTerminal`): pseudo-terminals for interactive host sessions; a process a signal ended exits with 128 + the signal. `ScreenRenderer` on @xterm/headless (`XtermScreenRenderer`, ADR-0091): a pane's screen as a person sees it, wide emoji counted as two cells as terminal UIs count them.
 
 ## Invariants
 

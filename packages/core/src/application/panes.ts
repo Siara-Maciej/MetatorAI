@@ -124,20 +124,18 @@ export class Panes {
   private readonly tokens = new Map<string, string>();
   /** Ended panes' last screens read back from disk. */
   private readonly kept = new Map<string, string>();
-  /** The daemon is shutting down: a session whose process goes now is paused, not ended. */
-  private stopping = false;
 
   constructor(private readonly d: PanesDependencies) {}
 
   /**
    * The daemon stops (SIGTERM, SIGINT): every live host session is paused with its session id and
    * last screen, before its process goes with the daemon (ADR-0092). The exits that follow find
-   * the panes paused and leave them so; the next start resumes them in the same panes.
+   * the panes paused and leave them so; the next start resumes them in the same panes. A session a
+   * signal ends while the daemon runs is paused too (`process-lost`).
    */
   async pauseAll(
     why: PanePauseReason = "daemon-stopped",
   ): Promise<Result<{ readonly paused: number }, MetatorError>> {
-    this.stopping = true;
     const saved = await this.saveScreens();
     if (saved.isErr()) return err(saved.error);
     const layout = await this.d.layout.load();
@@ -204,6 +202,44 @@ export class Panes {
     if (!screen || !this.d.fs) return ok(undefined);
     this.kept.set(paneId, screen);
     return this.d.fs.write(screenFile(paneId), screen);
+  }
+
+  /**
+   * A person continues one paused pane (its own Continue): its host session resumed in the pane,
+   * nothing else; a pane that is not paused is refused, with why.
+   */
+  async continuePane(
+    paneId: string,
+    by: string,
+  ): Promise<
+    Result<{ readonly paneId: string; readonly role: string; readonly sessionId: string }, MetatorError>
+  > {
+    if (by.trim() === "")
+      return err(MetatorError.usage("say who continues: by", "Continuing records who did."));
+    const layout = await this.d.layout.load();
+    if (layout.isErr()) return err(layout.error);
+    const pane = paneOf(layout.value, paneId);
+    if (!pane) return err(MetatorError.notFound(`pane ${paneId}`));
+    if (!pane.paused || this.d.broker.status(paneId)?.alive)
+      return err(
+        new MetatorError("TRANSITION_DENIED", `pane ${paneId} is not paused: there is nothing to continue`, {
+          hint: pane.ended
+            ? `Its work ended (${pane.ended.reason}); close it when you are done.`
+            : "It runs: open it in Terminals.",
+        }),
+      );
+    const back = await this.resumePane(paneId);
+    if (back.isErr()) return err(back.error);
+    const sessionId = back.value.live?.sessionId ?? "";
+    if (pane.runId) {
+      const noted = await this.d.journal.record(pane.runId, {
+        type: "agent",
+        origin: "run",
+        text: `continued by ${by}: resumed pane ${paneId} (session ${sessionId})`,
+      });
+      if (noted.isErr()) return err(noted.error);
+    }
+    return ok({ paneId, role: pane.role, sessionId });
   }
 
   /**
@@ -838,8 +874,7 @@ export class Panes {
     // is not over, and it is continued in the same pane.
     this.d.broker.subscribe(pane.id, (event) => {
       if (event.type !== "exit") return;
-      if (pane.process.kind === "host" && (this.stopping || event.code >= SIGNALLED))
-        void this.pause(pane.id, this.stopping ? "daemon-stopped" : "process-lost");
+      if (pane.process.kind === "host" && event.code >= SIGNALLED) void this.pause(pane.id, "process-lost");
       else void this.end(pane.id, { reason: "exited", exitCode: event.code });
     });
     if (pane.runId) {

@@ -51,6 +51,9 @@ describe("ChatNotices: the chat where the task was given learns what became of i
     expect(w.activity.map((a) => a.text)).toEqual([`told the chat (pane w1:p1, approval q001): ${line}`]);
     await w.notices.tick();
     expect(w.typed).toHaveLength(1);
+    // An approval already given is no news.
+    w.questions[0] = { id: "q002", source: "gate", stage: "plan-approval", answer: { by: "ana" } };
+    expect((await w.notices.tick())._unsafeUnwrap()).toEqual([]);
   });
 
   test("an agent at work (or a person typing) is not interrupted: the line waits until it is idle", async () => {

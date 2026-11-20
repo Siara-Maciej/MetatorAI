@@ -112,6 +112,20 @@ export const PANE_ROUTES: readonly Route[] = [
     body: body({ runId: z.string().optional() }),
     handler: ({ c, body: b }) => c.resolve("panes").closeEnded(b.runId ? { runId: b.runId } : {}),
   }),
+  // A paused pane's own Continue (ADR-0092): only its host session, resumed in the same pane; the
+  // same shape as `POST /runs/:run/continue`. A pane that is not paused: 400 TRANSITION_DENIED.
+  route({
+    method: "POST",
+    pattern: "/panes/:pane/continue",
+    body: body({ by: text }),
+    guard: personOnly,
+    handler: async ({ c, body: b, params, repo }) =>
+      (await c.resolve("panes").continuePane(params.pane as string, b.by ?? "")).map((r) => ({
+        resumed: [{ ...(repo ? { repo } : {}), ...r }],
+        drives: [],
+        skipped: [],
+      })),
+  }),
   // A person's answer to a pane question (a pane without a run, ADR-0091): recorded, then typed
   // into the pane at once (a menu's key with its own Enter, the agent's words). Only a person.
   route({
