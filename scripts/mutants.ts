@@ -6703,6 +6703,18 @@ export const MUTANTS: readonly Mutant[] = [
     why: "Open a session for a run that asks is offered only while it asks",
   },
   {
+    file: "packages/core/src/domain/host-manifest.ts",
+    from: "const HINT = /^(esc to|press |tab to|ctrl\\+|tip:)/i;",
+    to: "const HINT = /^(esc to|press |tab to|ctrl\\+)/i;",
+    why: "Claude Code's tip line is not the prompt: the card names the command",
+  },
+  {
+    file: "packages/core/src/domain/host-manifest.ts",
+    from: "const detail = command && command !== title ? command : second;",
+    to: "const detail = second;",
+    why: "the command between Claude Code's dashed rules is what the person decides on",
+  },
+  {
     file: "packages/desktop/src/terminals.ts",
     from: "(s ? sessionView(s) : panesOfTask(t))",
     to: "(s ? sessionView(s) : taskView(t))",

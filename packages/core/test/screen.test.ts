@@ -4,6 +4,7 @@ import { TextScreen } from "../src/domain/screen.ts";
 import {
   CLAUDE_APPROVAL_OPTIONS,
   CLAUDE_APPROVAL_RAW,
+  CLAUDE_APPROVAL_REAL_SCREEN,
   CLAUDE_APPROVAL_TEXT,
 } from "./fixtures/claude-approval.ts";
 
@@ -70,6 +71,35 @@ describe("TextScreen: the screen a terminal shows, from what was written to it",
 });
 
 describe("readHostPrompt: a host's prompt as one readable line and its numbered choices", () => {
+  test("a tip line in a host's question is not what it asks about", () => {
+    const edit = [
+      "● Update(src/currency.ts)",
+      "─────────────────────────────────────────────",
+      " Edit file",
+      ' Tip: auto mode handles these prompts for you — choose "switch to auto mode" below',
+      " src/currency.ts",
+      " Do you want to make this edit to currency.ts?",
+      " ❯ 1. Yes",
+      "   2. Yes, allow all edits during this session (shift+tab)",
+      "   3. No",
+    ].join("\n");
+    expect(readHostPrompt(edit, "Do you want to make this edit to currency.ts?").text).toBe(
+      "Edit file: src/currency.ts — Do you want to make this edit to currency.ts?",
+    );
+  });
+
+  test("Claude Code 2.1's real approval (no box): the command, not its tip, names what is asked", () => {
+    expect(readHostPrompt(CLAUDE_APPROVAL_REAL_SCREEN, "Do you want to proceed?")).toEqual({
+      text: "Bash command: metator workflow list — This command requires approval",
+      options: [
+        { key: "1", label: "Yes" },
+        { key: "2", label: "Yes, and don’t ask again for: metator workflow *" },
+        { key: "3", label: "Yes, and switch to auto mode · auto mode handles these prompts for you" },
+        { key: "4", label: "No" },
+      ],
+    });
+  });
+
   const screen = render(CLAUDE_APPROVAL_RAW, 100, 40);
 
   test("Claude Code's approval box: what it asks to run and why, and its four choices", () => {

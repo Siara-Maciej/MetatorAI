@@ -32,6 +32,9 @@ agents:
     - - say: "Building the step."
       - ask: { question: "Type here to talk to the worker.", options: [go on] }
 `;
+// A task's title is the person's whole sentence at times: the view must not grow wider than the window.
+const TITLE =
+  "Prices in the customer's currency, with tax by country, rounded per invoice line, in the storefront, the API and every invoice";
 const NOWHERE = {
   METATOR_COPILOT_BIN: "/nonexistent/copilot",
   METATOR_CLAUDE_BIN: "/nonexistent/claude",
@@ -137,7 +140,7 @@ describe("terminals by task (real daemon, real Chromium)", () => {
           runId: string;
         }
       ).runId;
-    const task = await make(["--task", "Prices in the customer's currency"]);
+    const task = await make(["--task", TITLE]);
     const child = await make(["--task", "The price model", "--parent", task]);
     expect((await metator(["run", "start", "--run", task], repo.root, env)).code).toBe(0);
     expect((await metator(["run", "start", "--run", child], repo.root, env)).code).toBe(0);
@@ -168,7 +171,20 @@ describe("terminals by task (real daemon, real Chromium)", () => {
     await page.goto(app("grid"));
     const view = page.getByTestId("task-view");
     await view.waitFor({ timeout: 30_000 });
-    expect(await page.getByTestId("terminals-task").textContent()).toBe("Prices in the customer's currency");
+    expect(await page.getByTestId("terminals-task").textContent()).toBe(TITLE);
+    // Cut to one line in the bar, the whole view within the window (its right edge, its tiles').
+    expect(
+      await page.evaluate(() => {
+        const right = (sel: string) =>
+          Math.max(...[...document.querySelectorAll(sel)].map((e) => e.getBoundingClientRect().right));
+        const bar = document.querySelector('[data-testid="terminals-bar"]') as HTMLElement;
+        return [
+          right('[data-testid="terminals-bar"]') <= window.innerWidth,
+          right('[data-testid^="tile-"]') <= window.innerWidth,
+          bar.scrollHeight <= 40,
+        ];
+      }),
+    ).toEqual([true, true, true]);
     // Its main terminal and one tile per repository session; the worker is not on this view.
     await until("the two tiles", async () =>
       (await view.locator(".tile").count()) === 2 ? true : undefined,
@@ -204,9 +220,7 @@ describe("terminals by task (real daemon, real Chromium)", () => {
     await page.keyboard.press("g");
     const go = page.getByRole("dialog", { name: "Go to" });
     await go.waitFor({ timeout: 5000 });
-    expect(await go.textContent()).toContain(
-      "Prices in the customer's currency › this repository › mt-implementer",
-    );
+    expect(await go.textContent()).toContain(`${TITLE} › this repository › mt-implementer`);
     await page.keyboard.press("Escape");
     // The worker reports and is collected: its pane stays, read-only, with what ended it.
     const workerName = ((await layout()).find((p) => p.id === worker) as { worker?: { name: string } })

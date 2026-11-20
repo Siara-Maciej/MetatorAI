@@ -47,3 +47,28 @@ export const CLAUDE_APPROVAL_OPTIONS = [
   "Yes, and switch to auto mode",
   "No, and tell Claude what to do differently (esc)",
 ];
+
+/**
+ * The approval as Claude Code 2.1.329 drew it in a real intake chat (rendered rows): no box, a
+ * rule above, a tip line, the command's description, then the command between dashed rules.
+ */
+export const CLAUDE_APPROVAL_REAL_SCREEN = [
+  "● Running 2 shell commands…",
+  "  ⎿  $ metator workflow list",
+  "",
+  "──────────────────────────────────────────────────────────────────────────────────",
+  " Bash command",
+  ' Tip: auto mode handles these prompts for you — choose "switch to auto mode" below',
+  " List available workflows",
+  "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+  " metator workflow list",
+  "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+  " This command requires approval",
+  " Do you want to proceed?",
+  " ❯ 1. Yes",
+  "   2. Yes, and don’t ask again for: metator workflow *",
+  "   3. Yes, and switch to auto mode · auto mode handles these prompts for you",
+  "   4. No",
+  "",
+  " Esc to cancel · Tab to amend",
+].join("\n");

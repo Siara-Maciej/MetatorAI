@@ -198,8 +198,10 @@ const CHOICE = /^(?:[❯›>]\s*)?(\d{1,2})[.)]\s+(.+)$/;
 const TRANSCRIPT = /^[●⎿✻✶✳✢✽·]/;
 /** The line that says why the host asks: its need, else its question. */
 const NEED = /requires? (your )?approval|needs? (your )?(approval|permission)|permission/i;
-/** The hints under a prompt: how to cancel or amend it. */
-const HINT = /^(esc to|press |tab to|ctrl\+)/i;
+/** The hints under or in a prompt: how to cancel or amend it, a tip about the host's modes. */
+const HINT = /^(esc to|press |tab to|ctrl\+|tip:)/i;
+/** A dashed rule: Claude Code draws one above and one below the command it asks to run. */
+const DASHED = /^[╌┄┈]{3,}$/;
 
 /** A text cut to `max` characters, with an ellipsis when it was longer. */
 const bounded = (text: string, max = REASON_MAX) =>
@@ -250,15 +252,22 @@ export function readHostPrompt(
   const region = rows.slice(start, end + 1).filter((r) => r !== "");
   const options: MenuChoice[] = [];
   const words: string[] = [];
-  for (const r of region) {
+  // The command itself, when the host draws it between dashed rules: what the person decides on.
+  let command: string | undefined;
+  region.forEach((r, i) => {
     const choice = CHOICE.exec(r);
     if (choice) options.push({ key: choice[1] as string, label: (choice[2] as string).trim() });
-    else if (!HINT.test(r) && !TRANSCRIPT.test(r)) words.push(r);
-  }
+    else if (DASHED.test(r)) return;
+    else if (!HINT.test(r) && !TRANSCRIPT.test(r)) {
+      words.push(r);
+      if (DASHED.test(region[i - 1] ?? "") && DASHED.test(region[i + 1] ?? "")) command ??= r;
+    }
+  });
   const menu = options.length >= 2 && options[0]?.key === "1" ? options : [];
   if (menu.length === 0 && !boxed) return { text: bounded(wanted), options: [] };
   const need = words.find((w) => NEED.test(w)) ?? words.find((w) => w.endsWith("?")) ?? wanted;
-  const [title, detail] = words.filter((w) => w !== need && !w.endsWith("?"));
+  const [title, second] = words.filter((w) => w !== need && !w.endsWith("?"));
+  const detail = command && command !== title ? command : second;
   const text = title ? `${title}${detail ? `: ${detail}` : ""} — ${need}` : need;
   return { text: bounded(text), options: menu };
 }

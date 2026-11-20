@@ -883,6 +883,9 @@ button.stagebar {
 .workbench {
   display: grid;
   grid-template-rows: 34px 28px 1fr;
+  /* One column no wider than the screen: a long line (a task's title) is cut, never widens it. */
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   height: 100%;
   min-height: 0;
   position: relative;
@@ -3136,6 +3139,8 @@ dialog.goto {
   padding: 6px 12px;
   border-bottom: 1px solid var(--edge);
   font-size: var(--fs-compact);
+  min-width: 0;
+  overflow: hidden;
 }
 /* A task's title is a whole sentence at times: one line, cut with an ellipsis, in full on hover. */
 .workbench .terminals-bar [data-testid="terminals-task"] {
