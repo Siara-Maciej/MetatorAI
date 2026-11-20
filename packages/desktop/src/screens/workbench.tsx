@@ -41,6 +41,7 @@ import {
   noHostText,
   notifies,
   paneLabel,
+  paneNeedsYou,
   paneStateOf,
   repoOfTab,
   retryHost,
@@ -496,6 +497,7 @@ export function WorkbenchScreen({
         asking={mode.kind === "ask" && mode.pane === keyOf(p)}
         copying={mode.kind === "copy" && mode.pane === keyOf(p)}
         lastOfTab={view === "tabs" && tabPanes.length === 1}
+        needsYou={paneNeedsYou({ id: p.id, repo: repoOf(p) }, d.paneAsks) || paneStateOf(p) === "asks"}
         onFocus={() => setFocus(keyOf(p))}
         onMenu={(e) => openMenu(e, ["pane"], p, tab, `pane ${p.id}`)}
         onZoom={() => setZoom(zoom === keyOf(p) ? undefined : keyOf(p))}

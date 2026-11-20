@@ -136,6 +136,7 @@ import {
   OptionStore,
   ok,
   PackRules,
+  PaneQuestions,
   PaneSensor,
   Panes,
   PatternCatalog,
@@ -672,6 +673,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ).singleton(),
     // One per daemon: the panes' open prompts are the same for its check and for an answer.
     openPrompts: asFunction(() => new Map()).singleton(),
+    // The questions of panes without a run (the intake chat), while the daemon runs (ADR-0091).
+    paneQuestions: asFunction(({ clock }) => new PaneQuestions(clock)).singleton(),
     hostPrompts: asFunction(
       ({
         paneSensor,
@@ -682,8 +685,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         ptyBroker,
         runRepository,
         openPrompts,
+        paneQuestions,
       }) =>
         new HostPrompts({
+          panes: paneQuestions,
           sensor: paneSensor,
           journal: runJournal,
           lock: driverLock,

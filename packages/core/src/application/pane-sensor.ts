@@ -9,8 +9,11 @@ import type { PtyBroker, PtyView } from "./pty-broker.ts";
 import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
+/** How many lines from the bottom of a pane's screen are read: a host's dialog fits in them. */
+const SCREEN_LINES = 60;
+
 export interface PaneSensorDependencies {
-  readonly broker: Pick<PtyBroker, "status" | "list" | "backlog">;
+  readonly broker: Pick<PtyBroker, "status" | "list" | "backlog"> & Partial<Pick<PtyBroker, "screen">>;
   readonly manifests: Pick<HostManifestCatalog, "get">;
   readonly journal: Pick<RunJournal, "questions">;
   readonly clock: Clock;
@@ -42,6 +45,8 @@ export function asksIn(q: { readonly agent?: string | undefined }, who: PaneWho 
 export interface SensedPane extends PtyView {
   readonly state: PaneState;
   readonly reason: string;
+  /** A blocked pane's numbered choices (a host's menu), when its prompt has them. */
+  readonly menu?: PaneStateView["menu"];
 }
 
 /**
@@ -83,7 +88,12 @@ export class PaneSensor {
       paneStateOf({
         alive: live.alive,
         ...(live.exitCode !== undefined ? { exitCode: live.exitCode } : {}),
-        screen: tailLines(stripAnsi(this.d.broker.backlog(paneId)), manifest.value.screen.lines * 2),
+        // The screen as a person sees it: a host's dialog is read from it whole, and its
+        // reason is that dialog in words, never the frames and escapes the host drew it with.
+        screen: tailLines(
+          this.d.broker.screen?.(paneId) ?? stripAnsi(this.d.broker.backlog(paneId)),
+          SCREEN_LINES,
+        ),
         manifest: manifest.value,
         now: this.d.clock.now(),
         lastOutputAt: new Date(live.lastOutputAt),

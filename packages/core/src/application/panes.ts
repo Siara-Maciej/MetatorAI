@@ -608,9 +608,9 @@ export class Panes {
     return ok(await this.withLive(pane));
   }
 
-  /** The last lines of the pane's output, without terminal escapes. */
+  /** The last lines of the pane's screen as a person sees it (rendered; a kept screen without escapes). */
   read(paneId: string, lines = 80): string {
-    return tailLines(stripAnsi(this.screen(paneId)), lines);
+    return tailLines(this.d.broker.screen(paneId) ?? stripAnsi(this.screen(paneId)), lines);
   }
 
   /**
@@ -691,6 +691,7 @@ export class Panes {
       host,
       sessionId,
       pty,
+      size,
     });
     if (adopted.isErr()) {
       pty.kill();

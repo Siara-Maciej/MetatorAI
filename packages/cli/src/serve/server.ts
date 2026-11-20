@@ -188,6 +188,33 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     }
     return ok({ folder: folder.root, repos });
   };
+  /**
+   * The questions of panes without a run (ADR-0091), oldest first: the intake chat whose host asks
+   * leave to run a command. Each names its pane (its label and role) and, in a folder, its
+   * repository; answered with `POST /panes/:pane/answer`.
+   */
+  const paneAsks = async () => {
+    const out: Record<string, unknown>[] = [];
+    for (const r of repoViews()) {
+      for (const question of r.c.resolve("paneQuestions").open()) {
+        const pane = await r.c.resolve("panes").pane(question.paneId);
+        out.push({
+          kind: "pane",
+          ...(folder ? { repo: r.name } : {}),
+          paneId: question.paneId,
+          label: pane.isOk() ? pane.value.label : question.agent,
+          ...(pane.isOk() ? { role: pane.value.role } : {}),
+          host: question.host,
+          question,
+        });
+      }
+    }
+    return out.sort((a, b) =>
+      String((a.question as { askedAt: string }).askedAt).localeCompare(
+        String((b.question as { askedAt: string }).askedAt),
+      ),
+    );
+  };
   /** The same queue `metator inbox` prints. */
   const inbox = async (fresh: boolean): Promise<Result<unknown, MetatorError>> => {
     const repos: RepoRuns[] = [];
@@ -200,6 +227,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     return ok({
       decisions: queue.decisions,
       escalated: queue.escalated,
+      panes: await paneAsks(),
     });
   };
 

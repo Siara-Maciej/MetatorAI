@@ -11,6 +11,7 @@ import { Notice } from "../components/common.tsx";
 import { DecisionCard } from "../components/decision-card.tsx";
 import { EscalatedCard } from "../components/escalated-card.tsx";
 import { Glyph } from "../components/glyph.tsx";
+import { PaneAskCard } from "../components/pane-ask-card.tsx";
 import { StartRun } from "../components/start-run.tsx";
 import { useDaemon } from "../daemon.tsx";
 import { useAction, useTasks } from "../hooks.ts";
@@ -19,10 +20,12 @@ import {
   escalatedKey,
   idleRuns,
   isFirstRun,
+  isPaneAsk,
   isTerminalAsk,
   lookOf,
   type NeedRow,
   openRuns,
+  paneAskOf,
   quietInboxText,
   routeHash,
   stepNeed,
@@ -58,8 +61,10 @@ export function InboxScreen({
   onStart(task: string): void;
   onForm(): void;
 }) {
-  const { inbox, runs } = useDaemon();
+  const { inbox, runs, paneAsks } = useDaemon();
   const item = picked ? inbox.find((i) => decisionKey(i) === picked.key) : undefined;
+  // A pane without a run that asks (the intake chat): its own card, answered into the pane.
+  const paneAsk = picked && isPaneAsk(picked) ? paneAskOf(paneAsks, picked.key) : undefined;
   const stopped =
     picked?.kind === "escalated"
       ? runs.find((r) => r.status === "escalated" && escalatedKey(r) === picked.key)
@@ -103,6 +108,15 @@ export function InboxScreen({
           onRefused={onRefused}
           onOpenSession={onOverview}
           onOpenChanges={onOpenChanges}
+        />
+      ) : paneAsk ? (
+        <PaneAskCard
+          key={picked?.key}
+          ask={paneAsk}
+          onAnswered={(choices) => onAnswered(choices)}
+          onOpenPane={(a) => {
+            window.location.hash = routeHash({ screen: "grid", pane: a.paneId });
+          }}
         />
       ) : stopped ? (
         <div data-testid={`escalated-${stopped.runId}`}>

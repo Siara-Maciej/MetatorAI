@@ -127,9 +127,24 @@ export interface PaneStateInput {
 
 export interface PaneStateView {
   readonly state: PaneState;
-  /** The screen line that decided it (blocked, idle) or why else. */
+  /**
+   * Why, in one line a person reads: a blocked pane's prompt as `readHostPrompt` reads it from the
+   * rendered screen (`Bash command: metator workflow list — This command requires approval`),
+   * the idle line, or why else. Never longer than `REASON_MAX`.
+   */
   readonly reason: string;
+  /** A blocked pane's numbered choices, when its prompt is a menu: the key that picks each. */
+  readonly menu?: readonly MenuChoice[];
 }
+
+/** One choice of a host's numbered menu: the key a person presses for it, and its words. */
+export interface MenuChoice {
+  readonly key: string;
+  readonly label: string;
+}
+
+/** The longest reason a pane's state gives. */
+export const REASON_MAX = 200;
 
 /**
  * The state of a pane, in order of certainty: the exit; the host's permission prompt on the
@@ -144,7 +159,14 @@ export function paneStateOf(input: PaneStateInput): PaneStateView {
     .filter((l) => l.trim() !== "")
     .slice(-input.manifest.screen.lines);
   const blocked = matchLine(lines, input.manifest.screen.blocked);
-  if (blocked !== undefined) return { state: "blocked", reason: blocked };
+  if (blocked !== undefined) {
+    const read = readHostPrompt(input.screen, blocked);
+    return {
+      state: "blocked",
+      reason: read.text,
+      ...(read.options.length > 0 ? { menu: read.options } : {}),
+    };
+  }
   if (input.openQuestion) return { state: "waiting", reason: "a question waits for a person" };
   const last = Math.max(input.lastOutputAt.getTime(), input.lastHookAt?.getTime() ?? 0);
   const quietFor = input.now.getTime() - last;
@@ -166,6 +188,79 @@ function matchLine(lines: readonly string[], patterns: readonly string[]): strin
     if (regexes.some((r) => r.test(line))) return line.trim();
   }
   return undefined;
+}
+
+/** Box frames and the menu's pointer: no part of a prompt's words. */
+const FRAME = /^[\s│┃|╭╮╰╯┌┐└┘├┤─━]+|[\s│┃|╭╮╰╯┌┐└┘├┤─━]+$/g;
+/** A numbered choice: `❯ 1. Yes`, `2) No`. */
+const CHOICE = /^(?:[❯›>]\s*)?(\d{1,2})[.)]\s+(.+)$/;
+/** A transcript line above a prompt (a tool call, its output, a spinner): not the prompt. */
+const TRANSCRIPT = /^[●⎿✻✶✳✢✽·]/;
+/** The line that says why the host asks: its need, else its question. */
+const NEED = /requires? (your )?approval|needs? (your )?(approval|permission)|permission/i;
+/** The hints under a prompt: how to cancel or amend it. */
+const HINT = /^(esc to|press |tab to|ctrl\+)/i;
+
+/** A text cut to `max` characters, with an ellipsis when it was longer. */
+const bounded = (text: string, max = REASON_MAX) =>
+  text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+
+/**
+ * A blocked pane's prompt as a person reads it, from the rendered screen and the line that matched:
+ * a host's dialog (a box, or a numbered menu) as one line, `<what> : <detail> — <why it asks>`
+ * (`Bash command: metator workflow list — This command requires approval`), with its numbered
+ * choices; any other prompt (an agent's `Which currency? [PLN / EUR]`) is its own line. Bounded.
+ */
+export function readHostPrompt(
+  screen: string,
+  line: string,
+): { readonly text: string; readonly options: readonly MenuChoice[] } {
+  const clean = (l: string) => l.replace(FRAME, "").trim();
+  const raw = screen.split("\n");
+  const rows = raw.map(clean);
+  const wanted = clean(line);
+  let at = -1;
+  for (let i = rows.length - 1; i >= 0; i--)
+    if (wanted !== "" && (rows[i] as string).includes(wanted)) {
+      at = i;
+      break;
+    }
+  if (at < 0) return { text: bounded(wanted), options: [] };
+  // The dialog: its box when it has one, else the lines after the transcript above it.
+  let start = Math.max(0, at - 15);
+  let end = Math.min(rows.length - 1, at + 10);
+  let boxed = false;
+  for (let i = at; i >= start; i--)
+    if (/^\s*[╭┌]/.test(raw[i] as string)) {
+      start = i + 1;
+      boxed = true;
+      break;
+    }
+  if (!boxed)
+    for (let i = at; i >= start; i--)
+      if (TRANSCRIPT.test(rows[i] as string)) {
+        start = i + 1;
+        break;
+      }
+  for (let i = at; i <= end; i++)
+    if (/^\s*[╰└]/.test(raw[i] as string)) {
+      end = i - 1;
+      break;
+    }
+  const region = rows.slice(start, end + 1).filter((r) => r !== "");
+  const options: MenuChoice[] = [];
+  const words: string[] = [];
+  for (const r of region) {
+    const choice = CHOICE.exec(r);
+    if (choice) options.push({ key: choice[1] as string, label: (choice[2] as string).trim() });
+    else if (!HINT.test(r) && !TRANSCRIPT.test(r)) words.push(r);
+  }
+  const menu = options.length >= 2 && options[0]?.key === "1" ? options : [];
+  if (menu.length === 0 && !boxed) return { text: bounded(wanted), options: [] };
+  const need = words.find((w) => NEED.test(w)) ?? words.find((w) => w.endsWith("?")) ?? wanted;
+  const [title, detail] = words.filter((w) => w !== need && !w.endsWith("?"));
+  const text = title ? `${title}${detail ? `: ${detail}` : ""} — ${need}` : need;
+  return { text: bounded(text), options: menu };
 }
 
 /** The choices on a host's permission prompt in the inbox: a person goes to the pane, or leaves it. */

@@ -23,7 +23,7 @@ A terminal whose work is over stays on the screen, read-only, with a banner on i
 
 Each run in its worktree is a tab, and a shell can have a tab of its own. The **+** after the tabs opens the menu for a new tab. Under the tabs are the run's stages. A click on them opens the run's **Plan**. On the same line, **editor** opens the tab's worktree in your editor.
 
-The tab's area is split into panes: the agents' terminals and your own shells. A pane's frame names the agent or the command, its host and its state, and says **yours** when you hold its keyboard. Drag a divider to resize. Double-click a pane's title to zoom it.
+The tab's area is split into panes: the agents' terminals and your own shells. A pane's frame names the agent or the command, its host and its state, says **yours** when you hold its keyboard, and **needs you** while a question of that pane waits for you: the host's prompt on its screen, also in the chat where you describe a task before its run exists ([Answer questions](./inbox.md#before-a-run-exists-the-chats-questions)). Drag a divider to resize. Double-click a pane's title to zoom it.
 
 A pane whose process ended keeps its last output. A line under it gives the exit code, with **Retry**, which starts the same program again, and **Close tab** (or **Close pane** when the tab has other panes). A pane whose work the daemon ended (its run finished, its worker was collected) has the banner described above and stays until you close it.
 

@@ -146,6 +146,30 @@ export type StateData = Overview | { readonly folder: string; readonly repos: re
 /** A decision of the inbox; in a folder the daemon adds the repository it is in. */
 export type InboxItem = CoreInboxItem & { readonly repo?: string };
 
+/**
+ * A question of a pane without a run (ADR-0091), from `/inbox`'s `panes`: the intake chat's host
+ * asks leave to run a command, or its agent asks in words. Answered with `answerPane`.
+ */
+export interface PaneAsk {
+  readonly kind: "pane";
+  /** The repository, when the daemon serves a folder. */
+  readonly repo?: string;
+  readonly paneId: string;
+  /** The pane's label (`chat`). */
+  readonly label: string;
+  readonly role?: string;
+  readonly host: string;
+  readonly question: {
+    readonly id: string;
+    readonly paneId: string;
+    readonly source: "agent" | "permission";
+    readonly agent: string;
+    readonly prompt: string;
+    readonly options: readonly { readonly label: string; readonly description?: string }[];
+    readonly askedAt: string;
+  };
+}
+
 /** `/runs/:id/brief`: the run's brief with where the run stands. */
 export type Brief = RunBrief & { readonly runId: string; readonly status: string; readonly stage: string };
 
@@ -252,7 +276,7 @@ export class DaemonClient {
   }
 
   state = () => this.get<StateData>("/state");
-  inbox = () => this.get<{ decisions: InboxItem[] }>("/inbox");
+  inbox = () => this.get<{ decisions: InboxItem[]; panes?: PaneAsk[] }>("/inbox");
   supervisor = (repo?: string) => this.get<SupervisorView>("/supervisor", repo);
   workflows = (repo?: string) => this.get<{ workflows: Workflow[] }>("/workflows", repo);
   options = (repo?: string) => this.get<OptionsView>("/options", repo);
@@ -302,6 +326,27 @@ export class DaemonClient {
         by: input.by,
         ...(input.text ? { text: input.text } : {}),
         ...(input.origin ? { origin: input.origin } : {}),
+      },
+      repo,
+    );
+  /** An answer to a pane's question: typed into the pane at once (a menu's number, the agent's words). */
+  answerPane = (
+    input: {
+      readonly paneId: string;
+      readonly question: string;
+      readonly choices: readonly string[];
+      readonly by: string;
+      readonly text?: string | undefined;
+    },
+    repo?: string,
+  ) =>
+    this.post<PaneAsk["question"]>(
+      `/panes/${encodeURIComponent(input.paneId)}/answer`,
+      {
+        question: input.question,
+        choices: input.choices,
+        by: input.by,
+        ...(input.text ? { text: input.text } : {}),
       },
       repo,
     );

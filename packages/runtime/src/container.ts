@@ -144,6 +144,7 @@ import type {
   PackageManager,
   PackageManagerDetector,
   PackRules,
+  PaneQuestions,
   PaneSensor,
   Panes,
   PatternCatalog,
@@ -359,6 +360,7 @@ export interface Cradle {
   paneSensor: PaneSensor;
   hostPrompts: HostPrompts;
   openPrompts: Map<string, OpenPrompt>;
+  paneQuestions: PaneQuestions;
   notifier: Notifier;
   runMessages: RunMessages;
   runJournal: RunJournal;

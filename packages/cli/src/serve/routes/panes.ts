@@ -1,7 +1,8 @@
 import { PANE_ROLES, PANE_STATES, type PaneState, SplitNodeSchema } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import { z } from "zod";
-import { body, count, denied, flag, optional, type Route, route, strings } from "../http.ts";
+import { body, count, denied, flag, optional, type Route, route, strings, text } from "../http.ts";
+import { personOnly } from "./plans.ts";
 
 /** `/panes`, `/tabs`, `/workspaces`, `/layout`: the terminals the daemon owns (ADR-0080). */
 
@@ -109,6 +110,22 @@ export const PANE_ROUTES: readonly Route[] = [
     pattern: "/panes/close-ended",
     body: body({ runId: z.string().optional() }),
     handler: ({ c, body: b }) => c.resolve("panes").closeEnded(b.runId ? { runId: b.runId } : {}),
+  }),
+  // A person's answer to a pane question (a pane without a run, ADR-0091): recorded, then typed
+  // into the pane at once (a menu's key with its own Enter, the agent's words). Only a person.
+  route({
+    method: "POST",
+    pattern: "/panes/:pane/answer",
+    body: body({ question: text, choices: strings, text: optional(z.string()), by: text }),
+    guard: personOnly,
+    handler: ({ c, body: b, params }) =>
+      c.resolve("hostPrompts").answerPane({
+        paneId: params.pane as string,
+        question: b.question ?? "",
+        choices: b.choices ?? [],
+        ...(b.text ? { text: b.text } : {}),
+        by: b.by ?? "",
+      }),
   }),
   // The agent of a pane (the chat where a person gave a task) started a run: the pane's own token, no other.
   route({

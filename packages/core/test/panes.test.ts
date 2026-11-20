@@ -257,8 +257,9 @@ describe("Panes", () => {
     const pane = (await w.panes.openRun({ runId: r.runId }))._unsafeUnwrap();
     const pty = w.copilot.started[0]?.pty;
     pty?.print("\x1b[1mline1\x1b[0m\nline2\nline3\n");
-    expect(w.panes.read(pane.id, 2)).toBe("line3\n");
-    expect(w.panes.read(pane.id, 3)).toBe("line2\nline3\n");
+    // The screen as shown: the escapes gone, no blank line after the last.
+    expect(w.panes.read(pane.id, 2)).toBe("line2\nline3");
+    expect(w.panes.read(pane.id, 3)).toBe("line1\nline2\nline3");
     w.timers.at(-1)?.fn();
     await Bun.sleep(5);
     expect((await w.panes.wait(pane.id, { until: ["idle"], timeoutMs: 1000 }))._unsafeUnwrap()).toEqual({

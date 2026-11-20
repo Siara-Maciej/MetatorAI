@@ -197,7 +197,10 @@ function Shell() {
     [go, d],
   );
   // Everything that needs the person: the sidebar counts it, Home shows one at a time.
-  const needs = useMemo(() => needsQueue(d.inbox, d.runs, d.panes), [d.inbox, d.runs, d.panes]);
+  const needs = useMemo(
+    () => needsQueue(d.inbox, d.runs, d.panes, d.paneAsks),
+    [d.inbox, d.runs, d.panes, d.paneAsks],
+  );
   const picked = route.screen === "inbox" ? pickedNeed(needs, route.pick) : undefined;
   // Settings holds the places that are not daily work: the System and the Reviews.
   const settingsPart =

@@ -1198,7 +1198,7 @@ describe("the sidebar: one state that rolls up (wave 2)", () => {
     );
   });
 
-  test("the agent a run begins with is ready for a task: idle, never asks", () => {
+  test("the agent a run begins with is ready for a task: idle; it asks only when its host's prompt is on its screen", () => {
     const intake = (state?: string) =>
       ({
         process: { kind: "host", host: "copilot", agent: "mt-orchestrator", prompt: "" },
@@ -1208,7 +1208,8 @@ describe("the sidebar: one state that rolls up (wave 2)", () => {
     expect(isIntake(intake())).toBe(true);
     expect(isIntake({ process: { kind: "command", argv: ["sh"] } } as never)).toBe(false);
     expect(isIntake({ ...(intake() as object), runId: "r1" } as never)).toBe(false);
-    expect(paneStateOf(intake("blocked"))).toBe("idle");
+    // Its host asks leave to run a command (ADR-0091): that needs the person, run or no run.
+    expect(paneStateOf(intake("blocked"))).toBe("asks");
     expect(paneStateOf(intake("waiting"))).toBe("idle");
     expect(paneStateOf(intake("working"))).toBe("working");
     expect(paneNote(intake(), "idle")).toBe("ready for your task");

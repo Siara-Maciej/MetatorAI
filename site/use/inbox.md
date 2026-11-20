@@ -73,7 +73,25 @@ An agent can also stop at a question it wrote on its own screen, without a card.
 
 ## Permission prompts of the host
 
-Sometimes the AI host shows its own permission prompt in the terminal ("Allow ... to run?"). MetatorAI never types into that prompt. The question names the agent in that pane (a worker by its name, such as `mt-implementer-1`, at its stage), and only that pane reads as waiting: a worker's question never makes the conductor's pane wait. The daemon puts it in the inbox as a question with two choices: **Attach and answer in the pane**, which gives you the keyboard of that pane, and **Leave it**. When the prompt is gone from the screen, the inbox item closes.
+Sometimes the AI host shows its own permission prompt in the terminal ("Allow ... to run?"). The question names the agent in that pane (a worker by its name, such as `mt-implementer-1`, at its stage), and only that pane reads as waiting: a worker's question never makes the conductor's pane wait. The daemon reads the prompt from the screen as you see it and puts it in the inbox in one line, for example `Bash command: metator workflow list — This command requires approval`.
+
+When the prompt is a numbered menu, as Claude Code's approval is (**1. Yes**, **2. Yes, and don't ask again for: …**, …, **4. No**), the card offers the menu's choices. The one you pick is typed into the pane as its number, followed by Enter. The card also offers **Attach and answer in the pane**, which gives you the keyboard of that pane, and **Leave it**. A prompt without a menu has only these last two. When the prompt is gone from the screen, the inbox item closes, whether you answered on the card or in the pane.
+
+### Before a run exists: the chat's questions
+
+The chat where you describe a task has no run yet, and its agent can still stop and wait for you: its host asks leave to run a command, or the agent asks in its terminal (`Which workflow? [mt-feature / mt-bugfix]`). Home shows such a question as a card of its own. It names the pane (**chat**) and, in a folder, its repository, and it offers the same choices as above. Your answer is typed into the pane. In **Terminals** the chat's frame says **needs you** until the question is answered, on the card or in the pane.
+
+For a script, these questions are listed in `GET /inbox` under `panes`, one item per question:
+
+```json
+{ "kind": "pane", "repo": "shop-api", "paneId": "w1:p1", "label": "chat", "role": "apps", "host": "claude",
+  "question": { "id": "p001", "paneId": "w1:p1", "source": "permission", "agent": "chat", "host": "claude",
+    "prompt": "Bash command: metator workflow list — This command requires approval",
+    "options": [{ "label": "Yes" }, { "label": "Yes, and don't ask again for: metator workflow *" }, { "label": "Yes, and switch to auto mode" }, { "label": "No, and tell Claude what to do differently (esc)" }, { "label": "Attach and answer in the pane" }, { "label": "Leave it" }],
+    "multiSelect": false, "askedAt": "2026-11-20T10:00:00.000Z" } }
+```
+
+`repo` is there only when the daemon serves a folder. Answer with `POST /panes/<pane>/answer?repo=<repo>` and `{ "question": "p001", "choices": ["Yes"], "by": "<your name>" }`, or `{ "question": "…", "choices": [], "text": "<words>", "by": "…" }` for **Other**. Only a person may answer: a pane's own token gets 403. The daemon keeps these questions while it runs; after a restart it asks again whatever the chat still shows. `metator inbox` at a terminal lists only the questions of runs.
 
 ## Escalated runs
 

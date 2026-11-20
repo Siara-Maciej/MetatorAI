@@ -11,6 +11,7 @@ import {
   type Envelope,
   type InboxItem,
   type OptionsView,
+  type PaneAsk,
   type PaneView,
   type ResolvedOption,
   type StateData,
@@ -53,6 +54,8 @@ export interface Daemon {
   readonly repo: string | undefined;
   setRepo(name: string): void;
   readonly inbox: readonly InboxItem[];
+  /** The questions of panes without a run (the intake chat), from `/inbox`'s `panes` (ADR-0091). */
+  readonly paneAsks: readonly PaneAsk[];
   /** Every pane of every repository's layout (R1, R4), each with the repository it belongs to. */
   readonly panes: readonly (PaneView & { readonly repo?: string | undefined })[];
   /** Every workspace of every repository's layout, read with the panes. */
@@ -214,6 +217,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
   const client = useMemo(() => new DaemonClient(url), [url]);
   const [state, setState] = useState<StateData>();
   const [inbox, setInbox] = useState<readonly InboxItem[]>([]);
+  const [paneAsks, setPaneAsks] = useState<readonly PaneAsk[]>([]);
   const [error, setError] = useState<string>();
   const fetchState = useMemo(
     () => async () => {
@@ -246,7 +250,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
       } else if (env.error) setError(env.error.message);
     },
   );
-  useStream<{ ok: boolean; data?: { decisions: InboxItem[] } }>(
+  useStream<{ ok: boolean; data?: { decisions: InboxItem[]; panes?: PaneAsk[] } }>(
     url,
     "/ws/inbox",
     attempt,
@@ -255,7 +259,10 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
       return d ? { ok: true, data: d } : undefined;
     },
     (env) => {
-      if (env.ok && env.data) setInbox(env.data.decisions);
+      if (env.ok && env.data) {
+        setInbox(env.data.decisions);
+        setPaneAsks(env.data.panes ?? []);
+      }
     },
   );
   const { runs: stateRuns, repos, unreadable } = useMemo(() => flattenState(state), [state]);
@@ -376,6 +383,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
       setSavedRepo(name);
     },
     inbox: down ? NO_INBOX : inbox,
+    paneAsks: down ? NO_PANE_ASKS : paneAsks,
     panes: shownPanes,
     workspaces: down ? NO_WORKSPACES : workspaces,
     seen,
@@ -402,6 +410,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
 
 const NO_RUNS: readonly Run[] = [];
 const NO_INBOX: readonly InboxItem[] = [];
+const NO_PANE_ASKS: readonly PaneAsk[] = [];
 const NO_PANES: Daemon["panes"] = [];
 const NO_WORKSPACES: Daemon["workspaces"] = [];
 const NO_UNREADABLE: readonly Unreadable[] = [];

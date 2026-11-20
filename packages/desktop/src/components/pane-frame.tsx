@@ -23,6 +23,7 @@ export function PaneFrame({
   asking,
   copying,
   lastOfTab,
+  needsYou,
   onFocus,
   onMenu,
   onZoom,
@@ -49,6 +50,8 @@ export function PaneFrame({
   readonly copying: boolean;
   /** The only pane of its tab: closing it closes the tab. */
   readonly lastOfTab: boolean;
+  /** A question of this pane waits for the person (a pane without a run, ADR-0091). */
+  readonly needsYou?: boolean | undefined;
   onFocus(): void;
   onMenu(e: React.MouseEvent): void;
   onZoom(): void;
@@ -82,6 +85,12 @@ export function PaneFrame({
             {" · "}
             {symbols ? <Glyph kind="pane" state={state} /> : null} {state}
           </span>
+          {needsYou ? (
+            <span className="amber" data-testid={`needs-you-${p.id}`}>
+              {" "}
+              · needs you
+            </span>
+          ) : null}
           {paneNote(p, state) ? <span className="faint"> · {paneNote(p, state)}</span> : null}
           {mine ? <span className="teal"> · yours</span> : null}
         </button>

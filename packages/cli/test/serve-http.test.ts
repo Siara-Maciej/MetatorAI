@@ -353,6 +353,7 @@ describe("the daemon's route table", () => {
       "POST /runs/:run/attach",
       "POST /runs/:run/release",
       "POST /runs/:run/answer",
+      "POST /panes/:pane/answer",
       "POST /runs/:run/approve",
       "POST /runs/:run/resume",
       "POST /runs/:run/stop",
@@ -376,6 +377,6 @@ describe("the daemon's route table", () => {
       "GET /runs/:run/artifacts/:name+",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(75);
+    expect(keys.size).toBe(76);
   });
 });

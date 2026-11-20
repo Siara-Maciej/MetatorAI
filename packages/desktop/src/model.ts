@@ -7,6 +7,7 @@ import type {
   Attention,
   InboxItem,
   IssueRef,
+  PaneAsk,
   PaneView,
   PlanLintProblem,
   PlanLintView,
@@ -924,8 +925,10 @@ export function paneStateOf(
   if (pane.live && !pane.live.alive && pane.live.exitCode === 0) return "finished";
   if (raw === "exited" || !pane.live?.alive) return "exited";
   const agent = pane.process.kind === "host";
-  // The agent of a new run waits for the person to say what to do: that is not a question of a run.
-  if (raw === "blocked" || raw === "waiting") return agent && !isIntake(pane) ? "asks" : "idle";
+  // A host's prompt on the screen asks, run or no run (the intake chat's leave to run a command);
+  // an open question of a run is not the intake's: before its run it only waits for a task.
+  if (raw === "blocked") return agent ? "asks" : "idle";
+  if (raw === "waiting") return agent && !isIntake(pane) ? "asks" : "idle";
   if (raw === "idle") return "idle";
   if (agent) return "working";
   const last = Date.parse(pane.live.lastOutputAt ?? "");
@@ -1493,11 +1496,14 @@ export function withSeen(seen: SeenRuns, key: string, at: string, keep = 200): S
   return Object.fromEntries(entries.slice(0, keep));
 }
 
-export type NeedKind = "question" | "approval" | "permission" | "terminal" | "escalated";
+export type NeedKind = "question" | "approval" | "permission" | "terminal" | "escalated" | "pane";
 
 /** One thing that needs the person: a question on a card, a question on a terminal, an escalated run. */
 export interface NeedRow {
-  /** What the Inbox route picks: `<run>/<question>`, `terminal:<repo>:<run>`, `escalated:<repo>:<run>`. */
+  /**
+   * What the Inbox route picks: `<run>/<question>`, `terminal:<repo>:<run>`, `escalated:<repo>:<run>`,
+   * `pane/<repo>/<pane>/<question>` for a pane without a run (no run id: `runId` is empty).
+   */
   readonly key: string;
   readonly kind: NeedKind;
   readonly title: string;
@@ -1530,6 +1536,8 @@ export function needsQueue(
   panes: readonly (Pick<PaneView, "id" | "worker" | "role" | "label" | "process"> & {
     readonly repo?: string | undefined;
   })[] = [],
+  paneAsks: readonly PaneAsk[] = [],
+  now: number = Date.now(),
 ): NeedRow[] {
   const taskOf = (runId: string, repo: string | undefined) =>
     runs.find((r) => r.runId === runId && sameRepo(r.repo, repo))?.task;
@@ -1557,6 +1565,24 @@ export function needsQueue(
         runId: i.runId,
         repo: i.repo,
         hint: [i.question.prompt, ...inboxChips(i)].join(" · "),
+      }),
+    ),
+    // A pane without a run that asks (the intake chat's host wants leave to run a command).
+    ...paneAsks.map(
+      (a): NeedRow => ({
+        key: paneAskKey(a),
+        kind: "pane",
+        title: a.question.prompt,
+        sub: [a.label, a.repo, duration(now - Date.parse(a.question.askedAt))]
+          .filter((x) => x !== undefined && x !== "")
+          .join(" · "),
+        runId: "",
+        repo: a.repo,
+        pane: a.paneId,
+        hint:
+          a.question.source === "agent"
+            ? `The ${a.label}'s agent asks: answer it here, or attach and answer in the pane`
+            : `The ${a.label}'s host asks: answer it here, or attach and answer in the pane`,
       }),
     ),
     ...runs
@@ -1590,6 +1616,23 @@ export function needsQueue(
       ),
   ];
 }
+
+/** The address of a pane's question on Home: `pane/<repo>/<pane>/<question>` (no repository when there is one). */
+export const paneAskKey = (a: Pick<PaneAsk, "repo" | "paneId" | "question">): string =>
+  ["pane", a.repo, a.paneId, a.question.id].filter((x) => x !== undefined && x !== "").join("/");
+
+/** A row of the queue that is a pane's question (no run). */
+export const isPaneAsk = (n: Pick<NeedRow, "kind">): boolean => n.kind === "pane";
+
+/** The pane question a row's key names. */
+export const paneAskOf = (asks: readonly PaneAsk[], key: string | undefined): PaneAsk | undefined =>
+  key ? asks.find((a) => paneAskKey(a) === key) : undefined;
+
+/** A pane whose question waits for the person (its tile says "needs you"). */
+export const paneNeedsYou = (
+  pane: { readonly id: string; readonly repo?: string | undefined },
+  asks: readonly PaneAsk[],
+): boolean => asks.some((a) => a.paneId === pane.id && sameRepo(a.repo, pane.repo));
 
 /**
  * The stable address of one decision on Home: its repository (when the daemon serves a folder),
