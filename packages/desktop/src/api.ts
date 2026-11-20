@@ -323,6 +323,9 @@ export class DaemonClient {
    */
   continueRun = (runId: string, by: string, repo?: string) =>
     this.post<ContinueResult>(`/runs/${runId}/continue`, { by }, repo);
+  /** One paused pane started again in place (refused when it is not paused). */
+  continuePane = (paneId: string, by: string, repo?: string) =>
+    this.post<ContinueResult>(`/panes/${encodeURIComponent(paneId)}/continue`, { by }, repo);
   /** An escalated run back at the stage it escalated from, and driven on at once. */
   resume = (runId: string, by: string, repo?: string) =>
     this.post<{ run: { stage: string }; drive?: { started?: boolean; error?: string; hint?: string } }>(

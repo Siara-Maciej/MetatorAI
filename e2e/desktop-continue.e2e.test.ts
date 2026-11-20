@@ -1,9 +1,11 @@
 /**
- * Round 11 in the desktop app, on a real daemon with the scenario host: a paused pane, "Continue
- * task", a host's long command on a card, and an app that is reloaded, or closed and opened
- * again, mid-run. Until the daemon pauses panes and answers `POST /runs/:run/continue` itself,
- * the test lays the contract's fields over the daemon's real answers (`paused` on a pane, a
- * permission question's `command`, the continue route's result).
+ * Round 11 in the desktop app, on a real daemon with the scenario host: a task's conductor, a
+ * child's conductor and its worker; the daemon stopped with SIGTERM and started with
+ * `--no-restore`, so the panes are really paused. The app shows them paused (badge, banner, last
+ * screen), the same after a reload and in a new window; a pane's own Continue resumes only it
+ * (`POST /panes/:pane/continue`), "Continue task" the rest (`POST /runs/:run/continue`). The one
+ * fixture: a host's permission question with a long `command` (a scenario host draws no Claude
+ * Code approval), laid over the inbox to show it cut and whole on a card.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
@@ -22,15 +24,20 @@ const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
 // The conductor says what it does and waits for a word on its own terminal: no question mark,
 // so the screen is no prompt a person must answer.
+// Each agent's second entry is what its session says when it is resumed.
 const SCENARIO = `kind: AgentScenario
 schemaVersion: 1
 agents:
   mt-orchestrator:
     - - say: "I am the conductor of this run. I delegate the build to a worker and collect its result."
       - ask: { question: "Type here to talk to the conductor.", options: [go on] }
+    - - say: "The conductor goes on where it stopped."
+      - ask: { question: "Type here to talk to the conductor again.", options: [go on] }
   mt-implementer:
     - - say: "Building the step."
       - ask: { question: "Type here to talk to the worker.", options: [go on] }
+    - - say: "The worker goes on where it stopped."
+      - ask: { question: "Type here to talk to the worker again.", options: [go on] }
 `;
 // A task's title is the person's whole sentence at times: the view must not grow wider than the window.
 const TITLE =
@@ -46,7 +53,9 @@ let dist: string;
 let configDir: string;
 let site: ReturnType<typeof Bun.serve>;
 let page: Page;
-let daemon: Bun.Subprocess<"ignore", "ignore", "pipe">;
+let daemon: Bun.Subprocess<"ignore", "ignore", "pipe"> | undefined;
+/** The daemon's port, kept across its restart: the app's address stays the same. */
+let port = 0;
 let base = "";
 let env: Record<string, string>;
 const errors: string[] = [];
@@ -61,6 +70,45 @@ async function until<T>(what: string, probe: () => Promise<T | undefined>, ms = 
   }
 }
 const app = (hash: string) => `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(base)}#/${hash}`;
+
+/** `metator serve` on the kept port; `--no-restore` leaves paused panes paused. */
+async function startDaemon(...extra: string[]): Promise<void> {
+  const d = Bun.spawn(
+    [
+      "bun",
+      CLI_ENTRY,
+      "serve",
+      "--port",
+      String(port),
+      "--poll-ms",
+      "100",
+      "--supervise-ms",
+      "0",
+      "--screens-ms",
+      "300",
+      ...extra,
+    ],
+    {
+      cwd: repo.root,
+      env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
+      stdout: "ignore",
+      stderr: "pipe",
+    },
+  );
+  daemon = d;
+  const reader = d.stderr.getReader();
+  let text = "";
+  base = await until("the daemon to listen", async () => {
+    const { value, done } = await reader.read();
+    if (done) return "";
+    text += new TextDecoder().decode(value);
+    const line = text.split("\n").find((l) => l.includes('"serving"'));
+    return line ? (JSON.parse(line) as { serving: { url: string } }).serving.url : undefined;
+  });
+  void (async () => {
+    for (;;) if ((await reader.read().catch(() => ({ done: true }))).done) return;
+  })();
+}
 
 beforeAll(async () => {
   dist = await mkdtemp(join(tmpdir(), "metator-desktop-continue-"));
@@ -97,21 +145,10 @@ beforeAll(async () => {
     METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
     METATOR_CONFIG_DIR: configDir,
   };
-  daemon = Bun.spawn(["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100", "--supervise-ms", "0"], {
-    cwd: repo.root,
-    env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
-    stdout: "ignore",
-    stderr: "pipe",
-  });
-  const reader = daemon.stderr.getReader();
-  let text = "";
-  base = await until("the daemon to listen", async () => {
-    const { value, done } = await reader.read();
-    if (done) return "";
-    text += new TextDecoder().decode(value);
-    const line = text.split("\n").find((l) => l.includes('"serving"'));
-    return line ? (JSON.parse(line) as { serving: { url: string } }).serving.url : undefined;
-  });
+  const probe = Bun.serve({ port: 0, fetch: () => new Response("") });
+  port = probe.port as number;
+  probe.stop(true);
+  await startDaemon();
   const b = await browser();
   page = await b.newPage({ viewport: { width: 1440, height: 900 } });
   page.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
@@ -135,33 +172,11 @@ afterAll(async () => {
 const LONG =
   'metator run delegate build --agent mt-implementer --card "Add src/currency.ts exporting the list of supported currencies; a failing test first in test/currency.test.ts; write build-log.md with the files changed, the test command and its result. Summary of at most 10 lines." --run ';
 
-/** The contract's fields laid over the daemon's answers (until the engine sends them itself). */
-async function fixtures(p: Page, paused: () => string | undefined, child: () => string, calls: string[]) {
-  await p.route("**/layout**", async (route) => {
-    const res = await route.fetch();
-    const body = (await res.json()) as { data?: { panes?: Record<string, unknown>[] } };
-    for (const pane of body.data?.panes ?? [])
-      if (pane.id === paused())
-        Object.assign(pane, {
-          paused: { at: "2026-11-20T10:00:00.000Z", why: "daemon-stopped" },
-          live: { ...(pane.live as object), alive: false },
-        });
-    await route.fulfill({ response: res, json: body });
-  });
-  await p.route("**/runs/*/continue**", async (route) => {
-    calls.push(`${new URL(route.request().url()).pathname} ${route.request().postData() ?? ""}`);
-    await route.fulfill({
-      json: {
-        ok: true,
-        data: {
-          resumed: [{ paneId: paused(), role: "worker", sessionId: "s1" }],
-          drives: [],
-          skipped: [{ runId: child(), why: "its conductor is live" }],
-        },
-      },
-    });
-  });
-  // A host's permission question with its whole command: over the inbox's socket and its route.
+/**
+ * The one fixture: a host's permission question with its whole command, laid over the inbox (its
+ * route and its socket). A scenario host draws no Claude Code approval for the daemon to read.
+ */
+async function longCommandAsk(p: Page, child: () => string) {
   const withAsk = (env: { ok: boolean; data?: { decisions: unknown[] } }) => {
     if (
       env.data &&
@@ -179,7 +194,7 @@ async function fixtures(p: Page, paused: () => string | undefined, child: () => 
             runId: child(),
             source: "permission",
             agent: "mt-orchestrator",
-            prompt: `mt-orchestrator waits for your answer in pane w1:p2: ${LONG.slice(0, 60)}`,
+            prompt: `${LONG.split(" --card")[0]} — This command requires approval`,
             command: `${LONG}${child()}`,
             options: [{ label: "Yes" }, { label: "No" }],
             askedAt: "2026-11-20T10:00:00.000Z",
@@ -214,7 +229,7 @@ async function nameIfAsked(p: Page) {
 }
 
 describe("sessions survive, one Continue, whole commands, reloads change nothing (round 11)", () => {
-  test("a paused pane, Continue task, a long command on a card, and the same app after a reload and a new window", async () => {
+  test("really paused panes, their Continue and Continue task, a long command, the same app after a reload and in a new window", async () => {
     const make = async (args: string[]) =>
       (
         (await metator(["run", "new", "--workflow", "demo", ...args], repo.root, env)).json.data as {
@@ -244,15 +259,20 @@ describe("sessions survive, one Continue, whole commands, reloads change nothing
         )
       ).code,
     ).toBe(0);
+    type P = {
+      id: string;
+      runId?: string;
+      role: string;
+      paused?: { why: string };
+      live?: { alive: boolean };
+    };
     const layout = async () =>
-      (
-        (await (await fetch(`${base}/layout`)).json()) as {
-          data: { panes: { id: string; runId?: string; role: string }[] };
-        }
-      ).data.panes;
-    const panes = await until("three panes", async () => {
+      ((await (await fetch(`${base}/layout`)).json()) as { data: { panes: P[] } }).data.panes;
+    const screen = async (id: string) =>
+      ((await (await fetch(`${base}/panes/${id}`)).json()) as { data: { text: string } }).data.text;
+    const panes = await until("three live panes", async () => {
       const p = await layout();
-      return p.length >= 3 ? p : undefined;
+      return p.length >= 3 && p.every((x) => x.live?.alive) ? p : undefined;
     });
     const of = (runId: string, role: string) =>
       panes.find((p) => p.runId === runId && p.role === role)?.id as string;
@@ -261,74 +281,29 @@ describe("sessions survive, one Continue, whole commands, reloads change nothing
       of(child, "conductor"),
       of(child, "worker"),
     ];
-    const calls: string[] = [];
-    await fixtures(
-      page,
-      () => worker,
-      () => child,
-      calls,
+    await until("the worker's screen", async () =>
+      (await screen(worker)).includes("Building the step") ? true : undefined,
     );
+    // The screens are kept on disk every 300 ms; then the daemon stops (SIGTERM) and starts with
+    // --no-restore: every pane is paused, really.
+    await Bun.sleep(800);
+    daemon?.kill("SIGTERM");
+    await daemon?.exited;
+    stopProcessesUnder(repo.root);
+    await startDaemon("--no-restore");
+    await until("every pane paused", async () => {
+      const p = await layout();
+      return p.length === 3 && p.every((x) => x.paused?.why === "daemon-stopped") ? true : undefined;
+    });
+    await longCommandAsk(page, () => child);
 
-    // 1. The worker paused with the daemon: its badge counts it; its banner says why, read-only.
-    await page.goto(app(`grid/task/${task}`));
-    const badge = page.getByTestId(`open-session-${child}`);
-    await until("the paused badge", async () =>
-      (await badge.textContent().catch(() => ""))?.includes("1 sub-terminal · 1 paused") ? true : undefined,
-    );
-    // 2. Continue task, in the bar and on the main terminal's tile.
-    const cont = page.getByTestId("continue-task");
-    await cont.waitFor({ timeout: 20_000 });
-    expect(await page.getByTestId(`tile-${taskConductor}`).getByTestId("continue-task-tile").count()).toBe(1);
-    if (SHOTS) await page.screenshot({ path: join(SHOTS, "continue-task.png") });
-    await cont.click();
-    await nameIfAsked(page);
-    await until("the continue notice", async () =>
-      (
-        await page
-          .locator(".workbench .notice")
-          .textContent()
-          .catch(() => "")
-      )?.includes("Continued: resumed 1 terminal.")
-        ? true
-        : undefined,
-    );
-    expect(await page.locator(".workbench .notice").textContent()).toContain(`Skipped 1: ${child}`);
-    expect(calls[0]).toContain(`/runs/${task}/continue`);
-    expect(calls[0]).toContain('"by":"ana"');
-    await badge.click();
-    const banner = page.getByTestId(`paused-${worker}`);
-    await banner.waitFor({ timeout: 20_000 });
-    expect(await banner.textContent()).toContain("Paused — the daemon stopped");
-    if (SHOTS) await page.screenshot({ path: join(SHOTS, "paused-pane.png") });
-    await banner.getByRole("button", { name: "Continue" }).click();
-    await until("the pane's continue", async () =>
-      calls.some((c) => c.includes(`/runs/${child}/continue`)) ? true : undefined,
-    );
-
-    // 3. A host's long command on Home: its start, cut; a click and Enter show it whole.
-    await page.goto(app(`inbox/${child}/q900`));
-    const card = page.getByRole("article", { name: "decision card" });
-    const short = card.getByTestId("command-short");
-    await short.waitFor({ timeout: 20_000 });
-    expect((await short.textContent())?.startsWith("metator run delegate build --agent mt-implementer")).toBe(
-      true,
-    );
-    expect((await short.textContent())?.endsWith("…")).toBe(true);
-    expect(await card.locator("h1").textContent()).not.toContain("waits for your answer");
-    await short.click();
-    expect(await card.getByTestId("command-full").textContent()).toBe(`${LONG}${child}`);
-    if (SHOTS) await page.screenshot({ path: join(SHOTS, "long-command-expanded.png") });
-    await short.press("Enter");
-    expect(await card.getByTestId("command-full").count()).toBe(0);
-    await short.press("Enter");
-    expect(await card.getByTestId("command-full").count()).toBe(1);
-
-    // 4. A reload changes nothing: the same view, the same tiles and screens, the same card.
+    // What the person sees, read the same way in each window: the task's view and Home's card.
     const look = async (p: Page) => {
       await p.goto(app(`grid/task/${task}`));
       await p.getByTestId("task-view").waitFor({ timeout: 20_000 });
       await until("the tiles", async () => ((await p.locator(".tile").count()) === 2 ? true : undefined));
-      await until("the conductor's screen", async () =>
+      // A paused pane keeps its last screen, read-only, under its banner.
+      await until("the conductor's last screen", async () =>
         (await p.getByTestId(`frame-${taskConductor}`).textContent())?.includes("I am the conductor")
           ? true
           : undefined,
@@ -336,6 +311,7 @@ describe("sessions survive, one Continue, whole commands, reloads change nothing
       const tiles = await p
         .locator(".tile")
         .evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
+      const banners = await p.locator('[data-testid^="paused-"]').count();
       const badgeText = await until("the badge", async () => {
         const t = await p
           .getByTestId(`open-session-${child}`)
@@ -343,6 +319,7 @@ describe("sessions survive, one Continue, whole commands, reloads change nothing
           .catch(() => "");
         return t?.includes("paused") ? t : undefined;
       });
+      const offered = await p.getByTestId("continue-task").count();
       await p.goto(app(`inbox/${child}/q900`));
       const heading = await until(
         "the card",
@@ -353,30 +330,104 @@ describe("sessions survive, one Continue, whole commands, reloads change nothing
             .textContent()
             .catch(() => "")) || undefined,
       );
-      return { tiles, badgeText, heading, url: p.url().replace(/\?daemon=[^#]*/, "") };
+      return { tiles, banners, badgeText, offered, heading };
     };
-    const before = await look(page);
-    expect(before.tiles).toEqual([`tile-${taskConductor}`, `tile-${childConductor}`]);
-    await page.goto(app(`grid/task/${task}`));
-    await page.reload();
-    const again = await look(page);
-    expect(again).toEqual(before);
-    // The run went on untouched by the reload: its panes and their sessions are the same.
-    expect((await layout()).map((p) => p.id).sort()).toEqual(panes.map((p) => p.id).sort());
 
-    // 5. The window closed and a new one opened: the same again.
+    // 1. Paused: the session's badge counts its paused worker; every tile has its banner.
+    const before = await look(page);
+    expect(before).toEqual({
+      tiles: [`tile-${taskConductor}`, `tile-${childConductor}`],
+      banners: 2,
+      badgeText: "1 sub-terminal · 1 paused ›",
+      offered: 1,
+      heading: expect.stringMatching(/^metator run delegate build --agent mt-implementer .*…$/),
+    });
+
+    // 3. The long command: cut on the card, whole on a click and on Enter.
+    const card = page.getByRole("article", { name: "decision card" });
+    const short = card.getByTestId("command-short");
+    expect(await card.locator("h1").textContent()).not.toContain("This command requires approval");
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "long-command-collapsed.png") });
+    await short.click();
+    expect(await card.getByTestId("command-full").textContent()).toBe(`${LONG}${child}`);
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "long-command-expanded.png") });
+    await short.press("Enter");
+    expect(await card.getByTestId("command-full").count()).toBe(0);
+
+    // 4. A reload changes nothing; nor does a new window. The panes are the same and still paused.
+    await page.reload();
+    expect(await look(page)).toEqual(before);
     const b = await browser();
     const fresh: BrowserContext = await b.newContext({ viewport: { width: 1440, height: 900 } });
     const other = await fresh.newPage();
     other.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
-    await fixtures(
-      other,
-      () => worker,
-      () => child,
-      calls,
-    );
+    await longCommandAsk(other, () => child);
     expect(await look(other)).toEqual(before);
     await fresh.close();
+    expect((await layout()).every((x) => x.paused)).toBe(true);
+
+    // 1. A pane's own Continue resumes only that pane, its session in place.
+    await page.goto(app(`grid/task/${task}/${child}`));
+    const banner = page.getByTestId(`paused-${worker}`);
+    await banner.waitFor({ timeout: 20_000 });
+    expect(await banner.textContent()).toContain("Paused — the daemon stopped");
+    // Its last screen is there, read-only, under the banner.
+    await until("the worker's last screen", async () => {
+      if ((await page.getByTestId(`frame-${worker}`).textContent())?.includes("Building the step"))
+        return true;
+      return undefined;
+    }).catch(async (e) => {
+      throw new Error(`${(e as Error).message}; the daemon serves: ${JSON.stringify(await screen(worker))}`);
+    });
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "paused-pane.png") });
+    await banner.getByRole("button", { name: "Continue" }).click();
+    await nameIfAsked(page);
+    await until("the worker resumed", async () => {
+      const w = (await layout()).find((x) => x.id === worker);
+      return w && !w.paused && w.live?.alive ? true : undefined;
+    });
+    expect(
+      (await layout())
+        .filter((x) => x.paused)
+        .map((x) => x.id)
+        .sort(),
+    ).toEqual([taskConductor, childConductor].sort());
+    await until("the worker going on", async () =>
+      (await page.getByTestId(`frame-${worker}`).textContent())?.includes(
+        "The worker goes on where it stopped",
+      )
+        ? true
+        : undefined,
+    );
+    await until("its banner gone", async () =>
+      (await page.getByTestId(`paused-${worker}`).count()) === 0 ? true : undefined,
+    );
+
+    // 2. Continue task resumes the rest, across the task's runs, and says what it did.
+    await page.getByTestId("terminals-task").click();
+    const cont = page.getByTestId("continue-task");
+    await cont.click();
+    await nameIfAsked(page);
+    const said = await until("the continue notice", async () => {
+      const t = await page
+        .locator(".workbench .notice")
+        .textContent()
+        .catch(() => "");
+      return t?.includes("Continued:") ? t : undefined;
+    });
+    expect(said).toContain("resumed 2 terminals");
+    await until("every pane live", async () =>
+      (await layout()).every((x) => !x.paused && x.live?.alive) ? true : undefined,
+    );
+    await until("Continue task gone", async () => ((await cont.count()) === 0 ? true : undefined));
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "continue-task.png") });
+    await until("the conductor going on", async () =>
+      (await page.getByTestId(`frame-${taskConductor}`).textContent())?.includes(
+        "The conductor goes on where it stopped",
+      )
+        ? true
+        : undefined,
+    );
 
     for (const id of [task, child])
       await metator(
@@ -385,5 +436,5 @@ describe("sessions survive, one Continue, whole commands, reloads change nothing
         env,
       );
     expect(errors.filter((e) => !/Notification|favicon/.test(e))).toEqual([]);
-  }, 150_000);
+  }, 180_000);
 });

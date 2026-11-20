@@ -98,13 +98,14 @@ export function PaneFrame({
           {mine ? <span className="teal"> · yours</span> : null}
         </button>
       ) : null}
-      {p.live ? (
+      {/* A paused pane has no process, but its socket serves its last screen, read-only. */}
+      {p.live || pausedBanner(p) ? (
         <PaneTerminal
           // A new session in the same pane (Retry on a conductor) is a new terminal.
-          key={p.live.sessionId}
+          key={p.live?.sessionId ?? `paused:${p.id}`}
           paneId={p.id}
           repo={repo}
-          canType={p.live.alive && !p.ended && !pausedBanner(p) && canType}
+          canType={(p.live?.alive ?? false) && !p.ended && !pausedBanner(p) && canType}
           scrollback={scrollback}
           onBlockedKey={() => (p.live?.alive ? onBlockedKey() : undefined)}
           onReady={(h) => {

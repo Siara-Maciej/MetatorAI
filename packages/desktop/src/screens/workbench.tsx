@@ -401,12 +401,18 @@ export function WorkbenchScreen({
   /** The ended panes "Close finished (N)" closes: a task's all, a session's, a tab's. */
   const endedHere =
     chosen && view !== "tabs" ? finishedOf(chosen, session) : tabPanes.filter((p) => p.ended !== undefined);
-  // Continue (round 11): the task, or a paused pane's run, started again where it stopped.
-  const continueThe = async (runId: string, repo: string | undefined) => {
+  // Continue (round 11): the whole task, or one paused pane, started again where it stopped.
+  const continueThe = async (
+    what: { readonly runId: string } | { readonly paneId: string },
+    repo: string | undefined,
+  ) => {
     let said: string | undefined;
     await action.run(
       async (by) => {
-        const r = await client.continueRun(runId, by, repo);
+        const r =
+          "runId" in what
+            ? await client.continueRun(what.runId, by, repo)
+            : await client.continuePane(what.paneId, by, repo);
         if (r.ok && r.data) said = continueText(r.data);
         return r;
       },
@@ -414,12 +420,8 @@ export function WorkbenchScreen({
     );
     if (said) action.say(said, "info");
   };
-  const continuePane = (p: PaneView) => {
-    // A pane of a run continues with its run; the chat where a task was given with that task.
-    const runId = p.runId ?? p.startedRun;
-    if (runId) void continueThe(runId, repoOf(p));
-    else void retryPane(p);
-  };
+  /** A paused pane's own Continue: only that pane (`POST /panes/:pane/continue`). */
+  const continuePane = (p: PaneView) => void continueThe({ paneId: p.id }, repoOf(p));
   const pending = chosen ? toContinue(chosen, runs) : { paused: 0, undriven: 0 };
   const continueTask = (where: "bar" | "tile") =>
     chosen && view !== "tabs" && pending.paused + pending.undriven > 0 ? (
@@ -428,7 +430,7 @@ export function WorkbenchScreen({
         className="primary"
         data-testid={where === "bar" ? "continue-task" : "continue-task-tile"}
         title={`${pending.paused} paused terminal(s), ${pending.undriven} run(s) nothing drives`}
-        onClick={() => void continueThe(chosen.runId, chosen.repo)}
+        onClick={() => void continueThe({ runId: chosen.runId }, chosen.repo)}
       >
         Continue task
       </button>
