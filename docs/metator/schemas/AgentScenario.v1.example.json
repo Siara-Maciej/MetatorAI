@@ -1,0 +1,26 @@
+{
+  "kind": "AgentScenario",
+  "schemaVersion": 1,
+  "agents": {
+    "mt-scout": [
+      [
+        { "say": "Mapping what the task touches." },
+        { "tool": { "name": "Read", "summary": "src/prices.ts" } },
+        { "write": { "path": "{runDir}/scope.md", "text": "prices.ts and its tests" } }
+      ]
+    ],
+    "mt-planner": [
+      [
+        {
+          "ask": {
+            "question": "Round prices per line or per order?",
+            "options": ["Per line", "Per order"],
+            "multiSelect": false
+          }
+        },
+        { "say": "Planning with the chosen rounding." }
+      ],
+      [{ "fail": "the plan lint failed twice" }]
+    ]
+  }
+}
