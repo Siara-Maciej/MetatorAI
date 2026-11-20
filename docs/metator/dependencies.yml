@@ -51,6 +51,11 @@ packages:
       adr: 0078-desktop-app-tauri-xterm.md,
     }
   - {
+      package: "@xterm/headless",
+      need: "a pane's screen as a person sees it, rendered in the daemon (host prompts, kept screens)",
+      adr: 0091-pane-questions-and-rendered-screen.md,
+    }
+  - {
       package: "@xterm/xterm",
       need: "terminals in the desktop app over the daemon's PTYs",
       adr: 0078-desktop-app-tauri-xterm.md,
