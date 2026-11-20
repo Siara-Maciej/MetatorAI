@@ -1,4 +1,5 @@
 import { type AnswerPolicy, policyFrom, policyRefusal } from "../domain/answer-policy.ts";
+import { conductorHost } from "../domain/conductor.ts";
 import { hostRefusal, labelFor, notDrivable, type Question } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { type RunBrief as Brief, briefOf } from "../domain/inbox.ts";
@@ -6,7 +7,7 @@ import { countAttention } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { taskWarnings } from "../domain/task-lint.ts";
 import type { Clock } from "../ports/index.ts";
-import type { DetachedDrive, RunPanes } from "../ports/run-drive.ts";
+import type { ConductorSession, ConductorSessions, DetachedDrive, RunPanes } from "../ports/run-drive.ts";
 import type { AnswerPolicyStore } from "./answer-policies.ts";
 import type { WorkOverview } from "./overview.ts";
 import { type CheckReadiness, RUN_READINESS, readinessWarnings } from "./readiness.ts";
@@ -136,6 +137,21 @@ export interface StartRunInput {
   readonly setup?: boolean;
   /** Also drive the run in the background, on this host (empty: the default). */
   readonly drive?: { readonly host?: string };
+  /**
+   * Open the run as a conductor session a person sees (ADR-0090), on this interactive host when it
+   * is installed, else the first installed of `supervisor.hostOrder`. With no daemon serving the
+   * repository, or no interactive host installed, the run is driven in the background instead
+   * (on this host, else the default), and `noSession` says why.
+   */
+  readonly session?: { readonly host?: string };
+}
+
+/** What StartRun needs to open a run's conductor session where a person sees it. */
+export interface VisibleSessions {
+  readonly sessions: ConductorSessions;
+  /** The interactive hosts in `supervisor.hostOrder`, each with whether it is installed here. */
+  readonly hosts: () => readonly { readonly id: string; readonly installed: boolean }[];
+  readonly journal: Pick<RunJournal, "record">;
 }
 
 export interface StartedRun {
@@ -145,6 +161,10 @@ export interface StartedRun {
   readonly setupError?: string;
   readonly drive?: DriveStarted;
   readonly driveError?: { readonly message: string; readonly hint?: string };
+  /** Its conductor session, when one was asked for and opened. */
+  readonly session?: ConductorSession;
+  /** Why a session asked for was not opened (the run is driven in the background instead). */
+  readonly noSession?: string;
   /** What this run will not do here, how full the person's hands are, what the task lacks. */
   readonly warnings: readonly string[];
 }
@@ -163,6 +183,8 @@ export class StartRun {
     private readonly ensureDriven: Pick<EnsureDriven, "execute">,
     /** `supervisor.wipLimit`: the runs that may wait for a person before a new one is a warning. */
     private readonly wipLimit: number,
+    /** Where a run's conductor session opens; without it, a session asked for is a drive. */
+    private readonly visible?: VisibleSessions,
   ) {}
 
   async execute(input: StartRunInput): Promise<Result<StartedRun, MetatorError>> {
@@ -185,14 +207,29 @@ export class StartRun {
     const overview = await this.overview.execute();
     // The run just started is one of them only if it already waits; the others were there before.
     const waiting = overview.isOk() ? countAttention(overview.value.runs).you : 0;
-    const drive = input.drive
-      ? await this.ensureDriven.execute({
-          runId: run.runId,
-          ...(input.drive.host ? { host: input.drive.host } : {}),
-        })
-      : undefined;
+    const opened = input.session ? await this.openSession(run.runId, input.session.host) : undefined;
+    // A session that could not open leaves the run to a background drive: it never just stands.
+    const driveHost = input.drive ? input.drive.host : input.session?.host;
+    const drive =
+      input.drive || (opened && "noSession" in opened)
+        ? await this.ensureDriven.execute({ runId: run.runId, ...(driveHost ? { host: driveHost } : {}) })
+        : undefined;
+    if (opened) {
+      const said =
+        "session" in opened
+          ? `started as a conductor session in pane ${opened.session.paneId} on ${opened.session.host}`
+          : `no conductor session (${opened.noSession}): ${
+              drive?.isOk()
+                ? `driven in the background on ${drive.value.host ?? "its host"}`
+                : `not driven either: ${drive?.isErr() ? drive.error.message : "no drive"}`
+            }`;
+      const noted = await this.visible?.journal.record(run.runId, { type: "drive", text: said });
+      if (noted?.isErr()) return err(noted.error);
+    }
     return ok({
       run,
+      ...(opened && "session" in opened ? { session: opened.session } : {}),
+      ...(opened && "noSession" in opened ? { noSession: opened.noSession } : {}),
       ...(setup?.isOk() ? { setup: setup.value } : {}),
       ...(setup?.isErr() ? { setupError: setup.error.message } : {}),
       ...(drive?.isOk() ? { drive: drive.value } : {}),
@@ -215,6 +252,22 @@ export class StartRun {
         ...(ready.isOk() ? readinessWarnings(ready.value, RUN_READINESS) : []),
       ],
     });
+  }
+
+  /** The run's conductor session, or why there is none: no daemon, no interactive host, or it failed. */
+  private async openSession(
+    runId: string,
+    preferred: string | undefined,
+  ): Promise<{ readonly session: ConductorSession } | { readonly noSession: string }> {
+    if (!this.visible) return { noSession: "no daemon serves this repository" };
+    const hosts = this.visible.hosts();
+    const host = conductorHost(preferred, hosts);
+    if (!host)
+      return {
+        noSession: `no interactive host is installed here (${hosts.map((h) => h.id).join(", ") || "none known"})`,
+      };
+    const opened = await this.visible.sessions.open({ runId, host });
+    return opened.isOk() ? { session: opened.value } : { noSession: opened.error.message };
   }
 }
 

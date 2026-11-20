@@ -3137,6 +3137,17 @@ dialog.goto {
   border-bottom: 1px solid var(--edge);
   font-size: var(--fs-compact);
 }
+/* A task's title is a whole sentence at times: one line, cut with an ellipsis, in full on hover. */
+.workbench .terminals-bar [data-testid="terminals-task"] {
+  min-width: 0;
+  flex: 0 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.workbench .terminals-bar > :not([data-testid="terminals-task"]) {
+  flex-shrink: 0;
+}
 .workbench .task-tiles {
   display: grid;
   gap: var(--sp-4);

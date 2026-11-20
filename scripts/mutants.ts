@@ -3189,9 +3189,9 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/system-runs.ts",
-    from: "drive: host ? { host } : {},",
+    from: "session: host ? { host } : {},",
     to: "",
-    why: "a child run is driven as it starts",
+    why: "a child run asks for its conductor session as it starts",
   },
   {
     file: "packages/core/src/domain/drive.ts",
@@ -6827,5 +6827,53 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'exit "$code"; }',
     to: "true; }",
     why: "a failing run step ends the scenario session",
+  },
+  {
+    file: "packages/core/src/domain/conductor.ts",
+    from: "preferred && installed.includes(preferred) ? preferred : installed[0]",
+    to: "preferred ? preferred : installed[0]",
+    why: "a conductor's host asked for is used only when it is installed",
+  },
+  {
+    file: "packages/core/src/domain/conductor.ts",
+    from: "const installed = hosts.filter((h) => h.installed).map((h) => h.id);",
+    to: "const installed = hosts.map((h) => h.id);",
+    why: "a conductor never starts on a host that is not installed",
+  },
+  {
+    file: "packages/core/src/domain/conductor.ts",
+    from: "delegate each of them before you wait",
+    to: "delegate them one by one",
+    why: "the conductor starts a stage's parallel workers before it waits",
+  },
+  {
+    file: "packages/core/src/application/run-operations.ts",
+    from: 'input.drive || (opened && "noSession" in opened)',
+    to: "input.drive",
+    why: "a run whose session could not open is driven in the background",
+  },
+  {
+    file: "packages/core/src/application/run-operations.ts",
+    from: "    if (!host)\n",
+    to: "    if (false)\n",
+    why: "no interactive host installed: nothing is asked of the daemon",
+  },
+  {
+    file: "packages/core/src/application/run-operations.ts",
+    from: "return opened.isOk() ? { session: opened.value } : { noSession: opened.error.message };",
+    to: 'return { session: opened.isOk() ? opened.value : { paneId: "", host } };',
+    why: "a session that failed to open is no session",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: "        session: host ? { host } : {},",
+    to: "        drive: host ? { host } : {},",
+    why: "a system plan's child runs start as conductor sessions, not drives",
+  },
+  {
+    file: "packages/core/src/application/system-runs.ts",
+    from: "  if (s.session) return `session in pane",
+    to: "  if (!s.session) return `session in pane",
+    why: "how a child started names its session's pane",
   },
 ];

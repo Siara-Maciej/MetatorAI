@@ -23,3 +23,22 @@ export interface RunPanes {
     runId: string,
   ): Promise<Result<{ readonly closed: number; readonly workspace?: string }, MetatorError>>;
 }
+
+/** A run's conductor session as it was opened: its pane and the interactive host in it. */
+export interface ConductorSession {
+  readonly paneId: string;
+  readonly host: string;
+}
+
+/**
+ * Opens a run's conductor session where a person sees it (ADR-0090): a pane of the daemon that
+ * serves the run's repository, as `metator run start` opens it. Core never knows the daemon: the
+ * program that does gives the implementation. An error (no daemon serves the repository, the
+ * session could not start) says why; core then drives the run in the background instead.
+ */
+export interface ConductorSessions {
+  open(input: {
+    readonly runId: string;
+    readonly host: string;
+  }): Promise<Result<ConductorSession, MetatorError>>;
+}

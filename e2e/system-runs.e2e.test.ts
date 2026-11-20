@@ -121,10 +121,32 @@ describe("linked runs (real CLI, three repositories)", () => {
     expect(started.code).toBe(0);
     const first = (
       started.json.data as {
-        started: { step: string; app: string; root: string; run: string; task: string }[];
+        started: {
+          step: string;
+          app: string;
+          root: string;
+          run: string;
+          task: string;
+          session?: unknown;
+          noSession?: string;
+          drive?: { started: boolean; host?: string };
+        }[];
       }
     ).started;
     expect(first.map((s) => [s.step, s.app, s.root])).toEqual([["billing-bump", "billing", at("billing")]]);
+    // No daemon serves billing: the child cannot open as a session a person sees, so it is driven
+    // in the background (ADR-0090), and says why, in the output and in its activity.
+    expect([first[0]?.session, first[0]?.noSession, first[0]?.drive?.started, first[0]?.drive?.host]).toEqual(
+      [undefined, "no daemon runs for this repository", true, "scenario"],
+    );
+    const childActivity = (
+      (await mt("billing", "run", "activity", "--run", first[0]?.run as string)).json.data as {
+        entries: { text: string }[];
+      }
+    ).entries.map((e) => e.text);
+    expect(childActivity).toContain(
+      "no conductor session (no daemon runs for this repository): driven in the background on scenario",
+    );
     expect(first[0]?.task).toStartWith(
       "Release a new major version of billing-api (system plan rename-refunds, step billing-bump in billing",
     );

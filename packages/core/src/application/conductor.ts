@@ -76,6 +76,7 @@ export class Conductor {
       task: taskInFull(record.value.task, brief?.isOk() ? brief.value : undefined),
       workflow: record.value.workflow.id,
       stages: workflow.value.spec.stages,
+      ...(workflow.value.spec.limits?.parallel ? { parallel: workflow.value.spec.limits.parallel } : {}),
       runDir: `${cwd}/${this.d.repo.runDir(id.value)}`,
     });
     return this.d.panes.openRun({

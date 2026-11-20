@@ -608,11 +608,17 @@ export function WorkbenchScreen({
             <>
               <span className="faint">›</span>
               {session ? (
-                <a href={routeHash({ screen: "grid", task: chosen.runId })} data-testid="terminals-task">
+                <a
+                  href={routeHash({ screen: "grid", task: chosen.runId })}
+                  data-testid="terminals-task"
+                  title={chosen.title}
+                >
                   {chosen.title}
                 </a>
               ) : (
-                <strong data-testid="terminals-task">{chosen.title}</strong>
+                <strong data-testid="terminals-task" title={chosen.title}>
+                  {chosen.title}
+                </strong>
               )}
             </>
           ) : null}

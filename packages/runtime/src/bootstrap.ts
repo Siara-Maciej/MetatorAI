@@ -43,6 +43,7 @@ import {
   CompareEvals,
   ComputeAffected,
   Conductor,
+  type ConductorSessions,
   type ContractDiffer,
   ConversationRepository,
   CreateRefactorPlan,
@@ -312,6 +313,12 @@ export interface BootstrapOptions {
   }) => DetachedDrive;
   /** The panes of a run as this process reaches them (a command: through the daemon); default: this process's own. */
   readonly runPanes?: (deps: { readonly panes: RunPanes; readonly root: string }) => RunPanes;
+  /**
+   * Where a new run's conductor session opens so a person sees it (ADR-0090): the daemon that
+   * serves the repository, which only the driving adapter reaches. Without it, a run asked to be
+   * seen (a system plan's child) is driven in the background.
+   */
+  readonly conductorSessions?: (deps: { readonly root: string }) => ConductorSessions;
   /** The host a new drive uses when nothing names one (METATOR_HOST), when the runtime holds it. */
   readonly defaultHost?: string;
 }
@@ -1682,7 +1689,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new EnsureDriven(runRepository, runDrivers, agentHosts, defaultDriveHost, startDrive),
     ),
     startRun: asFunction(
-      ({ initRun, setupWorktree, checkReadiness, workOverview, ensureDriven, config }) =>
+      ({
+        initRun,
+        setupWorktree,
+        checkReadiness,
+        workOverview,
+        ensureDriven,
+        config,
+        root,
+        hostStatus,
+        runJournal,
+      }) =>
         new StartRun(
           initRun,
           setupWorktree,
@@ -1690,6 +1707,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           workOverview,
           ensureDriven,
           config.config.supervisor.wipLimit,
+          options.conductorSessions
+            ? { sessions: options.conductorSessions({ root }), hosts: hostStatus, journal: runJournal }
+            : undefined,
         ),
     ),
     answerQuestion: asFunction(

@@ -1,6 +1,6 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, MetatorError, ok, type Result } from "@metator/core";
+import { err, MetatorError, ok, type PaneView, type Result } from "@metator/core";
 import type { BootstrapOptions, MetatorContainer } from "@metator/runtime";
 import { callDaemon, findDaemon, inRepo } from "./daemon-client.ts";
 import { type FollowResult, follow } from "./live.ts";
@@ -74,6 +74,31 @@ export const runPanes =
         inRepo(`/runs/${encodeURIComponent(runId)}/close-panes`, root),
         {},
       );
+    },
+  });
+
+/**
+ * Where a run's conductor session opens so a person sees it (the `ConductorSessions` port,
+ * ADR-0090): the daemon that serves the run's repository, asked as `metator run start` asks it.
+ * The daemon's own process asks itself the same way: its panes belong to its own containers.
+ * No daemon is an error that says so; core then drives the run in the background.
+ */
+export const conductorSessions =
+  (): NonNullable<BootstrapOptions["conductorSessions"]> =>
+  ({ root }) => ({
+    open: async ({ runId, host }) => {
+      const daemon = findDaemon(root);
+      if (daemon.isErr()) return err(daemon.error);
+      const opened = await callDaemon<PaneView>(
+        daemon.value,
+        "POST",
+        inRepo(`/runs/${encodeURIComponent(runId)}/start`, root),
+        { host },
+      );
+      return opened.map((pane) => ({
+        paneId: pane.id,
+        host: pane.process.kind === "host" ? (pane.process.host ?? host) : host,
+      }));
     },
   });
 

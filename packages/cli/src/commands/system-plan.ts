@@ -16,7 +16,7 @@ import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
 import { baseOption, byOption, positiveInt } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
-import { renderPlanShow, renderPlanStatus } from "../render.ts";
+import { renderPlanRun, renderPlanShow, renderPlanStatus } from "../render.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
 import { asPerson, who } from "../who.ts";
 
@@ -240,9 +240,10 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
       ),
     );
 
-  plan
-    .command("run")
-    .description("Start the steps that can start: a child run (W1) in each application's repository")
+  meta(plan.command("run"), { render: renderPlanRun })
+    .description(
+      "Start the steps that can start: a child run (W1) in each application's repository, each as a conductor session a person sees (else driven in the background)",
+    )
     .argument("[id]", "the plan id")
     .option("--run <run>", "the system run (W13) the child runs belong to; its plan when no id is given")
     .addOption(baseOption("start each child run in a new worktree branched from this ref"))

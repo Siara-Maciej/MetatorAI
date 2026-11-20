@@ -149,6 +149,8 @@ describe("Panes", () => {
     expect(pane).toMatchObject({ role: "apps", label: "intake" });
     expect(pane.runId).toBeUndefined();
     expect(w.copilot.started[0]?.task).toMatchObject({ agent: "mt-orchestrator", prompt: INTAKE_PROMPT });
+    // The system run is driven in the background; the child runs it starts are sessions of their own.
+    expect(INTAKE_PROMPT).toContain("open as their own conductor sessions: never drive those");
     expect(w.copilot.started[0]?.task.runDir).toBe(
       `${w.copilot.started[0]?.task.cwd}/.metator/panes/${pane.id}`,
     );

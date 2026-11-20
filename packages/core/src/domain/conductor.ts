@@ -36,6 +36,19 @@ export function allowedWorkers(stage: Pick<StageSpec, "owner" | "parallel">): st
   return [...new Set([...owners, ...(stage.parallel ?? [])])].filter((o) => !o.includes(":"));
 }
 
+/**
+ * The interactive host a run's conductor session starts on (ADR-0090): the one asked for (the
+ * system run's own) when it is installed here, else the first installed in the order given
+ * (`supervisor.hostOrder`); undefined when none is, and the run is driven in the background.
+ */
+export function conductorHost(
+  preferred: string | undefined,
+  hosts: readonly { readonly id: string; readonly installed: boolean }[],
+): string | undefined {
+  const installed = hosts.filter((h) => h.installed).map((h) => h.id);
+  return preferred && installed.includes(preferred) ? preferred : installed[0];
+}
+
 /** A worker's name: the agent and a number that is new among the run's workers so far. */
 export function workerName(agent: string, taken: readonly string[]): string {
   for (let n = 1; ; n++) {
@@ -53,6 +66,8 @@ export interface ConductorPromptInput {
   readonly task: string;
   readonly workflow: string;
   readonly stages: readonly Pick<StageSpec, "id" | "owner" | "parallel" | "hitl" | "produces">[];
+  /** The workflow's `limits.parallel`: how many workers may work at once. */
+  readonly parallel?: number;
   readonly runDir: string;
 }
 
@@ -64,7 +79,20 @@ export interface ConductorPromptInput {
 export function conductorPrompt(input: ConductorPromptInput): string {
   const rows = input.stages.map((s) => {
     const workers = allowedWorkers(s);
-    const who = s.hitl ? "a person (gate)" : workers.length > 0 ? workers.join(", ") : "you";
+    const script = (Array.isArray(s.owner) ? s.owner : s.owner ? [s.owner] : [])
+      .find((o) => o.startsWith("script:"))
+      ?.slice("script:".length);
+    const together =
+      (s.parallel ?? []).some((a) => !a.includes(":")) && workers.length > 1
+        ? ` (in parallel${input.parallel ? `, up to ${input.parallel} workers at once` : ""})`
+        : "";
+    const who = s.hitl
+      ? "a person (gate)"
+      : workers.length > 0
+        ? `${workers.join(", ")}${together}`
+        : script
+          ? `you run \`${script}\`, then advance`
+          : "you";
     const produces = (s.produces ?? []).join(", ");
     return `- ${s.id}: ${who}${produces ? ` → ${produces}` : ""}`;
   });
@@ -80,6 +108,8 @@ export function conductorPrompt(input: ConductorPromptInput): string {
     "- `metator run collect <worker>`: its result (summary, artifacts, a question when blocked); its pane ends and stays for the person to read.",
     "- `metator run advance pass|fail --reason …`: after a stage's work; a human gate waits for `metator run approve`, which only a person runs.",
     "- `metator run workers`: who works now.",
+    "A stage with several agents in parallel: split its work into parts, delegate each of them before you wait, then wait for and collect each worker.",
+    "You move this run yourself, in this pane: never start `metator run drive` for it (no background drive carries it).",
     "You never edit code yourself, never type into another pane, never start agents any other way. A worker blocked on a question: collect it, decide or ask the person, delegate again with the answer in the card.",
     '- To ask the person: `metator run ask "<the question>" --option <a> --option <b> --wait`. It reaches their inbox (and any terminal they watch) and prints their answer when it is given; never ask in prose and wait for a reply.',
     RUN_WITHOUT_ASKING,

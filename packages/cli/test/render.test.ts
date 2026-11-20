@@ -10,6 +10,7 @@ import {
   renderDoctor,
   renderInbox,
   renderIssues,
+  renderPlanRun,
   renderPlanShow,
   renderPlanStatus,
   renderRunStatus,
@@ -369,5 +370,37 @@ describe("system plan status as the system run's gate (--gate)", () => {
       steps: [{ id: "a", app: "web", status: "done" }],
     };
     expect(renderPlanStatus(gate as never)).toBe("every step is done");
+  });
+});
+
+describe("renderPlanRun", () => {
+  test("each started step with its run and how it started: a session's pane, else the drive and why", () => {
+    const text = renderPlanRun({
+      plan: { id: "add-a-badge" },
+      started: [
+        { step: "api-badge", app: "api", run: "r1", session: { paneId: "w1:p1", host: "claude" } },
+        {
+          step: "web-badge",
+          app: "web",
+          run: "r2",
+          noSession: "no daemon runs for this repository",
+          drive: { stage: "setup", started: true, host: "claude" },
+        },
+        {
+          step: "ios-badge",
+          app: "ios",
+          run: "r3",
+          noSession: "x",
+          driveError: "AI host claude cannot start here",
+        },
+      ],
+    });
+    expect(text.split("\n")).toEqual([
+      "add-a-badge: started 3 step(s)",
+      "  api-badge  api  r1  session in pane w1:p1 on claude",
+      "  web-badge  web  r2  driven in the background on claude: no daemon runs for this repository",
+      "  ios-badge  ios  r3  waits for a person: AI host claude cannot start here",
+    ]);
+    expect(renderPlanRun({ plan: { id: "p" }, started: [] })).toBe("p: no step can start yet");
   });
 });

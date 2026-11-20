@@ -5,7 +5,9 @@ import type {
   Overview,
   RunOverview,
   StageProgress,
+  StartedStep,
 } from "@metator/core";
+import { startedHow } from "@metator/core";
 
 /**
  * A command's data as a person reads it (ADR-0052): at a terminal the text goes to stderr and
@@ -279,6 +281,19 @@ function columns(rows: readonly (readonly string[])[]): string[] {
       .join("  ")
       .trimEnd(),
   );
+}
+
+/** `system plan run`: each step started, its run, and how (its session's pane, else its drive and why). */
+export function renderPlanRun(v: {
+  readonly plan: { readonly id: string };
+  readonly started: readonly Pick<
+    StartedStep,
+    "step" | "app" | "run" | "session" | "noSession" | "drive" | "driveError"
+  >[];
+}): string {
+  if (v.started.length === 0) return `${v.plan.id}: no step can start yet`;
+  const rows = columns(v.started.map((s) => ["", s.step, s.app, s.run, startedHow(s)]));
+  return [`${v.plan.id}: started ${v.started.length} step(s)`, ...rows].join("\n");
 }
 
 interface PlanStep {

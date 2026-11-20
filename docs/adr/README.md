@@ -93,3 +93,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0087](0087-person-edits-plans-in-the-app.md) | Osoba edytuje plany w aplikacji | Superseded by 0089 (odrzucony przez właściciela) |
 | [0088](0088-text-only-at-a-terminal.md) | Przy terminalu tylko tekst dla osoby (zmienia jeden punkt 0052) | Accepted |
 | [0089](0089-plan-changes-go-through-the-agent.md) | Zmiany planu idą przez agenta | Accepted |
+| [0090](0090-child-runs-as-visible-sessions.md) | Runy potomne planu systemowego startują jako widoczne sesje | Proposed |

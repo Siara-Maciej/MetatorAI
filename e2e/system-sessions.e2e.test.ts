@@ -1,11 +1,12 @@
 /**
- * What the demo shows (round 8, real daemon, scenario host only): a system plan starts three
- * child runs in three repositories of a folder; the person opens each, and each gets its own
- * conductor session in its own repository and worktree. Each conductor delegates two workers of
- * its stage that work at the same time, waits for both and collects them: the workers' panes end
- * with their one-line results and stay, the conductors keep working.
+ * What the demo shows (ADR-0090, real daemon, scenario host only): `system plan run` alone starts
+ * three child runs in three repositories of a folder, each as its own conductor session (a pane
+ * the person sees, in its repository and worktree), not as a headless drive. Each conductor
+ * delegates two workers of its stage that work at the same time, waits for both and collects
+ * them: the workers' panes end with their one-line results and stay, the conductors keep working.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -52,7 +53,7 @@ stages:
 `;
 // The conductor and its workers are scripted: the conductor runs the commands a model would run
 // in its pane; each tester waits until both testers have their cards (so they work at the same
-// time), writes its part and reports. The drive of each child (mt-implementer) only waits.
+// time), writes its part and reports. Nothing drives a child in the background.
 const tester = (part: string) => `    - - say: "testing part ${part}"
       - run: 'until [ -f "$METATOR_RUN_DIR/work/mt-tester-2.md" ]; do sleep 0.1; done'
       - write: { path: "{runDir}/part-${part.toLowerCase()}.md", text: "${part}\\n" }
@@ -61,8 +62,6 @@ const tester = (part: string) => `    - - say: "testing part ${part}"
 const SCENARIO = `kind: AgentScenario
 schemaVersion: 2
 agents:
-  mt-implementer:
-    - - ask: { question: "Wait for the conductor?", options: [yes] }
   mt-orchestrator:
     - - say: "conducting in {cwd}"
       - run: 'metator run delegate build --run "$METATOR_RUN" --agent mt-tester --card "Test part A; write part-a.md"'
@@ -179,7 +178,7 @@ afterAll(async () => {
 }, 60_000);
 
 describe("a system plan's child runs, each with its own conductor and its workers (real daemon)", () => {
-  test("three child runs in three repositories: each opened gets its own conductor, which runs two workers at once and collects them", async () => {
+  test("system plan run starts three child runs in three repositories, each as its own conductor session, which runs two workers at once and collects them", async () => {
     const parent = (
       await mt("platform", "run", "init", "--workflow", "mt-system-change", "--task", "Add a badge")
     ).json.data as { runId: string };
@@ -187,27 +186,33 @@ describe("a system plan's child runs, each with its own conductor and its worker
     await Bun.write(join(at("platform"), "metator/system/plans/add-a-badge.analysis.yml"), ANALYSIS);
     expect((await mt("platform", "system", "plan", "approve", "add-a-badge", "--by", "ana")).code).toBe(0);
     const started = await mt("platform", "system", "plan", "run", "add-a-badge", "--run", parent.runId);
-    const children = (started.json.data as { started: { app: string; run: string }[] }).started;
+    const children = (
+      started.json.data as {
+        started: { app: string; run: string; session?: { paneId: string; host: string }; drive?: unknown }[];
+      }
+    ).started;
     expect(children.map((c) => c.app).sort()).toEqual([...APPS].sort());
     const runOf = (app: string) => children.find((c) => c.app === app)?.run as string;
-
-    // The person opens each child run: one conductor session per repository, in its worktree.
+    // Nobody opens anything: each child already is a conductor session on the scenario host, no drive.
+    for (const c of children) expect([c.session?.host, c.drive]).toEqual(["scenario", undefined]);
     const opened: Record<string, { paneId: string; pid: number }> = {};
     for (const app of APPS) {
-      const r = await api(`/runs/${runOf(app)}/pty-open?repo=${app}`, {
-        method: "POST",
-        body: JSON.stringify({ cols: 100, rows: 30 }),
-      });
-      expect(r.ok).toBe(true);
-      opened[app] = r.data as { paneId: string; pid: number };
-    }
-    expect(new Set(APPS.map((a) => opened[a]?.pid)).size).toBe(3);
-    for (const app of APPS) {
       const conductors = (await panesOf(app)).filter((p) => p.role === "conductor");
-      expect(conductors.map((p) => [p.runId, p.live?.alive])).toEqual([[runOf(app), true]]);
+      expect(conductors.map((p) => [p.id, p.runId, p.live?.alive])).toEqual([
+        [children.find((c) => c.app === app)?.session?.paneId as string, runOf(app), true],
+      ]);
       expect(conductors[0]?.cwd).toStartWith(at(app));
       expect(conductors[0]?.cwd).not.toBe(at(app));
+      opened[app] = { paneId: conductors[0]?.id as string, pid: conductors[0]?.live?.pid as number };
+      const activity = (
+        (await api(`/runs/${runOf(app)}/activity?repo=${app}`)).data as { entries: { text: string }[] }
+      ).entries.map((e) => e.text);
+      expect(activity).toContain(`started as a conductor session in pane ${opened[app]?.paneId} on scenario`);
     }
+    expect(new Set(APPS.map((a) => opened[a]?.pid)).size).toBe(3);
+    // No background drive was started for any child: no run has a driver.
+    for (const app of APPS)
+      expect(existsSync(join(at(app), `.metator/runs/${runOf(app)}/driver.json`))).toBe(false);
 
     // Each conductor delegates two testers (they wait for each other, so both work at once),
     // waits for both and collects them.

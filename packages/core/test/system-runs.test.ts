@@ -80,27 +80,28 @@ function repository(root: string, shared: InMemoryFileSystem) {
   const runs = new RunRepository(fs, paths);
   const catalog = new WorkflowCatalog(fs, paths);
   const init = new InitRun(catalog, runs, clock);
-  /** The drives asked for: each child run is driven as it starts. */
-  const drives: { runId: string; host?: string }[] = [];
+  /** The sessions asked for: each child run opens as a conductor session a person sees. */
+  const sessions: { runId: string; host?: string }[] = [];
   /** Where each child was asked to work: in a worktree of its own, or in the checkout. */
   const worktrees: { task: string; worktree: boolean }[] = [];
   return {
     runs,
     init,
-    drives,
+    sessions,
     worktrees,
-    // StartRun as the runtime wires it, reduced to what a child run needs: the run, then its drive.
+    // StartRun as the runtime wires it, reduced to what a child run needs: the run, then its session.
     start: {
       execute: async (input: Parameters<RepositoryRuns["start"]["execute"]>[0]) => {
         worktrees.push({ task: input.task, worktree: input.worktree !== undefined });
         // The in-memory world has no git: the run is made where it is, its worktree only asked for.
-        const { worktree: _asked, ...rest } = input;
+        const { worktree: _asked, session: _seen, drive: _driven, ...rest } = input;
         return (await init.execute(rest as Parameters<InitRun["execute"]>[0])).map((run) => {
-          if (input.drive)
-            drives.push({ runId: run.runId, ...(input.drive.host ? { host: input.drive.host } : {}) });
+          if (input.session)
+            sessions.push({ runId: run.runId, ...(input.session.host ? { host: input.session.host } : {}) });
           return {
             run,
             warnings: [],
+            ...(input.session ? { session: { paneId: "w1:p1", host: input.session.host ?? "claude" } } : {}),
             ...(input.drive
               ? { drive: { stage: run.stage, started: true, host: input.drive.host ?? "claude" } }
               : {}),
@@ -158,9 +159,12 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     )._unsafeUnwrap();
     const first = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
     expect(first.started.map((s) => [s.step, s.root])).toEqual([["billing-bump", "/src/platform"]]);
-    // Each child is driven as it starts: nobody has to open a session for it (defect 2).
-    expect(w.platform.drives).toEqual([{ runId: first.started[0]?.run as string }]);
-    expect(first.started[0]?.drive).toEqual({ stage: "build", started: true, host: "claude" });
+    // Each child opens as a conductor session a person sees (ADR-0090): not a headless drive.
+    expect(w.platform.sessions).toEqual([{ runId: first.started[0]?.run as string }]);
+    expect([first.started[0]?.session, first.started[0]?.drive]).toEqual([
+      { paneId: "w1:p1", host: "claude" },
+      undefined,
+    ]);
     const child = (await w.platform.runs.load(first.started[0]?.run as string))._unsafeUnwrap();
     expect([child.parent, child.system]).toEqual([
       parent.runId,
@@ -205,7 +209,10 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     await w.platform.advance.execute({ runId: first.started[0]?.run as string, event: { type: "PASS" } });
     const gate = new SystemRunGate(w.status, w.platform.runs, w.platform.clock, w.run);
     const g = (await gate.execute({ id: "rename", run: parent.runId }))._unsafeUnwrap();
-    expect([g.kind, g.message]).toEqual(["waiting", "started the next wave: web-migrate in web"]);
+    expect([g.kind, g.message]).toEqual([
+      "waiting",
+      "started the next wave: web-migrate in web (session in pane w1:p1 on claude)",
+    ]);
     expect((await w.platform.runs.load(parent.runId))._unsafeUnwrap().children).toHaveLength(2);
   });
 
@@ -245,7 +252,7 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     expect(w.platform.worktrees.map((t) => t.worktree)).toEqual([true]);
   });
 
-  test("a child run is driven on its parent's host; one that cannot be driven still starts, and says why", async () => {
+  test("a child run's session is on its parent's host; one with no session is driven, and says why; one that cannot be driven still starts", async () => {
     const w = world([step("billing-bump", "billing")]);
     await w.save();
     const parent = (
@@ -254,7 +261,7 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
     const record = (await w.platform.runs.load(parent.runId))._unsafeUnwrap();
     (await w.platform.runs.save({ ...record, host: "scenario" }))._unsafeUnwrap();
     const started = (await w.run.execute({ id: "rename", parent: parent.runId }))._unsafeUnwrap();
-    expect(w.platform.drives).toEqual([{ runId: started.started[0]?.run as string, host: "scenario" }]);
+    expect(w.platform.sessions).toEqual([{ runId: started.started[0]?.run as string, host: "scenario" }]);
 
     const failing = world([step("billing-bump", "billing")]);
     await failing.save();
@@ -262,8 +269,9 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
       runs: failing.at(root).runs,
       start: {
         execute: async (input) =>
-          (await failing.at(root).start.execute({ ...input, drive: undefined } as never)).map((v) => ({
+          (await failing.at(root).start.execute({ ...input, session: undefined } as never)).map((v) => ({
             ...v,
+            noSession: "no daemon runs for this repository",
             driveError: { message: "AI host claude cannot start here" },
           })),
       },
@@ -276,8 +284,8 @@ describe("RunSystemPlan and SystemPlanStatus", () => {
       failing.platform.runs,
     );
     const r = (await run.execute({ id: "rename" }))._unsafeUnwrap();
-    expect(r.started.map((s) => [s.step, s.driveError])).toEqual([
-      ["billing-bump", "AI host claude cannot start here"],
+    expect(r.started.map((s) => [s.step, s.session, s.noSession, s.driveError])).toEqual([
+      ["billing-bump", undefined, "no daemon runs for this repository", "AI host claude cannot start here"],
     ]);
   });
 

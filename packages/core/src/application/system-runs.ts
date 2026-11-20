@@ -31,9 +31,13 @@ export interface StartedStep {
   readonly root: string;
   readonly run: string;
   readonly task: string;
-  /** Its drive: started on the parent's host (else the repository's default host). */
+  /** Its conductor session, a pane a person sees (ADR-0090): on the parent's host when installed. */
+  readonly session?: { readonly paneId: string; readonly host: string };
+  /** Why it has no session (no daemon serves its repository, no interactive host installed). */
+  readonly noSession?: string;
+  /** Its background drive, only when it has no session. */
   readonly drive?: { readonly stage: string; readonly started: boolean; readonly host?: string };
-  /** Why it could not be driven: the run waits for a person to start it. */
+  /** Why it could not be driven either: the run waits for a person to start it. */
   readonly driveError?: string;
 }
 
@@ -95,8 +99,9 @@ export class RunSystemPlan {
     const started: StartedStep[] = [];
     for (const { step, at } of ready) {
       const task = stepTask(plan, step, at.dir);
-      // Started and driven at once, on the host the system run itself uses: nobody has to open a
-      // session for each child, and a worktree gets its dependencies first.
+      // Started at once as a conductor session a person sees (ADR-0090), on the system run's own
+      // host when it is an interactive one installed here; a background drive only when no daemon
+      // serves the repository or no interactive host is installed. A worktree gets its dependencies first.
       const host = parent?.isOk() ? parent.value.host : undefined;
       const created = await this.at(at.root).start.execute({
         workflow: input.workflow ?? STEP_WORKFLOW,
@@ -108,7 +113,7 @@ export class RunSystemPlan {
         worktree: { ...(input.base ? { base: input.base } : {}), allowDirty: true },
         ...(input.parent ? { parent: input.parent } : {}),
         system: { plan: plan.id, step: step.id, app: step.app },
-        drive: host ? { host } : {},
+        session: host ? { host } : {},
       });
       if (created.isErr()) return err(created.error);
       const run = { value: created.value.run };
@@ -118,6 +123,8 @@ export class RunSystemPlan {
         root: at.root,
         run: run.value.runId,
         task,
+        ...(created.value.session ? { session: created.value.session } : {}),
+        ...(created.value.noSession ? { noSession: created.value.noSession } : {}),
         ...(created.value.drive ? { drive: created.value.drive } : {}),
         ...(created.value.driveError ? { driveError: created.value.driveError.message } : {}),
       });
@@ -326,7 +333,7 @@ export class SystemRunGate {
           ...(started.error.hint ? { hint: started.error.hint } : {}),
           steps: read.value.steps,
         });
-      const names = started.value.started.map((s) => `${s.step} in ${s.app}`).join(", ");
+      const names = started.value.started.map((s) => `${s.step} in ${s.app} (${startedHow(s)})`).join(", ");
       return ok({ kind: "waiting", message: `started the next wave: ${names}`, steps: read.value.steps });
     }
     return ok({ ...gate, steps: read.value.steps });
@@ -388,4 +395,12 @@ export class SystemPlanApprovals implements GateApprovals {
     const id = planId(record.value.task);
     return (await this.store.exists(id)) ? id : undefined;
   }
+}
+
+/** How a child run started, in a few words: its session's pane, else its drive and why. */
+export function startedHow(s: Pick<StartedStep, "session" | "noSession" | "drive" | "driveError">): string {
+  if (s.session) return `session in pane ${s.session.paneId} on ${s.session.host}`;
+  const why = s.noSession ? `: ${s.noSession}` : "";
+  if (s.drive) return `driven in the background${s.drive.host ? ` on ${s.drive.host}` : ""}${why}`;
+  return `waits for a person${s.driveError ? `: ${s.driveError}` : why}`;
 }

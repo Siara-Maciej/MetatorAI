@@ -392,7 +392,7 @@ metator system plan retry [options] <id> <step>
 
 ### `metator system plan run`
 
-Start the steps that can start: a child run (W1) in each application's repository
+Start the steps that can start: a child run (W1) in each application's repository, each as a conductor session a person sees (else driven in the background)
 
 ```bash
 metator system plan run [options] [id]

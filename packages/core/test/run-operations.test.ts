@@ -19,7 +19,8 @@ import { AdvanceRun, ApproveRun, InitRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import { MetatorError } from "../src/domain/errors.ts";
 import { fleetCounts, fleetInbox } from "../src/domain/fleet.ts";
-import { err, ok } from "../src/domain/result.ts";
+import { err, ok, type Result } from "../src/domain/result.ts";
+import type { ConductorSession } from "../src/ports/run-drive.ts";
 
 const FEATURE = `
 kind: Workflow
@@ -161,43 +162,50 @@ describe("StartDrive and EnsureDriven", () => {
   });
 });
 
+/** StartRun as the runtime wires it, with fakes for what a test does not exercise. */
+const start = (
+  w: ReturnType<typeof world>,
+  o: {
+    worktree?: boolean;
+    setupFails?: boolean;
+    waiting?: number;
+    wipLimit?: number;
+    visible?: ConstructorParameters<typeof StartRun>[6];
+  } = {},
+) => {
+  const setups: string[] = [];
+  const use = new StartRun(
+    {
+      execute: async (input: { workflow: string; task: string; worktree?: unknown }) => {
+        // The real run without the worktree machinery; the worktree it would have is put on it.
+        const r = await w.init.execute({ workflow: input.workflow, task: input.task });
+        return o.worktree
+          ? r.map((v) => ({
+              ...v,
+              worktree: { id: "wt1", path: ".metator/wt/wt1", branch: "metator/wt1" },
+            }))
+          : r;
+      },
+    } as never,
+    {
+      execute: async ({ run }: { run: string }) => {
+        setups.push(run);
+        return o.setupFails
+          ? err(new MetatorError("COMMAND_FAILED", "bun install failed"))
+          : ok({ worktree: "wt1", dependencies: "linked" });
+      },
+    } as never,
+    { execute: async () => ok({ ready: true, place: ".", checks: [] }) } as never,
+    {
+      execute: async () => ok({ runs: Array.from({ length: o.waiting ?? 0 }, () => ({ attention: "you" })) }),
+    } as never,
+    w.ensureDriven,
+    o.wipLimit ?? 3,
+    o.visible,
+  );
+  return { use, setups };
+};
 describe("StartRun", () => {
-  const start = (
-    w: ReturnType<typeof world>,
-    o: { worktree?: boolean; setupFails?: boolean; waiting?: number; wipLimit?: number } = {},
-  ) => {
-    const setups: string[] = [];
-    const use = new StartRun(
-      {
-        execute: async (input: { workflow: string; task: string; worktree?: unknown }) => {
-          // The real run without the worktree machinery; the worktree it would have is put on it.
-          const r = await w.init.execute({ workflow: input.workflow, task: input.task });
-          return o.worktree
-            ? r.map((v) => ({
-                ...v,
-                worktree: { id: "wt1", path: ".metator/wt/wt1", branch: "metator/wt1" },
-              }))
-            : r;
-        },
-      } as never,
-      {
-        execute: async ({ run }: { run: string }) => {
-          setups.push(run);
-          return o.setupFails
-            ? err(new MetatorError("COMMAND_FAILED", "bun install failed"))
-            : ok({ worktree: "wt1", dependencies: "linked" });
-        },
-      } as never,
-      { execute: async () => ok({ ready: true, place: ".", checks: [] }) } as never,
-      {
-        execute: async () =>
-          ok({ runs: Array.from({ length: o.waiting ?? 0 }, () => ({ attention: "you" })) }),
-      } as never,
-      w.ensureDriven,
-      o.wipLimit ?? 3,
-    );
-    return { use, setups };
-  };
   const input = { workflow: "feature", task: "Add the combined discount to the basket" };
 
   test("a run with a worktree gets its dependencies on every front, unless declined; one without has none to set up", async () => {
@@ -242,6 +250,93 @@ describe("StartRun", () => {
     expect([refused.drive, refused.driveError?.message.includes("claude")]).toEqual([undefined, true]);
     expect((await bad.repo.load(refused.run.runId)).isOk()).toBe(true);
     expect((await use.execute({ workflow: "nope", task: "x y z w" })).isErr()).toBe(true);
+  });
+});
+
+describe("StartRun as a visible session (ADR-0090)", () => {
+  const input = { workflow: "feature", task: "Add the combined discount to the basket" };
+  const hosts = [
+    { id: "copilot", command: "copilot", installed: false },
+    { id: "claude", command: "claude", installed: true },
+  ];
+  const visible = (
+    w: ReturnType<typeof world>,
+    open: (i: { runId: string; host: string }) => Promise<Result<ConductorSession, MetatorError>>,
+    installed = hosts,
+  ) => {
+    const opened: { runId: string; host: string }[] = [];
+    return {
+      opened,
+      deps: {
+        sessions: {
+          open: async (i: { runId: string; host: string }) => {
+            opened.push(i);
+            return open(i);
+          },
+        },
+        hosts: () => installed,
+        journal: w.journal,
+      },
+    };
+  };
+  const texts = async (w: ReturnType<typeof world>, runId: string) =>
+    (await w.journal.activity(runId))._unsafeUnwrap().map((a) => a.text);
+
+  test("a run asked to be seen opens as a conductor session on the first installed host; no drive starts", async () => {
+    const w = world();
+    const v = visible(w, async (i) => ok({ paneId: "w1:p1", host: i.host }));
+    const { use } = start(w, { visible: v.deps });
+    const r = (await use.execute({ ...input, session: {} }))._unsafeUnwrap();
+    expect([r.session, r.noSession, r.drive, w.spawned]).toEqual([
+      { paneId: "w1:p1", host: "claude" },
+      undefined,
+      undefined,
+      [],
+    ]);
+    expect(v.opened).toEqual([{ runId: r.run.runId, host: "claude" }]);
+    expect(await texts(w, r.run.runId)).toContain("started as a conductor session in pane w1:p1 on claude");
+    // The host asked for (the system run's own) wins when it is installed.
+    const opencode = visible(w, async (i) => ok({ paneId: "w1:p2", host: i.host }), [
+      ...hosts,
+      { id: "opencode", command: "opencode", installed: true },
+    ]);
+    const own = (
+      await start(w, { visible: opencode.deps }).use.execute({ ...input, session: { host: "opencode" } })
+    )._unsafeUnwrap();
+    expect(own.session).toEqual({ paneId: "w1:p2", host: "opencode" });
+  });
+
+  test("no daemon serves the repository: the run is driven in the background, and says why", async () => {
+    const w = world();
+    const v = visible(w, async () => err(MetatorError.notFound("a daemon for this repository")));
+    const r = (await start(w, { visible: v.deps }).use.execute({ ...input, session: {} }))._unsafeUnwrap();
+    expect([r.session, r.noSession, r.drive]).toEqual([
+      undefined,
+      "a daemon for this repository not found",
+      { stage: "plan", started: true, host: "claude" },
+    ]);
+    expect(await texts(w, r.run.runId)).toContain(
+      "no conductor session (a daemon for this repository not found): driven in the background on claude",
+    );
+    // Without the port at all (a front that cannot reach a daemon), the same.
+    const bare = (await start(w).use.execute({ ...input, session: { host: "copilot" } }))._unsafeUnwrap();
+    expect([bare.noSession, bare.drive?.host]).toEqual(["no daemon serves this repository", "copilot"]);
+  });
+
+  test("no interactive host is installed: driven in the background; nothing asked of the daemon", async () => {
+    const w = world();
+    const v = visible(
+      w,
+      async () => ok({ paneId: "w1:p1", host: "claude" }),
+      hosts.map((h) => ({ ...h, installed: false })),
+    );
+    const r = (await start(w, { visible: v.deps }).use.execute({ ...input, session: {} }))._unsafeUnwrap();
+    expect([v.opened, r.session, r.noSession, r.drive?.started]).toEqual([
+      [],
+      undefined,
+      "no interactive host is installed here (copilot, claude)",
+      true,
+    ]);
   });
 });
 

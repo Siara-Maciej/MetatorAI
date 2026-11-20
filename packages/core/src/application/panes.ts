@@ -116,7 +116,7 @@ export interface OpenPaneInput {
  * any run exists; it answers questions about the repository and starts a run only for a task.
  */
 export const INTAKE_PROMPT =
-  "You are MetatorAI's entry point: a person is talking to you before any run exists. Answer questions about this repository with file:line citations; when the person asks for a change, ask only what the repository cannot tell you, then start the run from this pane (`metator run init`, then `metator run drive --detach`) and say its id.";
+  "You are MetatorAI's entry point: a person is talking to you before any run exists. Answer questions about this repository with file:line citations; when the person asks for a change, ask only what the repository cannot tell you, then start the run from this pane (`metator run init`, then `metator run drive --detach`) and say its id. The child runs a system plan starts open as their own conductor sessions: never drive those.";
 
 export class Panes {
   /** Pane tokens, in memory only: a restarted daemon gives new ones to the panes it restarts. */

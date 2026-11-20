@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   allowedWorkers,
+  conductorHost,
   conductorPrompt,
   WORKER_RUN_CONTROL,
   WorkerResultDocument,
@@ -19,6 +20,26 @@ describe("conductor domain", () => {
       }),
     ).toEqual(["mt-test-author", "mt-implementer"]);
     expect(allowedWorkers({})).toEqual([]);
+  });
+
+  test("a conductor's host: the one asked for when installed, else the first installed in order; none installed, none", () => {
+    const hosts = [
+      { id: "copilot", command: "copilot", installed: false },
+      { id: "claude", command: "claude", installed: true },
+      { id: "opencode", command: "opencode", installed: true },
+    ];
+    expect(conductorHost(undefined, hosts)).toBe("claude");
+    expect(conductorHost("opencode", hosts)).toBe("opencode");
+    // Asked for one that is not installed (or not interactive at all): the order decides.
+    expect(conductorHost("copilot", hosts)).toBe("claude");
+    expect(conductorHost("scenario-only-agent", hosts)).toBe("claude");
+    expect(
+      conductorHost(
+        "claude",
+        hosts.map((h) => ({ ...h, installed: false })),
+      ),
+    ).toBeUndefined();
+    expect(conductorHost(undefined, [])).toBeUndefined();
   });
 
   test("a worker's name counts up past the taken ones", () => {
@@ -49,6 +70,26 @@ describe("conductor domain", () => {
     for (const c of ["run delegate", "run wait", "run collect", "run advance", "run workers"])
       expect(text).toContain(c);
     expect(text).toContain("never type into another pane");
+    // The conductor moves its run itself: nothing tells it to start a background drive of it.
+    expect(text).not.toContain("drive --detach");
+    expect(text).toContain("never start `metator run drive`");
+  });
+
+  test("a stage with parallel agents: the prompt says how many workers may work at once, and to start them before waiting", () => {
+    const text = conductorPrompt({
+      runId: "r",
+      task: "t",
+      workflow: "demo",
+      stages: [
+        { id: "context", parallel: ["mt-scout", "mt-pattern-miner"] },
+        { id: "setup", owner: "script:metator index build" },
+      ],
+      parallel: 2,
+      runDir: "/repo/.metator/runs/r",
+    });
+    expect(text).toContain("- context: mt-scout, mt-pattern-miner (in parallel, up to 2 workers at once)");
+    expect(text).toContain("- setup: you run `metator index build`, then advance");
+    expect(text).toContain("delegate each of them before you wait");
   });
 
   test("a worker's prompt carries its card and the one way to report", () => {
