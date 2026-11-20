@@ -159,6 +159,9 @@ describe("terminals by task (round 8)", () => {
       endedBanner({ ended: { at: "", reason: "collected", exitCode: 129, summary: "5 pass, 0 fail" } }),
     ).toEqual({ text: "Finished — 5 pass, 0 fail", tone: "done" });
     expect(endedBanner({ ended: { at: "", reason: "run-finished", exitCode: 143 } }).tone).toBe("done");
+    // A process that exits by itself: 0 is done, any other code (1 too) is the error tone.
+    expect(endedBanner({ ended: { at: "", reason: "exited", exitCode: 0 } }).tone).toBe("done");
+    expect(endedBanner({ ended: { at: "", reason: "exited", exitCode: 1 } }).tone).toBe("error");
     expect(endedBanner({ ended: { at: "", reason: "exited", exitCode: 2 } })).toEqual({
       text: "Ended with code 2 — its process ended",
       tone: "error",
