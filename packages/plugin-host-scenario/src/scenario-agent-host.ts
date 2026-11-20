@@ -8,7 +8,7 @@ import type {
   AgentScenario,
   AgentTask,
 } from "@metator/core";
-import { fillScenario } from "@metator/core";
+import { fillScenario, sessionEnv } from "@metator/core";
 import { ScenarioPlayer } from "./scenario-player.ts";
 
 /**
@@ -53,6 +53,14 @@ export class ScenarioAgentHost implements AgentHost {
         yield { type: "tool", name: "Write", summary: target };
       } else if ("tool" in step) {
         yield { type: "tool", name: step.tool.name, summary: step.tool.summary };
+      } else if ("run" in step) {
+        const command = fillScenario(step.run, vars);
+        yield { type: "tool", name: "Bash", summary: command };
+        const failed = await runCommand(command, task);
+        if (failed) {
+          yield { type: "result", ok: false, text: failed };
+          return;
+        }
       } else if ("ask" in step) {
         const answer = await ask({
           source: "agent",
@@ -70,4 +78,18 @@ export class ScenarioAgentHost implements AgentHost {
     }
     yield { type: "result", ok: true, text: said.join("\n") };
   }
+}
+
+/** A `run` step's command in the agent's directory with the run's environment: why it failed, if it did. */
+async function runCommand(command: string, task: AgentTask): Promise<string | undefined> {
+  const proc = Bun.spawn(["sh", "-c", command], {
+    cwd: task.cwd,
+    env: sessionEnv(task, process.env),
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+  const [code, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()]);
+  if (code === 0) return undefined;
+  const said = stderr.trim().split("\n").slice(-3).join("\n");
+  return `\`${command}\` exited ${code}${said ? `: ${said}` : ""}`;
 }

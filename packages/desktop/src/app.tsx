@@ -320,6 +320,9 @@ function Shell() {
             go({ screen: "backlog" });
           }}
           {...(route.pane ? { showPane: route.pane } : {})}
+          task={route.task}
+          session={route.session}
+          group={route.group}
         />
       ) : null}
       {route.screen === "backlog" ? (

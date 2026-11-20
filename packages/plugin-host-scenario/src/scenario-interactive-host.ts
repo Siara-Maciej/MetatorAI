@@ -8,6 +8,7 @@ import {
   PtyInteractiveHost,
   type PtyLaunch,
   type Result,
+  sessionEnv,
   type Terminal,
 } from "@metator/core";
 import { ScenarioPlayer } from "./scenario-player.ts";
@@ -17,14 +18,23 @@ export const SESSION_AGENT = "session";
 
 /**
  * InteractiveHost that plays a scenario in a real PTY (D3, ADR-0077): a shell script says each
- * `say` line, asks each `ask` by reading a line from the terminal, and exits 0 (or 1 on `fail`).
+ * `say` line, asks each `ask` by reading a line from the terminal, runs each `run` command, and
+ * exits 0 (or 1 on `fail`, or a failed command's code).
  * A resumed session plays the agent's next entry, like the scenario AgentHost.
  */
 export class ScenarioInteractiveHost extends PtyInteractiveHost {
-  constructor(terminal: Terminal, source: AgentScenario | string) {
+  constructor(
+    terminal: Terminal,
+    source: AgentScenario | string,
+    env: Readonly<Record<string, string | undefined>> = process.env,
+  ) {
     const player = new ScenarioPlayer(source);
-    // No environment of its own: the script runs with the terminal's.
-    super(terminal, { id: "scenario", launch: (task, resume) => launch(player, task, resume) });
+    // The session's environment, as a real host's: a `run` step's `metator` calls come from its pane.
+    super(terminal, {
+      id: "scenario",
+      env: (task) => sessionEnv(task, env),
+      launch: (task, resume) => launch(player, task, resume),
+    });
   }
 }
 
@@ -60,7 +70,12 @@ async function launch(
       );
     } else if ("tool" in step)
       lines.push(`printf '%s\\n' ${quote(`[tool] ${step.tool.name} ${step.tool.summary}`)}`);
-    else lines.push(`printf '%s\\n' ${quote(step.fail)}; exit 1`);
+    else if ("run" in step) {
+      // Said, then run in a subshell; a failing command ends the session with its code.
+      const command = fillScenario(step.run, vars);
+      lines.push(`printf '$ %s\\n' ${quote(command)}`);
+      lines.push(`( ${command}\n ) || { code=$?; printf 'exited %s\\n' "$code"; exit "$code"; }`);
+    } else lines.push(`printf '%s\\n' ${quote(step.fail)}; exit 1`);
   }
   return ok({ argv: ["sh", "-c", lines.join("\n")], sessionId });
 }

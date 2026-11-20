@@ -50,6 +50,28 @@ describe("ScenarioAgentHost", () => {
     expect(events.at(-1)).toEqual({ type: "result", ok: true, text: "answer: B\nSTATUS: done" });
   });
 
+  test("a run step runs its command in the worktree with the run's environment; a failing one fails the start", async () => {
+    const cwd = await dir();
+    const host = new ScenarioAgentHost({
+      agents: {
+        "mt-implementer": [
+          [
+            { run: 'printf "%s" "$METATOR_RUN" > ran.txt' },
+            { run: "echo broken >&2; exit 2" },
+            { say: "never said" },
+          ],
+        ],
+      },
+    });
+    const events = await collect(host, task(cwd, "mt-implementer"));
+    expect(await Bun.file(join(cwd, "ran.txt")).text()).toBe("run");
+    expect(events.slice(1)).toEqual([
+      { type: "tool", name: "Bash", summary: 'printf "%s" "$METATOR_RUN" > ran.txt' },
+      { type: "tool", name: "Bash", summary: "echo broken >&2; exit 2" },
+      { type: "result", ok: false, text: "`echo broken >&2; exit 2` exited 2: broken" },
+    ]);
+  });
+
   test("the n-th start plays the n-th entry and the last repeats; fail ends with a failed result", async () => {
     const host = new ScenarioAgentHost({ agents: { a: [[{ say: "one" }], [{ fail: "two" }]] } });
     const cwd = await dir();

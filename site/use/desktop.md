@@ -1,8 +1,23 @@
 # Terminals
 
-**Terminals** in [the app](./index.md) is the workbench: every run and every shell in a real terminal, side by side. This page covers its tabs and panes, the keys, and how you and the agents share a terminal.
+**Terminals** in [the app](./index.md) is the workbench: every run and every shell in a real terminal, side by side. It shows the terminals by task: the one where you gave the task, and one per repository working on it. This page covers the task's terminals, the workspaces' tabs and panes, the keys, and how you and the agents share a terminal.
 
-## The workbench
+## A task's terminals
+
+**Terminals** opens on a task: the only one, or the one you pick from **Tasks** (each with its main terminal, how many repository sessions and sub-terminals it has). A bar at the top says where you are, **Tasks › Prices in the customer's currency › shop-api**, and each part leads back.
+
+A task's view shows, side by side (two or three across, more wrap below):
+
+- its **main terminal**: the chat where you gave the task, once its agent started the run; else the task run's own conductor;
+- one tile per **repository session** working on it: the conductor of each child run, named by its repository and its step (`shop-api · price-model`).
+
+The workers a session starts are not on this view. A session's tile has a badge, **2 sub-terminals · 1 working · 1 finished**; a click opens the session's own view: its conductor, then its sub-terminals (its workers and shells), with **Tasks › task › shop-api** back. Every tile is a live terminal: you watch, take the keyboard and type as in any pane.
+
+A terminal whose work is over stays on the screen, read-only, with a banner on its frame: **Finished — tests pass** (its summary, or why it ended: its run finished, its result was collected, the host ended it), or, after a failure, **Ended with code 2 — …** in red with **Retry**. **Close** closes it; **Close finished (N)** in the bar closes every finished terminal of the view. A finished worker also counts on its session's badge (`2 sub-terminals · 2 finished`).
+
+**Workspaces** in the bar shows the daemon's workspaces and their tabs, as below: your shells, and the chat of a run not started yet. **By task ›** there leads back.
+
+## The workspaces
 
 ![The workbench: a tab for a run, its stages under the tab bar, an agent's pane and a shell pane](../public/screens/workbench.png)
 
@@ -10,7 +25,7 @@ Each run in its worktree is a tab, and a shell can have a tab of its own. The **
 
 The tab's area is split into panes: the agents' terminals and your own shells. A pane's frame names the agent or the command, its host and its state, and says **yours** when you hold its keyboard. Drag a divider to resize. Double-click a pane's title to zoom it.
 
-A pane whose process ended keeps its last output. A line under it gives the exit code, with **Retry**, which starts the same program again, and **Close tab** (or **Close pane** when the tab has other panes).
+A pane whose process ended keeps its last output. A line under it gives the exit code, with **Retry**, which starts the same program again, and **Close tab** (or **Close pane** when the tab has other panes). A pane whose work the daemon ended (its run finished, its worker was collected) has the banner described above and stays until you close it.
 
 When the daemon is restarted, the terminals reconnect by themselves once it answers again.
 
@@ -41,7 +56,7 @@ Each key is an option (`keys.*`) that you can change ([Your settings](./settings
 
 The key `?` outside a terminal, the prefix and `?`, or the **?** button of the top bar open the list of keys: the ones that work on every screen, and the ones of this screen as they are set now. Type in its field to filter the list. While the prefix waits for its key, the tab bar shows it (`ctrl+b …`).
 
-The prefix and `g` open the go-to picker. Type a part of an agent's name, a tab or a question, or filter by state with `b` (asks), `w` (working), `i` (idle) and `d` (done). Enter goes there.
+The prefix and `g` open the go-to picker. Type a part of an agent's name, a tab or a question, or filter by state with `b` (asks), `w` (working), `i` (idle) and `d` (done). Enter goes there. A terminal of a task is listed by its place in the task, `Prices in the customer's currency › shop-api · price-model › mt-implementer-1`, and Enter opens the view that shows it.
 
 ![The go-to picker over the workbench: a search field, state filters and the panes of the run](../public/screens/goto.png)
 
@@ -92,6 +107,8 @@ The app shows these states in four words, the same on every screen:
 If the coordinating agent's session ends while its run is active, the supervisor in the daemon resumes it in the same pane, a limited number of times. A session a person holds is left alone.
 
 A tab remembers its layout, so the panes come back the same way after the daemon restarts. The daemon starts host sessions and plain shells again. A pane that ran a command (a test run, a script) is not run a second time: it shows how it ended, with **Retry**. The session of a run that is done, aborted or escalated is not started again either.
+
+The daemon never removes a pane by itself. When a run finishes, its panes end: a process still running is stopped. `metator run collect` ends the worker's pane with the worker's one-line result, and a process that exits ends its pane with its exit code. An ended pane keeps its last screen, read-only (typing into it is refused with why), across restarts, until a person closes it: **Close** on the pane, `POST /panes/<pane>/close`, or every ended pane at once with `POST /panes/close-ended` (`{"runId": "<id>"}` for one run's). `metator run close` still closes the run's panes. A chat pane whose agent started a run with `metator run new` remembers that run (`startedRun`): it is the task's main terminal.
 
 ## From a terminal
 

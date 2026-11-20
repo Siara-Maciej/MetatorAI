@@ -20,6 +20,8 @@ export interface Socket {
   stop?: () => void;
   /** Resolves once a `pty` or `pane` socket has found its pane: input waits for it. */
   ready?: Promise<void>;
+  /** The pane's work is over: its last screen is shown, nothing is typed into it. */
+  ended?: { readonly reason: string } | undefined;
 }
 
 export interface SocketDeps {
@@ -108,6 +110,19 @@ export function socketHandlers(
       });
       // A pane's socket needs a live pane. A run's socket finds the session the run already has
       // (a reconnect): it never starts one. Starting is the explicit `POST /runs/<id>/pty-open`.
+      // An ended pane: its last screen, read-only, until a person closes it.
+      if (d.kind === "pane") {
+        const found = await panes.pane(d.paneId as string);
+        if (found.isOk() && found.value.ended) {
+          d.paneId = found.value.id;
+          d.ended = { reason: found.value.ended.reason };
+          ready();
+          ws.send(JSON.stringify({ type: "ended", ended: found.value.ended }));
+          const screen = await panes.keptScreen(found.value.id);
+          if (screen) ws.send(JSON.stringify({ type: "data", data: screen }));
+          return;
+        }
+      }
       const session = d.kind === "pty" ? broker.byRun(runId)[0] : undefined;
       const opened: Result<PtyView, MetatorError> =
         d.kind === "pane"
@@ -163,7 +178,14 @@ export function socketHandlers(
         );
         return;
       }
-      if (msg.type === "input" && typeof msg.data === "string") {
+      if (msg.type === "input" && typeof msg.data === "string" && d.ended) {
+        ws.send(
+          JSON.stringify({
+            type: "refused",
+            reason: `pane ${d.paneId} has ended (${d.ended.reason}): its screen is read-only; close it when you are done (POST /panes/${d.paneId}/close)`,
+          }),
+        );
+      } else if (msg.type === "input" && typeof msg.data === "string") {
         const r = await broker.write({ paneId: d.paneId, data: msg.data, by: d.by ?? "" });
         if (r.isErr()) ws.send(JSON.stringify({ type: "refused", reason: r.error.message }));
         // A line typed in a pane may answer its question: looked at as soon as the pane has

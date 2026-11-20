@@ -200,7 +200,8 @@ export class Conductor {
     if (view.isErr()) return err(view.error);
     const out: WorkerView[] = [];
     for (const p of view.value.panes) {
-      if (p.runId !== runId || p.role !== "worker" || !p.worker) continue;
+      // A collected worker is done with: its pane stays for a person, not for the conductor.
+      if (p.runId !== runId || p.role !== "worker" || !p.worker || p.ended?.reason === "collected") continue;
       const result = await this.result(runId, p.worker.name);
       if (result.isErr()) return err(result.error);
       out.push({
@@ -246,7 +247,9 @@ export class Conductor {
   async collect(input: {
     readonly runId?: string;
     readonly worker: string;
-  }): Promise<Result<WorkerResult & { readonly paneClosed: boolean }, MetatorError>> {
+  }): Promise<
+    Result<WorkerResult & { readonly paneClosed: boolean; readonly paneEnded: boolean }, MetatorError>
+  > {
     const id = await this.d.repo.resolveId(input.runId);
     if (id.isErr()) return err(id.error);
     const result = await this.result(id.value, input.worker);
@@ -258,12 +261,18 @@ export class Conductor {
           "Wait for it (`metator run wait <worker>`), or read its pane (`metator pane read <pane>`).",
         ),
       );
+    // The worker's pane ends (its process stopped, its screen kept) and stays with the worker's
+    // one line until a person closes it; it is never removed here.
     const pane = await this.workerPane(id.value, input.worker);
-    let paneClosed = false;
+    let paneEnded = false;
     if (pane.isOk()) {
-      const closed = await this.d.panes.closePane(pane.value.id);
-      if (closed.isErr()) return err(closed.error);
-      paneClosed = closed.value.closed;
+      const ended = await this.d.panes.end(pane.value.id, {
+        reason: "collected",
+        summary: result.value.summary.split("\n")[0] ?? "",
+        override: true,
+      });
+      if (ended.isErr()) return err(ended.error);
+      paneEnded = ended.value.ended;
     }
     const noted = await this.d.journal.record(id.value, {
       type: "agent",
@@ -273,7 +282,7 @@ export class Conductor {
       text: `collected worker ${input.worker}: ${result.value.status}, ${result.value.summary.split("\n")[0]}`,
     });
     if (noted.isErr()) return err(noted.error);
-    return ok({ ...result.value, paneClosed });
+    return ok({ ...result.value, paneClosed: false, paneEnded });
   }
 
   /** A worker's report (`metator run result`); a blocked one also asks the person its question. */

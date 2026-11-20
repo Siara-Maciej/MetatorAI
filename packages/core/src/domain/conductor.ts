@@ -77,7 +77,7 @@ export function conductorPrompt(input: ConductorPromptInput): string {
     "You move the run with these commands, one per Bash call:",
     "- `metator run delegate <stage> --agent <id> --card <text>`: a worker in its own pane, with the card as its whole task (the goal, the inputs, the artifact to write, the size of its summary). Only the stage's agents above.",
     "- `metator run wait <worker>`: until the worker reported (`metator run result`) or its pane ended.",
-    "- `metator run collect <worker>`: its result (summary, artifacts, a question when blocked); this closes its pane.",
+    "- `metator run collect <worker>`: its result (summary, artifacts, a question when blocked); its pane ends and stays for the person to read.",
     "- `metator run advance pass|fail --reason …`: after a stage's work; a human gate waits for `metator run approve`, which only a person runs.",
     "- `metator run workers`: who works now.",
     "You never edit code yourself, never type into another pane, never start agents any other way. A worker blocked on a question: collect it, decide or ask the person, delegate again with the answer in the card.",

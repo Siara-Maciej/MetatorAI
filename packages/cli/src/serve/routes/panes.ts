@@ -102,6 +102,26 @@ export const PANE_ROUTES: readonly Route[] = [
     pattern: "/panes/:pane/state",
     handler: ({ c, params }) => c.resolve("paneSensor").state(params.pane as string),
   }),
+  // Every ended pane closed in one go (of one run, when named): a person clearing finished work.
+  route({
+    method: "POST",
+    pattern: "/panes/close-ended",
+    body: body({ runId: z.string().optional() }),
+    handler: ({ c, body: b }) => c.resolve("panes").closeEnded(b.runId ? { runId: b.runId } : {}),
+  }),
+  // The agent of a pane (the chat where a person gave a task) started a run: the pane's own token, no other.
+  route({
+    method: "POST",
+    pattern: "/panes/:pane/started-run",
+    body: body({ runId: z.string().min(1) }),
+    guard: async ({ c, token, params }) => {
+      const own = token ? await c.resolve("panes").authorize(token) : undefined;
+      return own && own.id === params.pane
+        ? undefined
+        : denied(`only pane ${params.pane} itself says what it started`);
+    },
+    handler: ({ c, params, body: b }) => c.resolve("panes").setStartedRun(params.pane as string, b.runId),
+  }),
   route({
     method: "POST",
     pattern: "/panes/:pane/close",

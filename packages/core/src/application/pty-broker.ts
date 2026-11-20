@@ -228,10 +228,20 @@ export class PtyBroker {
   }
 
   /** Ends the terminal (SIGHUP) and forgets it. */
+  /** Stops the pane's process when it still lives; its screen and exit stay (an ended pane is read later). */
+  stop(paneId: string): void {
+    const entry = this.live.get(paneId);
+    if (!entry?.alive) return;
+    entry.cancelIdle?.();
+    entry.pty.kill();
+  }
+
   close(paneId: string): Result<{ readonly closed: boolean }, MetatorError> {
     const entry = this.live.get(paneId);
     if (!entry) return ok({ closed: false });
     entry.cancelIdle?.();
+    // Closed, not ended: nobody listening hears the exit the kill causes.
+    entry.listeners.clear();
     if (entry.alive) entry.pty.kill();
     this.live.delete(paneId);
     return ok({ closed: true });

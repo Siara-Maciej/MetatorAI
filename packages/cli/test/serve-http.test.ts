@@ -296,6 +296,8 @@ describe("the daemon's route table", () => {
       "GET /panes/:pane/wait",
       "GET /panes/:pane/state",
       "POST /panes/:pane/close",
+      "POST /panes/close-ended",
+      "POST /panes/:pane/started-run",
       "POST /panes/:pane/open-editor",
       "POST /panes/:pane/split",
       "POST /panes/:pane/heartbeat",
@@ -345,6 +347,6 @@ describe("the daemon's route table", () => {
       "GET /runs/:run/artifacts/:name+",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(73);
+    expect(keys.size).toBe(75);
   });
 });

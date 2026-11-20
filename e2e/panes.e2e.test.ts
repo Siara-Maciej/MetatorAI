@@ -223,4 +223,29 @@ describe("panes (real daemon, real PTYs)", () => {
     expect(existsSync(repo.path(wt.worktree.path))).toBe(false);
     expect((data(await mt("worktree", "list")) as { worktrees: unknown[] }).worktrees).toEqual([]);
   }, 60_000);
+
+  test("a run started from a pane (the chat where a person gave the task) is remembered on it: that task's main terminal", async () => {
+    // What the intake agent does in its pane: `metator run new`, with the pane's identity in its environment.
+    const chat = await post("/panes", {
+      label: "intake",
+      role: "shell",
+      argv: ["sh", "-c", `bun ${CLI_ENTRY} run new --workflow demo --task 'Started from the chat'; sleep 30`],
+    });
+    const paneId = (chat.data as { id: string }).id;
+    const started = await until("the pane to remember its run", async () => {
+      const pane = (await get(`/panes/${paneId}`)).data.pane as { startedRun?: string };
+      return pane.startedRun;
+    });
+    const status = data(await mt("run", "status", "--run", started)) as { task: string };
+    expect(status.task).toBe("Started from the chat");
+    // Another pane's token cannot say it for this one.
+    const other = await fetch(`${base}/panes/${paneId}/started-run`, {
+      method: "POST",
+      body: JSON.stringify({ runId: started }),
+      headers: { "x-metator-pane": "not-its-token" },
+    });
+    expect(other.status).toBe(403);
+    expect((await post(`/panes/${paneId}/close`, {})).ok).toBe(true);
+    await mt("run", "close", "--run", started, "--aborted", "--reason", "the test ends it");
+  }, 60_000);
 });

@@ -484,7 +484,9 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
       (await page.locator(".events tbody tr").count()) > 0 ? true : undefined,
     );
     // The workbench (S6): the run is a tab, its stages a strip, its conductor a framed pane.
-    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid`);
+    await page.goto(
+      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid/workspaces`,
+    );
     const workbench = page.getByTestId("workbench");
     await workbench.locator(".pane-frame").first().waitFor({ timeout: 20_000 });
     await until("the run's tab", async () =>
@@ -519,7 +521,9 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
       await page.keyboard.press("Enter");
       await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
       await page.getByTestId("connection").waitFor({ timeout: 20_000 });
-      await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid`);
+      await page.goto(
+        `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid/workspaces`,
+      );
       await shellFrame.waitFor({ timeout: 20_000 });
     }
     // prefix+z zooms the focused pane and back; prefix+g opens the go-to picker.
@@ -560,12 +564,16 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
         : undefined,
     );
     // Left and opened again, the backlog has no draft: the form is closed.
-    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid`);
+    await page.goto(
+      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid/workspaces`,
+    );
     await shellFrame.waitFor({ timeout: 20_000 });
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/backlog`);
     await page.getByTestId("backlog").waitFor({ timeout: 20_000 });
     expect(await page.getByTestId("backlog").textContent()).not.toContain("points at:");
-    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid`);
+    await page.goto(
+      `http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/grid/workspaces`,
+    );
     await shellFrame.waitFor({ timeout: 20_000 });
     // A key rebound in the options works at once: keys.zoom → prefix+f.
     await fetch(`${daemonUrl}/options/keys.zoom`, {

@@ -3125,3 +3125,95 @@ dialog.goto {
   color: var(--muted);
   margin: 8px 0;
 }
+/* Terminals by task: a bar with where you are, then the tiles side by side (2 or 3, more wrap). */
+.workbench.by-task {
+  grid-template-rows: auto auto 1fr;
+}
+.workbench .terminals-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--edge);
+  font-size: var(--fs-compact);
+}
+.workbench .task-tiles {
+  display: grid;
+  gap: var(--sp-4);
+  padding: 10px;
+  min-height: 0;
+  overflow: auto;
+  grid-auto-rows: minmax(320px, 1fr);
+}
+.workbench .task-tiles.n1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+.workbench .task-tiles.n2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.workbench .task-tiles.n3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.workbench .tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.workbench .tile.main {
+  border-color: var(--teal-line, var(--edge-control));
+}
+.workbench .tile > .pane-frame {
+  flex: 1;
+  min-height: 0;
+}
+.workbench .tile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 4px 8px;
+  font-size: var(--fs-small);
+  color: var(--muted);
+  background: var(--panel);
+}
+.workbench .tile-head .tile-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workbench .tile-head .open-session {
+  color: var(--blue);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.pane-frame .pane-ended.finished-banner.done {
+  border-top-color: var(--green-line);
+  background: var(--green-wash);
+}
+.pane-frame .pane-ended.finished-banner.error {
+  border-top-color: var(--red-line);
+  background: var(--red-wash);
+}
+.workbench .terminal-tasks {
+  max-width: 760px;
+  padding: 16px 20px;
+}
+.workbench .terminal-tasks .row {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--edge);
+  color: var(--text);
+  text-decoration: none;
+}
+/* In a tile the frame's title is a line of its own under the tile's head, not on its border. */
+.workbench .tile .pane-frame .title {
+  position: static;
+  align-self: flex-start;
+  margin: 2px 6px 0;
+  background: none;
+}

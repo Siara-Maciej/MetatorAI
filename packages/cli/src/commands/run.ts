@@ -28,6 +28,7 @@ import { HOSTS, resume } from "../sessions.ts";
 import { asPerson, who } from "../who.ts";
 import { registerConductorCommands } from "./conductor.ts";
 import { registerDriveCommands } from "./drive.ts";
+import { paneStartedRun } from "./guard.ts";
 
 export const EVENTS = ["pass", "fail", "approve", "abort"] as const;
 
@@ -158,6 +159,8 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
               });
             if (started.isErr()) return { result: started };
             const { run, setup, warnings } = started.value;
+            // Started from a pane (the chat where the person gave the task): it is this run's main terminal.
+            await paneStartedRun(run.runId, process.env, container().resolve("root"));
             return { result: ok({ ...run, ...(setup ? { setup } : {}) }), warnings };
           },
         ),

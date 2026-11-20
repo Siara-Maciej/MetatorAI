@@ -290,7 +290,15 @@ export type Route =
       /** The file the Changes tab shows. */
       readonly file?: string;
     }
-  | { readonly screen: "grid"; readonly group?: string; readonly pane?: string }
+  | {
+      readonly screen: "grid";
+      /** The workspaces' tabs (`#/grid/workspaces`, or a workspace group). */
+      readonly group?: string;
+      readonly pane?: string;
+      /** A task's terminals (`#/grid/task/<run>`), and one of its sessions (`/<child run>`). */
+      readonly task?: string | undefined;
+      readonly session?: string | undefined;
+    }
   | { readonly screen: "overview"; readonly tab: OverviewTab }
   | { readonly screen: "mrs"; readonly id?: string }
   | { readonly screen: "settings" }
@@ -342,6 +350,10 @@ export function parseRoute(hash: string): Route {
       return runRoute(arg, tab ?? "overview", parts.slice(3));
     }
     case "grid":
+      if (arg === "task" && parts[2])
+        return parts[3]
+          ? { screen: "grid", task: parts[2], session: parts[3] }
+          : { screen: "grid", task: parts[2] };
       return arg
         ? arg.startsWith("pane:")
           ? { screen: "grid", pane: arg.slice("pane:".length) }
@@ -404,6 +416,8 @@ export function routeHash(route: Route): string {
     case "overview":
       return route.tab === "daemon" ? "#/settings/system" : `#/settings/system/${route.tab}`;
     case "grid":
+      if (route.task)
+        return `#/grid/task/${encodeURIComponent(route.task)}${route.session ? `/${encodeURIComponent(route.session)}` : ""}`;
       return route.pane
         ? `#/grid/pane:${encodeURIComponent(route.pane)}`
         : route.group
@@ -703,7 +717,11 @@ export type GotoFilter = "all" | "asks" | "working" | "idle" | "done";
 export interface GotoRow {
   readonly kind: "pane" | "question";
   readonly id: string;
-  readonly tab: WorkbenchTab;
+  /** A workspace's tab; a pane of a task has its place in the task instead (`task`, `path`). */
+  readonly tab?: WorkbenchTab | undefined;
+  /** Where the pane is in its task: `task › shop-api › mt-implementer-1`. */
+  readonly path?: string | undefined;
+  readonly task?: { readonly runId: string; readonly session?: string | undefined } | undefined;
   readonly label: string;
   readonly detail: string;
   readonly state: PaneShown | "question";
@@ -717,14 +735,17 @@ export function gotoRows(
   panes: readonly PaneView[],
   filter: GotoFilter,
   query: string,
+  /** The panes of the tasks first, by their place in the task (terminals.ts `taskGotoRows`). */
+  taskRows: readonly GotoRow[] = [],
 ): GotoRow[] {
   const q = query.trim().toLowerCase();
-  const rows: GotoRow[] = [];
+  const rows: GotoRow[] = [...taskRows];
+  const inTasks = new Set(taskRows.map((r) => r.paneId));
   for (const repo of repos)
     for (const tab of repo.tabs) {
       for (const id of tab.panes) {
         const p = panes.find((x) => x.id === id);
-        if (!p) continue;
+        if (!p || inTasks.has(p.id)) continue;
         const state = paneStateOf(p);
         rows.push({
           kind: "pane",
@@ -748,7 +769,8 @@ export function gotoRows(
         });
     }
   return rows.filter((r) => {
-    if (q !== "" && !`${r.label} ${r.detail} ${r.tab.label}`.toLowerCase().includes(q)) return false;
+    if (q !== "" && !`${r.label} ${r.detail} ${r.tab?.label ?? ""} ${r.path ?? ""}`.toLowerCase().includes(q))
+      return false;
     switch (filter) {
       case "asks":
         return r.state === "asks" || r.state === "question";
@@ -882,6 +904,7 @@ export const SHELL_QUIET_MS = 2000;
  */
 export function paneStateOf(
   pane: Pick<PaneView, "process" | "state"> & {
+    readonly ended?: PaneView["ended"] | undefined;
     readonly runId?: string | undefined;
     readonly live?:
       | (Pick<NonNullable<PaneView["live"]>, "alive" | "lastOutputAt"> & {
@@ -892,6 +915,9 @@ export function paneStateOf(
   now: number = Date.now(),
 ): PaneShown {
   const raw = pane.state?.state;
+  // The daemon says the pane's work is over (`ended`): finished, or a failure with its code.
+  if (pane.ended)
+    return pane.ended.exitCode !== undefined && pane.ended.exitCode !== 0 ? "exited" : "finished";
   // A process that ended by itself with code 0 did its work: a finished worker, not a failure.
   if (pane.live && !pane.live.alive && pane.live.exitCode === 0) return "finished";
   if (raw === "exited" || !pane.live?.alive) return "exited";

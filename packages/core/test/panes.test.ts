@@ -58,6 +58,7 @@ function world() {
       timer: new InstantTimer(),
       root: "/repo",
       token: () => `tok-${++n}`,
+      fs,
     });
   const panes = make();
   const init = (task: string) =>
@@ -308,7 +309,7 @@ describe("Panes", () => {
     expect(after.panes).toEqual([]);
   });
 
-  test("closeFinished closes the panes of every run that is done or aborted, conductor and workers; an open run keeps its own", async () => {
+  test("a finished run's panes are ended, never removed: a living process is stopped, its screen kept; an open run keeps its own", async () => {
     const w = world();
     const done = (await w.init("Done already"))._unsafeUnwrap();
     const open = (await w.init("Still working"))._unsafeUnwrap();
@@ -316,7 +317,7 @@ describe("Panes", () => {
     await w.panes.openRun({ runId: aborted.runId });
     const gaveUp = (await w.repo.load(aborted.runId))._unsafeUnwrap();
     await w.repo.save({ ...gaveUp, state: { ...gaveUp.state, status: "aborted" } });
-    await w.panes.openRun({ runId: done.runId });
+    const conductor = (await w.panes.openRun({ runId: done.runId }))._unsafeUnwrap();
     const ws = (await w.panes.openWorkspace({ runId: done.runId }))._unsafeUnwrap();
     await w.panes.openPane({
       workspace: ws.id,
@@ -324,20 +325,111 @@ describe("Panes", () => {
       runId: done.runId,
       process: { kind: "command", argv: ["sh"] },
     });
+    w.copilot.started.at(-1)?.pty.print("the last words of the conductor\n");
     await w.panes.openRun({ runId: open.runId });
     const record = (await w.repo.load(done.runId))._unsafeUnwrap();
     await w.repo.save({ ...record, state: { ...record.state, status: "done", stage: "done" } });
-    const r = (await w.panes.closeFinished())._unsafeUnwrap();
-    expect(r.map((x) => [x.runId, x.closed]).sort()).toEqual(
+    const r = (await w.panes.endFinished())._unsafeUnwrap();
+    expect(r.map((x) => [x.runId, x.ended]).sort()).toEqual(
       [
         [aborted.runId, 1],
         [done.runId, 2],
       ].sort(),
     );
     const left = (await w.layout.load())._unsafeUnwrap();
-    expect(left.panes.map((p) => p.runId)).toEqual([open.runId]);
-    // Nothing left to close: nothing is said twice.
-    expect((await w.panes.closeFinished())._unsafeUnwrap()).toEqual([]);
+    // Every pane stays; the finished runs' ones say so, with when and why.
+    expect(left.panes.map((p) => [p.runId, p.ended?.reason]).sort()).toEqual(
+      [
+        [aborted.runId, "run-finished"],
+        [done.runId, "run-finished"],
+        [done.runId, "run-finished"],
+        [open.runId, undefined],
+      ].sort(),
+    );
+    expect(left.panes.find((p) => p.id === conductor.id)?.ended?.at).toBe("2026-11-09T10:00:00.000Z");
+    // The process was stopped; its last screen is still there to read.
+    expect(w.broker.status(conductor.id)?.alive).toBe(false);
+    expect(w.panes.screen(conductor.id)).toContain("the last words of the conductor");
+    // Nothing left to end: nothing is said twice.
+    expect((await w.panes.endFinished())._unsafeUnwrap()).toEqual([]);
+  });
+
+  test("a process that exits marks its pane ended with its exit code; the pane stays until a person closes it", async () => {
+    const w = world();
+    const ws = (await w.panes.openWorkspace({ label: "tools" }))._unsafeUnwrap();
+    const pane = (
+      await w.panes.openPane({ workspace: ws.id, role: "shell", process: { kind: "command", argv: ["sh"] } })
+    )._unsafeUnwrap();
+    w.terminal.spawned.at(-1)?.pty.print("bye\n");
+    w.terminal.spawned.at(-1)?.pty.exit(3);
+    await Bun.sleep(5);
+    const ended = (await w.panes.pane(pane.id))._unsafeUnwrap().ended;
+    expect([ended?.reason, ended?.exitCode]).toEqual(["exited", 3]);
+    expect(w.panes.screen(pane.id)).toContain("bye");
+    // A later end (the run finished) does not write over why it ended.
+    expect((await w.panes.end(pane.id, { reason: "run-finished" }))._unsafeUnwrap().ended).toBe(false);
+    // Closing ended panes in bulk: only the ended ones go.
+    const live = (
+      await w.panes.openPane({ workspace: ws.id, role: "shell", process: { kind: "command", argv: ["sh"] } })
+    )._unsafeUnwrap();
+    expect((await w.panes.closeEnded({}))._unsafeUnwrap()).toEqual({ closed: 1 });
+    expect((await w.layout.load())._unsafeUnwrap().panes.map((p) => p.id)).toEqual([live.id]);
+  });
+
+  test("an ended pane's last screen is kept on disk: read after a restart, forgotten when a person closes it", async () => {
+    const w = world();
+    const ws = (await w.panes.openWorkspace({ label: "tools" }))._unsafeUnwrap();
+    const pane = (
+      await w.panes.openPane({ workspace: ws.id, role: "shell", process: { kind: "command", argv: ["sh"] } })
+    )._unsafeUnwrap();
+    w.terminal.spawned.at(-1)?.pty.print("last words\n");
+    (await w.panes.end(pane.id, { reason: "run-finished" }))._unsafeUnwrap();
+    // A restarted daemon: a broker that never saw the pane's output.
+    const restarted = new Panes({
+      layout: w.layout,
+      broker: new PtyBroker({ repo: w.repo, journal: w.journal, idleMs: 1000, after: () => () => {} }),
+      hosts: new Map(),
+      terminal: w.terminal,
+      repo: w.repo,
+      journal: w.journal,
+      clock: new FixedClock(new Date("2026-11-09T11:00:00.000Z")),
+      timer: new InstantTimer(),
+      root: "/repo",
+      fs: w.fs,
+    });
+    expect(restarted.screen(pane.id)).toBe("");
+    expect(await restarted.keptScreen(pane.id)).toContain("last words");
+    (await restarted.closePane(pane.id))._unsafeUnwrap();
+    expect(await restarted.keptScreen(pane.id)).toBe("");
+    expect(await w.fs.exists(`.metator/panes/${pane.id.replaceAll(":", "-")}.screen`)).toBe(false);
+  });
+
+  test("the chat pane where a person gave a task remembers the run its agent started: that task's main terminal", async () => {
+    const w = world();
+    const ws = (await w.panes.openWorkspace({ label: "intake" }))._unsafeUnwrap();
+    const chat = (
+      await w.panes.openPane({
+        workspace: ws.id,
+        role: "shell",
+        process: { kind: "host", agent: "mt-guide", prompt: "" },
+      })
+    )._unsafeUnwrap();
+    const run = (await w.init("Add a badge"))._unsafeUnwrap();
+    (await w.panes.setStartedRun(chat.id, run.runId))._unsafeUnwrap();
+    expect((await w.panes.pane(chat.id))._unsafeUnwrap().startedRun).toBe(run.runId);
+    expect((await w.panes.setStartedRun("w9:p9", run.runId))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+
+  test("an ended pane is not started again after a restart; a pane started again is no longer ended", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const conductor = (await w.panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    (await w.panes.end(conductor.id, { reason: "collected", summary: "done: plan.md" }))._unsafeUnwrap();
+    const restored = (await w.make().restore())._unsafeUnwrap();
+    expect(restored.find((r) => r.paneId === conductor.id)?.skipped).toBe("its work ended (collected)");
+    // The run's conductor opened again (the supervisor's resume, `run start`): alive, not ended.
+    const again = (await w.panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    expect([again.id, again.ended]).toEqual([conductor.id, undefined]);
   });
 
   test("a pane's identity: a worker by its name and stage, the conductor by its agent at the run's stage", async () => {

@@ -1,9 +1,12 @@
 /**
- * The workbench (S6, design/13 §5b, mockups v9): terminals over MetatorAI's runs. Tabs are
- * tasks (a run in its worktree) or shells; under them the run's stages; the panes of the active
- * tab in their split tree; a sidebar of repositories and agents. Everything else is a command:
- * a key after the prefix, or an item of a right-click menu (model.ts `WORKBENCH_COMMANDS`).
- * The daemon owns the layout; this screen only draws and asks.
+ * The workbench (S6, design/13 §5b; task-first since round 8): terminals over MetatorAI's runs.
+ * A task's view shows its main terminal (where the person gave the task, else its conductor)
+ * and one tile per repository session working on it, side by side; a session's own view shows
+ * its conductor and its sub-terminals (workers), with "Task › repository" back. Ended panes stay,
+ * read-only, with what ended them, until a person closes them. With no task chosen it lists the
+ * tasks; "Workspaces" is the daemon's workspaces and tabs as before (shells, a new run's chat).
+ * Everything else is a command: a key after the prefix, or an item of a right-click menu
+ * (model.ts `WORKBENCH_COMMANDS`). The daemon owns the layout; this screen only draws and asks.
  */
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { PaneView, SplitNode } from "../api.ts";
@@ -41,6 +44,7 @@ import {
   paneStateOf,
   repoOfTab,
   retryHost,
+  routeHash,
   tabOfPane,
   tabOfRun,
   toastOf,
@@ -50,6 +54,17 @@ import {
   workbenchRepos,
   workspaceOfPane,
 } from "../model.ts";
+import {
+  type Session,
+  sessionIn,
+  sessionView,
+  subBadge,
+  type TerminalTask,
+  taskGotoRows,
+  taskView,
+  terminalTasks,
+  whereIs,
+} from "../terminals.ts";
 
 /** What the keys mean right now: one thing at a time. */
 type Mode =
@@ -79,7 +94,15 @@ export function WorkbenchScreen({
   onOpenBacklog,
   onHelp,
   showPane,
+  task: taskKey,
+  session: sessionKey,
+  group,
 }: {
+  /** A task's terminals, and one of its sessions (the route's `task`, `session`). */
+  readonly task?: string | undefined;
+  readonly session?: string | undefined;
+  /** The workspaces' tabs were asked for (`#/grid/workspaces`, a workspace group). */
+  readonly group?: string | undefined;
   /** Opens a tab with the agent that starts a task: the person says what to do, the agent starts the run. */
   onNewTask(): void;
   onOpenSettings(): void;
@@ -117,10 +140,49 @@ export function WorkbenchScreen({
   const repo = repos.find((r) => r.id === repoId) ?? repos[0];
   const [tabKey, setTabKey] = useState<string>();
   const tab: WorkbenchTab | undefined = repo?.tabs.find((t) => t.key === tabKey) ?? repo?.tabs[0];
-  const tabPanes = (tab?.panes ?? [])
-    .map((id) => panes.find((p) => p.id === id))
-    .filter((p): p is PaneView => !!p);
-  const tree: SplitNode | undefined = tab ? (tab.tree ?? evenTree(tab.panes)) : undefined;
+  // Terminals by task (terminals.ts): every repository's panes, since a task spans repositories.
+  const plans = d.systemPlans;
+  const tasks: TerminalTask[] = useMemo(
+    () =>
+      terminalTasks(
+        runs,
+        d.panes,
+        (runId) => plans.flatMap((pl) => pl.steps).find((st) => st.run === runId)?.id,
+      ),
+    [runs, d.panes, plans],
+  );
+  const located = showPane ? whereIs(tasks, showPane) : undefined;
+  const chosen =
+    tasks.find((t) => t.runId === taskKey) ??
+    located?.task ??
+    (!taskKey && !group && !showPane && tasks.length === 1 ? tasks[0] : undefined);
+  const session: Session | undefined =
+    chosen && (sessionKey ?? located?.session)
+      ? sessionIn(chosen, (sessionKey ?? located?.session) as string)
+      : undefined;
+  const view: "task" | "session" | "list" | "tabs" = session
+    ? "session"
+    : chosen
+      ? "task"
+      : group === "tasks"
+        ? "list"
+        : group || showPane || tasks.length === 0
+          ? "tabs"
+          : "list";
+  const tabPanes: (PaneView & { readonly repo?: string | undefined })[] =
+    view === "session" && session
+      ? sessionView(session)
+      : view === "task" && chosen
+        ? taskView(chosen)
+        : (tab?.panes ?? []).map((id) => panes.find((p) => p.id === id)).filter((p): p is PaneView => !!p);
+  const tree: SplitNode | undefined =
+    view === "tabs"
+      ? tab
+        ? (tab.tree ?? evenTree(tab.panes))
+        : undefined
+      : evenTree(tabPanes.map((p) => p.id));
+  /** The repository a pane is in (a task's panes are in several). */
+  const repoOf = (p: PaneView | undefined) => (p as { repo?: string } | undefined)?.repo ?? repoName;
   const [focus, setFocus] = useState<string>();
   /** Shows a tab, in the sidebar entry it sits under, with one of its panes focused. */
   const showTab = (t: WorkbenchTab, paneId?: string) => {
@@ -149,7 +211,7 @@ export function WorkbenchScreen({
   const action = useAction();
   const handles = useRef(new Map<string, TerminalHandle>());
   const run = tab?.run;
-  const runOf = (p: PaneView | undefined) => d.run(p?.runId, repoName);
+  const runOf = (p: PaneView | undefined) => d.run(p?.runId, repoOf(p));
   const controlsOf = (p: PaneView | undefined) => runControls(client, action, me, runOf(p));
   /** A shell takes anyone's keys; an agent's pane of a run only its attached person's. */
   const canType = (p: PaneView) => !p.runId || p.role === "shell" || controlsOf(p).attached;
@@ -248,8 +310,9 @@ export function WorkbenchScreen({
     taskFromHere: (p) => onOpenBacklog(p?.runId ? { refs: [{ run: p.runId }] } : {}),
     closePane: (p) => {
       if (!p) return;
-      if (confirmClose && p.live?.alive && !window.confirm(`Close ${paneLabel(p)} (${p.id})?`)) return;
-      void action.run(() => client.closePane(p.id, repoName));
+      if (confirmClose && p.live?.alive && !p.ended && !window.confirm(`Close ${paneLabel(p)} (${p.id})?`))
+        return;
+      void action.run(() => client.closePane(p.id, repoOf(p)));
     },
     newShellTab: () => {
       if (!repo) return;
@@ -317,10 +380,20 @@ export function WorkbenchScreen({
     openMenu(e, t ? ["tab", "tab-own"] : ["tab"], undefined, t, t ? `tab ${t.label}` : "tabs");
   const pick = (row: GotoRow) => {
     setMode(IDLE);
-    showTab(
-      row.tab,
-      row.paneId ?? panes.find((p) => p.runId === row.tab.runId && p.role === "conductor")?.id,
-    );
+    if (row.task) {
+      window.location.hash = routeHash({ screen: "grid", task: row.task.runId, session: row.task.session });
+      if (row.paneId) setFocus(row.paneId);
+      return;
+    }
+    const t = row.tab;
+    if (!t) return;
+    showTab(t, row.paneId ?? panes.find((p) => p.runId === t.runId && p.role === "conductor")?.id);
+  };
+  const gotoTaskRows = useMemo(() => taskGotoRows(tasks), [tasks]);
+  /** The ended panes of the view: "Close finished (N)" closes them. */
+  const endedHere = tabPanes.filter((p) => p.ended !== undefined);
+  const closeFinished = async () => {
+    for (const p of endedHere) await action.run(() => client.closePane(p.id, repoOf(p)));
   };
   // One toast: the newest question of the tabs shown here (notify.channel app) that the person
   // has not closed.
@@ -397,7 +470,8 @@ export function WorkbenchScreen({
       if (timer) clearTimeout(timer);
     };
   });
-  const framed = borders === "always" || (borders === "auto" && tabPanes.length > 1);
+  // A task's tiles have their own border and head: their frames draw none.
+  const framed = view === "tabs" && (borders === "always" || (borders === "auto" && tabPanes.length > 1));
   const renderPane = (id: string): ReactNode => {
     const p = tabPanes.find((x) => x.id === id);
     if (!p) return <div className="empty">pane {id}</div>;
@@ -405,7 +479,7 @@ export function WorkbenchScreen({
       <PaneFrame
         pane={p}
         state={paneStateOf(p)}
-        repo={repoName}
+        repo={repoOf(p)}
         focused={focused?.id === p.id}
         framed={framed}
         labels={labels}
@@ -415,7 +489,7 @@ export function WorkbenchScreen({
         scrollback={scrollback}
         asking={mode.kind === "ask" && mode.pane === p.id}
         copying={mode.kind === "copy" && mode.pane === p.id}
-        lastOfTab={tabPanes.length === 1}
+        lastOfTab={view === "tabs" && tabPanes.length === 1}
         onFocus={() => setFocus(p.id)}
         onMenu={(e) => openMenu(e, ["pane"], p, tab, `pane ${p.id}`)}
         onZoom={() => setZoom(zoom === p.id ? undefined : p.id)}
@@ -423,13 +497,169 @@ export function WorkbenchScreen({
         onReady={(h) => handles.current.set(p.id, h)}
         onRetry={() => void retryPane(p)}
         onClose={() =>
-          tab && tabPanes.length === 1
+          view === "tabs" && tab && tabPanes.length === 1
             ? void closeTab(tab, false)
-            : void action.run(() => client.closePane(p.id, repoName))
+            : void action.run(() => client.closePane(p.id, repoOf(p)))
         }
       />
     );
   };
+  const overlays = (
+    <>
+      {toast ? (
+        <QuestionToast
+          item={toast}
+          onOpen={openToast}
+          onDismiss={() => setDismissed([...dismissed, `${toast.runId}/${toast.question.id}`])}
+        />
+      ) : null}
+      {mode.kind === "menu" ? (
+        <ContextMenu at={mode} items={mode.items} label={mode.label} onClose={() => setMode(IDLE)} />
+      ) : null}
+      {mode.kind === "goto" ? (
+        <GotoPicker
+          repos={repos}
+          panes={panes}
+          taskRows={gotoTaskRows}
+          onPick={pick}
+          onClose={() => setMode(IDLE)}
+        />
+      ) : null}
+    </>
+  );
+  const settingsButton = (
+    <button type="button" className="ghost" onClick={onOpenSettings} title="settings" aria-label="settings">
+      ⚙
+    </button>
+  );
+  const prefixChip =
+    mode.kind === "prefix" ? (
+      <span className="chip teal" data-testid="prefix">
+        {keymap.prefix?.[0] ?? "prefix"} …
+      </span>
+    ) : null;
+  if (view !== "tabs") {
+    const sessionOfPane = (p: PaneView) =>
+      chosen ? [chosen.own, ...chosen.sessions].find((x) => x.pane === p) : undefined;
+    const tile = (p: PaneView & { readonly repo?: string | undefined }) => {
+      const main = view === "task" && chosen?.main === p;
+      // On the task's view a tile is a repository session: its badge opens its own view. The main
+      // terminal, when it is the task run's own conductor, opens the task run's session.
+      const own = sessionOfPane(p) ?? (main && chosen?.main === chosen?.own.pane ? chosen?.own : undefined);
+      const label =
+        view === "session"
+          ? p === session?.pane
+            ? `${session?.label}: its main terminal`
+            : "sub-terminal"
+          : main
+            ? chosen?.main?.startedRun
+              ? "main terminal: where the task was given"
+              : "main terminal: the task's conductor"
+            : (own?.label ?? paneLabel(p));
+      const badge = view === "task" && own ? subBadge(own) : undefined;
+      return (
+        <div key={p.id} className={`tile${main ? " main" : ""}`} data-testid={`tile-${p.id}`}>
+          <div className="tile-head">
+            <span className="tile-label">{label}</span>
+            {view === "task" && own && !main ? (
+              <a
+                className="ghost open-session"
+                href={routeHash({ screen: "grid", task: chosen?.runId, session: own.runId })}
+                data-testid={`open-session-${own.runId}`}
+              >
+                {badge ?? "its terminals"} ›
+              </a>
+            ) : view === "task" && own && badge ? (
+              <a
+                className="ghost open-session"
+                href={routeHash({ screen: "grid", task: chosen?.runId, session: own.runId })}
+                data-testid={`open-session-${own.runId}`}
+              >
+                {badge} ›
+              </a>
+            ) : null}
+          </div>
+          {renderPane(p.id)}
+        </div>
+      );
+    };
+    const shownTiles = zoom ? tabPanes.filter((p) => p.id === zoom) : tabPanes;
+    return (
+      <section
+        className="workbench by-task"
+        aria-label="Terminals"
+        data-testid="workbench"
+        data-zoom-key={keymap.zoom?.[0]}
+      >
+        <nav className="terminals-bar" aria-label="where in Terminals" data-testid="terminals-bar">
+          <a href={routeHash({ screen: "grid", group: "tasks" })}>Tasks</a>
+          {chosen ? (
+            <>
+              <span className="faint">›</span>
+              {session ? (
+                <a href={routeHash({ screen: "grid", task: chosen.runId })} data-testid="terminals-task">
+                  {chosen.title}
+                </a>
+              ) : (
+                <strong data-testid="terminals-task">{chosen.title}</strong>
+              )}
+            </>
+          ) : null}
+          {session ? (
+            <>
+              <span className="faint">›</span>
+              <strong data-testid="terminals-session">{session.label}</strong>
+            </>
+          ) : null}
+          <span className="spacer" />
+          {endedHere.length > 0 ? (
+            <button type="button" data-testid="close-finished" onClick={() => void closeFinished()}>
+              Close finished ({endedHere.length})
+            </button>
+          ) : null}
+          <a
+            href={routeHash({ screen: "grid", group: "workspaces" })}
+            title="every workspace and its tabs: shells, a new run's chat"
+          >
+            Workspaces
+          </a>
+          {prefixChip}
+          {settingsButton}
+        </nav>
+        <Notice {...action.notice} tone={action.notice.text ? action.notice.tone : "info"} />
+        {view === "list" ? (
+          <div className="terminal-tasks" data-testid="terminal-tasks">
+            <h2>Tasks with terminals</h2>
+            {tasks.map((t) => (
+              <a key={t.runId} className="row" href={routeHash({ screen: "grid", task: t.runId })}>
+                <span className="title">{t.title}</span>
+                <span className="faint">
+                  {t.main ? "a main terminal" : "no main terminal"} · {t.sessions.length} repository session
+                  {t.sessions.length === 1 ? "" : "s"} ·{" "}
+                  {[t.own, ...t.sessions].reduce((n, x) => n + x.subs.length, 0)} sub-terminals
+                </span>
+              </a>
+            ))}
+            <p className="faint">
+              Shells and the chat of a run not started yet are under{" "}
+              <a href={routeHash({ screen: "grid", group: "workspaces" })}>Workspaces</a>.
+            </p>
+          </div>
+        ) : (
+          <div
+            className={`task-tiles n${Math.min(Math.max(shownTiles.length, 1), 3)}`}
+            data-testid={view === "task" ? "task-view" : "session-view"}
+          >
+            {shownTiles.map(tile)}
+            {shownTiles.length === 0 ? (
+              <div className="empty">No terminal of this {view === "task" ? "task" : "session"} is open.</div>
+            ) : null}
+          </div>
+        )}
+        {overlays}
+      </section>
+    );
+  }
   return (
     <section
       className="workbench"
@@ -480,21 +710,14 @@ export function WorkbenchScreen({
           +
         </button>
         <span className="spacer" />
-        <RepoSelect />
-        {mode.kind === "prefix" ? (
-          <span className="chip teal" data-testid="prefix">
-            {keymap.prefix?.[0] ?? "prefix"} …
-          </span>
+        {tasks.length > 0 ? (
+          <a href={routeHash({ screen: "grid", group: "tasks" })} data-testid="by-task">
+            By task ›
+          </a>
         ) : null}
-        <button
-          type="button"
-          className="ghost"
-          onClick={onOpenSettings}
-          title="settings"
-          aria-label="settings"
-        >
-          ⚙
-        </button>
+        <RepoSelect />
+        {prefixChip}
+        {settingsButton}
       </Tabs>
       <div className="procstrip" data-testid="procstrip">
         {run && run.stages.length > 0 ? (
@@ -548,19 +771,7 @@ export function WorkbenchScreen({
           )}
         </section>
       </div>
-      {toast ? (
-        <QuestionToast
-          item={toast}
-          onOpen={openToast}
-          onDismiss={() => setDismissed([...dismissed, `${toast.runId}/${toast.question.id}`])}
-        />
-      ) : null}
-      {mode.kind === "menu" ? (
-        <ContextMenu at={mode} items={mode.items} label={mode.label} onClose={() => setMode(IDLE)} />
-      ) : null}
-      {mode.kind === "goto" ? (
-        <GotoPicker repos={repos} panes={panes} onPick={pick} onClose={() => setMode(IDLE)} />
-      ) : null}
+      {overlays}
     </section>
   );
 }

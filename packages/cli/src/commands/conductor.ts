@@ -97,7 +97,9 @@ export function registerConductorCommands(_program: Command, runs: Command, ctx:
 
   runs
     .command("collect <worker>")
-    .description("The worker's result (summary, artifacts, its question when blocked); closes its pane")
+    .description(
+      "The worker's result (summary, artifacts, its question when blocked); its pane ends and stays until a person closes it",
+    )
     .addOption(runOption())
     .action(
       ctx.action(async (worker: string, opts: { run?: string }) => {

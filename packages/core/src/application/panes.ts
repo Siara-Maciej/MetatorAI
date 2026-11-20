@@ -7,6 +7,7 @@ import {
   addWorkspace,
   isPlainShell,
   type Pane,
+  type PaneEndReason,
   type PaneProcess,
   type PaneRole,
   paneOf,
@@ -23,7 +24,15 @@ import {
   workspaceOfRun,
 } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import type { Clock, InteractiveHost, PtyHandle, PtySize, Terminal, Timer } from "../ports/index.ts";
+import type {
+  Clock,
+  FileSystem,
+  InteractiveHost,
+  PtyHandle,
+  PtySize,
+  Terminal,
+  Timer,
+} from "../ports/index.ts";
 import type { LayoutStore } from "./layout-store.ts";
 import type { PaneSensor } from "./pane-sensor.ts";
 import type { PtyBroker, PtyView } from "./pty-broker.ts";
@@ -49,6 +58,15 @@ export interface PanesDependencies {
   readonly sensor?: Pick<PaneSensor, "state">;
   /** A fresh pane token; random by default. */
   readonly token?: () => string;
+  /** Where an ended pane's last screen is kept (`.metator/panes/`), so it can be read after a restart. */
+  readonly fs?: Pick<FileSystem, "write" | "read" | "exists" | "remove">;
+}
+
+/** Why and when a pane's work ended, as `end` is told it. */
+export interface PaneEnd {
+  readonly reason: PaneEndReason;
+  readonly exitCode?: number;
+  readonly summary?: string;
 }
 
 /** A pane with its terminal's state, as clients see it. */
@@ -103,6 +121,8 @@ export const INTAKE_PROMPT =
 export class Panes {
   /** Pane tokens, in memory only: a restarted daemon gives new ones to the panes it restarts. */
   private readonly tokens = new Map<string, string>();
+  /** Ended panes' last screens read back from disk. */
+  private readonly kept = new Map<string, string>();
 
   constructor(private readonly d: PanesDependencies) {}
 
@@ -170,25 +190,114 @@ export class Panes {
   }
 
   /**
-   * The panes of every run that is done or aborted, closed (conductor and workers): a finished
-   * run has nothing left to work on, and its idle conductor must not read as a session that waits.
+   * The panes of every run that is done or aborted, ended (conductor and workers): a living
+   * process is stopped and the pane says why, its last screen kept. Nothing is removed: a person
+   * closes ended panes. A finished run's idle conductor no longer reads as a session that waits.
    */
-  async closeFinished(): Promise<
-    Result<{ readonly runId: string; readonly closed: number }[], MetatorError>
-  > {
+  async endFinished(): Promise<Result<{ readonly runId: string; readonly ended: number }[], MetatorError>> {
     const layout = await this.d.layout.load();
     if (layout.isErr()) return err(layout.error);
-    const runIds = [...new Set(layout.value.workspaces.flatMap((w) => (w.runId ? [w.runId] : [])))];
-    const out: { runId: string; closed: number }[] = [];
+    const runIds = [...new Set(layout.value.panes.flatMap((p) => (p.runId && !p.ended ? [p.runId] : [])))];
+    const out: { runId: string; ended: number }[] = [];
     for (const runId of runIds) {
       const record = await this.d.repo.load(runId);
       if (record.isErr() || (record.value.state.status !== "done" && record.value.state.status !== "aborted"))
         continue;
-      const closed = await this.closeRun(runId);
-      if (closed.isErr()) return err(closed.error);
-      if (closed.value.closed > 0) out.push({ runId, closed: closed.value.closed });
+      let ended = 0;
+      for (const pane of layout.value.panes.filter((p) => p.runId === runId && !p.ended)) {
+        const r = await this.end(pane.id, { reason: "run-finished" });
+        if (r.isErr()) return err(r.error);
+        if (r.value.ended) ended++;
+      }
+      if (ended > 0) out.push({ runId, ended });
     }
     return ok(out);
+  }
+
+  /**
+   * The pane's work is over: it says why and when, its process is stopped if it still lives, and
+   * its last screen is kept to read. A pane that already ended keeps why, unless `override` (a
+   * collected worker says it was collected, with its summary, after its process exited).
+   */
+  async end(
+    paneId: string,
+    input: PaneEnd & { readonly override?: boolean },
+  ): Promise<Result<{ readonly ended: boolean }, MetatorError>> {
+    const at = this.d.clock.now().toISOString();
+    const marked = await this.d.layout.update((l) => {
+      const pane = paneOf(l, paneId);
+      if (!pane || (pane.ended && !input.override)) return ok({ layout: l, value: undefined });
+      const ended = {
+        at,
+        reason: input.reason,
+        ...(input.exitCode !== undefined ? { exitCode: input.exitCode } : {}),
+        ...(input.summary ? { summary: input.summary } : {}),
+      };
+      return ok({ layout: updatePane(l, paneId, (p) => ({ ...p, ended })), value: pane });
+    });
+    if (marked.isErr()) return err(marked.error);
+    const pane = marked.value;
+    if (!pane) return ok({ ended: false });
+    // Marked first: the exit the stop causes finds the pane ended already, and keeps why.
+    this.d.broker.stop(paneId);
+    const screen = this.d.broker.backlog(paneId);
+    if (screen && this.d.fs) {
+      const kept = await this.d.fs.write(screenFile(paneId), screen);
+      if (kept.isErr()) return err(kept.error);
+    }
+    // An exit is in the run's activity already (the broker says it): only other ends are said.
+    if (pane.runId && input.reason !== "exited") {
+      const noted = await this.d.journal.record(pane.runId, {
+        type: "agent",
+        origin: "run",
+        agent: pane.process.kind === "host" ? pane.process.host : pane.label,
+        text: `pane ${paneId} ended (${input.reason}${input.exitCode !== undefined ? ` ${input.exitCode}` : ""})${input.summary ? `: ${input.summary}` : ""}`,
+      });
+      if (noted.isErr()) return err(noted.error);
+    }
+    return ok({ ended: true });
+  }
+
+  /** The run a pane's agent started (`run new` from the chat where a person gave the task): that task's main terminal. */
+  async setStartedRun(paneId: string, runId: string): Promise<Result<Pane, MetatorError>> {
+    const saved = await this.d.layout.update((l) => {
+      if (!paneOf(l, paneId)) return err(MetatorError.notFound(`pane ${paneId}`));
+      const updated = updatePane(l, paneId, (p) => ({ ...p, startedRun: runId }));
+      return ok({ layout: updated, value: paneOf(updated, paneId) as Pane });
+    });
+    return saved;
+  }
+
+  /** Every ended pane closed (of one run, when named): what a person clears in one go. */
+  async closeEnded(input: {
+    readonly runId?: string;
+  }): Promise<Result<{ readonly closed: number }, MetatorError>> {
+    const layout = await this.d.layout.load();
+    if (layout.isErr()) return err(layout.error);
+    let closed = 0;
+    for (const pane of layout.value.panes.filter(
+      (p) => p.ended && (!input.runId || p.runId === input.runId),
+    )) {
+      const r = await this.closePane(pane.id);
+      if (r.isErr()) return err(r.error);
+      if (r.value.closed) closed++;
+    }
+    return ok({ closed });
+  }
+
+  /** A pane's screen as printed: its live backlog, or an ended pane's kept last screen. */
+  screen(paneId: string): string {
+    return this.d.broker.backlog(paneId) || this.kept.get(paneId) || "";
+  }
+
+  /** The kept last screen of an ended pane, read from disk (after a restart). */
+  async keptScreen(paneId: string): Promise<string> {
+    const live = this.screen(paneId);
+    if (live || !this.d.fs) return live;
+    if (!(await this.d.fs.exists(screenFile(paneId)))) return "";
+    const text = await this.d.fs.read(screenFile(paneId));
+    if (text.isOk()) this.kept.set(paneId, text.value);
+    return text.isOk() ? text.value : "";
   }
 
   /**
@@ -407,6 +516,7 @@ export class Panes {
 
   /** Why a pane is not started again by itself; undefined when it is. */
   private async notRestored(pane: Pane): Promise<string | undefined> {
+    if (pane.ended) return `its work ended (${pane.ended.reason})`;
     if (pane.process.kind === "command")
       return isPlainShell(pane.process.argv)
         ? undefined
@@ -426,6 +536,12 @@ export class Panes {
     const closed = this.d.broker.close(paneId);
     if (closed.isErr()) return err(closed.error);
     this.tokens.delete(paneId);
+    // Its kept screen goes with it: a pane given the same id later starts with a clean screen.
+    this.kept.delete(paneId);
+    if (this.d.fs && (await this.d.fs.exists(screenFile(paneId)))) {
+      const forgot = await this.d.fs.remove(screenFile(paneId));
+      if (forgot.isErr()) return err(forgot.error);
+    }
     if (!pane) return ok({ closed: closed.value.closed });
     const removed = await this.d.layout.update((l) =>
       ok({ layout: removePane(l, paneId), value: undefined }),
@@ -494,7 +610,7 @@ export class Panes {
 
   /** The last lines of the pane's output, without terminal escapes. */
   read(paneId: string, lines = 80): string {
-    return tailLines(stripAnsi(this.d.broker.backlog(paneId)), lines);
+    return tailLines(stripAnsi(this.screen(paneId)), lines);
   }
 
   /**
@@ -581,13 +697,19 @@ export class Panes {
       return err(adopted.error);
     }
     this.tokens.set(pane.id, token);
+    // Started (again): its work is not over.
     const saved = await this.d.layout.update((layout) => {
-      const updated = updatePane(layout, pane.id, (p) =>
-        p.process.kind === "host" ? { ...p, process: { ...p.process, sessionId } } : p,
-      );
+      const updated = updatePane(layout, pane.id, (p) => {
+        const { ended: _over, ...open } = p;
+        return open.process.kind === "host" ? { ...open, process: { ...open.process, sessionId } } : open;
+      });
       return ok({ layout: updated, value: paneOf(updated, pane.id) });
     });
     if (saved.isErr()) return err(saved.error);
+    // The process exits: the pane says so, with the code, and stays until a person closes it.
+    this.d.broker.subscribe(pane.id, (event) => {
+      if (event.type === "exit") void this.end(pane.id, { reason: "exited", exitCode: event.code });
+    });
     if (pane.runId) {
       // The conductor's session is the run's host session too (`run drive` resumes it).
       if (pane.role === "conductor" && pane.process.kind === "host") {
@@ -608,6 +730,9 @@ export class Panes {
     return ok({ ...current, live: adopted.value });
   }
 }
+
+/** Where an ended pane's last screen is kept. */
+const screenFile = (paneId: string): string => `.metator/panes/${paneId.replaceAll(":", "-")}.screen`;
 
 const basename = (path: string): string => path.split(/[\\/]/).filter(Boolean).at(-1) ?? "workspace";
 

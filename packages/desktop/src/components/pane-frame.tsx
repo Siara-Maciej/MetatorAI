@@ -5,6 +5,7 @@
 import { useRef } from "react";
 import type { PaneView } from "../api.ts";
 import { lookOf, type PaneShown, paneLabel, paneNote } from "../model.ts";
+import { endedBanner } from "../terminals.ts";
 import { Glyph } from "./glyph.tsx";
 import { PaneTerminal, type TerminalHandle } from "./terminal.tsx";
 
@@ -91,7 +92,7 @@ export function PaneFrame({
           key={p.live.sessionId}
           paneId={p.id}
           repo={repo}
-          canType={p.live.alive && canType}
+          canType={p.live.alive && !p.ended && canType}
           scrollback={scrollback}
           onBlockedKey={() => (p.live?.alive ? onBlockedKey() : undefined)}
           onReady={(h) => {
@@ -102,7 +103,26 @@ export function PaneFrame({
       ) : (
         <div className="empty" />
       )}
-      {p.live?.alive ? null : (
+      {p.ended ? (
+        // The pane's work is over: it stays, read-only, with what ended it, until it is closed.
+        <div
+          className={`pane-ended finished-banner ${endedBanner(p).tone}`}
+          role="status"
+          data-testid={`ended-${p.id}`}
+        >
+          <span className={endedBanner(p).tone === "done" ? "msg done" : "msg red"}>
+            {endedBanner(p).text}
+          </span>
+          {endedBanner(p).tone === "error" ? (
+            <button type="button" onClick={onRetry}>
+              Retry
+            </button>
+          ) : null}
+          <button type="button" className="primary" onClick={onClose}>
+            {lastOfTab ? "Close tab" : "Close"}
+          </button>
+        </div>
+      ) : p.live?.alive ? null : (
         <div
           className="pane-ended"
           role="status"

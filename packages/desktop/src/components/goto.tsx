@@ -16,18 +16,24 @@ const FILTERS: { id: GotoFilter; label: string; key: string }[] = [
 export function GotoPicker({
   repos,
   panes,
+  taskRows = [],
   onPick,
   onClose,
 }: {
   readonly repos: readonly WorkbenchRepo[];
   readonly panes: readonly PaneView[];
+  /** The tasks' panes, by their place in the task. */
+  readonly taskRows?: readonly GotoRow[];
   onPick(row: GotoRow): void;
   onClose(): void;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<GotoFilter>("all");
   const [index, setIndex] = useState(0);
-  const rows = useMemo(() => gotoRows(repos, panes, filter, query), [repos, panes, filter, query]);
+  const rows = useMemo(
+    () => gotoRows(repos, panes, filter, query, taskRows),
+    [repos, panes, filter, query, taskRows],
+  );
   const choose = (f: GotoFilter) => {
     setFilter(f);
     setIndex(0);
@@ -95,7 +101,11 @@ export function GotoPicker({
           >
             <Glyph kind="pane" state={r.state} />
             <span className="n">
-              {r.tab.label} <span className="dim">·</span> {r.label}
+              {r.path ?? (
+                <>
+                  {r.tab?.label} <span className="dim">·</span> {r.label}
+                </>
+              )}
             </span>
             <span className="dim">{r.detail}</span>
           </button>

@@ -71,9 +71,34 @@ describe("ScenarioInteractiveHost", () => {
     )._unsafeUnwrap();
     expect(again.sessionId).toBe("scenario-session-2");
     expect(terminal.spawned[0]?.argv[2]).toContain("Resumed");
-    // The script runs with the terminal's own environment.
-    expect("env" in (terminal.spawned[0] ?? {})).toBe(false);
   });
+
+  test("a run step runs its command in the session's directory, with the session's environment (its pane, its run)", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "metator-scenario-pty-"));
+    const host = new ScenarioInteractiveHost(new NodePtyTerminal(), {
+      agents: {
+        "mt-orchestrator": [
+          [
+            { run: 'printf "%s %s" "$METATOR_PANE_ID" "$METATOR_RUN" > ran.txt' },
+            { say: "after the command" },
+            { run: "exit 4" },
+            { say: "never said" },
+          ],
+        ],
+      },
+    });
+    const session = (
+      await host.start(
+        { ...task(cwd), agent: "mt-orchestrator", env: { METATOR_PANE_ID: "w1:p1" } },
+        { cols: 80, rows: 24 },
+      )
+    )._unsafeUnwrap();
+    const out = await outputUntil(session.pty, "exited 4");
+    expect(out).toContain("$ exit 4");
+    expect(out).not.toContain("never said");
+    expect(await Bun.file(join(cwd, "ran.txt")).text()).toBe("w1:p1 r");
+    await rm(cwd, { recursive: true, force: true });
+  }, 30_000);
 
   test("a scenario without a session entry cannot start", async () => {
     const host = new ScenarioInteractiveHost(new NodePtyTerminal(), { agents: {} });

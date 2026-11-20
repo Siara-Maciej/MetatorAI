@@ -55,3 +55,4 @@ Only the pure libraries approved in ADR-0010 (enforced by MT-ARCH-003). Never ru
 - `Bun` and `process` do not exist here (MT-ARCH-004); take what you need through a port.
 - `CloseRun` stops the run's driver last, after the summary is written: the caller may be a child of the process it stops.
 - `Panes.restore` starts host sessions and plain shells only (`isPlainShell`); a pane that ran a command stays as it ended.
+- `Panes` never removes a pane by itself: `endFinished` (the daemon's sweep), `Conductor.collect` and a process exit mark it `ended` (reason, code, summary) and keep its last screen (`.metator/panes/`); only `closePane` (a person, `closeEnded`, `run close`) removes one. An ended pane is not restored; a pane started again is no longer ended.

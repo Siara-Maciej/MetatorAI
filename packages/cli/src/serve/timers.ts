@@ -16,7 +16,7 @@ export interface TimerDeps {
   readonly intakeMs: number | "own";
   /** How often to read the reviews of my requests: fixed, or each repository's own `reviews.everyMs`. */
   readonly reviewsMs: number | "own";
-  /** How often the panes of runs that finished are closed (0: never). */
+  /** How often the panes of runs that finished are ended (0: never). */
   readonly sweepMs?: number;
   /** How the supervisor starts a drive again. */
   readonly restart?: (
@@ -101,16 +101,17 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
       timers.push(setInterval(() => reviews(key, c), reviewsEvery));
   });
 
-  // A run that finished (done, aborted) keeps no panes: its idle conductor would read as a session.
+  // A run that finished (done, aborted): its panes end (a living process is stopped, the screen
+  // kept); they stay until a person closes them, and its idle conductor no longer reads as waiting.
   if ((deps.sweepMs ?? 0) > 0)
     timers.push(
       setInterval(
         () =>
           each((key, c) =>
             once("sweep", key, async () => {
-              const r = await c.resolve("panes").closeFinished();
+              const r = await c.resolve("panes").endFinished();
               if (r.isErr()) return say("panes", key)({ error: r.error.message });
-              for (const x of r.value) say("panes", key)({ closed: x.closed, finished: x.runId });
+              for (const x of r.value) say("panes", key)({ ended: x.ended, finished: x.runId });
             }),
           ),
         deps.sweepMs,

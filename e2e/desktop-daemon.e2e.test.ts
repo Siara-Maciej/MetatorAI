@@ -240,7 +240,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await ended.waitFor({ timeout: 20_000 });
     const panes = (await api("/layout")).data.panes as { id: string; process: { host: string } }[];
     expect(panes.map((p) => p.process.host)).toEqual(["claude"]);
-    expect(await ended.textContent()).toContain("The process ended with code 3.");
+    // The pane stays with what ended it, in the error tone, with Retry and Close.
+    expect(await ended.textContent()).toContain("Ended with code 3");
     await until("the last output", async () =>
       (await page.locator(".pane-frame").first().textContent())?.includes("claude: not logged in")
         ? true

@@ -25,6 +25,28 @@ export async function paneHeartbeat(
   ).catch(() => undefined);
 }
 
+/**
+ * A run started from a pane (the chat where a person gave the task): the pane remembers it, as that
+ * task's main terminal. Sent once with the pane's token, never waited for long; no daemon, nothing.
+ */
+export async function paneStartedRun(
+  runId: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  root: string = process.cwd(),
+): Promise<void> {
+  if (!env.METATOR_PANE_ID || !env.METATOR_PANE_TOKEN) return;
+  const daemon = findDaemon(root);
+  if (daemon.isErr()) return;
+  await callDaemon(
+    daemon.value,
+    "POST",
+    `/panes/${encodeURIComponent(env.METATOR_PANE_ID)}/started-run`,
+    { runId },
+    paneHeaders(env),
+    1_000,
+  ).catch(() => undefined);
+}
+
 /** Parses the hook payload; an empty or invalid one is an empty object (the host decides). */
 function payload(text: string): unknown {
   try {

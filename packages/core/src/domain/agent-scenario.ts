@@ -6,7 +6,7 @@ import { defineDocument } from "./versioned.ts";
  * so a whole run can be driven end to end without a model (tests, demos, CI of workflows).
  * The n-th start of an agent plays its n-th entry; the last entry repeats.
  */
-const Step = z.union([
+const V1Steps = [
   z.strictObject({ say: z.string() }),
   z.strictObject({ write: z.strictObject({ path: z.string().min(1), text: z.string() }) }),
   z.strictObject({ tool: z.strictObject({ name: z.string().min(1), summary: z.string() }) }),
@@ -18,8 +18,17 @@ const Step = z.union([
     }),
   }),
   z.strictObject({ fail: z.string().min(1) }),
-]);
+] as const;
+const V1Step = z.union(V1Steps);
+/**
+ * v2 adds `run`: a shell command the agent runs in its directory, with its session's environment
+ * (its pane and run), as a model runs `metator run delegate …`; a failing command ends the start.
+ */
+const Step = z.union([...V1Steps, z.strictObject({ run: z.string().min(1) })]);
 
+const AgentScenarioV1Schema = z.strictObject({
+  agents: z.record(z.string().min(1), z.array(z.array(V1Step).min(1)).min(1)),
+});
 export const AgentScenarioSchema = z.strictObject({
   agents: z.record(z.string().min(1), z.array(z.array(Step).min(1)).min(1)),
 });
@@ -27,9 +36,12 @@ export type AgentScenario = z.output<typeof AgentScenarioSchema>;
 export type ScenarioStep = AgentScenario["agents"][string][number][number];
 
 export const AgentScenarioDocument = defineDocument("AgentScenario", {
+  history: [{ schema: AgentScenarioV1Schema }],
   latest: AgentScenarioSchema,
+  // A v1 scenario is a v2 one that runs no command.
+  upgrade: (previous) => previous,
   errorCode: "INVALID_CONFIG",
-  hint: "Each agent lists its starts; each start lists steps: say, write, tool, ask or fail.",
+  hint: "Each agent lists its starts; each start lists steps: say, write, tool, ask, run or fail.",
 });
 
 /** `{runDir}` and `{cwd}` in a scenario path or text, filled in for this start. */

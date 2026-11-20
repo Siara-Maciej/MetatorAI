@@ -1,7 +1,8 @@
 /**
  * The engine in a folder of two repositories served by one daemon: the conductor's commands run
  * in the second repository reach that repository (not the first), a run's terminal socket only
- * finds a session (starting it is explicit), and a run that ends closes its panes.
+ * finds a session (starting it is explicit), and a finished run's panes end: kept, read-only,
+ * until a person closes them.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
@@ -161,7 +162,7 @@ describe("the engine in a folder of repositories (real daemon)", () => {
     expect(JSON.stringify((await api("/layout?repo=alpha")).body.data)).not.toContain(runId);
   }, 60_000);
 
-  test("a conductor's run at its human gate has the approval card; answering it moves the run; a finished run's panes close", async () => {
+  test("a conductor's run at its human gate has the approval card; answering it moves the run; a finished run's panes end, read-only, until a person closes them", async () => {
     // The conductor moves the run on (here, a person at a terminal): the gate's question exists.
     expect((await mt("beta", "run", "advance", "pass", "--run", runId)).code).toBe(0);
     const card = (
@@ -180,12 +181,37 @@ describe("the engine in a folder of repositories (real daemon)", () => {
       approvals: Record<string, { by: string }>;
     };
     expect([status.stage, status.approvals.approval?.by]).toEqual(["build", "ana"]);
-    // The run finishes: the daemon closes its panes (the conductor's too), so it reads as done, not idle.
+    // The run finishes: the daemon ends its panes (the conductor's too) and keeps them, read-only,
+    // for a person to close; the run reads as done, not idle.
     expect((await mt("beta", "run", "advance", "pass", "--run", runId)).code).toBe(0);
-    await until("the finished run's panes to close", async () => {
-      const layout = (await api("/layout?repo=beta")).body.data as { panes: { runId?: string }[] };
-      return layout.panes.some((p) => p.runId === runId) ? undefined : true;
+    const ended = await until("the finished run's panes to end", async () => {
+      const layout = (await api("/layout?repo=beta")).body.data as {
+        panes: { id: string; runId?: string; ended?: { reason: string } }[];
+      };
+      const own = layout.panes.filter((p) => p.runId === runId);
+      return own.length > 0 && own.every((p) => p.ended?.reason === "run-finished") ? own : undefined;
     });
+    // Read-only: its last screen is served, and typing is refused with why.
+    const seen: Data[] = [];
+    const ws = new WebSocket(`${base.replace("http", "ws")}/ws/pane/${ended[0]?.id}?repo=beta&by=ana`);
+    ws.onmessage = (m) => seen.push(JSON.parse(String(m.data)) as Data);
+    await until("the ended pane's screen", async () =>
+      seen.some((e) => e.type === "ended") ? true : undefined,
+    );
+    ws.send(JSON.stringify({ type: "input", data: "x" }));
+    await until("the refusal", async () => (seen.some((e) => e.type === "refused") ? true : undefined));
+    expect(String(seen.find((e) => e.type === "refused")?.reason)).toContain(
+      "has ended (run-finished): its screen is read-only",
+    );
+    ws.close();
+    // A person closes ended panes in one go.
+    const closed = await api("/panes/close-ended?repo=beta", {
+      method: "POST",
+      body: JSON.stringify({ runId }),
+    });
+    expect((closed.body.data as { closed: number }).closed).toBe(ended.length);
+    const after = (await api("/layout?repo=beta")).body.data as { panes: { runId?: string }[] };
+    expect(after.panes.some((p) => p.runId === runId)).toBe(false);
   }, 60_000);
 
   test("a run's plan with lint errors: Approve on its gate card is disabled with the reason and refused; fixed, it approves", async () => {

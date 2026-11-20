@@ -88,7 +88,9 @@ export function boardCards(input: {
     if (own) return { key: `plan:${own.plan.id}`, label: own.plan.task };
     const p = r.parent ? runs.find((x) => x.runId === r.parent) : undefined;
     if (p) return { key: `run:${p.runId}`, label: p.task };
-    if (r.children && r.children.length > 0) return { key: `run:${r.runId}`, label: r.task };
+    // A parent: it lists its children (a system run) or a run names it (`run new --parent`).
+    if ((r.children && r.children.length > 0) || runs.some((x) => x.parent === r.runId))
+      return { key: `run:${r.runId}`, label: r.task };
     return undefined;
   };
   for (const r of runs) {

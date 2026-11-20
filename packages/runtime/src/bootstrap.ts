@@ -824,6 +824,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         timer,
         root,
         paneSensor,
+        fileSystem,
       }) =>
         new Panes({
           layout: layoutStore,
@@ -836,6 +837,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           timer,
           root,
           sensor: paneSensor,
+          fs: fileSystem,
         }),
     ).singleton(),
     // The supervisor needs a way to start a drive again, which only the CLI process knows (its own

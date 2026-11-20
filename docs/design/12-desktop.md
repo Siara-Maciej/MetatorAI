@@ -200,6 +200,13 @@ Zasada właściciela: pierwszy poziom ma być prosty poznawczo, szczegóły dopi
 - Zakończone zadania są domyślnie ukryte: „Show finished (N)” w panelu bocznym i w kolumnie Done Tablicy (każda tablica zaczyna zwinięta).
 - Zostają: skróty klawiszowe (nakładka `?` zaktualizowana), panel bez demona, okno imienia, terminale i ekran Terminals, edytor mapy systemu.
 
+### 5.0f Terminale według zadania (2026-11-19, runda 8)
+
+- Terminals otwiera się na zadaniu (jedynym albo wybranym z listy „Tasks”). Widok zadania: terminal główny (czat, w którym osoba dała zadanie: panel z `startedRun`; inaczej dyrygent runu zadania) i po jednym kafelku na sesję repozytorium (dyrygent każdego runu potomnego, z repozytorium i krokiem), obok siebie: 2–3 w rzędzie, więcej się zawija. Workerów tu nie ma; kafelek sesji ma odznakę „2 sub-terminals · 1 finished”, która otwiera widok sesji: jej dyrygent i podterminale, z okruszkiem „Tasks › zadanie › repozytorium”.
+- Drzewo liczy czysta funkcja `terminalTasks` (`terminals.ts`, testy i mutanty): run potomny to ten z listy `children` albo z `parent`. Panele z różnych repozytoriów są w jednym widoku; każde wywołanie idzie do repozytorium panelu.
+- Zakończony panel (`ended`) zostaje tylko do odczytu, z banerem „Finished — <podsumowanie albo powód>” (ton gotowe) albo „Ended with code N — …” (ton błędu, z Retry) i przyciskiem Close; „Close finished (N)” zamyka zakończone panele widoku.
+- Paleta go-to pokazuje hierarchię „zadanie › repozytorium › worker”. Stary widok kart przestrzeni roboczych jest pod „Workspaces” (`#/grid/workspaces`): powłoki i czat runu jeszcze nie rozpoczętego.
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.

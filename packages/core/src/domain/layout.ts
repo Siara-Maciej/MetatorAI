@@ -24,7 +24,7 @@ const HostProcessSchema = z.strictObject({
 /** Any other program (a shell, `metator env logs`). Only a plain shell starts again by itself. */
 const CommandProcessSchema = z.strictObject({ kind: z.literal("command"), argv: z.array(z.string()).min(1) });
 
-export const PaneSchema = z.strictObject({
+const PaneV1Schema = z.strictObject({
   id: PaneId,
   tab: TabId,
   role: z.enum(PANE_ROLES),
@@ -36,6 +36,27 @@ export const PaneSchema = z.strictObject({
   /** A worker pane: who it is in the run and which stage it works. */
   worker: z.strictObject({ name: z.string().min(1), stage: z.string().min(1) }).optional(),
   createdAt: z.iso.datetime(),
+});
+/** Why a pane's work is over: its process exited, its run finished, its worker was collected, the host ended it. */
+export const PANE_END_REASONS = ["exited", "run-finished", "collected", "closed-by-host"] as const;
+export type PaneEndReason = (typeof PANE_END_REASONS)[number];
+
+/**
+ * v3 adds, optionally, that a pane's work is over (`ended`: it stays, read-only, until a person
+ * closes it) and the run a pane's agent started (`startedRun`: the intake chat where a person gave
+ * the task is that run's main terminal). Never change v1 or v2.
+ */
+export const PaneSchema = z.strictObject({
+  ...PaneV1Schema.shape,
+  ended: z
+    .strictObject({
+      at: z.iso.datetime(),
+      reason: z.enum(PANE_END_REASONS),
+      exitCode: z.number().int().optional(),
+      summary: z.string().optional(),
+    })
+    .optional(),
+  startedRun: z.string().optional(),
 });
 export type Pane = z.output<typeof PaneSchema>;
 export type PaneProcess = Pane["process"];
@@ -100,7 +121,13 @@ const NextSchema = z.strictObject({
 });
 const LayoutV1Schema = z.strictObject({
   workspaces: z.array(WorkspaceV1Schema),
-  panes: z.array(PaneSchema),
+  panes: z.array(PaneV1Schema),
+  next: NextSchema,
+});
+const LayoutV2Schema = z.strictObject({
+  workspaces: z.array(WorkspaceSchema),
+  panes: z.array(PaneV1Schema),
+  /** Counters, so an id is never reused after a close. */
   next: NextSchema,
 });
 export const LayoutSchema = z.strictObject({
@@ -112,9 +139,10 @@ export const LayoutSchema = z.strictObject({
 export type Layout = z.output<typeof LayoutSchema>;
 
 export const LayoutDocument = defineDocument("Layout", {
-  history: [{ schema: LayoutV1Schema }],
+  history: [{ schema: LayoutV1Schema }, { schema: LayoutV2Schema, fromPrevious: (v1) => v1 }],
   latest: LayoutSchema,
-  // Every tab field of v2 is optional: a v1 layout is a v2 layout with even grids.
+  // Every field v2 and v3 add is optional: a v1 layout is a v2 layout with even grids, a v2 one a
+  // v3 one with no pane ended.
   upgrade: (previous) => previous,
   hint: "Written by the daemon (`metator serve`); do not edit by hand.",
 });

@@ -2198,7 +2198,7 @@ metator run wait [options] <worker>
 
 ### `metator run collect`
 
-The worker's result (summary, artifacts, its question when blocked); closes its pane
+The worker's result (summary, artifacts, its question when blocked); its pane ends and stays until a person closes it
 
 ```bash
 metator run collect [options] <worker>

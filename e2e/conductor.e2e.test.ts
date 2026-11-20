@@ -1,7 +1,7 @@
 /**
  * The conductor end to end (R2, ADR-0080): the real daemon opens a run as a conductor pane,
  * `metator run delegate` opens a worker pane with its card, the worker reports with
- * `metator run result`, `run wait` sees it and `run collect` closes the pane; a pane that is not
+ * `metator run result`, `run wait` sees it and `run collect` ends the pane (it stays to read); a pane that is not
  * the run's conductor gets 403 from the steering routes; a worker's hook denies run control.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -176,10 +176,18 @@ describe("conductor (real daemon, real PTYs)", () => {
     expect([waited.state, waited.result.summary]).toEqual(["result", "plan.md written"]);
     const collected = data(await mt("run", "collect", "mt-planner-1")) as {
       status: string;
-      paneClosed: boolean;
+      paneEnded: boolean;
     };
-    expect([collected.status, collected.paneClosed]).toEqual(["done", true]);
-    expect((await mt("pane", "read", "w1:p2")).json.ok).toBe(false);
+    expect([collected.status, collected.paneEnded]).toEqual(["done", true]);
+    // The worker's pane stays, ended with its one line, readable, until a person closes it.
+    const pane = (await (await fetch(`${base}/panes/w1:p2`)).json()) as {
+      data: { pane: { ended?: { reason: string; summary?: string } } };
+    };
+    expect([pane.data.pane.ended?.reason, pane.data.pane.ended?.summary]).toEqual([
+      "collected",
+      "plan.md written",
+    ]);
+    expect((await mt("pane", "read", "w1:p2")).json.ok).toBe(true);
     expect((data(await mt("run", "workers")) as { workers: Data[] }).workers).toEqual([]);
     // A name is never reused in a run.
     const again = data(
