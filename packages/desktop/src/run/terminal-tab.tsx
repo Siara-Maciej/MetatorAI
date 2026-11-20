@@ -1,7 +1,9 @@
 /** The Terminal tab of a run: its live session, who types, its panes, the question and the links. */
+
 import { useEffect, useRef, useState } from "react";
 import { QuickAnswer } from "../components/answer.tsx";
 import { Chip } from "../components/chips.tsx";
+import { CommandText, commandOf } from "../components/command-text.tsx";
 import { Notice } from "../components/common.tsx";
 import { Tabs } from "../components/tabs.tsx";
 import {
@@ -298,8 +300,8 @@ export function TerminalTab({
           <h3>Question</h3>
           {question ? (
             <>
-              <div className="clamp" title={question.prompt}>
-                {host?.text || question.prompt}
+              <div title={question.prompt}>
+                <CommandText prompt={host?.text || question.prompt} command={commandOf(question)} />
               </div>
               {isTerminalQuestion(question) ? (
                 <div className="dim" data-testid="host-asker">

@@ -54,6 +54,8 @@ export interface Daemon {
   state(fresh: boolean): Promise<Result<unknown, MetatorError>>;
   /** The same queue `metator inbox` prints. */
   inbox(fresh: boolean): Promise<Result<unknown, MetatorError>>;
+  /** Every repository the daemon serves, with its container (the one its panes live in); a name in a folder. */
+  repos(): readonly { readonly name?: string; readonly c: MetatorContainer }[];
 }
 
 export interface Call<B = unknown> {

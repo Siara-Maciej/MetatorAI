@@ -128,6 +128,7 @@ export class HostPrompts {
           source: asks ? ("agent" as const) : ("permission" as const),
           agent: asker,
           prompt: asks ? read.prompt : menu ? pane.reason : hostPromptText(asker, pane.paneId, pane.reason),
+          ...(!asks && pane.command ? { command: pane.command } : {}),
           options: [
             ...(asks ? read.options.map((label) => ({ label })) : []),
             ...(menu ?? []).map((c) => ({ label: c.label })),

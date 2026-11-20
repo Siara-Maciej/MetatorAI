@@ -72,3 +72,61 @@ export const CLAUDE_APPROVAL_REAL_SCREEN = [
   "",
   " Esc to cancel · Tab to amend",
 ].join("\n");
+
+/**
+ * Claude Code running `bun test` with its output scrolling in a scroll region (rows 2-9) under
+ * the tool's line, then the count of lines it no longer shows and its question at the bottom,
+ * with a wide emoji: a terminal of 60×12. A renderer that ignores scroll regions scrolls the whole
+ * screen (the header goes, the rows grow); one that counts an emoji as one cell misplaces it.
+ */
+export const CLAUDE_SCROLLED_RAW = [
+  "\u001b[2J\u001b[H● Bash(bun test)",
+  "\u001b[2;9r\u001b[2;1H",
+  ...Array.from({ length: 40 }, (_, i) => `  test ${i + 1} passed\r\n`),
+  "\u001b[r",
+  "\u001b[10;1H  ↑ 37 more lines",
+  "\u001b[12;1H Do you want to proceed? ✅",
+].join("");
+
+const RULE = "╌".repeat(82);
+/** Claude Code 2.1's approval of a command that runs over several lines (a worker's card), rendered rows. */
+export const CLAUDE_APPROVAL_MULTILINE_SCREEN = [
+  "● Bash(metator run delegate build …)",
+  "",
+  "──────────────────────────────────────────────────────────────────────────────────",
+  " Bash command",
+  " Delegate the build stage to a worker",
+  RULE,
+  ' metator run delegate build --agent mt-implementer --card "Implement step S1:',
+  " add the currency field to Price and its migration.",
+  ' Write the failing test first; summary of at most 10 lines."',
+  RULE,
+  " This command requires approval",
+  " Do you want to proceed?",
+  " ❯ 1. Yes",
+  "   2. No",
+  "",
+  " Esc to cancel · Tab to amend",
+].join("\n");
+
+export const CLAUDE_MULTILINE_COMMAND =
+  'metator run delegate build --agent mt-implementer --card "Implement step S1:\nadd the currency field to Price and its migration.\nWrite the failing test first; summary of at most 10 lines."';
+
+/** A path longer than the terminal is wide: the terminal wraps it onto the next row, mid-name. */
+export const CLAUDE_WRAPPED_COMMAND =
+  "cat /home/user/shop/packages/billing/src/currencies/conversions/rates/european-central-bank/daily-reference-rates.ts";
+const wrapped = ` ${CLAUDE_WRAPPED_COMMAND}`;
+export const CLAUDE_APPROVAL_WRAPPED_SCREEN = [
+  "──────────────────────────────────────────────────────────────────────────────────",
+  " Bash command",
+  " Read the rates module",
+  RULE,
+  wrapped.slice(0, 82),
+  wrapped.slice(82),
+  RULE,
+  " This command requires approval",
+  " Do you want to proceed?",
+  " ❯ 1. Yes",
+  "   2. Yes, and don’t ask again for: cat *",
+  "   3. No",
+].join("\n");

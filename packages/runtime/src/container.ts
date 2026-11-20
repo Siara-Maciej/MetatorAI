@@ -31,6 +31,7 @@ import type {
   CalibrateFinding,
   ChangeHistory,
   ChangePatch,
+  ChatNotices,
   CheckArchitecture,
   CheckDebugTags,
   CheckFlaky,
@@ -49,6 +50,7 @@ import type {
   ComputeAffected,
   Conductor,
   ContainerRuntime,
+  ContinueTask,
   ContractDetector,
   ContractDiffer,
   ConversationRepository,
@@ -198,6 +200,7 @@ import type {
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  ScreenRenderer,
   SeedGoldenSet,
   SetupRepository,
   SetupWorktree,
@@ -226,6 +229,7 @@ import type {
   SystemPlans,
   SystemRunGate,
   SystemSources,
+  TaskRepository,
   Terminal,
   Timer,
   ToolBoundariesReader,
@@ -336,6 +340,7 @@ export interface Cradle {
   buildReport: BuildReport;
   driverLock: DriverLock;
   terminal: Terminal;
+  screenRenderer: ScreenRenderer;
   interactiveHosts: ReadonlyMap<string, InteractiveHost>;
   /** The scenario host while a test plays one; empty otherwise. */
   played: readonly HostDescriptor[];
@@ -355,6 +360,9 @@ export interface Cradle {
   layoutStore: LayoutStore;
   panes: Panes;
   conductor: Conductor;
+  chatNotices: ChatNotices;
+  taskRepository: TaskRepository;
+  continueTask: (repos: () => readonly TaskRepository[]) => ContinueTask;
   supervisor: (restart: SupervisorDependencies["restart"]) => Supervisor;
   hostManifests: HostManifestCatalog;
   paneSensor: PaneSensor;

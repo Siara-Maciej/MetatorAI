@@ -1,6 +1,7 @@
 import { err, MESSAGE_TOPICS, MetatorError, ok, type RunDriveStarted } from "@metator/core";
 import { z } from "zod";
 import { body, type Call, count, denied, flag, optional, type Route, route, strings, text } from "../http.ts";
+import { personOnly } from "./plans.ts";
 
 /** `/runs` and `/runs/:run/*`: what a person or a conductor pane does to a run. */
 
@@ -395,6 +396,23 @@ export const RUN_ROUTES: readonly Route[] = [
       });
       return opened.map((p) => p.live);
     },
+  }),
+  // "Continue" for a task (ADR-0092): its paused panes resumed and its undriven runs carried
+  // again, the task's runs in every repository the daemon serves. A person's act.
+  route({
+    method: "POST",
+    pattern: "/runs/:run/continue",
+    body: body({ by: text }),
+    guard: personOnly,
+    handler: (call) =>
+      call.c
+        .resolve("continueTask")(() =>
+          call.daemon
+            .repos()
+            .map((r) => ({ ...r.c.resolve("taskRepository"), ...(r.name ? { name: r.name } : {}) })),
+        )
+        // A run id names one run on this machine: the task is found in whichever repository holds it.
+        .execute({ runId: run(call), by: call.body.by ?? "" }),
   }),
   // A background drive, as `metator run drive --detach`: refused for an escalated run (resuming
   // it is a person's explicit act) and for a run a drive already carries.

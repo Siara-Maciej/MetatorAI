@@ -22,6 +22,7 @@ import {
 import { useAnswer } from "./answer.tsx";
 import { ArtifactViewer } from "./artifact-viewer.tsx";
 import { Chip } from "./chips.tsx";
+import { CommandText, commandOf } from "./command-text.tsx";
 import { Notice } from "./common.tsx";
 import { FoldList } from "./fold-list.tsx";
 import { AskForChanges, lintRequest, RunPlanFull, SystemPlanFull } from "./plan-approval-line.tsx";
@@ -167,7 +168,14 @@ export function DecisionCard({
   );
   return (
     <article className="card" aria-label="decision card">
-      <h1 className={heading.length > 160 ? "long" : undefined}>{heading}</h1>
+      <h1 className={heading.length > 160 ? "long" : undefined}>
+        {/* A host's question names its command: its start, a click for the whole (round 11). */}
+        {q.source === "permission" || commandOf(q) ? (
+          <CommandText prompt={heading} command={commandOf(q)} />
+        ) : (
+          heading
+        )}
+      </h1>
       {terminal || host ? (
         <div className="muted" data-testid="host-asker">
           {host?.asker ?? q.agent ?? "the agent"} asks on its terminal

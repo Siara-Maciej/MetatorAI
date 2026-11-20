@@ -19,6 +19,8 @@ export interface PaneQuestion {
   readonly agent: string;
   readonly host: string;
   readonly prompt: string;
+  /** A host's permission prompt: the whole command it asks to run (`prompt` starts with it). */
+  readonly command?: string;
   readonly options: readonly { readonly label: string; readonly description?: string }[];
   readonly multiSelect: false;
   readonly askedAt: string;

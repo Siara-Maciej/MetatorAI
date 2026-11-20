@@ -28,6 +28,7 @@ import {
   BuildModuleCards,
   BuildReport,
   CalibrateFinding,
+  ChatNotices,
   CheckArchitecture,
   CheckDebugTags,
   CheckFlaky,
@@ -44,6 +45,7 @@ import {
   ComputeAffected,
   Conductor,
   type ConductorSessions,
+  ContinueTask,
   type ContractDiffer,
   ConversationRepository,
   CreateRefactorPlan,
@@ -209,6 +211,7 @@ import {
   SystemPlans,
   SystemRunGate,
   SystemSources,
+  type TaskRepository,
   UpdateConfig,
   ValidateCitations,
   ValidateFindings,
@@ -268,6 +271,7 @@ import {
   NodePackageManager,
   NodePtyTerminal,
   WaitOnHealthProbe,
+  XtermScreenRenderer,
 } from "@metator/plugin-node";
 import { OpenApiContractDetector, OpenApiContractDiffer } from "@metator/plugin-openapi";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
@@ -612,6 +616,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       return hosts;
     }).singleton(),
     terminal: asFunction(() => new NodePtyTerminal()).singleton(),
+    // A pane's screen as a person sees it (@xterm/headless, ADR-0091): prompts are read from it.
+    screenRenderer: asFunction(() => new XtermScreenRenderer()).singleton(),
     // The first host is the default of a new session: the scenario when a test plays one, else
     // the first of `supervisor.hostOrder`.
     sessionHosts: asFunction(({ played, config, knownHosts }) => [
@@ -639,12 +645,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           ),
     ).singleton(),
     ptyBroker: asFunction(
-      ({ runRepository, runJournal, config, clock }) =>
+      ({ runRepository, runJournal, config, clock, screenRenderer }) =>
         new PtyBroker({
           repo: runRepository,
           journal: runJournal,
           idleMs: config.config.supervisor.idleThresholdMs,
           clock,
+          screens: screenRenderer,
         }),
     ).singleton(),
     hostManifests: asFunction(({ fileSystem }) => new HostManifestCatalog(fileSystem)).singleton(),
@@ -811,6 +818,31 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           runner: processRunner,
         }),
     ),
+    // This repository as "Continue" of a task reaches it (ADR-0092): the daemon puts every served
+    // repository's together and continues the task across them.
+    taskRepository: asFunction(
+      ({ panes, runRepository, runDrivers, ensureDriven, conductor, runJournal }): TaskRepository => ({
+        runs: runRepository,
+        panes,
+        drivers: runDrivers,
+        ensureDriven,
+        conductor,
+        journal: runJournal,
+      }),
+    ),
+    // The chat a task was given in learns when it is done, stops, or waits for an approval (ADR-0092).
+    chatNotices: asFunction(
+      ({ panes, runRepository, runJournal, paneSensor, ptyBroker }) =>
+        new ChatNotices({
+          panes,
+          repo: runRepository,
+          journal: runJournal,
+          sensor: paneSensor,
+          // The supervisor's nudge: the words, then Enter as its own write.
+          nudge: (paneId, text) => ptyBroker.nudge(paneId, text),
+        }),
+    ),
+    continueTask: asValue((repos: () => readonly TaskRepository[]) => new ContinueTask(repos)),
     conductor: asFunction(
       ({ panes, runRepository, runJournal, workflowCatalog, fileSystem, clock, timer, root }) =>
         new Conductor({

@@ -80,9 +80,10 @@ export const PANE_ROUTES: readonly Route[] = [
       const paneId = params.pane as string;
       const panes = c.resolve("panes");
       const lines = Number(query.get("lines")) || 80;
+      const text = await panes.read(paneId, lines);
       return (await panes.pane(paneId)).map((p) => ({
         pane: p,
-        text: panes.read(paneId, lines),
+        text,
         backlog: c.resolve("ptyBroker").backlog(paneId),
       }));
     },

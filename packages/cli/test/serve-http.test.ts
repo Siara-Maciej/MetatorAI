@@ -24,6 +24,7 @@ const daemon = {
   port: () => 1,
   state: async () => ok({ runs: [] }),
   inbox: async () => ok({ decisions: [] }),
+  repos: () => [],
 } satisfies Daemon;
 
 const container = { name: "the container" } as unknown as MetatorContainer;
@@ -363,6 +364,7 @@ describe("the daemon's route table", () => {
       "POST /runs/:run/close-panes",
       "POST /runs/:run/pty-close",
       "POST /runs/:run/drive",
+      "POST /runs/:run/continue",
       "GET /runs/:run/plan",
       "POST /runs/:run/plan/lint",
       "GET /system/plans",
@@ -377,6 +379,6 @@ describe("the daemon's route table", () => {
       "GET /runs/:run/artifacts/:name+",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(76);
+    expect(keys.size).toBe(77);
   });
 });

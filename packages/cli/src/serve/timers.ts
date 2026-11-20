@@ -18,6 +18,8 @@ export interface TimerDeps {
   readonly reviewsMs: number | "own";
   /** How often the panes of runs that finished are ended (0: never). */
   readonly sweepMs?: number;
+  /** How often every live pane's screen is kept on disk (0: never), so a SIGKILL loses little. */
+  readonly screensMs?: number;
   /** How the supervisor starts a drive again. */
   readonly restart?: (
     c: MetatorContainer,
@@ -101,6 +103,21 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
       timers.push(setInterval(() => reviews(key, c), reviewsEvery));
   });
 
+  // Every live pane's screen on disk: a paused session shows what it left, even after a SIGKILL.
+  if ((deps.screensMs ?? 0) > 0)
+    timers.push(
+      setInterval(
+        () =>
+          each((key, c) =>
+            once("screens", key, async () => {
+              const r = await c.resolve("panes").saveScreens();
+              if (r.isErr()) say("panes", key)({ error: r.error.message });
+            }),
+          ),
+        deps.screensMs,
+      ),
+    );
+
   // A run that finished (done, aborted): its panes end (a living process is stopped, the screen
   // kept); they stay until a person closes them, and its idle conductor no longer reads as waiting.
   if ((deps.sweepMs ?? 0) > 0)
@@ -112,6 +129,10 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
               const r = await c.resolve("panes").endFinished();
               if (r.isErr()) return say("panes", key)({ error: r.error.message });
               for (const x of r.value) say("panes", key)({ ended: x.ended, finished: x.runId });
+              // The chat a task was given in learns what became of it.
+              const told = await c.resolve("chatNotices").tick();
+              if (told.isErr()) return say("chat", key)({ error: told.error.message });
+              for (const t of told.value) say("chat", key)({ told: t.paneId, run: t.runId, event: t.event });
             }),
           ),
         deps.sweepMs,

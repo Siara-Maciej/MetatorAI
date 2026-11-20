@@ -154,6 +154,24 @@ export interface Terminal {
   ): Result<PtyHandle, MetatorError>;
 }
 
+/**
+ * A terminal's screen as a person sees it, from the bytes a program wrote to it (ADR-0091): the
+ * last drawing of every cell, the cursor's moves, erasing, wrapping, scroll regions and wide
+ * glyphs done as a terminal does them. One per pane; the pane sensor reads prompts from it.
+ */
+export interface ScreenModel {
+  write(data: string): void;
+  resize(size: PtySize): void;
+  /** The rows kept (scrollback, then the screen), each without trailing blanks, the last blank rows left out; once all that was written is drawn. */
+  text(): Promise<string>;
+  dispose(): void;
+}
+
+/** Opens a screen model for a terminal of a size. */
+export interface ScreenRenderer {
+  open(size: PtySize & { readonly scrollback?: number }): ScreenModel;
+}
+
 export interface InteractiveSession {
   /** The host's own session id, to resume it later (`claude --resume`, `copilot --resume`). */
   readonly sessionId: string;

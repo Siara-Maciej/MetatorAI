@@ -15,13 +15,18 @@ import {
   RunRepository,
   WorkflowCatalog,
 } from "@metator/core";
-import { FakePty, FixedClock, InMemoryFileSystem } from "@metator/testing";
-import { ok } from "../src/domain/result.ts";
 import {
+  CLAUDE_APPROVAL_MULTILINE_SCREEN,
   CLAUDE_APPROVAL_OPTIONS,
   CLAUDE_APPROVAL_RAW,
   CLAUDE_APPROVAL_TEXT,
-} from "./fixtures/claude-approval.ts";
+  CLAUDE_MULTILINE_COMMAND,
+  FakePty,
+  FakeScreenRenderer,
+  FixedClock,
+  InMemoryFileSystem,
+} from "@metator/testing";
+import { ok } from "../src/domain/result.ts";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -33,7 +38,14 @@ function world() {
   const clock = new FixedClock(new Date("2026-11-20T10:00:00.000Z"));
   const repo = new RunRepository(fs, DEFAULT_PATHS);
   const journal = new RunJournal(fs, repo, clock);
-  const broker = new PtyBroker({ repo, journal, clock, idleMs: 60_000, after: () => () => {} });
+  const broker = new PtyBroker({
+    repo,
+    journal,
+    clock,
+    idleMs: 60_000,
+    after: () => () => {},
+    screens: new FakeScreenRenderer(),
+  });
   const sensor = new PaneSensor({ broker, manifests: new HostManifestCatalog(fs), journal, clock });
   const lock = new DriverLock(repo, journal, clock);
   const questions = new PaneQuestions(clock);
@@ -186,6 +198,24 @@ describe("host prompts in a pane without a run (the intake chat)", () => {
     (await answer([LEAVE_PANE]))._unsafeUnwrap();
     expect(w.typed).toEqual([]);
     expect(w.questions.open()).toEqual([]);
+  });
+
+  test("a host asks to run a command over several lines: the question carries it whole, the prompt starts with it", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const pty = w.start("w2:p1", "claude", run.runId);
+    pty.print(`${CLAUDE_APPROVAL_MULTILINE_SCREEN.split("\n").join("\r\n")}\r\n`);
+    await w.prompts.tick();
+    const q = (await w.journal.questions(run.runId))._unsafeUnwrap()[0];
+    expect([q?.command, q?.prompt.startsWith("metator run delegate build --agent mt-implementer")]).toEqual([
+      CLAUDE_MULTILINE_COMMAND,
+      true,
+    ]);
+    // A pane without a run: the same on its pane question.
+    const chat = w.start("w1:p1", "claude");
+    chat.print(`${CLAUDE_APPROVAL_MULTILINE_SCREEN.split("\n").join("\r\n")}\r\n`);
+    await w.prompts.tick();
+    expect(w.questions.open()[0]?.command).toBe(CLAUDE_MULTILINE_COMMAND);
   });
 
   test("a run's pane with a host menu: the menu's choices are the card's options and the chosen one's key is typed", async () => {

@@ -201,11 +201,20 @@ const QuestionV2Schema = z.strictObject({
   card: DecisionCardV2Schema.optional(),
 });
 
-/** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
-export const QuestionSchema = z.strictObject({
+const QuestionV3Schema = z.strictObject({
   ...QuestionV1Schema.shape,
   /** v2: the decision card; v3 widens it. A v1 question has none. */
   card: DecisionCardSchema.optional(),
+});
+
+/** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
+export const QuestionSchema = z.strictObject({
+  ...QuestionV3Schema.shape,
+  /**
+   * v4: a host's permission prompt names the command it asks to run, whole (its wrapped lines
+   * joined); `prompt` stays the one-line summary that starts with it.
+   */
+  command: z.string().min(1).optional(),
 });
 export type Question = z.output<typeof QuestionSchema>;
 export type QuestionAnswer = NonNullable<Question["answer"]>;
@@ -215,9 +224,11 @@ export const QuestionDocument = defineDocument("Question", {
     { schema: QuestionV1Schema },
     // `card` is optional: a v1 question is a v2 question asked without one.
     { schema: QuestionV2Schema, fromPrevious: (previous) => previous },
+    // Every v3 card field is optional: a v2 card is a v3 card that says less.
+    { schema: QuestionV3Schema, fromPrevious: (previous) => previous },
   ],
   latest: QuestionSchema,
-  // Every v3 card field is optional: a v2 card is a v3 card that says less.
+  // `command` is optional: a v3 question is a v4 one that names no command.
   upgrade: (previous) => previous,
   hint: "Answer with `metator run answer <question> --choice <label> --by <name>`.",
 });

@@ -22,6 +22,8 @@ export interface Socket {
   ready?: Promise<void>;
   /** The pane's work is over: its last screen is shown, nothing is typed into it. */
   ended?: { readonly reason: string } | undefined;
+  /** The pane is paused (its process went with the daemon): its last screen, nothing typed. */
+  paused?: { readonly why: string } | undefined;
 }
 
 export interface SocketDeps {
@@ -113,6 +115,16 @@ export function socketHandlers(
       // An ended pane: its last screen, read-only, until a person closes it.
       if (d.kind === "pane") {
         const found = await panes.pane(d.paneId as string);
+        // A paused pane (its process went with the daemon): its last screen, read-only, until continued.
+        if (found.isOk() && found.value.paused && !found.value.live?.alive) {
+          d.paneId = found.value.id;
+          d.paused = { why: found.value.paused.why };
+          ready();
+          ws.send(JSON.stringify({ type: "paused", paused: found.value.paused }));
+          const screen = await panes.keptScreen(found.value.id);
+          if (screen) ws.send(JSON.stringify({ type: "data", data: screen }));
+          return;
+        }
         if (found.isOk() && found.value.ended) {
           d.paneId = found.value.id;
           d.ended = { reason: found.value.ended.reason };
@@ -178,7 +190,14 @@ export function socketHandlers(
         );
         return;
       }
-      if (msg.type === "input" && typeof msg.data === "string" && d.ended) {
+      if (msg.type === "input" && typeof msg.data === "string" && d.paused) {
+        ws.send(
+          JSON.stringify({
+            type: "refused",
+            reason: `pane ${d.paneId} is paused (${d.paused.why}): continue it first (POST /runs/<run>/continue, \`metator run continue\`)`,
+          }),
+        );
+      } else if (msg.type === "input" && typeof msg.data === "string" && d.ended) {
         ws.send(
           JSON.stringify({
             type: "refused",

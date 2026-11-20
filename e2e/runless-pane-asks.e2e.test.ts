@@ -7,11 +7,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync } from "node:fs";
-import {
-  CLAUDE_APPROVAL_OPTIONS,
-  CLAUDE_APPROVAL_RAW,
-  CLAUDE_APPROVAL_TEXT,
-} from "../packages/core/test/fixtures/claude-approval.ts";
+import { CLAUDE_APPROVAL_OPTIONS, CLAUDE_APPROVAL_RAW, CLAUDE_APPROVAL_TEXT } from "@metator/testing";
 import { CLI_ENTRY, E2E_STATE_DIR } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 

@@ -3,13 +3,15 @@
  * read-only (there is no Plan tab); its artefacts and its change, counted from the same source
  * as the Changes tab; and what happened since you left, deterministic, from the run's own events.
  */
+
 import { ActivityList } from "../components/activity-list.tsx";
 import { QuickAnswer } from "../components/answer.tsx";
 import { ArtifactList } from "../components/artifact-list.tsx";
+import { CommandText, commandOf } from "../components/command-text.tsx";
 import { Notice } from "../components/common.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
-import { decisionKey, duration, plural, type Run, routeHash } from "../model.ts";
+import { decisionKey, duration, hostPromptOf, plural, type Run, routeHash } from "../model.ts";
 import { StepPlan } from "./step-plan.tsx";
 
 export function OverviewTab({
@@ -75,7 +77,14 @@ export function OverviewTab({
           {question ? (
             <>
               <div>
-                {question.prompt}{" "}
+                {question.source === "permission" || commandOf(question) ? (
+                  <CommandText
+                    prompt={hostPromptOf(question.prompt)?.text || question.prompt}
+                    command={commandOf(question)}
+                  />
+                ) : (
+                  question.prompt
+                )}{" "}
                 <a
                   data-testid="decision-link"
                   href={routeHash({

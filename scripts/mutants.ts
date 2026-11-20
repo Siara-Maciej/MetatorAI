@@ -6751,6 +6751,24 @@ export const MUTANTS: readonly Mutant[] = [
     why: "an ended pane is in the error tone after a non-zero exit only",
   },
   {
+    file: "packages/desktop/src/terminals.ts",
+    from: "p.ended !== undefined || (p.live !== undefined && !p.live.alive && pausedOf(p) === undefined);",
+    to: "p.ended !== undefined || (p.live !== undefined && !p.live.alive);",
+    why: "a paused pane is not ended: its work goes on after Continue",
+  },
+  {
+    file: "packages/desktop/src/terminals.ts",
+    from: '    if (r?.status !== "active" || r.driving) return false;',
+    to: '    if (r?.status !== "active") return false;',
+    why: "a run its drive carries is not undriven: Continue task is not offered for it",
+  },
+  {
+    file: "packages/desktop/src/model.ts",
+    from: "  const full = (q.command ?? q.prompt).trim();",
+    to: "  const full = q.prompt.trim();",
+    why: "a card shows the host's whole command when it sends one, not the prompt's fragment",
+  },
+  {
     file: "packages/desktop/src/confirm.ts",
     from: "const mine = ++latest;",
     to: "const mine = latest;",

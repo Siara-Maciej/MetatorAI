@@ -252,7 +252,7 @@ export function toContinue(
   const ids = [t.runId, ...t.sessions.map((s) => s.runId)].filter((id, i, all) => all.indexOf(id) === i);
   const undriven = ids.filter((id) => {
     const r = runs.find((x) => x.runId === id);
-    if (!r || r.status !== "active" || r.driving) return false;
+    if (r?.status !== "active" || r.driving) return false;
     return !panes.some((p) => p.runId === id && p.role === "conductor" && p.live?.alive && !pausedOf(p));
   }).length;
   return { paused: panes.filter((p) => pausedOf(p) !== undefined && !p.ended).length, undriven };

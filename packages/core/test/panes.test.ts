@@ -12,6 +12,7 @@ import {
 } from "@metator/core";
 import {
   FakeInteractiveHost,
+  FakeScreenRenderer,
   FakeTerminal,
   FixedClock,
   InMemoryFileSystem,
@@ -29,6 +30,7 @@ function world() {
   const journal = new RunJournal(fs, repo, clock);
   const timers: { fn: () => void }[] = [];
   const broker = new PtyBroker({
+    screens: new FakeScreenRenderer(),
     repo,
     journal,
     idleMs: 1000,
@@ -258,8 +260,8 @@ describe("Panes", () => {
     const pty = w.copilot.started[0]?.pty;
     pty?.print("\x1b[1mline1\x1b[0m\nline2\nline3\n");
     // The screen as shown: the escapes gone, no blank line after the last.
-    expect(w.panes.read(pane.id, 2)).toBe("line2\nline3");
-    expect(w.panes.read(pane.id, 3)).toBe("line1\nline2\nline3");
+    expect(await w.panes.read(pane.id, 2)).toBe("line2\nline3");
+    expect(await w.panes.read(pane.id, 3)).toBe("line1\nline2\nline3");
     w.timers.at(-1)?.fn();
     await Bun.sleep(5);
     expect((await w.panes.wait(pane.id, { until: ["idle"], timeoutMs: 1000 }))._unsafeUnwrap()).toEqual({
@@ -421,6 +423,90 @@ describe("Panes", () => {
     (await w.panes.setStartedRun(chat.id, run.runId))._unsafeUnwrap();
     expect((await w.panes.pane(chat.id))._unsafeUnwrap().startedRun).toBe(run.runId);
     expect((await w.panes.setStartedRun("w9:p9", run.runId))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+
+  test("a host session a signal ended is paused, not ended, its session kept; a command's end is an end", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const conductor = (await w.panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    w.copilot.started.at(-1)?.pty.exit(129);
+    await Bun.sleep(5);
+    const paused = (await w.panes.pane(conductor.id))._unsafeUnwrap();
+    expect([
+      paused.ended,
+      paused.paused?.why,
+      paused.process.kind === "host" && paused.process.sessionId,
+    ]).toEqual([undefined, "process-lost", "copilot-1"]);
+    // A host that exits by itself (its code under 128) has ended its work.
+    const again = (await w.panes.resumePane(conductor.id))._unsafeUnwrap();
+    expect([again.paused, w.copilot.started.at(-1)?.resumed]).toEqual([undefined, "copilot-1"]);
+    w.copilot.started.at(-1)?.pty.exit(0);
+    await Bun.sleep(5);
+    expect((await w.panes.pane(conductor.id))._unsafeUnwrap().ended?.reason).toBe("exited");
+    const ws = (await w.panes.openWorkspace({ label: "tools" }))._unsafeUnwrap();
+    const shell = (
+      await w.panes.openPane({ workspace: ws.id, role: "shell", process: { kind: "command", argv: ["sh"] } })
+    )._unsafeUnwrap();
+    w.terminal.spawned.at(-1)?.pty.exit(129);
+    await Bun.sleep(5);
+    expect((await w.panes.pane(shell.id))._unsafeUnwrap().ended?.exitCode).toBe(129);
+  });
+
+  test("the daemon stops: live sessions are paused with their screens; the next start resumes them in the same panes", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const conductor = (await w.panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    w.copilot.started.at(-1)?.pty.print("planned step 1\n");
+    expect((await w.panes.pauseAll())._unsafeUnwrap()).toEqual({ paused: 1 });
+    // Its process goes with the daemon: the exit finds it paused, and it stays so.
+    w.copilot.started.at(-1)?.pty.exit(129);
+    await Bun.sleep(5);
+    expect((await w.panes.pane(conductor.id))._unsafeUnwrap().paused?.why).toBe("daemon-stopped");
+    expect(await w.fs.exists(`.metator/panes/${conductor.id.replace(":", "-")}.screen`)).toBe(true);
+    // The next daemon: the same pane, its session resumed, the screen it left above the new output.
+    const next = w.make();
+    expect((await next.restore())._unsafeUnwrap()).toEqual([{ paneId: conductor.id, ok: true }]);
+    const back = (await next.pane(conductor.id))._unsafeUnwrap();
+    expect([back.paused, back.live?.alive, w.copilot.started.at(-1)?.resumed]).toEqual([
+      undefined,
+      true,
+      "copilot-1",
+    ]);
+    expect(await next.read(conductor.id)).toContain("planned step 1");
+    const texts = (await w.journal.activity(run.runId))._unsafeUnwrap().map((a) => a.text);
+    expect(texts).toContain(
+      `pane ${conductor.id} paused (daemon-stopped): session copilot-1 can be continued`,
+    );
+  });
+
+  test("--no-restore: a session that went with the daemon stays paused until it is continued", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const conductor = (await w.panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    // A SIGKILL: nothing marked the pane; its process died with the daemon.
+    w.copilot.started.at(-1)?.pty.exit(137);
+    await Bun.sleep(5);
+    const next = w.make();
+    const restored = (await next.restore(undefined, { resume: false }))._unsafeUnwrap();
+    expect(restored).toEqual([
+      { paneId: conductor.id, ok: false, skipped: "paused: `metator run continue` resumes it" },
+    ]);
+    expect((await next.pane(conductor.id))._unsafeUnwrap().paused).toBeDefined();
+    expect(w.copilot.started).toHaveLength(1);
+    (await next.resumePane(conductor.id))._unsafeUnwrap();
+    expect([
+      (await next.pane(conductor.id))._unsafeUnwrap().paused,
+      w.copilot.started.at(-1)?.resumed,
+    ]).toEqual([undefined, "copilot-1"]);
+    // A paused pane whose run finishes ends: its work is over.
+    w.copilot.started.at(-1)?.pty.exit(143);
+    await Bun.sleep(5);
+    (await w.panes.end(conductor.id, { reason: "run-finished" }))._unsafeUnwrap();
+    const over = (await next.pane(conductor.id))._unsafeUnwrap();
+    expect([over.paused, over.ended?.reason]).toEqual([undefined, "run-finished"]);
+    expect((await next.resumePane(conductor.id))._unsafeUnwrapErr().message).toContain(
+      "has ended (run-finished)",
+    );
   });
 
   test("an ended pane is not started again after a restart; a pane started again is no longer ended", async () => {

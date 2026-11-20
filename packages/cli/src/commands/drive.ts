@@ -3,6 +3,7 @@ import type { MetatorContainer } from "@metator/runtime";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { callDaemon, findDaemon, inRepo } from "../daemon-client.ts";
 import { follow, watch } from "../live.ts";
 import { byOption, defined, positiveInt, RUN_ARGUMENT, runGiven, runOption } from "../options.ts";
 import { renderAsked, renderAsking } from "../render.ts";
@@ -77,12 +78,34 @@ export function registerDriveCommands(
 
   runs
     .command("continue")
-    .description("Continue a run: pick one that waits for you or stopped, drive it again and watch it")
+    .description(
+      "Continue a task: with the daemon, resume its paused sessions and carry again every run of it (children in every repository) that nothing drives; without one, drive the run again and watch it",
+    )
     .argument("[run]", "run id (default: pick in a terminal, else the latest active run)")
+    .addOption(runOption("the task's run (as the word after the command)"))
     .option("--host <host>", `AI host: ${HOSTS.join(", ")} (default: the one the run used)`)
     .action(
-      action(async (given: string | undefined, opts: { host?: string }) => {
+      action(async (word: string | undefined, opts: { host?: string; run?: string }) => {
+        const named = runGiven(word, opts);
+        if (named.isErr()) return { result: named };
+        const given = named.value;
         const c = container();
+        // A daemon serves the repository: the task's sessions live there; it continues them all.
+        const daemon = findDaemon(c.resolve("root"));
+        if (daemon.isOk()) {
+          const id = await c.resolve("runRepository").resolveId(given);
+          if (id.isErr()) return { result: id };
+          const by = await who(c);
+          if (by.isErr()) return { result: by };
+          return {
+            result: await callDaemon(
+              daemon.value,
+              "POST",
+              inRepo(`/runs/${encodeURIComponent(id.value)}/continue`, c.resolve("root")),
+              { by: by.value },
+            ),
+          };
+        }
         let runId = given;
         if (!runId) {
           const rows = await sessionRows(c);

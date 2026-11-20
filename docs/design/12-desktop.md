@@ -207,6 +207,13 @@ Zasada właściciela: pierwszy poziom ma być prosty poznawczo, szczegóły dopi
 - Zakończony panel (`ended`) zostaje tylko do odczytu, z banerem „Finished — <podsumowanie albo powód>” (ton gotowe) albo „Ended with code N — …” (ton błędu, z Retry) i przyciskiem Close; „Close finished (N)” zamyka zakończone panele widoku.
 - Paleta go-to pokazuje hierarchię „zadanie › repozytorium › worker”. Stary widok kart przestrzeni roboczych jest pod „Workspaces” (`#/grid/workspaces`): powłoki i czat runu jeszcze nie rozpoczętego.
 
+### 5.0g Sesje przeżywają demona; jedno „Continue” (2026-11-20, runda 11)
+
+- Panel wstrzymany (`paused`: demon zatrzymany albo proces utracony; praca nieskończona) to nie panel zakończony: baner „Paused — <dlaczego>” w neutralnym tonie, ostatni ekran tylko do odczytu, przycisk Continue (run panelu albo zadanie czatu, w którym je dano). Odznaka sesji liczy wstrzymane podterminale.
+- „Continue task” w pasku i na kafelku terminala głównego, gdy coś w zadaniu jest wstrzymane albo run nie ma nic, co go prowadzi (`toContinue`); woła `POST /runs/:run/continue` i mówi, co wznowiono, a co pominięto (`continueText`).
+- Pytanie hosta pokazuje POCZĄTEK polecenia (`command`, inaczej prompt), ucięty do dwóch linii z „…”; klik albo Enter pokazuje całe polecenie (`commandText`, `CommandText`), na karcie, w toaście i w polu pytania runu.
+- Przeładowanie aplikacji albo nowe okno niczego nie zmienia: ten sam widok zadania, panele, ekrany i karty (e2e).
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.

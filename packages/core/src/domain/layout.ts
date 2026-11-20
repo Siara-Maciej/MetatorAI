@@ -46,7 +46,11 @@ export type PaneEndReason = (typeof PANE_END_REASONS)[number];
  * closes it) and the run a pane's agent started (`startedRun`: the intake chat where a person gave
  * the task is that run's main terminal). Never change v1 or v2.
  */
-export const PaneSchema = z.strictObject({
+/** Why a pane's process is gone while its work is not over: it can be continued (ADR-0092). */
+export const PANE_PAUSE_REASONS = ["daemon-stopped", "process-lost"] as const;
+export type PanePauseReason = (typeof PANE_PAUSE_REASONS)[number];
+
+const PaneV3Schema = z.strictObject({
   ...PaneV1Schema.shape,
   ended: z
     .strictObject({
@@ -57,6 +61,14 @@ export const PaneSchema = z.strictObject({
     })
     .optional(),
   startedRun: z.string().optional(),
+});
+export const PaneSchema = z.strictObject({
+  ...PaneV3Schema.shape,
+  /**
+   * v4: the pane's process is gone because the daemon stopped (or the process was lost), not because
+   * its work is over: its session id and last screen are kept, and it is resumed in the same pane.
+   */
+  paused: z.strictObject({ at: z.iso.datetime(), why: z.enum(PANE_PAUSE_REASONS) }).optional(),
 });
 export type Pane = z.output<typeof PaneSchema>;
 export type PaneProcess = Pane["process"];
@@ -130,6 +142,11 @@ const LayoutV2Schema = z.strictObject({
   /** Counters, so an id is never reused after a close. */
   next: NextSchema,
 });
+const LayoutV3Schema = z.strictObject({
+  workspaces: z.array(WorkspaceSchema),
+  panes: z.array(PaneV3Schema),
+  next: NextSchema,
+});
 export const LayoutSchema = z.strictObject({
   workspaces: z.array(WorkspaceSchema),
   panes: z.array(PaneSchema),
@@ -139,10 +156,14 @@ export const LayoutSchema = z.strictObject({
 export type Layout = z.output<typeof LayoutSchema>;
 
 export const LayoutDocument = defineDocument("Layout", {
-  history: [{ schema: LayoutV1Schema }, { schema: LayoutV2Schema, fromPrevious: (v1) => v1 }],
+  history: [
+    { schema: LayoutV1Schema },
+    { schema: LayoutV2Schema, fromPrevious: (v1) => v1 },
+    { schema: LayoutV3Schema, fromPrevious: (v2) => v2 },
+  ],
   latest: LayoutSchema,
-  // Every field v2 and v3 add is optional: a v1 layout is a v2 layout with even grids, a v2 one a
-  // v3 one with no pane ended.
+  // Every field v2, v3 and v4 add is optional: a v1 layout is a v2 layout with even grids, a v2
+  // one a v3 one with no pane ended, a v3 one a v4 one with no pane paused.
   upgrade: (previous) => previous,
   hint: "Written by the daemon (`metator serve`); do not edit by hand.",
 });

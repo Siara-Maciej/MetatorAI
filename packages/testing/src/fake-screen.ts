@@ -1,15 +1,14 @@
+import type { PtySize, ScreenModel, ScreenRenderer } from "@metator/core";
+
 /**
- * The text a terminal shows, from what a program wrote to it (ADR-0091): the lines as a person
- * sees them, not the bytes. A terminal UI redraws in place (a spinner with `\r`, a frame erased
+ * A fake ScreenRenderer for unit tests (the real one is `XtermScreenRenderer` in plugin-node,
+ * on @xterm/headless, ADR-0091): the lines as a person sees them, not the bytes. A terminal UI redraws in place (a spinner with `\r`, a frame erased
  * line by line and drawn again), so the raw stream holds every frame it ever drew; this keeps only
  * the last drawing of each cell. It reads the subset of VT100 that hosts' renderers use (cursor
  * moves, erase in line and display, the alternate screen) and treats every other escape as no
  * text. Colours, wide glyphs and scroll regions are not modelled.
  */
-export interface ScreenSize {
-  readonly cols: number;
-  readonly rows: number;
-}
+type ScreenSize = PtySize;
 
 const ESC = "\u001b";
 const BEL = "\u0007";
@@ -251,9 +250,15 @@ export class TextScreen {
   }
 }
 
-/** A whole stream rendered at once: what a terminal of this size shows after it. */
-export function renderScreen(raw: string, size: ScreenSize): string {
-  const screen = new TextScreen(size);
-  screen.write(raw);
-  return screen.text();
+/** The fake renderer: a `TextScreen` per terminal, its text at once. */
+export class FakeScreenRenderer implements ScreenRenderer {
+  open(size: PtySize & { readonly scrollback?: number }): ScreenModel {
+    const screen = new TextScreen(size);
+    return {
+      write: (data) => screen.write(data),
+      resize: (s) => screen.resize(s),
+      text: async () => screen.text(),
+      dispose: () => {},
+    };
+  }
 }

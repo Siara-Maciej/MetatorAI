@@ -165,6 +165,7 @@ export function paneStateOf(input: PaneStateInput): PaneStateView {
       state: "blocked",
       reason: read.text,
       ...(read.options.length > 0 ? { menu: read.options } : {}),
+      ...(read.command ? { command: read.command } : {}),
     };
   }
   if (input.openQuestion) return { state: "waiting", reason: "a question waits for a person" };
@@ -216,7 +217,7 @@ const bounded = (text: string, max = REASON_MAX) =>
 export function readHostPrompt(
   screen: string,
   line: string,
-): { readonly text: string; readonly options: readonly MenuChoice[] } {
+): { readonly text: string; readonly options: readonly MenuChoice[]; readonly command?: string } {
   const clean = (l: string) => l.replace(FRAME, "").trim();
   const raw = screen.split("\n");
   const rows = raw.map(clean);
@@ -249,27 +250,68 @@ export function readHostPrompt(
       end = i - 1;
       break;
     }
-  const region = rows.slice(start, end + 1).filter((r) => r !== "");
+  // The command itself, when the host draws it between dashed rules: what the person decides on,
+  // whole (every line between the rules, a line the terminal wrapped joined to the next).
+  const command = commandBetweenRules(raw, rows, start, end);
+  const inCommand = new Set(command?.rows ?? []);
+  const region = rows
+    .map((r, i) => ({ r, i }))
+    .slice(start, end + 1)
+    .filter(({ r, i }) => r !== "" && !inCommand.has(i));
   const options: MenuChoice[] = [];
   const words: string[] = [];
-  // The command itself, when the host draws it between dashed rules: what the person decides on.
-  let command: string | undefined;
-  region.forEach((r, i) => {
+  for (const { r } of region) {
     const choice = CHOICE.exec(r);
     if (choice) options.push({ key: choice[1] as string, label: (choice[2] as string).trim() });
-    else if (DASHED.test(r)) return;
-    else if (!HINT.test(r) && !TRANSCRIPT.test(r)) {
-      words.push(r);
-      if (DASHED.test(region[i - 1] ?? "") && DASHED.test(region[i + 1] ?? "")) command ??= r;
-    }
-  });
+    else if (DASHED.test(r)) continue;
+    else if (!HINT.test(r) && !TRANSCRIPT.test(r)) words.push(r);
+  }
   const menu = options.length >= 2 && options[0]?.key === "1" ? options : [];
   if (menu.length === 0 && !boxed) return { text: bounded(wanted), options: [] };
   const need = words.find((w) => NEED.test(w)) ?? words.find((w) => w.endsWith("?")) ?? wanted;
-  const [title, second] = words.filter((w) => w !== need && !w.endsWith("?"));
-  const detail = command && command !== title ? command : second;
+  // A command: the prompt starts with it (its first line), then why the host asks.
+  if (command)
+    return {
+      text: bounded(`${command.text.split("\n")[0] as string} — ${need}`),
+      options: menu,
+      command: command.text,
+    };
+  const [title, detail] = words.filter((w) => w !== need && !w.endsWith("?"));
   const text = title ? `${title}${detail ? `: ${detail}` : ""} — ${need}` : need;
   return { text: bounded(text), options: menu };
+}
+
+/**
+ * The lines between the first two dashed rules of a dialog, as one command: the indent and frame
+ * taken off, a line as wide as the rules (the terminal wrapped it) joined to the next as it is,
+ * any other line break kept. Undefined when the dialog has no such rules.
+ */
+function commandBetweenRules(
+  raw: readonly string[],
+  rows: readonly string[],
+  start: number,
+  end: number,
+): { readonly text: string; readonly rows: readonly number[] } | undefined {
+  const rules: number[] = [];
+  for (let i = start; i <= end && rules.length < 2; i++) if (DASHED.test(rows[i] as string)) rules.push(i);
+  if (rules.length < 2) return undefined;
+  const [above, below] = rules as [number, number];
+  const width = (raw[above] as string).trimEnd().length;
+  const lines: number[] = [];
+  for (let i = above + 1; i < below; i++) lines.push(i);
+  const body = lines.map((i) =>
+    (raw[i] as string)
+      .replace(/^[│┃|]/, "")
+      .replace(/^\s/, "")
+      .replace(/\s*[│┃|]?\s*$/, ""),
+  );
+  let text = "";
+  body.forEach((line, k) => {
+    if (k > 0) text += (raw[lines[k - 1] as number] as string).trimEnd().length >= width - 1 ? "" : "\n";
+    text += line;
+  });
+  text = text.replace(/^\n+|\n+$/g, "");
+  return text === "" ? undefined : { text, rows: [above, below, ...lines] };
 }
 
 /** The choices on a host's permission prompt in the inbox: a person goes to the pane, or leaves it. */

@@ -47,6 +47,8 @@ export interface SensedPane extends PtyView {
   readonly reason: string;
   /** A blocked pane's numbered choices (a host's menu), when its prompt has them. */
   readonly menu?: PaneStateView["menu"];
+  /** The whole command its host's prompt asks to run, when it shows one. */
+  readonly command?: string;
 }
 
 /**
@@ -91,7 +93,7 @@ export class PaneSensor {
         // The screen as a person sees it: a host's dialog is read from it whole, and its
         // reason is that dialog in words, never the frames and escapes the host drew it with.
         screen: tailLines(
-          this.d.broker.screen?.(paneId) ?? stripAnsi(this.d.broker.backlog(paneId)),
+          (await this.d.broker.screen?.(paneId)) ?? stripAnsi(this.d.broker.backlog(paneId)),
           SCREEN_LINES,
         ),
         manifest: manifest.value,

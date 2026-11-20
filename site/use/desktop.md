@@ -15,6 +15,14 @@ The workers a session starts are not on this view. A session's tile has a badge,
 
 A terminal whose work is over stays on the screen, read-only, with a banner on its frame: **Finished — tests pass** (its summary, or why it ended: its run finished, its result was collected, the host ended it), or, after a failure, **Ended with code 2 — …** in red with **Retry**. **Close** closes it; **Close finished (N)** in the bar closes the finished terminals: on a session's view the session's, on a task's view every one of the task, its sub-terminals too, so none stays open where no view shows it. A finished worker also counts on its session's badge (`2 sub-terminals · 2 finished`).
 
+### When the daemon stops
+
+The agents' sessions outlive the daemon. When `metator serve` stops, is killed or crashes, a terminal whose work was not over is **paused**, not finished: its frame reads **Paused — the daemon stopped** (or **Paused — its process was lost**) in blue, its last screen stays readable, and **Continue** starts its agent again in the same pane, where it left off. A session's badge counts its paused sub-terminals (`2 sub-terminals · 1 paused`). When the daemon starts again it continues them by itself, unless it was started with `--no-restore`.
+
+**Continue task**, in the bar and on the main terminal's tile, shows while any terminal of the task is paused or any of its runs has nothing driving it. One click continues the whole task, across its repositories: every paused terminal is resumed, and every run nothing drives gets back its session or its drive. A line says what was continued and what was skipped, and why. From a terminal: `metator run continue --run <task run>`.
+
+Closing the app, reloading it, or opening it in another window changes nothing: the runs go on, and the app shows the same task, terminals, screens and cards.
+
 **Workspaces** in the bar shows the daemon's workspaces and their tabs, as below: your shells, and the chat of a run not started yet. **By task ›** there leads back.
 
 ## The workspaces

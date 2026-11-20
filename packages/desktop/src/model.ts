@@ -1558,7 +1558,14 @@ export function needsQueue(
         key: decisionKey(i),
         kind: questionKind(i.question).toLowerCase() as NeedKind,
         // A host prompt reads as its question; who asks, and in which pane, is in the line below.
-        title: hostPromptOf(i.question.prompt)?.text || humanPrompt(i.question.prompt),
+        // A host's question: the start of its whole command, cut to a line or two (round 11).
+        title:
+          i.question.source === "permission"
+            ? commandText({
+                prompt: hostPromptOf(i.question.prompt)?.text || humanPrompt(i.question.prompt),
+                command: (i.question as { command?: string }).command,
+              }).short
+            : hostPromptOf(i.question.prompt)?.text || humanPrompt(i.question.prompt),
         sub: [
           taskOf(i.runId, i.repo) ?? i.task,
           i.repo,

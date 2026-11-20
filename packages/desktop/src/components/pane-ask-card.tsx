@@ -8,6 +8,7 @@ import { useState } from "react";
 import type { PaneAsk } from "../api.ts";
 import { useDaemon } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
+import { CommandText, commandOf } from "./command-text.tsx";
 import { Notice } from "./common.tsx";
 
 /** The choice that sends the person to the pane instead of answering here. */
@@ -51,7 +52,13 @@ export function PaneAskCard({
   };
   return (
     <article className="card pane-ask" aria-label="pane question" data-testid={`pane-ask-${ask.paneId}`}>
-      <h1 className={q.prompt.length > 160 ? "long" : undefined}>{q.prompt}</h1>
+      <h1>
+        {q.source === "permission" || commandOf(q) ? (
+          <CommandText prompt={q.prompt} command={commandOf(q)} />
+        ) : (
+          q.prompt
+        )}
+      </h1>
       <div className="muted" data-testid="pane-asker">
         {q.source === "agent" ? "The agent" : `${ask.host}`} asks in the {ask.label} pane
         {ask.repo ? ` of ${ask.repo}` : ""}, before any run: answer here and it is typed there.

@@ -54,6 +54,10 @@ export interface ServeOptions {
   readonly intakeMs?: number | true;
   /** Look for reviews of my requests this often (0 or unset: never); the config's `everyMs` when `true`. */
   readonly reviewsMs?: number | true;
+  /** false (`--no-restore`): sessions that went with the last daemon stay paused until continued. */
+  readonly restore?: boolean;
+  /** How often every live pane's screen is kept on disk (default 5 s; 0: only when it stops). */
+  readonly screensMs?: number;
   /** How the supervisor starts a drive again. */
   readonly restart?: (
     c: MetatorContainer,
@@ -240,6 +244,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     port: () => bound,
     state,
     inbox,
+    repos: () => repoViews().map((r) => (folder ? { name: r.name, c: r.c } : { c: r.c })),
   };
   /** The repository whose panes know this token: a call from a pane acts in its own repository. */
   const repoOfToken = async (token: string): Promise<string | undefined> => {
@@ -294,6 +299,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     intakeMs: opts.intakeMs === true ? "own" : (opts.intakeMs ?? 0),
     reviewsMs: opts.reviewsMs === true ? "own" : (opts.reviewsMs ?? 0),
     sweepMs: Math.max(1000, pollMs * 2),
+    screensMs: opts.screensMs ?? 5000,
     ...(opts.restart ? { restart: opts.restart } : {}),
   });
   const port = bound;
@@ -316,7 +322,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       ? containerFor(folder.repos.find((r) => r.root === root)?.name)
       : containerFor(undefined);
     if (c.isErr()) continue;
-    const r = await c.value.resolve("panes").restore();
+    const r = await c.value.resolve("panes").restore(undefined, { resume: opts.restore !== false });
     if (r.isOk()) restored.push(...r.value.map((x) => ({ root, ...x })));
   }
   if (opts.announce) {
@@ -335,6 +341,12 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     pid: process.pid,
     stop: async () => {
       timers.stop();
+      // The sessions go with the daemon: paused, their screens kept, to be resumed next time.
+      for (const key of containers.keys()) {
+        const paused = await (containers.get(key) as MetatorContainer).resolve("panes").pauseAll();
+        if (paused.isErr())
+          process.stderr.write(`${JSON.stringify({ panes: { repo: key, error: paused.error.message } })}\n`);
+      }
       // Only its own file: one another daemon wrote since says where that daemon listens.
       for (const root of roots) {
         const file = join(root, DAEMON_FILE);

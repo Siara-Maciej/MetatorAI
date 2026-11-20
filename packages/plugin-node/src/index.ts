@@ -6,3 +6,4 @@ export * from "./manypkg-workspace-reader.ts";
 export * from "./node-package-manager.ts";
 export * from "./node-pty-terminal.ts";
 export * from "./wait-on-health-probe.ts";
+export * from "./xterm-screen-renderer.ts";

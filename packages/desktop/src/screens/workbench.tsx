@@ -56,6 +56,7 @@ import {
   workspaceOfPane,
 } from "../model.ts";
 import {
+  continueText,
   finishedOf,
   paneKey,
   type Session,
@@ -66,6 +67,7 @@ import {
   taskGotoRows,
   taskView,
   terminalTasks,
+  toContinue,
   whereIs,
 } from "../terminals.ts";
 
@@ -399,6 +401,38 @@ export function WorkbenchScreen({
   /** The ended panes "Close finished (N)" closes: a task's all, a session's, a tab's. */
   const endedHere =
     chosen && view !== "tabs" ? finishedOf(chosen, session) : tabPanes.filter((p) => p.ended !== undefined);
+  // Continue (round 11): the task, or a paused pane's run, started again where it stopped.
+  const continueThe = async (runId: string, repo: string | undefined) => {
+    let said: string | undefined;
+    await action.run(
+      async (by) => {
+        const r = await client.continueRun(runId, by, repo);
+        if (r.ok && r.data) said = continueText(r.data);
+        return r;
+      },
+      { who: true, refused: "Nothing was continued" },
+    );
+    if (said) action.say(said, "info");
+  };
+  const continuePane = (p: PaneView) => {
+    // A pane of a run continues with its run; the chat where a task was given with that task.
+    const runId = p.runId ?? p.startedRun;
+    if (runId) void continueThe(runId, repoOf(p));
+    else void retryPane(p);
+  };
+  const pending = chosen ? toContinue(chosen, runs) : { paused: 0, undriven: 0 };
+  const continueTask = (where: "bar" | "tile") =>
+    chosen && view !== "tabs" && pending.paused + pending.undriven > 0 ? (
+      <button
+        type="button"
+        className="primary"
+        data-testid={where === "bar" ? "continue-task" : "continue-task-tile"}
+        title={`${pending.paused} paused terminal(s), ${pending.undriven} run(s) nothing drives`}
+        onClick={() => void continueThe(chosen.runId, chosen.repo)}
+      >
+        Continue task
+      </button>
+    ) : null;
   const closeFinished = async () => {
     for (const p of endedHere) await action.run(() => client.closePane(p.id, repoOf(p)));
   };
@@ -504,6 +538,7 @@ export function WorkbenchScreen({
         onBlockedKey={() => blockedKey(p)}
         onReady={(h) => handles.current.set(keyOf(p), h)}
         onRetry={() => void retryPane(p)}
+        onContinue={() => continuePane(p)}
         onClose={() =>
           view === "tabs" && tab && tabPanes.length === 1
             ? void closeTab(tab, false)
@@ -574,6 +609,7 @@ export function WorkbenchScreen({
         >
           <div className="tile-head">
             <span className="tile-label">{label}</span>
+            {main ? continueTask("tile") : null}
             {view === "task" && own && !main ? (
               <a
                 className="ghost open-session"
@@ -631,6 +667,7 @@ export function WorkbenchScreen({
             </>
           ) : null}
           <span className="spacer" />
+          {continueTask("bar")}
           {endedHere.length > 0 ? (
             <button type="button" data-testid="close-finished" onClick={() => void closeFinished()}>
               Close finished ({endedHere.length})

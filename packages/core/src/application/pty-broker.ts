@@ -1,8 +1,7 @@
 import { MetatorError } from "../domain/errors.ts";
 import type { PaneRole } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { TextScreen } from "../domain/screen.ts";
-import type { Clock, PtyHandle, PtySize } from "../ports/index.ts";
+import type { Clock, PtyHandle, PtySize, ScreenModel, ScreenRenderer } from "../ports/index.ts";
 import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -24,6 +23,8 @@ export interface PtyBrokerDependencies {
   readonly after?: (ms: number, fn: () => void) => () => void;
   /** Stamps output and hook calls (the pane sensor reads them); the wall clock by default. */
   readonly clock?: Clock;
+  /** Draws each pane's screen as a person sees it (@xterm/headless); without it, the output without escapes. */
+  readonly screens?: ScreenRenderer;
 }
 
 export interface PtyView {
@@ -50,7 +51,7 @@ interface Live {
   readonly pty: PtyHandle;
   backlog: string;
   /** What the terminal shows now, as a person sees it (the backlog holds every frame drawn). */
-  readonly screen: TextScreen;
+  readonly screen?: ScreenModel;
   alive: boolean;
   exitCode?: number;
   idle: boolean;
@@ -86,27 +87,31 @@ export class PtyBroker {
     readonly pty: PtyHandle;
     /** The terminal's size, for the screen it shows. */
     readonly size?: PtySize;
+    /** What the pane showed before (a resumed session): kept above the new output. */
+    readonly backlog?: string;
   }): Result<PtyView, MetatorError> {
     const current = this.live.get(input.paneId);
     if (current?.alive) return err(MetatorError.usage(`pane ${input.paneId} already has a live terminal`));
     current?.cancelIdle?.();
+    current?.screen?.dispose();
     const entry: Live = {
       ...(input.runId ? { runId: input.runId } : {}),
       role: input.role,
       host: input.host,
       sessionId: input.sessionId,
       pty: input.pty,
-      backlog: "",
-      screen: new TextScreen(input.size ?? SCREEN_SIZE),
+      backlog: (input.backlog ?? "").slice(-BACKLOG_BYTES),
+      ...(this.d.screens ? { screen: this.d.screens.open(input.size ?? SCREEN_SIZE) } : {}),
       alive: true,
       idle: false,
       lastOutputAt: this.now(),
       listeners: new Set(),
     };
     this.live.set(input.paneId, entry);
+    if (input.backlog) entry.screen?.write(input.backlog);
     input.pty.onData((data) => {
       entry.backlog = (entry.backlog + data).slice(-BACKLOG_BYTES);
-      entry.screen.write(data);
+      entry.screen?.write(data);
       entry.idle = false;
       entry.lastOutputAt = this.now();
       this.armIdle(input.paneId, entry);
@@ -133,8 +138,9 @@ export class PtyBroker {
    * What the pane's terminal shows, rendered as a person sees it (the last drawing of each line,
    * no escapes); undefined for a pane with no terminal here. The sensor reads prompts from it.
    */
-  screen(paneId: string): string | undefined {
-    return this.live.get(paneId)?.screen.text();
+  async screen(paneId: string): Promise<string | undefined> {
+    const entry = this.live.get(paneId);
+    return entry?.screen ? entry.screen.text() : undefined;
   }
 
   /** Output since the terminal started (the last 200 kB), for a viewer that joins late. */
@@ -226,7 +232,7 @@ export class PtyBroker {
     const entry = this.live.get(paneId);
     if (!entry?.alive) return err(MetatorError.notFound(`a live terminal in pane ${paneId}`));
     entry.pty.resize(size.cols, size.rows);
-    entry.screen.resize(size);
+    entry.screen?.resize(size);
     return ok(undefined);
   }
 
@@ -262,6 +268,7 @@ export class PtyBroker {
     // Closed, not ended: nobody listening hears the exit the kill causes.
     entry.listeners.clear();
     if (entry.alive) entry.pty.kill();
+    entry.screen?.dispose();
     this.live.delete(paneId);
     return ok({ closed: true });
   }

@@ -26,6 +26,16 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
       nonNegativeInt,
     )
     .option(
+      "--no-restore",
+      "leave the agents' sessions of the last daemon paused (continue them with `metator run continue`)",
+    )
+    .option(
+      "--screens-ms <n>",
+      "how often every pane's screen is kept on disk (0: only when it stops)",
+      nonNegativeInt,
+      5000,
+    )
+    .option(
       "--reviews-ms <n>",
       "how often reviews of my requests are read (0: never; default: the config's `reviews.everyMs`)",
       nonNegativeInt,
@@ -39,6 +49,8 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
           superviseMs: number;
           intakeMs?: number;
           reviewsMs?: number;
+          restore: boolean;
+          screensMs: number;
         }) => {
           const taken = daemonInTheWay(servedRoots(ctx));
           if (taken) return { result: err(taken) };
@@ -50,6 +62,8 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
             superviseMs: opts.superviseMs,
             intakeMs: opts.intakeMs ?? true,
             reviewsMs: opts.reviewsMs ?? true,
+            restore: opts.restore,
+            screensMs: opts.screensMs,
             restart: (c, runId) => resume(c, runId),
           });
           const where = {

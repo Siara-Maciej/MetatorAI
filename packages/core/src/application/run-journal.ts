@@ -110,6 +110,8 @@ export class RunJournal {
     q: Pick<Question, "stage" | "source" | "prompt" | "options" | "multiSelect"> & {
       readonly agent?: string;
       readonly card?: DecisionCard;
+      /** A host's permission prompt: the whole command it asks to run. */
+      readonly command?: string;
     },
     pendingSince?: string,
   ): Promise<Result<Question, MetatorError>> {
@@ -137,6 +139,7 @@ export class RunJournal {
       multiSelect: q.multiSelect,
       askedAt: this.clock.now().toISOString(),
       ...(q.card ? { card: q.card } : {}),
+      ...(q.command ? { command: q.command } : {}),
     };
     const saved = await this.save(question);
     if (saved.isErr()) return err(saved.error);

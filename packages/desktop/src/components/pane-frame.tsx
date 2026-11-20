@@ -5,7 +5,7 @@
 import { useRef } from "react";
 import type { PaneView } from "../api.ts";
 import { lookOf, type PaneShown, paneLabel, paneNote } from "../model.ts";
-import { endedBanner } from "../terminals.ts";
+import { endedBanner, pausedBanner } from "../terminals.ts";
 import { Glyph } from "./glyph.tsx";
 import { PaneTerminal, type TerminalHandle } from "./terminal.tsx";
 
@@ -30,8 +30,11 @@ export function PaneFrame({
   onBlockedKey,
   onReady,
   onRetry,
+  onContinue,
   onClose,
 }: {
+  /** A paused pane started again in place (round 11). */
+  onContinue?: (() => void) | undefined;
   readonly pane: PaneView;
   readonly state: PaneShown;
   readonly repo: string | undefined;
@@ -101,7 +104,7 @@ export function PaneFrame({
           key={p.live.sessionId}
           paneId={p.id}
           repo={repo}
-          canType={p.live.alive && !p.ended && canType}
+          canType={p.live.alive && !p.ended && !pausedBanner(p) && canType}
           scrollback={scrollback}
           onBlockedKey={() => (p.live?.alive ? onBlockedKey() : undefined)}
           onReady={(h) => {
@@ -112,7 +115,15 @@ export function PaneFrame({
       ) : (
         <div className="empty" />
       )}
-      {p.ended || (p.live && !p.live.alive) ? (
+      {pausedBanner(p) && !p.ended ? (
+        // Its host stopped with the daemon (or was lost); the work is not over: Continue starts it in place.
+        <div className="pane-ended paused-banner" role="status" data-testid={`paused-${p.id}`}>
+          <span className="msg">{pausedBanner(p)}</span>
+          <button type="button" className="primary" onClick={onContinue ?? onRetry}>
+            Continue
+          </button>
+        </div>
+      ) : p.ended || (p.live && !p.live.alive) ? (
         // The pane's work is over (the daemon says so, or its process is gone a moment before): it stays, read-only, with what ended it, until it is closed.
         <div
           className={`pane-ended finished-banner ${endedBanner(p).tone}`}
