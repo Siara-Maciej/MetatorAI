@@ -101,6 +101,7 @@ export * from "./application/worktree-setup.ts";
 export * from "./application/worktrees.ts";
 export * from "./domain/adr.ts";
 export * from "./domain/agent.ts";
+export * from "./domain/agent-question.ts";
 export * from "./domain/agent-scenario.ts";
 export * from "./domain/answer-policy.ts";
 export * from "./domain/answer-words.ts";

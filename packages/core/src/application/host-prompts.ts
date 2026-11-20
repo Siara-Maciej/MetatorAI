@@ -1,3 +1,4 @@
+import { agentQuestionOf } from "../domain/agent-question.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { MenuChoice } from "../domain/host-manifest.ts";
 import {
@@ -32,7 +33,12 @@ export interface HostPromptsDependencies {
   readonly open?: Map<string, OpenPrompt>;
   /** Where a pane without a run asks (the intake chat): without it, such a pane asks nothing. */
   readonly panes?: PaneQuestions;
+  /** A pane's screen as rendered: an agent's question in words is read from its last message. */
+  readonly rendered?: (paneId: string) => Promise<string | undefined>;
 }
+
+/** The roles whose panes run an agent that may ask the person in words (not shells, not gates). */
+const AGENT_ROLES: ReadonlySet<string> = new Set(["conductor", "worker", "apps"]);
 
 /** One host prompt in the inbox: the question it became, and the screen line it was asked for. */
 export interface OpenPrompt {
@@ -46,6 +52,11 @@ export interface OpenPrompt {
   readonly asks: boolean;
   /** The host's numbered choices: a person's choice is typed as its key. */
   readonly menu?: readonly MenuChoice[];
+  /**
+   * An agent's question in words (its last message asks): it lives with the pane's questions even
+   * in a run's pane, and a choice is typed as its reply (a number, a reply word).
+   */
+  readonly said?: { readonly replies: Readonly<Record<string, string>> };
   handled: boolean;
 }
 
@@ -72,6 +83,9 @@ export interface HostPromptsReport {
 /** The choice for words of the person's own. */
 const OTHER_CHOICE = "Other";
 
+/** A question kept with the pane's own (a pane without a run, or an agent's question in words). */
+const inPane = (item: OpenPrompt): boolean => !item.runId || item.said !== undefined;
+
 export class HostPrompts {
   /** The inbox item per blocked pane; `handled` once the person answered it (attached or left it). */
   private readonly open: Map<string, OpenPrompt>;
@@ -91,6 +105,10 @@ export class HostPrompts {
       // A pane without a run asks too (the intake chat): its question is the pane's own.
       if (!pane.runId && !this.d.panes) continue;
       seen.add(pane.paneId);
+      const said = await this.saidInWords(pane, asked);
+      if (said.isErr()) return err(said.error);
+      if (said.value === "asking") continue;
+      if (said.value === "closed") resolved.push(pane.paneId);
       let item = this.open.get(pane.paneId);
       // Another question on the screen, or words typed after this one: it was answered there;
       // each question gets its own card.
@@ -186,7 +204,7 @@ export class HostPrompts {
       if (seen.has(paneId)) continue;
       this.open.delete(paneId);
       // A pane that is gone (closed) asks nothing any more: its question leaves the inbox.
-      if (!item.runId) this.d.panes?.forget(paneId);
+      if (inPane(item)) this.d.panes?.forget(paneId);
     }
     return ok({ asked, attached, resolved });
   }
@@ -230,6 +248,76 @@ export class HostPrompts {
   }
 
   /**
+   * An agent that ended its turn asking the person in words (its last message asks; it waits
+   * idle at its prompt, with no host prompt and no card): a pane question with the whole message
+   * and its choices, for a run's pane too. It closes when the agent works again (it was answered
+   * in the pane, or by the card's words typed into it) or asks something else.
+   */
+  private async saidInWords(
+    pane: {
+      readonly paneId: string;
+      readonly runId?: string;
+      readonly role: string;
+      readonly host: string;
+      readonly state: string;
+    },
+    asked: HostPromptsReport["asked"][number][],
+  ): Promise<Result<"asking" | "closed" | "none", MetatorError>> {
+    const item = this.open.get(pane.paneId);
+    if (!this.d.panes || !this.d.rendered || !AGENT_ROLES.has(pane.role)) return ok("none");
+    const read =
+      pane.state === "idle" ? agentQuestionOf((await this.d.rendered(pane.paneId)) ?? "") : undefined;
+    if (item?.said) {
+      if (read && read.text === item.prompt) {
+        if (!item.handled) {
+          const done = await this.followUp(pane.paneId, item, []);
+          if (done.isErr()) return err(done.error);
+        }
+        return ok("asking");
+      }
+      // The agent works again, or asks something else: the question was answered.
+      const closed = await this.close(pane.paneId, item);
+      if (closed.isErr()) return err(closed.error);
+      if (!read) return ok("closed");
+    } else if (item) return ok("none");
+    if (!read) return ok("none");
+    // The same message again (answered, or left): not asked twice.
+    if (this.d.panes.latest(pane.paneId)?.text === read.text) return ok("none");
+    const who = await this.d.identity?.of(pane.paneId);
+    const q = this.d.panes.ask({
+      paneId: pane.paneId,
+      ...(pane.runId ? { runId: pane.runId } : {}),
+      source: "agent",
+      agent: who?.agent ?? pane.host,
+      host: pane.host,
+      prompt: read.prompt,
+      text: read.text,
+      options: [
+        ...read.options.map((o) => ({ label: o.label })),
+        { label: OTHER_CHOICE, description: "Answer in your own words" },
+        { label: LEAVE_PANE, description: "Leave it; the agent waits" },
+      ],
+    });
+    this.open.set(pane.paneId, {
+      ...(pane.runId ? { runId: pane.runId } : {}),
+      questionId: q.id,
+      prompt: read.text,
+      host: pane.host,
+      asks: true,
+      said: { replies: Object.fromEntries(read.options.map((o) => [o.label, o.reply])) },
+      handled: false,
+    });
+    asked.push({ paneId: pane.paneId, ...(pane.runId ? { runId: pane.runId } : {}), questionId: q.id });
+    return ok("asking");
+  }
+
+  /** A question in words waits in this pane for the person: nothing else is typed into it meanwhile. */
+  asksInPane(paneId: string): boolean {
+    const item = this.open.get(paneId);
+    return item?.said !== undefined && !item.handled;
+  }
+
+  /**
    * A person's answer to a pane question (a pane without a run), from the app: checked as the
    * pane shows it now (the prompt gone, or answered there, closes it first: the pane answered),
    * recorded, then typed into the pane at once (a menu's key, the agent's words) unless it is
@@ -246,15 +334,14 @@ export class HostPrompts {
     if (!questions?.get(input.paneId, input.question))
       return err(MetatorError.notFound(`question ${input.question} of pane ${input.paneId}`));
     const item = this.open.get(input.paneId);
-    if (item && !item.runId && item.questionId === input.question) {
+    if (item && inPane(item) && item.questionId === input.question) {
       const panes = await this.d.sensor.all();
       if (panes.isErr()) return err(panes.error);
       const pane = panes.value.find((p) => p.paneId === input.paneId);
-      if (
-        pane?.state !== "blocked" ||
-        pane.reason !== item.prompt ||
-        this.answeredThere(input.paneId, item)
-      ) {
+      const gone = item.said
+        ? pane?.state !== "idle"
+        : pane?.state !== "blocked" || pane.reason !== item.prompt || this.answeredThere(input.paneId, item);
+      if (gone) {
         const closed = await this.close(input.paneId, item);
         if (closed.isErr()) return err(closed.error);
       }
@@ -266,7 +353,7 @@ export class HostPrompts {
     });
     if (answered.isErr()) return err(answered.error);
     const open = this.open.get(input.paneId);
-    if (open && !open.runId && open.questionId === input.question && !open.handled) {
+    if (open && inPane(open) && open.questionId === input.question && !open.handled) {
       const done = await this.followUp(input.paneId, open, []);
       if (done.isErr()) return err(done.error);
     }
@@ -278,7 +365,7 @@ export class HostPrompts {
     paneId: string,
     item: OpenPrompt,
   ): Promise<Result<Pick<PaneQuestion, "id" | "source" | "answer"> | undefined, MetatorError>> {
-    if (!item.runId) return ok(this.d.panes?.get(paneId, item.questionId));
+    if (!item.runId || item.said) return ok(this.d.panes?.get(paneId, item.questionId));
     const questions = await this.d.journal.questions(item.runId);
     if (questions.isErr()) return err(questions.error);
     const q = questions.value.find((x) => x.id === item.questionId);
@@ -313,7 +400,8 @@ export class HostPrompts {
     const q = found.value;
     if (!q?.answer) return ok(undefined);
     const choice = q.answer.choices[0];
-    const key = item.menu?.find((c) => c.label === choice)?.key;
+    const key =
+      item.menu?.find((c) => c.label === choice)?.key ?? (choice ? item.said?.replies[choice] : undefined);
     if (choice === ATTACH_PANE) {
       // A pane without a run has no lock to take: the person goes to the pane and types there.
       const lock = item.runId ? await this.d.lock.attach({ runId: item.runId, by: q.answer.by }) : undefined;
@@ -354,7 +442,7 @@ export class HostPrompts {
    */
   private async close(paneId: string, item: OpenPrompt): Promise<Result<void, MetatorError>> {
     this.open.delete(paneId);
-    if (!item.runId) {
+    if (!item.runId || item.said) {
       // A pane question: answered by the pane, the words typed after the prompt when it shows them.
       const typed = item.asks ? answerAfter(this.d.screen?.(paneId) ?? "", item.prompt) : undefined;
       const q = this.d.panes?.get(paneId, item.questionId);

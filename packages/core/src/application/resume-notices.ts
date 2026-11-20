@@ -13,6 +13,8 @@ export interface ResumeNoticesDependencies {
   readonly journal: Pick<RunJournal, "record">;
   /** The supervisor's nudge: the words, then Enter as its own write. */
   readonly nudge: (paneId: string, text: string) => Promise<Result<void, MetatorError>>;
+  /** A pane whose agent asked the person in words and waits: nothing is typed into it meanwhile. */
+  readonly asksInPane?: (paneId: string) => boolean;
 }
 
 /** The line a resumed session's agent reads, by what it is in its run. */
@@ -41,6 +43,7 @@ export class ResumeNotices {
     for (const n of this.d.panes.resumeNotices()) {
       const record = await this.d.repo.load(n.runId);
       if (record.isOk() && record.value.driver?.by === "human") continue;
+      if (this.d.asksInPane?.(n.paneId)) continue;
       const state = await this.d.sensor.state(n.paneId);
       if (state.isErr() || state.value.state !== "idle") continue;
       const line = resumeLine(n);

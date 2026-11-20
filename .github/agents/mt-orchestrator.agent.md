@@ -76,6 +76,7 @@ When your first message says "You are the conductor of run …" (the pane's `MET
 4. A blocked worker: decide from its question or ask the person, then delegate again with the answer in the card. A failed worker: delegate again with what to do differently, or `bun run metator run advance fail`.
 5. Never type into another pane and never start a worker any other way; `bun run metator run workers` says who works now.
 6. You move your run yourself, in your pane: never start `bun run metator run drive` for it. A child run of a system plan opens as its own conductor session; nothing drives it in the background while it has one.
+7. Never end your turn with a question or options in prose and wait for the reply: the person may not watch your terminal. Ask with `bun run metator run ask "<question>" --option <a> --option <b> --wait` (a card in their inbox), always.
 
 # Escalation
 A loop limit reached or a gate red twice: report the open problems with options: 1) continue, 2) switch to manual, 3) stop. Human gates accept only `bun run metator run approve <stage> --by <name>`; the choice `autopilot` switches the run to L1, so later gates with `skipAt: [L1]` pass without asking. A push needs the delivery approval (it grants the push) or `bun run metator run approve push --by <name>`; only a person gives either.

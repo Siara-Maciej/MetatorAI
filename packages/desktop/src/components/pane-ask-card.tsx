@@ -11,6 +11,34 @@ import { useAction } from "../hooks.ts";
 import { CommandText, commandOf } from "./command-text.tsx";
 import { Notice } from "./common.tsx";
 
+/**
+ * An agent's whole message (its question in words, with its options as it wrote them): folded to
+ * one line; a click (or Enter) shows it all, as it reads in the terminal.
+ */
+function MessageText({ text }: { readonly text: string }) {
+  const [open, setOpen] = useState(false);
+  const first = text.split("\n")[0] ?? "";
+  return (
+    <div className="pane-message">
+      <button
+        type="button"
+        className="ghost cmd-short"
+        aria-expanded={open}
+        data-testid="message-short"
+        title={open ? "hide the whole message" : "show the whole message"}
+        onClick={() => setOpen(!open)}
+      >
+        {open ? "Hide the message" : `The whole message: ${first}${text.includes("\n") ? " …" : ""}`}
+      </button>
+      {open ? (
+        <pre className="cmd-full" data-testid="message-full">
+          {text}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
+
 /** The choice that sends the person to the pane instead of answering here. */
 const ATTACH = "Attach and answer in the pane";
 
@@ -60,9 +88,11 @@ export function PaneAskCard({
         )}
       </h1>
       <div className="muted" data-testid="pane-asker">
-        {q.source === "agent" ? "The agent" : `${ask.host}`} asks in the {ask.label} pane
-        {ask.repo ? ` of ${ask.repo}` : ""}, before any run: answer here and it is typed there.
+        {q.source === "agent" ? `${q.agent}` : `${ask.host}`} asks in the {ask.label} pane
+        {ask.repo ? ` of ${ask.repo}` : ""}
+        {ask.runId ? ` (run ${ask.runId})` : ", before any run"}: answer here and it is typed there.
       </div>
+      {q.text ? <MessageText text={q.text} /> : null}
       <div className="decide-bar">
         <fieldset className="options">
           <legend className="dim">options</legend>

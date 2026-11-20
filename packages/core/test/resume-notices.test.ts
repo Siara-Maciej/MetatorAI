@@ -16,6 +16,7 @@ function world(role: "conductor" | "worker" = "conductor") {
   const activity: string[] = [];
   let state = "idle";
   let driver: { by: string; attachedBy?: string } | undefined;
+  let asking = false;
   const notices = new ResumeNotices({
     panes: {
       resumeNotices: () => [...pending],
@@ -34,6 +35,7 @@ function world(role: "conductor" | "worker" = "conductor") {
         return ok(a as never);
       },
     },
+    asksInPane: () => asking,
     nudge: async (paneId, text) => {
       typed.push(`${paneId} ${text}`);
       return ok(undefined);
@@ -46,6 +48,7 @@ function world(role: "conductor" | "worker" = "conductor") {
     pending,
     set: (s: string) => (state = s),
     hold: (d?: { by: string; attachedBy?: string }) => (driver = d),
+    ask: (a: boolean) => (asking = a),
   };
 }
 
@@ -79,6 +82,12 @@ describe("ResumeNotices: a resumed session is told, once, to go on", () => {
     w.hold(undefined);
     w.set("working");
     expect((await w.notices.tick())._unsafeUnwrap()).toEqual([]);
+    // Never into an agent that asked the person in words and waits for them.
+    w.set("idle");
+    w.ask(true);
+    expect((await w.notices.tick())._unsafeUnwrap()).toEqual([]);
+    w.ask(false);
+    w.set("working");
     // Never into a question that waits for the person: the host's prompt on its screen, or a card.
     for (const state of ["blocked", "waiting"]) {
       w.set(state);

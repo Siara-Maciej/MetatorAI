@@ -70,6 +70,7 @@ describe("conductor domain", () => {
     for (const c of ["run delegate", "run wait", "run collect", "run advance", "run workers"])
       expect(text).toContain(c);
     expect(text).toContain("never type into another pane");
+    expect(text).toContain("Never end your turn with a question or options in prose and wait");
     // The conductor moves its run itself: nothing tells it to start a background drive of it.
     expect(text).not.toContain("drive --detach");
     expect(text).toContain("never start `metator run drive`");
@@ -104,6 +105,7 @@ describe("conductor domain", () => {
     expect(text).toContain('worker mt-implementer-1 of stage "build"');
     expect(text).toContain("Implement step 1");
     expect(text).toContain("metator run result --worker mt-implementer-1 --status done");
+    expect(text).toContain("Never ask the person in prose and wait");
     expect(text).toContain("--status blocked --question");
   });
 

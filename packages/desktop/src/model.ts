@@ -1585,10 +1585,15 @@ export function needsQueue(
         key: paneAskKey(a),
         kind: "pane",
         title: a.question.prompt,
-        sub: [a.label, a.repo, duration(now - Date.parse(a.question.askedAt))]
+        sub: [
+          a.runId ? taskOf(a.runId, a.repo) : undefined,
+          a.label,
+          a.repo,
+          duration(now - Date.parse(a.question.askedAt)),
+        ]
           .filter((x) => x !== undefined && x !== "")
           .join(" · "),
-        runId: "",
+        runId: a.runId ?? "",
         repo: a.repo,
         pane: a.paneId,
         hint:

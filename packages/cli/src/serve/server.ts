@@ -146,15 +146,25 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
    * A served overview: each question's options say which ones ask for the person's own words
    * (`needsText`), so the app reads the rule as data instead of keeping its own.
    */
-  const served = async (o: Overview, c: MetatorContainer): Promise<Overview> => ({
-    ...o,
-    runs: await Promise.all(
-      o.runs.map(async (r) => ({
-        ...r,
-        questions: await Promise.all(r.questions.map((q) => approvable(withNeedsText(q), c))),
-      })),
-    ),
-  });
+  const served = async (o: Overview, c: MetatorContainer): Promise<Overview> => {
+    // A run whose agent asked the person in words (a pane question) needs them, as a card would.
+    const asking = new Set(
+      c
+        .resolve("paneQuestions")
+        .open()
+        .flatMap((q) => (q.runId ? [q.runId] : [])),
+    );
+    return {
+      ...o,
+      runs: await Promise.all(
+        o.runs.map(async (r) => ({
+          ...r,
+          ...(asking.has(r.runId) && r.status === "active" ? { attention: "you" as const } : {}),
+          questions: await Promise.all(r.questions.map((q) => approvable(withNeedsText(q), c))),
+        })),
+      ),
+    };
+  };
   /**
    * A gate question whose Approve the gate refuses now (a system plan with lint errors): its
    * Approve option says so (`disabled`, `disabledBecause`), so the card can show why.
@@ -206,6 +216,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
           kind: "pane",
           ...(folder ? { repo: r.name } : {}),
           paneId: question.paneId,
+          ...(question.runId ? { runId: question.runId } : {}),
           label: pane.isOk() ? pane.value.label : question.agent,
           ...(pane.isOk() ? { role: pane.value.role } : {}),
           host: question.host,

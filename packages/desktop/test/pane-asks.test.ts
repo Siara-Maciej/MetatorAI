@@ -59,4 +59,21 @@ describe("a pane's question on Home (ADR-0091)", () => {
     expect(paneNeedsYou({ id: "w1:p1", repo: "shop-web" }, [ask()])).toBe(false);
     expect(paneNeedsYou({ id: "w1:p2", repo: "shop-api" }, [ask()])).toBe(false);
   });
+
+  test("an agent of a run that asks in words: its row names the run's task and keeps the run", () => {
+    const runs = [
+      { runId: "20261120-web", repo: "shop-api", task: "Prices in the customer's currency" },
+    ] as never;
+    const rows = needsQueue(
+      [],
+      runs,
+      [],
+      [ask({ runId: "20261120-web", label: "mt-orchestrator" })],
+      Date.parse("2026-11-20T10:02:00.000Z"),
+    );
+    expect([rows[0]?.runId, rows[0]?.sub]).toEqual([
+      "20261120-web",
+      "Prices in the customer's currency · mt-orchestrator · shop-api · 2 min",
+    ]);
+  });
 });

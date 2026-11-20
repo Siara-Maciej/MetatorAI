@@ -697,6 +697,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       }) =>
         new HostPrompts({
           panes: paneQuestions,
+          rendered: (paneId) => ptyBroker.screen(paneId),
           sensor: paneSensor,
           journal: runJournal,
           lock: driverLock,
@@ -845,8 +846,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     // A session the daemon resumed is told, once, to go on (ADR-0092).
     resumeNotices: asFunction(
-      ({ panes, runRepository, runJournal, paneSensor, ptyBroker }) =>
+      ({ panes, runRepository, runJournal, paneSensor, ptyBroker, paneQuestions }) =>
         new ResumeNotices({
+          asksInPane: (paneId) => paneQuestions.waiting(paneId),
           panes,
           sensor: paneSensor,
           repo: runRepository,
@@ -899,9 +901,20 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     // The supervisor needs a way to start a drive again, which only the CLI process knows (its own
     // argv). Not a singleton (its drivers are not): the caller keeps the one instance it ticks.
     supervisor: asFunction(
-      ({ config, runRepository, runDrivers, runJournal, ptyBroker, workOverview, hostPrompts, panes }) =>
+      ({
+        config,
+        runRepository,
+        runDrivers,
+        runJournal,
+        ptyBroker,
+        workOverview,
+        hostPrompts,
+        panes,
+        paneQuestions,
+      }) =>
         (restart: SupervisorDependencies["restart"]) =>
           new Supervisor({
+            asksInPane: (paneId) => paneQuestions.waiting(paneId),
             policy: config.config.supervisor,
             repo: runRepository,
             drivers: runDrivers,

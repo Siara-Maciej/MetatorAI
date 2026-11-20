@@ -13,6 +13,8 @@ export interface PaneQuestion {
   /** `p001`, `p002`, …: one count for the repository's panes while the daemon runs. */
   readonly id: string;
   readonly paneId: string;
+  /** The run of the pane, when it has one (an agent of a run asked in words). */
+  readonly runId?: string;
   /** permission: the host's own prompt; agent: the agent in the pane asks in words. */
   readonly source: "agent" | "permission";
   /** Who asks: the pane's label (`chat`), else its host. */
@@ -21,6 +23,8 @@ export interface PaneQuestion {
   readonly prompt: string;
   /** A host's permission prompt: the whole command it asks to run (`prompt` starts with it). */
   readonly command?: string;
+  /** An agent's question in words: its whole message, as the card shows it expanded. */
+  readonly text?: string;
   readonly options: readonly { readonly label: string; readonly description?: string }[];
   readonly multiSelect: false;
   readonly askedAt: string;
@@ -51,6 +55,16 @@ export class PaneQuestions {
 
   get(paneId: string, id: string): PaneQuestion | undefined {
     return this.asked.get(key(paneId, id));
+  }
+
+  /** The pane's last question, answered or not: the same message is not asked twice. */
+  latest(paneId: string): PaneQuestion | undefined {
+    return [...this.asked.values()].filter((q) => q.paneId === paneId).at(-1);
+  }
+
+  /** A question of this pane waits for the person. */
+  waiting(paneId: string): boolean {
+    return this.open().some((q) => q.paneId === paneId);
   }
 
   /** The questions no one answered yet, oldest first. */

@@ -20,7 +20,10 @@ import {
   CLAUDE_APPROVAL_OPTIONS,
   CLAUDE_APPROVAL_RAW,
   CLAUDE_APPROVAL_TEXT,
+  CLAUDE_BULLETED_REPLY_SCREEN,
   CLAUDE_MULTILINE_COMMAND,
+  CLAUDE_NOT_A_QUESTION_SCREENS,
+  CLAUDE_TEXT_QUESTION_SCREEN,
   FakePty,
   FakeScreenRenderer,
   FixedClock,
@@ -61,14 +64,15 @@ function world() {
       return ok(undefined);
     },
     screen: (paneId) => broker.backlog(paneId),
+    rendered: (paneId) => broker.screen(paneId),
   });
-  const start = (paneId: string, host: string, runId?: string) => {
+  const start = (paneId: string, host: string, runId?: string, role?: string) => {
     const pty = new FakePty(1001);
     broker
       .start({
         paneId,
         ...(runId ? { runId } : {}),
-        role: runId ? "conductor" : "apps",
+        role: (role ?? (runId ? "conductor" : "apps")) as never,
         host,
         sessionId: `${host}-1`,
         pty,
@@ -81,6 +85,112 @@ function world() {
     new InitRun(new WorkflowCatalog(fs, DEFAULT_PATHS), repo, clock).execute({ workflow: "demo", task });
   return { journal, questions, prompts, typed, start, init, clock, broker };
 }
+
+describe("an agent that asks the person in words at the end of its turn", () => {
+  const typeScreen = (screen: string) => `${screen.split("\n").join("\r\n")}\r\n`;
+
+  test("a run's conductor that asks with numbered options: a pane question with its run, the whole message, its choices; 1 is typed for the first", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const pty = w.start("w2:p1", "claude", run.runId);
+    pty.print(typeScreen(CLAUDE_TEXT_QUESTION_SCREEN));
+    // Still at work (output just now): not a question yet.
+    expect((await w.prompts.tick())._unsafeUnwrap().asked).toEqual([]);
+    w.clock.advance(20_000);
+    const asked = (await w.prompts.tick())._unsafeUnwrap().asked;
+    const q = w.questions.open()[0];
+    expect(asked).toEqual([{ paneId: "w2:p1", runId: run.runId, questionId: q?.id as string }]);
+    expect([q?.runId, q?.source, q?.prompt.endsWith("Which option?"), q?.text?.split("\n")[3]]).toEqual([
+      run.runId,
+      "agent",
+      true,
+      "Options:",
+    ]);
+    expect(q?.options.map((o) => o.label)).toEqual([
+      "1. Start the gatekeeper again and have it run",
+      "2. You add steps to gates.quick in the config",
+      "3. Stop the run.",
+      "4. Something else you'd like.",
+      "Other",
+      LEAVE_PANE,
+    ]);
+    // Never in the run's journal: it is the pane's question.
+    expect((await w.journal.questions(run.runId))._unsafeUnwrap()).toEqual([]);
+    expect(w.prompts.asksInPane("w2:p1")).toBe(true);
+    (
+      await w.prompts.answerPane({
+        paneId: "w2:p1",
+        question: q?.id as string,
+        choices: ["1. Start the gatekeeper again and have it run"],
+        by: "ana",
+      })
+    )._unsafeUnwrap();
+    expect(w.typed).toEqual(["w2:p1 1"]);
+    expect(w.prompts.asksInPane("w2:p1")).toBe(false);
+    // The agent works again: the item is gone, and the same message is not asked twice.
+    pty.print("● Starting mt-gatekeeper-2 with only the full gate.\r\n");
+    expect((await w.prompts.tick())._unsafeUnwrap().resolved).toEqual(["w2:p1"]);
+    w.clock.advance(20_000);
+    expect((await w.prompts.tick())._unsafeUnwrap().asked).toEqual([]);
+  });
+
+  test("a chat's reply words: the word is typed; Other types the person's words; Leave it types nothing", async () => {
+    const w = world();
+    const pty = w.start("w1:p1", "claude");
+    pty.print(typeScreen(CLAUDE_BULLETED_REPLY_SCREEN));
+    w.clock.advance(20_000);
+    await w.prompts.tick();
+    const q = w.questions.open()[0];
+    (
+      await w.prompts.answerPane({
+        paneId: "w1:p1",
+        question: q?.id as string,
+        choices: ['"stop": I close the run as aborted.'],
+        by: "ana",
+      })
+    )._unsafeUnwrap();
+    expect(w.typed).toEqual(["w1:p1 stop"]);
+    const other = world();
+    const chat = other.start("w1:p1", "claude");
+    chat.print(typeScreen(CLAUDE_BULLETED_REPLY_SCREEN));
+    other.clock.advance(20_000);
+    await other.prompts.tick();
+    const id = other.questions.open()[0]?.id as string;
+    (
+      await other.prompts.answerPane({
+        paneId: "w1:p1",
+        question: id,
+        choices: [],
+        text: "run only the full gate",
+        by: "ana",
+      })
+    )._unsafeUnwrap();
+    expect(other.typed).toEqual(["w1:p1 run only the full gate"]);
+    const leave = world();
+    leave.start("w1:p1", "claude").print(typeScreen(CLAUDE_BULLETED_REPLY_SCREEN));
+    leave.clock.advance(20_000);
+    await leave.prompts.tick();
+    (
+      await leave.prompts.answerPane({
+        paneId: "w1:p1",
+        question: leave.questions.open()[0]?.id as string,
+        choices: [LEAVE_PANE],
+        by: "ana",
+      })
+    )._unsafeUnwrap();
+    expect(leave.typed).toEqual([]);
+  });
+
+  test("a report, a wait for a worker, a shell: no question", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    w.start("w2:p1", "claude", run.runId).print(typeScreen(CLAUDE_NOT_A_QUESTION_SCREENS[1] as string));
+    w.start("w2:p2", "claude", run.runId, "shell").print(typeScreen(CLAUDE_TEXT_QUESTION_SCREEN));
+    w.clock.advance(20_000);
+    expect((await w.prompts.tick())._unsafeUnwrap().asked).toEqual([]);
+    expect(w.questions.open()).toEqual([]);
+  });
+});
 
 describe("host prompts in a pane without a run (the intake chat)", () => {
   test("Claude Code's approval becomes a pane's question: its readable prompt and its choices; answered in the app, its number is typed", async () => {

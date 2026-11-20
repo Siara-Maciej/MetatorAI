@@ -178,6 +178,8 @@ export interface PaneAsk {
   /** The repository, when the daemon serves a folder. */
   readonly repo?: string;
   readonly paneId: string;
+  /** The run of the pane, when the agent that asks works for one (an agent's question in words). */
+  readonly runId?: string;
   /** The pane's label (`chat`). */
   readonly label: string;
   readonly role?: string;
@@ -188,6 +190,10 @@ export interface PaneAsk {
     readonly source: "agent" | "permission";
     readonly agent: string;
     readonly prompt: string;
+    /** An agent's question in words: its whole message (the card shows it expanded on a click). */
+    readonly text?: string;
+    /** A host's permission prompt: the whole command. */
+    readonly command?: string;
     readonly options: readonly { readonly label: string; readonly description?: string }[];
     readonly askedAt: string;
   };

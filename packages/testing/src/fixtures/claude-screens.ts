@@ -130,3 +130,77 @@ export const CLAUDE_APPROVAL_WRAPPED_SCREEN = [
   "   2. Yes, and don’t ask again for: cat *",
   "   3. No",
 ].join("\n");
+
+/** The input box under Claude Code's last message: its rule, its prompt, its footer. */
+const INPUT_BOX = [
+  "──────────────────────────────── mt-orchestrator ─",
+  "❯",
+  "──────────────────────────────────────────────────",
+  "  ⏸ manual mode on · ? for shortcuts",
+];
+
+/**
+ * A real conductor (Claude Code, shop-web) that ended its turn with a question in words and
+ * numbered options, and waited: the rendered screen, verbatim.
+ */
+export const CLAUDE_TEXT_QUESTION_SCREEN = [
+  " ● The gatekeeper (mt-gatekeeper-1) stopped: gates.quick has no steps in",
+  "   metator.config.yml (only gates.full exists: typecheck, test).",
+  "",
+  "   Options:",
+  "   1. Start the gatekeeper again and have it run",
+  "      only metator gate full, skipping the empty",
+  "      quick gate. This is what I'd recommend.",
+  "   2. You add steps to gates.quick in the config",
+  "      first, then I run the gatekeeper again.",
+  "   3. Stop the run.",
+  "   4. Something else you'd like.",
+  "",
+  " ✻ Crunched for 5s · done 6:48 PM",
+  "",
+  ...INPUT_BOX,
+].join("\n");
+
+/** The same conductor's later turns, after a nudge: it says it still waits. */
+export const CLAUDE_STILL_WAITING_SCREEN = [
+  " ● Still waiting for your reply: 1, 2 or 3.",
+  "",
+  " ● Still waiting for your reply: 1, 2 or 3 (or 4).",
+  "",
+  ...INPUT_BOX,
+].join("\n");
+
+/** A real conductor (billing) that offered words to reply with, as bullets. */
+export const CLAUDE_BULLETED_REPLY_SCREEN = [
+  " ● mt-gatekeeper-2 stopped as well: the gates did not run in its worktree.",
+  "",
+  "   What I can do next, reply with one of:",
+  '   - "start a gatekeeper": I start a third one.',
+  '   - "gates pass" or "gates fail": you ran them yourself and tell me the result.',
+  '   - "stop": I close the run as aborted.',
+  "",
+  "   Reply in your own words if none fits, or just tell me here.",
+  "",
+  ...INPUT_BOX,
+].join("\n");
+
+/** Turns that ask nobody anything: a progress report, a wait for a worker, a finished summary. */
+export const CLAUDE_NOT_A_QUESTION_SCREENS = [
+  [
+    " ● Delegated build to mt-implementer-1 and mt-implementer-2. They work in parallel;",
+    "   I collect both when they report.",
+    "",
+    ...INPUT_BOX,
+  ].join("\n"),
+  [" ● Waiting for mt-gatekeeper-1…", "", ...INPUT_BOX].join("\n"),
+  [
+    " ● Done: all 3 steps are merged and the gates pass.",
+    "   - billing: the new currency field and its migration",
+    "   - shop-api: prices converted at the daily rate",
+    "   - shop-web: the price tag shows the currency",
+    "",
+    " ✻ Worked for 2m 10s",
+    "",
+    ...INPUT_BOX,
+  ].join("\n"),
+];
