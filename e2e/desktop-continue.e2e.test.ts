@@ -24,20 +24,23 @@ const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
 // The conductor says what it does and waits for a word on its own terminal: no question mark,
 // so the screen is no prompt a person must answer.
-// Each agent's second entry is what its session says when it is resumed.
+// Each agent's second entry is what its session says when it is resumed; it reads the line the
+// daemon types into a resumed session (it is idle: no question mark) and stays, as a host does.
 const SCENARIO = `kind: AgentScenario
-schemaVersion: 1
+schemaVersion: 2
 agents:
   mt-orchestrator:
     - - say: "I am the conductor of this run. I delegate the build to a worker and collect its result."
       - ask: { question: "Type here to talk to the conductor.", options: [go on] }
     - - say: "The conductor goes on where it stopped."
       - ask: { question: "Type here to talk to the conductor again.", options: [go on] }
+      - run: "sleep 300"
   mt-implementer:
     - - say: "Building the step."
       - ask: { question: "Type here to talk to the worker.", options: [go on] }
     - - say: "The worker goes on where it stopped."
       - ask: { question: "Type here to talk to the worker again.", options: [go on] }
+      - run: "sleep 300"
 `;
 // A task's title is the person's whole sentence at times: the view must not grow wider than the window.
 const TITLE =
