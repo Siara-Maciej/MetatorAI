@@ -270,4 +270,30 @@ describe("sessions survive the daemon (real daemon, scenario host)", () => {
     expect(told).toHaveLength(1);
     expect((await text(chatId)).split(`[metator] The task ${started}`).length - 1).toBe(1);
   }, 120_000);
+
+  test("two runs' conductors in one daemon each begin at their first entry, and each resumes once", async () => {
+    const created = async (task: string) =>
+      ((await mt("run", "init", "--workflow", "demo", "--task", task)).json.data as Data).runId as string;
+    const [a, b] = [await created("Run A"), await created("Run B")];
+    const opened: string[] = [];
+    for (const id of [a, b]) {
+      const r = await call("POST", `/runs/${id}/pty-open`, {});
+      opened.push((r.data as { paneId: string }).paneId);
+    }
+    for (const id of opened)
+      await until(`conductor ${id} to begin`, async () =>
+        (await text(id)).includes("conducting the first time") ? true : undefined,
+      );
+    for (const id of opened) expect(await text(id)).not.toContain("conductor resumed");
+    await Bun.sleep(800);
+    (daemon as Bun.Subprocess).kill("SIGTERM");
+    await daemon?.exited;
+    stopProcessesUnder(repo.root);
+    await startDaemon();
+    for (const id of opened)
+      await until(`conductor ${id} to resume`, async () =>
+        (await text(id)).includes("conductor resumed") ? true : undefined,
+      );
+    for (const id of opened) expect((await text(id)).split("conductor resumed").length - 1).toBe(1);
+  }, 120_000);
 });

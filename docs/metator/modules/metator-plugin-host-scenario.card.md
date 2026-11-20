@@ -25,7 +25,7 @@ dir: packages/plugin-host-scenario
 
 ## Invariants
 
-- The n-th start of an agent plays its n-th entry and the last entry repeats [[cite: packages/plugin-host-scenario/src/scenario-player.ts:54 | "steps: entries[Math.min(n, entries.length - 1)] ?? [],"]].
+- The n-th start of an agent in a run plays its n-th entry and the last entry repeats; runs count apart, so the conductors of two runs in one daemon both begin at the first entry [[cite: packages/plugin-host-scenario/src/scenario-player.ts:58 | "steps: entries[Math.min(n, entries.length - 1)] ?? [],"]].
 - A missing or invalid scenario is a failed result, never a throw.
 
 ## Allowed dependencies

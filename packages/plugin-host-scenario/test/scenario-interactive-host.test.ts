@@ -100,6 +100,26 @@ describe("ScenarioInteractiveHost", () => {
     await rm(cwd, { recursive: true, force: true });
   }, 30_000);
 
+  test("the conductors of two runs each start at their agent's first entry; a resumed one plays its next", async () => {
+    const terminal = new FakeTerminal();
+    const host = new ScenarioInteractiveHost(terminal, {
+      agents: { "mt-orchestrator": [[{ say: "first conducting" }], [{ say: "conductor resumed" }]] },
+    });
+    const size = { cols: 80, rows: 24 };
+    const conductor = (runDir: string) => ({ ...task(tmpdir()), agent: "mt-orchestrator", runDir });
+    const task1 = (await host.start(conductor("/repo/.metator/runs/r1"), size))._unsafeUnwrap();
+    // Another run's conductor in the same daemon is a new session of its own run, not a second start.
+    const child = (await host.start(conductor("/repo/.metator/runs/r2"), size))._unsafeUnwrap();
+    expect(terminal.spawned.map((s) => s.argv[2]?.includes("first conducting"))).toEqual([true, true]);
+    // Resumed (the daemon stopped and came back): the entry after the one it played.
+    await host.resume(child.sessionId, conductor("/repo/.metator/runs/r2"), size);
+    expect(terminal.spawned[2]?.argv[2]).toContain("conductor resumed");
+    expect([task1.sessionId, child.sessionId]).toEqual([
+      "scenario-mt-orchestrator-1",
+      "scenario-mt-orchestrator-1",
+    ]);
+  });
+
   test("a scenario without a session entry cannot start", async () => {
     const host = new ScenarioInteractiveHost(new NodePtyTerminal(), { agents: {} });
     const r = await host.start(task(tmpdir()), { cols: 80, rows: 24 });

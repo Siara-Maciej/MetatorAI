@@ -30,6 +30,15 @@ describe("ScenarioPlayer", () => {
     expect(turn).toEqual({ steps: [{ say: "two" }], sessionId: "scenario-mt-planner-2" });
   });
 
+  test("runs count their agents' starts apart", async () => {
+    const player = new ScenarioPlayer(scenario);
+    await player.next("mt-planner", 0, undefined, "/repo/.metator/runs/r1");
+    const other = (await player.next("mt-planner", 0, undefined, "/repo/.metator/runs/r2"))._unsafeUnwrap();
+    expect(other).toEqual({ steps: [{ say: "one" }], sessionId: "scenario-mt-planner-1" });
+    const again = (await player.next("mt-planner", 0, undefined, "/repo/.metator/runs/r1"))._unsafeUnwrap();
+    expect(again?.steps).toEqual([{ say: "two" }]);
+  });
+
   test("agents count their starts separately", async () => {
     const player = new ScenarioPlayer(scenario);
     await player.next("mt-planner", 0);

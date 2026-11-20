@@ -47,7 +47,7 @@ async function launch(
   const atLeast = resume === undefined ? 0 : Number(/-(\d+)$/.exec(resume)?.[1] ?? 0);
   // The agent's own entry plays when the scenario has one (a conductor or a worker pane); the
   // `session` entry stands in for any interactive session otherwise.
-  const turn = await player.next(task.agent, atLeast, SESSION_AGENT);
+  const turn = await player.next(task.agent, atLeast, SESSION_AGENT, task.runDir);
   if (turn.isErr()) return err(turn.error);
   if (!turn.value)
     return err(

@@ -9,8 +9,9 @@ export interface ScenarioTurn {
 
 /**
  * The scenario both scenario hosts play (ADR-0051): read once, at the first start. Each start of
- * an agent takes the agent's next entry and the last entry repeats; a resumed session (a new
- * process) plays the entry after the one its id names.
+ * an agent in a run takes the agent's next entry for that run and the last entry repeats; a
+ * resumed session (a new process) plays the entry after the one its id names. Runs count apart:
+ * the conductors of two runs in one daemon each begin at the agent's first entry.
  */
 export class ScenarioPlayer {
   private readonly starts = new Map<string, number>();
@@ -35,12 +36,14 @@ export class ScenarioPlayer {
   /**
    * The agent's next turn; `standIn` names the entry that plays for an agent the scenario does
    * not list. Undefined when the scenario has neither. `atLeast` is the number of turns the
-   * session being continued has already played (0 for a new one).
+   * session being continued has already played (0 for a new one). `scope` is the run the session
+   * works for (its run directory): each run counts its agents' starts on its own.
    */
   async next(
     agent: string,
     atLeast: number,
     standIn?: string,
+    scope = "",
   ): Promise<Result<ScenarioTurn | undefined, MetatorError>> {
     this.loaded ??=
       typeof this.source === "string" ? ScenarioPlayer.load(this.source) : Promise.resolve(ok(this.source));
@@ -48,8 +51,9 @@ export class ScenarioPlayer {
     if (scenario.isErr()) return err(scenario.error);
     const entries = scenario.value.agents[agent] ?? (standIn ? scenario.value.agents[standIn] : undefined);
     if (!entries) return ok(undefined);
-    const n = Math.max(this.starts.get(agent) ?? 0, atLeast);
-    this.starts.set(agent, n + 1);
+    const key = `${scope}\u0000${agent}`;
+    const n = Math.max(this.starts.get(key) ?? 0, atLeast);
+    this.starts.set(key, n + 1);
     return ok({
       steps: entries[Math.min(n, entries.length - 1)] ?? [],
       sessionId: `scenario-${agent}-${n + 1}`,

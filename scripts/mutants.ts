@@ -2542,8 +2542,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-scenario/src/scenario-agent-host.ts",
-    from: "this.player.next(task.agent, resumed ? Number(resumed) : 0)",
-    to: "this.player.next(task.agent, 0)",
+    from: "resumed ? Number(resumed) : 0,",
+    to: "0,",
     why: "a resumed scenario session plays the next entry",
   },
   {
@@ -5016,8 +5016,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-scenario/src/scenario-interactive-host.ts",
-    from: "player.next(task.agent, atLeast, SESSION_AGENT)",
-    to: "player.next(SESSION_AGENT, atLeast)",
+    from: "player.next(task.agent, atLeast, SESSION_AGENT, task.runDir)",
+    to: "player.next(SESSION_AGENT, atLeast, SESSION_AGENT, task.runDir)",
     why: "an agent's own scenario entry plays in its pane",
   },
   {
@@ -6278,8 +6278,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-scenario/src/scenario-player.ts",
-    from: "const n = Math.max(this.starts.get(agent) ?? 0, atLeast);",
-    to: "const n = this.starts.get(agent) ?? 0;",
+    from: "const n = Math.max(this.starts.get(key) ?? 0, atLeast);",
+    to: "const n = this.starts.get(key) ?? 0;",
     why: "a continued session plays the entry after the turns it already played",
   },
   {
@@ -7103,5 +7103,17 @@ export const MUTANTS: readonly Mutant[] = [
     from: "          exit = signal ? 128 + signal : code;",
     to: "          exit = code;",
     why: "a process a signal ended exits with 128 + the signal",
+  },
+  {
+    file: "packages/plugin-host-scenario/src/scenario-player.ts",
+    from: "    const n = Math.max(this.starts.get(key) ?? 0, atLeast);",
+    to: "    const n = Math.max(0, ...this.starts.values(), atLeast);",
+    why: "each run counts its agents' scenario starts apart",
+  },
+  {
+    file: "packages/plugin-host-scenario/src/scenario-interactive-host.ts",
+    from: "SESSION_AGENT, task.runDir);",
+    to: "SESSION_AGENT);",
+    why: "a run's conductor session begins at its agent's first entry, whatever other runs did",
   },
 ];

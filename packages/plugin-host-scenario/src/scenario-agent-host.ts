@@ -27,7 +27,7 @@ export class ScenarioAgentHost implements AgentHost {
   async *run(task: AgentTask, ask: (q: AgentQuestion) => Promise<AgentAnswer>): AsyncIterable<AgentEvent> {
     // Continuing a session of this agent (a new process, e.g. `ask --continue`) plays the entry after it.
     const resumed = task.resume?.match(new RegExp(`^scenario-${task.agent}-(\\d+)$`))?.[1];
-    const turn = await this.player.next(task.agent, resumed ? Number(resumed) : 0);
+    const turn = await this.player.next(task.agent, resumed ? Number(resumed) : 0, undefined, task.runDir);
     if (turn.isErr()) {
       yield { type: "result", ok: false, text: turn.error.message };
       return;
