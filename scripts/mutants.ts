@@ -7116,4 +7116,46 @@ export const MUTANTS: readonly Mutant[] = [
     to: "SESSION_AGENT);",
     why: "a run's conductor session begins at its agent's first entry, whatever other runs did",
   },
+  {
+    file: "packages/core/src/application/panes.ts",
+    from: 'if (started.isOk() && pane.process.kind === "host" && pane.process.sessionId) this.noteResumed(pane);',
+    to: "if (false) this.noteResumed(pane);",
+    why: "a session restored with the daemon is told to go on",
+  },
+  {
+    file: "packages/core/src/application/panes.ts",
+    from: '    if (!pane.runId || (pane.role !== "conductor" && pane.role !== "worker")) return;',
+    to: "    if (!pane.runId) return;",
+    why: "only a run's conductor and workers are told to go on, never a chat",
+  },
+  {
+    file: "packages/core/src/application/resume-notices.ts",
+    from: '      if (record.isOk() && record.value.driver?.by === "human") continue;',
+    to: "",
+    why: "a resume line is never typed over a person at the keyboard",
+  },
+  {
+    file: "packages/core/src/application/resume-notices.ts",
+    from: '      if (state.isErr() || state.value.state !== "idle") continue;',
+    to: "      if (state.isErr()) continue;",
+    why: "a resume line waits until the agent is idle at its prompt",
+  },
+  {
+    file: "packages/core/src/application/resume-notices.ts",
+    from: "      this.d.panes.resumeNoticeTold(n.paneId);\n",
+    to: "",
+    why: "a resumed session is told once",
+  },
+  {
+    file: "packages/core/src/application/supervisor.ts",
+    from: "      if (this.d.panes?.resumeNoticePending?.(session.paneId)) continue;\n",
+    to: "",
+    why: "a resumed session gets its resume line, not a nudge as well",
+  },
+  {
+    file: "packages/core/src/application/continue-task.ts",
+    from: '        run.repo.panes.noteResumed({ id: opened.value.id, runId: run.runId, role: "conductor" });\n',
+    to: "",
+    why: "a conductor Continue brings back is told to go on",
+  },
 ];

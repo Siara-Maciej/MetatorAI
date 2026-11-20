@@ -22,7 +22,7 @@ export interface SupervisorDependencies {
   /** Host prompts on pane screens into the inbox (R3); without it, nothing is sensed. */
   readonly prompts?: Pick<HostPrompts, "tick">;
   /** The layout's panes (R5): a dead conductor pane of an active run is resumed, up to the policy's attempts. */
-  readonly panes?: Pick<Panes, "view" | "openRun">;
+  readonly panes?: Pick<Panes, "view" | "openRun"> & Partial<Pick<Panes, "resumeNoticePending">>;
 }
 
 export interface SupervisorReport {
@@ -157,6 +157,8 @@ export class Supervisor {
       // Only a run's conductor is nudged; workers answer to it, shells to nobody.
       const runId = session.runId;
       if (!runId || session.role !== "conductor") continue;
+      // A session the daemon just resumed is told to go on by its own line (ResumeNotices): one line, not two.
+      if (this.d.panes?.resumeNoticePending?.(session.paneId)) continue;
       const episode = this.episodes.get(runId);
       if (!session.alive) {
         this.episodes.delete(runId);

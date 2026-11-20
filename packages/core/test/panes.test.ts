@@ -485,6 +485,53 @@ describe("Panes", () => {
     );
   });
 
+  test("a session resumed by the daemon is noted, once, for the line that tells it to go on: conductors and workers, not a chat", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const conductor = (await w.panes.openRun({ runId: run.runId }))._unsafeUnwrap();
+    const ws = (await w.panes.openWorkspace({ label: "chat" }))._unsafeUnwrap();
+    await w.panes.openPane({
+      workspace: ws.id,
+      role: "apps",
+      process: { kind: "host", agent: "mt-guide", prompt: "" },
+    });
+    // An agent of the run that is neither its conductor nor a worker (a session a person opened in it).
+    const own = (await w.panes.openWorkspace({ runId: run.runId }))._unsafeUnwrap();
+    await w.panes.openPane({
+      workspace: own.id,
+      runId: run.runId,
+      role: "apps",
+      process: { kind: "host", agent: "mt-guide", prompt: "" },
+    });
+    (await w.panes.pauseAll())._unsafeUnwrap();
+    // Their processes go with the daemon.
+    for (const s of w.copilot.started) s.pty.exit(129);
+    await Bun.sleep(5);
+    expect(w.panes.resumeNotices()).toEqual([]);
+    const next = w.make();
+    (await next.restore())._unsafeUnwrap();
+    expect(next.resumeNotices()).toEqual([
+      {
+        paneId: conductor.id,
+        runId: run.runId,
+        role: "conductor",
+        why: "daemon-stopped",
+        at: "2026-11-09T10:00:00.000Z",
+      },
+    ]);
+    expect(next.resumeNoticePending(conductor.id)).toBe(true);
+    next.resumeNoticeTold(conductor.id);
+    expect([next.resumeNotices(), next.resumeNoticePending(conductor.id)]).toEqual([[], false]);
+    // A pane's own Continue notes it too.
+    w.copilot.started
+      .filter((x) => x.resumed === "copilot-1")
+      .at(-1)
+      ?.pty.exit(129);
+    await Bun.sleep(5);
+    (await next.continuePane(conductor.id, "ana"))._unsafeUnwrap();
+    expect(next.resumeNotices().map((n) => [n.paneId, n.why])).toEqual([[conductor.id, "process-lost"]]);
+  });
+
   test("--no-restore: a session that went with the daemon stays paused until it is continued", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();

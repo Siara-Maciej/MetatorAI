@@ -133,6 +133,10 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
               const told = await c.resolve("chatNotices").tick();
               if (told.isErr()) return say("chat", key)({ error: told.error.message });
               for (const t of told.value) say("chat", key)({ told: t.paneId, run: t.runId, event: t.event });
+              // A session the daemon resumed is told to go on, once it is idle at its prompt.
+              const resumed = await c.resolve("resumeNotices").tick();
+              if (resumed.isErr()) return say("resumed", key)({ error: resumed.error.message });
+              for (const t of resumed.value) say("resumed", key)({ told: t.paneId, run: t.runId });
             }),
           ),
         deps.sweepMs,

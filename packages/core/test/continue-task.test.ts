@@ -32,6 +32,9 @@ function repo(
     },
     panes: {
       view: async () => ok({ workspaces: [], panes } as never),
+      noteResumed: (pane) => {
+        done.push(`noted ${pane.id}`);
+      },
       resumePane: async (paneId) => {
         const p = panes.find((x) => x.id === paneId) as FakePane;
         done.push(`resume ${paneId}`);
@@ -158,7 +161,8 @@ describe("ContinueTask", () => {
       drives: [],
       skipped: [],
     });
-    expect(one.done).toEqual(["conductor 20261120-b"]);
+    // The conductor brought back is told to go on, as a resumed one is.
+    expect(one.done).toEqual(["conductor 20261120-b", "noted w1:p1"]);
   });
 
   test("an unknown run, and nobody named, are refused", async () => {

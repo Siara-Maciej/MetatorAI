@@ -12,7 +12,7 @@ export interface TaskRepository {
   /** Its name in a folder; none when the daemon serves one repository. */
   readonly name?: string;
   readonly runs: Pick<RunRepository, "loadAll" | "load">;
-  readonly panes: Pick<Panes, "view" | "resumePane">;
+  readonly panes: Pick<Panes, "view" | "resumePane" | "noteResumed">;
   readonly drivers: Pick<RunDrivers, "status">;
   readonly ensureDriven: Pick<EnsureDriven, "execute">;
   readonly conductor: Pick<Conductor, "start">;
@@ -140,6 +140,8 @@ export class ContinueTask {
           continue;
         }
         const sessionId = opened.value.live?.sessionId ?? "";
+        // Its session is back with its conversation, not its turn: it is told to go on.
+        run.repo.panes.noteResumed({ id: opened.value.id, runId: run.runId, role: "conductor" });
         resumed.push({ ...of(run.repo), paneId: opened.value.id, role: "conductor", sessionId });
         const noted = await say(
           run.repo,

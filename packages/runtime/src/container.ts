@@ -168,6 +168,7 @@ import type {
   RepositoryCloner,
   RepositoryDiscoverySource,
   RepositoryRuns,
+  ResumeNotices,
   ResumeRun,
   RetrySystemStep,
   ReviewFeedback,
@@ -361,6 +362,7 @@ export interface Cradle {
   panes: Panes;
   conductor: Conductor;
   chatNotices: ChatNotices;
+  resumeNotices: ResumeNotices;
   taskRepository: TaskRepository;
   continueTask: (repos: () => readonly TaskRepository[]) => ContinueTask;
   supervisor: (restart: SupervisorDependencies["restart"]) => Supervisor;

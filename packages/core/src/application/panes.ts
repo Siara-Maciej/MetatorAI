@@ -124,6 +124,8 @@ export class Panes {
   private readonly tokens = new Map<string, string>();
   /** Ended panes' last screens read back from disk. */
   private readonly kept = new Map<string, string>();
+  /** Sessions the daemon resumed that are still to be told to go on (`ResumeNotices`). */
+  private readonly resumed = new Map<string, ResumeNotice>();
 
   constructor(private readonly d: PanesDependencies) {}
 
@@ -183,6 +185,36 @@ export class Panes {
       if (noted.isErr()) return err(noted.error);
     }
     return ok({ paused: true });
+  }
+
+  /**
+   * The conductors and workers the daemon resumed (restore, Continue) whose agents are still to
+   * be told to go on: a host's own resume brings back the conversation, not the turn it was in.
+   */
+  resumeNotices(): readonly ResumeNotice[] {
+    return [...this.resumed.values()];
+  }
+
+  /** A resumed session's line was typed: it is not told again. */
+  resumeNoticeTold(paneId: string): void {
+    this.resumed.delete(paneId);
+  }
+
+  /** The supervisor leaves a session to its resume notice rather than nudging it as well. */
+  resumeNoticePending(paneId: string): boolean {
+    return this.resumed.has(paneId);
+  }
+
+  /** A run's conductor or worker was resumed in its pane: its agent is to be told to go on. */
+  noteResumed(pane: Pick<Pane, "id" | "runId" | "role" | "paused">): void {
+    if (!pane.runId || (pane.role !== "conductor" && pane.role !== "worker")) return;
+    this.resumed.set(pane.id, {
+      paneId: pane.id,
+      runId: pane.runId,
+      role: pane.role,
+      why: pane.paused?.why ?? "daemon-stopped",
+      at: pane.paused?.at ?? this.d.clock.now().toISOString(),
+    });
   }
 
   /** Every live pane's screen kept on disk (the daemon does it every few seconds): a SIGKILL loses little. */
@@ -258,7 +290,13 @@ export class Panes {
       );
     if (pane.process.kind !== "host")
       return err(MetatorError.usage(`pane ${paneId} runs a command: it is not continued`));
-    return this.spawn(pane, size, await this.keptScreen(paneId));
+    const back = await this.spawn(pane, size, await this.keptScreen(paneId));
+    if (back.isOk())
+      this.noteResumed({
+        ...pane,
+        paused: pane.paused ?? { at: this.d.clock.now().toISOString(), why: "process-lost" },
+      });
+    return back;
   }
 
   /** The run's workspace, made in its worktree (or the repository) when it has none. */
@@ -655,6 +693,7 @@ export class Panes {
       // A host session resumed in its pane, with the screen it left; a shell starts afresh.
       const previous = pane.process.kind === "host" ? await this.keptScreen(pane.id) : undefined;
       const started = await this.spawn(pane, size, previous);
+      if (started.isOk() && pane.process.kind === "host" && pane.process.sessionId) this.noteResumed(pane);
       out.push(
         started.isOk()
           ? { paneId: pane.id, ok: true }
@@ -896,6 +935,15 @@ export class Panes {
     const current = saved.value ?? pane;
     return ok({ ...current, live: adopted.value });
   }
+}
+
+/** A resumed session still to be told to go on: which pane, whose, and why it had stopped. */
+export interface ResumeNotice {
+  readonly paneId: string;
+  readonly runId: string;
+  readonly role: "conductor" | "worker";
+  readonly why: PanePauseReason;
+  readonly at: string;
 }
 
 /** An exit code at or above this is a process a signal ended (128 + the signal). */

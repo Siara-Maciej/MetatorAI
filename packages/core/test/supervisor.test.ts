@@ -185,6 +185,25 @@ describe("Supervisor", () => {
     expect(idle.map((a) => a.origin)).toEqual(["pty", "run", "pty", "pty"]);
   });
 
+  test("a session the daemon just resumed is left to its own line: the supervisor does not nudge it as well", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    w.open(run.runId);
+    let pending = true;
+    const supervisor = new Supervisor({
+      ...(w.supervisor as unknown as { d: ConstructorParameters<typeof Supervisor>[0] }).d,
+      panes: {
+        view: async () => ok({ workspaces: [], panes: [] }),
+        openRun: async () => ok({} as never),
+        resumeNoticePending: () => pending,
+      },
+    });
+    await w.idle();
+    expect((await supervisor.tick())._unsafeUnwrap().nudged).toEqual([]);
+    pending = false;
+    expect((await supervisor.tick())._unsafeUnwrap().nudged).toEqual([run.runId]);
+  });
+
   test("a person at the keyboard is never nudged over; output ends the episode", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();

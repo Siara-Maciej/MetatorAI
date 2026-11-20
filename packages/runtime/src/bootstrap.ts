@@ -158,6 +158,7 @@ import {
   RenderReport,
   RepositoryDiscoverySource,
   type RepositoryRuns,
+  ResumeNotices,
   ResumeRun,
   RetrySystemStep,
   ReviewFeedback,
@@ -839,6 +840,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           journal: runJournal,
           sensor: paneSensor,
           // The supervisor's nudge: the words, then Enter as its own write.
+          nudge: (paneId, text) => ptyBroker.nudge(paneId, text),
+        }),
+    ),
+    // A session the daemon resumed is told, once, to go on (ADR-0092).
+    resumeNotices: asFunction(
+      ({ panes, runRepository, runJournal, paneSensor, ptyBroker }) =>
+        new ResumeNotices({
+          panes,
+          sensor: paneSensor,
+          repo: runRepository,
+          journal: runJournal,
           nudge: (paneId, text) => ptyBroker.nudge(paneId, text),
         }),
     ),

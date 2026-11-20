@@ -122,6 +122,13 @@ metator run continue --run <id>   # continue the task: every paused pane, and wh
 
 A paused pane's terminal shows its last screen, read-only, until it is continued.
 
+A host's own resume brings the conversation back, not the turn it was in: Claude Code shows "Interrupted · What should Claude do instead?" and waits. So once a resumed conductor or worker is idle at its prompt, and nobody holds the run's keyboard, the daemon types one line into it, once per resume:
+
+- a conductor: ``[metator] Your session was resumed after the daemon stopped (daemon-stopped, at <time>). Continue where you stopped: check `metator run status` and your workers (`metator run workers`).``
+- a worker: ``[metator] Your session was resumed after the daemon stopped. Continue your card where you stopped and report with `metator run result`.``
+
+While you hold the keyboard the line waits until you release it. The run's activity records it (`told the resumed session in pane …`), and the supervisor does not also nudge that session. The chat where you gave the task gets no such line; it is told when its task is done or waits for you.
+
 ### The chat learns about its task
 
 When a run you started from a chat (the pane where you described the task) is done, is closed, stops for you, or waits for your approval, the daemon types one line into that chat's agent, such as `[metator] The task 20261120-… (Prices in the customer's currency) is done. Tell the person what was done.` It does so once for each event, and only while the agent is idle at its prompt; until then the line waits. The run's activity records each line.

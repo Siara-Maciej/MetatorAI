@@ -22,8 +22,12 @@ stages:
     owner: mt-implementer
     parallel: [mt-tester]
 `;
+// Each session waits at its prompt as a host does (idle, no question on its screen) and says
+// what it is told: a resumed one is told, in one line, to go on.
+const atPrompt = `      - run: 'read -r line; printf "answer: %s\\n" "$line"'
+      - run: 'sleep 120'`;
 const tester = (n: number) => `    - - say: "tester entry ${n}"
-      - ask: { question: "Keep testing ${n}?", options: [yes] }`;
+${atPrompt}`;
 const SCENARIO = `kind: AgentScenario
 schemaVersion: 2
 agents:
@@ -31,9 +35,9 @@ agents:
     - - say: "conducting the first time"
       - run: 'metator run delegate build --run "$METATOR_RUN" --agent mt-tester --card "Part A"'
       - run: 'metator run delegate build --run "$METATOR_RUN" --agent mt-tester --card "Part B"'
-      - ask: { question: "Go on?", options: [yes] }
+${atPrompt}
     - - say: "conductor resumed"
-      - ask: { question: "Still there?", options: [yes] }
+${atPrompt}
   mt-tester:
 ${[1, 2, 3, 4, 5, 6].map(tester).join("\n")}
   mt-implementer:
@@ -191,6 +195,23 @@ describe("sessions survive the daemon (real daemon, scenario host)", () => {
         /^resumed session scenario-mt-orchestrator-\d+ in pane w1:p1/.test(t),
       ),
     ).toBe(true);
+    // Each resumed session is told, once, to go on: it reads the line at its prompt.
+    for (const p of after)
+      await until(`pane ${p.id} to read its resume line`, async () =>
+        (await text(p.id)).includes("answer: [metator] Your session was resumed after the daemon stopped")
+          ? true
+          : undefined,
+      );
+    expect(await text("w1:p1")).toContain(
+      "answer: [metator] Your session was resumed after the daemon stopped (daemon-stopped, at ",
+    );
+    // The terminal wraps a long line: read without its breaks.
+    for (const p of after.filter((x) => x.role === "worker"))
+      expect((await text(p.id)).replaceAll("\n", "")).toContain(
+        "answer: [metator] Your session was resumed after the daemon stopped. Continue your card where you stopped and report with `metator run result`.",
+      );
+    const told = (await activity(runId)).filter((t) => t.startsWith("told the resumed session in pane "));
+    expect(told).toHaveLength(after.length);
   }, 120_000);
 
   test("SIGTERM, then --no-restore: the panes stay paused, read-only, until `metator run continue`", async () => {
@@ -243,6 +264,12 @@ describe("sessions survive the daemon (real daemon, scenario host)", () => {
     expect(await activity(parent)).toContain(
       `continued by ana: its drive started again on scenario at build`,
     );
+    // Continued, each is told to go on as after a restart.
+    for (const p of await panes())
+      if (p.role === "conductor" || p.role === "worker")
+        await until(`pane ${p.id} to read its resume line after Continue`, async () =>
+          (await text(p.id)).includes("answer: [metator] Your session was resumed") ? true : undefined,
+        );
   }, 120_000);
 
   test("the chat a task was given in is told, once, when the task is done", async () => {

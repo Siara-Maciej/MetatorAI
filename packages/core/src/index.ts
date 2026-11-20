@@ -65,6 +65,7 @@ export * from "./application/quarterly-review.ts";
 export * from "./application/quotes.ts";
 export * from "./application/readiness.ts";
 export * from "./application/report.ts";
+export * from "./application/resume-notices.ts";
 export * from "./application/review.ts";
 export * from "./application/review-feedback.ts";
 export * from "./application/review-notes.ts";
