@@ -6,7 +6,7 @@
  * child run (its conductor pane); a session's sub-terminals (its workers, its shells) are shown
  * only in that session's own view. Ended panes stay until a person closes them.
  */
-import type { PaneView, RunOverview } from "./api.ts";
+import type { ContinueResult, PanePaused, PaneView, RunOverview } from "./api.ts";
 import { type GotoRow, type PaneShown, paneLabel, paneStateOf, sameRepo } from "./model.ts";
 import { repoLabel } from "./plan-flow.ts";
 
@@ -155,9 +155,19 @@ export function whereIs(
 export const finishedOf = (t: TerminalTask, s?: Session): TPane[] =>
   (s ? sessionView(s) : panesOfTask(t)).filter((p) => p.ended !== undefined);
 
-/** A pane whose work is over: the daemon says so (`ended`), or its process is gone. */
+/** Why a pane is paused (round 11): its host stopped with the daemon, or was lost; its work is not over. */
+export const pausedOf = (p: object): PanePaused | undefined => (p as { paused?: PanePaused }).paused;
+
+/** A pane whose work is over: the daemon says so (`ended`), or its process is gone (not paused). */
 export const isEnded = (p: Pick<PaneView, "ended" | "live">): boolean =>
-  p.ended !== undefined || (p.live !== undefined && !p.live.alive);
+  p.ended !== undefined || (p.live !== undefined && !p.live.alive && pausedOf(p) === undefined);
+
+/** The banner of a paused pane, in the neutral tone: why, and that Continue starts it again. */
+export function pausedBanner(p: object): string | undefined {
+  const why = pausedOf(p)?.why;
+  if (!why) return undefined;
+  return `Paused — ${why === "daemon-stopped" ? "the daemon stopped" : "its process was lost"}`;
+}
 
 /** The banner of an ended pane, in the done tone or, after a non-zero exit, the error tone. */
 export function endedBanner(p: Pick<PaneView, "ended" | "live">): {
@@ -184,13 +194,14 @@ export function endedBanner(p: Pick<PaneView, "ended" | "live">): {
 /** A session tile's badge: how many sub-terminals it has, and what they are doing. */
 export function subBadge(s: Pick<Session, "subs">, now: number = Date.now()): string | undefined {
   if (s.subs.length === 0) return undefined;
-  const states = s.subs.map((p) => (isEnded(p) ? "finished" : paneStateOf(p, now)));
+  const states = s.subs.map((p) => (pausedOf(p) ? "paused" : isEnded(p) ? "finished" : paneStateOf(p, now)));
   const count = (w: PaneShown) =>
     states.filter((x) => x === w || (w === "finished" && x === "exited")).length;
   return [
     `${s.subs.length} sub-terminal${s.subs.length === 1 ? "" : "s"}`,
     count("asks") > 0 ? `${count("asks")} asks` : undefined,
     count("working") > 0 ? `${count("working")} working` : undefined,
+    count("paused") > 0 ? `${count("paused")} paused` : undefined,
     count("finished") > 0 ? `${count("finished")} finished` : undefined,
   ]
     .filter((x) => x !== undefined)
@@ -225,4 +236,38 @@ export function taskGotoRows(tasks: readonly TerminalTask[]): GotoRow[] {
       });
     }
   return rows;
+}
+
+/**
+ * What "Continue task" would start (round 11): the task's paused panes, and its active runs that
+ * nothing drives (no live conductor, no drive). The button shows while either count is not 0.
+ */
+export function toContinue(
+  t: TerminalTask,
+  runs: readonly (Pick<RunOverview, "runId" | "status" | "driving"> & {
+    readonly repo?: string | undefined;
+  })[],
+): { readonly paused: number; readonly undriven: number } {
+  const panes = panesOfTask(t);
+  const ids = [t.runId, ...t.sessions.map((s) => s.runId)].filter((id, i, all) => all.indexOf(id) === i);
+  const undriven = ids.filter((id) => {
+    const r = runs.find((x) => x.runId === id);
+    if (!r || r.status !== "active" || r.driving) return false;
+    return !panes.some((p) => p.runId === id && p.role === "conductor" && p.live?.alive && !pausedOf(p));
+  }).length;
+  return { paused: panes.filter((p) => pausedOf(p) !== undefined && !p.ended).length, undriven };
+}
+
+/** What a Continue did, in one line for its notice. */
+export function continueText(r: ContinueResult): string {
+  const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
+  const said = [
+    r.resumed.length > 0 ? `resumed ${n(r.resumed.length, "terminal")}` : undefined,
+    r.drives.length > 0 ? `restarted ${n(r.drives.length, "drive")}` : undefined,
+  ].filter((x) => x !== undefined);
+  const head = said.length > 0 ? `Continued: ${said.join(", ")}.` : "Nothing needed continuing.";
+  if (r.skipped.length === 0) return head;
+  return `${head} Skipped ${r.skipped.length}: ${r.skipped
+    .map((s) => `${s.paneId ?? s.runId ?? "?"} (${s.why})`)
+    .join("; ")}.`;
 }

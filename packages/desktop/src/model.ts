@@ -8,6 +8,7 @@ import type {
   InboxItem,
   IssueRef,
   PaneAsk,
+  PanePaused,
   PaneView,
   PlanLintProblem,
   PlanLintView,
@@ -892,7 +893,7 @@ export type Tone = "amber" | "violet" | "red" | "green" | "blue" | "teal" | "fai
  * What a pane reads as, on every screen: an agent at work, an agent that asks (on its own screen
  * or on a card), a pane where nothing happens, a process that ended.
  */
-export type PaneShown = "working" | "asks" | "idle" | "finished" | "exited";
+export type PaneShown = "working" | "asks" | "idle" | "finished" | "exited" | "paused";
 
 /** A shell with no output for this long sits at its prompt: it is idle, whatever the daemon's longer quiet time says. */
 export const SHELL_QUIET_MS = 2000;
@@ -908,6 +909,7 @@ export const SHELL_QUIET_MS = 2000;
 export function paneStateOf(
   pane: Pick<PaneView, "process" | "state"> & {
     readonly ended?: PaneView["ended"] | undefined;
+    readonly paused?: PanePaused | undefined;
     readonly runId?: string | undefined;
     readonly live?:
       | (Pick<NonNullable<PaneView["live"]>, "alive" | "lastOutputAt"> & {
@@ -918,6 +920,8 @@ export function paneStateOf(
   now: number = Date.now(),
 ): PaneShown {
   const raw = pane.state?.state;
+  // Its host stopped with the daemon, or was lost, and the work is not over: it can be continued.
+  if (pane.paused && !pane.ended) return "paused";
   // The daemon says the pane's work is over (`ended`): finished, or a failure with its code.
   if (pane.ended)
     return pane.ended.exitCode !== undefined && pane.ended.exitCode !== 0 ? "exited" : "finished";
@@ -959,6 +963,7 @@ export const LOOKS = {
     idle: { glyph: "✓", tone: "faint" },
     finished: { glyph: "✓", tone: "green" },
     exited: { glyph: "✕", tone: "red" },
+    paused: { glyph: "‖", tone: "blue" },
     question: { glyph: "?", tone: "amber" },
   },
   stage: {
@@ -2387,3 +2392,19 @@ export const problemsAt = <P extends Pick<PlanLintProblem, "step" | "field">>(
 /** A question in one line: "<who> asks: <prompt>", unless the prompt already starts with who asks. */
 export const askText = (who: string, prompt: string): string =>
   prompt.startsWith(`${who} `) ? prompt : `${who} asks: ${prompt}`;
+
+/**
+ * What a card shows of a host's question (round 11): the whole command when the host shows one
+ * (`command`), else the prompt; cut from its START to about two lines, with "…" when it is longer.
+ * A click shows it all (`full`).
+ */
+export function commandText(
+  q: { readonly prompt: string; readonly command?: string | undefined },
+  max = 160,
+): { readonly short: string; readonly full: string; readonly cut: boolean } {
+  const full = (q.command ?? q.prompt).trim();
+  const flat = full.replace(/\s+/g, " ");
+  return flat.length <= max
+    ? { short: flat, full, cut: full !== flat }
+    : { short: `${flat.slice(0, max - 1).trimEnd()}…`, full, cut: true };
+}

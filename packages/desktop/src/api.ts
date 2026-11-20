@@ -150,6 +150,29 @@ export type InboxItem = CoreInboxItem & { readonly repo?: string };
  * A question of a pane without a run (ADR-0091), from `/inbox`'s `panes`: the intake chat's host
  * asks leave to run a command, or its agent asks in words. Answered with `answerPane`.
  */
+/** Why a pane's host is not running although its work is not over (round 11): it can be continued. */
+export interface PanePaused {
+  readonly at: string;
+  readonly why: "daemon-stopped" | "process-lost";
+}
+
+/** What `POST /runs/:run/continue` did. */
+export interface ContinueResult {
+  readonly resumed: readonly {
+    readonly repo?: string;
+    readonly paneId: string;
+    readonly role: string;
+    readonly sessionId?: string;
+  }[];
+  readonly drives: readonly { readonly repo?: string; readonly runId: string; readonly host: string }[];
+  readonly skipped: readonly {
+    readonly repo?: string;
+    readonly paneId?: string;
+    readonly runId?: string;
+    readonly why: string;
+  }[];
+}
+
 export interface PaneAsk {
   readonly kind: "pane";
   /** The repository, when the daemon serves a folder. */
@@ -294,6 +317,12 @@ export class DaemonClient {
   brief = (runId: string, repo?: string, since?: string) =>
     this.get<Brief>(`/runs/${runId}/brief${since ? `?since=${encodeURIComponent(since)}` : ""}`, repo);
   seen = (runId: string, repo?: string) => this.post<{ at: string }>(`/runs/${runId}/seen`, {}, repo);
+  /**
+   * A task started again (round 11): every paused pane of the run and its descendants resumed,
+   * every active run nothing drives given its session or drive back; what was skipped and why.
+   */
+  continueRun = (runId: string, by: string, repo?: string) =>
+    this.post<ContinueResult>(`/runs/${runId}/continue`, { by }, repo);
   /** An escalated run back at the stage it escalated from, and driven on at once. */
   resume = (runId: string, by: string, repo?: string) =>
     this.post<{ run: { stage: string }; drive?: { started?: boolean; error?: string; hint?: string } }>(
