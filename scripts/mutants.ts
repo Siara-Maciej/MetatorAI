@@ -6716,6 +6716,12 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/desktop/src/terminals.ts",
+    from: 'const stopped = p.ended !== undefined && p.ended.reason !== "exited";',
+    to: "const stopped = false;",
+    why: "a worker the daemon collected is finished, not failed with the code of the stop it was sent",
+  },
+  {
+    file: "packages/desktop/src/terminals.ts",
     from: "(s ? sessionView(s) : panesOfTask(t))",
     to: "(s ? sessionView(s) : taskView(t))",
     why: "Close finished on a task's view closes its finished sub-terminals too, not only its tiles",

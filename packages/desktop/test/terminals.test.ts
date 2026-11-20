@@ -154,6 +154,11 @@ describe("terminals by task (round 8)", () => {
       text: "Finished — its run finished",
       tone: "done",
     });
+    // Collected or ended with its run: the code is the stop the daemon sent (SIGHUP, 129), not a failure.
+    expect(
+      endedBanner({ ended: { at: "", reason: "collected", exitCode: 129, summary: "5 pass, 0 fail" } }),
+    ).toEqual({ text: "Finished — 5 pass, 0 fail", tone: "done" });
+    expect(endedBanner({ ended: { at: "", reason: "run-finished", exitCode: 143 } }).tone).toBe("done");
     expect(endedBanner({ ended: { at: "", reason: "exited", exitCode: 2 } })).toEqual({
       text: "Ended with code 2 — its process ended",
       tone: "error",

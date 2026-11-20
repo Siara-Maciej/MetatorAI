@@ -164,7 +164,10 @@ export function endedBanner(p: Pick<PaneView, "ended" | "live">): {
   readonly text: string;
   readonly tone: "done" | "error";
 } {
-  const code = p.ended?.exitCode ?? p.live?.exitCode;
+  // A pane the daemon ended (its worker collected, its run finished, the host ended it) exits with
+  // the signal the daemon sent: that code is no failure. Only a process that exited by itself has one.
+  const stopped = p.ended !== undefined && p.ended.reason !== "exited";
+  const code = stopped ? undefined : (p.ended?.exitCode ?? p.live?.exitCode);
   const why =
     p.ended?.summary ??
     (p.ended?.reason === "run-finished"
