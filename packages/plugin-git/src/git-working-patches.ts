@@ -1,4 +1,4 @@
-import { copyFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { err, MetatorError, ok, type ProcessRunner, type Result, type WorkingPatches } from "@metator/core";
@@ -138,9 +138,64 @@ export class GitWorkingPatches implements WorkingPatches {
     });
   }
 
-  async revert(patch: string): Promise<Result<void, MetatorError>> {
+  /**
+   * The lines a patch adds, by file. Only lines that say something count as evidence that a file
+   * still holds the change (a lone brace is in every file); a file that added no such line falls
+   * back to every non-blank line it added.
+   */
+  private added(patch: string): Map<string, string[]> {
+    const all = new Map<string, string[]>();
+    let file: string | undefined;
+    for (const line of patch.split("\n")) {
+      if (line.startsWith("diff --git ")) file = undefined;
+      else if (line.startsWith("+++ ")) {
+        file = line.startsWith("+++ b/") ? line.slice(6) : undefined;
+        if (file !== undefined) all.set(file, all.get(file) ?? []);
+      } else if (file !== undefined && line.startsWith("+")) all.get(file)?.push(line.slice(1));
+    }
+    const out = new Map<string, string[]>();
+    for (const [f, lines] of all) {
+      const said = lines.filter((l) => l.trim().length >= 4 && /[\p{L}\p{N}]/u.test(l));
+      out.set(f, said.length > 0 ? said : lines.filter((l) => l.trim() !== ""));
+    }
+    return out;
+  }
+
+  async remains(
+    patch: string,
+    where: "tree" | "index" | "tracked",
+  ): Promise<Result<readonly string[], MetatorError>> {
+    // What can be taken out as recorded is there for sure (a deleted line, a binary file too).
+    const exact = await this.holding(patch, where);
+    if (exact.isErr()) return err(exact.error);
+    const held = new Set(exact.value);
+    for (const [file, lines] of this.added(patch)) {
+      if (held.has(file) || lines.length === 0) continue;
+      let content: string;
+      if (where === "index") {
+        const staged = await this.git(["show", `:${file}`]);
+        if (staged.exitCode !== 0) continue;
+        content = staged.stdout;
+      } else {
+        if (
+          where === "tracked" &&
+          (await this.git(["ls-files", "--error-unmatch", "--", file])).exitCode !== 0
+        )
+          continue;
+        const read = await readFile(join(this.root, file), "utf8").catch(() => undefined);
+        if (read === undefined) continue;
+        content = read;
+      }
+      const now = new Set(content.split("\n"));
+      if (lines.some((l) => now.has(l))) held.add(file);
+    }
+    return ok([...held].sort());
+  }
+
+  async revert(patch: string, files?: readonly string[]): Promise<Result<void, MetatorError>> {
+    const only = (files ?? []).map((f) => `--include=${f}`);
     return this.withPatch(patch, async (file) => {
-      const check = await this.git(["apply", "-R", "--check", file]);
+      const check = await this.git(["apply", "-R", "--check", ...only, file]);
       if (check.exitCode !== 0) {
         const files = [
           ...check.stderr.matchAll(
@@ -158,9 +213,9 @@ export class GitWorkingPatches implements WorkingPatches {
       // What of it is staged, asked before the tree changes; taken out of the index after it.
       const staged = await this.holding(patch, "index");
       if (staged.isErr()) return err(staged.error);
-      const reverted = await this.git(["apply", "-R", file]);
+      const reverted = await this.git(["apply", "-R", ...only, file]);
       if (reverted.exitCode !== 0) return err(this.failed("apply -R", reverted.stderr));
-      for (const f of staged.value) {
+      for (const f of staged.value.filter((x) => !files || files.includes(x))) {
         const unstaged = await this.git(["apply", "-R", "--cached", `--include=${f}`, file]);
         if (unstaged.exitCode !== 0) return err(this.failed("apply -R --cached", unstaged.stderr));
       }

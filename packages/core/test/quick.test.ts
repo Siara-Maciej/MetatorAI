@@ -4,6 +4,7 @@ import {
   type QuickFacts,
   quickCheck,
   quickOverride,
+  quickReviewFindings,
   taskEscalators,
   taskFiles,
 } from "../src/domain/quick.ts";
@@ -170,5 +171,21 @@ describe("the task's own words (quick check --task): what it names before any fi
       ["migration", "git diff"],
       ["ci-config", "the task's words"],
     ]);
+  });
+});
+
+describe("quickReviewFindings: what the one short review of a quick change says (quick-review.md)", () => {
+  test("its first line decides: no blocking finding passes, BLOCKING: n names them, anything else is no review", () => {
+    expect(quickReviewFindings("No blocking finding.\n\nNotes:\n- a name could be clearer\n")).toEqual([]);
+    expect(quickReviewFindings("BLOCKING: 0\n")).toEqual([]);
+    expect(
+      quickReviewFindings(
+        "BLOCKING: 2\nsrc/price.ts:4 rounds down; half-up is asked for\nsrc/price.ts:9 no test for 0.5\n\nNotes:\n- naming\n",
+      ),
+    ).toEqual(["src/price.ts:4 rounds down; half-up is asked for", "src/price.ts:9 no test for 0.5"]);
+    // The count is what the reviewer said, also when the lines are fewer.
+    expect(quickReviewFindings("BLOCKING: 1\n")).toEqual(["1 blocking finding(s), not listed"]);
+    expect(quickReviewFindings("Looks good to me!\n")).toBeUndefined();
+    expect(quickReviewFindings("")).toBeUndefined();
   });
 });

@@ -237,3 +237,22 @@ export function endsQuickRun(q: {
 }): boolean {
   return q.prompt === QUICK_READY_PROMPT && q.answer?.choices.includes(QUICK_OPTIONS.fine) === true;
 }
+
+/**
+ * The blocking findings of a quick run's one review (`quick-review.md`): its first line is
+ * `No blocking finding.` or `BLOCKING: <n>`, then one finding per line until `Notes:`. Undefined
+ * when the file says neither: that is no review.
+ */
+export function quickReviewFindings(text: string): string[] | undefined {
+  const lines = text.split("\n").map((l) => l.trim());
+  const first = lines.find((l) => l !== "") ?? "";
+  if (/^no blocking finding\.?$/i.test(first)) return [];
+  const count = /^BLOCKING:\s*(\d+)\b/.exec(first);
+  if (!count) return undefined;
+  const n = Number(count[1]);
+  if (n === 0) return [];
+  const rest = lines.slice(lines.indexOf(first) + 1);
+  const notes = rest.findIndex((l) => /^notes:?$/i.test(l));
+  const findings = (notes < 0 ? rest : rest.slice(0, notes)).filter((l) => l !== "");
+  return findings.length > 0 ? findings : [`${n} blocking finding(s), not listed`];
+}

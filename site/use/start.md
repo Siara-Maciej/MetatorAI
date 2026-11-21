@@ -43,7 +43,7 @@ For each thing you ask, the conversation agent takes the lightest way that fits 
 
 ### Quick
 
-A quick run changes a little without a plan: a worker makes the change in its own terminal, the repository's quick gate runs on the changed files, one reviewer reads the diff (a blocking finding goes back to the worker once), and the run ends with an uncommitted diff and the card **Quick change ready: look at the diff**. **Fine** ends the run. Nothing is committed.
+A quick run changes a little without a plan: a worker makes the change in its own terminal, the repository's quick gate runs on the changed files, one reviewer (`mt-quick-review`) reads the diff once and writes `quick-review.md` (a blocking finding, `BLOCKING: <n>` on its first line, sends the change back to the worker once; `metator quick reviewed` is the gate that reads the file), and the run ends with an uncommitted diff and the card **Quick change ready: look at the diff**. **Fine** ends the run. Nothing is committed.
 
 Whether a change is small enough is decided without a model, before the start and again from the real diff:
 
@@ -87,7 +87,15 @@ metator scratch list                           # the records still in the workin
 metator scratch drop --all                     # take them out again (or --id s001)
 ```
 
-`drop` reverse-applies each record's patch and leaves your other work in the same files. A patch that no longer applies (the lines changed since) is reported and kept; nothing is forced. In the app, **Debug changes (N)** lists them with **Remove debug changes**.
+`drop` reverse-applies each record's patch and leaves your other work in the same files. Nothing is forced.
+
+MetatorAI remembers a debug change until you deal with it. When the recorded lines, or the lines around them, changed since, the record cannot be taken out as it was: `drop` reports it under `failed`, takes out what it still can, and the record stays. `scratch list` shows it with `state: "changed"` and why; it still counts, and it still stops a commit of that file. A record leaves in three ways only:
+
+- `metator scratch drop` took all of it out;
+- you dismiss it, after dealing with the lines by hand: `metator scratch forget --id s001` (the files are not touched);
+- no file holds its lines any more: the next `scratch list` or `scratch drop` removes it and says so, once (`gone`: `s001 is gone: src/price.ts no longer holds it`).
+
+In the app, **Debug changes (N)** lists them with **Remove debug changes**.
 
 A `git commit` an agent runs while a recorded change is staged (or with `-a`) is stopped: `this commit holds debug changes: src/price.ts`. Say "commit anyway", or remove them first.
 

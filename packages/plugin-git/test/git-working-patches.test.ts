@@ -121,6 +121,58 @@ describe("GitWorkingPatches (real git)", () => {
     expect(await text(root, "a.ts")).toBe("one\nconsole.warn('changed');\ntwo\nthree\n");
   });
 
+  test("remains: a file still holds the recorded lines although they can no longer be taken out as recorded; not once they are gone", async () => {
+    const root = await repo();
+    const p = patches(root);
+    const from = (await p.snapshot())._unsafeUnwrap();
+    await writeFile(join(root, "a.ts"), "one\nconsole.log('debug a');\ntwo\nthree\n");
+    await writeFile(join(root, "b.ts"), "b\nconsole.log('debug b');\n");
+    await writeFile(join(root, "debug.log"), "trace of the run\n");
+    const { patch } = (await p.between(from, (await p.snapshot())._unsafeUnwrap()))._unsafeUnwrap();
+    const both = async (where: "tree" | "index" | "tracked") => [
+      (await p.holding(patch, where))._unsafeUnwrap(),
+      (await p.remains(patch, where))._unsafeUnwrap(),
+    ];
+    expect(await both("tree")).toEqual([
+      ["a.ts", "b.ts", "debug.log"],
+      ["a.ts", "b.ts", "debug.log"],
+    ]);
+    // The line before the debug line was rewritten: the patch no longer applies, the debug line is still there.
+    await writeFile(join(root, "a.ts"), "ONE, rewritten\nconsole.log('debug a');\ntwo\nthree\n");
+    // In b.ts the debug line itself was taken out by hand, and the file is not as it was either.
+    await writeFile(join(root, "b.ts"), "b, and more\n");
+    expect(await both("tree")).toEqual([["debug.log"], ["a.ts", "debug.log"]]);
+    // What a commit would take: nothing staged yet; -a takes tracked files only.
+    expect(await both("index")).toEqual([[], []]);
+    expect(await both("tracked")).toEqual([[], ["a.ts"]]);
+    git(root, "add", "a.ts", "debug.log");
+    expect(await both("index")).toEqual([["debug.log"], ["a.ts", "debug.log"]]);
+    // A line every file has (a closing brace) is no evidence when the record has better ones.
+    const braces = (await p.snapshot())._unsafeUnwrap();
+    await writeFile(join(root, "b.ts"), "b, and more\nif (x) {\n  console.log('debug in a block');\n}\n");
+    const block = (await p.between(braces, (await p.snapshot())._unsafeUnwrap()))._unsafeUnwrap().patch;
+    await writeFile(join(root, "b.ts"), "b, and more\nif (y) {\n  work();\n}\n");
+    expect((await p.remains(block, "tree"))._unsafeUnwrap()).toEqual([]);
+  });
+
+  test("revert of the files named only: the rest of the patch stays where it is", async () => {
+    const root = await repo();
+    const p = patches(root);
+    const from = (await p.snapshot())._unsafeUnwrap();
+    await writeFile(join(root, "a.ts"), "one\nconsole.log('debug a');\ntwo\nthree\n");
+    await writeFile(join(root, "b.ts"), "b\nconsole.log('debug b');\n");
+    const { patch } = (await p.between(from, (await p.snapshot())._unsafeUnwrap()))._unsafeUnwrap();
+    await writeFile(join(root, "a.ts"), "ONE, rewritten\nconsole.log('debug a');\ntwo\nthree\n");
+    // The whole patch no longer applies; its part in b.ts does.
+    expect((await p.revert(patch)).isErr()).toBe(true);
+    (await p.revert(patch, ["b.ts"]))._unsafeUnwrap();
+    expect(await text(root, "b.ts")).toBe("b\n");
+    expect(await text(root, "a.ts")).toBe("ONE, rewritten\nconsole.log('debug a');\ntwo\nthree\n");
+    expect((await p.revert(patch, ["a.ts"]))._unsafeUnwrapErr().message).toBe(
+      "the patch no longer applies (a.ts changed since)",
+    );
+  });
+
   test("a repository with no commit yet", async () => {
     const dir = await mkdtemp(join(tmpdir(), "metator-patches-"));
     dirs.push(dir);

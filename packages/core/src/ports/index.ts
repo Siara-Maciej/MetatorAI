@@ -341,10 +341,20 @@ export interface WorkingPatches {
     where: "tree" | "index" | "tracked",
   ): Promise<Result<readonly string[], MetatorError>>;
   /**
-   * Takes the patch's change out of the working tree, and out of the index where it is staged.
-   * An error when it no longer applies as a whole: nothing is forced and nothing is half done.
+   * The files that still hold lines the patch added, whether or not the patch can still be taken
+   * out as it was (the lines around them may have changed): in the working tree (`tree`), staged
+   * (`index`), or in the working tree of a file git tracks (`tracked`).
    */
-  revert(patch: string): Promise<Result<void, MetatorError>>;
+  remains(
+    patch: string,
+    where: "tree" | "index" | "tracked",
+  ): Promise<Result<readonly string[], MetatorError>>;
+  /**
+   * Takes the patch's change out of the working tree, and out of the index where it is staged:
+   * all of it, or only its part in the files named. An error when that no longer applies as a
+   * whole: nothing is forced and nothing is half done.
+   */
+  revert(patch: string, files?: readonly string[]): Promise<Result<void, MetatorError>>;
 }
 
 export interface BranchPublication {

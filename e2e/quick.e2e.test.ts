@@ -50,6 +50,7 @@ agents:
       - run: 'metator quick fit --run "$METATOR_RUN" --wait 60000'
       - run: 'metator run advance pass --run "$METATOR_RUN"'
       - write: { path: "{runDir}/quick-review.md", text: "No blocking finding.\\n" }
+      - run: 'metator quick reviewed --run "$METATOR_RUN"'
       - run: 'metator run advance pass --run "$METATOR_RUN"'
       - run: 'metator quick ready --run "$METATOR_RUN" --wait 60000'
       - say: "quick run done"
@@ -346,6 +347,28 @@ describe("a quick run nothing carries (no session, no drive)", () => {
       0,
       { runId, state: "fine", by: "ana", run: "done", next: `Run ${runId} is done: do not advance it.` },
     ]);
+  }, 60_000);
+
+  test("the review's gate reads the reviewer's file: a blocking finding fails it and the run goes back to build, once", async () => {
+    const runId = await atStage("review", "Rename one helper");
+    const file = `.metator/runs/${runId}/quick-review.md`;
+    await repo.write(file, "BLOCKING: 1\nsrc/price.ts:1 returns the old value\n\nNotes:\n- naming\n");
+    const blocked = await mt("quick", "reviewed", "--run", runId);
+    expect([blocked.code, error(blocked).code, error(blocked).message]).toEqual([
+      1,
+      "CHECK_FAILED",
+      "the review has 1 blocking finding(s): src/price.ts:1 returns the old value",
+    ]);
+    const back = data(await mt("run", "advance", "fail", "--run", runId, "--reason", "1 blocking finding"));
+    expect([back.stage, back.status]).toEqual(["build", "active"]);
+    // Fixed and reviewed again: the gate passes. A second blocking review would stop the run for the person.
+    for (const _ of ["build", "gate", "fit"]) await mt("run", "advance", "pass", "--run", runId);
+    await repo.write(file, "No blocking finding.\n");
+    const passed = await mt("quick", "reviewed", "--run", runId);
+    expect([passed.code, data(passed)]).toEqual([0, { blocking: 0, file }]);
+    await mt("run", "advance", "fail", "--run", runId, "--reason", "still blocking");
+    expect(await statusOf(runId)).toMatchObject({ status: "escalated" });
+    expect((await mt("run", "close", "--run", runId, "--aborted", "--reason", "only shown")).code).toBe(0);
   }, 60_000);
 
   test("Continue as full: a full run takes the diff over in its own conductor session, and the quick run is closed with where it went", async () => {

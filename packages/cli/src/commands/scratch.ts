@@ -36,10 +36,15 @@ export function registerScratchCommands(program: Command, { action, container }:
     );
 
   meta(scratch.command("list"), { audience: "person" })
-    .description("The recorded changes still in the working tree: id, files, note, when")
+    .description(
+      "The recorded changes: id, files that still hold them, note, when, and whether each can still be taken out as recorded",
+    )
     .action(
       action(async () => ({
-        result: (await container().resolve("scratch").list()).map((items) => ({ items })),
+        result: (await container().resolve("scratch").list()).map(({ items, gone }) => ({
+          items,
+          ...(gone.length > 0 ? { gone } : {}),
+        })),
       })),
     );
 
@@ -63,5 +68,20 @@ export function registerScratchCommands(program: Command, { action, container }:
             .drop({ ...(opts.all ? {} : { ids: opts.id }), by }),
         }));
       }),
+    );
+
+  scratch
+    .command("forget")
+    .description(
+      "Dismiss recorded changes without touching the files: for a record whose lines changed and that you dealt with by hand",
+    )
+    .option("--id <id>", "a record (repeatable)", (v: string, all: string[]) => [...all, v], [] as string[])
+    .addOption(byOption("who forgets them"))
+    .action(
+      action(async (opts: { id: string[]; by?: string }) =>
+        asPerson(container(), opts.by, async (by) => ({
+          result: await container().resolve("scratch").forget({ ids: opts.id, by }),
+        })),
+      ),
     );
 }

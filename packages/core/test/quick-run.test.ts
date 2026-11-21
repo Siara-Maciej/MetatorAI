@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
-import { QuickFit, QuickOverrides, QuickReady, QuickStart } from "../src/application/quick-run.ts";
+import {
+  QuickFit,
+  QuickOverrides,
+  QuickReady,
+  QuickReviewed,
+  QuickStart,
+} from "../src/application/quick-run.ts";
 import { RunJournal } from "../src/application/run-journal.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
 import { AdvanceRun, InitRun } from "../src/application/runs.ts";
@@ -278,5 +284,28 @@ describe("QuickReady: the card that ends a quick run", () => {
       by: "ana",
       run: "active",
     });
+  });
+});
+
+describe("QuickReviewed: the review's file decides, not the reviewer's last words", () => {
+  test("no blocking finding passes; a blocking one fails with the findings; no file and no review fail", async () => {
+    const w = world();
+    const runId = (await w.start.execute({ task: "Change it", check: verdict() }))._unsafeUnwrap().runId;
+    const gate = new QuickReviewed({ repo: w.repo, fs: w.fs });
+    const file = `.metator/runs/${runId}/quick-review.md`;
+    expect((await gate.execute({ runId }))._unsafeUnwrapErr().message).toBe(
+      `no review yet: ${file} is not there`,
+    );
+    await w.fs.write(file, "BLOCKING: 1\nsrc/a.ts:3 returns the old value\n");
+    const failed = (await gate.execute({ runId }))._unsafeUnwrapErr();
+    expect([failed.code, failed.message, failed.details]).toEqual([
+      "CHECK_FAILED",
+      "the review has 1 blocking finding(s): src/a.ts:3 returns the old value",
+      { findings: ["src/a.ts:3 returns the old value"] },
+    ]);
+    await w.fs.write(file, "LGTM\n");
+    expect((await gate.execute({ runId }))._unsafeUnwrapErr().message).toContain("is no review");
+    await w.fs.write(file, "No blocking finding.\n");
+    expect((await gate.execute({ runId }))._unsafeUnwrap()).toEqual({ blocking: 0, file });
   });
 });

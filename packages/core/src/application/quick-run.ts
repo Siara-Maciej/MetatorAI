@@ -10,6 +10,7 @@ import {
   QUICK_READY_PROMPT,
   type QuickVerdict,
   quickOverride,
+  quickReviewFindings,
 } from "../domain/quick.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { defineDocument, serializeJsonDocument } from "../domain/versioned.ts";
@@ -348,5 +349,50 @@ export class QuickReady {
     });
     if (asked.isErr()) return err(asked.error);
     return ok({ state: "waiting", question: asked.value.id });
+  }
+}
+
+/**
+ * `metator quick reviewed`, the gate of the review stage: reads the reviewer's `quick-review.md`.
+ * A blocking finding fails the gate (the run goes back to build once, with the findings); a file
+ * that is no review fails it too. Decided from the file, on every host and in a drive alike.
+ */
+export class QuickReviewed {
+  constructor(
+    private readonly d: {
+      readonly repo: Pick<RunRepository, "runDir">;
+      readonly fs: Pick<FileSystem, "read" | "exists">;
+    },
+  ) {}
+
+  async execute(input: {
+    readonly runId: string;
+  }): Promise<Result<{ readonly blocking: 0; readonly file: string }, MetatorError>> {
+    const file = `${this.d.repo.runDir(input.runId)}/quick-review.md`;
+    if (!(await this.d.fs.exists(file)))
+      return err(
+        new MetatorError("CHECK_FAILED", `no review yet: ${file} is not there`, {
+          hint: "The review stage's agent (mt-quick-review) writes it.",
+        }),
+      );
+    const text = await this.d.fs.read(file);
+    if (text.isErr()) return err(text.error);
+    const findings = quickReviewFindings(text.value);
+    if (!findings)
+      return err(
+        new MetatorError(
+          "CHECK_FAILED",
+          `${file} is no review: its first line is neither \`No blocking finding.\` nor \`BLOCKING: <n>\``,
+        ),
+      );
+    if (findings.length > 0)
+      return err(
+        new MetatorError(
+          "CHECK_FAILED",
+          `the review has ${findings.length} blocking finding(s): ${findings.join("; ")}`,
+          { hint: "Fix them in the build stage; the review runs once more.", details: { findings } },
+        ),
+      );
+    return ok({ blocking: 0, file });
   }
 }

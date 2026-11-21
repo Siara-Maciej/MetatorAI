@@ -118,3 +118,64 @@ describe("mt-chat: the conversation agent", () => {
     );
   });
 });
+
+/** The quick way's workflow and its one reviewer, as shipped (ADR-0093). */
+describe("mt-quick: build, gate, the fit check, one short review, the card that ends it", () => {
+  const spec = Bun.YAML.parse(read(".github/metator/workflows/mt-quick.yml")) as {
+    stages: {
+      id: string;
+      owner: string;
+      hitl?: boolean;
+      gate?: { script: string };
+      onFail?: { goto: string; loop: string };
+    }[];
+    loops: Record<string, number>;
+    preconditions: string[];
+  };
+
+  test("no plan, no approval gate, no publish; the worker builds, a failed gate or a blocking finding goes back to build", () => {
+    expect(spec.stages.map((s) => [s.id, s.owner])).toEqual([
+      ["build", "mt-implementer"],
+      ["gate", "script:metator gate quick --base HEAD"],
+      ["fit", "script:metator quick check --diff"],
+      ["review", "mt-quick-review"],
+      ["ready", "script:metator run status"],
+    ]);
+    expect(spec.stages.some((s) => s.hitl)).toBe(false);
+    expect(spec.stages.map((s) => s.gate?.script)).toEqual([
+      undefined,
+      undefined,
+      "metator quick fit",
+      "metator quick reviewed",
+      "metator quick ready",
+    ]);
+    // The review sends it back once; a dirty checkout is the person's choice at the start, no precondition.
+    expect([spec.stages[3]?.onFail, spec.loops, spec.preconditions]).toEqual([
+      { goto: "build", loop: "review" },
+      { build: 2, review: 1 },
+      [],
+    ]);
+  });
+
+  test("its reviewer reads the diff once, reports only what must be fixed, and never edits", async () => {
+    const source = "metator/agents/mt-quick-review.md";
+    const fs = new InMemoryFileSystem({ [source]: read(source) });
+    const catalog = new AgentCatalog(fs, DEFAULT_PATHS);
+    expect((await new LintAgents(catalog, "mt-").execute())._unsafeUnwrap().problems).toEqual([]);
+    const agent = (await catalog.scan()).agents.find((a) => a.agent.id === "mt-quick-review")?.agent;
+    expect([
+      agent?.role,
+      agent?.capabilities.includes("edit"),
+      agent?.capabilities.includes("agent"),
+    ]).toEqual(["worker", false, false]);
+    const text = read(source);
+    for (const words of [
+      "`metator review diff`",
+      "`BLOCKING: <n>`",
+      "`No blocking finding.`",
+      "One pass",
+      "Never edit, create or delete a source file",
+    ])
+      expect(text).toContain(words);
+  });
+});

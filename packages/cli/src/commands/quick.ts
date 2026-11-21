@@ -226,4 +226,18 @@ export function registerQuickCommands(program: Command, ctx: CommandContext): vo
         };
       }),
     );
+
+  quick
+    .command("reviewed")
+    .description(
+      "The gate of a quick run's review: fails while the reviewer's quick-review.md names a blocking finding (the run goes back to build once)",
+    )
+    .addOption(runOption())
+    .action(
+      action(async (opts: { run?: string }) => {
+        const id = await runs().resolve("runRepository").resolveId(opts.run);
+        if (id.isErr()) return { result: id };
+        return { result: await runs().resolve("quickReviewed").execute({ runId: id.value }) };
+      }),
+    );
 }

@@ -15,7 +15,9 @@ function world() {
   // What the working tree and the index hold of each recorded change, and what no longer applies.
   const tree = new Set<string>();
   const index = new Set<string>();
+  // Lines that are still in a file but no longer as recorded (the person rewrote around them).
   const stale = new Set<string>();
+  const staleStaged = new Set<string>();
   const reverted: string[] = [];
   const lines = (patch: string) => patch.split("\n").filter(Boolean);
   const patches = {
@@ -25,32 +27,43 @@ function world() {
       return ok({ files: [...new Set(part.map((c) => c.split("@")[0] as string))], patch: part.join("\n") });
     },
     holding: async (patch: string, where: "tree" | "index" | "tracked") =>
-      ok([
-        ...new Set(
-          lines(patch)
-            .filter((l) => (where === "index" ? index : tree).has(l))
-            // A file whose name starts with `new` is one nobody added to git.
-            .filter((l) => where !== "tracked" || !l.startsWith("new"))
-            .map((l) => l.split("@")[0] as string),
+      ok(
+        filesOf(
+          lines(patch).filter((l) => (where === "index" ? index : tree).has(l) && !stale.has(l)),
+          where,
         ),
-      ]),
-    revert: async (patch: string) => {
-      const bad = lines(patch).find((l) => stale.has(l));
+      ),
+    remains: async (patch: string, where: "tree" | "index" | "tracked") =>
+      ok(
+        filesOf(
+          lines(patch).filter((l) => (where === "index" ? index.has(l) || staleStaged.has(l) : tree.has(l))),
+          where,
+        ),
+      ),
+    revert: async (patch: string, files?: readonly string[]) => {
+      const mine = lines(patch).filter((l) => !files || files.includes(l.split("@")[0] as string));
+      const bad = mine.find((l) => stale.has(l) || !tree.has(l));
       if (bad)
         return err(
           new MetatorError(
             "COMMAND_FAILED",
-            `the patch no longer applies: ${bad.split("@")[0]} changed since`,
+            `the patch no longer applies (${bad.split("@")[0]} changed since)`,
           ),
         );
-      for (const l of lines(patch)) {
+      for (const l of mine) {
         tree.delete(l);
         index.delete(l);
       }
-      reverted.push(patch);
+      reverted.push(mine.join("\n"));
       return ok(undefined);
     },
   };
+  // A file whose name starts with `new` is one nobody added to git.
+  const filesOf = (held: string[], where: string) => [
+    ...new Set(
+      held.filter((l) => where !== "tracked" || !l.startsWith("new")).map((l) => l.split("@")[0] as string),
+    ),
+  ];
   const edit = (...files: string[]) => {
     for (const f of files) {
       const line = `${f}@${changes.length}`;
@@ -65,6 +78,7 @@ function world() {
     tree,
     index,
     stale,
+    staleStaged,
     reverted,
     edit,
     scratch: new Scratch({ fs, clock, patches }),
@@ -85,16 +99,21 @@ describe("Scratch: a direct edit not meant for a commit, recorded as a patch (AD
         files: ["src/price.ts", "src/tax.ts"],
         note: "log every rounding",
         at: "2026-11-21T10:01:00.000Z",
+        state: "removable",
       },
     });
-    expect((await w.scratch.list())._unsafeUnwrap()).toEqual([
-      {
-        id: "s001",
-        files: ["src/price.ts", "src/tax.ts"],
-        note: "log every rounding",
-        at: "2026-11-21T10:01:00.000Z",
-      },
-    ]);
+    expect((await w.scratch.list())._unsafeUnwrap()).toEqual({
+      items: [
+        {
+          id: "s001",
+          files: ["src/price.ts", "src/tax.ts"],
+          note: "log every rounding",
+          at: "2026-11-21T10:01:00.000Z",
+          state: "removable",
+        },
+      ],
+      gone: [],
+    });
     // A versioned document under .metator/scratch/, with the patch itself.
     const doc = JSON.parse((await w.fs.read(".metator/scratch/s001.json"))._unsafeUnwrap());
     expect(doc).toMatchObject({
@@ -107,7 +126,12 @@ describe("Scratch: a direct edit not meant for a commit, recorded as a patch (AD
     await w.scratch.begin();
     w.edit("src/cart.ts");
     const second = (await w.scratch.end({}))._unsafeUnwrap();
-    expect(second.recorded).toEqual({ id: "s002", files: ["src/cart.ts"], at: "2026-11-21T10:01:00.000Z" });
+    expect(second.recorded).toEqual({
+      id: "s002",
+      files: ["src/cart.ts"],
+      at: "2026-11-21T10:01:00.000Z",
+      state: "removable",
+    });
   });
 
   test("begin twice, end without begin, and an edit that changed nothing", async () => {
@@ -124,7 +148,7 @@ describe("Scratch: a direct edit not meant for a commit, recorded as a patch (AD
     );
     // Nothing changed: nothing is recorded, and the edit is closed.
     expect((await w.scratch.end({ note: "nothing" }))._unsafeUnwrap()).toEqual({ recorded: null });
-    expect((await w.scratch.list())._unsafeUnwrap()).toEqual([]);
+    expect((await w.scratch.list())._unsafeUnwrap().items).toEqual([]);
     expect((await w.scratch.begin()).isOk()).toBe(true);
   });
 
@@ -140,12 +164,16 @@ describe("Scratch: a direct edit not meant for a commit, recorded as a patch (AD
     await record(w, "b.ts");
     await record(w, "c.ts");
     const one = (await w.scratch.drop({ ids: ["s002"], by: "ana" }))._unsafeUnwrap();
-    expect(one).toEqual({ dropped: [{ id: "s002", files: ["b.ts"] }], failed: [] });
-    expect((await w.scratch.list())._unsafeUnwrap().map((r) => r.id)).toEqual(["s001", "s003"]);
+    expect(one).toEqual({ dropped: [{ id: "s002", files: ["b.ts"] }], failed: [], gone: [] });
+    expect((await w.scratch.list())._unsafeUnwrap().items.map((r) => r.id)).toEqual(["s001", "s003"]);
     const all = (await w.scratch.drop({ by: "ana" }))._unsafeUnwrap();
     expect(all.dropped.map((d) => d.id)).toEqual(["s003", "s001"]);
     expect(w.reverted).toEqual(["b.ts@1", "c.ts@2", "a.ts@0"]);
-    expect([(await w.scratch.list())._unsafeUnwrap(), w.tree.size]).toEqual([[], 0]);
+    expect([(await w.scratch.list())._unsafeUnwrap().items, w.tree.size, await w.scratch.count()]).toEqual([
+      [],
+      0,
+      0,
+    ]);
     const unknown = (await w.scratch.drop({ ids: ["s009"], by: "ana" }))._unsafeUnwrapErr();
     expect([unknown.code, unknown.message]).toEqual(["NOT_FOUND", "scratch record s009 not found"]);
     expect((await w.scratch.drop({ by: " " }))._unsafeUnwrapErr().message).toBe(
@@ -153,7 +181,7 @@ describe("Scratch: a direct edit not meant for a commit, recorded as a patch (AD
     );
   });
 
-  test("a patch that no longer applies is reported and kept, never forced; the others are still dropped", async () => {
+  test("a record whose lines changed since is remembered: reported by drop, listed as changed, counted, until the person deals with it", async () => {
     const w = world();
     await record(w, "a.ts");
     await record(w, "b.ts");
@@ -161,21 +189,97 @@ describe("Scratch: a direct edit not meant for a commit, recorded as a patch (AD
     const r = (await w.scratch.drop({ by: "ana" }))._unsafeUnwrap();
     expect(r).toEqual({
       dropped: [{ id: "s002", files: ["b.ts"] }],
-      failed: [{ id: "s001", files: ["a.ts"], why: "the patch no longer applies: a.ts changed since" }],
+      failed: [
+        {
+          id: "s001",
+          files: ["a.ts"],
+          why: "a.ts changed since it was recorded: its debug lines can no longer be taken out as they were. Take them out by hand, or forget the record (`metator scratch forget --id s001`)",
+        },
+      ],
+      gone: [],
     });
-    expect((await w.scratch.list())._unsafeUnwrap().map((x) => x.id)).toEqual(["s001"]);
     expect(w.tree.has("a.ts@0")).toBe(true);
+    // Looked at again and again: it stays, with its state and why, and it still counts.
+    for (const _ of [1, 2]) {
+      const listed = (await w.scratch.list())._unsafeUnwrap();
+      expect(listed).toEqual({
+        items: [
+          {
+            id: "s001",
+            files: ["a.ts"],
+            at: "2026-11-21T10:00:00.000Z",
+            state: "changed",
+            why: "a.ts changed since it was recorded: its debug lines can no longer be taken out as they were. Take them out by hand, or forget the record (`metator scratch forget --id s001`)",
+          },
+        ],
+        gone: [],
+      });
+    }
+    expect(await w.scratch.count()).toBe(1);
+    expect(await w.fs.exists(".metator/scratch/s001.json")).toBe(true);
   });
 
-  test("a change the person removed by hand is gone from the list: a record holds only what is still in the tree", async () => {
+  test("a record with one file changed and one still as recorded: drop takes out what it can and keeps the rest", async () => {
     const w = world();
     await record(w, "a.ts", "b.ts");
+    w.stale.add("a.ts@0");
+    const r = (await w.scratch.drop({ by: "ana" }))._unsafeUnwrap();
+    expect([r.dropped, r.failed.map((f) => [f.id, f.files])]).toEqual([[], [["s001", ["a.ts"]]]]);
+    // b.ts was taken out; the record goes on with a.ts only.
+    expect(w.tree.has("b.ts@1")).toBe(false);
+    expect((await w.scratch.list())._unsafeUnwrap().items).toMatchObject([
+      { id: "s001", files: ["a.ts"], state: "changed" },
+    ]);
+  });
+
+  test("a record leaves by itself only when no file holds its lines any more, and the response that removes it says so", async () => {
+    const w = world();
+    await record(w, "a.ts", "b.ts");
+    // One file's lines were taken out by hand: the record goes on with the other.
     w.tree.delete("a.ts@0");
-    expect((await w.scratch.list())._unsafeUnwrap()).toMatchObject([{ id: "s001", files: ["b.ts"] }]);
+    expect((await w.scratch.list())._unsafeUnwrap()).toMatchObject({
+      items: [{ id: "s001", files: ["b.ts"], state: "removable" }],
+      gone: [],
+    });
     w.tree.delete("b.ts@1");
-    expect((await w.scratch.list())._unsafeUnwrap()).toEqual([]);
-    // What is gone everywhere is no record any more.
+    expect(await w.scratch.count()).toBe(1);
+    expect((await w.scratch.list())._unsafeUnwrap()).toEqual({
+      items: [],
+      gone: [{ id: "s001", files: ["a.ts", "b.ts"], why: "s001 is gone: a.ts, b.ts no longer hold it" }],
+    });
+    // Told once: the record is no more.
     expect(await w.fs.exists(".metator/scratch/s001.json")).toBe(false);
+    expect((await w.scratch.list())._unsafeUnwrap()).toEqual({ items: [], gone: [] });
+    // The same through drop: a record nothing holds is gone, not dropped and not failed.
+    await record(w, "c.ts");
+    w.tree.delete("c.ts@2");
+    // (With no record left the next one is s001 again.)
+    expect((await w.scratch.drop({ by: "ana" }))._unsafeUnwrap()).toEqual({
+      dropped: [],
+      failed: [],
+      gone: [{ id: "s001", files: ["c.ts"], why: "s001 is gone: c.ts no longer holds it" }],
+    });
+  });
+
+  test("forget: the person dismisses a record; the files stay as they are", async () => {
+    const w = world();
+    await record(w, "a.ts");
+    await record(w, "b.ts");
+    w.stale.add("a.ts@0");
+    const r = (await w.scratch.forget({ ids: ["s001"], by: "ana" }))._unsafeUnwrap();
+    expect(r).toEqual({ forgotten: [{ id: "s001", files: ["a.ts"] }] });
+    expect([w.tree.has("a.ts@0"), w.reverted]).toEqual([true, []]);
+    expect((await w.scratch.list())._unsafeUnwrap().items.map((i) => i.id)).toEqual(["s002"]);
+    const errors = [
+      await w.scratch.forget({ ids: [], by: "ana" }),
+      await w.scratch.forget({ ids: ["s009"], by: "ana" }),
+      await w.scratch.forget({ ids: ["s002"], by: "" }),
+    ].map((e) => e._unsafeUnwrapErr().message);
+    expect(errors).toEqual([
+      "name the records to forget: --id <id> (repeatable)",
+      "scratch record s009 not found",
+      "say who forgets them: --by <name>",
+    ]);
   });
 
   test("the commit guard's question: which debug files would this commit hold", async () => {
@@ -189,5 +293,16 @@ describe("Scratch: a direct edit not meant for a commit, recorded as a patch (AD
     // A new file that was added is in the commit, with or without -a.
     w.index.add("new.log@2");
     expect((await w.scratch.inCommit(true))._unsafeUnwrap()).toEqual(["a.ts", "b.ts", "new.log"]);
+    // Lines that changed since (no longer removable as recorded) still stop a commit that holds them.
+    w.stale.add("a.ts@0");
+    expect((await w.scratch.inCommit(true))._unsafeUnwrap()).toEqual(["a.ts", "b.ts", "new.log"]);
+    w.staleStaged.add("a.ts@0");
+    expect((await w.scratch.inCommit(false))._unsafeUnwrap()).toEqual(["a.ts", "b.ts", "new.log"]);
+    // Asking never removes a record.
+    w.tree.clear();
+    w.index.clear();
+    w.staleStaged.clear();
+    expect((await w.scratch.inCommit(true))._unsafeUnwrap()).toEqual([]);
+    expect(await w.scratch.count()).toBe(1);
   });
 });

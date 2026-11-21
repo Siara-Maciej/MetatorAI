@@ -168,6 +168,7 @@ import type {
   QuickFit,
   QuickOverrides,
   QuickReady,
+  QuickReviewed,
   QuickStart,
   RecordArchitectureBaseline,
   RefactorPlanStore,
@@ -436,6 +437,7 @@ export interface Cradle {
   quickStart: QuickStart;
   quickFit: QuickFit;
   quickReady: QuickReady;
+  quickReviewed: QuickReviewed;
   answerQuestion: AnswerQuestion;
   askInRun: AskInRun;
   briefRun: BriefRun;

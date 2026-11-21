@@ -2328,6 +2328,18 @@ metator quick ready [options]
 | `--run <id>` | run id (default: latest) |  |
 | `--wait [ms]` | wait for the person's answer (at most this long, default 9 minutes), instead of saying not yet at once |  |
 
+### `metator quick reviewed`
+
+The gate of a quick run's review: fails while the reviewer's quick-review.md names a blocking finding (the run goes back to build once)
+
+```bash
+metator quick reviewed [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+
 ## scratch
 
 ### `metator scratch begin`
@@ -2352,7 +2364,7 @@ metator scratch end [options]
 
 ### `metator scratch list`
 
-The recorded changes still in the working tree: id, files, note, when
+The recorded changes: id, files that still hold them, note, when, and whether each can still be taken out as recorded
 
 ```bash
 metator scratch list [options]
@@ -2371,6 +2383,19 @@ metator scratch drop [options]
 | `--id <id>` | one record (repeatable) | `[]` |
 | `--all` | every record |  |
 | `--by <name>` | who removes them (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
+### `metator scratch forget`
+
+Dismiss recorded changes without touching the files: for a record whose lines changed and that you dealt with by hand
+
+```bash
+metator scratch forget [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--id <id>` | a record (repeatable) | `[]` |
+| `--by <name>` | who forgets them (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ## session
 

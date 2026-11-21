@@ -134,7 +134,7 @@ describe("metator scratch: changes not meant for a commit", () => {
       method: "POST",
       body: JSON.stringify({ ids: ["s002"], by: "ana" }),
     });
-    expect(dropped.data).toEqual({ dropped: [{ id: "s002", files: ["src/tax.ts"] }], failed: [] });
+    expect(dropped.data).toEqual({ dropped: [{ id: "s002", files: ["src/tax.ts"] }], failed: [], gone: [] });
     expect(await repo.read("src/tax.ts")).toBe(`${TAX}export const VAT = 0.23;\n`);
     const all = data(await mt("scratch", "drop", "--all")) as {
       dropped: { id: string }[];
@@ -150,23 +150,61 @@ describe("metator scratch: changes not meant for a commit", () => {
     );
   }, 60_000);
 
-  test("a patch that no longer applies is reported and kept: nothing is forced", async () => {
+  test("a record whose lines changed since is remembered: kept, listed as changed, counted, still stops a commit, until the person forgets it", async () => {
     const id = await scratchEdit({ "src/price.ts": `${PRICE}console.log("price called");\n` }, "trace");
-    // The debug line was rewritten since.
-    await repo.write("src/price.ts", `${PRICE}console.warn("price called twice");\n`);
-    const r = (await api("/scratch/drop", { method: "POST", body: JSON.stringify({ by: "ana" }) })).data as {
-      dropped: unknown[];
-      failed: { id: string; files: string[]; why: string }[];
-    };
-    expect(r).toEqual({
-      dropped: [],
-      failed: [
-        { id, files: ["src/price.ts"], why: "the patch no longer applies (src/price.ts changed since)" },
-      ],
+    // The line before the debug line was rewritten since: the patch cannot be taken out as recorded.
+    const rewritten = `export const price = (n: number) => Math.round(n);\nconsole.log("price called");\n`;
+    await repo.write("src/price.ts", rewritten);
+    const why = `src/price.ts changed since it was recorded: its debug lines can no longer be taken out as they were. Take them out by hand, or forget the record (\`metator scratch forget --id ${id}\`)`;
+    const r = (await api("/scratch/drop", { method: "POST", body: JSON.stringify({ by: "ana" }) })).data;
+    expect(r).toEqual({ dropped: [], failed: [{ id, files: ["src/price.ts"], why }], gone: [] });
+    expect(await repo.read("src/price.ts")).toBe(rewritten);
+    // Looked at twice: it stays, with its state and why; the count stays; the record file stays.
+    for (const _ of [1, 2]) {
+      const listed = (await api("/scratch")).data as { items: Data[]; gone?: unknown };
+      expect(listed.items).toMatchObject([
+        { id, files: ["src/price.ts"], note: "trace", state: "changed", why },
+      ]);
+      expect(listed.gone).toBeUndefined();
+    }
+    expect(((await api("/state")).data as { scratch: number }).scratch).toBe(1);
+    expect(await repo.exists(`.metator/scratch/${id}.json`)).toBe(true);
+    // A commit that would take the file is still stopped.
+    const commit = await hook(
+      ["guard", "pre-tool"],
+      { tool_name: "Bash", tool_input: { command: "git commit -am 'Round prices'" }, session_id: "s9" },
+      repo.root,
+      { METATOR_PANE_ID: "w1:p9" },
+    );
+    expect(decision(commit)?.permissionDecisionReason).toContain(
+      "this commit holds debug changes: src/price.ts.",
+    );
+    // The person dealt with it by hand and dismisses the record: nothing is touched.
+    const nobody = await mt("scratch", "forget");
+    expect(error(nobody).message).toBe("name the records to forget: --id <id> (repeatable)");
+    const forgotten = await api("/scratch/forget", {
+      method: "POST",
+      body: JSON.stringify({ ids: [id], by: "ana" }),
     });
-    expect(await repo.read("src/price.ts")).toBe(`${PRICE}console.warn("price called twice");\n`);
-    // Its change is no longer in the tree as recorded: the list no longer shows it, and the record goes.
-    expect((data(await mt("scratch", "list")) as { items: unknown[] }).items).toEqual([]);
-    expect(await repo.exists(`.metator/scratch/${id}.json`)).toBe(false);
+    expect(forgotten.data).toEqual({ forgotten: [{ id, files: ["src/price.ts"] }] });
+    expect(await repo.read("src/price.ts")).toBe(rewritten);
+    expect(((await api("/state")).data as { scratch: number }).scratch).toBe(0);
+    await repo.git("checkout", "--", "src/price.ts");
+  }, 60_000);
+
+  test("a record leaves by itself only when no file holds its lines any more, and the look that removes it says so", async () => {
+    const id = await scratchEdit({ "src/price.ts": `${PRICE}console.log("price called");\n` }, "trace");
+    // The person took the debug line out by hand, and changed the file too.
+    await repo.write("src/price.ts", `${PRICE}export const round = Math.round;\n`);
+    expect(((await api("/state")).data as { scratch: number }).scratch).toBe(1);
+    const listed = data(await mt("scratch", "list")) as { items: unknown[]; gone: Data[] };
+    expect(listed).toEqual({
+      items: [],
+      gone: [{ id, files: ["src/price.ts"], why: `${id} is gone: src/price.ts no longer holds it` }],
+    });
+    // Said once; then there is nothing to say.
+    expect((await api("/scratch")).data).toEqual({ items: [] });
+    expect(((await api("/state")).data as { scratch: number }).scratch).toBe(0);
+    await repo.git("checkout", "--", "src/price.ts");
   }, 60_000);
 });

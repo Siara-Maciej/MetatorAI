@@ -36,19 +36,43 @@ export const ScratchOpenDocument = defineDocument("ScratchOpen", {
 /** A record as a person sees it: without the patch. */
 export interface ScratchItem {
   readonly id: string;
+  /** The files that still hold its lines. */
   readonly files: readonly string[];
   readonly note?: string;
   readonly at: string;
+  /**
+   * `removable`: its change can be taken out as it was recorded. `changed`: a file still holds
+   * its lines, but they (or the lines around them) changed since, so only a person takes them out.
+   */
+  readonly state: "removable" | "changed";
+  /** For `changed`: which files, and what to do. */
+  readonly why?: string;
+}
+
+/** A record that left by itself: no file holds its lines any more. */
+export interface ScratchGone {
+  readonly id: string;
+  readonly files: readonly string[];
+  /** `s002 is gone: src/tax.ts no longer holds it`. */
+  readonly why: string;
+}
+
+export interface ScratchList {
+  readonly items: readonly ScratchItem[];
+  /** The records this look removed, each said once. */
+  readonly gone: readonly ScratchGone[];
 }
 
 export interface ScratchDropped {
   readonly dropped: readonly { readonly id: string; readonly files: readonly string[] }[];
-  /** Patches that no longer apply: kept as they are, with why. */
+  /** Records whose lines changed since: kept as they are, with why. */
   readonly failed: readonly {
     readonly id: string;
     readonly files: readonly string[];
     readonly why: string;
   }[];
+  /** Records no file held any more: removed, and said. */
+  readonly gone: readonly ScratchGone[];
 }
 
 const OPEN = `${SCRATCH_DIR}/open.json`;
@@ -116,7 +140,7 @@ export class Scratch {
       };
       const saved = await writeDocument(this.d.fs, fileOf(record.id), ScratchRecordDocument, record, "json");
       if (saved.isErr()) return err(saved.error);
-      recorded = itemOf(record, record.files);
+      recorded = { ...itemOf(record, record.files), state: "removable" };
     }
     const closed = await this.d.fs.remove(OPEN);
     if (closed.isErr()) return err(closed.error);
@@ -129,33 +153,71 @@ export class Scratch {
   }
 
   /**
-   * The records whose change is still in the working tree, each with the files that still hold
-   * it, oldest first. A record nothing holds any more (taken out by hand) is removed.
+   * Where a record's lines are now: the files whose change can be taken out as recorded
+   * (`exact`), and the files that hold its lines although they changed since (`changed`).
    */
-  async list(): Promise<Result<readonly ScratchItem[], MetatorError>> {
-    const out: ScratchItem[] = [];
+  private async where(
+    record: ScratchRecord,
+  ): Promise<Result<{ exact: string[]; changed: string[] }, MetatorError>> {
+    const exact = new Set<string>();
+    const held = new Set<string>();
+    for (const where of ["tree", "index"] as const) {
+      const applies = await this.d.patches.holding(record.patch, where);
+      if (applies.isErr()) return err(applies.error);
+      for (const f of applies.value) exact.add(f);
+      const remains = await this.d.patches.remains(record.patch, where);
+      if (remains.isErr()) return err(remains.error);
+      for (const f of remains.value) held.add(f);
+    }
+    return ok({ exact: [...exact].sort(), changed: [...held].filter((f) => !exact.has(f)).sort() });
+  }
+
+  /** A record no file holds any more leaves, and says so. */
+  private async leave(record: ScratchRecord): Promise<Result<ScratchGone, MetatorError>> {
+    const removed = await this.d.fs.remove(fileOf(record.id));
+    if (removed.isErr()) return err(removed.error);
+    const files = [...record.files].sort();
+    return ok({
+      id: record.id,
+      files,
+      why: `${record.id} is gone: ${files.join(", ")} no longer ${files.length === 1 ? "holds" : "hold"} it`,
+    });
+  }
+
+  /**
+   * Every record, oldest first, with the files that still hold its lines and whether it can
+   * still be taken out as recorded. MetatorAI remembers a debug change until the person deals
+   * with it: a record leaves here only when no file holds its lines any more, and that is said.
+   */
+  async list(): Promise<Result<ScratchList, MetatorError>> {
+    const items: ScratchItem[] = [];
+    const gone: ScratchGone[] = [];
     for (const id of await this.ids()) {
       const record = await loadDocument(this.d.fs, fileOf(id), ScratchRecordDocument, "json");
       if (record.isErr()) return err(record.error);
-      const inTree = await this.d.patches.holding(record.value.patch, "tree");
-      if (inTree.isErr()) return err(inTree.error);
-      if (inTree.value.length > 0) {
-        out.push(itemOf(record.value, inTree.value));
+      const at = await this.where(record.value);
+      if (at.isErr()) return err(at.error);
+      const files = [...at.value.exact, ...at.value.changed].sort();
+      if (files.length === 0) {
+        const left = await this.leave(record.value);
+        if (left.isErr()) return err(left.error);
+        gone.push(left.value);
         continue;
       }
-      const staged = await this.d.patches.holding(record.value.patch, "index");
-      if (staged.isErr()) return err(staged.error);
-      if (staged.value.length > 0) {
-        out.push(itemOf(record.value, staged.value));
-        continue;
-      }
-      const gone = await this.d.fs.remove(fileOf(id));
-      if (gone.isErr()) return err(gone.error);
+      items.push({
+        ...itemOf(record.value, files),
+        ...(at.value.changed.length > 0
+          ? { state: "changed" as const, why: changedWhy(id, at.value.changed) }
+          : { state: "removable" as const }),
+      });
     }
-    return ok(out);
+    return ok({ items, gone });
   }
 
-  /** Takes the records' changes out again, the newest first: all of them, or the ones named. */
+  /**
+   * Takes the records' changes out again, the newest first: all of them, or the ones named. What
+   * can be taken out as recorded is; a record with lines that changed since stays, with why.
+   */
   async drop(input: {
     readonly ids?: readonly string[];
     readonly by: string;
@@ -169,25 +231,67 @@ export class Scratch {
       .reverse();
     const dropped: { id: string; files: readonly string[] }[] = [];
     const failed: { id: string; files: readonly string[]; why: string }[] = [];
+    const gone: ScratchGone[] = [];
     for (const id of chosen) {
       const record = await loadDocument(this.d.fs, fileOf(id), ScratchRecordDocument, "json");
       if (record.isErr()) return err(record.error);
-      const reverted = await this.d.patches.revert(record.value.patch);
-      if (reverted.isErr()) {
-        failed.push({ id, files: record.value.files, why: reverted.error.message });
+      const at = await this.where(record.value);
+      if (at.isErr()) return err(at.error);
+      if (at.value.exact.length === 0 && at.value.changed.length === 0) {
+        const left = await this.leave(record.value);
+        if (left.isErr()) return err(left.error);
+        gone.push(left.value);
         continue;
       }
-      const gone = await this.d.fs.remove(fileOf(id));
-      if (gone.isErr()) return err(gone.error);
-      dropped.push({ id, files: record.value.files });
+      let changed = at.value.changed;
+      if (at.value.exact.length > 0) {
+        const reverted = await this.d.patches.revert(record.value.patch, at.value.exact);
+        // Git refused although the check passed a moment ago: these files stay with the record too.
+        if (reverted.isErr()) changed = [...changed, ...at.value.exact].sort();
+      }
+      if (changed.length > 0) {
+        failed.push({ id, files: changed, why: changedWhy(id, changed) });
+        continue;
+      }
+      const removed = await this.d.fs.remove(fileOf(id));
+      if (removed.isErr()) return err(removed.error);
+      dropped.push({ id, files: at.value.exact });
     }
-    return ok({ dropped, failed });
+    return ok({ dropped, failed, gone });
+  }
+
+  /** The person dismisses records: they are forgotten, and the files stay as they are. */
+  async forget(input: {
+    readonly ids: readonly string[];
+    readonly by: string;
+  }): Promise<
+    Result<{ readonly forgotten: readonly { id: string; files: readonly string[] }[] }, MetatorError>
+  > {
+    if (input.ids.length === 0)
+      return err(MetatorError.usage("name the records to forget: --id <id> (repeatable)"));
+    const all = await this.ids();
+    const missing = input.ids.find((id) => !all.includes(id));
+    if (missing) return err(MetatorError.notFound(`scratch record ${missing}`));
+    if (input.by.trim() === "") return err(MetatorError.usage("say who forgets them: --by <name>"));
+    const forgotten: { id: string; files: readonly string[] }[] = [];
+    for (const id of all.filter((x) => input.ids.includes(x))) {
+      const record = await loadDocument(this.d.fs, fileOf(id), ScratchRecordDocument, "json");
+      if (record.isErr()) return err(record.error);
+      const at = await this.where(record.value);
+      if (at.isErr()) return err(at.error);
+      const held = [...at.value.exact, ...at.value.changed].sort();
+      const removed = await this.d.fs.remove(fileOf(id));
+      if (removed.isErr()) return err(removed.error);
+      forgotten.push({ id, files: held.length > 0 ? held : [...record.value.files].sort() });
+    }
+    return ok({ forgotten });
   }
 
   /**
    * The debug files a commit would hold (the commit guard, ADR-0094): the staged part of each
    * record, and with `commit -a` what of it is in the working tree of a file git tracks (a new
-   * file nobody added is in no commit).
+   * file nobody added is in no commit). Lines that changed since count too: a commit is stopped
+   * while a file still holds what was recorded. Asking removes nothing.
    */
   async inCommit(all: boolean): Promise<Result<readonly string[], MetatorError>> {
     const files = new Set<string>();
@@ -197,7 +301,9 @@ export class Scratch {
       for (const where of all ? (["index", "tracked"] as const) : (["index"] as const)) {
         const held = await this.d.patches.holding(record.value.patch, where);
         if (held.isErr()) return err(held.error);
-        for (const f of held.value) files.add(f);
+        const remains = await this.d.patches.remains(record.value.patch, where);
+        if (remains.isErr()) return err(remains.error);
+        for (const f of [...held.value, ...remains.value]) files.add(f);
       }
     }
     return ok([...files].sort());
@@ -212,11 +318,16 @@ export class Scratch {
   }
 }
 
-function itemOf(record: ScratchRecord, files: readonly string[]): ScratchItem {
+function itemOf(record: ScratchRecord, files: readonly string[]): Omit<ScratchItem, "state"> {
   return {
     id: record.id,
     files: [...files],
     ...(record.note ? { note: record.note } : {}),
     at: record.at,
   };
+}
+
+/** What a person is told of a record whose lines changed since it was recorded. */
+function changedWhy(id: string, files: readonly string[]): string {
+  return `${files.join(", ")} changed since it was recorded: its debug lines can no longer be taken out as they were. Take them out by hand, or forget the record (\`metator scratch forget --id ${id}\`)`;
 }

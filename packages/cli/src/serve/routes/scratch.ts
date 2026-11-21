@@ -8,7 +8,12 @@ export const SCRATCH_ROUTES: readonly Route[] = [
   route({
     method: "GET",
     pattern: "/scratch",
-    handler: async ({ c }) => (await c.resolve("scratch").list()).map((items) => ({ items })),
+    // `gone` is there only when this look removed a record no file holds any more.
+    handler: async ({ c }) =>
+      (await c.resolve("scratch").list()).map(({ items, gone }) => ({
+        items,
+        ...(gone.length > 0 ? { gone } : {}),
+      })),
   }),
   route({
     method: "POST",
@@ -16,5 +21,12 @@ export const SCRATCH_ROUTES: readonly Route[] = [
     body: body({ ids: strings, by: text }),
     handler: ({ c, body: b }) =>
       c.resolve("scratch").drop({ ...(b.ids && b.ids.length > 0 ? { ids: b.ids } : {}), by: b.by ?? "" }),
+  }),
+  // A person dismisses records: forgotten, the files stay as they are.
+  route({
+    method: "POST",
+    pattern: "/scratch/forget",
+    body: body({ ids: strings, by: text }),
+    handler: ({ c, body: b }) => c.resolve("scratch").forget({ ids: b.ids ?? [], by: b.by ?? "" }),
   }),
 ];

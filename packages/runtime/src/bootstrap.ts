@@ -160,6 +160,7 @@ import {
   QuickFit,
   QuickOverrides,
   QuickReady,
+  QuickReviewed,
   QuickStart,
   RecordArchitectureBaseline,
   RefactorPlanStore,
@@ -1912,6 +1913,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           tree: workingTree,
           close: closeRun,
         }),
+    ),
+    quickReviewed: asFunction(
+      ({ runRepository, fileSystem }) => new QuickReviewed({ repo: runRepository, fs: fileSystem }),
     ),
     quickReady: asFunction(
       ({ runRepository, runJournal, advanceRun, runDrivers }) =>

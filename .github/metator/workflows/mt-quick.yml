@@ -24,9 +24,10 @@ stages:
     owner: "script:metator quick check --diff"
     gate: { script: metator quick fit }
   - id: review
-    description: One short review of the diff by one reviewer; only a blocking finding sends it back to build, once
-    owner: mt-pr-review
+    description: "One short review of the diff by one reviewer (quick-review.md: `BLOCKING: <n>` sends it back to build, once)"
+    owner: mt-quick-review
     produces: [quick-review.md]
+    gate: { script: metator quick reviewed }
     onFail: { goto: build, loop: review }
   - id: ready
     description: The uncommitted diff is ready; the person looks at it (Open diff) and says Fine, which ends the run
