@@ -8,6 +8,7 @@
 import { useState } from "react";
 import type { InboxItem } from "../api.ts";
 import { Notice } from "../components/common.tsx";
+import { DebugChanges } from "../components/debug-changes.tsx";
 import { DecisionCard } from "../components/decision-card.tsx";
 import { EscalatedCard } from "../components/escalated-card.tsx";
 import { Glyph } from "../components/glyph.tsx";
@@ -74,9 +75,16 @@ export function InboxScreen({
     const next = stepNeed(needs, picked?.key, step);
     if (next) onPick(next.key);
   };
+  // Debug changes the daemon counts: an entry on Home while there are some (round 13).
+  const debug = (
+    <div className="home-debug">
+      <DebugChanges />
+    </div>
+  );
   if (needs.length === 0)
     return (
       <div className="home">
+        {debug}
         {isFirstRun(runs, needs) ? (
           <FirstRun onStart={onStart} onForm={onForm} />
         ) : (
@@ -86,6 +94,7 @@ export function InboxScreen({
     );
   return (
     <div className="home">
+      {debug}
       <nav className="queue" data-testid="queue" aria-label="decisions that wait">
         <strong>{needs.length} waiting</strong>
         <span className="faint">

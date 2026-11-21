@@ -87,11 +87,13 @@ import {
   GenerateSkills,
   GetRunStatus,
   GraphQueries,
+  GuardConsents,
   GuardPostEdit,
   GuardPreTool,
   GuardSessionStart,
   GuardStop,
   GuardSubagentOutput,
+  GuardUserPrompt,
   HandoffRun,
   HOST_TARGETS,
   type HostBins,
@@ -613,7 +615,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     agentHosts: asFunction(({ played, hostBins: bins, knownHosts }) => {
       const hosts = new Map<string, AgentHost>();
       for (const h of [...orderedHosts(DRIVE_ORDER, knownHosts), ...played])
-        if (h.agent) hosts.set(h.id, h.agent.host(bins[h.id]));
+        if (h.agent) hosts.set(h.id, h.agent.host(bins[h.id], config.config.guard.commands));
       return hosts;
     }).singleton(),
     terminal: asFunction(() => new NodePtyTerminal()).singleton(),
@@ -627,7 +629,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ]).singleton(),
     interactiveHosts: asFunction(({ terminal, sessionHosts, hostBins: bins }) => {
       const hosts = new Map<string, InteractiveHost>();
-      for (const h of sessionHosts) if (h.interactive) hosts.set(h.id, h.interactive(terminal, bins[h.id]));
+      for (const h of sessionHosts)
+        if (h.interactive) hosts.set(h.id, h.interactive(terminal, bins[h.id], config.config.guard.commands));
       return hosts;
     }).singleton(),
     // Why a host that drives agents cannot start here (its program is not installed).
@@ -1685,9 +1688,17 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ advanceRun, runRepository, clock, workflowCatalog, systemPlanApprovals }) =>
         new ApproveRun(advanceRun, runRepository, clock, workflowCatalog, systemPlanApprovals),
     ),
+    // The person's consents to guarded commands (ADR-0094): written by their words, used once.
+    guardConsents: asFunction(({ fileSystem, clock }) => new GuardConsents(fileSystem, clock)),
     guardPreTool: asFunction(
-      ({ getRunStatus, runRepository, agentCatalog, fileSystem, root, role }) =>
-        new GuardPreTool(getRunStatus, runRepository, agentCatalog, fileSystem, root, role),
+      ({ getRunStatus, runRepository, agentCatalog, fileSystem, root, role, config, guardConsents }) =>
+        new GuardPreTool(getRunStatus, runRepository, agentCatalog, fileSystem, root, role, {
+          guard: config.config.guard,
+          consents: guardConsents,
+        }),
+    ),
+    guardUserPrompt: asFunction(
+      ({ guardConsents, config }) => new GuardUserPrompt(guardConsents, config.config.guard),
     ),
     guardPostEdit: asFunction(
       ({ checkRules, fileSystem, root }) => new GuardPostEdit(checkRules, fileSystem, root),

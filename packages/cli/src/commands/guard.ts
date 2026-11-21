@@ -71,7 +71,7 @@ export function registerGuardCommands(program: Command, { action, container, std
   const events = [
     [
       "pre-tool",
-      "PreToolUse: deny secrets, destructive commands, unapproved push, edits outside plan scope",
+      "PreToolUse: deny secrets, commands that never run (guard.commands), edits outside plan scope; ask for commit, push, merge, rebase unless the person consented",
       "guardPreTool",
     ],
     ["post-edit", "PostToolUse: rule violations of the edited files as context", "guardPostEdit"],
@@ -80,6 +80,11 @@ export function registerGuardCommands(program: Command, { action, container, std
       "subagent-output",
       "SubagentStop: the run's JSON artifacts must be valid documents",
       "guardSubagentOutput",
+    ],
+    [
+      "user-prompt",
+      "UserPromptSubmit: the person's own words that ask for a guarded command (commit, push) are their consent to it, once",
+      "guardUserPrompt",
     ],
   ] as const;
   for (const [name, description, token] of events) {
@@ -92,7 +97,12 @@ export function registerGuardCommands(program: Command, { action, container, std
             .resolve(token)
             // A session `metator run drive` started (the host sets METATOR_DRIVEN): the drive
             // moves the run, so the guards neither let the agent do it nor ask it to.
-            .execute(payload(await stdin()), { driven: Boolean(process.env.METATOR_DRIVEN) });
+            // A pane under the daemon (METATOR_PANE_ID) is no drive's session: its consents are
+            // the pane's, a person can be asked there, and its conductor or chat steers runs.
+            .execute(payload(await stdin()), {
+              driven: Boolean(process.env.METATOR_DRIVEN),
+              ...(process.env.METATOR_PANE_ID ? { pane: process.env.METATOR_PANE_ID } : {}),
+            });
           await beat;
           return answer(result, name);
         }),

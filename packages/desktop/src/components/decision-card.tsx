@@ -19,6 +19,7 @@ import {
   questionKind,
   systemPlanOf,
 } from "../model.ts";
+import { consentOf } from "../stage1.ts";
 import { useAnswer } from "./answer.tsx";
 import { ArtifactViewer } from "./artifact-viewer.tsx";
 import { Chip } from "./chips.tsx";
@@ -77,6 +78,9 @@ export function DecisionCard({
   const terminal = isTerminalQuestion(q);
   const askPane = terminal ? paneOfQuestion(q, panes) : undefined;
   const heading = host?.text || humanPrompt(q.prompt);
+  // A commit, push, merge or rebase the guard lets through only with the person's consent.
+  const consent =
+    q.source === "permission" ? consentOf({ prompt: heading, command: commandOf(q) }) : undefined;
   // A plan with lint errors closes Approve: the daemon says so on the option, or the lint does.
   const lintOfPlan =
     planView?.lint ??
@@ -180,6 +184,11 @@ export function DecisionCard({
         <div className="muted" data-testid="host-asker">
           {host?.asker ?? q.agent ?? "the agent"} asks on its terminal
           {terminal ? " · an answer chosen here is typed there for you" : ""}
+        </div>
+      ) : null}
+      {consent ? (
+        <div className="consent amber" data-testid="consent">
+          {consent.text}
         </div>
       ) : null}
       {planGate ? (

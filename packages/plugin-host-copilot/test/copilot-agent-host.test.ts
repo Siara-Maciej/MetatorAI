@@ -57,6 +57,11 @@ describe("CopilotAgentHost", () => {
       expect(argv[argv.indexOf(pair[0] as string) + 1]).toBe(pair[1] as string);
     expect(argv).toContain("--session-id");
     expect(argv).toContain("--allow-all-tools");
+    // The config's never-commands too (MetatorAI's defaults here), from the one list both hosts read.
+    const denied = argv.filter((_, i) => argv[i - 1] === "--deny-tool");
+    expect(denied).toContain("shell(git push --force)");
+    expect(denied).toContain("shell(git reset --hard)");
+    expect(denied).not.toContain("shell(git commit)");
   });
 
   test("a session to resume is passed with --resume and reported back", async () => {

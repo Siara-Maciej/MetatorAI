@@ -36,6 +36,7 @@ import {
   withSeen,
   withTerminalAsks,
 } from "./model.ts";
+import { scratchCount, scratchRepos } from "./stage1.ts";
 
 export interface Daemon {
   readonly client: DaemonClient;
@@ -56,6 +57,13 @@ export interface Daemon {
   readonly inbox: readonly InboxItem[];
   /** The questions of panes without a run (the intake chat), from `/inbox`'s `panes` (ADR-0091). */
   readonly paneAsks: readonly PaneAsk[];
+  /**
+   * How many debug changes the daemon's state counts (round 13), in all repositories or the ones
+   * named; 0 on a daemon that does not count them (then nothing asks for `/scratch`).
+   */
+  scratchCount(repos?: readonly (string | undefined)[]): number;
+  /** The repositories that have debug changes, of all or of the ones named. */
+  scratchRepos(repos?: readonly (string | undefined)[]): (string | undefined)[];
   /** Every pane of every repository's layout (R1, R4), each with the repository it belongs to. */
   readonly panes: readonly (PaneView & { readonly repo?: string | undefined })[];
   /** Every workspace of every repository's layout, read with the panes. */
@@ -382,6 +390,8 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
       write("metator.repo", name);
       setSavedRepo(name);
     },
+    scratchCount: (of) => (down ? 0 : scratchCount(state, of)),
+    scratchRepos: (of) => (down ? [] : scratchRepos(state, of)),
     inbox: down ? NO_INBOX : inbox,
     paneAsks: down ? NO_PANE_ASKS : paneAsks,
     panes: shownPanes,

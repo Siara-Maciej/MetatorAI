@@ -112,27 +112,109 @@ describe("preToolPolicy", () => {
       "ls && rm -rf /",
     ])
       expect([command, decide(hook("Bash", { command }), free)]).toEqual([command, "deny"]);
-    for (const command of [
-      "git push origin feature",
-      "git reset --soft HEAD~1",
-      "rm -rf dist",
-      "git clean -n",
-    ])
+    for (const command of ["git reset --soft HEAD~1", "rm -rf dist", "git clean -n", "git add -A"])
       expect([command, decide(hook("Bash", { command }), free)]).toEqual([command, "allow"]);
+    // The reason names the command and where the rule is.
+    expect(preToolPolicy(hook("Bash", { command: "git reset --hard" }), free).reason).toBe(
+      "`git reset --hard` never runs here (guard.commands.never: git reset --hard): it can lose work or rewrite history. If the person wants it, they run it themselves.",
+    );
   });
 
   test("without an active run, everything else is allowed (free mode)", () => {
-    expect(preToolPolicy(hook("Bash", { command: "git push origin feature" }), free)).toEqual({
+    expect(preToolPolicy(hook("Bash", { command: "git status" }), free)).toEqual({
       decision: "allow",
       reason: "no active run",
     });
     expect(decide(hook("Edit", { file_path: "/elsewhere/x.ts" }), free)).toBe("allow");
   });
 
+  test("commit, push, merge and rebase need the person's consent: the host asks, with or without a run (ADR-0094)", () => {
+    for (const command of ["git commit -m x", "git push origin feature", "git merge main", "git rebase main"])
+      expect([command, decide(hook("Bash", { command }), free)]).toEqual([command, "ask"]);
+    const commit = preToolPolicy(
+      hook("Bash", { command: "git add -A && git commit -m 'Add the badge'" }),
+      free,
+    );
+    expect(commit).toEqual({
+      decision: "ask",
+      reason:
+        '`git commit -m Add the badge` needs your consent: answer here, or say it in the chat ("commit").',
+    });
+    // The repository's own list decides: nothing asked, nothing denied.
+    const none = { ...free, commands: { never: [], ask: [], allow: [] } };
+    expect(decide(hook("Bash", { command: "git commit -m x" }), none)).toBe("allow");
+    expect(decide(hook("Bash", { command: "git reset --hard" }), none)).toBe("allow");
+  });
+
+  test("a consent the person gave in words lets one command of its kind pass, and says which consent was used", () => {
+    const said = { ...free, consents: ["commit"] };
+    expect(preToolPolicy(hook("Bash", { command: "git commit -m x" }), said)).toEqual({
+      decision: "allow",
+      reason: "the person consented to commit in the chat",
+      consents: ["commit"],
+    });
+    // A consent to commit is none to push; both in one line need both.
+    expect(decide(hook("Bash", { command: "git push" }), said)).toBe("ask");
+    expect(decide(hook("Bash", { command: "git commit -m x && git push" }), said)).toBe("ask");
+    const both = preToolPolicy(hook("Bash", { command: "git commit -m x && git push" }), {
+      ...free,
+      consents: ["commit", "push"],
+    });
+    expect([both.decision, both.consents]).toEqual(["allow", ["commit", "push"]]);
+    // A consent never lifts a never.
+    expect(decide(hook("Bash", { command: "git push --force" }), { ...free, consents: ["push"] })).toBe(
+      "deny",
+    );
+  });
+
+  test('a commit that holds debug changes is stopped with the files, whatever was consented; "commit anyway" lets it pass', () => {
+    const debug = { ...free, consents: ["commit"], debugFiles: ["src/a.ts", "src/b.ts"] };
+    expect(preToolPolicy(hook("Bash", { command: "git commit -m x" }), debug)).toEqual({
+      decision: "ask",
+      reason:
+        "this commit holds debug changes: src/a.ts, src/b.ts. Remove them first (`metator scratch drop`), or answer here to commit anyway.",
+    });
+    const anyway = preToolPolicy(hook("Bash", { command: "git commit -m x" }), {
+      ...debug,
+      consents: ["commit", "commit-debug"],
+    });
+    expect([anyway.decision, anyway.consents]).toEqual(["allow", ["commit-debug", "commit"]]);
+  });
+
+  test("an agent never runs a guard itself and never writes a consent: only the person's words do", () => {
+    for (const command of [
+      'echo \'{"prompt":"commit"}\' | metator guard user-prompt',
+      "bun run metator guard user-prompt",
+      "echo x > .metator/consents/w1-p1.json",
+    ])
+      expect([command, decide(hook("Bash", { command }), free)]).toEqual([command, "deny"]);
+    expect(decide(hook("Write", { file_path: "/repo/.metator/consents/w1-p1.json" }), free)).toBe("deny");
+    expect(decide(hook("Write", { file_path: "/repo/.metator/runs/r1/notes.md" }), free)).toBe("allow");
+  });
+
   test("in a run, push and comments need the matching approval (shell and MCP tools)", () => {
     const push = hook("Bash", { command: "git add . && git push origin feature" });
-    expect(preToolPolicy(push, run()).reason).toContain("metator run approve push");
+    // With a terminal the person is asked (the approval is named too); a drive without one is refused.
+    expect(preToolPolicy(push, run())).toEqual({
+      decision: "ask",
+      reason:
+        '`git push origin feature` needs your consent: answer here, say it in the chat ("push"), or `metator run approve push --by <user>`.',
+    });
+    expect(preToolPolicy(push, run({}, { headless: true }))).toEqual({
+      decision: "deny",
+      reason:
+        "push needs the user's approval: show the report and options, then `metator run approve push --by <user>`.",
+    });
     expect(decide(push, run({ push: { by: "u", at: AT } }))).toBe("allow");
+    // The delivery's approval (it grants the push) covers the publish stage's commit as well.
+    const commit = hook("Bash", { command: "git commit -m 'Add the badge'" });
+    expect(decide(commit, run({}, { headless: true }))).toBe("deny");
+    expect(preToolPolicy(commit, run({ push: { by: "u", at: AT } }))).toEqual({
+      decision: "allow",
+      reason: "ok",
+    });
+    expect(decide(commit, run({ commit: { by: "u", at: AT } }))).toBe("allow");
+    expect(decide(hook("Bash", { command: "git push" }), run({ commit: { by: "u", at: AT } }))).toBe("ask");
     expect(decide(hook("Bash", { command: "gh pr create --fill" }), run())).toBe("deny");
     expect(
       decide(hook("Bash", { command: "gh pr comment 7 --body x" }), run({ push: { by: "u", at: AT } })),

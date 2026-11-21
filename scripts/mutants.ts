@@ -6769,6 +6769,36 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a card shows the host's whole command when it sends one, not the prompt's fragment",
   },
   {
+    file: "packages/desktop/src/stage1.ts",
+    from: '  return typeof named === "string" && named.trim() !== "" ? named : OLD_CHAT_AGENT;',
+    to: "  return OLD_CHAT_AGENT;",
+    why: "the chat opens the repository's conversation agent when the daemon names one",
+  },
+  {
+    file: "packages/desktop/src/stage1.ts",
+    from: "  choices.length === 1 && choices[0] === OPEN_DIFF;",
+    to: "  choices.includes(OPEN_DIFF);",
+    why: "Open diff opens the change only when it is the one choice, never with another answer",
+  },
+  {
+    file: "packages/desktop/src/stage1.ts",
+    from: "(commit|push|merge|rebase)(?=\\s|$)/",
+    to: "(commit|push|merge|rebase)/",
+    why: "consent is for git commit, push, merge and rebase, not for a command that only starts so (commit-tree)",
+  },
+  {
+    file: "packages/desktop/src/stage1.ts",
+    from: "  return s.repos.filter((r) => !repos || repos.includes(r.name)).reduce(",
+    to: "  return s.repos.reduce(",
+    why: "a task's Debug changes counts its own repositories, not the whole folder",
+  },
+  {
+    file: "packages/desktop/src/stage1.ts",
+    from: "  if (failed.length === 0) return { text: head, ok: true };",
+    to: "  if (failed.length >= 0) return { text: head, ok: true };",
+    why: "a debug change whose patch no longer applies is said, never passed over",
+  },
+  {
     file: "packages/desktop/src/confirm.ts",
     from: "const mine = ++latest;",
     to: "const mine = latest;",

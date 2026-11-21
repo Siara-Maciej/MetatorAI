@@ -30,9 +30,16 @@ interactiveHostContract("CopilotInteractiveHost", async () => {
 });
 
 describe("CopilotInteractiveHost", () => {
-  test("starts `copilot -i <task>` in the worktree with the run directory added and git push denied", async () => {
+  test("starts `copilot -i <task>` in the worktree with the run directory added and the config's never-commands denied", async () => {
     const terminal = new FakeTerminal();
-    const host = new CopilotInteractiveHost(terminal, "copilot", { PATH: "/bin", HOME: undefined });
+    // The repository's own list (guard.commands): what never runs is denied at the process level;
+    // what asks (commit, push) is left to the hook and Copilot's own approval prompt.
+    const guard = {
+      never: ["git push --force*", "git reset --hard"],
+      ask: ["git commit", "git push"],
+      allow: [],
+    };
+    const host = new CopilotInteractiveHost(terminal, "copilot", { PATH: "/bin", HOME: undefined }, guard);
     const cwd = "/work/wt";
     const session = (await host.start(task(cwd, { dirs: ["/work/other"] }), size))._unsafeUnwrap();
     expect(session.sessionId).toBe(CONTINUE);
@@ -46,7 +53,9 @@ describe("CopilotInteractiveHost", () => {
         "--add-dir",
         "/work/other",
         "--deny-tool",
-        "shell(git push)",
+        "shell(git push --force)",
+        "--deny-tool",
+        "shell(git reset --hard)",
       ],
       cwd,
       env: {

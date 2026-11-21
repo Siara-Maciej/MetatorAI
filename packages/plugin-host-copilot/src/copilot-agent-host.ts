@@ -1,4 +1,11 @@
-import type { AgentEvent, AgentHost, AgentTask } from "@metator/core";
+import {
+  type AgentEvent,
+  type AgentHost,
+  type AgentTask,
+  DEFAULT_GUARD_COMMANDS,
+  denyToolsOf,
+  type GuardCommands,
+} from "@metator/core";
 
 /**
  * AgentHost on GitHub Copilot CLI (ADR-0051): `copilot -p … --agent <id> --output-format json`
@@ -8,7 +15,11 @@ import type { AgentEvent, AgentHost, AgentTask } from "@metator/core";
 export class CopilotAgentHost implements AgentHost {
   readonly id = "copilot";
 
-  constructor(private readonly bin: string = "copilot") {}
+  constructor(
+    private readonly bin: string = "copilot",
+    /** `guard.commands` of the repository: what the process itself denies (never; a push, as nobody can be asked). */
+    private readonly guard: GuardCommands = DEFAULT_GUARD_COMMANDS,
+  ) {}
 
   async *run(task: AgentTask): AsyncIterable<AgentEvent> {
     const session = task.resume ?? crypto.randomUUID();
@@ -27,8 +38,7 @@ export class CopilotAgentHost implements AgentHost {
       "json",
       ...(task.resume ? ["--resume", task.resume] : ["--session-id", session]),
       "--allow-all-tools",
-      "--deny-tool",
-      "shell(git push)",
+      ...denyToolsOf(this.guard, { headless: true }).flatMap((t) => ["--deny-tool", t]),
     ];
     let proc: ReturnType<typeof Bun.spawn>;
     try {

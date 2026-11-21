@@ -1,4 +1,5 @@
 import { MetatorError } from "../domain/errors.ts";
+import type { GuardCommands } from "../domain/guard-commands.ts";
 import { err } from "../domain/result.ts";
 import type {
   AgentHost,
@@ -23,10 +24,11 @@ export interface HostDescriptor {
     readonly runsProgram: boolean;
     /** Why this host may not start an agent here (the guard of `METATOR_NO_REAL_HOSTS`); it still counts as here. */
     readonly refused?: string;
-    host(bin: string | undefined): AgentHost;
+    /** `guard`: the repository's `guard.commands`, for a host that can deny commands itself (ADR-0094). */
+    host(bin: string | undefined, guard?: GuardCommands): AgentHost;
   };
   /** The host as an interactive CLI in a PTY. */
-  interactive?(terminal: Terminal, bin: string | undefined): InteractiveHost;
+  interactive?(terminal: Terminal, bin: string | undefined, guard?: GuardCommands): InteractiveHost;
   /** Writes the host's agent files and hooks; `agentFile` is where an agent's file goes. */
   readonly files?: {
     generator(): HostGenerator;

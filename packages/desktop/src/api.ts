@@ -3,6 +3,7 @@
  * `metator serve`; the app has no domain logic of its own and imports no code from MetatorAI:
  * only types of `@metator/core`, with `import type` (ADR-0085).
  */
+
 import type {
   Attention,
   AttentionCounts,
@@ -62,6 +63,7 @@ import type {
   Workspace,
   WorktreeConflict,
 } from "@metator/core";
+import type { ScratchDropped } from "./stage1.ts";
 
 /*
  * The shapes the daemon passes through unchanged are core's own types (ADR-0085): imported with
@@ -173,6 +175,8 @@ export interface ContinueResult {
   }[];
 }
 
+export type { ScratchDropped } from "./stage1.ts";
+
 export interface PaneAsk {
   readonly kind: "pane";
   /** The repository, when the daemon serves a folder. */
@@ -212,6 +216,8 @@ export interface SupervisorView {
     readonly repo: string | null;
   };
   readonly hosts: readonly string[];
+  /** The repository's conversation agent (`mt-chat`), when it has one: what "+ New run" opens (round 13). */
+  readonly chatAgent?: string;
   /** Each host with the program it starts and whether it is on the daemon's machine (absent on an older daemon). */
   readonly hostStatus?: readonly {
     readonly id: string;
@@ -329,6 +335,11 @@ export class DaemonClient {
    */
   continueRun = (runId: string, by: string, repo?: string) =>
     this.post<ContinueResult>(`/runs/${runId}/continue`, { by }, repo);
+  /** The repository's debug changes (round 13): edits not meant for a commit, recorded as patches. */
+  scratch = (repo?: string) => this.get<{ items?: unknown[] }>("/scratch", repo);
+  /** Reverse-applies debug changes (all without `ids`); a patch that no longer applies is reported. */
+  dropScratch = (body: { ids?: readonly string[]; by: string }, repo?: string) =>
+    this.post<ScratchDropped>("/scratch/drop", body, repo);
   /** One paused pane started again in place (refused when it is not paused). */
   continuePane = (paneId: string, by: string, repo?: string) =>
     this.post<ContinueResult>(`/panes/${encodeURIComponent(paneId)}/continue`, { by }, repo);

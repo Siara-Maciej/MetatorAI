@@ -7,7 +7,8 @@
 import { useEffect, useState } from "react";
 import type { Question } from "../api.ts";
 import { useDaemon } from "../daemon.tsx";
-import { canAnswer, needsReason, toggleChoice } from "../model.ts";
+import { canAnswer, needsReason, routeHash, toggleChoice } from "../model.ts";
+import { opensDiff } from "../stage1.ts";
 import { Notice } from "./common.tsx";
 
 export function useAnswer(
@@ -40,6 +41,11 @@ export function useAnswer(
   }, [id, initial]);
   /** `words`: the reason given elsewhere on the card (Ask for changes), instead of the note field. */
   const send = async (picked: readonly string[] = choices, words?: string) => {
+    // "Open diff" on a quick change's card is no answer: the run's change opens, the card stays.
+    if (opensDiff(picked)) {
+      window.location.hash = routeHash({ screen: "run", runId: q.runId, tab: "changes" });
+      return;
+    }
     const said = words ?? text;
     if (busy || !canAnswer(picked, said)) return;
     const by = await who();

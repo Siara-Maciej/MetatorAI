@@ -8,8 +8,8 @@ import { CopilotSkillGenerator } from "./skill-generator.ts";
 export const copilotHost: HostDescriptor = {
   id: "copilot",
   program: { env: "METATOR_COPILOT_BIN", default: "copilot" },
-  agent: { runsProgram: true, host: (bin) => new CopilotAgentHost(bin) },
-  interactive: (terminal, bin) => new CopilotInteractiveHost(terminal, bin),
+  agent: { runsProgram: true, host: (bin, guard) => new CopilotAgentHost(bin, guard) },
+  interactive: (terminal, bin, guard) => new CopilotInteractiveHost(terminal, bin, process.env, guard),
   files: {
     generator: () => new CopilotGenerator(),
     skills: () => new CopilotSkillGenerator(),

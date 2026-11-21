@@ -92,11 +92,13 @@ import type {
   GenerateSkills,
   GetRunStatus,
   GraphQueries,
+  GuardConsents,
   GuardPostEdit,
   GuardPreTool,
   GuardSessionStart,
   GuardStop,
   GuardSubagentOutput,
+  GuardUserPrompt,
   HandoffRun,
   HealthProbe,
   HostBins,
@@ -393,6 +395,8 @@ export interface Cradle {
   getRunStatus: GetRunStatus;
   role: string | undefined;
   guardPreTool: GuardPreTool;
+  guardConsents: GuardConsents;
+  guardUserPrompt: GuardUserPrompt;
   guardPostEdit: GuardPostEdit;
   guardStop: GuardStop;
   guardSubagentOutput: GuardSubagentOutput;

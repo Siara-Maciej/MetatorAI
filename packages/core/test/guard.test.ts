@@ -8,12 +8,15 @@ import {
   GuardSessionStart,
   GuardStop,
   GuardSubagentOutput,
+  GuardUserPrompt,
 } from "../src/application/guard.ts";
+import { GuardConsents } from "../src/application/guard-consents.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
 import { AdvanceRun, ApproveRun, GetRunStatus, InitRun } from "../src/application/runs.ts";
 import { WorkflowCatalog } from "../src/application/workflow-catalog.ts";
 import { MetatorError } from "../src/domain/errors.ts";
+import { DEFAULT_GUARD_CONFIG } from "../src/domain/guard-commands.ts";
 import { err, ok } from "../src/domain/result.ts";
 
 const ROOT = "/repo";
@@ -50,7 +53,19 @@ function world(files: Record<string, string> = {}, role?: string) {
     init: () => new InitRun(catalog, repo, clock).execute({ workflow: "feature", task: "t" }),
     advance,
     approve: new ApproveRun(advance, repo, clock, catalog),
-    preTool: new GuardPreTool(status, repo, new AgentCatalog(fs, DEFAULT_PATHS), fs, ROOT, role),
+    clock,
+    consents: new GuardConsents(fs, clock),
+    debug: [] as string[],
+    get preTool() {
+      return new GuardPreTool(status, repo, new AgentCatalog(fs, DEFAULT_PATHS), fs, ROOT, role, {
+        guard: DEFAULT_GUARD_CONFIG,
+        consents: this.consents,
+        debugFiles: async () => this.debug,
+      });
+    },
+    get userPrompt() {
+      return new GuardUserPrompt(this.consents, DEFAULT_GUARD_CONFIG);
+    },
     stop: new GuardStop(status),
     subagent: new GuardSubagentOutput(status, repo, fs),
     session: new GuardSessionStart(status, fs, DEFAULT_PATHS),
@@ -89,7 +104,13 @@ describe("GuardPreTool", () => {
     const w = world();
     await w.init();
     const push = { tool_name: "Bash", tool_input: { command: "git push origin feature" } };
-    expect(decision((await w.preTool.execute(push))._unsafeUnwrap()).permissionDecision).toBe("deny");
+    // With a terminal the person is asked; a drive without one is refused, with how to approve.
+    expect(decision((await w.preTool.execute(push))._unsafeUnwrap()).permissionDecision).toBe("ask");
+    const refused = decision((await w.preTool.execute(push, { driven: true }))._unsafeUnwrap());
+    expect([refused.permissionDecision, refused.permissionDecisionReason]).toEqual([
+      "deny",
+      "push needs the user's approval: show the report and options, then `metator run approve push --by <user>`.",
+    ]);
     await w.approve.execute({ gate: "push", by: "maciej" });
     expect(decision((await w.preTool.execute(push))._unsafeUnwrap()).permissionDecision).toBe("none");
     await w.advance.execute({ event: { type: "ABORT", reason: "done" } });
@@ -176,6 +197,124 @@ describe("GuardPreTool in a driven session", () => {
       decision((await w.preTool.execute(advance, { driven: true }))._unsafeUnwrap()).permissionDecision,
     ).toBe("deny");
     expect((await w.preTool.execute(advance))._unsafeUnwrap()).toBeNull();
+  });
+});
+
+describe("guarded commands and the person's consent (ADR-0094)", () => {
+  const bash = (command: string) => ({ tool_name: "Bash", tool_input: { command } });
+  const prompt = (text: string) => ({ hook_event_name: "UserPromptSubmit", prompt: text, session_id: "s1" });
+
+  test("a commit asks; never-commands are denied; the person's word in the chat lets one commit pass, once, for ten minutes", async () => {
+    const w = world();
+    const commit = bash("git commit -m 'Add the badge'");
+    const pane = { pane: "w1:p1" };
+    expect(decision((await w.preTool.execute(commit, pane))._unsafeUnwrap())).toEqual({
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason:
+        '`git commit -m Add the badge` needs your consent: answer here, or say it in the chat ("commit").',
+    } as never);
+    expect(
+      decision((await w.preTool.execute(bash("git push --force"), pane))._unsafeUnwrap()).permissionDecision,
+    ).toBe("deny");
+    // The person says it: recorded for this pane, and the agent is told.
+    const said = (await w.userPrompt.execute(prompt("ok, commit it"), pane))._unsafeUnwrap() as {
+      hookSpecificOutput: { hookEventName: string; additionalContext: string };
+    };
+    expect(said.hookSpecificOutput).toEqual({
+      hookEventName: "UserPromptSubmit",
+      additionalContext:
+        "MetatorAI: the person's message is their consent to commit, once, within 10 minutes. Run the command now; nothing else is consented.",
+    });
+    // Another pane has no such consent.
+    expect(
+      decision((await w.preTool.execute(commit, { pane: "w1:p2" }))._unsafeUnwrap()).permissionDecision,
+    ).toBe("ask");
+    // The command passes without a prompt, once.
+    expect(decision((await w.preTool.execute(commit, pane))._unsafeUnwrap())).toMatchObject({
+      permissionDecision: "allow",
+      permissionDecisionReason: "the person consented to commit in the chat",
+    });
+    expect(decision((await w.preTool.execute(commit, pane))._unsafeUnwrap()).permissionDecision).toBe("ask");
+    // A consent runs out.
+    (await w.userPrompt.execute(prompt("commit"), pane))._unsafeUnwrap();
+    w.clock.advance(11 * 60_000);
+    expect(decision((await w.preTool.execute(commit, pane))._unsafeUnwrap()).permissionDecision).toBe("ask");
+  });
+
+  test("words that consent to nothing record nothing; a session without a pane is keyed by the host's session", async () => {
+    const w = world();
+    expect(
+      (await w.userPrompt.execute(prompt("add a console.log to the commit handler")))._unsafeUnwrap(),
+    ).toBeNull();
+    expect(
+      (
+        await w.userPrompt.execute(prompt("[metator] From the person, through the main chat: commit"))
+      )._unsafeUnwrap(),
+    ).toBeNull();
+    expect(await w.fs.glob([".metator/consents/*.json"])).toEqual([]);
+    (await w.userPrompt.execute(prompt("commit and push")))._unsafeUnwrap();
+    const both = {
+      tool_name: "Bash",
+      tool_input: { command: "git commit -m x && git push" },
+      session_id: "s1",
+    };
+    expect(decision((await w.preTool.execute(both))._unsafeUnwrap()).permissionDecision).toBe("allow");
+    const other = { ...both, session_id: "s2" };
+    expect(decision((await w.preTool.execute(other))._unsafeUnwrap()).permissionDecision).toBe("ask");
+  });
+
+  test('a commit with debug changes asks with the files, also after a consent; "commit anyway" passes', async () => {
+    const w = world();
+    w.debug.push("src/a.ts");
+    const pane = { pane: "w1:p1" };
+    (await w.userPrompt.execute(prompt("commit"), pane))._unsafeUnwrap();
+    const asked = decision((await w.preTool.execute(bash("git commit -m x"), pane))._unsafeUnwrap());
+    expect([asked.permissionDecision, asked.permissionDecisionReason]).toEqual([
+      "ask",
+      "this commit holds debug changes: src/a.ts. Remove them first (`metator scratch drop`), or answer here to commit anyway.",
+    ]);
+    (await w.userPrompt.execute(prompt("commit anyway"), pane))._unsafeUnwrap();
+    expect(
+      decision((await w.preTool.execute(bash("git commit -m x"), pane))._unsafeUnwrap()).permissionDecision,
+    ).toBe("allow");
+    // Another command is not a commit: the files are not even looked up.
+    expect((await w.preTool.execute(bash("git status"), pane))._unsafeUnwrap()).toBeNull();
+  });
+
+  test("in a run: a drive without a terminal is refused, a pane is asked; the conductor and the chat steer runs, a worker never", async () => {
+    const w = world();
+    await w.init();
+    const push = bash("git push origin feature");
+    expect(
+      decision((await w.preTool.execute(push, { driven: true }))._unsafeUnwrap()).permissionDecision,
+    ).toBe("deny");
+    expect(
+      decision((await w.preTool.execute(push, { driven: true, pane: "w1:p1" }))._unsafeUnwrap())
+        .permissionDecision,
+    ).toBe("ask");
+    // A pane under the daemon is no `run drive` session: its conductor moves the run, its chat starts runs.
+    const delegate = bash("metator run delegate build --agent mt-implementer --card x");
+    const conductor = world({}, "conductor");
+    await conductor.init();
+    expect(
+      (await conductor.preTool.execute(delegate, { driven: true, pane: "w1:p1" }))._unsafeUnwrap(),
+    ).toBeNull();
+    const chat = world({}, "apps");
+    expect(
+      (
+        await chat.preTool.execute(bash("metator run new --workflow feature --task x"), {
+          driven: true,
+          pane: "w1:p1",
+        })
+      )._unsafeUnwrap(),
+    ).toBeNull();
+    const worker = world({}, "worker");
+    await worker.init();
+    expect(
+      decision((await worker.preTool.execute(delegate, { driven: true, pane: "w1:p2" }))._unsafeUnwrap())
+        .permissionDecision,
+    ).toBe("deny");
   });
 });
 

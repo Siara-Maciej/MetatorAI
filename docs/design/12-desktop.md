@@ -214,6 +214,14 @@ Zasada właściciela: pierwszy poziom ma być prosty poznawczo, szczegóły dopi
 - Pytanie hosta pokazuje POCZĄTEK polecenia (`command`, inaczej prompt), ucięty do dwóch linii z „…”; klik albo Enter pokazuje całe polecenie (`commandText`, `CommandText`), na karcie, w toaście i w polu pytania runu.
 - Przeładowanie aplikacji albo nowe okno niczego nie zmienia: ten sam widok zadania, panele, ekrany i karty (e2e).
 
+### 5.0h Agent rozmowy, etap 1 (2026-11-21, runda 13)
+
+- „+ New run” otwiera czat (etykieta „chat”) z agentem rozmowy repozytorium, gdy demon go nazywa (`/supervisor` `chatAgent`, `mt-chat`); inaczej z dotychczasowym agentem (`chatAgentOf`).
+- Karty quick to zwykłe pytania runu. „Open diff” na karcie „Quick change ready” nie jest odpowiedzią: otwiera zakładkę Changes runu, a karta zostaje do „Fine” (`opensDiff` w `useAnswer`). „This grew past quick” ma dwie zwykłe odpowiedzi.
+- Zgoda na commit/push: istniejąca karta pytania hosta; nagłówek to komenda, a pod nim linia „git commit needs your consent…”, gdy komenda to `git commit|push|merge|rebase` (`consentOf`), na karcie runu i na karcie panelu bez runu.
+- „Debug changes (N)” na Home i w pasku terminali zadania (dla repozytoriów zadania), gdy stan demona liczy zmiany debugowe (`scratch` w `/state`; bez tego pola aplikacja o nic nie pyta). Lista z `GET /scratch` dopiero po kliknięciu; „Remove” i „Remove debug changes” wołają `POST /scratch/drop`; jedna linia mówi, co usunięto, a czego się nie dało i dlaczego (`dropText`); nic nie jest wymuszane.
+- Listy wątków jeszcze nie ma (etap 2).
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.

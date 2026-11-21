@@ -25,6 +25,18 @@ Closing the app, reloading it, or opening it in another window changes nothing: 
 
 **Workspaces** in the bar shows the daemon's workspaces and their tabs, as below: your shells, and the chat of a run not started yet. **By task ›** there leads back.
 
+## The chat and what it leaves
+
+**+ New run** opens a terminal labelled **chat** with the repository's conversation agent, `mt-chat`, when the repository has it (`metator setup` installs it); in a repository set up before it, the chat opens the agent that started runs before. You talk to it there; what needs a decision from you comes to Home as a card:
+
+- **A commit or a push.** The agent never commits or pushes by itself. When it asks to, the card's heading is the command (`git commit -m "…"`), and a line under it says **git commit needs your consent**: **Yes** lets that one command run. The same holds for `git merge` and `git rebase`.
+- **Quick change ready: look at the diff.** A quick change ends with a diff that is not committed. **Open diff** opens the run's **Changes** and leaves the card where it is; **Fine** closes it.
+- **This grew past quick: …** names what made the change too big for quick (its size, a new dependency, a touched contract). **Continue as full** carries it on as a full run; **Keep as quick** keeps it quick, on your word.
+
+### Debug changes
+
+Edits you asked for that are not meant for a commit (a `console.log`, a temporary flag) are recorded. While there are some, **Debug changes (N)** shows on Home and in the bar of a task's terminals (there for the task's repositories). A click lists them: the files, what each was for, and when. **Remove** takes one back out of your files; **Remove debug changes** all of them. A line says what was removed. A change whose lines were edited since can no longer be taken out cleanly: it is named with the reason, stays in the list, and nothing is forced.
+
 ## The workspaces
 
 ![The workbench: a tab for a run, its stages under the tab bar, an agent's pane and a shell pane](../public/screens/workbench.png)

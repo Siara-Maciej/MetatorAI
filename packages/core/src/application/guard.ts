@@ -6,7 +6,17 @@ import { EvalReportDocument } from "../domain/eval.ts";
 import { FindingSetDocument } from "../domain/finding.ts";
 import { GateReportDocument } from "../domain/gate.ts";
 import {
+  askKinds,
+  commitsAnyway,
+  consentsIn,
+  DEFAULT_GUARD_CONFIG,
+  type GuardConfig,
+  guardCommand,
+} from "../domain/guard-commands.ts";
+import {
   blockResponse,
+  COMMIT_DEBUG_CONSENT,
+  commandsOfHook,
   contextResponse,
   isEditTool,
   permissionResponse,
@@ -28,6 +38,7 @@ import { parseJsonDocument, type VersionedDocument } from "../domain/versioned.t
 import type { FileSystem } from "../ports/index.ts";
 import type { AgentCatalog } from "./agents.ts";
 import { parseDocumentText } from "./document-io.ts";
+import type { GuardConsents } from "./guard-consents.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { CheckRules } from "./rules.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -41,6 +52,19 @@ export type HookResponse = Record<string, unknown> | null;
 export interface GuardSession {
   /** Started by `metator run drive`: the drive, not the agent, moves the run. */
   readonly driven?: boolean;
+  /**
+   * The pane the session runs in under the daemon (METATOR_PANE_ID). A pane is no `run drive`
+   * session: its conductor moves the run, its chat starts runs, and a person can be asked there.
+   */
+  readonly pane?: string;
+}
+
+/** What the guards of dangerous commands need (ADR-0094): the config's list and the person's consents. */
+export interface CommandGuard {
+  readonly guard: GuardConfig;
+  readonly consents: Pick<GuardConsents, "valid" | "use" | "grant">;
+  /** The debug changes (scratch) a commit made now would hold. */
+  readonly debugFiles?: (commitAll: boolean) => Promise<readonly string[]>;
 }
 
 async function activeRun(
@@ -63,12 +87,33 @@ export class GuardPreTool {
     private readonly fs: FileSystem,
     private readonly root: string,
     private readonly role: string | undefined,
+    private readonly commands?: CommandGuard,
   ) {}
 
   async execute(raw: unknown, session: GuardSession = {}): Promise<Result<HookResponse, MetatorError>> {
     const hook = readHookInput(raw);
     const run = await activeRun(this.status);
     if (run.isErr()) return err(run.error);
+    // A session `run drive` started without a terminal: the drive moves the run, nobody can be asked.
+    const driven = session.driven === true && session.pane === undefined;
+    const guard = this.commands?.guard ?? DEFAULT_GUARD_CONFIG;
+    const who = session.pane ?? hook.sessionId ?? "session";
+    const shell = commandsOfHook(hook);
+    const guarded = shell.map((argv) => ({ argv, verdict: guardCommand(argv, guard.commands) }));
+    // The person's consents and a commit's debug changes are looked up only for a command that asks.
+    const asks = guarded.filter((g) => g.verdict.level === "ask");
+    let consents: readonly string[] = [];
+    let debugFiles: readonly string[] = [];
+    if (asks.length > 0 && this.commands) {
+      const held = await this.commands.consents.valid(who);
+      if (held.isErr()) return err(held.error);
+      consents = held.value;
+      const commit = asks.find((g) => g.verdict.kind === "commit");
+      if (commit && this.commands.debugFiles)
+        debugFiles = await this.commands.debugFiles(
+          commit.argv.some((a) => a === "--all" || /^-[A-Za-z]*a/.test(a)),
+        );
+    }
 
     let editScope: readonly string[] | undefined;
     if (run.value && isEditTool(hook.tool)) {
@@ -85,7 +130,10 @@ export class GuardPreTool {
     );
     const decision = preToolPolicy(hook, {
       root: this.root,
-      ...(session.driven ? { driven: true } : {}),
+      commands: guard.commands,
+      consents,
+      debugFiles,
+      ...(driven ? { driven: true, headless: true } : {}),
       ...(run.value
         ? {
             run: {
@@ -102,9 +150,52 @@ export class GuardPreTool {
         (hook.agent !== undefined && coordinators.has(hook.agent)),
       ...(this.role === "worker" ? { worker: true } : {}),
     });
-    // Only a denial is an answer: "allow" from a PreToolUse hook would skip the host's own
-    // permission prompts, so a call the guard does not object to goes to them as usual.
-    return ok(decision.decision === "deny" ? permissionResponse(decision) : null);
+    // A consent the person gave in words is used up by the command it lets pass.
+    if (decision.consents && decision.consents.length > 0 && this.commands) {
+      const used = await this.commands.consents.use(who, decision.consents);
+      if (used.isErr()) return err(used.error);
+      return ok(permissionResponse(decision));
+    }
+    // A denial and a question are answers; no objection is none: "allow" from a PreToolUse hook
+    // would skip the host's own permission prompts, so such a call goes to them as usual.
+    return ok(decision.decision === "allow" ? null : permissionResponse(decision));
+  }
+}
+
+/**
+ * `guard user-prompt` (UserPromptSubmit, ADR-0094): the person's own message. When it asks in
+ * plain words for a command the config guards ("commit", "wypchnij"), that is their consent: kept
+ * for this session for a few minutes, for one command of that kind. An agent's words never get
+ * here, and a line MetatorAI typed (`[metator] …`) consents to nothing.
+ */
+export class GuardUserPrompt {
+  constructor(
+    private readonly consents: Pick<GuardConsents, "grant">,
+    private readonly guard: GuardConfig = DEFAULT_GUARD_CONFIG,
+  ) {}
+
+  async execute(raw: unknown, session: GuardSession = {}): Promise<Result<HookResponse, MetatorError>> {
+    const hook = readHookInput(raw);
+    const message = hook.prompt ?? "";
+    const kinds = consentsIn(message, askKinds(this.guard.commands));
+    if (kinds.length === 0) return ok(null);
+    const granted = [
+      ...kinds,
+      ...(kinds.includes("commit") && commitsAnyway(message) ? [COMMIT_DEBUG_CONSENT] : []),
+    ];
+    const saved = await this.consents.grant(
+      session.pane ?? hook.sessionId ?? "session",
+      granted,
+      message,
+      this.guard.consentMinutes,
+    );
+    if (saved.isErr()) return err(saved.error);
+    return ok(
+      contextResponse(
+        "UserPromptSubmit",
+        `MetatorAI: the person's message is their consent to ${kinds.join(" and ")}, once, within ${this.guard.consentMinutes} minutes. Run the command now; nothing else is consented.`,
+      ),
+    );
   }
 }
 

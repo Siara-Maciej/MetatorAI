@@ -1,6 +1,7 @@
 import { WORKER_RUN_CONTROL } from "./conductor.ts";
 import { commandsOf } from "./discovery.ts";
 import { matchesAny } from "./glob.ts";
+import { DEFAULT_GUARD_COMMANDS, type GuardCommands, guardCommand } from "./guard-commands.ts";
 import type { Approval } from "./run-record.ts";
 
 /**
@@ -17,6 +18,10 @@ export interface HookInput {
   readonly stopActive: boolean;
   /** The agent that runs the tool, when the host says (subagents). */
   readonly agent?: string;
+  /** The person's message (UserPromptSubmit). */
+  readonly prompt?: string;
+  /** The host's id of the session the hook runs in. */
+  readonly sessionId?: string;
 }
 
 const text = (v: unknown) => (typeof v === "string" ? v : undefined);
@@ -26,12 +31,16 @@ export function readHookInput(raw: unknown): HookInput {
   const input = (r.tool_input ?? r.toolInput ?? {}) as Record<string, unknown>;
   const cwd = text(r.cwd);
   const agent = text(r.agent_type) ?? text(r.agentType) ?? text(r.agent_name);
+  const prompt = text(r.prompt) ?? text(r.user_prompt) ?? text(r.userPrompt);
+  const sessionId = text(r.session_id) ?? text(r.sessionId);
   return {
     tool: text(r.tool_name) ?? text(r.toolName) ?? "",
     input: typeof input === "object" && input !== null ? input : {},
     ...(cwd ? { cwd } : {}),
     stopActive: r.stop_hook_active === true || r.stopHookActive === true,
     ...(agent ? { agent } : {}),
+    ...(prompt !== undefined ? { prompt } : {}),
+    ...(sessionId ? { sessionId } : {}),
   };
 }
 
@@ -102,14 +111,49 @@ export interface PreToolContext {
   readonly coordinator: boolean;
   /** The calling agent works a worker pane (R2): it reports, the conductor steers the run. */
   readonly worker?: boolean;
+  /** `guard.commands` of the repository's config (ADR-0094); MetatorAI's defaults when absent. */
+  readonly commands?: GuardCommands;
+  /** The kinds the person consented to in words, still valid (`commit`, `push`, `commit-debug`). */
+  readonly consents?: readonly string[];
+  /** A drive's session without a terminal: nobody can be asked there, so an `ask` is a refusal. */
+  readonly headless?: boolean;
+  /** Debug changes (scratch) that a commit made now would hold. */
+  readonly debugFiles?: readonly string[];
 }
 
 export interface ToolDecision {
-  readonly decision: "allow" | "deny";
+  /** `ask`: the host shows its own approval prompt (a card for the person). */
+  readonly decision: "allow" | "deny" | "ask";
   readonly reason: string;
+  /** The consents this call uses up (each holds for one command of its kind). */
+  readonly consents?: readonly string[];
 }
 
 const deny = (reason: string): ToolDecision => ({ decision: "deny", reason });
+
+/** The consent that lets a commit with debug changes pass ("commit anyway"). */
+export const COMMIT_DEBUG_CONSENT = "commit-debug";
+/** Where the person's consents are kept: no agent writes there. */
+export const CONSENTS_DIR = ".metator/consents";
+
+/** A command as a person reads it in a prompt: its words, cut when long. */
+const shown = (argv: readonly string[]): string => {
+  const text = argv.join(" ");
+  return text.length <= 120 ? text : `${text.slice(0, 119)}…`;
+};
+
+/** The run approval that covers a guarded command's kind: its own, or the push's for the commit before it. */
+const approved = (kind: string, approvals: Readonly<Record<string, Approval>> | undefined): boolean =>
+  approvals !== undefined &&
+  (approvals[kind] !== undefined || (kind === "commit" && approvals.push !== undefined));
+
+/** `metator guard …` in a shell command: a hook's command, which no agent runs itself. */
+function guardCall(argv: readonly string[]): boolean {
+  const at = argv.findIndex(
+    (a) => a === "metator" || a.endsWith("/metator") || a.endsWith("cli/src/main.ts"),
+  );
+  return at >= 0 && argv.slice(at + 1).find((w) => !w.startsWith("-")) === "guard";
+}
 
 /** Which approval an external action needs: from a shell command or an MCP tool name. */
 function externalAction(argv: readonly string[]): "push" | "comment" | undefined {
@@ -131,22 +175,6 @@ function mcpAction(tool: string): "push" | "comment" | undefined {
   )
     return "push";
   if (/(comment|review)/.test(tool)) return "comment";
-  return undefined;
-}
-
-/** Commands no agent runs: they lose work or rewrite shared history. */
-function destructive(argv: readonly string[]): string | undefined {
-  const [tool, sub] = argv;
-  if (tool === "git" && sub === "push" && argv.some((a) => /^(-f|--force|--force-with-lease)(=.*)?$/.test(a)))
-    return "git push --force";
-  if (tool === "git" && sub === "reset" && argv.includes("--hard")) return "git reset --hard";
-  if (tool === "git" && sub === "clean" && argv.some((a) => /^-[a-z]*f/.test(a))) return "git clean -f";
-  if (
-    tool === "rm" &&
-    argv.some((a) => /^-[a-z]*r/i.test(a)) &&
-    argv.some((a) => ["/", "~", ".", "..", "*", "/*"].includes(a))
-  )
-    return "rm -r of a root, home or the whole tree";
   return undefined;
 }
 
@@ -254,16 +282,76 @@ export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecisio
     if (!chatApproval(hook)) return deny(DRIVEN_RUN_CONTROL(control));
     if (ctx.run?.driver !== "human") return deny(CHAT_APPROVAL_NEEDS_DRIVER);
   }
+  // The person's consents are theirs to give: no agent calls a guard or writes where they are kept.
+  if (shell.some(guardCall))
+    return deny(
+      "`metator guard` is the host's hook, never an agent's command: a consent is the person's own word.",
+    );
+  const raw = text(hook.input.command) ?? "";
+  if (
+    raw.includes(CONSENTS_DIR) ||
+    paths.some((p) => (repoRelative(p, ctx.root) ?? p).replaceAll("\\", "/").startsWith(`${CONSENTS_DIR}/`))
+  )
+    return deny(`${CONSENTS_DIR} holds the person's consents: only their own words in the chat write there.`);
+
+  // Dangerous commands, from the one list in the config (ADR-0094): never, or with consent.
+  const commands = ctx.commands ?? DEFAULT_GUARD_COMMANDS;
+  const used: string[] = [];
+  let ask: string | undefined;
   for (const argv of shell) {
-    const what = destructive(argv);
-    if (what) return deny(`${what} is blocked: it can lose work. Ask the user to run it.`);
+    const verdict = guardCommand(argv, commands);
+    if (verdict.level === "never")
+      return deny(
+        `\`${shown(argv)}\` never runs here (guard.commands.never: ${verdict.pattern}): it can lose work or rewrite history. If the person wants it, they run it themselves.`,
+      );
     const approve = planApproval(argv);
     if (approve)
       return deny(`${approve} is the user's decision: show what to approve and ask the user to run it.`);
+    if (verdict.level !== "ask" || verdict.kind === undefined) continue;
+    const kind = verdict.kind;
+    const debug = kind === "commit" ? (ctx.debugFiles ?? []) : [];
+    if (debug.length > 0) {
+      // Debug changes in a commit: stopped whatever was consented, until the person says "anyway".
+      if (ctx.consents?.includes(COMMIT_DEBUG_CONSENT)) used.push(COMMIT_DEBUG_CONSENT);
+      else {
+        ask ??= `this commit holds debug changes: ${debug.join(", ")}. Remove them first (\`metator scratch drop\`), or answer here to commit anyway.`;
+        continue;
+      }
+    }
+    if (approved(kind, ctx.run?.approvals)) continue;
+    if (ctx.consents?.includes(kind)) {
+      used.push(kind);
+      continue;
+    }
+    if (ctx.headless)
+      return deny(
+        ctx.run && (kind === "push" || kind === "commit")
+          ? `${kind} needs the user's approval: show the report and options, then \`metator run approve push --by <user>\`.`
+          : `${kind} needs the person's consent, and nobody can be asked in this session: end with STATUS: blocked and say what to ${kind}.`,
+      );
+    ask ??= ctx.run
+      ? `\`${shown(argv)}\` needs your consent: answer here, say it in the chat ("${kind}"), or \`metator run approve ${kind === "commit" ? "push" : kind} --by <user>\`.`
+      : `\`${shown(argv)}\` needs your consent: answer here, or say it in the chat ("${kind}").`;
   }
-  if (!ctx.run) return { decision: "allow", reason: "no active run" };
+  if (ask) return { decision: "ask", reason: ask };
+  const consented: ToolDecision | undefined =
+    used.length > 0
+      ? {
+          decision: "allow",
+          reason: `the person consented to ${used.filter((k) => k !== COMMIT_DEBUG_CONSENT).join(" and ") || "commit"} in the chat`,
+          consents: used,
+        }
+      : undefined;
+  if (!ctx.run) return consented ?? { decision: "allow", reason: "no active run" };
 
-  const action = mcpAction(hook.tool) ?? shell.map(externalAction).find((a) => a !== undefined);
+  // What the config's list already decided (a git push with consent or approval) is not asked twice.
+  const governed = (argv: readonly string[]) => guardCommand(argv, commands).level === "ask";
+  const action =
+    mcpAction(hook.tool) ??
+    shell
+      .filter((argv) => !governed(argv))
+      .map(externalAction)
+      .find((a) => a !== undefined);
   if (action && !ctx.run.approvals[action]) {
     return deny(
       `${action} needs the user's approval: show the report and options, then \`metator run approve ${action} --by <user>\`.`,
@@ -281,7 +369,7 @@ export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecisio
         return deny(`${rel} is outside plan-scope.json; update the plan (mt-planner) or ask the user.`);
     }
   }
-  return { decision: "allow", reason: "ok" };
+  return consented ?? { decision: "allow", reason: "ok" };
 }
 
 /** PreToolUse answer: a permission decision with its reason. */
@@ -295,9 +383,13 @@ export function permissionResponse(d: ToolDecision): Record<string, unknown> {
   };
 }
 
-/** Extra context for the model (SessionStart, PostToolUse). */
+/** The shell commands a tool call runs (none for another tool). */
+export const commandsOfHook = (hook: HookInput): string[][] =>
+  SHELL_TOOL.test(hook.tool) ? commandsOf(text(hook.input.command) ?? "") : [];
+
+/** Extra context for the model (SessionStart, PostToolUse, UserPromptSubmit). */
 export function contextResponse(
-  event: "SessionStart" | "PostToolUse",
+  event: "SessionStart" | "PostToolUse" | "UserPromptSubmit",
   context: string,
 ): Record<string, unknown> {
   return { hookSpecificOutput: { hookEventName: event, additionalContext: context } };
@@ -310,13 +402,22 @@ export function blockResponse(reason: string): Record<string, unknown> {
 
 /** Which guard answers which host event (05-templates §10); timeouts in seconds. */
 export const HOOK_BINDINGS: readonly {
-  readonly event: "SessionStart" | "PreToolUse" | "PostToolUse" | "SubagentStop" | "PreCompact" | "Stop";
+  readonly event:
+    | "SessionStart"
+    | "UserPromptSubmit"
+    | "PreToolUse"
+    | "PostToolUse"
+    | "SubagentStop"
+    | "PreCompact"
+    | "Stop";
   readonly guard: string;
   readonly timeout: number;
   /** Tools the hook applies to (a regex for hosts with matchers); all tools when omitted. */
   readonly matcher?: string;
 }[] = [
   { event: "SessionStart", guard: "session-start", timeout: 10 },
+  // The person's own message: a consent in words to a guarded command (ADR-0094).
+  { event: "UserPromptSubmit", guard: "user-prompt", timeout: 5 },
   { event: "PreToolUse", guard: "pre-tool", timeout: 5 },
   { event: "PostToolUse", guard: "post-edit", timeout: 30, matcher: EDIT_TOOL.source.slice(2, -2) },
   { event: "SubagentStop", guard: "subagent-output", timeout: 10 },

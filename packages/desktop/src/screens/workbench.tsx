@@ -12,6 +12,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { PaneView, SplitNode } from "../api.ts";
 import { Notice, RepoSelect } from "../components/common.tsx";
 import { ContextMenu, type MenuItem } from "../components/context-menu.tsx";
+import { DebugChanges } from "../components/debug-changes.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { GotoPicker } from "../components/goto.tsx";
 import { PaneFrame } from "../components/pane-frame.tsx";
@@ -670,6 +671,13 @@ export function WorkbenchScreen({
           ) : null}
           <span className="spacer" />
           {continueTask("bar")}
+          {chosen ? (
+            <DebugChanges
+              repos={[chosen.repo, ...chosen.sessions.map((x) => x.repo)].filter(
+                (r, i, all) => all.indexOf(r) === i,
+              )}
+            />
+          ) : null}
           {endedHere.length > 0 ? (
             <button type="button" data-testid="close-finished" onClick={() => void closeFinished()}>
               Close finished ({endedHere.length})

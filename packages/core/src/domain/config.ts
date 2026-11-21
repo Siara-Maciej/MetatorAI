@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ModelTierSchema } from "./agent.ts";
+import { DEFAULT_GUARD_CONFIG, GuardConfigSchema } from "./guard-commands.ts";
 import { IntakeConfigSchema } from "./intake.ts";
 import { McpServersSchema } from "./mcp.ts";
 import { ReviewsConfigSchema } from "./review-thread.ts";
@@ -323,7 +324,29 @@ export function withoutLocalStatePaths(v11: unknown): unknown {
   return { ...config, paths };
 }
 
-export const MetatorConfigSchema = ConfigV12Schema;
+/** `quick` (ADR-0093): how large a change may be and still be a quick one. */
+export const QuickLimitsSchema = z.strictObject({
+  /** Changed files. */
+  maxFiles: z.number().int().min(1).default(5),
+  /** Changed lines (added plus removed). */
+  maxLines: z.number().int().min(1).default(150),
+  /** Files that depend on the changed ones, transitively. */
+  maxDependents: z.number().int().min(0).default(10),
+});
+export type QuickLimits = z.output<typeof QuickLimitsSchema>;
+
+/**
+ * v13 adds `guard` (ADR-0094: the commands an agent never runs and the ones that need the person's
+ * consent, in one place for both hosts) and `quick` (ADR-0093: the limits of a quick change).
+ * Every v12 file is a v13 file.
+ */
+const ConfigV13Schema = z.strictObject({
+  ...ConfigV12Schema.shape,
+  guard: GuardConfigSchema.default(DEFAULT_GUARD_CONFIG),
+  quick: QuickLimitsSchema.default(QuickLimitsSchema.parse({})),
+});
+
+export const MetatorConfigSchema = ConfigV13Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -344,9 +367,10 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: ConfigV9Schema, fromPrevious: (v8) => v8 },
     { schema: ConfigV10Schema, fromPrevious: (v9) => v9 },
     { schema: ConfigV11Schema, fromPrevious: (v10) => v10 },
+    { schema: ConfigV12Schema, fromPrevious: withoutLocalStatePaths },
   ],
   latest: MetatorConfigSchema,
-  upgrade: withoutLocalStatePaths,
+  upgrade: (v12) => v12,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

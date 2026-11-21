@@ -43,6 +43,7 @@ import { OverviewScreen } from "./screens/overview.tsx";
 import { RunScreen } from "./screens/run.tsx";
 import { SettingsScreen } from "./screens/settings.tsx";
 import { WorkbenchScreen } from "./screens/workbench.tsx";
+import { chatAgentOf } from "./stage1.ts";
 
 export const App = () => (
   <DaemonProvider>
@@ -149,7 +150,8 @@ function Shell() {
         return;
       }
       const p = await client.openPane(
-        { label: "chat", newTab: true, role: "apps", agent: "mt-orchestrator", host },
+        // The repository's conversation agent when it has one (round 13); the label stays "chat".
+        { label: "chat", newTab: true, role: "apps", agent: chatAgentOf(s.data), host },
         repo,
       );
       if (!p.ok || !p.data) {
