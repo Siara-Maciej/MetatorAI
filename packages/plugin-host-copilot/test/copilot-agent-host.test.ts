@@ -52,7 +52,6 @@ describe("CopilotAgentHost", () => {
       ["-C", f.dir],
       ["--add-dir", `${f.dir}/.metator/runs/r`],
       ["--output-format", "json"],
-      ["--deny-tool", "shell(git push)"],
     ])
       expect(argv[argv.indexOf(pair[0] as string) + 1]).toBe(pair[1] as string);
     expect(argv).toContain("--session-id");
@@ -61,6 +60,8 @@ describe("CopilotAgentHost", () => {
     const denied = argv.filter((_, i) => argv[i - 1] === "--deny-tool");
     expect(denied).toContain("shell(git push --force)");
     expect(denied).toContain("shell(git reset --hard)");
+    // Nobody can be asked in prompt mode: a push stays denied by the process, a commit is the hook's.
+    expect(denied).toContain("shell(git push)");
     expect(denied).not.toContain("shell(git commit)");
   });
 

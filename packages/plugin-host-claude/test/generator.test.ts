@@ -84,6 +84,7 @@ describe("ClaudeGenerator.hooks (.claude/settings.json)", () => {
     const settings = parse(new ClaudeGenerator().hooks("bun run metator", undefined));
     expect(Object.keys(settings.hooks)).toEqual([
       "SessionStart",
+      "UserPromptSubmit",
       "PreToolUse",
       "PostToolUse",
       "SubagentStop",

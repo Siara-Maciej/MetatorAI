@@ -322,6 +322,7 @@ describe("what a command says of itself (meta)", () => {
       "guard post-edit",
       "guard stop",
       "guard subagent-output",
+      "guard user-prompt",
       "guard session-start",
       "guard precompact",
     ]);
@@ -504,7 +505,7 @@ describe("what a person reads at a terminal (render)", () => {
     expect(list.stderr).toMatch(/ {2}metator version +Print the MetatorAI version\n/);
     const bare = await at([], true);
     expect(bare.stderr).toContain("Work on a task");
-    expect((await at(["help", "--for", "hook"], true)).stderr).toContain("6 commands for hook");
+    expect((await at(["help", "--for", "hook"], true)).stderr).toContain("7 commands for hook");
   });
 
   test("a failure reads as text on stderr at a terminal, with its hint; stdout is the same JSON line; --json and a pipe get no text", async () => {

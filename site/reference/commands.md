@@ -1703,7 +1703,7 @@ metator debug-tags check [options]
 
 ### `metator guard pre-tool`
 
-PreToolUse: deny secrets, destructive commands, unapproved push, edits outside plan scope
+PreToolUse: deny secrets, commands that never run (guard.commands), edits outside plan scope; ask for commit, push, merge, rebase unless the person consented
 
 ```bash
 metator guard pre-tool [options]
@@ -1731,6 +1731,14 @@ SubagentStop: the run's JSON artifacts must be valid documents
 
 ```bash
 metator guard subagent-output [options]
+```
+
+### `metator guard user-prompt`
+
+UserPromptSubmit: the person's own words that ask for a guarded command (commit, push) are their consent to it, once
+
+```bash
+metator guard user-prompt [options]
 ```
 
 ### `metator guard session-start`

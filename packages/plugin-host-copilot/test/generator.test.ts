@@ -55,7 +55,11 @@ describe("CopilotGenerator.hooks (.github/hooks/metator.json)", () => {
     expect(file.path).toBe(".github/hooks/metator.json");
     const { hooks } = JSON.parse(file.content) as { hooks: Record<string, unknown[]> };
     expect(hooks.Stop).toEqual([{ type: "command", command: "bun run metator guard stop", timeout: 10 }]);
-    expect(Object.keys(hooks)).toHaveLength(6);
+    // The person's own message too: their consent in words to a guarded command (ADR-0094).
+    expect(hooks.UserPromptSubmit).toEqual([
+      { type: "command", command: "bun run metator guard user-prompt", timeout: 5 },
+    ]);
+    expect(Object.keys(hooks)).toHaveLength(7);
   });
 });
 

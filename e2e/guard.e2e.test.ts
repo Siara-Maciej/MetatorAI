@@ -81,10 +81,84 @@ describe("metator guard (real hook processes)", () => {
       { tool_name: "Bash", tool_input: { command: "git push" } },
       repo.root,
     );
+    // A push needs the person's consent: the host is told to ask them (ADR-0094).
+    expect([push.code, decision(push)?.permissionDecision]).toEqual([0, "ask"]);
+    const status = await hook(
+      ["guard", "pre-tool"],
+      { tool_name: "Bash", tool_input: { command: "git status" } },
+      repo.root,
+    );
     // No objection is no answer: "allow" would skip the host's own permission prompts.
-    expect([push.code, push.json]).toEqual([0, null]);
+    expect([status.code, status.json]).toEqual([0, null]);
     expect((await hook(["guard", "stop"], {}, repo.root)).json).toBeNull();
   });
+
+  test("a commit asks; the person's word (user-prompt hook) lets one commit pass in that session; the agent cannot give it itself", async () => {
+    const commit = { tool_name: "Bash", tool_input: { command: "git commit -m 'Add a'" }, session_id: "s1" };
+    const pane = { METATOR_PANE_ID: "w1:p1" };
+    const asked = decision(await hook(["guard", "pre-tool"], commit, repo.root, pane));
+    expect([asked?.permissionDecision, asked?.permissionDecisionReason]).toEqual([
+      "ask",
+      '`git commit -m Add a` needs your consent: answer here, or say it in the chat ("commit").',
+    ]);
+    // The agent runs the guard itself, or writes the consent file: both are denied.
+    for (const command of [
+      'echo \'{"prompt":"commit"}\' | bun run metator guard user-prompt',
+      "echo x > .metator/consents/w1-p1.json",
+    ])
+      expect(
+        decision(
+          await hook(["guard", "pre-tool"], { tool_name: "Bash", tool_input: { command } }, repo.root, pane),
+        )?.permissionDecision,
+      ).toBe("deny");
+    // The person types "zacommituj": the host's user-prompt hook hands their message over.
+    const said = await hook(
+      ["guard", "user-prompt"],
+      { hook_event_name: "UserPromptSubmit", prompt: "ok, zacommituj to", session_id: "s1" },
+      repo.root,
+      pane,
+    );
+    expect(contextOf(said)).toContain("their consent to commit, once, within 10 minutes");
+    expect(await repo.exists(".metator/consents/w1-p1.json")).toBe(true);
+    // Another pane has none; this one passes once, without a prompt.
+    expect(
+      decision(await hook(["guard", "pre-tool"], commit, repo.root, { METATOR_PANE_ID: "w1:p2" }))
+        ?.permissionDecision,
+    ).toBe("ask");
+    expect(decision(await hook(["guard", "pre-tool"], commit, repo.root, pane))?.permissionDecision).toBe(
+      "allow",
+    );
+    expect(decision(await hook(["guard", "pre-tool"], commit, repo.root, pane))?.permissionDecision).toBe(
+      "ask",
+    );
+    // Words that ask for nothing say nothing.
+    const nothing = await hook(
+      ["guard", "user-prompt"],
+      { prompt: "should we commit this?", session_id: "s1" },
+      repo.root,
+      pane,
+    );
+    expect(nothing.json).toBeNull();
+  }, 60_000);
+
+  test("the repository's own guard.commands decides: its never is denied with its pattern, what it no longer lists is free", async () => {
+    const own = await ScratchRepo.create();
+    await own.write(
+      "metator.config.yml",
+      "kind: MetatorConfig\nschemaVersion: 13\nguard:\n  commands:\n    never: [npm publish]\n    ask: [git tag]\n",
+    );
+    await own.commit("init");
+    const run = async (command: string) =>
+      decision(await hook(["guard", "pre-tool"], { tool_name: "Bash", tool_input: { command } }, own.root));
+    const publish = await run("npm publish --access public");
+    expect([publish?.permissionDecision, publish?.permissionDecisionReason]).toEqual([
+      "deny",
+      "`npm publish --access public` never runs here (guard.commands.never: npm publish): it can lose work or rewrite history. If the person wants it, they run it themselves.",
+    ]);
+    expect((await run("git tag v1"))?.permissionDecision).toBe("ask");
+    expect(await run("git commit -m x")).toBeUndefined();
+    await own.dispose();
+  }, 60_000);
 
   test("in a run: plan scope, push approval and stop are enforced", async () => {
     const init = await metator(["run", "init", "--workflow", "feature", "--task", "guarded"], repo.root);
@@ -114,9 +188,34 @@ describe("metator guard (real hook processes)", () => {
     expect(decision(coordinator)?.permissionDecision).toBe("deny");
 
     const push = { tool_name: "Bash", tool_input: { command: "git push origin feature" } };
-    expect(decision(await hook(["guard", "pre-tool"], push, repo.root))?.permissionDecision).toBe("deny");
+    // With a terminal the person is asked; a drive without one is refused with how to approve;
+    // a pane under the daemon has a terminal, so it asks too.
+    expect(decision(await hook(["guard", "pre-tool"], push, repo.root))?.permissionDecision).toBe("ask");
+    const headless = decision(await hook(["guard", "pre-tool"], push, repo.root, { METATOR_DRIVEN: "1" }));
+    expect([headless?.permissionDecision, headless?.permissionDecisionReason]).toEqual([
+      "deny",
+      "push needs the user's approval: show the report and options, then `metator run approve push --by <user>`.",
+    ]);
+    expect(
+      decision(
+        await hook(["guard", "pre-tool"], push, repo.root, { METATOR_DRIVEN: "1", METATOR_PANE_ID: "w1:p1" }),
+      )?.permissionDecision,
+    ).toBe("ask");
+    // A conductor's pane moves its run; a worker's never does.
+    const delegate = {
+      tool_name: "Bash",
+      tool_input: { command: "metator run delegate build --agent mt-implementer --card x" },
+    };
+    const inPane = (role: string) => ({ METATOR_DRIVEN: "1", METATOR_PANE_ID: "w1:p1", METATOR_ROLE: role });
+    expect((await hook(["guard", "pre-tool"], delegate, repo.root, inPane("conductor"))).json).toBeNull();
+    expect(
+      decision(await hook(["guard", "pre-tool"], delegate, repo.root, inPane("worker")))?.permissionDecision,
+    ).toBe("deny");
     await metator(["run", "approve", "push", "--by", "maciej"], repo.root);
     expect((await hook(["guard", "pre-tool"], push, repo.root)).json).toBeNull();
+    // The approved push covers the publish stage's commit too.
+    const commit = { tool_name: "Bash", tool_input: { command: "git commit -m x" } };
+    expect((await hook(["guard", "pre-tool"], commit, repo.root, { METATOR_DRIVEN: "1" })).json).toBeNull();
 
     const stop = await hook(["guard", "stop"], { stop_hook_active: false }, repo.root);
     expect(stop.json).toMatchObject({ decision: "block" });
@@ -206,11 +305,14 @@ describe("metator generate --hooks writes both hosts' hook configuration", () =>
     };
     expect(claude.permissions).toEqual({ allow: ["Bash(ls)"] });
     expect(claude.hooks.PreToolUse?.[0]?.hooks[0]?.command).toBe("npx metator guard pre-tool");
+    // Both hosts hand the person's own message to the same guard (the consent in words).
+    expect(claude.hooks.UserPromptSubmit?.[0]?.hooks[0]?.command).toBe("npx metator guard user-prompt");
     const copilot = JSON.parse(await repo.read(".github/hooks/metator.json")) as {
       hooks: Record<string, unknown[]>;
     };
     expect(Object.keys(copilot.hooks)).toEqual([
       "SessionStart",
+      "UserPromptSubmit",
       "PreToolUse",
       "PostToolUse",
       "SubagentStop",
