@@ -25,6 +25,7 @@ Review the diff and commit it. The hooks call `metator`, so it must be on your `
 | SubagentStop | `metator guard subagent-output` | checks that the run's JSON artifacts are valid documents |
 | PreCompact | `metator guard precompact` | writes a checkpoint into the run's log before the host compacts the context |
 | Stop | `metator guard stop` | an active run at a working stage must be advanced or escalated before the agent stops |
+| UserPromptSubmit | `metator guard user-prompt` | your own message that asks for a commit, push, merge or rebase is your consent to it, once |
 
 ## What the pre-tool hook denies
 
@@ -33,7 +34,9 @@ Always, with or without a run:
 | Category | Examples |
 |---|---|
 | Secrets | reading or writing `.env`, `.env.*` (except `.env.example` and `.env.sample`), `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `.npmrc`, `.netrc` |
-| Destructive commands | `git push --force`, `git reset --hard`, `git clean -f`, `rm -r` of `/`, `~`, `.` or `*` |
+| Commands that never run | `git push --force`, `git reset --hard`, `git clean -f`, rewriting history, `rm -r` of `/`, `~`, `.` or `*`: the list `guard.commands.never` in [the configuration](../reference/configuration.md#guard) |
+| Commands that need your consent | `git commit`, `git push`, `git merge`, `git rebase` (`guard.commands.ask`): the agent's call becomes your host's approval prompt; a click there, or your word in the chat ("commit"), lets one through |
+| A commit with debug changes | a `git commit` that would hold a change recorded with `metator scratch`: stopped with the files until you say "commit anyway" or remove them |
 | Approving a plan | `metator arch plan approve` and `metator system plan approve`: those are yours to run |
 
 Only while a run is active:
@@ -48,7 +51,7 @@ Only while a run is active:
 
 Without an active run, only the first table applies. MetatorAI does not restrict ordinary work outside a run.
 
-The hook only ever denies. When it has no objection it says nothing, and your host's own permission rules decide the call as usual.
+The hook denies, or for a command that needs your consent hands the call to your host's approval prompt. When it has no objection it says nothing, and your host's own permission rules decide the call as usual.
 
 ## Try it
 
@@ -60,7 +63,7 @@ echo '{"tool_name":"Bash","tool_input":{"command":"git push --force"}}' | metato
 
 ```json
 {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny",
- "permissionDecisionReason":"git push --force is blocked: it can lose work. Ask the user to run it."}}
+ "permissionDecisionReason":"`git push --force` never runs here (guard.commands.never: git push --force*): it can lose work or rewrite history. If the person wants it, they run it themselves."}}
 ```
 
 ```bash

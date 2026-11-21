@@ -133,6 +133,22 @@ While you hold the keyboard the line waits until you release it. The run's activ
 
 When a run you started from a chat (the pane where you described the task) is done, is closed, stops for you, or waits for your approval, the daemon types one line into that chat's agent, such as `[metator] The task 20261120-… (Prices in the customer's currency) is done. Tell the person what was done.` It does so once for each event, and only while the agent is idle at its prompt; until then the line waits. The run's activity records each line.
 
+### Tell or interrupt a session
+
+A task's sessions are its main chat, its run's conductor and workers, and the sessions of its child runs:
+
+```bash
+metator session list --task <run>      # pane, repository, role, agent, state; `main` marks the chat
+metator session tell w2:p3 --text "Use half-even rounding"
+metator session interrupt w2:p3 --text "Stop: that is the wrong file"
+```
+
+`tell` types your words into the session when its agent is idle. Until then they wait in a queue that survives the daemon; they are never typed over the agent's work, over its host's prompt, or over a question it asked. `interrupt` sends Esc first, then your words, then Enter. In a folder of repositories, name the pane's repository with `--repo`.
+
+Only the task's main chat (the pane the task was started from) or a person may steer; a conductor or a worker that tries is refused. What the chat relays is typed word for word behind `[metator] From the person, through the main chat: `, and from your own terminal behind `[metator] From the person (<name>): `. The run's activity records each line. A relayed line is never a consent to commit or push.
+
+When you type into a session's terminal yourself while the task has a main chat, the chat is told in one line: `[metator] The person told shop-api/mt-implementer directly: "<the first 200 characters>"`. This comes from the host's user-prompt hook, so the hooks must be installed (`metator generate --hooks`).
+
 ### Hand a run over
 
 ```bash

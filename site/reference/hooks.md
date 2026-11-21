@@ -20,6 +20,7 @@ This writes the hook configuration for each host: `.claude/settings.json` for Cl
 | `SubagentStop` | `metator guard subagent-output` | 10 s | keeps a subagent working until the run's JSON artifacts match their schemas |
 | `PreCompact` | `metator guard precompact` | 10 s | writes a checkpoint to the run's `log.md` before the context is compacted |
 | `Stop` | `metator guard stop` | 10 s | keeps the agent working while the active run is at a stage it must finish |
+| `UserPromptSubmit` | `metator guard user-prompt` | 5 s | reads your own message: words that ask for a guarded command (commit, push, merge, rebase) are your consent to it, once; in a run's session, the task's main chat is told that you spoke there |
 
 ## Input
 
@@ -48,7 +49,7 @@ An empty or unreadable payload is treated as an empty object.
 
 A guard with nothing to say prints nothing. Every guard exits `0`.
 
-`pre-tool` prints only a denial. A call it does not object to gets no answer, so the host's own permission prompts apply as usual.
+`pre-tool` prints a denial, or `ask` for a command that needs your consent (the host then shows its own approval prompt with the reason), or `allow` for a command you consented to in words. A call it does not object to gets no answer, so the host's own permission prompts apply as usual.
 
 ```bash
 echo '{"tool_name":"Read","tool_input":{"file_path":".env"}}' | metator guard pre-tool
@@ -56,6 +57,18 @@ echo '{"tool_name":"Read","tool_input":{"file_path":".env"}}' | metator guard pr
 
 ```json
 {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":".env may hold secrets; agents do not read or write it."}}
+```
+
+A command on `guard.commands.ask`:
+
+```json
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"`git commit -m Add a` needs your consent: answer here, or say it in the chat (\"commit\")."}}
+```
+
+`user-prompt` prints context for the model when your message is a consent, and nothing otherwise:
+
+```json
+{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"MetatorAI: the person's message is their consent to commit, once, within 10 minutes. Run the command now; nothing else is consented."}}
 ```
 
 `session-start` and `post-edit` print context for the model:
@@ -86,16 +99,19 @@ The first rule that matches decides.
 
 1. Secrets. A path or a shell argument that matches `.env`, `.env.*` (except `.env.example` and `.env.sample`), `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `.npmrc` or `.netrc` is denied, for reading and for writing.
 2. Run control. In a session that `metator run drive` started, or in a worker's pane, the agent may not move the run itself (`metator run advance`, `approve`, `answer`, `close` and the like). The one exception is `metator run approve ... --via chat` while a person is attached to the session.
-3. Destructive commands. `git push --force` (also `--force-with-lease`), `git reset --hard`, `git clean -f`, and `rm -r` of `/`, `~`, `.`, `..` or `*` are denied.
-4. Plan approvals. `metator arch plan approve` and `metator system plan approve` are denied: a person runs them.
-5. No active run. Everything else is left to the host.
-6. Actions outside the repository, until a person approves them with `metator run approve push` or `metator run approve comment`:
+3. The guard's own commands. An agent that runs `metator guard …` itself, or writes under `.metator/consents/`, is denied: a consent is your own word.
+4. Dangerous commands, from `guard.commands` in [the configuration](./configuration.md#guard):
+   - on `never` (`git push --force`, `git reset --hard`, `git clean -f`, `rm -r` of `/`, `~`, `.`, `..` or `*`, and the rest of the list): denied;
+   - on `ask` (`git commit`, `git push`, `git merge`, `git rebase`): a commit that would hold recorded debug changes asks with the files; a command the run's approval covers, or one you consented to in words, passes; in a session without a terminal it is denied with how to approve; otherwise the answer is `ask`.
+5. Plan approvals. `metator arch plan approve` and `metator system plan approve` are denied: a person runs them.
+6. No active run. Everything else is left to the host. The chat you talk in (a pane with no run of its own) counts as having none, also while a run works in the same checkout.
+7. Actions outside the repository, until a person approves them with `metator run approve push` or `metator run approve comment`:
    - `git push`, `gh pr create`, `gh pr merge` and MCP tools that create branches, files or pull requests need `push`;
    - `gh pr comment`, `gh pr review`, `gh issue comment` and MCP comment or review tools need `comment`.
-7. File edits:
-   - by a coordinator: denied;
+8. File edits:
+   - by a coordinator that has no `edit` capability (`mt-orchestrator`, `mt-pr-review`): denied;
    - of a file outside the repository: denied;
    - of a file under `.metator/`: allowed, so agents can write run artifacts;
    - of a file that `plan-scope.json` does not list, when the run has one: denied.
 
-Rules 1 to 4 apply with or without a run.
+Rules 1 to 5 apply with or without a run.

@@ -151,6 +151,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["review changes", "what a run changed, file by file, with one file's diff"],
       ["review notes add", "a note on a line of the change; `review notes send` hands them to the agent"],
       ["open", "your editor on the run's worktree, at a file and line"],
+      ["session list", "the agent sessions of a task; `session tell` gives one your words when it is idle"],
       ["attach", "your terminal on a pane (or a run's conductor); Ctrl-] detaches"],
       ["status", "every run at a glance: who waits for you, who works, who stopped"],
     ],

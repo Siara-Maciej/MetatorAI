@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
-import { QuickFit, QuickReady, QuickStart } from "../src/application/quick-run.ts";
+import { QuickFit, QuickOverrides, QuickReady, QuickStart } from "../src/application/quick-run.ts";
 import { RunJournal } from "../src/application/run-journal.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
 import { AdvanceRun, InitRun } from "../src/application/runs.ts";
@@ -58,8 +58,7 @@ function world(dirty: string[] = []) {
     start: start as never,
     repo,
     journal,
-    fs,
-    clock,
+    overrides: new QuickOverrides(fs, repo, journal, clock),
     tree: { modifiedTracked: async () => dirty },
   };
   const activity = async (runId: string) =>

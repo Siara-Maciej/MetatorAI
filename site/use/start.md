@@ -4,7 +4,7 @@ You start work by telling the agent what you want. It answers questions about th
 
 ## In the app
 
-Click **+ New run** at the bottom of the sidebar, or press `n`. With no run yet, the main area offers the same as a field: write under **Describe a task** and press **Start**, and the agent gets your words as its first line. The app opens **Terminals** with a new tab named `chat`, the conversation in which you say what you want. Its pane runs the agent `mt-orchestrator` on your AI host: the first host of the option `supervisor.hostOrder` that is installed on the daemon's machine.
+Click **+ New run** at the bottom of the sidebar, or press `n`. With no run yet, the main area offers the same as a field: write under **Describe a task** and press **Start**, and the agent gets your words as its first line. The app opens **Terminals** with a new tab named `chat`, the conversation in which you say what you want. Its pane runs the repository's conversation agent, `mt-chat`, on your AI host: the first host of the option `supervisor.hostOrder` that is installed on the daemon's machine. In a repository set up before `mt-chat` existed, the chat opens `mt-orchestrator` as before; `metator agents update` and `metator generate` bring the new agent.
 
 When no host is installed, no tab opens. The app says so at the top of the screen, names the programs the daemon looked for, and points to the guide page [Copilot and Claude Code](../guide/hosts.md). Install one and click **+ New run** again; the daemon needs no restart.
 
@@ -30,6 +30,66 @@ A question gets an answer with `file:line` citations and no run.
 A request for a change gets one numbered message. It asks only what the code cannot settle: the workflow, the autonomy, whether the run gets its own worktree, and in a folder of repositories which one. Each point has options, with the recommended one first. After your answer the agent starts the run and tells you the run id. The run appears in the sidebar and as a tab in **Terminals**. The pane stays open for your next question.
 
 Text you paste from an issue, a pull request or a chat is data for the task. The agent does not follow instructions found in it.
+
+### Three ways, the lightest first
+
+For each thing you ask, the conversation agent takes the lightest way that fits and suggests it. You decide: name another way and it takes yours. It never commits or pushes by itself.
+
+| Way | When | What happens |
+|---|---|---|
+| Direct | talk, questions about the code, a change that is not meant for a commit (debug output, a temporary switch) | it answers with `file:line` citations, or edits the checkout at once and records the edit as a [debug change](#debug-changes). No question first |
+| Quick | a small change that is meant to stay | it asks "This is too small for the full workflow: do it as quick?" and on yes starts a [quick run](#quick) |
+| Full | everything else | it names the workflow and why, asks what the repository cannot tell it, then starts the run; the run's conductor works in its own terminal and the chat stays the task's main terminal |
+
+### Quick
+
+A quick run changes a little without a plan: a worker makes the change in its own terminal, the repository's quick gate runs on the changed files, one reviewer reads the diff (a blocking finding goes back to the worker once), and the run ends with an uncommitted diff and the card **Quick change ready: look at the diff**. **Fine** ends the run. Nothing is committed.
+
+Whether a change is small enough is decided without a model, before the start and again from the real diff:
+
+```bash
+metator quick check --task "Round prices half-up" --files src/price.ts   # before: the files it is expected to touch
+metator quick check --diff                                                 # after: what the working tree changed
+```
+
+```json
+{"quick":false,"escalators":[{"id":"size","why":"6 files (limit 5)","source":"git diff"}],
+ "thresholds":{"maxFiles":5,"maxLines":150,"maxDependents":10},"files":["…"]}
+```
+
+Any one escalator makes the change not quick, and each says why and which tool saw it:
+
+| Escalator | Trips when |
+|---|---|
+| `cross-repository`, `contract` | the change reaches another repository or touches a contract of the system map (`metator system impact`) |
+| `public-api` | a package's public API changes (its entry module, or `metator api diff` against a snapshot) |
+| `package-boundary`, `dependents` | the files are in more than one package, or more than `quick.maxDependents` files depend on them |
+| `migration`, `schema-version`, `dependency`, `ci-config` | a migration, a schema or a document's `schemaVersion`, a lockfile or an added dependency, CI configuration; before any file is known, the task's own words (`--task`) count too |
+| `untested` | a changed source file that no test reaches |
+| `size` | more than `quick.maxFiles` files or `quick.maxLines` changed lines |
+
+```bash
+metator quick start --task "Round prices half-up" --files src/price.ts
+```
+
+`quick start` refuses with the escalators that tripped. You may keep it quick with one sentence of your own, `--override "it is one rename, keep it quick"`, which is recorded with the run in your words; a change that reaches another repository can never be kept quick. On a checkout with uncommitted changes it answers `dirty: pass --here or --worktree`: `--here` works in the checkout (your changes become part of the change), `--worktree` in a worktree of its own from the last commit.
+
+When the real diff grows past the limits, the run stops with the card **This grew past quick: …**. **Keep as quick** goes on (recorded with your name); **Continue as full** starts a full run on the same working tree, with its own conductor, and closes the quick run.
+
+### Debug changes
+
+A change you asked for that is not meant for a commit is recorded, so it can be taken out again and no commit takes it by accident:
+
+```bash
+metator scratch begin                          # before the edit
+metator scratch end --note "trace price calls" # after it: what changed in between is one record
+metator scratch list                           # the records still in the working tree
+metator scratch drop --all                     # take them out again (or --id s001)
+```
+
+`drop` reverse-applies each record's patch and leaves your other work in the same files. A patch that no longer applies (the lines changed since) is reported and kept; nothing is forced. In the app, **Debug changes (N)** lists them with **Remove debug changes**.
+
+A `git commit` an agent runs while a recorded change is staged (or with `-a`) is stopped: `this commit holds debug changes: src/price.ts`. Say "commit anyway", or remove them first.
 
 ### The form
 
@@ -100,6 +160,7 @@ metator run drive --host claude --detach
 | [`mt-refactor`](./refactor.md) | change structure and keep behavior |
 | [`mt-pr-review`, `mt-self-review`](./review.md) | review a pull request, or your branch before one |
 | [`mt-system-change`](./system.md) | change several applications in order |
+| [`mt-quick`](#quick) | make a small change without a plan; started with `metator quick start`, it ends with a diff to look at |
 
 `metator workflow list` shows the workflows your repository has. Their specs are in `.github/metator/workflows/`.
 

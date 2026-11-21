@@ -56,11 +56,16 @@ function world(files: Record<string, string> = {}, role?: string) {
     clock,
     consents: new GuardConsents(fs, clock),
     debug: [] as string[],
+    /** How the debug files were asked for, call by call: true when the commit takes the working tree. */
+    askedAll: [] as boolean[],
     get preTool() {
       return new GuardPreTool(status, repo, new AgentCatalog(fs, DEFAULT_PATHS), fs, ROOT, role, {
         guard: DEFAULT_GUARD_CONFIG,
         consents: this.consents,
-        debugFiles: async () => this.debug,
+        debugFiles: async (all) => {
+          this.askedAll.push(all);
+          return this.debug;
+        },
       });
     },
     get userPrompt() {
@@ -121,6 +126,44 @@ describe("GuardPreTool", () => {
     );
   });
 
+  test("the chat a person talks in (an entry pane with no run of its own) is part of no run: a run active in the checkout does not bind it", async () => {
+    // The chat's agent is a coordinator in the canon; the run has a plan scope.
+    const scoped = { ".metator/runs/x/plan-scope.json": SCOPE(["src/a.ts"]) };
+    const chat = world(scoped, "apps");
+    const run = (await chat.init())._unsafeUnwrap();
+    await chat.fs.write(`.metator/runs/${run.runId}/plan-scope.json`, SCOPE(["src/a.ts"]));
+    const pane = { pane: "w1:p1" };
+    // Its direct edit (ADR-0093) is neither a coordinator's edit nor outside a plan it never had.
+    expect(
+      decision((await chat.preTool.execute(edit("src/other.ts", "mt-orchestrator"), pane))._unsafeUnwrap())
+        .permissionDecision,
+    ).toBe("none");
+    // A push is still the person's to consent to: the run's approval is not the chat's.
+    await chat.approve.execute({ gate: "push", by: "maciej" });
+    expect(
+      decision(
+        (
+          await chat.preTool.execute(
+            { tool_name: "Bash", tool_input: { command: "git push origin feature" } },
+            pane,
+          )
+        )._unsafeUnwrap(),
+      ).permissionDecision,
+    ).toBe("ask");
+    // The same pane role inside a run's workspace (it has the run in its environment) is bound by the run.
+    const inRun = { pane: "w2:p3", run: run.runId };
+    expect(
+      decision((await chat.preTool.execute(edit("src/other.ts", "mt-implementer"), inRun))._unsafeUnwrap())
+        .permissionDecisionReason,
+    ).toBe("src/other.ts is outside plan-scope.json; update the plan (mt-planner) or ask the user.");
+    // And any other pane or a session outside the daemon, as before.
+    const conductor = world({}, "conductor");
+    await conductor.init();
+    expect(
+      decision((await conductor.preTool.execute(edit("src/a.ts"), pane))._unsafeUnwrap()).permissionDecision,
+    ).toBe("deny");
+  });
+
   test("coordinators are known from the canonical agents or METATOR_ROLE", async () => {
     const w = world();
     await w.init();
@@ -132,6 +175,22 @@ describe("GuardPreTool", () => {
       decision((await w.preTool.execute(edit("src/a.ts", "mt-implementer")))._unsafeUnwrap())
         .permissionDecision,
     ).toBe("none");
+    // A coordinator that has the edit capability (the conversation agent, ADR-0093) edits: it is
+    // no coordinator "that delegates and does not edit", also outside the daemon's panes.
+    const chat = world({
+      "metator/agents/mt-chat.md": COORDINATOR.replace("id: mt-orchestrator", "id: mt-chat").replace(
+        "capabilities: [read, agent]",
+        "capabilities: [read, edit, execute]",
+      ),
+    });
+    await chat.init();
+    expect(
+      decision((await chat.preTool.execute(edit("src/a.ts", "mt-chat")))._unsafeUnwrap()).permissionDecision,
+    ).toBe("none");
+    expect(
+      decision((await chat.preTool.execute(edit("src/a.ts", "mt-orchestrator")))._unsafeUnwrap())
+        .permissionDecision,
+    ).toBe("deny");
     const byEnv = world({}, "coordinator");
     await byEnv.init();
     expect(decision((await byEnv.preTool.execute(edit("src/a.ts")))._unsafeUnwrap()).permissionDecision).toBe(
@@ -279,7 +338,21 @@ describe("guarded commands and the person's consent (ADR-0094)", () => {
       decision((await w.preTool.execute(bash("git commit -m x"), pane))._unsafeUnwrap()).permissionDecision,
     ).toBe("allow");
     // Another command is not a commit: the files are not even looked up.
+    w.askedAll.length = 0;
     expect((await w.preTool.execute(bash("git status"), pane))._unsafeUnwrap()).toBeNull();
+    expect(w.askedAll).toEqual([]);
+    // A plain commit takes what is staged; `-a`, a flag cluster with it, or paths named take the working tree.
+    for (const command of [
+      "git commit -m x",
+      "git commit --amend -m x",
+      "git commit -a -m x",
+      "git commit -qam x",
+      "git commit --all",
+      "git commit -m x -- src/a.ts",
+      "git commit --only src/a.ts -m x",
+    ])
+      await w.preTool.execute(bash(command), pane);
+    expect(w.askedAll).toEqual([false, false, true, true, true, true, true]);
   });
 
   test("in a run: a drive without a terminal is refused, a pane is asked; the conductor and the chat steer runs, a worker never", async () => {

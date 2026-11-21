@@ -2317,7 +2317,7 @@ metator quick fit [options]
 
 ### `metator quick ready`
 
-The gate that ends a quick run: asks the person to look at the diff. Not yet (exit 4) until they say Fine; nothing is committed
+The gate that ends a quick run: asks the person to look at the diff. Not yet (exit 4) until they say Fine, which ends the run; nothing is committed
 
 ```bash
 metator quick ready [options]
@@ -2327,6 +2327,94 @@ metator quick ready [options]
 |---|---|---|
 | `--run <id>` | run id (default: latest) |  |
 | `--wait [ms]` | wait for the person's answer (at most this long, default 9 minutes), instead of saying not yet at once |  |
+
+## scratch
+
+### `metator scratch begin`
+
+Before a direct edit not meant for a commit: remember the working tree as it is
+
+```bash
+metator scratch begin [options]
+```
+
+### `metator scratch end`
+
+After the edit: what changed since `scratch begin` is recorded as one patch
+
+```bash
+metator scratch end [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--note <text>` | what the change is for, e.g. "log every rounding while I look for the bug" |  |
+
+### `metator scratch list`
+
+The recorded changes still in the working tree: id, files, note, when
+
+```bash
+metator scratch list [options]
+```
+
+### `metator scratch drop`
+
+Take recorded changes out of the working tree again (the newest first); a patch that no longer applies is reported, never forced
+
+```bash
+metator scratch drop [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--id <id>` | one record (repeatable) | `[]` |
+| `--all` | every record |  |
+| `--by <name>` | who removes them (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
+## session
+
+### `metator session list`
+
+The sessions of a task (or all): pane, repository, role, agent, state
+
+```bash
+metator session list [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--task <run>` | the task: its main chat, its run's sessions and its child runs' sessions |  |
+
+### `metator session tell`
+
+Tell a session the person's words: typed into it when its agent is idle (queued until then), never over a prompt or a question it asked
+
+```bash
+metator session tell [options] <pane>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<pane>` |  | |
+| `--text <words>` | the person's words, as they said them **Required.** |  |
+| `--repo <name>` | the pane's repository, as `session list` names it (default: this one) |  |
+| `--by <name>` | who says it, from a terminal of their own (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
+### `metator session interrupt`
+
+Stop what a session's agent does and give it the person's words now: Esc, the words, then Enter
+
+```bash
+metator session interrupt [options] <pane>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<pane>` |  | |
+| `--text <words>` | the person's words, as they said them **Required.** |  |
+| `--repo <name>` | the pane's repository, as `session list` names it (default: this one) |  |
+| `--by <name>` | who says it, from a terminal of their own (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ## worktree
 

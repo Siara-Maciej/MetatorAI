@@ -26,6 +26,7 @@ import { PANE_ROUTES } from "./routes/panes.ts";
 import { PLAN_ROUTES } from "./routes/plans.ts";
 import { RUN_ROUTES } from "./routes/runs.ts";
 import { SCRATCH_ROUTES } from "./routes/scratch.ts";
+import { SESSION_ROUTES } from "./routes/sessions.ts";
 import { SYSTEM_ROUTES } from "./routes/system.ts";
 import { type Socket, socketHandlers, upgrade } from "./sockets.ts";
 import { startTimers } from "./timers.ts";
@@ -34,6 +35,7 @@ import { startTimers } from "./timers.ts";
 export const ROUTES: readonly Route[] = [
   ...OVERVIEW_ROUTES,
   ...BACKLOG_ROUTES,
+  ...SESSION_ROUTES,
   ...PANE_ROUTES,
   ...SCRATCH_ROUTES,
   ...RUN_ROUTES,

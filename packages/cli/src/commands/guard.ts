@@ -47,6 +47,30 @@ export async function paneStartedRun(
   ).catch(() => undefined);
 }
 
+/**
+ * What a person sent in a run's session themselves (the host's user-prompt hook, ADR-0093): the
+ * daemon tells the task's main chat in one line. Sent once with the pane's token, never waited for
+ * long; no daemon, no run pane, or no words: nothing to say.
+ */
+export async function paneSaid(
+  prompt: unknown,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  root: string = process.cwd(),
+): Promise<void> {
+  if (!env.METATOR_PANE_ID || !env.METATOR_PANE_TOKEN || !env.METATOR_RUN) return;
+  if (typeof prompt !== "string" || prompt.trim() === "") return;
+  const daemon = findDaemon(root);
+  if (daemon.isErr()) return;
+  await callDaemon(
+    daemon.value,
+    "POST",
+    `/panes/${encodeURIComponent(env.METATOR_PANE_ID)}/said`,
+    { text: prompt },
+    paneHeaders(env),
+    1_000,
+  ).catch(() => undefined);
+}
+
 /** Parses the hook payload; an empty or invalid one is an empty object (the host decides). */
 function payload(text: string): unknown {
   try {
@@ -93,17 +117,22 @@ export function registerGuardCommands(program: Command, { action, container, std
       .action(
         action(async () => {
           const beat = paneHeartbeat();
+          const given = payload(await stdin());
+          // A message the person sent in a run's session: its task's main chat hears of it.
+          const said = name === "user-prompt" ? paneSaid((given as { prompt?: unknown }).prompt) : undefined;
           const result = await container()
             .resolve(token)
             // A session `metator run drive` started (the host sets METATOR_DRIVEN): the drive
             // moves the run, so the guards neither let the agent do it nor ask it to.
             // A pane under the daemon (METATOR_PANE_ID) is no drive's session: its consents are
             // the pane's, a person can be asked there, and its conductor or chat steers runs.
-            .execute(payload(await stdin()), {
+            .execute(given, {
               driven: Boolean(process.env.METATOR_DRIVEN),
               ...(process.env.METATOR_PANE_ID ? { pane: process.env.METATOR_PANE_ID } : {}),
+              ...(process.env.METATOR_RUN ? { run: process.env.METATOR_RUN } : {}),
             });
           await beat;
+          await said;
           return answer(result, name);
         }),
       );

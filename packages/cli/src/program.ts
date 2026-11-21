@@ -60,6 +60,7 @@ import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
 import { registerScratchCommands } from "./commands/scratch.ts";
 import { registerServeCommand } from "./commands/serve.ts";
+import { registerSessionCommands } from "./commands/session.ts";
 import { registerSetupCommands } from "./commands/setup.ts";
 import { registerStatusCommand } from "./commands/status.ts";
 import { registerSuperviseCommand } from "./commands/supervise.ts";
@@ -199,6 +200,7 @@ export function buildProgram(
   registerRunCommands(program, ctx);
   registerQuickCommands(program, ctx);
   registerScratchCommands(program, ctx);
+  registerSessionCommands(program, ctx);
   registerWorktreeCommands(program, ctx);
   registerEnvCommands(program, ctx);
   registerReposCommands(program, ctx);

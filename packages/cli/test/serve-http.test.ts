@@ -380,8 +380,12 @@ describe("the daemon's route table", () => {
       "GET /runs/:run/artifacts/:name+",
       "GET /scratch",
       "POST /scratch/drop",
+      "GET /sessions",
+      "POST /panes/:pane/tell",
+      "POST /panes/:pane/interrupt",
+      "POST /panes/:pane/said",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(80);
+    expect(keys.size).toBe(84);
   });
 });

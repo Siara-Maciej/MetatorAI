@@ -1,4 +1,11 @@
-import { err, MESSAGE_TOPICS, MetatorError, ok, type RunDriveStarted } from "@metator/core";
+import {
+  err,
+  MESSAGE_TOPICS,
+  MetatorError,
+  mayStartConductor,
+  ok,
+  type RunDriveStarted,
+} from "@metator/core";
 import { z } from "zod";
 import { body, type Call, count, denied, flag, optional, type Route, route, strings, text } from "../http.ts";
 import { personOnly } from "./plans.ts";
@@ -22,6 +29,16 @@ async function conductorOnly({ c, token, params }: Call): Promise<MetatorError |
       : "unknown pane token",
     "Only the run's conductor pane delegates and collects; a worker reports with `metator run result`.",
   );
+}
+
+/**
+ * Opening a run's conductor session: a person, the chat a person talks in (it starts the runs of
+ * what they ask for, ADR-0093), or the run's own conductor. No other pane.
+ */
+async function starterOnly(call: Call): Promise<MetatorError | undefined> {
+  if (!call.token) return undefined;
+  const pane = await call.c.resolve("panes").authorize(call.token);
+  return pane && mayStartConductor(pane, call.params.run as string) ? undefined : conductorOnly(call);
 }
 
 const run = ({ params }: Call<unknown>) => params.run as string;
@@ -75,7 +92,7 @@ export const RUN_ROUTES: readonly Route[] = [
     method: "POST",
     pattern: "/runs/:run/start",
     body: body({ host: optional(z.string()) }),
-    guard: conductorOnly,
+    guard: starterOnly,
     handler: (call) =>
       call.c
         .resolve("conductor")

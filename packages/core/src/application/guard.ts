@@ -57,6 +57,8 @@ export interface GuardSession {
    * session: its conductor moves the run, its chat starts runs, and a person can be asked there.
    */
   readonly pane?: string;
+  /** The run the session belongs to (METATOR_RUN): a pane without one is the chat of no run. */
+  readonly run?: string;
 }
 
 /** What the guards of dangerous commands need (ADR-0094): the config's list and the person's consents. */
@@ -92,7 +94,10 @@ export class GuardPreTool {
 
   async execute(raw: unknown, session: GuardSession = {}): Promise<Result<HookResponse, MetatorError>> {
     const hook = readHookInput(raw);
-    const run = await activeRun(this.status);
+    // The chat a person talks in (an entry pane with no run of its own, ADR-0093) is part of no
+    // run: a run that is active in the checkout binds neither its edits nor its commands.
+    const chat = session.pane !== undefined && this.role === "apps" && session.run === undefined;
+    const run = chat ? ok(undefined) : await activeRun(this.status);
     if (run.isErr()) return err(run.error);
     // A session `run drive` started without a terminal: the drive moves the run, nobody can be asked.
     const driven = session.driven === true && session.pane === undefined;
@@ -128,8 +133,12 @@ export class GuardPreTool {
         editScope = scope.value.edit;
       }
     }
+    // The coordinators that delegate and do not edit: one that has the edit capability (the
+    // conversation agent, ADR-0093) edits like any agent.
     const coordinators = new Set(
-      (await this.agents.scan()).agents.filter((a) => a.agent.role === "coordinator").map((a) => a.agent.id),
+      (await this.agents.scan()).agents
+        .filter((a) => a.agent.role === "coordinator" && !a.agent.capabilities.includes("edit"))
+        .map((a) => a.agent.id),
     );
     const decision = preToolPolicy(hook, {
       root: this.root,

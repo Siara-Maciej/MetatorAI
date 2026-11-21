@@ -13,7 +13,7 @@ A file that does not match the schema stops every command with `INVALID_CONFIG` 
 
 ```yaml
 kind: MetatorConfig
-schemaVersion: 12
+schemaVersion: 13
 
 gates:
   quick:
@@ -57,11 +57,20 @@ reviews:
   sources:
     - { kind: github, repo: acme/shop, author: alice }
 
+guard:
+  commands:
+    never: [git push --force*, git reset --hard, git clean -f]
+    ask: [git commit, git push, git merge, git rebase]
+
+quick:
+  maxFiles: 5
+  maxLines: 150
+
 options:
   supervisor.wipLimit: 2
 ```
 
-The current `schemaVersion` is 11. A file with an older version still loads: MetatorAI upgrades it in memory and leaves the file as it is.
+The current `schemaVersion` is 13. A file with an older version still loads: MetatorAI upgrades it in memory and leaves the file as it is.
 
 ## Gates
 
@@ -235,6 +244,33 @@ Entries of `.mcp.json` that MetatorAI did not write are kept. A server you remov
 | `idleThresholdMs` | `90000` | no terminal output for this long, with no open question, counts as idle |
 | `hostOrder` | `[copilot, claude, opencode]` | which interactive host a new session takes first |
 | `chatApprovals` | `attached-only` | an approval said in the chat counts only while a person is attached to the session (the only value) |
+
+## Guard
+
+`guard.commands` is the one list of dangerous shell commands, enforced the same way on Claude Code and Copilot CLI by the [`pre-tool` hook](./hooks.md), for every agent: the chat, a run's conductor and its workers. Only a person changes it, by editing this file; an agent cannot relax it.
+
+| Field | Default | Use |
+|---|---|---|
+| `guard.commands.never` | `git push --force*`, `git push -f`, `git reset --hard`, `git clean -f`, `git rebase -i`, `git rebase --interactive`, `git filter-branch`, `git filter-repo`, and `rm -r` of `/`, `/*`, `~`, `.`, `..`, `*` or `.git` | never run by an agent: the call is denied with the reason. You run such a command yourself |
+| `guard.commands.ask` | `git commit`, `git push`, `git merge`, `git rebase` | run only with your consent: a click on your host's own approval prompt, or your word in the chat ("commit", "push it", "zacommituj") |
+| `guard.commands.allow` | none | commands that `ask` would catch and that you allow anyway, for example `git commit --fixup` |
+| `guard.consentMinutes` | `10` | how long a consent you gave in words holds; it is used up by the first command of that kind |
+
+A pattern is the command's words: the program, for `git` the subcommand, then the flags or words that must be among the arguments. `--force*` also matches `--force-with-lease`; `-f` also matches inside `-xdf`. `never` wins over `ask`, and `allow` lifts only `ask`.
+
+A consent in words comes from your own message only (the host's user-prompt hook hands it to `metator guard user-prompt`). A question ("should we commit?"), a refusal, the agent's own words and lines MetatorAI types (`[metator] …`) give none. In a run, the approval of the delivery gate (`metator run approve push`) counts as your consent to that run's commit and push. A session without a terminal (`metator run drive`) cannot ask you, so there a command on `ask` needs the run's approval.
+
+A `git commit` that would hold a recorded debug change (see [Debug changes](../use/start.md#debug-changes)) is stopped with the files, even after "commit": say "commit anyway", or remove the changes first.
+
+## Quick
+
+`quick` holds the limits of a quick change (`metator quick check`, see [Quick](../use/start.md#quick)).
+
+| Field | Default | Use |
+|---|---|---|
+| `quick.maxFiles` | `5` | more changed files than this is not quick |
+| `quick.maxLines` | `150` | more changed lines (added plus removed) than this is not quick |
+| `quick.maxDependents` | `10` | more files that depend on the change (through imports, tests aside) than this is not quick |
 
 ## Options
 

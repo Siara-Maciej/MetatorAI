@@ -59,6 +59,8 @@ interface Live {
   lastHookAt?: Date;
   cancelIdle?: () => void;
   readonly listeners: Set<(event: PtyEvent) => void>;
+  /** The last few lines MetatorAI itself typed here (a nudge, a card's answer, a relay). */
+  readonly typed: string[];
 }
 
 export type PtyEvent =
@@ -106,6 +108,7 @@ export class PtyBroker {
       idle: false,
       lastOutputAt: this.now(),
       listeners: new Set(),
+      typed: [],
     };
     this.live.set(input.paneId, entry);
     if (input.backlog) entry.screen?.write(input.backlog);
@@ -184,23 +187,72 @@ export class PtyBroker {
     return ok(undefined);
   }
 
+  /** MetatorAI typed this into the pane for someone (a card's answer): remembered like a nudge. */
+  typedFor(paneId: string, text: string): void {
+    const entry = this.live.get(paneId);
+    if (!entry) return;
+    entry.typed.push(text);
+    if (entry.typed.length > 8) entry.typed.shift();
+  }
+
+  /** What MetatorAI typed into the pane lately: a host's hook that reports it is not the person talking. */
+  daemonTyped(paneId: string): readonly string[] {
+    return [...(this.live.get(paneId)?.typed ?? [])];
+  }
+
+  /** Whether a person holds the keyboard of the pane's run: nothing is typed over them. */
+  private async held(entry: Live, what: string): Promise<Result<void, MetatorError>> {
+    if (!entry.runId) return ok(undefined);
+    const record = await this.d.repo.load(entry.runId);
+    if (record.isErr()) return err(record.error);
+    return record.value.driver?.by === "human"
+      ? err(
+          MetatorError.usage(
+            `run ${entry.runId} is driven by ${record.value.driver.attachedBy}: no ${what} over a person`,
+          ),
+        )
+      : ok(undefined);
+  }
+
+  /**
+   * Stops what the pane's agent does and gives it words: Esc, the words a moment later, then
+   * Enter as its own write (ADR-0093). Never over a person who holds the run's keyboard.
+   */
+  async interrupt(paneId: string, text: string): Promise<Result<void, MetatorError>> {
+    const entry = this.live.get(paneId);
+    if (!entry?.alive) return err(MetatorError.notFound(`a live terminal in pane ${paneId}`));
+    const free = await this.held(entry, "interrupt");
+    if (free.isErr()) return err(free.error);
+    const after =
+      this.d.after ??
+      ((delay, fn) => {
+        const t = setTimeout(fn, delay);
+        return () => clearTimeout(t);
+      });
+    entry.pty.write("\x1b");
+    this.typedFor(paneId, text);
+    after(NUDGE_ENTER_MS, () => {
+      if (!entry.alive) return;
+      entry.pty.write(text);
+      after(NUDGE_ENTER_MS, () => {
+        if (entry.alive) entry.pty.write("\r");
+      });
+    });
+    entry.idle = false;
+    this.armIdle(paneId, entry);
+    return ok(undefined);
+  }
+
   /** The supervisor's words to an idle session: typed only while the agent drives, never over a person. */
   async nudge(paneId: string, text: string): Promise<Result<void, MetatorError>> {
     const entry = this.live.get(paneId);
     if (!entry?.alive) return err(MetatorError.notFound(`a live terminal in pane ${paneId}`));
-    if (entry.runId) {
-      const record = await this.d.repo.load(entry.runId);
-      if (record.isErr()) return err(record.error);
-      if (record.value.driver?.by === "human")
-        return err(
-          MetatorError.usage(
-            `run ${entry.runId} is driven by ${record.value.driver.attachedBy}: no nudge over a person`,
-          ),
-        );
-    }
+    const free = await this.held(entry, "nudge");
+    if (free.isErr()) return err(free.error);
     // The words, then Enter on its own a moment later: a terminal UI takes a burst of text that
     // ends in "\r" as a paste, and the Enter would land in the input instead of sending it.
     entry.pty.write(text);
+    this.typedFor(paneId, text);
     const after =
       this.d.after ??
       ((delay, fn) => {

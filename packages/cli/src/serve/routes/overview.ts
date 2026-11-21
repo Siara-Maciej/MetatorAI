@@ -23,6 +23,7 @@ export async function supervisorView(
     const a = await journal.activity(f.runId);
     runs.push({ questions: f.questions, activity: a.isOk() ? [...a.value] : [] });
   }
+  const chatAgent = await c.resolve("chatAgent")();
   const dayAgo = new Date(c.resolve("clock").now().getTime() - 24 * 3600 * 1000).toISOString();
   return ok({
     daemon: {
@@ -37,6 +38,8 @@ export async function supervisorView(
     // Which of them can start on this machine: the app offers only those (D1).
     hostStatus: c.resolve("hostStatus")(),
     policy,
+    // The agent the "+ New run" chat opens: the conversation agent where the repository has it.
+    ...(chatAgent ? { chatAgent } : {}),
     sessions: c.resolve("ptyBroker").list(),
     acceptance: { since: dayAgo, ...acceptanceStats(runs, dayAgo) },
   });

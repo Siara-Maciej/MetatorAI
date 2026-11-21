@@ -29,6 +29,8 @@ export const WorkerResultDocument = defineDocument("WorkerResult", {
 
 /** The agent a workflow's conductor pane runs when the workflow names none. */
 export const DEFAULT_CONDUCTOR = "mt-orchestrator";
+/** The conversation agent (ADR-0093): the chat a person opens, where the repository has it. */
+export const CHAT_AGENT = "mt-chat";
 
 /** The agents a stage may delegate to: its owners and parallel workers that are agents (not skills or scripts). */
 export function allowedWorkers(stage: Pick<StageSpec, "owner" | "parallel">): string[] {
@@ -47,6 +49,19 @@ export function conductorHost(
 ): string | undefined {
   const installed = hosts.filter((h) => h.installed).map((h) => h.id);
   return preferred && installed.includes(preferred) ? preferred : installed[0];
+}
+
+/**
+ * Whether a pane may open a run's conductor session: the chat a person talks in (an entry pane
+ * with no run of its own: it starts the runs of what the person asks for, ADR-0093), or the run's
+ * own conductor. A worker, a shell or another run's pane never.
+ */
+export function mayStartConductor(
+  pane: { readonly role: string; readonly runId?: string | undefined },
+  runId: string,
+): boolean {
+  if (pane.role === "apps" && pane.runId === undefined) return true;
+  return pane.role === "conductor" && pane.runId === runId;
 }
 
 /** A worker's name: the agent and a number that is new among the run's workers so far. */

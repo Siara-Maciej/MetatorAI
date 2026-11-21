@@ -192,6 +192,35 @@ describe("PtyBroker", () => {
     ]);
   });
 
+  test("an interrupt is Esc, then the words, then Enter, each its own write; never over a person; what MetatorAI typed is remembered", async () => {
+    const w = world();
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    const pty = new FakePty(1001);
+    w.start("w1:p1", run.runId, pty);
+    expect((await w.broker.interrupt("w1:p1", "Stop: wrong file")).isOk()).toBe(true);
+    expect(pty.typed).toEqual(["\x1b"]);
+    // The words a moment after Esc (the host needs it to stop), Enter a moment after the words.
+    const next = () => {
+      const t = w.timers.filter((x) => x.ms === NUDGE_ENTER_MS).at(-1);
+      w.timers.splice(w.timers.indexOf(t as never), 1);
+      t?.fn();
+    };
+    next();
+    expect(pty.typed).toEqual(["\x1b", "Stop: wrong file"]);
+    next();
+    expect(pty.typed).toEqual(["\x1b", "Stop: wrong file", "\r"]);
+    // What the daemon typed lately, so a hook that reports it is not taken for the person's own words.
+    await w.broker.nudge("w1:p1", "go on");
+    w.broker.typedFor("w1:p1", "half-even");
+    expect(w.broker.daemonTyped("w1:p1")).toEqual(["Stop: wrong file", "go on", "half-even"]);
+    expect(w.broker.daemonTyped("w9:p9")).toEqual([]);
+    await w.lock.attach({ runId: run.runId, by: "maciej" });
+    expect((await w.broker.interrupt("w1:p1", "x"))._unsafeUnwrapErr().message).toContain(
+      "no interrupt over a person",
+    );
+    expect((await w.broker.interrupt("w9:p9", "x"))._unsafeUnwrapErr().code).toBe("NOT_FOUND");
+  });
+
   test("a hook heartbeat stamps the pane, ends idleness and starts the idle timer over; only a live pane has one", async () => {
     const w = world();
     const run = (await w.init("Add discount"))._unsafeUnwrap();

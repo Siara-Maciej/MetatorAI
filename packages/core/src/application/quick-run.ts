@@ -52,7 +52,8 @@ const said = (escalators: readonly Pick<Escalator, "id" | "why">[]): string =>
 
 type Journal = Pick<RunJournal, "ask" | "questions" | "record">;
 
-class QuickOverrides {
+/** What was kept quick in a run although an escalator tripped: the run's `quick.json` and its activity. */
+export class QuickOverrides {
   constructor(
     private readonly fs: Pick<FileSystem, "read" | "write" | "exists">,
     private readonly repo: Pick<RunRepository, "runDir">,
@@ -121,10 +122,9 @@ export interface QuickRunDependencies {
   readonly start: Pick<StartRun, "execute">;
   readonly repo: Pick<RunRepository, "load" | "runDir">;
   readonly journal: Journal;
-  readonly fs: Pick<FileSystem, "read" | "write" | "exists">;
+  readonly overrides: Pick<QuickOverrides, "kept" | "keep">;
   /** The checkout: its tracked files with uncommitted changes (undefined: no git here). */
   readonly tree: Pick<WorkingTree, "modifiedTracked">;
-  readonly clock: Clock;
 }
 
 export interface QuickStarted {
@@ -142,10 +142,7 @@ export interface QuickStarted {
  * checkout with uncommitted changes asks where: in it, or in a worktree of its own.
  */
 export class QuickStart {
-  private readonly overrides: QuickOverrides;
-  constructor(private readonly d: QuickRunDependencies) {
-    this.overrides = new QuickOverrides(d.fs, d.repo, d.journal, d.clock);
-  }
+  constructor(private readonly d: QuickRunDependencies) {}
 
   async execute(input: {
     readonly task: string;
@@ -180,7 +177,7 @@ export class QuickStart {
     if (started.isErr()) return err(started.error);
     const run = started.value.run;
     if (allowed.overridden) {
-      const kept = await this.overrides.keep(
+      const kept = await this.d.overrides.keep(
         run.runId,
         run.stage,
         escalators,
@@ -213,16 +210,13 @@ export type QuickFitOutcome =
  * repositories only the first is offered.
  */
 export class QuickFit {
-  private readonly overrides: QuickOverrides;
   constructor(
     private readonly d: QuickRunDependencies & {
       readonly close: Pick<CloseRun, "execute">;
       /** The worktree of a quick run now belongs to the run that continues it (the registry). */
       readonly adopted?: (worktree: string, run: string) => Promise<Result<void, MetatorError>>;
     },
-  ) {
-    this.overrides = new QuickOverrides(d.fs, d.repo, d.journal, d.clock);
-  }
+  ) {}
 
   async execute(input: {
     readonly runId: string;
@@ -230,7 +224,7 @@ export class QuickFit {
   }): Promise<Result<QuickFitOutcome, MetatorError>> {
     const run = await this.d.repo.load(input.runId);
     if (run.isErr()) return err(run.error);
-    const kept = await this.overrides.kept(input.runId);
+    const kept = await this.d.overrides.kept(input.runId);
     if (kept.isErr()) return err(kept.error);
     const tripped = input.verdict.escalators.filter((e) => !kept.value.includes(e.id));
     if (tripped.length === 0) return ok({ state: "fits" });
@@ -278,7 +272,7 @@ export class QuickFit {
     const run = await this.d.repo.load(runId);
     if (run.isErr()) return err(run.error);
     if (choices.includes(QUICK_OPTIONS.keep)) {
-      const kept = await this.overrides.keep(runId, run.value.state.stage, tripped, by);
+      const kept = await this.d.overrides.keep(runId, run.value.state.stage, tripped, by);
       if (kept.isErr()) return err(kept.error);
       return ok({ state: "fits" });
     }

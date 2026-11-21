@@ -25,6 +25,7 @@ dir: packages/plugin-git
 
 ## Invariants
 
+- `GitWorkingPatches` (the `WorkingPatches` port, on the git CLI through the `ProcessRunner`) never touches the real index, HEAD, a branch or the stash: a snapshot is a tree written through a copy of the index (`GIT_INDEX_FILE`), a patch is `git diff --binary` between two trees, and taking one out is `git apply -R` after `--check` passed for the whole patch.
 - Paths under the `own` prefixes (MetatorAI's state, `.metator/`) are never a change or uncommitted work.
 - Renames count under both paths, so importers of the old path are affected [[cite: packages/plugin-git/src/git-vcs.ts:49 | "diffSummary([\"--no-renames\", ref.value])"]].
 

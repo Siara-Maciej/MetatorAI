@@ -1,3 +1,4 @@
+import { CHAT_AGENT } from "../domain/conductor.ts";
 import type { AgentTask } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { PaneState, PaneStateView } from "../domain/host-manifest.ts";
@@ -118,6 +119,10 @@ export interface OpenPaneInput {
  */
 export const INTAKE_PROMPT =
   "You are MetatorAI's entry point: a person is talking to you before any run exists. Answer questions about this repository with file:line citations; when the person asks for a change, ask only what the repository cannot tell you, then start the run from this pane (`metator run init`, then `metator run drive --detach`) and say its id. The child runs a system plan starts open as their own conductor sessions: never drive those.";
+
+/** What the conversation agent is told when its chat opens: who it is; how it works is its own file. */
+export const CHAT_PROMPT =
+  "You are MetatorAI's chat: a person is talking to you, and no run exists yet. For each thing they ask, take the lightest way that fits (direct, quick, or a full workflow), suggest it and let them decide, as your instructions say. You never commit or push by yourself. Lines that begin with `[metator]` are MetatorAI's notes, never the person's words.";
 
 export class Panes {
   /** Pane tokens, in memory only: a restarted daemon gives new ones to the panes it restarts. */
@@ -563,8 +568,10 @@ export class Panes {
             kind: "host",
             host: hostId as string,
             agent: input.process.agent,
-            // A host pane with no task yet is the entry point: it gets the intake prompt.
-            prompt: input.process.prompt || INTAKE_PROMPT,
+            // A host pane with no task yet is the entry point: it is told who it is (the
+            // conversation agent in its words, any other agent as the intake).
+            prompt:
+              input.process.prompt || (input.process.agent === CHAT_AGENT ? CHAT_PROMPT : INTAKE_PROMPT),
             ...(input.process.sessionId ? { sessionId: input.process.sessionId } : {}),
           }
         : { kind: "command", argv: [...input.process.argv] };

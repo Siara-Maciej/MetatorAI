@@ -175,6 +175,7 @@ export const METATOR_QUERIES: ReadonlySet<string> = new Set([
   "run published",
   "config show",
   "quick check",
+  "session list",
   "changed",
   "findings schema",
   "findings check-quote",

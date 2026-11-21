@@ -8,6 +8,7 @@ Every agent has one job, a model tier and only the tools that job needs.
 
 - A coordinator (`mt-orchestrator`, `mt-pr-review`) follows a workflow. It moves the run, hands each stage to a worker and never edits code. The [hooks](./hooks.md) deny it if it tries.
 - A worker does one stage, writes one artifact (for example `analysis.json` or `plan.json`) and returns a short summary to the coordinator.
+- The conversation agent (`mt-chat`) is the chat you open to start work. It has a free agent's tools: it answers, edits directly what is not meant for a commit, and starts quick runs and full runs. It suggests the way and you decide; it never commits or pushes by itself. See [Start a task](../use/start.md#three-ways-the-lightest-first).
 
 This split keeps the roles apart: the agent that writes a plan does not approve it, and the agent that writes code does not review it.
 

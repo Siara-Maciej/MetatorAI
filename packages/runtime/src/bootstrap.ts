@@ -51,6 +51,7 @@ import {
   CreateRefactorPlan,
   CreateSystemPlan,
   CreateWorktree,
+  chatAgentIn,
   checkoutRoots,
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
@@ -140,6 +141,7 @@ import {
   OptionStore,
   ok,
   PackRules,
+  PaneMail,
   PaneQuestions,
   PaneSensor,
   Panes,
@@ -156,6 +158,7 @@ import {
   PtyBroker,
   QuickCheck,
   QuickFit,
+  QuickOverrides,
   QuickReady,
   QuickStart,
   RecordArchitectureBaseline,
@@ -195,6 +198,7 @@ import {
   ScoreEvals,
   Scratch,
   SeedGoldenSet,
+  SessionSteering,
   SetupRepository,
   SetupWorktree,
   ShowChangeDiff,
@@ -655,6 +659,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
             commandExists,
           ),
     ).singleton(),
+    // The agent a new chat opens with: the conversation agent where the repository has it (ADR-0093).
+    chatAgent: asFunction(
+      ({ fileSystem }) =>
+        () =>
+          chatAgentIn(fileSystem, HOSTS),
+    ).singleton(),
     ptyBroker: asFunction(
       ({ runRepository, runJournal, config, clock, screenRenderer }) =>
         new PtyBroker({
@@ -716,10 +726,13 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           open: openPrompts,
           // A person's answer to an agent's terminal question, typed for them (never over a person).
           // As the person who holds the run's keyboard when it is theirs (their own keystrokes).
-          type: async (paneId, text, by) =>
-            by
+          type: async (paneId, text, by) => {
+            // Typed by MetatorAI for the person: a host's hook that reports it is not them talking.
+            if (by) ptyBroker.typedFor(paneId, text);
+            return by
               ? ptyBroker.write({ paneId, data: `${text}\r`, by })
-              : (await ptyBroker.nudge(paneId, text)).map(() => undefined),
+              : (await ptyBroker.nudge(paneId, text)).map(() => undefined);
+          },
           screen: (paneId) => ptyBroker.backlog(paneId),
           holder: async (runId) => {
             const record = await runRepository.load(runId);
@@ -852,6 +865,33 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           sensor: paneSensor,
           // The supervisor's nudge: the words, then Enter as its own write.
           nudge: (paneId, text) => ptyBroker.nudge(paneId, text),
+        }),
+    ),
+    // Lines for agents' sessions that wait until the agent is idle, and steering a task's
+    // sessions from its main chat (ADR-0093). One mail per repository: its file has one writer.
+    paneMail: asFunction(
+      ({ fileSystem, clock, panes, paneSensor, paneQuestions, ptyBroker, runJournal }) =>
+        new PaneMail({
+          fs: fileSystem,
+          clock,
+          panes,
+          sensor: paneSensor,
+          asksInPane: (paneId) => paneQuestions.waiting(paneId),
+          nudge: (paneId, text) => ptyBroker.nudge(paneId, text),
+          journal: runJournal,
+        }),
+    ).singleton(),
+    sessionSteering: asFunction(
+      ({ panes, runRepository, paneMail, ptyBroker, runJournal, root, paneSensor }) =>
+        new SessionSteering({
+          panes,
+          repo: runRepository,
+          mail: paneMail,
+          interrupt: (paneId, text) => ptyBroker.interrupt(paneId, text),
+          journal: runJournal,
+          repoName: basename(root),
+          daemonTyped: (paneId) => ptyBroker.daemonTyped(paneId),
+          sensor: paneSensor,
         }),
     ),
     // A session the daemon resumed is told, once, to go on (ADR-0092).
@@ -1844,19 +1884,22 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           },
         }),
     ),
+    quickOverrides: asFunction(
+      ({ fileSystem, runRepository, runJournal, clock }) =>
+        new QuickOverrides(fileSystem, runRepository, runJournal, clock),
+    ),
     quickStart: asFunction(
-      ({ startRun, runRepository, runJournal, fileSystem, workingTree, clock }) =>
+      ({ startRun, runRepository, runJournal, quickOverrides, workingTree }) =>
         new QuickStart({
           start: startRun,
           repo: runRepository,
           journal: runJournal,
-          fs: fileSystem,
+          overrides: quickOverrides,
           tree: workingTree,
-          clock,
         }),
     ),
     quickFit: asFunction(
-      ({ startRun, runRepository, runJournal, fileSystem, workingTree, clock, closeRun, worktreeRegistry }) =>
+      ({ startRun, runRepository, runJournal, quickOverrides, workingTree, closeRun, worktreeRegistry }) =>
         new QuickFit({
           adopted: (worktree, run) =>
             worktreeRegistry.update((all: readonly WorktreeEntry[]) =>
@@ -1865,9 +1908,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           start: startRun,
           repo: runRepository,
           journal: runJournal,
-          fs: fileSystem,
+          overrides: quickOverrides,
           tree: workingTree,
-          clock,
           close: closeRun,
         }),
     ),

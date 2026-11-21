@@ -25,7 +25,7 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 
 ## Invariants
 
-- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:100 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
+- Commander never prints; every outcome becomes one JSON envelope [[cite: packages/cli/src/program.ts:103 | ".configureOutput({ writeOut: () => {}, writeErr: () => {} })"]].
 
 ## Allowed dependencies
 
@@ -46,5 +46,8 @@ Driving adapter on commander: one module per command group, JSON-only output, ex
 - A socket on `/ws/pty/<run>` only finds the run's session; starting one is `POST /runs/<run>/pty-open`.
 - `metator serve` pauses every live session when it stops and resumes them when it starts (`--no-restore`: they stay paused; `--screens-ms`: how often screens are kept on disk); `POST /runs/:run/continue` builds `ContinueTask` over every served repository's `taskRepository`, and `metator run continue` goes through it when a daemon serves the repository (ADR-0092).
 - `/inbox` has `decisions`, `escalated` and `panes`: the questions of panes without a run (`PaneQuestions`, ADR-0091), each with its pane's label and role. `POST /panes/:pane/answer` answers one and is a person's only (`personOnly`).
+- `quick`, `scratch` and `session` are thin: `quick fit` and `quick ready` are gate commands (exit 4 while the person has not answered; `--wait` looks again for up to 9 minutes), `scratch` works on the checkout the command runs in, and `session` goes through the daemon (`/sessions`, `/panes/:pane/tell|interrupt`), which knows the caller by its pane token: the task's main chat or, without a token, a person.
+- `guard user-prompt` also tells the daemon what the person sent in a run's pane (`/panes/:pane/said`, the pane's own token); the daemon decides whether the task's main chat hears of it.
+- `/runs/:run/start` is open to a person, the run's conductor and the chat a person talks in (`starterOnly`, `mayStartConductor`); every other steering route stays `conductorOnly`.
 - A hook must not fail the host's tool call: `guard *` always exits 0 and reports its own errors as `systemMessage`.
 - Only the command a person typed may ask questions (`ctx.prompter`, set by `main.ts` for a TTY); questions go to stderr so stdout stays one envelope, and commands run through `invoke` never ask (ADR-0049).

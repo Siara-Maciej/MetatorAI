@@ -148,6 +148,7 @@ import type {
   PackageManager,
   PackageManagerDetector,
   PackRules,
+  PaneMail,
   PaneQuestions,
   PaneSensor,
   Panes,
@@ -165,6 +166,7 @@ import type {
   PtyBroker,
   QuickCheck,
   QuickFit,
+  QuickOverrides,
   QuickReady,
   QuickStart,
   RecordArchitectureBaseline,
@@ -210,6 +212,7 @@ import type {
   Scratch,
   ScreenRenderer,
   SeedGoldenSet,
+  SessionSteering,
   SetupRepository,
   SetupWorktree,
   ShowChangeDiff,
@@ -370,6 +373,8 @@ export interface Cradle {
   panes: Panes;
   conductor: Conductor;
   chatNotices: ChatNotices;
+  paneMail: PaneMail;
+  sessionSteering: SessionSteering;
   resumeNotices: ResumeNotices;
   taskRepository: TaskRepository;
   continueTask: (repos: () => readonly TaskRepository[]) => ContinueTask;
@@ -423,8 +428,11 @@ export interface Cradle {
   ensureDriven: EnsureDriven;
   startRun: StartRun;
   scratch: Scratch;
+  /** The agent a new chat opens with; undefined: the agent that started runs before. */
+  chatAgent: () => Promise<string | undefined>;
   workingPatches: WorkingPatches;
   quickCheck: QuickCheck;
+  quickOverrides: QuickOverrides;
   quickStart: QuickStart;
   quickFit: QuickFit;
   quickReady: QuickReady;

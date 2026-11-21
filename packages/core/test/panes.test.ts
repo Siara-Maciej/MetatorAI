@@ -18,7 +18,7 @@ import {
   InMemoryFileSystem,
   InstantTimer,
 } from "@metator/testing";
-import { INTAKE_PROMPT } from "../src/application/panes.ts";
+import { CHAT_PROMPT, INTAKE_PROMPT } from "../src/application/panes.ts";
 
 const WORKFLOW =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
@@ -156,6 +156,20 @@ describe("Panes", () => {
     expect(w.copilot.started[0]?.task.runDir).toBe(
       `${w.copilot.started[0]?.task.cwd}/.metator/panes/${pane.id}`,
     );
+    // The conversation agent (ADR-0093) is told who it is in its own words, on either host.
+    for (const host of ["copilot", "claude"])
+      (
+        await w.panes.openPane({
+          workspace: first.id,
+          role: "apps",
+          label: "chat",
+          process: { kind: "host", host, agent: "mt-chat", prompt: "" },
+        })
+      )._unsafeUnwrap();
+    const chats = [...w.copilot.started, ...w.claude.started].filter((s) => s.task.agent === "mt-chat");
+    expect(chats.map((c) => c.task.prompt)).toEqual([CHAT_PROMPT, CHAT_PROMPT]);
+    expect(CHAT_PROMPT).toContain("the lightest way that fits");
+    expect(CHAT_PROMPT).not.toContain("run drive");
   });
 
   test("a worker pane on another host, in another tab, with its worker named", async () => {

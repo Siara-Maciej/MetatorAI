@@ -3,6 +3,7 @@ import {
   allowedWorkers,
   conductorHost,
   conductorPrompt,
+  mayStartConductor,
   WORKER_RUN_CONTROL,
   WorkerResultDocument,
   workerName,
@@ -117,6 +118,16 @@ describe("conductor domain", () => {
     expect(
       conductorPrompt({ runId: "r", task: "t", workflow: "w", stages: [{ id: "a" }], runDir: "/r" }),
     ).not.toContain("A stage with a gate");
+  });
+
+  test("who may open a run's conductor session from a pane: the chat with no run of its own, or the run's conductor", () => {
+    expect(mayStartConductor({ role: "apps" }, "r1")).toBe(true);
+    expect(mayStartConductor({ role: "conductor", runId: "r1" }, "r1")).toBe(true);
+    // Another run's conductor, a worker, a shell, and an entry pane that belongs to a run: never.
+    expect(mayStartConductor({ role: "conductor", runId: "r2" }, "r1")).toBe(false);
+    expect(mayStartConductor({ role: "worker", runId: "r1" }, "r1")).toBe(false);
+    expect(mayStartConductor({ role: "shell" }, "r1")).toBe(false);
+    expect(mayStartConductor({ role: "apps", runId: "r2" }, "r1")).toBe(false);
   });
 
   test("a worker's prompt carries its card and the one way to report", () => {

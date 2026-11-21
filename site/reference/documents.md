@@ -60,6 +60,7 @@ Each run has a folder, `.metator/runs/<id>/`. Only `metator` commands write the 
 | `RunDriver` | `driver.json` | `metator run drive` |
 | `RunHandoff` | `handoff.md` | `metator run handoff` |
 | `RunSummary` | `summary.json` | `metator run close` |
+| `QuickRun` | `quick.json` | `metator quick start --override` and the card **This grew past quick**: what a person kept quick although an escalator tripped, who, and in which words |
 | `RunSeen` | `seen.json` | `metator run brief` |
 | `Question` | `questions/qNNN.json` | `metator run drive` asks; `metator run answer` answers |
 | `RunMessage` | `messages/mNNN.json` | `metator run message` |
@@ -96,6 +97,10 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |
 | `Layout` | `.metator/layout.json` | the daemon: workspaces, tabs and panes, restored after a restart |
 | `DaemonInfo` | `.metator/daemon.json` | `metator serve`, while it runs |
+| `PaneMail` | `.metator/pane-mail.json` | the daemon: lines that wait to be typed into an agent's session when it is idle (`metator session tell`, the note that you spoke to a session directly) |
+| `ScratchRecord` | `.metator/scratch/sNNN.json` | `metator scratch end`: one recorded change not meant for a commit, with its patch |
+| `ScratchOpen` | `.metator/scratch/open.json` | `metator scratch begin`, until `scratch end` |
+| `GuardConsents` | `.metator/consents/<pane or session>.json` | `metator guard user-prompt`: the consents you gave in words, each used once |
 | `FileLock` | `<file>.lock` next to a file under `.metator/` | any command, only while it changes that file (the worktree registry, a run's `state.json`, the backlog); a lock whose process is gone holds nothing |
 | `ReviewReaction` | `.metator/telemetry/reactions.jsonl` | `metator findings react`: what people did with a review comment |
 | `QuarterlyReview` | `.metator/reviews/quarterly-<date>.json` | `metator meta quarterly` |

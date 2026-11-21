@@ -94,7 +94,12 @@ describe("interactive hosts through the daemon (real processes)", () => {
     // A run's session is its conductor: the host starts with the conductor's prompt, the task in it.
     await said("args: -i You are the conductor of run");
     await said("Task: Add the discount");
-    expect(await backlog()).toContain("--deny-tool shell(git push)");
+    // The repository's `never` commands are denied by Copilot itself (ADR-0094); a plain push is
+    // not: with a person at the terminal it is the hook's `ask` and Copilot's own approval prompt.
+    const args = await backlog();
+    expect(args).toContain("--deny-tool shell(git push --force)");
+    expect(args).toContain("--deny-tool shell(git reset --hard)");
+    expect(args).not.toContain("--deny-tool shell(git push) ");
     await closed();
     const again = await post(`/runs/${runId}/pty-open`, {});
     expect((again.data as { host: string }).host).toBe("copilot");

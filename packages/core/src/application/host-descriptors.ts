@@ -1,3 +1,4 @@
+import { CHAT_AGENT } from "../domain/conductor.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { GuardCommands } from "../domain/guard-commands.ts";
 import { err } from "../domain/result.ts";
@@ -115,6 +116,20 @@ export async function agentDefinitionFiles(
       if (text.isOk()) out[file] = text.value;
     }
   return out;
+}
+
+/**
+ * The agent the chat a person opens starts with (ADR-0093): the conversation agent when the
+ * repository holds a host file of it (setup and `generate` write one per host), else none, and
+ * the chat opens the agent that started runs before. A host started with an agent it does not
+ * have fails only in its pane, so the app asks first.
+ */
+export async function chatAgentIn(
+  fs: Pick<ReadonlyFileSystem, "read">,
+  hosts: readonly HostDescriptor[],
+): Promise<string | undefined> {
+  const files = await agentDefinitionFiles(fs, hosts, [CHAT_AGENT]);
+  return Object.keys(files).length > 0 ? CHAT_AGENT : undefined;
 }
 
 /**

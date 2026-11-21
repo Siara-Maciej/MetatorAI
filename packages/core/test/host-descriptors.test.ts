@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   agentDefinitionFiles,
+  chatAgentIn,
   driveHostProblem,
   type HostDescriptor,
   hostBins,
@@ -106,6 +107,22 @@ describe("agentDefinitionFiles", () => {
       ".sdk/mt-a.md": "sdk a",
       ".sdk/mt-b.md": "sdk b",
     });
+  });
+});
+
+describe("chatAgentIn: the agent the chat a person opens starts with (ADR-0093)", () => {
+  test("mt-chat when the repository holds a host file of it; none otherwise, and with hosts that write no files", async () => {
+    const hosts = [sessionOnly, viaProgram, played, viaSdk];
+    expect(await chatAgentIn(new InMemoryFileSystem({ ".sdk/mt-chat.md": "chat" }), hosts)).toBe("mt-chat");
+    // The canonical file alone is not a host file: no host could start the agent yet.
+    const canonOnly = new InMemoryFileSystem({
+      "metator/agents/mt-chat.md": "x",
+      ".cli/agents/mt-a.md": "a",
+    });
+    expect(await chatAgentIn(canonOnly, hosts)).toBeUndefined();
+    expect(
+      await chatAgentIn(new InMemoryFileSystem({ ".sdk/mt-chat.md": "chat" }), [played]),
+    ).toBeUndefined();
   });
 });
 

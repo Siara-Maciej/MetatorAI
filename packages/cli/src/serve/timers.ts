@@ -133,6 +133,11 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
               const told = await c.resolve("chatNotices").tick();
               if (told.isErr()) return say("chat", key)({ error: told.error.message });
               for (const t of told.value) say("chat", key)({ told: t.paneId, run: t.runId, event: t.event });
+              // Lines that wait for an idle agent (the person's words relayed by the task's main
+              // chat, the chat's note that the person talked to a session directly).
+              const mailed = await c.resolve("paneMail").tick();
+              if (mailed.isErr()) return say("mail", key)({ error: mailed.error.message });
+              for (const m of mailed.value) say("mail", key)({ told: m.paneId, kind: m.kind });
               // A session the daemon resumed is told to go on, once it is idle at its prompt.
               const resumed = await c.resolve("resumeNotices").tick();
               if (resumed.isErr()) return say("resumed", key)({ error: resumed.error.message });
