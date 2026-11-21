@@ -317,6 +317,36 @@ export interface WorkingTree {
   detachedHead(): Promise<boolean | undefined>;
 }
 
+/**
+ * The working tree as patches (ADR-0093): what a direct edit not meant for a commit is recorded
+ * with, and taken out with again. Nothing here moves HEAD, a branch or the stash.
+ */
+export interface WorkingPatches {
+  /**
+   * The working tree as it is now (tracked and new files; ignored ones aside) as an id two of
+   * which can be compared later. Touches neither the index nor the tree.
+   */
+  snapshot(): Promise<Result<string, MetatorError>>;
+  /** What changed from one snapshot to another: the files, and the patch that makes the change. */
+  between(
+    from: string,
+    to: string,
+  ): Promise<Result<{ readonly files: readonly string[]; readonly patch: string }, MetatorError>>;
+  /**
+   * The files of the patch whose change is there now: in the working tree (`tree`), staged
+   * (`index`), or in the working tree of a file git tracks (`tracked`: what `commit -a` takes).
+   */
+  holding(
+    patch: string,
+    where: "tree" | "index" | "tracked",
+  ): Promise<Result<readonly string[], MetatorError>>;
+  /**
+   * Takes the patch's change out of the working tree, and out of the index where it is staged.
+   * An error when it no longer applies as a whole: nothing is forced and nothing is half done.
+   */
+  revert(patch: string): Promise<Result<void, MetatorError>>;
+}
+
 export interface BranchPublication {
   /** Asks `origin` itself (`git ls-remote`), not a remote-tracking ref a single-branch clone lacks. */
   published(): Promise<Result<PublishedBranch, MetatorError>>;

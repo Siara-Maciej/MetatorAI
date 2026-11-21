@@ -137,6 +137,10 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
         "quick start",
         "a small change without a plan: build, gate, one short review; it ends with a diff to look at",
       ],
+      [
+        "scratch list",
+        "changes not meant for a commit (debug output) still in the tree; `scratch drop` removes them",
+      ],
       ["run status", "the stage the run stands at and what it expects"],
       ["inbox", "every question waiting for you, the most urgent first"],
       ["run answer", "answer a question; --always makes it a policy"],

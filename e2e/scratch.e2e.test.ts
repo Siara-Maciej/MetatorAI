@@ -1,0 +1,172 @@
+/**
+ * Scratch (ADR-0093), with the real `metator` process on a real repository: a direct edit not
+ * meant for a commit is recorded as a patch (`scratch begin` / `scratch end`), listed, and taken
+ * out again (`scratch drop`), also through the daemon (`GET /scratch`, `POST /scratch/drop`, the
+ * count on `/state`); a patch that no longer applies is reported and never forced; a commit that
+ * would hold a recorded change is stopped by the commit guard until the person says to commit anyway.
+ */
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { CLI_ENTRY, E2E_STATE_DIR, hook, metator } from "./helpers/cli.ts";
+import { ScratchRepo } from "./helpers/repo.ts";
+
+let repo: ScratchRepo;
+let daemon: Bun.Subprocess<"ignore", "pipe", "pipe">;
+let base = "";
+type Data = Record<string, unknown>;
+const env = { METATOR_USER: "ana" };
+const mt = (...args: string[]) => metator(args, repo.root, env);
+const data = (r: { json: Record<string, unknown> }) => r.json.data as Data;
+const error = (r: { json: Record<string, unknown> }) => r.json.error as { code: string; message: string };
+const api = async (path: string, init?: RequestInit) =>
+  (await (await fetch(`${base}${path}`, init)).json()) as { ok: boolean; data: Data; error?: Data };
+const decision = (r: { json: Record<string, unknown> | null }) =>
+  r.json?.hookSpecificOutput as
+    | { permissionDecision?: string; permissionDecisionReason?: string }
+    | undefined;
+const PRICE = "export const price = (n: number) => n;\n";
+const TAX = "export const tax = (n: number) => n * 0.23;\n";
+/** A scratch edit: begin, write the files, end with a note. */
+async function scratchEdit(files: Record<string, string>, note: string): Promise<string> {
+  expect((await mt("scratch", "begin")).code).toBe(0);
+  for (const [path, text] of Object.entries(files)) await repo.write(path, text);
+  const ended = data(await mt("scratch", "end", "--note", note)) as { recorded: { id: string } };
+  return ended.recorded.id;
+}
+
+beforeAll(async () => {
+  repo = await ScratchRepo.create();
+  await repo.write(".gitignore", ".metator/\n");
+  await repo.write("src/price.ts", PRICE);
+  await repo.write("src/tax.ts", TAX);
+  await repo.commit("init");
+  daemon = Bun.spawn(["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100", "--supervise-ms", "0"], {
+    cwd: repo.root,
+    env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const reader = daemon.stderr.getReader();
+  let text = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    text += new TextDecoder().decode(value);
+    const line = text.split("\n").find((l) => l.includes('"serving"'));
+    if (line) {
+      base = (JSON.parse(line) as { serving: { url: string } }).serving.url;
+      break;
+    }
+  }
+}, 60_000);
+afterAll(async () => {
+  daemon.kill("SIGTERM");
+  await daemon.exited;
+  await repo.dispose();
+});
+
+describe("metator scratch: changes not meant for a commit", () => {
+  test("begin, edit, end: one record with its files and note; work in progress is not part of it; list and the state's count", async () => {
+    // Real work in progress, before the debug edit.
+    await repo.write("src/tax.ts", `${TAX}export const VAT = 0.23;\n`);
+    expect(((await api("/state")).data as { scratch: number }).scratch).toBe(0);
+    const id = await scratchEdit(
+      { "src/price.ts": `${PRICE}console.log("price called");\n`, "debug.log": "trace\n" },
+      "trace price calls",
+    );
+    expect(id).toBe("s001");
+    const listed = data(await mt("scratch", "list")) as { items: Data[] };
+    expect(listed.items).toMatchObject([
+      { id: "s001", files: ["debug.log", "src/price.ts"], note: "trace price calls" },
+    ]);
+    const record = JSON.parse(await repo.read(".metator/scratch/s001.json")) as Data;
+    expect(record).toMatchObject({ kind: "ScratchRecord", schemaVersion: 1, id: "s001" });
+    expect(String(record.patch)).toContain('+console.log("price called");');
+    expect(String(record.patch)).not.toContain("VAT");
+    // The daemon: the count on the state, the list on its own route.
+    expect(((await api("/state")).data as { scratch: number }).scratch).toBe(1);
+    const served = (await api("/scratch")).data as { items: Data[] };
+    expect(served.items).toEqual(listed.items);
+    // Usage: an edit must be open to end it; one at a time.
+    expect(error(await mt("scratch", "end")).message).toBe(
+      "no scratch edit is open: begin one first (`metator scratch begin`)",
+    );
+  }, 60_000);
+
+  test("the commit guard: a commit that holds a recorded change is stopped with the files; the person's word lets it through once", async () => {
+    const pane = { METATOR_PANE_ID: "w1:p1" };
+    const commit = (command: string) =>
+      hook(
+        ["guard", "pre-tool"],
+        { tool_name: "Bash", tool_input: { command }, session_id: "s1" },
+        repo.root,
+        pane,
+      );
+    // Nothing of it is staged: an ordinary commit asks as every commit does.
+    await repo.git("add", "src/tax.ts");
+    expect(decision(await commit("git commit -m 'Add VAT'"))?.permissionDecisionReason).toBe(
+      '`git commit -m Add VAT` needs your consent: answer here, or say it in the chat ("commit").',
+    );
+    // `commit -a` would take the debug line; so would staging it.
+    const all = decision(await commit("git commit -am 'Add VAT'"));
+    expect([all?.permissionDecision, all?.permissionDecisionReason]).toEqual([
+      "ask",
+      "this commit holds debug changes: src/price.ts. Remove them first (`metator scratch drop`), or answer here to commit anyway.",
+    ]);
+    await repo.git("add", "src/price.ts");
+    expect(decision(await commit("git commit -m 'Add VAT'"))?.permissionDecisionReason).toContain(
+      "this commit holds debug changes: src/price.ts.",
+    );
+    // "commit" alone is consent to commit, not to commit debug changes.
+    await hook(["guard", "user-prompt"], { prompt: "commit", session_id: "s1" }, repo.root, pane);
+    expect(decision(await commit("git commit -m 'Add VAT'"))?.permissionDecision).toBe("ask");
+    await hook(["guard", "user-prompt"], { prompt: "commit anyway", session_id: "s1" }, repo.root, pane);
+    expect(decision(await commit("git commit -m 'Add VAT'"))?.permissionDecision).toBe("allow");
+    await repo.git("reset", "-q");
+  }, 60_000);
+
+  test("drop takes the change out again and leaves the work in progress; through the daemon too", async () => {
+    const second = await scratchEdit(
+      { "src/tax.ts": `${TAX}export const VAT = 0.23;\nconsole.log("tax");\n` },
+      "trace tax",
+    );
+    expect(second).toBe("s002");
+    const dropped = await api("/scratch/drop", {
+      method: "POST",
+      body: JSON.stringify({ ids: ["s002"], by: "ana" }),
+    });
+    expect(dropped.data).toEqual({ dropped: [{ id: "s002", files: ["src/tax.ts"] }], failed: [] });
+    expect(await repo.read("src/tax.ts")).toBe(`${TAX}export const VAT = 0.23;\n`);
+    const all = data(await mt("scratch", "drop", "--all")) as {
+      dropped: { id: string }[];
+      failed: unknown[];
+    };
+    expect([all.dropped.map((d) => d.id), all.failed]).toEqual([["s001"], []]);
+    expect(await repo.read("src/price.ts")).toBe(PRICE);
+    expect(await repo.exists("debug.log")).toBe(false);
+    expect((await repo.git("status", "--porcelain")).trim()).toBe("M src/tax.ts");
+    expect(((await api("/state")).data as { scratch: number }).scratch).toBe(0);
+    expect(error(await mt("scratch", "drop")).message).toBe(
+      "name what to drop: --id <id> (repeatable), or --all",
+    );
+  }, 60_000);
+
+  test("a patch that no longer applies is reported and kept: nothing is forced", async () => {
+    const id = await scratchEdit({ "src/price.ts": `${PRICE}console.log("price called");\n` }, "trace");
+    // The debug line was rewritten since.
+    await repo.write("src/price.ts", `${PRICE}console.warn("price called twice");\n`);
+    const r = (await api("/scratch/drop", { method: "POST", body: JSON.stringify({ by: "ana" }) })).data as {
+      dropped: unknown[];
+      failed: { id: string; files: string[]; why: string }[];
+    };
+    expect(r).toEqual({
+      dropped: [],
+      failed: [
+        { id, files: ["src/price.ts"], why: "the patch no longer applies (src/price.ts changed since)" },
+      ],
+    });
+    expect(await repo.read("src/price.ts")).toBe(`${PRICE}console.warn("price called twice");\n`);
+    // Its change is no longer in the tree as recorded: the list no longer shows it, and the record goes.
+    expect((data(await mt("scratch", "list")) as { items: unknown[] }).items).toEqual([]);
+    expect(await repo.exists(`.metator/scratch/${id}.json`)).toBe(false);
+  }, 60_000);
+});

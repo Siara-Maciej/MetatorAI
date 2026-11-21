@@ -111,7 +111,10 @@ export class GuardPreTool {
       const commit = asks.find((g) => g.verdict.kind === "commit");
       if (commit && this.commands.debugFiles)
         debugFiles = await this.commands.debugFiles(
-          commit.argv.some((a) => a === "--all" || /^-[A-Za-z]*a/.test(a)),
+          // `-a`, or paths named (`--`, `--include`, `--only`): the commit takes the working tree's content.
+          commit.argv.some(
+            (a) => ["--all", "--include", "--only", "--"].includes(a) || /^-[A-Za-z]*[aio]/.test(a),
+          ),
         );
     }
 

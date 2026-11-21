@@ -167,6 +167,7 @@ const BEFORE = {
     "run start",
     "run drive",
     "quick start",
+    "scratch list",
     "run status",
     "inbox",
     "run answer",

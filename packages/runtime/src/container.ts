@@ -207,6 +207,7 @@ import type {
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  Scratch,
   ScreenRenderer,
   SeedGoldenSet,
   SetupRepository,
@@ -248,6 +249,7 @@ import type {
   Vcs,
   WarmPool,
   WorkflowCatalog,
+  WorkingPatches,
   WorkingTree,
   WorkOverview,
   WorkspaceReader,
@@ -420,6 +422,8 @@ export interface Cradle {
   startDrive: StartDrive;
   ensureDriven: EnsureDriven;
   startRun: StartRun;
+  scratch: Scratch;
+  workingPatches: WorkingPatches;
   quickCheck: QuickCheck;
   quickStart: QuickStart;
   quickFit: QuickFit;

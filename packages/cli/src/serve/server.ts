@@ -25,6 +25,7 @@ import { OVERVIEW_ROUTES } from "./routes/overview.ts";
 import { PANE_ROUTES } from "./routes/panes.ts";
 import { PLAN_ROUTES } from "./routes/plans.ts";
 import { RUN_ROUTES } from "./routes/runs.ts";
+import { SCRATCH_ROUTES } from "./routes/scratch.ts";
 import { SYSTEM_ROUTES } from "./routes/system.ts";
 import { type Socket, socketHandlers, upgrade } from "./sockets.ts";
 import { startTimers } from "./timers.ts";
@@ -34,6 +35,7 @@ export const ROUTES: readonly Route[] = [
   ...OVERVIEW_ROUTES,
   ...BACKLOG_ROUTES,
   ...PANE_ROUTES,
+  ...SCRATCH_ROUTES,
   ...RUN_ROUTES,
   ...PLAN_ROUTES,
   ...SYSTEM_ROUTES,
@@ -146,7 +148,10 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
    * A served overview: each question's options say which ones ask for the person's own words
    * (`needsText`), so the app reads the rule as data instead of keeping its own.
    */
-  const served = async (o: Overview, c: MetatorContainer): Promise<Overview> => {
+  const served = async (
+    o: Overview,
+    c: MetatorContainer,
+  ): Promise<Overview & { readonly scratch: number }> => {
     // A run whose agent asked the person in words (a pane question) needs them, as a card would.
     const asking = new Set(
       c
@@ -156,6 +161,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     );
     return {
       ...o,
+      // Debug changes (ADR-0093): how many scratch records the repository holds; the list is `/scratch`.
+      scratch: await c.resolve("scratch").count(),
       runs: await Promise.all(
         o.runs.map(async (r) => ({
           ...r,

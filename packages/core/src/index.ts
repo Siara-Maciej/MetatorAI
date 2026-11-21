@@ -83,6 +83,7 @@ export * from "./application/run-messages.ts";
 export * from "./application/run-operations.ts";
 export * from "./application/run-repository.ts";
 export * from "./application/runs.ts";
+export * from "./application/scratch.ts";
 export * from "./application/setup-repository.ts";
 export * from "./application/skills.ts";
 export * from "./application/source-files.ts";

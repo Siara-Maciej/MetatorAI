@@ -193,6 +193,7 @@ import {
   ScanPatterns,
   ScopePlan,
   ScoreEvals,
+  Scratch,
   SeedGoldenSet,
   SetupRepository,
   SetupWorktree,
@@ -263,6 +264,7 @@ import {
   excludeLocally,
   GitRepositoryCloner,
   GitVcs,
+  GitWorkingPatches,
   GitWorkingTree,
   GitWorktreeManager,
 } from "@metator/plugin-git";
@@ -990,6 +992,14 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     workingTree: asFunction(
       ({ processRunner, root }) => new GitWorkingTree(processRunner, root, OWN_STATE),
     ).singleton(),
+    // Scratch (ADR-0093): direct edits not meant for a commit, as patches that can be taken out again.
+    workingPatches: asFunction(
+      ({ processRunner, root }) => new GitWorkingPatches(processRunner, root, OWN_STATE),
+    ).singleton(),
+    scratch: asFunction(
+      ({ fileSystem, clock, workingPatches }) =>
+        new Scratch({ fs: fileSystem, clock, patches: workingPatches }),
+    ),
     vcs: asFunction(({ git }) => git).singleton(),
     // The same reading of a change in another checkout (a worktree).
     vcsAt: asFunction(() => (dir: string) => new GitVcs(dir, OWN_STATE)).singleton(),
@@ -1696,10 +1706,25 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     // The person's consents to guarded commands (ADR-0094): written by their words, used once.
     guardConsents: asFunction(({ fileSystem, clock }) => new GuardConsents(fileSystem, clock)),
     guardPreTool: asFunction(
-      ({ getRunStatus, runRepository, agentCatalog, fileSystem, root, role, config, guardConsents }) =>
+      ({
+        getRunStatus,
+        runRepository,
+        agentCatalog,
+        fileSystem,
+        root,
+        role,
+        config,
+        guardConsents,
+        scratch,
+      }) =>
         new GuardPreTool(getRunStatus, runRepository, agentCatalog, fileSystem, root, role, {
           guard: config.config.guard,
           consents: guardConsents,
+          // A commit that would hold debug changes is stopped; when git cannot say, nothing is claimed.
+          debugFiles: async (all) => {
+            const files = await scratch.inCommit(all);
+            return files.isOk() ? files.value : [];
+          },
         }),
     ),
     guardUserPrompt: asFunction(

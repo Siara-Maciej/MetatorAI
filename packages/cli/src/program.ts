@@ -58,6 +58,7 @@ import { registerQuickCommands } from "./commands/quick.ts";
 import { registerReposCommands } from "./commands/repos.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
+import { registerScratchCommands } from "./commands/scratch.ts";
 import { registerServeCommand } from "./commands/serve.ts";
 import { registerSetupCommands } from "./commands/setup.ts";
 import { registerStatusCommand } from "./commands/status.ts";
@@ -197,6 +198,7 @@ export function buildProgram(
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   registerQuickCommands(program, ctx);
+  registerScratchCommands(program, ctx);
   registerWorktreeCommands(program, ctx);
   registerEnvCommands(program, ctx);
   registerReposCommands(program, ctx);
