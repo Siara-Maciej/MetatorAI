@@ -4,7 +4,7 @@
 - Data: 2026-11-21
 
 ## Kontekst
-Decyzja właściciela produktu z rozmowy 2026-11-20/21. Agent rozmowy (ADR-0093) ma wszystkie uprawnienia i pracuje także poza runem, więc blokady muszą działać technicznie, a nie tylko w prompcie.
+Właściciel produktu zdecydował o blokadach w rozmowie 2026-11-20/21: agent rozmowy (ADR-0093) ma wszystkie uprawnienia i pracuje także poza runem, więc blokady muszą działać technicznie, a nie tylko w prompcie.
 
 Stan dzisiejszy:
 - Blokuje hook `metator guard pre-tool` (`packages/cli/src/commands/guard.ts`, `GuardPreTool` w `packages/core/src/application/guard.ts`), a polityka jest w domenie: `preToolPolicy` w `packages/core/src/domain/hook.ts` (ADR-0038).
@@ -48,7 +48,7 @@ Stan dzisiejszy:
 - Czy hook w Copilot CLI potrafi zapytać, a nie tylko odmówić? Rozstrzygnie to zestaw zgodności (ADR-0098).
 
 ## Implikacje dla kodu
-Decyzję będą egzekwować MT-CODE-003 (lista w konfiguracji to nowa wersja `MetatorConfig` z migracją i zamrożonym schematem), MT-TEST-003 (mutant dla każdego poziomu i dla obu dróg odblokowania) i MT-TEST-001 (e2e: prawdziwy `metator guard pre-tool` z payloadem commita, pusha i komendy „nigdy”, z runem i bez). Kod zmieni się dopiero po akceptacji; miejsca, których decyzja dotyczy:
+Decyzję będą egzekwować MT-CODE-003 (lista w konfiguracji to nowa wersja `MetatorConfig` z migracją i zamrożonym schematem), MT-TEST-003 (mutant dla każdego poziomu i dla obu dróg odblokowania) i MT-TEST-001 (e2e: prawdziwy `metator guard pre-tool` z payloadem commita, pusha i komendy „nigdy”, z runem i bez). Do akceptacji kod zostaje bez zmian. Blokady dotyczą tych miejsc:
 
 - `packages/core/src/domain/hook.ts`: `preToolPolicy`, `destructive`, `externalAction`, `mcpAction`, `chatApproval`.
 - `packages/core/src/application/guard.ts`: `GuardPreTool`; `packages/cli/src/commands/guard.ts`.

@@ -33,6 +33,11 @@ Stan dzisiejszy:
 
   Jeden trafiony eskalator oznacza, że quick jest niedostępny, a agent mówi, który to był. Osoba może to nadpisać jednym zdaniem, co zostawia ślad w aktywności. Eskalatora „więcej niż jedno repozytorium” (cross-repo) nie da się nadpisać nigdy.
 - **Sterowanie sesjami podrzędnymi, dwie drogi.** (1) Ciągła rozmowa z czatem głównym, który przekazuje prośby osoby do sesji podrzędnych (dodaje informacje) albo przerywa ich pracę. (2) Bezpośrednia rozmowa z subagentem w jego terminalu.
+- **Dwie komendy agenta rozmowy** (założenia przedstawione właścicielowi 2026-11-21, bez sprzeciwu):
+  - **„przekaż”:** słowa osoby są wpisywane do sesji podrzędnej, gdy jest bezczynna;
+  - **„przerwij”:** Esc, potem słowa osoby.
+
+  To, co przekazano, jest zapisane dosłownie w terminalu subagenta i w aktywności runu z adnotacją „od osoby, przez czat główny”. Gdy osoba rozmawia z subagentem bezpośrednio, czat główny dostaje jedną linię o tym, co powiedziano.
 
 ### Kolejność wdrożenia (zaakceptowana przez właściciela)
 1. Agent rozmowy z blokadami i trzema wagami pracy, eskalatory (ten ADR i ADR-0094).
@@ -40,18 +45,22 @@ Stan dzisiejszy:
 3. Review cudzego MR z linku, obserwowanie, ponowne review; karty review moich MR (ADR-0097).
 4. Zestaw zgodności Copilot CLI / Claude Code (ADR-0098).
 
+Właściciel kazał zacząć etap 1 (2026-11-21).
+
 ## Konsekwencje
 - Drobna zmiana nie kosztuje już pełnego workflowu, a zmiana nie do commita nie kosztuje nawet pytania.
 - Agent rozmowy edytuje pliki. Dzisiejszy czat wejścia (`mt-orchestrator`, tylko czytanie i start runu) tego nie robi, więc zmieniają się prompt wejścia, uprawnienia agenta i to, co hook `pre-tool` przepuszcza poza runem (ADR-0094).
 - Quick potrzebuje osobnego workera w widocznym terminalu i krótkiego review; żadnego z nich dziś nie ma poza runem.
 - Eskalatory liczone z narzędzi dają ten sam wynik na obu hostach i dają się testować bez agenta. Wynik zależy od indeksu importów, więc indeks musi być aktualny przed startem quick.
 - W jednym repozytorium pełny workflow ma mieć orchestratora w osobnym terminalu. Prompt wejścia każe dziś napędzać taki run w tle (`metator run drive --detach`).
-- Droga „czat główny przekazuje albo przerywa” zmienia jedną zasadę ADR-0080 (nikt poza osobą nie wpływa na cudzy panel); jak to zrobić bez powtórzenia luki opisanej w ADR-0079, jest pytaniem otwartym.
+- „Przekaż” i „przerwij” zmieniają jedną zasadę ADR-0080: agent rozmowy wpisuje słowa do cudzego panelu. Wpisuje jednak tylko słowa osoby, dosłownie i z adnotacją w aktywności, więc widać, kto co powiedział. Dyrygent i robotnicy nadal nie piszą do cudzych paneli.
+- Czat główny wie, co osoba powiedziała subagentowi bezpośrednio, więc obie drogi sterowania nie rozjeżdżają się.
 
 ## Zastępuje i rozszerza
 - Rozszerza ADR-0083 (CLI agenta jako punkt wejścia): wejście A ma trzy wagi zamiast dwóch dróg.
 - Zmienia prompt wejścia opisany w ADR-0090 i ADR-0092 (czat jako terminal główny zostaje).
-- Rozszerza ADR-0080 o sterowanie sesjami podrzędnymi z czatu głównego.
+- Zmienia jeden punkt ADR-0080: agent rozmowy może wpisać słowa osoby do sesji podrzędnej („przekaż”, „przerwij”).
+- Rozszerza ADR-0092: czat główny dostaje linię także wtedy, gdy osoba rozmawia z subagentem bezpośrednio.
 - Niczego nie zastępuje w całości.
 
 ## Pytania otwarte
@@ -62,7 +71,9 @@ Stan dzisiejszy:
 - Co się dzieje z gotowym diffem, gdy eskalator trafi dopiero po zmianie?
 - Co, jeśli po jednej samodzielnej poprawce review nadal ma blokujące uwagi? Z jakich soczewek składa się „krótkie review”?
 - Jak MetatorAI pamięta zmiany debugowe (znaczniki, zapis plików i fragmentów) i gdzie pokazuje ostrzeżenie przy commicie?
-- Mechanizm „przekaż” i „przerwij”: pisanie do panelu, wiadomość, czy przerwanie tury hosta; co przerwanie robi ze stanem runu; jak działa tak samo na obu hostach (ADR-0098).
+- „Przekaż” do sesji, która nie jest bezczynna: czekać, odmówić, czy zaproponować „przerwij”? Co „przerwij” robi ze stanem runu i z trwającą pracą robotnika?
+- Czy Esc przerywa turę tak samo w Claude Code i w Copilot CLI? Rozstrzygnie to zestaw zgodności (ADR-0098).
+- Jak demon sprawdza, że „przekaż” i „przerwij” niosą słowa osoby, a nie agenta (panel czatu ma własny token, ADR-0080)?
 - Jak w jednym repozytorium startuje terminal orchestratora: sesja dyrygenta (`metator run start`) zamiast napędu w tle?
 
 ## Implikacje dla kodu

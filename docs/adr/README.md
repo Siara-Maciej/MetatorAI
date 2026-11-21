@@ -96,3 +96,9 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0090](0090-child-runs-as-visible-sessions.md) | Runy potomne planu systemowego startują jako widoczne sesje | Proposed |
 | [0091](0091-pane-questions-and-rendered-screen.md) | Pytania paneli bez runu i ekran czytany tak, jak widzi go osoba | Proposed |
 | [0092](0092-paused-panes-and-continue.md) | Panel zabity razem z demonem jest wstrzymany, a nie zakończony; jedno „Continue” dla zadania | Proposed |
+| [0093](0093-conversation-agent-three-weights.md) | Agent rozmowy: jeden „mózg”, trzy wagi pracy i deterministyczne eskalatory | Proposed |
+| [0094](0094-dangerous-commands-three-levels.md) | Blokady niebezpiecznych komend: trzy poziomy w jednym miejscu konfiguracji; commit zawsze decyzją osoby | Proposed |
+| [0095](0095-threads.md) | Wątki: jeden na temat, jedna hierarchia w pasku bocznym, zapis MetatorAI źródłem prawdy | Proposed |
+| [0096](0096-analysis-and-plan-in-backlog.md) | Analiza i plan w Backlogu: na żądanie, ze świeżością według cytowanych plików | Proposed |
+| [0097](0097-review-from-link-watch-rereview.md) | Review: cudzy MR z linku, publikacja po jednej zgodzie, obserwowanie i ponowne review; moje MR analizowane na kliknięcie | Proposed |
+| [0098](0098-hosts-parity-conformance-suite.md) | Hosty: Copilot CLI na równi z Claude Code, wspólny zestaw zgodności | Proposed |
