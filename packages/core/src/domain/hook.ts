@@ -3,6 +3,7 @@ import { commandsOf } from "./discovery.ts";
 import { matchesAny } from "./glob.ts";
 import { DEFAULT_GUARD_COMMANDS, type GuardCommands, guardCommand } from "./guard-commands.ts";
 import type { Approval } from "./run-record.ts";
+import { personsMetatorCommand, type Unprompted, unpromptedCommand, unpromptedEdit } from "./unprompted.ts";
 
 /**
  * Host hooks (`metator guard <event>`, ADR-0038). Hosts send a JSON payload on stdin and read a
@@ -119,6 +120,11 @@ export interface PreToolContext {
   readonly headless?: boolean;
   /** Debug changes (scratch) that a commit made now would hold. */
   readonly debugFiles?: readonly string[];
+  /**
+   * `guard.prompts: metator`: what the session may do without the host's approval prompt is
+   * answered here (`unprompted.ts`). Absent (`host`): the guard only denies and asks.
+   */
+  readonly unprompted?: Omit<Unprompted, "cwd">;
 }
 
 export interface ToolDecision {
@@ -127,6 +133,11 @@ export interface ToolDecision {
   readonly reason: string;
   /** The consents this call uses up (each holds for one command of its kind). */
   readonly consents?: readonly string[];
+  /**
+   * An `allow` the guard gives on its own (`guard.prompts: metator`): the host does not ask. A
+   * plain `allow` is no opinion: the host's own permission rules apply.
+   */
+  readonly unprompted?: true;
 }
 
 const deny = (reason: string): ToolDecision => ({ decision: "deny", reason });
@@ -266,7 +277,36 @@ export function chatApproval(hook: HookInput): boolean {
   return rest[0] === "run" && rest[1] === "approve" && via > 0 && rest[via + 1] === "chat";
 }
 
+/**
+ * The pre-tool decision. First the rules that deny and ask (`rules`); then, for a call they have
+ * no objection to and where the repository lets MetatorAI answer (`guard.prompts: metator`),
+ * whether it needs the host's approval prompt at all.
+ */
 export function preToolPolicy(hook: HookInput, ctx: PreToolContext): ToolDecision {
+  const judged = rules(hook, ctx);
+  // A denial, an `ask`, and an allow that used the person's consent stand as they are.
+  if (judged.decision !== "allow" || judged.consents || !ctx.unprompted) return judged;
+  const u: Unprompted = { ...ctx.unprompted, ...(hook.cwd ? { cwd: hook.cwd } : {}) };
+  if (SHELL_TOOL.test(hook.tool)) {
+    const command = text(hook.input.command) ?? "";
+    // A person's decision, or the guard's own setup: MetatorAI's command, yet theirs to let run.
+    const persons = ctx.headless ? undefined : personsMetatorCommand(commandsOf(command), u);
+    if (persons)
+      return {
+        decision: "ask",
+        reason: `\`${persons}\` records a person's decision or changes what guards the agent: answer here to let it run.`,
+      };
+    const why = unpromptedCommand(command, u);
+    return why ? { decision: "allow", reason: `no approval needed: ${why}`, unprompted: true } : judged;
+  }
+  if (isEditTool(hook.tool)) {
+    const why = unpromptedEdit(touchedPaths(hook), u);
+    return why ? { decision: "allow", reason: `no approval needed: ${why}`, unprompted: true } : judged;
+  }
+  return judged;
+}
+
+function rules(hook: HookInput, ctx: PreToolContext): ToolDecision {
   const paths = touchedPaths(hook);
   const shell = SHELL_TOOL.test(hook.tool) ? commandsOf(text(hook.input.command) ?? "") : [];
 

@@ -1,8 +1,10 @@
 /** `setup` and `agents install|update` end to end: real `metator` processes on real git repositories. */
+
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmod, cp, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parse } from "yaml";
 import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 import { inTerminal, KEY } from "./helpers/terminal.ts";
@@ -105,6 +107,46 @@ describe("metator setup (real CLI)", () => {
     const again = (await metator(["setup", "--host", "claude", "--yes"], repo.root)).json.data as Setup;
     expect(again.gitignore).toBe("present");
   });
+
+  test("the hooks are part of the setup, and the quick gate has the repository's own checks: a quick run can pass its gate", async () => {
+    // Set up above without `--hooks`: they are there, the person's word and the commit guard included.
+    const settings = JSON.parse(await repo.read(".claude/settings.json")) as {
+      hooks: Record<string, { hooks: { command: string }[] }[]>;
+    };
+    expect(settings.hooks.PreToolUse?.[0]?.hooks[0]?.command).toBe("metator guard pre-tool");
+    expect(settings.hooks.UserPromptSubmit?.[0]?.hooks[0]?.command).toBe("metator guard user-prompt");
+    // The quick gate takes the test script the full gate found: `metator gate quick` has something to run.
+    const config = parse(await repo.read("metator.config.yml")) as {
+      gates: { quick: { id: string; run: unknown }[]; full: { id: string }[] };
+    };
+    expect(config.gates.quick).toEqual([{ id: "test", run: { script: "test" } }]);
+    expect(config.gates.full.map((s) => s.id)).toEqual(["test"]);
+    // `--no-hooks`: nothing is written for the host's hooks, and the end of setup says what is missing.
+    const bare = await ScratchRepo.create();
+    await bare.write("package.json", JSON.stringify({ name: "bare", private: true }));
+    await bare.commit("init");
+    const without = await metator(["setup", "--host", "claude", "--no-hooks", "--yes"], bare.root);
+    expect([without.code, (without.json.data as { hooks: boolean }).hooks]).toEqual([0, false]);
+    expect(await bare.exists(".claude/settings.json")).toBe(false);
+    expect(
+      (without.json.warnings as string[]).filter((x) => x.startsWith("hooks are not installed")),
+    ).toEqual([
+      "hooks are not installed: nothing guards dangerous commands (commit, push, force push), your word in the chat is no consent, and the chat does not hear when you talk to a session. Install them: `metator generate --hooks`",
+    ]);
+    // No script at all: no quick gate, said by setup; a quick run is refused before it starts.
+    expect(
+      (without.json.warnings as string[]).some((x) => x.startsWith("nothing found for the quick gate")),
+    ).toBe(true);
+    const refused = await metator(["quick", "start", "--task", "Rename one helper"], bare.root);
+    const error = refused.json.error as { code: string; message: string; hint: string };
+    expect([error.code, error.message]).toEqual([
+      "INVALID_CONFIG",
+      "the quick gate has no steps: a quick run (mt-quick) checks its change with `metator gate quick` and would stop there",
+    ]);
+    expect(error.hint).toContain("Add a step under `gates.quick:` in metator.config.yml");
+    expect((await metator(["run", "list"], bare.root)).json.data).toEqual([]);
+    await bare.dispose();
+  }, 60_000);
 
   test("a second install is refused; setup again updates and saves the hosts it was given", async () => {
     const again = await metator(["agents", "install"], repo.root);

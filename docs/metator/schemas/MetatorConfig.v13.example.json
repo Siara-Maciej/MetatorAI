@@ -1,0 +1,24 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 13,
+  "gates": {
+    "quick": [
+      {
+        "id": "test",
+        "run": {
+          "script": "test"
+        }
+      }
+    ]
+  },
+  "guard": {
+    "commands": {
+      "never": ["git push --force*", "git reset --hard"],
+      "ask": ["git commit", "git push"]
+    },
+    "consentMinutes": 5
+  },
+  "quick": {
+    "maxFiles": 3
+  }
+}

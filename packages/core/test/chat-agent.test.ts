@@ -100,6 +100,14 @@ describe("mt-chat: the conversation agent", () => {
     expect(body).toContain('`metator session tell <pane> --text "<their words>"`');
     expect(body).toContain('`metator session interrupt <pane> --text "<their words>"`');
     expect(body).toContain("Relay their words; add nothing of your own.");
+    // The real chat once told the conductor what was meant for the worker: the prompt says how to pick.
+    expect(body).toContain("is the row whose `role` is `worker`");
+    expect(body).toContain("the `conductor` row only when they mean the run as a whole");
+    expect(body).toContain("Never send a worker's message to the conductor.");
+    expect(body).toContain("Say which session you told: its agent and pane.");
+    expect(body).toContain(
+      "say that the line waits until the agent is idle, and offer `metator session interrupt",
+    );
   });
 
   test("both hosts have it, generated from the same source", () => {

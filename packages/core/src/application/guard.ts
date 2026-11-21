@@ -7,6 +7,8 @@ import { FindingSetDocument } from "../domain/finding.ts";
 import { GateReportDocument } from "../domain/gate.ts";
 import {
   askKinds,
+  type CommitReach,
+  commitReach,
   commitsAnyway,
   consentsIn,
   DEFAULT_GUARD_CONFIG,
@@ -33,12 +35,14 @@ import { ReviewPlanDocument } from "../domain/review-plan.ts";
 import { RunMessageDocument } from "../domain/run-message.ts";
 import { RunPointerDocument, RunRecordDocument } from "../domain/run-record.ts";
 import { RunHandoffDocument, RunSummaryDocument } from "../domain/run-report.ts";
+import type { Unprompted } from "../domain/unprompted.ts";
 import { VerdictDocument } from "../domain/verdict.ts";
 import { parseJsonDocument, type VersionedDocument } from "../domain/versioned.ts";
 import type { FileSystem } from "../ports/index.ts";
 import type { AgentCatalog } from "./agents.ts";
 import { parseDocumentText } from "./document-io.ts";
 import type { GuardConsents } from "./guard-consents.ts";
+import type { TypedBy } from "./pane-typed.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { CheckRules } from "./rules.ts";
 import type { RunRepository } from "./run-repository.ts";
@@ -59,14 +63,24 @@ export interface GuardSession {
   readonly pane?: string;
   /** The run the session belongs to (METATOR_RUN): a pane without one is the chat of no run. */
   readonly run?: string;
+  /**
+   * For the user-prompt hook: who typed the prompt when the daemon did (`PaneTyped`, read where
+   * the daemon keeps it): its own line, or a person's answer to a card. Absent: a person typed it.
+   */
+  readonly typedBy?: TypedBy;
 }
 
 /** What the guards of dangerous commands need (ADR-0094): the config's list and the person's consents. */
 export interface CommandGuard {
   readonly guard: GuardConfig;
   readonly consents: Pick<GuardConsents, "valid" | "use" | "grant">;
-  /** The debug changes (scratch) a commit made now would hold. */
-  readonly debugFiles?: (commitAll: boolean) => Promise<readonly string[]>;
+  /** The debug changes (scratch) a commit would hold: what is staged, and what its command line adds. */
+  readonly debugFiles?: (reach: CommitReach) => Promise<readonly string[]>;
+  /**
+   * What `guard.prompts: metator` judges with: how the repository runs MetatorAI and what its
+   * gates run. The package's scripts are read from its `package.json` when a call is judged.
+   */
+  readonly prompts?: Pick<Unprompted, "metatorCommand" | "gates">;
 }
 
 async function activeRun(
@@ -113,14 +127,12 @@ export class GuardPreTool {
       const held = await this.commands.consents.valid(who);
       if (held.isErr()) return err(held.error);
       consents = held.value;
-      const commit = asks.find((g) => g.verdict.kind === "commit");
-      if (commit && this.commands.debugFiles)
-        debugFiles = await this.commands.debugFiles(
-          // `-a`, or paths named (`--`, `--include`, `--only`): the commit takes the working tree's content.
-          commit.argv.some(
-            (a) => ["--all", "--include", "--only", "--"].includes(a) || /^-[A-Za-z]*[aio]/.test(a),
-          ),
-        );
+      // The whole line is read: `git add x && git commit` in one call takes x although nothing
+      // is staged when the guard is asked.
+      const reach = asks.some((g) => g.verdict.kind === "commit")
+        ? commitReach(shell, { root: this.root, ...(hook.cwd ? { cwd: hook.cwd } : {}) })
+        : undefined;
+      if (reach && this.commands.debugFiles) debugFiles = await this.commands.debugFiles(reach);
     }
 
     let editScope: readonly string[] | undefined;
@@ -140,8 +152,14 @@ export class GuardPreTool {
         .filter((a) => a.agent.role === "coordinator" && !a.agent.capabilities.includes("edit"))
         .map((a) => a.agent.id),
     );
+    // `guard.prompts: metator`: what needs no approval prompt is answered here, from the config
+    // and the package's own scripts; `host` leaves every such call to the host.
+    let unprompted: Omit<Unprompted, "cwd"> | undefined;
+    if (guard.prompts === "metator" && this.commands?.prompts)
+      unprompted = { root: this.root, ...this.commands.prompts, scripts: await this.packageScripts() };
     const decision = preToolPolicy(hook, {
       root: this.root,
+      ...(unprompted ? { unprompted } : {}),
       commands: guard.commands,
       consents,
       debugFiles,
@@ -168,9 +186,22 @@ export class GuardPreTool {
       if (used.isErr()) return err(used.error);
       return ok(permissionResponse(decision));
     }
-    // A denial and a question are answers; no objection is none: "allow" from a PreToolUse hook
-    // would skip the host's own permission prompts, so such a call goes to them as usual.
-    return ok(decision.decision === "allow" ? null : permissionResponse(decision));
+    // A denial and a question are answers. An allow is one only when the guard gives it on its
+    // own (`guard.prompts: metator`): any other "allow" from a PreToolUse hook would skip the
+    // host's own permission prompts, so such a call gets no answer and goes to them as usual.
+    return ok(decision.decision === "allow" && !decision.unprompted ? null : permissionResponse(decision));
+  }
+
+  /** The root package's scripts by name; none when there is no readable `package.json`. */
+  private async packageScripts(): Promise<Record<string, string>> {
+    const text = await this.fs.read("package.json");
+    if (text.isErr()) return {};
+    const parsed = parseJsonDocument(text.value, "package.json");
+    const scripts = parsed.isOk() ? (parsed.value as { scripts?: unknown } | null)?.scripts : undefined;
+    if (typeof scripts !== "object" || scripts === null) return {};
+    return Object.fromEntries(
+      Object.entries(scripts).filter((e): e is [string, string] => typeof e[1] === "string"),
+    );
   }
 }
 
@@ -189,6 +220,9 @@ export class GuardUserPrompt {
   async execute(raw: unknown, session: GuardSession = {}): Promise<Result<HookResponse, MetatorError>> {
     const hook = readHookInput(raw);
     const message = hook.prompt ?? "";
+    // A line the daemon typed itself (a relay, a nudge, a notice) reaches this hook like any
+    // prompt: it is never a consent. A person's answer to a card, typed for them, is their word.
+    if (session.typedBy === "metator") return ok(null);
     const kinds = consentsIn(message, askKinds(this.guard.commands));
     if (kinds.length === 0) return ok(null);
     const granted = [

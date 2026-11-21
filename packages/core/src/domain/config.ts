@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ModelTierSchema } from "./agent.ts";
-import { DEFAULT_GUARD_CONFIG, GuardConfigSchema } from "./guard-commands.ts";
+import { DEFAULT_GUARD_CONFIG, GuardConfigSchema, GuardConfigV13Schema } from "./guard-commands.ts";
 import { IntakeConfigSchema } from "./intake.ts";
 import { McpServersSchema } from "./mcp.ts";
 import { ReviewsConfigSchema } from "./review-thread.ts";
@@ -342,11 +342,21 @@ export type QuickLimits = z.output<typeof QuickLimitsSchema>;
  */
 const ConfigV13Schema = z.strictObject({
   ...ConfigV12Schema.shape,
-  guard: GuardConfigSchema.default(DEFAULT_GUARD_CONFIG),
+  guard: GuardConfigV13Schema.default(GuardConfigV13Schema.parse({})),
   quick: QuickLimitsSchema.default(QuickLimitsSchema.parse({})),
 });
 
-export const MetatorConfigSchema = ConfigV13Schema;
+/**
+ * v14 adds `guard.prompts` (ADR-0094): whether MetatorAI answers the host's approval prompt for
+ * what it knows to be safe (`metator`, the default) or the host asks as it does by itself
+ * (`host`). Every v13 file is a v14 file.
+ */
+const ConfigV14Schema = z.strictObject({
+  ...ConfigV13Schema.shape,
+  guard: GuardConfigSchema.default(DEFAULT_GUARD_CONFIG),
+});
+
+export const MetatorConfigSchema = ConfigV14Schema;
 export type SystemSettings = z.output<typeof SystemSettings>;
 export type MetatorConfig = z.output<typeof MetatorConfigSchema>;
 
@@ -368,9 +378,10 @@ export const MetatorConfigDocument = defineDocument("MetatorConfig", {
     { schema: ConfigV10Schema, fromPrevious: (v9) => v9 },
     { schema: ConfigV11Schema, fromPrevious: (v10) => v10 },
     { schema: ConfigV12Schema, fromPrevious: withoutLocalStatePaths },
+    { schema: ConfigV13Schema, fromPrevious: (v12) => v12 },
   ],
   latest: MetatorConfigSchema,
-  upgrade: (v12) => v12,
+  upgrade: (v13) => v13,
   errorCode: "INVALID_CONFIG",
   hint: "Fix metator.config; `metator config schema` prints the JSON Schema.",
 });

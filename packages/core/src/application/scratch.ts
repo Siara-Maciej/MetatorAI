@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { MetatorError } from "../domain/errors.ts";
+import { matchesAny } from "../domain/glob.ts";
+import type { CommitReach } from "../domain/guard-commands.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { defineDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem, WorkingPatches } from "../ports/index.ts";
@@ -288,22 +290,33 @@ export class Scratch {
   }
 
   /**
-   * The debug files a commit would hold (the commit guard, ADR-0094): the staged part of each
-   * record, and with `commit -a` what of it is in the working tree of a file git tracks (a new
-   * file nobody added is in no commit). Lines that changed since count too: a commit is stopped
+   * The debug files a commit would hold (the commit guard, ADR-0094): what of each record is
+   * staged, and what the commit's own command line takes from the working tree (`commitReach`:
+   * `commit -a`, `git add <paths>` before it, paths named on it). A new file nobody added is in a
+   * commit only when the line adds it. Lines that changed since count too: a commit is stopped
    * while a file still holds what was recorded. Asking removes nothing.
    */
-  async inCommit(all: boolean): Promise<Result<readonly string[], MetatorError>> {
+  async inCommit(reach: CommitReach): Promise<Result<readonly string[], MetatorError>> {
     const files = new Set<string>();
+    const named = (file: string) =>
+      reach.paths.some(
+        (p) => file === p || file.startsWith(`${p}/`) || (/[*?[]/.test(p) && matchesAny(file, [p])),
+      );
     for (const id of await this.ids()) {
       const record = await loadDocument(this.d.fs, fileOf(id), ScratchRecordDocument, "json");
       if (record.isErr()) return err(record.error);
-      for (const where of all ? (["index", "tracked"] as const) : (["index"] as const)) {
+      const places = [
+        ["index", () => true],
+        ...(reach.tracked ? ([["tracked", () => true]] as const) : []),
+        ...(reach.untracked ? ([["tree", () => true]] as const) : []),
+        ...(reach.paths.length > 0 ? ([["tree", named]] as const) : []),
+      ] as const;
+      for (const [where, counts] of places) {
         const held = await this.d.patches.holding(record.value.patch, where);
         if (held.isErr()) return err(held.error);
         const remains = await this.d.patches.remains(record.value.patch, where);
         if (remains.isErr()) return err(remains.error);
-        for (const f of [...held.value, ...remains.value]) files.add(f);
+        for (const f of [...held.value, ...remains.value]) if (counts(f)) files.add(f);
       }
     }
     return ok([...files].sort());

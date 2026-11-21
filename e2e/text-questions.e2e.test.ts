@@ -6,7 +6,7 @@
  * nudges it while the question is open; "1" from the app is typed into the pane, which reads it.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { CLI_ENTRY, E2E_STATE_DIR, metator } from "./helpers/cli.ts";
+import { CLI_ENTRY, E2E_STATE_DIR, hook, metator } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
 
 const WORKFLOW =
@@ -135,6 +135,19 @@ describe("an agent's question in words reaches the person (real daemon, scenario
       (await text("w1:p1")).includes("answer: 1") ? true : undefined,
     );
     expect((await items()).some((i) => i.paneId === "w1:p1")).toBe(false);
+    // The daemon keeps what it typed for the person (a hash, never the words): the host's
+    // user-prompt hook, which gets that line like any prompt, reads it as the person's answer to a
+    // card, not as the person talking to the session directly.
+    const typed = JSON.parse(await repo.read(".metator/typed/w1-p1.json")) as {
+      kind: string;
+      lines: { hash: string; by: string }[];
+    };
+    expect([typed.kind, typed.lines.map((l) => l.by)]).toEqual(["PaneTyped", ["answer"]]);
+    const asHost = await hook(["guard", "user-prompt"], { prompt: "1" }, repo.root, {
+      METATOR_PANE_ID: "w1:p1",
+      METATOR_RUN: runId,
+    });
+    expect(asHost.json).toBeNull();
     await metator(["run", "close", "--run", runId, "--aborted", "--reason", "the test ends it"], repo.root);
   }, 60_000);
 });

@@ -81,22 +81,27 @@ export function registerSetupCommands(
       ).choices(HOST_TARGETS),
     )
     .option("--workflows <ids...>", "workflows to install (default: all)")
-    .option("--hooks", "also install the hooks (`metator guard`) for each host", false)
+    .option("--hooks", "install the hooks (`metator guard`) for each host without asking (the default)")
+    .option(
+      "--no-hooks",
+      "do not install the hooks: nothing then guards commits and pushes, and a word in the chat is no consent",
+    )
     .option("--yes", "do not ask; take the options and what was found", false)
     .action(
-      action(async (opts: { host?: HostTarget[]; workflows?: string[]; hooks: boolean; yes: boolean }) => {
+      action(async (opts: { host?: HostTarget[]; workflows?: string[]; hooks?: boolean; yes: boolean }) => {
         // The whole setup is one use case (`SetupRepository`); only the questions are the terminal's.
         const ask = opts.yes ? null : terminal;
         const done = await container()
           .resolve("setupRepository")
           .execute({
-            hooks: opts.hooks,
             ...defined({ hosts: opts.host, workflows: opts.workflows }),
+            ...(opts.hooks !== undefined ? { hooks: opts.hooks } : {}),
             ...(ask
               ? {
                   ask: async (q) =>
                     ask.setup({
                       askHosts: q.askHosts,
+                      askHooks: q.askHooks,
                       defaults: { hosts: q.defaults.hosts, hooks: q.defaults.hooks },
                     }),
                 }

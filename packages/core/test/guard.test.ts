@@ -56,15 +56,27 @@ function world(files: Record<string, string> = {}, role?: string) {
     clock,
     consents: new GuardConsents(fs, clock),
     debug: [] as string[],
-    /** How the debug files were asked for, call by call: true when the commit takes the working tree. */
-    askedAll: [] as boolean[],
+    /** What each commit asked about would take, call by call (`commitReach`). */
+    asked: [] as { tracked: boolean; untracked: boolean; paths: readonly string[] }[],
     get preTool() {
       return new GuardPreTool(status, repo, new AgentCatalog(fs, DEFAULT_PATHS), fs, ROOT, role, {
-        guard: DEFAULT_GUARD_CONFIG,
+        guard: { ...DEFAULT_GUARD_CONFIG, prompts: "host" },
         consents: this.consents,
-        debugFiles: async (all) => {
-          this.askedAll.push(all);
+        prompts: { metatorCommand: "npx metator", gates: [] },
+        debugFiles: async (reach) => {
+          this.asked.push(reach);
           return this.debug;
+        },
+      });
+    },
+    /** The same guard where MetatorAI answers for what needs no prompt (`guard.prompts: metator`). */
+    get quiet() {
+      return new GuardPreTool(status, repo, new AgentCatalog(fs, DEFAULT_PATHS), fs, ROOT, role, {
+        guard: { ...DEFAULT_GUARD_CONFIG, prompts: "metator" },
+        consents: this.consents,
+        prompts: {
+          metatorCommand: "npx metator",
+          gates: [{ bin: "biome", args: ["check"] }],
         },
       });
     },
@@ -162,6 +174,47 @@ describe("GuardPreTool", () => {
     expect(
       decision((await conductor.preTool.execute(edit("src/a.ts"), pane))._unsafeUnwrap()).permissionDecision,
     ).toBe("deny");
+  });
+
+  test("guard.prompts: metator answers `allow` for what needs no prompt, from the config and the package's scripts; `host` says nothing", async () => {
+    const w = world({
+      "package.json": JSON.stringify({ scripts: { test: "bun test", deploy: "sh deploy.sh" } }),
+    });
+    const allowed = async (input: unknown, session = {}) =>
+      decision((await w.quiet.execute(input, session))._unsafeUnwrap());
+    const sh = (command: string) => ({ tool_name: "Bash", tool_input: { command } });
+    expect(await allowed(sh("npx metator run status"))).toMatchObject({
+      permissionDecision: "allow",
+      permissionDecisionReason: "no approval needed: MetatorAI's own command",
+    });
+    expect((await allowed(sh("git diff"))).permissionDecisionReason).toBe(
+      "no approval needed: it only reads",
+    );
+    expect((await allowed(sh("bun test"))).permissionDecisionReason).toBe(
+      "no approval needed: the repository's own check",
+    );
+    // The gate's own steps count as checks; a script that is none is asked about by the host.
+    expect((await allowed(sh("biome check src"))).permissionDecision).toBe("allow");
+    expect((await allowed(sh("npm run deploy"))).permissionDecision).toBe("none");
+    expect((await allowed(edit("src/a.ts"))).permissionDecisionReason).toBe(
+      "no approval needed: an edit inside the repository",
+    );
+    expect((await allowed(edit("metator.config.yml"))).permissionDecision).toBe("none");
+    expect((await allowed(sh("curl https://example.com"))).permissionDecision).toBe("none");
+    // Where the shell stands is the host's to say: a path is judged from there.
+    expect((await allowed({ ...sh("cat ../README.md"), cwd: `${ROOT}/src` })).permissionDecision).toBe(
+      "allow",
+    );
+    expect((await allowed({ ...sh("cat ../../etc/passwd"), cwd: `${ROOT}/src` })).permissionDecision).toBe(
+      "none",
+    );
+    // never and ask are untouched; a person's command is asked about.
+    expect((await allowed(sh("git push --force"))).permissionDecision).toBe("deny");
+    expect((await allowed(sh("git commit -m x"))).permissionDecision).toBe("ask");
+    expect((await allowed(sh("metator run approve delivery --by ana"))).permissionDecision).toBe("ask");
+    // `guard.prompts: host`: the same calls get no answer, as before.
+    for (const input of [sh("git diff"), sh("bun test"), sh("metator run status"), edit("src/a.ts")])
+      expect(decision((await w.preTool.execute(input))._unsafeUnwrap()).permissionDecision).toBe("none");
   });
 
   test("coordinators are known from the canonical agents or METATOR_ROLE", async () => {
@@ -323,6 +376,23 @@ describe("guarded commands and the person's consent (ADR-0094)", () => {
     expect(decision((await w.preTool.execute(other))._unsafeUnwrap()).permissionDecision).toBe("ask");
   });
 
+  test("a line the daemon typed itself is never a consent; a person's answer to a card, typed for them, is their word", async () => {
+    const w = world();
+    const pane = { pane: "w1:p1" };
+    // The host reports every submitted line to the hook, the daemon's too (a relay, a nudge).
+    const relayed = await w.userPrompt.execute(prompt("commit it"), { ...pane, typedBy: "metator" });
+    expect(relayed._unsafeUnwrap()).toBeNull();
+    expect(
+      decision((await w.preTool.execute(bash("git commit -m x"), pane))._unsafeUnwrap()).permissionDecision,
+    ).toBe("ask");
+    // An answer the person gave on a card, typed into the pane for them: their word.
+    const answered = await w.userPrompt.execute(prompt("commit it"), { ...pane, typedBy: "answer" });
+    expect(answered._unsafeUnwrap()).not.toBeNull();
+    expect(
+      decision((await w.preTool.execute(bash("git commit -m x"), pane))._unsafeUnwrap()).permissionDecision,
+    ).toBe("allow");
+  });
+
   test('a commit with debug changes asks with the files, also after a consent; "commit anyway" passes', async () => {
     const w = world();
     w.debug.push("src/a.ts");
@@ -338,21 +408,38 @@ describe("guarded commands and the person's consent (ADR-0094)", () => {
       decision((await w.preTool.execute(bash("git commit -m x"), pane))._unsafeUnwrap()).permissionDecision,
     ).toBe("allow");
     // Another command is not a commit: the files are not even looked up.
-    w.askedAll.length = 0;
+    w.asked.length = 0;
     expect((await w.preTool.execute(bash("git status"), pane))._unsafeUnwrap()).toBeNull();
-    expect(w.askedAll).toEqual([]);
-    // A plain commit takes what is staged; `-a`, a flag cluster with it, or paths named take the working tree.
+    expect((await w.preTool.execute(bash("git add src/a.ts"), pane))._unsafeUnwrap()).toBeNull();
+    expect(w.asked).toEqual([]);
+    // The whole command line is read: what it adds before it commits is in the commit (the real
+    // bypass was `git add <file> && git commit` in one call, with nothing staged before it).
     for (const command of [
       "git commit -m x",
-      "git commit --amend -m x",
       "git commit -a -m x",
-      "git commit -qam x",
-      "git commit --all",
-      "git commit -m x -- src/a.ts",
-      "git commit --only src/a.ts -m x",
+      'git add src/a.ts && git commit -m "Log the sku"',
+      "cd src && git add . && git commit -m x",
+      "git add -A; git commit -m x",
     ])
       await w.preTool.execute(bash(command), pane);
-    expect(w.askedAll).toEqual([false, false, true, true, true, true, true]);
+    expect(w.asked).toEqual([
+      { tracked: false, untracked: false, paths: [] },
+      { tracked: true, untracked: false, paths: [] },
+      { tracked: false, untracked: false, paths: ["src/a.ts"] },
+      { tracked: false, untracked: false, paths: ["src"] },
+      { tracked: true, untracked: true, paths: [] },
+    ]);
+    // And it is stopped, also with a word consent to commit: only "commit anyway" lets debug lines in.
+    (await w.userPrompt.execute(prompt("commit it"), pane))._unsafeUnwrap();
+    const chained = decision(
+      (
+        await w.preTool.execute(bash('git add src/a.ts && git commit -m "Log the sku"'), pane)
+      )._unsafeUnwrap(),
+    );
+    expect([chained.permissionDecision, chained.permissionDecisionReason]).toEqual([
+      "ask",
+      "this commit holds debug changes: src/a.ts. Remove them first (`metator scratch drop`), or answer here to commit anyway.",
+    ]);
   });
 
   test("in a run: a drive without a terminal is refused, a pane is asked; the conductor and the chat steer runs, a worker never", async () => {

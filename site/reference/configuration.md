@@ -13,7 +13,7 @@ A file that does not match the schema stops every command with `INVALID_CONFIG` 
 
 ```yaml
 kind: MetatorConfig
-schemaVersion: 13
+schemaVersion: 14
 
 gates:
   quick:
@@ -70,7 +70,7 @@ options:
   supervisor.wipLimit: 2
 ```
 
-The current `schemaVersion` is 13. A file with an older version still loads: MetatorAI upgrades it in memory and leaves the file as it is.
+The current `schemaVersion` is 14. A file with an older version still loads: MetatorAI upgrades it in memory and leaves the file as it is.
 
 ## Gates
 
@@ -255,12 +255,28 @@ Entries of `.mcp.json` that MetatorAI did not write are kept. A server you remov
 | `guard.commands.ask` | `git commit`, `git push`, `git merge`, `git rebase` | run only with your consent: a click on your host's own approval prompt, or your word in the chat ("commit", "push it", "zacommituj") |
 | `guard.commands.allow` | none | commands that `ask` would catch and that you allow anyway, for example `git commit --fixup` |
 | `guard.consentMinutes` | `10` | how long a consent you gave in words holds; it is used up by the first command of that kind |
+| `guard.prompts` | `metator` | who answers your host's approval prompt for what is known to be safe: `metator` lets the four kinds below run without a prompt; `host` keeps your host's own prompts for everything (the guard then only denies and asks) |
 
 A pattern is the command's words: the program, for `git` the subcommand, then the flags or words that must be among the arguments. `--force*` also matches `--force-with-lease`; `-f` also matches inside `-xdf`. `never` wins over `ask`, and `allow` lifts only `ask`.
 
 A consent in words comes from your own message only (the host's user-prompt hook hands it to `metator guard user-prompt`). A question ("should we commit?"), a refusal, the agent's own words and lines MetatorAI types (`[metator] …`) give none. In a run, the approval of the delivery gate (`metator run approve push`) counts as your consent to that run's commit and push. A session without a terminal (`metator run drive`) cannot ask you, so there a command on `ask` needs the run's approval.
 
 A `git commit` that would hold a recorded debug change (see [Debug changes](../use/start.md#debug-changes)) is stopped with the files, even after "commit": say "commit anyway", or remove the changes first.
+
+### What runs without a prompt
+
+With `guard.prompts: metator` the `pre-tool` hook answers `allow`, with the reason, for four kinds of calls, on both hosts. Everything else keeps your host's own approval prompt, and `never` and `ask` are judged first and win.
+
+| Kind | What qualifies |
+|---|---|
+| MetatorAI's own commands | `metator …` as the repository runs it (`hosts.metatorCommand`, `npx metator`, `bun run metator`), any subcommand except the ones that are your decision: `run approve`, `run answer`, `run resume`, `run take`, `run close`, `system plan approve`, `system plan retry`, `arch plan approve`, `scratch forget`, `policy`, `config set`, `config unset`, `issue add`, `setup`, `init`, `generate`, `agents`, `serve`, `mcp`, `findings to-github`, `mrs reply`, `mrs resolve`, and `quick start --override`. Those are asked about by name. `metator guard` is never an agent's command |
+| Commands that only read | `git status`, `git diff`, `git log`, `grep`, `rg`, `ls`, `cat`, `head`, `sed -n '1,80p' file` and the like, with paths inside the repository; no option that writes or runs something |
+| Edits inside the repository | a file edit or write whose every path is inside the repository (in a run: inside its plan's scope), except `.git/`, `metator.config.*`, `.claude/settings*.json`, `.github/hooks/`, and MetatorAI's own records under `.metator/` (a run's artifacts are fine). Secrets are denied as always |
+| The repository's own checks | the steps of `gates.quick` and `gates.full` (a script through `bun`, `npm`, `pnpm` or `yarn`; a binary with its arguments, also through `npx` or `bunx`), and the package's `test`, `typecheck`, `lint` and `build` scripts or the command such a script runs (`bunx tsc --noEmit`) |
+
+A chain or a pipeline passes only when every part of it qualifies (`git status --short && bun test`, `bun test 2>&1 | tail -20`). A command substitution, a redirection to a file, a path outside the repository, or one part that does not qualify (`git status && curl …`) leaves the whole call to your host's prompt.
+
+Copilot CLI takes an allow list when it starts, so its sessions are also started with `--allow-tool` for MetatorAI's commands that hold none of your decisions and for the repository's check scripts. Reads and edits are not on that list (a command prefix cannot say "inside the repository"); for those Copilot's own prompt asks unless it honours the hook's answer.
 
 ## Quick
 

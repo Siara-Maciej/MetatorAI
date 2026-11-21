@@ -22,7 +22,9 @@ function world() {
   const repo = new RunRepository(fs, DEFAULT_PATHS);
   const journal = new RunJournal(fs, repo, clock);
   const timers: { ms: number; fn: () => void }[] = [];
+  const typed: [string, string, string][] = [];
   const broker = new PtyBroker({
+    typed: async (paneId, text, by) => typed.push([paneId, text, by]),
     repo,
     journal,
     clock,
@@ -43,7 +45,17 @@ function world() {
     broker
       .start({ paneId, ...(runId ? { runId } : {}), role, host: "fake", sessionId: "fake-1", pty })
       ._unsafeUnwrap();
-  return { fs, repo, journal, broker, timers, init, start, lock: new DriverLock(repo, journal, clock) };
+  return {
+    fs,
+    repo,
+    journal,
+    broker,
+    timers,
+    typed,
+    init,
+    start,
+    lock: new DriverLock(repo, journal, clock),
+  };
 }
 
 describe("PtyBroker", () => {
@@ -209,11 +221,17 @@ describe("PtyBroker", () => {
     expect(pty.typed).toEqual(["\x1b", "Stop: wrong file"]);
     next();
     expect(pty.typed).toEqual(["\x1b", "Stop: wrong file", "\r"]);
-    // What the daemon typed lately, so a hook that reports it is not taken for the person's own words.
+    // Every line the daemon types is told to the record, before it is typed: its own lines
+    // (a nudge, a relay, an interrupt) and a person's answer to a card typed for them.
     await w.broker.nudge("w1:p1", "go on");
-    w.broker.typedFor("w1:p1", "half-even");
-    expect(w.broker.daemonTyped("w1:p1")).toEqual(["Stop: wrong file", "go on", "half-even"]);
-    expect(w.broker.daemonTyped("w9:p9")).toEqual([]);
+    await w.broker.nudge("w1:p1", "half-even", "answer");
+    await w.broker.typedFor("w1:p1", "yes");
+    expect(w.typed).toEqual([
+      ["w1:p1", "Stop: wrong file", "metator"],
+      ["w1:p1", "go on", "metator"],
+      ["w1:p1", "half-even", "answer"],
+      ["w1:p1", "yes", "answer"],
+    ]);
     await w.lock.attach({ runId: run.runId, by: "maciej" });
     expect((await w.broker.interrupt("w1:p1", "x"))._unsafeUnwrapErr().message).toContain(
       "no interrupt over a person",

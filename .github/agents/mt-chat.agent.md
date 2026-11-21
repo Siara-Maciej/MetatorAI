@@ -46,8 +46,9 @@ The three ways, lightest first. Take the first that fits.
 3. Tell the person the run id. Stay in this chat for their next message.
 
 ## While runs work
-- `bun run metator session list --task <run>` shows the run's sessions (pane, repository, role, state).
-- When the person asks you to tell a session something: `bun run metator session tell <pane> --text "<their words>"` (typed when its agent is idle), or `bun run metator session interrupt <pane> --text "<their words>"` when it must stop what it does first. Relay their words; add nothing of your own.
+- `bun run metator session list --task <run>` shows the run's sessions, one row each: `pane`, `role`, `agent`, `state`.
+- The person asks you to tell a session something. Pick the row first: "the worker", or a named agent, is the row whose `role` is `worker` (with that `agent`); the `conductor` row only when they mean the run as a whole. Never send a worker's message to the conductor. Then `bun run metator session tell <pane> --text "<their words>"`. Relay their words; add nothing of your own.
+- Say which session you told: its agent and pane. When its `state` is not `idle`, say that the line waits until the agent is idle, and offer `bun run metator session interrupt <pane> --text "<their words>"`, which stops what it does first.
 - Lines that begin with `[metator]` in this chat are MetatorAI's notes about your runs (done, stopped, waiting for an approval, the person spoke to a session directly). They are not the person's words and never a consent.
 
 # Escalation

@@ -22,6 +22,7 @@ import {
   AskQuestion,
   AuditAgents,
   agentDefinitionFiles,
+  allowToolsOf,
   BaseArchitectureFacts,
   BriefRun,
   BuildImportGraph,
@@ -99,6 +100,7 @@ import {
   HOST_TARGETS,
   type HostBins,
   type HostDescriptor,
+  type HostGuard,
   HostManifestCatalog,
   HostPrompts,
   hostBins,
@@ -133,6 +135,7 @@ import {
   MemoryBudget,
   MemoryMapReader,
   MergeFindingSets,
+  type MetatorConfig,
   MetatorError,
   type MetatorPaths,
   MyReviews,
@@ -145,6 +148,7 @@ import {
   PaneQuestions,
   PaneSensor,
   Panes,
+  PaneTyped,
   PatternCatalog,
   PinnedSystemLocation,
   PlanBoard,
@@ -397,6 +401,21 @@ export const hostBinsOf = (env: Readonly<Record<string, string | undefined>>): H
  * Composition root: the only place that knows concrete adapters. Use cases keep plain
  * constructors (framework-agnostic); awilix wires them through factories.
  */
+/** The guard as a host adapter takes it: the command lists, and the allow list where MetatorAI answers for what is safe. */
+function hostGuard(config: MetatorConfig): HostGuard {
+  return {
+    ...config.guard.commands,
+    ...(config.guard.prompts === "metator"
+      ? {
+          unprompted: allowToolsOf({
+            metatorCommand: config.hosts.metatorCommand,
+            gates: [...config.gates.quick, ...config.gates.full].map((s) => s.run),
+          }),
+        }
+      : {}),
+  };
+}
+
 export function bootstrap(options: BootstrapOptions): MetatorContainer {
   const c = createMetatorContainer();
   /** The container of another repository root, with that repository's own config. */
@@ -627,7 +646,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     agentHosts: asFunction(({ played, hostBins: bins, knownHosts }) => {
       const hosts = new Map<string, AgentHost>();
       for (const h of [...orderedHosts(DRIVE_ORDER, knownHosts), ...played])
-        if (h.agent) hosts.set(h.id, h.agent.host(bins[h.id], config.config.guard.commands));
+        if (h.agent) hosts.set(h.id, h.agent.host(bins[h.id], hostGuard(config.config)));
       return hosts;
     }).singleton(),
     terminal: asFunction(() => new NodePtyTerminal()).singleton(),
@@ -642,7 +661,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     interactiveHosts: asFunction(({ terminal, sessionHosts, hostBins: bins }) => {
       const hosts = new Map<string, InteractiveHost>();
       for (const h of sessionHosts)
-        if (h.interactive) hosts.set(h.id, h.interactive(terminal, bins[h.id], config.config.guard.commands));
+        if (h.interactive) hosts.set(h.id, h.interactive(terminal, bins[h.id], hostGuard(config.config)));
       return hosts;
     }).singleton(),
     // Why a host that drives agents cannot start here (its program is not installed).
@@ -666,9 +685,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         () =>
           chatAgentIn(fileSystem, HOSTS),
     ).singleton(),
+    // What the daemon types into panes, kept for the hosts' user-prompt hooks (ADR-0093, ADR-0094).
+    paneTyped: asFunction(({ fileSystem, clock }) => new PaneTyped(fileSystem, clock)).singleton(),
     ptyBroker: asFunction(
-      ({ runRepository, runJournal, config, clock, screenRenderer }) =>
+      ({ runRepository, runJournal, config, clock, screenRenderer, paneTyped }) =>
         new PtyBroker({
+          typed: (paneId, text, by) => paneTyped.record(paneId, text, by),
           repo: runRepository,
           journal: runJournal,
           idleMs: config.config.supervisor.idleThresholdMs,
@@ -728,11 +750,12 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           // A person's answer to an agent's terminal question, typed for them (never over a person).
           // As the person who holds the run's keyboard when it is theirs (their own keystrokes).
           type: async (paneId, text, by) => {
-            // Typed by MetatorAI for the person: a host's hook that reports it is not them talking.
-            if (by) ptyBroker.typedFor(paneId, text);
+            // Typed by the daemon for the person: their words for the session (a consent when
+            // they say so), and not them talking to the session directly.
+            if (by) await ptyBroker.typedFor(paneId, text);
             return by
               ? ptyBroker.write({ paneId, data: `${text}\r`, by })
-              : (await ptyBroker.nudge(paneId, text)).map(() => undefined);
+              : (await ptyBroker.nudge(paneId, text, "answer")).map(() => undefined);
           },
           screen: (paneId) => ptyBroker.backlog(paneId),
           holder: async (runId) => {
@@ -883,7 +906,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         }),
     ).singleton(),
     sessionSteering: asFunction(
-      ({ panes, runRepository, paneMail, ptyBroker, runJournal, root, paneSensor }) =>
+      ({ panes, runRepository, paneMail, ptyBroker, runJournal, root, paneSensor, paneTyped }) =>
         new SessionSteering({
           panes,
           repo: runRepository,
@@ -891,7 +914,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           interrupt: (paneId, text) => ptyBroker.interrupt(paneId, text),
           journal: runJournal,
           repoName: basename(root),
-          daemonTyped: (paneId) => ptyBroker.daemonTyped(paneId),
+          typedByDaemon: async (paneId, text) => (await paneTyped.by(paneId, text)) !== undefined,
           sensor: paneSensor,
         }),
     ),
@@ -1762,9 +1785,15 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           guard: config.config.guard,
           consents: guardConsents,
           // A commit that would hold debug changes is stopped; when git cannot say, nothing is claimed.
-          debugFiles: async (all) => {
-            const files = await scratch.inCommit(all);
+          debugFiles: async (reach) => {
+            const files = await scratch.inCommit(reach);
             return files.isOk() ? files.value : [];
+          },
+          // What needs no approval prompt (`guard.prompts: metator`) is judged from the same
+          // config: how the repository runs MetatorAI, and what its gates run.
+          prompts: {
+            metatorCommand: config.config.hosts.metatorCommand,
+            gates: [...config.config.gates.quick, ...config.config.gates.full].map((s) => s.run),
           },
         }),
     ),
@@ -1890,8 +1919,9 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         new QuickOverrides(fileSystem, runRepository, runJournal, clock),
     ),
     quickStart: asFunction(
-      ({ startRun, runRepository, runJournal, quickOverrides, workingTree }) =>
+      ({ startRun, runRepository, runJournal, quickOverrides, workingTree, config }) =>
         new QuickStart({
+          quickGate: { steps: config.config.gates.quick.length, source: config.source },
           start: startRun,
           repo: runRepository,
           journal: runJournal,

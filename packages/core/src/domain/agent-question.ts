@@ -27,16 +27,47 @@ const MESSAGE = /^\s*●\s/;
 const NUMBERED = /^(\d{1,2})[.)]\s+(.+)$/;
 const LETTERED = /^([a-h])[.)]\s+(.+)$/;
 const BULLETED = /^[-•*]\s+(.+)$/;
-/** What tells the person to reply to choices. */
-const CUE =
-  /options?:|\breply\b|\bchoose\b|\bpick\b|\bwhich\b|\btell me\b|\blet me know\b|waiting for your (reply|answer|decision)/i;
+/**
+ * Words that ask the person to choose among what is listed: an `Options:` label, "reply with",
+ * "pick one". A bare "pick" or "which" is none ("no commit will pick it up", "which matches").
+ */
+const CHOOSE =
+  /^\s*(?:options|choices)\s*:|\breply (?:with|in|by)\b|\b(?:choose|pick|select) (?:one|between|from|which)\b|\bwhich (?:one|option)\b/im;
+/**
+ * A sentence that tells the person to answer: it begins with the word ("Say yes and …", "Let me
+ * know which"). A conditional is no such thing ("let me know if …", "tell me if anything …").
+ */
+const ANSWER_ME =
+  /^(?:please\s+)?(?:say|reply|answer|confirm|choose|pick|select|tell me|let me know)\b(?!,?\s+(?:if|when|once)\b)/i;
 /** What says the agent waits for the person (never for a worker). */
 const WAITS =
-  /waiting for your (reply|answer|decision|input|choice)|\bi(?:'ll| will) wait for (?:you|your)\b|\blet me know\b|\btell me\b/i;
+  /waiting for your (reply|answer|decision|input|choice)|\bi(?:'ll| will) wait for (?:you|your)\b/i;
+/** A bullet that states a fact: `Label: value` (a reply word in quotes is no label). */
+const FACT = /^[^:"“”]{2,40}:\s/;
+const SENTENCE_END = /(?<=[.!?])\s+(?=["“(A-Z0-9])/;
+
+/**
+ * The rows without a panel drawn at their right (Claude Code's diff panel): when most rows have
+ * the border `│` in one column, everything from that column on is no part of the message.
+ */
+function withoutSidePanel(rows: readonly string[]): string[] {
+  const columns = new Map<number, number>();
+  let bordered = 0;
+  for (const row of rows) {
+    const at = row.indexOf("│");
+    if (at < 0) continue;
+    bordered++;
+    for (let i = at; i >= 0; i = row.indexOf("│", i + 1)) columns.set(i, (columns.get(i) ?? 0) + 1);
+  }
+  const [column, count] = [...columns.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0] ?? [-1, 0];
+  // A column only a few rows share is a character of the text, not a border.
+  if (column < 20 || count < 3 || count < bordered / 2) return [...rows];
+  return rows.map((row) => (row[column] === "│" ? row.slice(0, column).trimEnd() : row));
+}
 
 /** The question the agent's last message asks the person, if it asks one. */
 export function agentQuestionOf(screen: string): AgentQuestionRead | undefined {
-  const rows = screen.split("\n").map((r) => r.trimEnd());
+  const rows = withoutSidePanel(screen.split("\n").map((r) => r.trimEnd()));
   // Above the input box, when there is one; else to the end.
   let end = rows.length - 1;
   for (let i = rows.length - 1; i >= 0; i--)
@@ -67,43 +98,84 @@ export function agentQuestionOf(screen: string): AgentQuestionRead | undefined {
   const lines = block.map((l) => l.slice(indent));
   const text = lines.join("\n").trim();
   if (text === "") return undefined;
-  const options = choicesOf(lines);
+  const items = itemsOf(lines);
+  const sentences = sentencesOf(lines);
+  const question = (list: readonly string[]) => list.find((x) => x.endsWith("?"));
+  const hasQuestion = text.includes("?");
+  // Items that are themselves questions, or run over several sentences, are no choices: the
+  // person answers them in words.
+  const choices = items.every((i) => {
+    const said = i.text.split(SENTENCE_END);
+    return !said.some((x) => x.trim().endsWith("?")) && said.length <= 2;
+  });
+  // Bullets of `Label: value` under no question are facts of a report.
+  const facts = !hasQuestion && items.length > 0 && items.every((i) => i.bullet && FACT.test(i.text));
+  const options = choices && !facts && items.length >= 2 ? items.map((i) => i.option) : [];
   const last =
     lines
       .filter((l) => l.trim() !== "")
       .at(-1)
       ?.trim() ?? "";
-  const asks = last.endsWith("?") || (options.length >= 2 && CUE.test(text)) || WAITS.test(text);
+  const toldToAnswer = sentences.some((x) => ANSWER_ME.test(x));
+  const outside = sentences.filter((x) => !ITEM.test(x));
+  const asks =
+    last.endsWith("?") ||
+    (options.length >= 2 && (CHOOSE.test(text) || hasQuestion)) ||
+    // "Say yes and …", "Tell me how to go on.": the turn ends on the person.
+    toldToAnswer ||
+    // A question, then a list under it: the list is what the question is about.
+    (items.length >= 2 && outside.some((x) => x.endsWith("?"))) ||
+    WAITS.test(text);
   if (!asks) return undefined;
-  const sentences = sentencesOf(lines);
-  const question = [...sentences].reverse().find((s) => s.endsWith("?"));
   const first = sentences[0] ?? text;
-  const prompt =
-    options.length >= 2 ? `${first} Which option?` : question && last.endsWith("?") ? question : first;
+  // The question the turn ends with; else the first one it asks; else how it begins.
+  const asked = last.endsWith("?") ? question([...sentences].reverse()) : question(outside);
+  const prompt = options.length >= 2 ? `${first} Which option?` : (asked ?? first);
   return {
     prompt: prompt.length <= PROMPT_MAX ? prompt : `${prompt.slice(0, PROMPT_MAX - 1)}…`,
     text,
-    options: options.length >= 2 ? options : [],
+    options,
   };
 }
 
-/** The last list of choices in the message: numbered, lettered or bulleted items (their first line). */
-function choicesOf(lines: readonly string[]): { label: string; reply: string }[] {
-  let current: { label: string; reply: string }[] = [];
-  let last: { label: string; reply: string }[] = [];
+const ITEM = /^(?:\d{1,2}[.)]|[a-h][.)]|[-•*])\s+/;
+
+interface Item {
+  /** The item's whole text: its first line and the indented lines under it. */
+  text: string;
+  bullet: boolean;
+  option: { label: string; reply: string };
+}
+
+/** The last list in the message: numbered, lettered or bulleted items, each with its whole text. */
+function itemsOf(lines: readonly string[]): Item[] {
+  let current: Item[] = [];
+  let last: Item[] = [];
   for (const raw of lines) {
     const line = raw.trim();
     const numbered = NUMBERED.exec(line) ?? LETTERED.exec(line);
     const bullet = numbered ? undefined : BULLETED.exec(line);
-    if (numbered) current.push({ label: line, reply: numbered[1] as string });
+    if (numbered)
+      current.push({
+        text: numbered[2] as string,
+        bullet: false,
+        option: { label: line, reply: numbered[1] as string },
+      });
     else if (bullet) {
       const item = bullet[1] as string;
       const quoted = /^["“]([^"”]+)["”]/.exec(item);
-      current.push({ label: item, reply: quoted ? (quoted[1] as string) : item });
+      current.push({
+        text: item,
+        bullet: true,
+        option: { label: item, reply: quoted ? (quoted[1] as string) : item },
+      });
     } else if (line === "" || !raw.startsWith(" ")) {
       // A blank line or a line at the left margin ends a list (an item's own lines are indented).
       if (current.length > 0) last = current;
       current = [];
+    } else if (current.length > 0) {
+      const open = current[current.length - 1] as Item;
+      open.text = `${open.text} ${line}`;
     }
   }
   return current.length > 0 ? current : last;
@@ -124,5 +196,5 @@ function sentencesOf(lines: readonly string[]): string[] {
     open = open ? `${open} ${line}` : line;
   }
   if (open) paragraphs.push(open);
-  return paragraphs.flatMap((p) => p.split(/(?<=[.!?])\s+(?=["“(A-Z0-9])/)).filter((s) => s !== "");
+  return paragraphs.flatMap((p) => p.split(SENTENCE_END)).filter((s) => s !== "");
 }

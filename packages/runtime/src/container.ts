@@ -152,6 +152,7 @@ import type {
   PaneQuestions,
   PaneSensor,
   Panes,
+  PaneTyped,
   PatternCatalog,
   PlanBoard,
   PlannedBreakingChanges,
@@ -375,6 +376,7 @@ export interface Cradle {
   conductor: Conductor;
   chatNotices: ChatNotices;
   paneMail: PaneMail;
+  paneTyped: PaneTyped;
   sessionSteering: SessionSteering;
   resumeNotices: ResumeNotices;
   taskRepository: TaskRepository;

@@ -189,8 +189,12 @@ export interface SessionSteeringDependencies {
   readonly journal: Pick<RunJournal, "record">;
   /** The repository's name, as the person knows it (a folder's name for it, else its directory). */
   readonly repoName: string;
-  /** What MetatorAI itself typed into a pane lately (a card's answer): not the person's direct words. */
-  readonly daemonTyped: (paneId: string) => readonly string[];
+  /**
+   * Whether the daemon typed these words into the pane lately (its own line, or a person's answer
+   * to a card typed for them): a host reports them like any prompt, and neither is the person
+   * talking to the session directly.
+   */
+  readonly typedByDaemon: (paneId: string, text: string) => Promise<boolean>;
   readonly sensor?: Pick<PaneSensor, "state">;
 }
 
@@ -363,7 +367,7 @@ export class SessionSteering {
     const pane = view.value.panes.find((p) => p.id === input.paneId);
     if (pane?.process.kind !== "host" || !pane.runId) return ok(undefined);
     if (oneLine(pane.process.prompt) === words) return ok(undefined);
-    if (this.d.daemonTyped(pane.id).some((t) => oneLine(t) === words)) return ok(undefined);
+    if (await this.d.typedByDaemon(pane.id, input.text)) return ok(undefined);
     return ok({
       task: await this.taskOf(pane.runId),
       line: directTalkLine(this.d.repoName, pane.process.agent, words),

@@ -166,6 +166,21 @@ export function proposeConfig(discovery: Discovery, options: { readonly ruleCano
     }
   }
 
+  // The quick gate checks types and tests as the full gate found them (the end-to-end tests
+  // stay in the full one): a quick change (mt-quick) ends at this gate, and a gate with no step
+  // stops the run.
+  for (const capability of ["typecheck", "test"] as const) {
+    const found = full.find((s) => s.id === capability);
+    const decided = decisions.find((d) => d.gate === "full" && d.capability === capability);
+    if (!found || !decided) continue;
+    quick.push(found);
+    decisions.push({
+      ...decided,
+      gate: "quick",
+      reason: `the quick gate ${capability === "test" ? "runs the tests" : "checks types"} as the full gate does: a quick change (mt-quick) ends at this gate`,
+    });
+  }
+
   if (options.ruleCanon) {
     const rules = step("rules", { metator: "rules check" });
     quick.push(rules);

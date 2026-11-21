@@ -38,7 +38,24 @@ describe("proposeConfig", () => {
       discovery({ lint: "eslint", typecheck: "tsc --noEmit", test: "vitest run", e2e: "playwright test" }),
       { ruleCanon: false },
     );
-    expect(ids(p.gates.quick)).toEqual(['lint:{"script":"lint"}:append']);
+    // The quick gate checks types and tests too, as the full one finds them (a quick change ends
+    // at this gate): everything but the end-to-end tests.
+    expect(ids(p.gates.quick)).toEqual([
+      'lint:{"script":"lint"}:append',
+      'typecheck:{"script":"typecheck"}:none',
+      'test:{"script":"test"}:none',
+    ]);
+    expect(p.decisions.filter((d) => d.gate === "quick").map((d) => [d.capability, d.reason])).toEqual([
+      ["lint", "the script can be scoped to the changed files"],
+      [
+        "typecheck",
+        "the quick gate checks types as the full gate does: a quick change (mt-quick) ends at this gate",
+      ],
+      [
+        "test",
+        "the quick gate runs the tests as the full gate does: a quick change (mt-quick) ends at this gate",
+      ],
+    ]);
     expect(ids(p.gates.full)).toEqual([
       'lint:{"script":"lint"}:none',
       'typecheck:{"script":"typecheck"}:none',
@@ -216,7 +233,7 @@ describe("InitProject", () => {
     const text = (await fs.read("metator.config.yml"))._unsafeUnwrap();
     expect(text).not.toContain("okExitCodes");
     const config = MetatorConfigDocument.parse(parse(text), "metator.config.yml")._unsafeUnwrap();
-    expect(config.gates.quick.map((s) => s.id)).toEqual(["lint"]);
+    expect(config.gates.quick.map((s) => s.id)).toEqual(["lint", "test"]);
     expect(config.gates.full.map((s) => s.id)).toEqual(["lint", "test"]);
   });
 
@@ -260,14 +277,26 @@ describe("InitProject", () => {
     expect(await fs.exists("metator.config.yml")).toBe(false);
   });
 
-  test("warns when nothing can run in the quick gate", async () => {
+  test("tests alone make a quick gate; it warns only when nothing can run in it", async () => {
     const bare = { execute: async () => ok(discovery({ test: "vitest run" })) };
     const report = (
       await new InitProject(bare, new InMemoryFileSystem({}), DEFAULT_PATHS).execute({ dryRun: true })
     )._unsafeUnwrap();
-    expect(report.warnings).toEqual(["no file-scoped checks found for the quick gate; add one by hand"]);
+    // Tests alone are a quick gate: an mt-quick run does not die at an empty one.
+    expect(report.warnings).toEqual([]);
+    expect(parse(report.config).gates).toEqual({
+      quick: [{ id: "test", run: { script: "test" } }],
+      full: [{ id: "test", run: { script: "test" } }],
+    });
+    const lonely = { execute: async () => ok(discovery({ e2e: "playwright test" })) };
+    const onlyE2e = (
+      await new InitProject(lonely, new InMemoryFileSystem({}), DEFAULT_PATHS).execute({ dryRun: true })
+    )._unsafeUnwrap();
+    expect(onlyE2e.warnings).toEqual([
+      "nothing found for the quick gate (no lint, typecheck or test script): add a step under gates.quick by hand, or `metator gate quick` and quick runs (mt-quick) have nothing to check",
+    ]);
     // An empty gate is not written: `quick: []` reads as a choice nobody made.
-    expect(parse(report.config).gates).toEqual({ full: [{ id: "test", run: { script: "test" } }] });
+    expect(parse(onlyE2e.config).gates).toEqual({ full: [{ id: "e2e", run: { script: "e2e" } }] });
     const nothing = { execute: async () => ok(discovery({})) };
     const none = (
       await new InitProject(nothing, new InMemoryFileSystem({}), DEFAULT_PATHS).execute({ dryRun: true })

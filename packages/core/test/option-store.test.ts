@@ -159,7 +159,7 @@ describe("OptionStore", () => {
     const created = parse((await fresh.fs.read("metator.config.yml"))._unsafeUnwrap());
     expect(created).toEqual({
       kind: "MetatorConfig",
-      schemaVersion: 13,
+      schemaVersion: 14,
       options: { "supervisor.wipLimit": 2 },
     });
     expect(MetatorConfigSchema.safeParse({ options: created.options }).success).toBe(true);

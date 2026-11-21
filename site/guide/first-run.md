@@ -13,7 +13,7 @@ metator setup
 Setup picks the AI tools itself: the ones this repository already has files for (a `.claude/` folder or `CLAUDE.md`; Copilot's instructions, agents, skills or prompts under `.github/`), or else the ones whose command (`claude`, `copilot`) is on your machine. In a terminal it asks one question, whether to install the hooks. It asks about the AI tools only when nothing says which, or when the repository and the machine point at different ones. Every workflow is installed; `--workflows` installs fewer. To skip the questions:
 
 ```bash
-metator setup --host claude --hooks --yes
+metator setup --host claude --yes
 ```
 
 ```json
@@ -31,7 +31,7 @@ Setup does four things:
 
 1. It reads your `package.json` scripts and writes `metator.config.yml` with the quality gates it found. An existing config is never overwritten.
 2. It copies the shipped agents, skills and workflows into `metator/` and `.github/metator/workflows/`.
-3. It generates the files your AI tool reads (`.claude/` for Claude Code, `.github/agents/` and `.github/skills/` for Copilot), and the hooks when you pass `--hooks`.
+3. It generates the files your AI tool reads (`.claude/` for Claude Code, `.github/agents/` and `.github/skills/` for Copilot), and the hooks (`--no-hooks` leaves them out; without them nothing guards commits and pushes, and your word in the chat is no consent).
 4. It lints what it installed.
 
 Commit the result. `canon` in the result counts the shipped files that were written, and `next` names the commands that follow. `--host` takes `claude`, `copilot` or both, and wins over what setup found. `hostsFrom` in the result says where the choice came from: `option`, `config` (an existing `metator.config.yml`), `found`, `asked`, or `default` (nothing said, so both).

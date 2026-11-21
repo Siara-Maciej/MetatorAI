@@ -2,6 +2,7 @@ import { MetatorError } from "../domain/errors.ts";
 import type { PaneRole } from "../domain/layout.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { Clock, PtyHandle, PtySize, ScreenModel, ScreenRenderer } from "../ports/index.ts";
+import type { TypedBy } from "./pane-typed.ts";
 import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 
@@ -25,6 +26,11 @@ export interface PtyBrokerDependencies {
   readonly clock?: Clock;
   /** Draws each pane's screen as a person sees it (@xterm/headless); without it, the output without escapes. */
   readonly screens?: ScreenRenderer;
+  /**
+   * Told of every line the daemon types into a pane: its own (`metator`: a nudge, a relay, a
+   * notice) or a person's answer typed for them (`answer`). A host reports each as a prompt.
+   */
+  readonly typed?: (paneId: string, text: string, by: TypedBy) => Promise<unknown>;
 }
 
 export interface PtyView {
@@ -59,8 +65,6 @@ interface Live {
   lastHookAt?: Date;
   cancelIdle?: () => void;
   readonly listeners: Set<(event: PtyEvent) => void>;
-  /** The last few lines MetatorAI itself typed here (a nudge, a card's answer, a relay). */
-  readonly typed: string[];
 }
 
 export type PtyEvent =
@@ -108,7 +112,6 @@ export class PtyBroker {
       idle: false,
       lastOutputAt: this.now(),
       listeners: new Set(),
-      typed: [],
     };
     this.live.set(input.paneId, entry);
     if (input.backlog) entry.screen?.write(input.backlog);
@@ -187,17 +190,9 @@ export class PtyBroker {
     return ok(undefined);
   }
 
-  /** MetatorAI typed this into the pane for someone (a card's answer): remembered like a nudge. */
-  typedFor(paneId: string, text: string): void {
-    const entry = this.live.get(paneId);
-    if (!entry) return;
-    entry.typed.push(text);
-    if (entry.typed.length > 8) entry.typed.shift();
-  }
-
-  /** What MetatorAI typed into the pane lately: a host's hook that reports it is not the person talking. */
-  daemonTyped(paneId: string): readonly string[] {
-    return [...(this.live.get(paneId)?.typed ?? [])];
+  /** A person's answer the daemon is about to type into the pane for them (their own keystrokes path). */
+  async typedFor(paneId: string, text: string): Promise<void> {
+    await this.d.typed?.(paneId, text, "answer");
   }
 
   /** Whether a person holds the keyboard of the pane's run: nothing is typed over them. */
@@ -229,8 +224,8 @@ export class PtyBroker {
         const t = setTimeout(fn, delay);
         return () => clearTimeout(t);
       });
+    await this.d.typed?.(paneId, text, "metator");
     entry.pty.write("\x1b");
-    this.typedFor(paneId, text);
     after(NUDGE_ENTER_MS, () => {
       if (!entry.alive) return;
       entry.pty.write(text);
@@ -243,16 +238,21 @@ export class PtyBroker {
     return ok(undefined);
   }
 
-  /** The supervisor's words to an idle session: typed only while the agent drives, never over a person. */
-  async nudge(paneId: string, text: string): Promise<Result<void, MetatorError>> {
+  /**
+   * Words typed into a session for it to read as a new message: the daemon's own (a nudge, a
+   * relay, a notice) or a person's answer to a card (`by: "answer"`). Typed only while the agent
+   * drives, never over a person.
+   */
+  async nudge(paneId: string, text: string, by: TypedBy = "metator"): Promise<Result<void, MetatorError>> {
     const entry = this.live.get(paneId);
     if (!entry?.alive) return err(MetatorError.notFound(`a live terminal in pane ${paneId}`));
     const free = await this.held(entry, "nudge");
     if (free.isErr()) return err(free.error);
     // The words, then Enter on its own a moment later: a terminal UI takes a burst of text that
     // ends in "\r" as a paste, and the Enter would land in the input instead of sending it.
+    // Recorded before it is typed: the host's hook may report the line at once.
+    await this.d.typed?.(paneId, text, by);
     entry.pty.write(text);
-    this.typedFor(paneId, text);
     const after =
       this.d.after ??
       ((delay, fn) => {

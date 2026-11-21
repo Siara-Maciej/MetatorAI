@@ -1199,7 +1199,8 @@ metator setup [options]
 |---|---|---|
 | `--host <hosts...>` | AI hosts to generate for (default: the config's, else those the repository or this machine has) (one of: copilot, claude) |  |
 | `--workflows <ids...>` | workflows to install (default: all) |  |
-| `--hooks` | also install the hooks (`metator guard`) for each host |  |
+| `--hooks` | install the hooks (`metator guard`) for each host without asking (the default) |  |
+| `--no-hooks` | do not install the hooks: nothing then guards commits and pushes, and a word in the chat is no consent |  |
 | `--yes` | do not ask; take the options and what was found |  |
 
 ## gate

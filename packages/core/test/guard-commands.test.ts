@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { MetatorConfigDocument } from "../src/domain/config.ts";
+import { commandsOf } from "../src/domain/discovery.ts";
 import {
+  commitReach,
   consentsIn,
   DEFAULT_GUARD_COMMANDS,
+  DEFAULT_GUARD_CONFIG,
   denyToolsOf,
   type GuardCommands,
   guardCommand,
@@ -136,5 +140,91 @@ describe("denyToolsOf: Copilot's process-level list, from the same config", () =
     expect(headless).toContain("shell(git push)");
     expect(headless).not.toContain("shell(git commit)");
     expect(denyToolsOf({ never: [], ask: [], allow: [] }, { headless: true })).toEqual([]);
+  });
+});
+
+describe("commitReach: what a `git commit` in a command line would take, beyond what is staged now", () => {
+  const ROOT = "/repo";
+  const reach = (line: string, cwd = ROOT) => commitReach(commandsOf(line), { root: ROOT, cwd });
+  const NONE = { tracked: false, untracked: false, paths: [] };
+
+  test("no commit in the line reaches nothing; a plain commit takes only what is staged", () => {
+    expect(reach("git add src/server.ts")).toBeUndefined();
+    expect(reach("git status && git diff")).toBeUndefined();
+    expect(reach('git commit -m "Log the sku"')).toEqual(NONE);
+    expect(reach("git commit --amend --no-edit")).toEqual(NONE);
+    // The message and other values are no paths.
+    expect(reach('git commit -m "fix src/a.ts" --author "Ana <a@x>" -F notes.txt --date now')).toEqual(NONE);
+  });
+
+  test("the real bypass: `git add <path> && git commit` in one call takes that path", () => {
+    expect(reach('git add src/server.ts && git commit -m "Log the sku in the GET /prices handler"')).toEqual({
+      tracked: false,
+      untracked: false,
+      paths: ["src/server.ts"],
+    });
+    expect(reach("git add src/a.ts src/b.ts; git commit -m x")?.paths).toEqual(["src/a.ts", "src/b.ts"]);
+    expect(reach("git stage src/a.ts && git commit -m x")?.paths).toEqual(["src/a.ts"]);
+    // An add after the commit is not in it.
+    expect(reach("git commit -m x && git add src/a.ts")).toEqual(NONE);
+  });
+
+  test("add -A, add ., add -u, commit -a: every changed file, new ones too for -A and .", () => {
+    const all = { tracked: true, untracked: true, paths: [] };
+    expect(reach("git add -A && git commit -m x")).toEqual(all);
+    expect(reach("git add --all; git commit -m x")).toEqual(all);
+    expect(reach("git add . && git commit -m x")).toEqual(all);
+    expect(reach("git add -u && git commit -m x")).toEqual({ tracked: true, untracked: false, paths: [] });
+    for (const line of ["git commit -a -m x", "git commit -am x", "git commit --all", "git commit -qam x"])
+      expect(reach(line)).toEqual({ tracked: true, untracked: false, paths: [] });
+  });
+
+  test("paths named on the commit itself, and where the shell stands: cd, git -C, a subdirectory", () => {
+    expect(reach("git commit -m x -- src/a.ts")?.paths).toEqual(["src/a.ts"]);
+    expect(reach("git commit src/a.ts -m x")?.paths).toEqual(["src/a.ts"]);
+    expect(reach("git commit --only src/a.ts -m x")?.paths).toEqual(["src/a.ts"]);
+    expect(reach("cd src && git add server.ts && git commit -m x")?.paths).toEqual(["src/server.ts"]);
+    expect(reach("cd src; git add . ; git commit -m x")).toEqual({
+      tracked: false,
+      untracked: false,
+      paths: ["src"],
+    });
+    expect(reach("git -C packages/shop add src/price.ts && git -C packages/shop commit -m x")?.paths).toEqual(
+      ["packages/shop/src/price.ts"],
+    );
+    expect(reach("git add ../lib/a.ts && git commit -m x", "/repo/src")?.paths).toEqual(["lib/a.ts"]);
+    expect(reach("git add /repo/src/a.ts && git commit -m x")?.paths).toEqual(["src/a.ts"]);
+    // Outside the repository: not this repository's commit to judge.
+    expect(reach("git add /elsewhere/a.ts && git commit -m x")?.paths).toEqual([]);
+    // A glob stays a pattern.
+    expect(reach("git add src/*.ts && git commit -m x")?.paths).toEqual(["src/*.ts"]);
+  });
+});
+
+describe("guard.prompts (MetatorConfig v14): who answers for what is safe", () => {
+  test("the default is MetatorAI; `host` keeps the host's own prompts; a v13 file reads as the default", () => {
+    expect(DEFAULT_GUARD_CONFIG.prompts).toBe("metator");
+    const v13 = MetatorConfigDocument.parse(
+      { kind: "MetatorConfig", schemaVersion: 13, guard: { commands: { never: ["npm publish"] } } },
+      "c",
+    )._unsafeUnwrap();
+    expect([v13.guard.prompts, v13.guard.commands.never]).toEqual(["metator", ["npm publish"]]);
+    const host = MetatorConfigDocument.parse(
+      { kind: "MetatorConfig", schemaVersion: 14, guard: { prompts: "host" } },
+      "c",
+    )._unsafeUnwrap();
+    expect(host.guard.prompts).toBe("host");
+    // The field is v14's: a v13 file that sets it is refused with its name.
+    const early = MetatorConfigDocument.parse(
+      { kind: "MetatorConfig", schemaVersion: 13, guard: { prompts: "host" } },
+      "c",
+    )._unsafeUnwrapErr();
+    expect([early.code, early.message.includes("prompts")]).toEqual(["INVALID_CONFIG", true]);
+    expect(
+      MetatorConfigDocument.parse(
+        { kind: "MetatorConfig", schemaVersion: 14, guard: { prompts: "never" } },
+        "c",
+      ).isErr(),
+    ).toBe(true);
   });
 });

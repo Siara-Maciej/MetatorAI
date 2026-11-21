@@ -147,7 +147,7 @@ metator session interrupt w2:p3 --text "Stop: that is the wrong file"
 
 Only the task's main chat (the pane the task was started from) or a person may steer; a conductor or a worker that tries is refused. What the chat relays is typed word for word behind `[metator] From the person, through the main chat: `, and from your own terminal behind `[metator] From the person (<name>): `. The run's activity records each line. A relayed line is never a consent to commit or push.
 
-When you type into a session's terminal yourself while the task has a main chat, the chat is told in one line: `[metator] The person told shop-api/mt-implementer directly: "<the first 200 characters>"`. This comes from the host's user-prompt hook, so the hooks must be installed (`metator generate --hooks`).
+When you type into a session's terminal yourself while the task has a main chat, the chat is told in one line: `[metator] The person told shop-api/mt-implementer directly: "<the first 200 characters>"`. This comes from the host's user-prompt hook, so the hooks must be installed (`metator setup` installs them; `metator generate --hooks` adds them later). The daemon's own lines (a relay, a nudge, a notice) and your answer to a card, typed into the session for you, reach the same hook and are not reported as direct talk: the daemon keeps a hash of every line it types (`.metator/typed/`).
 
 ### Hand a run over
 

@@ -106,6 +106,28 @@ describe("metator scratch: changes not meant for a commit", () => {
     expect(decision(await commit("git commit -m 'Add VAT'"))?.permissionDecisionReason).toBe(
       '`git commit -m Add VAT` needs your consent: answer here, or say it in the chat ("commit").',
     );
+    // The bypass a real agent found: add and commit in ONE call. Nothing of the debug change is
+    // staged when the hook is asked, yet that commit would take it. The whole line is read.
+    const chained = 'git add src/price.ts && git commit -m "Log the sku in the GET /prices handler"';
+    const stopped =
+      "this commit holds debug changes: src/price.ts. Remove them first (`metator scratch drop`), or answer here to commit anyway.";
+    const first = decision(await commit(chained));
+    expect([first?.permissionDecision, first?.permissionDecisionReason]).toEqual(["ask", stopped]);
+    // Also when the person's word for a commit is there: "commit" is no consent to commit debug lines.
+    await hook(["guard", "user-prompt"], { prompt: "commit it", session_id: "s1" }, repo.root, pane);
+    const withWord = decision(await commit(chained));
+    expect([withWord?.permissionDecision, withWord?.permissionDecisionReason]).toEqual(["ask", stopped]);
+    // `git add -A` takes the new debug file too; a `cd` says where the paths are.
+    expect(decision(await commit("git add -A && git commit -m x"))?.permissionDecisionReason).toContain(
+      "this commit holds debug changes: debug.log, src/price.ts.",
+    );
+    expect(
+      decision(await commit("cd src; git add price.ts; git commit -m x"))?.permissionDecisionReason,
+    ).toBe(stopped);
+    // Adding only the real work is an ordinary commit (the word given above lets it through, once).
+    expect(decision(await commit("git add src/tax.ts && git commit -m 'Add VAT'"))?.permissionDecision).toBe(
+      "allow",
+    );
     // `commit -a` would take the debug line; so would staging it.
     const all = decision(await commit("git commit -am 'Add VAT'"));
     expect([all?.permissionDecision, all?.permissionDecisionReason]).toEqual([

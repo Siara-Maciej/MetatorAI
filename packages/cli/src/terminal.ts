@@ -9,7 +9,9 @@ export interface SetupAnswers {
 export interface SetupQuestions {
   /** Ask which hosts: nothing in the repository or on the machine says, or they point two ways. */
   readonly askHosts: boolean;
-  /** The hosts found (preselected when asked, said when not) and whether `--hooks` was given. */
+  /** Ask whether to install the hooks: neither `--hooks` nor `--no-hooks` was given. */
+  readonly askHooks: boolean;
+  /** The hosts found (preselected when asked, said when not) and the hooks' default (yes). */
   readonly defaults: SetupAnswers;
 }
 
@@ -96,7 +98,7 @@ const HOST_LABELS: Record<string, string> = {
 
 /** The terminal on @clack/prompts. */
 export const clackTerminal: Terminal = {
-  async setup({ askHosts, defaults }) {
+  async setup({ askHosts, askHooks, defaults }) {
     intro("MetatorAI setup", io);
     let hosts: readonly HostTarget[] = defaults.hosts;
     if (askHosts) {
@@ -114,11 +116,12 @@ export const clackTerminal: Terminal = {
       hosts = chosen;
     } else log.info(`AI hosts: ${hosts.map((h) => HOST_LABELS[h]).join(", ")} (--host changes it)`, io);
     let hooks = defaults.hooks;
-    if (!hooks) {
+    if (askHooks) {
       const wanted = await confirm({
         ...io,
-        message: "Install the hooks (`metator guard`) that enforce scope and approvals?",
-        initialValue: false,
+        message:
+          "Install the hooks (`metator guard`)? They guard commits and pushes, take your word in the chat as consent, and enforce scope and approvals.",
+        initialValue: defaults.hooks,
       });
       if (isCancel(wanted)) return cancelled("Setup cancelled; nothing was written.");
       hooks = wanted;

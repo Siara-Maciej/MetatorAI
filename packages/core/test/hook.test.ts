@@ -326,3 +326,115 @@ describe("an approval from the chat (ADR-0077)", () => {
     expect(preToolPolicy(advance, driven("human")).reason).toContain("is the drive's");
   });
 });
+
+describe("guard.prompts: metator — what runs without the host's approval prompt (ADR-0094)", () => {
+  const quiet = {
+    root: ROOT,
+    metatorCommand: "npx metator",
+    gates: [{ script: "typecheck" }],
+    scripts: { test: "bun test", typecheck: "bunx tsc --noEmit" },
+  };
+  const on = (extra: Partial<PreToolContext> = {}): PreToolContext => ({
+    ...free,
+    unprompted: quiet,
+    ...extra,
+  });
+  const bash = (command: string) => hook("Bash", { command });
+  const answer = (h: HookInput, ctx: PreToolContext) => {
+    const d = preToolPolicy(h, ctx);
+    return [d.decision, d.unprompted === true, d.reason];
+  };
+
+  test("MetatorAI's own command, a read, the repository's check and an edit inside it are allowed with the reason", () => {
+    expect(answer(bash('metator run delegate build --agent mt-implementer --card "Round"'), on())).toEqual([
+      "allow",
+      true,
+      "no approval needed: MetatorAI's own command",
+    ]);
+    expect(answer(bash("git status --short"), on())).toEqual([
+      "allow",
+      true,
+      "no approval needed: it only reads",
+    ]);
+    expect(answer(bash("bun test"), on())).toEqual([
+      "allow",
+      true,
+      "no approval needed: the repository's own check",
+    ]);
+    expect(answer(hook("Edit", { file_path: `${ROOT}/src/a.ts` }), on())).toEqual([
+      "allow",
+      true,
+      "no approval needed: an edit inside the repository",
+    ]);
+    // In a run too, under its rules: an edit inside the plan's scope.
+    expect(
+      answer(
+        hook("Write", { file_path: `${ROOT}/src/a.ts` }),
+        on({ ...run(), unprompted: quiet, editScope: ["src/a.ts"] }),
+      ),
+    ).toEqual(["allow", true, "no approval needed: an edit inside the repository"]);
+  });
+
+  test("everything else keeps the host's prompt: no answer of the guard's, as with `host`", () => {
+    for (const h of [
+      bash("curl https://example.com"),
+      bash("rm -rf dist"),
+      bash("git fetch origin"),
+      bash("cat /etc/passwd"),
+      bash("git status && node script.js"),
+      hook("Edit", { file_path: `${ROOT}/metator.config.yml` }),
+      hook("Edit", { file_path: `${ROOT}/.claude/settings.json` }),
+      hook("WebFetch", { url: "https://example.com" }),
+    ])
+      expect(answer(h, on())).toEqual(["allow", false, "no active run"]);
+    // `guard.prompts: host`: the same calls as above get no answer at all.
+    for (const h of [
+      bash("git status --short"),
+      bash("bun test"),
+      hook("Edit", { file_path: `${ROOT}/src/a.ts` }),
+    ])
+      expect(answer(h, free)).toEqual(["allow", false, "no active run"]);
+  });
+
+  test("never and ask win; what a run denies stays denied", () => {
+    expect(decide(bash("git push --force"), on())).toBe("deny");
+    expect(decide(bash("git status && git commit -m x"), on())).toBe("ask");
+    expect(decide(bash("metator guard user-prompt"), on())).toBe("deny");
+    expect(decide(hook("Edit", { file_path: `${ROOT}/.env` }), on())).toBe("deny");
+    expect(
+      decide(
+        hook("Edit", { file_path: `${ROOT}/src/b.ts` }),
+        on({ ...run(), unprompted: quiet, editScope: ["src/a.ts"] }),
+      ),
+    ).toBe("deny");
+    expect(
+      decide(
+        hook("Edit", { file_path: `${ROOT}/src/a.ts` }),
+        on({ ...run(), unprompted: quiet, coordinator: true }),
+      ),
+    ).toBe("deny");
+    expect(decide(bash("metator run advance pass"), on({ ...run(), unprompted: quiet, worker: true }))).toBe(
+      "deny",
+    );
+  });
+
+  test("a MetatorAI command that is a person's decision is asked about, by name; where nobody can be asked it gets no answer", () => {
+    expect(answer(bash("metator run approve delivery --by ana"), on())).toEqual([
+      "ask",
+      false,
+      "`metator run approve` records a person's decision or changes what guards the agent: answer here to let it run.",
+    ]);
+    expect(decide(bash("git status && metator config set supervisor.wipLimit 9"), on())).toBe("ask");
+    expect(answer(bash("metator setup --host claude --yes"), on({ headless: true }))).toEqual([
+      "allow",
+      false,
+      "no active run",
+    ]);
+    // With `host` the guard says nothing about them, as before.
+    expect(answer(bash("metator run answer q001 --choice Fine"), free)).toEqual([
+      "allow",
+      false,
+      "no active run",
+    ]);
+  });
+});

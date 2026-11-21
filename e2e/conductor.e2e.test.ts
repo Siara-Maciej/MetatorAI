@@ -259,7 +259,10 @@ describe("conductor (real daemon, real PTYs)", () => {
       repo.root,
       { METATOR_ROLE: "worker" },
     );
-    expect(report.json).toBeNull();
+    // Its own report is MetatorAI's command: no objection, and no approval prompt either.
+    expect(
+      (report.json?.hookSpecificOutput as { permissionDecision?: string } | undefined)?.permissionDecision,
+    ).toBe("allow");
     // The conductor's pane may delegate; its hook only stops it from editing code.
     const edit = await hook(
       ["guard", "pre-tool"],

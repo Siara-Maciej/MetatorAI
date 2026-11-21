@@ -72,7 +72,7 @@ Any one escalator makes the change not quick, and each says why and which tool s
 metator quick start --task "Round prices half-up" --files src/price.ts
 ```
 
-`quick start` refuses with the escalators that tripped. You may keep it quick with one sentence of your own, `--override "it is one rename, keep it quick"`, which is recorded with the run in your words; a change that reaches another repository can never be kept quick. On a checkout with uncommitted changes it answers `dirty: pass --here or --worktree`: `--here` works in the checkout (your changes become part of the change), `--worktree` in a worktree of its own from the last commit.
+`quick start` refuses with the escalators that tripped, and up front when `gates.quick` has no steps (the run checks its change with `metator gate quick`; `metator setup` and `metator init` write that gate from your lint, typecheck and test scripts). You may keep it quick with one sentence of your own, `--override "it is one rename, keep it quick"`, which is recorded with the run in your words; a change that reaches another repository can never be kept quick. On a checkout with uncommitted changes it answers `dirty: pass --here or --worktree`: `--here` works in the checkout (your changes become part of the change), `--worktree` in a worktree of its own from the last commit.
 
 When the real diff grows past the limits, the run stops with the card **This grew past quick: …**. **Keep as quick** goes on (recorded with your name); **Continue as full** starts a full run on the same working tree, with its own conductor, and closes the quick run.
 
@@ -97,7 +97,7 @@ MetatorAI remembers a debug change until you deal with it. When the recorded lin
 
 In the app, **Debug changes (N)** lists them with **Remove debug changes**.
 
-A `git commit` an agent runs while a recorded change is staged (or with `-a`) is stopped: `this commit holds debug changes: src/price.ts`. Say "commit anyway", or remove them first.
+A `git commit` an agent runs that would take a recorded change is stopped: `this commit holds debug changes: src/price.ts`. That covers a change that is staged, `git commit -a`, paths named on the commit, and a `git add` in the same command line (`git add src/price.ts && git commit -m …`). Say "commit anyway", or remove them first.
 
 ### The form
 

@@ -87,7 +87,10 @@ function answer(result: Result<HookResponse, MetatorError>, name: string): Outco
     : { result: ok(null), hook: { systemMessage: `metator guard ${name}: ${result.error.message}` } };
 }
 
-export function registerGuardCommands(program: Command, { action, container, stdin }: CommandContext): void {
+export function registerGuardCommands(
+  program: Command,
+  { action, container, stdin, runs }: CommandContext,
+): void {
   const guard = program
     .command("guard")
     .description("Host hooks: read the hook payload on stdin, answer in the hook protocol (ADR-0038)");
@@ -120,6 +123,14 @@ export function registerGuardCommands(program: Command, { action, container, std
           const given = payload(await stdin());
           // A message the person sent in a run's session: its task's main chat hears of it.
           const said = name === "user-prompt" ? paneSaid((given as { prompt?: unknown }).prompt) : undefined;
+          // What the daemon typed into this pane is kept where the daemon works (the checkout,
+          // also for a pane in a run's worktree): its own lines are no person's word.
+          const pane = process.env.METATOR_PANE_ID;
+          const prompt = (given as { prompt?: unknown }).prompt;
+          const typedBy =
+            name === "user-prompt" && pane && typeof prompt === "string"
+              ? await runs().resolve("paneTyped").by(pane, prompt)
+              : undefined;
           const result = await container()
             .resolve(token)
             // A session `metator run drive` started (the host sets METATOR_DRIVEN): the drive
@@ -130,6 +141,7 @@ export function registerGuardCommands(program: Command, { action, container, std
               driven: Boolean(process.env.METATOR_DRIVEN),
               ...(process.env.METATOR_PANE_ID ? { pane: process.env.METATOR_PANE_ID } : {}),
               ...(process.env.METATOR_RUN ? { run: process.env.METATOR_RUN } : {}),
+              ...(typedBy ? { typedBy } : {}),
             });
           await beat;
           await said;

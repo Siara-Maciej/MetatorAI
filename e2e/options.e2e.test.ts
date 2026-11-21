@@ -108,7 +108,7 @@ describe("metator config (options, real CLI)", () => {
     const text = await repo.read("metator.config.yml");
     expect(text).toContain("# the person's editor");
     expect(parse(text)).toMatchObject({
-      schemaVersion: 13,
+      schemaVersion: 14,
       editor: "cursor",
       options: { "supervisor.wipLimit": 2 },
     });
@@ -234,7 +234,7 @@ describe("metator config (options, real CLI)", () => {
       // A setting saved by the CLI writes the file at the current version, without the key.
       expect((await at("config", "set", "supervisor.wipLimit", "2", "--scope", "repo")).code).toBe(0);
       expect(parse(await moved.read("metator.config.yml"))).toMatchObject({
-        schemaVersion: 13,
+        schemaVersion: 14,
         paths: { adr: "decisions" },
       });
       expect(parse(await moved.read("metator.config.yml")).paths.runs).toBeUndefined();

@@ -72,7 +72,11 @@ beforeAll(async () => {
   await repo.write(".gitignore", ".metator/\nscenario.yml\n");
   await repo.write(
     "metator.config.yml",
-    "kind: MetatorConfig\nschemaVersion: 13\nsupervisor:\n  hostOrder: [scenario]\n",
+    "kind: MetatorConfig\nschemaVersion: 13\nsupervisor:\n  hostOrder: [scenario]\ngates:\n  quick:\n    - id: check\n      run: { script: check }\n",
+  );
+  await repo.write(
+    "package.json",
+    JSON.stringify({ name: "shop", private: true, scripts: { check: "true" } }),
   );
   await repo.write(".github/metator/workflows/mt-quick.yml", QUICK);
   await repo.write(".github/metator/workflows/demo.yml", DEMO);

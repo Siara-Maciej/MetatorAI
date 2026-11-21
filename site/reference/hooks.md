@@ -20,7 +20,7 @@ This writes the hook configuration for each host: `.claude/settings.json` for Cl
 | `SubagentStop` | `metator guard subagent-output` | 10 s | keeps a subagent working until the run's JSON artifacts match their schemas |
 | `PreCompact` | `metator guard precompact` | 10 s | writes a checkpoint to the run's `log.md` before the context is compacted |
 | `Stop` | `metator guard stop` | 10 s | keeps the agent working while the active run is at a stage it must finish |
-| `UserPromptSubmit` | `metator guard user-prompt` | 5 s | reads your own message: words that ask for a guarded command (commit, push, merge, rebase) are your consent to it, once; in a run's session, the task's main chat is told that you spoke there |
+| `UserPromptSubmit` | `metator guard user-prompt` | 5 s | reads your own message: words that ask for a guarded command (commit, push, merge, rebase) are your consent to it, once; in a run's session, the task's main chat is told that you spoke there. A line the daemon typed into the session itself (a relay, a nudge, a notice) reaches this hook like any prompt and is neither; your answer to a card, typed for you, is your word but no direct talk |
 
 ## Input
 
@@ -49,7 +49,7 @@ An empty or unreadable payload is treated as an empty object.
 
 A guard with nothing to say prints nothing. Every guard exits `0`.
 
-`pre-tool` prints a denial, or `ask` for a command that needs your consent (the host then shows its own approval prompt with the reason), or `allow` for a command you consented to in words. A call it does not object to gets no answer, so the host's own permission prompts apply as usual.
+`pre-tool` prints a denial, or `ask` for a command that needs your consent (the host then shows its own approval prompt with the reason), or `allow`: for a command you consented to in words, and, with `guard.prompts: metator` (the default), for a call that needs no approval prompt, with why (`no approval needed: it only reads`). Any other call gets no answer, so the host's own permission prompts apply as usual.
 
 ```bash
 echo '{"tool_name":"Read","tool_input":{"file_path":".env"}}' | metator guard pre-tool
@@ -102,7 +102,7 @@ The first rule that matches decides.
 3. The guard's own commands. An agent that runs `metator guard …` itself, or writes under `.metator/consents/`, is denied: a consent is your own word.
 4. Dangerous commands, from `guard.commands` in [the configuration](./configuration.md#guard):
    - on `never` (`git push --force`, `git reset --hard`, `git clean -f`, `rm -r` of `/`, `~`, `.`, `..` or `*`, and the rest of the list): denied;
-   - on `ask` (`git commit`, `git push`, `git merge`, `git rebase`): a commit that would hold recorded debug changes asks with the files; a command the run's approval covers, or one you consented to in words, passes; in a session without a terminal it is denied with how to approve; otherwise the answer is `ask`.
+   - on `ask` (`git commit`, `git push`, `git merge`, `git rebase`): a commit that would hold recorded debug changes asks with the files (the whole command line is read: `git add src/a.ts && git commit` in one call takes `src/a.ts`, as do `git add -A`, `commit -a` and paths named on the commit); a command the run's approval covers, or one you consented to in words, passes; in a session without a terminal it is denied with how to approve; otherwise the answer is `ask`.
 5. Plan approvals. `metator arch plan approve` and `metator system plan approve` are denied: a person runs them.
 6. No active run. Everything else is left to the host. The chat you talk in (a pane with no run of its own) counts as having none, also while a run works in the same checkout.
 7. Actions outside the repository, until a person approves them with `metator run approve push` or `metator run approve comment`:
@@ -113,5 +113,7 @@ The first rule that matches decides.
    - of a file outside the repository: denied;
    - of a file under `.metator/`: allowed, so agents can write run artifacts;
    - of a file that `plan-scope.json` does not list, when the run has one: denied.
+
+9. What needs no approval prompt (`guard.prompts: metator`), for a call nothing above objected to: MetatorAI's own command, a command that only reads, an edit inside the repository, or one of the repository's own checks is answered `allow`; a MetatorAI command that is your decision (`metator run approve`, `metator config set`, …) is answered `ask`, by name. See [What runs without a prompt](./configuration.md#what-runs-without-a-prompt).
 
 Rules 1 to 5 apply with or without a run.

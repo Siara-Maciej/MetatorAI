@@ -15,7 +15,7 @@ This page lists what MetatorAI enforces with code, what it records, and where yo
 | An agent cannot stop while the run is at a stage it must finish | `metator guard stop` | during a run |
 | Every JSON artifact an agent writes matches its schema | `metator guard subagent-output` | during a run |
 
-The exact order of the decisions is in [Hooks protocol](./hooks.md#decision-order-of-pre-tool). The hooks are installed with `metator generate --hooks`.
+The exact order of the decisions is in [Hooks protocol](./hooks.md#decision-order-of-pre-tool). `metator setup` installs the hooks; `metator generate --hooks` adds them later.
 
 ::: warning
 The hooks protect a session only where they are installed. Without them, the controls marked `metator guard` do not apply, and the host's own permission prompts are all you have.

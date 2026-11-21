@@ -70,7 +70,7 @@ In `mt-pr-review`, approving the `approval` stage grants the comments in the sam
 
 You can also grant an action directly with `metator run approve push --by alice` or `metator run approve comment --by alice`. A workflow lists the external actions its runs may take (`permissions.external`); an action it does not list is refused. `mt-self-review` lists none, so its runs can be granted neither.
 
-This protection needs the hooks. Install them with `metator setup --hooks` or `metator generate --hooks` (see [Hooks and guardrails](../repo/hooks.md)).
+This protection needs the hooks. `metator setup` installs them; `metator generate --hooks` adds them later (see [Hooks and guardrails](../repo/hooks.md)).
 
 ## Autonomy
 

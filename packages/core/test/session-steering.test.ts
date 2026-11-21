@@ -83,7 +83,7 @@ async function world() {
     },
     journal,
     repoName: "shop-api",
-    daemonTyped: () => [],
+    typedByDaemon: async () => false,
     sensor,
   });
   const activity = async (runId: string) =>
@@ -273,7 +273,7 @@ describe("the person talks to a sub-session directly: the task's main chat hears
       interrupt: async () => ok(undefined),
       journal: { record: async () => ok(undefined) },
       repoName: "shop-api",
-      daemonTyped: (paneId) => (paneId === "w3:p4" ? ["half-even"] : []),
+      typedByDaemon: async (paneId, text) => paneId === "w3:p4" && text === "half-even",
     });
     expect(
       (await steering.directTalk({ paneId: "w3:p4", text: "half-even" }))._unsafeUnwrap(),

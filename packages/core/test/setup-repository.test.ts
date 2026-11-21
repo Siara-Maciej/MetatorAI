@@ -162,20 +162,54 @@ describe("SetupRepository", () => {
     const nothing = world();
     const d = (
       await nothing.use.execute({
-        hooks: false,
         ask: async (q) => {
-          asked.push(q.askHosts);
+          asked.push(q.askHosts, q.askHooks, q.defaults.hooks);
           return { hosts: ["copilot"], hooks: true };
         },
       })
     )._unsafeUnwrap().report;
-    expect([asked, d.hosts, d.hostsFrom, d.hooks]).toEqual([[true], ["copilot"], "asked", true]);
+    // The hooks are part of a setup unless the person says no: the question's default is yes.
+    expect([asked, d.hosts, d.hostsFrom, d.hooks]).toEqual([[true, true, true], ["copilot"], "asked", true]);
     expect(nothing.calls).toContain("hosts hooks");
+  });
+
+  test("the hooks are installed unless the person says no; without them the report says what is missing", async () => {
+    // Nothing said, nobody to ask (--yes): the hooks are part of the setup.
+    const plain = world({ onPath: ["claude"] });
+    const yes = (await plain.use.execute({}))._unsafeUnwrap();
+    const missing = (warnings: readonly string[]) =>
+      warnings.filter((x) => x.startsWith("hooks are not installed"));
+    expect([yes.report.hooks, plain.calls.includes("hosts hooks"), missing(yes.warnings)]).toEqual([
+      true,
+      true,
+      [],
+    ]);
+    // `--no-hooks`: none are written, nobody is asked about them, and the report says what that costs.
+    const without = world({ source: "metator.config.yml" });
+    let asked = 0;
+    const no = (
+      await without.use.execute({
+        hooks: false,
+        ask: async () => {
+          asked++;
+          return null;
+        },
+      })
+    )._unsafeUnwrap();
+    expect([
+      no.report.hooks,
+      without.calls.includes("hosts hooks"),
+      without.calls.includes("hosts"),
+      asked,
+    ]).toEqual([false, false, true, 0]);
+    expect(missing(no.warnings)).toEqual([
+      "hooks are not installed: nothing guards dangerous commands (commit, push, force push), your word in the chat is no consent, and the chat does not hear when you talk to a session. Install them: `metator generate --hooks`",
+    ]);
   });
 
   test("a person who cancels writes nothing; with the hooks given and the hosts known nobody is asked", async () => {
     const w = world();
-    const cancelled = (await w.use.execute({ hooks: false, ask: async () => null }))._unsafeUnwrapErr();
+    const cancelled = (await w.use.execute({ ask: async () => null }))._unsafeUnwrapErr();
     expect([cancelled.code, cancelled.message, cancelled.hint]).toEqual([
       "USAGE",
       "setup cancelled",

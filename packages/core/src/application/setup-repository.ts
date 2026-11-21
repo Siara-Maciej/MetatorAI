@@ -60,10 +60,16 @@ export interface SetupInput {
   readonly hosts?: readonly HostTarget[];
   /** `--workflows`: the workflows to install; all when left out. */
   readonly workflows?: readonly string[];
-  readonly hooks: boolean;
-  /** Asks the person (a terminal): which hosts when nothing says, whether to install the hooks; null: cancelled. */
+  /**
+   * The hooks (`metator guard`): part of a setup unless the person says no (`--no-hooks`).
+   * Without them nothing guards commands, a word in the chat is no consent, and the chat does not
+   * hear of direct talk. Left out: installed, and a person at a terminal is asked (default yes).
+   */
+  readonly hooks?: boolean;
+  /** Asks the person (a terminal): which hosts when nothing says, the hooks when nothing says; null: cancelled. */
   readonly ask?: (q: {
     readonly askHosts: boolean;
+    readonly askHooks: boolean;
     readonly defaults: SetupAnswersAsked;
   }) => Promise<SetupAnswersAsked | null>;
 }
@@ -128,9 +134,10 @@ export class SetupRepository {
       });
       [hosts, hostsFrom, askHosts] = [found.hosts, found.ask ? "default" : "found", found.ask];
     }
-    let hooks = input.hooks;
-    if (input.ask && (askHosts || !input.hooks)) {
-      const given = await input.ask({ askHosts, defaults: { hosts, hooks } });
+    let hooks = input.hooks ?? true;
+    const askHooks = input.hooks === undefined;
+    if (input.ask && (askHosts || askHooks)) {
+      const given = await input.ask({ askHosts, askHooks, defaults: { hosts, hooks } });
       if (!given) return err(MetatorError.usage("setup cancelled", "Nothing was written."));
       [hosts, hooks] = [[...given.hosts], given.hooks];
       if (askHosts) hostsFrom = "asked";
@@ -170,6 +177,11 @@ export class SetupRepository {
         (f) => `${f}: generated from an agent or skill that no longer exists; delete it`,
       ),
     );
+
+    if (!hooks)
+      warnings.push(
+        "hooks are not installed: nothing guards dangerous commands (commit, push, force push), your word in the chat is no consent, and the chat does not hear when you talk to a session. Install them: `metator generate --hooks`",
+      );
 
     // Local state (the index, runs, worktrees) never goes into a commit.
     const ignored = await ignoreLocalState(d.fs);

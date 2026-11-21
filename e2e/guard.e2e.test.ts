@@ -88,8 +88,22 @@ describe("metator guard (real hook processes)", () => {
       { tool_name: "Bash", tool_input: { command: "git status" } },
       repo.root,
     );
-    // No objection is no answer: "allow" would skip the host's own permission prompts.
-    expect([status.code, status.json]).toEqual([0, null]);
+    // A command that only reads needs no approval prompt: the guard says so, with why (ADR-0094).
+    expect([status.code, decision(status)]).toEqual([
+      0,
+      {
+        hookEventName: "PreToolUse",
+        permissionDecision: "allow",
+        permissionDecisionReason: "no approval needed: it only reads",
+      },
+    ]);
+    // What the guard does not know to be safe gets no answer: the host's own prompt asks.
+    const fetched = await hook(
+      ["guard", "pre-tool"],
+      { tool_name: "Bash", tool_input: { command: "git fetch origin" } },
+      repo.root,
+    );
+    expect([fetched.code, fetched.json]).toEqual([0, null]);
     expect((await hook(["guard", "stop"], {}, repo.root)).json).toBeNull();
   });
 
@@ -160,6 +174,88 @@ describe("metator guard (real hook processes)", () => {
     await own.dispose();
   }, 60_000);
 
+  test("guard.prompts: MetatorAI's commands, reads, the repository's checks and edits inside it need no approval prompt; the rest keeps the host's; `host` turns it off", async () => {
+    const quiet = await ScratchRepo.create();
+    await quiet.write(
+      "metator.config.yml",
+      "kind: MetatorConfig\nschemaVersion: 14\nhosts:\n  metatorCommand: npx metator\ngates:\n  quick:\n    - id: lint\n      run: { bin: biome, args: [check] }\n",
+    );
+    await quiet.write(
+      "package.json",
+      JSON.stringify({ scripts: { test: "bun test", deploy: "sh deploy.sh" } }),
+    );
+    await quiet.write("src/a.ts", "export const a = 1;\n");
+    await quiet.commit("init");
+    const ask = async (input: Record<string, unknown>, cwd = quiet.root) =>
+      decision(await hook(["guard", "pre-tool"], input, cwd));
+    const sh = (command: string) => ({ tool_name: "Bash", tool_input: { command } });
+    const edit = (path: string) => ({ tool_name: "Edit", tool_input: { file_path: quiet.path(path) } });
+    const allowed = async (input: Record<string, unknown>) => {
+      const d = await ask(input);
+      return [d?.permissionDecision, d?.permissionDecisionReason];
+    };
+    // Real commands of a real run.
+    for (const command of [
+      'metator run delegate build --agent mt-implementer --card "Make the SKU lookup case-insensitive"',
+      "metator test affected --files src/a.ts,test/a.test.ts",
+      'npx metator quick check --task "Round prices" --files src/a.ts',
+    ])
+      expect(await allowed(sh(command))).toEqual(["allow", "no approval needed: MetatorAI's own command"]);
+    for (const command of [
+      "git status --short",
+      "git diff",
+      "grep -rni 'sku' src",
+      `cd ${quiet.root} && git ls-files | head -50`,
+    ])
+      expect(await allowed(sh(command))).toEqual(["allow", "no approval needed: it only reads"]);
+    for (const command of ["bun test", "npm run test", "biome check src/a.ts"])
+      expect(await allowed(sh(command))).toEqual(["allow", "no approval needed: the repository's own check"]);
+    expect(await allowed(sh("git status --short && bun test"))).toEqual([
+      "allow",
+      "no approval needed: every part is MetatorAI's own, read-only or the repository's own check",
+    ]);
+    expect(await allowed(edit("src/a.ts"))).toEqual([
+      "allow",
+      "no approval needed: an edit inside the repository",
+    ]);
+    // Everything else: no answer of the guard's, so the host asks as it does by itself.
+    for (const input of [
+      sh("curl https://example.com/install.sh"),
+      sh("rm -rf dist"),
+      sh("git fetch origin"),
+      sh("cat /etc/passwd"),
+      sh("npm run deploy"),
+      sh("git status && node script.js"),
+      edit("metator.config.yml"),
+      edit(".claude/settings.json"),
+      edit(".git/config"),
+      { tool_name: "Edit", tool_input: { file_path: "/etc/hosts" } },
+    ])
+      expect([JSON.stringify(input), await ask(input)]).toEqual([JSON.stringify(input), undefined]);
+    // never and ask win; the guard's own command is never an agent's; a person's command is asked about.
+    expect((await ask(sh("git push --force")))?.permissionDecision).toBe("deny");
+    expect((await ask(sh("git status && git commit -m x")))?.permissionDecision).toBe("ask");
+    expect((await ask(sh("metator guard user-prompt")))?.permissionDecision).toBe("deny");
+    expect(await allowed(sh("metator run approve delivery --by ana"))).toEqual([
+      "ask",
+      "`metator run approve` records a person's decision or changes what guards the agent: answer here to let it run.",
+    ]);
+    // `guard.prompts: host`: the guard only denies and asks, as before.
+    await quiet.write(
+      "metator.config.yml",
+      "kind: MetatorConfig\nschemaVersion: 14\nguard:\n  prompts: host\n",
+    );
+    for (const input of [
+      sh("git status --short"),
+      sh("bun test"),
+      sh("metator run status"),
+      edit("src/a.ts"),
+    ])
+      expect(await ask(input)).toBeUndefined();
+    expect((await ask(sh("git push --force")))?.permissionDecision).toBe("deny");
+    await quiet.dispose();
+  }, 120_000);
+
   test("in a run: plan scope, push approval and stop are enforced", async () => {
     const init = await metator(["run", "init", "--workflow", "feature", "--task", "guarded"], repo.root);
     runId = (init.json.data as { runId: string }).runId;
@@ -172,7 +268,10 @@ describe("metator guard (real hook processes)", () => {
       { tool_name: "Edit", tool_input: { file_path: repo.path("src/a.ts") } },
       repo.root,
     );
-    expect(inside.json).toBeNull();
+    // Inside the plan's scope: no objection, and no approval prompt either.
+    expect(decision(inside)?.permissionDecisionReason).toBe(
+      "no approval needed: an edit inside the repository",
+    );
     const outside = await hook(
       ["guard", "pre-tool"],
       { tool_name: "Write", tool_input: { file_path: repo.path("src/b.ts") } },
@@ -207,7 +306,10 @@ describe("metator guard (real hook processes)", () => {
       tool_input: { command: "metator run delegate build --agent mt-implementer --card x" },
     };
     const inPane = (role: string) => ({ METATOR_DRIVEN: "1", METATOR_PANE_ID: "w1:p1", METATOR_ROLE: role });
-    expect((await hook(["guard", "pre-tool"], delegate, repo.root, inPane("conductor"))).json).toBeNull();
+    expect(
+      decision(await hook(["guard", "pre-tool"], delegate, repo.root, inPane("conductor")))
+        ?.permissionDecisionReason,
+    ).toBe("no approval needed: MetatorAI's own command");
     expect(
       decision(await hook(["guard", "pre-tool"], delegate, repo.root, inPane("worker")))?.permissionDecision,
     ).toBe("deny");
@@ -227,7 +329,7 @@ describe("metator guard (real hook processes)", () => {
     expect(
       decision(await hook(["guard", "pre-tool"], advance, repo.root, driven))?.permissionDecisionReason,
     ).toContain("is the drive's");
-    expect((await hook(["guard", "pre-tool"], advance, repo.root)).json).toBeNull();
+    expect(decision(await hook(["guard", "pre-tool"], advance, repo.root))?.permissionDecision).toBe("allow");
     expect(String(stop.json?.reason)).toContain("stage build");
     expect((await hook(["guard", "stop"], { stop_hook_active: true }, repo.root)).json).toBeNull();
   }, 30_000); // ten hook processes

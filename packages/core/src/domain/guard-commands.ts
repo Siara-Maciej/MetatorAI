@@ -43,14 +43,35 @@ export const GuardCommandsSchema = z.strictObject({
 export type GuardCommands = z.output<typeof GuardCommandsSchema>;
 export const DEFAULT_GUARD_COMMANDS: GuardCommands = GuardCommandsSchema.parse({});
 
-/** `guard` in metator.config: the command lists, and how long a consent said in the chat holds. */
-export const GuardConfigSchema = z.strictObject({
+/** `guard` as MetatorConfig v13 had it: the command lists, and how long a consent in words holds. */
+export const GuardConfigV13Schema = z.strictObject({
   commands: GuardCommandsSchema.default(DEFAULT_GUARD_COMMANDS),
   /** Minutes a consent given in words holds; it is used once, for one command of its kind. */
   consentMinutes: z.number().int().min(1).max(120).default(10),
 });
+
+/**
+ * `guard` in metator.config. v14 adds `prompts`: who answers for what is known to be safe.
+ * `metator` (the default): the pre-tool hook lets MetatorAI's own commands, read-only commands,
+ * edits inside the repository and the repository's own checks run without the host's approval
+ * prompt; everything else keeps the host's prompt. `host`: the hook only denies and asks, and
+ * the host prompts as it does by itself.
+ */
+export const GuardConfigSchema = z.strictObject({
+  ...GuardConfigV13Schema.shape,
+  prompts: z.enum(["metator", "host"]).default("metator"),
+});
 export type GuardConfig = z.output<typeof GuardConfigSchema>;
 export const DEFAULT_GUARD_CONFIG: GuardConfig = GuardConfigSchema.parse({});
+
+/**
+ * What a host adapter is given of the guard when it is built: the command lists, and, when
+ * MetatorAI answers for what is safe (`guard.prompts: metator`), the allow list for a host that
+ * takes one before it starts (`allowToolsOf`).
+ */
+export interface HostGuard extends GuardCommands {
+  readonly unprompted?: readonly string[];
+}
 
 export interface CommandVerdict {
   readonly level: "never" | "ask" | "allow";
@@ -179,3 +200,122 @@ export const commitsAnyway = (message: string): boolean =>
   /\b(anyway|all the same|regardless|with the debug)\b|mimo to|mimo wszystko|i tak\b|z debugiem/i.test(
     message,
   );
+
+/** What a `git commit` in a command line would take, beyond what is staged when the line starts. */
+export interface CommitReach {
+  /** Every changed file git tracks: `commit -a`, `add -u`, `add -A`, `add .` at the root. */
+  readonly tracked: boolean;
+  /** New files too: `add -A`, `add .` at the root. */
+  readonly untracked: boolean;
+  /** Paths added before the commit or named on it, relative to the repository; a directory holds what is under it. */
+  readonly paths: readonly string[];
+}
+
+/** The options of `git commit` that take the next word as their value. */
+const COMMIT_VALUE_LONG = new Set([
+  "--message",
+  "--file",
+  "--reuse-message",
+  "--reedit-message",
+  "--author",
+  "--date",
+  "--template",
+  "--cleanup",
+  "--fixup",
+  "--squash",
+  "--trailer",
+  "--pathspec-from-file",
+]);
+const COMMIT_VALUE_SHORT = "mFCct";
+
+/** A path as the repository names it; undefined outside the repository. */
+function inRepository(path: string, cwd: string, root: string): string | undefined {
+  const parts: string[] = [];
+  for (const part of `${path.startsWith("/") ? "" : `${cwd}/`}${path}`.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") parts.pop();
+    else parts.push(part);
+  }
+  const absolute = `/${parts.join("/")}`;
+  const base = root.replace(/\/+$/, "");
+  if (absolute === base) return "";
+  return absolute.startsWith(`${base}/`) ? absolute.slice(base.length + 1) : undefined;
+}
+
+/**
+ * Reads a whole command line (ADR-0094): a `git add <paths>` (or `-A`, `.`, `-u`, `git stage`)
+ * before a `git commit` in the same call makes those files part of the commit, as do `commit -a`
+ * and paths named on the commit; `cd` and `git -C` say where the paths are. Undefined when the
+ * line commits nothing. A guard that looked only at what is staged before the call would miss
+ * `git add x && git commit` in one call.
+ */
+export function commitReach(
+  commands: readonly (readonly string[])[],
+  where: { readonly root: string; readonly cwd?: string },
+): CommitReach | undefined {
+  type Reach = { tracked: boolean; untracked: boolean; paths: string[] };
+  let cwd = where.cwd ?? where.root;
+  const got: Reach = { tracked: false, untracked: false, paths: [] };
+  // What `git add` put in the index so far in this line; it counts once a commit follows.
+  let added: Reach = { tracked: false, untracked: false, paths: [] };
+  let commits = false;
+  const take = (path: string, dir: string, into: Reach) => {
+    const rel = inRepository(path, dir, where.root);
+    if (rel === undefined) return;
+    if (rel === "") {
+      into.tracked = true;
+      into.untracked = true;
+    } else if (!into.paths.includes(rel)) into.paths.push(rel);
+  };
+  for (const argv of commands) {
+    const program = (argv[0] ?? "").split("/").pop();
+    if (program === "cd" && argv[1] && !argv[1].startsWith("-")) {
+      cwd = `/${inRepository(argv[1], cwd, "/") ?? ""}`;
+      continue;
+    }
+    if (program !== "git") continue;
+    const at = gitSubcommandAt(argv);
+    if (at < 0) continue;
+    // `git -C <dir>` works there.
+    let dir = cwd;
+    for (let i = 1; i < at; i++)
+      if (argv[i] === "-C" && argv[i + 1]) dir = `/${inRepository(argv[i + 1] as string, dir, "/") ?? ""}`;
+    const sub = argv[at];
+    const rest = argv.slice(at + 1);
+    if (sub === "add" || sub === "stage") {
+      const named = rest.filter((a, i) => !a.startsWith("-") || rest.slice(0, i).includes("--"));
+      const flags = rest.filter((a) => a.startsWith("-"));
+      const all = flags.some((f) => f === "--all" || f === "--no-ignore-removal" || /^-[A-Za-z]*A/.test(f));
+      const update = flags.some((f) => f === "--update" || /^-[A-Za-z]*u/.test(f));
+      if (named.length === 0 && (all || update)) {
+        added.tracked = true;
+        if (all) added.untracked = true;
+      }
+      for (const path of named) take(path, dir, added);
+    } else if (sub === "commit") {
+      commits = true;
+      got.tracked ||= added.tracked;
+      got.untracked ||= added.untracked;
+      for (const p of added.paths) if (!got.paths.includes(p)) got.paths.push(p);
+      added = { tracked: false, untracked: false, paths: [] };
+      for (let i = 0; i < rest.length; i++) {
+        const word = rest[i] as string;
+        if (word === "--") {
+          for (const path of rest.slice(i + 1)) take(path, dir, got);
+          break;
+        }
+        if (word === "--all") got.tracked = true;
+        else if (word.startsWith("--")) {
+          if (COMMIT_VALUE_LONG.has(word)) i++;
+        } else if (word.startsWith("-") && word.length > 1) {
+          // A cluster: `-a` takes the working tree; a letter that takes a value ends the cluster.
+          const value = [...word.slice(1)].findIndex((c) => COMMIT_VALUE_SHORT.includes(c));
+          const letters = value < 0 ? word.slice(1) : word.slice(1, value + 1);
+          if (letters.includes("a")) got.tracked = true;
+          if (value >= 0 && value === word.length - 2) i++;
+        } else take(word, dir, got);
+      }
+    }
+  }
+  return commits ? got : undefined;
+}

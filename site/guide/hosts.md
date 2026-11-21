@@ -32,7 +32,7 @@ hosts:
 Change it with setup, which keeps the rest of your config:
 
 ```bash
-metator setup --host copilot claude --hooks --yes
+metator setup --host copilot claude --yes
 ```
 
 ## Regenerate and check

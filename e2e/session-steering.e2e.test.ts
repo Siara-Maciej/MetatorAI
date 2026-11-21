@@ -17,6 +17,10 @@ const DEMO =
   "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
 // Each session waits at its prompt as a host does (idle, nothing asked) and shows what it is told.
 const hears = (who: string) => `      - run: 'read -r line; printf "${who} heard: %s\\n" "$line"'`;
+// The worker's host does what a real one does with every line submitted at its prompt, whoever
+// typed it: it hands the line to its user-prompt hook.
+const hearsAsHost = (who: string) =>
+  `      - run: 'read -r line; printf "${who} heard: %s\\n" "$line"; printf "{\\"prompt\\":\\"%s\\"}" "$line" | metator guard user-prompt'`;
 const SCENARIO = `kind: AgentScenario
 schemaVersion: 2
 agents:
@@ -35,9 +39,9 @@ ${hears("conductor")}
       - run: 'sleep 300'
   mt-implementer:
     - - say: "rounding"
-${hears("worker")}
+${hearsAsHost("worker")}
       - run: 'metator session tell w2:p2 --text "I am only a worker" || true'
-${hears("worker")}
+${hearsAsHost("worker")}
       - run: 'printf "{\\"prompt\\":\\"Use banker rounding instead\\"}" | metator guard user-prompt'
       - run: 'sleep 300'
 `;
@@ -183,7 +187,8 @@ describe("steering a task's sessions from its main chat (real daemon, scenario h
     const line = `[metator] The person told ${basename(repo.root)}/mt-implementer directly: "Use banker rounding instead"`;
     await shows("w1:p1", `chat heard: ${line}`);
     expect(await activity()).toContain(`told the chat (pane w1:p1): ${line}`);
-    // What MetatorAI typed into the worker (the relays above) was never reported as the person's own words.
+    // The worker's host reported every line typed into it to its hook, the relays the daemon typed
+    // too: none of those was taken for the person talking to the worker directly.
     expect((await activity()).filter((t) => t.startsWith("told the chat"))).toHaveLength(1);
   }, 120_000);
 });

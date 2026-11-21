@@ -35,5 +35,5 @@ dir: packages/plugin-host-copilot
 ## Pitfalls
 
 - Copilot cannot narrow `execute` to commands, so the allowed `metator` groups are written into the prompt; do not drop that note.
-- The dangerous commands come from the repository's `guard.commands` (ADR-0094), never from a list here: the CLI is started with `--deny-tool shell(<command>)` for each `never` pattern (`denyToolsOf`), and in prompt mode (no person to ask) for the `ask` commands that push as well. Whether an `ask` command runs is the hook's answer (`ask`) and Copilot's own approval prompt, as on Claude Code.
+- The dangerous commands come from the repository's `guard.commands` (ADR-0094), never from a list here: the CLI is started with `--deny-tool shell(<command>)` for each `never` pattern (`denyToolsOf`), and in prompt mode (no person to ask) for the `ask` commands that push as well. Whether an `ask` command runs is the hook's answer (`ask`) and Copilot's own approval prompt, as on Claude Code. With `guard.prompts: metator` an interactive session also gets `--allow-tool` for each entry of `allowToolsOf` (MetatorAI's commands that hold none of the person's, the repository's check scripts); reads and edits are not on it.
 - Unknown front matter keys make VS Code warn: the version marker is an HTML comment, not a front matter field.

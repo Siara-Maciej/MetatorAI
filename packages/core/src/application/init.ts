@@ -82,7 +82,9 @@ export class InitProject {
     }
     const warnings = [...discovery.value.warnings];
     if (proposal.gates.quick.length === 0)
-      warnings.push("no file-scoped checks found for the quick gate; add one by hand");
+      warnings.push(
+        "nothing found for the quick gate (no lint, typecheck or test script): add a step under gates.quick by hand, or `metator gate quick` and quick runs (mt-quick) have nothing to check",
+      );
     return ok({ written: input.dryRun ? null : file, config: text, decisions: proposal.decisions, warnings });
   }
 }

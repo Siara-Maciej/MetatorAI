@@ -8,6 +8,10 @@ import { err, ok } from "../src/domain/result.ts";
  * A working tree as a list of changes: a snapshot is how many there are; the patch between two
  * snapshots names the files changed in between (one line per file: `file@n`).
  */
+/** A plain `git commit` (what is staged), and `git commit -a`. */
+const STAGED = { tracked: false, untracked: false, paths: [] };
+const DASH_A = { tracked: true, untracked: false, paths: [] };
+
 function world() {
   const fs = new InMemoryFileSystem();
   const clock = new FixedClock(new Date("2026-11-21T10:00:00.000Z"));
@@ -286,23 +290,36 @@ describe("Scratch: a direct edit not meant for a commit, recorded as a patch (AD
     const w = world();
     await record(w, "a.ts", "b.ts", "new.log");
     // Nothing staged: a plain commit holds none; `commit -a` holds what is in the tree of tracked files.
-    expect((await w.scratch.inCommit(false))._unsafeUnwrap()).toEqual([]);
-    expect((await w.scratch.inCommit(true))._unsafeUnwrap()).toEqual(["a.ts", "b.ts"]);
+    expect((await w.scratch.inCommit(STAGED))._unsafeUnwrap()).toEqual([]);
+    expect((await w.scratch.inCommit(DASH_A))._unsafeUnwrap()).toEqual(["a.ts", "b.ts"]);
     w.index.add("b.ts@1");
-    expect((await w.scratch.inCommit(false))._unsafeUnwrap()).toEqual(["b.ts"]);
+    expect((await w.scratch.inCommit(STAGED))._unsafeUnwrap()).toEqual(["b.ts"]);
     // A new file that was added is in the commit, with or without -a.
     w.index.add("new.log@2");
-    expect((await w.scratch.inCommit(true))._unsafeUnwrap()).toEqual(["a.ts", "b.ts", "new.log"]);
+    expect((await w.scratch.inCommit(DASH_A))._unsafeUnwrap()).toEqual(["a.ts", "b.ts", "new.log"]);
+    // Paths the same command line adds before it commits (`git add a.ts && git commit`), a
+    // directory, a pattern; `git add -A` takes the new file nobody added yet.
+    w.index.clear();
+    const add = (...paths: string[]) => ({ tracked: false, untracked: false, paths });
+    expect((await w.scratch.inCommit(add("a.ts")))._unsafeUnwrap()).toEqual(["a.ts"]);
+    expect((await w.scratch.inCommit(add("new.log", "elsewhere")))._unsafeUnwrap()).toEqual(["new.log"]);
+    expect((await w.scratch.inCommit(add("*.ts")))._unsafeUnwrap()).toEqual(["a.ts", "b.ts"]);
+    expect((await w.scratch.inCommit(add("src")))._unsafeUnwrap()).toEqual([]);
+    expect((await w.scratch.inCommit({ tracked: true, untracked: true, paths: [] }))._unsafeUnwrap()).toEqual(
+      ["a.ts", "b.ts", "new.log"],
+    );
+    w.index.add("b.ts@1");
+    w.index.add("new.log@2");
     // Lines that changed since (no longer removable as recorded) still stop a commit that holds them.
     w.stale.add("a.ts@0");
-    expect((await w.scratch.inCommit(true))._unsafeUnwrap()).toEqual(["a.ts", "b.ts", "new.log"]);
+    expect((await w.scratch.inCommit(DASH_A))._unsafeUnwrap()).toEqual(["a.ts", "b.ts", "new.log"]);
     w.staleStaged.add("a.ts@0");
-    expect((await w.scratch.inCommit(false))._unsafeUnwrap()).toEqual(["a.ts", "b.ts", "new.log"]);
+    expect((await w.scratch.inCommit(STAGED))._unsafeUnwrap()).toEqual(["a.ts", "b.ts", "new.log"]);
     // Asking never removes a record.
     w.tree.clear();
     w.index.clear();
     w.staleStaged.clear();
-    expect((await w.scratch.inCommit(true))._unsafeUnwrap()).toEqual([]);
+    expect((await w.scratch.inCommit(DASH_A))._unsafeUnwrap()).toEqual([]);
     expect(await w.scratch.count()).toBe(1);
   });
 });

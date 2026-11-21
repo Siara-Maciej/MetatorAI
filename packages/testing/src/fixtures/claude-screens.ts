@@ -204,3 +204,88 @@ export const CLAUDE_NOT_A_QUESTION_SCREENS = [
     ...INPUT_BOX,
   ].join("\n"),
 ];
+
+/**
+ * The real conversation agent (Claude Code, mt-chat, 2026-11-21) proposing the quick way and
+ * then asking two numbered clarifying questions, with Claude Code's side panel drawn at the right
+ * (the `│` column): the rendered screen, verbatim. Its numbered items are questions and
+ * explanations, not choices.
+ */
+export const CLAUDE_CLARIFYING_QUESTIONS_SCREEN = [
+  "                                                                                     │",
+  "  price, with a test for it. This one is meant to stay.                              │",
+  "                                                                                     │",
+  "  Ran 1 shell command                                                                │",
+  "                                                                                     │",
+  "● This is too small for the full workflow: do it as quick? The check passed with no  │",
+  "  escalators. It would touch src/catalog.ts (lowercase the SKU before the lookup) and│",
+  "  test/server.test.ts (a test that MUG-01 returns 3990).                             │                      No changes this session",
+  "                                                                                     │",
+  "  Two things to settle first:                                                        │",
+  "                                                                                     │",
+  "  1. Which SKU goes back in the response? For GET /prices/MUG-01, should the body say│",
+  '     "sku": "mug-01" (the catalog\'s own spelling, my recommendation) or "MUG-01"     │',
+  "     (exactly what was requested)? Right now server.ts:12 sends back whatever was    │",
+  "     requested.                                                                      │",
+  "  2. The debug line is gone. It was removed from src/server.ts on disk after the     │",
+  "     commit, so the checkout now has an uncommitted change that takes it out. The    │",
+  "     quick run may then ask whether to run here (alongside that change) or in a      │",
+  "     worktree of its own. I'd use a worktree to keep the two apart.                  │",
+  "                                                                                     │",
+  "  Say yes and answer those two, and I'll start the quick run.                        │",
+  "                                                                                     │",
+  "✻ Cooked for 8s · done 7:24 PM                                                       │",
+  "                                                                                     │",
+  "──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── mt-chat ─",
+  "❯",
+  "──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+  "  ⏸ manual mode on · ? for shortcuts",
+].join("\n");
+
+/**
+ * The same agent's status report after it started the quick run (verbatim): bullets of
+ * `Label: value` facts, no question, "I'll correct it if you meant otherwise". It asks nothing.
+ */
+export const CLAUDE_STATUS_REPORT_SCREEN = [
+  '● I started the quick run. I took your "yes" as accepting both',
+  "  recommendations; I'll correct it if you meant otherwise.",
+  "",
+  "  - Run: 20261121-mt-quick-make-the-sku-lookup-case-insensitive-so",
+  "  - Its terminal: pane w2:p2, at the build stage.",
+  "  - SKU in the response: I wrote into the task that it should be the",
+  "    catalog's spelling (mug-01 for /prices/MUG-01). That probably means",
+  "    touching src/server.ts as well, not only the two files I listed.",
+  "  - Where it runs: it didn't ask \"here or worktree\", so it didn't flag the",
+  "    checkout as dirty. I didn't pick a worktree, and I haven't checked",
+  "    whether it's working in this checkout. If it is, the run's diff will",
+  "    sit next to the uncommitted removal of the debug line in src/server.ts.",
+  "    Keep that in mind when you look at the result.",
+  "",
+  '  It ends with an uncommitted diff and a "Quick change ready: look at the',
+  '  diff" card in your inbox. Nothing gets committed.',
+  "",
+  "  What I did: quick, run",
+  "  20261121-mt-quick-make-the-sku-lookup-case-insensitive-so.",
+  "",
+  "✻ Cooked for 21s · done 7:26 PM",
+  "",
+  ...INPUT_BOX,
+].join("\n");
+
+/** The same agent's answer to a question about the code (verbatim, cut): a numbered explanation; "which matches" asks nothing. */
+export const CLAUDE_NUMBERED_ANSWER_SCREEN = [
+  "● GET /prices/{sku} doesn't calculate anything. It looks the SKU up in a fixed table and returns the stored net price.",
+  "",
+  "  How a request is handled",
+  '  1. Route check: handle matches the path against ^/prices/([^/]+)$. Anything other than a GET to that path gets 404 "not found" (src/server.ts:7-8).',
+  "  2. SKU: the path segment is URL-decoded (src/server.ts:9).",
+  "  3. Lookup: priceCentsOf(sku) (src/server.ts:10) just reads CATALOG[sku] (src/catalog.ts:8).",
+  '  4. Unknown SKU: if there\'s no entry, it returns 404 "unknown product" (src/server.ts:11).',
+  "  5. Response: { sku, amountCents } as JSON (src/server.ts:12-13). Its shape is PriceResponse (src/contract.ts:2-6), which matches openapi.yaml:15-19.",
+  "",
+  "  What I did: direct (reading only). I changed nothing, and there's nothing uncommitted and no scratch to clean up.",
+  "",
+  "✻ Cooked for 13s · done 7:21 PM",
+  "",
+  ...INPUT_BOX,
+].join("\n");

@@ -126,7 +126,7 @@ function gitRead(argv: readonly string[], inside: (arg: string) => boolean): boo
 }
 
 /** `metator …`, also as the repository runs it (`bun run metator …`, `npx metator …`). */
-function asMetator(argv: readonly string[]): readonly string[] | undefined {
+export function asMetator(argv: readonly string[]): readonly string[] | undefined {
   if (argv[0] === "metator") return argv;
   if ((argv[0] === "npx" || argv[0] === "bunx") && argv[1] === "metator") return argv.slice(1);
   if (

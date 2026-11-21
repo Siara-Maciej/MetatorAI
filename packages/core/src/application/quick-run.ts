@@ -16,6 +16,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import { defineDocument, serializeJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem, WorkingTree } from "../ports/index.ts";
 import { parseDocumentText } from "./document-io.ts";
+import { emptyGateHint } from "./gate.ts";
 import type { CloseRun } from "./run-close.ts";
 import type { RunJournal } from "./run-journal.ts";
 import type { StartedRun, StartRun } from "./run-operations.ts";
@@ -126,6 +127,8 @@ export interface QuickRunDependencies {
   readonly overrides: Pick<QuickOverrides, "kept" | "keep">;
   /** The checkout: its tracked files with uncommitted changes (undefined: no git here). */
   readonly tree: Pick<WorkingTree, "modifiedTracked">;
+  /** The repository's quick gate: how many steps it has, and the config file that says so. */
+  readonly quickGate?: { readonly steps: number; readonly source: string | undefined };
 }
 
 export interface QuickStarted {
@@ -157,6 +160,16 @@ export class QuickStart {
     const escalators = input.check?.escalators ?? [];
     const allowed = quickOverride(escalators, input.override);
     if (!allowed.allowed) return err(new MetatorError("USAGE", allowed.why, { details: { escalators } }));
+    // The workflow's gate stage is `metator gate quick`: with no step configured the run would
+    // stop there right after its build, so it is refused before anything starts.
+    if (this.d.quickGate && this.d.quickGate.steps === 0)
+      return err(
+        new MetatorError(
+          "INVALID_CONFIG",
+          "the quick gate has no steps: a quick run (mt-quick) checks its change with `metator gate quick` and would stop there",
+          { hint: emptyGateHint("quick", this.d.quickGate.source) },
+        ),
+      );
     const dirty = (await this.d.tree.modifiedTracked()) ?? [];
     if (dirty.length > 0 && !input.where)
       return err(

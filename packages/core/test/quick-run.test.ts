@@ -74,6 +74,7 @@ function world(dirty: string[] = []) {
     repo,
     journal,
     advance,
+    deps,
     started,
     activity,
     start: new QuickStart(deps),
@@ -133,6 +134,23 @@ describe("QuickStart", () => {
     });
     expect(cross._unsafeUnwrapErr().message).toStartWith("not quick, and this cannot be overridden");
     expect(w.started).toHaveLength(1);
+  });
+
+  test("a quick gate with no steps refuses the start up front: the run would stop at its gate", async () => {
+    const w = world();
+    const gateless = new QuickStart({ ...w.deps, quickGate: { steps: 0, source: "metator.config.yml" } });
+    const refused = (await gateless.execute({ task: "Change it", check: verdict() }))._unsafeUnwrapErr();
+    expect([refused.code, refused.message, refused.hint]).toEqual([
+      "INVALID_CONFIG",
+      "the quick gate has no steps: a quick run (mt-quick) checks its change with `metator gate quick` and would stop there",
+      "Add a step under `gates.quick:` in metator.config.yml, e.g. `- { id: test, run: { script: test } }` (a package.json script; `run: { metator: rules check }` is a MetatorAI check).",
+    ]);
+    expect(w.started).toEqual([]);
+    // No config at all: the way out is the command that writes one.
+    const bare = new QuickStart({ ...w.deps, quickGate: { steps: 0, source: undefined } });
+    expect((await bare.execute({ task: "Change it", check: verdict() }))._unsafeUnwrapErr().hint).toBe(
+      "Run `metator init`: it writes metator.config.yml with gates proposed from the repository's scripts.",
+    );
   });
 
   test("a dirty checkout asks where: here (the changes join it) or a worktree of its own", async () => {

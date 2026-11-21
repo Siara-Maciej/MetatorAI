@@ -6,7 +6,7 @@ A gate is a named list of checks from your configuration. Agents, you and CI run
 
 | Gate | When it runs | Typical steps |
 |---|---|---|
-| `quick` | after edits, on the changed files | linter on the files, `rules check`, typecheck |
+| `quick` | after edits, on the changed files; a quick run (`mt-quick`) ends at it | linter on the files, `rules check`, typecheck, tests |
 | `full` | before review and in CI | lint, typecheck, tests, `graph diff`, `arch check` |
 
 ```bash

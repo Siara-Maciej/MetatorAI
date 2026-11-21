@@ -5,7 +5,7 @@ import {
   CONTINUE_SESSION,
   DEFAULT_GUARD_COMMANDS,
   denyToolsOf,
-  type GuardCommands,
+  type HostGuard,
   isUuid,
   ok,
   PtyInteractiveHost,
@@ -28,7 +28,7 @@ export class CopilotInteractiveHost extends PtyInteractiveHost {
     terminal: Terminal,
     bin = "copilot",
     env: Readonly<Record<string, string | undefined>> = process.env,
-    guard: GuardCommands = DEFAULT_GUARD_COMMANDS,
+    guard: HostGuard = DEFAULT_GUARD_COMMANDS,
   ) {
     super(terminal, {
       id: "copilot",
@@ -47,7 +47,7 @@ export function copilotArgv(
   bin: string,
   task: AgentTask,
   mode: readonly string[],
-  guard: GuardCommands = DEFAULT_GUARD_COMMANDS,
+  guard: HostGuard = DEFAULT_GUARD_COMMANDS,
 ): string[] {
   const agentFile = join(task.projectRoot, copilotAgentFile(task.agent));
   return [
@@ -58,5 +58,8 @@ export function copilotArgv(
     // What never runs (guard.commands.never) is denied by the process too; what asks is the
     // hook's and Copilot's own approval prompt (ADR-0094).
     ...denyToolsOf(guard, { headless: false }).flatMap((t) => ["--deny-tool", t]),
+    // What needs no approval (`guard.prompts: metator`): Copilot takes its allow list up front,
+    // by command prefix; a denial above still wins.
+    ...(guard.unprompted ?? []).flatMap((t) => ["--allow-tool", t]),
   ];
 }
