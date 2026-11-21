@@ -1,12 +1,12 @@
 /**
- * Stage 1 of the conversation agent in the app (round 13; real daemon, real Chromium, no real AI
- * host: a stand-in `claude` draws Claude Code's approval of a `git commit`). The "+ New run" chat
- * opens the repository's conversation agent with the label "chat"; its commit waits as a consent
- * card whose heading is the command; the quick cards are run questions (asked here with
- * `metator run ask`, as the engine will ask them): "Open diff" opens the run's Changes and leaves
- * the card, "Fine" closes it; "Debug changes (N)" lists and removes the recorded debug changes.
- * On fixtures until the daemon sends them (scratchpad/round13/desktop-needs.md): `/supervisor`
- * `chatAgent`, the state's `scratch` count, `GET /scratch` and `POST /scratch/drop`.
+ * Stage 1 of the conversation agent in the app (round 13; real daemon, real Chromium, the scenario
+ * host and, for the one screen only Claude Code draws, a stand-in `claude`; never a real AI host).
+ * "+ New run" opens the repository's conversation agent once `metator setup` installed it, with
+ * the label "chat"; a chat's `git commit` waits as a consent card whose heading is the command;
+ * a real `mt-quick` run (the engine's own scenario) asks its two cards: "This grew past quick"
+ * (Keep as quick) and "Quick change ready" ("Open diff" opens the run's Changes and leaves the
+ * card, "Fine" ends the run); "Debug changes (N)" lists and removes real scratch records, says
+ * what could not be removed, and survives a count that is one too high. No browser fixture.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync } from "node:fs";
@@ -21,8 +21,50 @@ import { ScratchRepo } from "./helpers/repo.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const SHOTS = process.env.METATOR_SHOTS;
-const WORKFLOW =
-  "kind: Workflow\nschemaVersion: 2\nid: demo\nstages:\n  - id: build\n    owner: mt-implementer\n";
+const QUICK = await Bun.file(join(ROOT, ".github/metator/workflows/mt-quick.yml")).text();
+const CONFIG = `kind: MetatorConfig
+schemaVersion: 13
+supervisor:
+  hostOrder: [scenario]
+gates:
+  quick:
+    - id: check
+      run: { script: check }
+`;
+// The quick run's conductor and worker, as in e2e/quick.e2e.test.ts: the implementer adds a source
+// file no test reaches (the escalator the diff trips). Any other conductor, and the chat, only speak.
+const SCENARIO = `kind: AgentScenario
+schemaVersion: 2
+agents:
+  mt-chat:
+    - - say: "I am the chat. Tell me what you need."
+      - run: 'sleep 300'
+  mt-orchestrator:
+    - - say: "conducting {cwd}"
+      - run: 'case "$METATOR_RUN" in *round-prices*) ;; *) echo "another run: nothing scripted"; sleep 300;; esac'
+      - run: 'metator run delegate build --run "$METATOR_RUN" --agent mt-implementer --card "Add a half-up rate helper in src/rate.ts"'
+      - run: 'metator run wait mt-implementer-1 --run "$METATOR_RUN" --timeout 60000'
+      - run: 'metator run collect mt-implementer-1 --run "$METATOR_RUN"'
+      - run: 'metator run advance pass --run "$METATOR_RUN"'
+      - run: 'metator gate quick --base HEAD'
+      - run: 'metator run advance pass --run "$METATOR_RUN"'
+      - run: 'metator quick check --diff'
+      - run: 'metator quick fit --run "$METATOR_RUN" --wait 60000'
+      - run: 'metator run advance pass --run "$METATOR_RUN"'
+      - write: { path: "{runDir}/quick-review.md", text: "No blocking finding.\\n" }
+      - run: 'metator run advance pass --run "$METATOR_RUN"'
+      - run: 'metator quick ready --run "$METATOR_RUN" --wait 60000'
+      - say: "quick run done"
+      - run: 'sleep 300'
+  mt-implementer:
+    - - say: "rounding half-up"
+      - write: { path: "{cwd}/src/rate.ts", text: "export const rate = (n: number) => Math.round(n);\\n" }
+      - write: { path: "{runDir}/build-log.md", text: "rate.ts rounds half-up\\n" }
+      - run: 'metator run result --run "$METATOR_RUN" --worker "$METATOR_WORKER" --status done --summary "rate.ts rounds half-up" --artifact build-log.md'
+      - run: 'sleep 300'
+`;
+const PRICE = "export const price = (n: number) => n;\n";
+const TAX = 'import { price } from "./price.ts";\nexport const tax = (n: number) => price(n) * 0.23;\n';
 const COMMIT = 'git commit -m "Add the list of supported currencies"';
 /** Claude Code's approval of a guarded command, as it draws it: the stand-in's whole screen. */
 const APPROVAL = CLAUDE_APPROVAL_REAL_SCREEN.replaceAll("metator workflow list", COMMIT).replace(
@@ -37,6 +79,7 @@ let page: Page;
 let daemon: Bun.Subprocess<"ignore", "pipe", "pipe">;
 let base = "";
 let env: Record<string, string>;
+let bin: string;
 const errors: string[] = [];
 
 async function until<T>(what: string, probe: () => Promise<T | undefined>, ms = 30_000): Promise<T> {
@@ -70,22 +113,41 @@ beforeAll(async () => {
     },
   });
   configDir = await mkdtemp(join(tmpdir(), "metator-desktop-stage1-config-"));
+  bin = await mkdtemp(join(tmpdir(), "metator-bin-"));
+  await Bun.write(join(bin, "metator"), `#!/bin/sh\nexec bun ${CLI_ENTRY} "$@"\n`);
+  chmodSync(join(bin, "metator"), 0o755);
   repo = await ScratchRepo.create();
-  await repo.write(".gitignore", ".metator/\nbin/\n");
-  await repo.write(".github/metator/workflows/demo.yml", WORKFLOW);
-  await repo.write("src/currency.ts", "export const CURRENCIES = ['PLN'];\n");
-  await repo.write("bin/approval.txt", `${APPROVAL}\n`);
+  await repo.write(".gitignore", ".metator/\nstandin/\nscenario.yml\n");
   await repo.write(
-    "bin/claude",
-    `#!/bin/sh\ncat "${repo.path("bin/approval.txt")}"\nread -r key\nprintf 'picked %s\\n' "$key"\nsleep 60\n`,
+    "package.json",
+    JSON.stringify({ name: "shop", private: true, scripts: { check: "true" } }),
   );
-  chmodSync(repo.path("bin/claude"), 0o755);
+  await repo.write("metator.config.yml", CONFIG);
+  await repo.write(".github/metator/workflows/mt-quick.yml", QUICK);
+  await repo.write("src/price.ts", PRICE);
+  await repo.write("src/tax.ts", TAX);
+  await repo.write(
+    "test/tax.test.ts",
+    'import { tax } from "../src/tax.ts";\nif (tax(100) !== 23) throw new Error("tax");\n',
+  );
+  await repo.write("scenario.yml", SCENARIO);
+  await repo.write("standin/approval.txt", `${APPROVAL}\n`);
+  await repo.write(
+    "standin/claude",
+    `#!/bin/sh\ncat "${repo.path("standin/approval.txt")}"\nread -r key\nprintf 'picked %s\\n' "$key"\nsleep 60\n`,
+  );
+  chmodSync(repo.path("standin/claude"), 0o755);
   await repo.commit("init");
   env = {
     METATOR_CONFIG_DIR: configDir,
-    METATOR_CLAUDE_BIN: repo.path("bin/claude"),
+    METATOR_USER: "ana",
+    METATOR_HOST: "scenario",
+    METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
+    // Not a real host: a script that draws the one screen only Claude Code draws.
+    METATOR_CLAUDE_BIN: repo.path("standin/claude"),
     METATOR_COPILOT_BIN: "/nonexistent/copilot",
     METATOR_OPENCODE_BIN: "/nonexistent/opencode",
+    PATH: `${bin}:${process.env.PATH ?? ""}`,
   };
   daemon = Bun.spawn(
     ["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100", "--supervise-ms", "500"],
@@ -124,6 +186,7 @@ afterAll(async () => {
   await repo?.dispose();
   await rm(dist, { recursive: true, force: true });
   await rm(configDir, { recursive: true, force: true });
+  await rm(bin, { recursive: true, force: true });
 }, 60_000);
 
 async function nameIfAsked() {
@@ -147,23 +210,36 @@ type Pane = {
 };
 const panes = async () => ((await api("/layout")) as { data: { panes: Pane[] } }).data.panes;
 
+const mt = (...args: string[]) => metator(args, repo.root, env);
+const post = async (path: string, body: unknown) =>
+  (await (await fetch(`${base}${path}`, { method: "POST", body: JSON.stringify(body) })).json()) as {
+    ok: boolean;
+    data: never;
+  };
+const stateOf = async () => ((await api("/state")) as { data: { scratch: number } }).data;
+/** A debug edit as the chat's agent records it: begin, write the files, end with a note. */
+async function scratchEdit(files: Record<string, string>, note?: string): Promise<string> {
+  expect((await mt("scratch", "begin")).code).toBe(0);
+  for (const [path, text] of Object.entries(files)) await repo.write(path, text);
+  const ended = await mt("scratch", "end", ...(note ? ["--note", note] : []));
+  return (ended.json.data as { recorded: { id: string } }).recorded.id;
+}
+
 describe("the conversation agent's first stage in the app (round 13)", () => {
-  test("+ New run opens the repository's conversation agent as the chat; its commit waits as a consent card", async () => {
+  test("+ New run opens the repository's conversation agent as the chat; a chat's commit waits as a consent card", async () => {
     await page.goto(app("inbox"));
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
-    // A repository without the conversation agent (the daemon names none): the agent of before.
+    // Before `metator setup` the repository has no conversation agent: the agent of before.
+    expect(((await api("/supervisor")) as { data: { chatAgent?: string } }).data.chatAgent).toBeUndefined();
     await page.getByRole("button", { name: "+ New run" }).click();
     const first = await until("the chat pane", async () => (await panes())[0]);
     expect([first.label, first.role, first.process.agent]).toEqual(["chat", "apps", "mt-orchestrator"]);
-    await fetch(`${base}/panes/${first.id}/close`, { method: "POST", body: "{}" });
+    await post(`/panes/${first.id}/close`, {});
     await until("the pane closed", async () => ((await panes()).length === 0 ? true : undefined));
-    // FIXTURE: the daemon names the repository's conversation agent (`/supervisor` `chatAgent`).
-    await page.route("**/supervisor**", async (route) => {
-      const res = await route.fetch();
-      const body = (await res.json()) as { data?: Record<string, unknown> };
-      if (body.data) body.data.chatAgent = "mt-chat";
-      await route.fulfill({ response: res, json: body });
-    });
+    // `metator setup` installs it: the daemon names it, and the chat opens it.
+    expect((await mt("setup")).code).toBe(0);
+    expect(await repo.exists(".claude/agents/mt-chat.md")).toBe(true);
+    await repo.commit("metator setup");
     await page.goto(app("inbox"));
     await page.getByRole("button", { name: "+ New run" }).click();
     const chat = await until("the chat pane", async () => (await panes())[0]);
@@ -171,11 +247,33 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
       "chat",
       "apps",
       "mt-chat",
-      "claude",
+      "scenario",
     ]);
-    // The chat's agent asks to commit: the guard lets the host ask, and that is a card on Home.
+    await until("the chat's screen", async () =>
+      (
+        await page
+          .getByTestId(`frame-${chat.id}`)
+          .textContent()
+          .catch(() => "")
+      )?.includes("I am the chat")
+        ? true
+        : undefined,
+    );
+    await post(`/panes/${chat.id}/close`, {});
+    // A chat on Claude Code asks to commit (the stand-in draws the host's approval): the guard lets
+    // the host ask, and that is a card on Home.
+    const opened = await post("/panes", { label: "chat", role: "apps", host: "claude", agent: "mt-chat" });
+    const asking = (opened.data as { id: string }).id;
+    expect((await panes()).find((x) => x.id === asking)?.process.host).toBe("claude");
+    await until("the stand-in's screen", async () => {
+      const r = (await api(`/panes/${asking}`)) as { data: { text: string } };
+      return r.data.text.includes("Do you want to proceed") ? true : undefined;
+    }).catch(async (e) => {
+      const r = (await api(`/panes/${asking}`)) as { data: unknown };
+      throw new Error(`${(e as Error).message}: ${JSON.stringify(r.data).slice(0, 600)}`);
+    });
     await page.goto(app("inbox"));
-    const card = page.getByTestId(`pane-ask-${chat.id}`);
+    const card = page.getByTestId(`pane-ask-${asking}`);
     await card.waitFor({ timeout: 30_000 });
     // Its heading is the command; the card says the command needs the person's consent.
     expect(await card.locator("h1").textContent()).toBe(COMMIT);
@@ -189,169 +287,111 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
     await card.getByRole("button", { name: "Send" }).click();
     await nameIfAsked();
     await until("the pane to pick 1", async () => {
-      const r = (await api(`/panes/${chat.id}`)) as { data: { text: string } };
+      const r = (await api(`/panes/${asking}`)) as { data: { text: string } };
       return r.data.text.includes("picked 1") ? true : undefined;
     });
     await until("the card to go", async () => ((await card.count()) === 0 ? true : undefined));
+    await post(`/panes/${asking}/close`, {});
   }, 120_000);
 
-  test("the quick cards: Open diff opens the run's change and leaves the card, Fine closes it; grew past quick has its two answers", async () => {
-    const created = await metator(
-      ["run", "new", "--workflow", "demo", "--task", "Add EUR to the currencies"],
-      repo.root,
-      env,
-    );
-    const runId = (created.json.data as { runId: string }).runId;
-    await repo.write("src/currency.ts", "export const CURRENCIES = ['PLN', 'EUR'];\n");
-    // The engine asks these as run questions; here the same question is asked with the CLI.
-    const ask = (question: string, ...options: string[]) =>
-      metator(
-        ["run", "ask", question, ...options.flatMap((o) => ["--option", o]), "--run", runId],
-        repo.root,
-        env,
-      );
-    expect((await ask("Quick change ready: look at the diff", "Open diff", "Fine")).code).toBe(0);
+  test("a real quick run's two cards: Keep as quick, then Open diff opens the change and leaves the card, Fine ends the run", async () => {
+    const started = await mt("quick", "start", "--task", "Round prices half-up");
+    expect([started.code, started.json.error ?? null]).toEqual([0, null]);
+    const runId = (started.json.data as { runId: string }).runId;
+    expect(runId).toContain("mt-quick");
+    const statusOf = async () =>
+      (await mt("run", "status", "--run", runId)).json.data as { status: string; stage: string };
+    // The real diff grew past quick: MetatorAI asks, as a run question.
     await page.goto(app("inbox"));
-    const card = await decisionOnHome(page, ["Quick change ready: look at the diff"]);
-    expect(await card.locator("h1").textContent()).toBe("Quick change ready: look at the diff");
-    const labels = await card.locator(".option .label > span:first-child").allTextContents();
-    expect(labels.slice(0, 2)).toEqual(["Open diff", "Fine"]);
-    if (SHOTS) await page.screenshot({ path: join(SHOTS, "quick-ready-card.png") });
-    // Open diff: the run's Changes tab; no answer is sent, the question stays open.
-    await card.locator(".option", { hasText: "Open diff" }).click();
-    await card.getByRole("button", { name: /^Open diff ⏎/ }).click();
-    await until("the Changes tab", async () =>
-      page.url().includes(`#/run/${runId}/changes`) ? true : undefined,
+    const past = await decisionOnHome(page, ["This grew past quick"], 90_000);
+    expect(await past.locator("h1").textContent()).toBe(
+      "This grew past quick: untested (no test reaches src/rate.ts)",
     );
-    await page.getByTestId("file-src/currency.ts").waitFor({ timeout: 20_000 });
-    const open = async () =>
-      (
-        (await api("/inbox")) as { data: { decisions: { runId: string; question: { prompt: string } }[] } }
-      ).data.decisions.filter((d) => d.runId === runId);
-    expect((await open()).map((d) => d.question.prompt)).toEqual(["Quick change ready: look at the diff"]);
-    // Fine closes the card.
-    await page.goto(app("inbox"));
-    const again = await decisionOnHome(page, ["Quick change ready: look at the diff"]);
-    await again.locator(".option", { hasText: "Fine" }).click();
-    await again.getByRole("button", { name: /^Fine ⏎/ }).click();
-    await nameIfAsked();
-    await until("the card closed", async () => ((await open()).length === 0 ? true : undefined));
-
-    // "This grew past quick": which escalators, and the two answers.
-    const grew = "This grew past quick: size (7 files, 5 allowed); a new dependency (zod)";
-    // (An answered run is driven on by the daemon, and no host can here: the second card is another run's.)
-    const second = (
-      (
-        await metator(
-          ["run", "new", "--workflow", "demo", "--task", "Add USD to the currencies"],
-          repo.root,
-          env,
-        )
-      ).json.data as { runId: string }
-    ).runId;
-    const asked = await metator(
-      ["run", "ask", grew, "--option", "Continue as full", "--option", "Keep as quick", "--run", second],
-      repo.root,
-      env,
-    );
-    expect([asked.code, asked.json.error ?? null]).toEqual([0, null]);
-    await page.goto(app("inbox"));
-    const past = await decisionOnHome(page, ["This grew past quick"]);
-    expect(await past.locator("h1").textContent()).toBe(grew);
-    expect((await past.locator(".option .label > span:first-child").allTextContents()).slice(0, 2)).toEqual([
+    expect(await past.locator(".option .label > span:first-child").allTextContents()).toEqual([
       "Continue as full",
       "Keep as quick",
+      "Other",
     ]);
     if (SHOTS) await page.screenshot({ path: join(SHOTS, "grew-past-quick-card.png") });
     await past.locator(".option", { hasText: "Keep as quick" }).click();
     await past.getByRole("button", { name: /^Keep as quick ⏎/ }).click();
     await nameIfAsked();
-    await until("the answer", async () => {
-      const entries = (
-        (await api(`/runs/${second}/activity`)) as { data: { entries: { type: string; text: string }[] } }
-      ).data.entries;
-      return entries.some((e) => e.type === "answer" && e.text.includes("Keep as quick")) ? true : undefined;
-    });
-    for (const id of [runId, second])
-      await metator(
-        ["run", "close", "--run", id, "--aborted", "--reason", "the test ends here"],
-        repo.root,
-        env,
-      );
-  }, 120_000);
-
-  test("Debug changes (N): on Home and in a task's Terminals bar; one removed, then all, with what could not be", async () => {
-    // FIXTURES (until the daemon has them): the state's count, the list, the drop.
-    let items = [
-      { id: "s1", files: ["src/currency.ts"], note: "why the total is off", at: "2026-11-21T10:00:00.000Z" },
-      { id: "s2", files: ["src/price.ts", "src/tax.ts"], at: "2026-11-21T10:05:00.000Z" },
-      { id: "s3", file: "src/invoice.ts", note: "a temporary flag", at: "2026-11-21T10:07:00.000Z" },
-    ];
-    const drops: string[] = [];
-    let sockets: { send(m: string): void }[] = [];
-    let lastState: { ok: boolean; data?: Record<string, unknown> } | undefined;
-    const counted = (env: { ok: boolean; data?: Record<string, unknown> }) => {
-      if (env.data) env.data.scratch = items.length;
-      return env;
-    };
-    await page.route("**/state", async (route) => {
-      const res = await route.fetch();
-      await route.fulfill({ response: res, json: counted(await res.json()) });
-    });
-    await page.routeWebSocket("**/ws/state**", (ws) => {
-      const server = ws.connectToServer();
-      sockets.push(ws);
-      server.onMessage((m) => {
-        lastState = JSON.parse(String(m));
-        ws.send(JSON.stringify(counted(lastState as never)));
-      });
-      ws.onMessage((m) => server.send(m));
-    });
-    // The daemon's state says the new count after a drop.
-    const push = () => {
-      if (lastState) for (const ws of sockets) ws.send(JSON.stringify(counted(lastState)));
-    };
-    await page.route("**/scratch", async (route) => route.fulfill({ json: { ok: true, data: { items } } }));
-    await page.route("**/scratch/drop", async (route) => {
-      const body = JSON.parse(route.request().postData() ?? "{}") as { ids?: string[]; by?: string };
-      drops.push(JSON.stringify(body));
-      const asked = items.filter((i) => !body.ids || body.ids.includes(i.id));
-      // s3's patch no longer applies: reported, never forced.
-      const failed = asked.filter((i) => i.id === "s3");
-      const dropped = asked.filter((i) => i.id !== "s3");
-      items = items.filter((i) => !dropped.includes(i));
-      push();
-      await route.fulfill({
-        json: {
-          ok: true,
-          data: {
-            dropped: dropped.map((i) => ({ id: i.id, files: i.files ?? [i.file] })),
-            failed: failed.map((i) => ({ id: i.id, files: [i.file], why: "the patch no longer applies" })),
-          },
-        },
-      });
-    });
-
-    // Home: the entry with its count; the list with files, notes and times. (A reload: the state's
-    // socket is opened again, through the fixture.)
+    // The run goes on to its end: one card, the diff not committed.
+    const ready = await decisionOnHome(page, ["Quick change ready: look at the diff"], 90_000);
+    expect(await ready.locator("h1").textContent()).toBe("Quick change ready: look at the diff");
+    expect(await ready.locator(".option .label > span:first-child").allTextContents()).toEqual([
+      "Open diff",
+      "Fine",
+      "Other",
+    ]);
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "quick-ready-card.png") });
+    // Open diff: the run's Changes tab with the change; no answer is sent, the run still waits.
+    await ready.locator(".option", { hasText: "Open diff" }).click();
+    await ready.getByRole("button", { name: /^Open diff ⏎/ }).click();
+    await until("the Changes tab", async () =>
+      page.url().includes(`#/run/${runId}/changes`) ? true : undefined,
+    );
+    await page.getByTestId("file-src/rate.ts").waitFor({ timeout: 20_000 });
+    expect(await statusOf()).toMatchObject({ status: "active", stage: "ready" });
+    // Fine ends the run; the app says so; nothing was committed.
     await page.goto(app("inbox"));
-    await page.reload();
-    const entry = page.getByTestId("debug-changes");
-    await entry.waitFor({ timeout: 20_000 });
-    expect(await entry.textContent()).toBe("Debug changes (3)");
+    const again = await decisionOnHome(page, ["Quick change ready: look at the diff"]);
+    await again.locator(".option", { hasText: "Fine" }).click();
+    await again.getByRole("button", { name: /^Fine ⏎/ }).click();
+    await nameIfAsked();
+    await until("the run done", async () => ((await statusOf()).status === "done" ? true : undefined));
+    await until("the confirmation", async () =>
+      (
+        await page
+          .locator("main.content > .notice")
+          .textContent()
+          .catch(() => "")
+      )?.includes("Answered: Fine. The run is done.")
+        ? true
+        : undefined,
+    );
+    expect((await repo.git("status", "--porcelain")).trim()).toBe("?? src/rate.ts");
+    await rm(repo.path("src/rate.ts"));
+    await post(`/runs/${runId}/close-panes`, {});
+  }, 240_000);
+
+  test("Debug changes (N) from real scratch records: on Home and in a task's Terminals bar; one removed, then all, with what could not be", async () => {
+    // A task with a terminal, for its Terminals bar (before the tree holds debug edits).
+    const task = (
+      (await mt("run", "new", "--workflow", "mt-feature", "--task", "The task with debug changes")).json
+        .data as {
+        runId: string;
+      }
+    ).runId;
+    expect((await post(`/runs/${task}/pty-open`, {})).ok).toBe(true);
+    // Three debug edits, recorded as the chat's agent records them.
+    const one = await scratchEdit(
+      { "src/price.ts": `${PRICE}console.log("price called");\n` },
+      "trace price calls",
+    );
+    const two = await scratchEdit({ "src/tax.ts": `${TAX}console.log("tax called");\n` });
+    const three = await scratchEdit({ "debug.log": "trace\n" }, "a temporary flag");
+    expect((await stateOf()).scratch).toBe(3);
+
+    // Home: the entry with its count; the list with files, notes and times.
+    await page.goto(app("inbox"));
+    const entry = page.getByTestId("debug-changes").first();
+    await until("the entry", async () =>
+      (await entry.textContent().catch(() => "")) === "Debug changes (3)" ? true : undefined,
+    );
     await entry.click();
     const dialog = page.getByRole("dialog", { name: "Debug changes" });
-    await dialog.getByTestId("scratch-s1").waitFor({ timeout: 10_000 });
-    expect(await dialog.getByTestId("scratch-s1").textContent()).toContain(
-      "src/currency.ts · why the total is off",
+    await dialog.getByTestId(`scratch-${one}`).waitFor({ timeout: 10_000 });
+    expect(await dialog.getByTestId(`scratch-${one}`).textContent()).toContain(
+      "src/price.ts · trace price calls",
     );
-    expect(await dialog.getByTestId("scratch-s2").textContent()).toContain("src/price.ts, src/tax.ts");
-    expect(await dialog.getByTestId("scratch-s3").textContent()).toContain(
-      "src/invoice.ts · a temporary flag",
+    expect(await dialog.getByTestId(`scratch-${two}`).textContent()).toContain("src/tax.ts");
+    expect(await dialog.getByTestId(`scratch-${three}`).textContent()).toContain(
+      "debug.log · a temporary flag",
     );
     if (SHOTS) await page.screenshot({ path: join(SHOTS, "debug-changes.png") });
-    // One removed.
-    await dialog.getByTestId("scratch-s1").getByRole("button", { name: "Remove" }).click();
+    // One removed: its lines are out of the file again.
+    await dialog.getByTestId(`scratch-${one}`).getByRole("button", { name: "Remove" }).click();
     await nameIfAsked();
     await until("the result of one", async () =>
       (
@@ -359,37 +399,29 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
           .getByTestId("debug-changes-result")
           .textContent()
           .catch(() => "")
-      )?.includes("Removed 1 debug change (src/currency.ts).")
+      )?.includes("Removed 1 debug change (src/price.ts).")
         ? true
         : undefined,
     );
-    expect(JSON.parse(drops[0] ?? "{}")).toEqual({ ids: ["s1"], by: "ana" });
-    expect(await dialog.getByTestId("scratch-s1").count()).toBe(0);
+    expect(await repo.read("src/price.ts")).toBe(PRICE);
+    await until("it left the list", async () =>
+      (await dialog.getByTestId(`scratch-${one}`).count()) === 0 ? true : undefined,
+    );
     await page.keyboard.press("Escape");
     await until("the count after one", async () =>
-      (await entry.textContent()) === "Debug changes (2)" ? true : undefined,
+      (await entry.textContent().catch(() => "")) === "Debug changes (2)" ? true : undefined,
     );
 
     // A task's Terminals bar has the entry too; "Remove debug changes" removes all it can.
-    const runId = (
-      (
-        await metator(
-          ["run", "new", "--workflow", "demo", "--task", "The task with debug changes"],
-          repo.root,
-          env,
-        )
-      ).json.data as { runId: string }
-    ).runId;
-    const opened = await fetch(`${base}/runs/${runId}/pty-open`, {
-      method: "POST",
-      body: JSON.stringify({ host: "claude" }),
-    });
-    expect(((await opened.json()) as { ok: boolean }).ok).toBe(true);
-    await page.goto(app(`grid/task/${runId}`));
+    await page.goto(app(`grid/task/${task}`));
     const inBar = page.getByTestId("terminals-bar").getByTestId("debug-changes");
-    await inBar.waitFor({ timeout: 20_000 });
-    expect(await inBar.textContent()).toBe("Debug changes (2)");
+    await until("the entry in the bar", async () =>
+      (await inBar.textContent().catch(() => "")) === "Debug changes (2)" ? true : undefined,
+    );
     await inBar.click();
+    await dialog.getByTestId(`scratch-${two}`).waitFor({ timeout: 10_000 });
+    // While the list is open, the debug line in src/tax.ts is rewritten by hand: its patch no longer applies.
+    await repo.write("src/tax.ts", `${TAX}console.warn("tax called twice");\n`);
     await dialog.getByTestId("remove-debug-changes").click();
     await nameIfAsked();
     const said = await until("what could not be removed", async () => {
@@ -400,26 +432,46 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
       return t?.includes("could not be removed") ? t : undefined;
     });
     expect(said).toBe(
-      "Removed 1 debug change (src/price.ts, src/tax.ts). 1 debug change could not be removed: src/invoice.ts (the patch no longer applies). Nothing was forced: undo it by hand.",
+      "Removed 1 debug change (debug.log). 1 debug change could not be removed: src/tax.ts (the patch no longer applies (src/tax.ts changed since)). Nothing was forced: undo it by hand.",
     );
-    expect(JSON.parse(drops[1] ?? "{}")).toEqual({ by: "ana" });
-    // What could not be removed is still listed, and still counted.
-    expect(await dialog.getByTestId("scratch-s3").count()).toBe(1);
+    // Nothing was forced: the rewritten line is still there; the removed file is gone.
+    expect(await repo.read("src/tax.ts")).toBe(`${TAX}console.warn("tax called twice");\n`);
+    expect(await repo.exists("debug.log")).toBe(false);
+    // Its lines are no longer as recorded: the record went with the failed removal, and the list says so.
+    await dialog.getByText("No debug change is left.").waitFor({ timeout: 10_000 });
     if (SHOTS) await page.screenshot({ path: join(SHOTS, "debug-changes-removed.png") });
     await dialog.getByRole("button", { name: "Close" }).click();
-    await until("the count after all", async () =>
-      (await inBar.textContent()) === "Debug changes (1)" ? true : undefined,
+    // What was said stays in the entry's place once nothing is left to list.
+    await until("the entry gone, the line in its place", async () =>
+      (await inBar.count()) === 0 &&
+      (
+        await page
+          .getByTestId("debug-changes-said")
+          .textContent()
+          .catch(() => "")
+      )?.includes("could not be removed")
+        ? true
+        : undefined,
     );
-    // With nothing counted the entry is gone, and nothing asks for the list.
-    items = [];
-    push();
-    await until("the entry gone", async () => ((await inBar.count()) === 0 ? true : undefined));
-    sockets = [];
-    await metator(
-      ["run", "close", "--run", runId, "--aborted", "--reason", "the test ends here"],
-      repo.root,
-      env,
+    await repo.write("src/tax.ts", TAX);
+
+    // A count one too high: a debug edit the person took out by hand is still counted until the
+    // list is read; the list then says nothing is left, and the entry goes.
+    await scratchEdit({ "src/price.ts": `${PRICE}console.log("again");\n` }, "taken out by hand");
+    await repo.write("src/price.ts", PRICE);
+    expect((await stateOf()).scratch).toBe(1);
+    await page.goto(app("inbox"));
+    await until("the entry with the stale count", async () =>
+      (await entry.textContent().catch(() => "")) === "Debug changes (1)" ? true : undefined,
     );
+    await entry.click();
+    await dialog.getByText("No debug change is left.").waitFor({ timeout: 10_000 });
+    expect(await dialog.getByTestId("remove-debug-changes").isDisabled()).toBe(true);
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await until("the entry gone", async () => ((await entry.count()) === 0 ? true : undefined));
+    expect((await stateOf()).scratch).toBe(0);
+
+    await mt("run", "close", "--run", task, "--aborted", "--reason", "the test ends here");
     expect(errors.filter((e) => !/Notification|favicon/.test(e))).toEqual([]);
-  }, 120_000);
+  }, 180_000);
 });

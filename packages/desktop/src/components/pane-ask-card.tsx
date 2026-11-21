@@ -8,7 +8,7 @@ import { useState } from "react";
 import type { PaneAsk } from "../api.ts";
 import { useDaemon } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
-import { consentOf } from "../stage1.ts";
+import { askWhy, consentOf } from "../stage1.ts";
 import { CommandText, commandOf } from "./command-text.tsx";
 import { Notice } from "./common.tsx";
 
@@ -61,6 +61,8 @@ export function PaneAskCard({
   const other = choice === "Other";
   // A commit, push, merge or rebase the guard lets through only with the person's consent.
   const consent = q.source === "permission" ? consentOf(q) : undefined;
+  // The guard's own reason, when the host shows one (a commit that holds debug changes).
+  const why = q.source === "permission" ? askWhy(q) : undefined;
   const send = async () => {
     if (!choice) return;
     const done = await action.run(
@@ -95,6 +97,11 @@ export function PaneAskCard({
         {ask.repo ? ` of ${ask.repo}` : ""}
         {ask.runId ? ` (run ${ask.runId})` : ", before any run"}: answer here and it is typed there.
       </div>
+      {why ? (
+        <div className="consent" data-testid="ask-why">
+          {why}
+        </div>
+      ) : null}
       {consent ? (
         <div className="consent amber" data-testid="consent">
           {consent.text}

@@ -6799,6 +6799,12 @@ export const MUTANTS: readonly Mutant[] = [
     why: "a debug change whose patch no longer applies is said, never passed over",
   },
   {
+    file: "packages/desktop/src/stage1.ts",
+    from: '  return why === "" || why === PLAIN_WHY ? undefined : why;',
+    to: '  return why === "" ? undefined : why;',
+    why: "a card repeats no reason every approval has; only the guard's own is shown",
+  },
+  {
     file: "packages/desktop/src/confirm.ts",
     from: "const mine = ++latest;",
     to: "const mine = latest;",

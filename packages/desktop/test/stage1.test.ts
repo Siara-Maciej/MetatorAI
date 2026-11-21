@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { commandText } from "../src/model.ts";
 import {
+  askWhy,
   chatAgentOf,
   consentOf,
   dropText,
@@ -50,6 +51,20 @@ describe("a commit or push that needs the person's consent (round 13)", () => {
     );
     expect(consentOf({ prompt: "x", command: "git -C ../shop-web merge feature" })?.kind).toBe("merge");
     expect(consentOf({ prompt: "git rebase main — This command requires approval" })?.kind).toBe("rebase");
+  });
+  test("the guard's own reason is shown under the command; the host's plain line is not", () => {
+    expect(askWhy(fixture)).toBeUndefined();
+    expect(
+      askWhy({
+        command: "git commit -am 'Add VAT'",
+        prompt:
+          "git commit -am 'Add VAT' — this commit holds debug changes: src/price.ts. Remove them first (`metator scratch drop`), or answer here to commit anyway.",
+      }),
+    ).toBe(
+      "this commit holds debug changes: src/price.ts. Remove them first (`metator scratch drop`), or answer here to commit anyway.",
+    );
+    // Without a command the prompt is the heading already.
+    expect(askWhy({ prompt: "git push — something" })).toBeUndefined();
   });
   test("any other command is a plain permission prompt", () => {
     expect(consentOf({ prompt: "x", command: "git status" })).toBeUndefined();

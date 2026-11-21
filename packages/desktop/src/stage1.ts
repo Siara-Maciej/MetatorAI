@@ -44,6 +44,24 @@ export function consentOf(q: {
   };
 }
 
+/** What every host approval says: no reason worth a line of its own. */
+const PLAIN_WHY = "This command requires approval";
+
+/**
+ * Why a host asks, when it says more than that the command needs approval (the guard's reason:
+ * "this commit holds debug changes: src/price.ts. …"): the part of the prompt after the command
+ * (`<first line of the command> — <why>`). A card whose heading is the command shows it under it.
+ */
+export function askWhy(q: {
+  readonly prompt: string;
+  readonly command?: string | undefined;
+}): string | undefined {
+  if (!q.command) return undefined;
+  const at = q.prompt.lastIndexOf(" — ");
+  const why = at >= 0 ? q.prompt.slice(at + 3).trim() : "";
+  return why === "" || why === PLAIN_WHY ? undefined : why;
+}
+
 /** One recorded debug change (`GET /scratch`): the files it touched, what it was for, when. */
 export interface ScratchItem {
   readonly id: string;

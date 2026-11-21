@@ -19,7 +19,7 @@ import {
   questionKind,
   systemPlanOf,
 } from "../model.ts";
-import { consentOf } from "../stage1.ts";
+import { askWhy, consentOf } from "../stage1.ts";
 import { useAnswer } from "./answer.tsx";
 import { ArtifactViewer } from "./artifact-viewer.tsx";
 import { Chip } from "./chips.tsx";
@@ -81,6 +81,8 @@ export function DecisionCard({
   // A commit, push, merge or rebase the guard lets through only with the person's consent.
   const consent =
     q.source === "permission" ? consentOf({ prompt: heading, command: commandOf(q) }) : undefined;
+  // The guard's own reason, when the host shows one (a commit that holds debug changes).
+  const why = q.source === "permission" ? askWhy({ prompt: heading, command: commandOf(q) }) : undefined;
   // A plan with lint errors closes Approve: the daemon says so on the option, or the lint does.
   const lintOfPlan =
     planView?.lint ??
@@ -184,6 +186,11 @@ export function DecisionCard({
         <div className="muted" data-testid="host-asker">
           {host?.asker ?? q.agent ?? "the agent"} asks on its terminal
           {terminal ? " · an answer chosen here is typed there for you" : ""}
+        </div>
+      ) : null}
+      {why ? (
+        <div className="consent" data-testid="ask-why">
+          {why}
         </div>
       ) : null}
       {consent ? (
