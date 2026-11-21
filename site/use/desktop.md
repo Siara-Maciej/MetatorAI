@@ -35,7 +35,13 @@ Closing the app, reloading it, or opening it in another window changes nothing: 
 
 ### Debug changes
 
-Edits you asked for that are not meant for a commit (a `console.log`, a temporary flag) are recorded. While there are some, **Debug changes (N)** shows on Home and in the bar of a task's terminals (there for the task's repositories). A click lists them: the files, what each was for, and when. **Remove** takes one back out of your files; **Remove debug changes** all of them. A line says what was removed. A change whose lines were edited since can no longer be taken out cleanly: the line names it with the reason and nothing is forced; it leaves the list, because its lines are no longer what was recorded, so undo it by hand. The count can be one too high after you took a change out by hand; opening the list sets it right.
+Edits you asked for that are not meant for a commit (a `console.log`, a temporary flag) are recorded. While there are some, **Debug changes (N)** shows on Home and in the bar of a task's terminals (there for the task's repositories). A click lists them: the files, what each was for, and when.
+
+- **Remove** takes one back out of your files; **Remove debug changes** every one that can still be removed. A line says what was removed.
+- A change whose lines, or the lines around them, were edited since cannot be taken out as it was recorded. The line says so (`could not be removed: src/tax.ts changed since it was recorded…`), nothing is forced, and the change stays in the list, marked **Cannot be removed** with the reason. It still counts, and it still stops a commit. Take its lines out by hand, or click **Forget**: the record goes and your files are not touched.
+- A change you took out by hand is gone, and the list says so once: `s002 is gone: src/tax.ts no longer holds it.`
+
+A recorded change never leaves the list without a line that says why.
 
 ## The workspaces
 

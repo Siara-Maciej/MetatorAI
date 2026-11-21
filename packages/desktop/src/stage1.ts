@@ -62,13 +62,26 @@ export function askWhy(q: {
   return why === "" || why === PLAIN_WHY ? undefined : why;
 }
 
-/** One recorded debug change (`GET /scratch`): the files it touched, what it was for, when. */
+/**
+ * One recorded debug change (`GET /scratch`): the files that hold it, what it was for, when. A
+ * `changed` one can no longer be taken out as recorded (its lines, or the ones around them,
+ * changed since): it stays, with why, until the person takes it out by hand or forgets it.
+ */
 export interface ScratchItem {
   readonly id: string;
   readonly repo?: string | undefined;
   readonly files: readonly string[];
   readonly note?: string | undefined;
   readonly at: string;
+  readonly state: "removable" | "changed";
+  readonly why?: string | undefined;
+}
+
+/** A record that left because no file holds its lines any more: said once, by the answer that removed it. */
+export interface ScratchGone {
+  readonly id: string;
+  readonly files?: readonly string[];
+  readonly why: string;
 }
 
 /** What `GET /scratch` answered, as items: `files` or one `file`; anything else is left out. */
@@ -76,7 +89,15 @@ export function scratchItems(data: unknown, repo?: string): ScratchItem[] {
   const raw = (data as { items?: unknown } | undefined)?.items;
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((x): ScratchItem[] => {
-    const i = x as { id?: unknown; files?: unknown; file?: unknown; note?: unknown; at?: unknown };
+    const i = x as {
+      id?: unknown;
+      files?: unknown;
+      file?: unknown;
+      note?: unknown;
+      at?: unknown;
+      state?: unknown;
+      why?: unknown;
+    };
     if (typeof i.id !== "string") return [];
     const files = Array.isArray(i.files)
       ? i.files.filter((f): f is string => typeof f === "string")
@@ -90,6 +111,8 @@ export function scratchItems(data: unknown, repo?: string): ScratchItem[] {
         files,
         ...(typeof i.note === "string" && i.note.trim() !== "" ? { note: i.note } : {}),
         at: typeof i.at === "string" ? i.at : "",
+        state: i.state === "changed" ? "changed" : "removable",
+        ...(typeof i.why === "string" && i.why.trim() !== "" ? { why: i.why } : {}),
       },
     ];
   });
@@ -134,6 +157,31 @@ export const scratchLine = (i: ScratchItem): string =>
     .filter((x) => x !== undefined)
     .join(" · ");
 
+/** The records an answer says are gone (`gone` of `GET /scratch` and of a drop). */
+export function scratchGone(data: unknown): ScratchGone[] {
+  const raw = (data as { gone?: unknown } | undefined)?.gone;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((x): ScratchGone[] => {
+    const g = x as { id?: unknown; files?: unknown; why?: unknown };
+    if (typeof g.id !== "string") return [];
+    const files = Array.isArray(g.files) ? g.files.filter((f): f is string => typeof f === "string") : [];
+    return [{ id: g.id, files, why: typeof g.why === "string" && g.why !== "" ? g.why : `${g.id} is gone` }];
+  });
+}
+
+/** What the daemon says of records that are gone, as sentences: `s002 is gone: src/tax.ts no longer holds it.` */
+export const goneText = (gone: readonly ScratchGone[]): string =>
+  gone.map((g) => `${g.why.replace(/\.$/, "")}.`).join(" ");
+
+/**
+ * Why a changed record cannot be taken out, without the daemon's hint for a terminal (the app
+ * has its own: Forget): the first sentence of its `why`.
+ */
+export const changedWhy = (why: string | undefined): string => {
+  const first = (why ?? "").split(/\.\s+(?=[A-Z])/)[0]?.trim() ?? "";
+  return first === "" ? "its lines changed since it was recorded" : first.replace(/\.$/, "");
+};
+
 /** What `POST /scratch/drop` did. */
 export interface ScratchDropped {
   readonly dropped?: readonly { readonly id: string; readonly files?: readonly string[] }[];
@@ -142,26 +190,48 @@ export interface ScratchDropped {
     readonly files?: readonly string[];
     readonly why: string;
   }[];
+  readonly gone?: readonly ScratchGone[];
 }
 
-/** What removing debug changes did, in one line: what was removed, and what could not be and why. */
+/**
+ * What removing debug changes did, in one line: what was removed, what is gone because no file
+ * holds it any more, and what could not be removed, why, and that it stays in the list.
+ */
 export function dropText(results: readonly ScratchDropped[]): {
   readonly text: string;
   readonly ok: boolean;
 } {
   const dropped = results.flatMap((r) => r.dropped ?? []);
   const failed = results.flatMap((r) => r.failed ?? []);
+  const gone = results.flatMap((r) => scratchGone(r));
   const n = (k: number) => `${k} debug change${k === 1 ? "" : "s"}`;
   const files = [...new Set(dropped.flatMap((d) => d.files ?? []))];
   const head =
     dropped.length > 0
       ? `Removed ${n(dropped.length)}${files.length > 0 ? ` (${files.join(", ")})` : ""}.`
-      : "Nothing was removed.";
-  if (failed.length === 0) return { text: head, ok: true };
+      : gone.length > 0
+        ? undefined
+        : "Nothing was removed.";
+  const said = [head, gone.length > 0 ? goneText(gone) : undefined].filter((x) => x !== undefined);
+  if (failed.length === 0) return { text: said.join(" "), ok: true };
   return {
-    text: `${head} ${n(failed.length)} could not be removed: ${failed
-      .map((f) => `${(f.files ?? []).join(", ") || f.id} (${f.why})`)
-      .join("; ")}. Nothing was forced: undo ${failed.length === 1 ? "it" : "them"} by hand.`,
+    text: `${said.join(" ")} ${n(failed.length)} could not be removed: ${failed
+      .map((f) => changedWhy(f.why))
+      .join("; ")}. Nothing was forced: ${failed.length === 1 ? "it stays" : "they stay"} in the list; take ${
+      failed.length === 1 ? "its" : "their"
+    } lines out by hand, or forget ${failed.length === 1 ? "it" : "them"}.`,
     ok: false,
   };
+}
+
+/** What `POST /scratch/forget` did: the records are dismissed, no file was touched. */
+export function forgetText(result: {
+  readonly forgotten?: readonly { readonly id: string; readonly files?: readonly string[] }[];
+}): string {
+  const forgotten = result.forgotten ?? [];
+  if (forgotten.length === 0) return "Nothing was forgotten.";
+  const files = [...new Set(forgotten.flatMap((f) => f.files ?? []))];
+  return `Forgot ${forgotten.length} debug change${forgotten.length === 1 ? "" : "s"}${
+    files.length > 0 ? ` (${files.join(", ")})` : ""
+  }: ${forgotten.length === 1 ? "its" : "their"} lines stay in your files.`;
 }

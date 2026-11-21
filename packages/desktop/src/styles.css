@@ -3323,3 +3323,8 @@ button.debug-changes {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.debug-changes-dialog .scratch-list .changed {
+  display: block;
+  font-size: var(--fs-small);
+  margin-top: 2px;
+}

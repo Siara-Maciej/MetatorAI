@@ -355,13 +355,11 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
     await post(`/runs/${runId}/close-panes`, {});
   }, 240_000);
 
-  test("Debug changes (N) from real scratch records: on Home and in a task's Terminals bar; one removed, then all, with what could not be", async () => {
+  test("Debug changes (N) from real scratch records: removed, could not be removed and stays as changed, gone, forgotten; each is said", async () => {
     // A task with a terminal, for its Terminals bar (before the tree holds debug edits).
     const task = (
       (await mt("run", "new", "--workflow", "mt-feature", "--task", "The task with debug changes")).json
-        .data as {
-        runId: string;
-      }
+        .data as { runId: string }
     ).runId;
     expect((await post(`/runs/${task}/pty-open`, {})).ok).toBe(true);
     // Three debug edits, recorded as the chat's agent records them.
@@ -381,6 +379,7 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
     );
     await entry.click();
     const dialog = page.getByRole("dialog", { name: "Debug changes" });
+    const result = dialog.getByTestId("debug-changes-result");
     await dialog.getByTestId(`scratch-${one}`).waitFor({ timeout: 10_000 });
     expect(await dialog.getByTestId(`scratch-${one}`).textContent()).toContain(
       "src/price.ts · trace price calls",
@@ -394,12 +393,7 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
     await dialog.getByTestId(`scratch-${one}`).getByRole("button", { name: "Remove" }).click();
     await nameIfAsked();
     await until("the result of one", async () =>
-      (
-        await dialog
-          .getByTestId("debug-changes-result")
-          .textContent()
-          .catch(() => "")
-      )?.includes("Removed 1 debug change (src/price.ts).")
+      (await result.textContent().catch(() => ""))?.includes("Removed 1 debug change (src/price.ts).")
         ? true
         : undefined,
     );
@@ -412,6 +406,10 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
       (await entry.textContent().catch(() => "")) === "Debug changes (2)" ? true : undefined,
     );
 
+    // The line BEFORE the debug line in src/tax.ts is rewritten by hand: the file still holds the
+    // debug line, but its patch no longer applies.
+    const rewritten = `${TAX.replace("0.23", "0.08")}console.log("tax called");\n`;
+    await repo.write("src/tax.ts", rewritten);
     // A task's Terminals bar has the entry too; "Remove debug changes" removes all it can.
     await page.goto(app(`grid/task/${task}`));
     const inBar = page.getByTestId("terminals-bar").getByTestId("debug-changes");
@@ -419,59 +417,109 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
       (await inBar.textContent().catch(() => "")) === "Debug changes (2)" ? true : undefined,
     );
     await inBar.click();
-    await dialog.getByTestId(`scratch-${two}`).waitFor({ timeout: 10_000 });
-    // While the list is open, the debug line in src/tax.ts is rewritten by hand: its patch no longer applies.
-    await repo.write("src/tax.ts", `${TAX}console.warn("tax called twice");\n`);
+    // The list already says which one can no longer be removed as recorded, and why.
+    const changed = dialog.getByTestId(`scratch-changed-${two}`);
+    await changed.waitFor({ timeout: 10_000 });
+    expect(await changed.textContent()).toBe(
+      "Cannot be removed: src/tax.ts changed since it was recorded: its debug lines can no longer be taken out as they were. Take its lines out by hand, or forget it.",
+    );
+    // "Remove debug changes" takes out what it can; the changed one is not asked for, and stays.
     await dialog.getByTestId("remove-debug-changes").click();
     await nameIfAsked();
-    const said = await until("what could not be removed", async () => {
-      const t = await dialog
-        .getByTestId("debug-changes-result")
-        .textContent()
-        .catch(() => "");
-      return t?.includes("could not be removed") ? t : undefined;
-    });
-    expect(said).toBe(
-      "Removed 1 debug change (debug.log). 1 debug change could not be removed: src/tax.ts (the patch no longer applies (src/tax.ts changed since)). Nothing was forced: undo it by hand.",
-    );
-    // Nothing was forced: the rewritten line is still there; the removed file is gone.
-    expect(await repo.read("src/tax.ts")).toBe(`${TAX}console.warn("tax called twice");\n`);
-    expect(await repo.exists("debug.log")).toBe(false);
-    // Its lines are no longer as recorded: the record went with the failed removal, and the list says so.
-    await dialog.getByText("No debug change is left.").waitFor({ timeout: 10_000 });
-    if (SHOTS) await page.screenshot({ path: join(SHOTS, "debug-changes-removed.png") });
-    await dialog.getByRole("button", { name: "Close" }).click();
-    // What was said stays in the entry's place once nothing is left to list.
-    await until("the entry gone, the line in its place", async () =>
-      (await inBar.count()) === 0 &&
-      (
-        await page
-          .getByTestId("debug-changes-said")
-          .textContent()
-          .catch(() => "")
-      )?.includes("could not be removed")
+    await until("the removable one removed", async () =>
+      (await result.textContent().catch(() => "")) === "Removed 1 debug change (debug.log)."
         ? true
         : undefined,
     );
-    await repo.write("src/tax.ts", TAX);
+    expect(await repo.exists("debug.log")).toBe(false);
+    expect(await repo.read("src/tax.ts")).toBe(rewritten);
+    await until("the changed one still listed", async () =>
+      (await dialog.locator("[data-testid^='scratch-s']").count()) === 1 &&
+      (await dialog.getByTestId(`scratch-${two}`).getAttribute("data-state")) === "changed"
+        ? true
+        : undefined,
+    );
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "debug-changes-removed.png") });
+    await dialog.getByRole("button", { name: "Close" }).click();
+    // It still counts.
+    await until("the count with the changed one", async () =>
+      (await inBar.textContent().catch(() => "")) === "Debug changes (1)" ? true : undefined,
+    );
 
-    // A count one too high: a debug edit the person took out by hand is still counted until the
-    // list is read; the list then says nothing is left, and the entry goes.
-    await scratchEdit({ "src/price.ts": `${PRICE}console.log("again");\n` }, "taken out by hand");
-    await repo.write("src/price.ts", PRICE);
-    expect((await stateOf()).scratch).toBe(1);
+    // A removal that fails: the line before a debug line is rewritten while the list is open.
+    const four = await scratchEdit(
+      { "src/price.ts": `${PRICE}console.log("again");\n` },
+      "rewritten under it",
+    );
     await page.goto(app("inbox"));
-    await until("the entry with the stale count", async () =>
-      (await entry.textContent().catch(() => "")) === "Debug changes (1)" ? true : undefined,
+    await until("two again", async () =>
+      (await entry.textContent().catch(() => "")) === "Debug changes (2)" ? true : undefined,
     );
     await entry.click();
+    await dialog.getByTestId(`scratch-${four}`).waitFor({ timeout: 10_000 });
+    const priceRewritten = `${PRICE.replace("=> n", "=> n * 1")}console.log("again");\n`;
+    await repo.write("src/price.ts", priceRewritten);
+    await dialog.getByTestId(`scratch-${four}`).getByRole("button", { name: "Remove" }).click();
+    await nameIfAsked();
+    await until("what could not be removed", async () =>
+      (await result.textContent().catch(() => ""))?.includes("could not be removed") ? true : undefined,
+    );
+    expect(await result.textContent()).toBe(
+      "Nothing was removed. 1 debug change could not be removed: src/price.ts changed since it was recorded: its debug lines can no longer be taken out as they were. Nothing was forced: it stays in the list; take its lines out by hand, or forget it.",
+    );
+    // Nothing was forced: the file is as the person left it, and the record stays, as changed.
+    expect(await repo.read("src/price.ts")).toBe(priceRewritten);
+    await until("it stays as changed", async () =>
+      (await dialog.getByTestId(`scratch-${four}`).getAttribute("data-state")) === "changed"
+        ? true
+        : undefined,
+    );
+    expect((await stateOf()).scratch).toBe(2);
+
+    // Gone: the person takes that debug line out by hand; the next list says the record is gone.
+    await repo.write("src/price.ts", PRICE.replace("=> n", "=> n * 1"));
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await entry.click();
+    const gone = dialog.getByTestId("debug-changes-gone");
+    await gone.waitFor({ timeout: 10_000 });
+    expect(await gone.textContent()).toBe(`${four} is gone: src/price.ts no longer holds it.`);
+    expect(await dialog.getByTestId(`scratch-${four}`).count()).toBe(0);
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "debug-changes-gone.png") });
+
+    // Forget: the changed record of src/tax.ts is dismissed; the file is not touched.
+    await dialog.getByTestId(`scratch-${two}`).getByRole("button", { name: "Forget" }).click();
+    await nameIfAsked();
+    await until("forgotten", async () =>
+      (await result.textContent().catch(() => "")) ===
+      "Forgot 1 debug change (src/tax.ts): its lines stay in your files."
+        ? true
+        : undefined,
+    );
+    expect(await repo.read("src/tax.ts")).toBe(rewritten);
     await dialog.getByText("No debug change is left.").waitFor({ timeout: 10_000 });
-    expect(await dialog.getByTestId("remove-debug-changes").isDisabled()).toBe(true);
     await dialog.getByRole("button", { name: "Close" }).click();
     await until("the entry gone", async () => ((await entry.count()) === 0 ? true : undefined));
     expect((await stateOf()).scratch).toBe(0);
 
+    // Gone, found by a removal: the debug line is taken out by hand while the list is open.
+    const five = await scratchEdit({ "notes.txt": "a debug note\n" }, "taken out by hand");
+    await until("one more", async () =>
+      (await entry.textContent().catch(() => "")) === "Debug changes (1)" ? true : undefined,
+    );
+    await entry.click();
+    await dialog.getByTestId(`scratch-${five}`).waitFor({ timeout: 10_000 });
+    await rm(repo.path("notes.txt"));
+    await dialog.getByTestId(`scratch-${five}`).getByRole("button", { name: "Remove" }).click();
+    await nameIfAsked();
+    await until("the removal says it is gone", async () =>
+      (await result.textContent().catch(() => "")) === `${five} is gone: notes.txt no longer holds it.`
+        ? true
+        : undefined,
+    );
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await until("the entry gone again", async () => ((await entry.count()) === 0 ? true : undefined));
+
     await mt("run", "close", "--run", task, "--aborted", "--reason", "the test ends here");
     expect(errors.filter((e) => !/Notification|favicon/.test(e))).toEqual([]);
-  }, 180_000);
+  }, 240_000);
 });

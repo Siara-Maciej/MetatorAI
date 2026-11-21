@@ -6794,8 +6794,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/desktop/src/stage1.ts",
-    from: "  if (failed.length === 0) return { text: head, ok: true };",
-    to: "  if (failed.length >= 0) return { text: head, ok: true };",
+    from: '  if (failed.length === 0) return { text: said.join(" "), ok: true };',
+    to: '  if (failed.length >= 0) return { text: said.join(" "), ok: true };',
     why: "a debug change whose patch no longer applies is said, never passed over",
   },
   {
@@ -6803,6 +6803,18 @@ export const MUTANTS: readonly Mutant[] = [
     from: '  return why === "" || why === PLAIN_WHY ? undefined : why;',
     to: '  return why === "" ? undefined : why;',
     why: "a card repeats no reason every approval has; only the guard's own is shown",
+  },
+  {
+    file: "packages/desktop/src/stage1.ts",
+    from: '        state: i.state === "changed" ? "changed" : "removable",',
+    to: '        state: "removable",',
+    why: "a debug change whose lines changed since is listed as changed (Forget), not as removable",
+  },
+  {
+    file: "packages/desktop/src/stage1.ts",
+    from: "  const gone = results.flatMap((r) => scratchGone(r));",
+    to: "  const gone = results.flatMap(() => [] as ScratchGone[]);",
+    why: "a record a removal found gone is said: nothing leaves silently",
   },
   {
     file: "packages/desktop/src/confirm.ts",

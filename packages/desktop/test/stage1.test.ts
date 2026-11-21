@@ -2,12 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { commandText } from "../src/model.ts";
 import {
   askWhy,
+  changedWhy,
   chatAgentOf,
   consentOf,
   dropText,
+  forgetText,
+  goneText,
   OPEN_DIFF,
   opensDiff,
   scratchCount,
+  scratchGone,
   scratchItems,
   scratchLine,
   scratchRepos,
@@ -93,7 +97,11 @@ describe("debug changes (round 13)", () => {
     expect(scratchRepos({ runs: [] })).toEqual([]);
   });
 
-  test("the list's items: files or one file, a note, when; anything else is left out", () => {
+  // The daemon's own words for a record whose lines changed since (shapes.md, "Scratch REVISED").
+  const WHY =
+    "src/c.ts changed since it was recorded: its debug lines can no longer be taken out as they were. Take them out by hand, or forget the record (`metator scratch forget --id s2`)";
+
+  test("the list's items: files, a note, when, and whether it can still be removed; anything else is left out", () => {
     const items = scratchItems(
       {
         items: [
@@ -102,26 +110,55 @@ describe("debug changes (round 13)", () => {
             files: ["src/a.ts", "src/b.ts"],
             note: "why the total is off",
             at: "2026-11-21T10:00:00.000Z",
+            state: "removable",
           },
-          { id: "s2", file: "src/c.ts", at: "2026-11-21T10:05:00.000Z" },
+          { id: "s2", file: "src/c.ts", at: "2026-11-21T10:05:00.000Z", state: "changed", why: WHY },
           { files: ["no id"] },
           "nonsense",
         ],
       },
       "shop-api",
     );
-    expect(items.map((i) => [i.id, i.repo, i.files, i.note])).toEqual([
-      ["s1", "shop-api", ["src/a.ts", "src/b.ts"], "why the total is off"],
-      ["s2", "shop-api", ["src/c.ts"], undefined],
+    expect(items.map((i) => [i.id, i.repo, i.files, i.note, i.state])).toEqual([
+      ["s1", "shop-api", ["src/a.ts", "src/b.ts"], "why the total is off", "removable"],
+      ["s2", "shop-api", ["src/c.ts"], undefined, "changed"],
     ]);
+    // A daemon that names no state: removable, as before.
+    expect(scratchItems({ items: [{ id: "s1", files: ["a"] }] })[0]?.state).toBe("removable");
     expect(scratchItems({})).toEqual([]);
     expect(scratchItems(undefined)).toEqual([]);
     expect(scratchLine(items[0] as never)).toBe("src/a.ts, src/b.ts · why the total is off");
-    expect(scratchLine({ id: "x", files: ["a", "b", "c", "d", "e"], at: "" })).toBe("a, b, c and 2 more");
-    expect(scratchLine({ id: "x", files: [], at: "" })).toBe("no file");
+    expect(scratchLine({ id: "x", files: ["a", "b", "c", "d", "e"], at: "", state: "removable" })).toBe(
+      "a, b, c and 2 more",
+    );
+    expect(scratchLine({ id: "x", files: [], at: "", state: "removable" })).toBe("no file");
+    // Why a changed one cannot be removed: the daemon's first sentence, without its hint for a terminal.
+    expect(changedWhy(items[1]?.why)).toBe(
+      "src/c.ts changed since it was recorded: its debug lines can no longer be taken out as they were",
+    );
+    expect(changedWhy(undefined)).toBe("its lines changed since it was recorded");
   });
 
-  test("what removing them did: what was removed, and what could not be and why", () => {
+  test("a record that is gone is said, by the list and by a removal: nothing leaves silently", () => {
+    const answer = {
+      items: [],
+      gone: [{ id: "s002", files: ["src/tax.ts"], why: "s002 is gone: src/tax.ts no longer holds it" }],
+    };
+    expect(scratchGone(answer)).toEqual(answer.gone);
+    expect(goneText(scratchGone(answer))).toBe("s002 is gone: src/tax.ts no longer holds it.");
+    expect(scratchGone({ items: [] })).toEqual([]);
+    expect(scratchGone({ gone: [{ id: "s9" }, "x"] })).toEqual([{ id: "s9", files: [], why: "s9 is gone" }]);
+    // A removal that found the record gone says that, not "nothing was removed".
+    expect(dropText([{ dropped: [], failed: [], gone: answer.gone }])).toEqual({
+      text: "s002 is gone: src/tax.ts no longer holds it.",
+      ok: true,
+    });
+    expect(
+      dropText([{ dropped: [{ id: "s001", files: ["debug.log"] }], failed: [], gone: answer.gone }]).text,
+    ).toBe("Removed 1 debug change (debug.log). s002 is gone: src/tax.ts no longer holds it.");
+  });
+
+  test("what removing them did: what was removed, and what could not be, why, and that it stays", () => {
     expect(
       dropText([
         {
@@ -138,15 +175,39 @@ describe("debug changes (round 13)", () => {
     expect(
       dropText([
         { dropped: [{ id: "s1", files: ["src/a.ts"] }] },
-        { failed: [{ id: "s2", files: ["src/c.ts"], why: "the patch no longer applies" }] },
+        { failed: [{ id: "s2", files: ["src/c.ts"], why: WHY }] },
       ]),
     ).toEqual({
-      text: "Removed 1 debug change (src/a.ts). 1 debug change could not be removed: src/c.ts (the patch no longer applies). Nothing was forced: undo it by hand.",
+      text: "Removed 1 debug change (src/a.ts). 1 debug change could not be removed: src/c.ts changed since it was recorded: its debug lines can no longer be taken out as they were. Nothing was forced: it stays in the list; take its lines out by hand, or forget it.",
       ok: false,
     });
-    expect(dropText([{ failed: [{ id: "s9", why: "the patch no longer applies" }] }]).text).toBe(
-      "Nothing was removed. 1 debug change could not be removed: s9 (the patch no longer applies). Nothing was forced: undo it by hand.",
+    expect(
+      dropText([
+        {
+          failed: [
+            { id: "s2", why: WHY },
+            { id: "s3", why: "src/d.ts changed since it was recorded: x. Take them out by hand" },
+          ],
+        },
+      ]).text,
+    ).toBe(
+      "Nothing was removed. 2 debug changes could not be removed: src/c.ts changed since it was recorded: its debug lines can no longer be taken out as they were; src/d.ts changed since it was recorded: x. Nothing was forced: they stay in the list; take their lines out by hand, or forget them.",
     );
     expect(dropText([{}])).toEqual({ text: "Nothing was removed.", ok: true });
+  });
+
+  test("forgetting a record touches no file, and says so", () => {
+    expect(forgetText({ forgotten: [{ id: "s2", files: ["src/c.ts"] }] })).toBe(
+      "Forgot 1 debug change (src/c.ts): its lines stay in your files.",
+    );
+    expect(
+      forgetText({
+        forgotten: [
+          { id: "s2", files: ["a"] },
+          { id: "s3", files: ["b"] },
+        ],
+      }),
+    ).toBe("Forgot 2 debug changes (a, b): their lines stay in your files.");
+    expect(forgetText({})).toBe("Nothing was forgotten.");
   });
 });

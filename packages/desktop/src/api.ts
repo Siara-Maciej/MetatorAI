@@ -336,7 +336,10 @@ export class DaemonClient {
   continueRun = (runId: string, by: string, repo?: string) =>
     this.post<ContinueResult>(`/runs/${runId}/continue`, { by }, repo);
   /** The repository's debug changes (round 13): edits not meant for a commit, recorded as patches. */
-  scratch = (repo?: string) => this.get<{ items?: unknown[] }>("/scratch", repo);
+  scratch = (repo?: string) => this.get<{ items?: unknown[]; gone?: unknown[] }>("/scratch", repo);
+  /** Dismisses debug changes without touching a file (a `changed` one the person deals with by hand). */
+  forgetScratch = (body: { ids: readonly string[]; by: string }, repo?: string) =>
+    this.post<{ forgotten?: { id: string; files?: string[] }[] }>("/scratch/forget", body, repo);
   /** Reverse-applies debug changes (all without `ids`); a patch that no longer applies is reported. */
   dropScratch = (body: { ids?: readonly string[]; by: string }, repo?: string) =>
     this.post<ScratchDropped>("/scratch/drop", body, repo);
