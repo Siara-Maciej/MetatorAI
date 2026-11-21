@@ -104,7 +104,8 @@ export class RunRepository {
   /** Resolves undefined to the current run (when there is one), and "latest" to the most recent run. */
   async resolveId(runId: string | undefined): Promise<Result<string, MetatorError>> {
     if (runId && runId !== "latest") return this.named(runId);
-    if (runId === undefined && this.current && (await this.exists(this.current))) return ok(this.current);
+    if (runId === undefined && this.current && (await this.exists(this.current)))
+      return ok(await this.worksThere(this.current));
     const source = this.pointerFile();
     const text = await this.fs.read(source);
     if (text.isErr()) {
@@ -113,6 +114,22 @@ export class RunRepository {
       );
     }
     return parseDocumentText(text.value, source, RunPointerDocument, "json").map((pointer) => pointer.runId);
+  }
+
+  /**
+   * The run that works in a run's worktree now: the run itself, or, once it ended, the active run
+   * that adopted its worktree (a quick run continued as a full one, ADR-0093).
+   */
+  private async worksThere(own: string): Promise<string> {
+    const record = await this.load(own);
+    if (record.isErr() || record.value.state.status === "active") return own;
+    for (const id of await this.list()) {
+      if (id === own) continue;
+      const other = await this.load(id);
+      if (other.isOk() && other.value.worktree?.id === own && other.value.state.status === "active")
+        return id;
+    }
+    return own;
   }
 
   /**

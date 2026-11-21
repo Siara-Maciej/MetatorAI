@@ -154,6 +154,10 @@ import {
   ProvideWorktree,
   PruneWorktrees,
   PtyBroker,
+  QuickCheck,
+  QuickFit,
+  QuickReady,
+  QuickStart,
   RecordArchitectureBaseline,
   RefactorPlanStore,
   RemoveWorktree,
@@ -223,6 +227,7 @@ import {
   WorkOverview,
   type WorkspacePackage,
   WorktreeConflicts,
+  type WorktreeEntry,
   WorktreeRegistry,
   WriteRunArtifact,
   withoutRealHosts,
@@ -1784,6 +1789,74 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
             ? { sessions: options.conductorSessions({ root }), hosts: hostStatus, journal: runJournal }
             : undefined,
         ),
+    ),
+    // The quick way (ADR-0093): is a change small enough, and the run that carries it.
+    quickCheck: asFunction(
+      ({
+        config,
+        testGlobs,
+        vcs,
+        changePatch,
+        workspaceReader,
+        graphQueries,
+        systemImpactQuery,
+        fileSystem,
+        apiSnapshots,
+      }) =>
+        new QuickCheck({
+          limits: config.config.quick,
+          testGlobs,
+          vcs,
+          patch: changePatch,
+          workspace: workspaceReader,
+          graph: graphQueries,
+          impact: systemImpactQuery,
+          exists: (file) => fileSystem.exists(file),
+          // Only a package with a snapshot is compared (`metator api snapshot`): without one, its entry module says it.
+          apiChanged: async (pkg) => {
+            const diff = await apiSnapshots.diff({ package: pkg });
+            return diff.isOk() ? diff.value.changed : undefined;
+          },
+        }),
+    ),
+    quickStart: asFunction(
+      ({ startRun, runRepository, runJournal, fileSystem, workingTree, clock }) =>
+        new QuickStart({
+          start: startRun,
+          repo: runRepository,
+          journal: runJournal,
+          fs: fileSystem,
+          tree: workingTree,
+          clock,
+        }),
+    ),
+    quickFit: asFunction(
+      ({ startRun, runRepository, runJournal, fileSystem, workingTree, clock, closeRun, worktreeRegistry }) =>
+        new QuickFit({
+          adopted: (worktree, run) =>
+            worktreeRegistry.update((all: readonly WorktreeEntry[]) =>
+              all.map((e) => (e.id === worktree ? { ...e, run } : e)),
+            ),
+          start: startRun,
+          repo: runRepository,
+          journal: runJournal,
+          fs: fileSystem,
+          tree: workingTree,
+          clock,
+          close: closeRun,
+        }),
+    ),
+    quickReady: asFunction(
+      ({ runRepository, runJournal, advanceRun, runDrivers }) =>
+        new QuickReady({
+          repo: runRepository,
+          journal: runJournal,
+          advance: advanceRun,
+          driven: async (runId) => {
+            const driver = await runDrivers.status(runId);
+            return driver.isOk() && driver.value?.alive === true;
+          },
+        }),
     ),
     answerQuestion: asFunction(
       ({

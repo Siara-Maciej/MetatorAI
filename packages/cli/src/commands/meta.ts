@@ -133,6 +133,10 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["run new", "a run from a workflow and a task (--worktree for its own checkout)"],
       ["run start", "the run in an agent's pane under the daemon; its workers in their own panes"],
       ["run drive", "the run without a terminal of its own, stage by stage, asking you at each approval"],
+      [
+        "quick start",
+        "a small change without a plan: build, gate, one short review; it ends with a diff to look at",
+      ],
       ["run status", "the stage the run stands at and what it expects"],
       ["inbox", "every question waiting for you, the most urgent first"],
       ["run answer", "answer a question; --always makes it a policy"],

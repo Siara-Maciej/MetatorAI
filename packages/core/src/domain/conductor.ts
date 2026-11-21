@@ -65,7 +65,7 @@ export interface ConductorPromptInput {
   readonly runId: string;
   readonly task: string;
   readonly workflow: string;
-  readonly stages: readonly Pick<StageSpec, "id" | "owner" | "parallel" | "hitl" | "produces">[];
+  readonly stages: readonly Pick<StageSpec, "id" | "owner" | "parallel" | "hitl" | "produces" | "gate">[];
   /** The workflow's `limits.parallel`: how many workers may work at once. */
   readonly parallel?: number;
   readonly runDir: string;
@@ -94,8 +94,10 @@ export function conductorPrompt(input: ConductorPromptInput): string {
           ? `you run \`${script}\`, then advance`
           : "you";
     const produces = (s.produces ?? []).join(", ");
-    return `- ${s.id}: ${who}${produces ? ` → ${produces}` : ""}`;
+    const gate = !s.hitl && s.gate?.script ? ` · gate \`${s.gate.script}\`` : "";
+    return `- ${s.id}: ${who}${produces ? ` → ${produces}` : ""}${gate}`;
   });
+  const gated = input.stages.some((s) => !s.hitl && s.gate?.script);
   return [
     `You are the conductor of run ${input.runId} (workflow ${input.workflow}).`,
     `Task: ${input.task}`,
@@ -108,6 +110,11 @@ export function conductorPrompt(input: ConductorPromptInput): string {
     "- `metator run collect <worker>`: its result (summary, artifacts, a question when blocked); its pane ends and stays for the person to read.",
     "- `metator run advance pass|fail --reason …`: after a stage's work; a human gate waits for `metator run approve`, which only a person runs.",
     "- `metator run workers`: who works now.",
+    ...(gated
+      ? [
+          "A stage with a gate: run the gate after the stage's work and advance pass only when it exits 0. Exit 4 means not yet (it waits for a person or for other work): run it again; `metator quick fit` and `metator quick ready` take `--wait`, which returns when the person answered.",
+        ]
+      : []),
     "A stage with several agents in parallel: split its work into parts, delegate each of them before you wait, then wait for and collect each worker.",
     "You move this run yourself, in this pane: never start `metator run drive` for it (no background drive carries it).",
     "You never edit code yourself, never type into another pane, never start agents any other way. A worker blocked on a question: collect it, decide or ask the person, delegate again with the answer in the card.",

@@ -54,6 +54,7 @@ import { registerOwnersCommand } from "./commands/owners.ts";
 import { registerPaneCommands } from "./commands/pane.ts";
 import { registerPatternsCommands } from "./commands/patterns.ts";
 import { registerPlanCommands } from "./commands/plan.ts";
+import { registerQuickCommands } from "./commands/quick.ts";
 import { registerReposCommands } from "./commands/repos.ts";
 import { registerRulesCommands } from "./commands/rules.ts";
 import { registerRunCommands } from "./commands/run.ts";
@@ -195,6 +196,7 @@ export function buildProgram(
   registerGuardCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
+  registerQuickCommands(program, ctx);
   registerWorktreeCommands(program, ctx);
   registerEnvCommands(program, ctx);
   registerReposCommands(program, ctx);

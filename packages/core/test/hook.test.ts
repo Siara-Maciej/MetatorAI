@@ -206,6 +206,12 @@ describe("preToolPolicy", () => {
         "push needs the user's approval: show the report and options, then `metator run approve push --by <user>`.",
     });
     expect(decide(push, run({ push: { by: "u", at: AT } }))).toBe("allow");
+    // The person's word in the chat is as good as the approval: the push is not refused for the run's.
+    expect(preToolPolicy(push, run({}, { consents: ["push"] }))).toEqual({
+      decision: "allow",
+      reason: "the person consented to push in the chat",
+      consents: ["push"],
+    });
     // The delivery's approval (it grants the push) covers the publish stage's commit as well.
     const commit = hook("Bash", { command: "git commit -m 'Add the badge'" });
     expect(decide(commit, run({}, { headless: true }))).toBe("deny");

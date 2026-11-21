@@ -2269,6 +2269,65 @@ metator policy rm [options] <id>
 |---|---|---|
 | `<id>` | policy id | |
 
+## quick
+
+### `metator quick check`
+
+Is this change small enough for quick? Decided from the files, the diff and the task's words; lists every escalator with why and the tool that saw it
+
+```bash
+metator quick check [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--files <a,b>` | the files the change is expected to touch (before it starts) | `[]` |
+| `--diff` | the working tree's uncommitted changes (after the build) |  |
+| `--task <text>` | the task in the person's words: the files it names and what its words say |  |
+
+### `metator quick start`
+
+Start a small change as an mt-quick run (build, gate, one short review; it ends with an uncommitted diff). Refused while an escalator trips, unless the person keeps it quick in one sentence
+
+```bash
+metator quick start [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--task <text>` | the task, in the person's words **Required.** |  |
+| `--files <a,b>` | the files the change is expected to touch | `[]` |
+| `--override <sentence>` | the person's own sentence that keeps it quick although escalators tripped (recorded with the run; never lifts cross-repository) |  |
+| `--here` | the checkout has uncommitted changes: work in it (they become part of the change) |  |
+| `--worktree` | work in a worktree of its own, from the last commit |  |
+| `--host <host>` | the interactive host of its conductor session (default: supervisor.hostOrder) |  |
+
+### `metator quick fit`
+
+The gate after a quick run's build: the real diff against the limits. Past them it asks the person (continue as full, or keep as quick): not yet (exit 4) until they answer
+
+```bash
+metator quick fit [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--wait [ms]` | wait for the person's answer (at most this long, default 9 minutes), instead of saying not yet at once |  |
+
+### `metator quick ready`
+
+The gate that ends a quick run: asks the person to look at the diff. Not yet (exit 4) until they say Fine; nothing is committed
+
+```bash
+metator quick ready [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | run id (default: latest) |  |
+| `--wait [ms]` | wait for the person's answer (at most this long, default 9 minutes), instead of saying not yet at once |  |
+
 ## worktree
 
 ### `metator worktree new`

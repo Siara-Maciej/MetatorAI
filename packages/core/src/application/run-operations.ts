@@ -4,6 +4,7 @@ import { hostRefusal, labelFor, notDrivable, type Question } from "../domain/dri
 import { MetatorError } from "../domain/errors.ts";
 import { type RunBrief as Brief, briefOf } from "../domain/inbox.ts";
 import { countAttention } from "../domain/overview.ts";
+import { endsQuickRun } from "../domain/quick.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { taskWarnings } from "../domain/task-lint.ts";
 import type { Clock } from "../ports/index.ts";
@@ -129,6 +130,8 @@ export interface StartRunInput {
   readonly worktree?: { readonly base?: string; readonly allowDirty?: boolean };
   /** In this checkout: start although tracked files have uncommitted changes. */
   readonly allowDirty?: boolean;
+  /** Work in the worktree an earlier run made, on the uncommitted work it left there. */
+  readonly adopt?: { readonly id: string; readonly path: string; readonly branch: string };
   readonly parent?: string;
   readonly inputs?: Readonly<Record<string, string>>;
   /** The system plan's step this run carries out (a child of a system run, F7.6). */
@@ -194,6 +197,7 @@ export class StartRun {
       ...(input.inputs && Object.keys(input.inputs).length > 0 ? { inputs: input.inputs } : {}),
       ...(input.autonomy ? { autonomy: input.autonomy } : {}),
       ...(input.worktree ? { worktree: input.worktree } : input.allowDirty ? { allowDirty: true } : {}),
+      ...(input.adopt ? { adopt: input.adopt } : {}),
       ...(input.parent ? { parent: input.parent } : {}),
       ...(input.system ? { system: input.system } : {}),
     } as Parameters<InitRun["execute"]>[0]);
@@ -406,6 +410,20 @@ export class AnswerQuestion {
           });
       // A drive that waited on the question may have carried the answer out first: nothing twice.
       if (decided.isErr() && decided.error.code !== "TRANSITION_DENIED") return err(decided.error);
+    }
+    // The card that ends a quick run (ADR-0093): `Fine` ends it here, whoever looks on (a
+    // conductor at rest would never hear of it), and no drive starts for one advance. Only a live
+    // drive, which waits on its gate, ends the run itself.
+    if (endsQuickRun(answered.value) && this.gates && !(await this.drivenNow(runId))) {
+      const record = await this.repo.load(runId);
+      if (
+        record.isOk() &&
+        record.value.state.status === "active" &&
+        record.value.state.stage === answered.value.stage
+      ) {
+        const ended = await this.gates.advance.execute({ runId, event: { type: "PASS" } });
+        if (ended.isErr() && ended.error.code !== "TRANSITION_DENIED") return err(ended.error);
+      }
     }
     const drive = input.drive ? await this.carryOn(runId) : undefined;
     return ok({ ...answered.value, ...(policy ? { policy } : {}), ...(drive ? { drive } : {}) });

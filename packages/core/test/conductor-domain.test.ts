@@ -93,6 +93,32 @@ describe("conductor domain", () => {
     expect(text).toContain("delegate each of them before you wait");
   });
 
+  test("a stage's gate script is in its row: the conductor runs it before it advances, and exit 4 means not yet", () => {
+    const text = conductorPrompt({
+      runId: "r",
+      task: "t",
+      workflow: "mt-quick",
+      stages: [
+        { id: "build", owner: "mt-implementer", gate: { script: "metator gate full" } },
+        { id: "fit", owner: "script:metator quick check --diff", gate: { script: "metator quick fit" } },
+        { id: "plain", owner: "mt-planner" },
+      ],
+      runDir: "/repo/.metator/runs/r",
+    });
+    expect(text).toContain("- build: mt-implementer · gate `metator gate full`");
+    expect(text).toContain(
+      "- fit: you run `metator quick check --diff`, then advance · gate `metator quick fit`",
+    );
+    expect(text).toContain("- plain: mt-planner\n");
+    expect(text).toContain(
+      "A stage with a gate: run the gate after the stage's work and advance pass only when it exits 0. Exit 4 means not yet (it waits for a person or for other work): run it again; `metator quick fit` and `metator quick ready` take `--wait`, which returns when the person answered.",
+    );
+    // No stage has a gate: the line is not there.
+    expect(
+      conductorPrompt({ runId: "r", task: "t", workflow: "w", stages: [{ id: "a" }], runDir: "/r" }),
+    ).not.toContain("A stage with a gate");
+  });
+
   test("a worker's prompt carries its card and the one way to report", () => {
     const text = workerPrompt({
       runId: "r",

@@ -163,6 +163,10 @@ import type {
   ProvideWorktree,
   PruneWorktrees,
   PtyBroker,
+  QuickCheck,
+  QuickFit,
+  QuickReady,
+  QuickStart,
   RecordArchitectureBaseline,
   RefactorPlanStore,
   RemoveWorktree,
@@ -416,6 +420,10 @@ export interface Cradle {
   startDrive: StartDrive;
   ensureDriven: EnsureDriven;
   startRun: StartRun;
+  quickCheck: QuickCheck;
+  quickStart: QuickStart;
+  quickFit: QuickFit;
+  quickReady: QuickReady;
   answerQuestion: AnswerQuestion;
   askInRun: AskInRun;
   briefRun: BriefRun;

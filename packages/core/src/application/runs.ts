@@ -128,6 +128,11 @@ export interface InitRunInput {
   };
   /** In the checkout: start although the workflow's `clean-tree` precondition does not hold. */
   readonly allowDirty?: boolean;
+  /**
+   * Work in the worktree an earlier run made, on what it left there (a quick run that grew
+   * continues as a full one, ADR-0093). The work so far is uncommitted: `clean-tree` does not apply.
+   */
+  readonly adopt?: NonNullable<RunRecord["worktree"]>;
   /** The run this one is a child of (F7.6), possibly in another repository. */
   readonly parent?: string;
   /** The system plan step this run carries out (F7.6). */
@@ -187,7 +192,7 @@ export class InitRun {
       if (ready.isErr()) return err(ready.error);
       const refusal = startRefusal(ready.value, {
         worktree: input.worktree !== undefined,
-        allowDirty: input.allowDirty ?? input.worktree?.allowDirty,
+        allowDirty: input.adopt ? true : (input.allowDirty ?? input.worktree?.allowDirty),
         preconditions,
       });
       if (refusal) return err(refusal);
@@ -195,8 +200,8 @@ export class InitRun {
 
     const now = this.clock.now().toISOString();
     const runId = await this.uniqueId(now, machine.workflow.id, input.task);
-    let worktree: RunRecord["worktree"];
-    if (input.worktree) {
+    let worktree: RunRecord["worktree"] = input.adopt;
+    if (input.worktree && !input.adopt) {
       if (!this.worktrees) return err(new MetatorError("INTERNAL", "InitRun has no worktree support wired"));
       const wt = await this.worktrees.execute({
         id: runId,

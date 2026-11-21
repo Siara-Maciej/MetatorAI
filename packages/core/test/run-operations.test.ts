@@ -827,3 +827,75 @@ describe("several repositories as one (fleet)", () => {
     ).toEqual({ you: 3, driving: 2, stopped: 4, questions: 4, services: 1 });
   });
 });
+
+describe("AnswerQuestion on the card that ends a quick run (ADR-0093)", () => {
+  const quick = (opts: { liveSession?: boolean } = {}) => {
+    const w = world(opts);
+    const answer = new AnswerQuestion(
+      w.repo,
+      w.journal,
+      w.policies,
+      w.drivers,
+      w.ensureDriven,
+      w.clock,
+      () => opts.liveSession === true,
+      { approve: new ApproveRun(w.advance, w.repo, w.clock, w.catalog), advance: w.advance },
+    );
+    const atLastStage = async () => {
+      const runId = await w.newRun();
+      (await w.advance.execute({ runId, event: { type: "PASS" } }))._unsafeUnwrap();
+      (await w.advance.execute({ runId, event: { type: "APPROVE", by: "ana" } }))._unsafeUnwrap();
+      const q = (
+        await w.journal.ask(runId, {
+          stage: "build",
+          source: "agent",
+          agent: "metator",
+          prompt: "Quick change ready: look at the diff",
+          options: [{ label: "Open diff" }, { label: "Fine" }],
+          multiSelect: false,
+        })
+      )._unsafeUnwrap();
+      return { runId, q };
+    };
+    return { w, answer, atLastStage };
+  };
+
+  test("Fine, with nothing carrying the run, ends it here: no drive starts for one advance", async () => {
+    const g = quick();
+    const { runId, q } = await g.atLastStage();
+    const a = (
+      await g.answer.execute({ runId, question: q.id, choices: ["Fine"], by: "ana", drive: true })
+    )._unsafeUnwrap();
+    expect([(await g.w.repo.load(runId))._unsafeUnwrap().state.status, a.drive, g.w.spawned]).toEqual([
+      "done",
+      undefined,
+      [],
+    ]);
+  });
+
+  test("a conductor's session at rest: Fine still ends the run; a live drive ends it itself; any other answer ends nothing", async () => {
+    const live = quick({ liveSession: true });
+    const first = await live.atLastStage();
+    (
+      await live.answer.execute({ runId: first.runId, question: first.q.id, choices: ["Fine"], by: "ana" })
+    )._unsafeUnwrap();
+    expect((await live.w.repo.load(first.runId))._unsafeUnwrap().state.status).toBe("done");
+    const driven = quick();
+    const second = await driven.atLastStage();
+    (await driven.w.drivers.claim(second.runId, 4321, "claude"))._unsafeUnwrap();
+    driven.w.processes.alive.add(4321);
+    (
+      await driven.answer.execute({
+        runId: second.runId,
+        question: second.q.id,
+        choices: ["Fine"],
+        by: "ana",
+      })
+    )._unsafeUnwrap();
+    expect((await driven.w.repo.load(second.runId))._unsafeUnwrap().state.status).toBe("active");
+    const g = quick();
+    const { runId, q } = await g.atLastStage();
+    (await g.answer.execute({ runId, question: q.id, choices: ["Open diff"], by: "ana" }))._unsafeUnwrap();
+    expect((await g.w.repo.load(runId))._unsafeUnwrap().state.status).toBe("active");
+  });
+});

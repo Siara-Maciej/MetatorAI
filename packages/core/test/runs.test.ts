@@ -594,6 +594,29 @@ describe("the current run and its artifacts", () => {
     );
   });
 
+  test("a worktree a later run adopted (a quick run continued as full): no run named means the run that works there now", async () => {
+    const w = world();
+    const quick = (await w.init.execute({ workflow: "feature", task: "a quick one" }))._unsafeUnwrap().runId;
+    const place = { id: quick, path: `.metator/wt/${quick}`, branch: `metator/${quick}` };
+    const mine = new RunRepository(w.fs, DEFAULT_PATHS, quick);
+    // Adopted, with the work so far uncommitted: the worktree is the earlier run's, as it is.
+    const full = (
+      await w.init.execute({ workflow: "feature", task: "the same, as a full run", adopt: place })
+    )._unsafeUnwrap();
+    expect((await w.repo.load(full.runId))._unsafeUnwrap().worktree).toEqual(place);
+    // While the first run is active, it is still the worktree's run.
+    expect((await mine.resolveId(undefined))._unsafeUnwrap()).toBe(quick);
+    (
+      await w.advance.execute({ runId: quick, event: { type: "ABORT", reason: "continued as full" } })
+    )._unsafeUnwrap();
+    expect((await mine.resolveId(undefined))._unsafeUnwrap()).toBe(full.runId);
+    // An ended run nobody continued stays the worktree's run.
+    (
+      await w.advance.execute({ runId: full.runId, event: { type: "ABORT", reason: "given up" } })
+    )._unsafeUnwrap();
+    expect((await mine.resolveId(undefined))._unsafeUnwrap()).toBe(quick);
+  });
+
   test("a run is named by its id or by the start of it; a start two runs share is refused with both", async () => {
     const w = world();
     const first = (await w.init.execute({ workflow: "feature", task: "alpha one" }))._unsafeUnwrap().runId;
