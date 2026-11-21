@@ -135,14 +135,20 @@ stages:
     const built = await metator(["run", "advance", "pass"], repo.root, AT("12:02"));
     const view = built.json.data as { stage: string; approvals: Record<string, { by: string }> };
     expect([view.stage, view.approvals["review-approval"]?.by]).toEqual(["delivery", "autonomy L1"]);
-    // Autopilot never covers external actions: a push still needs `run approve push`.
-    const push = await hook(
-      ["guard", "pre-tool"],
-      { tool_name: "Bash", tool_input: { command: "git push" } },
-      repo.root,
-    );
-    expect(
-      (push.json?.hookSpecificOutput as { permissionDecision?: string } | undefined)?.permissionDecision,
-    ).toBe("deny");
+    // Autopilot never covers external actions: a push still needs the person (ADR-0094). In a
+    // session with a person it asks for their consent; in a driven one, where nobody can be asked,
+    // it is refused until `run approve push`.
+    const pushIn = async (env: Record<string, string>) =>
+      (
+        (
+          await hook(
+            ["guard", "pre-tool"],
+            { tool_name: "Bash", tool_input: { command: "git push" } },
+            repo.root,
+            env,
+          )
+        ).json?.hookSpecificOutput as { permissionDecision?: string } | undefined
+      )?.permissionDecision;
+    expect([await pushIn({}), await pushIn({ METATOR_DRIVEN: "1" })]).toEqual(["ask", "deny"]);
   }, 60_000);
 });

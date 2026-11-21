@@ -197,6 +197,7 @@ describe("the command surface (real CLI)", () => {
         "guard post-edit",
         "guard stop",
         "guard subagent-output",
+        "guard user-prompt",
         "guard session-start",
         "guard precompact",
       ],
