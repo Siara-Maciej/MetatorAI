@@ -50,7 +50,29 @@ export function liveDaemonAt(root: string): DaemonInfo | undefined {
   return info.isOk() && processLives(info.value.pid) ? info.value : undefined;
 }
 
+/**
+ * Inside the sandbox a host session starts in (ADR-0104): the daemon's process is in another PID
+ * namespace, out of sight, and the network is reached only through the sandbox's proxy, which
+ * lets the daemon's own address through.
+ */
+export const inSandbox = (env: Readonly<Record<string, string | undefined>> = process.env): boolean =>
+  env.METATOR_SANDBOX === "1";
+
+/**
+ * How a call reaches the daemon: directly, or inside the sandbox through its proxy. The proxy
+ * holds the only way out of the sandbox; the exceptions it is told to skip (`NO_PROXY` names the
+ * loopback) would lead nowhere there, so they are dropped.
+ */
+export function daemonRoute(env: Record<string, string | undefined> = process.env): { proxy?: string } {
+  const proxy = inSandbox(env) ? (env.HTTP_PROXY ?? env.http_proxy) : undefined;
+  if (!proxy) return {};
+  delete env.NO_PROXY;
+  delete env.no_proxy;
+  return { proxy };
+}
+
 function processLives(pid: number): boolean {
+  if (inSandbox()) return true;
   try {
     process.kill(pid, 0);
     return true;
@@ -71,6 +93,7 @@ export async function callDaemon<T>(
   let response: Response;
   try {
     response = await fetch(`${daemon.url}${path}`, {
+      ...daemonRoute(),
       method,
       headers: { "content-type": "application/json", ...headers },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),

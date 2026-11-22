@@ -13,6 +13,7 @@ import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domai
 import type { HealthTarget, PostgresTarget } from "../domain/environment.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import type { Edge } from "../domain/graph.ts";
+import type { GuardCommands } from "../domain/guard-commands.ts";
 import type { IntakeItem, IntakeSource } from "../domain/intake.ts";
 import type { PublishedBranch } from "../domain/publication.ts";
 import type { Result } from "../domain/result.ts";
@@ -24,7 +25,7 @@ import type {
   PostedReview,
   ReviewSource,
 } from "../domain/review-thread.ts";
-import type { SandboxPolicy } from "../domain/sandbox.ts";
+import type { SandboxSettings } from "../domain/sandbox.ts";
 import type { Skill } from "../domain/skill.ts";
 import type { ModuleSymbols } from "../domain/symbols.ts";
 
@@ -164,6 +165,15 @@ export interface Terminal {
 }
 
 /**
+ * The operating system's sandbox a host session starts in (ADR-0104): a command line that runs
+ * `argv`, and everything it starts, under the settings. The adapter owns how (the sandbox
+ * runtime's `srt`, its settings file); the settings are the domain's (`sandboxSettings`).
+ */
+export interface HostSandbox {
+  command(argv: readonly string[], settings: SandboxSettings): Result<string[], MetatorError>;
+}
+
+/**
  * A terminal's screen as a person sees it, from the bytes a program wrote to it (ADR-0091): the
  * last drawing of every cell, the cursor's moves, erasing, wrapping, scroll regions and wide
  * glyphs done as a terminal does them. One per pane; the pane sensor reads prompts from it.
@@ -214,8 +224,8 @@ export interface ConformanceLab {
     readonly host: string;
     readonly out: string;
   }): Promise<Result<{ readonly repo: string; readonly os: string }, MetatorError>>;
-  /** Does one thing a person does there; a session opened names its pane. */
-  act(action: LabAction): Promise<Result<{ readonly pane?: string }, MetatorError>>;
+  /** Does one thing a person does there; a session opened names its pane, a file made its path. */
+  act(action: LabAction): Promise<Result<{ readonly pane?: string; readonly path?: string }, MetatorError>>;
   /** What is there now: the pane (when named), its screen and questions, the guard's records, git, these files. */
   look(input: {
     readonly pane?: string;
@@ -698,13 +708,13 @@ export interface HostGenerator {
   /** The host's hook configuration file (ADR-0038). */
   readonly hooksFile: string;
   /**
-   * Hook configuration running `metator guard *`, merged into `existing` (the file as it is); with
-   * a sandbox policy, a host that has a sandbox is told to hold shell commands in it (ADR-0102).
+   * Hook configuration running `metator guard *`, merged into `existing` (the file as it is); a
+   * host whose settings take deny rules is given the config's `never` commands (ADR-0100).
    */
   hooks(
     metatorCommand: string,
     existing: string | undefined,
-    sandbox?: SandboxPolicy,
+    guard?: GuardCommands,
   ): Result<GeneratedFile, MetatorError>;
 }
 

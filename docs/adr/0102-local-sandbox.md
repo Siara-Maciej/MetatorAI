@@ -4,6 +4,9 @@
 - Data: 2026-11-15
 - Numer: na gałęzi `claude/determined-galileo-4hfn27` ten ADR miał numer 0088, zajęty już w głównej linii; przenumerowany decyzją właściciela z 2026-11-22.
 
+## Zmiana proponowana (2026-11-22)
+ADR-0104 (Proposed) przenosi sandbox z bloku ustawień Claude Code na całą sesję hosta, którą uruchamia MetatorAI, na obu hostach; blok `sandbox` nie jest już generowany, a `sandbox.excludedCommands` znika. Decyzja właściciela z 2026-11-22: sandbox wchodzi do głównej linii dopiero w tej postaci.
+
 ## Kontekst
 Hook i reguła deny (ADR-0038, ADR-0100) decydują, **czy** wywołanie narzędzia ruszy. Nie ograniczają tego, do czego sięgnie proces, który już działa. `npm test` to zwykła komenda, ale uruchamia cudzy kod: zależności, skrypty napisane przed chwilą przez agenta. Taki proces potomny może otworzyć `.env` albo klucze SSH i wysłać je na dowolny host, a hook zobaczył tylko `npm test`. Człowiek zatwierdzający ręcznie też by to przepuścił. Zatrzymać to może tylko system operacyjny.
 

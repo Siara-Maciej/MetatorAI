@@ -53,6 +53,24 @@ describe("judgeConformance: each expectation through what MetatorAI observes", (
     });
   });
 
+  test("readRefused: the system's refusal of a read after the words, never one from before", () => {
+    const words = "run exactly this shell command once: `cat /tmp/denied/secret.txt`";
+    for (const refusal of ["No such file or directory", "Permission denied", "Operation not permitted"]) {
+      const seen = view({
+        screen: `❯ ${words}\n● Bash(cat /tmp/denied/secret.txt)\n  ⎿  cat: /tmp/denied/secret.txt: ${refusal}\n❯`,
+      });
+      expect(judgeConformance({ readRefused: true }, seen, ctx({ lastWords: words }))).toEqual({
+        ok: true,
+        evidence: `the system refused the read: ⎿  cat: /tmp/denied/secret.txt: ${refusal}`,
+      });
+    }
+    const before = view({ screen: `cat: x: Permission denied\n❯ ${words}\n● KAVO\n❯` });
+    expect(judgeConformance({ readRefused: true }, before, ctx({ lastWords: words }))).toEqual({
+      ok: false,
+      evidence: expect.stringContaining("no refusal of the read on the screen after the words given"),
+    });
+  });
+
   test("absent: after the first words of the check only", () => {
     const seen = view({ screen: "LIST-END\n❯ Write the numbers\n1\n2\n❯ Stop now\n● KAVO" });
     expect(judgeConformance({ absent: "LIST-END" }, seen, ctx({ firstWords: "Write the numbers" })).ok).toBe(

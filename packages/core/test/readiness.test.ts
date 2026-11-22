@@ -74,7 +74,7 @@ describe("CheckReadiness", () => {
     const v = r._unsafeUnwrap();
     expect(v.ready).toBe(true);
     expect(readinessWarnings(v)).toEqual([
-      "isolation: agents' shell commands run without a sandbox: a script or a dependency they start can read every file you can (fix: metator config set sandbox.enabled true --scope repo, then metator generate --hooks)",
+      "isolation: agents' host sessions run without a sandbox: a script or a dependency they start can read every file you can (fix: metator config set sandbox.enabled true --scope repo)",
       "runs: run r1 cannot be read and is left out of the overviews (not valid JSON) (fix: restore .metator/runs/r1/state.json (from git or a backup), or delete the run's directory)",
     ]);
   });
@@ -126,7 +126,7 @@ describe("CheckReadiness", () => {
       "canon: the agents and skills are not installed by MetatorAI here (fix: metator setup)",
       "gates: no gates configured: a run's gates stage checks nothing (fix: metator init (it proposes gates from the repository's scripts))",
       "dependencies: dependencies are not installed: in a run, tests, the type checker and linters cannot run, so gates check only rules (fix: pnpm install)",
-      "isolation: agents' shell commands run without a sandbox: a script or a dependency they start can read every file you can (fix: metator config set sandbox.enabled true --scope repo, then metator generate --hooks)",
+      "isolation: agents' host sessions run without a sandbox: a script or a dependency they start can read every file you can (fix: metator config set sandbox.enabled true --scope repo)",
       "remote: no git remote: a run's publish stage cannot push its branch (fix: git remote add origin <url>)",
     ]);
   });

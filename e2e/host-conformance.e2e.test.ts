@@ -12,9 +12,12 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { standInHost } from "@metator/testing";
+import { sandboxUnheldHere, standInHost } from "@metator/testing";
 import { metator, stopProcessesUnder } from "./helpers/cli.ts";
 import { ScratchRepo } from "./helpers/repo.ts";
+
+/** Whether this machine can hold a sandbox (bwrap, socat, rg): else the sandbox check is skipped, saying so. */
+const unheld = sandboxUnheldHere();
 
 let repo: ScratchRepo;
 let bins: string;
@@ -81,15 +84,22 @@ describe("metator host conformance (stand-in hosts, a real daemon)", () => {
     });
     expect(r.code).toBe(0);
     const run = r.json.data as Run;
-    expect(run.checks.filter((c) => c.result !== "pass")).toEqual([]);
-    expect([run.host, run.cliVersion, run.passed, run.failed]).toEqual(["claude", "2.1.0", 11, 0]);
+    expect(run.checks.filter((c) => c.result !== "pass").map((c) => [c.id, c.result])).toEqual(
+      unheld ? [["sandbox-deny-read", "skipped"]] : [],
+    );
+    expect([run.host, run.cliVersion, run.passed, run.failed]).toEqual([
+      "claude",
+      "2.1.0",
+      unheld ? 11 : 12,
+      0,
+    ]);
     expect(run.report).toBe(".metator/conformance/conformance-claude-2.1.0.json");
     const doc = JSON.parse(readFileSync(repo.path(run.report), "utf8")) as {
       kind: string;
       schemaVersion: number;
       checks: { id: string; evidence: string }[];
     };
-    expect([doc.kind, doc.schemaVersion]).toEqual(["HostConformance", 1]);
+    expect([doc.kind, doc.schemaVersion]).toEqual(["HostConformance", 2]);
     const ev = (id: string) => doc.checks.find((c) => c.id === id)?.evidence ?? "";
     expect(ev("hook-pre-tool-deny")).toContain("guard (GuardAsked");
     expect(ev("hook-pre-tool-deny")).toContain("never runs here");
@@ -98,6 +108,13 @@ describe("metator host conformance (stand-in hosts, a real daemon)", () => {
     expect(ev("word-consent")).toContain("the user-prompt hook kept the person's consent (commit)");
     expect(ev("resume")).toMatch(/continued: session [0-9a-f-]{36} resumed in pane/);
     expect(ev("text-question")).toContain("options: a) red | b) blue");
+    // In the sandbox (ADR-0104): the stand-in's `cat` of the denied file is refused by the system,
+    // and its hook still reaches the daemon through the sandbox's proxy.
+    if (unheld) expect(ev("sandbox-deny-read")).toContain("this machine cannot hold a sandbox");
+    else {
+      expect(ev("sandbox-deny-read")).toContain("the system refused the read: ");
+      expect(ev("sandbox-deny-read")).toMatch(/hook/);
+    }
     expect(readFileSync(repo.path(run.rendered), "utf8")).toContain("# Host conformance: claude 2.1.0");
     // The throwaway repository and everything that ran in it are gone.
     expect(leftovers()).toEqual(before);
@@ -109,7 +126,9 @@ describe("metator host conformance (stand-in hosts, a real daemon)", () => {
     });
     expect(r.code).toBe(0);
     const run = r.json.data as Run;
-    expect(run.checks.filter((c) => c.result !== "pass").map((c) => c.id)).toEqual(["session-id"]);
+    expect(run.checks.filter((c) => c.result !== "pass").map((c) => c.id)).toEqual(
+      unheld ? ["session-id", "sandbox-deny-read"] : ["session-id"],
+    );
     expect(run.report).toBe(".metator/conformance/conformance-copilot-1.0.200.json");
     const diff = await metator(
       ["host", "conformance", "diff", ".metator/conformance/conformance-claude-2.1.0.json", run.report],
@@ -120,8 +139,32 @@ describe("metator host conformance (stand-in hosts, a real daemon)", () => {
       a: { host: "claude", cliVersion: "2.1.0", endedAt: expect.any(String) },
       b: { host: "copilot", cliVersion: "1.0.200", endedAt: expect.any(String) },
       differ: [{ id: "session-id", title: "MetatorAI knows the host's session id", a: "pass", b: "fail" }],
-      same: 10,
+      same: 11,
     });
+    expect(leftovers()).toEqual(before);
+  }, 240_000);
+
+  test("--only keeps the rest of the report: each check it did not play has its result from the last run, with that run's date", async () => {
+    const earlier = JSON.parse(
+      readFileSync(repo.path(".metator/conformance/conformance-claude-2.1.0.json"), "utf8"),
+    ) as { endedAt: string; checks: { id: string; result: string }[] };
+    const r = await conformance(["--host", "claude", ...QUICK, "--only", "session-id"], {
+      METATOR_CLAUDE_BIN: join(bins, "ok/claude"),
+    });
+    expect(r.code).toBe(0);
+    const run = r.json.data as Run;
+    expect([run.passed, run.failed]).toEqual([1, 0]);
+    const doc = JSON.parse(readFileSync(repo.path(run.report), "utf8")) as {
+      checks: { id: string; result: string; from?: string }[];
+    };
+    for (const c of doc.checks) {
+      const was = earlier.checks.find((b) => b.id === c.id);
+      if (c.id === "session-id") expect([c.id, c.result, c.from]).toEqual([c.id, "pass", undefined]);
+      else expect([c.id, c.result, c.from]).toEqual([c.id, was?.result, earlier.endedAt]);
+    }
+    expect(readFileSync(repo.path(run.rendered), "utf8")).toContain(
+      `(run of ${earlier.endedAt.slice(0, 10)})`,
+    );
     expect(leftovers()).toEqual(before);
   }, 240_000);
 

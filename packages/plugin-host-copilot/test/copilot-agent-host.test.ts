@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { err, MetatorError, ok } from "@metator/core";
 import { agentHostContract, collect } from "@metator/testing";
 import { CopilotAgentHost, parseLine } from "../src/copilot-agent-host.ts";
 
@@ -63,6 +64,29 @@ describe("CopilotAgentHost", () => {
     // Nobody can be asked in prompt mode: a push stays denied by the process, a commit is the hook's.
     expect(denied).toContain("shell(git push)");
     expect(denied).not.toContain("shell(git commit)");
+  });
+
+  test("the program starts through the launch: in the sandbox when the repository has one (ADR-0104)", async () => {
+    const f = await fakeCopilot([]);
+    const launched: { argv: readonly string[]; cwd: string }[] = [];
+    // A launch that runs the program through `env`, as the sandbox runs it through `srt`.
+    const host = new CopilotAgentHost(f.bin, undefined, (argv, cwd) => {
+      launched.push({ argv, cwd });
+      return ok({ argv: ["env", "METATOR_SANDBOX=1", ...argv], sandboxed: true });
+    });
+    const events = await collect(host, task(f.dir));
+    expect(launched[0]?.argv[0]).toBe(f.bin);
+    expect(launched[0]?.cwd).toBe(f.dir);
+    expect((await Bun.file(f.argvFile).text()).split("\n")).toContain("Plan it");
+    expect(events.at(-1)).toMatchObject({ type: "result", ok: true });
+    const failing = new CopilotAgentHost(f.bin, undefined, () =>
+      err(new MetatorError("COMMAND_FAILED", "no srt")),
+    );
+    expect((await collect(failing, task(f.dir))).at(-1)).toEqual({
+      type: "result",
+      ok: false,
+      text: `cannot start ${f.bin}: no srt`,
+    });
   });
 
   test("a session to resume is passed with --resume and reported back", async () => {

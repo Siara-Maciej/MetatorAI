@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
@@ -20,6 +21,7 @@ import {
   removeInside,
   runArtifactWrite,
   runControlCommand,
+  type SandboxLaunch,
   secretPath,
   singleDeclaredCommand,
 } from "@metator/core";
@@ -172,7 +174,11 @@ export function agentDefinition(
 export class ClaudeAgentHost implements AgentHost {
   readonly id = "claude";
 
-  constructor(private readonly query?: ClaudeQuery) {}
+  constructor(
+    private readonly query?: ClaudeQuery,
+    /** How the `claude` program starts: in the sandbox when the repository has one (ADR-0104). */
+    private readonly launch?: SandboxLaunch,
+  ) {}
 
   async *run(task: AgentTask, ask: (q: AgentQuestion) => Promise<AgentAnswer>): AsyncIterable<AgentEvent> {
     const query = this.query ?? (await loadQuery());
@@ -326,6 +332,7 @@ export class ClaudeAgentHost implements AgentHost {
       },
       ...(task.resume ? { resume: task.resume } : {}),
       abortController: stop,
+      ...(this.launch ? { spawnClaudeCodeProcess: sandboxedSpawn(this.launch) } : {}),
     };
     // A drive that stops reading (its run's directory is gone) ends the agent's process with it.
     let finished = false;
@@ -410,6 +417,38 @@ async function answerQuestions(
 }
 
 /** The SDK is large (it ships Claude Code): load it only when a run uses this host. */
+/**
+ * The Agent SDK's start of the `claude` program, through the launch (ADR-0104): the same command
+ * line, inside the sandbox when the repository has one. A launch that fails starts no `claude`:
+ * its error is the process's, as a program that cannot start (exit 127).
+ */
+export function sandboxedSpawn(launch: SandboxLaunch) {
+  return (o: {
+    command: string;
+    args: string[];
+    cwd?: string;
+    env: Record<string, string | undefined>;
+    signal?: AbortSignal;
+  }) => {
+    const cwd = o.cwd ?? process.cwd();
+    const launched = launch([o.command, ...o.args], cwd);
+    // A launch that failed is a program that could not start: it says why and exits 127.
+    const [command, ...args] = launched.isOk()
+      ? (launched.value.argv as [string, ...string[]])
+      : [
+          process.execPath,
+          "-e",
+          `process.stderr.write(${JSON.stringify(`${launched.error.message}\n`)}); process.exit(127)`,
+        ];
+    return spawn(command, args, {
+      cwd,
+      env: o.env,
+      stdio: ["pipe", "pipe", "pipe"],
+      ...(o.signal ? { signal: o.signal } : {}),
+    });
+  };
+}
+
 async function loadQuery(): Promise<ClaudeQuery> {
   const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as { query: ClaudeQuery };
   return sdk.query;

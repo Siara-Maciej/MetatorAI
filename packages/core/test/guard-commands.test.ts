@@ -2,10 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { MetatorConfigDocument } from "../src/domain/config.ts";
 import { commandsOf } from "../src/domain/discovery.ts";
 import {
+  claudeDenyRules,
   commitReach,
   consentsIn,
   DEFAULT_GUARD_COMMANDS,
   DEFAULT_GUARD_CONFIG,
+  deniedPrefixes,
   denyToolsOf,
   type GuardCommands,
   guardCommand,
@@ -140,6 +142,37 @@ describe("denyToolsOf: Copilot's process-level list, from the same config", () =
     expect(headless).toContain("shell(git push)");
     expect(headless).not.toContain("shell(git commit)");
     expect(denyToolsOf({ never: [], ask: [], allow: [] }, { headless: true })).toEqual([]);
+  });
+});
+
+describe("one deny list for both hosts (ADR-0100): the same never patterns, each host's syntax", () => {
+  test("a pattern is its words, open when it ends in *", () => {
+    expect(deniedPrefixes(["git push --force*", "git reset --hard", "rm -r /*"])).toEqual([
+      { words: "git push --force", open: true },
+      { words: "git reset --hard", open: false },
+      { words: "rm -r /", open: true },
+    ]);
+  });
+
+  test("Claude Code and Copilot CLI are given the same commands, in prompt mode the pushes too", () => {
+    for (const headless of [false, true]) {
+      const copilot = denyToolsOf(DEFAULT_GUARD_COMMANDS, { headless }).map((t) => t.slice(6, -1));
+      const claude = claudeDenyRules(DEFAULT_GUARD_COMMANDS, { headless }).map((r) =>
+        r.slice(5, -1).replace(/ \*$|\*$/, ""),
+      );
+      expect(new Set(claude)).toEqual(new Set(copilot));
+    }
+    const claude = claudeDenyRules(DEFAULT_GUARD_COMMANDS, { headless: false });
+    // An open pattern also stops `--force-with-lease`; a closed one is the command with and without arguments.
+    expect(claude).toContain("Bash(git push --force*)");
+    expect(claude).toEqual(expect.arrayContaining(["Bash(git reset --hard)", "Bash(git reset --hard *)"]));
+    // A merge asks (ADR-0094): it is never a deny rule, on either host.
+    expect(
+      [...claude, ...denyToolsOf(DEFAULT_GUARD_COMMANDS, { headless: true })].some((r) =>
+        r.includes("merge"),
+      ),
+    ).toBe(false);
+    expect(claudeDenyRules(DEFAULT_GUARD_COMMANDS, { headless: true })).toContain("Bash(git push *)");
   });
 });
 

@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, join, sep } from "node:path";
+import { basename, isAbsolute, join, sep } from "node:path";
 import {
   AddLesson,
   AdvanceRun,
@@ -61,6 +61,8 @@ import {
   chatAgentIn,
   checkoutRoots,
   cliVersionOf,
+  DAEMON_FILE,
+  DaemonInfoDocument,
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
@@ -77,6 +79,7 @@ import {
   DocsLinks,
   DriveRun,
   DriverLock,
+  daemonAddress,
   driveHostOf,
   driveHostProblem,
   EndRun,
@@ -111,6 +114,7 @@ import {
   type HostGuard,
   HostManifestCatalog,
   HostPrompts,
+  type HostSandbox,
   hostBins,
   hostCommand,
   hostStatus,
@@ -128,6 +132,7 @@ import {
   KnowledgeFiles,
   LayoutPaneIdentity,
   LayoutStore,
+  LINUX_SANDBOX_PROGRAMS,
   LintAdrs,
   LintAgents,
   LintPlan,
@@ -171,6 +176,7 @@ import {
   ProvideWorktree,
   PruneWorktrees,
   PtyBroker,
+  parseJsonDocument,
   QuickCheck,
   QuickFit,
   QuickOverrides,
@@ -213,6 +219,7 @@ import {
   realHostRefusal,
   resolveIntake,
   reviewSourcesOf,
+  type SandboxLaunch,
   ScaffoldRule,
   ScanIntake,
   ScanPatterns,
@@ -246,6 +253,9 @@ import {
   SystemPlans,
   SystemRunGate,
   SystemSources,
+  sandboxLaunch,
+  sandboxPolicy,
+  sandboxUnavailable,
   type TaskRepository,
   ThreadStore,
   Threads,
@@ -319,6 +329,8 @@ import {
   NodeContentHasher,
   NodePackageManager,
   NodePtyTerminal,
+  SandboxedTerminal,
+  SrtSandbox,
   WaitOnHealthProbe,
   XtermScreenRenderer,
 } from "@metator/plugin-node";
@@ -436,7 +448,7 @@ const NO_LAB: ConformanceLab = (() => {
         "Run `metator host conformance`.",
       ),
     );
-  return { open: no, act: no, look: no, save: no, close: async () => ok({}) };
+  return { open: no, act: no, look: no, save: no, kept: async () => undefined, close: async () => ok({}) };
 })();
 /** `.metator/` is MetatorAI's own state: never a change, even before setup gitignores it. */
 const OWN_STATE: readonly string[] = [".metator/"];
@@ -472,6 +484,26 @@ function hostGuard(config: MetatorConfig): HostGuard {
         }
       : {}),
   };
+}
+
+/**
+ * The repository's config as it is now (a session reads its sandbox when it starts): the file,
+ * or the config the container was given when there is none (a test's).
+ */
+function currentConfig(root: string, given: LoadedConfig): LoadedConfig {
+  const now = loadConfig(root);
+  return now.isOk() && now.value.source !== undefined ? now.value : given;
+}
+
+/** The address of the daemon `.metator/daemon.json` names, as the sandbox allows it (`host:port`). */
+function daemonAddressAt(root: string): string | undefined {
+  try {
+    const raw = parseJsonDocument(readFileSync(join(root, DAEMON_FILE), "utf8"), DAEMON_FILE);
+    const info = raw.andThen((r) => DaemonInfoDocument.parse(r, DAEMON_FILE));
+    return info.isOk() ? daemonAddress(info.value.url) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function bootstrap(options: BootstrapOptions): MetatorContainer {
@@ -706,10 +738,35 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     hostBins: asValue(options.bins ?? {}),
     // The hosts this process may use: every one, or with the real AI hosts refused (the suites' guard).
     knownHosts: asValue(options.noRealHosts ? withoutRealHosts(HOSTS, options.bins ?? {}) : HOSTS),
-    agentHosts: asFunction(({ played, hostBins: bins, knownHosts }) => {
+    // Every host session this repository starts goes through its host's launch: in the
+    // operating system's sandbox while `sandbox.enabled` is on (ADR-0104), read at each start.
+    hostSandbox: asFunction(() => new SrtSandbox()).singleton(),
+    sandboxLaunches: asFunction(({ hostSandbox, root }: { hostSandbox: HostSandbox; root: string }) => {
+      const launches = new Map<string, SandboxLaunch>();
+      const policy = () => sandboxPolicy(currentConfig(root, config).config);
+      return (h: HostDescriptor): SandboxLaunch => {
+        const known = launches.get(h.id);
+        if (known) return known;
+        const made = sandboxLaunch({
+          policy,
+          // MetatorAI's own commands inside the session keep the machine's state where they always do.
+          needs: {
+            domains: h.sandbox?.domains ?? [],
+            writable: [...(h.sandbox?.writable ?? []), machineStateDir(process.env)],
+          },
+          root,
+          temp: tmpdir(),
+          daemon: () => daemonAddressAt(root),
+          sandbox: hostSandbox,
+        });
+        launches.set(h.id, made);
+        return made;
+      };
+    }).singleton(),
+    agentHosts: asFunction(({ played, hostBins: bins, knownHosts, sandboxLaunches }) => {
       const hosts = new Map<string, AgentHost>();
       for (const h of [...orderedHosts(DRIVE_ORDER, knownHosts), ...played])
-        if (h.agent) hosts.set(h.id, h.agent.host(bins[h.id], hostGuard(config.config)));
+        if (h.agent) hosts.set(h.id, h.agent.host(bins[h.id], hostGuard(config.config), sandboxLaunches(h)));
       return hosts;
     }).singleton(),
     terminal: asFunction(() => new NodePtyTerminal()).singleton(),
@@ -721,10 +778,18 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ...played,
       ...orderedHosts(config.config.supervisor.hostOrder, knownHosts),
     ]).singleton(),
-    interactiveHosts: asFunction(({ terminal, sessionHosts, hostBins: bins }) => {
+    interactiveHosts: asFunction(({ terminal, sessionHosts, hostBins: bins, sandboxLaunches }) => {
       const hosts = new Map<string, InteractiveHost>();
       for (const h of sessionHosts)
-        if (h.interactive) hosts.set(h.id, h.interactive(terminal, bins[h.id], hostGuard(config.config)));
+        if (h.interactive)
+          hosts.set(
+            h.id,
+            h.interactive(
+              new SandboxedTerminal(terminal, sandboxLaunches(h)),
+              bins[h.id],
+              hostGuard(config.config),
+            ),
+          );
       return hosts;
     }).singleton(),
     // Why a host that drives agents cannot start here (its program is not installed).
@@ -780,6 +845,20 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
               : undefined;
           },
           version: hostVersion,
+          // The same answer `metator doctor` gives (isolation): what this machine lacks for a sandbox.
+          sandboxUnavailable: async () =>
+            sandboxUnavailable(
+              process.platform,
+              LINUX_SANDBOX_PROGRAMS.filter((program) => !onPath(program)),
+            ),
+          // The last report of the same host and version, which a run with --only keeps whole.
+          kept: async (out, name) => {
+            try {
+              return readFileSync(join(isAbsolute(out) ? out : join(root, out), name), "utf8");
+            } catch {
+              return undefined;
+            }
+          },
         }),
     ),
     // Why the guard asked about a pane's command: the hook writes it, the daemon's cards read it.

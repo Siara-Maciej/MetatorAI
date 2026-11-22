@@ -13,7 +13,6 @@ import { MetatorError } from "../domain/errors.ts";
 import { DependencyGraph } from "../domain/graph.ts";
 import { type McpServers, mcpJson } from "../domain/mcp.ts";
 import { err, ok, type Result } from "../domain/result.ts";
-import { sandboxPolicy } from "../domain/sandbox.ts";
 import type { FileSystem, HostGenerator, ReadonlyFileSystem } from "../ports/index.ts";
 import { scanDocuments } from "./document-io.ts";
 import type { MetatorPaths } from "./paths.ts";
@@ -215,7 +214,7 @@ export class GenerateHosts {
       const hooks = g.hooks(
         this.config.hosts.metatorCommand,
         current.isOk() ? current.value : undefined,
-        sandboxPolicy(this.config),
+        this.config.guard.commands,
       );
       if (hooks.isErr()) return err(hooks.error);
       expected.set(hooks.value.path, hooks.value.content);

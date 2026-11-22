@@ -198,14 +198,42 @@ export function consentsIn(message: string, kinds: readonly string[]): string[] 
 }
 
 /**
+ * A `never` pattern as a host's own deny rule takes it (ADR-0100): the words a command starts
+ * with, and whether the last word is open (`git push --force*` also stops `--force-with-lease`).
+ * Both hosts are given the same list, each in its own syntax; the guard stays the precise judge
+ * (a word anywhere among the arguments, `rm -r` of a root), so a prefix is a floor, not the rule.
+ */
+export interface DeniedPrefix {
+  readonly words: string;
+  readonly open: boolean;
+}
+
+export function deniedPrefixes(patterns: readonly string[]): DeniedPrefix[] {
+  return patterns.map((p) => ({ words: p.replace(/\*+$/, "").trim(), open: /\*$/.test(p.trim()) }));
+}
+
+/**
  * Copilot CLI's `--deny-tool` list from the same config: every `never` pattern as a shell prefix.
  * In prompt mode nobody can be asked, so a push the config asks about is denied there too.
  */
 export function denyToolsOf(commands: GuardCommands, mode: { readonly headless: boolean }): string[] {
-  const prefix = (p: string) => `shell(${p.replace(/\*+$/, "").trim()})`;
+  const prefix = (d: DeniedPrefix) => `shell(${d.words})`;
   return [
-    ...commands.never.map(prefix),
-    ...(mode.headless ? commands.ask.filter((p) => kindOf(p) === "push").map(prefix) : []),
+    ...deniedPrefixes(commands.never).map(prefix),
+    ...(mode.headless ? deniedPrefixes(commands.ask.filter((p) => kindOf(p) === "push")).map(prefix) : []),
+  ];
+}
+
+/**
+ * Claude Code's deny rules for the same list (`permissions.deny`, `--disallowedTools`): a command
+ * with and without arguments, or with any text after an open last word.
+ */
+export function claudeDenyRules(commands: GuardCommands, mode: { readonly headless: boolean }): string[] {
+  const rules = (d: DeniedPrefix) =>
+    d.open ? [`Bash(${d.words}*)`] : [`Bash(${d.words})`, `Bash(${d.words} *)`];
+  return [
+    ...deniedPrefixes(commands.never).flatMap(rules),
+    ...(mode.headless ? deniedPrefixes(commands.ask.filter((p) => kindOf(p) === "push")).flatMap(rules) : []),
   ];
 }
 

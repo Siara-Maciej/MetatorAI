@@ -81,6 +81,7 @@ const BEFORE = {
     "review show",
     "plan lint",
     "plan scope",
+    "plan progress",
     "debug-tags check",
     "workflow list",
     "workflow lint",

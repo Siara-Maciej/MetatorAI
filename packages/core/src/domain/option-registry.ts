@@ -284,29 +284,35 @@ const sandboxList = (
   defaultValue: readonly string[] = [],
 ) => new ListOption({ key: `sandbox.${name}`, scope: "repo", title, description, defaultValue, since: E2 });
 
-/** The sandbox of agents' shell commands (ADR-0102); written to the host by `metator generate --hooks`. */
+/**
+ * The sandbox every host session MetatorAI starts runs in (ADR-0102, ADR-0104): read when a
+ * session starts, so a change holds from the next one.
+ */
 const sandbox: OptionDefinition[] = [
   new BooleanOption({
     key: "sandbox.enabled",
     scope: "repo",
     title: "Sandbox",
     description:
-      "Hold agents' shell commands, and everything those start, in the operating system's sandbox (Claude Code).",
+      "Start every agent's host session (Claude Code and Copilot CLI), and everything it runs, in the operating system's sandbox.",
     defaultValue: false,
     since: E2,
   }),
   sandboxList(
     "denyRead",
     "Unreadable paths",
-    "Paths no sandboxed command reads, beside the repository's secret files.",
+    "Paths no sandboxed process reads, beside the repository's secret files.",
     ["~/.ssh", "~/.aws", "~/.netrc"],
   ),
-  sandboxList("allowWrite", "Writable paths", "Paths a sandboxed command may write beside the repository."),
-  sandboxList("allowedDomains", "Reachable hosts", "Hosts a sandboxed command may connect to."),
   sandboxList(
-    "excludedCommands",
-    "Commands outside the sandbox",
-    "Command patterns that run outside the sandbox, for tools that cannot run inside one (docker compose *).",
+    "allowWrite",
+    "Writable paths",
+    "Paths a sandboxed process may write beside the repository, the host's own files and the temporary directory.",
+  ),
+  sandboxList(
+    "allowedDomains",
+    "Reachable hosts",
+    "Hosts a sandboxed process may connect to, beside the host's own API.",
   ),
 ];
 

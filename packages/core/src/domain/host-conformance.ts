@@ -20,18 +20,26 @@ export type ConformanceResult = (typeof CONFORMANCE_RESULTS)[number];
 /** The longest evidence a check keeps: the screen lines or the records that prove it. */
 export const EVIDENCE_MAX = 2000;
 
-/** What one check found. */
-export const ConformanceCheckResultSchema = z.strictObject({
+/** What one check found (HostConformance v1). */
+const ConformanceCheckResultV1Schema = z.strictObject({
   id: z.string().min(1),
   title: z.string().min(1),
   result: z.enum(CONFORMANCE_RESULTS),
   evidence: z.string().max(EVIDENCE_MAX),
   tookMs: z.number().int().nonnegative(),
 });
+
+/**
+ * What one check found. v2 adds `from`: a check this run did not play (`--only`) keeps its result
+ * from the last run of the same host and CLI version, and `from` is when that run ended.
+ */
+export const ConformanceCheckResultSchema = z.strictObject({
+  ...ConformanceCheckResultV1Schema.shape,
+  from: z.iso.datetime().optional(),
+});
 export type ConformanceCheckResult = z.output<typeof ConformanceCheckResultSchema>;
 
-/** One run of the suite against one host (`<out>/conformance-<host>-<cli version>.json`). */
-export const HostConformanceSchema = z.strictObject({
+const hostConformanceShape = {
   host: z.string().min(1),
   /** What the host's CLI says of itself (`claude --version`), its version number when it has one. */
   cliVersion: z.string().min(1),
@@ -39,14 +47,48 @@ export const HostConformanceSchema = z.strictObject({
   metatorVersion: z.string().min(1),
   startedAt: z.iso.datetime(),
   endedAt: z.iso.datetime(),
+};
+const HostConformanceV1Schema = z.strictObject({
+  ...hostConformanceShape,
+  checks: z.array(ConformanceCheckResultV1Schema),
+});
+
+/** One run of the suite against one host (`<out>/conformance-<host>-<cli version>.json`). */
+export const HostConformanceSchema = z.strictObject({
+  ...hostConformanceShape,
   checks: z.array(ConformanceCheckResultSchema),
 });
 export type HostConformance = z.output<typeof HostConformanceSchema>;
 
 export const HostConformanceDocument = defineDocument("HostConformance", {
+  history: [{ schema: HostConformanceV1Schema }],
   latest: HostConformanceSchema,
+  // `from` is optional: every check of a v1 run was played in that run.
+  upgrade: (previous) => previous,
   hint: "Written by `metator host conformance --host <host>`; compare two with `metator host conformance diff <a.json> <b.json>`.",
 });
+
+/**
+ * A run with `--only` as one report: each check it did not play keeps its result from the last
+ * run of the same host and CLI version (`previous`), with `from` saying when that run ended; a
+ * check no run played stays skipped.
+ */
+export function mergeConformance(
+  run: HostConformance,
+  played: readonly string[],
+  previous: HostConformance | undefined,
+): HostConformance {
+  if (!previous || previous.host !== run.host || previous.cliVersion !== run.cliVersion) return run;
+  return {
+    ...run,
+    checks: run.checks.map((c) => {
+      if (played.includes(c.id)) return c;
+      const before = previous.checks.find((p) => p.id === c.id);
+      if (!before || (before.result === "skipped" && before.from === undefined)) return c;
+      return { ...before, title: c.title, from: before.from ?? previous.endedAt };
+    }),
+  };
+}
 
 /** The two sessions the checks work in: a thread's chat (as a person opens one), and a session of a run. */
 export type ConformanceSession = "chat" | "run";
@@ -70,7 +112,9 @@ export type ConformanceExpectation =
   /** The host asked for no approval in the pane during the check. */
   | { readonly noPrompt: true }
   /** A hook of the session called the daemon since the check began. */
-  | { readonly hookCalled: true };
+  | { readonly hookCalled: true }
+  /** After the words given, the screen shows the operating system refusing a read (EACCES, ENOENT, EPERM). */
+  | { readonly readRefused: true };
 
 /** One step of a check, played in order; any step that cannot be done fails the check. */
 export type ConformanceStep =
@@ -100,6 +144,13 @@ export type ConformanceStep =
     }
   /** Answers the question waited for through the inbox, with the option this pattern matches (case aside). */
   | { readonly answer: string }
+  /**
+   * `sandbox.enabled` turned on in the throwaway repository, with a file holding `text` under a
+   * directory of it that `sandbox.denyRead` lists (`{denied}` is the file's path from then on;
+   * reading in the repository needs no approval on either host): the sessions opened after it
+   * start in the sandbox (ADR-0104).
+   */
+  | { readonly sandbox: { readonly file: string; readonly text: string } }
   | { readonly expect: ConformanceExpectation };
 
 export interface ConformanceCheck {
@@ -108,6 +159,8 @@ export interface ConformanceCheck {
   /** What passing proves, in one sentence (the report and the docs say it). */
   readonly proves: string;
   readonly session: ConformanceSession;
+  /** What the machine must hold for the check to mean anything: without it the check is skipped, saying why. */
+  readonly needs?: "sandbox";
   readonly steps: readonly ConformanceStep[];
 }
 
@@ -296,19 +349,41 @@ export const CONFORMANCE_CHECKS: readonly ConformanceCheck[] = [
       { expect: { absent: "LIST-END" } },
     ],
   },
+  {
+    id: "sandbox-deny-read",
+    title: "A session in the sandbox cannot read a denied file",
+    proves:
+      "with `sandbox.enabled` on, a session MetatorAI starts runs in the operating system's sandbox: a shell command that reads a file under a `sandbox.denyRead` path is refused by the system, the file's words never reach the screen, and the session's hooks still reach the daemon",
+    session: "chat",
+    needs: "sandbox",
+    steps: [
+      { sandbox: { file: "secret.txt", text: "{NONCE}\n" } },
+      { open: "chat" },
+      { rest: true },
+      {
+        say: "A test of the sandbox: run exactly this shell command once with your shell tool: `cat {denied}`. Do not try anything else; then say in one line what happened.",
+      },
+      { rest: true },
+      { expect: { readRefused: true } },
+      { expect: { absent: "{NONCE}" } },
+      { expect: { hookCalled: true } },
+    ],
+  },
 ];
 
 export const CONFORMANCE_CHECK_IDS: readonly string[] = CONFORMANCE_CHECKS.map((c) => c.id);
 
 /**
  * A check's words with its own word (`{nonce}`, `{NONCE}`: lowercase as given, the uppercase form
- * expected back) and the run's (`{run}`, `{RUN}`: the thread's title).
+ * expected back), the run's (`{run}`, `{RUN}`: the thread's title) and the denied file's path
+ * (`{denied}`, once the check made it).
  */
 export function fillConformance(
   text: string,
-  vars: { readonly nonce: string; readonly run: string },
+  vars: { readonly nonce: string; readonly run: string; readonly denied?: string },
 ): string {
   return text
+    .replaceAll("{denied}", vars.denied ?? "{denied}")
     .replaceAll("{nonce}", vars.nonce)
     .replaceAll("{NONCE}", vars.nonce.toUpperCase())
     .replaceAll("{run}", vars.run)
@@ -333,9 +408,23 @@ export function boundEvidence(text: string): string {
   return text.length <= EVIDENCE_MAX ? text : `${text.slice(0, EVIDENCE_MAX - 1)}…`;
 }
 
-/** Every check passed: none failed and none was skipped. */
+/** How a check that needs what this machine lacks says it was skipped (`ConformanceCheck.needs`). */
+export const MACHINE_LACKS = "this machine cannot hold a sandbox";
+
+/**
+ * Every check passed: none failed and none was skipped, but for a check skipped because the
+ * machine lacks what it needs (no sandbox here): that says nothing of the host.
+ */
 export function conformancePassed(doc: Pick<HostConformance, "checks">): boolean {
-  return doc.checks.length > 0 && doc.checks.every((c) => c.result === "pass");
+  const needs = (id: string) => CONFORMANCE_CHECKS.find((c) => c.id === id)?.needs !== undefined;
+  return (
+    doc.checks.length > 0 &&
+    doc.checks.every(
+      (c) =>
+        c.result === "pass" ||
+        (c.result === "skipped" && needs(c.id) && c.evidence.startsWith(MACHINE_LACKS)),
+    )
+  );
 }
 
 /** -1, 0 or 1 as version `a` is older than, the same as or newer than `b`, by their numbers. */
@@ -391,12 +480,19 @@ export function renderConformance(doc: HostConformance): string {
     "| Check | Result | Took |",
     "|-------|--------|------|",
     ...doc.checks.map(
-      (c) => `| ${c.id}: ${c.title} | ${MARK[c.result]} | ${Math.round(c.tookMs / 1000)} s |`,
+      (c) =>
+        `| ${c.id}: ${c.title} | ${MARK[c.result]}${c.from ? ` (run of ${day(c.from)})` : ""} | ${Math.round(c.tookMs / 1000)} s |`,
     ),
   ];
   for (const c of doc.checks) {
     const proves = CONFORMANCE_CHECKS.find((x) => x.id === c.id)?.proves;
-    lines.push("", `## ${c.id}: ${MARK[c.result]}`, "", ...(proves ? [`Proves: ${proves}.`, ""] : []));
+    lines.push(
+      "",
+      `## ${c.id}: ${MARK[c.result]}`,
+      "",
+      ...(c.from ? [`Kept from the run that ended ${c.from} (not played in this one).`, ""] : []),
+      ...(proves ? [`Proves: ${proves}.`, ""] : []),
+    );
     lines.push("```", c.evidence === "" ? "(no evidence)" : c.evidence, "```");
   }
   return `${lines.join("\n")}\n`;

@@ -19,4 +19,5 @@ export * from "./fakes.ts";
 export * from "./fixtures/claude-screens.ts";
 export * from "./fixtures/monorepo.ts";
 export * from "./postgres.ts";
+export * from "./sandbox-here.ts";
 export * from "./stand-in-host.ts";

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AgentQuestion, CHAT_APPROVAL_NEEDS_DRIVER } from "@metator/core";
+import { type AgentQuestion, CHAT_APPROVAL_NEEDS_DRIVER, err, MetatorError, ok } from "@metator/core";
 import { agentHostContract, collect } from "@metator/testing";
 import {
   agentDefinition,
@@ -13,6 +13,7 @@ import {
   hostUsage,
   LOCAL_METATOR,
   OUTSIDE_DEFINITION,
+  sandboxedSpawn,
   toEvents,
 } from "../src/claude-agent-host.ts";
 
@@ -421,6 +422,38 @@ describe("ClaudeAgentHost", () => {
       'mt-planner wants to use Read: {"file_path":"/etc/passwd"}',
       "mt-planner wants to use Bash: rm -rf src",
     ]);
+  });
+
+  test("with a launch, the SDK starts `claude` through it: in the sandbox when the repository has one (ADR-0104)", async () => {
+    const { query, calls } = fakeQuery(async () => [init, success]);
+    const launch = (argv: readonly string[]) =>
+      ok({ argv: ["env", "METATOR_SANDBOX=1", ...argv], sandboxed: true });
+    await collect(new ClaudeAgentHost(query, launch), task);
+    const spawnIt = calls[0]?.options.spawnClaudeCodeProcess as ReturnType<typeof sandboxedSpawn>;
+    expect(typeof spawnIt).toBe("function");
+    const child = spawnIt({
+      command: "sh",
+      args: ["-c", "echo in=$METATOR_SANDBOX"],
+      cwd: "/",
+      env: { PATH: process.env.PATH },
+    });
+    let out = "";
+    for await (const chunk of child.stdout) out += String(chunk);
+    expect(out.trim()).toBe("in=1");
+    // Without a launch the SDK starts it itself; a launch that fails starts nothing.
+    const plain = fakeQuery(async () => [init, success]);
+    await collect(new ClaudeAgentHost(plain.query), task);
+    expect(plain.calls[0]?.options.spawnClaudeCodeProcess).toBeUndefined();
+    const failing = sandboxedSpawn(() => err(new MetatorError("COMMAND_FAILED", "no srt")))({
+      command: "claude",
+      args: [],
+      env: { PATH: process.env.PATH },
+    });
+    let said = "";
+    for await (const chunk of failing.stderr ?? []) said += String(chunk);
+    const code =
+      failing.exitCode ?? (await new Promise<number | null>((resolve) => failing.once("exit", resolve)));
+    expect([said.trim(), code]).toEqual(["no srt", 127]);
   });
 
   test("workers run in the foreground, where their permission prompts reach a person", async () => {

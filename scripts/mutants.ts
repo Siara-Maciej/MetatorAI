@@ -1817,7 +1817,9 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
     from: 'decision: "ask",\n          reason: `\\`${merging}\\` merges',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
     to: 'decision: "allow",\n          reason: `\\`${merging}\\` merges',
     why: "the in-process hook puts a merge to the person",
   },
@@ -1852,18 +1854,6 @@ export const MUTANTS: readonly Mutant[] = [
     why: "doctor says when the sandbox's programs are missing",
   },
   {
-    file: "packages/plugin-host-claude/src/claude-generator.ts",
-    from: "allowUnsandboxedCommands: false,",
-    to: "",
-    why: "a sandboxed command is not retried outside the sandbox",
-  },
-  {
-    file: "packages/plugin-host-claude/src/claude-generator.ts",
-    from: "return [...kept, ...ours.filter((o) => !kept.includes(o))];",
-    to: "return [...ours];",
-    why: "the person's own sandbox lists stay",
-  },
-  {
     file: "packages/desktop/src/model.ts",
     from: 'return a.tried === folder ? "none" : "start";',
     to: 'return "start";',
@@ -1895,7 +1885,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-generator.ts",
-    from: "const deny = [...theirs, ...denyRules().filter((r) => !theirs.includes(r))];",
+    from: "const deny = [...theirs, ...denyRules(guard).filter((r) => !theirs.includes(r))];",
     to: "const deny = [...theirs];",
     why: "the generated settings deny what cannot be taken back",
   },
@@ -7211,8 +7201,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-host.ts",
-    from: "new ClaudeInteractiveHost(terminal, bin)",
-    to: "new ClaudeInteractiveHost(terminal)",
+    from: "new ClaudeInteractiveHost(terminal, bin, process.env",
+    to: "new ClaudeInteractiveHost(terminal, undefined, process.env",
     why: "the claude program given is the one a session starts",
   },
   {
@@ -8027,8 +8017,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/guard-commands.ts",
-    from: "    ...(mode.headless ? commands.ask",
-    to: "    ...(true ? commands.ask",
+    from: '    ...(mode.headless ? deniedPrefixes(commands.ask.filter((p) => kindOf(p) === "push")).map(prefix) : []),',
+    to: '    ...(true ? deniedPrefixes(commands.ask.filter((p) => kindOf(p) === "push")).map(prefix) : []),',
     why: "an interactive Copilot is asked about a push, not denied it",
   },
   {
@@ -9354,6 +9344,131 @@ export const MUTANTS: readonly Mutant[] = [
     to: "const names = places.map((p) => p.name);",
     why: "the folder counts repositories, not checkouts",
   },
+  // The sandbox wraps every host session MetatorAI starts, on both hosts (ADR-0104); one deny list
+  // for both hosts (ADR-0100); --only keeps the rest of the report.
+  {
+    file: "packages/core/src/domain/sandbox.ts",
+    from: "...(place.daemon ? [place.daemon] : []),",
+    to: "",
+    why: "a session's hooks reach the daemon from inside the sandbox",
+  },
+  {
+    file: "packages/core/src/domain/sandbox.ts",
+    from: "denyRead: unique([...policy.denyRead, ...secrets]),",
+    to: "denyRead: unique([...policy.denyRead]),",
+    why: "the repository's secret files are unreadable in the sandbox on both hosts",
+  },
+  {
+    file: "packages/core/src/domain/sandbox.ts",
+    from: "allowRead: examples,",
+    to: "allowRead: [],",
+    why: "example env files stay readable in the sandbox",
+  },
+  {
+    file: "packages/core/src/domain/sandbox.ts",
+    from: "allowWrite: unique([place.root, place.cwd, place.temp, ...needs.writable, ...policy.allowWrite]),",
+    to: "allowWrite: unique([place.root, place.cwd, place.temp, ...policy.allowWrite]),",
+    why: "a host keeps its own state inside the sandbox",
+  },
+  {
+    file: "packages/core/src/application/host-descriptors.ts",
+    from: "return d.sandbox.command(argv, settings).map((wrapped) => ({ argv: wrapped, sandboxed: true }));",
+    to: "return ok({ argv, sandboxed: false });",
+    why: "with the sandbox on, a host's program starts inside it",
+  },
+  {
+    file: "packages/plugin-node/src/srt-sandbox.ts",
+    from: 'signal(this.below(h.pid), "SIGWINCH");',
+    to: "",
+    why: "a session in the sandbox hears its terminal's new size",
+  },
+  {
+    file: "packages/plugin-node/src/srt-sandbox.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
+    from: '"env", `${SANDBOX_ENV}=1`, ...argv',
+    to: "...argv",
+    why: "a session in the sandbox knows it is in one (its hooks reach the daemon through the proxy)",
+  },
+  {
+    file: "packages/plugin-node/src/srt-sandbox.ts",
+    from: "if (handle.isErr() || !launched.value.sandboxed) return handle;",
+    to: "if (handle.isErr()) return handle;",
+    why: "a session outside the sandbox keeps its own terminal handle",
+  },
+  {
+    file: "packages/runtime/src/bootstrap.ts",
+    from: "new SandboxedTerminal(terminal, sandboxLaunches(h)),",
+    to: "terminal,",
+    why: "every interactive host session starts through its host's sandbox launch",
+  },
+  {
+    file: "packages/plugin-host-copilot/src/copilot-agent-host.ts",
+    from: "proc = Bun.spawn([...launched.value.argv],",
+    to: "proc = Bun.spawn(argv,",
+    why: "Copilot's prompt-mode agent starts through the sandbox launch",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-agent-host.ts",
+    from: "...(this.launch ? { spawnClaudeCodeProcess: sandboxedSpawn(this.launch) } : {}),",
+    to: "",
+    why: "the Agent SDK starts claude through the sandbox launch",
+  },
+  {
+    file: "packages/cli/src/daemon-client.ts",
+    from: "  delete env.NO_PROXY;\n",
+    to: "",
+    why: "inside the sandbox the daemon is reached through the proxy, not past it",
+  },
+  {
+    file: "packages/core/src/domain/guard-commands.ts",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
+    from: "d.open ? [`Bash(${d.words}*)`] : [`Bash(${d.words})`, `Bash(${d.words} *)`];",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the pattern is source text
+    to: "[`Bash(${d.words})`, `Bash(${d.words} *)`];",
+    why: "an open never pattern (`git push --force*`) is a prefix rule on Claude Code too",
+  },
+  {
+    file: "packages/plugin-host-claude/src/claude-interactive-host.ts",
+    from: '...claudeDenyRules(guard, { headless: false }).flatMap((r) => ["--disallowedTools", r]),',
+    to: "",
+    why: "Claude Code's process denies the never commands, as Copilot's --deny-tool does",
+  },
+  {
+    file: "packages/core/src/domain/host-conformance.ts",
+    from: "if (!previous || previous.host !== run.host || previous.cliVersion !== run.cliVersion) return run;",
+    to: "if (!previous || previous.host !== run.host) return run;",
+    why: "--only keeps results of the same CLI version only",
+  },
+  {
+    file: "packages/core/src/domain/host-conformance.ts",
+    from: "return { ...before, title: c.title, from: before.from ?? previous.endedAt };",
+    to: "return { ...before, title: c.title, from: previous.endedAt };",
+    why: "a kept result says the run it came from, not the last one that kept it",
+  },
+  {
+    file: "packages/core/src/domain/host-conformance.ts",
+    from: '(c.result === "skipped" && needs(c.id) && c.evidence.startsWith(MACHINE_LACKS))',
+    to: '(c.result === "skipped" && needs(c.id))',
+    why: "only a check skipped because the machine lacks what it needs counts as no gap",
+  },
+  {
+    file: "packages/core/src/application/host-conformance.ts",
+    from: "if (unheld) {",
+    to: "if (false) {",
+    why: "the sandbox check is skipped where the machine cannot hold a sandbox",
+  },
+  {
+    file: "packages/core/src/application/host-conformance.ts",
+    from: "    if (input.only) {\n      const earlier",
+    to: "    if (false) {\n      const earlier",
+    why: "--only merges with the last report instead of overwriting it",
+  },
+  {
+    file: "packages/core/src/domain/conformance-lab.ts",
+    from: "const after = screenAfter(seen.screen, ctx.lastWords).toLowerCase();",
+    to: "const after = squeeze(seen.screen).toLowerCase();",
+    why: "a refusal counts only after the words the check gave",
+  },
   // Round 19 (ADR-0098): one conformance suite for Claude Code and Copilot CLI; four small defects.
   {
     file: "packages/core/src/domain/host-conformance.ts",
@@ -9363,8 +9478,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/host-conformance.ts",
-    from: 'doc.checks.every((c) => c.result === "pass")',
-    to: 'doc.checks.every((c) => c.result !== "fail")',
+    from: '        c.result === "pass" ||\n        (c.result === "skipped"',
+    to: '        c.result !== "fail" ||\n        (c.result === "skipped"',
     why: "a run passed only when every check passed: a skipped one is no pass",
   },
   {

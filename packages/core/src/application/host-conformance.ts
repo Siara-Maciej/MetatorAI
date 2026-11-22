@@ -25,6 +25,8 @@ import {
   fillConformance,
   type HostConformance,
   HostConformanceDocument,
+  MACHINE_LACKS,
+  mergeConformance,
   renderConformance,
 } from "../domain/host-conformance.ts";
 import { err, ok, type Result } from "../domain/result.ts";
@@ -52,11 +54,18 @@ export interface RunHostConformanceDependencies {
   readonly refusal: (host: string) => string | undefined;
   /** What the host's CLI says its version is; undefined when it cannot be asked. */
   readonly version: (host: string) => Promise<string | undefined>;
+  /** Why this machine cannot hold a sandbox (`metator doctor`'s isolation), or undefined when it can. */
+  readonly sandboxUnavailable?: () => Promise<string | undefined>;
+  /** A report kept in `out` by an earlier run (`<out>/<name>`), or undefined when there is none. */
+  readonly kept?: (out: string, name: string) => Promise<string | undefined>;
 }
 
 export interface RunHostConformanceInput {
   readonly host: string;
-  /** Only these checks; the others are recorded as skipped. */
+  /**
+   * Only these checks; each other one keeps its result from the last report of the same host and
+   * CLI version (marked with when that run ended), or is recorded as skipped when there is none.
+   */
   readonly only?: readonly string[];
   /** How long one check may take (default 180 s). */
   readonly timeoutMs?: number;
@@ -98,7 +107,7 @@ interface Suite {
 /** What one check knows while it plays. */
 interface Play {
   readonly check: ConformanceCheck;
-  readonly vars: { readonly nonce: string; readonly run: string };
+  readonly vars: { readonly nonce: string; readonly run: string; denied?: string };
   readonly deadline: number;
   readonly notes: string[];
   readonly files: readonly string[];
@@ -183,6 +192,18 @@ export class RunHostConformance {
           });
           continue;
         }
+        const unheld = check.needs === "sandbox" ? await d.sandboxUnavailable?.() : undefined;
+        if (unheld) {
+          checks.push({
+            id: check.id,
+            title: check.title,
+            result: "skipped",
+            evidence: `${MACHINE_LACKS}: ${unheld} (metator doctor, isolation)`,
+            tookMs: 0,
+          });
+          say(`- ${check.id}: skipped, this machine cannot hold a sandbox (${unheld})`);
+          continue;
+        }
         const result = await this.play(check, suite);
         checks.push(result);
         say(
@@ -193,7 +214,7 @@ export class RunHostConformance {
       // Nothing of the run outlives it: the daemon, the host, the repository (unless kept).
       closed = await d.lab.close(input.keep === true);
     }
-    const document: HostConformance = {
+    let document: HostConformance = {
       host: input.host,
       cliVersion,
       os: opened.value.os,
@@ -203,6 +224,12 @@ export class RunHostConformance {
       checks,
     };
     const name = conformanceFileName(input.host, cliVersion);
+    // With --only the report stays whole: what this run did not play keeps the last run's result.
+    if (input.only) {
+      const earlier = await d.kept?.(input.out ?? CONFORMANCE_DIR, `${name}.json`);
+      const previous = earlier ? readConformance(earlier, `${name}.json`) : undefined;
+      document = mergeConformance(document, input.only, previous?.isOk() ? previous.value : undefined);
+    }
     const json = await d.lab.save(
       `${name}.json`,
       serializeJsonDocument(HostConformanceDocument.stamp(document)),
@@ -210,6 +237,7 @@ export class RunHostConformance {
     if (json.isErr()) return err(json.error);
     const report = await d.lab.save(`${name}.md`, renderConformance(document));
     if (report.isErr()) return err(report.error);
+    // The counts are this run's: a result kept from an earlier run is in the report, not in them.
     const count = (r: ConformanceCheckResult["result"]) => checks.filter((c) => c.result === r).length;
     return ok({
       document,
@@ -294,6 +322,17 @@ export class RunHostConformance {
       return;
     }
     if ("restart" in step) return this.restart(suite, play);
+    if ("sandbox" in step) {
+      const made = await this.act(
+        { kind: "sandbox", file: step.sandbox.file, text: fill(step.sandbox.text) },
+        "could not turn the sandbox on",
+      );
+      if (!made.path)
+        throw new MetatorError("CHECK_FAILED", "the sandbox was turned on without a denied file");
+      play.vars.denied = made.path;
+      play.notes.push(`sandbox on: sandbox.denyRead holds the directory of ${made.path}`);
+      return;
+    }
     if ("question" in step) {
       const want = step.question;
       play.awaiting = want.source;
@@ -490,7 +529,10 @@ export class RunHostConformance {
     return seen.value;
   }
 
-  private async act(action: LabAction, what: string): Promise<{ readonly pane?: string }> {
+  private async act(
+    action: LabAction,
+    what: string,
+  ): Promise<{ readonly pane?: string; readonly path?: string }> {
     const done = await this.d.lab.act(action);
     if (done.isErr()) throw new MetatorError("CHECK_FAILED", `${what}: ${done.error.message}`);
     return done.value;

@@ -4,6 +4,10 @@
 - Data: 2026-11-15
 - Numer: na gałęzi `claude/determined-galileo-4hfn27` ten ADR miał numer 0086, zajęty już w głównej linii; przenumerowany decyzją właściciela z 2026-11-22.
 
+## Doprecyzowanie (2026-11-22)
+- Scalenia nie są już regułami deny: po decyzji właściciela każde scalenie jest za zgodą osoby (ADR-0094, ADR-0099 zastąpiony), a reguła deny odrzuciłaby je także po zgodzie.
+- Jedna lista dla obu hostów: komendy „nigdy” pochodzą z `guard.commands.never` w konfiguracji (nie z osobnej listy w kodzie). Claude Code dostaje je jako `permissions.deny` w `.claude/settings.json` i jako `--disallowedTools` przy starcie sesji, Copilot CLI jako `--deny-tool` przy starcie; wzorzec zakończony `*` (`git push --force*`) jest prefiksem na obu. Reguły `Read` sekretów są tylko w Claude Code (Copilot CLI nie ma reguł ścieżek); na obu hostach chroni je hook, a przy włączonym sandboxie (ADR-0104) system.
+
 ## Kontekst
 Guard `pre-tool` (ADR-0038) odmawia czytania sekretów, komend niszczących pracę i scaleń (ADR-0099). Hook jest jednak procesem, który musi się uruchomić: gdy `metator` nie jest zainstalowany, gdy hook przekroczy limit czasu albo gdy sesja działa tam, gdzie ustawienia projektu nie obowiązują, odmowa nie pada. Claude Code ma własną warstwę reguł `permissions.deny`, czytaną przed hookami, przed pytaniem o zgodę i przed klasyfikatorem trybu auto; wywołanie pasujące do reguły deny nie trafia do żadnej z tych warstw.
 

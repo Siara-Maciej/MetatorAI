@@ -111,6 +111,7 @@ import type {
   HostGenerator,
   HostManifestCatalog,
   HostPrompts,
+  HostSandbox,
   ImportAnalyzer,
   ImportGraphReader,
   InitArchitecturePolicy,
@@ -216,6 +217,7 @@ import type {
   RunSystemEvals,
   RunSystemPlan,
   Sandbox,
+  SandboxLaunch,
   ScaffoldRule,
   ScanIntake,
   ScanPatterns,
@@ -365,6 +367,9 @@ export interface Cradle {
   environmentServices: EnvironmentServices;
   backgroundProcess: BackgroundProcess;
   knownHosts: readonly HostDescriptor[];
+  hostSandbox: HostSandbox;
+  /** Each host's launch of its sessions: in the sandbox while `sandbox.enabled` is on (ADR-0104). */
+  sandboxLaunches: (host: HostDescriptor) => SandboxLaunch;
   agentHosts: ReadonlyMap<string, AgentHost>;
   conversationRepository: ConversationRepository;
   askQuestion: AskQuestion;

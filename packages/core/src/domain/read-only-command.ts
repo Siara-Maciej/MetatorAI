@@ -183,6 +183,7 @@ export const METATOR_QUERIES: ReadonlySet<string> = new Set([
   "findings check-quote",
   "findings validate",
   "plan lint",
+  "plan progress",
   "plan schema",
   "arch cycles",
   "arch declared",

@@ -5,6 +5,8 @@ import {
   DEFAULT_GUARD_COMMANDS,
   denyToolsOf,
   type GuardCommands,
+  type SandboxLaunch,
+  UNSANDBOXED,
 } from "@metator/core";
 
 /**
@@ -19,6 +21,8 @@ export class CopilotAgentHost implements AgentHost {
     private readonly bin: string = "copilot",
     /** `guard.commands` of the repository: what the process itself denies (never; a push, as nobody can be asked). */
     private readonly guard: GuardCommands = DEFAULT_GUARD_COMMANDS,
+    /** How the `copilot` program starts: in the sandbox when the repository has one (ADR-0104). */
+    private readonly launch: SandboxLaunch = UNSANDBOXED,
   ) {}
 
   async *run(task: AgentTask): AsyncIterable<AgentEvent> {
@@ -40,9 +44,14 @@ export class CopilotAgentHost implements AgentHost {
       "--allow-all-tools",
       ...denyToolsOf(this.guard, { headless: true }).flatMap((t) => ["--deny-tool", t]),
     ];
+    const launched = this.launch(argv, task.cwd);
+    if (launched.isErr()) {
+      yield { type: "result", ok: false, text: `cannot start ${this.bin}: ${launched.error.message}` };
+      return;
+    }
     let proc: ReturnType<typeof Bun.spawn>;
     try {
-      proc = Bun.spawn(argv, { cwd: task.cwd, stdout: "pipe", stderr: "pipe" });
+      proc = Bun.spawn([...launched.value.argv], { cwd: task.cwd, stdout: "pipe", stderr: "pipe" });
     } catch (e) {
       yield { type: "result", ok: false, text: `cannot start ${this.bin}: ${(e as Error).message}` };
       return;

@@ -141,7 +141,7 @@ export class DaemonLab implements ConformanceLab {
     return ok({ repo: this.repo, os: `${platform()} ${arch()} ${release()}` });
   }
 
-  async act(a: LabAction): Promise<Result<{ readonly pane?: string }, MetatorError>> {
+  async act(a: LabAction): Promise<Result<{ readonly pane?: string; readonly path?: string }, MetatorError>> {
     switch (a.kind) {
       case "session": {
         if (a.session === "chat") {
@@ -202,6 +202,21 @@ export class DaemonLab implements ConformanceLab {
         mkdirSync(dirname(file), { recursive: true });
         writeFileSync(file, a.text);
         return a.stage ? this.run(["git", "add", "--", a.path]).map(() => ({})) : ok({});
+      }
+      case "sandbox": {
+        // Inside the repository, where reading needs no approval on either host: only the
+        // sandbox keeps the session out. The path comes back as the session names it.
+        const denied = join(this.repo, "conformance-denied");
+        mkdirSync(denied, { recursive: true });
+        writeFileSync(join(denied, a.file), a.text);
+        for (const [key, value] of [
+          ["sandbox.denyRead", denied],
+          ["sandbox.enabled", "true"],
+        ] as const) {
+          const set = this.metator<unknown>(["config", "set", key, value, "--scope", "repo"]);
+          if (set.isErr()) return err(set.error);
+        }
+        return ok({ path: `conformance-denied/${a.file}` });
       }
     }
   }

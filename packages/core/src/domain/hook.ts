@@ -245,20 +245,6 @@ export const MERGE_MCP_TOOLS: readonly string[] = [
 const MCP_MERGE = new RegExp(`(${MERGE_MCP_TOOLS.join("|")})$`);
 
 /**
- * Commands no agent runs, as the words they start with (ADR-0100): what a host that has deny rules
- * of its own is told, so the call is refused before a hook or a classifier sees it. The guard
- * stays the precise judge (composite commands, push targets, `rm -r` of a root); this list holds
- * only what a prefix can say.
- */
-export const DENIED_COMMANDS: readonly string[] = [
-  "git push --force",
-  "git push -f",
-  "git push --force-with-lease",
-  "git reset --hard",
-  "git clean -f",
-];
-
-/**
  * The merge a tool call would make (a shell command, also inside a composite one, or an MCP tool),
  * or undefined. A host that runs in-process, where no hook runs, asks the person for it too.
  */

@@ -1,10 +1,17 @@
 import { CHAT_AGENT } from "../domain/conductor.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { HostGuard } from "../domain/guard-commands.ts";
-import { err } from "../domain/result.ts";
+import { err, ok, type Result } from "../domain/result.ts";
+import {
+  type HostSandboxNeeds,
+  NO_SANDBOX_NEEDS,
+  type SandboxPolicy,
+  sandboxSettings,
+} from "../domain/sandbox.ts";
 import type {
   AgentHost,
   HostGenerator,
+  HostSandbox,
   InteractiveHost,
   ReadonlyFileSystem,
   SkillGenerator,
@@ -25,16 +32,61 @@ export interface HostDescriptor {
     readonly runsProgram: boolean;
     /** Why this host may not start an agent here (the guard of `METATOR_NO_REAL_HOSTS`); it still counts as here. */
     readonly refused?: string;
-    /** `guard`: the repository's `guard.commands` (and its allow list), for a host that denies or allows commands itself (ADR-0094). */
-    host(bin: string | undefined, guard?: HostGuard): AgentHost;
+    /**
+     * `guard`: the repository's `guard.commands` (and its allow list), for a host that denies or
+     * allows commands itself (ADR-0094). `launch`: how its program starts, in the sandbox when
+     * the repository has one (ADR-0104).
+     */
+    host(bin: string | undefined, guard?: HostGuard, launch?: SandboxLaunch): AgentHost;
   };
-  /** The host as an interactive CLI in a PTY. */
+  /** The host as an interactive CLI in a PTY; the terminal starts it in the sandbox when there is one. */
   interactive?(terminal: Terminal, bin: string | undefined, guard?: HostGuard): InteractiveHost;
+  /** What the host needs inside the sandbox: its API's hosts and its own state files (ADR-0104). */
+  readonly sandbox?: HostSandboxNeeds;
   /** Writes the host's agent files and hooks; `agentFile` is where an agent's file goes. */
   readonly files?: {
     generator(): HostGenerator;
     skills(): SkillGenerator;
     agentFile(id: string): string;
+  };
+}
+
+/**
+ * How a host's program starts (ADR-0104): `argv` in `cwd`, as given, or inside the sandbox
+ * (`sandboxed`), with the repository's policy as it is when the session starts.
+ */
+export type SandboxLaunch = (
+  argv: readonly string[],
+  cwd: string,
+) => Result<{ readonly argv: readonly string[]; readonly sandboxed: boolean }, MetatorError>;
+
+/** Starts every program as given: no sandbox. */
+export const UNSANDBOXED: SandboxLaunch = (argv) => ok({ argv, sandboxed: false });
+
+/**
+ * The launch of one host's sessions in a repository: the policy is read at each start, so turning
+ * `sandbox.enabled` on or off holds from the next session; off, the program starts as given.
+ */
+export function sandboxLaunch(d: {
+  readonly policy: () => SandboxPolicy | undefined;
+  readonly needs?: HostSandboxNeeds | undefined;
+  readonly root: string;
+  readonly temp: string;
+  /** The daemon's address (`host:port`) when one serves the repository. */
+  readonly daemon: () => string | undefined;
+  readonly sandbox: HostSandbox;
+}): SandboxLaunch {
+  return (argv, cwd) => {
+    const policy = d.policy();
+    if (!policy) return ok({ argv, sandboxed: false });
+    const daemon = d.daemon();
+    const settings = sandboxSettings(policy, d.needs ?? NO_SANDBOX_NEEDS, {
+      root: d.root,
+      cwd,
+      temp: d.temp,
+      ...(daemon ? { daemon } : {}),
+    });
+    return d.sandbox.command(argv, settings).map((wrapped) => ({ argv: wrapped, sandboxed: true }));
   };
 }
 

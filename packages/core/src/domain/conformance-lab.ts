@@ -78,7 +78,13 @@ export type LabAction =
       readonly path: string;
       readonly text: string;
       readonly stage: boolean;
-    };
+    }
+  /**
+   * The sandbox turned on in the repository (`metator config set sandbox.enabled true`), with a
+   * file holding `text` in a directory of the repository that `sandbox.denyRead` lists; the
+   * file's path, as the session names it, comes back.
+   */
+  | { readonly kind: "sandbox"; readonly file: string; readonly text: string };
 
 /** The host's placeholder for a session it names itself and tells nobody (`CONTINUE_SESSION`). */
 const PLACEHOLDER_SESSION = "continue";
@@ -141,6 +147,19 @@ export interface ConformanceVerdict {
   readonly evidence: string;
 }
 
+/**
+ * How a shell, or a host's own file tool, shows the system's refusal of a read: EACCES, ENOENT (a
+ * denied directory is empty in the sandbox), EPERM.
+ */
+export const READ_REFUSALS: readonly string[] = [
+  "Permission denied",
+  "No such file or directory",
+  "Operation not permitted",
+  "does not exist",
+  "EACCES",
+  "ENOENT",
+];
+
 /** Records written since the check began, with a second's slack for the clocks of two processes. */
 const sinceCheck = (at: string | undefined, since: string): boolean =>
   at !== undefined && Date.parse(at) >= Date.parse(since) - 1000;
@@ -151,6 +170,16 @@ export function judgeConformance(
   seen: LabView,
   ctx: JudgeContext,
 ): ConformanceVerdict {
+  if ("readRefused" in expected) {
+    const after = screenAfter(seen.screen, ctx.lastWords).toLowerCase();
+    const refusal = READ_REFUSALS.find((r) => after.includes(squeeze(r).toLowerCase()));
+    return refusal
+      ? { ok: true, evidence: `the system refused the read: ${screenLine(seen.screen, refusal)}` }
+      : {
+          ok: false,
+          evidence: `no refusal of the read on the screen after the words given; its last lines:\n${tail(seen.screen, 12)}`,
+        };
+  }
   if ("screen" in expected) {
     const found = screenAfter(seen.screen, ctx.lastWords).includes(squeeze(expected.screen));
     return found

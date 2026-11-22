@@ -29,7 +29,9 @@ type Fault =
   | "never-rests"
   | "trust-first"
   /** Takes a while before it shows it heard anything (its screen unchanged, idle). */
-  | "slow-start";
+  | "slow-start"
+  /** Starts its sessions outside the sandbox the repository asks for: a denied file is read. */
+  | "no-sandbox";
 
 interface Pane {
   readonly id: string;
@@ -48,6 +50,8 @@ interface Pane {
   colour?: boolean;
   /** Looks left before a slow host shows what it heard. */
   lag?: number;
+  /** Opened while the repository's sandbox was on. */
+  sandboxed?: boolean;
   pending?: () => void;
 }
 
@@ -70,6 +74,8 @@ class FakeLab implements ConformanceLab {
   private git = { commits: 2, subject: "setup" };
   private q = 0;
   failOpen = false;
+  private sandbox = false;
+  private readonly denied = new Map<string, string>();
 
   constructor(
     private readonly clock: FixedClock,
@@ -83,7 +89,7 @@ class FakeLab implements ConformanceLab {
     return this.failOpen ? err(MetatorError.usage("setup failed")) : ok({ repo: REPO, os: "test os" });
   }
 
-  async act(a: LabAction): Promise<Result<{ readonly pane?: string }, MetatorError>> {
+  async act(a: LabAction): Promise<Result<{ readonly pane?: string; readonly path?: string }, MetatorError>> {
     this.calls.push(a);
     if (a.kind === "session") {
       const id = `w1:p${this.panes.size + 1}`;
@@ -97,6 +103,7 @@ class FakeLab implements ConformanceLab {
         questions: [],
         guard: [],
         consents: { kinds: [] },
+        sandboxed: this.sandbox && !this.faults.has("no-sandbox"),
       };
       this.panes.set(id, pane);
       if (a.session === "chat") this.title = a.title ?? "";
@@ -119,6 +126,12 @@ class FakeLab implements ConformanceLab {
       this.files.set(a.path, a.text);
       if (a.stage) this.staged.add(a.path);
       return ok({});
+    }
+    if (a.kind === "sandbox") {
+      const path = `/tmp/metator-conformance-claude-x1/denied/${a.file}`;
+      this.denied.set(path, a.text.trim());
+      this.sandbox = true;
+      return ok({ path });
     }
     const p = this.panes.get(a.pane);
     if (!p) return err(MetatorError.notFound(`pane ${a.pane}`));
@@ -236,6 +249,13 @@ class FakeLab implements ConformanceLab {
     } else if (text.includes("`metator thread show`")) {
       tool("metator thread show", () => undefined);
       say(this.faults.has("no-thread") ? "I could not read it." : this.title.toUpperCase());
+    } else if (/`cat ([^`]+)`/.test(text)) {
+      const path = /`cat ([^`]+)`/.exec(text)?.[1] ?? "";
+      tool(`cat ${path}`, () => {
+        if (p.sandboxed) p.screen.push(`  ⎿  cat: ${path}: No such file or directory`);
+        else p.screen.push(`  ⎿  ${this.denied.get(path) ?? ""}`);
+      });
+      say(p.sandboxed ? "The read was refused." : "It printed the file.");
     } else if (/Write the numbers from 1 to (\d+)/.test(text)) p.counting = 0;
     else if (upper) say(upper.toUpperCase());
     else say("Done.");
@@ -332,7 +352,7 @@ const words = [
   "juno",
   "kipe",
 ];
-function world(faults: Fault[] = [], over: { refusal?: string } = {}) {
+function world(faults: Fault[] = [], over: { refusal?: string; noSandbox?: string } = {}) {
   const clock = new FixedClock(new Date("2026-11-22T10:00:00.000Z"));
   const lab = new FakeLab(clock, new Set(faults));
   let n = 0;
@@ -345,6 +365,8 @@ function world(faults: Fault[] = [], over: { refusal?: string } = {}) {
     hosts: ["claude", "copilot", "scenario"],
     refusal: () => over.refusal,
     version: async (host) => (host === "scenario" ? undefined : "2.1.0"),
+    sandboxUnavailable: async () => over.noSandbox,
+    kept: async (out, name) => (out === ".metator/conformance" ? lab.saved.get(name) : undefined),
   });
   const run = (input: Partial<Parameters<RunHostConformance["execute"]>[0]> = {}) =>
     suite.execute({ host: "claude", timeoutMs: 8_000, settleMs: 300, pollMs: 100, ...input });
@@ -360,7 +382,7 @@ describe("RunHostConformance: every check through what MetatorAI observes", () =
     expect(run.document.checks.map((c) => [c.id, c.result, c.evidence.includes("FAIL")])).toEqual(
       CONFORMANCE_CHECK_IDS.map((id) => [id, "pass", false]),
     );
-    expect([run.passed, run.failed, run.skipped]).toEqual([11, 0, 0]);
+    expect([run.passed, run.failed, run.skipped]).toEqual([12, 0, 0]);
     expect(run.files).toEqual({
       json: ".metator/conformance/conformance-claude-2.1.0.json",
       report: ".metator/conformance/conformance-claude-2.1.0.md",
@@ -376,7 +398,7 @@ describe("RunHostConformance: every check through what MetatorAI observes", () =
       "test os",
       "0.0.0-test",
     ]);
-    expect(w.lab.saved.get("conformance-claude-2.1.0.md")).toContain("11 passed, 0 failed, 0 skipped");
+    expect(w.lab.saved.get("conformance-claude-2.1.0.md")).toContain("12 passed, 0 failed, 0 skipped");
     expect(w.lab.closed).toEqual([false]);
     // The evidence is what was observed.
     const ev = (id: string) => run.document.checks.find((c) => c.id === id)?.evidence ?? "";
@@ -392,9 +414,22 @@ describe("RunHostConformance: every check through what MetatorAI observes", () =
     expect(ev("mcp-or-tools")).toContain("screen: ● CONFORMANCE KAVO");
     expect(ev("tell")).toContain("opened the run session in pane w1:p2");
     expect(ev("interrupt")).toContain('"LIST-END" never came');
+    expect(ev("sandbox-deny-read")).toContain("sandbox on: sandbox.denyRead holds the directory of");
+    expect(ev("sandbox-deny-read")).toContain("the system refused the read:");
+    expect(ev("sandbox-deny-read")).toMatch(/"[A-Z]+" never came/);
     // As a person does: the chat as a thread, words typed and told, the daemon killed and continued.
     const kinds = w.lab.calls.map((c) => c.kind);
-    for (const k of ["session", "type", "answer", "tell", "interrupt", "restart", "continue", "write"])
+    for (const k of [
+      "session",
+      "type",
+      "answer",
+      "tell",
+      "interrupt",
+      "restart",
+      "continue",
+      "write",
+      "sandbox",
+    ])
       expect(kinds).toContain(k as LabAction["kind"]);
   });
 
@@ -411,6 +446,7 @@ describe("RunHostConformance: every check through what MetatorAI observes", () =
     // The interrupt check gives its long task by `tell`: a host that does not hear it fails both.
     ["ignore-tell", ["tell", "interrupt"]],
     ["ignore-interrupt", ["interrupt"]],
+    ["no-sandbox", ["sandbox-deny-read"]],
   ] as const)("a host with %s fails exactly %p, and the suite goes on", async (fault, failing) => {
     const w = world([fault]);
     const got = results(await w.run());
@@ -434,11 +470,22 @@ describe("RunHostConformance: every check through what MetatorAI observes", () =
   test("a session that never rests: its checks fail on their timeout, every check still has a result", async () => {
     const w = world(["never-rests"]);
     const got = (await w.run({ timeoutMs: 2_000 }))._unsafeUnwrap();
-    expect(got.document.checks.length).toBe(11);
+    expect(got.document.checks.length).toBe(12);
     expect(got.document.checks[0]?.evidence).toContain(
       "timed out after 2 s waiting for the session to come to rest",
     );
     expect(w.lab.closed).toEqual([false]);
+  });
+
+  test("where doctor says the machine holds no sandbox, the sandbox check is skipped, saying why", async () => {
+    const w = world([], { noSandbox: "bwrap is not installed" });
+    const run = (await w.run({ only: ["start", "sandbox-deny-read"] }))._unsafeUnwrap();
+    const check = run.document.checks.find((c) => c.id === "sandbox-deny-read");
+    expect([check?.result, check?.evidence]).toEqual([
+      "skipped",
+      "this machine cannot hold a sandbox: bwrap is not installed (metator doctor, isolation)",
+    ]);
+    expect(w.lab.calls.some((c) => c.kind === "sandbox")).toBe(false);
   });
 
   test("the host's first-run question to trust the throwaway repository is answered, and said", async () => {
@@ -463,6 +510,49 @@ describe("RunHostConformance: every check through what MetatorAI observes", () =
     expect(
       w.lab.calls.filter((c) => c.kind === "session").map((c) => (c as { session: string }).session),
     ).toEqual(["chat", "run"]);
+  });
+
+  test("--only merges with the last report of the same host and CLI version: what it did not play keeps its result and run's date", async () => {
+    const w = world();
+    const full = (await w.run())._unsafeUnwrap();
+    expect(full.document.checks.every((c) => c.from === undefined)).toBe(true);
+    w.clock.advance(3_600_000);
+    const again = (await w.run({ only: ["start", "tell"] }))._unsafeUnwrap();
+    const doc = readConformance(
+      w.lab.saved.get("conformance-claude-2.1.0.json") as string,
+      "x",
+    )._unsafeUnwrap();
+    expect(doc).toEqual(again.document);
+    // Played now: no date of another run. Kept: the earlier result, evidence and the run it came from.
+    for (const c of doc.checks) {
+      const before = full.document.checks.find((x) => x.id === c.id);
+      if (["start", "tell"].includes(c.id)) expect([c.id, c.from]).toEqual([c.id, undefined]);
+      else expect(c).toEqual({ ...(before as typeof c), from: full.document.endedAt });
+    }
+    // The counts are this run's own.
+    expect([again.passed, again.skipped]).toEqual([2, 10]);
+    expect(w.lab.saved.get("conformance-claude-2.1.0.md")).toContain(
+      `| pass (run of ${full.document.endedAt.slice(0, 10)}) |`,
+    );
+    // A third run keeps the first run's date for what neither later run played.
+    (await w.run({ only: ["start"] }))._unsafeUnwrap();
+    const third = readConformance(
+      w.lab.saved.get("conformance-claude-2.1.0.json") as string,
+      "x",
+    )._unsafeUnwrap();
+    expect(third.checks.find((c) => c.id === "tell")?.from).toBe(again.document.endedAt);
+    expect(third.checks.find((c) => c.id === "resume")?.from).toBe(full.document.endedAt);
+  });
+
+  test("--only with no earlier report of that version: the others are skipped, as before", async () => {
+    const w = world();
+    (await w.run({ host: "copilot", only: ["start"] }))._unsafeUnwrap();
+    const doc = readConformance(
+      w.lab.saved.get("conformance-copilot-2.1.0.json") as string,
+      "x",
+    )._unsafeUnwrap();
+    expect(doc.checks.filter((c) => c.result === "skipped").length).toBe(11);
+    expect(doc.checks.some((c) => c.from !== undefined)).toBe(false);
   });
 
   test("a host slow to show it heard: the suite waits until it worked and rested, not at the first idle look", async () => {
@@ -555,7 +645,7 @@ describe("ConformanceHistory: the kept runs metator doctor reads", () => {
     });
     expect(await history.seen()).toEqual([
       { host: "claude", passed: { cliVersion: "2.1.0", at: "2026-11-20T10:00:00.000Z" }, installed: "2.0.0" },
-      { host: "copilot", last: { cliVersion: "1.0.114", at: "2026-11-21T10:00:00.000Z", failed: 11 } },
+      { host: "copilot", last: { cliVersion: "1.0.114", at: "2026-11-21T10:00:00.000Z", failed: 12 } },
     ]);
     expect(asked).toEqual(["claude", "copilot"]);
   });

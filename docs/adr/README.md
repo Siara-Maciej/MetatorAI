@@ -107,3 +107,4 @@ Statusy: `Proposed` → `Accepted` → `Superseded` / `Deprecated`. Agenci tworz
 | [0101](0101-app-starts-the-daemon.md) | Aplikacja sama uruchamia demona (`metator serve --ensure`) | Accepted |
 | [0102](0102-local-sandbox.md) | Sandbox lokalny: środowisko ogranicza zasięg komend agenta | Accepted |
 | [0103](0103-build-checkpoints.md) | Punkty kontrolne w buildzie: krok jest zrobiony, gdy jego testy przeszły | Proposed |
+| [0104](0104-sandbox-wraps-every-host-session.md) | Sandbox obejmuje każdą sesję hosta, którą uruchamia MetatorAI, na obu hostach (zmienia 0102) | Proposed |
