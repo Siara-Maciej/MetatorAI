@@ -8683,7 +8683,8 @@ export const MUTANTS: readonly Mutant[] = [
     from: "i.step?.plan === plan && i.step.stepId === stepId",
     to: "i.step?.stepId === stepId",
     why: "a step's Backlog part is the item of that plan's step",
-  },  {
+  },
+  {
     file: "packages/desktop/src/backlog.ts",
     from: "if (off.length > 1 && reasons.length === 1)",
     to: "if (off.length > 0 && reasons.length === 1)",
@@ -8701,5 +8702,4 @@ export const MUTANTS: readonly Mutant[] = [
     to: "files: item.refs,",
     why: "run refs are links by their task, never raw ids in the text line",
   },
-
 ];
