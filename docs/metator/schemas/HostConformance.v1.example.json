@@ -1,0 +1,26 @@
+{
+  "kind": "HostConformance",
+  "schemaVersion": 1,
+  "host": "claude",
+  "cliVersion": "2.1.330",
+  "os": "linux x64 6.8.0",
+  "metatorVersion": "0.0.0",
+  "startedAt": "2026-11-21T10:00:00.000Z",
+  "endedAt": "2026-11-21T10:20:00.000Z",
+  "checks": [
+    {
+      "id": "start",
+      "title": "A session opens in the pane and answers",
+      "result": "pass",
+      "evidence": "screen: ● KAVO",
+      "tookMs": 12000
+    },
+    {
+      "id": "tell",
+      "title": "`metator session tell` reaches an idle session",
+      "result": "skipped",
+      "evidence": "not selected (--only)",
+      "tookMs": 0
+    }
+  ]
+}
