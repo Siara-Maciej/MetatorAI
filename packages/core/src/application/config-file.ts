@@ -1,3 +1,4 @@
+import { codehostFromV14 } from "../domain/codehost.ts";
 import {
   CONFIG_FILES,
   type MetatorConfig,
@@ -10,6 +11,7 @@ import { err, ok, type Result } from "../domain/result.ts";
 import {
   deleteYamlPaths,
   parseJsonDocument,
+  parseYamlDocument,
   renderYamlDocument,
   serializeJsonDocument,
   updateYamlPath,
@@ -61,12 +63,15 @@ export async function editRepoConfig(
     if (file.endsWith(".json")) {
       const raw = parseJsonDocument(text.value, file);
       if (raw.isErr()) return err(raw.error);
-      const doc = copy(withoutLocalStatePaths(raw.value) as Record<string, unknown>);
+      const doc = copy(codehostMoved(withoutLocalStatePaths(raw.value)) as Record<string, unknown>);
       for (const change of [version, ...changes]) setIn(doc, change.path, change.value);
       next = serializeJsonDocument(doc);
     } else {
       next = text.value;
-      for (const change of [version, ...changes]) next = updateYamlPath(next, change.path, change.value);
+      const raw = parseYamlDocument(text.value, file);
+      const moves = raw.isOk() ? codehostMoves(raw.value) : [];
+      for (const change of [version, ...moves, ...changes])
+        next = updateYamlPath(next, change.path, change.value);
       next = deleteYamlPaths(next, RETIRED_CONFIG_KEYS);
     }
   }
@@ -76,6 +81,27 @@ export async function editRepoConfig(
   if (valid.isErr()) return err(valid.error);
   const saved = await fs.write(target, next);
   return saved.isErr() ? err(saved.error) : ok({ file: target });
+}
+
+/** A file older than v15 written at v15: its sources move to `codehost` (ADR-0097). */
+function codehostMoved(raw: unknown): unknown {
+  const version = (raw as { schemaVersion?: unknown }).schemaVersion;
+  return typeof version === "number" && version < 15 ? codehostFromV14(raw) : raw;
+}
+
+/** The same move as field changes, so a YAML file keeps its comments. */
+function codehostMoves(raw: unknown): ConfigFieldChange[] {
+  const before = raw as Record<string, Record<string, unknown> | undefined>;
+  const after = codehostMoved(raw) as Record<string, Record<string, unknown> | undefined>;
+  if (after === before) return [];
+  const out: ConfigFieldChange[] = [];
+  if (after.codehost?.sources) out.push({ path: ["codehost", "sources"], value: after.codehost.sources });
+  if (before.reviews?.sources !== undefined) out.push({ path: ["reviews", "sources"], value: undefined });
+  if (before.intake?.rules !== undefined) out.push({ path: ["intake", "rules"], value: after.intake?.rules });
+  const ask = (after.guard?.commands as Record<string, unknown> | undefined)?.ask;
+  if (ask !== (before.guard?.commands as Record<string, unknown> | undefined)?.ask)
+    out.push({ path: ["guard", "commands", "ask"], value: ask });
+  return out;
 }
 
 const isMap = (value: unknown): value is Record<string, unknown> =>

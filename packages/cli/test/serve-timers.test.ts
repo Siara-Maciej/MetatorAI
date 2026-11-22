@@ -4,14 +4,18 @@ import type { MetatorContainer } from "@metator/runtime";
 import { intervalOf, startTimers } from "../src/serve/timers.ts";
 
 /** A repository's container as the timers read it: its config, nothing else is called here. */
-const repo = (everyMs: number, rules = 1, sources = 0) =>
+const repo = (everyMs: number, rules = 1, sources = 0, watch = false) =>
   ({
     resolve: (name: string) => {
       if (name !== "config") throw new Error(`unexpected ${name}`);
       return {
         config: {
           intake: { everyMs, rules: Array.from({ length: rules }, () => ({})) },
-          reviews: { everyMs: everyMs * 10, sources: Array.from({ length: sources }, () => ({})) },
+          reviews: { everyMs: everyMs * 10 },
+          codehost: {
+            sources: Array.from({ length: sources }, () => ({ kind: "github", repo: "a/b", via: "gh" })),
+            review: { watch, everyMs: everyMs * 20 },
+          },
         },
       };
     },
@@ -53,6 +57,21 @@ describe("the daemon's clocks, per repository (a folder's repositories each keep
   test("an interval given to the daemon (--intake-ms) is every repository's", () => {
     expect(intervals({ ...deps, intakeMs: 5000, reviewsMs: 0 })).toEqual([5000, 5000]);
     expect([intervalOf("own", 7), intervalOf(3, 7)]).toEqual([7, 3]);
+  });
+
+  test("watched MRs (ADR-0097) on each repository's codehost.review.everyMs, only where watching is on", () => {
+    const watching = new Map([
+      ["a", repo(1000, 0, 0, true)],
+      ["b", repo(2000, 0, 0, false)],
+    ]);
+    const w = {
+      ...deps,
+      repos: () => [...watching.keys()],
+      containerFor: (n: string | undefined) => ok(watching.get(n as string) as MetatorContainer),
+    };
+    expect(intervals({ ...w, intakeMs: 0, reviewsMs: 0, watchMs: "own" })).toEqual([20_000]);
+    expect(intervals({ ...w, intakeMs: 0, reviewsMs: 0, watchMs: 0 })).toEqual([]);
+    expect(intervals({ ...w, intakeMs: 0, reviewsMs: 0, watchMs: 500 })).toEqual([500]);
   });
 
   test("finished runs' panes are swept on their own clock", () => {

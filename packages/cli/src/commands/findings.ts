@@ -1,8 +1,11 @@
 import {
   DEFAULT_LENSES,
+  DISMISSABLE,
   err,
+  FINDING_STATES,
   FindingSetDocument,
   type FindingSeverity,
+  type FindingState,
   LENSES,
   MetatorError,
   normalizePath,
@@ -42,14 +45,19 @@ export function registerFindingsCommands(program: Command, { action, container }
     .argument("<dir>", "directory of FindingSet JSON files, e.g. .metator/runs/<id>/findings")
     .option("--fix", "rewrite the line of findings whose quote moved", false)
     .option("--plan <file>", "review-plan.json: fail when a lens wrote no file for a shard")
+    .option(
+      "--diff <file>",
+      "the change as a unified diff: a file that is not here is checked against what the diff shows of it (a review from the diff only)",
+    )
     .action(
-      action(async (dir: string, opts: { fix: boolean; plan?: string }) => {
+      action(async (dir: string, opts: { fix: boolean; plan?: string; diff?: string }) => {
         const report = await container()
           .resolve("validateFindings")
           .execute({
             dir: normalizePath(dir),
             fix: opts.fix,
             ...(opts.plan ? { plan: normalizePath(opts.plan) } : {}),
+            ...(opts.diff ? { diff: normalizePath(opts.diff) } : {}),
           });
         if (report.isErr()) return { result: report };
         const { invalid, moved } = report.value.counts;
@@ -167,11 +175,15 @@ export function registerFindingsCommands(program: Command, { action, container }
     .command("merge")
     .description("Drop invalid findings and merge duplicates across lenses into <dir>/merged.json")
     .argument("<dir>", "directory of FindingSet JSON files")
+    .option(
+      "--diff <file>",
+      "the change as a unified diff, for files that are not here (a review from the diff only)",
+    )
     .action(
-      action(async (dir: string) => ({
+      action(async (dir: string, opts: { diff?: string }) => ({
         result: await container()
           .resolve("mergeFindings")
-          .execute({ dir: normalizePath(dir) }),
+          .execute({ dir: normalizePath(dir), ...(opts.diff ? { diff: normalizePath(opts.diff) } : {}) }),
       })),
     );
 
@@ -256,12 +268,24 @@ export function registerReviewCommands(program: Command, { action, container, ru
     .description("The branch against its base: commits, authors, changed files, uncommitted work (pr.json)")
     .addOption(baseOption("the branch the change goes into", "HEAD"))
     .option("--out <path>", "also write it as a ReviewMetadata document")
+    .addOption(sourceOption())
+    .option("--review <id>", "the watched MR (`review list`) a review from the diff only reads; `-` for none")
     .action(
-      action(async (opts: { base: string; out?: string }) => ({
-        result: await container()
-          .resolve("describeReviewedChange")
-          .execute({ base: opts.base, ...(opts.out ? { out: normalizePath(opts.out) } : {}) }),
-      })),
+      action(async (opts: { base: string; out?: string; source: "local" | "diff"; review?: string }) => {
+        const out = opts.out ? normalizePath(opts.out) : undefined;
+        if (opts.source === "diff") {
+          if (!opts.review || opts.review === "-")
+            return {
+              result: err(MetatorError.usage("a review from the diff only names its MR: --review <id>")),
+            };
+          return { result: await container().resolve("watchedReviews").metadata(opts.review, out) };
+        }
+        return {
+          result: await container()
+            .resolve("describeReviewedChange")
+            .execute({ base: opts.base, ...(out ? { out } : {}) }),
+        };
+      }),
     );
   meta(review.command("diff"), { reads: true, writesWith: ["--out"] })
     .description("The change as a unified diff (new files whole), without MetatorAI's own files")
@@ -360,6 +384,8 @@ export function registerReviewCommands(program: Command, { action, container, ru
     )
     .option("--max-files <n>", "files per shard", positiveInt, 15)
     .option("--out <path>", "also write the plan as a ReviewPlan document")
+    .addOption(sourceOption())
+    .option("--review <id>", "the watched MR a review from the diff only reads; `-` for none")
     .action(
       action(
         async (opts: {
@@ -368,16 +394,214 @@ export function registerReviewCommands(program: Command, { action, container, ru
           lenses: (typeof LENSES)[number][];
           maxFiles: number;
           out?: string;
-        }) => ({
-          result: await container()
-            .resolve("planReview")
-            .execute({
-              ...(opts.files ? { files: opts.files.map((f) => normalizePath(f)) } : { base: opts.base }),
-              lenses: opts.lenses,
-              maxFiles: opts.maxFiles,
-              ...(opts.out ? { out: normalizePath(opts.out) } : {}),
+          source: "local" | "diff";
+          review?: string;
+        }) => {
+          const out = opts.out ? normalizePath(opts.out) : undefined;
+          if (opts.source === "diff") {
+            if (!opts.review || opts.review === "-")
+              return {
+                result: err(MetatorError.usage("a review from the diff only names its MR: --review <id>")),
+              };
+            return {
+              result: await container()
+                .resolve("watchedReviews")
+                .plan(opts.review, { maxFiles: opts.maxFiles, lenses: opts.lenses, ...(out ? { out } : {}) }),
+            };
+          }
+          return {
+            result: await container()
+              .resolve("planReview")
+              .execute({
+                ...(opts.files ? { files: opts.files.map((f) => normalizePath(f)) } : { base: opts.base }),
+                lenses: opts.lenses,
+                maxFiles: opts.maxFiles,
+                ...(out ? { out } : {}),
+              }),
+          };
+        },
+      ),
+    );
+  registerReviewLinkCommands(review, { action, container });
+}
+
+/** `--source local|diff`: a full review of a local checkout, or one from the diff the host gave (ADR-0097). */
+const sourceOption = () =>
+  new Option("--source <source>", "local: this checkout (git); diff: the MR's diff as its host gave it")
+    .choices(["local", "diff"])
+    .default("local");
+
+/**
+ * Someone else's MR (ADR-0097): a review from its link, watching it, the re-review, the agent's
+ * decision on an earlier finding, the publish stage, and approving at the host (the person's).
+ */
+function registerReviewLinkCommands(
+  review: Command,
+  { action, container }: Pick<CommandContext, "action" | "container">,
+): void {
+  const watched = () => container().resolve("watchedReviews");
+  review
+    .command("open")
+    .description(
+      "Review an MR from its link: read through the code host, the review run started, the MR watched",
+    )
+    .argument("<url>", "the pull or merge request's address")
+    .addOption(byOption("who asks for the review"))
+    .option("--host <host>", "the AI host of the review run's conductor")
+    .option("--thread <id>", "the chat thread it belongs to (default: the thread of $METATOR_PANE_ID)")
+    .option("--no-session", "only start the run: no conductor pane, no drive")
+    .action(
+      action(async (url: string, opts: { by?: string; host?: string; thread?: string; session: boolean }) =>
+        asPerson(container(), opts.by, async (by) => {
+          const threadId = opts.thread ?? (await threadOfPane(container()));
+          return {
+            result: await watched().open({
+              url,
+              by,
+              session: opts.session,
+              ...defined({ host: opts.host, threadId }),
             }),
+          };
         }),
       ),
     );
+  meta(review.command("list"), { reads: true })
+    .description(
+      "The watched MRs (reviewed by MetatorAI or asking me) with finding states, what is new, and the cards",
+    )
+    .action(action(async () => ({ result: await watched().list() })));
+  meta(review.command("show"), { reads: true })
+    .description(
+      "One watched MR: its findings with their state and the pre-pass candidates, its comments, what is new",
+    )
+    .argument("<mr>", "the review id (github-acme-shop-45) or the MR's link")
+    .action(action(async (mr: string) => ({ result: await watched().show(mr) })));
+  review
+    .command("watch")
+    .description("Watch an MR (again): new commits and the author's replies become a card")
+    .argument("<mr>", "the review id or the MR's link")
+    .addOption(byOption("who watches it"))
+    .action(
+      action(async (mr: string, opts: { by?: string }) =>
+        asPerson(container(), opts.by, async (by) => ({ result: await watched().watch(mr, { by }) })),
+      ),
+    );
+  review
+    .command("unwatch")
+    .description("Stop watching an MR")
+    .argument("<mr>", "the review id or the MR's link")
+    .addOption(byOption("who stops watching it"))
+    .action(
+      action(async (mr: string, opts: { by?: string }) =>
+        asPerson(container(), opts.by, async (by) => ({ result: await watched().unwatch(mr, { by }) })),
+      ),
+    );
+  review
+    .command("rereview")
+    .description(
+      "Re-review a watched MR: the new commits and the state of every earlier finding, in a pane you see",
+    )
+    .argument("<mr>", "the review id or the MR's link")
+    .addOption(byOption("who asks for it"))
+    .option("--host <host>", "the AI host of the re-review's conductor")
+    .option("--no-session", "only start the run: no conductor pane, no drive")
+    .action(
+      action(async (mr: string, opts: { by?: string; host?: string; session: boolean }) =>
+        asPerson(container(), opts.by, async (by) => ({
+          result: await watched().rereview(mr, {
+            by,
+            session: opts.session,
+            ...defined({ host: opts.host }),
+          }),
+        })),
+      ),
+    );
+  review
+    .command("approve")
+    .description("Approve the MR at its host (the person's decision: the guard asks first)")
+    .argument("<mr>", "the review id or the MR's link")
+    // Approving at the host is a person's decision, as a gate's approval is: the name is typed.
+    .addOption(byOption("the person who approves it", "required"))
+    .action(
+      action(async (mr: string, opts: { by: string }) => ({
+        result: await watched().approve(mr, { by: opts.by }),
+      })),
+    );
+  review
+    .command("dismiss")
+    .description("Wave a watched MR's card away until its head moves")
+    .argument("<mr>", "the review id or the MR's link")
+    .addOption(new Option("--card <card>", "the card").choices([...DISMISSABLE]).makeOptionMandatory())
+    .addOption(byOption("who dismisses it"))
+    .action(
+      action(async (mr: string, opts: { card: (typeof DISMISSABLE)[number]; by?: string }) =>
+        asPerson(container(), opts.by, async (by) => ({
+          result: await watched().dismiss(mr, { card: opts.card, by }),
+        })),
+      ),
+    );
+  review
+    .command("check")
+    .description(
+      "Read the watched MRs now: new commits, the author's replies, merged or closed, requests asking me",
+    )
+    .action(
+      action(async () => {
+        const r = await watched().check();
+        return r.isErr() ? { result: r } : { result: ok(r.value), warnings: [...r.value.errors] };
+      }),
+    );
+  review
+    .command("finding")
+    .description(
+      "Decide an earlier finding's state in a re-review, with the reason (only the agent sets one)",
+    )
+    .argument("<mr>", "the review id or the MR's link")
+    .requiredOption("--finding <id>", "the finding (f1)")
+    .addOption(
+      new Option("--state <state>", "its state now").choices([...FINDING_STATES]).makeOptionMandatory(),
+    )
+    .option("--reason <why>", "why: what the new code does, or what the author said")
+    .action(
+      action(async (mr: string, opts: { finding: string; state: FindingState; reason?: string }) => ({
+        result: await watched().finding(mr, {
+          finding: opts.finding,
+          state: opts.state,
+          ...defined({ reason: opts.reason }),
+        }),
+      })),
+    );
+  review
+    .command("publish")
+    .description(
+      "The publish stage: the verdict's comments (inline) and body posted in one go through the code host, after the gate's approval",
+    )
+    .argument("<verdict>", "path to verdict.json")
+    .requiredOption("--review <id>", "the watched MR; `-` prints the comments instead (`findings to-github`)")
+    .option("--run <id>", "the review run (default: the MR's last)")
+    .action(
+      action(async (verdict: string, opts: { review: string; run?: string }) => {
+        if (opts.review === "-")
+          return {
+            result: await container()
+              .resolve("formatReviewComments")
+              .execute({ verdict: normalizePath(verdict), format: "labeled", role: "reviewer" }),
+          };
+        return {
+          result: await watched().publish({
+            verdict: normalizePath(verdict),
+            review: opts.review,
+            ...defined({ runId: opts.run }),
+          }),
+        };
+      }),
+    );
+}
+
+/** The thread of the chat pane the command runs in, if any. */
+async function threadOfPane(c: ReturnType<CommandContext["container"]>): Promise<string | undefined> {
+  const pane = process.env.METATOR_PANE_ID;
+  if (!pane) return undefined;
+  const thread = await c.resolve("threads").ofPane(pane);
+  return thread.isOk() ? thread.value.id : undefined;
 }

@@ -185,6 +185,7 @@ import type {
   ResumeNotices,
   ResumeRun,
   RetrySystemStep,
+  ReviewerHost,
   ReviewFeedback,
   ReviewHost,
   ReviewNotes,
@@ -259,6 +260,7 @@ import type {
   ValidateFindings,
   Vcs,
   WarmPool,
+  WatchedReviews,
   WorkflowCatalog,
   WorkingPatches,
   WorkingTree,
@@ -334,7 +336,13 @@ export interface Cradle {
   mcpToolCaller: McpToolCaller;
   codeHost: CodeHost;
   scanIntake: ScanIntake;
-  reviewHost: ReviewHost;
+  mcpReviewHost: ReviewHost & ReviewerHost;
+  ghReviewHost: ReviewHost &
+    ReviewerHost & { status(options?: { standIn?: boolean }): Promise<{ ready: boolean; version?: string }> };
+  /** gh runs, is logged in and, while real hosts are refused, is a stand-in. */
+  ghReady: () => Promise<boolean>;
+  reviewHost: ReviewHost & ReviewerHost;
+  watchedReviews: WatchedReviews;
   myReviews: MyReviews;
   planBoard: PlanBoard;
   openEditor: OpenEditor;

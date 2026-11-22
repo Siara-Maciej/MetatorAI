@@ -44,7 +44,7 @@ A task's page shows how it goes: its flow and its steps. A step's page shows whe
 
 ### 5. Nothing leaves your machine before you say so
 
-The push waits for your approval. So does every comment on a pull request. When someone reviews your pull request, **Reviews** shows the threads, the replies the agent proposes and the fixes it plans. It sends nothing until you press the button.
+The push waits for your approval. So does every comment on a pull request. When someone reviews your pull request, **Reviews** shows the threads, the replies the agent proposes and the fixes it plans. It sends nothing until you press the button. A pull request the agent reviewed for you stays watched there: new commits or replies bring a card with **Re-review**, and once every finding is fixed the agent proposes to approve it; you say yes.
 
 ![The MRs screen: a reviewed pull request, the threads sorted by kind, and a reply that waits to be sent](./public/screens/mrs.png)
 

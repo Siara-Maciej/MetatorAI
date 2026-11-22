@@ -32,20 +32,27 @@ export const DEFAULT_NEVER: readonly string[] = [
   "rm -r .git",
 ];
 /** Only with the person's consent: a click on the host's prompt, or their word in the chat. */
-export const DEFAULT_ASK: readonly string[] = ["git commit", "git push", "git merge", "git rebase"];
+export const DEFAULT_ASK_V14: readonly string[] = ["git commit", "git push", "git merge", "git rebase"];
+/** v15 (ADR-0097): approving a pull request at its host is the person's decision too (kind `approve`). */
+export const APPROVE_PATTERN = "metator review approve";
+export const DEFAULT_ASK: readonly string[] = [...DEFAULT_ASK_V14, APPROVE_PATTERN];
 
-export const GuardCommandsSchema = z.strictObject({
-  never: z.array(pattern).default([...DEFAULT_NEVER]),
-  ask: z.array(pattern).default([...DEFAULT_ASK]),
-  /** Passes although an `ask` pattern matches (`git commit --dry-run`); never lifts a `never`. */
-  allow: z.array(pattern).default([]),
-});
+const commandsSchema = (ask: readonly string[]) =>
+  z.strictObject({
+    never: z.array(pattern).default([...DEFAULT_NEVER]),
+    ask: z.array(pattern).default([...ask]),
+    /** Passes although an `ask` pattern matches (`git commit --dry-run`); never lifts a `never`. */
+    allow: z.array(pattern).default([]),
+  });
+/** The command lists as MetatorConfig v13 and v14 had them (their `ask` default). */
+const GuardCommandsV14Schema = commandsSchema(DEFAULT_ASK_V14);
+export const GuardCommandsSchema = commandsSchema(DEFAULT_ASK);
 export type GuardCommands = z.output<typeof GuardCommandsSchema>;
 export const DEFAULT_GUARD_COMMANDS: GuardCommands = GuardCommandsSchema.parse({});
 
 /** `guard` as MetatorConfig v13 had it: the command lists, and how long a consent in words holds. */
 export const GuardConfigV13Schema = z.strictObject({
-  commands: GuardCommandsSchema.default(DEFAULT_GUARD_COMMANDS),
+  commands: GuardCommandsV14Schema.default(GuardCommandsV14Schema.parse({})),
   /** Minutes a consent given in words holds; it is used once, for one command of its kind. */
   consentMinutes: z.number().int().min(1).max(120).default(10),
 });
@@ -57,9 +64,14 @@ export const GuardConfigV13Schema = z.strictObject({
  * prompt; everything else keeps the host's prompt. `host`: the hook only denies and asks, and
  * the host prompts as it does by itself.
  */
-export const GuardConfigSchema = z.strictObject({
+export const GuardConfigV14Schema = z.strictObject({
   ...GuardConfigV13Schema.shape,
   prompts: z.enum(["metator", "host"]).default("metator"),
+});
+/** `guard` of MetatorConfig v15: the same, with `metator review approve` among the default `ask`. */
+export const GuardConfigSchema = z.strictObject({
+  ...GuardConfigV14Schema.shape,
+  commands: GuardCommandsSchema.default(DEFAULT_GUARD_COMMANDS),
 });
 export type GuardConfig = z.output<typeof GuardConfigSchema>;
 export const DEFAULT_GUARD_CONFIG: GuardConfig = GuardConfigSchema.parse({});
@@ -125,6 +137,8 @@ export function matchesCommand(patternText: string, argv: readonly string[]): bo
 
 const kindOf = (patternText: string): string => {
   const words = patternText.trim().split(/\s+/);
+  // MetatorAI's own command: what it does is its last word (`metator review approve` → approve).
+  if (words[0] === "metator" && words.length > 2) return words.at(-1) as string;
   return words[1] && !words[1].startsWith("-") ? words[1] : (words[0] as string);
 };
 

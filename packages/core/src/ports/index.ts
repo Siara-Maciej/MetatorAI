@@ -15,7 +15,14 @@ import type { Edge } from "../domain/graph.ts";
 import type { IntakeItem, IntakeSource } from "../domain/intake.ts";
 import type { PublishedBranch } from "../domain/publication.ts";
 import type { Result } from "../domain/result.ts";
-import type { HostPullRequest, HostThread, ReviewSource } from "../domain/review-thread.ts";
+import type {
+  HostPullRequest,
+  HostPullRequestDetail,
+  HostReview,
+  HostThread,
+  PostedReview,
+  ReviewSource,
+} from "../domain/review-thread.ts";
 import type { Skill } from "../domain/skill.ts";
 import type { ModuleSymbols } from "../domain/symbols.ts";
 
@@ -366,6 +373,11 @@ export interface WorkingPatches {
 export interface BranchPublication {
   /** Asks `origin` itself (`git ls-remote`), not a remote-tracking ref a single-branch clone lacks. */
   published(): Promise<Result<PublishedBranch, MetatorError>>;
+  /**
+   * Fetches `ref` from `origin` into the local branch `branch`, replacing what it held (a review's
+   * own copy of someone else's request: `pull/45/head`, `merge-requests/7/head`).
+   */
+  fetchRef?(ref: string, branch: string): Promise<Result<void, MetatorError>>;
 }
 
 /** The change itself as a unified diff (`review diff`): what a reviewer reads besides the files. */
@@ -684,6 +696,31 @@ export interface ReviewHost {
     text: string,
   ): Promise<Result<void, MetatorError>>;
   resolve(source: ReviewSource, number: number, threadId: string): Promise<Result<void, MetatorError>>;
+  /**
+   * One request read whole from its link (ADR-0097): what it is, its head, its diff and its
+   * threads. `source` is the repository the link names, with the server that reads it.
+   */
+  openFromUrl(url: string, source: ReviewSource): Promise<Result<HostPullRequestDetail, MetatorError>>;
+}
+
+/**
+ * Reviewing someone else's request at its host (ADR-0097): the requests I am asked to review,
+ * posting a review in one go, approving. Posting and approving change the host and are called
+ * only after a person's decision.
+ */
+export interface ReviewerHost {
+  /** Open requests of the repository where I am a requested reviewer. */
+  requested(source: ReviewSource): Promise<Result<readonly HostPullRequest[], MetatorError>>;
+  /**
+   * The review's comments on lines and its general body, in one go. A host or tool that cannot
+   * comment on lines answers an error with `details.inline: false` and posts nothing.
+   */
+  publish(
+    source: ReviewSource,
+    number: number,
+    review: HostReview,
+  ): Promise<Result<PostedReview, MetatorError>>;
+  approve(source: ReviewSource, number: number, body?: string): Promise<Result<void, MetatorError>>;
 }
 
 export type * from "./run-drive.ts";

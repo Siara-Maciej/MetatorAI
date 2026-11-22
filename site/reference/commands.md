@@ -1329,6 +1329,7 @@ metator findings validate [options] <dir>
 | `<dir>` | directory of FindingSet JSON files, e.g. .metator/runs/&lt;id&gt;/findings | |
 | `--fix` | rewrite the line of findings whose quote moved |  |
 | `--plan <file>` | review-plan.json: fail when a lens wrote no file for a shard |  |
+| `--diff <file>` | the change as a unified diff: a file that is not here is checked against what the diff shows of it (a review from the diff only) |  |
 
 ### `metator findings check-quote`
 
@@ -1373,6 +1374,7 @@ metator findings merge [options] <dir>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<dir>` | directory of FindingSet JSON files | |
+| `--diff <file>` | the change as a unified diff, for files that are not here (a review from the diff only) |  |
 
 ### `metator findings verdict`
 
@@ -1440,6 +1442,8 @@ metator review metadata [options]
 |---|---|---|
 | `--base <ref>` | the branch the change goes into | `"HEAD"` |
 | `--out <path>` | also write it as a ReviewMetadata document |  |
+| `--source <source>` | local: this checkout (git); diff: the MR's diff as its host gave it (one of: local, diff) | `"local"` |
+| `--review <id>` | the watched MR (`review list`) a review from the diff only reads; `-` for none |  |
 
 ### `metator review diff`
 
@@ -1539,6 +1543,149 @@ metator review plan [options]
 | `--lenses <lenses...>` | lenses to run (one of: logic, contracts, conventions, tests, security, equivalence) | `["logic","contracts","conventions","tests","security"]` |
 | `--max-files <n>` | files per shard | `15` |
 | `--out <path>` | also write the plan as a ReviewPlan document |  |
+| `--source <source>` | local: this checkout (git); diff: the MR's diff as its host gave it (one of: local, diff) | `"local"` |
+| `--review <id>` | the watched MR a review from the diff only reads; `-` for none |  |
+
+### `metator review open`
+
+Review an MR from its link: read through the code host, the review run started, the MR watched
+
+```bash
+metator review open [options] <url>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<url>` | the pull or merge request's address | |
+| `--by <name>` | who asks for the review (default: $METATOR_USER, else git's user.name, else your login name) |  |
+| `--host <host>` | the AI host of the review run's conductor |  |
+| `--thread <id>` | the chat thread it belongs to (default: the thread of $METATOR_PANE_ID) |  |
+| `--no-session` | only start the run: no conductor pane, no drive |  |
+
+### `metator review list`
+
+The watched MRs (reviewed by MetatorAI or asking me) with finding states, what is new, and the cards
+
+```bash
+metator review list [options]
+```
+
+### `metator review show`
+
+One watched MR: its findings with their state and the pre-pass candidates, its comments, what is new
+
+```bash
+metator review show [options] <mr>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<mr>` | the review id (github-acme-shop-45) or the MR's link | |
+
+### `metator review watch`
+
+Watch an MR (again): new commits and the author's replies become a card
+
+```bash
+metator review watch [options] <mr>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<mr>` | the review id or the MR's link | |
+| `--by <name>` | who watches it (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
+### `metator review unwatch`
+
+Stop watching an MR
+
+```bash
+metator review unwatch [options] <mr>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<mr>` | the review id or the MR's link | |
+| `--by <name>` | who stops watching it (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
+### `metator review rereview`
+
+Re-review a watched MR: the new commits and the state of every earlier finding, in a pane you see
+
+```bash
+metator review rereview [options] <mr>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<mr>` | the review id or the MR's link | |
+| `--by <name>` | who asks for it (default: $METATOR_USER, else git's user.name, else your login name) |  |
+| `--host <host>` | the AI host of the re-review's conductor |  |
+| `--no-session` | only start the run: no conductor pane, no drive |  |
+
+### `metator review approve`
+
+Approve the MR at its host (the person's decision: the guard asks first)
+
+```bash
+metator review approve [options] <mr>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<mr>` | the review id or the MR's link | |
+| `--by <name>` | the person who approves it **Required.** |  |
+
+### `metator review dismiss`
+
+Wave a watched MR's card away until its head moves
+
+```bash
+metator review dismiss [options] <mr>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<mr>` | the review id or the MR's link | |
+| `--card <card>` | the card (one of: requested, changed, approve) **Required.** |  |
+| `--by <name>` | who dismisses it (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
+### `metator review check`
+
+Read the watched MRs now: new commits, the author's replies, merged or closed, requests asking me
+
+```bash
+metator review check [options]
+```
+
+### `metator review finding`
+
+Decide an earlier finding's state in a re-review, with the reason (only the agent sets one)
+
+```bash
+metator review finding [options] <mr>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<mr>` | the review id or the MR's link | |
+| `--finding <id>` | the finding (f1) **Required.** |  |
+| `--state <state>` | its state now (one of: open, fixed, not-fixed, disputed, outdated) **Required.** |  |
+| `--reason <why>` | why: what the new code does, or what the author said |  |
+
+### `metator review publish`
+
+The publish stage: the verdict's comments (inline) and body posted in one go through the code host, after the gate's approval
+
+```bash
+metator review publish [options] <verdict>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<verdict>` | path to verdict.json | |
+| `--review <id>` | the watched MR; `-` prints the comments instead (`findings to-github`) **Required.** |  |
+| `--run <id>` | the review run (default: the MR's last) |  |
 
 ## eval
 
@@ -2840,7 +2987,7 @@ metator serve [options]
 | `--intake-ms <n>` | how often the intake rules are scanned (0: never; default: the config's `intake.everyMs`) |  |
 | `--no-restore` | leave the agents' sessions of the last daemon paused (continue them with `metator run continue`) |  |
 | `--screens-ms <n>` | how often every pane's screen is kept on disk (0: only when it stops) | `5000` |
-| `--reviews-ms <n>` | how often reviews of my requests are read (0: never; default: the config's `reviews.everyMs`) |  |
+| `--reviews-ms <n>` | how often reviews of my requests and the watched MRs are read (0: never; default: the config's `reviews.everyMs` and `codehost.review.everyMs`) |  |
 
 ## pane
 
@@ -3113,7 +3260,7 @@ metator intake status [options]
 
 ### `metator mrs list`
 
-My reviewed requests with their open threads and the answering run
+My reviewed requests with their open threads, the new ones nobody analysed, the answering run, and the cards
 
 ```bash
 metator mrs list [options]
@@ -3157,7 +3304,7 @@ metator mrs triage [options] <id>
 
 ### `metator mrs send`
 
-Post every proposed reply that was not sent yet to the host
+Post the proposed replies not sent yet to the host, in one consent: all, only some (--only) or all but some (--skip)
 
 ```bash
 metator mrs send [options] <id>
@@ -3167,6 +3314,22 @@ metator mrs send [options] <id>
 |---|---|---|
 | `<id>` | the request | |
 | `--by <name>` | the person who decides to send them **Required.** |  |
+| `--only <threads>` | send only these threads (t1,t3) |  |
+| `--skip <threads>` | send all but these threads (t2) |  |
+
+### `metator mrs analyse`
+
+Analyse a review of my MR in a pane you see: every new thread, proposed replies and fixes (through the daemon)
+
+```bash
+metator mrs analyse [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the request | |
+| `--by <name>` | who asks for it (default: $METATOR_USER, else git's user.name, else your login name) |  |
+| `--host <host>` | the AI host of the responder |  |
 
 ### `metator mrs resolve`
 

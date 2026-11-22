@@ -498,6 +498,16 @@ export class Threads {
     );
   }
 
+  /** An MR reviewed or analysed from the thread (ADR-0097): listed in `mrs`, with a fact, once. */
+  async addMr(id: string, mr: string, title: string): Promise<Result<Thread, MetatorError>> {
+    const at = this.d.clock.now().toISOString();
+    return this.d.store.update(id, (t) =>
+      t.mrs.includes(mr)
+        ? ok(t)
+        : ok(threadWithFact({ ...t, mrs: [...t.mrs, mr] }, `MR ${mr} followed: ${firstLine(title)}`, at)),
+    );
+  }
+
   /**
    * What became of the threads' runs: a run that is done, aborted or stopped for the person gets
    * one fact in each thread that lists it, once per event (the run's activity says it was noted).

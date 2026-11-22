@@ -2,7 +2,7 @@ import { OPTION_SCOPES, ok } from "@metator/core";
 import { z } from "zod";
 import { body, type Call, flag, optional, type Route, route, strings, text } from "../http.ts";
 
-/** `/issues`, `/mrs`, `/options`: the backlog (S4), reviews of my requests (T3) and the options (S1). */
+/** `/issues`, `/options`: the backlog (S4) and the options (S1); `/mrs` lives with the reviews (`reviews.ts`). */
 
 const PRIORITY = optional(z.enum(["low", "normal", "high"]));
 const AUTONOMY = optional(z.enum(["L0", "L1", "L2"]));
@@ -176,29 +176,5 @@ export const BACKLOG_ROUTES: readonly Route[] = [
         chat: true,
       });
     },
-  }),
-  route({
-    method: "GET",
-    pattern: "/mrs",
-    handler: async ({ c }) => (await c.resolve("myReviews").list()).map((requests) => ({ requests })),
-  }),
-  route({
-    method: "GET",
-    pattern: "/mrs/:request",
-    handler: ({ c, params }) => c.resolve("myReviews").show(params.request as string),
-  }),
-  route({
-    method: "POST",
-    pattern: "/mrs/:request/send",
-    body: body({ by: text }),
-    handler: ({ c, params, body: b }) =>
-      c.resolve("myReviews").send(params.request as string, { by: b.by ?? "" }),
-  }),
-  route({
-    method: "POST",
-    pattern: "/mrs/:request/resolve",
-    body: body({ by: text, thread: text }),
-    handler: ({ c, params, body: b }) =>
-      c.resolve("myReviews").resolve(params.request as string, b.thread ?? "", { by: b.by ?? "" }),
   }),
 ];

@@ -46,6 +46,33 @@ export const IntakeConfigSchema = z
   .refine((c) => new Set(c.rules.map((r) => r.id)).size === c.rules.length, "intake rule ids must be unique");
 export type IntakeConfig = z.output<typeof IntakeConfigSchema>;
 
+/**
+ * A rule as MetatorConfig v15 holds it (ADR-0097): the source is named by its id in
+ * `codehost.sources`, and the filters (labels, state, type, tool) are the rule's own.
+ */
+export const IntakeRuleSettingsSchema = z.strictObject({
+  id: IntakeRuleSchema.shape.id,
+  /** The id of a source in `codehost.sources`. */
+  source: z.string().min(1),
+  labels: z.array(z.string().min(1)).default([]),
+  state: z.string().min(1).default("open"),
+  /** The Jira issue type, e.g. Bug. */
+  type: z.string().min(1).optional(),
+  /** The server's tool that lists the items, when it is not the kind's usual one. */
+  tool: z.string().min(1).optional(),
+  workflow: IntakeRuleSchema.shape.workflow,
+  autonomy: IntakeRuleSchema.shape.autonomy,
+  worktree: IntakeRuleSchema.shape.worktree,
+});
+export const IntakeSettingsSchema = z
+  .strictObject({
+    everyMs: z.number().int().min(1000).default(120_000),
+    maxActive: z.number().int().min(0).default(2),
+    rules: z.array(IntakeRuleSettingsSchema).default([]),
+  })
+  .refine((c) => new Set(c.rules.map((r) => r.id)).size === c.rules.length, "intake rule ids must be unique");
+export type IntakeSettings = z.output<typeof IntakeSettingsSchema>;
+
 /** One item of a source as its adapter read it. Its text is data for a task, never instructions. */
 export interface IntakeItem {
   /** The item's id at the source: an issue number, a Jira key. */

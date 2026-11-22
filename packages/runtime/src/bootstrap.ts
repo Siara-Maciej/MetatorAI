@@ -181,6 +181,7 @@ import {
   ReviewFeedback,
   ReviewNotes,
   ReviveRuns,
+  RoutedReviewHost,
   RuleCatalog,
   RunAffectedTests,
   RunArchEvals,
@@ -199,6 +200,8 @@ import {
   RunRepository,
   RunSystemEvals,
   RunSystemPlan,
+  resolveIntake,
+  reviewSourcesOf,
   ScaffoldRule,
   ScanIntake,
   ScanPatterns,
@@ -239,6 +242,7 @@ import {
   ValidateCitations,
   ValidateFindings,
   WarmPool,
+  WatchedReviews,
   WorkflowCatalog,
   WorkOverview,
   type WorkspacePackage,
@@ -273,6 +277,7 @@ export { findChildRepos, findFolderRoot, findRepoRoot, runsRootOf } from "@metat
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
+import { GhReviewHost } from "@metator/plugin-codehost-gh";
 import { McpCodeHost, McpReviewHost, SdkToolCaller } from "@metator/plugin-codehost-mcp";
 import { DockerComposeRuntime } from "@metator/plugin-docker";
 import {
@@ -328,6 +333,8 @@ export interface BootstrapOptions {
   readonly bins?: HostBins;
   /** No real AI host may start (`METATOR_NO_REAL_HOSTS`, which the test suites set): they say why instead. */
   readonly noRealHosts?: boolean;
+  /** GitHub's CLI (METATOR_GH_BIN); default `gh` on PATH. Under `noRealHosts` only a stand-in that says so in its version is used. */
+  readonly ghBin?: string;
   /** The Docker CLI (METATOR_DOCKER_BIN); default `docker` on PATH. */
   readonly dockerBin?: string;
   /** Machine-wide state shared by every repository (`machineStateDir`, which the driving adapter asks with its environment); under the home directory when omitted. */
@@ -849,14 +856,67 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     codeHost: asFunction(
       ({ optionStore, mcpToolCaller }) => new McpCodeHost(() => optionStore.mcp(), mcpToolCaller),
     ),
-    reviewHost: asFunction(
+    mcpReviewHost: asFunction(
       ({ optionStore, mcpToolCaller }) => new McpReviewHost(() => optionStore.mcp(), mcpToolCaller),
     ),
+    // GitHub through `gh` and its own login (ADR-0097); never a real one while real hosts are refused.
+    ghReviewHost: asFunction(
+      ({ processRunner, root }) =>
+        new GhReviewHost(processRunner, { command: options.ghBin ?? "gh", cwd: root }),
+    ).singleton(),
+    ghReady: asFunction(
+      ({ ghReviewHost }) =>
+        async () =>
+          (await ghReviewHost.status({ standIn: options.noRealHosts === true })).ready,
+    ),
+    reviewHost: asFunction(
+      ({ config, mcpReviewHost, ghReviewHost }) =>
+        new RoutedReviewHost(config.config.codehost.sources, { mcp: mcpReviewHost, gh: ghReviewHost }),
+    ),
+    watchedReviews: asFunction(
+      ({
+        config,
+        fileSystem,
+        paths,
+        clock,
+        mcpReviewHost,
+        ghReviewHost,
+        optionStore,
+        ghReady,
+        git,
+        startRun,
+        runRepository,
+        threads,
+      }) =>
+        new WatchedReviews({
+          fs: fileSystem,
+          dir: paths.reviews,
+          clock,
+          codehost: config.config.codehost,
+          hosts: { mcp: mcpReviewHost, gh: ghReviewHost },
+          servers: async () => {
+            const servers = await optionStore.mcp();
+            return servers.isOk() ? Object.keys(servers.value) : [];
+          },
+          ghReady,
+          remote: async () => {
+            const url = await git.remoteUrl();
+            return url.isOk() ? url.value : undefined;
+          },
+          fetchRef: (ref, branch) => git.fetchRef(ref, branch),
+          start: startRun,
+          runs: runRepository,
+          threads,
+        }),
+    ),
     myReviews: asFunction(
-      ({ config, fileSystem, paths, clock, reviewHost, initRun, runRepository, notifier }) =>
+      ({ config, fileSystem, paths, clock, reviewHost, initRun, runRepository, notifier, panes, threads }) =>
         new MyReviews({
           notifier,
-          config: config.config.reviews,
+          config: { ...config.config.reviews, sources: reviewSourcesOf(config.config.codehost) },
+          analyse: config.config.codehost.mine.analyse,
+          panes,
+          threads,
           fs: fileSystem,
           paths,
           clock,
@@ -876,7 +936,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ config, issues, codeHost, runRepository, fileLock, paths }) =>
         new ScanIntake({
           exclusive: (work) => fileLock.hold(`${paths.issues}/intake`, work),
-          config: config.config.intake,
+          config: resolveIntake(config.config.intake, config.config.codehost.sources),
           issues,
           codeHost,
           // Runs intake started that are still active: its issues in progress whose run goes on.

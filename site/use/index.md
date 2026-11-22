@@ -75,11 +75,12 @@ Under the chats are the places that are not a task:
 | **Board** | every task by phase: To do · Planning · In progress · Review · Done ([The Board](#the-board)) |
 | **Terminals** | a tab per run or shell, with the agents' terminals and your own in split panes ([Terminals](./desktop.md)) |
 | **Backlog** | tasks for later: agents' proposals and your own ([Plan and backlog](./plan.md)) |
-| **Settings** | the options, and under it **System** (the daemon, the dependencies, the system map) and **Reviews** ([Settings](#settings)) |
+| **Reviews** | the MRs MetatorAI watches for you and your own MRs, each with one word ([The Reviews place](./reviews.md#the-reviews-place)) |
+| **Settings** | the options, and under it **System** (the daemon, the dependencies, the system map) ([Settings](#settings)) |
 
 At the bottom, **+ New chat** (key `n`) starts a chat: a new thread with its own terminal, where you tell the agent what you want; **Form…** beside it opens a form where you choose the workflow, host, autonomy and worktree yourself, and the run it starts is **Without a chat** ([Start a task](./start.md)). With no run at all the main area offers the same: a field **Describe a task** with **Start**, which starts a chat named after your words, and **Use the form**.
 
-When the daemon serves a folder of repositories, **Terminals**, **Backlog** and the parts of **Settings** show one repository at a time. Each has a **repository** select at the top; the choice is shared by these places and remembered. The page of a run always uses the run's own repository.
+When the daemon serves a folder of repositories, **Terminals**, **Backlog**, **Reviews** and the parts of **Settings** show one repository at a time. Each has a **repository** select at the top; the choice is shared by these places and remembered. The page of a run always uses the run's own repository.
 
 ## Home
 
@@ -116,7 +117,7 @@ When you come back to the window after ten minutes away and a run's page is open
 
 ## Settings
 
-**Settings** has three parts: **Options** ([Your settings](./settings.md)), **System** and **Reviews** ([Answer a review](./reviews.md)). The old addresses `#/overview` and `#/mrs` lead to System and Reviews.
+**Settings** has two parts: **Options** ([Your settings](./settings.md)) and **System**. The old address `#/overview` leads to System. **Reviews** was a part of Settings until it became a place of its own; its old addresses `#/mrs` and `#/settings/reviews` lead to it.
 
 **System** has three tabs.
 

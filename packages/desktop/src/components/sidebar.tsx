@@ -9,8 +9,8 @@
  * chat"; closed threads wait under "Closed (N)", folded. Home shows the decisions one at a time;
  * the sidebar only counts them. Every row reads one of the first level's four words
  * (`firstLevel`); no ids, hosts or ages. Finished tasks are hidden behind "Show finished (N)" in
- * each group. The places are at the bottom: Board, Terminals, Backlog, and Settings, which holds
- * the System and the Reviews; then "+ New chat" and the form.
+ * each group. The places are at the bottom: Board, Terminals, Backlog, Reviews (round 18: used
+ * daily), and Settings, which holds the System; then "+ New chat" and the form.
  */
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -48,13 +48,14 @@ const PLACES: readonly {
   readonly route: Route;
   readonly label: string;
   readonly glyph: string;
-  /** The screens the place holds (Settings: the System and the Reviews too). */
+  /** The screens the place holds (Settings: the System too). */
   readonly holds: readonly Route["screen"][];
 }[] = [
   { route: { screen: "board" }, label: "Board", glyph: "▥", holds: ["board"] },
   { route: { screen: "grid" }, label: "Terminals", glyph: "▦", holds: ["grid"] },
   { route: { screen: "backlog" }, label: "Backlog", glyph: "☷", holds: ["backlog"] },
-  { route: { screen: "settings" }, label: "Settings", glyph: "⚙", holds: ["settings", "overview", "mrs"] },
+  { route: { screen: "reviews" }, label: "Reviews", glyph: "◇", holds: ["reviews"] },
+  { route: { screen: "settings" }, label: "Settings", glyph: "⚙", holds: ["settings", "overview"] },
 ];
 
 /** One row of the sidebar: glyph, name, the state's word, one dim line. */

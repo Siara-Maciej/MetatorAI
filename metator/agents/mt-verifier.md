@@ -23,6 +23,9 @@ output: { artifact: findings/merged.json, summaryLines: 5 }
 - The updated finding in `findings/merged.json`.
 - A summary of at most 5 lines: status and the evidence.
 
+# From the diff only
+In a review from the diff only (the run's input `source: diff`) nothing is local: run nothing and write no test. Trace the claim through `change.diff`; a finding that tracing cannot settle stops at `unproven`.
+
 # Stop conditions
 - Reproducing needs network, secrets or changing shared state: stop at `unproven` and say what would prove it.
 - The repository's dependencies are not installed (no `node_modules`, no compiler): do not look for tools or install anything; trace the code, and stop at `unproven` when tracing cannot decide.

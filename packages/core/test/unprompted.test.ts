@@ -261,6 +261,8 @@ describe("allowToolsOf: the list a host takes up front (Copilot CLI's --allow-to
         "system plan approve",
         "arch plan approve",
         "quick start",
+        "review approve",
+        "mrs send",
       ])
         expect([prefix, person, person === prefix || person.startsWith(`${prefix} `)]).toEqual([
           prefix,
@@ -268,5 +270,13 @@ describe("allowToolsOf: the list a host takes up front (Copilot CLI's --allow-to
           false,
         ]);
     }
+  });
+
+  test("approving an MR and sending replies at a code host are the person's (ADR-0097)", () => {
+    expect(personsCommand(["review", "approve", "github-acme-shop-45", "--by", "ann"])).toBe(
+      "review approve",
+    );
+    expect(personsCommand(["mrs", "send", "github-acme-shop-45", "--only", "t1"])).toBe("mrs send");
+    expect(personsCommand(["review", "show", "github-acme-shop-45"])).toBeUndefined();
   });
 });

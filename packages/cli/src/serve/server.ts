@@ -25,6 +25,7 @@ import { BACKLOG_ROUTES } from "./routes/backlog.ts";
 import { OVERVIEW_ROUTES } from "./routes/overview.ts";
 import { PANE_ROUTES } from "./routes/panes.ts";
 import { PLAN_ROUTES } from "./routes/plans.ts";
+import { REVIEW_ROUTES, reviewCards } from "./routes/reviews.ts";
 import { RUN_ROUTES } from "./routes/runs.ts";
 import { SCRATCH_ROUTES } from "./routes/scratch.ts";
 import { SESSION_ROUTES } from "./routes/sessions.ts";
@@ -37,6 +38,7 @@ import { startTimers } from "./timers.ts";
 export const ROUTES: readonly Route[] = [
   ...OVERVIEW_ROUTES,
   ...BACKLOG_ROUTES,
+  ...REVIEW_ROUTES,
   ...SESSION_ROUTES,
   ...THREAD_ROUTES,
   ...PANE_ROUTES,
@@ -257,6 +259,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       decisions: queue.decisions,
       escalated: queue.escalated,
       panes: await paneAsks(),
+      // Watched MRs and my MRs (ADR-0097): asked to review, what is new, approve, a new review to analyse.
+      reviews: await reviewCards(repoViews().map((r) => ({ name: folder ? r.name : undefined, c: r.c }))),
     });
   };
 
@@ -331,6 +335,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     // Each repository's own interval unless one is given: in a folder each keeps its own.
     intakeMs: opts.intakeMs === true ? "own" : (opts.intakeMs ?? 0),
     reviewsMs: opts.reviewsMs === true ? "own" : (opts.reviewsMs ?? 0),
+    // Watched MRs follow the same switch: `--reviews-ms` sets both clocks.
+    watchMs: opts.reviewsMs === true ? "own" : (opts.reviewsMs ?? 0),
     sweepMs: Math.max(1000, pollMs * 2),
     screensMs: opts.screensMs ?? 5000,
     ...(opts.restart ? { restart: opts.restart } : {}),

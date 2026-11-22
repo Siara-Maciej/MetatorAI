@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
-import { GateQuestions, gateQuestionOf } from "../src/application/gate-questions.ts";
+import { GateQuestions, gateQuestionOf, publishQuestion } from "../src/application/gate-questions.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RunJournal } from "../src/application/run-journal.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
@@ -114,5 +114,48 @@ describe("a human gate always has its question (any driver: a drive, a conductor
     w.clock.advance(60_000);
     (await new ResumeRun(w.catalog, w.repo, w.clock, w.gates).execute({ runId, by: "ana" }))._unsafeUnwrap();
     expect((await w.open(runId)).map((q) => q.stage)).toEqual(["plan-approval"]);
+  });
+
+  test("a gate that grants comment is the publish card once the verdict is there (ADR-0097); Approve means Yes", async () => {
+    const fs = new InMemoryFileSystem({
+      "run/verdict.json": JSON.stringify({
+        kind: "Verdict",
+        schemaVersion: 1,
+        decision: "CHANGES_REQUIRED",
+        blocking: [
+          {
+            id: "LOGIC-001",
+            lens: "logic",
+            severity: "blocking",
+            confidence: 0.9,
+            location: { file: "a.ts", line: 2 },
+            quote: "x",
+            claim: "a claim of ten chars",
+          },
+        ],
+        unverified: [],
+        consider: [],
+        verifiedCorrect: [],
+      }),
+    });
+    const stage = { id: "approval", grants: ["comment" as const] };
+    const pr = { pr: "https://github.com/acme/shop/pull/45" };
+    expect(await publishQuestion(fs, "run", stage, pr)).toBe(
+      "Publish the review of MR #45? (1 inline comment, 0 general)",
+    );
+    expect(await publishQuestion(fs, "run", stage, {})).toBe(
+      "Publish the review? (1 inline comment, 0 general)",
+    );
+    expect(await publishQuestion(fs, "run", {}, pr)).toBeUndefined();
+    expect(await publishQuestion(fs, "none", stage, pr)).toBeUndefined();
+    const card = gateQuestionOf(
+      { id: "approval" },
+      "Publish the review of MR #45? (1 inline comment, 0 general)",
+    );
+    expect(card.prompt).toBe("Publish the review of MR #45? (1 inline comment, 0 general)");
+    expect(card.options.map((o) => [o.label, o.description.split(":")[0]])).toEqual([
+      ["Approve", "Yes"],
+      ["Reject", "No"],
+    ]);
   });
 });

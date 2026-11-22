@@ -326,6 +326,14 @@ describe("the daemon's route table", () => {
       "GET /mrs/:request",
       "POST /mrs/:request/send",
       "POST /mrs/:request/resolve",
+      "POST /mrs/:request/analyse",
+      "POST /reviews",
+      "GET /reviews",
+      "GET /reviews/:id",
+      "POST /reviews/:id/rereview",
+      "POST /reviews/:id/approve",
+      "POST /reviews/:id/unwatch",
+      "POST /reviews/:id/dismiss",
       "POST /panes",
       "GET /panes/:pane",
       "GET /panes/:pane/wait",
@@ -399,6 +407,6 @@ describe("the daemon's route table", () => {
       "POST /threads/:id/reopen",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(96);
+    expect(keys.size).toBe(104);
   });
 });

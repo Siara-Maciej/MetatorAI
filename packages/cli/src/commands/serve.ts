@@ -37,7 +37,7 @@ export function registerServeCommand(program: Command, ctx: CommandContext): voi
     )
     .option(
       "--reviews-ms <n>",
-      "how often reviews of my requests are read (0: never; default: the config's `reviews.everyMs`)",
+      "how often reviews of my requests and the watched MRs are read (0: never; default: the config's `reviews.everyMs` and `codehost.review.everyMs`)",
       nonNegativeInt,
     )
     .action(

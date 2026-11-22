@@ -57,7 +57,7 @@ beforeAll(async () => {
   await repo.write(
     "metator.config.yml",
     `kind: MetatorConfig
-schemaVersion: 11
+schemaVersion: 15
 mcp:
   github:
     command: bun
@@ -65,9 +65,11 @@ mcp:
     env:
       FAKE_MCP_PULLS: "${repo.path("pulls.json")}"
       FAKE_MCP_LOG: "${repo.path("mcp.log")}"
-reviews:
+# Analysing a new review by itself is a choice (ADR-0097); this file chooses it.
+codehost:
   sources:
-    - { kind: github, repo: acme/shop, author: maciej }
+    - { id: shop, kind: github, repo: acme/shop, via: "mcp:github", author: maciej }
+  mine: { analyse: true }
 notify:
   command: echo "$METATOR_EVENT $METATOR_REVIEW_ID $METATOR_NOTIFY_TEXT" >> notified.txt
 `,
@@ -103,6 +105,7 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
         threads: 1,
         open: 1,
         proposed: 0,
+        fresh: 1,
         runId,
       },
     ]);

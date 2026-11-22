@@ -31,7 +31,7 @@ import type { StageSpec } from "../domain/workflow-spec.ts";
 import type { AgentHost, FileSystem, ProcessRunner, Timer } from "../ports/index.ts";
 import { decisionCard } from "./decision-card.ts";
 import { loadDocument } from "./document-io.ts";
-import { gateQuestionOf } from "./gate-questions.ts";
+import { gateQuestionOf, publishQuestion } from "./gate-questions.ts";
 import type { Notifier } from "./notifier.ts";
 import type { CloseRun } from "./run-close.ts";
 import { type ActivityInput, OTHER, type RunJournal } from "./run-journal.ts";
@@ -301,10 +301,11 @@ export class DriveRun {
   private async humanGate(ctx: StageContext): Promise<Result<Outcome, MetatorError>> {
     // The question every front asks at a human gate (`GateQuestions`): the one already asked when
     // the run reached the gate is found again, not asked twice.
+    const publish = await publishQuestion(this.d.fs, ctx.runDir, ctx.stage, ctx.inputs);
     const q = await this.ask(
       ctx.runId,
       {
-        ...gateQuestionOf(ctx.stage),
+        ...gateQuestionOf(ctx.stage, publish),
         // The stage before passed its checks: the evidence points to approving. A gate that grants
         // an external action (the push) starts something approving cannot take back.
         card: await decisionCard(this.d, ctx, {

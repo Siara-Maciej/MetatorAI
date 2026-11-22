@@ -1,24 +1,57 @@
+import { parseMrUrl } from "../domain/codehost.ts";
 import type { Question } from "../domain/drive.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { ok, type Result } from "../domain/result.ts";
+import { toComments, VerdictDocument } from "../domain/verdict.ts";
+import { publishPrompt } from "../domain/watched-review.ts";
 import type { StageSpec } from "../domain/workflow-spec.ts";
 import type { FileSystem } from "../ports/index.ts";
 import { decisionCard } from "./decision-card.ts";
+import { loadDocument } from "./document-io.ts";
 import type { RunJournal } from "./run-journal.ts";
 import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 
-/** A human gate's question, the same from every front: what it asks and the two answers. */
-export const gateQuestionOf = (stage: Pick<StageSpec, "id" | "description">) => ({
+/**
+ * A human gate's question, the same from every front: what it asks and the two answers. A gate
+ * that publishes a review asks it as the publish card (`publish`, ADR-0097): Approve is Yes.
+ */
+export const gateQuestionOf = (stage: Pick<StageSpec, "id" | "description">, publish?: string) => ({
   stage: stage.id,
   source: "gate" as const,
-  prompt: `${stage.description ?? stage.id}: approve to continue`,
-  options: [
-    { label: "Approve", description: "Continue with the next stage" },
-    { label: "Reject", description: "Send the run back, with your reason" },
-  ],
+  prompt: publish ?? `${stage.description ?? stage.id}: approve to continue`,
+  options: publish
+    ? [
+        { label: "Approve", description: "Yes: publish the whole review, inline where the host allows" },
+        { label: "Reject", description: "No: keep it in the chat; nothing is posted" },
+      ]
+    : [
+        { label: "Approve", description: "Continue with the next stage" },
+        { label: "Reject", description: "Send the run back, with your reason" },
+      ],
   multiSelect: false,
 });
+
+/**
+ * The publish card's question (ADR-0097): at a gate that grants `comment`, once the verdict is
+ * there, "Publish the review of MR #45? (3 inline comments, 1 general)"; undefined otherwise.
+ */
+export async function publishQuestion(
+  fs: FileSystem,
+  runDir: string,
+  stage: Pick<StageSpec, "grants">,
+  inputs: Readonly<Record<string, string>> | undefined,
+): Promise<string | undefined> {
+  if (!(stage.grants ?? []).includes("comment")) return undefined;
+  const verdict = await loadDocument(fs, `${runDir}/verdict.json`, VerdictDocument, "json");
+  if (verdict.isErr()) return undefined;
+  const pr = inputs?.pr ? parseMrUrl(inputs.pr) : undefined;
+  return publishPrompt(
+    pr?.isOk() ? pr.value.number : undefined,
+    toComments(verdict.value, "labeled").comments.length,
+    verdict.value.consider.length,
+  );
+}
 
 export interface GateQuestionDependencies {
   readonly catalog: Pick<WorkflowCatalog, "get">;
@@ -68,6 +101,7 @@ export class GateQuestions {
       },
     );
     // Since the run's last change: an answer given before it was for an earlier visit.
-    return this.d.journal.ask(runId, { ...gateQuestionOf(stage), card }, record.value.updatedAt);
+    const publish = await publishQuestion(this.d.fs, this.d.repo.runDir(runId), stage, record.value.inputs);
+    return this.d.journal.ask(runId, { ...gateQuestionOf(stage, publish), card }, record.value.updatedAt);
   }
 }

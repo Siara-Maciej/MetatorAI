@@ -24,7 +24,7 @@ describe("MetatorConfig v12: no path override for the local state", () => {
       "metator.config.yml",
     )._unsafeUnwrap();
     expect(v11.paths).toEqual({ rules: "docs/rules" });
-    expect(MetatorConfigDocument.current).toBe(14);
+    expect(MetatorConfigDocument.current).toBe(15);
     expect([...LOCAL_STATE_PATHS]).toEqual(["runs", "index", "discovery", "gates"]);
   });
 
@@ -58,7 +58,7 @@ paths:
     expect(text).toContain("# ours");
     expect(parse(text)).toEqual({
       kind: "MetatorConfig",
-      schemaVersion: 14,
+      schemaVersion: 15,
       paths: { rules: "docs/rules" },
       editor: "zed",
     });
@@ -75,7 +75,7 @@ paths:
     (await new UpdateConfig(json).execute({ editor: "zed" }))._unsafeUnwrap();
     expect(JSON.parse((await json.read("metator.config.json"))._unsafeUnwrap())).toEqual({
       kind: "MetatorConfig",
-      schemaVersion: 14,
+      schemaVersion: 15,
       paths: { cards: "cards" },
       editor: "zed",
     });
@@ -99,7 +99,7 @@ paths:
       const doc = file.endsWith(".json") ? JSON.parse(saved) : parse(saved);
       expect([file, doc.schemaVersion, doc.paths.runs, doc.options]).toEqual([
         file,
-        14,
+        15,
         undefined,
         { "supervisor.wipLimit": 2 },
       ]);

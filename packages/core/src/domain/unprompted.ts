@@ -65,6 +65,9 @@ const PERSONS: readonly (readonly string[])[] = [
   ["findings", "to-github"],
   ["mrs", "reply"],
   ["mrs", "resolve"],
+  // Changes at a code host (ADR-0097): the person's word, also when an `ask` list leaves them out.
+  ["mrs", "send"],
+  ["review", "approve"],
 ];
 
 /** The words after `metator` when the command is MetatorAI's, however the repository runs it. */
@@ -262,7 +265,21 @@ export const UNPROMPTED_METATOR: readonly string[] = [
   "test",
   "gate",
   "plan",
-  "review",
+  // Not `review` as a whole: `review approve` is the person's (ADR-0097).
+  "review metadata",
+  "review diff",
+  "review plan",
+  "review changes",
+  "review notes",
+  "review open",
+  "review list",
+  "review show",
+  "review check",
+  "review finding",
+  "review rereview",
+  "review watch",
+  "review unwatch",
+  "review publish",
   "status",
   "inbox",
   "changed",

@@ -288,8 +288,8 @@ describe("formatting and routes", () => {
       "#/grid/pane:w1%3Ap2",
       "#/settings/system",
       "#/settings/system/dependencies",
-      "#/settings/reviews",
-      "#/settings/reviews/gh-45",
+      "#/reviews",
+      "#/reviews/gh-45",
       "#/backlog",
       "#/settings",
     ])
@@ -307,12 +307,15 @@ describe("formatting and routes", () => {
     // There is no Plan tab: a step's plan is on its Overview.
     expect(parseRoute("#/plan/r")).toEqual({ screen: "run", runId: "r", tab: "overview" });
     expect(parseRoute("#/run/r/plan")).toEqual({ screen: "run", runId: "r", tab: "overview" });
-    // The System and the Reviews are parts of Settings; their old addresses still lead there.
+    // The System is a part of Settings; the Reviews are a place of their own (round 18). Their old
+    // addresses still lead there.
     expect(parseRoute("#/overview/dependencies")).toEqual({ screen: "overview", tab: "dependencies" });
-    expect(parseRoute("#/mrs/gh-45")).toEqual({ screen: "mrs", id: "gh-45" });
+    expect(parseRoute("#/mrs/gh-45")).toEqual({ screen: "reviews", id: "gh-45" });
+    expect(parseRoute("#/settings/reviews/gh-45")).toEqual({ screen: "reviews", id: "gh-45" });
     expect(routeHash(parseRoute("#/overview"))).toBe("#/settings/system");
     expect(routeHash(parseRoute("#/supervisor"))).toBe("#/settings/system");
-    expect(routeHash(parseRoute("#/mrs"))).toBe("#/settings/reviews");
+    expect(routeHash(parseRoute("#/mrs"))).toBe("#/reviews");
+    expect(routeHash(parseRoute("#/settings/reviews"))).toBe("#/reviews");
     expect(parseRoute("#/review/r/src/a.ts")).toEqual({
       screen: "run",
       runId: "r",

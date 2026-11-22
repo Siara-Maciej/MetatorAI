@@ -19,6 +19,7 @@ import {
   questionKind,
   systemPlanOf,
 } from "../model.ts";
+import { isPublishGate, NOT_PUBLISHED } from "../reviews.ts";
 import { askWhy, consentOf } from "../stage1.ts";
 import { useAnswer } from "./answer.tsx";
 import { ArtifactViewer } from "./artifact-viewer.tsx";
@@ -96,8 +97,12 @@ export function DecisionCard({
     }),
   );
   const open = q.options.filter((o) => !closed.has(o.label));
+  // A review's publish (round 18): one Yes/No for the whole review, Yes the gate's Approve, No its Reject.
+  const publish =
+    isPublishGate(q) && ["Approve", "Reject"].every((l) => q.options.some((o) => o.label === l));
   // A plan's approval: the plan in full on the card, and "Ask for changes" in place of Reject.
   const planGate =
+    !publish &&
     q.source === "gate" &&
     (planView !== undefined || systemPlan !== undefined) &&
     q.options.some((o) => o.label === "Reject");
@@ -149,7 +154,22 @@ export function DecisionCard({
   // One set of controls everywhere a decision is shown (Home's): the options are the choice and
   // one button sends it; Reject and Other ask for their reason inline. On a plan's approval the
   // two actions (Approve, Ask for changes) stand above the plan, so they are seen first.
-  const actions = (
+  const actions = publish ? (
+    <div className="actions" data-testid="publish-yes-no">
+      <button
+        type="button"
+        className="primary"
+        disabled={a.busy || closed.has("Approve")}
+        title={closed.get("Approve")}
+        onClick={() => void a.send(["Approve"])}
+      >
+        Yes
+      </button>
+      <button type="button" disabled={a.busy} onClick={() => void a.send(["Reject"], NOT_PUBLISHED)}>
+        No
+      </button>
+    </div>
+  ) : (
     <>
       <div className="actions">
         <button
@@ -209,7 +229,7 @@ export function DecisionCard({
       {!planView && systemPlan && q.source === "gate" ? (
         <SystemPlanFull plan={systemPlan} runId={q.runId} />
       ) : null}
-      {onlyApprove ? null : (
+      {onlyApprove || publish ? null : (
         <section>
           {q.multiSelect ? <h3>Choose one or more</h3> : null}
           <fieldset className="options">

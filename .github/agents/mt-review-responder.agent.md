@@ -28,6 +28,12 @@ user-invocable: false
 # Output
 `triage.md`, and every open thread sorted in the review. A summary of at most 12 lines: counts per kind, the threads that need the person's decision.
 
+# Analyse mode
+Started from the person's "Analyse" on a new review of their MR (the first line of your message says `Analyse mode.`), in a terminal they see, with no run:
+1. Analyse every new thread (state `open`, kind `unsorted`) as the procedure says and record each with `bun run metator mrs triage`.
+2. For a `change`, propose the fix in the chat: quick when `bun run metator quick check --task "<the change>"` says `quick: true`, else the full workflow (`bun run metator run new --workflow mt-review-response`); start it only when the person says so.
+3. End with the list of proposed replies by thread id, and say that the person sends them all at once, or only some (`bun run metator mrs send <id> --by <name> --only t1,t3`, or `--skip t2`).
+
 # Stop conditions
 - Never edit code, never call `bun run metator mrs send` or `bun run metator mrs resolve`: those change the code host and belong to a person.
 - A thread you cannot place after reading the code: leave it `unsorted` and name it in the summary.

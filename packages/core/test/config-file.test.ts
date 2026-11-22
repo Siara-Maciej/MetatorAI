@@ -69,3 +69,44 @@ test("saving a setting into a config that is not valid as it is changes nothing,
   expect((await new UpdateConfig(fs).execute({ editor: "zed" })).isErr()).toBe(true);
   expect((await fs.read("metator.config.yml"))._unsafeUnwrap()).toBe(before);
 });
+
+test("a setting saved into a v14 file moves its sources to codehost (ADR-0097): YAML keeps its comments, JSON too", async () => {
+  const yaml = new InMemoryFileSystem({
+    "metator.config.yml": [
+      "# ours",
+      "kind: MetatorConfig",
+      "schemaVersion: 14",
+      "reviews:",
+      "  everyMs: 60000 # a minute",
+      "  sources:",
+      "    - { kind: github, repo: acme/shop, author: maciej }",
+      "intake:",
+      "  rules:",
+      "    - id: bugs",
+      "      source: { kind: github, repo: acme/shop, labels: [bug] }",
+      "      workflow: mt-bugfix",
+      "",
+    ].join("\n"),
+  });
+  (await editRepoConfig(yaml, [{ path: ["editor"], value: "zed" }], "Why."))._unsafeUnwrap();
+  const text = (await yaml.read("metator.config.yml"))._unsafeUnwrap();
+  expect(text).toContain("# ours");
+  expect(text).toContain("# a minute");
+  const doc = parse(text);
+  expect(doc.schemaVersion).toBe(V);
+  expect(doc.reviews).toEqual({ everyMs: 60000 });
+  expect(doc.codehost.sources).toEqual([
+    { id: "github-acme-shop", kind: "github", repo: "acme/shop", via: "mcp:github", author: "maciej" },
+  ]);
+  expect(doc.intake.rules[0]).toMatchObject({ id: "bugs", source: "github-acme-shop", labels: ["bug"] });
+  const json = new InMemoryFileSystem({
+    "metator.config.json": JSON.stringify({
+      kind: "MetatorConfig",
+      schemaVersion: 14,
+      reviews: { sources: [{ kind: "gitlab", repo: "g/app", mcp: "lab" }] },
+    }),
+  });
+  (await editRepoConfig(json, [{ path: ["editor"], value: "zed" }], "Why."))._unsafeUnwrap();
+  const saved = JSON.parse((await json.read("metator.config.json"))._unsafeUnwrap());
+  expect([saved.schemaVersion, saved.reviews, saved.codehost.sources[0].via]).toEqual([V, {}, "mcp:lab"]);
+});

@@ -1,10 +1,12 @@
 /**
- * The Open MRs screen end to end (T3, design/14 §4): the built app in a real Chromium over the
- * real daemon, which reads my request's review through a real MCP server process (a stand-in
- * for GitHub). The thread shows with its proposed reply; "Send" posts it under my name.
+ * My MRs in the Reviews place end to end (T3, round 18: ADR-0097): the built app in a real Chromium
+ * over the real daemon, which reads my request's review through a real MCP server process (a
+ * stand-in for GitHub; never a real code host). A new review starts nothing by itself: Home shows
+ * "New review in MR #45 (2 threads)", whose Analyse opens the responder's terminal. The proposed
+ * replies come with a checkbox each; "Send selected" posts only the checked ones, under my name.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { chmodSync, existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,13 +18,14 @@ import { ScratchRepo } from "./helpers/repo.ts";
 const ROOT = join(import.meta.dir, "..");
 const FAKE = join(import.meta.dir, "helpers/fake-mcp-server.ts");
 const ID = "github-acme-shop-45";
-// The answering run a scan starts is driven by the scenario host: its responder waits on a
-// question until the test moves the run itself. No real AI host is ever started.
+// Analyse opens the responder in a pane of its own: the scenario host says what it is and waits.
+// No real AI host is ever started.
 const SCENARIO = `kind: AgentScenario
-schemaVersion: 1
+schemaVersion: 2
 agents:
   mt-review-responder:
-    - - ask: { question: "Wait for the test?", options: [yes] }
+    - - say: "I am the review responder. I read the new threads."
+      - run: 'sleep 300'
 `;
 /** Where a screenshot of the screen is kept when METATOR_SHOTS names a directory. */
 const SHOTS = process.env.METATOR_SHOTS;
@@ -32,6 +35,8 @@ let daemon: Bun.Subprocess<"ignore", "ignore", "pipe">;
 let daemonUrl = "";
 let dist: string;
 let configDir: string;
+let bin: string;
+let env: Record<string, string>;
 let site: ReturnType<typeof Bun.serve>;
 let page: Page;
 const errors: string[] = [];
@@ -45,6 +50,18 @@ async function until<T>(what: string, probe: () => Promise<T | undefined>, ms = 
     await Bun.sleep(150);
   }
 }
+const text = async (testId: string) =>
+  (await page
+    .getByTestId(testId)
+    .first()
+    .textContent({ timeout: 1000 })
+    .catch(() => "")) ?? "";
+const says = (testId: string, words: string, ms?: number) =>
+  until(
+    `${testId} to say "${words}"`,
+    async () => ((await text(testId)).includes(words) ? true : undefined),
+    ms,
+  );
 
 beforeAll(async () => {
   dist = await mkdtemp(join(tmpdir(), "metator-desktop-mrs-"));
@@ -65,18 +82,21 @@ beforeAll(async () => {
     },
   });
   configDir = await mkdtemp(join(tmpdir(), "metator-desktop-mrs-config-"));
+  bin = await mkdtemp(join(tmpdir(), "metator-bin-"));
+  await Bun.write(join(bin, "metator"), `#!/bin/sh\nexec bun ${CLI_ENTRY} "$@"\n`);
+  chmodSync(join(bin, "metator"), 0o755);
   repo = await ScratchRepo.create();
   await repo.write(".gitignore", ".metator/\npulls.json\nmcp.log\nscenario.yml\n");
   await repo.write("scenario.yml", SCENARIO);
   await repo.write("src/discount.ts", "export const discount = 0.1;\nexport const cap = 100;\n");
   await repo.write(
-    ".github/metator/workflows/mt-review-response.yml",
-    "kind: Workflow\nschemaVersion: 2\nid: mt-review-response\nstages:\n  - id: triage\n    owner: mt-review-responder\n  - id: approval\n    hitl: true\n",
-  );
-  await repo.write(
     "metator.config.yml",
     `kind: MetatorConfig
-schemaVersion: 11
+schemaVersion: 15
+hosts:
+  metatorCommand: ${join(bin, "metator")}
+supervisor:
+  hostOrder: [scenario]
 mcp:
   github:
     command: bun
@@ -84,10 +104,11 @@ mcp:
     env:
       FAKE_MCP_PULLS: "${repo.path("pulls.json")}"
       FAKE_MCP_LOG: "${repo.path("mcp.log")}"
+codehost:
+  sources:
+    - { id: shop, kind: github, repo: acme/shop, via: "mcp:github", author: maciej }
 reviews:
   everyMs: 1000
-  sources:
-    - { kind: github, repo: acme/shop, author: maciej }
 `,
   );
   await repo.commit("init");
@@ -136,108 +157,125 @@ reviews:
       },
     }),
   );
+  env = {
+    METATOR_CONFIG_DIR: configDir,
+    METATOR_HOST: "scenario",
+    METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
+    METATOR_NO_REAL_HOSTS: "1",
+    METATOR_CLAUDE_BIN: "/nonexistent/claude",
+    METATOR_COPILOT_BIN: "/nonexistent/copilot",
+    METATOR_OPENCODE_BIN: "/nonexistent/opencode",
+    PATH: `${bin}:${process.env.PATH ?? ""}`,
+  };
   daemon = Bun.spawn(
     ["bun", CLI_ENTRY, "serve", "--port", "0", "--poll-ms", "100", "--supervise-ms", "0", "--intake-ms", "0"],
     {
       cwd: repo.root,
-      env: {
-        ...process.env,
-        METATOR_STATE_DIR: E2E_STATE_DIR,
-        METATOR_CONFIG_DIR: configDir,
-        METATOR_HOST: "scenario",
-        METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
-      },
+      env: { ...process.env, METATOR_STATE_DIR: E2E_STATE_DIR, ...env },
       stdout: "ignore",
       stderr: "pipe",
     },
   );
   const reader = daemon.stderr.getReader();
-  let text = "";
+  let out = "";
   daemonUrl = await until("the daemon to listen", async () => {
     const { value, done } = await reader.read();
     if (done) return "";
-    text += new TextDecoder().decode(value);
-    const line = text.split("\n").find((l) => l.includes('"serving"'));
+    out += new TextDecoder().decode(value);
+    const line = out.split("\n").find((l) => l.includes('"serving"'));
     return line ? (JSON.parse(line) as { serving: { url: string } }).serving.url : undefined;
   });
+  void (async () => {
+    for (;;) if ((await reader.read().catch(() => ({ done: true }))).done) return;
+  })();
   const b = await browser();
   page = await b.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: SHOTS ? 2 : 1 });
   page.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
 }, 180_000);
 
 afterAll(async () => {
+  await page?.close();
   await closeBrowser();
-  daemon.kill("SIGTERM");
-  await daemon.exited;
-  // A drive the daemon started for the answering run works in the repository: nothing outlives it.
+  daemon?.kill("SIGTERM");
+  await daemon?.exited;
+  // The responder's pane works in the repository: nothing outlives it.
   stopProcessesUnder(repo.root);
-  site.stop(true);
-  await repo.dispose();
+  site?.stop(true);
+  await repo?.dispose();
   await rm(dist, { recursive: true, force: true });
   await rm(configDir, { recursive: true, force: true });
+  await rm(bin, { recursive: true, force: true });
 });
 
-describe("MetatorAI Desktop: Open MRs (real daemon, real Chromium, real MCP server process)", () => {
-  test("my reviewed request shows with its threads; the proposed reply is sent under my name", async () => {
-    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/mrs`);
-    const screen = page.getByTestId("mrs");
-    await screen.waitFor({ timeout: 20_000 });
-    // The daemon's own scan finds the review within its interval.
-    await page.getByTestId(`mr-${ID}`).waitFor({ timeout: 40_000 });
-    expect(await page.getByTestId(`mr-${ID}`).textContent()).toContain("#45 Cap the discount");
-    expect(await page.getByTestId(`mr-${ID}`).textContent()).toContain("2 open");
-    expect(await page.getByTestId("thread-T1").textContent()).toContain("Is the cap in cents?");
-    expect(await page.getByTestId("thread-T1").textContent()).toContain("anna · src/discount.ts:2");
-    // The answering run was started by the scan; the agent's triage is recorded with the CLI.
-    await until("the answering run", async () =>
-      (await screen.textContent())?.includes("Open session") ? true : undefined,
-    );
-    const env = {
-      METATOR_CONFIG_DIR: configDir,
-      METATOR_HOST: "scenario",
-      METATOR_AGENT_SCENARIO: repo.path("scenario.yml"),
-    };
-    await metator(
-      ["mrs", "triage", ID, "--thread", "T1", "--kind", "question", "--reply", "Cents: src/discount.ts:2."],
-      repo.root,
-      env,
-    );
-    await metator(
-      ["mrs", "triage", ID, "--thread", "T2", "--kind", "change", "--state", "planned"],
-      repo.root,
-      env,
-    );
-    await until("the proposed reply", async () =>
-      (await page.getByTestId("thread-T1").textContent())?.includes("proposed reply Cents")
-        ? true
-        : undefined,
-    );
-    await until("the planned thread", async () =>
-      (await page.getByTestId("thread-T2").textContent())?.includes("planned · change") ? true : undefined,
-    );
-    expect(await page.getByTestId("send-replies").textContent()).toBe("Send 1 reply");
-    if (SHOTS) await page.screenshot({ path: join(SHOTS, "17-open-mrs.png") });
-    // Without a name nothing is sent: the app asks for it in its own dialog, once.
-    await page.getByTestId("send-replies").click();
+describe("MetatorAI Desktop: my MRs in Reviews (real daemon, real Chromium, real MCP server process)", () => {
+  test("a new review is a card on Home; Analyse opens the responder's terminal, nothing starts by itself", async () => {
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
+    // The daemon's own scan finds the review within its interval and leaves a card, not a run.
+    const card = page.getByTestId("review-card-mine");
+    await card.waitFor({ timeout: 40_000 });
+    expect(await card.textContent()).toContain("New review in MR #45 (2 threads)");
+    const runs = (await metator(["run", "list"], repo.root, env)).json.data as unknown[];
+    expect(runs).toEqual([]);
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "18-home-new-review.png") });
+    await card.getByRole("button", { name: "Analyse" }).click();
     const who = page.getByRole("dialog", { name: "your name" });
     await who.waitFor({ timeout: 5000 });
-    await who.getByRole("button", { name: "Cancel" }).click();
-    await Bun.sleep(500);
-    expect(existsSync(repo.path("mcp.log"))).toBe(false);
-    await page.getByTestId("send-replies").click();
     await who.getByLabel("Your name").fill("maciej");
     await who.getByRole("button", { name: "Save" }).click();
-    await until("the reply sent", async () =>
-      (await page.getByTestId("thread-T1").textContent())?.includes("answered") ? true : undefined,
+    // The responder's terminal shows at once.
+    await until("the responder's terminal", async () =>
+      page.url().includes("#/grid/pane:") ? true : undefined,
     );
-    expect(JSON.parse((await Bun.file(repo.path("mcp.log")).text()).trim())).toEqual({
-      reply: 101,
-      pull: 45,
-      body: "Cents: src/discount.ts:2.",
-    });
-    await until("nothing left to send", async () =>
-      (await page.getByTestId("send-replies").textContent()) === "Send 0 replies" ? true : undefined,
-    );
+    expect(errors).toEqual([]);
+  }, 120_000);
+
+  test("my MR in Reviews: a checkbox on each proposed reply, Send selected posts only the checked", async () => {
+    // What the responder records, as it would from its pane.
+    for (const [thread, reply] of [
+      ["T1", "Cents: src/discount.ts:2."],
+      ["T2", "Renamed to capCents."],
+    ] as const)
+      expect(
+        (
+          await metator(
+            ["mrs", "triage", ID, "--thread", thread, "--kind", "question", "--reply", reply],
+            repo.root,
+            env,
+          )
+        ).code,
+      ).toBe(0);
+    await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/reviews/${ID}`);
+    await page.getByTestId("reviews").waitFor({ timeout: 20_000 });
+    // The place is in the sidebar, next to Backlog; Settings no longer holds it.
+    const place = page.getByRole("navigation", { name: "places" }).getByRole("link", { name: "Reviews" });
+    expect(await place.getAttribute("aria-current")).toBe("page");
+    await says(`mr-${ID}`, "replies ready");
+    expect(await text(`mr-${ID}`)).toContain("#45 Cap the discount");
+    expect(await text(`mr-${ID}`)).toContain("2 replies to send");
+    expect(await text(`mr-${ID}`)).not.toContain("github");
+    expect(await text("thread-T1")).toContain("anna · src/discount.ts:2");
+    expect(await text("thread-T1")).toContain("proposed reply Cents");
+    expect(await page.getByTestId("send-T1").isChecked()).toBe(true);
+    expect(await page.getByTestId("send-T2").isChecked()).toBe(true);
+    expect(await text("send-replies")).toBe("Send selected (2)");
+    await page.getByTestId("send-T2").uncheck();
+    expect(await text("send-replies")).toBe("Send selected (1)");
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, "18-my-mr-send-selected.png") });
+    await page.getByTestId("send-replies").click();
+    await says("thread-T1", "answered");
+    const sent = (await Bun.file(repo.path("mcp.log")).text())
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as { reply?: number; body?: string })
+      .filter((e) => e.reply !== undefined);
+    expect(sent).toEqual([{ reply: 101, pull: 45, body: "Cents: src/discount.ts:2." } as never]);
+    // The unchecked reply stays, to send later.
+    expect(await text("thread-T2")).toContain("proposed reply Renamed");
+    // It stays unchecked until the person checks it again.
+    await says("send-replies", "Send selected (0)");
+    expect(await page.getByTestId("send-replies").isDisabled()).toBe(true);
+    await page.getByTestId("send-T2").check();
+    expect(await text("send-replies")).toBe("Send selected (1)");
     expect(errors).toEqual([]);
   }, 120_000);
 });

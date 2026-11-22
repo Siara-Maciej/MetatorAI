@@ -3567,3 +3567,60 @@ button.debug-changes {
 .quiet-home .home-tasks .thread-of {
   color: var(--dim);
 }
+
+/* Round 18: Reviews, a place of its own. A watched MR's findings with their state badges and
+   reasons; my MR's replies with a checkbox each. */
+.reviews .ld-row .word,
+.reviews .review-detail h2 .word {
+  flex: none;
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}
+.reviews .review-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-width: 820px;
+}
+.reviews .review-detail h2 {
+  margin: 0;
+}
+.reviews .findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.reviews .finding {
+  border-top: 1px solid var(--edge);
+  padding-top: var(--sp-3);
+}
+.reviews .finding.fixed,
+.reviews .finding.outdated {
+  opacity: 0.7;
+}
+.reviews .finding-head {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+}
+.reviews .finding-text {
+  margin: var(--sp-1) 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.reviews .finding .why {
+  font-size: var(--fs-small);
+}
+.reviews .thread label.reply {
+  display: block;
+  cursor: pointer;
+}
+.reviews .thread label.reply input {
+  vertical-align: middle;
+}
+.review-card .actions {
+  align-items: center;
+}

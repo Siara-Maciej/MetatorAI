@@ -162,6 +162,8 @@ export const METATOR_QUERIES: ReadonlySet<string> = new Set([
   "rules pack",
   "rules lint",
   "review diff",
+  "review list",
+  "review show",
   "api diff",
   "system show",
   "system lint",

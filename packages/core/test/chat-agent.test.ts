@@ -51,6 +51,8 @@ describe("mt-chat: the conversation agent", () => {
       "system",
       "issue",
       "thread",
+      "review",
+      "mrs",
     ]);
     // Short: a prompt a person can read in a minute.
     expect(body.split("\n").length).toBeLessThanOrEqual(60);

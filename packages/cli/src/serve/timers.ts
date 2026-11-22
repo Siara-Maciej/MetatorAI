@@ -1,4 +1,4 @@
-import type { MetatorError, Result, Supervisor } from "@metator/core";
+import { type MetatorError, type Result, reviewSourcesOf, type Supervisor } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 
 /**
@@ -16,6 +16,8 @@ export interface TimerDeps {
   readonly intakeMs: number | "own";
   /** How often to read the reviews of my requests: fixed, or each repository's own `reviews.everyMs`. */
   readonly reviewsMs: number | "own";
+  /** How often to look at watched MRs (ADR-0097): fixed, or each repository's own `codehost.review.everyMs`. */
+  readonly watchMs?: number | "own";
   /** How often the panes of runs that finished are ended (0: never). */
   readonly sweepMs?: number;
   /** How often every live pane's screen is kept on disk (0: never), so a SIGKILL loses little. */
@@ -93,14 +95,29 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
         await c.resolve("ensureDriven").execute({ runId: q.started });
       }
     });
+  // Someone else's MRs (ADR-0097): new commits, the author's replies, merged or closed, and the
+  // requests that ask me for a review. Nothing starts by itself: what is new becomes a card.
+  const watched = (key: string, c: MetatorContainer) =>
+    once("watch", key, async () => {
+      const tell = say("reviews", key);
+      const r = await c.resolve("watchedReviews").check();
+      if (r.isErr()) return tell({ error: r.error.message });
+      for (const e of r.value.errors) tell({ error: e });
+      for (const id of r.value.news) tell({ news: id });
+      for (const id of r.value.requested) tell({ requested: id });
+      for (const id of r.value.ended) tell({ ended: id });
+    });
   each((key, c) => {
     const config = c.resolve("config").config;
     const intakeEvery = intervalOf(deps.intakeMs, config.intake.everyMs);
     if (config.intake.rules.length > 0 && intakeEvery > 0)
       timers.push(setInterval(() => intake(key, c), intakeEvery));
     const reviewsEvery = intervalOf(deps.reviewsMs, config.reviews.everyMs);
-    if (config.reviews.sources.length > 0 && reviewsEvery > 0)
+    if (reviewSourcesOf(config.codehost).length > 0 && reviewsEvery > 0)
       timers.push(setInterval(() => reviews(key, c), reviewsEvery));
+    const watchEvery = intervalOf(deps.watchMs ?? "own", config.codehost.review.everyMs);
+    if (config.codehost.review.watch && watchEvery > 0)
+      timers.push(setInterval(() => watched(key, c), watchEvery));
   });
 
   // Every live pane's screen on disk: a paused session shows what it left, even after a SIGKILL.

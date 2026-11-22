@@ -372,13 +372,13 @@ permissions: { edit: none, external: [comment] }
     expect([run.stage, record.approvals]).toEqual(["approval", {}]);
   });
 
-  test("the shipped mt-pr-review: the approval gate is skipped at L2 and grants the comment its permissions list", async () => {
+  test("the shipped mt-pr-review: the approval gate is skipped at L1 (autoPublish) and L2 and grants the comment its permissions list", async () => {
     const text = await Bun.file(
       new URL("../../../.github/metator/workflows/mt-pr-review.yml", import.meta.url),
     ).text();
     const spec = parseWorkflowYaml(text, "mt-pr-review.yml")._unsafeUnwrap();
     const gate = spec.stages.find((s) => s.id === "approval");
-    expect([gate?.hitl, gate?.skipAt, gate?.grants]).toEqual([true, ["L2"], ["comment"]]);
+    expect([gate?.hitl, gate?.skipAt, gate?.grants]).toEqual([true, ["L1", "L2"], ["comment"]]);
     expect([spec.autonomy?.includes("L2"), spec.permissions?.external, spec.entry?.ci]).toEqual([
       true,
       ["comment"],

@@ -13,7 +13,7 @@ A file that does not match the schema stops every command with `INVALID_CONFIG` 
 
 ```yaml
 kind: MetatorConfig
-schemaVersion: 14
+schemaVersion: 15
 
 gates:
   quick:
@@ -47,15 +47,18 @@ mcp:
     args: [stdio]
     env: { GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}" }
 
+codehost:
+  sources:
+    - { id: shop, kind: github, repo: acme/shop, via: "mcp:github", author: alice }
+  review: { autoPublish: false, watch: true, everyMs: 120000 }
+  mine: { analyse: false }
+
 intake:
   rules:
     - id: bugs
-      source: { kind: github, repo: acme/shop, labels: [bug] }
+      source: shop
+      labels: [bug]
       workflow: mt-bugfix
-
-reviews:
-  sources:
-    - { kind: github, repo: acme/shop, author: alice }
 
 guard:
   commands:
@@ -70,7 +73,7 @@ options:
   supervisor.wipLimit: 2
 ```
 
-The current `schemaVersion` is 14. A file with an older version still loads: MetatorAI upgrades it in memory and leaves the file as it is.
+The current `schemaVersion` is 15. A file with an older version still loads: MetatorAI upgrades it in memory and leaves the file as it is.
 
 ## Gates
 
@@ -207,29 +210,41 @@ Entries of `.mcp.json` that MetatorAI did not write are kept. A server you remov
 | `intake.everyMs` | `120000` | how often the daemon scans |
 | `intake.maxActive` | `2` | runs started by intake that may be active at once; further items wait as open tasks |
 | `intake.rules[].id` | | the rule's name: lowercase letters, digits, dashes; unique |
-| `intake.rules[].source.kind` | | `github`, `gitlab` or `jira` |
-| `intake.rules[].source.repo` | | `owner/name` on GitHub, the project path on GitLab |
-| `intake.rules[].source.project` | | the Jira project key |
-| `intake.rules[].source.labels` | `[]` | only items with these labels |
-| `intake.rules[].source.type` | | the Jira issue type, for example `Bug` |
-| `intake.rules[].source.state` | `open` | only items in this state |
-| `intake.rules[].source.mcp` | the kind's name | the server under `mcp:` that reaches the source |
-| `intake.rules[].source.tool` | the kind's usual tool | the server's tool that lists the items |
+| `intake.rules[].source` | | the id of a source in `codehost.sources` |
+| `intake.rules[].labels` | `[]` | only items with these labels |
+| `intake.rules[].type` | | the Jira issue type, for example `Bug` |
+| `intake.rules[].state` | `open` | only items in this state |
+| `intake.rules[].tool` | the kind's usual tool | the server's tool that lists the items |
 | `intake.rules[].workflow` | | the workflow a new item starts, for example `mt-bugfix` |
 | `intake.rules[].autonomy` | `gated` | `gated`: every gate of the workflow asks a person. `full`: gates marked `skipAt` pass; a push still asks |
 | `intake.rules[].worktree` | `true` | each run works in its own worktree |
 
+## Code hosts
+
+`codehost` (version 15) is the one list of the code hosts MetatorAI reads, for intake and for reviews, with how each is read; what happens to a review of someone else's request; and whether a review of yours is analysed by itself. Tokens are never here: they stay in the MCP server's configuration or in `gh auth login`. See [Review a change](../use/review.md#review-someone-elses-mr-from-its-link) and [Answer a review](../use/reviews.md).
+
+| Field | Default | Use |
+|---|---|---|
+| `codehost.sources[].id` | | the source's name: lowercase letters, digits, dashes; unique |
+| `codehost.sources[].kind` | | `github`, `gitlab` or `jira` |
+| `codehost.sources[].repo` | | `owner/name` on GitHub, the project path on GitLab |
+| `codehost.sources[].project` | | the Jira project key |
+| `codehost.sources[].via` | | `mcp:<server>` (a server under `mcp:`), or `gh` (GitHub only, with gh's own login) |
+| `codehost.sources[].author` | every open request | your requests are this author's (reviews of your own requests) |
+| `codehost.review.autoPublish` | `false` | publish a review without the card "Publish the review of MR #N?" (the approval gate is skipped) |
+| `codehost.review.watch` | `true` | follow reviewed requests and the ones you are asked to review for new commits and replies |
+| `codehost.review.everyMs` | `120000` | how often the daemon looks at the watched requests |
+| `codehost.mine.analyse` | `false` | a new review of your request starts `reviews.workflow` by itself; off, a card with **Analyse** waits |
+
+A version 14 file loads as version 15: `reviews.sources` and each `intake.rules[].source` move to `codehost.sources`, the rules name them by id, and an `ask` list you wrote gets `metator review approve`.
+
 ## Reviews
 
-`reviews` says where to look for reviews of your own pull requests. A new review starts a run that proposes replies and changes. See [Answer a review](../use/reviews.md).
+`reviews` says how reviews of your own pull requests are answered. Where they are is `codehost.sources`.
 
 | Field | Default | Use |
 |---|---|---|
 | `reviews.everyMs` | `120000` | how often the daemon looks |
-| `reviews.sources[].kind` | | `github` or `gitlab` |
-| `reviews.sources[].repo` | | `owner/name` on GitHub, the project path on GitLab |
-| `reviews.sources[].author` | every open request | only requests of this author |
-| `reviews.sources[].mcp` | the kind's name | the server under `mcp:` that reaches the host |
 | `reviews.workflow` | `mt-review-response` | the workflow a new review starts |
 
 ## Supervisor
@@ -252,7 +267,7 @@ Entries of `.mcp.json` that MetatorAI did not write are kept. A server you remov
 | Field | Default | Use |
 |---|---|---|
 | `guard.commands.never` | `git push --force*`, `git push -f`, `git reset --hard`, `git clean -f`, `git rebase -i`, `git rebase --interactive`, `git filter-branch`, `git filter-repo`, and `rm -r` of `/`, `/*`, `~`, `.`, `..`, `*` or `.git` | never run by an agent: the call is denied with the reason. You run such a command yourself |
-| `guard.commands.ask` | `git commit`, `git push`, `git merge`, `git rebase` | run only with your consent: a click on your host's own approval prompt, or your word in the chat ("commit", "push it", "zacommituj") |
+| `guard.commands.ask` | `git commit`, `git push`, `git merge`, `git rebase`, `metator review approve` | run only with your consent: a click on your host's own approval prompt, or your word in the chat ("commit", "push it", "zacommituj") |
 | `guard.commands.allow` | none | commands that `ask` would catch and that you allow anyway, for example `git commit --fixup` |
 | `guard.consentMinutes` | `10` | how long a consent you gave in words holds; it is used up by the first command of that kind |
 | `guard.prompts` | `metator` | who answers your host's approval prompt for what is known to be safe: `metator` lets the four kinds below run without a prompt; `host` keeps your host's own prompts for everything (the guard then only denies and asks) |

@@ -1,11 +1,16 @@
 import {
   err,
   type HostPullRequest,
+  type HostPullRequestDetail,
+  type HostReview,
   type HostThread,
   type McpServers,
   MetatorError,
   ok,
+  type PostedReview,
+  parseMrUrl,
   type Result,
+  type ReviewerHost,
   type ReviewHost,
   type ReviewSource,
 } from "@metator/core";
@@ -81,6 +86,9 @@ export function threadsFromResult(payload: string): Result<HostThread[], Metator
     const file = text(first.path) ?? text(position.new_path);
     const line = Number(first.line ?? first.original_line ?? position.new_line);
     const commentId = text(first.id) ?? text(first.databaseId);
+    const replies = (comments.slice(1) as Record<string, unknown>[])
+      .filter((c) => c?.system !== true && text(c?.body) !== undefined)
+      .map((c) => ({ author: login(c.author ?? c.user), body: text(c.body) as string }));
     out.push({
       id,
       ...(commentId && commentId !== id ? { commentId } : {}),
@@ -89,9 +97,69 @@ export function threadsFromResult(payload: string): Result<HostThread[], Metator
       ...(Number.isInteger(line) && line > 0 ? { line } : {}),
       body,
       resolved: e.isResolved === true || e.is_resolved === true || e.resolved === true,
+      ...(replies.length > 0 ? { replies } : {}),
     });
   }
   return ok(out);
+}
+
+/** A request as GitHub's or GitLab's JSON describes it (without its diff and threads). */
+export function requestFromResult(
+  payload: string,
+): Result<Omit<HostPullRequestDetail, "diff" | "threads"> & { readonly baseSha?: string }, MetatorError> {
+  const raw = parse(payload);
+  if (raw.isErr()) return err(raw.error);
+  const e = raw.value as Record<string, unknown>;
+  const number = Number(e?.number ?? e?.iid);
+  const title = text(e?.title);
+  const head = e?.head as { ref?: unknown; sha?: unknown } | undefined;
+  const base = e?.base as { ref?: unknown; sha?: unknown } | undefined;
+  const refs = e?.diff_refs as { base_sha?: unknown; head_sha?: unknown } | undefined;
+  const headSha = text(head?.sha) ?? text(e?.sha) ?? text(refs?.head_sha);
+  if (!Number.isInteger(number) || number <= 0 || !title || !headSha)
+    return err(new MetatorError("PARSE_FAILED", "the MCP server's answer is no pull or merge request"));
+  const merged = e.merged === true || e.merged_at != null || e.state === "merged";
+  const closed = e.state === "closed" || e.state === "locked";
+  const baseSha = text(base?.sha) ?? text(refs?.base_sha);
+  return ok({
+    number,
+    title,
+    url: text(e.html_url) ?? text(e.web_url) ?? "",
+    author: login(e.user ?? e.author),
+    base: text(base?.ref) ?? text(e.target_branch) ?? "",
+    head: text(head?.ref) ?? text(e.source_branch) ?? "",
+    headSha,
+    state: merged ? "merged" : closed ? "closed" : "open",
+    ...(baseSha ? { baseSha } : {}),
+  });
+}
+
+/**
+ * A request's diff as the server gives it: GitHub's unified diff text, or GitLab's list of file
+ * diffs (put in `diff --git` form).
+ */
+export function diffFromResult(payload: string): string {
+  if (
+    /^diff --git /m.test(payload) &&
+    !payload.trimStart().startsWith("[") &&
+    !payload.trimStart().startsWith("{")
+  )
+    return payload;
+  const raw = parse(payload);
+  if (raw.isErr()) return payload;
+  const list = listOf(raw.value, "changes", "diffs", "files") ?? [];
+  const out: string[] = [];
+  for (const f of list as Record<string, unknown>[]) {
+    const from = text(f?.old_path) ?? text(f?.filename);
+    const to = text(f?.new_path) ?? text(f?.filename);
+    const body = text(f?.diff) ?? text(f?.patch);
+    if (!from || !to || body === undefined) continue;
+    out.push(`diff --git a/${from} b/${to}`);
+    if (f.new_file === true) out.push("new file mode 100644", "--- /dev/null");
+    else out.push(`--- a/${from}`);
+    out.push(f.deleted_file === true ? "+++ /dev/null" : `+++ b/${to}`, body.replace(/\n$/, ""));
+  }
+  return out.length > 0 ? `${out.join("\n")}\n` : "";
 }
 
 interface Call {
@@ -105,10 +173,54 @@ export function reviewCalls(source: ReviewSource): {
   threads(number: number): Call;
   reply(number: number, commentId: string, body: string): Call;
   resolve(number: number, threadId: string): Call;
+  request(number: number): Call;
+  diff(number: number): Call;
+  requested(): Call | undefined;
+  /** The calls that post a review, in order. */
+  publish(number: number, review: HostReview, baseSha?: string): Call[];
+  approve(number: number, body?: string): Call;
 } {
   if (source.kind === "github") {
     const [owner = "", repo = ""] = source.repo.split("/");
+    const read = (method: string, pullNumber: number): Call => ({
+      tool: "pull_request_read",
+      args: { method, owner, repo, pullNumber },
+    });
     return {
+      request: (n) => read("get", n),
+      diff: (n) => read("get_diff", n),
+      requested: () => ({
+        tool: "search_pull_requests",
+        args: { query: `repo:${source.repo} is:open review-requested:@me` },
+      }),
+      // A pending review, its comments on lines, then the review submitted with its body.
+      publish: (pullNumber, review) => [
+        {
+          tool: "pull_request_review_write",
+          args: { method: "create", owner, repo, pullNumber, commitID: review.headSha },
+        },
+        ...review.comments.map((c) => ({
+          tool: "add_comment_to_pending_review",
+          args: {
+            owner,
+            repo,
+            pullNumber,
+            path: c.file,
+            line: c.line,
+            side: "RIGHT",
+            subjectType: "LINE",
+            body: c.body,
+          },
+        })),
+        {
+          tool: "pull_request_review_write",
+          args: { method: "submit_pending", owner, repo, pullNumber, body: review.body, event: "COMMENT" },
+        },
+      ],
+      approve: (pullNumber, body) => ({
+        tool: "pull_request_review_write",
+        args: { method: "create", owner, repo, pullNumber, event: "APPROVE", ...(body ? { body } : {}) },
+      }),
       list: () => ({ tool: "list_pull_requests", args: { owner, repo, state: "open" } }),
       threads: (pullNumber) => ({
         tool: "pull_request_read",
@@ -123,6 +235,42 @@ export function reviewCalls(source: ReviewSource): {
   }
   const project_id = source.repo;
   return {
+    request: (merge_request_iid) => ({ tool: "get_merge_request", args: { project_id, merge_request_iid } }),
+    diff: (merge_request_iid) => ({
+      tool: "get_merge_request_diffs",
+      args: { project_id, merge_request_iid },
+    }),
+    // GitLab knows no "me" in a filter: the source's author is the person.
+    requested: () =>
+      source.author
+        ? {
+            tool: "list_merge_requests",
+            args: { project_id, state: "opened", reviewer_username: source.author },
+          }
+        : undefined,
+    publish: (merge_request_iid, review, baseSha) => [
+      ...review.comments.map((c) => ({
+        tool: "create_merge_request_thread",
+        args: {
+          project_id,
+          merge_request_iid,
+          body: c.body,
+          position: {
+            position_type: "text",
+            base_sha: baseSha ?? review.headSha,
+            start_sha: baseSha ?? review.headSha,
+            head_sha: review.headSha,
+            new_path: c.file,
+            new_line: c.line,
+          },
+        },
+      })),
+      { tool: "create_merge_request_note", args: { project_id, merge_request_iid, body: review.body } },
+    ],
+    approve: (merge_request_iid) => ({
+      tool: "approve_merge_request",
+      args: { project_id, merge_request_iid },
+    }),
     list: () => ({ tool: "list_merge_requests", args: { project_id, state: "opened" } }),
     threads: (merge_request_iid) => ({ tool: "mr_discussions", args: { project_id, merge_request_iid } }),
     reply: (merge_request_iid, discussion_id, body) => ({
@@ -137,7 +285,7 @@ export function reviewCalls(source: ReviewSource): {
 }
 
 /** `ReviewHost` over the MCP servers configured in MetatorAI (T3, design/14 §4). */
-export class McpReviewHost implements ReviewHost {
+export class McpReviewHost implements ReviewHost, ReviewerHost {
   constructor(
     private readonly servers: () => Promise<Result<McpServers, MetatorError>>,
     private readonly caller: McpToolCaller,
@@ -169,6 +317,62 @@ export class McpReviewHost implements ReviewHost {
     return (await this.call(source, reviewCalls(source).resolve(number, threadId))).map(() => undefined);
   }
 
+  async openFromUrl(url: string, source: ReviewSource): Promise<Result<HostPullRequestDetail, MetatorError>> {
+    const ref = parseMrUrl(url);
+    if (ref.isErr()) return err(ref.error);
+    const calls = reviewCalls(source);
+    const request = await this.call(source, calls.request(ref.value.number));
+    if (request.isErr()) return err(request.error);
+    const read = requestFromResult(request.value);
+    if (read.isErr()) return err(read.error);
+    const diff = await this.call(source, calls.diff(ref.value.number));
+    if (diff.isErr()) return err(diff.error);
+    const threads = await this.listThreads(source, ref.value.number);
+    if (threads.isErr()) return err(threads.error);
+    const { baseSha: _b, ...detail } = read.value;
+    return ok({
+      ...detail,
+      url: detail.url || ref.value.url,
+      diff: diffFromResult(diff.value),
+      threads: threads.value,
+    });
+  }
+
+  async requested(source: ReviewSource): Promise<Result<readonly HostPullRequest[], MetatorError>> {
+    const call = reviewCalls(source).requested();
+    if (!call)
+      return err(
+        MetatorError.usage(
+          `${source.kind}:${source.repo}: name yourself as the source's author to find the requests you are asked to review`,
+        ),
+      );
+    const answered = await this.call(source, call);
+    return answered.isErr() ? err(answered.error) : pullRequestsFromResult(answered.value);
+  }
+
+  async publish(
+    source: ReviewSource,
+    number: number,
+    review: HostReview,
+  ): Promise<Result<PostedReview, MetatorError>> {
+    let baseSha: string | undefined;
+    if (source.kind === "gitlab" && review.comments.length > 0) {
+      const request = await this.call(source, reviewCalls(source).request(number));
+      if (request.isErr()) return err(request.error);
+      const read = requestFromResult(request.value);
+      if (read.isOk()) baseSha = read.value.baseSha;
+    }
+    for (const call of reviewCalls(source).publish(number, review, baseSha)) {
+      const posted = await this.call(source, call);
+      if (posted.isErr()) return err(posted.error);
+    }
+    return postedFrom(review, await this.listThreads(source, number));
+  }
+
+  async approve(source: ReviewSource, number: number, body?: string): Promise<Result<void, MetatorError>> {
+    return (await this.call(source, reviewCalls(source).approve(number, body))).map(() => undefined);
+  }
+
   private async call(source: ReviewSource, call: Call): Promise<Result<string, MetatorError>> {
     const servers = await this.servers();
     if (servers.isErr()) return err(servers.error);
@@ -182,4 +386,21 @@ export class McpReviewHost implements ReviewHost {
       );
     return this.caller.call(server, call.tool, call.args);
   }
+}
+
+/**
+ * The posted comments' ids, read back from the request's threads (a host answers a posted review
+ * without them): each comment is the thread on its file and line whose first words are its body.
+ */
+export function postedFrom(
+  review: HostReview,
+  threads: Result<readonly HostThread[], MetatorError>,
+): Result<PostedReview, MetatorError> {
+  const listed = threads.isOk() ? threads.value : [];
+  return ok({
+    comments: review.comments.map((c, i) => {
+      const t = listed.find((x) => x.file === c.file && x.line === c.line && x.body.trim() === c.body.trim());
+      return t ? { hostId: t.commentId ?? t.id, threadId: t.id } : { hostId: `posted-${i + 1}` };
+    }),
+  });
 }

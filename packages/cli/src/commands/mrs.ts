@@ -1,7 +1,17 @@
-import { err, ok, THREAD_KINDS, THREAD_STATES, type ThreadKind, type ThreadState } from "@metator/core";
+import {
+  err,
+  MetatorError,
+  ok,
+  type Result,
+  THREAD_KINDS,
+  THREAD_STATES,
+  type ThreadKind,
+  type ThreadState,
+} from "@metator/core";
 import { type Command, Option } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { callDaemon, findDaemon, inRepo, paneHeaders } from "../daemon-client.ts";
 import { byOption } from "../options.ts";
 import { asPerson } from "../who.ts";
 
@@ -10,21 +20,25 @@ import { asPerson } from "../who.ts";
  * them current (`serve --reviews-ms`); the agent of `mt-review-response` records what it made
  * of each thread (`triage`); `send` and `resolve` change the host and need a person's name.
  */
-export function registerMrsCommands(program: Command, { action, container }: CommandContext): void {
+export function registerMrsCommands(program: Command, ctx: CommandContext): void {
+  const { action, container } = ctx;
   const mrs = program
     .command("mrs")
     .description("Reviews of my open pull requests: threads, proposed replies, the run that answers them");
   const reviews = () => container().resolve("myReviews");
 
   meta(mrs.command("list"), { audience: "person" })
-    .description("My reviewed requests with their open threads and the answering run")
+    .description(
+      "My reviewed requests with their open threads, the new ones nobody analysed, the answering run, and the cards",
+    )
     .action(
       action(async () => {
-        const all = await reviews().list();
+        const all = await reviews().overview();
         if (all.isErr()) return { result: err(all.error) };
         return {
           result: ok({
-            requests: all.value.map((r) => ({
+            cards: all.value.cards,
+            requests: all.value.requests.map((r) => ({
               id: r.id,
               number: r.number,
               title: r.title,
@@ -33,6 +47,7 @@ export function registerMrsCommands(program: Command, { action, container }: Com
               threads: r.threads.length,
               open: r.threads.filter((t) => t.state === "open").length,
               proposed: r.threads.filter((t) => t.reply && !t.repliedAt).length,
+              fresh: r.fresh,
               ...(r.runId ? { runId: r.runId } : {}),
             })),
           }),
@@ -82,13 +97,57 @@ export function registerMrsCommands(program: Command, { action, container }: Com
 
   mrs
     .command("send")
-    .description("Post every proposed reply that was not sent yet to the host")
+    .description(
+      "Post the proposed replies not sent yet to the host, in one consent: all, only some (--only) or all but some (--skip)",
+    )
     .argument("<id>", "the request")
     // Posting to the host is a person's decision, as an approval is: the name is typed, never assumed.
     .addOption(byOption("the person who decides to send them", "required"))
+    .option("--only <threads>", "send only these threads (t1,t3)", threadList)
+    .option("--skip <threads>", "send all but these threads (t2)", threadList)
     .action(
-      action(async (id: string, opts: { by?: string }) =>
-        asPerson(container(), opts.by, async (by) => ({ result: await reviews().send(id, { by }) })),
+      action(async (id: string, opts: { by?: string; only?: string[]; skip?: string[] }) =>
+        asPerson(container(), opts.by, async (by) => ({
+          result: await reviews().send(id, {
+            by,
+            ...(opts.only ? { only: opts.only } : {}),
+            ...(opts.skip ? { skip: opts.skip } : {}),
+          }),
+        })),
+      ),
+    );
+
+  mrs
+    .command("analyse")
+    .description(
+      "Analyse a review of my MR in a pane you see: every new thread, proposed replies and fixes (through the daemon)",
+    )
+    .argument("<id>", "the request")
+    .addOption(byOption("who asks for it"))
+    .option("--host <host>", "the AI host of the responder")
+    .action(
+      action(async (id: string, opts: { by?: string; host?: string }) =>
+        asPerson(container(), opts.by, async (by) => {
+          const daemon = findDaemon(ctx.start());
+          if (daemon.isErr())
+            return {
+              result: err(
+                MetatorError.usage(
+                  "analysing in a pane needs the daemon (`metator serve`)",
+                  "Start the app.",
+                ),
+              ) as Result<never, MetatorError>,
+            };
+          return {
+            result: await callDaemon(
+              daemon.value,
+              "POST",
+              inRepo(`/mrs/${encodeURIComponent(id)}/analyse`, container().resolve("root")),
+              { by, ...(opts.host ? { host: opts.host } : {}) },
+              paneHeaders(),
+            ),
+          };
+        }),
       ),
     );
 
@@ -105,4 +164,9 @@ export function registerMrsCommands(program: Command, { action, container }: Com
         })),
       ),
     );
+}
+
+/** `t1,t3` (or repeated words): thread ids, each once. */
+function threadList(value: string, previous: string[] = []): string[] {
+  return [...new Set([...previous, ...value.split(/[\s,]+/).filter(Boolean)])];
 }

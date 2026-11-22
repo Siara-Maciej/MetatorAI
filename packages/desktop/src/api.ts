@@ -39,7 +39,9 @@ import type {
   PullRequestReview,
   Question,
   ResolvedOption,
+  ReviewCard,
   ReviewNote,
+  ReviewStatus,
   ReviewThread,
   RunActivity,
   RunArtifact,
@@ -66,6 +68,8 @@ import type {
   Tab,
   Thread,
   UnreadableRun,
+  WatchedFinding,
+  WatchedReview,
   WorkPhase,
   Workspace,
   WorktreeConflict,
@@ -149,7 +153,53 @@ export type Conflict = WorktreeConflict;
 /** One review thread on my request, with what the agent made of it. */
 export type ReviewThreadView = ReviewThread;
 /** My reviewed request, by the id `metator mrs` names it. */
-export type ReviewedRequest = PullRequestReview & { readonly id: string };
+export type ReviewedRequest = PullRequestReview & {
+  readonly id: string;
+  /** Round 18: open threads not triaged yet (a new review: Analyse on Home). */
+  readonly fresh?: number | undefined;
+};
+
+/** A finding of a watched review (WatchedReview v1, round 18): its state is the agent's, with why. */
+/** A watched MR's one state word, as the daemon decides it (round 18). */
+export type { ReviewStatus, WatchedFinding };
+
+/**
+ * A watched MR (others'), as `GET /reviews` lists it (round 18): the WatchedReview document with its
+ * status, its findings counted by state and its last review run. `repo` is the code host's
+ * `owner/name`, not the folder's repository.
+ */
+export type ReviewView = WatchedReview & {
+  readonly status: ReviewStatus;
+  readonly counts: {
+    readonly open: number;
+    readonly fixed: number;
+    readonly notFixed: number;
+    readonly disputed: number;
+    readonly outdated: number;
+  };
+  readonly run?: { readonly runId: string; readonly status: string; readonly stage: string } | undefined;
+};
+
+/**
+ * A card of a review on Home (round 18), composed by the daemon (`/inbox` `reviews`): its words and
+ * its buttons, each a request the app sends with the person's name; its repository in a folder.
+ */
+export type ReviewCardView = ReviewCard & { readonly repo?: string | undefined };
+
+/** `/inbox`: the runs' decisions, the questions of panes without a run, the reviews' cards (round 18). */
+export interface InboxData {
+  readonly decisions: InboxItem[];
+  readonly panes?: PaneAsk[];
+  readonly reviews?: ReviewCardView[];
+}
+
+/** What a button that starts a review's agent answers: its run and its pane (round 18). */
+export interface ReviewStarted {
+  readonly runId?: string | undefined;
+  readonly session?: { readonly paneId: string; readonly host?: string | undefined } | undefined;
+  readonly pane?: { readonly id: string; readonly runId?: string | undefined } | undefined;
+  readonly noSession?: string | undefined;
+}
 
 /** `/state`: one repository, or each repository of a folder. */
 export interface RepoState extends Partial<Overview> {
@@ -375,7 +425,7 @@ export class DaemonClient {
   }
 
   state = () => this.get<StateData>("/state");
-  inbox = () => this.get<{ decisions: InboxItem[]; panes?: PaneAsk[] }>("/inbox");
+  inbox = () => this.get<InboxData>("/inbox");
   supervisor = (repo?: string) => this.get<SupervisorView>("/supervisor", repo);
   workflows = (repo?: string) => this.get<{ workflows: Workflow[] }>("/workflows", repo);
   options = (repo?: string) => this.get<OptionsView>("/options", repo);
@@ -587,8 +637,31 @@ export class DaemonClient {
     this.post<ReviewNote>(`/runs/${runId}/review-note-status`, { id, status }, repo);
   /** Reviews of my open requests (T3): one entry per request with its threads. */
   mrs = (repo?: string) => this.get<{ requests: ReviewedRequest[] }>("/mrs", repo);
-  sendMrReplies = (id: string, by: string, repo?: string) =>
-    this.post<{ sent: string[] }>(`/mrs/${encodeURIComponent(id)}/send`, { by }, repo);
+  /** Sends the proposed replies: those named in `only` (round 18), or all. */
+  sendMrReplies = (id: string, by: string, repo?: string, only?: readonly string[]) =>
+    this.post<{ sent: string[] }>(
+      `/mrs/${encodeURIComponent(id)}/send`,
+      { by, ...(only ? { only } : {}) },
+      repo,
+    );
+  /** "Analyse" a new review on my MR: the responder in a visible pane (round 18). */
+  analyseMr = (id: string, by: string, repo?: string) =>
+    this.post<ReviewStarted>(`/mrs/${encodeURIComponent(id)}/analyse`, { by }, repo);
+  /** The watched MRs (others'), with their findings and what is new, and their cards (round 18). */
+  reviews = (repo?: string) =>
+    this.get<{ reviews: ReviewView[]; cards?: ReviewCardView[] }>("/reviews", repo);
+  /** "Review" of a requested review: a review of the MR from its link, in a visible pane. */
+  startReview = (url: string, by: string, repo?: string) =>
+    this.post<ReviewStarted>("/reviews", { url, by }, repo);
+  rereview = (id: string, by: string, repo?: string) =>
+    this.post<ReviewStarted>(`/reviews/${encodeURIComponent(id)}/rereview`, { by }, repo);
+  unwatchReview = (id: string, by: string, repo?: string) =>
+    this.post<{ review: ReviewView }>(`/reviews/${encodeURIComponent(id)}/unwatch`, { by }, repo);
+  /**
+   * A card's button: the request the daemon put on it, with the person's name. Its path names the
+   * card's repository already (in a folder, `?repo=`).
+   */
+  cardAction = (path: string, body: object) => this.post<ReviewStarted>(path, body);
   resolveMrThread = (id: string, thread: string, by: string, repo?: string) =>
     this.post<ReviewedRequest>(`/mrs/${encodeURIComponent(id)}/resolve`, { by, thread }, repo);
   issues = (repo?: string) => this.get<{ issues: IssueView[] }>("/issues", repo);

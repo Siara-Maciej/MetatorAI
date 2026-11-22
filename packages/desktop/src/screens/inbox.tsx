@@ -13,6 +13,7 @@ import { DecisionCard } from "../components/decision-card.tsx";
 import { EscalatedCard } from "../components/escalated-card.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { PaneAskCard } from "../components/pane-ask-card.tsx";
+import { ReviewCard } from "../components/review-card.tsx";
 import { StartRun } from "../components/start-run.tsx";
 import { useDaemon } from "../daemon.tsx";
 import { useAction, useTasks } from "../hooks.ts";
@@ -31,6 +32,7 @@ import {
   routeHash,
   stepNeed,
 } from "../model.ts";
+import { isReviewCard, reviewCardKey } from "../reviews.ts";
 import { byAttentionFirst, taskLine, taskState } from "../tasks.ts";
 import { threadTitleOf } from "../threads.ts";
 
@@ -63,7 +65,7 @@ export function InboxScreen({
   onStart(task: string): void;
   onForm(): void;
 }) {
-  const { inbox, runs, paneAsks } = useDaemon();
+  const { inbox, runs, paneAsks, reviewCards } = useDaemon();
   const item = picked ? inbox.find((i) => decisionKey(i) === picked.key) : undefined;
   // A pane without a run that asks (the intake chat): its own card, answered into the pane.
   const paneAsk = picked && isPaneAsk(picked) ? paneAskOf(paneAsks, picked.key) : undefined;
@@ -71,6 +73,9 @@ export function InboxScreen({
     picked?.kind === "escalated"
       ? runs.find((r) => r.status === "escalated" && escalatedKey(r) === picked.key)
       : undefined;
+  // A review's card (round 18): asked to review, new commits or replies, a new review, approve.
+  const review =
+    picked && isReviewCard(picked) ? reviewCards.find((c) => reviewCardKey(c) === picked.key) : undefined;
   const at = picked ? needs.findIndex((n) => n.key === picked.key) : -1;
   const move = (step: 1 | -1) => {
     const next = stepNeed(needs, picked?.key, step);
@@ -138,6 +143,8 @@ export function InboxScreen({
             onOpenChanges={onOpenChanges}
           />
         </div>
+      ) : review ? (
+        <ReviewCard key={picked?.key} card={review} onDone={() => onAnswered()} />
       ) : picked && isTerminalAsk(picked) ? (
         <article className="card terminal-ask" data-testid={`terminal-ask-${picked.runId}`}>
           <h1>{picked.title}</h1>

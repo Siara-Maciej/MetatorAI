@@ -1,0 +1,33 @@
+{
+  "kind": "MetatorConfig",
+  "schemaVersion": 14,
+  "mcp": {
+    "github": { "command": "github-mcp-server", "args": ["stdio"] },
+    "lab": { "command": "gitlab-mcp" }
+  },
+  "reviews": {
+    "everyMs": 60000,
+    "sources": [
+      { "kind": "github", "repo": "acme/shop", "author": "maciej" },
+      { "kind": "gitlab", "repo": "acme/app", "mcp": "lab" }
+    ]
+  },
+  "intake": {
+    "rules": [
+      {
+        "id": "bugs",
+        "source": { "kind": "github", "repo": "acme/shop", "labels": ["bug"] },
+        "workflow": "mt-bugfix"
+      },
+      {
+        "id": "jira",
+        "source": { "kind": "jira", "project": "SHOP", "type": "Bug" },
+        "workflow": "mt-bugfix"
+      }
+    ]
+  },
+  "guard": {
+    "commands": { "ask": ["git commit", "git push"] },
+    "prompts": "host"
+  }
+}

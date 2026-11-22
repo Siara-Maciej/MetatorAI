@@ -91,6 +91,50 @@ describe("ValidateFindings", () => {
     ]);
   });
 
+  test("from the diff only (ADR-0097): a file that is not here is checked against the lines the diff shows", async () => {
+    const diff = [
+      "diff --git a/src/remote.ts b/src/remote.ts",
+      "--- a/src/remote.ts",
+      "+++ b/src/remote.ts",
+      "@@ -10,2 +10,3 @@",
+      " const a = 1;",
+      "+return amount * rate;",
+      " const b = 2;",
+      "",
+    ].join("\n");
+    const w = world({
+      "run/change.diff": diff,
+      "f/logic.json": setFile("logic", [
+        finding({ location: { file: "src/remote.ts", line: 11 } }),
+        finding({ id: "LOGIC-002", location: { file: "src/remote.ts", line: 11 }, quote: "return nothing;" }),
+        finding({ id: "LOGIC-003", location: { file: "src/other.ts", line: 1 } }),
+        // A local file is still read from disk.
+        finding({ id: "LOGIC-004" }),
+      ]),
+    });
+    const report = (
+      await w.validate.execute({ dir: "f", fix: false, diff: "run/change.diff" })
+    )._unsafeUnwrap();
+    expect(report.findings.map((v) => [v.id, v.status])).toEqual([
+      ["LOGIC-001", "valid"],
+      ["LOGIC-002", "invalid"],
+      ["LOGIC-003", "invalid"],
+      ["LOGIC-004", "valid"],
+    ]);
+    // Without the diff, the same remote file is not found.
+    expect((await w.validate.execute({ dir: "f", fix: false }))._unsafeUnwrap().findings[0]?.status).toBe(
+      "invalid",
+    );
+    // Merging keeps what the diff backs: the remote finding stays, with the diff.
+    expect((await w.merge.execute({ dir: "f", diff: "run/change.diff" }))._unsafeUnwrap().merged).toBe(2);
+    expect((await w.merge.execute({ dir: "f" }))._unsafeUnwrap().merged).toBe(1);
+    // A diff that does not exist is no diff.
+    expect(
+      (await w.validate.execute({ dir: "f", fix: false, diff: "run/none.diff" }))._unsafeUnwrap().findings[0]
+        ?.status,
+    ).toBe("invalid");
+  });
+
   test("a moved quote is reported, and --fix rewrites the line in the findings file", async () => {
     const w = world({
       "f/logic.json": setFile("logic", [finding({ location: { file: "src/pay.ts", line: 1 } })]),

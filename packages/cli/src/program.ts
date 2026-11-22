@@ -123,6 +123,7 @@ export function buildProgram(
       bins: hostBinsOf(env),
       ...(env[NO_REAL_HOSTS] === "1" ? { noRealHosts: true } : {}),
       ...(env.METATOR_DOCKER_BIN ? { dockerBin: env.METATOR_DOCKER_BIN } : {}),
+      ...(env.METATOR_GH_BIN ? { ghBin: env.METATOR_GH_BIN } : {}),
       stateDir: machineStateDir(env),
       userConfigDir: userConfigDir(env),
       // What only this program knows: how to start itself again, and where a run's panes are.

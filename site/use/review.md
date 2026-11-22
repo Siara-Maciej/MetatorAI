@@ -27,10 +27,49 @@ metator run drive --host claude
 | `find` | one lens per shard, at most 6 at once | `findings/` | each lens writes its findings; `metator findings validate --fix` then drops findings with invented quotes and blockers without proof |
 | `verify` | `metator findings merge`, then `mt-verifier` | `findings/merged.json` | duplicates across lenses are merged; an independent agent tries to refute each blocking finding |
 | `judge` | `mt-judge` | `verdict.json` | the decision, from what survived |
-| `approval` | you | | which comments are published, and in which format; approving also approves posting them |
-| `publish` | `metator findings to-github` | | the inline comments and the summary are formatted from the verdict and printed; `mt-pr-review` posts them through the code host |
+| `approval` | you | | the publish card ("Publish the review of MR #45? (3 inline comments, 1 general)"); approving also approves posting them |
+| `publish` | `metator review publish` | | the inline comments and the summary, posted in one go through the code host (a review from a link); without one, printed for `mt-pr-review` to post |
 
 A lens sees one package at a time, with that package's module card and rules. This works better than one pass over a large diff. The verifier starts with a clean context, and a failing test counts for more than an argument.
+
+## Review someone else's MR from its link
+
+Paste the link in a chat: the chat agent runs `metator review open <url>`. MetatorAI reads the request through the code host set up for it, never through the agent's own tools:
+
+1. the source in `codehost.sources` for that repository (its `via`);
+2. else an MCP server named `github` or `gitlab` under `mcp:`;
+3. else, for GitHub, `gh` when it is installed and logged in;
+4. else the chat says: "I cannot open this MR: no code-host tool for github.com is set up (an MCP server or gh)".
+
+GitLab is read through MCP only.
+
+**This repository or one of the folder**: the full review above, in a worktree on the request's head (fetched from `origin`).
+
+**Any other repository**: a review from the diff only. The logic, security and tests lenses read the diff the host gave (`change.diff` in the run's directory) and the files it shows; rules, contracts, conventions and everything that runs code are left out. The published review starts with:
+
+```text
+Reviewed from the diff only: no local checkout, so the repository's rules, contracts and tests were not used.
+```
+
+It is one workflow: its input `source` is `local` or `diff`.
+
+**Publishing.** The review is first the agent's answer in the chat. The `approval` gate is the card **Publish the review of MR #45? (3 inline comments, 1 general)**: one Yes publishes all of it, inline where the host allows. When the host or the tool cannot comment on lines, nothing is posted: the agent says so and gives you the list, and you decide the other form. With `codehost.review.autoPublish: true` the gate is skipped.
+
+**Watching.** A reviewed request, and one where you are a requested reviewer, is kept in `.metator/reviews/<id>.json` (`github-acme-shop-45`) and watched every `codehost.review.everyMs` (two minutes by default) for new commits and the author's replies. Watching ends when the request is merged or closed, when you approve it, or with `metator review unwatch`.
+
+**Re-review.** New commits or a reply make one card, **MR #45: 2 new commits, 1 reply**. **Re-review** opens the agent's terminal: the lenses read only what the new commits changed (`delta.diff`), and the judge decides the state of every earlier finding (`fixed`, `not-fixed`, `disputed`, `outdated`) with a reason. MetatorAI first marks candidates: the commented code changed, the author resolved the thread, or replied in it. A candidate is a hint; only the agent's `metator review finding` sets a state.
+
+**Approve.** When every finding is fixed, the agent proposes **All 4 findings are fixed: approve MR #45?**. Approving is yours: a Yes on the card, or your word in the chat, after which `metator review approve` runs and the guard asks you once more.
+
+```bash
+metator review open https://github.com/acme/shop/pull/45   # read it, start the review
+metator review list                                        # the watched requests, finding states, what is new
+metator review show github-acme-shop-45                    # its findings, their state and the candidates
+metator review check                                       # read the watched requests now
+metator review rereview github-acme-shop-45                # the new commits and every earlier finding
+metator review approve github-acme-shop-45 --by maciej     # at the code host; the guard asks first
+metator review unwatch github-acme-shop-45
+```
 
 ## Lenses
 

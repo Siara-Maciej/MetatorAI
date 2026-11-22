@@ -7,14 +7,18 @@ import {
   type ReviewsConfig,
   reviewId,
   reviewTask,
+  selectThreads,
   type ThreadKind,
   type ThreadState,
 } from "../domain/review-thread.ts";
+import { mineCard, type ReviewCard } from "../domain/watched-review.ts";
 import type { Clock, FileSystem, ReviewHost } from "../ports/index.ts";
 import { loadDocument, writeDocument } from "./document-io.ts";
 import type { Notifier } from "./notifier.ts";
+import type { Panes, PaneView } from "./panes.ts";
 import type { MetatorPaths } from "./paths.ts";
 import type { InitRun } from "./runs.ts";
+import type { Threads } from "./threads.ts";
 
 export interface MyReviewsDependencies {
   readonly config: ReviewsConfig;
@@ -29,7 +33,22 @@ export interface MyReviewsDependencies {
   readonly notifier?: Pick<Notifier, "review">;
   /** Whether a run finished as done: its change is committed and pushed (the publish gate). */
   readonly runDone: (runId: string) => Promise<boolean>;
+  /**
+   * `codehost.mine.analyse` (ADR-0097): a new review starts the answering run by itself. Off (the
+   * default), a new review is only kept and shown as a card; "Analyse" starts the work.
+   */
+  readonly analyse?: boolean;
+  /** The daemon's panes: "Analyse" opens the responder where a person sees it. */
+  readonly panes?: Pick<Panes, "openWorkspace" | "openTab" | "openPane">;
+  readonly threads?: Pick<Threads, "addMr">;
 }
+
+/** My request as the list shows it: with the threads nobody analysed yet. */
+export type MyRequestView = PullRequestReview & {
+  readonly id: string;
+  /** Open threads not triaged yet (`unsorted`): what "Analyse" works on. */
+  readonly fresh: number;
+};
 
 export interface ReviewScanReport {
   readonly requests: readonly {
@@ -96,7 +115,8 @@ export class MyReviews {
         };
         let started: string | undefined;
         const busy = review.runId !== undefined && (await this.d.runActive(review.runId));
-        if (merged.fresh.length > 0 && !busy) {
+        // Detected always; the work starts by itself only when the person chose so (ADR-0097).
+        if (merged.fresh.length > 0 && !busy && this.d.analyse === true) {
           const run = await this.d.initRun.execute({
             workflow: this.d.config.workflow,
             task: reviewTask(id, review),
@@ -145,6 +165,64 @@ export class MyReviews {
     return ok(out);
   }
 
+  /** My requests with what is new in each, and a card for each review nobody analysed yet. */
+  async overview(): Promise<
+    Result<
+      { readonly requests: readonly MyRequestView[]; readonly cards: readonly ReviewCard[] },
+      MetatorError
+    >
+  > {
+    const all = await this.list();
+    if (all.isErr()) return err(all.error);
+    const requests: MyRequestView[] = [];
+    const cards: ReviewCard[] = [];
+    for (const r of all.value) {
+      const fresh = r.threads.filter((t) => t.state === "open" && t.kind === "unsorted").length;
+      requests.push({ ...r, fresh });
+      const answering = r.runId !== undefined && (await this.d.runActive(r.runId));
+      const card = mineCard({ id: r.id, number: r.number, title: r.title, url: r.url, fresh, answering });
+      if (card) cards.push(card);
+    }
+    return ok({ requests, cards });
+  }
+
+  /**
+   * "Analyse": the responder in a pane a person sees, told to analyse every new thread, propose
+   * replies and fixes (quick or the full workflow by the escalators), and send nothing itself.
+   */
+  async analyse(
+    id: string,
+    input: { readonly by?: string; readonly host?: string; readonly threadId?: string } = {},
+  ): Promise<Result<{ readonly request: MyRequestView; readonly pane: PaneView }, MetatorError>> {
+    if (!this.d.panes)
+      return err(
+        MetatorError.usage("analysing in a pane needs the daemon (`metator serve`)", "Start the app."),
+      );
+    const review = await this.show(id);
+    if (review.isErr()) return err(review.error);
+    const workspace = await this.d.panes.openWorkspace({ label: "reviews" });
+    if (workspace.isErr()) return err(workspace.error);
+    const tab = await this.d.panes.openTab(workspace.value.id, `#${review.value.number}`);
+    if (tab.isErr()) return err(tab.error);
+    const pane = await this.d.panes.openPane({
+      workspace: workspace.value.id,
+      tab: tab.value,
+      role: "apps",
+      label: `analyse ${id}`,
+      process: {
+        kind: "host",
+        ...(input.host ? { host: input.host } : {}),
+        agent: "mt-review-responder",
+        prompt: analyseTask(id, review.value),
+      },
+    });
+    if (pane.isErr()) return err(pane.error);
+    if (input.threadId && this.d.threads)
+      await this.d.threads.addMr(input.threadId, id, `MR #${review.value.number} ${review.value.title}`);
+    const fresh = review.value.threads.filter((t) => t.state === "open" && t.kind === "unsorted").length;
+    return ok({ request: { ...review.value, fresh }, pane: pane.value });
+  }
+
   async show(id: string): Promise<Result<PullRequestReview & { readonly id: string }, MetatorError>> {
     const review = await this.read(id);
     return review
@@ -166,18 +244,38 @@ export class MyReviews {
     }));
   }
 
-  /** Posts every proposed reply that was not sent yet; the person who says so is named. */
+  /**
+   * Posts the proposed replies that were not sent yet, in one consent: all of them, only the
+   * threads named (`only`), or all but those (`skip`). The person who says so is named.
+   */
   async send(
     id: string,
-    input: { readonly by: string },
-  ): Promise<Result<{ readonly sent: readonly string[] }, MetatorError>> {
+    input: {
+      readonly by: string;
+      readonly only?: readonly string[] | undefined;
+      readonly skip?: readonly string[] | undefined;
+    },
+  ): Promise<
+    Result<{ readonly sent: readonly string[]; readonly skipped: readonly string[] }, MetatorError>
+  > {
     if (input.by.trim() === "") return err(MetatorError.usage("say who sends the replies: --by <name>"));
     const review = await this.show(id);
     if (review.isErr()) return err(review.error);
+    const chosen = selectThreads(
+      review.value.threads.map((t) => t.id),
+      { only: input.only, skip: input.skip },
+    );
+    if ("problem" in chosen)
+      return err(MetatorError.usage(chosen.problem, `\`metator mrs show ${id}\` lists the threads.`));
     const sent: string[] = [];
+    const skipped: string[] = [];
     let threads = review.value.threads;
     for (const t of review.value.threads) {
       if (!t.reply || t.repliedAt || t.state === "resolved") continue;
+      if (!chosen.chosen.includes(t.id)) {
+        skipped.push(t.id);
+        continue;
+      }
       const posted = await this.d.host.reply(
         review.value.source,
         review.value.number,
@@ -195,7 +293,7 @@ export class MyReviews {
     }
     const saved = await this.write(id, this.strip({ ...review.value, threads }));
     if (saved.isErr()) return err(saved.error);
-    return ok({ sent });
+    return ok({ sent, skipped });
   }
 
   /** Closes a thread at the host; the person who says so is named. */
@@ -252,4 +350,12 @@ export class MyReviews {
       "json",
     );
   }
+}
+
+/** What "Analyse" tells the responder: every new thread of the review, quoted as data. */
+export function analyseTask(
+  id: string,
+  review: Pick<PullRequestReview, "number" | "title" | "url" | "threads">,
+): string {
+  return `Analyse mode. ${reviewTask(id, review)}\n\nFor each thread: record its kind and a proposed reply with \`metator mrs triage ${id} --thread <id> --kind … --reply "…"\`. For a change it asks for, propose the fix: quick when \`metator quick check\` says so, else the full workflow (\`metator run new --workflow mt-review-response\`); start nothing without the person. Never send a reply yourself: the person sends them (\`metator mrs send ${id} --by <name> [--only t1,t3 | --skip t2]\`).`;
 }

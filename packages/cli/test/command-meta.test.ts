@@ -77,6 +77,8 @@ const BEFORE = {
     "review metadata",
     "review diff",
     "review plan",
+    "review list",
+    "review show",
     "plan lint",
     "plan scope",
     "debug-tags check",

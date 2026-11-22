@@ -306,7 +306,8 @@ export type Route =
       readonly session?: string | undefined;
     }
   | { readonly screen: "overview"; readonly tab: OverviewTab }
-  | { readonly screen: "mrs"; readonly id?: string }
+  /** Reviews (round 18): watched MRs and my MRs, one chosen; a place of its own next to Backlog. */
+  | { readonly screen: "reviews"; readonly id?: string }
   | { readonly screen: "settings" }
   /** The Backlog, with one item chosen (round 17: a plan view's "Open its Backlog item"). */
   | { readonly screen: "backlog"; readonly id?: string }
@@ -379,7 +380,7 @@ export function parseRoute(hash: string): Route {
       return { screen: "overview", tab: "dependencies" };
     case "settings":
       // Settings holds the places that are not daily work: the System (the daemon, the
-      // dependencies, the system map) and the Reviews.
+      // dependencies, the system map). The Reviews were here before round 18.
       if (arg === "system") {
         const t = parts[2];
         return {
@@ -387,7 +388,7 @@ export function parseRoute(hash: string): Route {
           tab: t === "dependencies" ? "dependencies" : t === "system" ? "system" : "daemon",
         };
       }
-      if (arg === "reviews") return parts[2] ? { screen: "mrs", id: parts[2] } : { screen: "mrs" };
+      if (arg === "reviews") return parts[2] ? { screen: "reviews", id: parts[2] } : { screen: "reviews" };
       return { screen: "settings" };
     case "backlog":
       return arg ? { screen: "backlog", id: arg } : { screen: "backlog" };
@@ -396,7 +397,8 @@ export function parseRoute(hash: string): Route {
     case "thread":
       return arg ? { screen: "thread", id: arg } : { screen: "inbox" };
     case "mrs":
-      return arg ? { screen: "mrs", id: arg } : { screen: "mrs" };
+    case "reviews":
+      return arg ? { screen: "reviews", id: arg } : { screen: "reviews" };
     case "inbox": {
       // A decision's address has its repository, run and question as parts (`decisionKey`).
       const pick = parts.slice(1).join("/");
@@ -420,8 +422,8 @@ export function routeHash(route: Route): string {
     }
     case "inbox":
       return `#/inbox${route.pick ? `/${route.pick.split("/").map(encodeURIComponent).join("/")}` : ""}`;
-    case "mrs":
-      return `#/settings/reviews${route.id ? `/${encodeURIComponent(route.id)}` : ""}`;
+    case "reviews":
+      return `#/reviews${route.id ? `/${encodeURIComponent(route.id)}` : ""}`;
     case "board":
       return `#/board${route.task ? `/${encodeURIComponent(route.task)}` : ""}`;
     case "thread":
@@ -1012,6 +1014,14 @@ export const LOOKS = {
     fixed: { glyph: "✓", tone: "green" },
     resolved: { glyph: "✓", tone: "green" },
   },
+  /** A finding of a watched review (round 18): its state after a re-review. */
+  finding: {
+    open: { glyph: "○", tone: "amber" },
+    fixed: { glyph: "✓", tone: "green" },
+    "not-fixed": { glyph: "✕", tone: "red" },
+    disputed: { glyph: "?", tone: "violet" },
+    outdated: { glyph: "–", tone: "faint" },
+  },
   file: {
     added: { glyph: "A", tone: "green" },
     deleted: { glyph: "D", tone: "red" },
@@ -1046,6 +1056,7 @@ export const LOOKS = {
     permission: { glyph: "?", tone: "amber" },
     terminal: { glyph: "›", tone: "amber" },
     escalated: { glyph: "!", tone: "red" },
+    review: { glyph: "?", tone: "amber" },
   },
   attention: {
     you: { glyph: "●", tone: "amber" },
@@ -1526,7 +1537,7 @@ export function withSeen(seen: SeenRuns, key: string, at: string, keep = 200): S
   return Object.fromEntries(entries.slice(0, keep));
 }
 
-export type NeedKind = "question" | "approval" | "permission" | "terminal" | "escalated" | "pane";
+export type NeedKind = "question" | "approval" | "permission" | "terminal" | "escalated" | "pane" | "review";
 
 /** One thing that needs the person: a question on a card, a question on a terminal, an escalated run. */
 export interface NeedRow {

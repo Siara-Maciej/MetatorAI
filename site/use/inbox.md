@@ -67,6 +67,10 @@ A plan-approval card shows the plan in full, with **Approve** and **Ask for chan
 
 A confirmation says what the run did with your answer: **Rejected: the run escalated with your reason**, **Rejected: the run goes back to plan**, **The run is done**, or **The run goes on**. It goes after a few seconds, or when you go elsewhere; a refusal stays until you close it.
 
+### Review cards
+
+Reviews of pull requests have cards on Home too, after the questions of the runs, counted in the same **N waiting**: you were asked to review a request (**Review**), a watched request got new commits or replies (**Re-review**), every finding is fixed (approve it: **Yes** or **No**), or your own request got a new review (**Analyse**). The review itself asks to publish on a card with **Yes** and **No**: one consent for every comment of the review. A button that starts an agent opens its terminal at once. **Open in Reviews** goes to the request in [Reviews](./reviews.md#the-reviews-place).
+
 ## Questions asked in the terminal
 
 An agent can also stop at a question it wrote on its own screen, without a card. Such a run still needs you. Home shows it in its turn as a card with the task and **answers in its terminal**; **Open the run** opens the run's **Terminal** tab on the pane that asks. Attach and type the answer there ([Sessions and worktrees](./sessions.md)).

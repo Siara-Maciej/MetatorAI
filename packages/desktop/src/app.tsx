@@ -34,12 +34,13 @@ import {
   wasAway,
 } from "./model.ts";
 import { systemNotifier } from "./notify.ts";
+import { reviewNeeds } from "./reviews.ts";
 import { BacklogScreen } from "./screens/backlog.tsx";
 import { BoardScreen } from "./screens/board.tsx";
 import { InboxScreen } from "./screens/inbox.tsx";
-import { MrsScreen } from "./screens/mrs.tsx";
 import { NewSessionDialog } from "./screens/new-session.tsx";
 import { OverviewScreen } from "./screens/overview.tsx";
+import { ReviewsScreen } from "./screens/reviews.tsx";
 import { RunScreen } from "./screens/run.tsx";
 import { SettingsScreen } from "./screens/settings.tsx";
 import { ThreadScreen } from "./screens/thread.tsx";
@@ -241,21 +242,16 @@ function Shell() {
     },
     [go, d],
   );
-  // Everything that needs the person: the sidebar counts it, Home shows one at a time.
+  // Everything that needs the person: the sidebar counts it, Home shows one at a time. The
+  // reviews' cards (round 18) come after the runs' questions.
   const needs = useMemo(
-    () => needsQueue(d.inbox, d.runs, d.panes, d.paneAsks),
-    [d.inbox, d.runs, d.panes, d.paneAsks],
+    () => [...needsQueue(d.inbox, d.runs, d.panes, d.paneAsks), ...reviewNeeds(d.reviewCards)],
+    [d.inbox, d.runs, d.panes, d.paneAsks, d.reviewCards],
   );
   const picked = route.screen === "inbox" ? pickedNeed(needs, route.pick) : undefined;
-  // Settings holds the places that are not daily work: the System and the Reviews.
+  // Settings holds the places that are not daily work: the System.
   const settingsPart =
-    route.screen === "overview"
-      ? "system"
-      : route.screen === "mrs"
-        ? "reviews"
-        : route.screen === "settings"
-          ? "options"
-          : undefined;
+    route.screen === "overview" ? "system" : route.screen === "settings" ? "options" : undefined;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Escape closes the runs drawer; a dialog closes itself (the browser's own <dialog>, D7).
@@ -281,7 +277,7 @@ function Shell() {
           e.preventDefault();
           go({ screen: "inbox", pick: next.key });
         }
-        if (key === "o" && picked) go({ screen: "run", runId: picked.runId, tab: "overview" });
+        if (key === "o" && picked?.runId) go({ screen: "run", runId: picked.runId, tab: "overview" });
       } else if (key === "g") {
         const next = nextWaiting(d.runs, route.screen === "run" ? route.runId : undefined);
         if (next) openRun(next.runId, false, next.terminalAsk);
@@ -299,7 +295,6 @@ function Shell() {
             [
               ["options", "Options", routeHash({ screen: "settings" })],
               ["system", "System", routeHash({ screen: "overview", tab: "daemon" })],
-              ["reviews", "Reviews", routeHash({ screen: "mrs" })],
             ] as const
           ).map(([id, label, href]) => (
             <a key={id} href={href} aria-current={settingsPart === id ? "page" : undefined}>
@@ -376,13 +371,8 @@ function Shell() {
       {route.screen === "backlog" ? (
         <BacklogScreen id={route.id} onOpenSession={openRun} initialDraft={backlogDraft} />
       ) : null}
-      {route.screen === "mrs" ? (
-        <MrsScreen
-          id={route.id}
-          onOpen={(id) => go({ screen: "mrs", id })}
-          onOpenSession={openRun}
-          onOpenPlan={(runId) => go({ screen: "run", runId, tab: "overview" })}
-        />
+      {route.screen === "reviews" ? (
+        <ReviewsScreen id={route.id} onOpen={(id) => go({ screen: "reviews", id })} onOpenSession={openRun} />
       ) : null}
       {route.screen === "overview" ? (
         <OverviewScreen

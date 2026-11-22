@@ -9,11 +9,13 @@ import {
   DaemonClient,
   daemonUrl,
   type Envelope,
+  type InboxData,
   type InboxItem,
   type OptionsView,
   type PaneAsk,
   type PaneView,
   type ResolvedOption,
+  type ReviewCardView,
   type StateData,
   type ThreadView,
   type WorkspaceView,
@@ -59,6 +61,8 @@ export interface Daemon {
   readonly inbox: readonly InboxItem[];
   /** The questions of panes without a run (the intake chat), from `/inbox`'s `panes` (ADR-0091). */
   readonly paneAsks: readonly PaneAsk[];
+  /** The reviews' cards (round 18), from `/inbox`'s `reviews`: composed by the daemon. */
+  readonly reviewCards: readonly ReviewCardView[];
   /**
    * How many debug changes the daemon's state counts (round 13), in all repositories or the ones
    * named; 0 on a daemon that does not count them (then nothing asks for `/scratch`).
@@ -235,6 +239,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
   const [state, setState] = useState<StateData>();
   const [inbox, setInbox] = useState<readonly InboxItem[]>([]);
   const [paneAsks, setPaneAsks] = useState<readonly PaneAsk[]>([]);
+  const [reviewCards, setReviewCards] = useState<readonly ReviewCardView[]>([]);
   const [error, setError] = useState<string>();
   const fetchState = useMemo(
     () => async () => {
@@ -267,7 +272,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
       } else if (env.error) setError(env.error.message);
     },
   );
-  useStream<{ ok: boolean; data?: { decisions: InboxItem[]; panes?: PaneAsk[] } }>(
+  useStream<{ ok: boolean; data?: InboxData }>(
     url,
     "/ws/inbox",
     attempt,
@@ -279,6 +284,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
       if (env.ok && env.data) {
         setInbox(env.data.decisions);
         setPaneAsks(env.data.panes ?? []);
+        setReviewCards(env.data.reviews ?? []);
       }
     },
   );
@@ -422,6 +428,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     scratchRepos: (of) => (down ? [] : scratchRepos(state, of)),
     inbox: down ? NO_INBOX : inbox,
     paneAsks: down ? NO_PANE_ASKS : paneAsks,
+    reviewCards: down ? NO_REVIEW_CARDS : reviewCards,
     panes: shownPanes,
     workspaces: down ? NO_WORKSPACES : workspaces,
     threads: down ? NO_THREADS : (threadList.data ?? NO_THREADS),
@@ -450,6 +457,7 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
 
 const NO_RUNS: readonly Run[] = [];
 const NO_INBOX: readonly InboxItem[] = [];
+const NO_REVIEW_CARDS: readonly ReviewCardView[] = [];
 const NO_PANE_ASKS: readonly PaneAsk[] = [];
 const NO_PANES: Daemon["panes"] = [];
 const NO_WORKSPACES: Daemon["workspaces"] = [];
