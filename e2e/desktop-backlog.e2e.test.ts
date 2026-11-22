@@ -578,7 +578,11 @@ describe("analysis and plan in the Backlog (round 17)", () => {
     );
     expect(await detail.getByRole("button", { name: "Plan this step" }).count()).toBe(0);
     expect(await detail.getByRole("button", { name: "Its terminal" }).count()).toBe(1);
-    // The step's Backlog part, made from the plan above.
+    // The step's Backlog part, made from the plan above. The Backlog's list is read on its own
+    // poll, apart from the plan's: wait for it as for the step's word, then expect exactly one.
+    await until("the step's Backlog item linked", async () =>
+      (await detail.getByRole("link", { name: "its Backlog item ›" }).count()) > 0 ? true : undefined,
+    );
     expect(await detail.getByRole("link", { name: "its Backlog item ›" }).count()).toBe(1);
     expect(errors).toEqual([]);
   }, 120_000);
