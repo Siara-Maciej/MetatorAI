@@ -138,6 +138,10 @@ export interface StartRunInput {
   readonly system?: { readonly plan: string; readonly step: string; readonly app: string };
   /** False: leave a new worktree without its dependencies (`worktree setup` later). */
   readonly setup?: boolean;
+  /** Stop once the plan is approved: the run ends `planned` (ADR-0096). */
+  readonly until?: "plan";
+  /** Take the approved plan of an earlier run: start at `build`, or at its review. */
+  readonly planFrom?: { readonly run: string; readonly from: "build" | "review" };
   /** Also drive the run in the background, on this host (empty: the default). */
   readonly drive?: { readonly host?: string };
   /**
@@ -200,6 +204,8 @@ export class StartRun {
       ...(input.adopt ? { adopt: input.adopt } : {}),
       ...(input.parent ? { parent: input.parent } : {}),
       ...(input.system ? { system: input.system } : {}),
+      ...(input.until ? { until: input.until } : {}),
+      ...(input.planFrom ? { planFrom: input.planFrom } : {}),
     } as Parameters<InitRun["execute"]>[0]);
     if (started.isErr()) return err(started.error);
     const run = started.value;
@@ -211,40 +217,17 @@ export class StartRun {
     const overview = await this.overview.execute();
     // The run just started is one of them only if it already waits; the others were there before.
     const waiting = overview.isOk() ? countAttention(overview.value.runs).you : 0;
-    const opened = input.session ? await this.openSession(run.runId, input.session.host) : undefined;
-    // A session that could not open leaves the run to a background drive: it never just stands.
-    const driveHost = input.drive ? input.drive.host : input.session?.host;
-    const drive =
-      input.drive || (opened && "noSession" in opened)
-        ? await this.ensureDriven.execute({ runId: run.runId, ...(driveHost ? { host: driveHost } : {}) })
-        : undefined;
-    if (opened) {
-      const said =
-        "session" in opened
-          ? `started as a conductor session in pane ${opened.session.paneId} on ${opened.session.host}`
-          : `no conductor session (${opened.noSession}): ${
-              drive?.isOk()
-                ? `driven in the background on ${drive.value.host ?? "its host"}`
-                : `not driven either: ${drive?.isErr() ? drive.error.message : "no drive"}`
-            }`;
-      const noted = await this.visible?.journal.record(run.runId, { type: "drive", text: said });
-      if (noted?.isErr()) return err(noted.error);
-    }
+    const seen = input.session || input.drive ? await this.see(run.runId, input) : undefined;
+    if (seen?.isErr()) return err(seen.error);
+    const { session, noSession, drive, driveError } = seen?.isOk() ? seen.value : {};
     return ok({
       run,
-      ...(opened && "session" in opened ? { session: opened.session } : {}),
-      ...(opened && "noSession" in opened ? { noSession: opened.noSession } : {}),
+      ...(session ? { session } : {}),
+      ...(noSession ? { noSession } : {}),
       ...(setup?.isOk() ? { setup: setup.value } : {}),
       ...(setup?.isErr() ? { setupError: setup.error.message } : {}),
-      ...(drive?.isOk() ? { drive: drive.value } : {}),
-      ...(drive?.isErr()
-        ? {
-            driveError: {
-              message: drive.error.message,
-              ...(drive.error.hint ? { hint: drive.error.hint } : {}),
-            },
-          }
-        : {}),
+      ...(drive ? { drive } : {}),
+      ...(driveError ? { driveError } : {}),
       warnings: [
         ...(waiting >= this.wipLimit
           ? [
@@ -255,6 +238,48 @@ export class StartRun {
         ...(setup?.isErr() ? [`worktree setup: ${setup.error.message}`] : []),
         ...(ready.isOk() ? readinessWarnings(ready.value, RUN_READINESS) : []),
       ],
+    });
+  }
+
+  /**
+   * A run already made, put where it works: its conductor session a person sees (`session`), else
+   * (or when `drive` is asked) a background drive; the run's activity says which and why.
+   */
+  async see(
+    runId: string,
+    input: Pick<StartRunInput, "session" | "drive">,
+  ): Promise<Result<Pick<StartedRun, "session" | "noSession" | "drive" | "driveError">, MetatorError>> {
+    const opened = input.session ? await this.openSession(runId, input.session.host) : undefined;
+    // A session that could not open leaves the run to a background drive: it never just stands.
+    const driveHost = input.drive ? input.drive.host : input.session?.host;
+    const drive =
+      input.drive || (opened && "noSession" in opened)
+        ? await this.ensureDriven.execute({ runId, ...(driveHost ? { host: driveHost } : {}) })
+        : undefined;
+    if (opened) {
+      const said =
+        "session" in opened
+          ? `started as a conductor session in pane ${opened.session.paneId} on ${opened.session.host}`
+          : `no conductor session (${opened.noSession}): ${
+              drive?.isOk()
+                ? `driven in the background on ${drive.value.host ?? "its host"}`
+                : `not driven either: ${drive?.isErr() ? drive.error.message : "no drive"}`
+            }`;
+      const noted = await this.visible?.journal.record(runId, { type: "drive", text: said });
+      if (noted?.isErr()) return err(noted.error);
+    }
+    return ok({
+      ...(opened && "session" in opened ? { session: opened.session } : {}),
+      ...(opened && "noSession" in opened ? { noSession: opened.noSession } : {}),
+      ...(drive?.isOk() ? { drive: drive.value } : {}),
+      ...(drive?.isErr()
+        ? {
+            driveError: {
+              message: drive.error.message,
+              ...(drive.error.hint ? { hint: drive.error.hint } : {}),
+            },
+          }
+        : {}),
     });
   }
 

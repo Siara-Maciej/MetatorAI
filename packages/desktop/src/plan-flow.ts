@@ -92,6 +92,7 @@ export const repoLabel = (path: string): string => path.replace(/\/+$/, "").spli
 /** A child run's status (from the plan's view) as a state word, when the run is not in the list. */
 function stateOfStatus(status: string | undefined, stepStatus: string): FlowState {
   if (status === "done" || stepStatus === "done") return "done";
+  if (status === "planned") return "plan ready";
   if (status === "aborted") return "aborted";
   if (status === "escalated" || stepStatus === "blocked") return "escalated";
   if (status === "active" || stepStatus === "running") return "working";

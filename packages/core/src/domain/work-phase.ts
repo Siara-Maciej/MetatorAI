@@ -42,7 +42,8 @@ export function workPhase(
   stage: string,
   status: string,
 ): Exclude<WorkPhase, "todo"> {
-  if (status === "done" || status === "aborted") return "done";
+  // A run that stopped at its approved plan is finished too (ADR-0096).
+  if (status === "done" || status === "aborted" || status === "planned") return "done";
   const at = stages.findIndex((s) => s.id === stage);
   const current = at >= 0 ? stages[at] : undefined;
   if (!current) {

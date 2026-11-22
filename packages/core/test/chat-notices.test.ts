@@ -68,6 +68,16 @@ describe("ChatNotices: the chat where the task was given learns what became of i
     ]);
   });
 
+  test("a plan made on demand is ready: the chat is told once, with the command that keeps it in the Backlog", async () => {
+    const w = world();
+    w.run.state = { status: "planned", stage: "planned", context: { history: [{ stage: "plan-approval" }] } };
+    expect((await w.notices.tick())._unsafeUnwrap().map((n) => n.event)).toEqual(["planned"]);
+    await w.notices.tick();
+    expect(w.typed).toEqual([
+      "w1:p1 [metator] The task 20261120-shop (Prices in the customer's currency) has its plan approved and stopped there (plan ready). Ask the person whether to put the plan in the Backlog (`metator issue from-plan --run 20261120-shop`).",
+    ]);
+  });
+
   test("an escalated task says where it stopped; each escalation is its own event", async () => {
     const w = world();
     w.run.state = { status: "escalated", stage: "escalated", context: { history: [{ stage: "build" }] } };

@@ -39,7 +39,7 @@ These live in the repository and are reviewed like code.
 | `RefactorPlan` | `metator/arch/plans/<id>.yml` | you or `mt-arch-planner`; `metator arch plan` simulates, approves and runs it |
 | `SystemMap` | `docs/metator/system.yml` | you (also in the app); `metator system discover` proposes it |
 | `SystemAnalysis` | `metator/system/plans/<id>.analysis.yml` | `metator system analyze`, then you or `mt-system-scout` |
-| `SystemPlan` | `metator/system/plans/<id>.yml` | `metator system plan new`, then `mt-system-planner` (you ask for changes at its approval); `system plan approve` and `system plan retry` are yours |
+| `SystemPlan` | `metator/system/plans/<id>.yml` | `metator system plan new`, then `mt-system-planner` (you ask for changes at its approval); `system plan approve`, `system plan retry` and `system plan step-plan` are yours. v3: a step's `planRunId`, the run that planned it on its own |
 | `PlanRevision` | `.metator/runs/<id>/plan.previous.json`, `metator/system/plans/<id>.previous.json` | MetatorAI, when a run goes back to its plan's stage: the version its planner revises |
 | `PlanEdit` | `docs/metator/system.edits.jsonl`, one line per edit | the app, when a person changes the map |
 | `EvalCase` | `docs/metator/evals/golden/*.yml` | you; `metator eval seed` adds cases |
@@ -54,7 +54,7 @@ Each run has a folder, `.metator/runs/<id>/`. Only `metator` commands write the 
 
 | Kind | File | Written by |
 |---|---|---|
-| `RunRecord` | `state.json` | `metator run ...` only |
+| `RunRecord` | `state.json` | `metator run ...` only. v8: the status `planned` (a run `--until plan` whose plan was approved), `until`, and `planFrom` (the run whose approved plan it took, and whether it started at `build` or at the plan's `review`) |
 | `RunLog` | `log.md` | `metator run ...` only; append-only |
 | `RunActivity` | `activity.jsonl`, one document per line | `metator run drive`; a `plan-edited` line when a person changes the plan in the app |
 | `RunDriver` | `driver.json` | `metator run drive` |
@@ -89,7 +89,8 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 | `ApiSnapshot` | `.metator/api/<package>.json` | `metator api snapshot` |
 | `GateReport` | `.metator/gates/<gate>.json` | `metator gate` |
 | `ArchitectureReport` | `.metator/arch/report.json` | `metator arch analyze` |
-| `Issue` | `.metator/issues/iNNN.json` | `metator issue ...`: one task of the backlog |
+| `Issue` | `.metator/issues/iNNN.json` | `metator issue ...`: one task of the backlog. v3: its analysis and plan (each a snapshot: the file, the commit, every cited file with its SHA-256, the packages they belong to), the chat it belongs to (`threadId`), its parent and the tasks it waits for (`dependsOn`), and the system plan step a part carries out (`step`). A v2 file reads as a task that waits for nothing |
+| (none) | `.metator/issues/iNNN/analysis.md`, `plan.json`, `system-plan.yml` | `metator issue analyze`, `issue plan`, `issue from-plan`: a task's analysis (the agent's Markdown and the facts MetatorAI adds; a note for people, never parsed) and a copy of its plan |
 | `PullRequestReview` | `.metator/mrs/<host>-<repo>-<number>.json` | the daemon and `metator mrs ...`: the review threads of your request |
 | `Conversation` | `.metator/conversations/<id>.json` | `metator ask` |
 | `WorktreeRegistry` | `.metator/worktrees.json` | `metator worktree ...`, `metator run new --worktree` |

@@ -203,8 +203,12 @@ export function DecisionCard({
           {actions}
         </div>
       ) : null}
-      {planView ? <RunPlanFull view={planView} /> : null}
-      {!planView && systemPlan && q.source === "gate" ? <SystemPlanFull plan={systemPlan} /> : null}
+      {planView ? (
+        <RunPlanFull view={planView} runId={owner?.parent ? undefined : q.runId} repo={item.repo} />
+      ) : null}
+      {!planView && systemPlan && q.source === "gate" ? (
+        <SystemPlanFull plan={systemPlan} runId={q.runId} />
+      ) : null}
       {onlyApprove ? null : (
         <section>
           {q.multiSelect ? <h3>Choose one or more</h3> : null}

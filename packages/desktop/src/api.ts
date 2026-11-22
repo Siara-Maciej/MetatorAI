@@ -13,8 +13,12 @@ import type {
   DecisionCard,
   DiffLine,
   FileDiff,
+  Freshness,
+  Implemented,
   Issue,
+  IssueDetail,
   IssueRef,
+  IssueView,
   LayoutView,
   OptionDescription,
   OptionDiagnostic,
@@ -29,6 +33,7 @@ import type {
   PlanBoardView,
   PlanLintProblem,
   PlanLintView,
+  PlanStarted,
   PlanStep,
   PtyView,
   PullRequestReview,
@@ -49,6 +54,7 @@ import type {
   SplitNode,
   StageProgress,
   StageState,
+  StartedStep,
   SystemDiscoveryView,
   SystemMap,
   SystemMapView,
@@ -80,8 +86,12 @@ export type {
   DecisionCard,
   DiffLine,
   FileDiff,
+  Freshness,
+  Implemented,
   Issue,
+  IssueDetail,
   IssueRef,
+  IssueView,
   LayoutView,
   OptionDescription,
   OptionDiagnostic,
@@ -96,6 +106,7 @@ export type {
   PlanBoardView,
   PlanLintProblem,
   PlanLintView,
+  PlanStarted,
   PlanStep,
   Question,
   ResolvedOption,
@@ -111,6 +122,7 @@ export type {
   SplitNode,
   StageProgress,
   StageState,
+  StartedStep,
   SystemDiscoveryView,
   SystemMap,
   SystemMapView,
@@ -241,6 +253,18 @@ export interface ThreadsView {
   readonly threads: readonly ThreadView[];
   readonly closed: readonly ThreadView[];
   readonly withoutChat: readonly TaskLink[];
+}
+
+/** `POST /issues/:id/analyze`: the item and the mt-guide pane told to analyse it (round 17). */
+export interface AnalyzeStarted {
+  readonly issue: IssueView;
+  readonly pane: PaneView;
+}
+
+/** `POST /issues/from-plan`: the parent item and its children. */
+export interface FromPlan {
+  readonly parent: Issue;
+  readonly children: readonly Issue[];
 }
 
 /** `/runs/:id/brief`: the run's brief with where the run stands. */
@@ -567,7 +591,7 @@ export class DaemonClient {
     this.post<{ sent: string[] }>(`/mrs/${encodeURIComponent(id)}/send`, { by }, repo);
   resolveMrThread = (id: string, thread: string, by: string, repo?: string) =>
     this.post<ReviewedRequest>(`/mrs/${encodeURIComponent(id)}/resolve`, { by, thread }, repo);
-  issues = (repo?: string) => this.get<{ issues: Issue[] }>("/issues", repo);
+  issues = (repo?: string) => this.get<{ issues: IssueView[] }>("/issues", repo);
   addIssue = (
     body: {
       title: string;
@@ -583,9 +607,38 @@ export class DaemonClient {
     this.post<Issue>(`/issues/${encodeURIComponent(id)}/decide`, body, repo);
   startIssue = (
     id: string,
-    body: { workflow: string; worktree?: boolean; allowDirty?: boolean },
+    body: { workflow?: string; worktree?: boolean; allowDirty?: boolean },
     repo?: string,
-  ) => this.post<{ issue: Issue; runId: string }>(`/issues/${encodeURIComponent(id)}/start`, body, repo);
+  ) => this.post<Implemented>(`/issues/${encodeURIComponent(id)}/start`, body, repo);
+  /**
+   * "Analyse" / "Re-analyse" (round 17): an mt-guide pane told to analyse the item and record it
+   * (`metator issue analyze --issue <id>`); the app shows that pane.
+   */
+  analyzeIssue = (id: string, body: { by: string; host?: string | undefined }, repo?: string) =>
+    this.post<AnalyzeStarted>(`/issues/${encodeURIComponent(id)}/analyze`, body, repo);
+  /**
+   * "Make plan": a run of the item's workflow `--until plan` with its conductor in a pane of its
+   * own; refused while the analysis is stale.
+   */
+  planIssue = (id: string, body: { by: string; host?: string | undefined }, repo?: string) =>
+    this.post<PlanStarted>(`/issues/${encodeURIComponent(id)}/plan`, body, repo);
+  /** One item with its analysis text and its plan in short. */
+  issue = (id: string, repo?: string) => this.get<IssueDetail>(`/issues/${encodeURIComponent(id)}`, repo);
+  /** "Create Backlog item" from a plan run or a system run: one parent, and a child per step or phase. */
+  issueFromPlan = (body: { runId: string; by: string }, repo?: string) =>
+    this.post<FromPlan>("/issues/from-plan", body, repo);
+  /** "Plan this step": the step's child run `--until plan` in its app's repository, in a visible pane. */
+  planSystemStep = (
+    plan: string,
+    step: string,
+    body: { by: string; runId?: string | undefined; host?: string | undefined },
+    repo?: string,
+  ) =>
+    this.post<StartedStep>(
+      `/system/plans/${encodeURIComponent(plan)}/steps/${encodeURIComponent(step)}/plan`,
+      body,
+      repo,
+    );
   closeIssue = (id: string, by: string, repo?: string) =>
     this.post<Issue>(`/issues/${encodeURIComponent(id)}/close`, { by }, repo);
   dropIssue = (id: string, by: string, repo?: string) =>

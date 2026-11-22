@@ -751,8 +751,16 @@ describe("one vocabulary for states", () => {
     expect(lookOf("file", "deleted")).toEqual({ glyph: "D", tone: "red" });
     expect(lookOf("note", "nonsense")).toEqual({ glyph: "·", tone: "faint" });
     expect(lookOf("thread", undefined)).toEqual({ glyph: "·", tone: "faint" });
-    // The run's five words and what needs you each have their look.
-    expect(Object.keys(LOOKS.run)).toEqual(["needs you", "working", "escalated", "done", "aborted", "idle"]);
+    // The run's six words and what needs you each have their look ("plan ready": round 17).
+    expect(Object.keys(LOOKS.run)).toEqual([
+      "needs you",
+      "working",
+      "escalated",
+      "done",
+      "plan ready",
+      "aborted",
+      "idle",
+    ]);
     expect(lookOf("run", "done")).toEqual({ glyph: "✓", tone: "green" });
     expect(lookOf("need", "escalated").tone).toBe("red");
   });

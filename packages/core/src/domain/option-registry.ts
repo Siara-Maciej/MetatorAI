@@ -249,6 +249,21 @@ const issues: OptionDefinition[] = [
   }),
 ];
 
+const backlog: OptionDefinition[] = [
+  new NumberOption(
+    {
+      key: "backlog.staleDays",
+      scope: "repo",
+      title: "Old after",
+      description:
+        "Days after which an item's analysis or plan is marked old (a warning only; a change to a file it cites makes it stale at once).",
+      defaultValue: 14,
+      since: "ADR-0096",
+    },
+    { min: 1, max: 365, unit: "days" },
+  ),
+];
+
 const system: OptionDefinition[] = [
   new ListOption({
     key: "system.roots",
@@ -269,6 +284,7 @@ export const OPTIONS: readonly OptionDefinition[] = [
   ...editor,
   ...supervisor,
   ...issues,
+  ...backlog,
   ...system,
 ];
 

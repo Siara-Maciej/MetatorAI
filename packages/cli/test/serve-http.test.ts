@@ -318,6 +318,10 @@ describe("the daemon's route table", () => {
       "POST /issues/:issue/close",
       "POST /issues/:issue/drop",
       "POST /issues/:issue/start",
+      "GET /issues/:issue",
+      "POST /issues/from-plan",
+      "POST /issues/:issue/analyze",
+      "POST /issues/:issue/plan",
       "GET /mrs",
       "GET /mrs/:request",
       "POST /mrs/:request/send",
@@ -374,6 +378,7 @@ describe("the daemon's route table", () => {
       "POST /system/plans/:plan/lint",
       "POST /system/plans/:plan/approve",
       "POST /system/plans/:plan/steps/:step/retry",
+      "POST /system/plans/:plan/steps/:step/plan",
       "GET /system/map",
       "PUT /system/map",
       "POST /system/discover",
@@ -394,6 +399,6 @@ describe("the daemon's route table", () => {
       "POST /threads/:id/reopen",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(91);
+    expect(keys.size).toBe(96);
   });
 });

@@ -10,13 +10,23 @@ import type { RunPlanView } from "../api.ts";
 import type { RepoSystemPlan } from "../model.ts";
 import { lintSummary } from "../model.ts";
 import { ProblemList } from "./doc-editor.tsx";
+import { FromPlanButton } from "./from-plan-button.tsx";
 import { PlanChanges } from "./plan-changes.tsx";
 import { SystemPlanContent } from "./system-plan.tsx";
 
 const or = (items: readonly string[] | undefined) => (items && items.length > 0 ? items.join(", ") : "—");
 
 /** The run's plan in full, read-only. */
-export function RunPlanFull({ view }: { readonly view: RunPlanView }) {
+export function RunPlanFull({
+  view,
+  runId,
+  repo,
+}: {
+  readonly view: RunPlanView;
+  /** The plan's run, a top one: "Create Backlog item" keeps the plan in the Backlog (round 17). */
+  readonly runId?: string | undefined;
+  readonly repo?: string | undefined;
+}) {
   const errors = view.lint.problems.filter((p) => p.severity === "error");
   const plan = view.plan;
   return (
@@ -26,6 +36,12 @@ export function RunPlanFull({ view }: { readonly view: RunPlanView }) {
         <span className={errors.length > 0 ? "red" : view.lint.problems.length > 0 ? "amber" : "green"}>
           lint: {lintSummary(view.lint)}
         </span>
+        {plan && runId ? (
+          <>
+            <span className="spacer" />
+            <FromPlanButton runId={runId} repo={repo} />
+          </>
+        ) : null}
       </h3>
       <PlanChanges changes={view.changes} previousAt={view.previous?.at} />
       {plan ? (
@@ -70,7 +86,14 @@ export function RunPlanFull({ view }: { readonly view: RunPlanView }) {
 }
 
 /** A system plan in full on its approval card: its flow and its steps per repository. */
-export function SystemPlanFull({ plan }: { readonly plan: RepoSystemPlan }) {
+export function SystemPlanFull({
+  plan,
+  runId,
+}: {
+  readonly plan: RepoSystemPlan;
+  /** The system run: "Create Backlog item" keeps the plan in the Backlog (round 17). */
+  readonly runId?: string | undefined;
+}) {
   const errors = plan.lint.problems.filter((p) => p.severity === "error");
   return (
     <section className="plan-full" data-testid="system-plan-line" aria-label="the system plan">
@@ -80,6 +103,12 @@ export function SystemPlanFull({ plan }: { readonly plan: RepoSystemPlan }) {
         <span className={errors.length > 0 ? "red" : plan.lint.problems.length > 0 ? "amber" : "green"}>
           lint: {lintSummary(plan.lint)}
         </span>
+        {runId ? (
+          <>
+            <span className="spacer" />
+            <FromPlanButton runId={runId} repo={plan.repo} />
+          </>
+        ) : null}
       </h3>
       <SystemPlanContent view={plan} repo={plan.repo} foldSteps />
     </section>

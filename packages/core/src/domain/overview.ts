@@ -3,6 +3,8 @@
  * next. `metator status` returns it; `metator ui` draws it.
  */
 
+import { workPhase } from "./work-phase.ts";
+
 /** done · current (an agent or a script works) · waiting (a person must act) · next · stopped. */
 export type StageState = "done" | "current" | "waiting" | "next" | "stopped";
 
@@ -35,7 +37,9 @@ export function stageProgress(
   return stages.map((s, i) => {
     const hitl = s.hitl === true;
     let state: StageState;
+    // A run that stopped at its plan (`planned`) has done its planning stages and none after them.
     if (status === "done" || (at >= 0 && i < at)) state = "done";
+    else if (status === "planned") state = workPhase(stages, s.id, "active") === "planning" ? "done" : "next";
     else if (i === at) {
       if (status === "escalated" || status === "aborted") state = "stopped";
       else state = hitl || waiting > 0 ? "waiting" : "current";
@@ -64,6 +68,8 @@ export function attentionOf(
   atHumanGate: boolean,
 ): Attention {
   if (status === "done" || status === "escalated" || status === "aborted") return status;
+  // Its plan is ready and it waits for nobody: the Backlog item carries on ("Implement").
+  if (status === "planned") return "done";
   if (waiting > 0) return "you";
   // A gate with nobody driving waits for you as well: approve it, or continue the run.
   if (atHumanGate && !driving) return "you";

@@ -34,7 +34,15 @@ The **artifacts** are the files this run's workflow produces, never another work
 
 ## A system run's plan
 
-A system run's page is the task's page. Its Overview shows the one thing to decide in the task, if any, then the **system plan**: its status, its approval, its lint, and its flow: a column per wave of the deploy order, a lane per repository, one node per step (dashed while it has not started, with what it waits for), an arrow from each step to the steps that wait for it, and the critical path drawn heavier. A node is in the colour of its child run, with its stage; a click opens the run. In a narrow window the nodes narrow to fit; past their narrowest the flow scrolls sideways in its own box. Below are the steps grouped by repository, each with what it does, the steps it comes after, its status and the run it started. Two steps of the same repository in one wave run side by side, each in a worktree of its own.
+A system run's page is the task's page. Its Overview shows the one thing to decide in the task, if any, then the **system plan**: its status, its approval, its lint, and its flow: a column per wave of the deploy order, a lane per repository, one node per step (dashed while it has not started, with what it waits for), an arrow from each step to the steps that wait for it, and the critical path drawn heavier. A node is in the colour of its child run, with its stage; a click opens the step's detail (below). In a narrow window the nodes narrow to fit; past their narrowest the flow scrolls sideways in its own box. Below are the steps grouped by repository, each with what it does, the steps it comes after, its status and the run it started. Two steps of the same repository in one wave run side by side, each in a worktree of its own.
+
+### A step's detail
+
+A click on a step's tile, in the flow or on the task's Board, opens what the step already has: its summary, its application, the contracts it changes (`expand prices-api`), the steps it comes after, and the files of its application that the system analysis lists, or **files: not known until planned**. One word says where it stands: `pending`, `planning`, `planned`, `running`, `done` or `blocked`.
+
+**Plan this step** asks for that step's own plan now, before the whole task runs: its planner starts in the step's repository, in a terminal the app opens at once, and stops once you approve the plan (the run then reads **plan ready**). The detail then shows the plan, one line per file, with **Its terminal** and a link to its run. When the step runs later, its run starts from that plan instead of planning again. The system planner never plans every step up front; a step is planned only when you ask. A plan run that was aborted gives the button back.
+
+**Create Backlog item**, above the system plan, puts the plan in the Backlog without running it (see [Plans in the Backlog](#plans-in-the-backlog)).
 
 The head of the task's page has a bar of its steps done (`1 of 2 steps done`) and, when the task is blocked, why: the step that escalated (`price-endpoint: escalated at delivery: …`) or what a step waits for. Under **Details** a line names the system plan and the child run it is blocked by, with a link to it.
 
@@ -59,16 +67,42 @@ The backlog is in `.metator/issues/`, one small file per task. Agents never add,
 
 ![The Backlog with an agent's proposal: the list on the left, the proposal with Add, Add and start a run, and Drop](../public/screens/backlog.png)
 
-The **Backlog** screen lists **agents' proposals** first, then the **open** tasks, with the finished ones folded at the bottom. The chosen task shows its text, priority, labels, references and run, with the buttons that apply to it:
+The **Backlog** screen lists **agents' proposals** first, then the **open** tasks, with the finished ones folded at the bottom. A task's parts sit right under it. Each row ends in one word: `open`, `analysed`, `stale`, `plan ready`, `plan stale`, `waits`, `working`, `done` or `dropped`. The chosen task shows its text, priority, labels, references and run, its analysis and its plan, its parts, and the buttons that apply to it:
 
 | Button | On | Does |
 |---|---|---|
 | **+ task** | the top bar | opens a form: title, what and why, priority, labels |
-| **Start a run** | an open task | starts a run with the task's title and text, in a new worktree, and opens its page. The select **a run starts on** beside the buttons names the workflow: `mt-feature` when the repository has it, else its first one |
+| **Analyse** | an open task | an agent reads the code for the task, in a terminal the app opens at once, and records its analysis on the task. **Re-analyse** once it has one |
+| **Make plan** | an open task | a run of the task's workflow that stops once you approve its plan; its conductor's terminal opens at once. Closed while the analysis is stale |
+| **Implement** | an open task | starts a run on the task in a new worktree and opens its terminal: from its plan when it has one. **Review plan, then implement** when the plan is stale. Closed while the task waits for other tasks |
 | **Done**, **Drop** | an open task | closes it as done, or as not going to be done |
 | **Add** | a proposal | makes it a task |
 | **Add and start a run** | a proposal | makes it a task and starts a run on it |
 | **Drop** | a proposal | discards it |
+
+The select **a run starts on** beside the buttons names the workflow: `mt-feature` when the repository has it, else its first one. A task with a plan starts on its plan's workflow unless you choose another. When a button is closed, the line under the buttons says why.
+
+### Analysis and plan
+
+A task's **Analysis** is Markdown an agent wrote, with a section of deterministic facts MetatorAI added: the files it cites, the packages they belong to, how many files depend on them, and similar code. Ask for one with **Analyse**, or in a chat: say *analyse* to the chat agent, and it answers in the chat and records the same text as a Backlog task.
+
+The analysis and the plan each have a badge that says whether they still describe the code:
+
+| Badge | Means |
+|---|---|
+| `fresh` | nothing it cites has changed |
+| `stale: invoice.ts, tax.ts +2` | a file it cites changed, or a file of a package it is about, since it was made (committed or not, in this checkout). **Make plan** is closed until you **Re-analyse**; a stale plan is reviewed before it is built |
+| `old: 15 days` | older than `backlog.staleDays` (default 14). Only a warning |
+
+**Make plan** plans and stops: the run's conductor writes the plan, you approve it on its card, and the run ends as **plan ready**. The plan is then on the task, with a summary and a link to its run. **Implement** with a fresh plan starts at the build; the stages before are recorded as done from that plan. With a stale plan it starts at the plan's review: the plan's lint, the plan critic, then your approval. A plan changes only through its planner, never in an editor.
+
+### Plans in the Backlog
+
+A plan you do not want to run yet can live in the Backlog. **Create Backlog item**, on a run's plan (its Overview) and above a system plan, makes one task from it: the run's task as its title, the plan's summary as its text, the plan attached, and the chat the plan was made in. A system plan also gets one part per step, each waiting for the parts its step depends on. Once made, the button reads **Open its Backlog item**.
+
+A task with parts shows them with one word each and what each waits for (`waits for Price model`), and how many are done (`1 of 3 done`). Start each part on its own: a part does not start while a part it waits for is not done. The task itself has no **Make plan** or **Implement**; it is done by itself when every part is done. A dropped part counts as done.
+
+When you start a task whose chat is closed, or that has none, a new chat opens for it with the old chat's summary and the task's analysis and plan.
 
 The app asks for your name the first time. Every change to the backlog carries it. When the daemon refuses an action, the reason stays at the top of the task until you close it.
 
@@ -106,3 +140,24 @@ Commands that change a task take `--by <name>`; without it the name comes from `
 metator issue decide i002 --add --by maciej
 metator issue decide i002 --drop --by maciej
 ```
+
+### Analysis and plan from a terminal
+
+```bash
+metator issue analyze --title "Round prices half up" --text - <<'EOF'
+Prices round in src/price.ts:12; the cart calls it at src/cart.ts:30.
+EOF
+metator issue analyze --issue i003 --text -       # analyse a task again (stdin, as above)
+metator issue plan i003 --session                 # its plan only; --workflow to choose one
+metator issue start i003 --session                # from its plan: at build, or at its review when stale
+metator issue from-plan --run <run>               # a task from a run's plan; a system run's plan gets one part per step
+metator system plan step-plan <plan> <step>       # one step's plan, in its repository
+metator run new --workflow mt-feature --task "..." --until plan
+metator run new --workflow mt-feature --task "..." --plan-from <run> [--plan-review]
+```
+
+`issue analyze` is what the chat agent and the guide run to record an analysis: the text with `path:line` citations, on stdin. MetatorAI hashes every cited file that exists, names the workspace packages they belong to, notes the commit, and adds the section **Deterministic facts** (the cited files, the packages, how many files depend on each, similar code). `issue show` and `issue list` give each task `freshness` (`fresh`, `stale` with `changed`, or `old` with `days`), `children`, `waitsFor` and, for a task with parts, `progress`. Only this checkout counts: a change on another branch or in another worktree does not make an analysis stale.
+
+`issue plan` is refused while the analysis is stale. Its run (`mt-feature`, or `mt-bugfix` for a task labelled `bug`) works in this checkout and stops with the status `planned` once the plan is approved; its plan is copied to the task then. Without `--session` the run is made and waits for you (`metator run start --run <id>` opens its conductor); the app's buttons always open it. `issue start` takes the plan: from `build` when the plan still holds, from the plan's review when it does not, with every stage before recorded as `plan from <run>`. A part does not start while a task it waits for is neither done nor dropped (`issue i003 waits for i002 (open): start it when they are done`), and a task with parts is not started itself. A part of a system plan starts its step, as `system plan run` would, from the step's own plan when it has one.
+
+A task started from a terminal belongs to the chat it was made in while that chat is open; otherwise a new chat is made for it, which says where it comes from (`from.issue`, `from.thread`).

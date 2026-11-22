@@ -23,6 +23,7 @@ import {
   AuditAgents,
   agentDefinitionFiles,
   allowToolsOf,
+  BacklogWork,
   BaseArchitectureFacts,
   BriefRun,
   BuildImportGraph,
@@ -114,6 +115,7 @@ import {
   InstallCanon,
   type InteractiveHost,
   InventoryMemory,
+  IssueSnapshots,
   Issues,
   JudgeFindings,
   KnowledgeFiles,
@@ -215,6 +217,7 @@ import {
   SourceFiles,
   StartDrive,
   StartRun,
+  StartSystemStep,
   StyleImports,
   Supervisor,
   type SupervisorDependencies,
@@ -290,6 +293,7 @@ import {
   LcovCoverageReader,
   ManypkgManifestReader,
   ManypkgWorkspaceReader,
+  NodeContentHasher,
   NodePackageManager,
   NodePtyTerminal,
   WaitOnHealthProbe,
@@ -775,7 +779,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     layoutStore: asFunction(({ fileSystem }) => new LayoutStore(fileSystem)).singleton(),
     issues: asFunction(
-      ({ fileSystem, paths, clock, runJournal, runRepository, initRun, optionStore, fileLock }) =>
+      ({ fileSystem, paths, clock, runJournal, runRepository, initRun, startRun, optionStore, fileLock }) =>
         new Issues({
           lock: fileLock,
           fs: fileSystem,
@@ -784,10 +788,61 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           journal: runJournal,
           repo: runRepository,
           initRun,
+          startRun,
           proposalsAllowed: async () => {
             const o = await optionStore.get("issues.proposeFromAgents");
             return o.isOk() ? o.value.value !== false : true;
           },
+        }),
+    ),
+    // Analysis and plan in the Backlog (ADR-0096): snapshots judged from file hashes and the commit.
+    contentHasher: asFunction(() => new NodeContentHasher()).singleton(),
+    issueSnapshots: asFunction(
+      ({ fileSystem, contentHasher, git, workspaceReader, clock, optionStore }) =>
+        new IssueSnapshots({
+          fs: fileSystem,
+          hasher: contentHasher,
+          vcs: git,
+          head: async () =>
+            (await git.branch("HEAD")).map((b: { readonly head: string | null }) => b.head ?? undefined),
+          workspace: workspaceReader,
+          clock,
+          staleDays: async () => {
+            const o = await optionStore.get("backlog.staleDays");
+            return o.isOk() && typeof o.value.value === "number" ? o.value.value : 14;
+          },
+        }),
+    ),
+    backlogWork: asFunction(
+      ({
+        issues,
+        issueSnapshots,
+        fileSystem,
+        paths,
+        runRepository,
+        systemPlanStore,
+        startSystemStep,
+        threads,
+        graphQueries,
+        findSimilar,
+        panes,
+        clock,
+      }) =>
+        new BacklogWork({
+          issues,
+          snapshots: issueSnapshots,
+          fs: fileSystem,
+          dir: paths.issues,
+          runs: runRepository,
+          systemPlans: systemPlanStore,
+          steps: startSystemStep,
+          threads,
+          facts: {
+            dependents: (file) => graphQueries.dependents(file, true),
+            similar: (file) => findSimilar.execute({ target: file, top: 1 }),
+          },
+          panes,
+          clock,
         }),
     ),
     mcpToolCaller: asFunction(({ root }) => new SdkToolCaller(root)),
@@ -1310,6 +1365,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
       ({ systemPlanStore, systemSources, repositoryRuns, clock }) =>
         new RetrySystemStep(systemPlanStore, systemSources, repositoryRuns, clock),
     ),
+    startSystemStep: asFunction(
+      ({ systemPlanStore, systemSources, repositoryRuns, clock, runRepository }) =>
+        new StartSystemStep(systemPlanStore, systemSources, repositoryRuns, clock, runRepository),
+    ),
     systemRunGate: asFunction(
       ({ systemPlanStatus, runRepository, clock, runSystemPlan }) =>
         new SystemRunGate(systemPlanStatus, runRepository, clock, runSystemPlan),
@@ -1755,7 +1814,10 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ),
     advanceRun: asFunction(
       ({ workflowCatalog, runRepository, clock, runJournal, gateQuestions, planRevisions }) =>
-        new AdvanceRun(workflowCatalog, runRepository, clock, runJournal, gateQuestions, planRevisions),
+        new AdvanceRun(workflowCatalog, runRepository, clock, runJournal, gateQuestions, planRevisions, {
+          // Resolved when a run stops planned: the Backlog it hands its plan to is built then (ADR-0096).
+          planned: (runId) => c.resolve("backlogWork").planned(runId),
+        }),
     ),
     // A system run's plan-approval approves its system plan too (F7.5); a plan with lint errors
     // refuses the approval, at a terminal (`run approve`) as on a card.

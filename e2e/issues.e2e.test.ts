@@ -48,7 +48,7 @@ describe("metator issue (real CLI)", () => {
     expect(added).toMatchObject({ id: "i001", status: "open", priority: "high", labels: ["adr", "billing"] });
     expect(JSON.parse(await repo.read(".metator/issues/i001.json"))).toMatchObject({
       kind: "Issue",
-      schemaVersion: 2,
+      schemaVersion: 3,
       id: "i001",
     });
     const proposed = data(

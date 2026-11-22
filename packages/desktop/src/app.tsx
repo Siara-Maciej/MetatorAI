@@ -374,7 +374,7 @@ function Shell() {
         />
       ) : null}
       {route.screen === "backlog" ? (
-        <BacklogScreen onOpenSession={openRun} initialDraft={backlogDraft} />
+        <BacklogScreen id={route.id} onOpenSession={openRun} initialDraft={backlogDraft} />
       ) : null}
       {route.screen === "mrs" ? (
         <MrsScreen

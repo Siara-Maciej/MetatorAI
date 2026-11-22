@@ -119,7 +119,7 @@ When as many runs already wait for you as `supervisor.wipLimit` allows (default 
 
 ### From the backlog
 
-On the **Backlog** screen, **Start a run** on an open task starts a run with the task's title and text, on the workflow chosen beside the button ([Plan and backlog](./plan.md#backlog)).
+On the **Backlog** screen, **Implement** on an open task starts a run with the task's title and text (and its plan, when it has one), on the workflow chosen beside the button ([Plan and backlog](./plan.md#backlog)).
 
 ## In Copilot Chat or Claude Code
 

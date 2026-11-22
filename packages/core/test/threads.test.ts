@@ -201,6 +201,37 @@ describe("Threads: one per topic, with its chat terminal", () => {
     expect(t.facts.map((f) => f.text).slice(-1)).toEqual([`run ${run.runId} done: Round prices half up`]);
   });
 
+  test("Backlog work in a thread (ADR-0096): a run and an item added by id, once; a planned run is a fact; a run finds its thread", async () => {
+    const w = world();
+    const made = (await w.threads.create({ title: "Prices", by: "ann", pane: false }))._unsafeUnwrap();
+    const run = (await w.init("Round prices"))._unsafeUnwrap();
+    const added = (await w.threads.addRun(made.thread.id, run.runId, "Round prices\nmore"))._unsafeUnwrap();
+    expect([added.runs, added.facts.at(-1)?.text]).toEqual([
+      [run.runId],
+      `run ${run.runId} started: Round prices`,
+    ]);
+    expect((await w.threads.addRun(made.thread.id, run.runId, "x"))._unsafeUnwrap().runs).toEqual([
+      run.runId,
+    ]);
+    const item = (await w.threads.addIssue(made.thread.id, "i004", "Round prices"))._unsafeUnwrap();
+    expect([item.issues, item.facts.at(-1)?.text]).toEqual([
+      ["i004"],
+      "Backlog item i004 made: Round prices",
+    ]);
+    expect((await w.threads.addIssue(made.thread.id, "i004", "x"))._unsafeUnwrap().issues).toEqual(["i004"]);
+    expect((await w.threads.ofRun(run.runId))?.id).toBe(made.thread.id);
+    expect(await w.threads.ofRun("20261122-other")).toBeUndefined();
+    await w.repo.update(run.runId, (r) =>
+      ok({ ...r, state: { ...r.state, status: "planned", stage: "planned" } }),
+    );
+    expect((await w.threads.noteRuns())._unsafeUnwrap()).toEqual([
+      { thread: made.thread.id, runId: run.runId, event: "planned" },
+    ]);
+    expect((await w.threads.show(made.thread.id))._unsafeUnwrap().facts.at(-1)?.text).toBe(
+      `run ${run.runId} planned (plan ready): Round prices`,
+    );
+  });
+
   test("an escalated run says where it stopped; a pane of no thread links nothing", async () => {
     const w = world();
     const made = (await w.threads.create({ title: "Prices", by: "ann" }))._unsafeUnwrap();

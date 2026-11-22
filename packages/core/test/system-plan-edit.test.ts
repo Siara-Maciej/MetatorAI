@@ -40,6 +40,13 @@ const ANALYSIS: SystemAnalysis = {
 };
 
 const PLANS = "metator/system/plans";
+const PLAN_JSON = JSON.stringify({
+  kind: "Plan",
+  schemaVersion: 1,
+  task: "Rename refunds in billing",
+  scope: ["apps/billing/**"],
+  steps: [{ id: "S1", action: "modify", path: "apps/billing/src/refund.ts", intent: "rename" }],
+});
 
 async function world() {
   const fs = new InMemoryFileSystem({ "docs/metator/system.yml": MAP });
@@ -56,6 +63,12 @@ async function world() {
       "r1",
       {
         state: { status: "active", stage: "build", context: { loops: {}, history: [] } },
+      } as unknown as Partial<RunRecord>,
+    ],
+    [
+      "p1",
+      {
+        state: { status: "planned", stage: "planned", context: { loops: {}, history: [] } },
       } as unknown as Partial<RunRecord>,
     ],
   ]);
@@ -77,6 +90,8 @@ async function world() {
       runs: {
         load: async (id: string) =>
           runs.has(id) ? ok(runs.get(id) as RunRecord) : err(MetatorError.notFound(`run ${id}`)),
+        readFile: async (id: string, file: string) =>
+          ok(id === "p1" && file === "plan.json" ? PLAN_JSON : undefined),
       },
     }),
     clock,
@@ -205,5 +220,42 @@ describe("a system plan's previous version (its planner revised it)", () => {
       ...(rest.length > 0 ? [`step removed: ${rest[0]?.id}`] : []),
       `step ${first?.id} changed: summary`,
     ]);
+  });
+});
+
+describe("a step's detail (ADR-0096)", () => {
+  test("what the step already has: summary, contracts, its app's files when the analysis lists them, its plan run", async () => {
+    const w = await world();
+    // The analysis lists no files of billing yet: not known until it is planned.
+    const before = (await w.plans.view("rename-refunds"))._unsafeUnwrap();
+    expect(before.steps.find((s) => s.app === "billing")?.files).toBeUndefined();
+    await w.store.saveAnalysis("rename-refunds", {
+      ...ANALYSIS,
+      applications: [
+        { id: "billing", roles: ["changed", "provider"], owners: [], files: ["apps/billing/src/refund.ts"] },
+        { id: "web", roles: ["consumer"], owners: [], files: [] },
+      ],
+    });
+    const plan = (await w.store.load("rename-refunds"))._unsafeUnwrap();
+    const first = plan.steps[0] as SystemPlan["steps"][number];
+    await w.store.save({
+      ...plan,
+      steps: plan.steps.map((s) => (s.id === first.id ? { ...s, planRunId: "p1" } : s)),
+    });
+    const view = (await w.plans.view("rename-refunds"))._unsafeUnwrap();
+    const billing = view.steps.find((s) => s.app === "billing");
+    expect(billing).toMatchObject({
+      summary: first.summary,
+      contracts: first.contracts,
+      files: ["apps/billing/src/refund.ts"],
+      planRunId: "p1",
+      planRun: {
+        runId: "p1",
+        status: "planned",
+        stage: "planned",
+        root: "/src/billing",
+        steps: [{ id: "S1", action: "modify", path: "apps/billing/src/refund.ts", intent: "rename" }],
+      },
+    });
   });
 });

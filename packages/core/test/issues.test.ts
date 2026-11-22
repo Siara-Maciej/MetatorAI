@@ -54,6 +54,7 @@ const issue = (over: Partial<Issue> = {}): Issue => ({
   labels: ["billing"],
   refs: [{ file: "src/invoice.ts", line: 10 }, { run: "r1", step: "S2" }, { note: "see the plan" }],
   proposedBy: { agent: "mt-implementer-1", runId: "r1", at: "2026-11-09T22:36:00.000Z" },
+  dependsOn: [],
   createdAt: "2026-11-09T22:36:00.000Z",
   updatedAt: "2026-11-09T22:36:00.000Z",
   ...over,
@@ -68,12 +69,10 @@ describe("issue domain", () => {
       "# Negative amounts in round2\n\nMath.round is half-up for positives only.\n\nFrom issue i001.\n",
     );
     expect(issueBrief(issue({ body: " " }))).toBe("# Negative amounts in round2\n\nFrom issue i001.\n");
-    expect(IssueDocument.parse({ kind: "Issue", schemaVersion: 1, ...issue() }, "i001.json").isOk()).toBe(
-      true,
-    );
-    expect(
-      IssueDocument.parse({ kind: "Issue", schemaVersion: 1, ...issue({ id: "x1" }) }, "x").isErr(),
-    ).toBe(true);
+    // A v1 file has no `dependsOn`: it reads as an item that waits for nothing.
+    const { dependsOn: _none, ...v1 } = issue();
+    expect(IssueDocument.parse({ kind: "Issue", schemaVersion: 1, ...v1 }, "i001.json").isOk()).toBe(true);
+    expect(IssueDocument.parse({ kind: "Issue", schemaVersion: 1, ...v1, id: "x1" }, "x").isErr()).toBe(true);
   });
 
   test("a proposal is a question with three answers; the answer is the decision", () => {

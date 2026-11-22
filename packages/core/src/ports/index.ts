@@ -293,6 +293,12 @@ export interface Clock {
   now(): Date;
 }
 
+/** Content hashes (ADR-0096): what an analysis or a plan remembers of each file it cites. */
+export interface ContentHasher {
+  /** The SHA-256 of the text, as 64 lowercase hex digits. */
+  sha256(text: string): string;
+}
+
 export interface Vcs {
   /** Files changed between `base` and the working tree (repo-relative). */
   changedFiles(base: string): Promise<Result<readonly string[], MetatorError>>;

@@ -14,7 +14,7 @@ import {
 import { type Command, InvalidArgumentError, Option } from "commander";
 import { meta, renamedCommand } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
-import { baseOption, byOption, positiveInt } from "../options.ts";
+import { baseOption, byOption, defined, positiveInt } from "../options.ts";
 import { schemaCommand } from "../outcome.ts";
 import { renderPlanRun, renderPlanShow, renderPlanStatus } from "../render.ts";
 import { defaultHost, HOSTS } from "../sessions.ts";
@@ -238,6 +238,25 @@ export function registerSystemPlanCommands(system: Command, ctx: CommandContext)
           result: await container().resolve("retrySystemStep").execute({ id, step, by }),
         })),
       ),
+    );
+
+  meta(plan.command("step-plan"), { audience: "person" })
+    .description(
+      "Plan one step on its own: its child run in its application's repository stops once its plan is approved; the step's run later starts from that plan",
+    )
+    .argument("<id>", "the plan id")
+    .argument("<step>", "the step id")
+    .option(
+      "--run <run>",
+      "the system run the step belongs to (default: the latest one whose task is the plan's)",
+    )
+    .option("--host <id>", "the host of the step's conductor")
+    .action(
+      action(async (id: string, step: string, opts: { run?: string; host?: string }) => ({
+        result: await container()
+          .resolve("startSystemStep")
+          .execute({ id, step, plan: true, ...defined({ parent: opts.run, host: opts.host }) }),
+      })),
     );
 
   meta(plan.command("run"), { render: renderPlanRun })

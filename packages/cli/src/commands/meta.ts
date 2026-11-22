@@ -147,7 +147,8 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["issue list", "the backlog: agents' proposals that wait for you, then the open tasks"],
       ["intake scan", "outside issues (GitHub, GitLab, Jira) become tasks and runs under the intake rules"],
       ["mrs list", "reviews of my open pull requests: threads, proposed replies, the answering run"],
-      ["issue start", "a run on a task of the backlog, in a new worktree"],
+      ["issue start", "a run on a task of the backlog, in a new worktree; from its plan when it has one"],
+      ["issue plan", "the plan of a task of the backlog only: a run that stops once the plan is approved"],
       ["review changes", "what a run changed, file by file, with one file's diff"],
       ["review notes add", "a note on a line of the change; `review notes send` hands them to the agent"],
       ["open", "your editor on the run's worktree, at a file and line"],
@@ -184,6 +185,7 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
     commands: [
       ["repos", "a folder of repositories: list, init, status"],
       ["system", "the system map: contracts between applications, impact, plans"],
+      ["system plan step-plan", "the plan of one step of a system plan, on demand, in its repository"],
     ],
   },
   {

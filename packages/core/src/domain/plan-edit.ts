@@ -74,6 +74,26 @@ export interface SystemPlanStepView {
   readonly runState?: string;
   /** The child run's stage, when it can be read. */
   readonly runStage?: string;
+  /** What the step already has (ADR-0096): its summary and contracts. */
+  readonly summary: string;
+  readonly contracts: SystemPlan["steps"][number]["contracts"];
+  /** The files of its application the system analysis lists; absent: not known until it is planned. */
+  readonly files?: readonly string[];
+  /** The run that planned the step on its own ("Plan this step"). */
+  readonly planRunId?: string;
+  /** That run as it is, and its plan's steps once it wrote one. */
+  readonly planRun?: {
+    readonly runId: string;
+    readonly status: string;
+    readonly stage: string;
+    readonly root: string;
+    readonly steps?: readonly {
+      readonly id: string;
+      readonly action: string;
+      readonly path: string;
+      readonly intent: string;
+    }[];
+  };
 }
 
 /** `GET /system/plans/:plan`. */

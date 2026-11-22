@@ -415,7 +415,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
       await metator(["issue", "add", "Tidy the totals", "--by", "maciej"], repo.root, scenario);
       await page.goto(app("backlog"));
       await page.getByTestId("issue-i001").click();
-      await page.getByRole("button", { name: "Start a run" }).click();
+      await page.getByRole("button", { name: "Implement", exact: true }).click();
       const refused = page.locator(".backlog .notice");
       await refused.waitFor({ timeout: 20_000 });
       expect(await refused.textContent()).toContain("the run would start without your changes");

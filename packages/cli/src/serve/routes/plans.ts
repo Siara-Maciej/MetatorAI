@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { body, type Call, denied, type Route, route, text } from "../http.ts";
+import { body, type Call, denied, optional, type Route, route, text } from "../http.ts";
 
 /**
  * `/runs/:run/plan` and `/system/plans`: plans a person reads, lints and approves in the app. A
@@ -61,6 +61,20 @@ export const PLAN_ROUTES: readonly Route[] = [
       call.c
         .resolve("retrySystemStep")
         .execute({ id: plan(call), step: call.params.step as string, by: call.body.by ?? "" }),
+  }),
+  // "Plan this step" (ADR-0096): the step's child run, in a pane a person sees, stops at its plan.
+  route({
+    method: "POST",
+    pattern: "/system/plans/:plan/steps/:step/plan",
+    body: body({ by: text, runId: optional(z.string()), host: optional(z.string()) }),
+    handler: (call) =>
+      call.c.resolve("startSystemStep").execute({
+        id: plan(call),
+        step: call.params.step as string,
+        plan: true,
+        ...(call.body.runId ? { parent: call.body.runId } : {}),
+        ...(call.body.host ? { host: call.body.host } : {}),
+      }),
   }),
   route({
     method: "POST",

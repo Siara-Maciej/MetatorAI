@@ -1,7 +1,8 @@
 /**
  * A system plan as a flow: its task on the left, its steps by wave and repository, an arrow for
  * every `dependsOn`, each step in the colour of its child run (dashed while it has none), the
- * critical path drawn heavier. A click opens the step's child run, or its plan while it has none.
+ * critical path drawn heavier. A click opens the step's detail (round 17): what it has, its own
+ * plan on demand, and its run once it has one.
  */
 import { useEffect, useRef, useState } from "react";
 import { lookOf, type Tone } from "../model.ts";
@@ -25,7 +26,6 @@ export function PlanFlowGraph({
   view,
   runs,
   dim = false,
-  onOpenRun,
   onOpenStep,
   testId,
 }: {
@@ -33,8 +33,7 @@ export function PlanFlowGraph({
   readonly runs: Parameters<typeof planFlow>[1];
   /** A plan finished in the last day: shown, dimmed. */
   readonly dim?: boolean;
-  onOpenRun(runId: string): void;
-  /** A step that has not started: its plan. */
+  /** A step's tile: its detail. */
   onOpenStep(stepId: string): void;
   readonly testId?: string;
 }) {
@@ -55,8 +54,7 @@ export function PlanFlowGraph({
   const chain = criticalPath(view);
   const open = (n: FlowNode) => {
     if (n.kind === "task") return;
-    if (n.runId) onOpenRun(n.runId);
-    else onOpenStep(n.id);
+    onOpenStep(n.id);
   };
   return (
     <figure
@@ -154,7 +152,7 @@ export function PlanFlowGraph({
                 {body}
               </g>
             ) : (
-              // biome-ignore lint/a11y/useValidAnchor: an SVG link opens the step's run or its plan in the app
+              // biome-ignore lint/a11y/useValidAnchor: an SVG link opens the step's detail in the app
               <a
                 key={n.id}
                 href="#"

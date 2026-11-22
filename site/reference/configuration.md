@@ -318,6 +318,7 @@ metator config schema --options                        # the JSON Schema of the 
 | `editor` | user | `command` |
 | `supervisor` | repo | `wipLimit`, `respawn`, `respawnAttempts`, `idleThresholdMs`, `hostOrder` |
 | `issues` | repo | `requireConsent`, `proposeFromAgents` |
+| `backlog` | repo | `staleDays` (default 14): after how many days a task's analysis or plan reads `old`, a warning only |
 
 Every option on this list changes what MetatorAI does. `metator config list` prints the same list with each option's description and default.
 

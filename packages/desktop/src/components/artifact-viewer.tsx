@@ -3,7 +3,7 @@
  * turned into HTML; code blocks in mono), JSON pretty-printed, YAML as it is.
  */
 import { useDaemon, usePolled } from "../daemon.tsx";
-import { artifactBlocks } from "../model.ts";
+import { MarkdownBlocks } from "./markdown-blocks.tsx";
 import { Modal } from "./modal.tsx";
 
 export function ArtifactViewer({
@@ -36,19 +36,7 @@ export function ArtifactViewer({
       {error && !data ? <div className="banner">{error}</div> : null}
       {data ? (
         <div className="viewer-body" data-testid="artifact-text">
-          {artifactBlocks(data.kind, data.text).map((b, i) =>
-            b.kind === "heading" ? (
-              <h3 key={String(i)}>{b.text}</h3>
-            ) : b.kind === "code" ? (
-              <pre key={String(i)} className="mono">
-                {b.text}
-              </pre>
-            ) : (
-              <p key={String(i)} className="prose">
-                {b.text}
-              </p>
-            ),
-          )}
+          <MarkdownBlocks kind={data.kind} text={data.text} />
           {data.truncated ? <p className="faint">The file is longer: this is its beginning.</p> : null}
         </div>
       ) : !error ? (

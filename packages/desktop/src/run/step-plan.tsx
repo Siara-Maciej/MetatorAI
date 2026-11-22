@@ -9,6 +9,7 @@ import type { PlanBoardView } from "../api.ts";
 import { ActivityList } from "../components/activity-list.tsx";
 import { QuickAnswer } from "../components/answer.tsx";
 import { FieldProblems, ProblemList } from "../components/doc-editor.tsx";
+import { FromPlanButton } from "../components/from-plan-button.tsx";
 import { Glyph } from "../components/glyph.tsx";
 import { EmptyRow, ListDetail, ListRow, ListSection } from "../components/list-detail.tsx";
 import { PlanChanges } from "../components/plan-changes.tsx";
@@ -71,6 +72,9 @@ export function StepPlan({
         {" "}
         · the planner writes this plan; ask it for changes on the plan's approval card
       </span>
+      <span className="spacer" />
+      {/* A top run's plan can live in the Backlog, not run yet (round 17). */}
+      {board.plan && !run?.parent ? <FromPlanButton runId={runId} repo={repo} /> : null}
     </div>
   ) : planned.error ? (
     // A plan file that does not fit its format: the daemon says where.

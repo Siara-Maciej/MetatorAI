@@ -61,3 +61,47 @@ describe("RunRecord v5", () => {
     expect([at({ base: "main" }), at({ Base: "main" }), at({ base: "" })]).toEqual([true, false, false]);
   });
 });
+
+describe("RunRecord v8 (ADR-0096)", () => {
+  test("a v7 record reads as v8 unchanged; v8 adds planned, until and planFrom", async () => {
+    const { RunRecordDocument } = await import("../src/domain/run-record.ts");
+    const base = {
+      runId: "20261122-mt-feature-round",
+      workflow: { id: "mt-feature", revision: 4, source: "x.yml" },
+      task: "Round prices",
+      autonomy: "L0",
+      createdAt: "2026-11-22T09:00:00.000Z",
+      updatedAt: "2026-11-22T09:00:00.000Z",
+      approvals: {},
+    };
+    const active = {
+      workflow: "mt-feature",
+      stage: "build",
+      status: "active",
+      context: { loops: {}, history: [] },
+    };
+    const v7 = RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 7, ...base, state: active }, "s");
+    expect([v7._unsafeUnwrap().until, v7._unsafeUnwrap().planFrom]).toEqual([undefined, undefined]);
+    // `planned` is no v7 status: a v7 file that says so is refused.
+    const planned = { ...active, stage: "planned", status: "planned" };
+    expect(
+      RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 7, ...base, state: planned }, "s").isErr(),
+    ).toBe(true);
+    const v8 = RunRecordDocument.parse(
+      { kind: "RunRecord", schemaVersion: 8, ...base, state: planned, until: "plan" },
+      "s",
+    )._unsafeUnwrap();
+    expect([v8.state.status, v8.until]).toEqual(["planned", "plan"]);
+    const from = RunRecordDocument.parse(
+      {
+        kind: "RunRecord",
+        schemaVersion: 8,
+        ...base,
+        state: active,
+        planFrom: { run: "20261121-mt-feature-x", from: "review" },
+      },
+      "s",
+    )._unsafeUnwrap();
+    expect(from.planFrom).toEqual({ run: "20261121-mt-feature-x", from: "review" });
+  });
+});

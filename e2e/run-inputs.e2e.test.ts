@@ -47,7 +47,7 @@ describe("workflow inputs (real CLI)", () => {
     expect(init.code).toBe(0);
     const id = (init.json.data as Data).runId as string;
     const state = JSON.parse(await repo.read(`.metator/runs/${id}/state.json`));
-    expect([state.schemaVersion, state.inputs]).toEqual([7, { base: "main" }]);
+    expect([state.schemaVersion, state.inputs]).toEqual([8, { base: "main" }]);
     const drive = await mt("run", "drive", "--run", id, "--host", "scenario");
     expect((drive.json.data as Data).status).toBe("done");
   });

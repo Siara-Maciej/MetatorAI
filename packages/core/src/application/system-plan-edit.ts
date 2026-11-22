@@ -1,4 +1,5 @@
 import { MetatorError } from "../domain/errors.ts";
+import { PlanDocument } from "../domain/plan.ts";
 import {
   documentDigest,
   documentFromBody,
@@ -23,6 +24,7 @@ import {
   type SystemPlanProblem,
   systemPlanWaves,
 } from "../domain/system-plan.ts";
+import { parseJsonDocument } from "../domain/versioned.ts";
 import type { Clock, FileSystem } from "../ports/index.ts";
 import { readDocument, readJsonLines } from "./document-io.ts";
 import type { ApproveSystemPlan, LintSystemPlan, SystemPlanStore } from "./system-plans.ts";
@@ -31,7 +33,7 @@ import type { SystemSources } from "./system-sources.ts";
 
 export interface SystemPlansDependencies {
   readonly fs: FileSystem;
-  readonly store: Pick<SystemPlanStore, "list" | "load" | "save" | "file" | "exists">;
+  readonly store: Pick<SystemPlanStore, "list" | "load" | "save" | "file" | "exists" | "loadAnalysis">;
   readonly lint: Pick<LintSystemPlan, "check">;
   readonly approve: Pick<ApproveSystemPlan, "execute">;
   readonly sources: Pick<SystemSources, "locate" | "location">;
@@ -135,6 +137,22 @@ export class SystemPlans {
     };
   }
 
+  /** A step's plan run in its application's repository: where it is, and its plan once written. */
+  private async planRunOf(root: string, runId: string): Promise<SystemPlanStepView["planRun"]> {
+    const runs = this.d.at(root).runs;
+    const run = await runs.load(runId);
+    if (run.isErr()) return undefined;
+    const text = await runs.readFile(runId, "plan.json");
+    const steps = planStepsOf(text.isOk() ? text.value : undefined);
+    return {
+      runId,
+      status: run.value.state.status,
+      stage: run.value.state.stage,
+      root,
+      ...(steps ? { steps } : {}),
+    };
+  }
+
   private async viewOf(plan: SystemPlan): Promise<Result<SystemPlanView, MetatorError>> {
     const linted = await this.d.lint.check(plan);
     const lint = linted.isOk()
@@ -142,6 +160,13 @@ export class SystemPlans {
       : { problems: [{ severity: "error" as const, message: linted.error.message }] };
     const map = await this.d.sources.location.load();
     const apps = map.isOk() && map.value ? map.value.applications : [];
+    const analysis = await this.d.store.loadAnalysis(plan.id);
+    const filesOf = (app: string) => {
+      const files = analysis.isOk()
+        ? analysis.value?.applications.find((a) => a.id === app)?.files
+        : undefined;
+      return files && files.length > 0 ? files : undefined;
+    };
     const steps: SystemPlanStepView[] = [];
     for (const s of plan.steps) {
       const app = apps.find((a) => a.id === s.app);
@@ -153,6 +178,8 @@ export class SystemPlans {
         const run = await this.d.at(root).runs.load(s.run);
         if (run.isOk()) runState = { status: run.value.state.status, stage: run.value.state.stage };
       }
+      const files = filesOf(s.app);
+      const planRun = s.planRunId && root ? await this.planRunOf(root, s.planRunId) : undefined;
       steps.push({
         id: s.id,
         app: s.app,
@@ -162,6 +189,11 @@ export class SystemPlans {
         status: s.status,
         ...(s.run ? { run: s.run } : {}),
         ...(runState ? { runState: runState.status, runStage: runState.stage } : {}),
+        summary: s.summary,
+        contracts: s.contracts,
+        ...(files ? { files } : {}),
+        ...(s.planRunId ? { planRunId: s.planRunId } : {}),
+        ...(planRun ? { planRun } : {}),
       });
     }
     const waves = (systemPlanWaves(plan) ?? []).map((ids, i) => ({ wave: i + 1, steps: ids }));
@@ -180,6 +212,15 @@ export class SystemPlans {
       file: this.d.store.file(plan.id),
     });
   }
+}
+
+/** The plan's steps of a run, when it wrote a plan.json that reads. */
+function planStepsOf(text: string | undefined): NonNullable<SystemPlanStepView["planRun"]>["steps"] {
+  if (!text) return undefined;
+  const plan = parseJsonDocument(text, "plan.json").andThen((raw) => PlanDocument.parse(raw, "plan.json"));
+  return plan.isOk()
+    ? plan.value.steps.map((s) => ({ id: s.id, action: s.action, path: s.path, intent: s.intent }))
+    : undefined;
 }
 
 const latest = (times: readonly (string | undefined)[]): string | null =>

@@ -10,6 +10,7 @@ import {
   type ThreadTask,
   type ThreadTree,
   threadId,
+  threadOfRun,
   threadTree,
   threadWithFact,
 } from "../domain/thread.ts";
@@ -191,6 +192,12 @@ export class Threads {
       out.push({ ...t, ...(repo ? { repo } : {}), ...(chat ? { chat } : {}) });
     }
     return ok(out);
+  }
+
+  /** The thread that lists a run (an item from that run's plan belongs to it), if any. */
+  async ofRun(runId: string): Promise<Thread | undefined> {
+    const all = await this.d.store.list();
+    return all.isOk() ? threadOfRun(all.value, runId) : undefined;
   }
 
   /** The thread a pane is the chat of (the agent's own: `$METATOR_PANE_ID`). */
@@ -457,6 +464,41 @@ export class Threads {
   }
 
   /**
+   * A run started for the thread from outside its chat (an item's "Implement", ADR-0096): the run
+   * is the thread's, with a fact, as `linkRun` makes it for one its chat starts.
+   */
+  async addRun(id: string, runId: string, task: string): Promise<Result<Thread, MetatorError>> {
+    const at = this.d.clock.now().toISOString();
+    return this.d.store.update(id, (t) =>
+      t.runs.includes(runId)
+        ? ok(t)
+        : ok(
+            threadWithFact(
+              { ...t, runs: [...t.runs, runId] },
+              `run ${runId} started: ${firstLine(task)}`,
+              at,
+            ),
+          ),
+    );
+  }
+
+  /** A Backlog item made in the thread (its analysis, an item from its plan): listed in `issues`, with a fact. */
+  async addIssue(id: string, issue: string, title: string): Promise<Result<Thread, MetatorError>> {
+    const at = this.d.clock.now().toISOString();
+    return this.d.store.update(id, (t) =>
+      t.issues.includes(issue)
+        ? ok(t)
+        : ok(
+            threadWithFact(
+              { ...t, issues: [...t.issues, issue] },
+              `Backlog item ${issue} made: ${firstLine(title)}`,
+              at,
+            ),
+          ),
+    );
+  }
+
+  /**
    * What became of the threads' runs: a run that is done, aborted or stopped for the person gets
    * one fact in each thread that lists it, once per event (the run's activity says it was noted).
    */
@@ -476,7 +518,8 @@ export class Threads {
         if (record.isErr()) continue;
         const r = record.value;
         const status = r.state.status;
-        if (status !== "done" && status !== "aborted" && status !== "escalated") continue;
+        if (status !== "done" && status !== "aborted" && status !== "escalated" && status !== "planned")
+          continue;
         const key = status === "escalated" ? `escalated ${r.updatedAt}` : status;
         const seen = `${thread.id} ${runId} ${key}`;
         if (this.noted.has(seen)) continue;
@@ -491,7 +534,9 @@ export class Threads {
         const fact =
           status === "escalated"
             ? `run ${runId} stopped at ${stoppedAt(r.state.stage, status, r.state.context.history)} and needs the person: ${task}`
-            : `run ${runId} ${status}: ${task}`;
+            : status === "planned"
+              ? `run ${runId} planned (plan ready): ${task}`
+              : `run ${runId} ${status}: ${task}`;
         const at = this.d.clock.now().toISOString();
         const saved = await this.d.store.update(thread.id, (t) => ok(threadWithFact(t, fact, at)));
         if (saved.isErr()) return err(saved.error);

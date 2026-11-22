@@ -1551,6 +1551,72 @@ kbd {
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
+/* Round 17: a child sits under its parent; the item's analysis, plan and parts. */
+.backlog .ld-row.child {
+  padding-left: 26px;
+}
+.backlog .ld-row .word,
+.backlog .item-children .word {
+  flex: none;
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}
+.backlog .item-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-height: 100%;
+}
+.backlog .why {
+  font-size: var(--fs-small);
+}
+.backlog .item-part {
+  border-top: 1px solid var(--edge);
+  padding-top: var(--sp-3);
+  max-width: 760px;
+}
+.backlog .item-part h3 {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  font-size: var(--fs-head);
+  margin: 0 0 var(--sp-2);
+}
+.backlog .prose-box {
+  max-height: 46vh;
+  overflow: auto;
+}
+.backlog .prose-box h3 {
+  font-size: var(--fs-base);
+  margin: var(--sp-3) 0 var(--sp-1);
+}
+.backlog .prose-box .prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  margin: var(--sp-1) 0;
+}
+.backlog .prose-box pre {
+  background: var(--term-bg);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow: auto;
+  font-size: var(--fs-code);
+}
+.backlog .item-children {
+  list-style: none;
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.backlog .item-children li {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: baseline;
+}
 .backlog .wf {
   display: inline-flex;
   gap: var(--sp-2);
@@ -1812,20 +1878,58 @@ button.ld-row:hover,
 .cols .ld-sec {
   padding: 0 0 4px;
 }
-.plan .facts {
+.plan .facts,
+.step-detail .facts {
   margin: 0;
 }
-.plan .facts .row {
+.plan .facts .row,
+.step-detail .facts .row {
   display: flex;
   gap: var(--sp-5);
   padding: 3px 0;
 }
-.plan .facts dt {
+.plan .facts dt,
+.step-detail .facts dt {
   width: 90px;
   flex: none;
 }
-.plan .facts dd {
+.plan .facts dd,
+.step-detail .facts dd {
   margin: 0;
+  overflow-wrap: anywhere;
+}
+/* A system plan step's detail (round 17): a tile's click. */
+.step-detail .viewer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+.step-detail .viewer-head h2 {
+  font-size: var(--fs-title);
+  margin: 0;
+}
+.step-detail .step-own-plan {
+  border-top: 1px solid var(--edge);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+}
+.step-detail .step-own-plan h3 {
+  font-size: var(--fs-head);
+  margin: 0 0 var(--sp-2);
+}
+.step-detail ul.plain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--fs-code);
+  line-height: 1.7;
+}
+.step-detail .actions {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: center;
+  margin-top: var(--sp-5);
 }
 .mrs .thread {
   border-left: 2px solid var(--edge);
@@ -2934,6 +3038,10 @@ dialog.goto {
 }
 .plan-full h3 {
   margin-bottom: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
 }
 .plan-full .plan-steps td {
   font-size: var(--fs-compact);

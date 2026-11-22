@@ -69,13 +69,49 @@ export const BACKLOG_ROUTES: readonly Route[] = [
     },
   }),
   // The backlog: read, add (a person), decide, edit, close, drop, start.
+  // Each item with its links (children, what it waits for, a parent's progress) and freshness (ADR-0096).
   route({
     method: "GET",
     pattern: "/issues",
     handler: async ({ c, query }) => {
       const runId = query.get("run");
-      return (await c.resolve("issues").list({ ...(runId ? { runId } : {}) })).map((issues) => ({ issues }));
+      return (await c.resolve("backlogWork").list({ ...(runId ? { runId } : {}) })).map((issues) => ({
+        issues,
+      }));
     },
+  }),
+  route({
+    method: "GET",
+    pattern: "/issues/:issue",
+    handler: (call) => call.c.resolve("backlogWork").detail(issue(call)),
+  }),
+  // "Create Backlog item" on a plan: a parent, and a child per step of a system plan.
+  route({
+    method: "POST",
+    pattern: "/issues/from-plan",
+    body: body({ runId: text, by: text }),
+    handler: ({ c, body: b }) => c.resolve("backlogWork").fromPlan({ runId: b.runId ?? "", by: b.by ?? "" }),
+  }),
+  // "Analyse" / "Re-analyse": the guide in a pane a person sees, told to record its analysis on the item.
+  route({
+    method: "POST",
+    pattern: "/issues/:issue/analyze",
+    body: body({ by: text, host: optional(z.string()) }),
+    handler: (call) =>
+      call.c
+        .resolve("backlogWork")
+        .openAnalysis(issue(call), { ...(call.body.host ? { host: call.body.host } : {}) }),
+  }),
+  // "Make plan": the plan only, its conductor in its own pane; refused while the analysis is stale.
+  route({
+    method: "POST",
+    pattern: "/issues/:issue/plan",
+    body: body({ by: text, workflow: optional(z.string()), host: optional(z.string()) }),
+    handler: (call) =>
+      call.c.resolve("backlogWork").plan(issue(call), {
+        ...(call.body.workflow ? { workflow: call.body.workflow } : {}),
+        session: { ...(call.body.host ? { host: call.body.host } : {}) },
+      }),
   }),
   route({
     method: "POST",
@@ -115,17 +151,29 @@ export const BACKLOG_ROUTES: readonly Route[] = [
     body: body({ by: text }),
     handler: (call) => call.c.resolve("issues").drop(issue(call), { by: call.body.by ?? "" }),
   }),
+  // "Implement": from the plan when it holds, from its review when not; its conductor in its own
+  // pane, and the item's thread (or a new one, whose chat opens too).
   route({
     method: "POST",
     pattern: "/issues/:issue/start",
-    body: body({ workflow: text, worktree: flag, allowDirty: flag, autonomy: AUTONOMY }),
+    body: body({
+      workflow: optional(z.string()),
+      worktree: flag,
+      allowDirty: flag,
+      autonomy: AUTONOMY,
+      host: optional(z.string()),
+      by: text,
+    }),
     handler: (call) => {
       const b = call.body;
-      return call.c.resolve("issues").start(issue(call), {
-        workflow: b.workflow ?? "",
+      return call.c.resolve("backlogWork").implement(issue(call), {
+        by: b.by ?? "",
+        ...(b.workflow ? { workflow: b.workflow } : {}),
         ...(b.worktree === false ? { worktree: false } : {}),
         ...(b.allowDirty === true ? { allowDirty: true } : {}),
         ...(b.autonomy ? { autonomy: b.autonomy } : {}),
+        session: { ...(b.host ? { host: b.host } : {}) },
+        chat: true,
       });
     },
   }),

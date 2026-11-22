@@ -1,9 +1,11 @@
+import { unmetDependencies } from "../domain/dependencies.ts";
 import { stageWork } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { planId } from "../domain/ids.ts";
 import { stoppedAt } from "../domain/overview.ts";
 import { progressOf, requireApproved, settled } from "../domain/plan-progress.ts";
 import { err, ok, type Result } from "../domain/result.ts";
+import type { RunRecord } from "../domain/run-record.ts";
 import { type SystemGate, systemGate } from "../domain/system-gate.ts";
 import { readySteps, type SystemPlan, stepTask, systemPlanDigest } from "../domain/system-plan.ts";
 import type { Clock } from "../ports/index.ts";
@@ -21,7 +23,7 @@ export const STEP_WORKFLOW = "mt-feature";
 export interface RepositoryRuns {
   /** A run started as every front starts one: its worktree set up, and driven when asked. */
   readonly start: Pick<StartRun, "execute">;
-  readonly runs: Pick<RunRepository, "load">;
+  readonly runs: Pick<RunRepository, "load" | "readFile">;
 }
 
 export interface StartedStep {
@@ -99,6 +101,8 @@ export class RunSystemPlan {
     const started: StartedStep[] = [];
     for (const { step, at } of ready) {
       const task = stepTask(plan, step, at.dir);
+      // A step planned on its own ("Plan this step") starts from that plan once it was approved.
+      const planFrom = await stepPlanFrom(step, this.at(at.root));
       // Started at once as a conductor session a person sees (ADR-0090), on the system run's own
       // host when it is an interactive one installed here; a background drive only when no daemon
       // serves the repository or no interactive host is installed. A worktree gets its dependencies first.
@@ -114,6 +118,7 @@ export class RunSystemPlan {
         ...(input.parent ? { parent: input.parent } : {}),
         system: { plan: plan.id, step: step.id, app: step.app },
         session: host ? { host } : {},
+        ...(planFrom ? { planFrom } : {}),
       });
       if (created.isErr()) return err(created.error);
       const run = { value: created.value.run };
@@ -151,6 +156,160 @@ export class RunSystemPlan {
       }
     }
     return ok({ plan, started });
+  }
+}
+
+/** The plan a step's run starts from: the run that planned the step, once it is `planned`. */
+async function stepPlanFrom(
+  step: SystemPlan["steps"][number],
+  repo: Pick<RepositoryRuns, "runs">,
+): Promise<{ readonly run: string; readonly from: "build" } | undefined> {
+  if (!step.planRunId) return undefined;
+  const planned = await repo.runs.load(step.planRunId);
+  return planned.isOk() && planned.value.state.status === "planned"
+    ? { run: step.planRunId, from: "build" }
+    : undefined;
+}
+
+/**
+ * One step of a system plan started on its own (ADR-0096), in its application's repository as a
+ * child of the system run: "Plan this step" (`plan`: the run stops `planned`, and the step keeps
+ * it as `planRunId`; the planner never plans every step up front), or the step's own run from its
+ * Backlog item (the plan approved and the step ready by the same rule as `system plan run`; it
+ * takes the step's plan when there is one). Its conductor opens where a person sees it.
+ */
+export class StartSystemStep {
+  constructor(
+    private readonly store: SystemPlanStore,
+    private readonly sources: Pick<SystemSources, "locate" | "location">,
+    private readonly at: (root: string) => RepositoryRuns,
+    private readonly clock: Clock,
+    private readonly parents: Pick<RunRepository, "load" | "update" | "appendLog" | "loadAll">,
+  ) {}
+
+  async execute(input: {
+    readonly id: string;
+    readonly step: string;
+    /** Only plan it: the run stops once its plan is approved. */
+    readonly plan?: boolean;
+    /** The system run (default: the latest top run of this repository whose task is the plan's). */
+    readonly parent?: string;
+    readonly host?: string;
+    readonly workflow?: string;
+  }): Promise<Result<StartedStep & { readonly plan: SystemPlan }, MetatorError>> {
+    const loaded = await this.store.load(input.id);
+    if (loaded.isErr()) return err(loaded.error);
+    let plan = loaded.value;
+    const step = plan.steps.find((s) => s.id === input.step);
+    if (!step) return err(MetatorError.notFound(`step ${input.step} of system plan ${plan.id}`));
+    if (step.run)
+      return err(
+        MetatorError.usage(`step ${step.id} already runs as ${step.run}`, "Open its run, or retry the step."),
+      );
+    const map = await this.sources.location.require();
+    if (map.isErr()) return err(map.error);
+    const app = map.value.applications.find((a) => a.id === step.app);
+    if (!app) return err(MetatorError.usage(`step ${step.id}: application ${step.app} is not in the map`));
+    const located = await this.sources.locate(app);
+    if (located.isErr()) return err(located.error);
+    if (!located.value || located.value.via === "clone" || located.value.via === "map")
+      return err(
+        MetatorError.usage(
+          `no checkout of ${app.id} to run step ${step.id} in`,
+          `Clone it and set \`system.roots.${app.id}\` in metator.config.yml; clones in .metator/system are read-only.`,
+        ),
+      );
+    const repo = this.at(located.value.root);
+    if (input.plan && step.planRunId) {
+      const earlier = await repo.runs.load(step.planRunId);
+      if (earlier.isOk() && earlier.value.state.status === "active")
+        return err(
+          MetatorError.usage(
+            `step ${step.id} is being planned already: run ${step.planRunId}`,
+            "Open its run; its plan is approved there.",
+          ),
+        );
+    }
+    if (!input.plan) {
+      const approved = requireApproved(
+        plan,
+        systemPlanDigest(plan),
+        "steps",
+        `A person approves it: \`metator system plan approve ${plan.id}\`.`,
+      );
+      if (approved.isErr()) return err(approved.error);
+      if (!readySteps(plan).some((s) => s.id === step.id))
+        return err(
+          MetatorError.usage(
+            `step ${step.id} waits for ${unmetDependencies(step, plan.steps, (s) => s.status === "done").join(", ")}: it starts when they are done`,
+          ),
+        );
+    }
+    const parent = await this.parentOf(plan.id, input.parent);
+    if (parent.isErr()) return err(parent.error);
+    const planFrom = input.plan ? undefined : await stepPlanFrom(step, repo);
+    const task = stepTask(plan, step, located.value.dir);
+    const created = await repo.start.execute({
+      workflow: input.workflow ?? STEP_WORKFLOW,
+      task,
+      worktree: { allowDirty: true },
+      ...(parent.value ? { parent: parent.value.runId } : {}),
+      system: { plan: plan.id, step: step.id, app: step.app },
+      session: input.host ? { host: input.host } : parent.value?.host ? { host: parent.value.host } : {},
+      ...(input.plan ? { until: "plan" as const } : {}),
+      ...(planFrom ? { planFrom } : {}),
+    });
+    if (created.isErr()) return err(created.error);
+    const runId = created.value.run.runId;
+    plan = {
+      ...plan,
+      ...(input.plan ? {} : { status: "running" as const }),
+      steps: plan.steps.map((s) =>
+        s.id !== step.id
+          ? s
+          : input.plan
+            ? { ...s, planRunId: runId }
+            : { ...s, status: "running" as const, run: runId },
+      ),
+    };
+    const saved = await this.store.save(plan);
+    if (saved.isErr()) return err(saved.error);
+    if (parent.value) {
+      const kept = await this.parents.update(parent.value.runId, (record) =>
+        ok({ ...record, children: [...(record.children ?? []), runId] }),
+      );
+      if (kept.isErr()) return err(kept.error);
+      const logged = await this.parents.appendLog(
+        parent.value.runId,
+        `${this.clock.now().toISOString()} · child · ${runId} (${step.id} in ${step.app}${input.plan ? ", its plan only" : ""})`,
+      );
+      if (logged.isErr()) return err(logged.error);
+    }
+    return ok({
+      plan,
+      step: step.id,
+      app: step.app,
+      root: located.value.root,
+      run: runId,
+      task,
+      ...(created.value.session ? { session: created.value.session } : {}),
+      ...(created.value.noSession ? { noSession: created.value.noSession } : {}),
+      ...(created.value.drive ? { drive: created.value.drive } : {}),
+      ...(created.value.driveError ? { driveError: created.value.driveError.message } : {}),
+    });
+  }
+
+  /** The system run the step belongs to: named, else the latest top run here whose task is the plan's. */
+  private async parentOf(
+    id: string,
+    named: string | undefined,
+  ): Promise<Result<RunRecord | undefined, MetatorError>> {
+    if (named) return this.parents.load(named);
+    const all = await this.parents.loadAll();
+    const found = all.runs
+      .filter((r) => !r.parent && planId(r.task) === id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return ok(found);
   }
 }
 

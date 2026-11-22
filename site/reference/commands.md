@@ -390,6 +390,21 @@ metator system plan retry [options] <id> <step>
 | `<step>` | the step id | |
 | `--by <name>` | who retries the step (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
+### `metator system plan step-plan`
+
+Plan one step on its own: its child run in its application's repository stops once its plan is approved; the step's run later starts from that plan
+
+```bash
+metator system plan step-plan [options] <id> <step>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` | the plan id | |
+| `<step>` | the step id | |
+| `--run <run>` | the system run the step belongs to (default: the latest one whose task is the plan's) |  |
+| `--host <id>` | the host of the step's conductor |  |
+
 ### `metator system plan run`
 
 Start the steps that can start: a child run (W1) in each application's repository, each as a conductor session a person sees (else driven in the background)
@@ -1817,6 +1832,9 @@ metator run new [options]
 | `--allow-dirty` | start although tracked files have uncommitted changes (with --worktree the run starts from the last commit, without them; in this checkout they become part of its change) |  |
 | `--parent <run>` | the run this one is a child of (a system run, possibly in another repository) |  |
 | `--input <name=value>` | a workflow input its scripts read as {name} (repeatable), e.g. base=main | `[]` |
+| `--until <stage>` | stop once the plan is approved: the run ends planned (one of: plan) |  |
+| `--plan-from <run>` | start from the approved plan of this run, at build (its earlier stages are skipped) |  |
+| `--plan-review` | with --plan-from: start at the plan's review instead (the plan changed since) |  |
 
 ### `metator run advance`
 
@@ -2892,7 +2910,7 @@ metator issue list [options]
 
 ### `metator issue show`
 
-One task with everything attached
+One task with everything attached: its analysis, its plan, their freshness, its children
 
 ```bash
 metator issue show [options] <id>
@@ -2901,6 +2919,50 @@ metator issue show [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` |  | |
+
+### `metator issue analyze`
+
+Record an analysis (the agent's text with path:line citations): a new item, or --issue to replace one's analysis; MetatorAI adds the deterministic facts
+
+```bash
+metator issue analyze [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--text <markdown>` | the analysis; `-` reads it from stdin (a here-doc) **Required.** |  |
+| `--title <words>` | the new item's title (without --issue) |  |
+| `--issue <id>` | the item whose analysis this is (re-analyse) |  |
+| `--agent <id>` | the agent that wrote it | `"mt-chat"` |
+| `--by <name>` | who asked for it (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
+### `metator issue plan`
+
+Make the item's plan only: a run of its workflow that stops once a person approves the plan (refused while its analysis is stale)
+
+```bash
+metator issue plan [options] <id>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<id>` |  | |
+| `--workflow <id>` | the workflow (default: mt-feature, mt-bugfix for a bug) |  |
+| `--session` | open the run's conductor where a person sees it (the daemon; without one it is driven in the background) |  |
+| `--host <id>` | with --session: the host of the conductor |  |
+
+### `metator issue from-plan`
+
+Make Backlog items from a run's plan: one parent and, for a system plan, one child per step (dependencies kept)
+
+```bash
+metator issue from-plan [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--run <id>` | the plan run or the system run **Required.** |  |
+| `--by <name>` | who adds them (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
 ### `metator issue add`
 
@@ -2999,7 +3061,7 @@ metator issue rm [options] <id>
 
 ### `metator issue start`
 
-A run on the task (its title and body are the task), in its own worktree unless --no-worktree
+A run on the task (its title and body are the task), in its own worktree unless --no-worktree: from its plan at build when the plan still holds, from the plan's review when it does not; a child only once what it waits for is done
 
 ```bash
 metator issue start [options] <id>
@@ -3008,7 +3070,10 @@ metator issue start [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` |  | |
-| `--workflow <id>` | the workflow to run **Required.** |  |
+| `--workflow <id>` | the workflow to run (default: mt-feature, mt-bugfix for a bug) |  |
+| `--session` | open the run's conductor where a person sees it (the daemon; without one it is driven in the background) |  |
+| `--host <id>` | with --session: the host of the conductor |  |
+| `--by <name>` | who starts it (default: $METATOR_USER, else git's user.name, else your login name) |  |
 | `--no-worktree` | work in the main checkout |  |
 | `--allow-dirty` | start although tracked files have uncommitted changes (the worktree starts from the last commit, without them) |  |
 | `--autonomy <level>` | L0: every approval waits for you (one of: L0, L1, L2) |  |

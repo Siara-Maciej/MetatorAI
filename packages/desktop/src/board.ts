@@ -5,7 +5,15 @@
  * it is part of (its parent task and its step); filters and swimlanes read only the cards.
  */
 import type { Issue, RunOverview, SystemPlanView, WorkPhase } from "./api.ts";
-import { firstLevel, planOrder, type RunShown, runStateOf, stepPlace, systemPlanOf } from "./model.ts";
+import {
+  firstLevel,
+  isFinished,
+  planOrder,
+  type RunShown,
+  runStateOf,
+  stepPlace,
+  systemPlanOf,
+} from "./model.ts";
 import { repoLabel } from "./plan-flow.ts";
 
 export const BOARD_COLUMNS: readonly { readonly id: WorkPhase; readonly label: string }[] = [
@@ -47,6 +55,8 @@ export interface BoardCard {
   /** A pending step: the plan it belongs to, and the repository the plan is read from. */
   readonly planId?: string | undefined;
   readonly planRepo?: string | undefined;
+  /** A pending step: its id in the plan (its tile opens its detail). */
+  readonly stepId?: string | undefined;
   /** A pending step: the system run whose plan it is, when it is known. */
   readonly systemRunId?: string | undefined;
 }
@@ -102,7 +112,7 @@ export function boardCards(input: {
     cards.push({
       key: `run:${r.repo ?? ""}/${r.runId}`,
       kind: "run",
-      column: r.phase ?? (r.status === "done" || r.status === "aborted" ? "done" : "in-progress"),
+      column: r.phase ?? (isFinished(r) ? "done" : "in-progress"),
       // A step's run reads as its step (`api-model: …`), not the long task the engine composed.
       title: stepOfRun ? `${stepOfRun.id}: ${stepOfRun.task}` : r.task,
       repo: r.repo,
@@ -161,6 +171,7 @@ export function boardCards(input: {
         escalated: false,
         planId: p.plan.id,
         planRepo: p.repo,
+        stepId: s.id,
         ...(head ? { systemRunId: head.runId } : {}),
       });
     }

@@ -35,7 +35,15 @@ export interface WorkTask {
 
 type TaskPlan = Pick<SystemPlanView, "plan" | "steps" | "status">;
 
-const RUN_WORDS: readonly string[] = ["needs you", "working", "escalated", "done", "aborted", "idle"];
+const RUN_WORDS: readonly string[] = [
+  "needs you",
+  "working",
+  "escalated",
+  "done",
+  "plan ready",
+  "aborted",
+  "idle",
+];
 
 /** The state word of a group of cards: the strongest of its runs' states, else its head's. */
 function stateOf(cards: readonly BoardCard[], head: BoardCard | undefined): CardState {

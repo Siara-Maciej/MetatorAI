@@ -37,7 +37,9 @@ export function RunHeader({
   /** Inside Details: what the run is. */
   readonly details?: ReactNode;
 }) {
-  const look = lookOf("first", state);
+  // A run made to plan only reads "plan ready" (round 17): done, with its plan approved.
+  const planned = run?.status === "planned";
+  const look = planned ? lookOf("run", "plan ready") : lookOf("first", state);
   const current = run?.stages.find(
     (s) => s.state === "current" || s.state === "waiting" || s.state === "stopped",
   );
@@ -55,7 +57,15 @@ export function RunHeader({
           {title}
         </h1>
         <span className={`state-word ${look.tone ?? ""}`} data-testid="page-state">
-          <Glyph kind="first" state={state} /> {state}
+          {planned ? (
+            <>
+              <Glyph kind="run" state="plan ready" /> plan ready
+            </>
+          ) : (
+            <>
+              <Glyph kind="first" state={state} /> {state}
+            </>
+          )}
         </span>
       </div>
       <div className="head-progress">

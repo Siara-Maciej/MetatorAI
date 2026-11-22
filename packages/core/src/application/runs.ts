@@ -2,6 +2,7 @@ import slugify from "@sindresorhus/slugify";
 import { attemptsOf, type RunStop, stopOf } from "../domain/drive.ts";
 import { MetatorError } from "../domain/errors.ts";
 import { escalatedNext } from "../domain/inbox.ts";
+import { planApproved, planCut, planFiles, planFromState, stopAtPlan } from "../domain/plan-cut.ts";
 import { type PublishedBranch, publicationProblem } from "../domain/publication.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import { type RunEvent, type RunEventType, RunStateMachine } from "../domain/run-machine.ts";
@@ -139,6 +140,10 @@ export interface InitRunInput {
   readonly system?: RunRecord["system"];
   /** Values of the workflow's inputs (`base=main`): its scripts read them as `{base}`. */
   readonly inputs?: Readonly<Record<string, string>>;
+  /** Stop once the plan is approved: the run ends `planned` (ADR-0096). */
+  readonly until?: "plan";
+  /** Take the approved plan of an earlier run: start at `build`, or at the plan's review. */
+  readonly planFrom?: NonNullable<RunRecord["planFrom"]>;
 }
 
 export class InitRun {
@@ -183,6 +188,8 @@ export class InitRun {
       );
     // Without a level: L0 (every gate asks) when the workflow has it, else the first level it lists.
     const autonomy = input.autonomy ?? (!levels || levels.includes("L0") ? "L0" : (levels[0] as Autonomy));
+    const planned = await this.planStart(machine, input);
+    if (planned.isErr()) return err(planned.error);
 
     if (this.readiness) {
       const preconditions = machine.workflow.preconditions ?? [];
@@ -218,8 +225,10 @@ export class InitRun {
       autonomy,
       createdAt: now,
       updatedAt: now,
-      state: machine.start(),
-      approvals: {},
+      state: planned.value?.state ?? machine.start(),
+      approvals: planned.value?.approvals ?? {},
+      ...(input.until ? { until: input.until } : {}),
+      ...(input.planFrom ? { planFrom: { ...input.planFrom } } : {}),
       ...(worktree ? { worktree } : {}),
       ...(input.parent ? { parent: input.parent } : {}),
       ...(input.system ? { system: input.system } : {}),
@@ -228,6 +237,10 @@ export class InitRun {
     const { record, lines } = skipGates(machine, created, now);
     const saved = await this.repo.save(record);
     if (saved.isErr()) return err(saved.error);
+    if (input.planFrom && planned.value) {
+      const copied = await this.repo.copyFiles(input.planFrom.run, runId, planned.value.files);
+      if (copied.isErr()) return err(copied.error);
+    }
     for (const line of [
       `${now} · created · workflow ${record.workflow.id}@${record.workflow.revision} · ${record.autonomy}`,
       ...(worktree ? [`${now} · worktree · ${worktree.path} on ${worktree.branch}`] : []),
@@ -235,12 +248,79 @@ export class InitRun {
       ...(input.system
         ? [`${now} · system · plan ${input.system.plan}, step ${input.system.step} in ${input.system.app}`]
         : []),
+      ...(input.until ? [`${now} · until · plan: the run stops once its plan is approved`] : []),
+      ...(input.planFrom
+        ? [
+            `${now} · plan from · ${input.planFrom.run}: starts at ${record.state.stage}${input.planFrom.from === "review" ? " (the plan changed since: it is reviewed again)" : ""}`,
+          ]
+        : []),
       ...lines,
     ]) {
       const logged = await this.repo.appendLog(runId, line);
       if (logged.isErr()) return err(logged.error);
     }
     return ok(view(record, machine, this.repo));
+  }
+
+  /**
+   * The start of a run that stops at its plan or takes another run's plan: refused where the
+   * workflow has no plan stage, and for a plan that was not approved or left no plan.json.
+   */
+  private async planStart(
+    machine: RunStateMachine,
+    input: InitRunInput,
+  ): Promise<
+    Result<
+      | {
+          readonly state: RunRecord["state"];
+          readonly approvals: RunRecord["approvals"];
+          readonly files: string[];
+        }
+      | undefined,
+      MetatorError
+    >
+  > {
+    if (!input.until && !input.planFrom) return ok(undefined);
+    if (input.until && input.planFrom)
+      return err(
+        MetatorError.usage(
+          "a run either stops at its plan (--until plan) or takes one (--plan-from), not both",
+        ),
+      );
+    const stages = machine.workflow.stages;
+    const cut = planCut(machine.workflow);
+    if (!cut)
+      return err(
+        MetatorError.usage(
+          `workflow ${machine.workflow.id} has no plan stage to ${input.until ? "stop at" : "start from"} (no stage writes plan.json)`,
+        ),
+      );
+    if (!input.planFrom) return ok(undefined);
+    const from = await this.repo.load(input.planFrom.run);
+    if (from.isErr()) return err(from.error);
+    const fromMachine = await machineFor(this.catalog, from.value.workflow.id);
+    const fromStages = fromMachine.isOk() ? fromMachine.value.machine.workflow.stages : stages;
+    const fromCut = planCut({ stages: fromStages }) ?? cut;
+    if (!planApproved(from.value.state, fromStages, fromCut))
+      return err(
+        MetatorError.usage(
+          `run ${input.planFrom.run} has no approved plan yet: it is ${from.value.state.status} at ${from.value.state.stage}`,
+          "Approve its plan first, or start without --plan-from.",
+        ),
+      );
+    const state = planFromState(machine.workflow.id, stages, cut, input.planFrom.from, input.planFrom.run);
+    const files = planFiles(stages, state.stage);
+    if (
+      !(await this.repo.exists(input.planFrom.run)) ||
+      !(await this.repo.hasFile(input.planFrom.run, "plan.json"))
+    )
+      return err(MetatorError.usage(`run ${input.planFrom.run} left no plan.json to start from`));
+    // The approvals of the gates it skips are the plan run's: who approved the plan stays on record.
+    const skipped = new Set(state.context.history.map((h) => h.stage));
+    const approvals = Object.fromEntries(
+      Object.entries(from.value.approvals).filter(([stage]) => skipped.has(stage)),
+    );
+    return ok({ state, approvals, files });
   }
 
   private async uniqueId(nowIso: string, workflow: string, task: string): Promise<string> {
@@ -296,6 +376,14 @@ export interface PlanKeeper {
   keep(runId: string, stage: string): Promise<Result<void, MetatorError>>;
 }
 
+/**
+ * Told when a run stops at its approved plan (`planned`): the Backlog item it plans takes the plan
+ * then, as the code is (ADR-0096). Declared here for the same reason.
+ */
+export interface PlanListener {
+  planned(runId: string): Promise<Result<unknown, MetatorError>>;
+}
+
 /** Asks a human gate's question when a run stands at one (`GateQuestions`); declared here for the same reason. */
 export interface GateAsker {
   ask(runId: string): Promise<Result<unknown, MetatorError>>;
@@ -312,6 +400,8 @@ export class AdvanceRun {
     private readonly gates?: GateAsker,
     /** A run sent back keeps what the stage it goes back to will revise (`PlanRevisions`). */
     private readonly revisions?: PlanKeeper,
+    /** A run that stopped `planned` hands its plan to the Backlog. */
+    private readonly plans?: PlanListener,
   ) {}
 
   async execute(input: {
@@ -369,12 +459,16 @@ export class AdvanceRun {
         { ...current, autonomy, state: next.value, approvals, updatedAt: now },
         now,
       );
+      const stopped = untilPlan(machine, gated.record);
       lines.push(
         `${now} · ${before} · ${describe(input.event)} → ${next.value.stage}${skipped ? " (optional stage skipped)" : ""}`,
         ...(autonomy === current.autonomy ? [] : [`${now} · autopilot · autonomy ${autonomy}`]),
         ...gated.lines,
+        ...(stopped === gated.record
+          ? []
+          : [`${now} · planned · the plan is approved; the run stops here (--until plan)`]),
       );
-      return ok(gated.record);
+      return ok(stopped);
     });
     if (updated.isErr()) return err(updated.error);
     for (const line of lines) {
@@ -399,6 +493,9 @@ export class AdvanceRun {
       const asked = await this.gates.ask(id.value);
       if (asked.isErr()) return err(asked.error);
     }
+    // Its plan as the code is now; a Backlog that cannot take it yet takes it when it is next read.
+    if (this.plans && updated.value.state.status === "planned" && seen.status === "active")
+      await this.plans.planned(id.value);
     return ok(view(updated.value, machine, this.repo));
   }
 }
@@ -468,6 +565,15 @@ export const AUTOPILOT_CHOICE = "autopilot";
  */
 const grantsOf = (machine: RunStateMachine, stage: string) =>
   machine.workflow.stages.find((s) => s.id === stage)?.grants ?? [];
+
+/** A run `--until plan` that reached the first stage past its plan ends there, `planned`. */
+function untilPlan(machine: RunStateMachine, record: RunRecord): RunRecord {
+  if (record.until !== "plan") return record;
+  const cut = planCut(machine.workflow);
+  if (!cut) return record;
+  const state = stopAtPlan(record.state, cut);
+  return state === record.state ? record : { ...record, state };
+}
 
 function skipGates(
   machine: RunStateMachine,

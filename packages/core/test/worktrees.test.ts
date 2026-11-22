@@ -217,7 +217,7 @@ describe("RunRecord v3 to v5", () => {
       },
     };
     const v2 = RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 2, ...base, approvals: {} }, "s");
-    expect([v2._unsafeUnwrap().worktree, RunRecordDocument.current]).toEqual([undefined, 7]);
+    expect([v2._unsafeUnwrap().worktree, RunRecordDocument.current]).toEqual([undefined, 8]);
     const v3 = RunRecordDocument.parse(
       { kind: "RunRecord", schemaVersion: 3, ...base, approvals: {}, parent: "20261001-mt-system-change-x" },
       "s",

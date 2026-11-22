@@ -19,7 +19,7 @@ export interface ChatNoticesDependencies {
 export interface ChatNotice {
   readonly paneId: string;
   readonly runId: string;
-  /** done, aborted, escalated, approval: what the line says happened. */
+  /** done, planned, aborted, escalated, approval: what the line says happened. */
   readonly event: string;
   readonly line: string;
 }
@@ -82,6 +82,13 @@ export class ChatNotices {
         kind: "done",
         key: "done",
         line: `[metator] ${what} is done. Tell the person what was done.`,
+      });
+    // A plan made on demand is ready (ADR-0096): the chat may offer to keep it in the Backlog.
+    if (status === "planned")
+      return ok({
+        kind: "planned",
+        key: "planned",
+        line: `[metator] ${what} has its plan approved and stopped there (plan ready). Ask the person whether to put the plan in the Backlog (\`metator issue from-plan --run ${runId}\`).`,
       });
     if (status === "aborted")
       return ok({

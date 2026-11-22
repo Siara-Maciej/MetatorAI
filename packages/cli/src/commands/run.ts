@@ -117,6 +117,20 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
         (v: string, all: string[]) => [...all, v],
         [] as string[],
       )
+      .addOption(
+        new Option("--until <stage>", "stop once the plan is approved: the run ends planned").choices([
+          "plan",
+        ]),
+      )
+      .option(
+        "--plan-from <run>",
+        "start from the approved plan of this run, at build (its earlier stages are skipped)",
+      )
+      .option(
+        "--plan-review",
+        "with --plan-from: start at the plan's review instead (the plan changed since)",
+        false,
+      )
       .action(
         action(
           async (opts: {
@@ -129,6 +143,9 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
             allowDirty: boolean;
             parent?: string;
             input: string[];
+            until?: "plan";
+            planFrom?: string;
+            planReview: boolean;
           }) => {
             const task = opts.task.trim();
             if (task === "") return { result: err(MetatorError.usage("--task must not be empty")) };
@@ -150,7 +167,15 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
                 task,
                 inputs,
                 setup: opts.setup,
-                ...defined({ autonomy: opts.autonomy, parent: opts.parent }),
+                ...defined({ autonomy: opts.autonomy, parent: opts.parent, until: opts.until }),
+                ...(opts.planFrom
+                  ? {
+                      planFrom: {
+                        run: opts.planFrom,
+                        from: opts.planReview ? ("review" as const) : ("build" as const),
+                      },
+                    }
+                  : {}),
                 ...(opts.worktree
                   ? { worktree: { base: opts.base, ...(opts.allowDirty ? { allowDirty: true } : {}) } }
                   : opts.allowDirty

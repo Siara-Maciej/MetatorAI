@@ -3,15 +3,19 @@
  * it here (its flow on the task's own page), approves it, and asks for changes on its approval card.
  * Its steps are grouped by repository with the run each started and that run's state.
  */
+import { useState } from "react";
 import type { SystemPlanView } from "../api.ts";
+import { systemRunOf } from "../board.ts";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import { clock, lintSummary, lookOf, plural, type Run, routeHash, sameRepo } from "../model.ts";
 import { Notice } from "./common.tsx";
 import { ProblemList } from "./doc-editor.tsx";
+import { FromPlanButton } from "./from-plan-button.tsx";
 import { PlanChanges } from "./plan-changes.tsx";
 import { PlanFlowGraph } from "./plan-flow-graph.tsx";
 import { RetryStepButton } from "./retry-step.tsx";
+import { StepDetailDialog } from "./step-detail.tsx";
 
 /** A repository as a person names it: the last part of its path. */
 const repoName = (path: string): string => path.replace(/\/+$/, "").split("/").pop() || path;
@@ -50,7 +54,7 @@ export function SystemPlanPanel({
         </p>
       </div>
     );
-  return <SystemPlanBody id={id} repo={repo} onOpenRun={onOpenRun} flow={flow} />;
+  return <SystemPlanBody id={id} repo={repo} onOpenRun={onOpenRun} flow={flow} runId={planOfRun?.runId} />;
 }
 
 function SystemPlanBody({
@@ -58,18 +62,23 @@ function SystemPlanBody({
   repo,
   onOpenRun,
   flow = true,
+  runId,
 }: {
   readonly id: string;
+  /** The system run whose plan it is, when the page knows it. */
+  readonly runId?: string | undefined;
   readonly repo: string | undefined;
   onOpenRun?: ((runId: string) => void) | undefined;
   readonly flow?: boolean | undefined;
 }) {
-  const { client } = useDaemon();
+  const { client, runs } = useDaemon();
   const plan = usePolled(`system-plan:${repo ?? ""}:${id}`, () => client.systemPlan(id, repo), 3000);
   const action = useAction(plan.reload);
   const view = plan.data;
   if (!view) return <div className="empty">{plan.error ?? `reading the system plan ${id}…`}</div>;
   const errors = view.lint.problems.filter((p) => p.severity === "error");
+  // "Create Backlog item" works from the system run: the plan, not run yet, lives in the Backlog.
+  const systemRun = runId ?? systemRunOf(view, runs)?.runId;
   const approve = () =>
     action.run((by) => client.approveSystemPlan(id, by, repo), {
       who: true,
@@ -104,6 +113,7 @@ function SystemPlanBody({
           · the planner writes this plan; ask it for changes on the plan's approval card
         </span>
         <span className="spacer" />
+        {systemRun ? <FromPlanButton runId={systemRun} repo={repo} action={action} /> : null}
         {view.status === "draft" || view.approval?.stale ? (
           <button
             type="button"
@@ -141,9 +151,14 @@ export function SystemPlanContent({
   readonly foldSteps?: boolean | undefined;
 }) {
   const { runs } = useDaemon();
+  // The step whose tile was clicked: its detail.
+  const [step, setStep] = useState<string>();
   const repos = [...new Set(view.steps.map((s) => s.repo))];
   return (
     <>
+      {step ? (
+        <StepDetailDialog view={view} stepId={step} repo={repo} onClose={() => setStep(undefined)} />
+      ) : null}
       <ProblemList problems={view.lint.problems} testId="system-plan-problems" />
       <PlanChanges changes={view.changes} previousAt={view.previous?.at} />
       {flow ? (
@@ -154,19 +169,7 @@ export function SystemPlanContent({
               No order: the steps wait on each other in a circle (the lint says where).
             </div>
           ) : (
-            <PlanFlowGraph
-              view={view}
-              runs={runs}
-              onOpenRun={(runId) => {
-                if (onOpenRun) onOpenRun(runId);
-                else window.location.hash = routeHash({ screen: "run", runId, tab: "overview" });
-              }}
-              onOpenStep={(stepId) =>
-                document
-                  .querySelector(`[data-testid="system-step-${stepId}"]`)
-                  ?.scrollIntoView({ block: "center" })
-              }
-            />
+            <PlanFlowGraph view={view} runs={runs} onOpenStep={setStep} />
           )}
         </section>
       ) : (

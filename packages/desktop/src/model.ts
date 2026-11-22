@@ -52,9 +52,13 @@ export function withTerminalAsks(
   });
 }
 
-/** Done or aborted: nothing is left to do. An escalated run is not finished, it waits for a person (F1). */
+/**
+ * Done, aborted or planned: nothing is left to do. A `planned` run (round 17, `--until plan`) ended
+ * once its plan was approved; Implement starts the work from it. An escalated run is not finished,
+ * it waits for a person (F1).
+ */
 export const isFinished = (r: Pick<RunOverview, "status">): boolean =>
-  r.status === "done" || r.status === "aborted";
+  r.status === "done" || r.status === "aborted" || r.status === "planned";
 
 /** The button of a start refused for uncommitted changes. */
 export const START_FROM_COMMIT = "Start from the last commit";
@@ -304,7 +308,8 @@ export type Route =
   | { readonly screen: "overview"; readonly tab: OverviewTab }
   | { readonly screen: "mrs"; readonly id?: string }
   | { readonly screen: "settings" }
-  | { readonly screen: "backlog" }
+  /** The Backlog, with one item chosen (round 17: a plan view's "Open its Backlog item"). */
+  | { readonly screen: "backlog"; readonly id?: string }
   | { readonly screen: "board"; readonly task?: string }
   /** A thread (round 16): its chat terminal as the main view. */
   | { readonly screen: "thread"; readonly id: string };
@@ -385,7 +390,7 @@ export function parseRoute(hash: string): Route {
       if (arg === "reviews") return parts[2] ? { screen: "mrs", id: parts[2] } : { screen: "mrs" };
       return { screen: "settings" };
     case "backlog":
-      return { screen: "backlog" };
+      return arg ? { screen: "backlog", id: arg } : { screen: "backlog" };
     case "board":
       return arg ? { screen: "board", task: arg } : { screen: "board" };
     case "thread":
@@ -421,6 +426,8 @@ export function routeHash(route: Route): string {
       return `#/board${route.task ? `/${encodeURIComponent(route.task)}` : ""}`;
     case "thread":
       return `#/thread/${encodeURIComponent(route.id)}`;
+    case "backlog":
+      return `#/backlog${route.id ? `/${encodeURIComponent(route.id)}` : ""}`;
     case "overview":
       return route.tab === "daemon" ? "#/settings/system" : `#/settings/system/${route.tab}`;
     case "grid":
@@ -1029,6 +1036,7 @@ export const LOOKS = {
     working: { glyph: "⋮", tone: "violet" },
     escalated: { glyph: "!", tone: "red" },
     done: { glyph: "✓", tone: "green" },
+    "plan ready": { glyph: "✓", tone: "teal" },
     aborted: { glyph: "⊘", tone: "faint" },
     idle: { glyph: "·", tone: "faint" },
   },
@@ -1075,6 +1083,7 @@ export function firstLevel(fine: string | undefined): FirstLevel {
     case "working":
       return "working";
     case "done":
+    case "plan ready":
     case "aborted":
     case "finished":
       return "done";
@@ -1177,7 +1186,9 @@ export const runPhase = (r: Pick<RunOverview, "status">): "active" | "escalated"
 export const finishedText = (r: Pick<RunOverview, "status" | "stage" | "reason" | "elapsedMs">): string =>
   r.status === "aborted"
     ? `Closed as aborted at ${r.stage}${r.reason ? `: ${r.reason}` : ""}.`
-    : `Done: every stage passed, in ${duration(r.elapsedMs)}.`;
+    : r.status === "planned"
+      ? `Plan ready: approved in ${duration(r.elapsedMs)}. Implement starts the work from it.`
+      : `Done: every stage passed, in ${duration(r.elapsedMs)}.`;
 
 /** Events grouped by the stage they happened in, in the order the stages first appear. */
 export function byStage<E extends Pick<Activity, "stage">>(entries: readonly E[]): [string, E[]][] {
@@ -1430,16 +1441,18 @@ export function shortRunId(runId: string): string {
 }
 
 /** What a run reads as, in the sidebar and everywhere a run is one row. */
-export type RunShown = "needs you" | "working" | "escalated" | "done" | "aborted" | "idle";
+export type RunShown = "needs you" | "working" | "escalated" | "done" | "plan ready" | "aborted" | "idle";
 
 /**
- * The state of a run in one of five words. A finished run reads `done` (its status wins over a
+ * The state of a run in one of six words. A finished run reads `done` (its status wins over a
  * pane that is still alive); `isNews` says whether this person has seen it since. An aborted run
  * reads `aborted`, its own word: it ended without its work. A stopped run is `idle`.
  */
 export function runStateOf(run: Pick<RunOverview, "attention" | "status">): RunShown {
   // The run's status wins over what its panes or its drive still say: a finished run is finished.
   if (run.status === "done") return "done";
+  // A run made to plan only (`--until plan`): its plan is approved and waits for Implement.
+  if (run.status === "planned") return "plan ready";
   if (run.status === "aborted") return "aborted";
   if (run.status === "escalated" || run.attention === "escalated") return "escalated";
   if (run.attention === "you") return "needs you";
@@ -1462,6 +1475,7 @@ const RUN_RANK: Readonly<Record<RunShown, number>> = {
   escalated: 1,
   working: 2,
   done: 3,
+  "plan ready": 3,
   idle: 4,
   aborted: 5,
 };

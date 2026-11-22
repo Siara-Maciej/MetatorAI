@@ -20,6 +20,7 @@ import type {
   AskQuestion,
   AuditAgents,
   BackgroundProcess,
+  BacklogWork,
   BaseArchitectureFacts,
   BinResolver,
   BranchHistory,
@@ -50,6 +51,7 @@ import type {
   ComputeAffected,
   Conductor,
   ContainerRuntime,
+  ContentHasher,
   ContinueTask,
   ContractDetector,
   ContractDiffer,
@@ -116,6 +118,7 @@ import type {
   InstallCanon,
   InteractiveHost,
   InventoryMemory,
+  IssueSnapshots,
   Issues,
   JudgeFindings,
   KnowledgeFiles,
@@ -227,6 +230,7 @@ import type {
   SourceFiles,
   StartDrive,
   StartRun,
+  StartSystemStep,
   StyleImports,
   Supervisor,
   SupervisorDependencies,
@@ -324,6 +328,9 @@ export interface Cradle {
   userConfig: UserConfigStore;
   optionStore: OptionStore;
   issues: Issues;
+  contentHasher: ContentHasher;
+  issueSnapshots: IssueSnapshots;
+  backlogWork: BacklogWork;
   mcpToolCaller: McpToolCaller;
   codeHost: CodeHost;
   scanIntake: ScanIntake;
@@ -488,6 +495,7 @@ export interface Cradle {
   runSystemPlan: RunSystemPlan;
   systemPlanStatus: SystemPlanStatus;
   retrySystemStep: RetrySystemStep;
+  startSystemStep: StartSystemStep;
   systemRunGate: SystemRunGate;
   runSystemEvals: RunSystemEvals;
   runArchEvals: RunArchEvals;

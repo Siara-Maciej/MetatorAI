@@ -50,6 +50,7 @@ describe("OptionStore", () => {
     expect(view.options.length).toBeGreaterThan(30);
     expect(view.options.every((o) => o.source === "default" || o.source === "repo")).toBe(true);
     expect(view.groups.map((g) => g.id)).toEqual([
+      "backlog",
       "editor",
       "issues",
       "keys",

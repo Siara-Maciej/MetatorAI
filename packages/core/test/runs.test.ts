@@ -98,7 +98,7 @@ describe("run lifecycle", () => {
     const state = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     expect(state).toMatchObject({
       kind: "RunRecord",
-      schemaVersion: 7,
+      schemaVersion: 8,
       workflow: { id: "feature", revision: 1 },
       approvals: {},
       createdAt: "2026-10-25T09:00:00.000Z",
@@ -207,7 +207,7 @@ describe("run lifecycle", () => {
     await w.fs.write(run.files.state, JSON.stringify(headerless));
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
     expect(error.code).toBe("INVALID_ARTIFACT");
-    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 7" at the top of the document.');
+    expect(error.hint).toBe('Expected "kind: RunRecord" and "schemaVersion: 8" at the top of the document.');
   });
 
   test("state.json from a newer MetatorAI is refused, not misread", async () => {
@@ -216,7 +216,7 @@ describe("run lifecycle", () => {
     const saved = JSON.parse((await w.fs.read(run.files.state))._unsafeUnwrap());
     await w.fs.write(run.files.state, JSON.stringify({ ...saved, schemaVersion: 99 }));
     const error = (await w.status.execute({}))._unsafeUnwrapErr();
-    expect(error.message).toContain("schemaVersion 99 is newer than supported (7)");
+    expect(error.message).toContain("schemaVersion 99 is newer than supported (8)");
     expect(error.hint).toContain("Upgrade metator-ai");
   });
 

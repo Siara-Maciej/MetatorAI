@@ -190,6 +190,37 @@ export class RunRepository {
     );
   }
 
+  /** A file of a run's directory, undefined when it has none. */
+  async readFile(runId: string, file: string): Promise<Result<string | undefined, MetatorError>> {
+    const path = `${this.runDir(runId)}/${file}`;
+    if (!(await this.fs.exists(path))) return ok(undefined);
+    return this.fs.read(path);
+  }
+
+  /** Whether a run's directory holds this file. */
+  hasFile(runId: string, file: string): Promise<boolean> {
+    return this.fs.exists(`${this.runDir(runId)}/${file}`);
+  }
+
+  /** Copies the files of one run into another (a plan a new run starts from); a missing one is left out. */
+  async copyFiles(
+    from: string,
+    to: string,
+    files: readonly string[],
+  ): Promise<Result<readonly string[], MetatorError>> {
+    const copied: string[] = [];
+    for (const file of files) {
+      const source = `${this.runDir(from)}/${file}`;
+      if (!(await this.fs.exists(source))) continue;
+      const text = await this.fs.read(source);
+      if (text.isErr()) return err(text.error);
+      const written = await this.fs.write(`${this.runDir(to)}/${file}`, text.value);
+      if (written.isErr()) return err(written.error);
+      copied.push(file);
+    }
+    return ok(copied);
+  }
+
   /** One line added at the end in one step: two writers never lose each other's line (R5). */
   async appendLog(runId: string, line: string): Promise<Result<void, MetatorError>> {
     const file = this.logFile(runId);

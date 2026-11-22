@@ -21,6 +21,7 @@ import {
   partOfLine,
 } from "../board.ts";
 import { Notice } from "../components/common.tsx";
+import { StepDetailOf } from "../components/step-detail.tsx";
 import { useDaemon, usePolled } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
 import { blockedReason, type FirstLevel, lookOf, routeHash, sameRepo, workflowChoice } from "../model.ts";
@@ -139,6 +140,8 @@ export function BoardScreen({
   useEffect(() => {
     if (!openKey) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
+      // A step's detail has the keys while it is open: Escape closes it, not the task's board.
+      if (document.querySelector("dialog[open]")) return;
       const field = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
       if (e.key === "Escape" || (e.key === "Backspace" && !field)) {
         e.preventDefault();
@@ -149,13 +152,17 @@ export function BoardScreen({
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  // A step not started opens its detail (round 17): what it has, and "Plan this step".
+  const [stepOpen, setStepOpen] = useState<{ planId: string; stepId: string; repo?: string | undefined }>();
   const openCard = (c: BoardCard) => {
     if (c.runId) onOpenRun(c.runId);
+    else if (c.kind === "step" && c.planId && c.stepId)
+      setStepOpen({ planId: c.planId, stepId: c.stepId, repo: c.planRepo });
     else if (c.kind === "step")
       window.location.hash = c.systemRunId
         ? routeHash({ screen: "run", runId: c.systemRunId, tab: "overview" })
         : routeHash({ screen: "overview", tab: "system" });
-    else window.location.hash = routeHash({ screen: "backlog" });
+    else window.location.hash = routeHash({ screen: "backlog", ...(c.issueId ? { id: c.issueId } : {}) });
   };
   const openTask = (t: WorkTask) => {
     // A task made of steps opens its board; a run of its own opens its page; a backlog task the Backlog.
@@ -223,6 +230,14 @@ export function BoardScreen({
   };
   return (
     <div className="board-screen" data-testid="board">
+      {stepOpen ? (
+        <StepDetailOf
+          planId={stepOpen.planId}
+          stepId={stepOpen.stepId}
+          repo={stepOpen.repo}
+          onClose={() => setStepOpen(undefined)}
+        />
+      ) : null}
       <section className="board-filters" aria-label="board filters">
         <nav className="breadcrumb" aria-label="where on the board">
           {opened ? (
