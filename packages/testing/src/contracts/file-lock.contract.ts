@@ -36,13 +36,20 @@ export function fileLockContract(name: string, make: () => Promise<FileLock>): v
       const lock = await make();
       const order: string[] = [];
       let releaseA: () => void = () => {};
+      let heldA: () => void = () => {};
+      const aHeld = new Promise<void>((resolve) => {
+        heldA = resolve;
+      });
       const a = lock.hold("state/a.json", async () => {
         await new Promise<void>((resolve) => {
           releaseA = resolve;
+          heldA();
         });
         order.push("a");
         return ok(undefined);
       });
+      // b is taken only once a holds its lock: a release sent before a held it would be lost.
+      await aHeld;
       await lock.hold("state/b.json", async () => {
         order.push("b");
         return ok(undefined);
