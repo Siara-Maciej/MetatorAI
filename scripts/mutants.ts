@@ -1793,9 +1793,21 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/hook.ts",
-    from: "if (merging) return deny(MERGE_IS_A_PERSONS(merging));",
-    to: "",
-    why: "a merge into the head branch is denied with any approval",
+    from: "if (merge(argv)) asked.push({ kind: MERGE_KIND, what: shown(argv) });",
+    to: "if (false) asked.push({ kind: MERGE_KIND, what: shown(argv) });",
+    why: "a merge asks, whatever the lists allow and a push approval covers",
+  },
+  {
+    file: "packages/core/src/domain/hook.ts",
+    from: 'if (hook.tool.startsWith("mcp__") && mergeAttempt(hook)) asked.push',
+    to: "if (false) asked.push",
+    why: "an MCP tool that merges asks too",
+  },
+  {
+    file: "packages/core/src/application/guard.ts",
+    from: "[...new Set([...askKinds(this.guard.commands), MERGE_KIND])]",
+    to: "askKinds(this.guard.commands)",
+    why: 'the person\'s word "merge" is a consent whatever the ask list holds',
   },
   {
     file: "packages/core/src/domain/hook.ts",
@@ -1805,9 +1817,9 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-claude/src/claude-agent-host.ts",
-    from: 'if (merging) return permissionResponse({ decision: "deny", reason: MERGE_IS_A_PERSONS(merging) });',
-    to: "",
-    why: "the in-process hook denies a merge too",
+    from: 'decision: "ask",\n          reason: `\\`${merging}\\` merges',
+    to: 'decision: "allow",\n          reason: `\\`${merging}\\` merges',
+    why: "the in-process hook puts a merge to the person",
   },
   {
     file: "packages/core/src/application/plans.ts",

@@ -319,8 +319,9 @@ describe("metator guard (real hook processes)", () => {
     const commit = { tool_name: "Bash", tool_input: { command: "git commit -m x" } };
     expect((await hook(["guard", "pre-tool"], commit, repo.root, { METATOR_DRIVEN: "1" })).json).toBeNull();
 
-    // The push approval opens the run's branch and a request, never a merge into the head branch
-    // (ADR-0099): by the code host's CLI, its MCP tool, or a push straight to the branch.
+    // The push approval opens the run's branch and a request; a merge waits for the person's
+    // consent (ADR-0094): by the code host's CLI, its MCP tool, or a push straight to the branch.
+    // A drive with no terminal cannot ask, so it is refused there.
     for (const call of [
       { tool_name: "Bash", tool_input: { command: "gh pr merge 12 --squash" } },
       { tool_name: "Bash", tool_input: { command: "glab mr merge 7" } },
@@ -328,8 +329,12 @@ describe("metator guard (real hook processes)", () => {
       { tool_name: "mcp__github__merge_pull_request", tool_input: { pullNumber: 12 } },
     ]) {
       const merged = decision(await hook(["guard", "pre-tool"], call, repo.root));
-      expect([call, merged?.permissionDecision]).toEqual([call, "deny"]);
-      expect(merged?.permissionDecisionReason).toContain("a person");
+      expect([call, merged?.permissionDecision]).toEqual([call, "ask"]);
+      expect(merged?.permissionDecisionReason).toContain('("merge")');
+      const unattended = decision(
+        await hook(["guard", "pre-tool"], call, repo.root, { METATOR_DRIVEN: "1" }),
+      );
+      expect([call, unattended?.permissionDecision]).toEqual([call, "deny"]);
     }
     const request = { tool_name: "Bash", tool_input: { command: "gh pr create --fill" } };
     expect((await hook(["guard", "pre-tool"], request, repo.root)).json).toBeNull();
@@ -423,9 +428,9 @@ describe("metator generate --hooks writes both hosts' hook configuration", () =>
     // The person's rules stay; what cannot be taken back is denied before any hook or classifier.
     const permissions = claude.permissions as { allow: string[]; deny: string[] };
     expect(permissions.allow).toEqual(["Bash(ls)"]);
-    expect(permissions.deny).toEqual(
-      expect.arrayContaining(["Read(.env)", "Bash(gh pr merge *)", "mcp__*__merge_pull_request"]),
-    );
+    expect(permissions.deny).toEqual(expect.arrayContaining(["Read(.env)", "Bash(git reset --hard *)"]));
+    // A merge asks the person (ADR-0094): a deny rule would refuse it even after their consent.
+    expect(permissions.deny.filter((r) => r.includes("merge"))).toEqual([]);
     expect(claude.hooks.PreToolUse?.[0]?.hooks[0]?.command).toBe("npx metator guard pre-tool");
     // Both hosts hand the person's own message to the same guard (the consent in words).
     expect(claude.hooks.UserPromptSubmit?.[0]?.hooks[0]?.command).toBe("npx metator guard user-prompt");

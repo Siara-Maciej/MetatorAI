@@ -38,6 +38,10 @@ Stan dzisiejszy:
 - Poziomy „nigdy” i „za zgodą” są sprawdzane przed tą listą i zawsze wygrywają. Łańcuch komend przechodzi tylko wtedy, gdy przechodzi każda jego część.
 - Reguły są zapisane raz, w domenie (`packages/core/src/domain/unprompted.ts`), i działają tak samo dla obu hostów.
 
+## Doprecyzowanie właściciela (2026-11-22): każde scalenie za zgodą osoby
+- Scalenie jest na poziomie „za zgodą osoby”, także scalenie do gałęzi głównej (`gh pr merge`, `glab mr merge|accept`, API `/merge`, narzędzia MCP scalające, `git push` na `main`/`master`). Zastępuje to ADR-0099, który robił z niego poziom „nigdy”.
+- Zgoda na scalenie to kliknięcie Yes/No albo słowo „merge” w czacie; zgoda na `push` ani zatwierdzony `push` runu jej nie obejmują.
+
 ## Konsekwencje
 - Poza runem kończy się „tryb swobodny” z ADR-0038 dla commita, pusha, merge'a i rebase'a: agent rozmowy ich nie wykona bez zgody osoby.
 - Lista przenosi się z kodu (`destructive`, `externalAction`) do konfiguracji. To nowa wersja dokumentu konfiguracji z migracją, a wartości domyślne muszą dać co najmniej dzisiejszą ochronę.

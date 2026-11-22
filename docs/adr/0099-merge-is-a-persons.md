@@ -1,8 +1,18 @@
 # ADR-0099: Scalenie do gałęzi głównej należy do człowieka; agent co najwyżej otwiera MR/PR
 
-- Status: Accepted
+- Status: Superseded by ADR-0094 (decyzja właściciela z 22 listopada: każde scalenie za zgodą osoby)
 - Data: 2026-11-15
 - Numer: na gałęzi `claude/determined-galileo-4hfn27` ten ADR miał numer 0085, zajęty już w głównej linii; przenumerowany decyzją właściciela z 2026-11-22.
+
+## Zastąpienie (2026-11-22)
+Właściciel zdecydował 2026-11-22: scalenie nie jest poziomem „nigdy”, tylko poziomem „za zgodą osoby” z ADR-0094, także scalenie do gałęzi głównej. Agent może scalić request po zgodzie osoby (kliknięcie Yes/No w oknie zgody hosta albo słowo „merge” w czacie). Z tego ADR zostaje w kodzie:
+- rozpoznanie scalenia w jednym miejscu (`mergeAttempt` i `merge` w `packages/core/src/domain/hook.ts`): `gh pr merge`, `glab mr merge|accept`, wywołania API `/merge`, narzędzia MCP scalające i włączające auto-merge, `git push` na gałąź z `HEAD_BRANCHES`;
+- zgoda nadana na co innego (zatwierdzony `push` runu, zgoda na `push`) nie obejmuje scalenia, a lista `guard.commands.allow` go nie przepuszcza; lista `never` może go zabronić;
+- w sesji, w której nikogo nie da się zapytać, scalenie jest odrzucane;
+- host Claude w procesie (`ClaudeAgentHost`) zawsze kieruje scalenie do osoby.
+Reguły deny hosta (ADR-0100) nie obejmują już scaleń: reguła deny odrzuciłaby scalenie także po zgodzie.
+
+Treść poniżej opisuje decyzję z 2026-11-15 i zostaje jako historia.
 
 ## Kontekst
 Decyzja właściciela z 2026-11-15: scalenie do gałęzi głównej (head) nigdy nie może nastąpić z ręki agenta ani automatu MetatorAI. Najdalej idąca autonomia to samodzielne utworzenie merge requestu (GitLab) lub pull requestu (GitHub).

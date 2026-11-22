@@ -13,7 +13,6 @@ import {
   declaredWithDocument,
   deliveryCommand,
   type HostUsage,
-  MERGE_IS_A_PERSONS,
   mergeAttempt,
   permissionResponse,
   RunRecordDocument,
@@ -222,10 +221,14 @@ export class ClaudeAgentHost implements AgentHost {
     const canUseTool = async (tool: string, input: Record<string, unknown>): Promise<Permission> => {
       if (tool === "AskUserQuestion")
         return { behavior: "allow", updatedInput: await answerQuestions(input, ask) };
-      if (needsNoPerson(tool, input)) return { behavior: "allow", updatedInput: input };
+      // A merge always goes to the person, whatever needs no person otherwise.
+      const merging = mergeAttempt({ tool, input, stopActive: false });
+      if (!merging && needsNoPerson(tool, input)) return { behavior: "allow", updatedInput: input };
       const answer = await ask({
         source: "permission",
-        prompt: `${task.agent} wants to use ${tool}: ${described(input)}`,
+        prompt: merging
+          ? `${task.agent} wants to merge (${merging}): ${described(input)}`
+          : `${task.agent} wants to use ${tool}: ${described(input)}`,
         options: [
           { label: "Allow", description: "Run this tool call" },
           { label: "Deny", description: "Refuse it; the agent is told why" },
@@ -253,9 +256,14 @@ export class ClaudeAgentHost implements AgentHost {
           decision: "deny",
           reason: `${file} may hold secrets; agents do not read it.`,
         });
-      // The head branch moves only by a person's merge (ADR-0099), whatever a person allowed here.
+      // Every merge is the person's to consent to (ADR-0094): the host's prompt, put to the person
+      // by \`canUseTool\`, whatever the session's rules would let through.
       const merging = mergeAttempt(hook);
-      if (merging) return permissionResponse({ decision: "deny", reason: MERGE_IS_A_PERSONS(merging) });
+      if (merging)
+        return permissionResponse({
+          decision: "ask",
+          reason: `\`${merging}\` merges: it needs the person's consent.`,
+        });
       // The drive moves a run it carries: an agent that advances it makes the drive's own event
       // land on the next stage, which is then skipped.
       const control = task.driven ? runControlCommand(hook) : undefined;

@@ -376,6 +376,24 @@ describe("guarded commands and the person's consent (ADR-0094)", () => {
     expect(decision((await w.preTool.execute(other))._unsafeUnwrap()).permissionDecision).toBe("ask");
   });
 
+  test('a merge at the code host passes on the person\'s word "merge", also with no `git merge` on the ask list', async () => {
+    const w = world();
+    const pane = { pane: "w1:p1" };
+    const merge = bash("gh pr merge 12 --squash");
+    expect(decision((await w.preTool.execute(merge, pane))._unsafeUnwrap()).permissionDecision).toBe("ask");
+    const lists = new GuardUserPrompt(w.consents, {
+      ...DEFAULT_GUARD_CONFIG,
+      commands: { never: [], ask: ["git commit"], allow: [] },
+    });
+    expect((await lists.execute(prompt("merge it"), pane))._unsafeUnwrap()).not.toBeNull();
+    expect(decision((await w.preTool.execute(merge, pane))._unsafeUnwrap())).toMatchObject({
+      permissionDecision: "allow",
+      permissionDecisionReason: "the person consented to merge in the chat",
+    });
+    // Used once.
+    expect(decision((await w.preTool.execute(merge, pane))._unsafeUnwrap()).permissionDecision).toBe("ask");
+  });
+
   test("a line the daemon typed itself is never a consent; a person's answer to a card, typed for them, is their word", async () => {
     const w = world();
     const pane = { pane: "w1:p1" };

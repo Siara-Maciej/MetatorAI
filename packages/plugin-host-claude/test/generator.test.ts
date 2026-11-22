@@ -97,7 +97,7 @@ describe("ClaudeGenerator.hooks (.claude/settings.json)", () => {
     expect(settings.hooks.PostToolUse?.[0]?.matcher?.split("|")).toContain("Write");
   });
 
-  test("what cannot be taken back is a deny rule too: secrets, merges and lost work (ADR-0100)", () => {
+  test("what cannot be taken back is a deny rule too: secrets and lost work, never a merge (ADR-0100, ADR-0094)", () => {
     type Denied = { permissions: { allow?: string[]; deny: string[] } };
     const deny = (existing?: string) =>
       (JSON.parse(new ClaudeGenerator().hooks("bun run metator", existing)._unsafeUnwrap().content) as Denied)
@@ -111,15 +111,12 @@ describe("ClaudeGenerator.hooks (.claude/settings.json)", () => {
     // A command with and without arguments; MCP tools of any server.
     expect(rules).toEqual(
       expect.arrayContaining([
-        "Bash(gh pr merge)",
-        "Bash(gh pr merge *)",
-        "Bash(glab mr merge *)",
         "Bash(git push --force *)",
         "Bash(git reset --hard *)",
-        "mcp__*__merge_pull_request",
-        "mcp__*__enable_pr_auto_merge",
       ]),
     );
+    // A merge asks the person: a deny rule would refuse it after their consent too.
+    expect(rules.filter((r) => r.includes("merge"))).toEqual([]);
     expect(rules.some((r) => r.includes("pr create"))).toBe(false);
     // The person's own rules stay, ours are added once.
     const existing = JSON.stringify({

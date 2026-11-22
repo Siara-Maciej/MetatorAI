@@ -21,6 +21,8 @@ import {
   commandsOfHook,
   contextResponse,
   isEditTool,
+  MERGE_KIND,
+  mergeAttempt,
   permissionResponse,
   preToolPolicy,
   readHookInput,
@@ -119,11 +121,12 @@ export class GuardPreTool {
     const who = session.pane ?? hook.sessionId ?? "session";
     const shell = commandsOfHook(hook);
     const guarded = shell.map((argv) => ({ argv, verdict: guardCommand(argv, guard.commands) }));
-    // The person's consents and a commit's debug changes are looked up only for a command that asks.
+    // The person's consents and a commit's debug changes are looked up only for a command that
+    // asks: one on the config's `ask` list, or a merge, which always asks.
     const asks = guarded.filter((g) => g.verdict.level === "ask");
     let consents: readonly string[] = [];
     let debugFiles: readonly string[] = [];
-    if (asks.length > 0 && this.commands) {
+    if ((asks.length > 0 || mergeAttempt(hook) !== undefined) && this.commands) {
       const held = await this.commands.consents.valid(who);
       if (held.isErr()) return err(held.error);
       consents = held.value;
@@ -223,7 +226,8 @@ export class GuardUserPrompt {
     // A line the daemon typed itself (a relay, a nudge, a notice) reaches this hook like any
     // prompt: it is never a consent. A person's answer to a card, typed for them, is their word.
     if (session.typedBy === "metator") return ok(null);
-    const kinds = consentsIn(message, askKinds(this.guard.commands));
+    // Every merge asks (ADR-0094), whatever the lists say: "merge" is always a consent to give.
+    const kinds = consentsIn(message, [...new Set([...askKinds(this.guard.commands), MERGE_KIND])]);
     if (kinds.length === 0) return ok(null);
     const granted = [
       ...kinds,

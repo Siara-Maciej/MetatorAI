@@ -120,10 +120,10 @@ describe("preToolPolicy", () => {
     );
   });
 
-  test("a merge into the head branch is never an agent's, with any approval (ADR-0099)", () => {
+  test("every merge waits for the person's consent, whatever else was approved (ADR-0094; ADR-0099 superseded)", () => {
     const by = { by: "maciej", at: AT };
     const approved = run({ push: by, comment: by, delivery: by });
-    for (const command of [
+    const merges = [
       "gh pr merge 12 --squash",
       "gh pr merge --auto",
       "glab mr merge 7",
@@ -135,16 +135,52 @@ describe("preToolPolicy", () => {
       "git push -u origin feature:refs/heads/main",
       "git push origin +main",
       "bun test && gh pr merge 12",
-    ])
-      for (const ctx of [free, approved])
-        expect([command, decide(hook("Bash", { command }), ctx)]).toEqual([command, "deny"]);
-    for (const tool of [
+    ];
+    const tools = [
       "mcp__github__merge_pull_request",
       "mcp__github__enable_pr_auto_merge",
       "mcp__gitlab__merge_merge_request",
       "mcp__gitlab__accept_merge_request",
-    ])
-      for (const ctx of [free, approved]) expect([tool, decide(hook(tool, {}), ctx)]).toEqual([tool, "deny"]);
+    ];
+    // Asked, with or without a run, and a push approval or a push consent does not cover it.
+    const pushed = { ...free, consents: ["push"] };
+    for (const command of merges)
+      for (const ctx of [free, approved, pushed])
+        expect([command, decide(hook("Bash", { command }), ctx)]).toEqual([command, "ask"]);
+    for (const tool of tools)
+      for (const ctx of [free, approved, pushed])
+        expect([tool, decide(hook(tool, {}), ctx)]).toEqual([tool, "ask"]);
+    const asked = preToolPolicy(hook("Bash", { command: "gh pr merge 12" }), free);
+    expect(asked.reason).toBe(
+      '`gh pr merge 12` needs your consent: answer here, or say it in the chat ("merge").',
+    );
+    expect(preToolPolicy(hook("mcp__github__merge_pull_request", {}), approved).reason).toContain(
+      "`metator run approve merge --by <user>`",
+    );
+    // The person's word ("merge") lets one through, and is used up by it.
+    const consented = { ...free, consents: ["merge"] };
+    expect(preToolPolicy(hook("Bash", { command: "gh pr merge 12" }), consented)).toEqual({
+      decision: "allow",
+      reason: "the person consented to merge in the chat",
+      consents: ["merge"],
+    });
+    expect(decide(hook("mcp__github__merge_pull_request", {}), consented)).toBe("allow");
+    // A run's own `merge` approval is a person's too.
+    expect(decide(hook("Bash", { command: "gh pr merge 12" }), run({ merge: by }))).toBe("allow");
+    // Nobody to ask: refused, saying so.
+    const headless = preToolPolicy(hook("Bash", { command: "git push origin main" }), {
+      ...approved,
+      headless: true,
+    });
+    expect([headless.decision, headless.reason]).toEqual([
+      "deny",
+      "merge needs the person's consent, and nobody can be asked in this session: end with STATUS: blocked and say what to merge.",
+    ]);
+    // The lists cannot let a merge through unasked; they can forbid one.
+    const lists = { never: [], ask: [], allow: ["gh pr merge", "git push"] };
+    expect(decide(hook("Bash", { command: "gh pr merge 12" }), { ...free, commands: lists })).toBe("ask");
+    const forbid = { never: ["gh pr merge"], ask: [], allow: [] };
+    expect(decide(hook("Bash", { command: "gh pr merge 12" }), { ...free, commands: forbid })).toBe("deny");
     // Opening the request and pushing the run's own branch stay with the push approval.
     for (const command of [
       "gh pr create --fill",
@@ -156,7 +192,6 @@ describe("preToolPolicy", () => {
       expect([command, decide(hook("Bash", { command }), approved)]).toEqual([command, "allow"]);
     for (const tool of ["mcp__github__create_pull_request", "mcp__github__update_pull_request_branch"])
       expect([tool, decide(hook(tool, {}), approved)]).toEqual([tool, "allow"]);
-    expect(preToolPolicy(hook("Bash", { command: "gh pr merge 12" }), approved).reason).toContain("a person");
   });
 
   test("without an active run, everything else is allowed (free mode)", () => {

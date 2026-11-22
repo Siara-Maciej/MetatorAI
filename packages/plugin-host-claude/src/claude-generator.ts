@@ -9,7 +9,6 @@ import {
   type HostGenerator,
   hostAgentFile,
   isGuardCommand,
-  MERGE_MCP_TOOLS,
   MetatorError,
   type ModelTier,
   metatorGroups,
@@ -135,7 +134,7 @@ function sandboxSettings(existing: unknown, policy: SandboxPolicy): Record<strin
 }
 
 /**
- * Claude Code deny rules for secrets, merges and commands that lose work. A path without a slash
+ * Claude Code deny rules for secrets and commands that lose work (a merge asks, ADR-0094). A path without a slash
  * matches at any depth; a `!` rule carves its files out of the rules before it, so the examples
  * follow the patterns they belong to. A command is listed with and without arguments.
  */
@@ -146,7 +145,6 @@ function denyRules(): string[] {
   return [
     ...[...secrets, ...examples].map((g) => `Read(${name(g)})`),
     ...DENIED_COMMANDS.flatMap((c) => [`Bash(${c})`, `Bash(${c} *)`]),
-    ...MERGE_MCP_TOOLS.map((t) => `mcp__*__${t}`),
   ];
 }
 

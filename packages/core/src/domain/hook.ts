@@ -190,12 +190,16 @@ function mcpAction(tool: string): "push" | "comment" | undefined {
   return undefined;
 }
 
-/** Branches a change reaches only through a person's merge of a pull (merge) request. */
+/** Branches a change reaches only by a merge: a push straight to one is a merge too. */
 export const HEAD_BRANCHES: readonly string[] = ["main", "master"];
 
-/** What agents hear when they try to merge: no approval and no autonomy level changes it (ADR-0099). */
-export const MERGE_IS_A_PERSONS = (what: string) =>
-  `${what} is blocked: merging into the head branch is a person's, whatever was approved. Open a pull (merge) request and stop there.`;
+/**
+ * What a consent to a merge is given for. Every merge waits for the person's consent (ADR-0094's
+ * `ask`): a click on the host's prompt or their word in the chat ("merge"). An approval given for
+ * something else (a run's `push`, a consent to push) never covers one, and in a session nobody can
+ * be asked in, a merge is refused. ADR-0099 made it `never`; the owner superseded that (2026-11-22).
+ */
+export const MERGE_KIND = "merge";
 
 /** Where a `git push` argument lands: `src:dst`, `+name` and `refs/heads/…` name the branch `dst`. */
 const pushTarget = (arg: string) =>
@@ -204,8 +208,8 @@ const pushTarget = (arg: string) =>
     .replace(/^refs\/heads\//, "");
 
 /**
- * Commands that put a change on the head branch: merging a request at the code host (also its
- * auto-merge and the REST call), or pushing straight to the branch.
+ * Commands that merge: a request at the code host (also its auto-merge and the REST call), or a
+ * push straight to the head branch. `git merge` is on the config's own `ask` list.
  */
 function merge(argv: readonly string[]): string | undefined {
   const [tool, sub, verb] = argv;
@@ -247,9 +251,6 @@ const MCP_MERGE = new RegExp(`(${MERGE_MCP_TOOLS.join("|")})$`);
  * only what a prefix can say.
  */
 export const DENIED_COMMANDS: readonly string[] = [
-  "gh pr merge",
-  "glab mr merge",
-  "glab mr accept",
   "git push --force",
   "git push -f",
   "git push --force-with-lease",
@@ -259,7 +260,7 @@ export const DENIED_COMMANDS: readonly string[] = [
 
 /**
  * The merge a tool call would make (a shell command, also inside a composite one, or an MCP tool),
- * or undefined. Hosts check it in-process too, where no hook runs.
+ * or undefined. A host that runs in-process, where no hook runs, asks the person for it too.
  */
 export function mergeAttempt(hook: HookInput): string | undefined {
   if (hook.tool.startsWith("mcp__")) return MCP_MERGE.test(hook.tool) ? hook.tool : undefined;
@@ -404,9 +405,6 @@ function rules(hook: HookInput, ctx: PreToolContext): ToolDecision {
     if (!chatApproval(hook)) return deny(DRIVEN_RUN_CONTROL(control));
     if (ctx.run?.driver !== "human") return deny(CHAT_APPROVAL_NEEDS_DRIVER);
   }
-  // The head branch moves only by a person's merge, with or without a run (ADR-0099).
-  const merging = mergeAttempt(hook);
-  if (merging) return deny(MERGE_IS_A_PERSONS(merging));
   // The person's consents are theirs to give: no agent calls a guard or writes where they are kept.
   if (shell.some(guardCall))
     return deny(
@@ -421,8 +419,8 @@ function rules(hook: HookInput, ctx: PreToolContext): ToolDecision {
 
   // Dangerous commands, from the one list in the config (ADR-0094): never, or with consent.
   const commands = ctx.commands ?? DEFAULT_GUARD_COMMANDS;
-  const used: string[] = [];
-  let ask: string | undefined;
+  /** What the call needs the person's consent for, and the words the prompt shows. */
+  const asked: { readonly kind: string; readonly what: string }[] = [];
   for (const argv of shell) {
     const verdict = guardCommand(argv, commands);
     if (verdict.level === "never")
@@ -432,8 +430,15 @@ function rules(hook: HookInput, ctx: PreToolContext): ToolDecision {
     const approve = planApproval(argv);
     if (approve)
       return deny(`${approve} is the user's decision: show what to approve and ask the user to run it.`);
-    if (verdict.level !== "ask" || verdict.kind === undefined) continue;
-    const kind = verdict.kind;
+    // A merge asks whatever the lists allow, and a consent to push does not cover one.
+    if (merge(argv)) asked.push({ kind: MERGE_KIND, what: shown(argv) });
+    else if (verdict.level === "ask" && verdict.kind !== undefined)
+      asked.push({ kind: verdict.kind, what: shown(argv) });
+  }
+  if (hook.tool.startsWith("mcp__") && mergeAttempt(hook)) asked.push({ kind: MERGE_KIND, what: hook.tool });
+  const used: string[] = [];
+  let ask: string | undefined;
+  for (const { kind, what } of asked) {
     const debug = kind === "commit" ? (ctx.debugFiles ?? []) : [];
     if (debug.length > 0) {
       // Debug changes in a commit: stopped whatever was consented, until the person says "anyway".
@@ -455,8 +460,8 @@ function rules(hook: HookInput, ctx: PreToolContext): ToolDecision {
           : `${kind} needs the person's consent, and nobody can be asked in this session: end with STATUS: blocked and say what to ${kind}.`,
       );
     ask ??= ctx.run
-      ? `\`${shown(argv)}\` needs your consent: answer here, say it in the chat ("${kind}"), or \`metator run approve ${kind === "commit" ? "push" : kind} --by <user>\`.`
-      : `\`${shown(argv)}\` needs your consent: answer here, or say it in the chat ("${kind}").`;
+      ? `\`${what}\` needs your consent: answer here, say it in the chat ("${kind}"), or \`metator run approve ${kind === "commit" ? "push" : kind} --by <user>\`.`
+      : `\`${what}\` needs your consent: answer here, or say it in the chat ("${kind}").`;
   }
   if (ask) return { decision: "ask", reason: ask };
   const consented: ToolDecision | undefined =
@@ -470,7 +475,8 @@ function rules(hook: HookInput, ctx: PreToolContext): ToolDecision {
   if (!ctx.run) return consented ?? { decision: "allow", reason: "no active run" };
 
   // What the config's list already decided (a git push with consent or approval) is not asked twice.
-  const governed = (argv: readonly string[]) => guardCommand(argv, commands).level === "ask";
+  const governed = (argv: readonly string[]) =>
+    merge(argv) !== undefined || guardCommand(argv, commands).level === "ask";
   const action =
     mcpAction(hook.tool) ??
     shell

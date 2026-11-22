@@ -363,9 +363,26 @@ describe("ClaudeAgentHost", () => {
     expect(await decision("Read", { file_path: "/folder/backend/.env.example" })).toBeUndefined();
   });
 
-  test("a merge into the head branch is denied in-process, by shell and by MCP (ADR-0099)", async () => {
-    const { query, calls } = fakeQuery(async () => [init, success]);
-    await collect(new ClaudeAgentHost(query), { ...task, cwd: "/folder" });
+  test("a merge goes to the person in-process, by shell and by MCP, whatever else needs no person (ADR-0094)", async () => {
+    const asked: string[] = [];
+    const given: unknown[] = [];
+    const { query, calls } = fakeQuery(async (can) => {
+      given.push(await can("Bash", { command: "gh pr merge 12 --squash" }));
+      given.push(await can("mcp__github__merge_pull_request", { pullNumber: 12 }));
+      return [init, success];
+    });
+    let reply = "Allow";
+    await collect(new ClaudeAgentHost(query), { ...task, cwd: "/folder" }, async (q) => {
+      asked.push(q.prompt);
+      const choice = reply;
+      reply = "Deny";
+      return { choices: [choice] };
+    });
+    expect(asked).toEqual([
+      "mt-planner wants to merge (gh pr merge): gh pr merge 12 --squash",
+      'mt-planner wants to merge (mcp__github__merge_pull_request): {"pullNumber":12}',
+    ]);
+    expect(given.map((g) => (g as { behavior: string }).behavior)).toEqual(["allow", "deny"]);
     type Hook = (input: unknown) => Promise<{
       hookSpecificOutput?: { permissionDecision: string; permissionDecisionReason: string };
     }>;
@@ -373,12 +390,12 @@ describe("ClaudeAgentHost", () => {
     const hook = hooks.PreToolUse[0]?.hooks[0] as Hook;
     const answer = async (tool_name: string, tool_input: Record<string, unknown>) =>
       (await hook({ hook_event_name: "PreToolUse", tool_name, tool_input })).hookSpecificOutput;
-    expect((await answer("Bash", { command: "gh pr merge 12 --squash" }))?.permissionDecision).toBe("deny");
-    expect((await answer("Bash", { command: "git push origin HEAD:main" }))?.permissionDecision).toBe("deny");
+    expect((await answer("Bash", { command: "gh pr merge 12 --squash" }))?.permissionDecision).toBe("ask");
+    expect((await answer("Bash", { command: "git push origin HEAD:main" }))?.permissionDecision).toBe("ask");
     const mcp = await answer("mcp__github__merge_pull_request", { pullNumber: 12 });
     expect([mcp?.permissionDecision, mcp?.permissionDecisionReason]).toEqual([
-      "deny",
-      expect.stringContaining("a person"),
+      "ask",
+      "`mcp__github__merge_pull_request` merges: it needs the person's consent.",
     ]);
     expect(await answer("mcp__github__create_pull_request", {})).toBeUndefined();
   });
