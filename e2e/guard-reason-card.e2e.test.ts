@@ -126,6 +126,15 @@ describe("the guard's reason on the card of a host's approval (real daemon, real
     expect(item.question.reason).toBe(
       "this commit holds debug changes: src/price.ts. Remove them first (`metator scratch drop`), or answer here to commit anyway.",
     );
+    // `metator inbox` at a terminal of the person's own has it too: the daemon owns the pane's questions.
+    const inbox = await metator(["inbox"], repo.root, { METATOR_USER: "ana" });
+    expect(inbox.code).toBe(0);
+    const listed = (inbox.json.data as { panes: PaneItem[] }).panes.find((i) => i.paneId === paneId);
+    expect([listed?.question.id, listed?.question.command, listed?.question.reason]).toEqual([
+      item.question.id,
+      COMMIT,
+      item.question.reason,
+    ]);
     // The hook kept it as a hash of the command, with its reason, where the daemon works.
     const kept = JSON.parse(await repo.read(`.metator/guard-asked/${paneId.replace(":", "-")}.json`)) as {
       kind: string;

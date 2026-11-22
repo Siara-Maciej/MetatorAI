@@ -300,6 +300,12 @@ describe("threads in the app (round 16)", () => {
     const lines = await home.locator("li").allTextContents();
     expect(lines.find((l) => l.includes(LINKED))).toContain(`Invoice discount · ${LINKED}`);
     expect(lines.find((l) => l.includes(LOOSE))).not.toContain(" · Round");
+    // Nothing drives these tasks: Home does not say "nothing" over them, and says what each needs.
+    expect(await page.getByTestId("inbox-zero").locator("h2").textContent()).toBe(
+      "No decision waits for you",
+    );
+    expect(await page.getByTestId("inbox-zero").textContent()).not.toContain("Nothing needs you");
+    expect(lines.find((l) => l.includes(LINKED))).toContain("nothing drives it: Open a session");
     await shot("sidebar-hierarchy.png");
     // A click on the thread opens its chat terminal as the main view, with its task as a tile.
     await head.click();

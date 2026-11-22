@@ -10,7 +10,7 @@ import {
   RepoSetDocument,
   renderYamlDocument,
 } from "@metator/core";
-import { findChildRepos } from "@metator/runtime";
+import { findFolderRepos } from "@metator/runtime";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext, Folder } from "../context.ts";
@@ -39,7 +39,8 @@ export function registerReposCommands(program: Command, ctx: CommandContext): vo
               ),
             ),
           };
-        const found = findChildRepos(here);
+        // Worktrees of one repository are listed under it, not as more repositories.
+        const found = findFolderRepos(here);
         if (found.length === 0)
           return {
             result: err(
@@ -71,7 +72,8 @@ export function registerReposCommands(program: Command, ctx: CommandContext): vo
             file: f.value.file,
             repos: f.value.repos.map((r) => ({
               ...r,
-              setUp: CONFIG_FILES.some((c) => existsSync(join(r.root, c))),
+              setUp: setUp(r.root),
+              worktrees: r.worktrees.map((w) => ({ ...w, setUp: setUp(w.root) })),
             })),
           }),
         };
@@ -86,22 +88,43 @@ export function registerReposCommands(program: Command, ctx: CommandContext): vo
         if (f.isErr()) return { result: f };
         const out = [];
         const warnings: string[] = [];
+        // A repository's work is the work of every checkout of it: its own and its worktrees'.
         for (const r of f.value.repos) {
           try {
-            const c = ctx.containerAt(r.root);
-            const rows = await sessionRows(c);
-            const active = rows.isOk() ? rows.value.filter((s) => s.status === "active") : [];
-            const services = existsSync(join(r.root, c.resolve("paths").environment))
-              ? await c.resolve("environmentServices").status({})
-              : ok([]);
+            const places = f.value.checkouts.filter((p) => p.repo === r.name);
+            let runs = 0;
+            let waiting = 0;
+            let driving = 0;
+            let services = 0;
+            const sessions: Record<string, unknown>[] = [];
+            for (const place of places) {
+              const c = ctx.containerAt(place.root);
+              const rows = await sessionRows(c);
+              const active = rows.isOk() ? rows.value.filter((s) => s.status === "active") : [];
+              const up = existsSync(join(place.root, c.resolve("paths").environment))
+                ? await c.resolve("environmentServices").status({})
+                : ok([]);
+              runs += active.length;
+              waiting += active.reduce((n, s) => n + s.waiting, 0);
+              driving += active.filter((s) => s.driving).length;
+              services += up.isOk() ? up.value.filter((s) => s.status === "running").length : 0;
+              for (const s of active)
+                sessions.push({
+                  runId: s.runId,
+                  stage: s.stage,
+                  state: s.state,
+                  ...(place.worktreeOf ? { checkout: place.label } : {}),
+                });
+            }
             out.push({
               name: r.name,
               path: r.path,
-              runs: active.length,
-              waiting: active.reduce((n, s) => n + s.waiting, 0),
-              driving: active.filter((s) => s.driving).length,
-              services: services.isOk() ? services.value.filter((s) => s.status === "running").length : 0,
-              sessions: active.map((s) => ({ runId: s.runId, stage: s.stage, state: s.state })),
+              ...(r.worktrees.length > 0 ? { worktrees: r.worktrees.length } : {}),
+              runs,
+              waiting,
+              driving,
+              services,
+              sessions,
             });
           } catch (e) {
             warnings.push(`${r.name}: ${(e as Error).message}`);
@@ -112,6 +135,8 @@ export function registerReposCommands(program: Command, ctx: CommandContext): vo
       }),
     );
 }
+
+const setUp = (root: string) => CONFIG_FILES.some((c) => existsSync(join(root, c)));
 
 function needFolder(f: Folder | null) {
   return f

@@ -1,4 +1,4 @@
-import type { MetatorError, Result } from "@metator/core";
+import type { FolderCheckout, FolderWorktree, MetatorError, Result } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
 import type { Terminal } from "./terminal.ts";
 
@@ -13,13 +13,33 @@ export interface Outcome {
   readonly hook?: Record<string, unknown> | null;
 }
 
+/** A checkout of a folder's repository (`root` absolute), as a request names it (`name`). */
+export interface FolderPlace extends FolderCheckout {
+  readonly root: string;
+}
+
 /** A folder of repositories (G2): where `metator` was run, and the repositories it gathers. */
 export interface Folder {
   readonly root: string;
-  /** Absolute paths, with the names `metator status` and `repos` show. */
-  readonly repos: readonly { readonly name: string; readonly path: string; readonly root: string }[];
+  /**
+   * The repositories (counted once however many checkouts each has), with the names `metator
+   * status` and `repos` show; `root` is the checkout that stands for each, `worktrees` its others.
+   */
+  readonly repos: readonly {
+    readonly name: string;
+    readonly path: string;
+    readonly root: string;
+    readonly worktrees: readonly (FolderWorktree & { readonly root: string })[];
+  }[];
+  /**
+   * Every checkout: each repository's own, then its worktrees. Each keeps its own `.metator` (runs,
+   * panes, threads), so what shows work reads all of them; what counts reads `repos`.
+   */
+  readonly checkouts: readonly FolderPlace[];
   /** `metator.repos.yml` when the folder has one; else the repositories were found below it. */
   readonly file: string | null;
+  /** What reading the folder noticed once (a listed repository that is a worktree of another). */
+  readonly hints: readonly string[];
 }
 
 /** Shared by all command modules: lazy access to the composition root and action wrapping. */

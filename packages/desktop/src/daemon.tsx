@@ -24,6 +24,7 @@ import {
 import { Modal } from "./components/modal.tsx";
 import {
   flattenState,
+  type Place,
   plansShown,
   type RepoSystemPlan,
   type Run,
@@ -54,7 +55,8 @@ export interface Daemon {
    * run whose agent asks in its terminal counts as waiting for you (D2).
    */
   readonly runs: readonly Run[];
-  readonly repos: readonly { readonly name: string; readonly path: string }[];
+  /** The places a folder's daemon serves: each repository's checkout, a worktree with `worktreeOf`. */
+  readonly repos: readonly Place[];
   /** The repository the list screens show when the daemon serves a folder (D10); none otherwise. */
   readonly repo: string | undefined;
   setRepo(name: string): void;

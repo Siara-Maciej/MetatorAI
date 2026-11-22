@@ -109,7 +109,16 @@ export function registerSetupCommands(
           });
         if (done.isErr()) return { result: done };
         const { report, warnings } = done.value;
-        const failed = report.checks.filter((k) => !k.passed);
+        // What setup wrote must pass; a lint that fails only on the repository's own files is
+        // theirs to fix: a warning, and setup still finishes (exit 0).
+        const failed = report.checks.filter((k) => !k.passed && !k.theirs);
+        const theirs = report.checks.flatMap((k) =>
+          k.theirs
+            ? [
+                `${k.command}: ${k.theirs.join(", ")} has errors setup did not make; fix them (\`metator ${k.command}\`)`,
+              ]
+            : [],
+        );
         if (failed.length > 0)
           return {
             result: err(
@@ -118,9 +127,9 @@ export function registerSetupCommands(
                 details: { ...report },
               }),
             ),
-            warnings,
+            warnings: [...warnings, ...theirs],
           };
-        return { result: ok(report), warnings };
+        return { result: ok(report), warnings: [...warnings, ...theirs] };
       }),
     );
 }

@@ -74,6 +74,23 @@ describe("the daemon's clocks, per repository (a folder's repositories each keep
     expect(intervals({ ...w, intakeMs: 0, reviewsMs: 0, watchMs: 500 })).toEqual([500]);
   });
 
+  test("a worktree checkout is supervised but does not scan intake or reviews: its repository does", () => {
+    const withWorktree = new Map([
+      ["shop", repo(4000, 1, 1, true)],
+      ["shop-fix", repo(4000, 1, 1, true)],
+    ]);
+    const w = {
+      ...deps,
+      repos: () => [...withWorktree.keys()],
+      scans: () => ["shop"],
+      containerFor: (n: string | undefined) => ok(withWorktree.get(n as string) as MetatorContainer),
+    };
+    expect(intervals({ ...w, intakeMs: "own", reviewsMs: "own", watchMs: "own" })).toEqual([
+      4000, 40_000, 80_000,
+    ]);
+    expect(intervals({ ...w, intakeMs: 0, reviewsMs: 0, watchMs: 0, sweepMs: 2000 })).toEqual([2000]);
+  });
+
   test("finished runs' panes are swept on their own clock", () => {
     expect(intervals({ ...deps, intakeMs: 0, reviewsMs: 0, sweepMs: 2000 })).toEqual([2000]);
   });

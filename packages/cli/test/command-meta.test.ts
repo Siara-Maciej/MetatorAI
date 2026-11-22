@@ -311,9 +311,15 @@ describe("what a command says of itself (meta)", () => {
     const persons = commandsFor(program, "person");
     const verbs = VERBS.flatMap((g) => g.commands.map(([name]) => name));
     expect([...persons].sort()).toEqual([...verbs].sort());
-    expect(verbs).toEqual(
-      BEFORE.verbs.filter((v) => v !== "ui").map((v) => (v === "run init" ? "run new" : v)),
-    );
+    const before = BEFORE.verbs.filter((v) => v !== "ui").map((v) => (v === "run init" ? "run new" : v));
+    // Round 19 (ADR-0098): the host conformance suite, after the host files it checks.
+    const at = before.indexOf("generate") + 1;
+    expect(verbs).toEqual([
+      ...before.slice(0, at),
+      "host conformance",
+      "host conformance diff",
+      ...before.slice(at),
+    ]);
   });
 
   test("help --for: each audience's commands; every command belongs to one, an old spelling to none", async () => {

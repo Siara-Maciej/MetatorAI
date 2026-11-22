@@ -20,7 +20,7 @@ interface Setup {
   hostsFrom: string;
   workflows: string[];
   canon: { mode: string; steps: Record<string, number> };
-  checks: { command: string; passed: boolean }[];
+  checks: { command: string; passed: boolean; theirs?: string[] }[];
 }
 type Steps = { steps: { path: string; action: string }[] };
 const actionOf = (data: unknown, path: string) => (data as Steps).steps.find((s) => s.path === path)?.action;
@@ -347,4 +347,33 @@ describe("metator setup (real CLI)", () => {
       await fresh.dispose();
     }
   });
+});
+
+describe("setup and a workflow of the repository's own that fails lint", () => {
+  test("setup finishes, says the lint problem as a warning naming the file, and exits 0", async () => {
+    const own = await ScratchRepo.create();
+    try {
+      await own.write(
+        ".github/metator/workflows/broken.yml",
+        "kind: Workflow\nschemaVersion: 3\nid: broken\nstages:\n  - id: build\n    owner: mt-nobody-knows\n",
+      );
+      await own.commit("a workflow of our own");
+      const r = await metator(["setup", "--host", "claude", "--yes"], own.root);
+      expect(r.code).toBe(0);
+      const lint = (r.json.data as Setup).checks.find((c) => c.command === "workflow lint");
+      expect(lint).toEqual({
+        command: "workflow lint",
+        passed: false,
+        theirs: [".github/metator/workflows/broken.yml"],
+      });
+      expect(JSON.stringify(r.json.warnings)).toContain(
+        "workflow lint: .github/metator/workflows/broken.yml has errors setup did not make",
+      );
+      // What setup itself writes is all there.
+      expect(await Bun.file(join(own.root, ".claude/settings.json")).exists()).toBe(true);
+    } finally {
+      stopProcessesUnder(own.root);
+      await own.dispose();
+    }
+  }, 120_000);
 });

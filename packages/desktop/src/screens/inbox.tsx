@@ -28,9 +28,11 @@ import {
   type NeedRow,
   openRuns,
   paneAskOf,
+  quietHeading,
   quietInboxText,
   routeHash,
   stepNeed,
+  taskNeed,
 } from "../model.ts";
 import { isReviewCard, reviewCardKey } from "../reviews.ts";
 import { byAttentionFirst, taskLine, taskState } from "../tasks.ts";
@@ -226,10 +228,12 @@ function QuietHome({
   const action = useAction();
   const open = openRuns(runs);
   const idle = idleRuns(open, panes);
+  // A blocked task without a question still waits for the person to look: Home never says "nothing" then.
+  const blocked = tasks.filter((t) => taskState(t) === "blocked");
   return (
     <div className="quiet-home" data-testid="inbox-zero">
-      <h2>Nothing waits for you</h2>
-      <p className="muted">{quietInboxText(open.length, idle.length)}</p>
+      <h2>{quietHeading(idle.length, blocked.length)}</h2>
+      <p className="muted">{quietInboxText(open.length, idle.length, blocked.length)}</p>
       {idle.length > 0 ? (
         <ul className="idle-runs">
           {idle.map((r) => (
@@ -259,6 +263,12 @@ function QuietHome({
                 {chat ? <span className="thread-of">{chat} · </span> : null}
                 <a href={href}>{t.title}</a> <span className={lookOf("first", word).tone}>{word}</span>
                 <span className="faint"> · {taskLine(t)}</span>
+                {word === "blocked" ? (
+                  <span className="need" data-testid={`need-${t.key}`}>
+                    {" "}
+                    · {taskNeed(runs.find((r) => r.runId === t.head?.runId))}
+                  </span>
+                ) : null}
               </li>
             );
           })}

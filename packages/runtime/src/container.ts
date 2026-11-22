@@ -50,6 +50,7 @@ import type {
   CompareEvals,
   ComputeAffected,
   Conductor,
+  ConformanceHistory,
   ContainerRuntime,
   ContentHasher,
   ContinueTask,
@@ -201,6 +202,7 @@ import type {
   RunDrivers,
   RunEvals,
   RunGate,
+  RunHostConformance,
   RunJournal,
   RunMessages,
   RunPanes,
@@ -365,6 +367,10 @@ export interface Cradle {
   askQuestion: AskQuestion;
   workOverview: WorkOverview;
   checkReadiness: CheckReadiness;
+  /** What a host's CLI says its version is; undefined when it is not installed or may not be asked. */
+  hostVersion: (host: string) => Promise<string | undefined>;
+  conformanceHistory: ConformanceHistory;
+  runHostConformance: RunHostConformance;
   setupWorktree: SetupWorktree;
   worktreeConflicts: WorktreeConflicts;
   answerPolicyStore: AnswerPolicyStore;

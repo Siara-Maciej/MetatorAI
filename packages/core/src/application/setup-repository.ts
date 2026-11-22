@@ -88,7 +88,15 @@ export interface RepositorySetup {
   };
   readonly generated: number;
   readonly gitignore: "added" | "present";
-  readonly checks: readonly { readonly command: string; readonly passed: boolean }[];
+  /**
+   * Each check, passed or not; one that failed only on files setup did not write (a workflow of
+   * the repository's own) names them in `theirs`: a warning, never setup's failure.
+   */
+  readonly checks: readonly {
+    readonly command: string;
+    readonly passed: boolean;
+    readonly theirs?: readonly string[];
+  }[];
   /** What the guide says comes next. */
   readonly next: readonly string[];
 }
@@ -199,7 +207,7 @@ export class SetupRepository {
         canon: { mode, version: canon.value.version, lock: canon.value.lock, steps },
         generated: agents.value.written.length + skills.value.written.length,
         gitignore: ignored.value,
-        checks: await this.checks(repo),
+        checks: await this.checks(repo, new Set(canon.value.steps.map((s) => s.path))),
         // What a run cannot do here yet (with --gates: whether the quick gate is green before any
         // run), then the daemon the app talks to.
         next: ["metator doctor", "metator doctor --gates", "metator serve"],
@@ -209,10 +217,23 @@ export class SetupRepository {
   }
 
   /** The proof the repository is ready for agents: each check passes when it finds no error. */
-  private async checks(repo: ConfiguredRepository): Promise<RepositorySetup["checks"]> {
-    const clean = (
-      r: Result<{ readonly problems: readonly { readonly severity: string }[] }, MetatorError>,
-    ) => r.isOk() && !r.value.problems.some((p) => p.severity === "error");
+  private async checks(
+    repo: ConfiguredRepository,
+    written: ReadonlySet<string>,
+  ): Promise<RepositorySetup["checks"]> {
+    type Linted = Result<
+      { readonly problems: readonly { readonly severity: string; readonly source: string }[] },
+      MetatorError
+    >;
+    const clean = (r: Linted) => r.isOk() && !r.value.problems.some((p) => p.severity === "error");
+    // The files a failed lint found errors in, when setup wrote none of them: the repository's own.
+    const theirs = (r: Linted): readonly string[] | undefined => {
+      if (r.isErr()) return undefined;
+      const sources = [
+        ...new Set(r.value.problems.filter((p) => p.severity === "error").map((p) => p.source)),
+      ];
+      return sources.length > 0 && sources.every((f) => !written.has(f)) ? sources : undefined;
+    };
     const hosts = await repo.generateHosts.execute({ check: true, hooks: false });
     const skills = await repo.generateSkills.execute({ check: true });
     const fresh =
@@ -223,13 +244,16 @@ export class SetupRepository {
         skills.value.stale.length +
         skills.value.orphaned.length ===
         0;
-    const passed = [
-      clean(await repo.lintAgents.execute()),
-      clean(await repo.lintSkills.execute()),
-      clean(await repo.lintWorkflows.execute()),
-      fresh,
+    const linted: Linted[] = [
+      await repo.lintAgents.execute(),
+      await repo.lintSkills.execute(),
+      await repo.lintWorkflows.execute(),
     ];
-    return SETUP_CHECKS.map((command, i) => ({ command, passed: passed[i] === true }));
+    const passed = [...linted.map(clean), fresh];
+    return SETUP_CHECKS.map((command, i) => {
+      const own = passed[i] === true ? undefined : linted[i] ? theirs(linted[i] as Linted) : undefined;
+      return { command, passed: passed[i] === true, ...(own ? { theirs: own } : {}) };
+    });
   }
 }
 

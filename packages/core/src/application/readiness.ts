@@ -1,6 +1,7 @@
 import type { MetatorConfig } from "../domain/config.ts";
 import { MetatorError } from "../domain/errors.ts";
 import type { GateReport } from "../domain/gate.ts";
+import { type ConformanceSeen, conformanceLine } from "../domain/host-conformance.ts";
 import type { McpServers } from "../domain/mcp.ts";
 import { isPrecondition, PRECONDITIONS, preconditionKinds } from "../domain/preconditions.ts";
 import { err, ok, type Result } from "../domain/result.ts";
@@ -32,7 +33,8 @@ export interface ReadinessCheck {
     | "environment"
     | "remote"
     | "mcp"
-    | "runs";
+    | "runs"
+    | "conformance";
   readonly status: ReadinessStatus;
   /** What this means for a run, in one sentence. */
   readonly message: string;
@@ -101,6 +103,8 @@ export class CheckReadiness {
       readonly detached?: () => Promise<boolean | undefined>;
       /** Runs the quick gate in the checkout. */
       readonly quickGate?: () => Promise<Result<GateReport, MetatorError>>;
+      /** The host conformance suite's kept runs (`.metator/conformance/`), by host (ADR-0098). */
+      readonly conformance?: () => Promise<readonly ConformanceSeen[]>;
     } = {},
   ) {}
 
@@ -186,6 +190,9 @@ export class CheckReadiness {
     );
     if (input.gates) checks.push(await this.green());
     checks.push(...this.hosts());
+    // Which host versions passed the conformance suite here: said only when a run of it is kept.
+    for (const seen of (await this.here.conformance?.()) ?? [])
+      checks.push({ id: "conformance", ...conformanceLine(seen) });
     if (place === ".") checks.push(...(await this.tree()), ...(await this.branch()));
     checks.push(await this.dependencies(place));
     checks.push(await this.environment(input.worktree));

@@ -10,6 +10,11 @@ import type { MetatorContainer } from "@metator/runtime";
 export interface TimerDeps {
   /** The repositories the daemon serves, by the name a request names them (`undefined`: the only one). */
   readonly repos: () => readonly (string | undefined)[];
+  /**
+   * The ones that look for intake issues and review requests (default: all). A worktree checkout
+   * shares its repository's issues and requests, so only the repository looks, once.
+   */
+  readonly scans?: () => readonly (string | undefined)[];
   readonly containerFor: (repo: string | undefined) => Result<MetatorContainer, unknown>;
   readonly superviseMs: number;
   /** How often to scan the intake rules: a fixed interval, or each repository's own `intake.everyMs`. */
@@ -35,8 +40,8 @@ export function intervalOf(given: number | "own", own: number): number {
 }
 
 export function startTimers(deps: TimerDeps): { stop(): void } {
-  const each = (work: (key: string, c: MetatorContainer) => void) => {
-    for (const repo of deps.repos()) {
+  const each = (work: (key: string, c: MetatorContainer) => void, repos = deps.repos) => {
+    for (const repo of repos()) {
       const c = deps.containerFor(repo);
       if (c.isOk()) work(repo ?? ".", c.value);
     }
@@ -118,7 +123,7 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
     const watchEvery = intervalOf(deps.watchMs ?? "own", config.codehost.review.everyMs);
     if (config.codehost.review.watch && watchEvery > 0)
       timers.push(setInterval(() => watched(key, c), watchEvery));
-  });
+  }, deps.scans ?? deps.repos);
 
   // Every live pane's screen on disk: a paused session shows what it left, even after a SIGKILL.
   if ((deps.screensMs ?? 0) > 0)

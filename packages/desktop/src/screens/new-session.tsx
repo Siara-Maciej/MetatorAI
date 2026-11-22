@@ -10,6 +10,7 @@ import {
   type HostStatus,
   hostChoice,
   noHostText,
+  placeLabel,
   refusedForDirtyTree,
   START_FROM_COMMIT,
   sameRepo,
@@ -113,7 +114,7 @@ export function NewSessionDialog({
           <select aria-label="Start in repository" value={repo} onChange={(e) => setRepo(e.target.value)}>
             {repos.map((r) => (
               <option key={r.name} value={r.name}>
-                {r.name}
+                {placeLabel(r)}
               </option>
             ))}
           </select>

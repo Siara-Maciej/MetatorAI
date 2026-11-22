@@ -1134,7 +1134,7 @@ export type Unreadable = UnreadableRun & { readonly repo?: string | undefined };
  */
 export function flattenState(data: StateData | undefined): {
   runs: Run[];
-  repos: { name: string; path: string }[];
+  repos: Place[];
   unreadable: Unreadable[];
 } {
   if (!data) return { runs: [], repos: [], unreadable: [] };
@@ -1142,11 +1142,58 @@ export function flattenState(data: StateData | undefined): {
     const all = data.repos as readonly RepoState[];
     return {
       runs: all.flatMap((r) => (r.runs ?? []).map((run) => ({ ...run, repo: r.name }))),
-      repos: all.map((r) => ({ name: r.name, path: r.path })),
+      repos: all.map((r) => ({
+        name: r.name,
+        path: r.path,
+        ...(r.worktreeOf ? { worktreeOf: r.worktreeOf } : {}),
+        ...(r.branch ? { branch: r.branch } : {}),
+      })),
       unreadable: all.flatMap((r) => (r.unreadable ?? []).map((u) => ({ ...u, repo: r.name }))),
     };
   }
   return { runs: [...data.runs], repos: [], unreadable: [...(data.unreadable ?? [])] };
+}
+
+/**
+ * A place the daemon serves in a folder: a repository's checkout, by the name requests use. A
+ * worktree (`git worktree add ../shop-fix`) is a place of its own, of the repository it names.
+ */
+export interface Place {
+  readonly name: string;
+  readonly path: string;
+  readonly worktreeOf?: string | undefined;
+  readonly branch?: string | undefined;
+}
+
+/** How a picker names a place: a worktree by its repository and branch (`shop (fix-tax)`), else its directory. */
+export const placeLabel = (p: Place): string =>
+  p.worktreeOf ? `${p.worktreeOf} (${p.branch ?? p.path.split("/").pop() ?? p.name})` : p.name;
+
+/** The repository a place is a checkout of. */
+const repoOfPlace = (p: Place): string => p.worktreeOf ?? p.name;
+
+/**
+ * What the folder holds, counted as repositories (a worktree is not one more): the top bar's
+ * words, and each repository with its worktrees as a count (`shop · 2 worktrees`).
+ */
+export function folderLabel(places: readonly Place[]): { text: string; repos: string[] } {
+  if (places.length === 0) return { text: "this repository", repos: [] };
+  const names = [...new Set(places.map(repoOfPlace))];
+  return {
+    text: plural(names.length, "repository", "repositories"),
+    repos: names.map((n) => {
+      const worktrees = places.filter((p) => p.worktreeOf === n).length;
+      return worktrees > 0 ? `${n} · ${plural(worktrees, "worktree")}` : n;
+    }),
+  };
+}
+
+/** How many worktrees the repository of the named place has (the place may be one of them). */
+export function worktreeCount(places: readonly Place[], name: string | undefined): number {
+  const place = places.find((p) => p.name === name);
+  if (!place) return 0;
+  const repo = repoOfPlace(place);
+  return places.filter((p) => p.worktreeOf === repo).length;
 }
 
 /** Two things belong to the same repository; "no repository" (the daemon serves one) is one too. */
@@ -2070,12 +2117,27 @@ export const humanPrompt = (prompt: string): string =>
     .replace(/\s{2,}/g, " ")
     .trim();
 
-/** What the Inbox says when nothing waits for a person: true words about the runs that are open. */
-export function quietInboxText(open: number, idle: number): string {
+/**
+ * What the Inbox says when no decision waits: true words about the runs that are open. A run with
+ * nothing driving it, or a blocked task, is something for the person to look at: then it never
+ * says "nothing".
+ */
+export function quietInboxText(open: number, idle: number, blocked = 0): string {
+  if (idle > 0)
+    return `${plural(idle, "run")} ${idle === 1 ? "has" : "have"} no agent working on ${idle === 1 ? "it" : "them"}:`;
+  if (blocked > 0)
+    return `${plural(blocked, "task")} ${blocked === 1 ? "is" : "are"} blocked without a question: what each needs is under it.`;
   if (open === 0) return "No run is open. Open a finished run from the sidebar, or start a new one.";
-  if (idle === 0) return `Nothing needs you. ${plural(open, "run")} ${open === 1 ? "is" : "are"} working.`;
-  return `Nothing needs you. ${plural(idle, "run")} ${idle === 1 ? "has" : "have"} no agent working on ${idle === 1 ? "it" : "them"}:`;
+  return `Nothing needs you. ${plural(open, "run")} ${open === 1 ? "is" : "are"} working.`;
 }
+
+/** Home's heading when no decision waits: "nothing" only when nothing stands still either. */
+export const quietHeading = (idle: number, blocked: number): string =>
+  idle + blocked > 0 ? "No decision waits for you" : "Nothing waits for you";
+
+/** What a blocked task needs, in Home's list: why its run stands still, the way out with it. */
+export const taskNeed = (run: Pick<RunOverview, "status" | "stage" | "reason"> | undefined): string =>
+  blockedReason({ run });
 
 /** The lanes of the runs graph that have a card in them, in their order. */
 export const drawnLanes = (

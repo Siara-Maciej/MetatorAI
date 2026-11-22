@@ -46,7 +46,7 @@ These live in the repository and are reviewed like code.
 | `ArchEvalCase` | `docs/metator/evals/arch/*.yml` | you |
 | `SystemEvalCase` | `docs/metator/evals/system/*.yml` | you |
 | `AgentScenario` | any `*.yml` that `METATOR_AGENT_SCENARIO` points at | you; a scripted host plays it in tests |
-| `RepoSet` | `metator.repos.yml` in a folder of repositories | you; `metator repos init` proposes it |
+| `RepoSet` | `metator.repos.yml` in a folder of repositories | you; `metator repos init` proposes it. v2: a repository's `worktrees` (its other checkouts in the folder, folder-relative); a v1 file that lists a worktree as a repository reads it as that repository's worktree, with a hint |
 
 ## A run's folder
 
@@ -106,6 +106,7 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 | `ScratchRecord` | `.metator/scratch/sNNN.json` | `metator scratch end`: one recorded change not meant for a commit, with its patch |
 | `ScratchOpen` | `.metator/scratch/open.json` | `metator scratch begin`, until `scratch end` |
 | `GuardConsents` | `.metator/consents/<pane or session>.json` | `metator guard user-prompt`: the consents you gave in words, each used once |
+| `HostConformance` | `.metator/conformance/conformance-<host>-<version>.json` (or `--out`) | `metator host conformance`: one run of the host conformance suite against a host's real CLI, each check with its result and evidence; `metator host conformance diff` compares two |
 | `FileLock` | `<file>.lock` next to a file under `.metator/` | any command, only while it changes that file (the worktree registry, a run's `state.json`, the backlog); a lock whose process is gone holds nothing |
 | `ReviewReaction` | `.metator/telemetry/reactions.jsonl` | `metator findings react`: what people did with a review comment |
 | `QuarterlyReview` | `.metator/reviews/quarterly-<date>.json` | `metator meta quarterly` |

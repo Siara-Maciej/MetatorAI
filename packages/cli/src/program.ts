@@ -1,17 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
-import {
-  MetatorError,
-  NO_REAL_HOSTS,
-  parseYamlDocument,
-  REPO_SET_FILE,
-  RepoSetDocument,
-  reposOf,
-} from "@metator/core";
+import { basename } from "node:path";
+import { MetatorError, NO_REAL_HOSTS } from "@metator/core";
 import {
   bootstrap,
-  findChildRepos,
-  findFolderRoot,
   findRepoRoot,
   hostBinsOf,
   loadConfig,
@@ -42,6 +32,7 @@ import { registerFlakyCommands } from "./commands/flaky.ts";
 import { registerGateCommands } from "./commands/gate.ts";
 import { registerGraphCommands } from "./commands/graph.ts";
 import { registerGuardCommands } from "./commands/guard.ts";
+import { registerHostCommands } from "./commands/host.ts";
 import { registerIntakeCommands } from "./commands/intake.ts";
 import { registerIssueCommands } from "./commands/issue.ts";
 import { registerLessonsCommands } from "./commands/lessons.ts";
@@ -69,7 +60,9 @@ import { registerTestCommands } from "./commands/test.ts";
 import { registerThreadCommands } from "./commands/thread.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
 import { registerWorktreeCommands } from "./commands/worktree.ts";
+import { conformanceLab } from "./conformance-lab.ts";
 import type { CommandContext, Folder, Outcome } from "./context.ts";
+import { readFolder } from "./folder.ts";
 import { conductorSessions, detachedDrive, runPanes } from "./sessions.ts";
 
 export interface ProgramOptions {
@@ -130,6 +123,7 @@ export function buildProgram(
       detachedDrive: detachedDrive(),
       runPanes: runPanes(),
       conductorSessions: conductorSessions(),
+      conformanceLab: conformanceLab(env),
       ...(env.METATOR_HOST ? { defaultHost: env.METATOR_HOST } : {}),
     });
   };
@@ -165,7 +159,13 @@ export function buildProgram(
       async (...args) => {
         // commander hands the command itself to an action as its last argument.
         const last = args.at(-1);
-        onOutcome(await handler(...args), last instanceof Command ? last : undefined);
+        const outcome = await handler(...args);
+        // What reading the folder noticed (a listed worktree counted once) is said with the answer.
+        const hints = folder?.hints ?? [];
+        onOutcome(
+          hints.length > 0 ? { ...outcome, warnings: [...hints, ...(outcome.warnings ?? [])] } : outcome,
+          last instanceof Command ? last : undefined,
+        );
       },
   };
 
@@ -198,6 +198,7 @@ export function buildProgram(
   registerFlakyCommands(program, ctx);
   registerDebugTagsCommands(program, ctx);
   registerGuardCommands(program, ctx);
+  registerHostCommands(program, ctx);
   registerWorkflowCommands(program, ctx);
   registerRunCommands(program, ctx);
   registerQuickCommands(program, ctx);
@@ -230,29 +231,6 @@ export function buildProgram(
     );
   });
   return program;
-}
-
-/** The folder `start` is in, with its repositories from `metator.repos.yml` or found below it. */
-function readFolder(start: string): Folder | null {
-  const root = findFolderRoot(start);
-  if (!root) return null;
-  const file = join(root, REPO_SET_FILE);
-  if (!existsSync(file)) {
-    const repos = findChildRepos(root).map((path) => ({
-      name: path.split("/").pop() ?? path,
-      path,
-      root: join(root, path),
-    }));
-    return { root, repos, file: null };
-  }
-  const set = parseYamlDocument(readFileSync(file, "utf8"), REPO_SET_FILE).andThen((raw) =>
-    RepoSetDocument.parse(raw, REPO_SET_FILE),
-  );
-  if (set.isErr()) throw set.error;
-  const { repos, problems } = reposOf(set.value);
-  if (problems.length > 0)
-    throw new MetatorError("INVALID_CONFIG", `${REPO_SET_FILE}: ${problems.join("; ")}`);
-  return { root, repos: repos.map((r) => ({ ...r, root: join(root, r.path) })), file };
 }
 
 export function fromCommander(e: CommanderError, program: Command): MetatorError {

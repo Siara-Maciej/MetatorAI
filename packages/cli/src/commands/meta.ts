@@ -124,6 +124,11 @@ export const VERBS: readonly { readonly verb: string; readonly commands: readonl
       ["doctor", "what a run will not be able to do here, and the fix for each"],
       ["agents update", "take the newer shipped files, keeping the ones you changed"],
       ["generate", "the AI hosts' files (Copilot, Claude Code) from the shipped agents and skills"],
+      [
+        "host conformance",
+        "the same checks against a host's real CLI (Claude Code, Copilot CLI): a report to send back",
+      ],
+      ["host conformance diff", "the checks two hosts' reports disagree on: the parity gaps"],
     ],
   },
   {

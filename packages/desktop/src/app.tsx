@@ -13,6 +13,7 @@ import { createConfirmer } from "./confirm.ts";
 import { DaemonProvider, useDaemon } from "./daemon.tsx";
 import {
   flattenState,
+  folderLabel,
   goesToPane,
   hostChoice,
   keyMapOf,
@@ -57,6 +58,8 @@ const notifier = systemNotifier();
 
 function Shell() {
   const d = useDaemon();
+  // The folder in the top bar: its repositories, counted once however many worktrees each has.
+  const folder = folderLabel(d.repos);
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
   const [dialog, setDialog] = useState(false);
   const [help, setHelp] = useState(false);
@@ -396,8 +399,8 @@ function Shell() {
     <div className={`shell${panelOpen ? " panel-open" : ""}`}>
       <header className="topbar">
         <span className="logo">MetatorAI</span>
-        <span className="dim scope">
-          {d.repos.length > 0 ? `${d.repos.length} repositories` : "this repository"}
+        <span className="dim scope" data-testid="scope" title={folder.repos.join("\n") || undefined}>
+          {folder.text}
         </span>
         <button
           type="button"

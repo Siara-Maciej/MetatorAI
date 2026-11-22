@@ -86,10 +86,14 @@ export interface Served {
  * cases as the CLI; the daemon keeps nothing that is not on disk, except the PTY sessions it brokers.
  * Localhost only, no authentication (decision 1).
  */
-/** The directories a daemon started here serves: the repository, or each repository of the folder. */
+/**
+ * The directories a daemon started here serves: the repository, or each checkout of the folder's
+ * repositories. A worktree (`git worktree add ../shop-fix`) keeps its own `.metator` (runs, panes,
+ * threads), so it is served as a place of its own, shown under its repository.
+ */
 export function servedRoots(ctx: CommandContext): string[] {
   const folder = ctx.folder();
-  return folder ? folder.repos.map((r) => r.root) : [ctx.container().resolve("root")];
+  return folder ? folder.checkouts.map((r) => r.root) : [ctx.container().resolve("root")];
 }
 
 /**
@@ -125,8 +129,10 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     repo: string | undefined,
   ): Result<MetatorContainer, { code: string; message: string }> => {
     if (!folder) return ok(cached(".", () => ctx.container()));
-    // A repository by its name in the folder, or by its root (what a command run inside it knows).
-    const entry = repo ? folder.repos.find((r) => r.name === repo || r.root === repo) : folder.repos[0];
+    // A checkout by its name in the folder, or by its root (what a command run inside it knows).
+    const entry = repo
+      ? folder.checkouts.find((r) => r.name === repo || r.root === repo)
+      : folder.checkouts[0];
     if (!entry)
       return err({ code: "NOT_FOUND", message: `repository ${repo ?? "(none)"} is not in ${folder.root}` });
     return ok(cached(entry.root, () => ctx.containerAt(entry.root)));
@@ -142,13 +148,23 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     overviews.set(key, { at: Date.now(), value });
     return value;
   };
-  const repoViews = (): { name: string; path: string; key: string; c: MetatorContainer }[] =>
+  // Every checkout the daemon serves; a worktree says whose it is and its branch (`worktreeOf`).
+  const repoViews = (): {
+    name: string;
+    path: string;
+    key: string;
+    c: MetatorContainer;
+    worktree?: { readonly worktreeOf: string; readonly branch?: string };
+  }[] =>
     folder
-      ? folder.repos.map((r) => ({
+      ? folder.checkouts.map((r) => ({
           name: r.name,
           path: r.path,
           key: r.root,
           c: cached(r.root, () => ctx.containerAt(r.root)),
+          ...(r.worktreeOf
+            ? { worktree: { worktreeOf: r.worktreeOf, ...(r.branch ? { branch: r.branch } : {}) } }
+            : {}),
         }))
       : [{ name: "", path: ".", key: ".", c: cached(".", () => ctx.container()) }];
   /**
@@ -213,6 +229,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       repos.push({
         name: r.name,
         path: r.path,
+        ...r.worktree,
         ...(o.isOk() ? await served(o.value, r.c) : { error: o.error.message }),
       });
     }
@@ -286,7 +303,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   /** The repository whose panes know this token: a call from a pane acts in its own repository. */
   const repoOfToken = async (token: string): Promise<string | undefined> => {
     if (!folder) return undefined;
-    for (const r of folder.repos) {
+    for (const r of folder.checkouts) {
       const pane = await cached(r.root, () => ctx.containerAt(r.root))
         .resolve("panes")
         .authorize(token);
@@ -329,7 +346,9 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   listening = server;
   bound = server.port ?? opts.port;
   const timers = startTimers({
-    repos: () => (folder ? folder.repos.map((r) => r.name) : [undefined]),
+    repos: () => (folder ? folder.checkouts.map((r) => r.name) : [undefined]),
+    // A worktree shares its repository's issues and requests: only the repository looks for them.
+    scans: () => (folder ? folder.checkouts.filter((r) => !r.worktreeOf).map((r) => r.name) : [undefined]),
     containerFor,
     superviseMs: opts.superviseMs ?? 0,
     // Each repository's own interval unless one is given: in a folder each keeps its own.
@@ -358,7 +377,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   const restored: { root: string; paneId: string; ok: boolean; error?: string }[] = [];
   for (const root of roots) {
     const c = folder
-      ? containerFor(folder.repos.find((r) => r.root === root)?.name)
+      ? containerFor(folder.checkouts.find((r) => r.root === root)?.name)
       : containerFor(undefined);
     if (c.isErr()) continue;
     const r = await c.value.resolve("panes").restore(undefined, { resume: opts.restore !== false });

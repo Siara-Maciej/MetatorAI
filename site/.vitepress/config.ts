@@ -20,6 +20,7 @@ export const sections = [
       { text: "Runs and workflows", link: "runs" },
       { text: "Gates and approvals", link: "gates" },
       { text: "Copilot and Claude Code", link: "hosts" },
+      { text: "Host conformance", link: "conformance" },
       { text: "FAQ", link: "faq" },
     ],
   },

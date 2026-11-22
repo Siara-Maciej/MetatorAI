@@ -61,15 +61,49 @@ metator repos init       # writes metator.repos.yml from the repositories below;
 ```yaml
 # ~/work/metator.repos.yml
 kind: RepoSet
-schemaVersion: 1
+schemaVersion: 2
 repos:
   - path: shop
+    worktrees:            # optional: its other checkouts in this folder
+      - shop-fix
   - path: billing
   - path: services/mailer
     name: mailer          # optional: how it is shown
 ```
 
 The folder file is only a list. It holds no agents, rules or workflows, and changing it never touches a repository.
+
+## Worktrees in the folder
+
+A folder often holds more checkouts than repositories. `git worktree add ../shop-fix fix-tax` makes a second checkout of `shop` next to it:
+
+```text
+~/work/
+├── shop/          # the repository
+├── shop-fix/      # a worktree of shop, on the branch fix-tax
+├── shop-wip/      # another worktree of shop
+├── billing/
+└── web/
+```
+
+MetatorAI counts this folder as 3 repositories, not 5. It reads each checkout's `.git`: a worktree has a `.git` file that points into its repository's `.git/worktrees/`. No git command runs for this.
+
+| Where | What it shows |
+|---|---|
+| `metator repos list` | 3 repositories; `shop` lists `shop-fix` and `shop-wip` under `worktrees`, each with its branch |
+| `metator repos init` | `shop` with its `worktrees` in `metator.repos.yml` |
+| `metator status` | `shop · 2 worktrees`, then the runs of each worktree under it as `shop (fix-tax)` |
+| `metator repos status` | the runs of all of a repository's checkouts in its row |
+| the app | `3 repositories` in the top bar; the repository picker lists `shop (fix-tax)` as a place to work, and `· 2 worktrees` beside it |
+
+A worktree keeps its own runs, sessions and threads in its own `.metator`, so you can work in it as in any checkout: `cd ~/work/shop-fix && metator run new …`. The daemon serves each checkout, and shows its work under its repository. Only the repository looks for new intake issues and review requests, so they are not found twice.
+
+Some cases:
+
+- **The repository is elsewhere.** When the folder holds only worktrees of a repository that lives outside it (or a bare repository), they are still one repository. The first worktree, by path, stands for it.
+- **Submodules** are not worktrees. A submodule listed in `metator.repos.yml` is a repository of its own.
+- **MetatorAI's own worktrees** (`.metator/wt/` inside a repository, from `metator worktree new`) never show in the folder. Their runs belong to the checkout they came from.
+- **An older `metator.repos.yml`** (`schemaVersion: 1`) may list a worktree as a repository. MetatorAI counts it once under its repository and says so: `shop-fix is a worktree of shop; counted once`. To make it quiet, move the path under its repository's `worktrees`, or remove the file and run `metator repos init` again.
 
 ## What runs in the folder
 

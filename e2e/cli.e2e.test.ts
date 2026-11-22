@@ -201,6 +201,8 @@ describe("metator CLI (process e2e)", () => {
       "guard user-prompt",
       "guard session-start",
       "guard precompact",
+      "host conformance",
+      "host conformance diff",
       "workflow list",
       "workflow lint",
       "workflow validate",

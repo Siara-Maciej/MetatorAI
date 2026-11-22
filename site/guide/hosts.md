@@ -91,6 +91,7 @@ Without `--host`, the first entry of `hosts.targets` is used.
 
 ## Related
 
+- [Host conformance](./conformance.md): the same checks against each host's real CLI, and the parity gaps between them.
 - [Agents and skills](../repo/agents.md): the shipped agents and how to add your own.
 - [Hooks protocol](../reference/hooks.md): what each hook receives and answers.
 - [Configuration](../reference/configuration.md): every `hosts` key.

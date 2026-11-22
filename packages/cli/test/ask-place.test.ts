@@ -22,10 +22,12 @@ describe("folderPlace", () => {
       {
         root: folder,
         repos: [
-          { name: "api", path: "api", root: join(folder, "api") },
-          { name: "web", path: "web", root: join(folder, "web") },
+          { name: "api", path: "api", root: join(folder, "api"), worktrees: [] },
+          { name: "web", path: "web", root: join(folder, "web"), worktrees: [] },
         ],
+        checkouts: [],
         file: null,
+        hints: [],
       },
       {} as never,
     );

@@ -8,6 +8,7 @@ import type {
   StartedStep,
 } from "@metator/core";
 import { startedHow } from "@metator/core";
+import type { PaneAsk } from "./pane-asks.ts";
 
 /**
  * A command's data as a person reads it (ADR-0052): at a terminal the text goes to stderr and
@@ -154,29 +155,48 @@ function overviewLines(o: Overview): string[] {
   return lines;
 }
 
+type Readout = Overview | { readonly error: string };
 type FolderOverview = {
   readonly folder: string;
-  readonly repos: readonly ({ readonly name: string } & (Overview | { readonly error: string }))[];
+  readonly repos: readonly ({
+    readonly name: string;
+    /** Its worktrees' work, each named `shop (fix-tax)`. */
+    readonly worktrees?: readonly ({ readonly label: string } & Readout)[];
+  } & Readout)[];
   readonly counts: Overview["counts"];
 };
 
-/** `metator status`: each run with its stages and what it needs now; in a folder, per repository. */
+/**
+ * `metator status`: each run with its stages and what it needs now; in a folder, per repository
+ * (counted once), with the work of its worktrees under it.
+ */
 export function renderStatus(data: Overview | FolderOverview): string {
   if (!("repos" in data)) return [countsLine(data.counts), "", ...overviewLines(data)].join("\n");
-  const lines = [`${data.folder} · ${data.repos.length} repositories`, countsLine(data.counts)];
+  const lines = [
+    `${data.folder} · ${plural(data.repos.length, "repository", "repositories")}`,
+    countsLine(data.counts),
+  ];
+  const body = (r: Readout) => ("error" in r ? [`  ! ${r.error}`] : overviewLines(r));
   for (const r of data.repos) {
-    lines.push("", r.name);
-    lines.push(...("error" in r ? [`  ! ${r.error}`] : overviewLines(r)));
+    const worktrees = r.worktrees ?? [];
+    lines.push("", worktrees.length > 0 ? `${r.name} · ${plural(worktrees.length, "worktree")}` : r.name);
+    lines.push(...body(r));
+    for (const w of worktrees) lines.push("", w.label, ...body(w));
   }
   return lines.join("\n");
 }
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** `metator inbox`: every open decision with the command that answers it, then the escalated runs. */
 export function renderInbox(data: {
   readonly decisions: readonly (InboxItem & { readonly repo?: string })[];
   readonly escalated: readonly (EscalatedItem & { readonly repo?: string })[];
+  /** The questions of panes the daemon owns (ADR-0091): a host's approval, an agent's words. */
+  readonly panes?: readonly PaneAsk[];
 }): string {
-  if (data.decisions.length + data.escalated.length === 0) return "Nothing waits for you.";
+  const panes = data.panes ?? [];
+  if (data.decisions.length + data.escalated.length + panes.length === 0) return "Nothing waits for you.";
   const lines: string[] = [];
   for (const d of data.decisions) {
     const q = d.question;
@@ -194,6 +214,17 @@ export function renderInbox(data: {
       `! ${where}${e.runId} · escalated at ${e.stage} · waited ${duration(e.waitedMs)}`,
       ...(e.reason ? [`    ${fit(e.reason, WIDTH - 4)}`] : []),
       ...e.next.map((n) => `    ${n}`),
+    );
+  }
+  for (const p of panes) {
+    const where = p.repo ? `${p.repo} · ` : "";
+    const q = p.question;
+    lines.push(
+      `? ${where}${p.label} (pane ${p.paneId}) · ${p.host} ${q.source === "permission" ? "asks for approval" : "asks"}`,
+      `    ${fit(q.prompt, WIDTH - 4)}`,
+      ...(q.reason ? [`    why: ${fit(q.reason, WIDTH - 9)}`] : []),
+      `    ${q.options.map((o) => o.label).join(" / ")}`,
+      `    answer it on Home in the app, or in pane ${p.paneId}`,
     );
   }
   return lines.join("\n");
@@ -514,4 +545,42 @@ export function renderThreadTree(v: {
   if (v.closed.length > 0)
     out.push("", `Closed (${v.closed.length}):`, ...v.closed.map((t) => `  ${fit(t.title, 50)}  (${t.id})`));
   return out.join("\n");
+}
+
+/** `metator host conformance`: each check with its result, the failed ones with why, and the report. */
+export function renderConformanceRun(r: {
+  readonly host: string;
+  readonly cliVersion: string;
+  readonly passed: number;
+  readonly failed: number;
+  readonly skipped: number;
+  readonly report: string;
+  readonly rendered: string;
+  readonly kept?: string;
+  readonly checks: readonly { readonly id: string; readonly result: string; readonly last: string }[];
+}): string {
+  const mark: Readonly<Record<string, string>> = { pass: "✓", fail: "✗", skipped: "·" };
+  return [
+    `${r.host} ${r.cliVersion}: ${r.passed} passed, ${r.failed} failed, ${r.skipped} skipped`,
+    ...r.checks.map(
+      (c) => `  ${mark[c.result] ?? "?"} ${c.id}${c.result === "fail" ? `: ${fit(c.last, WIDTH - 8)}` : ""}`,
+    ),
+    `report: ${r.report} (${r.rendered})`,
+    ...(r.kept ? [`kept: ${r.kept}`] : []),
+  ].join("\n");
+}
+
+/** `metator host conformance diff`: the checks two runs disagree on, the parity gaps. */
+export function renderConformanceDiff(d: {
+  readonly a: { readonly host: string; readonly cliVersion: string };
+  readonly b: { readonly host: string; readonly cliVersion: string };
+  readonly differ: readonly { readonly id: string; readonly a: string; readonly b: string }[];
+  readonly same: number;
+}): string {
+  const head = `${d.a.host} ${d.a.cliVersion} vs ${d.b.host} ${d.b.cliVersion}`;
+  if (d.differ.length === 0) return `${head}: no parity gap (${d.same} checks alike)`;
+  return [
+    `${head}: ${d.differ.length} parity gap(s), ${d.same} checks alike`,
+    ...d.differ.map((x) => `  ${x.id}: ${d.a.host} ${x.a}, ${d.b.host} ${x.b}`),
+  ].join("\n");
 }

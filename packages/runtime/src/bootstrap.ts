@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
@@ -47,6 +48,8 @@ import {
   ComputeAffected,
   Conductor,
   type ConductorSessions,
+  ConformanceHistory,
+  type ConformanceLab,
   ContinueTask,
   type ContractDiffer,
   ConversationRepository,
@@ -55,6 +58,7 @@ import {
   CreateWorktree,
   chatAgentIn,
   checkoutRoots,
+  cliVersionOf,
   DEFAULT_CONFIG,
   DEFAULT_SOURCE_IGNORES,
   DEFAULT_TEST_GLOBS,
@@ -106,6 +110,7 @@ import {
   HostManifestCatalog,
   HostPrompts,
   hostBins,
+  hostCommand,
   hostStatus,
   IndexedImportGraphReader,
   InitArchitecturePolicy,
@@ -190,6 +195,7 @@ import {
   RunDrivers,
   RunEvals,
   RunGate,
+  RunHostConformance,
   RunJournal,
   RunMessages,
   type RunPanes,
@@ -200,6 +206,7 @@ import {
   RunRepository,
   RunSystemEvals,
   RunSystemPlan,
+  realHostRefusal,
   resolveIntake,
   reviewSourcesOf,
   ScaffoldRule,
@@ -273,7 +280,14 @@ import {
   TempGitSandbox,
 } from "@metator/plugin-bun";
 
-export { findChildRepos, findFolderRoot, findRepoRoot, runsRootOf } from "@metator/plugin-bun";
+export {
+  findChildRepos,
+  findFolderRepos,
+  findFolderRoot,
+  findRepoRoot,
+  readCheckout,
+  runsRootOf,
+} from "@metator/plugin-bun";
 
 import { AstGrepEngine, AstGrepScaffolder } from "@metator/plugin-astgrep";
 import { BiomeEngine } from "@metator/plugin-biome";
@@ -307,7 +321,7 @@ import {
 import { OpenApiContractDetector, OpenApiContractDiffer } from "@metator/plugin-openapi";
 import { OxcImportAnalyzer, TscDeclarationEmitter, TscEngine } from "@metator/plugin-typescript";
 import { asFunction, asValue } from "awilix";
-import { resolveCanon } from "./canon.ts";
+import { METATOR_VERSION, resolveCanon } from "./canon.ts";
 import { type LoadedConfig, loadConfig, resolvePaths } from "./config.ts";
 import { createMetatorContainer, type MetatorContainer } from "./container.ts";
 
@@ -357,6 +371,12 @@ export interface BootstrapOptions {
    * seen (a system plan's child) is driven in the background.
    */
   readonly conductorSessions?: (deps: { readonly root: string }) => ConductorSessions;
+  /**
+   * The throwaway repository the host conformance suite drives a real host in (ADR-0098): its
+   * daemon is started and reached the way only the driving adapter knows. Without it the suite
+   * cannot run here.
+   */
+  readonly conformanceLab?: (deps: { readonly root: string }) => ConformanceLab;
   /** The host a new drive uses when nothing names one (METATOR_HOST), when the runtime holds it. */
   readonly defaultHost?: string;
 }
@@ -394,6 +414,26 @@ export function orderedHosts<H extends { readonly id: string }>(
 }
 
 const systemClock: Clock = { now: () => new Date() };
+
+/** A lowercase word of random syllables: what a conformance check gives a session and expects back in uppercase. */
+function conformanceWord(): string {
+  const [c, v] = ["bdfgklmnprstvz", "aeiou"];
+  let word = "";
+  for (let i = 0; i < 4; i++) word += `${c[randomInt(c.length)]}${v[randomInt(v.length)]}`;
+  return word;
+}
+
+/** Where no driving adapter gives a lab, the suite cannot run: each call says so. */
+const NO_LAB: ConformanceLab = (() => {
+  const no = async () =>
+    err(
+      MetatorError.usage(
+        "the conformance suite runs from the metator command line only",
+        "Run `metator host conformance`.",
+      ),
+    );
+  return { open: no, act: no, look: no, save: no, close: async () => ok({}) };
+})();
 /** `.metator/` is MetatorAI's own state: never a change, even before setup gitignores it. */
 const OWN_STATE: readonly string[] = [".metator/"];
 
@@ -566,6 +606,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         runGate,
         checkoutReader,
         workingTree,
+        conformanceHistory,
       }) =>
         new CheckReadiness(
           fileSystem,
@@ -584,6 +625,7 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
             modified: () => workingTree.modifiedTracked(),
             detached: () => workingTree.detachedHead(),
             quickGate: () => runGate.execute({ gate: "quick" }),
+            conformance: () => conformanceHistory.seen(),
           },
         ),
     ),
@@ -701,6 +743,38 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ).singleton(),
     // What the daemon types into panes, kept for the hosts' user-prompt hooks (ADR-0093, ADR-0094).
     paneTyped: asFunction(({ fileSystem, clock }) => new PaneTyped(fileSystem, clock)).singleton(),
+    // What a host's CLI says its version is (`claude --version`): never a real host's where none may start.
+    hostVersion: asFunction(({ processRunner, hostBins: bins, root }) => async (host: string) => {
+      const descriptor = HOSTS.find((h) => h.id === host);
+      if (!descriptor?.program) return undefined;
+      if (options.noRealHosts && realHostRefusal(descriptor, bins, "interactive")) return undefined;
+      const command = hostCommand(descriptor, bins);
+      if (command === undefined || !commandExists(command)) return undefined;
+      const ran = await processRunner.run({ argv: [command, "--version"], cwd: root }, { timeoutMs: 15_000 });
+      return ran.exitCode === 0 ? cliVersionOf(`${ran.stdout}\n${ran.stderr}`) : undefined;
+    }).singleton(),
+    // The host conformance suite (ADR-0098): its kept runs for `doctor`, and a run of it.
+    conformanceHistory: asFunction(
+      ({ fileSystem, hostVersion }) => new ConformanceHistory(fileSystem, hostVersion),
+    ).singleton(),
+    runHostConformance: asFunction(
+      ({ clock, timer, sessionHosts, hostBins: bins, hostVersion, root }) =>
+        new RunHostConformance({
+          lab: options.conformanceLab?.({ root }) ?? NO_LAB,
+          clock,
+          timer,
+          nonce: conformanceWord,
+          metatorVersion: METATOR_VERSION,
+          hosts: sessionHosts.filter((h: HostDescriptor) => h.interactive).map((h: HostDescriptor) => h.id),
+          refusal: (host) => {
+            const descriptor = HOSTS.find((h) => h.id === host);
+            return options.noRealHosts && descriptor
+              ? realHostRefusal(descriptor, bins, "interactive")
+              : undefined;
+          },
+          version: hostVersion,
+        }),
+    ),
     // Why the guard asked about a pane's command: the hook writes it, the daemon's cards read it.
     guardAsked: asFunction(({ fileSystem, clock }) => new GuardAsked(fileSystem, clock)).singleton(),
     ptyBroker: asFunction(

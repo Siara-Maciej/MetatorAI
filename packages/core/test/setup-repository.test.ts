@@ -15,7 +15,9 @@ interface World {
   source?: string;
   hosts?: ("claude" | "copilot")[];
   onPath?: ("claude" | "copilot")[];
+  /** Lint errors of the agents, as `file: message` (a file the canon wrote is setup's own). */
   agentProblems?: string[];
+  workflowProblems?: string[];
   stale?: string[];
   initFails?: boolean;
   canonFails?: boolean;
@@ -60,7 +62,12 @@ function world(w: World = {}) {
   const lint = (name: string, problems: string[] = []) => ({
     execute: async () => {
       calls.push(name);
-      return ok({ problems: problems.map((message) => ({ severity: "error", message })) });
+      return ok({
+        problems: problems.map((p) => {
+          const [source, message] = p.includes(": ") ? p.split(": ") : ["metator/agents/a.md", p];
+          return { severity: "error", source, message };
+        }),
+      });
     },
   });
   const configured: ConfiguredRepository = {
@@ -69,7 +76,7 @@ function world(w: World = {}) {
     generateSkills: generated("skills"),
     lintAgents: lint("lint agents", w.agentProblems),
     lintSkills: lint("lint skills"),
-    lintWorkflows: lint("lint workflows"),
+    lintWorkflows: lint("lint workflows", w.workflowProblems),
   } as never;
   const d: SetupDependencies = {
     config: { source: w.source, hosts: w.hosts ?? ["claude", "copilot"] },
@@ -243,6 +250,21 @@ describe("SetupRepository", () => {
       { command: "meta skills-lint", passed: true },
       { command: "workflow lint", passed: true },
       { command: "generate --check", passed: false },
+    ]);
+  });
+
+  test("a lint that fails only on the repository's own files names them: theirs, not setup's failure", async () => {
+    const w = world({
+      source: "metator.config.yml",
+      workflowProblems: [".github/metator/workflows/old.yml: stage build has no owner"],
+      agentProblems: ["metator/agents/b.md: no description"],
+    });
+    const r = (await w.use.execute({ hooks: true }))._unsafeUnwrap().report;
+    expect(r.checks).toEqual([
+      { command: "meta agents-lint", passed: false },
+      { command: "meta skills-lint", passed: true },
+      { command: "workflow lint", passed: false, theirs: [".github/metator/workflows/old.yml"] },
+      { command: "generate --check", passed: true },
     ]);
   });
 

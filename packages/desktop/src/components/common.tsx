@@ -1,6 +1,7 @@
 /** Small pieces several screens share: the repository select, a notice that stays, the no-daemon panel. */
 import { useEffect, useState } from "react";
 import { useDaemon } from "../daemon.tsx";
+import { placeLabel, plural, worktreeCount } from "../model.ts";
 
 /**
  * The repository a list screen shows (D10): only when the daemon serves a folder of repositories.
@@ -9,16 +10,19 @@ import { useDaemon } from "../daemon.tsx";
 export function RepoSelect() {
   const { repos, repo, setRepo } = useDaemon();
   if (repos.length === 0) return null;
+  // A worktree is a place of its own (`shop (fix-tax)`); its repository's count of them stays dim.
+  const worktrees = worktreeCount(repos, repo);
   return (
     <label className="repo-select">
       <span className="dim">repository</span>
       <select aria-label="repository" value={repo ?? ""} onChange={(e) => setRepo(e.target.value)}>
         {repos.map((r) => (
           <option key={r.name} value={r.name}>
-            {r.name}
+            {placeLabel(r)}
           </option>
         ))}
       </select>
+      {worktrees > 0 ? <span className="dim">· {plural(worktrees, "worktree")}</span> : null}
     </label>
   );
 }

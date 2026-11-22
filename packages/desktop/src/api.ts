@@ -208,6 +208,9 @@ export interface RepoState extends Partial<Overview> {
   readonly name: string;
   readonly path: string;
   readonly error?: string;
+  /** A worktree checkout (`git worktree add`): the repository it is one of, and its branch. */
+  readonly worktreeOf?: string;
+  readonly branch?: string;
 }
 export type StateData = Overview | { readonly folder: string; readonly repos: readonly RepoState[] };
 

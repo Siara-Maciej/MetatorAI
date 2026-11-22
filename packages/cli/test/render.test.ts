@@ -136,6 +136,29 @@ describe("the text a person reads (render)", () => {
     );
   });
 
+  test("status in a folder: a repository with worktrees is counted once, its worktrees' runs under it", () => {
+    const none = { runs: [], conversations: [], counts, unreadable: [] };
+    const text = renderStatus({
+      folder: "/work",
+      repos: [
+        {
+          name: "shop",
+          ...none,
+          worktrees: [{ label: "shop (fix-tax)", ...none, runs: [runOf("a")] }],
+        },
+      ],
+      counts,
+    });
+    expect(text.split("\n").slice(0, 5)).toEqual([
+      "/work · 1 repository",
+      "1 need you · 0 working · 1 stopped · 2 services",
+      "",
+      "shop · 1 worktree",
+      "  no runs yet: `metator run` starts one",
+    ]);
+    expect(text).toContain("\n\nshop (fix-tax)\n‖ 20261028-mt-feature-a");
+  });
+
   test("inbox: each decision with the command that answers it, then the escalated runs", () => {
     expect(renderInbox({ decisions: [], escalated: [] })).toBe("Nothing waits for you.");
     const text = renderInbox({
@@ -169,6 +192,53 @@ describe("the text a person reads (render)", () => {
       "! r2 · escalated at check · waited 45 s",
       "    gate failed",
       "    metator run resume --run r2 --drive",
+    ]);
+  });
+
+  test("inbox: the questions of panes the daemon owns, a host's approval with the guard's reason", () => {
+    const text = renderInbox({
+      decisions: [],
+      escalated: [],
+      panes: [
+        {
+          paneId: "w1:p1",
+          label: "chat",
+          host: "claude",
+          question: {
+            id: "p001",
+            source: "permission",
+            prompt: 'git commit -m "x" — This command requires approval',
+            command: 'git commit -m "x"',
+            reason: "`git commit -m x` needs your consent",
+            askedAt: "2026-11-22T10:00:00.000Z",
+            options: [{ label: "Yes" }, { label: "No" }, { label: "Leave it" }],
+          },
+        },
+        {
+          paneId: "w2:p1",
+          repo: "shop",
+          label: "chat",
+          host: "copilot",
+          question: {
+            id: "p002",
+            source: "agent",
+            prompt: "Which colour?",
+            askedAt: "2026-11-22T10:01:00.000Z",
+            options: [{ label: "a) red" }, { label: "b) blue" }],
+          },
+        },
+      ],
+    });
+    expect(text.split("\n")).toEqual([
+      "? chat (pane w1:p1) · claude asks for approval",
+      '    git commit -m "x" — This command requires approval',
+      "    why: `git commit -m x` needs your consent",
+      "    Yes / No / Leave it",
+      "    answer it on Home in the app, or in pane w1:p1",
+      "? shop · chat (pane w2:p1) · copilot asks",
+      "    Which colour?",
+      "    a) red / b) blue",
+      "    answer it on Home in the app, or in pane w2:p1",
     ]);
   });
 

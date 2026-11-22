@@ -15,7 +15,14 @@ import {
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext } from "../context.ts";
+import { type PaneAsk, paneAsks } from "../pane-asks.ts";
 import { renderDoctor, renderInbox, renderStatus } from "../render.ts";
+
+type Read = Overview | { error: string };
+/** A worktree of a folder's repository in `metator status`, with the label that tells it apart. */
+type FolderStatusWorktree = { name: string; path: string; label: string; branch?: string } & Read;
+/** A repository of a folder in `metator status`: its own work, and each worktree's under it. */
+type FolderStatusRepo = { name: string; path: string; worktrees?: FolderStatusWorktree[] } & Read;
 
 /**
  * `metator status` (G4, ADR-0059): every run (its stages, who must act, the questions, the last
@@ -32,22 +39,41 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
           const o = await ctx.container().resolve("workOverview").execute();
           return { result: o, warnings: o.isOk() ? o.value.unreadable.map(unreadableRunWarning) : [] };
         }
-        const repos: ({ name: string; path: string } & (Overview | { error: string }))[] = [];
         const warnings: string[] = [];
-        for (const r of f.repos) {
+        // One checkout's overview; its warnings are named with its label (`shop (fix-tax)`).
+        const read = async (label: string, root: string): Promise<Read> => {
           try {
-            const o = await ctx.containerAt(r.root).resolve("workOverview").execute();
+            const o = await ctx.containerAt(root).resolve("workOverview").execute();
             if (o.isErr()) {
-              warnings.push(`${r.name}: ${o.error.message}`);
-              repos.push({ name: r.name, path: r.path, error: o.error.message });
-            } else {
-              repos.push({ name: r.name, path: r.path, ...o.value });
-              for (const u of o.value.unreadable) warnings.push(`${r.name}: ${unreadableRunWarning(u)}`);
+              warnings.push(`${label}: ${o.error.message}`);
+              return { error: o.error.message };
             }
+            for (const u of o.value.unreadable) warnings.push(`${label}: ${unreadableRunWarning(u)}`);
+            return o.value;
           } catch (e) {
-            warnings.push(`${r.name}: ${(e as Error).message}`);
-            repos.push({ name: r.name, path: r.path, error: (e as Error).message });
+            warnings.push(`${label}: ${(e as Error).message}`);
+            return { error: (e as Error).message };
           }
+        };
+        // By repository: the work of its worktrees under it, each with the label that tells it apart.
+        const repos: FolderStatusRepo[] = [];
+        const every: object[] = [];
+        for (const r of f.repos) {
+          const own = await read(r.name, r.root);
+          every.push(own);
+          const worktrees: FolderStatusWorktree[] = [];
+          for (const w of f.checkouts.filter((c) => c.worktreeOf === r.name)) {
+            const o = await read(w.label, w.root);
+            every.push(o);
+            worktrees.push({
+              name: w.name,
+              path: w.path,
+              label: w.label,
+              ...(w.branch ? { branch: w.branch } : {}),
+              ...o,
+            });
+          }
+          repos.push({ name: r.name, path: r.path, ...own, ...(worktrees.length > 0 ? { worktrees } : {}) });
         }
         const folder = await ctx.containerAt(f.root).resolve("conversationRepository").list();
         return {
@@ -63,7 +89,7 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
                   updatedAt: c.updatedAt,
                 }))
               : [],
-            counts: fleetCounts(repos),
+            counts: fleetCounts(every),
           }),
           warnings,
         };
@@ -113,7 +139,10 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
     .action(
       ctx.action(async () => {
         const f = ctx.folder();
-        const roots = f ? f.repos.map((r) => ({ name: r.name, root: r.root })) : [{ name: "", root: "" }];
+        // Every checkout: a worktree's runs are named with its label (`shop (fix-tax)`).
+        const roots = f
+          ? f.checkouts.map((r) => ({ name: r.label, root: r.root }))
+          : [{ name: "", root: "" }];
         const repos: RepoRuns[] = [];
         const warnings: string[] = [];
         for (const r of roots) {
@@ -128,8 +157,10 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
             warnings.push(f ? `${r.name}: ${unreadableRunWarning(u)}` : unreadableRunWarning(u));
           repos.push({ name: r.name, runs: o.value.runs, now: c.resolve("clock").now() });
         }
-        // One queue across repositories, in the same order as within one.
-        return { result: ok(fleetInbox(repos, f !== null)), warnings };
+        // One queue across repositories, in the same order as within one; then the questions of
+        // panes, which only the daemon that owns the panes knows (ADR-0091).
+        const panes: PaneAsk[] = await paneAsks(ctx.start());
+        return { result: ok({ ...fleetInbox(repos, f !== null), panes }), warnings };
       }),
     );
 
@@ -169,7 +200,7 @@ export function registerStatusCommand(program: Command, ctx: CommandContext): vo
         // A folder: every repository's runs in one report, each run named with its repository.
         const facts: RunFacts[] = [];
         const warnings: string[] = [];
-        for (const r of f.repos) {
+        for (const r of f.checkouts) {
           const got = await ctx.containerAt(r.root).resolve("buildReport").facts(since);
           if (got.isErr()) warnings.push(`${r.name}: ${got.error.message}`);
           else facts.push(...got.value.map((x) => ({ ...x, runId: `${r.name}/${x.runId}` })));

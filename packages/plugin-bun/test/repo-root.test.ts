@@ -2,7 +2,14 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findChildRepos, findFolderRoot, findRepoRoot, runsRootOf } from "../src/repo-root.ts";
+import {
+  findChildRepos,
+  findFolderRepos,
+  findFolderRoot,
+  findRepoRoot,
+  readCheckout,
+  runsRootOf,
+} from "../src/repo-root.ts";
 
 const dirs: string[] = [];
 afterAll(async () => {
@@ -65,5 +72,96 @@ describe("runsRootOf", () => {
     expect(runsRootOf(loose)).toBe(loose);
     expect(runsRootOf(join(repo, "packages/a"))).toBe(join(repo, "packages/a"));
     await rm(repo, { recursive: true, force: true });
+  });
+});
+
+/** git in `cwd`, with an identity and no signing: local only. */
+function git(cwd: string, ...args: string[]): void {
+  const r = Bun.spawnSync(
+    ["git", "-c", "user.name=T", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", ...args],
+    { cwd, stdout: "pipe", stderr: "pipe" },
+  );
+  if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+}
+
+/** A repository with one commit in `dir`. */
+async function gitRepo(dir: string): Promise<string> {
+  await mkdir(dir, { recursive: true });
+  git(dir, "init", "-q", "-b", "main");
+  await writeFile(join(dir, "a.txt"), "a\n");
+  git(dir, "add", ".");
+  git(dir, "commit", "-q", "-m", "init");
+  return dir;
+}
+
+async function tempDir(prefix: string): Promise<string> {
+  const d = await mkdtemp(join(tmpdir(), prefix));
+  dirs.push(d);
+  return d;
+}
+
+describe("worktrees in a folder (real git)", () => {
+  test("a main repository with 2 worktrees in the folder is one repository with 2 worktrees", async () => {
+    const root = await tempDir("metator-wt-folder-");
+    const shop = await gitRepo(join(root, "shop"));
+    await gitRepo(join(root, "billing"));
+    git(shop, "worktree", "add", "-q", "-b", "fix-tax", "../shop-fix");
+    git(shop, "worktree", "add", "-q", "--detach", "../shop-wip");
+    expect(findChildRepos(root)).toEqual(["billing", "shop", "shop-fix", "shop-wip"]);
+    expect(findFolderRepos(root)).toEqual([
+      { path: "billing", worktrees: [] },
+      { path: "shop", worktrees: [{ path: "shop-fix", branch: "fix-tax" }, { path: "shop-wip" }] },
+    ]);
+    expect(readCheckout(join(root, "shop-fix"))).toMatchObject({ kind: "worktree", main: shop });
+    expect(readCheckout(shop)).toEqual({ kind: "repository", common: `${shop}/.git` });
+  });
+
+  test("worktrees whose main checkout is outside the folder are one repository: the first stands for it", async () => {
+    const elsewhere = await tempDir("metator-wt-main-");
+    const root = await tempDir("metator-wt-folder-");
+    const shop = await gitRepo(join(elsewhere, "shop"));
+    git(shop, "worktree", "add", "-q", "-b", "b", join(root, "b"));
+    git(shop, "worktree", "add", "-q", "-b", "a", join(root, "a"));
+    expect(findFolderRepos(root)).toEqual([{ path: "a", worktrees: [{ path: "b", branch: "b" }] }]);
+    expect(readCheckout(join(root, "a"))).toMatchObject({ kind: "worktree", main: shop, branch: "a" });
+  });
+
+  test("a submodule is a repository of its own, not a worktree", async () => {
+    const root = await tempDir("metator-wt-sub-");
+    const lib = await gitRepo(join(root, "lib"));
+    const app = await gitRepo(join(root, "app"));
+    git(app, "-c", "protocol.file.allow=always", "submodule", "add", "-q", lib, "vendor/lib");
+    expect(readCheckout(join(app, "vendor/lib"))).toEqual({
+      kind: "submodule",
+      common: `${app}/.git/modules/vendor/lib`,
+    });
+    // Listed on its own (the walk never goes inside a repository), it stays apart from its superproject.
+    expect(findFolderRepos(root)).toEqual([
+      { path: "app", worktrees: [] },
+      { path: "lib", worktrees: [] },
+    ]);
+  });
+
+  test("worktrees of a bare repository have no main checkout and are one repository", async () => {
+    const root = await tempDir("metator-wt-bare-");
+    const seed = await gitRepo(join(root, "seed"));
+    git(root, "clone", "-q", "--bare", seed, "shop.git");
+    await rm(seed, { recursive: true, force: true });
+    const bare = join(root, "shop.git");
+    git(bare, "worktree", "add", "-q", "../shop-main", "main");
+    git(bare, "worktree", "add", "-q", "-b", "fix", "../shop-fix");
+    expect(readCheckout(join(root, "shop-main"))).toMatchObject({ kind: "worktree", main: undefined });
+    expect(findFolderRepos(root)).toEqual([
+      { path: "shop-fix", worktrees: [{ path: "shop-main", branch: "main" }] },
+    ]);
+  });
+
+  test("MetatorAI's own worktrees under .metator/wt stay skipped", async () => {
+    const root = await tempDir("metator-wt-own-");
+    const shop = await gitRepo(join(root, "shop"));
+    git(shop, "worktree", "add", "-q", "-b", "metator/run-1", ".metator/wt/run-1");
+    expect(findChildRepos(root)).toEqual(["shop"]);
+    expect(findFolderRepos(root)).toEqual([{ path: "shop", worktrees: [] }]);
+    expect(runsRootOf(join(shop, ".metator/wt/run-1"))).toBe(shop);
   });
 });

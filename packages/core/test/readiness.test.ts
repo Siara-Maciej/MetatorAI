@@ -387,3 +387,55 @@ describe("CheckReadiness", () => {
     expect((await deps('{"workspaces":["p/*"]}'))?.status).toBe("warn");
   });
 });
+
+describe("CheckReadiness: the host conformance suite's kept runs (ADR-0098)", () => {
+  const withSeen = (seen: Parameters<typeof conformanceSeenStub>[0]) =>
+    new CheckReadiness(
+      present("metator/install.lock.json", "package.json"),
+      DEFAULT_PATHS,
+      { config: gated, source: "metator.config.yml" },
+      catalog("mt-feature"),
+      new FakeVcs([], [], "git@example.com:a/b.git"),
+      async () => true,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { conformance: conformanceSeenStub(seen) },
+    ).execute();
+  const conformanceSeenStub =
+    (seen: readonly { host: string; passed?: { cliVersion: string; at: string }; installed?: string }[]) =>
+    async () =>
+      seen;
+
+  test("a line per host that has a run kept: the version and day it last passed; an older version installed is a warning only", async () => {
+    const v = (
+      await withSeen([
+        {
+          host: "claude",
+          passed: { cliVersion: "2.1.0", at: "2026-11-22T10:00:00.000Z" },
+          installed: "2.1.0",
+        },
+        {
+          host: "copilot",
+          passed: { cliVersion: "1.0.114", at: "2026-11-21T10:00:00.000Z" },
+          installed: "1.0.99",
+        },
+      ])
+    )._unsafeUnwrap();
+    expect(v.checks.filter((c) => c.id === "conformance")).toEqual([
+      { id: "conformance", status: "ok", message: "last passed with claude 2.1.0 on 2026-11-22" },
+      {
+        id: "conformance",
+        status: "warn",
+        message: "last passed with copilot 1.0.114 on 2026-11-21; copilot 1.0.99 installed here is older",
+        fix: "metator host conformance --host copilot",
+      },
+    ]);
+    expect(v.ready).toBe(true);
+  });
+
+  test("no run kept: no line at all", async () => {
+    expect((await withSeen([]))._unsafeUnwrap().checks.some((c) => c.id === "conformance")).toBe(false);
+  });
+});

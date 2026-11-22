@@ -15,6 +15,7 @@ import {
   paneStateOf,
   parseRoute,
   problemsAt,
+  quietHeading,
   quietInboxText,
   type Run,
   readableReason,
@@ -23,6 +24,7 @@ import {
   sizeText,
   stepOf,
   systemPlanOf,
+  taskNeed,
   whoWorks,
 } from "../src/model.ts";
 import {
@@ -151,8 +153,21 @@ describe("panes and runs read what is true (defects 8, 14, 16, 20)", () => {
       "No run is open. Open a finished run from the sidebar, or start a new one.",
     );
     expect(quietInboxText(2, 0)).toBe("Nothing needs you. 2 runs are working.");
-    expect(quietInboxText(2, 1)).toBe("Nothing needs you. 1 run has no agent working on it:");
-    expect(quietInboxText(3, 2)).toBe("Nothing needs you. 2 runs have no agent working on them:");
+    // Something stands still: it is for the person to look at, so Home never says "nothing" then.
+    expect(quietInboxText(2, 1)).toBe("1 run has no agent working on it:");
+    expect(quietInboxText(3, 2)).toBe("2 runs have no agent working on them:");
+    expect(quietInboxText(2, 0, 1)).toBe(
+      "1 task is blocked without a question: what each needs is under it.",
+    );
+    expect(quietInboxText(0, 0, 2)).toBe(
+      "2 tasks are blocked without a question: what each needs is under it.",
+    );
+    expect(quietHeading(0, 0)).toBe("Nothing waits for you");
+    expect(quietHeading(1, 0)).toBe("No decision waits for you");
+    expect(quietHeading(0, 1)).toBe("No decision waits for you");
+    // What a blocked task needs: nothing drives its run, and the way out.
+    expect(taskNeed({ status: "active", stage: "build" } as never)).toBe("nothing drives it: Open a session");
+    expect(taskNeed(undefined)).toBe("not started: nothing drives it yet");
   });
 
   test("who works on a run: its person, the agent while something drives it, else nobody", () => {

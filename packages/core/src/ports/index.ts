@@ -6,6 +6,7 @@
 import type { Agent } from "../domain/agent.ts";
 import type { ToolBoundaries } from "../domain/architecture-check.ts";
 import type { ManifestSet } from "../domain/architecture-manifests.ts";
+import type { LabAction, LabView } from "../domain/conformance-lab.ts";
 import type { ContractComparison } from "../domain/contract-diff.ts";
 import type { Diagnostic } from "../domain/diagnostic.ts";
 import type { AgentAnswer, AgentEvent, AgentQuestion, AgentTask } from "../domain/drive.ts";
@@ -198,6 +199,31 @@ export interface InteractiveHost {
     task: AgentTask,
     size: PtySize,
   ): Promise<Result<InteractiveSession, MetatorError>>;
+}
+
+/**
+ * The throwaway repository the host conformance suite works in (ADR-0098): set up for one host,
+ * with a daemon of its own that drives the host's real CLI in its panes, as a person's sessions.
+ * Only the program a person started knows how to start the daemon and talk to it, so the driving
+ * adapter gives the implementation; core decides what is done and what it proves.
+ */
+export interface ConformanceLab {
+  /** A fresh git repository set up for the host (`metator setup --host <h> --yes`), its daemon started; reports go to `out`. */
+  open(input: {
+    readonly host: string;
+    readonly out: string;
+  }): Promise<Result<{ readonly repo: string; readonly os: string }, MetatorError>>;
+  /** Does one thing a person does there; a session opened names its pane. */
+  act(action: LabAction): Promise<Result<{ readonly pane?: string }, MetatorError>>;
+  /** What is there now: the pane (when named), its screen and questions, the guard's records, git, these files. */
+  look(input: {
+    readonly pane?: string;
+    readonly files: readonly string[];
+  }): Promise<Result<LabView, MetatorError>>;
+  /** Keeps a file of the run where the reports go; its path. */
+  save(name: string, text: string): Promise<Result<string, MetatorError>>;
+  /** Stops the daemon and every process of the repository, and deletes it unless `keep`. */
+  close(keep: boolean): Promise<Result<{ readonly kept?: string }, MetatorError>>;
 }
 
 /** Waiting without blocking (polling for answers); instant in tests. */

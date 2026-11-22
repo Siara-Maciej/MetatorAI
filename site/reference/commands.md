@@ -1920,6 +1920,21 @@ PreCompact: write a run checkpoint to log.md before the context is compacted
 metator guard precompact [options]
 ```
 
+## host
+
+### `metator host conformance diff`
+
+The checks whose result differs between two runs of the suite (two hosts): the parity gaps
+
+```bash
+metator host conformance diff [options] <a> <b>
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `<a>` | a run's report (conformance-&lt;host&gt;-&lt;version&gt;.json) | |
+| `<b>` | the other run's report | |
+
 ## workflow
 
 ### `metator workflow list`
