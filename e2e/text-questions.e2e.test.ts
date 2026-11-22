@@ -102,7 +102,8 @@ describe("an agent's question in words reaches the person (real daemon, scenario
       "pane",
       runId,
       "agent",
-      "The tests fail: the build has no currency field. Which option?",
+      // The agent's first sentence alone: it has no question sentence, and none is made up.
+      "The tests fail: the build has no currency field.",
     ]);
     expect(item.question.text).toBe(
       "The tests fail: the build has no currency field.\n\nOptions:\n1. Add the field and run the tests again.\n2. Stop the run.",

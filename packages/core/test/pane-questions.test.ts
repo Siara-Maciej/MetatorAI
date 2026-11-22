@@ -100,12 +100,13 @@ describe("an agent that asks the person in words at the end of its turn", () => 
     const asked = (await w.prompts.tick())._unsafeUnwrap().asked;
     const q = w.questions.open()[0];
     expect(asked).toEqual([{ paneId: "w2:p1", runId: run.runId, questionId: q?.id as string }]);
-    expect([q?.runId, q?.source, q?.prompt.endsWith("Which option?"), q?.text?.split("\n")[3]]).toEqual([
-      run.runId,
-      "agent",
-      true,
-      "Options:",
-    ]);
+    // The prompt is the agent's own sentence: nothing is glued to it.
+    expect([
+      q?.runId,
+      q?.source,
+      q?.prompt.endsWith("(only gates.full exists: typecheck, test)."),
+      q?.text?.split("\n")[3],
+    ]).toEqual([run.runId, "agent", true, "Options:"]);
     expect(q?.options.map((o) => o.label)).toEqual([
       "1. Start the gatekeeper again and have it run",
       "2. You add steps to gates.quick in the config",

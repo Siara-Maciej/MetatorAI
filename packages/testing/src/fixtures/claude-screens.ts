@@ -289,3 +289,167 @@ export const CLAUDE_NUMBERED_ANSWER_SCREEN = [
   "",
   ...INPUT_BOX,
 ].join("\n");
+
+/** The chat's input box, as wide as its pane was in the real run of 2026-11-22. */
+const CHAT_BOX = [
+  "───────────────────────────────────────────────────────────────── mt-chat ─",
+  "❯",
+  "───────────────────────────────────────────────────────────────────────────",
+  "  ⏸ manual mode on · ? for shortcuts",
+];
+
+/**
+ * The real conversation agent's greeting (Claude Code, mt-chat, 2026-11-22, verbatim): it says
+ * what it found, lists the three ways it may suggest and ends with an open invitation. It asks
+ * nothing the person must answer: no card.
+ */
+export const CLAUDE_GREETING_SCREEN = [
+  "● Hi, I'm MetatorAI's chat for shop-api. The checkout is clean on main, and no runs have started yet.",
+  "",
+  "  The import index hasn't been built yet. I'd build it with metator index build before using graph queries to answer questions about the code or to scope",
+  "  changes. Should I build it now?",
+  "",
+  "  Depending on what you ask, I'll suggest one of three ways to handle it, and you decide:",
+  "  - Direct: I answer questions about the code with path:line references, or make temporary edits like debug output or experiments. Those edits are",
+  "    recorded as scratch so a commit doesn't pick them up by accident.",
+  "  - Quick: for a small change that should stay. You get an uncommitted diff to look over, and nothing is committed.",
+  "  - Full: a workflow run for a feature, bugfix or refactor. It runs in its own terminal, and you can keep talking to me here.",
+  "",
+  "  What would you like to work on?",
+  "",
+  "✻ Brewed for 5s · done 12:04 AM",
+  "",
+  ...CHAT_BOX,
+].join("\n");
+
+/**
+ * The same agent after "tell the worker …" when the worker had ended (verbatim): a statement,
+ * then its question, then three lettered choices under it, one of them three sentences long.
+ */
+export const CLAUDE_LETTERED_CHOICES_SCREEN = [
+  "  Ran 1 shell command",
+  "",
+  "● The worker has already ended, so I haven't sent anything. It's",
+  "  mt-implementer-1 in pane w2:p3, and a message to an ended session",
+  "  wouldn't reach anyone. The only session of the run still working is the",
+  "  conductor (mt-orchestrator, pane w2:p2). I won't redirect your message",
+  "  there unless you tell me to.",
+  "",
+  "  How do you want to get the README line in?",
+  "  - (a) Tell the conductor (recommended): I send your words to pane w2:p2.",
+  "    It's busy right now, so the message waits until it's idle, unless you",
+  "    want me to interrupt it. The conductor decides how to get the line into",
+  "    this run's diff.",
+  "  - (b) After the run: once the quick diff is ready, I add the line here",
+  "    myself as a second small change.",
+  "  - (c) You add it yourself.",
+  "",
+  "✻ Sautéed for 8s · done 12:09 AM",
+  "",
+  ...CHAT_BOX,
+].join("\n");
+
+/** The same, in the next run (verbatim): the card read "…ended again. Which option?". */
+export const CLAUDE_LETTERED_CHOICES_AGAIN_SCREEN = [
+  "  Ran 1 shell command",
+  "",
+  "● I haven't sent anything, because the worker has already ended again. It's",
+  "  mt-implementer-1 in pane w3:p7, and an ended session can't receive a",
+  "  message. The only session of this run still working is the conductor",
+  "  (mt-orchestrator, pane w3:p6), and I won't redirect your message there",
+  "  unless you tell me to.",
+  "",
+  "  How do you want to get this into the README?",
+  "  - (a) Tell the conductor (recommended): I send your words to pane w3:p6.",
+  "    It's busy, so the message waits until it's idle, unless you want me to",
+  "    interrupt it.",
+  "  - (b) After the run: once this run's diff is ready, I make one small",
+  "    README change covering both lines: that SKUs are case-insensitive, and",
+  "    that an unknown SKU is 404.",
+  "  - (c) You add it yourself.",
+  "",
+  "✻ Worked for 6s · done 12:14 AM",
+  "",
+  ...CHAT_BOX,
+].join("\n");
+
+/** The same agent proposing the quick way, then a question of its own at the end (verbatim). */
+export const CLAUDE_CLOSING_QUESTION_SCREEN = [
+  "  Ran 1 shell command",
+  "",
+  "● This is too small for the full workflow: do it as quick?",
+  "",
+  "  The check passed with no escalators. The change would touch only",
+  '  test/server.test.ts, as a new test next to the existing "an unknown',
+  '  product is 404" test. The run ends with an uncommitted diff for you to',
+  "  look over, and nothing is committed.",
+  "",
+  "  The README line about case-insensitive SKUs is still open. Should I add",
+  "  it to this run's task too, or keep this run to the test only?",
+  "",
+  "✻ Sautéed for 5s · done 12:13 AM",
+  "",
+  ...CHAT_BOX,
+].join("\n");
+
+/**
+ * The same agent's five clarifying questions (verbatim), longer than its pane: the message's
+ * start had scrolled off, so the screen begins inside the first item. The card read "admin-set
+ * rate per currency through the new API, or an outside source (which one)?", a wrapped line.
+ */
+export const CLAUDE_CUT_QUESTIONS_SCREEN = [
+  "       is chosen with an optional parameter. shop-web doesn't change, so",
+  "       mt-feature fits.",
+  "     - (b) Breaking: for example, every response must carry a currency",
+  "       field. That means shop-web changes too, and the workflow becomes",
+  "       mt-system-change.",
+  "  2. Where conversion rates come from: a fixed table in this repository, an",
+  "     admin-set rate per currency through the new API, or an outside source",
+  "     (which one)?",
+  "  3. Who can use the admin API: there's no authentication anywhere in",
+  "     shop-api today. Should it be a shared token, or something else?",
+  "  4. Where it runs: the new 404 test from the last quick run is still",
+  "     uncommitted in this checkout.",
+  "     - (a) A worktree of its own (recommended)",
+  "     - (b) Here, in this checkout, alongside that uncommitted test",
+  "  5. Autonomy: should the run stop for your approval only at the plan, or",
+  "     at every stage?",
+  "",
+  "  Once you answer, I'll start the run with your decisions in the task and",
+  "  give you its id.",
+  "",
+  "✻ Crunched for 12s · done 12:17 AM",
+  "",
+  ...CHAT_BOX,
+].join("\n");
+
+/**
+ * A real worker (mt-quick-review, a pane of 48 columns) that could not write its artifact and
+ * asked what to do, its message longer than the pane: the screen begins at the last word of a
+ * wrapped sentence. From "It sends" on verbatim; the bullets above as the card showed them. Its
+ * bullets are what it found, not choices; the card read "report. Which option?".
+ */
+export const CLAUDE_CUT_REPORT_SCREEN = [
+  "  report.",
+  "",
+  "  - Only test/server.test.ts changed, and no",
+  "    production code was touched.",
+  "  - The new test requests /prices/NONE and",
+  "    expects a 404.",
+  "  - It follows the same fetch/expect pattern as",
+  "    the test just above it.",
+  "  - It sends an upper-case unknown SKU through",
+  "    the case-insensitive lookup.",
+  "  - I didn't run the tests.",
+  "",
+  "  Tell me how to proceed. I can retry the write",
+  "  to a different location, or send the result",
+  "  with metator run result without the artifact.",
+  "",
+  "✻ Sautéed for 7s · done 12:15 AM",
+  "",
+  "────────────────────────────── mt-quick-review ─",
+  "❯",
+  "────────────────────────────────────────────────",
+  "  ⏸ manual mode on · ? for shortcuts",
+].join("\n");

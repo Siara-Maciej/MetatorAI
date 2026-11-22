@@ -79,9 +79,9 @@ When the prompt is a numbered menu, as Claude Code's approval is (**1. Yes**, **
 
 ### Questions an agent asks in its own words
 
-Agents are told to ask you with a card (`metator run ask`). If one ends its turn with a question in prose instead and waits at its prompt, MetatorAI catches it. This applies to a conductor, a worker, or the chat where you describe a task. The agent's last message must end with a question mark, offer numbered or bulleted choices with a cue to reply ("Options:", "reply with", "which", "tell me"…), or say that it waits for your reply. A progress report, a wait for a worker, or a summary is not a question. The run needs you, and Home shows the question as a card:
+Agents are told to ask you with a card (`metator run ask`). If one ends its turn with a question in prose instead and waits at its prompt, MetatorAI catches it. This applies to a conductor, a worker, or the chat where you describe a task. The agent's last message must end with a question mark, offer choices, tell you to answer ("Tell me how to proceed."), or say that it waits for your reply. A progress report, a wait for a worker, or a summary is not a question. Neither is a greeting that lists what you can do and ends with "What would you like to work on?", or a closing "Anything else?". The run needs you, and Home shows the question as a card:
 
-- the first sentence, with "Which option?" when there are choices;
+- the question in the agent's own words: the question its choices stand under, else the question its turn ends with, else the sentence that tells you to answer. When the message has no such sentence, the card shows its first sentence alone. Nothing is added to the agent's words;
 - the whole message, behind **The whole message**;
 - the agent's choices, then **Other** for your own words and **Leave it**.
 
