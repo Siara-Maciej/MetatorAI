@@ -76,3 +76,30 @@ test("a run without a parent has no group; one its parent does not list is the f
   });
   expect(unlisted.group).toEqual({ parent: "r0", step: 1, of: 1 });
 });
+
+test("a gate's card counts its own loop once, in its Reject consequence; another stage's loop stays a cost (F9)", async () => {
+  const gate = {
+    id: "review",
+    hitl: true,
+    onFail: { goto: "implement", loop: "fix" },
+  } as unknown as StageSpec;
+  const card = await decisionCard(
+    sources(new InMemoryFileSystem(), { r2: {} }),
+    { ...ctx, stage: gate, stages: [gate], loops: { fix: 2, plan: 1 }, loopLimits: { fix: 3 } },
+    { reversible: true },
+  );
+  const reject = card.consequences?.Reject;
+  expect(reject).toContain("loop fix: 3 of 3");
+  expect(card.costOfDelay).toEqual([
+    "its worktree keeps ports 4100–4109 busy",
+    "loop plan: 1 of ? used",
+    "1 child run(s) depend on this run",
+  ]);
+  const lines = [...(card.costOfDelay ?? []), reject];
+  expect(lines.filter((l) => l?.includes("loop fix"))).toHaveLength(1);
+  // A stage nobody answers has no Reject of its own: its loop stays a cost of waiting.
+  const worker = { ...gate, hitl: false } as unknown as StageSpec;
+  expect(costOfDelay({ stage: worker, loops: { fix: 2 }, loopLimits: { fix: 3 }, children: [] })).toEqual([
+    "loop fix: 2 of 3 used",
+  ]);
+});

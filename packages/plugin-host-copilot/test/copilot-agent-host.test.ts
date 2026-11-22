@@ -89,6 +89,26 @@ describe("CopilotAgentHost", () => {
     });
   });
 
+  test("what runs is the launch's argv, not the program's own: the sandbox's launcher starts it", async () => {
+    const f = await fakeCopilot(['{"type":"assistant.message","data":{"content":"Planned"}}']);
+    // A stand-in for the sandbox's launcher: records the argv it was given, then runs what it wraps.
+    const launcher = join(f.dir, "launcher");
+    const launcherArgv = join(f.dir, "launcher-argv");
+    await writeFile(launcher, `#!/bin/sh\nprintf '%s\\n' "$@" > ${launcherArgv}\nshift\nexec "$@"\n`);
+    await chmod(launcher, 0o755);
+    const given: (readonly string[])[] = [];
+    const host = new CopilotAgentHost(f.bin, undefined, (argv) => {
+      given.push(argv);
+      return ok({ argv: [launcher, "--wrapped", ...argv], sandboxed: true });
+    });
+    const events = await collect(host, task(f.dir));
+    expect(await Bun.file(launcherArgv).exists()).toBe(true);
+    const ran = (await Bun.file(launcherArgv).text()).trim().split("\n");
+    expect(ran).toEqual(["--wrapped", ...(given[0] ?? [])]);
+    expect(ran[1]).toBe(f.bin);
+    expect(events.at(-1)).toEqual({ type: "result", ok: true, text: "Planned" });
+  });
+
   test("a session to resume is passed with --resume and reported back", async () => {
     const f = await fakeCopilot([]);
     const events = await collect(new CopilotAgentHost(f.bin), { ...task(f.dir), resume: "abc" });

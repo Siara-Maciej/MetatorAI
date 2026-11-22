@@ -12,8 +12,15 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULT_CONFIG, type MetatorConfig } from "@metator/core";
-import { sandboxUnheldHere, standInHost } from "@metator/testing";
+import {
+  DEFAULT_CONFIG,
+  type HostSandbox,
+  type MetatorConfig,
+  ok,
+  type SandboxSettings,
+} from "@metator/core";
+import { FakeTerminal, sandboxUnheldHere, standInHost } from "@metator/testing";
+import { asValue } from "awilix";
 import { bootstrap } from "../src/bootstrap.ts";
 
 const dirs: string[] = [];
@@ -101,4 +108,55 @@ describe("every host session starts in the sandbox while sandbox.enabled is on (
     expect(screen).toContain(SECRET);
     expect(screen).toContain(ENV);
   }, 60_000);
+});
+
+describe("the composition root starts every interactive session through its host's launch (ADR-0104)", () => {
+  /** The interactive hosts of a repository on a recording sandbox and terminal: no bwrap, no PTY, no host program run. */
+  async function recorded(sandbox: boolean) {
+    const dir = await mkdtemp(join(tmpdir(), "metator-launch-"));
+    dirs.push(dir);
+    const config: MetatorConfig = { ...DEFAULT_CONFIG, options: { "sandbox.enabled": sandbox } };
+    const bins = { claude: join(dir, "bin", "claude"), copilot: join(dir, "bin", "copilot") };
+    const c = bootstrap({ root: dir, config: { config, source: undefined }, bins });
+    const wrapped: { argv: readonly string[]; settings: SandboxSettings }[] = [];
+    const hostSandbox: HostSandbox = {
+      command: (argv, settings) => {
+        wrapped.push({ argv, settings });
+        return ok(["sandbox-launcher", "--", ...argv]);
+      },
+    };
+    const terminal = new FakeTerminal();
+    c.register({ hostSandbox: asValue(hostSandbox), terminal: asValue(terminal) });
+    return { dir, bins, hosts: c.resolve("interactiveHosts"), wrapped, terminal };
+  }
+
+  const task = (dir: string) => ({
+    agent: "mt-chat",
+    prompt: "Say hello",
+    cwd: dir,
+    projectRoot: dir,
+    runDir: join(dir, ".metator", "runs", "r1"),
+  });
+
+  test("on: claude and copilot spawn the sandbox's argv around their own program", async () => {
+    const w = await recorded(true);
+    for (const host of ["claude", "copilot"] as const) {
+      const started = await w.hosts.get(host)?.start(task(w.dir), { cols: 80, rows: 24 });
+      expect(started?.isOk()).toBe(true);
+      const spawned = w.terminal.spawned.at(-1);
+      const asked = w.wrapped.at(-1);
+      expect(asked?.argv[0]).toBe(w.bins[host]);
+      expect(asked?.argv).toContain("Say hello");
+      expect(spawned?.argv).toEqual(["sandbox-launcher", "--", ...(asked?.argv ?? [])]);
+      expect(spawned?.cwd).toBe(w.dir);
+    }
+    expect(w.wrapped).toHaveLength(2);
+  });
+
+  test("off: the host's own argv is spawned and the sandbox is never asked", async () => {
+    const w = await recorded(false);
+    await w.hosts.get("copilot")?.start(task(w.dir), { cols: 80, rows: 24 });
+    expect(w.wrapped).toEqual([]);
+    expect(w.terminal.spawned[0]?.argv[0]).toBe(w.bins.copilot);
+  });
 });

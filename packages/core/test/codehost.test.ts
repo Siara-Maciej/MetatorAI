@@ -72,6 +72,21 @@ describe("a link to an MR (ADR-0097)", () => {
     });
   });
 
+  test("an MCP server reads an MR only when it is named after the MR's kind: a gitlab server never reads GitHub", () => {
+    const hub = { kind: "github" as const, host: "github.com", repo: "acme/other" };
+    expect(chooseVia(hub, { sources, servers: ["gitlab", "jira"], gh: true })).toEqual({
+      via: "gh",
+      source: { kind: "github", repo: "acme/other" },
+    });
+    expect(chooseVia(hub, { sources, servers: ["gitlab"], gh: false })).toEqual({
+      refusal: noToolSentence("github.com"),
+    });
+    const lab = { kind: "gitlab" as const, host: "gitlab.com", repo: "x/y" };
+    expect(chooseVia(lab, { sources, servers: ["github"], gh: true })).toEqual({
+      refusal: noToolSentence("gitlab.com"),
+    });
+  });
+
   test("a git remote is the MR's repository when host and path match (https or scp form, .git aside)", () => {
     expect(remoteRepo("git@github.com:acme/shop.git")).toEqual({ host: "github.com", repo: "acme/shop" });
     expect(remoteRepo("https://github.com/acme/shop.git")).toEqual({ host: "github.com", repo: "acme/shop" });
