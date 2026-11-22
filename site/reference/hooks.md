@@ -102,11 +102,11 @@ The first rule that matches decides.
 3. The guard's own commands. An agent that runs `metator guard …` itself, or writes under `.metator/consents/`, is denied: a consent is your own word.
 4. Dangerous commands, from `guard.commands` in [the configuration](./configuration.md#guard):
    - on `never` (`git push --force`, `git reset --hard`, `git clean -f`, `rm -r` of `/`, `~`, `.`, `..` or `*`, and the rest of the list): denied;
-   - on `ask` (`git commit`, `git push`, `git merge`, `git rebase`): a commit that would hold recorded debug changes asks with the files (the whole command line is read: `git add src/a.ts && git commit` in one call takes `src/a.ts`, as do `git add -A`, `commit -a` and paths named on the commit); a command the run's approval covers, or one you consented to in words, passes; in a session without a terminal it is denied with how to approve; otherwise the answer is `ask`.
+   - on `ask` (`git commit`, `git push`, `git merge`, `git rebase`, `metator review approve`): a commit that would hold recorded debug changes asks with the files (the whole command line is read: `git add src/a.ts && git commit` in one call takes `src/a.ts`, as do `git add -A`, `commit -a` and paths named on the commit); a command the run's approval covers, or one you consented to in words, passes; in a session without a terminal it is denied with how to approve; otherwise the answer is `ask`.
 5. Plan approvals. `metator arch plan approve` and `metator system plan approve` are denied: a person runs them.
 6. No active run. Everything else is left to the host. The chat you talk in (a pane with no run of its own) counts as having none, also while a run works in the same checkout.
 7. Actions outside the repository, until a person approves them with `metator run approve push` or `metator run approve comment`:
-   - `git push`, `gh pr create`, `gh pr merge` and MCP tools that create branches, files or pull requests need `push`;
+   - `gh pr create`, `gh pr merge` and MCP tools that create branches, files or pull requests need `push` (a `git push` is judged by rule 4);
    - `gh pr comment`, `gh pr review`, `gh issue comment` and MCP comment or review tools need `comment`.
 8. File edits:
    - by a coordinator that has no `edit` capability (`mt-orchestrator`, `mt-pr-review`): denied;

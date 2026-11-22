@@ -4,23 +4,28 @@ Intake turns issues from GitHub, GitLab or Jira into tasks in your backlog and i
 
 ## Connect the source
 
-Intake reads a source through an MCP server. Declare the server under `mcp:` in `metator.config.yml`:
+Intake reads the sources listed in `codehost.sources`, the same list [Reviews](../use/reviews.md#configure-the-sources) use. Each source says what it is and which tool reads it. Intake reads a source through an MCP server, `via: "mcp:<name>"` for a server under `mcp:`; a source read by `gh` serves reviews only, and intake reads its kind through the MCP server of that name (`github`).
 
 ```yaml
+# metator.config.yml
 mcp:
   github:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-github"]
     env: { GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}" }
+  jira:
+    command: jira-mcp
+codehost:
+  sources:
+    - { id: shop, kind: github, repo: acme/shop, via: "mcp:github" }
+    - { id: jira-shop, kind: jira, project: SHOP, via: "mcp:jira" }
 ```
 
 A server has a `command` (with `args`) or a `url`. In `env`, write `${VAR}` and keep the token in your environment. The file is then safe to commit.
 
 ::: warning
-Do not put a token itself into `metator.config.yml`. The file is committed, and `metator generate` copies the entry into `.mcp.json`.
+Do not put a token itself into `metator.config.yml`. The file is committed, and `metator generate` copies the `mcp:` entries into `.mcp.json`.
 :::
-
-Then run:
 
 ```bash
 metator generate     # writes the servers into .mcp.json, which Claude Code and the Copilot CLI read
@@ -31,16 +36,20 @@ metator doctor       # warns when a server's command is not on your PATH
 
 ## Write rules
 
+A rule names its source by id, and says what to take from it and which workflow runs it:
+
 ```yaml
 intake:
   everyMs: 120000
   maxActive: 2
   rules:
     - id: gh-bugs
-      source: { kind: github, repo: acme/shop, labels: [bug] }
+      source: shop
+      labels: [bug]
       workflow: mt-bugfix
     - id: jira-tasks
-      source: { kind: jira, project: SHOP, type: Task, mcp: jira }
+      source: jira-shop
+      type: Task
       workflow: mt-feature
       autonomy: full
 ```
@@ -50,22 +59,16 @@ intake:
 | `everyMs` | `120000` | how often the daemon scans, in milliseconds |
 | `maxActive` | `2` | how many runs started by intake may be active at once |
 | `rules[].id` | | lowercase letters, digits and dashes; unique |
+| `rules[].source` | | the id of a source in `codehost.sources` |
+| `rules[].labels` | `[]` | take only items with these labels |
+| `rules[].state` | `open` | the item state to list |
+| `rules[].type` | | the Jira issue type, for example `Bug` |
+| `rules[].tool` | the kind's usual tool | the server's tool that lists items |
 | `rules[].workflow` | | the workflow a new item starts |
 | `rules[].autonomy` | `gated` | `gated`: every gate of the workflow asks you. `full`: gates the workflow marks as skippable pass; a push still asks |
 | `rules[].worktree` | `true` | the run works in its own worktree |
 
-The source of a rule:
-
-| Key | Default | Meaning |
-|---|---|---|
-| `kind` | | `github`, `gitlab` or `jira` |
-| `repo` | | `owner/name` on GitHub, the project path on GitLab |
-| `project` | | the Jira project key |
-| `labels` | `[]` | take only items with these labels |
-| `type` | | the Jira issue type, for example `Bug` |
-| `state` | `open` | the item state to list |
-| `mcp` | the kind's name | the MCP server that reaches the source, by its name under `mcp:` |
-| `tool` | | the server's tool that lists items, when it is not the usual one for the kind |
+A configuration of version 14 or older, with the source written inside the rule, still loads: its sources move to `codehost.sources` and the rules name them by id.
 
 Check what MetatorAI read from your file:
 
@@ -110,8 +113,8 @@ The daemon scans every `everyMs` and drives the runs it starts. `--intake-ms <n>
 metator intake status
 ```
 
-It lists intake's tasks with their source key, rule, status and run, and counts them by rule and status. The tasks are also in the backlog ([Plan and backlog](./plan.md#backlog)).
+It lists intake's tasks with their source key, rule, status and run, and counts them by rule and status. The tasks are also in the backlog ([Plan and backlog](../use/plan.md#backlog)).
 
 ## How far a run goes alone
 
-With `autonomy: gated`, a run stops at its first gate and the decision waits in your [inbox](./inbox.md). With `full`, the run starts at autonomy `L1`: gates that the workflow lets `L1` skip, such as the plan approval, pass and are logged as such. The delivery gate always asks, so nothing is pushed without you. See [Gates and approvals](../guide/gates.md).
+With `autonomy: gated`, a run stops at its first gate and the decision waits on [Home](../use/inbox.md). With `full`, the run starts at autonomy `L1`: gates that the workflow lets `L1` skip, such as the plan approval, pass and are logged as such. The delivery gate always asks, so nothing is pushed without you. See [Approvals and consent](../use/approvals.md#autonomy).

@@ -4,8 +4,8 @@ import { defineDocument } from "./versioned.ts";
 
 /**
  * A folder of repositories (G2, ADR-0057): `metator.repos.yml` in the folder that holds them. Each
- * repository keeps its own MetatorAI; the folder only gathers them for `metator ui`, `ask`,
- * `status` and `repos`. Nothing is shared.
+ * repository keeps its own MetatorAI; the folder only gathers them for the desktop app (`serve`),
+ * `status`, `inbox`, `ask` and `repos`. Nothing is shared.
  */
 export const REPO_SET_FILE = "metator.repos.yml";
 

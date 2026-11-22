@@ -80,4 +80,4 @@ Rule `MT-TEST-002` fails CI when an adapter does not run the suite of its port.
 
 ## Contract kinds
 
-The contracts in a [system map](../repo/systems.md) work the same way. A plugin registers a kind with a detector and a compatibility check. `plugin-openapi` provides `openapi`. Another kind is another plugin, with no change to the map's schema.
+The contracts in a [system map](../many/systems.md) work the same way. A plugin registers a kind with a detector and a compatibility check. `plugin-openapi` provides `openapi`. Another kind is another plugin, with no change to the map's schema.

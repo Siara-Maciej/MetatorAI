@@ -138,7 +138,7 @@ Override any of these under `paths:`. Local state (runs, the index, gate reports
 
 ## System
 
-`system` connects this repository to a map of several applications. See [Systems of applications](../repo/systems.md).
+`system` connects this repository to a map of several applications. See [Systems of applications](../many/systems.md).
 
 | Field | Use |
 |---|---|
@@ -203,7 +203,7 @@ Entries of `.mcp.json` that MetatorAI did not write are kept. A server you remov
 
 ## Intake
 
-`intake` holds the rules that turn issues from GitHub, GitLab or Jira into tasks and runs. `metator intake scan` applies them once, and the daemon applies them on a timer. See [Automatic intake](../use/intake.md).
+`intake` holds the rules that turn issues from GitHub, GitLab or Jira into tasks and runs. `metator intake scan` applies them once, and the daemon applies them on a timer. See [Automatic intake](../repo/intake.md).
 
 | Field | Default | Use |
 |---|---|---|
@@ -221,7 +221,7 @@ Entries of `.mcp.json` that MetatorAI did not write are kept. A server you remov
 
 ## Code hosts
 
-`codehost` (version 15) is the one list of the code hosts MetatorAI reads, for intake and for reviews, with how each is read; what happens to a review of someone else's request; and whether a review of yours is analysed by itself. Tokens are never here: they stay in the MCP server's configuration or in `gh auth login`. See [Review a change](../use/review.md#review-someone-elses-mr-from-its-link) and [Answer a review](../use/reviews.md).
+`codehost` (version 15) is the one list of the code hosts MetatorAI reads, for intake and for reviews, with how each is read; what happens to a review of someone else's request; and whether a review of yours is analysed by itself. Tokens are never here: they stay in the MCP server's configuration or in `gh auth login`. See [Reviews](../use/reviews.md#review-a-pull-request-from-its-link).
 
 | Field | Default | Use |
 |---|---|---|
@@ -276,7 +276,7 @@ A pattern is the command's words: the program, for `git` the subcommand, then th
 
 A consent in words comes from your own message only (the host's user-prompt hook hands it to `metator guard user-prompt`). A question ("should we commit?"), a refusal, the agent's own words and lines MetatorAI types (`[metator] …`) give none. In a run, the approval of the delivery gate (`metator run approve push`) counts as your consent to that run's commit and push. A session without a terminal (`metator run drive`) cannot ask you, so there a command on `ask` needs the run's approval.
 
-A `git commit` that would hold a recorded debug change (see [Debug changes](../use/start.md#debug-changes)) is stopped with the files, even after "commit": say "commit anyway", or remove the changes first.
+A `git commit` that would hold a recorded debug change (see [Debug changes](../use/quick.md#debug-changes)) is stopped with the files, even after "commit": say "commit anyway", or remove the changes first.
 
 ### What runs without a prompt
 
@@ -284,7 +284,7 @@ With `guard.prompts: metator` the `pre-tool` hook answers `allow`, with the reas
 
 | Kind | What qualifies |
 |---|---|
-| MetatorAI's own commands | `metator …` as the repository runs it (`hosts.metatorCommand`, `npx metator`, `bun run metator`), any subcommand except the ones that are your decision: `run approve`, `run answer`, `run resume`, `run take`, `run close`, `system plan approve`, `system plan retry`, `arch plan approve`, `scratch forget`, `policy`, `config set`, `config unset`, `issue add`, `setup`, `init`, `generate`, `agents`, `serve`, `mcp`, `findings to-github`, `mrs reply`, `mrs resolve`, and `quick start --override`. Those are asked about by name. `metator guard` is never an agent's command |
+| MetatorAI's own commands | `metator …` as the repository runs it (`hosts.metatorCommand`, `npx metator`, `bun run metator`), any subcommand except the ones that are your decision: `run approve`, `run answer`, `run resume`, `run take`, `run close`, `system plan approve`, `system plan retry`, `arch plan approve`, `scratch forget`, `policy`, `config set`, `config unset`, `issue add`, `setup`, `init`, `generate`, `agents`, `serve`, `mcp`, `findings to-github`, `mrs send`, `mrs resolve`, `review approve`, and `quick start --override`. Those are asked about by name. `metator guard` is never an agent's command |
 | Commands that only read | `git status`, `git diff`, `git log`, `grep`, `rg`, `ls`, `cat`, `head`, `sed -n '1,80p' file` and the like, with paths inside the repository; no option that writes or runs something |
 | Edits inside the repository | a file edit or write whose every path is inside the repository (in a run: inside its plan's scope), except `.git/`, `metator.config.*`, `.claude/settings*.json`, `.github/hooks/`, and MetatorAI's own records under `.metator/` (a run's artifacts are fine). Secrets are denied as always |
 | The repository's own checks | the steps of `gates.quick` and `gates.full` (a script through `bun`, `npm`, `pnpm` or `yarn`; a binary with its arguments, also through `npx` or `bunx`), and the package's `test`, `typecheck`, `lint` and `build` scripts or the command such a script runs (`bunx tsc --noEmit`) |
@@ -295,7 +295,7 @@ Copilot CLI takes an allow list when it starts, so its sessions are also started
 
 ## Quick
 
-`quick` holds the limits of a quick change (`metator quick check`, see [Quick](../use/start.md#quick)).
+`quick` holds the limits of a quick change (`metator quick check`, see [Quick](../use/quick.md)).
 
 | Field | Default | Use |
 |---|---|---|

@@ -4,62 +4,70 @@ import { defineConfig } from "vitepress";
  * User documentation of MetatorAI, published to GitHub Pages by .github/workflows/pages.yml.
  * The base path comes from Pages (SITE_BASE); locally it defaults to the repository's path.
  *
- * Four sections, by what the reader came for: Guide (understand and install), App (do the work),
- * Repository (teach MetatorAI your repository), Reference (look up). The top bar holds the
- * sections; each has its own sidebar, and Previous/Next at the bottom of a page follow it.
+ * Five sections, by what the reader came for: Start (understand, install, and the two ways in: one
+ * repository or many), Work (the app, day to day), Many repositories (a folder, systems, system
+ * plans), Your repository (teach MetatorAI your repository) and Reference (look up). The top bar
+ * holds the sections; each has its own sidebar, and Previous/Next at the bottom of a page follow it.
  */
 
 export const sections = [
   {
-    text: "Guide",
+    text: "Start",
     base: "/guide/",
     items: [
       { text: "What MetatorAI is", link: "" },
       { text: "Install", link: "install" },
-      { text: "First run", link: "first-run" },
-      { text: "Runs and workflows", link: "runs" },
-      { text: "Gates and approvals", link: "gates" },
+      { text: "Get the desktop app", link: "desktop-app" },
+      { text: "Start with one repository", link: "first-run" },
+      { text: "Start with many repositories", link: "many" },
       { text: "Copilot and Claude Code", link: "hosts" },
       { text: "Host conformance", link: "conformance" },
       { text: "FAQ", link: "faq" },
     ],
   },
   {
-    text: "App",
+    text: "Work",
     base: "/use/",
     items: [
       { text: "The app", link: "" },
-      { text: "Start a task", link: "start" },
-      { text: "Answer questions", link: "inbox" },
-      { text: "Sessions and worktrees", link: "sessions" },
-      { text: "Terminals", link: "desktop" },
-      { text: "Chats and threads", link: "threads" },
+      { text: "Chats and the three ways", link: "start" },
+      { text: "Quick and debug changes", link: "quick" },
+      { text: "Full runs", link: "runs" },
+      { text: "Home and the Board", link: "inbox" },
+      { text: "Approvals and consent", link: "approvals" },
+      { text: "Terminals and sessions", link: "sessions" },
       { text: "Plan and backlog", link: "plan" },
       { text: "Read the change", link: "changes" },
-      { text: "Answer a review", link: "reviews" },
-      { text: "Automatic intake", link: "intake" },
+      { text: "Reviews", link: "reviews" },
       { text: "Ask about the code", link: "ask" },
       { text: "Your settings", link: "settings" },
       { text: "Feature", link: "feature" },
       { text: "Bug fix", link: "bugfix" },
       { text: "Refactor", link: "refactor" },
       { text: "Review a change", link: "review" },
-      { text: "Change across applications", link: "system" },
     ],
   },
   {
-    text: "Repository",
+    text: "Many repositories",
+    base: "/many/",
+    items: [
+      { text: "Folder of repositories", link: "" },
+      { text: "Systems of applications", link: "systems" },
+      { text: "System plans", link: "plans" },
+    ],
+  },
+  {
+    text: "Your repository",
     base: "/repo/",
     items: [
       { text: "Rules", link: "" },
       { text: "Keep knowledge true", link: "knowledge" },
       { text: "Agents and skills", link: "agents" },
-      { text: "Gates and CI", link: "gates-ci" },
       { text: "Hooks and guardrails", link: "hooks" },
+      { text: "Gates and CI", link: "gates-ci" },
       { text: "Package architecture", link: "architecture" },
-      { text: "Several repositories", link: "repositories" },
-      { text: "Systems of applications", link: "systems" },
       { text: "Run the application", link: "environments" },
+      { text: "Automatic intake", link: "intake" },
     ],
   },
   {
@@ -72,6 +80,8 @@ export const sections = [
       { text: "Configuration", link: "configuration" },
       { text: "Documents and schemas", link: "documents" },
       { text: "Hooks protocol", link: "hooks" },
+      { text: "Daemon HTTP API", link: "http" },
+      { text: "MCP server", link: "mcp" },
       { text: "Ports and plugins", link: "extending" },
       { text: "Security", link: "security" },
       { text: "Troubleshooting", link: "troubleshooting" },
@@ -87,7 +97,7 @@ export const pathOf = (base: string, link: string) => (link === "" ? base : `${b
 export default defineConfig({
   title: "MetatorAI",
   description:
-    "A workflow for AI coding agents: plans, gates and approvals around GitHub Copilot and Claude Code.",
+    "A desktop app and a workflow for AI coding agents on Claude Code and GitHub Copilot CLI, for one repository or many.",
   base: process.env.SITE_BASE ?? "/MetatorAI/",
   lang: "en-US",
   cleanUrls: true,

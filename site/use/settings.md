@@ -72,7 +72,7 @@ metator config unset ui.paneBorders --scope user       # back to the default
 
 `metator config list` shows every key with its description. The sections below describe the options that change what you see and do today.
 
-## Look of the workbench
+## Look of Terminals
 
 | Option | Values | Default | Does |
 |---|---|---|---|
@@ -81,7 +81,7 @@ metator config unset ui.paneBorders --scope user       # back to the default
 | `ui.statusIndicators` | `symbols`, `dots` | `symbols` | a pane's state as a symbol (`✓` `⋮` `!` `?`) or as a dot |
 | `ui.confirmClosePane` | `true`, `false` | `true` | ask before a pane with a live process is closed |
 | `ui.attachOnType` | `ask`, `always`, `never` | `ask` | a key typed into an agent's pane: ask to take the keyboard, take it at once, or ignore the key |
-| `notify.channel` | `off` or any other value | `app` | `off` hides the toast that the workbench shows for a waiting question |
+| `notify.channel` | `off` or any other value | `app` | `off` hides the toast that **Terminals** shows for a waiting question |
 
 ## Terminal
 
@@ -100,7 +100,7 @@ metator config set editor.command zed --scope user
 
 ## Keys
 
-In **Terminals** every action is the prefix and one key ([Terminals](./desktop.md#keys)). `keys.prefix` is the prefix, `ctrl+b` by default. Each action has its own option, such as `keys.zoom` or `keys.splitRight`. The group **keys** on the Settings screen lists them all with their bindings.
+In **Terminals** every action is the prefix and one key ([Terminals and sessions](./sessions.md#keys)). `keys.prefix` is the prefix, `ctrl+b` by default. Each action has its own option, such as `keys.zoom` or `keys.splitRight`. The group **keys** on the Settings screen lists them all with their bindings.
 
 A binding is written as `prefix+<key>`. An action can have several bindings: in the app, separate them with commas.
 
@@ -144,3 +144,17 @@ The group **app** on the Settings screen holds two values that belong to this wi
 The app also asks for your name, in a dialog, the first time you answer, attach, add a note or decide a task, and remembers it. The top bar shows it as **you: alice**; a click there changes it. The name goes into the run's log next to every decision. From a terminal the same name is the `--by` option.
 
 To open the app on another daemon once, add `?daemon=http://127.0.0.1:4310` to the app's address.
+
+## System
+
+**System**, the second part of **Settings**, has three tabs. The old address `#/overview` leads here. In a folder of repositories, a **repository** select at the top picks whose.
+
+**Daemon** is the daemon's own view. Four tiles show the median time from a question to its answer, the share of answers given from the decision card without opening the run, how many runs the daemon started again in the last 24 hours, and how many reminders it typed to an idle agent. Below is a table of the open runs with their host, who works, state, terminal and last activity. The side column shows how the daemon looks after runs (the waiting limit, restarts, the host order) and, under **AI hosts**, each host as **installed** or **not installed**. These settings are in `metator.config.yml` ([Configuration](../reference/configuration.md#supervisor)).
+
+**Dependencies** first lists each system task in one line (its status and how many steps are done), leading to its page. Below is the graph: each repository a lane, each run a card with its state, stage and AI host. Finished runs of the last day stay, dimmed. An arrow runs from a parent run to each run it started, also across lanes. A dashed line joins two runs that exchanged a message or changed the same file; the **Links** box lists those pairs, says which run to merge first, and **Notify both** sends each of the two runs a message about the file. **Board ›** opens the Board.
+
+**System** lists the system plans of the repository, read-only; a click opens the system task's page ([System plans](../many/plans.md)). Under it:
+
+- **System map** shows the applications and the contracts of `docs/metator/system.yml` as tables, with its lint, and lets you change it (**Edit system map**, **Edit as text**, **Save…**).
+- **Where the applications' code is** edits the option `system.roots` as a list: **+ Path** adds a directory, **✕** removes one, and **Save roots** saves it.
+- **Discover…** reads the code and lists what the map lacks; with no map yet it shows the whole map the code suggests. Nothing is written until **Write the map** ([Systems of applications](../many/systems.md#let-metatorai-propose-the-map)).

@@ -1,6 +1,8 @@
 # Copilot and Claude Code
 
-MetatorAI runs its agents through GitHub Copilot or Claude Code. This page shows which files each tool gets, how to choose the tools for a repository, and how agents are limited to the commands they need. These docs call the AI tool the host.
+MetatorAI runs its agents through Claude Code or GitHub Copilot CLI. This page shows which files each tool gets, how to choose the tools for a repository, which one the app starts, and how agents are limited to the commands they need. These docs call the AI tool the host.
+
+The daemon starts the host's command-line program in a terminal: `claude` for Claude Code, `copilot` for GitHub Copilot CLI. Install it and log in once in a terminal of your own. Copilot Chat in an IDE reads the same generated agents, but the app's chats and runs need the CLI.
 
 ## One source, generated files
 
@@ -20,7 +22,7 @@ A change made in `.claude/agents/`, `.github/agents/` or the generated skills is
 
 ## Choose the hosts
 
-`hosts.targets` in `metator.config.yml` lists the hosts that get files. Without it, both do. The first `metator setup` writes it from what it finds: the hosts the repository already has files for, or else the hosts whose command is on your machine ([First run](./first-run.md#set-up-the-repository)).
+`hosts.targets` in `metator.config.yml` lists the hosts that get files. Without it, both do. The first `metator setup` writes it from what it finds: the hosts the repository already has files for, or else the hosts whose command is on your machine ([Start with one repository](./first-run.md#set-up-the-repository)).
 
 ```yaml
 hosts:
@@ -79,15 +81,26 @@ hosts:
       claude: sonnet
 ```
 
-## Drive a run on a host
+## Which host runs what
 
-In the host's chat you start a run by asking the `mt-orchestrator` agent. From a terminal, name the host that should run the agents:
+| What | Host |
+|---|---|
+| A chat in the app, and a run's conductor and workers | the first host of `supervisor.hostOrder` that is installed on the daemon's machine; the default order is `copilot`, `claude`, `opencode` |
+| A run started from the **Form…** | the host you choose there; one that is not installed is greyed out |
+| A step of a system plan | the system run's host when it is installed, else the first of `supervisor.hostOrder` |
+| `metator run drive` (no terminal of its own) | `--host`, else the first entry of `hosts.targets` |
+
+The daemon looks the hosts up each time, so a host you install while it runs is found without a restart. **Settings › System › Daemon** lists each host as **installed** or **not installed**. Change the order for a repository:
 
 ```bash
-metator run drive --host copilot
+metator config set supervisor.hostOrder claude,copilot --scope repo
 ```
 
-Without `--host`, the first entry of `hosts.targets` is used.
+The daemon reads it when it starts: restart `metator serve` after you change it.
+
+OpenCode (`opencode`) can run a session too, but `metator generate` writes files for Claude Code and Copilot only, and the [conformance suite](./conformance.md) does not expect it to pass.
+
+Outside the app, in the host's own chat, the same agents are there: `mt-chat` is the conversation that suggests a way and starts runs, and `mt-orchestrator` is the conductor that carries one run stage by stage.
 
 ## Related
 

@@ -8,79 +8,63 @@ pageClass: mx-home
 
 # MetatorAI
 
-MetatorAI is a desktop app for working with AI coding agents. You describe a task. Agents plan it, write the tests and the code, and review the result in terminals you can watch. The app stops them where the decision is yours: the plan, the push, the comments on a pull request.
+MetatorAI is a desktop app for working with AI coding agents on Claude Code or GitHub Copilot CLI. You talk to an agent in a chat. It answers from your code, makes a small change on the spot, or carries a larger one through a workflow with a plan, tests, gates and a review, in terminals you can watch. It stops where the decision is yours: the plan, a commit, a push, a comment on a pull request.
 
-It works with GitHub Copilot and Claude Code. Everything stays on your machine, in your repository.
+Everything runs on your machine, in your repositories.
 
-![The workbench of the app: a run in its own tab, its stages under the tab bar, the agent's terminal and a shell beside it](./public/screens/workbench.png)
+![The app: a chat and its tasks in the sidebar, and a plan to approve on Home](./public/screens/home.png)
 
-[Install](./guide/install.md) · [First run](./guide/first-run.md) · [Tour of the app](./use/index.md)
+## Two ways in
+
+- **[Start with one repository](./guide/first-run.md)**: set the repository up, start the daemon, open the app and give the agent your first task.
+- **[Start with many repositories](./guide/many.md)**: a folder that holds several repositories, one daemon and one app for all of them, and changes that cross applications.
+
+[Install](./guide/install.md) comes first in both.
 
 ## How it works
 
-### 1. Describe the task
+### 1. Talk to the agent
 
-Click **+ New chat** and tell the agent what you want. It answers questions about the code with `file:line` references, and starts a run when you ask for a change. Each run gets its own tab and its own git worktree, so several can go on side by side.
+Click **+ New chat** and say what you want. For each request the agent suggests the lightest way that fits, and you decide:
 
-![The Terminal tab of a run: its stages across the top, the agent's terminal, and the boxes with its question, the applications and the changed files](./public/screens/session.png)
+| Way | For | What happens |
+|---|---|---|
+| Direct | questions, and edits not meant for a commit | an answer with `file:line`, or an edit recorded so it can be taken out again |
+| Quick | a small change meant to stay | build, the quick gate, one short review; it ends with a diff you look at |
+| Full | everything else | a workflow: plan, your approval, tests and code, gates, review, your approval of the delivery |
+
+![A chat: the conversation agent in its terminal, with the tasks it started under it](./public/screens/chat.png)
 
 ### 2. Watch the agents, or do something else
 
-Every agent works in a real terminal. You can read along, type into it, or open a shell next to it. You do not have to watch: the app tells you when a run needs you.
+Every agent works in a real terminal. **Terminals** shows a task's terminals side by side: you can read along, take the keyboard, or open a shell. You do not have to watch: the app tells you when something needs you.
+
+![Terminals: a task's main chat and the session of its run side by side](./public/screens/terminals.png)
 
 ### 3. Decide when it asks
 
-A run stops at each decision that is yours. **Home** shows them from every run, one at a time: the question or the plan, and its answers, with a recommended one. The evidence, what happened since you left and what each answer leads to are one click away, under **Details**.
+**Home** shows every decision that waits for you, one at a time: the question or the plan, and its answers, with a recommended one. A commit or a push runs only on your word in the chat or your **Yes** on its card.
 
-![Home: a run asks for approval; the card shows the question and its answers](./public/screens/inbox.png)
+### 4. Read the change
 
-### 4. See the plan and the change
-
-A task's page shows how it goes: its flow and its steps. A step's page shows where it stands: its plan, its stages, the files each stage left. **Changes** shows the diff. Write a note on a line and send it to the agent, the way you would review a colleague.
-
-![A step's plan: the stages of the run, what comes next and the checks that ran](./public/screens/plan.png)
+**Changes** shows a run's diff. Write a note on a line and send it to the agent, the way you would review a colleague.
 
 ![The change of a run: the changed files on the left, the diff on the right, and a note under one line](./public/screens/changes.png)
 
-### 5. Nothing leaves your machine before you say so
+### 5. Reviews of pull requests
 
-The push waits for your approval. So does every comment on a pull request. When someone reviews your pull request, **Reviews** shows the threads, the replies the agent proposes and the fixes it plans. It sends nothing until you press the button. A pull request the agent reviewed for you stays watched there: new commits or replies bring a card with **Re-review**, and once every finding is fixed the agent proposes to approve it; you say yes.
+Paste a pull request's link in a chat and the agent reviews it; nothing is published before your **Yes**. **Reviews** watches it for new commits. When someone reviews your own pull request, the agent drafts the replies and plans the fixes, and sends nothing until you choose.
 
-![The MRs screen: a reviewed pull request, the threads sorted by kind, and a reply that waits to be sent](./public/screens/mrs.png)
+![Reviews: a watched pull request with its findings and their states](./public/screens/reviews.png)
 
-## Why the result can be trusted
+## Everything is also a command
 
-The agent still writes the code. MetatorAI decides what the agent may take on trust:
-
-| Job | Who does it | Example |
-|---|---|---|
-| Decide | the model | understand the task, write the plan and the code, find problems in a diff |
-| Measure | the `metator` command | which tests a change reaches, which rules apply to a file, whether a plan is valid |
-| Enforce | hooks your AI host runs | no edit outside the plan, no push before approval, no reading of secrets |
-| Approve | you | the plan, the push, the review comments |
-
-A step is finished when its result passes a check, not when the model says so.
-
-## Try it
-
-MetatorAI runs from a checkout and needs [Bun](https://bun.sh). Your own project can use npm, pnpm, Yarn or Bun.
-
-```bash
-git clone https://github.com/Siara-Maciej/MetatorAI.git ~/tools/metatorai
-cd ~/tools/metatorai && bun install && (cd packages/cli && bun link)
-
-cd ~/code/your-repo
-metator setup     # reads the repository, installs rules, generates agents and hooks
-metator serve     # the local daemon the app talks to
-```
-
-Then open the app and click **+ New chat**. [Install](./guide/install.md) has the details.
-
-The app is a window over the `metator` command, which agents and CI call too. Whatever the app does, a terminal can do: `metator run` starts a task and `metator inbox` lists what waits for you. See the [command reference](./reference/commands.md).
+The app is a window over the `metator` command, which agents and CI call too. `metator quick start` and `metator run` start work, `metator inbox` lists what waits for you, and `metator status` shows every run. See the [command reference](./reference/commands.md).
 
 ## Documentation
 
-- [Guide](./guide/index.md): what MetatorAI is, how to install it, how a run works.
-- [App](./use/index.md): a tour of the app, starting a task, answering its questions, reading the change, your settings.
-- [Repository](./repo/index.md): rules, agents, gates and hooks for your own repository.
-- [Reference](./reference/index.md): commands, configuration, file formats, troubleshooting.
+- [Start](./guide/index.md): what MetatorAI is, how to install it, and the two ways in.
+- [Work](./use/index.md): the app day to day: chats, quick and full runs, Home, terminals, reviews.
+- [Many repositories](./many/index.md): a folder of repositories, systems of applications, system plans.
+- [Your repository](./repo/index.md): rules, agents, hooks, gates and intake for your own repository.
+- [Reference](./reference/index.md): commands, configuration, the daemon's HTTP API, file formats, troubleshooting.

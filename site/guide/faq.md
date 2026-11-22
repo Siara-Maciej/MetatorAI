@@ -4,11 +4,15 @@ Short answers to the questions people ask before they try MetatorAI, each with t
 
 ## Is MetatorAI an AI coding agent
 
-No. It has no model of its own and writes no code. GitHub Copilot or Claude Code does the work. MetatorAI gives that work stages, checks each stage with a command, and stops where a person decides. See [What MetatorAI is](./index.md).
+No. It has no model of its own and writes no code. Claude Code or GitHub Copilot CLI does the work. MetatorAI gives that work stages, checks each stage with a command, and stops where a person decides. See [What MetatorAI is](./index.md).
 
 ## Which AI tools does it work with
 
-GitHub Copilot and Claude Code. The agents, skills and hooks are written once under `metator/` and generated for each. See [Copilot and Claude Code](./hosts.md).
+Claude Code and GitHub Copilot CLI. The agents, skills and hooks are written once under `metator/` and generated for each. The app starts the command-line program (`claude` or `copilot`), so Copilot Chat in an IDE alone is not enough. See [Copilot and Claude Code](./hosts.md).
+
+## Can I use it across several repositories
+
+Yes. Each repository is set up on its own, and one daemon started in the folder that holds them shows all of their work in one app. A change that crosses applications becomes a system plan with one step per repository. See [Start with many repositories](./many.md).
 
 ## Which languages and package managers
 
@@ -22,17 +26,17 @@ The import graph and the pattern index cover JavaScript and TypeScript, in npm, 
 
 The commands that analyze your code (the graph, the rules, the gates, the run state) read and write local files. What the model sees is decided by your AI tool, under that tool's data policy. A few commands talk to your code host when you run them, for example to read issues or post review replies. See [Security](../reference/security.md).
 
-## Can an agent push or comment on a pull request by itself
+## Can an agent commit, push or comment on a pull request by itself
 
-No, as long as the hooks are installed. The pre-tool hook denies a push, a pull request and a pull request comment until a named person has approved it in the run. No autonomy level removes that approval. See [Gates and approvals](./gates.md#push-and-comments).
+No, as long as the hooks are installed. A `git commit`, `push`, `merge` or `rebase` runs only with your consent: a click on the host's approval prompt (its card on Home), or your own words in the chat ("commit it"). Inside a run, approving its delivery is that consent. Inside a run, creating a pull request or commenting on one needs the run's approval; outside a run your host's own prompt asks you. A review is published only after your **Yes**. Commands such as `git push --force` and `git reset --hard` never run. See [Approvals and consent](../use/approvals.md).
 
 ## What happens when an agent gets stuck
 
-A failed check sends the run back to an earlier stage, a limited number of times. After that the run is escalated: it stops and waits for you. Fix the cause and run `metator run resume --by <name> --drive`, or close the run with `metator run close --aborted --reason <why>`. See [Runs and workflows](./runs.md#how-a-run-moves).
+A failed check sends the run back to an earlier stage, a limited number of times. After that the run is escalated: it stops and waits for you. Fix the cause and click **Resume** on its card (`metator run resume --by <name> --drive`), or close it with **Close run…** (`metator run close --aborted --reason <why>`). See [Full runs](../use/runs.md#how-a-run-moves).
 
 ## Do I have to approve every step
 
-No. You approve the plan and the delivery. With `--autonomy L1` the plan approval is passed for you and logged as such. The delivery always asks. See [Gates and approvals](./gates.md#autonomy).
+No. A question or a debug edit needs nothing. A quick change has no plan: you look at its diff and say **Fine**, and nothing is committed. A full run asks you twice, for the plan and the delivery; with `--autonomy L1` the plan approval is passed for you and logged as such, and the delivery always asks. See [Approvals and consent](../use/approvals.md#autonomy).
 
 ## Can I trust the review comments
 

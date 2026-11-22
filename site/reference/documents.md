@@ -8,7 +8,7 @@ Two kinds of files are written for people and carry no header: views rendered fr
 
 ```yaml
 kind: MetatorConfig
-schemaVersion: 12
+schemaVersion: 15
 ```
 
 A file with an older `schemaVersion` is upgraded when it is read. A file with a newer one is refused, and the error asks you to upgrade MetatorAI.
@@ -92,13 +92,13 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 | `Issue` | `.metator/issues/iNNN.json` | `metator issue ...`: one task of the backlog. v3: its analysis and plan (each a snapshot: the file, the commit, every cited file with its SHA-256, the packages they belong to), the chat it belongs to (`threadId`), its parent and the tasks it waits for (`dependsOn`), and the system plan step a part carries out (`step`). A v2 file reads as a task that waits for nothing |
 | (none) | `.metator/issues/iNNN/analysis.md`, `plan.json`, `system-plan.yml` | `metator issue analyze`, `issue plan`, `issue from-plan`: a task's analysis (the agent's Markdown and the facts MetatorAI adds; a note for people, never parsed) and a copy of its plan |
 | `PullRequestReview` | `.metator/mrs/<host>-<repo>-<number>.json` | the daemon and `metator mrs ...`: the review threads of your request |
-| `WatchedReview` | `.metator/reviews/<host>-<owner>-<repo>-<number>.json` | `metator review ...` and the daemon: someone else's request MetatorAI reviewed from its link or that asks you for a review: the request, the head the last review read, the comments published with their ids at the host, every finding with its state (`open`, `fixed`, `not-fixed`, `disputed`, `outdated`) and the agent's reason, what is new since, and when watching ended ([Review a change](../use/review.md#review-someone-elses-mr-from-its-link)) |
+| `WatchedReview` | `.metator/reviews/<host>-<owner>-<repo>-<number>.json` | `metator review ...` and the daemon: someone else's request MetatorAI reviewed from its link or that asks you for a review: the request, the head the last review read, the comments published with their ids at the host, every finding with its state (`open`, `fixed`, `not-fixed`, `disputed`, `outdated`) and the agent's reason, what is new since, and when watching ended ([Review a change](../use/reviews.md#review-a-pull-request-from-its-link)) |
 | `Conversation` | `.metator/conversations/<id>.json` | `metator ask` |
 | `WorktreeRegistry` | `.metator/worktrees.json` | `metator worktree ...`, `metator run new --worktree` |
 | `EnvState` | `.metator/env/*.json` | `metator env up` and `env down` |
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |
 | `Layout` | `.metator/layout.json` | the daemon: workspaces, tabs and panes, restored after a restart (v5: a chat's pane names its thread, `threadId`) |
-| `Thread` | `.metator/threads/<id>.json` | the daemon and `metator thread ...`: one chat's topic, the summary its agent keeps, its runs, its terminals and the facts the daemon adds ([Chats and threads](../use/threads.md)) |
+| `Thread` | `.metator/threads/<id>.json` | the daemon and `metator thread ...`: one chat's topic, the summary its agent keeps, its runs, its terminals and the facts the daemon adds ([Chats and threads](../use/start.md#what-a-chat-keeps)) |
 | `DaemonInfo` | `.metator/daemon.json` | `metator serve`, while it runs |
 | `PaneTyped` | `.metator/typed/<pane>.json` | the daemon: a hash and a time for each line it typed into a pane (never the words), so a host's user-prompt hook can tell the daemon's lines from your own typing |
 | `GuardAsked` | `.metator/guard-asked/<pane>.json` | the `pre-tool` hook: why the guard asked about (or refused) a pane's command lately, with a hash of the command (never the command), so the card of your host's approval says why |

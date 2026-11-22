@@ -1,10 +1,10 @@
-# Answer a review
+# Reviews
 
-When someone reviews your pull request, MetatorAI reads the threads, drafts the replies and plans the fixes. You decide which replies go out and whether the code changes.
+MetatorAI works on pull requests (merge requests on GitLab) two ways. It reviews other people's requests, from a link, and watches them for new commits. And when someone reviews your own request, it reads the threads, drafts the replies and plans the fixes. Nothing reaches the code host without your **Yes**.
 
 ## The Reviews place
 
-**Reviews** is a place of its own in the sidebar, under **Backlog** (the old addresses `#/mrs` and `#/settings/reviews` lead there). It has two lists, each row with one word:
+**Reviews** is a place of its own in the sidebar, under **Backlog** (the old addresses `#/mrs` and `#/settings/reviews` lead there). In a folder of repositories it shows the repository the **repository** select names. It has two lists, each row with one word:
 
 | List | Its rows | The words |
 |---|---|---|
@@ -37,6 +37,45 @@ Your own request on the right shows:
 
 Both buttons need your name, so nothing reaches the code host without a person's name on it. The app asks for it in a dialog the first time; if you cancel the dialog, nothing is sent. Choosing the replies in words in a chat ("send only the first and the third") takes the same way: the agent runs `metator mrs send --only`.
 
+## Review a pull request from its link
+
+Paste the link in a chat: the chat agent runs `metator review open <url>`. MetatorAI reads the request through the code host set up for it, never through the agent's own tools:
+
+1. the source in `codehost.sources` for that repository (its `via`);
+2. else an MCP server named `github` or `gitlab` under `mcp:`;
+3. else, for GitHub, `gh` when it is installed and logged in;
+4. else the chat says: "I cannot open this MR: no code-host tool for github.com is set up (an MCP server or gh)".
+
+GitLab is read through MCP only.
+
+**This repository or one of the folder**: the full [review workflow](./review.md), in a worktree on the request's head (fetched from `origin`).
+
+**Any other repository**: a review from the diff only. The logic, security and tests lenses read the diff the host gave (`change.diff` in the run's directory) and the files it shows; rules, contracts, conventions and everything that runs code are left out. The published review starts with:
+
+```text
+Reviewed from the diff only: no local checkout, so the repository's rules, contracts and tests were not used.
+```
+
+It is one workflow: its input `source` is `local` or `diff`.
+
+**Publishing.** The review is first the agent's answer in the chat. The `approval` gate is the card **Publish the review of MR #45? (3 inline comments, 1 general)**: one Yes publishes all of it, inline where the host allows. When the host or the tool cannot comment on lines, nothing is posted: the agent says so and gives you the list, and you decide the other form. With `codehost.review.autoPublish: true` the gate is skipped.
+
+**Watching.** A reviewed request, and one where you are a requested reviewer, is kept in `.metator/reviews/<id>.json` (`github-acme-shop-45`) and watched every `codehost.review.everyMs` (two minutes by default) for new commits and the author's replies. Watching ends when the request is merged or closed, when you approve it, or with `metator review unwatch`.
+
+**Re-review.** New commits or a reply make one card, **MR #45: 2 new commits, 1 reply**. **Re-review** opens the agent's terminal: the lenses read only what the new commits changed (`delta.diff`), and the judge decides the state of every earlier finding (`fixed`, `not-fixed`, `disputed`, `outdated`) with a reason. MetatorAI first marks candidates: the commented code changed, the author resolved the thread, or replied in it. A candidate is a hint; only the agent's `metator review finding` sets a state.
+
+**Approve.** When every finding is fixed, the agent proposes **All 4 findings are fixed: approve MR #45?**. Approving is yours: a Yes on the card, or your word in the chat, after which `metator review approve` runs and the guard asks you once more.
+
+```bash
+metator review open https://github.com/acme/shop/pull/45   # read it, start the review
+metator review list                                        # the watched requests, finding states, what is new
+metator review show github-acme-shop-45                    # its findings, their state and the candidates
+metator review check                                       # read the watched requests now
+metator review rereview github-acme-shop-45                # the new commits and every earlier finding
+metator review approve github-acme-shop-45 --by maciej     # at the code host; the guard asks first
+metator review unwatch github-acme-shop-45
+```
+
 ## Cards on Home
 
 What needs you about reviews comes to [Home](./inbox.md#review-cards), one card at a time, after the questions of the runs:
@@ -51,7 +90,9 @@ What needs you about reviews comes to [Home](./inbox.md#review-cards), one card 
 
 The agent never approves by itself: it only proposes, and the request is approved after your **Yes**.
 
-## What happens when a review arrives
+## Your own pull requests
+
+### What happens when a review arrives
 
 1. The daemon (`metator serve`) finds the new threads and keeps them in `.metator/mrs/<request>.json`. New reviews are always found.
 2. Nothing starts by itself: Home shows **New review in MR #7 (2 threads)** with **Analyse**. **Analyse** opens `mt-review-responder` in a terminal you see. It sorts every new thread, proposes the replies and the fixes, and sends nothing. A small fix goes quick, a larger one through the full workflow, as `metator quick check` decides; it starts only when you say so.
@@ -75,7 +116,7 @@ A `planned` thread becomes `fixed` on the daemon's next scan after the answering
 
 ## Configure the sources
 
-The screen stays empty until the repository names its sources. One list, `codehost.sources`, serves both [Automatic intake](./intake.md#connect-the-source) and reviews. Each source says which tool reads it: an MCP server (`mcp:<name>`, a server under `mcp:`) or `gh`, GitHub's CLI with its own login. GitLab is read through MCP only. Tokens never go into `metator.config.yml`: they stay in the MCP server's configuration or in `gh auth login`.
+The screen stays empty until the repository names its sources. One list, `codehost.sources`, serves both [Automatic intake](../repo/intake.md) and reviews. Each source says which tool reads it: an MCP server (`mcp:<name>`, a server under `mcp:`) or `gh`, GitHub's CLI with its own login. GitLab is read through MCP only. Tokens never go into `metator.config.yml`: they stay in the MCP server's configuration or in `gh auth login`.
 
 ```yaml
 # metator.config.yml

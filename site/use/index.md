@@ -6,7 +6,7 @@ Everything the app does is also a `metator` command. Each page of this section s
 
 ## Start it
 
-The repository must be set up once with `metator setup` ([First run](../guide/first-run.md)). Then start the daemon in the repository, or in a folder that holds several repositories:
+The repository must be set up once with `metator setup` ([Start with one repository](../guide/first-run.md)). Then start the daemon in the repository, or in a folder that holds several repositories ([Start with many repositories](../guide/many.md)):
 
 ```bash
 metator serve
@@ -14,17 +14,11 @@ metator serve
 
 It listens on `http://127.0.0.1:4310` and runs until you stop it. `--port <n>` picks another port. One repository has one daemon: a second `metator serve` there is refused and names the address and the process id of the first. A daemon for another repository needs its own port (`metator serve --port <other>`).
 
-Then open the app. The installers are built by the `desktop` workflow of the MetatorAI repository on GitHub, as the artifacts `metatorai-desktop-windows-x64`, `metatorai-desktop-macos-universal` and `metatorai-desktop-linux-x64`. From a clone of MetatorAI you can run the window directly:
-
-```bash
-cd packages/desktop && bun run tauri dev     # needs Rust and the platform's webview
-```
-
-The app looks for the daemon at the default address. The word on the right of the top bar reads **connected** when it found it.
+Then open the app ([Get the desktop app](../guide/desktop-app.md)). The app looks for the daemon at the default address. The word on the right of the top bar reads **connected** when it found it.
 
 When nothing answers at that address, it reads **no daemon** and the main area shows one panel on every screen: what is wrong, the command `metator serve`, a field with the daemon's address, and **Retry**. If your daemon listens elsewhere, type its address in the field and click **Retry**; the app remembers it. The app also tries again by itself every two seconds, and the screen you were on returns as soon as the daemon answers. The same address is in **Settings**, group **app**, as **daemon url** ([Your settings](./settings.md#daemon-address-and-your-name)).
 
-![The app with nothing to decide: the sidebar and Home](../public/screens/inbox-empty.png)
+![The app before the first chat: Home offers Describe a task](../public/screens/home-empty.png)
 
 ## Three levels
 
@@ -55,11 +49,11 @@ Everything else is two parts: the sidebar on the left, which stays on every scre
 
 The sidebar is the first level. Every row is built the same way: the glyph of one of the four words, a name, the word at the right, and one dim line under the name. A row has no run id, no host and no age: those are on the run's page, under **Details**.
 
-**Needs you · N** is on top: how many questions, terminal questions and escalated runs wait for you. A click opens Home, which shows them one at a time ([Answer questions](./inbox.md)).
+**Needs you · N** is on top: how many questions, terminal questions and escalated runs wait for you. A click opens Home, which shows them one at a time ([Home and the Board](./inbox.md)).
 
 The chats follow, and the sidebar is one tree: a chat, its tasks, their repositories, their steps.
 
-- **A chat** (a thread) is one topic you talk about with the agent. Its row has the chat's title, one word and how many tasks it holds (`2 tasks`). The word is its most urgent task's (`needs you`, then `blocked`, then `working`, then `done`), `needs you` while the chat itself asks you something, and `chat` while no task was started in it. Chats that need you come first, then the one that changed last. A click opens the chat: its terminal fills the main area ([Chats](./desktop.md#chats)). **⋯** on its row offers **Close chat**, or **Reopen chat** for a closed one.
+- **A chat** (a thread) is one topic you talk about with the agent. Its row has the chat's title, one word and how many tasks it holds (`2 tasks`). The word is its most urgent task's (`needs you`, then `blocked`, then `working`, then `done`), `needs you` while the chat itself asks you something, and `chat` while no task was started in it. Chats that need you come first, then the one that changed last. A click opens the chat: its terminal fills the main area ([Chats and the three ways](./start.md)). **⋯** on its row offers **Close chat**, or **Reopen chat** for a closed one.
 - **A task** under its chat is a run the chat's agent started, with everything that run started. A task is a system task (a system plan with its system run and its steps), a run that started child runs, or a run of its own. Its row has one state word, its progress (`3/6`), how many of its steps need you (`2 need you`) and how many are blocked; tasks that need you come first. **▸** unfolds a task into its own tree: the repositories it works in, each with its steps and child runs and their word, steps not started too, with what they wait for (`not started · waits for api-model, api-endpoint`). A run of its own unfolds into its panes. A click on a task opens its page; a click on a step opens the step's page, or, when the step asks on a card, that decision on Home.
 
 **Without a chat · N** holds the tasks no chat started: a run from the form, from an intake rule, from `metator run new` in a terminal, or from CI. It shows only while there is one.
@@ -72,19 +66,19 @@ Under the chats are the places that are not a task:
 
 | Place | Shows |
 |---|---|
-| **Board** | every task by phase: To do · Planning · In progress · Review · Done ([The Board](#the-board)) |
-| **Terminals** | a tab per run or shell, with the agents' terminals and your own in split panes ([Terminals](./desktop.md)) |
+| **Board** | every task by phase: To do · Planning · In progress · Review · Done ([The Board](./inbox.md#the-board)) |
+| **Terminals** | the terminals of a task side by side: its main chat and a session per repository ([Terminals and sessions](./sessions.md)) |
 | **Backlog** | tasks for later: agents' proposals and your own ([Plan and backlog](./plan.md)) |
-| **Reviews** | the MRs MetatorAI watches for you and your own MRs, each with one word ([The Reviews place](./reviews.md#the-reviews-place)) |
-| **Settings** | the options, and under it **System** (the daemon, the dependencies, the system map) ([Settings](#settings)) |
+| **Reviews** | the pull requests MetatorAI watches for you and your own, each with one word ([Reviews](./reviews.md)) |
+| **Settings** | the options, and under it **System**: the daemon, the dependencies, the system map ([Your settings](./settings.md)) |
 
-At the bottom, **+ New chat** (key `n`) starts a chat: a new thread with its own terminal, where you tell the agent what you want; **Form…** beside it opens a form where you choose the workflow, host, autonomy and worktree yourself, and the run it starts is **Without a chat** ([Start a task](./start.md)). With no run at all the main area offers the same: a field **Describe a task** with **Start**, which starts a chat named after your words, and **Use the form**.
+At the bottom, **+ New chat** (key `n`) starts a chat: a new thread with its own terminal, where you tell the agent what you want; **Form…** beside it opens a form where you choose the workflow, host, autonomy and worktree yourself, and the run it starts is **Without a chat** ([Full runs](./runs.md#from-the-form)). With no run at all the main area offers the same: a field **Describe a task** with **Start**, which starts a chat named after your words, and **Use the form**.
 
-When the daemon serves a folder of repositories, **Terminals**, **Backlog**, **Reviews** and the parts of **Settings** show one repository at a time. Each has a **repository** select at the top; the choice is shared by these places and remembered. The page of a run always uses the run's own repository.
+When the daemon serves a folder of repositories, the top bar shows how many (**3 repositories**), and **Terminals**, **Backlog**, **Reviews** and the parts of **Settings** show one repository at a time. Each has a **repository** select at the top, which also lists a repository's worktrees in the folder; the choice is shared by these places and remembered, and **+ New chat** opens its chat there. The page of a run always uses the run's own repository ([Folder of repositories](../many/index.md#the-app-on-a-folder)).
 
 ## Home
 
-**Home** is the first screen. It shows one decision at a time: a big card with the question, or the plan to approve, and its answers. Above it, **3 waiting** says how many wait, with **‹ Previous** and **Next ›** (also `k` and `j`). Everything else about the decision is folded under **Details**: its ids, the evidence, what happened since you left, what each answer does, and the command your answer amounts to ([Answer questions](./inbox.md)).
+**Home** is the first screen. It shows one decision at a time: a big card with the question, or the plan to approve, and its answers. Above it, **3 waiting** says how many wait, with **‹ Previous** and **Next ›** (also `k` and `j`). Everything else about the decision is folded under **Details**: its ids, the evidence, what happened since you left, what each answer does, and the command your answer amounts to ([Home and the Board](./inbox.md)).
 
 With nothing to decide, Home lists the open tasks in short, with their word and progress (a task started in a chat has the chat's title before its name, dim: **Invoice discount · Add the discount to the invoice**), the runs nothing drives with **Open a session** and **Drive in background**, and **Describe a task** to start a new one.
 
@@ -101,7 +95,7 @@ A step, a child run and a run of its own have the page of a step: what the agent
 | Tab | Key | Shows |
 |---|---|---|
 | **Overview** | `o` | the question that waits with its answers, the step's plan read-only, its artifacts and change, what happened since you left |
-| **Terminal** | `t` | the run's live session, who types, its panes, its applications and links ([Sessions and worktrees](./sessions.md)) |
+| **Terminal** | `t` | the run's live session, who types, its panes, its applications and links ([Terminals and sessions](./sessions.md#the-terminal-tab-of-a-run)) |
 | **Changes** | `d` | the files the run changed, their diffs and your notes ([Read the change](./changes.md)) |
 | **Activity** | `l` | everything the run did: the time, the type, the source and what happened |
 
@@ -111,23 +105,13 @@ An escalated run shows why it stopped under the head, with **Resume** and **Clos
 
 When you come back to the window after ten minutes away and a run's page is open, its **Overview** opens first. It counts the stage transitions, the decisions taken and the errors since you left, lists the events by stage, and shows what the run needs from you now, with the answers as buttons. The files it counts are the run's change, the same files the **Changes** tab lists.
 
-![The overview of a run: four counters, the events since you left, and the question that waits](../public/screens/briefing.png)
+![A step's Overview: the question that waits, its plan, its artifacts and, below, what happened since you left](../public/screens/overview.png)
 
 **Open terminal and attach** goes to the Terminal tab and gives you the keyboard. **Mark as read** starts the next "since you left" from now.
 
 ## Settings
 
-**Settings** has two parts: **Options** ([Your settings](./settings.md)) and **System**. The old address `#/overview` leads to System. **Reviews** was a part of Settings until it became a place of its own; its old addresses `#/mrs` and `#/settings/reviews` lead to it.
-
-**System** has three tabs.
-
-**Daemon** is the daemon's own view. Four tiles show the median time from a question to its answer, the share of answers given from the decision card without opening the run, how many runs the daemon started again in the last 24 hours, and how many reminders it typed to an idle agent. Below is a table of the open runs with their host, who works, state, terminal and last activity; a click on a run's name opens it. The side column shows how the daemon looks after runs (the waiting limit, restarts, the host order) and, under **AI hosts**, each host with **installed** or **not installed**. The daemon looks the hosts up each time, so a host you install while it runs is found without a restart. You change the settings in `metator.config.yml` ([Configuration](../reference/configuration.md#supervisor)).
-
-**Dependencies** lists each system task in one line (its status and how many steps are done) that leads to its own page, where its flow is. Below, the runs that are no step of a task: one lane per repository that has one. **Board ›** opens the Board.
-
-**System** lists the system plans of the repository; a click opens the system task's page ([A system run's plan](./plan.md#a-system-runs-plan)). **System map** under it shows the applications and the contracts of the system as tables and is edited the same way (**Edit system map**, **Edit as text**, **Save…**). **Where the applications' code is** edits the option `system.roots` as a list: **+ Path** adds a directory, **✕** removes one, and a path that is not absolute, or is listed twice, is said under the list before **Save roots** can send it. **Discover…** reads the code and lists what the map lacks; with no map yet it shows the whole map the code suggests. Nothing is written until **Write the map**.
-
-**Dependencies** is the graph. Each repository is a lane and each run a card with its state, stage and AI host. Finished runs of the last day stay, dimmed, so the picture of a system change is still there when it is done. A click on a card opens the run. An arrow runs from a parent run to each run it started, to the right of it, also across lanes. A dashed line joins two runs that exchanged a message or changed the same file. The **Links** box lists those pairs. For a shared file it says which run to merge first, and **Notify both** sends each of the two runs a message about the file.
+**Settings** has two parts: **Options**, your options and the repository's, and **System**: the daemon's own view, the dependencies between runs and the system map. Both are on [Your settings](./settings.md).
 
 ## Keys
 
@@ -145,7 +129,7 @@ When you come back to the window after ten minutes away and a run's page is open
 | `e` | on a run's page: open it in the editor |
 | `Esc` | closes a dialog, also from a field, and the sidebar's drawer |
 
-The keys of **Terminals** come after a prefix ([Terminals](./desktop.md#keys)).
+The keys of **Terminals** come after a prefix ([Terminals and sessions](./sessions.md#keys)).
 
 ## Notifications
 
@@ -153,8 +137,4 @@ A question that was not in the queue before raises a system notification, "Metat
 
 ## The Board
 
-**Board** shows the work in five columns by phase: **To do**, **Planning**, **In progress**, **Review** and **Done**. Done is folded: **Show finished (N)** shows the last day, older ones behind **show N more**. Its top level shows only parent tasks, each once: a system task, a run with child runs, a run of its own, a backlog task or an agent's proposal. A task is in the column of its own phase: a system task is in Planning until its plan is approved, In progress while its steps run, Review at its delivery and Done at the end. Its card has the task's word, its name and how many of its steps are done (`3 of 6 steps done`); the needs-you and blocked counts of its steps are summed on it and in the column's header. A card has no host and no age.
-
-A click on a system task (or Enter) opens **its** board: the same columns with its steps and their child runs across repositories, steps not started in To do with what they wait for (a click opens [the step's detail](./plan.md#a-steps-detail), with **Plan this step**), a blocked run with why, and **Board ›** `<task>` at the top to go back (also Backspace or Escape). A run's column is the phase the daemon sends with it (`phase`), computed from its workflow and stage: understanding and planning stages and the plan's approval are Planning, the work is In progress, checks, reviews, delivery and publishing are Review, a done or aborted run is Done, and so is a run that only planned (it reads `plan ready`).
-
-Above the board: the repositories (several at once; a task shows when any of its steps works in one), the words needs you / working / blocked, the host and a search. The filters are kept in this window. Arrows move between cards. **Start a run** on a To-do task starts it. Cards cannot be dragged to another column: the engine decides the phase.
+**Board** shows every task by phase, in five columns: To do, Planning, In progress, Review and Done ([The Board](./inbox.md#the-board)).

@@ -4,9 +4,11 @@ The `mt-feature` workflow builds a feature end to end: it surveys the code, plan
 
 ## Start
 
+In a chat, describe the feature; the agent suggests `mt-feature` when it is more than a quick change, or name it yourself:
+
 ```text
-@mt-orchestrator run mt-feature for: Customers can combine a percentage and a fixed discount on one invoice.
-Acceptance: discounts apply in that order; the total never goes below zero.
+› use mt-feature: customers can combine a percentage and a fixed discount on one invoice.
+  Acceptance: discounts apply in that order; the total never goes below zero.
 ```
 
 Or from a terminal:
@@ -61,7 +63,7 @@ The exemplar rule keeps new code in the shape of code you already have. `metator
 
 ## Your two approvals
 
-Both wait in your [inbox](./inbox.md). From a terminal:
+Both wait on [Home](./inbox.md). From a terminal:
 
 ```bash
 metator run approve plan-approval --by alice
@@ -72,7 +74,7 @@ At `plan-approval`, a rejection with a reason sends the plan back to the planner
 
 At `L1`, `plan-approval` is passed by the level and logged as such. `delivery` cannot be skipped at any level. Approving it grants the push. The publisher never force-pushes, amends or skips hooks, and the stage is done only when nothing is uncommitted and the remote branch is at the checked-out commit.
 
-See [Gates and approvals](../guide/gates.md).
+See [Approvals and consent](./approvals.md).
 
 ## Done
 

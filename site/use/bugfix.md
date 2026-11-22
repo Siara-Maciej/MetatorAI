@@ -4,8 +4,10 @@ The `mt-bugfix` workflow fixes a bug with proof: a test that fails before the fi
 
 ## Start
 
+In a chat, describe the bug; the agent suggests `mt-bugfix`, or name it yourself:
+
 ```text
-@mt-orchestrator run mt-bugfix for: Invoices with a 100% discount show a negative total.
+› use mt-bugfix: invoices with a 100% discount show a negative total.
 ```
 
 Or from a terminal:

@@ -1,6 +1,6 @@
 # Hooks and guardrails
 
-Hooks are scripts your AI host runs around an agent's tool calls. MetatorAI uses them to enforce what a prompt cannot guarantee: no secrets, no destructive commands, no edits outside the plan, no push without your approval. This page shows how to install them and what they block.
+Hooks are scripts your AI host runs around an agent's tool calls. MetatorAI uses them to enforce what a prompt cannot guarantee: no secrets, no destructive commands, no edits outside the plan, no commit or push without your consent. This page shows how to install them and what they block.
 
 ## Install the hooks
 
@@ -35,7 +35,7 @@ Always, with or without a run:
 |---|---|
 | Secrets | reading or writing `.env`, `.env.*` (except `.env.example` and `.env.sample`), `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `.npmrc`, `.netrc` |
 | Commands that never run | `git push --force`, `git reset --hard`, `git clean -f`, rewriting history, `rm -r` of `/`, `~`, `.` or `*`: the list `guard.commands.never` in [the configuration](../reference/configuration.md#guard) |
-| Commands that need your consent | `git commit`, `git push`, `git merge`, `git rebase` (`guard.commands.ask`): the agent's call becomes your host's approval prompt; a click there, or your word in the chat ("commit"), lets one through |
+| Commands that need your consent | `git commit`, `git push`, `git merge`, `git rebase`, `metator review approve` (`guard.commands.ask`): the agent's call becomes your host's approval prompt; a click there, or your word in the chat ("commit"), lets one through. In a run, the approved delivery is that consent ([Approvals and consent](../use/approvals.md#commit-and-push)) |
 | A commit with debug changes | a `git commit` that would hold a change recorded with `metator scratch`: stopped with the files until you say "commit anyway" or remove them |
 | Approving a plan | `metator arch plan approve` and `metator system plan approve`: those are yours to run |
 
@@ -45,7 +45,7 @@ Only while a run is active:
 |---|---|
 | Edits outside the plan | a file not listed in the run's `plan-scope.json`, or outside the repository |
 | A coordinator editing | `mt-orchestrator` or `mt-pr-review` editing a file (they delegate) |
-| Push without approval | `git push`, `gh pr create`, `gh pr merge` and GitHub MCP tools that write, before `metator run approve push` |
+| A pull request without approval | `gh pr create`, `gh pr merge` and GitHub MCP tools that write, before `metator run approve push` (approving `delivery` grants it) |
 | Comment without approval | `gh pr comment`, `gh pr review` and MCP tools that comment, before `metator run approve comment` |
 | Moving a driven run | `metator run advance`, `approve`, `stop` and the like from an agent that `metator run drive` started: the drive moves the run |
 
@@ -81,17 +81,4 @@ If a hook cannot run its check (a broken configuration, for example), it reports
 
 The payload format and the exact answers are in [Hooks protocol](../reference/hooks.md).
 
-## MetatorAI as an MCP server
-
-Agents in IDEs, chats and other tools can read MetatorAI's answers through the Model Context Protocol:
-
-```bash
-metator mcp            # serve over stdio; the host starts it
-metator mcp --list     # print the tools it would serve
-```
-
-Each reading command is a tool named after its words, such as `metator_graph_affected` or `metator_run_status`. A tool takes the command's options and arguments in `args` and returns the same JSON the terminal prints. Commands that write, run your scripts or move a run are not served. An option of a served command that writes a file, changes files, clones a repository, sends a message or runs your scripts (`--out`, `--sarif`, `--fix`, `--fetch`, `--notify`, `--html`, `--gates`) is refused with `USAGE`. `run brief` as a tool does not mark the run as read, and `plan scope` as a tool returns the scope without writing `plan-scope.json`. A client configuration:
-
-```json
-{ "mcpServers": { "metator": { "command": "metator", "args": ["mcp"], "cwd": "/path/to/your/repo" } } }
-```
+MetatorAI can also serve its reading commands to agents as an MCP server: see [MCP server](../reference/mcp.md).

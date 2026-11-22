@@ -134,21 +134,54 @@ To give it up: `metator run close --run <id> --aborted --reason "<why>"`. In the
 | `precondition tests-green does not hold` | `metator gate quick`, fix the failing steps, start again |
 | `the workflow requires ..., which nothing can check` | `metator setup` updates the installed workflows; in your own workflow, remove the line |
 
-`metator doctor --gates` tells you whether the quick gate is green before you start. [How runs work](../guide/runs.md#what-must-hold-before-a-run-starts) lists the preconditions.
+`metator doctor --gates` tells you whether the quick gate is green before you start. [Full runs](../use/runs.md#what-must-hold-before-a-run-starts) lists the preconditions.
 
 ## The AI host cannot start
 
 `metator run drive --host copilot` fails with `AI host copilot cannot start here` when the Copilot CLI is not installed. Install it, or drive with a host the hint lists. `metator doctor` shows the same under `host`.
 
-## A push is denied by the hook
+## A commit or a push asks, or is denied
 
-`metator guard pre-tool` denies `git push`, `gh pr create` and similar actions until a person approves them for the active run:
+A `git commit`, `push`, `merge` or `rebase` an agent runs needs your consent (`guard.commands.ask`). In a session with a terminal, the host shows its approval prompt and Home shows it as a card: say **Yes** there, or tell the chat "commit it". In a session without a terminal (`metator run drive`), nobody can be asked, so it is denied until the run's approval covers it:
 
 ```bash
-metator run approve push --by alice
+metator run approve push --by alice      # also what approving the delivery does
 ```
 
-Comments on pull requests and issues need `metator run approve comment --by alice`.
+Inside a run, `gh pr create`, `gh pr merge` and GitHub MCP tools that write need the same `push` approval, and `gh pr comment` or `gh pr review` need `metator run approve comment --by alice`. See [Approvals and consent](../use/approvals.md#commit-and-push).
+
+## A command never runs here
+
+The hook answers `` `git reset --hard` never runs here (guard.commands.never: …) ``. The command is on `guard.commands.never`, and no agent runs it. If you want it, run it yourself in a terminal. To change the list, edit `guard.commands` in `metator.config.yml` ([Configuration](./configuration.md#guard)).
+
+## This commit holds debug changes
+
+A `git commit` stops with `this commit holds debug changes: src/price.ts`. A change recorded with `metator scratch` (a debug edit) is still in those files. Take it out (`metator scratch drop --all`, or **Remove debug changes** in the app), or say "commit anyway". A record whose lines changed since cannot be taken out as recorded: remove its lines by hand, then `metator scratch forget --id <id>` ([Quick and debug changes](../use/quick.md#debug-changes)).
+
+## A quick change is refused
+
+`metator quick start` answers one of:
+
+| Message | Fix |
+|---|---|
+| `not quick: size (6 files (limit 5)); …` | the change trips an escalator: use the full workflow, or keep it quick in your own words with `--override "<sentence>"` |
+| `not quick, and this cannot be overridden: it reaches another repository` | a change across repositories is a [system plan](../many/plans.md) |
+| `dirty: pass --here or --worktree` | the checkout has uncommitted changes: `--here` takes them into the change, `--worktree` works from the last commit |
+| `the quick gate has no steps: …` | the quick run checks its change with `metator gate quick`: add steps under `gates.quick` in `metator.config.yml` ([Gates and CI](../repo/gates-ci.md)) |
+
+## The app says no daemon
+
+The top bar reads **no daemon** and the main area shows `metator serve`, the address and **Retry**. Start the daemon in your repository or folder (`metator serve`). If it listens on another port, type its address in the field and click **Retry** ([Get the desktop app](../guide/desktop-app.md#connect-it-to-the-daemon)).
+
+`metator serve` itself fails with `a daemon already serves <dir>: <url> (pid <pid>)` when one runs there already, also when a folder's daemon serves the repository: use that one, or stop it first.
+
+## No chat opens
+
+**+ New chat** says that no AI host is installed and names the programs the daemon looked for. Install Claude Code (`claude`) or GitHub Copilot CLI (`copilot`), log in once in a terminal, and click **+ New chat** again; the daemon needs no restart. A chat whose terminal ends at once with **Ended with code …** usually means the host is not logged in. [Copilot and Claude Code](../guide/hosts.md#which-host-runs-what) says which host the daemon picks.
+
+## A command works on one repository, and this is a folder
+
+In a folder of repositories, a command that works on one repository stops with `` `metator run status` works on one repository, and ~/work is a folder of 3 ``. Run it inside a repository, or with `-C <repository>`. In the folder itself, `status`, `inbox`, `repos`, `ask`, `report`, `serve`, `supervise` and `system discover` cover every repository ([Folder of repositories](../many/index.md#what-runs-in-the-folder)).
 
 ## An edit is denied as outside plan-scope.json
 

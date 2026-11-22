@@ -94,7 +94,8 @@ describe("documentation site", () => {
       "mt-refactor": "use/refactor.html",
       "mt-pr-review": "use/review.html",
       "mt-self-review": "use/review.html",
-      "mt-system-change": "use/system.html",
+      "mt-system-change": "many/plans.html",
+      "mt-quick": "use/quick.html",
     };
     for (const [id, page] of Object.entries(pages)) {
       const spec = parse(await read(`.github/metator/workflows/${id}.yml`)) as { stages: { id: string }[] };
@@ -116,7 +117,7 @@ describe("documentation site", () => {
     });
     const base = `http://localhost:${server.port}`;
     const { sections, pathOf } = await import("../site/.vitepress/config.ts");
-    // The home page is a plain document that leads into the four sections.
+    // The home page is a plain document that leads into the five sections.
     await page.goto(`${base}/`);
     const heading = async () =>
       ((await page.locator("main h1").first().textContent()) ?? "").replace(/[\s\u200b]+/g, " ").trim();
@@ -219,7 +220,7 @@ describe("documentation site", () => {
     await page.close();
   }, 60_000);
 
-  test("four sections in the top bar, each sidebar covers its pages, and Next leads through each section", async () => {
+  test("five sections in the top bar, each sidebar covers its pages, and Next leads through each section", async () => {
     const { sections, pathOf } = await import("../site/.vitepress/config.ts");
     const config = (await import("../site/.vitepress/config.ts")).default as {
       themeConfig: { nav: { text: string; link: string }[]; sidebar: Record<string, unknown> };
@@ -230,15 +231,24 @@ describe("documentation site", () => {
       .filter((f) => f !== "index.md")
       .map((f) => `/${f.replace(/(^|\/)index\.md$/, "$1").replace(/\.md$/, "")}`);
     expect([...inSidebars].sort()).toEqual(pages.sort());
-    expect(config.themeConfig.nav.map((n) => n.text)).toEqual(["Guide", "App", "Repository", "Reference"]);
+    expect(config.themeConfig.nav.map((n) => n.text)).toEqual([
+      "Start",
+      "Work",
+      "Many repositories",
+      "Your repository",
+      "Reference",
+    ]);
     expect(Object.keys(config.themeConfig.sidebar).sort()).toEqual(sections.map((s) => s.base).sort());
 
     const base = `http://localhost:${server.port}`;
     const page = await (await browser()).newPage({ viewport: { width: 1280, height: 900 } });
-    // The home page leads into the guide; from there Next walks each section to its last page.
+    // The home page leads into both ways in; from there Next walks each section to its last page.
     await page.goto(`${base}/`);
-    await page.locator("main a", { hasText: "First run" }).click();
+    await page.locator("main a", { hasText: "Start with one repository" }).first().click();
     await page.waitForURL((u) => u.pathname === "/guide/first-run");
+    await page.goto(`${base}/`);
+    await page.locator("main a", { hasText: "Start with many repositories" }).first().click();
+    await page.waitForURL((u) => u.pathname === "/guide/many");
     for (const section of sections) {
       const order = section.items.map((i) => pathOf(section.base, i.link));
       await page.goto(`${base}${order[0]}`);
@@ -262,8 +272,8 @@ describe("documentation site", () => {
       expect([section.text, visited]).toEqual([section.text, order]);
     }
     // The top bar marks the open section.
-    await page.goto(`${base}/repo/systems`);
-    expect(await page.locator(".VPNavBarMenuLink.active").textContent()).toContain("Repository");
+    await page.goto(`${base}/many/systems`);
+    expect(await page.locator(".VPNavBarMenuLink.active").textContent()).toContain("Many repositories");
     await page.close();
   }, 180_000);
 });

@@ -1,6 +1,6 @@
-# Answer questions
+# Home and the Board
 
-A run stops when a decision belongs to you. Every open question of every run is in one queue; **Home** shows it one decision at a time. This page shows how to read it and answer, in the app and from a terminal.
+A run stops when a decision belongs to you. **Home**, the first screen of the app, shows every decision that waits for you, one at a time: approvals, agents' questions, your host's permission prompts, commits that need your consent, quick changes to look at, escalated runs and reviews. The **Board** shows every task by phase. This page covers both, in the app and from a terminal.
 
 ## What stops a run
 
@@ -12,13 +12,13 @@ A run stops when a decision belongs to you. Every open question of every run is 
 
 A gate's card is there whoever moved the run to the gate: a drive, a conductor in its pane (`metator run advance pass`) or a person at a terminal. Approve on the card passes the gate as `metator run approve` does, under your name; Reject sends the run back with your reason. A proposal of an agent you decide in the Backlog, or with `metator issue decide` or `issue rm`, leaves the queue too.
 
-An agent works without asking when it runs the MetatorAI commands its definition names, reads or searches the repository, writes its artifacts into the run directory, or edits files inside the run's own worktree. Anything else asks. A push always asks.
+An agent works without asking when it runs the MetatorAI commands its definition names, reads or searches the repository, writes its artifacts into the run directory, or edits files inside the run's own worktree. Anything else asks. A commit or a push always needs your consent ([Approvals and consent](./approvals.md#commit-and-push)).
 
 ## Home
 
-**Home** is the first screen of the app. It shows one decision at a time, as a big card: the question, or the plan to approve, and its answers. Above the card, **3 waiting · 1 of 3** says how many decisions wait, with **‹ Previous** and **Next ›**; `k` and `j`, or the arrow keys, do the same. The sidebar only counts them (**Needs you · N**). Each decision has its own address, `#/inbox/<repository>/<run>/<question>`: a step that asks in the sidebar, **its card on Home ›** on a step's page and **on Home ›** on a task's page open exactly that card, and **‹ Previous** and **Next ›** go on from it. Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
+Home shows one decision at a time, as a big card: the question, or the plan to approve, and its answers. Above the card, **3 waiting · 1 of 3** says how many decisions wait, with **‹ Previous** and **Next ›**; `k` and `j`, or the arrow keys, do the same. The sidebar only counts them (**Needs you · N**). Each decision has its own address, `#/inbox/<repository>/<run>/<question>`: a step that asks in the sidebar, **its card on Home ›** on a step's page and **on Home ›** on a task's page open exactly that card, and **‹ Previous** and **Next ›** go on from it. Questions that a live drive waits on come first, because that run stands still until you answer. The rest follow, oldest first. When the daemon serves a folder of repositories, the queue covers all of them.
 
-![Home with the decision card of an approval: the question, its options and the answer buttons](../public/screens/inbox.png)
+![Home with the decision card of a plan approval: Approve and Ask for changes above the plan](../public/screens/home.png)
 
 The card's face has only the question and how to answer it. Everything else is folded under **Details** at the bottom of the card:
 
@@ -48,11 +48,11 @@ Under **Details**, **Changes** opens the run's change ([Read the change](./chang
 
 The daemon carries out the answer. If no drive is running, it starts one again on the host the run used. What you write in your own words is passed to every later agent of the run as a decision to follow.
 
-With nothing to decide, and no escalated run, Home reads **Nothing waits for you** and says what is true about the open runs: that they are working, or that a run has no agent working on it (`Nothing needs you. 1 run has no agent working on it:`), with **Open a session** and **Drive in background** beside each such run. Under it are the open tasks in short, each with its word and progress, and **Describe a task** to start a new one. With no run at all only **Describe a task** is there ([Start a task](./start.md)). It says so only while the daemon answers.
+With nothing to decide, and no escalated run, Home reads **Nothing waits for you**, or **No decision waits for you** while a run stands still, and says what is true about the open runs: that they are working, or that a run has no agent working on it, with **Open a session** and **Drive in background** beside each such run. Under it are the open tasks in short, each with its word and progress, and **Describe a task** to start a new one. With no run at all only **Describe a task** is there ([Chats and the three ways](./start.md)). It says so only while the daemon answers.
 
 A long **Since you left** on a card is cut to its newest lines; a line that came many times (a loop) is one line with its count (`×12`), and **N more lines before these** opens the rest, so the options and the answer button stay on the screen. The files a card names under **see:** open read-only.
 
-A question an agent asks on its own terminal (`Which currency? [PLN / EUR]`) comes as a `TERMINAL` card with the question in the agent's words, a line naming the agent (its pane and stage are under **Details**), and its answers as options: an answer chosen on the card is typed into the pane for you. A host's permission prompt comes as a `PERMISSION` card. Its heading is the start of the command the host asks to run, cut to one or two lines with **…**; a click on it (or Enter) shows the whole command, monospace and wrapped, with **Copy**. The toast and a run's question box show the same start. When the command is a `git commit`, `push`, `merge` or `rebase`, the card says it **needs your consent** ([What a chat leaves](./desktop.md#what-a-chat-leaves)). Both offer **Attach and answer in the pane**: it opens the run's Terminal tab on that pane, takes the keyboard under your name, puts the cursor in the pane at the question and scrolls to it; type the answer and give the keyboard back.
+A question an agent asks on its own terminal (`Which currency? [PLN / EUR]`) comes as a `TERMINAL` card with the question in the agent's words, a line naming the agent (its pane and stage are under **Details**), and its answers as options: an answer chosen on the card is typed into the pane for you. A host's permission prompt comes as a `PERMISSION` card. Its heading is the start of the command the host asks to run, cut to one or two lines with **…**; a click on it (or Enter) shows the whole command, monospace and wrapped, with **Copy**. The toast and a run's question box show the same start. When the command is a `git commit`, `push`, `merge` or `rebase`, the card says it **needs your consent**, and **Yes** lets that one command run ([Commit and push](./approvals.md#commit-and-push)). Both offer **Attach and answer in the pane**: it opens the run's Terminal tab on that pane, takes the keyboard under your name, puts the cursor in the pane at the question and scrolls to it; type the answer and give the keyboard back.
 
 Either side can answer, and both see the result:
 
@@ -67,13 +67,22 @@ A plan-approval card shows the plan in full, with **Approve** and **Ask for chan
 
 A confirmation says what the run did with your answer: **Rejected: the run escalated with your reason**, **Rejected: the run goes back to plan**, **The run is done**, or **The run goes on**. It goes after a few seconds, or when you go elsewhere; a refusal stays until you close it.
 
+### Cards of a chat
+
+What a chat leaves for you to decide comes here too:
+
+- **A commit or a push** the agent asks for: the command as the heading and a line under it, **git commit needs your consent: it runs only when you say Yes here, or ask for it in the chat.** A reason of the guard, such as a commit that holds debug changes, is shown under the command.
+- **Quick change ready: look at the diff**: **Open diff** opens the run's **Changes** and leaves the card; **Fine** ends the quick run ([Quick and debug changes](./quick.md)).
+- **This grew past quick: …**: **Continue as full** or **Keep as quick**.
+- **Debug changes (N)** on Home lists the [debug changes](./quick.md#debug-changes) still in your files, with **Remove debug changes**.
+
 ### Review cards
 
 Reviews of pull requests have cards on Home too, after the questions of the runs, counted in the same **N waiting**: you were asked to review a request (**Review**), a watched request got new commits or replies (**Re-review**), every finding is fixed (approve it: **Yes** or **No**), or your own request got a new review (**Analyse**). The review itself asks to publish on a card with **Yes** and **No**: one consent for every comment of the review. A button that starts an agent opens its terminal at once. **Open in Reviews** goes to the request in [Reviews](./reviews.md#the-reviews-place).
 
 ## Questions asked in the terminal
 
-An agent can also stop at a question it wrote on its own screen, without a card. Such a run still needs you. Home shows it in its turn as a card with the task and **answers in its terminal**; **Open the run** opens the run's **Terminal** tab on the pane that asks. Attach and type the answer there ([Sessions and worktrees](./sessions.md)).
+An agent can also stop at a question it wrote on its own screen, without a card. Such a run still needs you. Home shows it in its turn as a card with the task and **answers in its terminal**; **Open the run** opens the run's **Terminal** tab on the pane that asks. Attach and type the answer there ([Terminals and sessions](./sessions.md)).
 
 ## Permission prompts of the host
 
@@ -95,7 +104,7 @@ Your choice is typed into the pane: its number, or the reply word the agent name
 
 The chat where you describe a task has no run yet, and its agent can still stop and wait for you: its host asks leave to run a command, or the agent asks in its terminal (`Which workflow? [mt-feature / mt-bugfix]`). Home shows such a question as a card of its own. It names the pane (**chat**) and, in a folder, its repository, and it offers the same choices as above. Your answer is typed into the pane. In **Terminals** the chat's frame says **needs you** until the question is answered, on the card or in the pane.
 
-For a script, these questions are listed in `GET /inbox` under `panes`, one item per question:
+For a script, these questions are listed in `GET /inbox` under `panes`, one item per question ([Daemon HTTP API](../reference/http.md)):
 
 ```json
 { "kind": "pane", "repo": "shop-api", "paneId": "w1:p1", "label": "chat", "role": "apps", "host": "claude",
@@ -115,7 +124,8 @@ The card shows why the run stopped (the failure its last stage recorded) and has
 
 - **Resume** puts the run back at the stage it escalated from and drives it on. Remove the cause first. The run gets a fresh set of tries for that stage. If no drive can start, the card says why.
 - **Close run…** asks for a reason and ends the run as aborted.
-- **Briefing** opens the run's **Overview**, what happened in it, and **Changes** shows its change.
+- **Briefing** opens the run's **Overview**, what happened in it.
+- **Changes** shows its change.
 
 The same from the terminal:
 
@@ -146,23 +156,19 @@ metator run answer q002 --choice Reject --text "split step 3 into two" --by alic
 
 The run's drive carries out the answer. If no drive is running, `metator run continue <run>` starts it again. At a terminal `metator inbox` prints the queue as text, each question with the command that answers it.
 
-### Answers that repeat
+To make an answer you always give a policy, add `--always` ([Answers that repeat](./approvals.md#answers-that-repeat)).
 
-If you answer the same question the same way every time, make the answer a policy. This exists only as a command:
+## The Board
 
-```bash
-metator run answer q004 --choice Deny --by alice --always
-```
+**Board** in the sidebar shows the work in five columns by phase: **To do**, **Planning**, **In progress**, **Review** and **Done**.
 
-The policy is stored in `metator/answer-policies.yml`, so the team reviews it like code. From then on such a question is answered when it is asked, and the log says the policy answered it.
+![The Board: tasks by phase, each card with its word and how many of its steps are done](../public/screens/board.png)
 
-A policy has limits:
+- Its top level shows only parent tasks, each once: a system task, a run with child runs, a run of its own, a backlog task or an agent's proposal.
+- A task is in the column of its own phase. A system task is in Planning until its plan is approved, In progress while its steps run, Review at its delivery and Done at the end. A run's phase comes from its workflow and stage: understanding, planning and the plan's approval are Planning; the work is In progress; checks, reviews, delivery and publishing are Review; a done or aborted run, and one that only planned (`plan ready`), is Done.
+- A card has the task's word, its name and how many of its steps are done (`3 of 6 steps done`); the needs-you and blocked counts of its steps are summed on it and in the column's header.
+- Done is folded: **Show finished (N)** shows the last day, older ones behind **show N more**.
 
-- It can deny a tool. It cannot allow one.
-- It cannot answer a decision that cannot be taken back, such as a push.
-- It cannot answer with Other or Reject, because those need your own words.
+A click on a system task (or Enter) opens **its** board: the same columns with its steps and their child runs across repositories, steps not started in To do with what they wait for (a click opens [the step's detail](./plan.md#a-steps-detail), with **Plan this step**), and **Board ›** `<task>` at the top to go back (also Backspace or Escape).
 
-```bash
-metator policy list
-metator policy rm <id>      # such questions ask a person again
-```
+Above the board you filter by repository (several at once), by the words needs you, working and blocked, by host, and by a search. Arrows move between cards. **Start a run** on a To-do task starts it. Cards cannot be dragged to another column: the engine decides the phase.

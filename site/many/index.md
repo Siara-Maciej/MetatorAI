@@ -1,6 +1,6 @@
-# Several repositories
+# Folder of repositories
 
-MetatorAI is set up per repository. When you work on several, each keeps its own setup, and the folder that holds them can show all of their work in one place. With a single repository you do not need this page.
+MetatorAI is set up per repository. When you work on several, each keeps its own setup, and the folder that holds them shows all of their work in one place: one daemon, one Home, one `metator status`. This page covers the folder: its file, its worktrees, the commands that work in it, and the app on it. [Start with many repositories](../guide/many.md) is the short path through it.
 
 ## Set up each repository
 
@@ -39,7 +39,7 @@ MetatorAI keeps repositories apart where they share the machine:
 
 The machine-wide state lives in `$METATOR_STATE_DIR`, else `$XDG_STATE_HOME/metator`, else `~/.local/state/metator`.
 
-One thing is not kept apart. A `shared` service keeps the port you wrote in `metator/environment.yml` (see [Run the application](./environments.md)). If two repositories each start their own shared Postgres on `5432`, the second cannot start. Give them different ports.
+One thing is not kept apart. A `shared` service keeps the port you wrote in `metator/environment.yml` (see [Run the application](../repo/environments.md)). If two repositories each start their own shared Postgres on `5432`, the second cannot start. Give them different ports.
 
 ## A folder of repositories
 
@@ -110,16 +110,40 @@ Some cases:
 | Where you are | What `metator` acts on | Commands |
 |---|---|---|
 | inside a repository, at any depth | that repository | every command |
-| the folder of repositories | all its repositories | `repos`, `ask`, `status`, `inbox` |
+| the folder of repositories | all its repositories | `repos init`, `repos list`, `repos status`, `status`, `inbox`, `ask`, `report`, `serve`, `supervise`, `system discover`, `version`, `help` |
 | anywhere, with `-C <path>` | the repository or folder at `<path>` | as above, for that place |
 
-Any other command in the folder stops with a `USAGE` error that names the repositories. Run it inside one, or pass `-C`:
+Any other command in the folder stops with a `USAGE` error that names the repositories:
+
+```text
+`metator run status` works on one repository, and ~/work is a folder of 3
+Run it inside a repository (billing, shop, web) or pass `-C <repository>`; here, `metator status`, `inbox`, `repos` and `ask` cover them all.
+```
 
 ```bash
 metator -C shop run new --workflow mt-feature --task "Add discount"
 ```
 
-For questions across the folder see [Ask about the code](../use/ask.md). For sessions see [Sessions and worktrees](../use/sessions.md).
+In the folder, `metator ask` reads every repository and cites paths from the folder, such as `billing/src/vat.ts:7` ([Ask about the code](../use/ask.md#ask-across-repositories)), and `metator system discover` proposes a system map from all of them ([Systems of applications](./systems.md#let-metatorai-propose-the-map)).
+
+## One daemon for the folder
+
+```bash
+cd ~/work
+metator serve
+```
+
+The daemon serves every repository and worktree of the folder, on one port. Each repository keeps its own configuration: its gates, its host order, its intake rules and its review sources. The daemon looks for new intake issues and review requests in each repository (not in its worktrees, so nothing is found twice). A folder has one daemon: a second `metator serve` in the same folder, or in one of its repositories, is refused and names the first.
+
+## The app on a folder
+
+- The top bar shows the folder as **3 repositories**; hovering it lists them, each with its worktrees (`shop · 2 worktrees`).
+- **Home** has one queue for every repository. A card's **Details** names its repository, and a question a chat asks before any run names its repository too.
+- **Terminals**, **Backlog**, **Reviews** and the parts of **Settings** show one repository at a time, chosen with the **repository** select at the top. The select also lists the worktrees in the folder as places to work (`shop (fix-tax)`). The choice is shared by these places and remembered.
+- **+ New chat** opens the chat in the repository the select names, and its thread is kept there. The **Form…** has a **Repository** field.
+- The sidebar lists every task of every repository; a system task shows its steps under the repositories they work in. The page of a run always uses the run's own repository.
+
+Sessions in a folder are on [Terminals and sessions](../use/sessions.md); `metator session tell` and `interrupt` take `--repo` there.
 
 ## Folder or system map
 

@@ -6,7 +6,7 @@ A step's plan shows where one run stands and what is left; it is on the step's *
 
 Open the **Overview** of a step's page (key `o`): under what the run needs from you is **Its plan**, read-only. From **Terminals**, click the stages under the tabs, or press the prefix and `p`. There is no Plan tab; its old address (`#/run/<run>/plan`) opens the Overview.
 
-![A step's plan before it is written: the stage, what comes next and the last events](../public/screens/plan.png)
+![A step's Overview: what it needs from you, its plan with the stages and steps, the chosen step, and the artifacts](../public/screens/overview.png)
 
 | Part | Shows |
 |---|---|
@@ -114,7 +114,7 @@ A proposal cannot be started before someone decides it. Every task records who p
 
 To switch proposals off, set the option `issues.proposeFromAgents` to `false`. Agents then mention such things in their summary instead.
 
-Tasks can also arrive from GitHub, GitLab or Jira on their own: see [Automatic intake](./intake.md).
+Tasks can also arrive from GitHub, GitLab or Jira on their own: see [Automatic intake](../repo/intake.md).
 
 ## From a terminal
 
