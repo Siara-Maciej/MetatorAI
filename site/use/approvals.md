@@ -80,11 +80,11 @@ The guard (the `pre-tool` hook your host runs before every tool call) sorts shel
 | `ask` | `git commit`, `git push`, `git merge`, `git rebase`, `metator review approve` | runs only with your consent |
 | `allow` | none | commands that `ask` would catch and that you allow anyway, for example `git commit --fixup` |
 
-A commit is always your decision. You give consent in one of three ways:
+A commit is always your decision, and so is every merge: `gh pr merge`, `glab mr merge`, a merge through the code host's API or MCP tools, and a push straight to `main` or `master`. A merge asks even when `allow` lists it, and an approved push or a consent to push does not cover it; only `never` can forbid it. You give consent in one of three ways:
 
 - **A click.** The host shows its approval prompt, and Home shows it as a card whose heading is the command (`git commit -m "…"`), with **git commit needs your consent** under it. **Yes** (the host's own choice, offered on the card) lets that one command run.
-- **Your word in the chat.** Your own message that asks for it ("commit it", "push", "zacommituj") is consent to one such command, used up by the first one, within `guard.consentMinutes` (10 by default). A question ("should we commit?"), a refusal, the agent's own words and lines MetatorAI types (`[metator] …`) are no consent.
-- **A run's delivery.** In a run, approving its `delivery` stage counts as consent to that run's commit and push.
+- **Your word in the chat.** Your own message that asks for it ("commit it", "push", "merge it", "zacommituj") is consent to one such command, used up by the first one, within `guard.consentMinutes` (10 by default). A question ("should we commit?"), a refusal, the agent's own words and lines MetatorAI types (`[metator] …`) are no consent.
+- **A run's delivery.** In a run, approving its `delivery` stage counts as consent to that run's commit and push, never to a merge. For a merge in a run, `metator run approve merge --by alice` is your consent.
 
 A session without a terminal (`metator run drive`) cannot ask you, so there a command on `ask` is denied until the run's approval covers it. A commit that would take a recorded [debug change](./quick.md#debug-changes) is stopped even after "commit": say "commit anyway", or remove the change first.
 
@@ -101,7 +101,7 @@ echo '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | metator guard 
 
 ### Pull requests and comments in a run
 
-While a run is active, creating or merging a pull request (`gh pr create`, `gh pr merge`, GitHub MCP tools that write) needs the run's `push` approval, and commenting (`gh pr comment`, `gh pr review`, MCP comment tools) its `comment` approval. Approving `delivery` grants the push; approving the `approval` stage of `mt-pr-review` grants the comments. You can grant one directly with `metator run approve push --by alice` or `metator run approve comment --by alice`. A workflow lists the external actions its runs may take (`permissions.external`); `mt-self-review` and `mt-quick` list none. Outside a run, the guard leaves these calls to your host's own prompt.
+While a run is active, creating a pull request (`gh pr create`, `glab mr create`, code host MCP tools that write) needs the run's `push` approval (a merge is a consent of its own, above), and commenting (`gh pr comment`, `gh pr review`, MCP comment tools) its `comment` approval. Approving `delivery` grants the push; approving the `approval` stage of `mt-pr-review` grants the comments. You can grant one directly with `metator run approve push --by alice` or `metator run approve comment --by alice`. A workflow lists the external actions its runs may take (`permissions.external`); `mt-self-review` and `mt-quick` list none. Outside a run, the guard leaves these calls to your host's own prompt.
 
 ### What runs without a prompt
 

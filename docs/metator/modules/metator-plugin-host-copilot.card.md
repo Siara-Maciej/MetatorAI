@@ -21,7 +21,7 @@ dir: packages/plugin-host-copilot
 
 ## Responsibility
 
-`HostGenerator` for GitHub Copilot: writes `.github/agents/<id>.agent.md` from canonical agents (ADR-0030). `CopilotAgentHost` runs a canonical agent in Copilot CLI's prompt mode for `run drive`, with git push denied at the process level (ADR-0051). `CopilotInteractiveHost` opens `copilot -i <task>` in a PTY through the `Terminal` port for the daemon and the desktop app (D6, ADR-0077). `copilotHost` is the descriptor the composition root reads: the program and its variable, the factories, and where an agent file goes (`copilotAgentFile`, the one place that knows).
+`HostGenerator` for GitHub Copilot: writes `.github/agents/<id>.agent.md` from canonical agents (ADR-0030). `CopilotAgentHost` runs a canonical agent in Copilot CLI's prompt mode for `run drive`, with git push denied at the process level (ADR-0051). `CopilotInteractiveHost` opens `copilot -i <task>` in a PTY through the `Terminal` port for the daemon and the desktop app (D6, ADR-0077). `copilotHost` is the descriptor the composition root reads: the program and its variable, the factories, where an agent file goes (`copilotAgentFile`, the one place that knows) and what Copilot CLI needs inside the sandbox (`api.githubcopilot.com`, `*.githubcopilot.com`, `github.com`, `api.github.com`, `~/.copilot`; ADR-0104). `CopilotAgentHost` starts `copilot -p` through its launch.
 
 ## Invariants
 

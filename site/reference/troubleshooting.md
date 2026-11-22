@@ -148,7 +148,9 @@ A `git commit`, `push`, `merge` or `rebase` an agent runs needs your consent (`g
 metator run approve push --by alice      # also what approving the delivery does
 ```
 
-Inside a run, `gh pr create`, `gh pr merge` and GitHub MCP tools that write need the same `push` approval, and `gh pr comment` or `gh pr review` need `metator run approve comment --by alice`. See [Approvals and consent](../use/approvals.md#commit-and-push).
+A merge (`gh pr merge`, `glab mr merge`, a merge MCP tool, a push straight to `main` or `master`) always asks, also after an approved push: say "merge it", click **Yes**, or in a run `metator run approve merge --by alice`.
+
+Inside a run, `gh pr create`, `glab mr create` and code host MCP tools that write need the same `push` approval, and `gh pr comment` or `gh pr review` need `metator run approve comment --by alice`. See [Approvals and consent](../use/approvals.md#commit-and-push).
 
 ## A command never runs here
 
@@ -168,6 +170,20 @@ A `git commit` stops with `this commit holds debug changes: src/price.ts`. A cha
 | `not quick, and this cannot be overridden: it reaches another repository` | a change across repositories is a [system plan](../many/plans.md) |
 | `dirty: pass --here or --worktree` | the checkout has uncommitted changes: `--here` takes them into the change, `--worktree` works from the last commit |
 | `the quick gate has no steps: …` | the quick run checks its change with `metator gate quick`: add steps under `gates.quick` in `metator.config.yml` ([Gates and CI](../repo/gates-ci.md)) |
+
+## A session in the sandbox cannot start or cannot reach something
+
+With `sandbox.enabled`, every session MetatorAI starts runs in the operating system's sandbox ([Hold sessions in a sandbox](../repo/hooks.md#hold-sessions-in-a-sandbox)).
+
+| What you see | Fix |
+|---|---|
+| The pane ends at once with `Sandbox dependencies not available: ripgrep (rg) not found` (or `bwrap`, `socat`) | install `bubblewrap`, `socat` and `ripgrep`; `metator doctor` lists what is missing under `isolation` |
+| `metator doctor` says native Windows has no sandbox | run MetatorAI and the host inside WSL2, or turn the sandbox off |
+| A command in the session cannot reach a host (`Connection blocked by network allowlist`, a `403` from the proxy) | add the host: `metator config set sandbox.allowedDomains "registry.npmjs.org" --scope repo`; the next session has it |
+| A command cannot write a file outside the repository (`Read-only file system`) | add the path to `sandbox.allowWrite` |
+| `git push` over SSH fails to read the key | `~/.ssh` is in `sandbox.denyRead`: push through an SSH agent, or take it out of the list |
+| The session's sandbox does not start inside Claude Code's own sandbox | an earlier `metator generate --hooks` wrote a `sandbox` block into `.claude/settings.json`: remove it |
+| A `claude` or `copilot` you started yourself reads files the sandbox denies | it runs outside MetatorAI, without the sandbox: start the session from MetatorAI |
 
 ## The app says no daemon
 

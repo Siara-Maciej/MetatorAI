@@ -54,7 +54,7 @@ export function registerHostCommands(program: Command, ctx: CommandContext): voi
     .addOption(new Option("--host <host>", "the host whose real CLI is driven").choices(CONFORMANCE_HOSTS))
     .option(
       "--only <ids>",
-      `only these checks, comma-separated: ${CONFORMANCE_CHECK_IDS.join(", ")}`,
+      `only these checks, comma-separated (the others keep their results from the last report of this host and version): ${CONFORMANCE_CHECK_IDS.join(", ")}`,
       checkIds,
     )
     .option("--out <dir>", `where the report goes (default: ${CONFORMANCE_DIR})`)

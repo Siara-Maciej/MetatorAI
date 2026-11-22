@@ -267,6 +267,9 @@
         "@metator/plugin-typescript": "workspace:*",
         "awilix": "^13.0.5",
       },
+      "devDependencies": {
+        "@metator/testing": "workspace:*",
+      },
     },
     "packages/testing": {
       "name": "@metator/testing",

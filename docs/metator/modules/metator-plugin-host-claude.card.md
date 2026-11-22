@@ -21,12 +21,14 @@ dir: packages/plugin-host-claude
 
 ## Responsibility
 
-`HostGenerator` for Claude Code: writes `.claude/agents/<id>.md` from canonical agents (ADR-0030); `ClaudeSkillGenerator` (`SkillGenerator`) writes `.claude/skills/<name>/SKILL.md` (ADR-0039). `ClaudeAgentHost` runs a canonical agent through the Claude Agent SDK for `run drive`; questions and permission prompts go to a person (ADR-0051). `ClaudeInteractiveHost` opens `claude <task> --session-id <uuid>` in a PTY through the `Terminal` port for the daemon and the desktop app (D6, ADR-0077); it is core's `PtyInteractiveHost` given Claude Code's command line, as `ClaudeSkillGenerator` is core's `AgentSkillsGenerator` given `.claude/skills`. `claudeHost` is the descriptor the composition root reads: the program and its variable, the factories, and where an agent file goes (`claudeAgentFile`, the one place that knows).
+`HostGenerator` for Claude Code: writes `.claude/agents/<id>.md` from canonical agents (ADR-0030); `ClaudeSkillGenerator` (`SkillGenerator`) writes `.claude/skills/<name>/SKILL.md` (ADR-0039). `ClaudeAgentHost` runs a canonical agent through the Claude Agent SDK for `run drive`; questions and permission prompts go to a person (ADR-0051). `ClaudeInteractiveHost` opens `claude <task> --session-id <uuid>` in a PTY through the `Terminal` port for the daemon and the desktop app (D6, ADR-0077); it is core's `PtyInteractiveHost` given Claude Code's command line, as `ClaudeSkillGenerator` is core's `AgentSkillsGenerator` given `.claude/skills`. `claudeHost` is the descriptor the composition root reads: the program and its variable, the factories, where an agent file goes (`claudeAgentFile`, the one place that knows) and what Claude Code needs inside the sandbox (its API's hosts, `~/.claude`; ADR-0104). The generator writes hooks and `permissions.deny` (secret files, `guard.commands.never`; ADR-0100), never a `sandbox` block.
 
 ## Invariants
 
 - Without general Bash, each `metator` group is allowed on its own [[cite: packages/plugin-host-claude/src/claude-generator.ts:78 | "for (const g of metatorGroups(agent)) tools.add(`Bash(${context.metatorCommand} ${g}:*)`);"]].
 - Claude Code tool names and model aliases live in one table each, pinned by a snapshot test.
+- The never commands reach Claude Code as Copilot gets them: from `claudeDenyRules`, as settings and as `--disallowedTools` at start. A merge is never a deny rule: it asks (ADR-0094).
+- With a launch, the Agent SDK starts `claude` through it (`spawnClaudeCodeProcess`), so a drive's agent is in the sandbox too.
 
 ## Allowed dependencies
 

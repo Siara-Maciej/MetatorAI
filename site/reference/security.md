@@ -9,10 +9,13 @@ This page lists what MetatorAI enforces with code, what it records, and where yo
 | Files that may hold secrets (`.env`, `.env.*`, `*.pem`, `*.key`, SSH keys, `.npmrc`, `.netrc`) are never read or written by an agent | `metator guard pre-tool` | always |
 | Commands on `guard.commands.never` never run (`git push --force`, `git reset --hard`, `git clean -f`, `rm -r` of a root, …) | `metator guard pre-tool` | always |
 | Commands on `guard.commands.ask` (`git commit`, `git push`, `git merge`, `git rebase`, `metator review approve`) run only with the person's consent: a click on the host's prompt, their own words in the chat, or a run's approved delivery | `metator guard pre-tool` and `metator guard user-prompt` | always |
+| Every merge of a pull (merge) request (`gh pr merge`, `glab mr merge`, the merge API, MCP merge tools) and every push straight to `main` or `master` waits for the person's consent ("merge", or a click); an approved push never covers one | `metator guard pre-tool`, and the Claude host in-process | always |
+| The same commands on `guard.commands.never` are deny rules of both hosts: `permissions.deny` and `--disallowedTools` for Claude Code, `--deny-tool` for Copilot CLI; secret files are deny rules on Claude Code too | `metator generate --hooks` and the session MetatorAI starts | always |
+| With `sandbox.enabled`, every session MetatorAI starts (Claude Code and Copilot CLI) and everything it runs cannot read secret files or `sandbox.denyRead`, write outside the repository and its own files, or reach a host that is not listed | the operating system (bubblewrap, sandbox-exec) through the sandbox runtime `srt` | sessions MetatorAI starts, when you turn it on; not a `claude` or `copilot` you start yourself |
 | An agent cannot approve an architecture plan or a system plan | `metator guard pre-tool` | always |
 | Edits stay inside the repository and inside the files the plan lists (`plan-scope.json`) | `metator guard pre-tool` | during a run |
 | Coordinators delegate and do not edit files | `metator guard pre-tool` | during a run |
-| Creating or merging a pull request and commenting on one need the run's `push` or `comment` approval | `metator guard pre-tool` and `metator run approve` | during a run |
+| Creating a pull request and commenting on one need the run's `push` or `comment` approval | `metator guard pre-tool` and `metator run approve` | during a run |
 | An agent cannot stop while the run is at a stage it must finish | `metator guard stop` | during a run |
 | Every JSON artifact an agent writes matches its schema | `metator guard subagent-output` | during a run |
 

@@ -21,7 +21,7 @@ dir: packages/plugin-node
 
 ## Responsibility
 
-`WorkspaceReader` and `ManifestReader` ports on @manypkg/get-packages: workspace packages of npm, yarn, pnpm, bun, lerna and rush repositories, and their manifests with Nx and Turborepo tags. `PackageManagerDetector` and `PackageManager` ports on package-manager-detector: which package manager the repo uses and how to run its scripts (ADR-0028). `ToolBoundariesReader` (`JsonToolBoundariesReader`): the boundary rules `arch init` imports from root-level tool files. `CoverageReader` (`LcovCoverageReader`): line coverage from an LCOV report. `PortProbe` on get-port and `HealthProbe` on wait-on: free ports for worktrees and readiness of started services. `Terminal` on node-pty (`NodePtyTerminal`): pseudo-terminals for interactive host sessions; a process a signal ended exits with 128 + the signal. `ScreenRenderer` on @xterm/headless (`XtermScreenRenderer`, ADR-0091): a pane's screen as a person sees it, wide emoji counted as two cells as terminal UIs count them. `ContentHasher` on node:crypto (`NodeContentHasher`, ADR-0096): the SHA-256 of a file's text that a Backlog item's analysis and plan remember.
+`WorkspaceReader` and `ManifestReader` ports on @manypkg/get-packages: workspace packages of npm, yarn, pnpm, bun, lerna and rush repositories, and their manifests with Nx and Turborepo tags. `PackageManagerDetector` and `PackageManager` ports on package-manager-detector: which package manager the repo uses and how to run its scripts (ADR-0028). `ToolBoundariesReader` (`JsonToolBoundariesReader`): the boundary rules `arch init` imports from root-level tool files. `CoverageReader` (`LcovCoverageReader`): line coverage from an LCOV report. `PortProbe` on get-port and `HealthProbe` on wait-on: free ports for worktrees and readiness of started services. `Terminal` on node-pty (`NodePtyTerminal`): pseudo-terminals for interactive host sessions; a process a signal ended exits with 128 + the signal. `ScreenRenderer` on @xterm/headless (`XtermScreenRenderer`, ADR-0091): a pane's screen as a person sees it, wide emoji counted as two cells as terminal UIs count them. `ContentHasher` on node:crypto (`NodeContentHasher`, ADR-0096): the SHA-256 of a file's text that a Backlog item's analysis and plan remember. `HostSandbox` on @anthropic-ai/sandbox-runtime (`SrtSandbox`, ADR-0104): `srt --settings <file> -- env METATOR_SANDBOX=1 <argv>`; `SandboxedTerminal` starts a pane through a host's launch and passes resizes (SIGWINCH) and kills (SIGHUP) to the processes inside.
 
 ## Invariants
 
@@ -31,9 +31,10 @@ dir: packages/plugin-node
 
 ## Allowed dependencies
 
-`@metator/core`, `@manypkg/get-packages` (ADR-0018), `package-manager-detector` (ADR-0028), `@friedemannsommer/lcov-parser` (ADR-0041), `get-port` (ADR-0050), `wait-on` (ADR-0053) and `node-pty` (ADR-0077); `@metator/testing` in tests.
+`@metator/core`, `@manypkg/get-packages` (ADR-0018), `package-manager-detector` (ADR-0028), `@friedemannsommer/lcov-parser` (ADR-0041), `get-port` (ADR-0050), `wait-on` (ADR-0053), `node-pty` (ADR-0077) and `@anthropic-ai/sandbox-runtime` (ADR-0104, pinned); `@metator/testing` in tests.
 
 ## Pitfalls
 
 - manypkg detects the tool from the lockfile; without one, declared `workspaces` globs are expanded by hand.
 - Detection stops at the repository root (`stopDir`), so a lockfile in a parent directory never leaks in.
+- The sandbox's settings file lives outside every path a session may write (`~/.cache/metator/sandbox`) and is written again before each start: a session never widens the next one's sandbox. Inside bubblewrap a session has its own terminal session, so the PTY's resize alone does not reach it.

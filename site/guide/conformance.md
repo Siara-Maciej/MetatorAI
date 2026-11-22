@@ -45,7 +45,7 @@ A full run takes between ten and twenty-five minutes, and uses the host's model 
 | Option | What it does |
 |---|---|
 | `--host claude\|copilot` | The host whose real CLI is driven. OpenCode and the scenario host also run, but they are not expected to pass. |
-| `--only <ids>` | Only these checks, comma-separated; the others are recorded as `skipped`. |
+| `--only <ids>` | Only these checks, comma-separated. The report stays whole: each other check keeps its result from the last report of the same host and CLI version in the output directory, marked with the date of the run it came from; a check no run played is `skipped`. |
 | `--out <dir>` | Where the report goes (default `.metator/conformance` in the repository you run it from). |
 | `--keep` | Keep the throwaway repository and the daemon's log (`daemon.log` next to it) for a look afterwards. |
 | `--timeout <seconds>` | How long one check may take (default 180). |
@@ -66,12 +66,13 @@ A full run takes between ten and twenty-five minutes, and uses the host's model 
 | `mcp-or-tools` | A MetatorAI command the agent files allow (`metator thread show`) runs from the session, and its answer comes back to the agent. |
 | `tell` | Your words told to a run's idle session (`metator session tell`) are typed into it, and the agent acts on them. |
 | `interrupt` | While the agent works on a long task, `metator session interrupt` stops it and the new words are taken: the long task never ends. |
+| `sandbox-deny-read` | With `sandbox.enabled` on in the throwaway repository and a directory of it in `sandbox.denyRead`, a new chat starts in the operating system's sandbox: the agent is told to `cat` a file in that directory, the system refuses the read (the screen shows `No such file or directory`, `Permission denied` or the like), the file's words never reach the screen, and the session's hooks still reach the daemon. Where `metator doctor` says this machine cannot hold a sandbox, the check is `skipped` with that reason, and it is no gap of the host. |
 
 ## The report
 
 Each run writes two files to the output directory:
 
-- `conformance-<host>-<version>.json`: a `HostConformance` document (version 1). It holds the host, the CLI's version, the operating system, MetatorAI's version, when the run started and ended, and for each check its `id`, `title`, `result` (`pass`, `fail` or `skipped`), `evidence` and `tookMs`. The evidence is at most 2000 characters: the screen lines, the guard's records and the questions that prove the result, or what was there instead.
+- `conformance-<host>-<version>.json`: a `HostConformance` document (version 2). It holds the host, the CLI's version, the operating system, MetatorAI's version, when the run started and ended, and for each check its `id`, `title`, `result` (`pass`, `fail` or `skipped`), `evidence` and `tookMs`, and `from` when the check was not played in this run but kept from an earlier one (`--only`): when that run ended. A version 1 report still reads. The evidence is at most 2000 characters: the screen lines, the guard's records and the questions that prove the result, or what was there instead.
 - `conformance-<host>-<version>.md`: the same as a page to read.
 
 The report holds no credentials, and the throwaway repository held nothing of yours. To send a run back, attach the `.json` file.
@@ -84,7 +85,7 @@ bun run metator host conformance diff .metator/conformance/conformance-claude-2.
 
 It lists every check whose result differs between the two runs. That list is the set of parity gaps. A check that passes on one host and fails on the other is a gap to close in that host's adapter. If it cannot be closed, the feature is dropped for both hosts. That decision is the product owner's; the suite only reports.
 
-How each adapter starts its host (`--session-id` and `--permission-mode` for Claude Code, `--deny-tool`, `--allow-tool` and `--continue` for Copilot CLI) stays inside the adapter, as long as every check observes the same result on both hosts.
+How each adapter starts its host (`--session-id`, `--permission-mode` and `--disallowedTools` for Claude Code, `--deny-tool`, `--allow-tool` and `--continue` for Copilot CLI; both inside the sandbox when it is on) stays inside the adapter, as long as every check observes the same result on both hosts.
 
 ## What to expect from Copilot CLI
 
@@ -99,7 +100,7 @@ When a run of the suite is kept in `.metator/conformance/`, `metator doctor` giv
 ! conformance  last passed with copilot 1.0.114 on 2026-11-21; copilot 1.0.99 installed here is older
 ```
 
-A host installed in an older version than the last one that passed is a warning only. A host whose runs never passed gets a warning with the command that runs the suite again.
+A run passes when every check passed, or was skipped only because this machine cannot hold a sandbox. A host installed in an older version than the last one that passed is a warning only. A host whose runs never passed gets a warning with the command that runs the suite again.
 
 ## Related
 
