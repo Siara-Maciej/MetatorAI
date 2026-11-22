@@ -434,37 +434,31 @@ describe("metator generate --hooks writes both hosts' hook configuration", () =>
     expect(claude.hooks.PreToolUse?.[0]?.hooks[0]?.command).toBe("npx metator guard pre-tool");
     // Both hosts hand the person's own message to the same guard (the consent in words).
     expect(claude.hooks.UserPromptSubmit?.[0]?.hooks[0]?.command).toBe("npx metator guard user-prompt");
-    // The sandbox is the repository's choice: off, nothing about it is written; on, the host
-    // gets it with the configured lists, and doctor says whether this machine can hold it.
+    // The sandbox is the repository's choice and MetatorAI's own (ADR-0104): on or off, the
+    // generated settings hold no sandbox block (the session starts in one, and a second inside it
+    // cannot start); doctor says whether this machine can hold it, for both hosts' sessions.
     expect((claude as { sandbox?: unknown }).sandbox).toBeUndefined();
     expect(
       (await metator(["config", "set", "sandbox.enabled", "true", "--scope", "repo"], repo.root)).code,
     ).toBe(0);
-    expect(
-      (
-        await metator(
-          ["config", "set", "sandbox.allowedDomains", "registry.npmjs.org", "--scope", "repo"],
-          repo.root,
-        )
-      ).code,
-    ).toBe(0);
     expect((await metator(["generate", "--hooks"], repo.root)).code).toBe(0);
-    const sandboxed = JSON.parse(await repo.read(".claude/settings.json")) as {
-      sandbox: { enabled: boolean; allowUnsandboxedCommands: boolean; network: { allowedDomains: string[] } };
-    };
-    expect([sandboxed.sandbox.enabled, sandboxed.sandbox.allowUnsandboxedCommands]).toEqual([true, false]);
-    expect(sandboxed.sandbox.network.allowedDomains).toEqual(["registry.npmjs.org"]);
+    const sandboxed = JSON.parse(await repo.read(".claude/settings.json")) as { sandbox?: unknown };
+    expect(sandboxed.sandbox).toBeUndefined();
     const doctor = await metator(["doctor"], repo.root);
     const isolation = (doctor.json.data as { checks: { id: string; message: string }[] }).checks.find(
       (c) => c.id === "isolation",
     );
     expect(isolation?.message).toMatch(/sandbox/);
+    if (isolation?.message.startsWith("every host session"))
+      expect(isolation.message).toContain("Claude Code and Copilot CLI");
+    // An option this version no longer has is reported, not applied.
+    expect(
+      (await metator(["config", "set", "sandbox.excludedCommands", "docker *", "--scope", "repo"], repo.root))
+        .code,
+    ).not.toBe(0);
     expect((await metator(["config", "unset", "sandbox.enabled", "--scope", "repo"], repo.root)).code).toBe(
       0,
     );
-    expect(
-      (await metator(["config", "unset", "sandbox.allowedDomains", "--scope", "repo"], repo.root)).code,
-    ).toBe(0);
     expect((await metator(["generate", "--hooks"], repo.root)).code).toBe(0);
     const copilot = JSON.parse(await repo.read(".github/hooks/metator.json")) as {
       hooks: Record<string, unknown[]>;
