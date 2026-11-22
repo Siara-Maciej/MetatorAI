@@ -1500,6 +1500,22 @@ kbd {
   align-items: center;
   margin-top: 12px;
 }
+/* Where an escalated run resumes, and the note for its next agent (the card and the run's bar). */
+.resume-at {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+.resume-at label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.resume-at label.note {
+  flex: 1;
+  min-width: 240px;
+}
 .escalated-card form.close {
   display: flex;
   gap: var(--sp-3);
@@ -3623,4 +3639,10 @@ button.debug-changes {
 }
 .review-card .actions {
   align-items: center;
+}
+/* The run's resumes on its plan (who sent it back where, with their note). */
+ul.resumes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }

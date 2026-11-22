@@ -1,5 +1,5 @@
 import { parseMrUrl } from "../domain/codehost.ts";
-import type { Question } from "../domain/drive.ts";
+import { gateQuestion, type Question } from "../domain/drive.ts";
 import type { MetatorError } from "../domain/errors.ts";
 import { ok, type Result } from "../domain/result.ts";
 import { toComments, VerdictDocument } from "../domain/verdict.ts";
@@ -13,13 +13,19 @@ import type { RunRepository } from "./run-repository.ts";
 import type { WorkflowCatalog } from "./workflow-catalog.ts";
 
 /**
- * A human gate's question, the same from every front: what it asks and the two answers. A gate
- * that publishes a review asks it as the publish card (`publish`, ADR-0097): Approve is Yes.
+ * A human gate's question, the same from every front: what is approved for which task
+ * (`gateQuestion`) and the two answers. A gate that publishes a review asks it as the publish
+ * card (`publish`, ADR-0097): Approve is Yes. `before` is the stage the run passed last.
  */
-export const gateQuestionOf = (stage: Pick<StageSpec, "id" | "description">, publish?: string) => ({
+export const gateQuestionOf = (
+  stage: Pick<StageSpec, "id" | "description" | "grants">,
+  task: string,
+  before?: string,
+  publish?: string,
+) => ({
   stage: stage.id,
   source: "gate" as const,
-  prompt: publish ?? `${stage.description ?? stage.id}: approve to continue`,
+  prompt: publish ?? gateQuestion(stage, task, before),
   options: publish
     ? [
         { label: "Approve", description: "Yes: publish the whole review, inline where the host allows" },
@@ -79,15 +85,16 @@ export class GateQuestions {
     const stage = stages.find((s) => s.id === record.value.state.stage);
     if (!stage?.hitl) return ok(undefined);
     const history = record.value.state.context.history;
+    const done = [
+      ...new Set(history.filter((h) => h.event === "PASS" || h.event === "APPROVE").map((h) => h.stage)),
+    ];
     const card = await decisionCard(
       { fs: this.d.fs, repo: this.d.repo, journal: this.d.journal, gatesDir: this.d.gatesDir },
       {
         runId,
         task: record.value.task,
         stage,
-        done: [
-          ...new Set(history.filter((h) => h.event === "PASS" || h.event === "APPROVE").map((h) => h.stage)),
-        ],
+        done,
         stages,
         loops: record.value.state.context.loops,
         loopLimits: entry.value.spec.loops ?? {},
@@ -102,6 +109,10 @@ export class GateQuestions {
     );
     // Since the run's last change: an answer given before it was for an earlier visit.
     const publish = await publishQuestion(this.d.fs, this.d.repo.runDir(runId), stage, record.value.inputs);
-    return this.d.journal.ask(runId, { ...gateQuestionOf(stage, publish), card }, record.value.updatedAt);
+    return this.d.journal.ask(
+      runId,
+      { ...gateQuestionOf(stage, record.value.task, done.at(-1), publish), card },
+      record.value.updatedAt,
+    );
   }
 }

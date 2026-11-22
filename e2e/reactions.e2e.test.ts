@@ -27,23 +27,28 @@ afterAll(async () => {
 describe("metator findings react and report (real CLI)", () => {
   test("reactions are recorded per comment; the report sums them; the dashboard is one HTML page", async () => {
     const a = await metator(
-      [
-        "findings",
-        "react",
-        "LOGIC-001",
-        "--pr",
-        "42",
-        "--state",
-        "resolved",
-        "--by",
-        "maciej",
-        "--lens",
-        "logic",
-      ],
+      ["findings", "react", "LOGIC-001", "--pr", "42", "--state", "resolved", "--lens", "logic"],
       repo.root,
+      // Without --by the name is $METATOR_USER.
+      { METATOR_USER: "maciej" },
     );
     expect(a.code).toBe(0);
-    expect(data(a)).toMatchObject({ finding: "LOGIC-001", pr: "42", state: "resolved", lens: "logic" });
+    expect(data(a)).toMatchObject({
+      finding: "LOGIC-001",
+      pr: "42",
+      state: "resolved",
+      lens: "logic",
+      by: "maciej",
+    });
+    const nobody = await metator(
+      ["findings", "react", "LOGIC-001", "--pr", "42", "--state", "resolved"],
+      repo.root,
+      { METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    );
+    expect([nobody.code, (nobody.json.error as { message: string }).message]).toEqual([
+      64,
+      "say who you are: --by <name>",
+    ]);
     expect(
       (
         await metator(

@@ -53,6 +53,7 @@ import {
   type WorkbenchCommand,
   type WorkbenchRepo,
   type WorkbenchTab,
+  withoutPanes,
   workbenchRepos,
   workspaceOfPane,
 } from "../model.ts";
@@ -175,21 +176,29 @@ export function WorkbenchScreen({
         : group || showPane || tasks.length === 0
           ? "tabs"
           : "list";
-  const tabPanes: (PaneView & { readonly repo?: string | undefined })[] =
-    view === "session" && session
-      ? sessionView(session)
-      : view === "task" && chosen
-        ? taskView(chosen)
-        : (tab?.panes ?? []).map((id) => panes.find((p) => p.id === id)).filter((p): p is PaneView => !!p);
   /**
    * A pane's key on this screen: its id in a tab (one repository), its repository and id in a
    * task's views, where two repositories' panes may have the same id.
    */
   const keyOf = (p: PaneView & { readonly repo?: string | undefined }) =>
     view === "tabs" ? p.id : paneKey(p);
+  // Dead panes a Retry is replacing (by key): not drawn from the click on, so the old pane and its
+  // replacement are never on the screen together (the daemon opens one, then closes the other).
+  const [retiring, setRetiring] = useState<ReadonlySet<string>>(new Set());
+  const tabPanes: (PaneView & { readonly repo?: string | undefined })[] = (
+    view === "session" && session
+      ? sessionView(session)
+      : view === "task" && chosen
+        ? taskView(chosen)
+        : (tab?.panes ?? []).map((id) => panes.find((p) => p.id === id)).filter((p): p is PaneView => !!p)
+  ).filter((p) => !retiring.has(keyOf(p)));
   const byKey = (key: string | undefined) => tabPanes.find((p) => keyOf(p) === key);
   const tree: SplitNode | undefined =
-    view === "tabs" ? (tab ? (tab.tree ?? evenTree(tab.panes)) : undefined) : evenTree(tabPanes.map(keyOf));
+    view === "tabs"
+      ? tab
+        ? withoutPanes(tab.tree ?? evenTree(tab.panes), retiring)
+        : undefined
+      : evenTree(tabPanes.map(keyOf));
   /** The repository a pane is in (a task's panes are in several). */
   const repoOf = (p: PaneView | undefined) => (p as { repo?: string } | undefined)?.repo ?? repoName;
   const [focus, setFocus] = useState<string>();
@@ -267,6 +276,15 @@ export function WorkbenchScreen({
       await action.run(() => client.ptyOpen(runId, repoName), { refused: "The session did not start" });
       return;
     }
+    const key = keyOf(p);
+    const retire = (on: boolean) =>
+      setRetiring((now) => {
+        const next = new Set(now);
+        if (on) next.add(key);
+        else next.delete(key);
+        return next;
+      });
+    retire(true);
     let process: { argv: string[] } | { host: string; agent: string; prompt: string };
     if (p.process.kind === "command") process = { argv: [...p.process.argv] };
     else {
@@ -274,6 +292,7 @@ export function WorkbenchScreen({
       const s = await client.supervisor(repoName);
       const host = retryHost(p.process.host, s.data?.policy.hostOrder ?? [], s.data?.hostStatus);
       if (!host) {
+        retire(false);
         action.say(noHostText(s.data?.hostStatus ?? []));
         return;
       }
@@ -287,7 +306,16 @@ export function WorkbenchScreen({
         ),
       "The pane did not start",
     );
-    if (id) await client.closePane(p.id, repoName);
+    if (!id) {
+      retire(false);
+      return;
+    }
+    const closed = await client.closePane(p.id, repoName);
+    // Still there: it is drawn again, with what the daemon said.
+    if (!closed.ok) {
+      retire(false);
+      action.say(closed.error?.message ?? "the pane was not closed");
+    }
   };
   /**
    * What every command does (model.ts `WORKBENCH_COMMANDS` names them): the keys, the two

@@ -176,6 +176,7 @@ import type {
   QuickReady,
   QuickReviewed,
   QuickStart,
+  ReadRunArtifact,
   RecordArchitectureBaseline,
   RefactorPlanStore,
   RemoveWorktree,
@@ -442,6 +443,7 @@ export interface Cradle {
   guardSessionStart: GuardSessionStart;
   checkpointRun: CheckpointRun;
   writeRunArtifact: WriteRunArtifact;
+  readRunArtifact: ReadRunArtifact;
   resumeRun: ResumeRun;
   gateQuestions: GateQuestions;
   paneIdentity: LayoutPaneIdentity;

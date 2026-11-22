@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, InMemoryFileSystem } from "@metator/testing";
-import { WorkOverview } from "../src/application/overview.ts";
+import { liveSession, WorkOverview } from "../src/application/overview.ts";
 import { DEFAULT_PATHS } from "../src/application/paths.ts";
 import { RunRepository } from "../src/application/run-repository.ts";
 import { MetatorError } from "../src/domain/errors.ts";
@@ -76,7 +76,7 @@ describe("overview domain", () => {
   });
 });
 
-async function world() {
+async function world(sessions?: ConstructorParameters<typeof WorkOverview>[8]) {
   const fs = new InMemoryFileSystem();
   const runs = new RunRepository(fs, DEFAULT_PATHS);
   const record = (runId: string, stage: string, status: string, extra: object = {}) => ({
@@ -172,11 +172,73 @@ async function world() {
         ]) as never,
     },
     new FixedClock(new Date("2026-10-28T11:00:00.000Z")),
+    sessions,
   );
   return { overview, runs, fs };
 }
 
 describe("WorkOverview", () => {
+  test("a run whose agent works in a pane counts as working, not stopped, and is no background drive", async () => {
+    const view = (runId: string, idle: boolean, role: "conductor" | "shell" = "conductor") => ({
+      paneId: "w1:p1",
+      runId,
+      role,
+      host: role === "shell" ? "" : "claude",
+      sessionId: "s",
+      pid: 1,
+      alive: true,
+      idle,
+      lastOutputAt: "2026-10-28T10:59:00.000Z",
+    });
+    const { overview, runs } = await world({
+      byRun: (id) =>
+        id === "20261028-mt-feature-d"
+          ? [view(id, false)]
+          : id === "20261028-mt-feature-e"
+            ? [view(id, true)]
+            : [],
+    });
+    const record = (await runs.load("20261028-mt-feature-c"))._unsafeUnwrap();
+    for (const id of ["20261028-mt-feature-d", "20261028-mt-feature-e"])
+      await runs.save({
+        ...record,
+        runId: id,
+        state: { ...record.state, stage: "build", status: "active" },
+        children: [],
+      });
+    const o = (await overview.execute())._unsafeUnwrap();
+    const d = o.runs.find((r) => r.runId === "20261028-mt-feature-d");
+    const e = o.runs.find((r) => r.runId === "20261028-mt-feature-e");
+    expect([d?.attention, d?.driving, d?.session]).toEqual([
+      "driving",
+      false,
+      { paneId: "w1:p1", host: "claude", working: true },
+    ]);
+    // A session that printed nothing for the idle threshold is there, and the run stands still.
+    expect([e?.attention, e?.session?.working]).toEqual(["stopped", false]);
+    expect(o.counts.driving).toBe(1); // run d's session; run b's drive waits for an answer
+    // Without the daemon's terminals (the CLI) no run has a session.
+    const plain = (await (await world()).overview.execute())._unsafeUnwrap();
+    expect(plain.runs.every((r) => r.session === undefined)).toBe(true);
+  });
+
+  test("the live session of a run: an agent's pane, the working one first; a shell or an ended pane is none", () => {
+    const v = (
+      paneId: string,
+      over: Partial<{ alive: boolean; idle: boolean; role: string; host: string }>,
+    ) => ({ paneId, host: "claude", alive: true, idle: false, role: "conductor", ...over }) as never;
+    expect(liveSession([v("p1", { idle: true }), v("p2", { role: "worker" })])).toEqual({
+      paneId: "p2",
+      host: "claude",
+      working: true,
+    });
+    expect(liveSession([v("p1", { idle: true })])).toEqual({ paneId: "p1", host: "claude", working: false });
+    expect(
+      liveSession([v("p1", { alive: false }), v("p2", { role: "shell" }), v("p3", { role: "apps" })]),
+    ).toBeUndefined();
+    expect(liveSession([])).toBeUndefined();
+  });
+
   test("an escalated run shows the stages it passed and the one it stopped at, and is counted", async () => {
     const { overview, runs } = await world();
     await runs.save({

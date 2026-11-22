@@ -35,7 +35,7 @@
 | `POST /runs/:run/drive` | a background drive, as `metator run drive --detach`; refused for an escalated run |
 | `POST /runs/:run/stop` | stop its drive, as `metator run stop` |
 | `POST /runs/:run/continue` | continue the task: its paused panes and the runs nothing drives, as `metator run continue` (a person only) |
-| `POST /runs/:run/resume` | an escalated run back at its stage, driven on, as `metator run resume` |
+| `POST /runs/:run/resume` | an escalated run back at its stage, or at `to` with a `note` for the next agent, driven on, as `metator run resume` |
 | `POST /runs/:run/close` | close it, as `metator run close` |
 | `POST /runs/:run/answer` | answer a question, as `metator run answer` |
 | `POST /runs/:run/approve` | approve a gate or an action, as `metator run approve` |
@@ -49,6 +49,7 @@
 | `POST /runs/:run/open-editor` | your editor on its worktree, as `metator open` |
 | `GET /runs/:run/plan`, `POST /runs/:run/plan/lint` | its plan and the plan's lint |
 | `GET /runs/:run/artifacts`, `GET /runs/:run/artifacts/:name` | the files of its run directory |
+| `GET /runs/:run/artifact?path=<file>` | one file of its run directory by its path there (`content`, `truncated`); a path that leaves the directory, an absolute path, a link elsewhere and the run's bookkeeping are refused |
 | `GET /runs/:run/pty`, `POST /runs/:run/pty-open`, `/pty-close` | its terminal session |
 | `POST /runs/:run/close-panes` | close its panes |
 | `GET /runs/:run/workers`, `GET /runs/:run/wait`, `POST /runs/:run/delegate`, `/collect` | a conductor's workers: who works, wait for one, start one, collect its result (a conductor's own pane only for `delegate` and `collect`) |

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fillInputs, RunRecordDocument } from "../src/domain/run-record.ts";
+import { fillInputs, pendingResume, RunRecordDocument, resumableStages } from "../src/domain/run-record.ts";
 
 describe("fillInputs", () => {
   test("{name} is the run's value, {name|default} falls back, {runDir} is left to the drive", () => {
@@ -62,8 +62,8 @@ describe("RunRecord v5", () => {
   });
 });
 
-describe("RunRecord v8 (ADR-0096)", () => {
-  test("a v7 record reads as v8 unchanged; v8 adds planned, until and planFrom", async () => {
+describe("RunRecord v9 (ADR-0096)", () => {
+  test("a v8 record reads as v9 unchanged; v9 adds planned, until and planFrom", async () => {
     const { RunRecordDocument } = await import("../src/domain/run-record.ts");
     const base = {
       runId: "20261122-mt-feature-round",
@@ -80,22 +80,22 @@ describe("RunRecord v8 (ADR-0096)", () => {
       status: "active",
       context: { loops: {}, history: [] },
     };
-    const v7 = RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 7, ...base, state: active }, "s");
-    expect([v7._unsafeUnwrap().until, v7._unsafeUnwrap().planFrom]).toEqual([undefined, undefined]);
-    // `planned` is no v7 status: a v7 file that says so is refused.
+    const v8 = RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 8, ...base, state: active }, "s");
+    expect([v8._unsafeUnwrap().until, v8._unsafeUnwrap().planFrom]).toEqual([undefined, undefined]);
+    // `planned` is no v8 status: a v8 file that says so is refused.
     const planned = { ...active, stage: "planned", status: "planned" };
     expect(
-      RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 7, ...base, state: planned }, "s").isErr(),
+      RunRecordDocument.parse({ kind: "RunRecord", schemaVersion: 8, ...base, state: planned }, "s").isErr(),
     ).toBe(true);
-    const v8 = RunRecordDocument.parse(
-      { kind: "RunRecord", schemaVersion: 8, ...base, state: planned, until: "plan" },
+    const v9 = RunRecordDocument.parse(
+      { kind: "RunRecord", schemaVersion: 9, ...base, state: planned, until: "plan" },
       "s",
     )._unsafeUnwrap();
-    expect([v8.state.status, v8.until]).toEqual(["planned", "plan"]);
+    expect([v9.state.status, v9.until]).toEqual(["planned", "plan"]);
     const from = RunRecordDocument.parse(
       {
         kind: "RunRecord",
-        schemaVersion: 8,
+        schemaVersion: 9,
         ...base,
         state: active,
         planFrom: { run: "20261121-mt-feature-x", from: "review" },
@@ -103,5 +103,83 @@ describe("RunRecord v8 (ADR-0096)", () => {
       "s",
     )._unsafeUnwrap();
     expect(from.planFrom).toEqual({ run: "20261121-mt-feature-x", from: "review" });
+  });
+});
+
+describe("RunRecord v8: resumes", () => {
+  const v7 = {
+    kind: "RunRecord",
+    schemaVersion: 7,
+    runId: "20261030-feature-x",
+    workflow: { id: "feature", revision: 1, source: ".github/metator/workflows/feature.yml" },
+    task: "x",
+    autonomy: "L0",
+    createdAt: "2026-10-30T05:52:07.002Z",
+    updatedAt: "2026-10-30T05:52:07.002Z",
+    state: {
+      workflow: "feature",
+      stage: "plan",
+      status: "active",
+      context: {
+        loops: {},
+        history: [
+          { stage: "plan", event: "PASS" },
+          { stage: "build", event: "FAIL", detail: "red" },
+        ],
+      },
+    },
+    approvals: {},
+    options: { "supervisor.wipLimit": 1 },
+  };
+  const resume = { at: "2026-10-30T06:00:00.000Z", by: "ala", from: "build", to: "plan", after: 2 };
+
+  test("a v7 record reads as a v8 record nobody resumed; a resume names who, where and when", () => {
+    const old = RunRecordDocument.parse(v7, "state.json")._unsafeUnwrap();
+    expect([RunRecordDocument.current, old.resumes, old.options]).toEqual([
+      9,
+      undefined,
+      { "supervisor.wipLimit": 1 },
+    ]);
+    const at = (r: object) =>
+      RunRecordDocument.parse({ ...v7, schemaVersion: 8, resumes: [r] }, "state.json").isOk();
+    expect([
+      at({ ...resume, note: "smaller steps" }),
+      at(resume),
+      at({ ...resume, by: "" }),
+      at({ ...resume, note: "" }),
+      at({ ...resume, after: -1 }),
+      at({ ...resume, extra: 1 }),
+    ]).toEqual([true, true, false, false, false, false]);
+    // v7 itself never learns the field.
+    expect(RunRecordDocument.parse({ ...v7, resumes: [resume] }, "state.json").isErr()).toBe(true);
+  });
+
+  test("a resume is pending until the run records a transition that is not an approval", () => {
+    const record = RunRecordDocument.parse(
+      { ...v7, schemaVersion: 8, resumes: [{ ...resume, after: 1 }, resume] },
+      "state.json",
+    )._unsafeUnwrap();
+    expect(pendingResume(record)).toEqual(resume);
+    const withHistory = (...more: { stage: string; event: "PASS" | "FAIL" | "APPROVE" | "ABORT" }[]) => ({
+      ...record,
+      state: {
+        ...record.state,
+        context: { ...record.state.context, history: [...record.state.context.history, ...more] },
+      },
+    });
+    // A gate a person approved ran no agent: the note still waits for the stage after it.
+    expect(pendingResume(withHistory({ stage: "approval", event: "APPROVE" }))).toEqual(resume);
+    expect(pendingResume(withHistory({ stage: "plan", event: "PASS" }))).toBeUndefined();
+    expect(
+      pendingResume(withHistory({ stage: "approval", event: "APPROVE" }, { stage: "build", event: "FAIL" })),
+    ).toBeUndefined();
+    expect(pendingResume({ ...record, state: { ...record.state, status: "escalated" } })).toBeUndefined();
+    expect(pendingResume({ state: record.state })).toBeUndefined();
+  });
+
+  test("the stages a resume may go on at: the ones the run worked, in the workflow's order", () => {
+    const history = [{ stage: "build" }, { stage: "plan" }, { stage: "build" }, { stage: "gone" }];
+    expect(resumableStages(["plan", "gate", "build", "ship"], history)).toEqual(["plan", "build"]);
+    expect(resumableStages(["plan"], [])).toEqual([]);
   });
 });

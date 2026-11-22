@@ -2011,7 +2011,7 @@ metator run advance [options] <event>
 | `<event>` | event to send (one of: pass, fail, approve, abort) | |
 | `--run <id>` | run id (default: latest) |  |
 | `--reason <text>` | why (fail, abort) |  |
-| `--by <name>` | who decided (required for approve) |  |
+| `--by <name>` | who decided, recorded with an approve (default: $METATOR_USER, else git's user.name) |  |
 | `--choice <value>` | selected option at an approval |  |
 
 ### `metator run approve`
@@ -2025,7 +2025,7 @@ metator run approve [options] <gate>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<gate>` | the approval stage the run waits at, or push / comment | |
-| `--by <name>` | who approved **Required.** |  |
+| `--by <name>` | who approved; always given with --via chat (default: $METATOR_USER, else git's user.name) |  |
 | `--choice <value>` | selected option |  |
 | `--run <id>` | run id (default: latest) |  |
 | `--via <channel>` | chat: the person said yes in the session's chat; counts only while they are attached (one of: chat) |  |
@@ -2098,7 +2098,7 @@ metator run checkpoint [options]
 
 ### `metator run resume`
 
-Resume an escalated run at the stage it escalated from, once the cause is fixed; --drive carries it on at once
+Resume an escalated run at the stage it escalated from, or at an earlier stage with --to, once the cause is fixed; --drive carries it on at once
 
 ```bash
 metator run resume [options]
@@ -2108,6 +2108,8 @@ metator run resume [options]
 |---|---|---|
 | `--by <name>` | who resumes it, recorded in log.md (default: $METATOR_USER, else git's user.name, else your login name) |  |
 | `--run <id>` | run id (default: latest) |  |
+| `--to <stage>` | go on at this stage: one the run already worked, or the one it escalated from (the default) |  |
+| `--note <text>` | what you say to the agent that works next; kept in the run and its log |  |
 | `--drive` | also start a drive in the background, as `run continue` does |  |
 | `--host <host>` | with --drive: the AI host (claude, copilot; default: the one the run used) |  |
 
@@ -3328,7 +3330,7 @@ metator mrs send [options] <id>
 | Argument or option | Description | Default |
 |---|---|---|
 | `<id>` | the request | |
-| `--by <name>` | the person who decides to send them **Required.** |  |
+| `--by <name>` | the person who decides to send them (default: $METATOR_USER, else git's user.name) |  |
 | `--only <threads>` | send only these threads (t1,t3) |  |
 | `--skip <threads>` | send all but these threads (t2) |  |
 
@@ -3358,7 +3360,7 @@ metator mrs resolve [options] <id>
 |---|---|---|
 | `<id>` | the request | |
 | `--thread <thread>` | the thread's id **Required.** |  |
-| `--by <name>` | the person who decides to close it **Required.** |  |
+| `--by <name>` | the person who decides to close it (default: $METATOR_USER, else git's user.name) |  |
 
 ## open
 

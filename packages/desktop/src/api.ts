@@ -465,11 +465,19 @@ export class DaemonClient {
   /** One paused pane started again in place (refused when it is not paused). */
   continuePane = (paneId: string, by: string, repo?: string) =>
     this.post<ContinueResult>(`/panes/${encodeURIComponent(paneId)}/continue`, { by }, repo);
-  /** An escalated run back at the stage it escalated from, and driven on at once. */
-  resume = (runId: string, by: string, repo?: string) =>
+  /**
+   * An escalated run back at the stage it escalated from, or at `to`, with a note for the next
+   * agent; driven on at once.
+   */
+  resume = (
+    runId: string,
+    by: string,
+    repo?: string,
+    back: { readonly to?: string | undefined; readonly note?: string | undefined } = {},
+  ) =>
     this.post<{ run: { stage: string }; drive?: { started?: boolean; error?: string; hint?: string } }>(
       `/runs/${runId}/resume`,
-      { by },
+      { by, ...(back.to ? { to: back.to } : {}), ...(back.note?.trim() ? { note: back.note.trim() } : {}) },
       repo,
     );
   /** Ends a run as aborted, with the reason: its drive is stopped and its panes are closed. */

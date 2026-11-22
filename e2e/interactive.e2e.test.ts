@@ -79,7 +79,7 @@ describe("metator run in a terminal", () => {
         // claude (default), scenario; Copilot is not installed here, so it is not offered.
         { waitFor: "Which AI host", keys: `${KEY.down}${KEY.enter}` },
         { waitFor: "own git worktree", keys: KEY.enter },
-        { waitFor: "approve to continue", keys: KEY.enter }, // Approve
+        { waitFor: "Approve the result of stage plan", keys: KEY.enter }, // Approve
         { waitFor: "Round half up or half even?", keys: `${KEY.down}${KEY.enter}` }, // half-even
       ],
       60_000,
@@ -151,7 +151,7 @@ describe("metator run in a terminal", () => {
       repo.root,
       [
         { waitFor: "Which run?", keys: KEY.enter },
-        { waitFor: "approve to continue", keys: KEY.enter },
+        { waitFor: "Approve the result of stage plan", keys: KEY.enter },
         { waitFor: "Round half up or half even?", keys: KEY.enter },
       ],
       60_000,
@@ -168,7 +168,7 @@ describe("metator run in a terminal", () => {
     const r = await inTerminal(
       ["run", "continue", runId, "--host", "scenario"],
       repo.root,
-      [{ waitFor: "approve to continue", keys: KEY.ctrlC }],
+      [{ waitFor: "Approve the result of stage plan", keys: KEY.ctrlC }],
       60_000,
       env,
     );

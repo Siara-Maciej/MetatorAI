@@ -198,10 +198,17 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
     .addArgument(new Argument("<event>", "event to send").choices(EVENTS))
     .addOption(runOption())
     .option("--reason <text>", "why (fail, abort)")
-    .addOption(byOption("who decided (required for approve)", "explicit"))
+    .addOption(byOption("who decided, recorded with an approve", "decision"))
     .option("--choice <value>", "selected option at an approval")
     .action(
-      action(async (name: EventName, opts: AdvanceOptions) => {
+      action(async (name: EventName, given: AdvanceOptions) => {
+        // Only who speaks is filled in; the approval itself is the event the person typed.
+        let opts = given;
+        if (name === "approve") {
+          const by = await who(container(), given.by, process.env, "decision");
+          if (by.isErr()) return { result: by };
+          opts = { ...given, by: by.value };
+        }
         const event = toEvent(name, opts);
         if (event.isErr()) return { result: err(event.error) };
         const input = opts.run ? { runId: opts.run, event: event.value } : { event: event.value };
@@ -215,7 +222,7 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       "Record a person's approval: the approval stage the run waits at, or an action (push, comment)",
     )
     .argument("<gate>", "the approval stage the run waits at, or push / comment")
-    .addOption(byOption("who approved", "required"))
+    .addOption(byOption("who approved; always given with --via chat", "decision"))
     .option("--choice <value>", "selected option")
     .addOption(runOption())
     .addOption(
@@ -225,17 +232,31 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
       ).choices(["chat"]),
     )
     .action(
-      action(async (gate: string, opts: { by: string; choice?: string; run?: string; via?: "chat" }) => ({
-        result: await container()
-          .resolve("approveRun")
-          .execute({
-            gate,
-            by: opts.by,
-            ...(opts.choice ? { choice: opts.choice } : {}),
-            ...(opts.run ? { runId: opts.run } : {}),
-            ...(opts.via ? { via: opts.via } : {}),
-          }),
-      })),
+      action(async (gate: string, opts: { by?: string; choice?: string; run?: string; via?: "chat" }) => {
+        // An approval relayed from the chat names the person who gave it: nobody is assumed.
+        if (opts.via === "chat" && !opts.by?.trim())
+          return {
+            result: err(
+              MetatorError.usage(
+                "an approval from the chat names who gave it: --by <name>",
+                "The name must be the person attached to the session; it is never taken from the environment.",
+              ),
+            ),
+          };
+        const by = await who(container(), opts.by, process.env, "decision");
+        if (by.isErr()) return { result: by };
+        return {
+          result: await container()
+            .resolve("approveRun")
+            .execute({
+              gate,
+              by: by.value,
+              ...(opts.choice ? { choice: opts.choice } : {}),
+              ...(opts.run ? { runId: opts.run } : {}),
+              ...(opts.via ? { via: opts.via } : {}),
+            }),
+        };
+      }),
     );
 
   // `run take`: the lock, not a terminal (`metator attach <pane>` is the terminal); `run attach` is its old name.
@@ -333,32 +354,47 @@ export function registerRunCommands(program: Command, ctx: CommandContext): void
   runs
     .command("resume")
     .description(
-      "Resume an escalated run at the stage it escalated from, once the cause is fixed; --drive carries it on at once",
+      "Resume an escalated run at the stage it escalated from, or at an earlier stage with --to, once the cause is fixed; --drive carries it on at once",
     )
     .addOption(byOption("who resumes it, recorded in log.md"))
     .addOption(runOption())
+    .option(
+      "--to <stage>",
+      "go on at this stage: one the run already worked, or the one it escalated from (the default)",
+    )
+    .option("--note <text>", "what you say to the agent that works next; kept in the run and its log")
     .option("--drive", "also start a drive in the background, as `run continue` does", false)
     .option("--host <host>", `with --drive: the AI host (${HOSTS.join(", ")}; default: the one the run used)`)
     .action(
-      action(async (opts: { by?: string; run?: string; drive: boolean; host?: string }) => {
-        const c = container();
-        const by = await who(c, opts.by);
-        if (by.isErr()) return { result: by };
-        const resumed = await c
-          .resolve("resumeRun")
-          .execute({ by: by.value, ...(opts.run ? { runId: opts.run } : {}) });
-        if (resumed.isErr() || !opts.drive) return { result: resumed };
-        const driven = await resume(c, resumed.value.runId, opts.host);
-        if (driven.isErr())
-          return {
-            result: resumed,
-            warnings: [
-              `the run is resumed, but no drive started: ${driven.error.message}${driven.error.hint ? ` (${driven.error.hint})` : ""}; start one with \`metator run continue ${resumed.value.runId}\``,
-            ],
-          };
-        const driver = await c.resolve("runDrivers").status(resumed.value.runId);
-        return { result: ok({ ...resumed.value, drive: driver.isOk() ? driver.value : null }) };
-      }),
+      action(
+        async (opts: {
+          by?: string;
+          run?: string;
+          to?: string;
+          note?: string;
+          drive: boolean;
+          host?: string;
+        }) => {
+          const c = container();
+          const by = await who(c, opts.by);
+          if (by.isErr()) return { result: by };
+          const resumed = await c.resolve("resumeRun").execute({
+            by: by.value,
+            ...defined({ runId: opts.run, to: opts.to, note: opts.note }),
+          });
+          if (resumed.isErr() || !opts.drive) return { result: resumed };
+          const driven = await resume(c, resumed.value.runId, opts.host);
+          if (driven.isErr())
+            return {
+              result: resumed,
+              warnings: [
+                `the run is resumed, but no drive started: ${driven.error.message}${driven.error.hint ? ` (${driven.error.hint})` : ""}; start one with \`metator run continue ${resumed.value.runId}\``,
+              ],
+            };
+          const driver = await c.resolve("runDrivers").status(resumed.value.runId);
+          return { result: ok({ ...resumed.value, drive: driver.isOk() ? driver.value : null }) };
+        },
+      ),
     );
 
   runs

@@ -154,7 +154,7 @@ describe("the command surface (real CLI)", () => {
     expect([closed.code, (data(closed) as { runId: string }).runId]).toEqual([0, a]);
   }, 120_000);
 
-  test("who acts without --by: $METATOR_USER, else git's user.name, else the login name; an approval names its author", async () => {
+  test("who acts without --by: $METATOR_USER, else git's user.name, else the login name; an approval never the login name", async () => {
     const id = data(await mt("run", "new", "--workflow", "demo", "--task", "Who")).runId as string;
     const by = async (extra: Record<string, string>) => {
       const r = await metator(["run", "take", "--run", id], repo.root, { ...env, ...extra });
@@ -174,13 +174,23 @@ describe("the command surface (real CLI)", () => {
       GIT_CONFIG_NOSYSTEM: "1",
     });
     expect([nobody.code, error(nobody).message]).toEqual([64, "say who you are: --by <name>"]);
-    await repo.git("config", "user.name", "Git Name");
-    const approve = await mt("run", "approve", "approval", "--run", id);
-    expect([approve.code, error(approve).code, error(approve).message]).toEqual([
+    // A decision is never recorded under the login name: with no other name it is refused.
+    const unnamed = await metator(["run", "approve", "push", "--run", id], repo.root, {
+      ...env,
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    });
+    expect([unnamed.code, error(unnamed).message, error(unnamed).hint]).toEqual([
       64,
-      "USAGE",
-      "required option '--by <name>' not specified",
+      "say who you are: --by <name>",
+      'Without --by the name comes from $METATOR_USER, else from `git config user.name`; set one (`git config user.name "Your Name"`) or give --by.',
     ]);
+    await repo.git("config", "user.name", "Git Name");
+    const approve = await mt("run", "approve", "push", "--run", id);
+    expect([
+      approve.code,
+      (data(approve) as { approvals: Record<string, { by: string }> }).approvals.push?.by,
+    ]).toEqual([0, "Git Name"]);
     const note = data(await mt("review", "notes", "add", "Look here", "--run", id)) as { by?: string };
     expect(JSON.stringify(note)).toContain("Git Name");
   }, 120_000);

@@ -8,6 +8,7 @@ import { useDaemon, usePolled } from "../daemon.tsx";
 import {
   answerCommand,
   duration,
+  goalShown,
   groupStepText,
   hostPromptOf,
   humanPrompt,
@@ -313,7 +314,7 @@ export function DecisionCard({
           ))}
           {card?.group ? <Chip tone="blue">{groupText(card.group)}</Chip> : null}
         </div>
-        {card ? (
+        {card && goalShown(q.prompt, card.task) ? (
           <section>
             <h3>Goal</h3>
             <div>{card.task}</div>

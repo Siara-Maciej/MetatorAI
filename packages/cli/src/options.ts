@@ -67,15 +67,17 @@ export function baseOption(description: string, fallback?: string): Option {
 
 /** What a `--by` that may be left out says of its default, in the option's description. */
 export const BY_DEFAULT = " (default: $METATOR_USER, else git's user.name, else your login name)";
+/** The same for a decision (`who(..., "decision")`): never the login name. */
+export const DECISION_BY_DEFAULT = " (default: $METATOR_USER, else git's user.name)";
 
 /**
- * `--by <name>`: who acts. Left out, the name is the person's own (`who`); an approval keeps it
- * required, so a decision is never recorded under a name nobody typed.
+ * `--by <name>`: who acts. Left out, the name is the person's own (`who`); a decision's
+ * (`"decision"`: an approval, a send or resolve on the code host) is never the login name, so a
+ * decision is recorded only under a name someone set. `"required"`: always typed.
  */
-export function byOption(what: string, mode: "default" | "required" | "explicit" = "default"): Option {
+export function byOption(what: string, mode: "default" | "required" | "decision" = "default"): Option {
   if (mode === "required") return new Option("--by <name>", what).makeOptionMandatory();
-  // "explicit": the command itself says when the name must be typed (`run advance approve`).
-  return new Option("--by <name>", mode === "explicit" ? what : `${what}${BY_DEFAULT}`);
+  return new Option("--by <name>", `${what}${mode === "decision" ? DECISION_BY_DEFAULT : BY_DEFAULT}`);
 }
 
 /**

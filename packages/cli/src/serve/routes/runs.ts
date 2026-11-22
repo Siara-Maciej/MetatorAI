@@ -324,10 +324,22 @@ export const RUN_ROUTES: readonly Route[] = [
   route({
     method: "POST",
     pattern: "/runs/:run/resume",
-    body: body({ by: text, drive: flag, host: optional(z.string()) }),
+    body: body({
+      by: text,
+      drive: flag,
+      host: optional(z.string()),
+      to: optional(z.string()),
+      note: optional(z.string()),
+    }),
     handler: async (call) => {
       const b = call.body;
-      const resumed = await call.c.resolve("resumeRun").execute({ runId: run(call), by: b.by ?? "" });
+      const resumed = await call.c.resolve("resumeRun").execute({
+        runId: run(call),
+        by: b.by ?? "",
+        // Back to an earlier stage, with what the person says to the agent that works next.
+        ...(b.to ? { to: b.to } : {}),
+        ...(b.note ? { note: b.note } : {}),
+      });
       if (resumed.isErr()) return resumed;
       const drive =
         b.drive === false

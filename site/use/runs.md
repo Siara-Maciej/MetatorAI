@@ -90,7 +90,7 @@ A run is at exactly one stage. It moves only when the command receives an event 
 metator run status                                      # the stage and the events it accepts
 metator run advance pass                                # the stage is done
 metator run advance fail --reason "gates: 2 tests red"  # the stage failed
-metator run approve plan-approval --by alice            # a stage that waits for a person
+metator run approve plan-approval                       # a stage that waits for a person
 ```
 
 Agents send these during a run. Three things follow from the workflow and cannot be talked around:
@@ -102,9 +102,19 @@ Agents send these during a run. Three things follow from the workflow and cannot
 An escalated run stops and waits for you. Its card on Home says why, with **Resume** and **Close run…**. Remove the cause, then resume: the run goes back to the stage it stopped at with a fresh set of tries, and the first agent after the resume is told why the stage failed.
 
 ```bash
-metator run resume --run <id> --by alice --drive
+metator run resume --run <id> --drive
 metator run close --run <id> --aborted --reason "not worth fixing"
 ```
+
+To send the run back further, name the stage with `--to`, and say why with `--note`:
+
+```bash
+metator run resume --run <id> --to plan --note "split step 2; the check needs the file it names" --drive
+```
+
+`--to` takes a stage the run already worked, or the stage it escalated from. Any other stage is refused, and the error names the stages you can choose. Sent back to an earlier stage, every loop of the run counts from zero, and the approvals on the way are asked again. The first agent that works after the resume reads your note and the failure the run escalated on. The run keeps the resume (RunRecord v8, `resumes`): `metator run status` shows it until an agent has worked, and the log, the activity and the plan board (`metator run board`) keep it for good.
+
+`--by` says who acts. Without it the name comes from `$METATOR_USER`, else from `git config user.name`, else from your login name. A decision (`run approve`, `run advance approve`, `mrs send`, `mrs resolve`) never takes the login name: without `--by`, `$METATOR_USER` or git's `user.name` it is refused. An empty `--by` is always refused, and an approval relayed from the chat (`--via chat`) always names the person. The name only says who acts: the command is still the decision.
 
 ## Who moves a run
 

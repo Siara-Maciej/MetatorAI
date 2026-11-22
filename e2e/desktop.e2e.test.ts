@@ -64,6 +64,8 @@ agents:
       - say: "STATUS: done"
   mt-implementer:
     - - ask: { question: "Which currencies to support?", options: [PLN, EUR, USD], multiSelect: true }
+      - write: { path: "{runDir}/build-log.md", text: "# Build log\\n\\nThe cap is applied in cents.\\n" }
+      - write: { path: "{runDir}/numbers.json", text: '{"cap":{"cents":500}}' }
       - say: "STATUS: done"
   mt-orchestrator:
     # Every start plays it: the panes "+ New run" opens greet, and the conductor "Open a session"
@@ -348,14 +350,41 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
           .locator("h1")
           .textContent()
           .catch(() => "")
-      )?.includes("approval")
+      )?.startsWith("Approve")
         ? true
         : undefined,
     );
+    // The title says what is approved and for which run's task, in plain words.
+    expect(await card.locator("h1").textContent()).toMatch(/^Approve the result of stage build for ".+"\?$/);
     expect(await card.getByTestId("card-details").locator(".ctx").textContent()).toContain("APPROVAL");
     // One set of controls, as everywhere a decision is shown: the options are the choice, one
     // button sends the chosen one (no second button beside it).
     expect(await card.locator(".actions").first().getByRole("button").count()).toBe(1);
+    // The stage's artifacts are read from the card's details: Markdown as written, JSON indented.
+    const details = card.getByTestId("card-details");
+    await details.locator("summary").click();
+    await details.getByRole("button", { name: "build-log.md" }).click();
+    const viewer = page.getByLabel("artifact build-log.md");
+    await viewer.waitFor({ timeout: 20_000 });
+    await until("the build log's text", async () =>
+      (await viewer.getByTestId("artifact-text").textContent())?.includes("The cap is applied in cents.")
+        ? true
+        : undefined,
+    );
+    await viewer.getByRole("button", { name: "Close" }).click();
+    await details.getByRole("button", { name: "numbers.json" }).click();
+    const json = page.getByLabel("artifact numbers.json");
+    await json.waitFor({ timeout: 20_000 });
+    await until("the JSON, indented", async () =>
+      (await json.getByTestId("artifact-text").textContent())?.includes(
+        '{\n  "cap": {\n    "cents": 500\n  }\n}',
+      )
+        ? true
+        : undefined,
+    );
+    await json.getByRole("button", { name: "Close" }).click();
+    expect(await page.getByLabel("artifact numbers.json").count()).toBe(0);
+    await details.locator("summary").click();
     // Reject promises a reason (D8): without it neither the button nor Enter sends the answer.
     await card.locator(".option", { hasText: "Reject" }).click();
     expect(await card.locator(".reason span").textContent()).toBe("Reason for Reject (required)");

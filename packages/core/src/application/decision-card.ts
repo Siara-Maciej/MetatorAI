@@ -1,4 +1,4 @@
-import { consequencesOf, type DecisionCard, sinceLastAnswer } from "../domain/drive.ts";
+import { consequencesOf, type DecisionCard, loopCosts, sinceLastAnswer } from "../domain/drive.ts";
 import { GateReportDocument } from "../domain/gate.ts";
 import { PlanScopeDocument } from "../domain/plan.ts";
 import { isRunBookkeeping } from "../domain/run-record.ts";
@@ -95,13 +95,15 @@ async function blastRadiusOf(d: DecisionCardSources, dir: string): Promise<Decis
 
 /** What waiting costs: ports the worktree holds, loops used, children waiting on this run. */
 export function costOfDelay(
-  ctx: Pick<DecisionCardContext, "ports" | "loops" | "loopLimits" | "children">,
+  ctx: Pick<DecisionCardContext, "ports" | "loops" | "loopLimits" | "children"> & {
+    readonly stage?: Pick<StageSpec, "hitl" | "onFail">;
+  },
 ): string[] {
   const out: string[] = [];
   if (ctx.ports)
     out.push(`its worktree keeps ports ${ctx.ports.from}–${ctx.ports.from + ctx.ports.count - 1} busy`);
-  for (const [loop, used] of Object.entries(ctx.loops))
-    if (used > 0) out.push(`loop ${loop}: ${used} of ${ctx.loopLimits[loop] ?? "?"} used`);
+  // A gate's Reject already says how far its own loop is: the card counts it once (F9).
+  out.push(...loopCosts(ctx.loops, ctx.loopLimits, ctx.stage?.hitl ? ctx.stage.onFail?.loop : undefined));
   if (ctx.children.length > 0) out.push(`${ctx.children.length} child run(s) depend on this run`);
   return out;
 }

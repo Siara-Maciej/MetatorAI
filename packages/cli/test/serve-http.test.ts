@@ -392,6 +392,7 @@ describe("the daemon's route table", () => {
       "POST /system/discover",
       "GET /runs/:run/artifacts",
       "GET /runs/:run/artifacts/:name+",
+      "GET /runs/:run/artifact",
       "GET /scratch",
       "POST /scratch/drop",
       "POST /scratch/forget",
@@ -407,6 +408,6 @@ describe("the daemon's route table", () => {
       "POST /threads/:id/reopen",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(104);
+    expect(keys.size).toBe(105);
   });
 });

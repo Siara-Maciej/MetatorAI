@@ -19,6 +19,7 @@ import {
   filterKeys,
   finishedText,
   flattenState,
+  goalShown,
   gotoRows,
   groupByFeature,
   helpRows,
@@ -62,6 +63,8 @@ import {
   repoChoice,
   repoOfTab,
   resumeNotice,
+  resumePlan,
+  resumeStages,
   retryHost,
   rollUp,
   routeHash,
@@ -88,6 +91,7 @@ import {
   treeLeavesOf,
   WORKBENCH_COMMANDS,
   wasAway,
+  withoutPanes,
   withRatio,
   withSeen,
   withTerminalAsks,
@@ -683,6 +687,44 @@ describe("escalated runs (F1, D9)", () => {
     expect(resumeNotice("r1", { error: "AI host copilot cannot start here", hint: "Install it." })).toBe(
       "Run r1 is resumed, but no agent works on it: AI host copilot cannot start here Install it.",
     );
+  });
+});
+
+describe("resuming at an earlier stage, and reading what is decided", () => {
+  test("the card offers the stages the daemon names, and always the one the run stopped at", () => {
+    expect(resumeStages({ stage: "check", resumable: ["plan", "approval", "check"] })).toEqual([
+      "plan",
+      "approval",
+      "check",
+    ]);
+    // An older daemon names none: the stage it stopped at is still offered.
+    expect(resumeStages({ stage: "check" })).toEqual(["check"]);
+    expect(resumeStages({ stage: "check", resumable: ["plan"] })).toEqual(["plan", "check"]);
+  });
+
+  test("what Resume will do is said before it is done", () => {
+    expect(resumePlan("check", "check")).toBe(
+      "the run goes back to check with a fresh set of tries and is driven on",
+    );
+    expect(resumePlan("check", "plan")).toBe(
+      "the run goes back to plan and works from there to check again; approvals on the way are asked again",
+    );
+  });
+
+  test("the goal is shown only when the title does not already carry the whole task", () => {
+    expect(goalShown('Approve the plan for "Add a discount"?', " Add a discount ")).toBe(false);
+    expect(goalShown('Approve the plan for "Add a discount"?', "Add a discount\n\nwith details")).toBe(true);
+    expect(goalShown("Which currency?", "Add a discount")).toBe(true);
+  });
+
+  test("a pane being replaced is cut out of its tab's tree; a split left with one side is that side", () => {
+    const tree = evenTree(["a", "b", "c"]);
+    expect(withoutPanes(tree, new Set())).toBe(tree);
+    expect(treeLeavesOf(withoutPanes(tree, new Set(["b"])) as never)).toEqual(["a", "c"]);
+    expect(withoutPanes(evenTree(["a", "b"]), new Set(["a"]))).toEqual({ pane: "b" });
+    expect(withoutPanes({ pane: "a" }, new Set(["a"]))).toBeUndefined();
+    expect(withoutPanes(evenTree(["a", "b"]), new Set(["a", "b"]))).toBeUndefined();
+    expect(withoutPanes(undefined, new Set(["a"]))).toBeUndefined();
   });
 });
 

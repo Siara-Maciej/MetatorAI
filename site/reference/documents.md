@@ -54,7 +54,7 @@ Each run has a folder, `.metator/runs/<id>/`. Only `metator` commands write the 
 
 | Kind | File | Written by |
 |---|---|---|
-| `RunRecord` | `state.json` | `metator run ...` only. v8: the status `planned` (a run `--until plan` whose plan was approved), `until`, and `planFrom` (the run whose approved plan it took, and whether it started at `build` or at the plan's `review`) |
+| `RunRecord` | `state.json` | `metator run ...` only. v8: `resumes` (each time a person resumed the escalated run: who, from which stage to which, their note for the next agent). v9: the status `planned` (a run `--until plan` whose plan was approved), `until`, and `planFrom` (the run whose approved plan it took, and whether it started at `build` or at the plan's `review`) |
 | `RunLog` | `log.md` | `metator run ...` only; append-only |
 | `RunActivity` | `activity.jsonl`, one document per line | `metator run drive`; a `plan-edited` line when a person changes the plan in the app |
 | `RunDriver` | `driver.json` | `metator run drive` |

@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { err, MetatorError, ok } from "@metator/core";
-import { BY_DEFAULT, baseOption, byOption, defined, runGiven, runOption } from "../src/options.ts";
+import {
+  BY_DEFAULT,
+  baseOption,
+  byOption,
+  DECISION_BY_DEFAULT,
+  defined,
+  runGiven,
+  runOption,
+} from "../src/options.ts";
 import { failWhen } from "../src/outcome.ts";
 import { whoFrom } from "../src/who.ts";
 
@@ -11,25 +19,39 @@ describe("the helpers every command shares", () => {
     expect(whoFrom(undefined, env, "Git Name")._unsafeUnwrap()).toBe("env");
     expect(whoFrom(undefined, { USER: "login" }, "Git Name\n")._unsafeUnwrap()).toBe("Git Name");
     expect(whoFrom(undefined, { USER: "login", USERNAME: "winlogin" }, "")._unsafeUnwrap()).toBe("login");
-    expect(whoFrom(" ", { USERNAME: "winlogin" }, undefined)._unsafeUnwrap()).toBe("winlogin");
+    expect(whoFrom(undefined, { USERNAME: "winlogin" }, undefined)._unsafeUnwrap()).toBe("winlogin");
+    // A --by given and left empty is nobody: never filled in from somewhere else.
+    expect(whoFrom(" ", { USERNAME: "winlogin" }, undefined)._unsafeUnwrapErr().code).toBe("USAGE");
     const nobody = whoFrom(undefined, { USER: " " }, undefined)._unsafeUnwrapErr();
     expect([nobody.code, nobody.message]).toEqual(["USAGE", "say who you are: --by <name>"]);
     expect(nobody.hint).toContain("login name");
   });
 
-  test("--by: a default said in the help, required for an approval, bare where the command decides", () => {
-    const [plain, required, explicit] = [
+  test("a decision's name is --by, $METATOR_USER or git's user.name: never the login name", () => {
+    const login = { USER: "login", USERNAME: "winlogin" };
+    expect(whoFrom(undefined, { ...login, METATOR_USER: "env" }, "Git", "decision")._unsafeUnwrap()).toBe(
+      "env",
+    );
+    expect(whoFrom(undefined, login, "Git Name\n", "decision")._unsafeUnwrap()).toBe("Git Name");
+    const nobody = whoFrom(undefined, login, undefined, "decision")._unsafeUnwrapErr();
+    expect([nobody.code, nobody.message]).toEqual(["USAGE", "say who you are: --by <name>"]);
+    expect(nobody.hint).not.toContain("login name");
+  });
+
+  test("--by: a default said in the help; a decision's default is never the login name; required where typed", () => {
+    const [plain, required, decision] = [
       byOption("who answers"),
-      byOption("who approved", "required"),
-      byOption("who decided", "explicit"),
+      byOption("who approves it", "required"),
+      byOption("who approved", "decision"),
     ];
     expect([plain.flags, plain.description, plain.mandatory]).toEqual([
       "--by <name>",
       `who answers${BY_DEFAULT}`,
       false,
     ]);
-    expect([required.description, required.mandatory]).toEqual(["who approved", true]);
-    expect([explicit.description, explicit.mandatory]).toEqual(["who decided", false]);
+    expect([required.description, required.mandatory]).toEqual(["who approves it", true]);
+    expect([decision.description, decision.mandatory]).toEqual([`who approved${DECISION_BY_DEFAULT}`, false]);
+    expect(DECISION_BY_DEFAULT).not.toContain("login");
   });
 
   test("--run and --base are spelled once", () => {

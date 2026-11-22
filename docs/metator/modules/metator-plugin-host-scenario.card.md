@@ -36,3 +36,4 @@ dir: packages/plugin-host-scenario
 
 - A loop that comes back to an agent needs its own entry, or the last one repeats.
 - `write` paths are relative to the agent's working directory (the run's worktree) unless they start with `{runDir}`.
+- In `AgentHost` a `write` text may hold `{prompt}`: what the agent was told, so an e2e test can read the prompt back from a file. The prompt is put in as it is, never filled again.

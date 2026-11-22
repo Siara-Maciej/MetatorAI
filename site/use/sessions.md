@@ -213,4 +213,4 @@ metator run handoff               # handoff.md: stage, approvals, artifacts, rec
 metator run brief                 # what happened since you last looked
 ```
 
-At a terminal `metator status` prints each run with its stages, what it needs now and the command that does it; in a script it prints the same data as one JSON line. Closing a run is on [Full runs](./runs.md#finish-a-run).
+At a terminal `metator status` prints each run with its stages, what it needs now and the command that does it; in a script it prints the same data as one JSON line. A run whose agent works in a terminal pane of the app counts as working, though no background drive carries it: `metator status` shows `"attention": "driving"` with a `session` field naming the pane, and the app counts it as working. `metator status` reads this from the daemon when one serves the repository. An agent that printed nothing for the idle threshold (`supervisor.idleThresholdMs`) no longer counts. Closing a run is on [Full runs](./runs.md#finish-a-run).

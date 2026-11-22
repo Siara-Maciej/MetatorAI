@@ -1,12 +1,13 @@
 /**
  * An escalated run (F1, D9): why it stopped, and the two ways on. Resume puts it back at the stage
- * it escalated from and drives it; Close ends it as aborted, with the person's reason. The card
+ * it escalated from, or at an earlier one it worked, with a note for the next agent, and drives it;
+ * Close ends it as aborted, with the person's reason. The card
  * is the Inbox's; the session screen of an escalated run shows the same actions in its bar.
  */
 import { useState } from "react";
 import { useDaemon } from "../daemon.tsx";
 import { useAction } from "../hooks.ts";
-import { duration, type Run, resumeNotice } from "../model.ts";
+import { duration, type Run, resumeNotice, resumePlan, resumeStages } from "../model.ts";
 import { Notice } from "./common.tsx";
 import { RetryAbortedSteps } from "./retry-step.tsx";
 import { StopReason } from "./stop-reason.tsx";
@@ -27,12 +28,15 @@ export function EscalatedActions({
   const action = useAction();
   const [closing, setClosing] = useState(false);
   const [reason, setReason] = useState("");
+  const [to, setTo] = useState(run.stage);
+  const [note, setNote] = useState("");
+  const stages = resumeStages(run);
   const resume = async () => {
     if (action.busy) return;
     let notice: string | undefined;
     const ok = await action.run(
       async (by) => {
-        const r = await client.resume(run.runId, by, run.repo);
+        const r = await client.resume(run.runId, by, run.repo, { ...(to === run.stage ? {} : { to }), note });
         notice = r.ok ? resumeNotice(run.runId, r.data?.drive) : undefined;
         return r;
       },
@@ -54,6 +58,30 @@ export function EscalatedActions({
     <>
       {/* A system run blocked by an aborted child: its step can be retried, then the run resumed. */}
       <RetryAbortedSteps run={run} />
+      <div className="resume-at">
+        <label>
+          <span className="dim">Resume at</span>
+          <select aria-label="stage to resume at" value={to} onChange={(e) => setTo(e.target.value)}>
+            {stages.map((s) => (
+              <option key={s} value={s}>
+                {s === run.stage ? `${s} (where it stopped)` : s}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="note">
+          <span className="dim">Note for the agent (optional)</span>
+          <input
+            aria-label="note for the agent that works next"
+            placeholder="what must be different this time; the next agent reads it"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </label>
+      </div>
+      <p className="dim">
+        Resume: <span data-testid="resume-plan">{resumePlan(run.stage, to)}</span>.
+      </p>
       <div className="actions">
         <button type="button" className="primary" disabled={action.busy} onClick={() => void resume()}>
           Resume
@@ -110,8 +138,8 @@ export function EscalatedCard({
       <h3>Why it stopped</h3>
       <StopReason reason={run.reason} stop={run.stop} testId="escalated-reason" />
       <p>
-        Remove the cause, then resume: the run goes back to {run.stage} with a fresh set of tries and is
-        driven on. Or close it: it ends as aborted.
+        Remove the cause, then resume at the stage it stopped at or an earlier one. Or close it: it ends as
+        aborted.
       </p>
       <EscalatedActions run={run} onDone={onDone}>
         <button type="button" className="ghost" onClick={() => onBriefing(run.runId)}>

@@ -229,6 +229,20 @@ export function StepPlan({
                 ))}
               </div>
             ) : null}
+            {board.resumes.length > 0 ? (
+              <>
+                <ListSection>resumed</ListSection>
+                <ul className="text resumes" aria-label="resumes">
+                  {board.resumes.map((r) => (
+                    <li key={r.at}>
+                      <span className="dim mono">{clock(r.at)}</span> at {r.to}
+                      {r.to === r.from ? "" : ` (escalated at ${r.from})`} by {r.by}
+                      {r.note ? <span className="amber">: {r.note}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
           </div>
           {board.workers.length > 0 ? (
             <div>

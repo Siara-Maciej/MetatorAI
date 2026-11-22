@@ -143,14 +143,16 @@ export class RunSystemPlan {
       const saved = await this.store.save(plan);
       if (saved.isErr()) return err(saved.error);
       if (parent?.isOk()) {
-        // Read, change and write as one step: the parent's own drive may change it meanwhile (R5).
+        // Read, change and write as one step: the parent's own drive, or another process that added
+        // a child meanwhile, may change it (R5); the child is listed once.
+        const child = run.value.runId;
         const kept = await this.parents.update(parent.value.runId, (record) =>
-          ok({ ...record, children: [...(record.children ?? []), run.value.runId] }),
+          ok({ ...record, children: [...(record.children ?? []).filter((c) => c !== child), child] }),
         );
         if (kept.isErr()) return err(kept.error);
         const logged = await this.parents.appendLog(
           parent.value.runId,
-          `${this.clock.now().toISOString()} · child · ${run.value.runId} (${step.id} in ${step.app})`,
+          `${this.clock.now().toISOString()} · child · ${child} (${step.id} in ${step.app})`,
         );
         if (logged.isErr()) return err(logged.error);
       }

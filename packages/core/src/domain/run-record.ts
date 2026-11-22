@@ -21,7 +21,7 @@ const ContextSchema = z
   .object({ loops: z.record(z.string(), z.number().int().min(0)), history: z.array(HistorySchema) })
   .strict();
 
-/** The state of v1–v7 records. Never change it (MT-CODE-003). */
+/** The state of v1–v8 records. Never change it (MT-CODE-003). */
 const RunStateV1Schema = z
   .object({
     workflow: z.string(),
@@ -32,7 +32,7 @@ const RunStateV1Schema = z
   .strict();
 
 /**
- * The run's state (v8): `planned` is a run started `--until plan` whose plan was approved
+ * The run's state (v9): `planned` is a run started `--until plan` whose plan was approved
  * (ADR-0096). It is finished, not escalated: the plan waits in the Backlog for "Implement".
  */
 export const RUN_STATUSES = ["active", "done", "escalated", "aborted", "planned"] as const;
@@ -138,16 +138,39 @@ const RunRecordV7Schema = RunRecordV6Schema.extend({
   options: z.record(z.string().min(1), z.unknown()).optional(),
 }).strict();
 
+/**
+ * One resume of an escalated run: who put it back, from the stage that escalated to the stage it
+ * goes on at, and what they said. `after` is how many history entries the run had then: until the
+ * run records its next transition, the resume is the last thing that happened to it.
+ */
+export const RunResumeSchema = z.strictObject({
+  at: z.iso.datetime(),
+  by: z.string().min(1),
+  from: z.string().min(1),
+  to: z.string().min(1),
+  note: z.string().min(1).optional(),
+  after: z.number().int().min(0),
+});
+export type RunResume = z.infer<typeof RunResumeSchema>;
+
+/**
+ * v8 adds, optionally, the run's resumes: a person may send an escalated run back to an earlier
+ * stage with a note, and the first agent that works after it reads the note. Never change v1–v7.
+ */
+const RunRecordV8Schema = RunRecordV7Schema.extend({
+  resumes: z.array(RunResumeSchema).optional(),
+}).strict();
+
 /** Where a run's plan comes from (ADR-0096): its start stage, `build` or the plan's `review`. */
 export const PLAN_FROM_STAGES = ["build", "review"] as const;
 export type PlanFromStage = (typeof PLAN_FROM_STAGES)[number];
 
 /**
- * v8 (ADR-0096) adds the status `planned` and, optionally, `until: "plan"` (the run stops once its
+ * v9 (ADR-0096) adds the status `planned` and, optionally, `until: "plan"` (the run stops once its
  * plan is approved) and `planFrom` (the run took the approved plan of an earlier run and started
- * at `build`, or at the plan's review when that plan was stale). Never change v1–v7.
+ * at `build`, or at the plan's review when that plan was stale). Never change v1–v8.
  */
-export const RunRecordSchema = RunRecordV7Schema.extend({
+export const RunRecordSchema = RunRecordV8Schema.extend({
   state: RunStateSchema,
   until: z.literal("plan").optional(),
   planFrom: z.strictObject({ run: z.string().regex(RUN_ID), from: z.enum(PLAN_FROM_STAGES) }).optional(),
@@ -179,9 +202,11 @@ export const RunRecordDocument = defineDocument("RunRecord", {
     { schema: RunRecordV6Schema, fromPrevious: (previous) => previous },
     // `options` is optional: a v6 record is a v7 record with no overrides.
     { schema: RunRecordV7Schema, fromPrevious: (previous) => previous },
+    // `resumes` is optional: a v7 record is a v8 record nobody resumed.
+    { schema: RunRecordV8Schema, fromPrevious: (previous) => previous },
   ],
   latest: RunRecordSchema,
-  // A v7 status is a v8 status; `until` and `planFrom` are optional: a v7 record is a v8 run of the whole workflow.
+  // A v8 status is a v9 status; `until` and `planFrom` are optional: a v8 record is a v9 run of the whole workflow.
   upgrade: (previous) => previous,
   hint: "Do not edit state.json by hand; use `metator run advance` or `metator run approve`.",
 });
@@ -225,6 +250,29 @@ export function fillInputs(
         ),
       )
     : ok(filled);
+}
+
+/**
+ * The resume no agent has answered yet: the run's last resume, until the run records a transition
+ * other than a person's approval (a gate runs no agent, so the note waits for the stage after it).
+ */
+export function pendingResume(record: Pick<RunRecord, "state" | "resumes">): RunResume | undefined {
+  const last = record.resumes?.at(-1);
+  if (!last || record.state.status !== "active") return undefined;
+  const since = record.state.context.history.slice(last.after);
+  return since.every((h) => h.event === "APPROVE") ? last : undefined;
+}
+
+/**
+ * The stages an escalated run may be resumed at, in the workflow's order: every stage the run
+ * already worked, the one it escalated from included.
+ */
+export function resumableStages(
+  stages: readonly string[],
+  history: readonly { readonly stage: string }[],
+): string[] {
+  const worked = new Set(history.map((h) => h.stage));
+  return stages.filter((s) => worked.has(s));
 }
 
 export function parseRunRecord(text: string, source: string): Result<RunRecord, MetatorError> {

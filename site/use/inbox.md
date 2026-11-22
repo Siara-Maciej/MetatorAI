@@ -20,19 +20,21 @@ Home shows one decision at a time, as a big card: the question, or the plan to a
 
 ![Home with the decision card of a plan approval: Approve and Ask for changes above the plan](../public/screens/home.png)
 
-The card's face has only the question and how to answer it. Everything else is folded under **Details** at the bottom of the card:
+The card's face has only the question and how to answer it. An approval's question says what is decided in plain words: what is approved and for which task (`Approve the plan for "Add a combined discount"?`). Everything else is folded under **Details** at the bottom of the card:
 
 | Part of Details | What it tells you |
 |---|---|
 | The ids | the question id, its kind (`APPROVAL`, `PERMISSION`, `QUESTION` or `TERMINAL`), the stage, the repository, the run, the agent and its pane |
 | Chips | whether the decision can be taken back, how many files it touches, how long it has waited |
-| **Goal** | the run's task |
+| **Goal** | the run's task, when the question does not already carry it whole |
 | **Since you left** | what happened since your last answer |
 | **Proposal and evidence** | the stages done so far, the artifacts to read, the checks that ran |
 | **What each answer does** | each option with what it leads to |
 | **Note (optional)** | a note for the log with your answer |
 | **Changes**, **Open run** | the run's change, and its page |
 | `writes:` | the command your answer amounts to |
+
+Under **Proposal and evidence**, click an artifact's name to read it in a window over the card: Markdown as it is written, JSON indented. **Close** closes it. A step's Overview opens its artifacts the same way ([The run's files](./plan.md#the-runs-files)). The app reads them through the daemon, which returns only files inside the run's directory.
 
 The card is assembled from the run's files when the question is asked. No model writes it. The recommendation comes from a fixed rule: for example, Approve is recommended at an approval when the stage before it passed.
 
@@ -122,7 +124,7 @@ A run that reaches a loop limit, or whose agent stays blocked, becomes `escalate
 
 The card shows why the run stopped (the failure its last stage recorded) and has four buttons:
 
-- **Resume** puts the run back at the stage it escalated from and drives it on. Remove the cause first. The run gets a fresh set of tries for that stage. If no drive can start, the card says why.
+- **Resume** puts the run back at the stage chosen in **Resume at** and drives it on. Remove the cause first. The list starts at the stage the run stopped at, where the run gets a fresh set of tries; the other entries are the stages it already worked. The line under the fields says what the resume will do. Write in **Note for the agent** what must be different: the first agent that works after the resume reads it, and the plan on the step's Overview lists it under **resumed**. The run's page offers the same two fields beside its **Resume**. If no drive can start, the card says why.
 - **Close run…** asks for a reason and ends the run as aborted.
 - **Briefing** opens the run's **Overview**, what happened in it.
 - **Changes** shows its change.
@@ -130,7 +132,7 @@ The card shows why the run stopped (the failure its last stage recorded) and has
 The same from the terminal:
 
 ```bash
-metator run resume --run <id> --by alice --drive
+metator run resume --run <id> --to plan --note "smaller steps" --drive
 metator run close --run <id> --aborted --reason "not worth fixing"
 ```
 

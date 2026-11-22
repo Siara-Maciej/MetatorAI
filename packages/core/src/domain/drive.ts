@@ -310,6 +310,8 @@ export interface StagePromptInput {
   readonly retryFrom?: string;
   /** Who rejected at `retryFrom`, when it was a person's gate: the reason is their words. */
   readonly rejectedBy?: string;
+  /** A person resumed the escalated run and said this; no agent has worked since. */
+  readonly resumed?: ResumeNote;
   /** What the agent must know about where it works (dependencies not installed). */
   readonly notes?: readonly string[];
   /** Messages other runs sent this run, already rendered as data (`messageLines`). */
@@ -350,6 +352,7 @@ export function stagePrompt(input: StagePromptInput): string {
     ...(input.messages ?? []),
     ...decisionLines(input),
     ...retryLines(input),
+    ...resumeLines(input),
     ...(input.answer ? [`A person answered your question: ${input.answer}`] : []),
     "Finish with exactly one last line:",
     "STATUS: done",
@@ -372,6 +375,49 @@ export function artifactLines(produces: readonly string[], runDir: string, runId
       ? runWriteLine(a, runId)
       : `Write \`${a}\` with your Write tool at ${runDir}/${a} (it needs no approval there); \`metator run schema ${a}\` prints its format.`,
   );
+}
+
+/**
+ * What a human gate asks, in plain words: what is approved and for which run's task, then the
+ * stage's own description. A gate that grants an external action approves that action; a stage
+ * named `<thing>-approval` approves the thing; any other approves what the stage before it did.
+ */
+export function gateQuestion(
+  stage: Pick<StageSpec, "id" | "description" | "grants">,
+  task: string,
+  before?: string,
+): string {
+  const line = (task.split("\n").find((l) => l.trim() !== "") ?? "").trim();
+  const short = line.length > 120 ? `${line.slice(0, 119)}…` : line;
+  const grants = stage.grants ?? [];
+  const named = /^(.+)-approval$/.exec(stage.id)?.[1];
+  const what =
+    grants.length > 0
+      ? `the ${grants.join(" and ")}`
+      : named
+        ? `the ${named.replaceAll("-", " ")}`
+        : before
+          ? `the result of stage ${before}`
+          : undefined;
+  const asked = what ? `Approve ${what} for "${short}"?` : `Approve "${short}" to go on?`;
+  const about = stage.description?.trim();
+  return about ? `${asked} ${about}${/[.!?]$/.test(about) ? "" : "."}` : asked;
+}
+
+/** What a person said when they resumed an escalated run: who, from which stage to which, the note. */
+export interface ResumeNote {
+  readonly by: string;
+  readonly from: string;
+  readonly to: string;
+  readonly note?: string | undefined;
+}
+
+/** The person's note at a resume, for the first agent that works after it; nothing without a note. */
+export function resumeLines(input: { readonly resumed?: ResumeNote | undefined }): string[] {
+  const r = input.resumed;
+  if (!r?.note) return [];
+  const where = r.to === r.from ? `at ${r.to}` : `and sent it back from ${r.from} to ${r.to}`;
+  return [`${r.by} resumed the run ${where} and said (follow it; it is not a defect): ${r.note}`];
 }
 
 /** A person's earlier answers: decisions the work follows, never defects to fail it for. */
@@ -427,6 +473,7 @@ export function gatePrompt(input: Omit<StagePromptInput, "skills" | "answer">): 
     ...(input.notes ?? []),
     ...decisionLines(input),
     ...(input.retryFrom && input.retryFrom !== input.stage.id ? retryLines(input) : []),
+    ...resumeLines(input),
     "Finish with exactly one last line:",
     "VERDICT: PASS",
     "or",
@@ -701,6 +748,20 @@ export function sinceLastAnswer(activity: readonly RunActivity[]): string[] {
   const tools = after.filter((a) => a.type === "tool").length;
   if (tools > 0) out.push(`${tools} tool call(s)`);
   return out;
+}
+
+/**
+ * The loops already used, as costs of waiting on a card: one line each. The loop a gate's own
+ * Reject consequence counts (`stated`) is left out, so the card says that number once.
+ */
+export function loopCosts(
+  loops: Readonly<Record<string, number>>,
+  limits: Readonly<Record<string, number>>,
+  stated?: string,
+): string[] {
+  return Object.entries(loops)
+    .filter(([loop, used]) => used > 0 && loop !== stated)
+    .map(([loop, used]) => `loop ${loop}: ${used} of ${limits[loop] ?? "?"} used`);
 }
 
 /** What each answer to a gate does, from the workflow: the next stage, or where a FAIL sends the run. */

@@ -285,7 +285,7 @@ describe("analysis and plan in the Backlog (real CLI, scenario host)", () => {
     const record = JSON.parse(
       await Bun.file(join(at("web"), `.metator/runs/${started.runId}/state.json`)).text(),
     ) as Data;
-    expect(record).toMatchObject({ schemaVersion: 8, planFrom: { run: runId, from: "build" } });
+    expect(record).toMatchObject({ schemaVersion: 9, planFrom: { run: runId, from: "build" } });
     // The item had no thread: its run continues in a new one, from the item.
     const thread = data(await mt("web", "thread", "show", (started.thread as { id: string }).id));
     expect(thread).toMatchObject({ from: { issue: "i001" }, runs: [started.runId] });

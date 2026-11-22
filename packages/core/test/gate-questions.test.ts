@@ -50,7 +50,7 @@ describe("a human gate always has its question (any driver: a drive, a conductor
       [
         "plan-approval",
         "gate",
-        "The human approves the plan: approve to continue",
+        'Approve the plan for "Add currency to prices"? The human approves the plan.',
         ["Approve", "Reject", "Other"],
       ],
     ]);
@@ -58,7 +58,9 @@ describe("a human gate always has its question (any driver: a drive, a conductor
     // Asking again for the same visit finds the same question (a drive that starts later, a retry).
     (await w.gates.ask(runId))._unsafeUnwrap();
     expect((await w.open(runId)).map((q) => q.id)).toEqual([asked[0]?.id as string]);
-    expect(gateQuestionOf({ id: "x", description: "Go?" }).prompt).toBe("Go?: approve to continue");
+    expect(gateQuestionOf({ id: "x", description: "Go?" }, "Ship it", "build").prompt).toBe(
+      'Approve the result of stage build for "Ship it"? Go?',
+    );
   });
 
   test("approving settles it; a second visit (rejected, planned again) asks again", async () => {
@@ -150,6 +152,8 @@ describe("a human gate always has its question (any driver: a drive, a conductor
     expect(await publishQuestion(fs, "none", stage, pr)).toBeUndefined();
     const card = gateQuestionOf(
       { id: "approval" },
+      "Review MR #45",
+      "review",
       "Publish the review of MR #45? (1 inline comment, 0 general)",
     );
     expect(card.prompt).toBe("Publish the review of MR #45? (1 inline comment, 0 general)");

@@ -18,7 +18,7 @@ import { asPerson } from "../who.ts";
 /**
  * `metator mrs` (T3, design/14 §4): reviews of my own pull (merge) requests. The daemon keeps
  * them current (`serve --reviews-ms`); the agent of `mt-review-response` records what it made
- * of each thread (`triage`); `send` and `resolve` change the host and need a person's name.
+ * of each thread (`triage`); `send` and `resolve` change the host and record the person who ran them.
  */
 export function registerMrsCommands(program: Command, ctx: CommandContext): void {
   const { action, container } = ctx;
@@ -101,19 +101,24 @@ export function registerMrsCommands(program: Command, ctx: CommandContext): void
       "Post the proposed replies not sent yet to the host, in one consent: all, only some (--only) or all but some (--skip)",
     )
     .argument("<id>", "the request")
-    // Posting to the host is a person's decision, as an approval is: the name is typed, never assumed.
-    .addOption(byOption("the person who decides to send them", "required"))
+    // Posting to the host is a person's decision, as an approval is: never under the login name.
+    .addOption(byOption("the person who decides to send them", "decision"))
     .option("--only <threads>", "send only these threads (t1,t3)", threadList)
     .option("--skip <threads>", "send all but these threads (t2)", threadList)
     .action(
       action(async (id: string, opts: { by?: string; only?: string[]; skip?: string[] }) =>
-        asPerson(container(), opts.by, async (by) => ({
-          result: await reviews().send(id, {
-            by,
-            ...(opts.only ? { only: opts.only } : {}),
-            ...(opts.skip ? { skip: opts.skip } : {}),
+        asPerson(
+          container(),
+          opts.by,
+          async (by) => ({
+            result: await reviews().send(id, {
+              by,
+              ...(opts.only ? { only: opts.only } : {}),
+              ...(opts.skip ? { skip: opts.skip } : {}),
+            }),
           }),
-        })),
+          "decision",
+        ),
       ),
     );
 
@@ -156,12 +161,15 @@ export function registerMrsCommands(program: Command, ctx: CommandContext): void
     .description("Close a thread at the host")
     .argument("<id>", "the request")
     .requiredOption("--thread <thread>", "the thread's id")
-    .addOption(byOption("the person who decides to close it", "required"))
+    .addOption(byOption("the person who decides to close it", "decision"))
     .action(
       action(async (id: string, opts: { thread: string; by?: string }) =>
-        asPerson(container(), opts.by, async (by) => ({
-          result: await reviews().resolve(id, opts.thread, { by }),
-        })),
+        asPerson(
+          container(),
+          opts.by,
+          async (by) => ({ result: await reviews().resolve(id, opts.thread, { by }) }),
+          "decision",
+        ),
       ),
     );
 }

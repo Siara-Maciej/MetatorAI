@@ -14,6 +14,7 @@ import {
   parseCriticVerdict,
   parseStatus,
   type Question,
+  type ResumeNote,
   stagePrompt,
   stageWork,
   taskInFull,
@@ -23,7 +24,7 @@ import { stoppedAt } from "../domain/overview.ts";
 import { err, ok, type Result } from "../domain/result.ts";
 import type { RunEvent } from "../domain/run-machine.ts";
 import { messageLines, type RunMessage } from "../domain/run-message.ts";
-import { APPROVAL_ACTIONS, fillInputs, type RunRecord } from "../domain/run-record.ts";
+import { APPROVAL_ACTIONS, fillInputs, pendingResume, type RunRecord } from "../domain/run-record.ts";
 import { isTerminal } from "../domain/run-report.ts";
 import type { HostUsage } from "../domain/telemetry.ts";
 import { VerdictDocument, verdictBlocks } from "../domain/verdict.ts";
@@ -168,7 +169,9 @@ export class DriveRun {
     let retry: string | undefined = resumed ? failed.detail : undefined;
     let retryFrom: string | undefined = resumed && failed.detail ? failed.stage : undefined;
     // A later stage that failed and sent the run back: every stage until it is reached again hears it.
-    // Sent back before this drive started (a Reject on a card with no drive alive): the same.
+    // Sent back before this drive started (a Reject on a card with no drive alive), or by a person who
+    // resumed the escalated run at an earlier stage (`run resume --to`): the same, with the failure
+    // the run stopped on. A resume records no transition, so that failure is still the last one.
     let sentBack: { readonly from: string; readonly reason: string } | undefined =
       failed?.event === "FAIL" && failed.stage !== first.value.state.stage && failed.detail
         ? { from: failed.stage, reason: failed.detail }
@@ -214,6 +217,7 @@ export class DriveRun {
         runDir: `${runsIn}/${this.d.repo.runDir(runId)}`,
         ...why,
         ...(await this.decisions(runId)),
+        ...resumedOf(record.value),
         ...(record.value.hostSession ? { resume: record.value.hostSession } : {}),
         since: record.value.updatedAt,
         autonomy: record.value.autonomy,
@@ -305,7 +309,7 @@ export class DriveRun {
     const q = await this.ask(
       ctx.runId,
       {
-        ...gateQuestionOf(ctx.stage, publish),
+        ...gateQuestionOf(ctx.stage, ctx.task, ctx.done.at(-1), publish),
         // The stage before passed its checks: the evidence points to approving. A gate that grants
         // an external action (the push) starts something approving cannot take back.
         card: await decisionCard(this.d, ctx, {
@@ -477,6 +481,7 @@ export class DriveRun {
         ...(ctx.retry ? { retry: ctx.retry } : {}),
         ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
         ...(ctx.rejectedBy ? { rejectedBy: ctx.rejectedBy } : {}),
+        ...(ctx.resumed ? { resumed: ctx.resumed } : {}),
         ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
         ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
         ...(await this.messageLines(ctx.runId)),
@@ -692,6 +697,7 @@ export class DriveRun {
       ...(this.d.notes ? { notes: await this.d.notes(ctx.cwd) } : {}),
       ...(ctx.retry ? { retry: ctx.retry } : {}),
       ...(ctx.retryFrom ? { retryFrom: ctx.retryFrom } : {}),
+      ...(ctx.resumed ? { resumed: ctx.resumed } : {}),
       ...(ctx.decisions ? { decisions: ctx.decisions } : {}),
     });
     const result = await this.runHost(ctx, agent, prompt, undefined);
@@ -899,6 +905,8 @@ interface StageContext {
   readonly retryFrom?: string;
   /** The person whose Reject at `retryFrom` (a human gate) sent the run back. */
   readonly rejectedBy?: string;
+  /** A person's resume of the escalated run that no agent has answered yet, with their note. */
+  readonly resumed?: ResumeNote;
   readonly decisions?: readonly string[];
   readonly resume?: string;
   /** When the run last changed: answers given after it are still to be acted on. */
@@ -926,6 +934,12 @@ interface StageContext {
 const passedStages = (history: readonly { readonly stage: string; readonly event: string }[]): string[] => [
   ...new Set(history.filter((h) => h.event === "PASS" || h.event === "APPROVE").map((h) => h.stage)),
 ];
+
+/** The resume a person's note still waits in, for the stage's agents. */
+const resumedOf = (record: RunRecord): { resumed?: ResumeNote } => {
+  const r = pendingResume(record);
+  return r?.note ? { resumed: { by: r.by, from: r.from, to: r.to, note: r.note } } : {};
+};
 
 const lastEventOf = (history: readonly { readonly event: string }[]) => {
   const last = history.at(-1);

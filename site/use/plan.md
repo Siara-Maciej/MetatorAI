@@ -16,6 +16,7 @@ Open the **Overview** of a step's page (key `o`): under what the run needs from 
 | The chosen step, right | its file, the tests that come first, the exemplar, the rules, and the steps it comes after |
 | **what comes next** | the stages still to come, and the last results of the quick and the full gate |
 | **workers** | the run's worker agents, each with its stage, pane and result so far |
+| **resumed** | each time a person resumed the escalated run: where it went on, where it had stopped, who, and their note |
 | Timeline, bottom | the last events of the run |
 
 Click a step to see it. **Show the pane** opens the step's worker in **Terminals**.
