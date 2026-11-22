@@ -1,0 +1,97 @@
+{
+  "kind": "Layout",
+  "schemaVersion": 4,
+  "workspaces": [
+    {
+      "id": "w1",
+      "label": "shop",
+      "cwd": "/repo",
+      "tabs": [
+        {
+          "id": "w1:t1",
+          "label": "main",
+          "panes": ["w1:p1", "w1:p2"],
+          "tree": {
+            "dir": "row",
+            "ratio": 0.5,
+            "a": {
+              "pane": "w1:p1"
+            },
+            "b": {
+              "pane": "w1:p2"
+            }
+          }
+        }
+      ],
+      "createdAt": "2026-11-09T10:00:00.000Z"
+    },
+    {
+      "id": "w2",
+      "label": "chat",
+      "cwd": "/repo",
+      "tabs": [
+        {
+          "id": "w2:t1",
+          "label": "chat",
+          "panes": ["w2:p3"]
+        }
+      ],
+      "createdAt": "2026-11-20T09:00:00.000Z"
+    }
+  ],
+  "panes": [
+    {
+      "id": "w1:p1",
+      "tab": "w1:t1",
+      "role": "shell",
+      "label": "sh",
+      "cwd": "/repo",
+      "process": {
+        "kind": "command",
+        "argv": ["sh"]
+      },
+      "createdAt": "2026-11-09T10:00:00.000Z",
+      "startedRun": "20261109-shop-add-discount"
+    },
+    {
+      "id": "w1:p2",
+      "tab": "w1:t1",
+      "role": "shell",
+      "label": "tests",
+      "cwd": "/repo",
+      "process": {
+        "kind": "command",
+        "argv": ["sh"]
+      },
+      "createdAt": "2026-11-09T10:05:00.000Z",
+      "ended": {
+        "at": "2026-11-09T11:00:00.000Z",
+        "reason": "exited",
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "w2:p3",
+      "tab": "w2:t1",
+      "role": "apps",
+      "label": "chat",
+      "cwd": "/repo",
+      "process": {
+        "kind": "host",
+        "host": "claude",
+        "agent": "mt-chat",
+        "prompt": "",
+        "sessionId": "0b6c2f4e"
+      },
+      "createdAt": "2026-11-20T09:00:00.000Z",
+      "paused": {
+        "at": "2026-11-20T18:00:00.000Z",
+        "why": "daemon-stopped"
+      }
+    }
+  ],
+  "next": {
+    "workspace": 3,
+    "pane": 4
+  }
+}

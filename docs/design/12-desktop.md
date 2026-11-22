@@ -222,6 +222,15 @@ Zasada właściciela: pierwszy poziom ma być prosty poznawczo, szczegóły dopi
 - „Debug changes (N)” na Home i w pasku terminali zadania (dla repozytoriów zadania), gdy stan demona liczy zmiany debugowe (`scratch` w `/state`; bez tego pola aplikacja o nic nie pyta). Lista z `GET /scratch` dopiero po kliknięciu; „Remove” i „Remove debug changes” wołają `POST /scratch/drop`; jedna linia mówi, co usunięto, a czego się nie dało i dlaczego (`dropText`); nic nie jest wymuszane. Rekord znika tylko po usunięciu, po „Forget” (`POST /scratch/forget`, dla rekordu `changed`, który zostaje na liście z powodem i nadal się liczy) albo gdy żaden plik nie trzyma już jego linii, i o tym też mówi linia (`gone` z listy i z usuwania, `goneText`).
 - Listy wątków jeszcze nie ma (etap 2).
 
+### 5.0i Wątki w pasku bocznym (2026-11-22, runda 16, etap 2a, ADR-0095)
+
+- Pasek boczny to jedna hierarchia: wątek → jego zadania (wiersze zadań bez zmian) → repozytoria → kroki (`threadTree` w `src/threads.ts`, czyste, testowane). Zadanie należy do wątku, którego `runs` zawiera jego run nadrzędny (w folderze: w repozytorium wątku). Wiersz wątku: tytuł, jedno słowo (najpilniejsze zadanie: needs you, blocked, working, done; `needs you`, gdy pyta sam czat; `chat`, gdy zadań brak), liczba zadań. Kolejność: needs you, potem najnowsza zmiana wątku lub jego zadań.
+- „Without a chat” (tylko gdy niepusta) zbiera zadania bez wątku: formularz, reguły intake, `metator run new` w terminalu, CI. „Closed (N)” na dole, zwinięte; zamknięty wątek zachowuje swoje zadania.
+- „+ New chat” zastępuje „+ New run” (klawisz `n` i „Describe a task” na Home też): `POST /threads` z pierwszym zainstalowanym hostem; bez hosta nic się nie otwiera i aplikacja mówi dlaczego. Tytuł „New chat”, dopóki agent go nie nazwie; z Home tytuł to pierwsza linia słów osoby (`chatTitleOf`). „Form…” zostaje obok.
+- Klik w wątek otwiera `#/thread/<id>`: terminal czatu jako główny widok, pasek z tytułem, słowem i „Close chat” / „Reopen chat”, zadania wątku jako kafelki pod spodem. Zatrzymany czat otwartego wątku: „Continue chat” (`POST /threads/:id/reopen`). Zamknięcie kończy terminal czatu, nigdy runów. „⋯” w wierszu wątku: Open, Close, Reopen.
+- Wątki z `GET /threads` (otwarte i zamknięte), czytane co 2 s i od razu, gdy zmieni się znacznik `threads` w `/state` (`threadsStamp`). Nowy wątek otwarty z wątku na ekranie (`from.thread`, zmiana tematu przez agenta) aplikacja otwiera sama, raz (`followedThread`).
+- Home: zadanie z wątku ma tytuł wątku jako przygaszony prefiks.
+
 ### 5.1 Powłoka ekranu
 
 Pasek u góry: logo, folder repozytoriów, liczniki (need you / driving / escalated), budżet uwagi `n / limit`, szukaj, powiadomienia. Szyna po lewej: Inbox, Sesja, Siatka terminali, Graf, Supervisor, Ustawienia. Panel sesji zawsze widoczny (komponent `SessionsPanel`). Treść widoku po prawej.

@@ -1,10 +1,10 @@
 /**
- * The shell: a thin top bar, the sidebar that is the whole dashboard (what needs you, the runs,
- * the other places, the button that starts a run), and the place the hash route names.
+ * The shell: a thin top bar, the sidebar that is the whole dashboard (what needs you, the chats
+ * with their tasks, the other places, "+ New chat"), and the place the hash route names.
  * Notifications and the overview-on-return live here too.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { IssueRef } from "./api.ts";
+import type { IssueRef, ThreadView } from "./api.ts";
 import { NoDaemon, Notice } from "./components/common.tsx";
 import { HelpOverlay } from "./components/help-overlay.tsx";
 import { Sidebar } from "./components/sidebar.tsx";
@@ -42,8 +42,9 @@ import { NewSessionDialog } from "./screens/new-session.tsx";
 import { OverviewScreen } from "./screens/overview.tsx";
 import { RunScreen } from "./screens/run.tsx";
 import { SettingsScreen } from "./screens/settings.tsx";
+import { ThreadScreen } from "./screens/thread.tsx";
 import { WorkbenchScreen } from "./screens/workbench.tsx";
-import { chatAgentOf } from "./stage1.ts";
+import { chatTitleOf, followedThread } from "./threads.ts";
 
 export const App = () => (
   <DaemonProvider>
@@ -126,20 +127,23 @@ function Shell() {
     };
   }, [route, go]);
   /**
-   * "+ New run" (T1, design/14 §2): a pane with the orchestrator as the entry point in the "chat"
-   * workspace; the person says what to do, the agent starts the run. With `task` (the first-run
-   * field) those words are typed to the agent as its first line. The host is the first of the
-   * repository's `hostOrder` that is installed (D1); with none installed, or when the daemon
-   * refuses, the app says so instead of opening a tab that cannot work.
+   * "+ New chat" (round 16): a thread and its chat terminal (the repository's conversation agent
+   * in a pane of its own, `POST /threads`); the app goes to it. It is "New chat" until the agent
+   * names it. Home's "Describe a task" starts one named after the person's words, which are typed
+   * to the agent as its first line. The host is the first of the repository's `hostOrder` that is
+   * installed (D1); with none installed, or when the daemon refuses, the app says so instead of
+   * opening a chat that cannot work.
    */
   const { client, repo, down, url, me } = d;
-  const openIntake = useCallback(
-    async (task?: string) => {
+  const reloadThreads = d.reloadThreads;
+  const who = d.who;
+  const newChat = useCallback(
+    async (words?: string) => {
       if (down) return;
       const s = await client.supervisor(repo);
       if (!s.ok || !s.data) {
         setNotice({
-          text: `No run was started: ${s.error?.message ?? "the daemon did not answer"}`,
+          text: `No chat was started: ${s.error?.message ?? "the daemon did not answer"}`,
           tone: "error",
         });
         return;
@@ -149,24 +153,63 @@ function Shell() {
         setNotice({ text: noHostText(s.data.hostStatus ?? []), tone: "error" });
         return;
       }
-      const p = await client.openPane(
-        // The repository's conversation agent when it has one (round 13); the label stays "chat".
-        { label: "chat", newTab: true, role: "apps", agent: chatAgentOf(s.data), host },
-        repo,
-      );
-      if (!p.ok || !p.data) {
-        setNotice({ text: `No run was started: ${p.error?.message ?? "the daemon refused"}`, tone: "error" });
+      const by = await who();
+      if (!by) return;
+      const first = words?.trim() || undefined;
+      const r = await client.newThread({ ...(first ? { title: chatTitleOf(first) } : {}), by, host }, repo);
+      if (!r.ok || !r.data) {
+        setNotice({
+          text: `No chat was started: ${r.error?.message ?? "the daemon refused"}`,
+          tone: "error",
+        });
         return;
       }
       setNotice(undefined);
-      go({ screen: "grid", pane: p.data.id });
-      if (task) {
-        const refused = await sendLine("", url, me, repo, task, p.data.id);
+      await reloadThreads();
+      go({ screen: "thread", id: r.data.thread.id });
+      if (first) {
+        const pane = r.data.pane;
+        const refused = await sendLine("", url, me, repo, first, pane.id);
         if (refused) setNotice({ text: `The agent did not get your words: ${refused}`, tone: "error" });
       }
     },
-    [client, repo, down, url, me, go],
+    [client, repo, down, url, me, go, who, reloadThreads],
   );
+  /** Close or reopen a thread (its ⋯ menu, its bar): closing ends its chat terminal, never its runs. */
+  const threadAct = useCallback(
+    async (thread: ThreadView, act: "close" | "reopen") => {
+      const by = await who();
+      if (!by) return;
+      const r =
+        act === "close"
+          ? await client.closeThread(thread.id, by, thread.repo)
+          : await client.reopenThread(thread.id, by, thread.repo);
+      await reloadThreads();
+      if (!r.ok) {
+        setNotice({
+          text: `The chat was not ${act === "close" ? "closed" : "reopened"}: ${r.error?.message ?? "the daemon refused"}`,
+          tone: "error",
+        });
+        return;
+      }
+      setNotice(undefined);
+      if (act === "reopen") go({ screen: "thread", id: thread.id });
+    },
+    [client, who, reloadThreads, go],
+  );
+  /**
+   * A topic change: the agent opened a new thread from the one on screen (`metator thread new`);
+   * the app goes to its chat once it appears. Threads known before are never followed.
+   */
+  const knownThreads = useRef<readonly string[] | undefined>(undefined);
+  useEffect(() => {
+    const ids = d.threads.map((t) => t.id);
+    const before = knownThreads.current;
+    knownThreads.current = ids;
+    if (!before) return;
+    const next = followedThread(before, d.threads, route.screen === "thread" ? route.id : undefined);
+    if (next) go({ screen: "thread", id: next.id });
+  }, [d.threads, route, go]);
   /**
    * "Attach and answer in the pane": the run whose pane the person answers in. Its Terminal tab
    * attaches, shows that pane, focuses it and scrolls to the question, then clears this.
@@ -228,7 +271,7 @@ function Shell() {
         e.preventDefault();
         setHelp(true);
       }
-      if (key === "n") void openIntake();
+      if (key === "n") void newChat();
       if (route.screen === "inbox") {
         // The queue of decisions: j/k and the arrows move, g is the next one, o the run's overview.
         const step =
@@ -296,7 +339,7 @@ function Shell() {
           onOpenRun={(id, pane) => openRun(id, false, pane)}
           onOpenChanges={(runId) => go({ screen: "run", runId, tab: "changes" })}
           onOverview={(runId) => go({ screen: "run", runId, tab: "overview" })}
-          onStart={(task) => void openIntake(task)}
+          onStart={(task) => void newChat(task)}
           onForm={() => setDialog(true)}
         />
       ) : null}
@@ -314,7 +357,7 @@ function Shell() {
       ) : null}
       {route.screen === "grid" ? (
         <WorkbenchScreen
-          onNewTask={() => void openIntake()}
+          onNewTask={() => void newChat()}
           onOpenSettings={() => go({ screen: "settings" })}
           onOpenPlan={(runId) => go({ screen: "run", runId, tab: "overview" })}
           onOpenReview={(runId) => go({ screen: "run", runId, tab: "changes" })}
@@ -349,6 +392,13 @@ function Shell() {
         />
       ) : null}
       {route.screen === "settings" ? <SettingsScreen /> : null}
+      {route.screen === "thread" ? (
+        <ThreadScreen
+          id={route.id}
+          onClose={(t) => void threadAct(t, "close")}
+          onReopen={(t) => void threadAct(t, "reopen")}
+        />
+      ) : null}
       {route.screen === "board" ? <BoardScreen task={route.task} onOpenRun={(id) => openRun(id)} /> : null}
     </>
   );
@@ -399,8 +449,11 @@ function Shell() {
             : openRun(r.runId, false, pane)
         }
         onInbox={() => go({ screen: "inbox" })}
-        onNew={() => void openIntake()}
+        onNew={() => void newChat()}
         onForm={() => setDialog(true)}
+        onThread={(t) => go({ screen: "thread", id: t.id })}
+        onCloseThread={(t) => void threadAct(t, "close")}
+        onReopenThread={(t) => void threadAct(t, "reopen")}
       />
       <main className="content">
         <Notice

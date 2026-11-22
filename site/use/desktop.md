@@ -25,9 +25,23 @@ Closing the app, reloading it, or opening it in another window changes nothing: 
 
 **Workspaces** in the bar shows the daemon's workspaces and their tabs, as below: your shells, and the chat of a run not started yet. **By task ›** there leads back.
 
-## The chat and what it leaves
+## Chats
 
-**+ New run** opens a terminal labelled **chat** with the repository's conversation agent, `mt-chat`, when the repository has it (`metator setup` installs it); in a repository set up before it, the chat opens the agent that started runs before. You talk to it there; what needs a decision from you comes to Home as a card:
+A chat is one topic you talk about with the agent, as the chats of an editor are: prices this morning, a flaky test after lunch. It outlives its terminal and the app: what MetatorAI keeps of it (a summary the agent writes, the runs started in it, a line for each thing that happened to them) is what the agent reads first whenever its session starts.
+
+**+ New chat** at the bottom of the sidebar (or `n`) starts one: the daemon makes the chat and opens its terminal, labelled **chat**, with the repository's conversation agent, `mt-chat`, when the repository has it (`metator setup` installs it); in a repository set up before it, the chat opens the agent that started runs before. The app goes to the chat at once. It is called **New chat** until the agent gives it a title.
+
+A click on a chat in the sidebar opens it: its terminal is the main view, under a bar with its title, its word and **Close chat**. The tasks started in it are tiles under the terminal; a click opens a task's page. The chat has one terminal at a time; the tasks it starts keep their own.
+
+- **A new topic.** When what you ask is about something else, the agent asks whether to open a new chat for it. On yes it opens one and the app goes there; the old chat stays open in the sidebar.
+- **Close chat** (in the bar, or **⋯** on the chat's row) ends the chat's terminal. Its tasks are never stopped: they go on, under the chat, in **Closed (N)** at the bottom of the sidebar.
+- **Reopen chat** brings the terminal back where it was: the same session when the host still has it, else a new one that is told to read what the chat did so far and go on. When the terminal of an open chat stopped, its page offers **Continue chat**, which does the same.
+
+A task started any other way (the form, an intake rule, `metator run new` in a terminal, CI) belongs to no chat: the sidebar lists it under **Without a chat**.
+
+### What a chat leaves
+
+You talk to the agent in the chat's terminal; what needs a decision from you comes to Home as a card:
 
 - **A commit or a push.** The agent never commits or pushes by itself. When it asks to, the card's heading is the command (`git commit -m "…"`), and a line under it says **git commit needs your consent**: **Yes** lets that one command run. The same holds for `git merge` and `git rebase`. When the guard has a reason of its own, such as a commit that holds debug changes, the card shows it under the command.
 - **Quick change ready: look at the diff.** A quick change ends with a diff that is not committed. **Open diff** opens the run's **Changes** and leaves the card where it is; **Fine** closes it.
@@ -57,7 +71,7 @@ When the daemon is restarted, the terminals reconnect by themselves once it answ
 
 The panes of a run are also listed under the run in the app's sidebar, each with its state. When the daemon has more than one workspace (the checkout, and the agents that start runs), a select at the left of the tab bar switches between them.
 
-A right click on a pane opens its menu: **Take the keyboard**, **Zoom**, **Split right**, **Split down**, **Copy mode**, **Plan of the run**, **Changes**, **Open in editor**, **New task from here…** (the backlog's form, pointing at this run) and **Close pane**. A right click on a tab or the tab bar offers **New tab: shell**, **New run: describe it to the agent…**, **Backlog…**, **New shell pane here** and **Close tab**. Each item shows its key as you press it (`ctrl+b z`). Closing a task's tab closes its panes. The worktree stays.
+A right click on a pane opens its menu: **Take the keyboard**, **Zoom**, **Split right**, **Split down**, **Copy mode**, **Plan of the run**, **Changes**, **Open in editor**, **New task from here…** (the backlog's form, pointing at this run) and **Close pane**. A right click on a tab or the tab bar offers **New tab: shell**, **New chat with the agent…**, **Backlog…**, **New shell pane here** and **Close tab**. Each item shows its key as you press it (`ctrl+b z`). Closing a task's tab closes its panes. The worktree stays.
 
 ## Keys
 

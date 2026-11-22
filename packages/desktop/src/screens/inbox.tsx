@@ -32,6 +32,7 @@ import {
   stepNeed,
 } from "../model.ts";
 import { byAttentionFirst, taskLine, taskState } from "../tasks.ts";
+import { threadTitleOf } from "../threads.ts";
 
 export function InboxScreen({
   needs,
@@ -213,7 +214,7 @@ function QuietHome({
   onStart(task: string): void;
   onForm(): void;
 }) {
-  const { runs, panes } = useDaemon();
+  const { runs, panes, threads } = useDaemon();
   const tasks = byAttentionFirst(useTasks()).filter((t) => t.column !== "done");
   const action = useAction();
   const open = openRuns(runs);
@@ -228,7 +229,7 @@ function QuietHome({
             <li key={`${r.repo ?? ""}/${r.runId}`}>
               <button type="button" className="ghost link" onClick={() => onOpenRun(r.runId)}>
                 {r.task}
-              </button>
+              </button>{" "}
               <span className="faint">{r.repo ? `${r.repo} · ` : ""}nothing drives it</span>
               <StartRun run={r} action={action} compact />
             </li>
@@ -240,13 +241,16 @@ function QuietHome({
         <ul className="home-tasks" aria-label="tasks" data-testid="home-tasks">
           {tasks.map((t) => {
             const word = taskState(t);
+            // The chat a task was started in, dim before its name (round 16).
+            const chat = threadTitleOf(threads, t);
             const href = t.head?.runId
               ? routeHash({ screen: "run", runId: t.head.runId, tab: "overview" })
               : routeHash({ screen: "board", task: t.key });
             return (
               <li key={t.key}>
-                <Glyph kind="first" state={word} /> <a href={href}>{t.title}</a>{" "}
-                <span className={lookOf("first", word).tone}>{word}</span>
+                <Glyph kind="first" state={word} />{" "}
+                {chat ? <span className="thread-of">{chat} · </span> : null}
+                <a href={href}>{t.title}</a> <span className={lookOf("first", word).tone}>{word}</span>
                 <span className="faint"> · {taskLine(t)}</span>
               </li>
             );

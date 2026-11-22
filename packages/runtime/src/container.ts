@@ -245,6 +245,7 @@ import type {
   SystemSources,
   TaskRepository,
   Terminal,
+  Threads,
   Timer,
   ToolBoundariesReader,
   TreeCopier,
@@ -377,6 +378,7 @@ export interface Cradle {
   conductor: Conductor;
   chatNotices: ChatNotices;
   paneMail: PaneMail;
+  threads: Threads;
   paneTyped: PaneTyped;
   guardAsked: GuardAsked;
   sessionSteering: SessionSteering;

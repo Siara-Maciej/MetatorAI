@@ -32,6 +32,7 @@ export const sections = [
       { text: "Answer questions", link: "inbox" },
       { text: "Sessions and worktrees", link: "sessions" },
       { text: "Terminals", link: "desktop" },
+      { text: "Chats and threads", link: "threads" },
       { text: "Plan and backlog", link: "plan" },
       { text: "Read the change", link: "changes" },
       { text: "Answer a review", link: "reviews" },

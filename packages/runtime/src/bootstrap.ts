@@ -230,6 +230,8 @@ import {
   SystemRunGate,
   SystemSources,
   type TaskRepository,
+  ThreadStore,
+  Threads,
   UpdateConfig,
   ValidateCitations,
   ValidateFindings,
@@ -908,6 +910,19 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
           asksInPane: (paneId) => paneQuestions.waiting(paneId),
           nudge: (paneId, text) => ptyBroker.nudge(paneId, text),
           journal: runJournal,
+        }),
+    ).singleton(),
+    // Threads (ADR-0095): one per topic with its chat terminal; one per repository, kept with its layout.
+    threads: asFunction(
+      ({ fileSystem, fileLock, panes, runRepository, runJournal, paneMail, chatAgent, clock }) =>
+        new Threads({
+          store: new ThreadStore(fileSystem, fileLock),
+          panes,
+          runs: runRepository,
+          journal: runJournal,
+          mail: paneMail,
+          chatAgent,
+          clock,
         }),
     ).singleton(),
     sessionSteering: asFunction(

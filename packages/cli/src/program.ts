@@ -66,6 +66,7 @@ import { registerStatusCommand } from "./commands/status.ts";
 import { registerSuperviseCommand } from "./commands/supervise.ts";
 import { registerSystemCommands } from "./commands/system.ts";
 import { registerTestCommands } from "./commands/test.ts";
+import { registerThreadCommands } from "./commands/thread.ts";
 import { registerWorkflowCommands } from "./commands/workflow.ts";
 import { registerWorktreeCommands } from "./commands/worktree.ts";
 import type { CommandContext, Folder, Outcome } from "./context.ts";
@@ -201,6 +202,7 @@ export function buildProgram(
   registerQuickCommands(program, ctx);
   registerScratchCommands(program, ctx);
   registerSessionCommands(program, ctx);
+  registerThreadCommands(program, ctx);
   registerWorktreeCommands(program, ctx);
   registerEnvCommands(program, ctx);
   registerReposCommands(program, ctx);

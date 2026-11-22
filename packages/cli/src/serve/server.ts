@@ -12,6 +12,7 @@ import {
   type RepoRuns,
   type Result,
   serializeJsonDocument,
+  type ThreadsMark,
   withNeedsText,
 } from "@metator/core";
 import type { MetatorContainer } from "@metator/runtime";
@@ -28,6 +29,7 @@ import { RUN_ROUTES } from "./routes/runs.ts";
 import { SCRATCH_ROUTES } from "./routes/scratch.ts";
 import { SESSION_ROUTES } from "./routes/sessions.ts";
 import { SYSTEM_ROUTES } from "./routes/system.ts";
+import { THREAD_ROUTES } from "./routes/threads.ts";
 import { type Socket, socketHandlers, upgrade } from "./sockets.ts";
 import { startTimers } from "./timers.ts";
 
@@ -36,6 +38,7 @@ export const ROUTES: readonly Route[] = [
   ...OVERVIEW_ROUTES,
   ...BACKLOG_ROUTES,
   ...SESSION_ROUTES,
+  ...THREAD_ROUTES,
   ...PANE_ROUTES,
   ...SCRATCH_ROUTES,
   ...RUN_ROUTES,
@@ -153,7 +156,7 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
   const served = async (
     o: Overview,
     c: MetatorContainer,
-  ): Promise<Overview & { readonly scratch: number }> => {
+  ): Promise<Overview & { readonly scratch: number; readonly threads: ThreadsMark }> => {
     // A run whose agent asked the person in words (a pane question) needs them, as a card would.
     const asking = new Set(
       c
@@ -165,6 +168,8 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
       ...o,
       // Debug changes (ADR-0093): how many scratch records the repository holds; the list is `/scratch`.
       scratch: await c.resolve("scratch").count(),
+      // Threads (ADR-0095): how many, and when one last changed; the tree is `GET /threads`.
+      threads: await c.resolve("threads").mark(),
       runs: await Promise.all(
         o.runs.map(async (r) => ({
           ...r,
@@ -265,6 +270,14 @@ export async function startServer(ctx: CommandContext, opts: ServeOptions): Prom
     state,
     inbox,
     repos: () => repoViews().map((r) => (folder ? { name: r.name, c: r.c } : { c: r.c })),
+    overviews: async (fresh) =>
+      Promise.all(
+        repoViews().map(async (r) => ({
+          ...(folder ? { name: r.name } : {}),
+          c: r.c,
+          overview: await overviewOf(r.key, r.c, fresh),
+        })),
+      ),
   };
   /** The repository whose panes know this token: a call from a pane acts in its own repository. */
   const repoOfToken = async (token: string): Promise<string | undefined> => {

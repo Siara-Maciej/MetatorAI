@@ -442,3 +442,76 @@ export function renderIssues(v: {
     ]),
   ).join("\n");
 }
+
+/** A thread's task, as one line: its state, its id, its words. */
+interface ThreadTaskLine {
+  readonly runId: string;
+  readonly repo?: string;
+  readonly task: string;
+  readonly stage: string;
+  readonly attention: Attention;
+}
+interface ThreadLines {
+  readonly id: string;
+  readonly title: string;
+  readonly state: string;
+  readonly summary: string;
+  readonly facts: readonly { readonly at: string; readonly text: string }[];
+  readonly issues: readonly string[];
+  readonly tasks?: readonly ThreadTaskLine[];
+  readonly attention?: Attention;
+  readonly chat?: { readonly paneId: string; readonly status: string };
+}
+
+const taskLine = (t: ThreadTaskLine): string =>
+  `${ATTENTION[t.attention].icon} ${t.runId}${t.repo ? ` (${t.repo})` : ""}  ${ATTENTION[t.attention].label} at ${t.stage}  ${fit(t.task, 60)}`;
+
+/**
+ * `metator thread show`: what a new session of the thread's chat reads first: the topic, the
+ * summary the agent kept, the runs with their state, the Backlog items and what happened, newest last.
+ */
+export function renderThread(t: ThreadLines): string {
+  const tasks = t.tasks ?? [];
+  return [
+    `${t.title}  (${t.id}, ${t.state}${t.chat ? `, chat ${t.chat.paneId} ${t.chat.status}` : ""})`,
+    "",
+    "Summary:",
+    t.summary.trim() === ""
+      ? "  (none yet: write one with `metator thread summary --text …`)"
+      : indent(t.summary),
+    "",
+    `Runs (${tasks.length}):`,
+    ...(tasks.length === 0 ? ["  none"] : tasks.map((x) => `  ${taskLine(x)}`)),
+    ...(t.issues.length > 0 ? ["", `Issues: ${t.issues.join(", ")}`] : []),
+    "",
+    "Facts:",
+    ...(t.facts.length === 0
+      ? ["  none"]
+      : t.facts.map((f) => `  ${f.at.slice(0, 16).replace("T", " ")}  ${f.text}`)),
+  ].join("\n");
+}
+
+const indent = (text: string): string =>
+  text
+    .trim()
+    .split("\n")
+    .map((l) => `  ${l}`)
+    .join("\n");
+
+/** `metator thread list`: the sidebar's hierarchy as text: threads, the runs without a chat, closed threads. */
+export function renderThreadTree(v: {
+  readonly threads: readonly ThreadLines[];
+  readonly closed: readonly ThreadLines[];
+  readonly withoutChat: readonly ThreadTaskLine[];
+}): string {
+  const thread = (t: ThreadLines) => [
+    `${t.attention ? ATTENTION[t.attention].icon : "·"} ${fit(t.title, 50)}  (${t.id}, ${t.tasks?.length ?? 0} tasks)`,
+    ...(t.tasks ?? []).map((x) => `    ${taskLine(x)}`),
+  ];
+  const out = v.threads.length === 0 ? ["No open thread."] : v.threads.flatMap(thread);
+  if (v.withoutChat.length > 0)
+    out.push("", "Without a chat:", ...v.withoutChat.map((x) => `    ${taskLine(x)}`));
+  if (v.closed.length > 0)
+    out.push("", `Closed (${v.closed.length}):`, ...v.closed.map((t) => `  ${fit(t.title, 50)}  (${t.id})`));
+  return out.join("\n");
+}

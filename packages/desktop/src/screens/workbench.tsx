@@ -830,8 +830,8 @@ export function WorkbenchScreen({
               <h2>{tab ? "No pane in this tab" : "No tab"}</h2>
               <p>
                 {keyText(keymap, "newShell") ?? "The tab bar's menu"} opens a shell here;{" "}
-                {keyText(keymap, "newTab") ?? "+ New session"} opens a conversation with the agent that starts
-                a task; right-click the tab bar for the menu; ? lists every key.
+                {keyText(keymap, "newTab") ?? "+ New chat"} opens a chat with the agent that starts a task;
+                right-click the tab bar for the menu; ? lists every key.
               </p>
             </div>
           )}

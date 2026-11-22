@@ -180,6 +180,7 @@ const BEFORE = {
     "review notes add",
     "open",
     "session list",
+    "thread list",
     "attach",
     "status",
     "ui",

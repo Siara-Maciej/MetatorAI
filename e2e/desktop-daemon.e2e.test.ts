@@ -190,7 +190,7 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await page.getByTestId("connection").textContent()).toBe("no daemon");
     // Nothing claims an empty inbox, and nothing can be started.
     expect(await page.locator("main.content").textContent()).not.toContain("Nothing waits for you");
-    expect(await page.getByRole("button", { name: "+ New run" }).isDisabled()).toBe(true);
+    expect(await page.getByRole("button", { name: "+ New chat" }).isDisabled()).toBe(true);
     for (const screen of ["grid", "backlog", "mrs", "settings", "supervisor", "session/nope"]) {
       await page.goto(app(screen));
       await panel.waitFor({ timeout: 10_000 });
@@ -203,8 +203,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     expect(await page.locator("main.content").textContent()).toContain("Describe a task");
   }, 90_000);
 
-  test("with no AI host installed + New session says so and opens nothing; the form offers no host (D1)", async () => {
-    await page.getByRole("button", { name: "+ New run" }).click();
+  test("with no AI host installed + New chat says so and opens nothing; the form offers no host (D1)", async () => {
+    await page.getByRole("button", { name: "+ New chat" }).click();
     const notice = page.locator("main.content > .notice");
     await notice.waitFor({ timeout: 20_000 });
     const said = (await notice.textContent()) ?? "";
@@ -234,7 +234,15 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await serve(repo.root, { ...NOWHERE, METATOR_CLAUDE_BIN: repo.path("bin/claude") });
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
     await page.goto(app("inbox"));
-    await page.getByRole("button", { name: "+ New run" }).click();
+    await page.getByRole("button", { name: "+ New chat" }).click();
+    // A new chat is a person's act: the app asks for the name once.
+    const named = page.getByRole("dialog", { name: "your name" });
+    await named.waitFor({ timeout: 5000 });
+    await named.getByLabel("Your name").fill("maciej");
+    await named.getByRole("button", { name: "Save" }).click();
+    // The chat's page shows its pane; Retry and Close of a pane are in Terminals.
+    await until("the chat's page", async () => (page.url().includes("#/thread/") ? true : undefined));
+    await page.goto(app("grid"));
     // The first host of the order (copilot) is not installed: the session starts on the one that is.
     const ended = page.locator('[data-testid^="ended-"]');
     await ended.waitFor({ timeout: 20_000 });
@@ -273,11 +281,8 @@ describe("MetatorAI Desktop and the daemon's own troubles (real daemon, real Chr
     await page.goto(app(`session/${runId}`));
     const term = page.getByTestId(`terminal-${runId}`);
     await page.getByRole("button", { name: "Open a session" }).click();
-    // Starting a run's agent is a person's act: the app asks for the name once.
-    const named = page.getByRole("dialog", { name: "your name" });
-    await named.waitFor({ timeout: 5000 });
-    await named.getByLabel("Your name").fill("maciej");
-    await named.getByRole("button", { name: "Save" }).click();
+    // Starting a run's agent is a person's act: the name was given once, for the chat, and is kept.
+    expect(await page.getByRole("dialog", { name: "your name" }).count()).toBe(0);
     await term.waitFor({ timeout: 20_000 });
     await until("the session to greet", async () =>
       (await term.textContent())?.includes("hello from the session") ? true : undefined,

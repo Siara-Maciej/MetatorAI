@@ -25,6 +25,7 @@ const daemon = {
   state: async () => ok({ runs: [] }),
   inbox: async () => ok({ decisions: [] }),
   repos: () => [],
+  overviews: async () => [],
 } satisfies Daemon;
 
 const container = { name: "the container" } as unknown as MetatorContainer;
@@ -385,8 +386,14 @@ describe("the daemon's route table", () => {
       "POST /panes/:pane/tell",
       "POST /panes/:pane/interrupt",
       "POST /panes/:pane/said",
+      "GET /threads",
+      "GET /threads/:id",
+      "POST /threads",
+      "POST /threads/:id/summary",
+      "POST /threads/:id/close",
+      "POST /threads/:id/reopen",
     ])
       expect([k, keys.has(k)]).toEqual([k, true]);
-    expect(keys.size).toBe(85);
+    expect(keys.size).toBe(91);
   });
 });

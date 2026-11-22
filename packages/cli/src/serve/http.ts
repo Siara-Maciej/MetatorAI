@@ -1,4 +1,4 @@
-import { err, MetatorError, type Result } from "@metator/core";
+import { err, MetatorError, type Overview, type Result } from "@metator/core";
 import { type MetatorContainer, toEnvelope } from "@metator/runtime";
 import { z } from "zod";
 import type { Folder } from "../context.ts";
@@ -56,6 +56,14 @@ export interface Daemon {
   inbox(fresh: boolean): Promise<Result<unknown, MetatorError>>;
   /** Every repository the daemon serves, with its container (the one its panes live in); a name in a folder. */
   repos(): readonly { readonly name?: string; readonly c: MetatorContainer }[];
+  /** Each repository's overview as the state socket read it last (the same one, not read twice a tick). */
+  overviews(fresh: boolean): Promise<
+    readonly {
+      readonly name?: string;
+      readonly c: MetatorContainer;
+      readonly overview: Result<Overview, MetatorError>;
+    }[]
+  >;
 }
 
 export interface Call<B = unknown> {

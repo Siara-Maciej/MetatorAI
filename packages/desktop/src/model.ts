@@ -277,7 +277,7 @@ export type OverviewTab = "daemon" | "dependencies" | "system";
 /**
  * The hash route, one per place: `#/inbox[/<run>%2F<question>]`, `#/run/<run>[/<tab>[/<pane,
  * file or edit>]]`, `#/grid[/<group>|/pane:<pane>]` (Terminals), `#/overview[/dependencies]`,
- * `#/mrs[/<id>]`, `#/settings`, `#/backlog`. The routes of the four screens a run once had
+ * `#/mrs[/<id>]`, `#/settings`, `#/backlog`, `#/thread/<id>`. The routes of the four screens a run once had
  * (`#/session`, `#/plan`, `#/review`, `#/briefing`) and of the two the Overview once was
  * (`#/supervisor`, `#/graph`) still parse: they land on the tab that holds what they showed.
  */
@@ -305,7 +305,9 @@ export type Route =
   | { readonly screen: "mrs"; readonly id?: string }
   | { readonly screen: "settings" }
   | { readonly screen: "backlog" }
-  | { readonly screen: "board"; readonly task?: string };
+  | { readonly screen: "board"; readonly task?: string }
+  /** A thread (round 16): its chat terminal as the main view. */
+  | { readonly screen: "thread"; readonly id: string };
 
 /** The tab an old run route showed. */
 const OLD_RUN_ROUTES: Readonly<Record<string, RunTab>> = {
@@ -386,6 +388,8 @@ export function parseRoute(hash: string): Route {
       return { screen: "backlog" };
     case "board":
       return arg ? { screen: "board", task: arg } : { screen: "board" };
+    case "thread":
+      return arg ? { screen: "thread", id: arg } : { screen: "inbox" };
     case "mrs":
       return arg ? { screen: "mrs", id: arg } : { screen: "mrs" };
     case "inbox": {
@@ -415,6 +419,8 @@ export function routeHash(route: Route): string {
       return `#/settings/reviews${route.id ? `/${encodeURIComponent(route.id)}` : ""}`;
     case "board":
       return `#/board${route.task ? `/${encodeURIComponent(route.task)}` : ""}`;
+    case "thread":
+      return `#/thread/${encodeURIComponent(route.id)}`;
     case "overview":
       return route.tab === "daemon" ? "#/settings/system" : `#/settings/system/${route.tab}`;
     case "grid":
@@ -1012,6 +1018,11 @@ export const LOOKS = {
     blocked: { glyph: "!", tone: "red" },
     done: { glyph: "✓", tone: "green" },
   },
+  /** A thread with no task yet (round 16): its row says `chat`; a closed one `closed`; else it reads `first`. */
+  chat: {
+    chat: { glyph: "›", tone: "faint" },
+    closed: { glyph: "–", tone: "faint" },
+  },
   /** A run, a repository: `runStateOf` and `rollUp`. */
   run: {
     "needs you": { glyph: "?", tone: "amber" },
@@ -1306,7 +1317,7 @@ export const WORKBENCH_COMMANDS: readonly WorkbenchCommand[] = [
     enabled: (c) => c.pane?.role !== "conductor",
   },
   { id: "newShellTab", label: () => "New tab: shell", menu: "tab" },
-  { id: "newTab", label: () => "New run: describe it to the agent…", menu: "tab" },
+  { id: "newTab", label: () => "New chat with the agent…", menu: "tab" },
   { id: "backlog", label: () => "Backlog…", menu: "tab" },
   { id: "newShell", label: () => "New shell pane here", menu: "tab-own", separator: true },
   {
@@ -1360,7 +1371,7 @@ export const keyLabel = (map: KeyMap, action: string): string | undefined => {
 export const SHELL_KEYS: readonly { readonly keys: string; readonly label: string }[] = [
   { keys: "?", label: "This help" },
   { keys: "g", label: "Next run that needs you" },
-  { keys: "n", label: "New run: describe it to the agent" },
+  { keys: "n", label: "New chat with the agent" },
   { keys: "j / k  ↓ / ↑", label: "Home: the next or the previous decision; elsewhere, move in a list" },
   { keys: "↵", label: "Decision: send the chosen answer" },
   { keys: "o", label: "Overview of the run (from a decision, or on a run)" },

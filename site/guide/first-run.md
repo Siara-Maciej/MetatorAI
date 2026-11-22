@@ -57,13 +57,13 @@ The daemon listens on `http://127.0.0.1:4310`. Leave it running and open the des
 
 ## Describe the task
 
-Click **+ New run** at the bottom of the sidebar (or write under **Describe a task** and press **Start**). **Terminals** opens with a pane in which the agent `mt-orchestrator` runs on your AI tool. Write the task there:
+Click **+ New chat** at the bottom of the sidebar (or write under **Describe a task** and press **Start**). The new chat opens: a terminal in which the conversation agent (`mt-chat`, or `mt-orchestrator` in a repository set up before it) runs on your AI tool. Write the task there:
 
 ```text
 Add a subtract function next to add, with a test
 ```
 
-The agent answers with one numbered message that asks what the code cannot settle, for example which workflow to use and whether the run gets its own worktree. Each point has options, with the recommended one first. Answer, for example `1 1, 2 yes`. The agent starts the run and names it. The run appears in the sidebar and as a tab in **Terminals**.
+The agent answers with one numbered message that asks what the code cannot settle, for example which workflow to use and whether the run gets its own worktree. Each point has options, with the recommended one first. Answer, for example `1 1, 2 yes`. The agent starts the run and names it. The run appears in the sidebar, under the chat, and as a tab in **Terminals**.
 
 ## Approve the plan
 

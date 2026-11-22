@@ -3328,3 +3328,134 @@ button.debug-changes {
   font-size: var(--fs-small);
   margin-top: 2px;
 }
+/* Threads (round 16): a chat's row over its tasks; the chat's own page is its terminal. */
+.sessions .thread-row {
+  position: relative;
+}
+.sessions .thread-row > .row .title {
+  font-weight: 600;
+}
+/* Over the row's word while the row is pointed at, so the words of every row stay in one column. */
+.sessions .thread-more {
+  position: absolute;
+  right: 6px;
+  top: 3px;
+  width: 22px;
+  padding: 0;
+  min-height: 0;
+  color: var(--muted);
+  background: var(--hover);
+  opacity: 0;
+}
+.sessions .thread-row:hover .thread-more,
+.sessions .thread-more:focus-visible {
+  opacity: 1;
+}
+.sessions .thread-tasks {
+  padding-left: 14px;
+}
+.sessions .thread-tasks .finished-toggle,
+.sessions .without-chat .finished-toggle {
+  padding-top: 4px;
+  font-weight: 500;
+}
+.sessions .thread.closed .thread-row > .row .title {
+  color: var(--muted);
+  font-weight: 500;
+}
+.sessions .threads + .tasks,
+.sessions .closed-threads {
+  margin-top: var(--sp-2);
+}
+.thread-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-3) var(--sp-5) var(--sp-5);
+  gap: var(--sp-3);
+}
+.thread-bar {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+.thread-bar h1 {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thread-bar .word {
+  font-size: var(--fs-compact);
+  white-space: nowrap;
+}
+.thread-bar button {
+  align-self: center;
+}
+.thread-chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.thread-chat > .pane-frame {
+  flex: 1;
+}
+.thread-quiet {
+  margin: 10vh auto 0;
+  text-align: center;
+  color: var(--muted);
+}
+.thread-tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--sp-3);
+}
+.thread-tiles .tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+.thread-tiles .tile:hover {
+  background: var(--hover);
+}
+.thread-tiles .tile-head {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: baseline;
+  min-width: 0;
+}
+.thread-tiles .title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thread-tiles .word {
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}
+.thread-tiles .sub {
+  font-size: var(--fs-small);
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quiet-home .home-tasks .thread-of {
+  color: var(--dim);
+}

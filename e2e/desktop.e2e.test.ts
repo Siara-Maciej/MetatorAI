@@ -204,15 +204,16 @@ afterAll(async () => {
 });
 
 describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
-  test("+ New session opens a pane with the agent as the entry point (T1); the form sits under Advanced", async () => {
+  test("+ New chat opens a pane with the agent as the entry point (T1) on the chat's page; the form sits beside it", async () => {
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
     // Nothing was ever started: the app offers to describe a task, or the form, not an empty queue.
     await page.getByTestId("first-run").waitFor({ timeout: 20_000 });
     expect(await page.getByTestId("first-run").textContent()).toContain("Describe a task");
     expect(await page.getByTestId("needs-count").textContent()).toContain("Needs you · 0");
-    await page.getByRole("button", { name: "+ New run" }).click();
-    const workbench = page.getByTestId("workbench");
-    const intake = workbench.locator('.pane-frame[aria-label^="chat"]').first();
+    await page.getByRole("button", { name: "+ New chat" }).click();
+    await nameIfAsked();
+    // The new chat's page shows its terminal as the main view.
+    const intake = page.locator('.thread-screen .pane-frame[aria-label^="chat"]').first();
     await intake.waitFor({ timeout: 20_000 });
     await until("the agent's greeting", async () =>
       (await intake.textContent())?.includes("describe a task and I start the run") ? true : undefined,
@@ -227,8 +228,8 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     expect(pane?.runId).toBeUndefined();
     expect(pane?.process.prompt).toContain("entry point");
     expect(layout.workspaces.find((w) => w.label === "chat")?.runId).toBeUndefined();
-    // A second click reuses the workspace: one "chat" workspace, two panes.
-    await page.getByRole("button", { name: "+ New run" }).click();
+    // A second chat reuses the workspace: one "chat" workspace, two panes.
+    await page.getByRole("button", { name: "+ New chat" }).click();
     await until("the second pane", async () => {
       const l = (await api("/layout")).data as {
         panes: { label: string }[];
@@ -238,7 +239,10 @@ describe("MetatorAI Desktop (real daemon, real Chromium)", () => {
     });
     const again = (await api("/layout")).data as { workspaces: { label: string }[] };
     expect(again.workspaces.filter((w) => w.label === "chat")).toHaveLength(1);
+    // A new chat asked for the name; the test of the name dialog starts from none, so it is forgotten.
+    await page.evaluate(() => localStorage.removeItem("metator.me"));
     await page.goto(`http://127.0.0.1:${site.port}/?daemon=${encodeURIComponent(daemonUrl)}#/inbox`);
+    await page.reload();
     await page.getByTestId("connection").waitFor({ timeout: 20_000 });
   }, 60_000);
 

@@ -15,6 +15,8 @@ import {
   renderPlanStatus,
   renderRunStatus,
   renderStatus,
+  renderThread,
+  renderThreadTree,
   stageBar,
 } from "../src/render.ts";
 
@@ -402,5 +404,68 @@ describe("renderPlanRun", () => {
       "  ios-badge  ios  r3  waits for a person: AI host claude cannot start here",
     ]);
     expect(renderPlanRun({ plan: { id: "p" }, started: [] })).toBe("p: no step can start yet");
+  });
+});
+
+describe("threads as a person reads them (ADR-0095)", () => {
+  const thread = {
+    id: "20261122-prices",
+    title: "Price rounding",
+    state: "open",
+    summary: "Decided: round half up.\nOpen: the invoice total.",
+    facts: [{ at: "2026-11-22T10:05:00.000Z", text: "run 20261122-demo-round started: Round prices" }],
+    issues: [],
+    tasks: [
+      {
+        runId: "20261122-demo-round",
+        task: "Round prices",
+        stage: "plan-approval",
+        attention: "you" as const,
+      },
+    ],
+    attention: "you" as const,
+    chat: { paneId: "w1:p2", status: "live" },
+  };
+
+  test("thread show: the topic, the summary, the runs with their state, the facts", () => {
+    expect(renderThread(thread)).toBe(
+      [
+        "Price rounding  (20261122-prices, open, chat w1:p2 live)",
+        "",
+        "Summary:",
+        "  Decided: round half up.",
+        "  Open: the invoice total.",
+        "",
+        "Runs (1):",
+        "  ? 20261122-demo-round  needs you at plan-approval  Round prices",
+        "",
+        "Facts:",
+        "  2026-11-22 10:05  run 20261122-demo-round started: Round prices",
+      ].join("\n"),
+    );
+    expect(renderThread({ ...thread, summary: "", tasks: [], facts: [] })).toContain(
+      "(none yet: write one with `metator thread summary --text …`)",
+    );
+  });
+
+  test("thread list: open threads with their tasks, then the runs without a chat, then the closed ones", () => {
+    const text = renderThreadTree({
+      threads: [thread],
+      withoutChat: [
+        { runId: "20261122-demo-footer", task: "Fix the footer", stage: "build", attention: "driving" },
+      ],
+      closed: [{ ...thread, id: "20261121-old", title: "Old topic", state: "closed", tasks: [] }],
+    });
+    expect(text.split("\n")).toEqual([
+      "? Price rounding  (20261122-prices, 1 tasks)",
+      "    ? 20261122-demo-round  needs you at plan-approval  Round prices",
+      "",
+      "Without a chat:",
+      "    ⟳ 20261122-demo-footer  working at build  Fix the footer",
+      "",
+      "Closed (1):",
+      "  Old topic  (20261121-old)",
+    ]);
+    expect(renderThreadTree({ threads: [], withoutChat: [], closed: [] })).toBe("No open thread.");
   });
 });

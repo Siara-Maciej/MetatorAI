@@ -2442,6 +2442,87 @@ metator session interrupt [options] <pane>
 | `--repo <name>` | the pane's repository, as `session list` names it (default: this one) |  |
 | `--by <name>` | who says it, from a terminal of their own (default: $METATOR_USER, else git's user.name, else your login name) |  |
 
+## thread
+
+### `metator thread new`
+
+A new thread with its chat terminal (the conversation agent): for a new topic, after the person said yes
+
+```bash
+metator thread new [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--title <words>` | the topic in a few words (at most 80 characters) **Required.** |  |
+| `--carry <line>` | one line of context the new chat gets as its first message |  |
+| `--host <id>` | the host of the chat (default: the first installed of supervisor.hostOrder) |  |
+| `--by <name>` | who opens it (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
+### `metator thread show`
+
+The thread: title, summary, facts, its runs with their state, issues. The chat agent's first action in a session
+
+```bash
+metator thread show [options] [thread]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[thread]` |  | |
+| `--thread <id>` | the thread (default: the one whose chat runs this) |  |
+
+### `metator thread list`
+
+Every thread with its tasks (open ones first), the runs without a chat, and the closed threads
+
+```bash
+metator thread list [options]
+```
+
+### `metator thread summary`
+
+Keep the thread's summary (Markdown, at most 1500 characters): when a decision was made, a run started or finished, or the person asks
+
+```bash
+metator thread summary [options]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `--text <markdown>` | the summary; `-` reads it from stdin (a here-doc) **Required.** |  |
+| `--title <words>` | a better title, once the topic is clear |  |
+| `--thread <id>` | the thread (default: the one whose chat runs this) |  |
+
+### `metator thread close`
+
+Close the thread: its chat terminal ends (its session kept), its runs go on
+
+```bash
+metator thread close [options] [thread]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[thread]` |  | |
+| `--thread <id>` | the thread (default: the one whose chat runs this) |  |
+| `--by <name>` | who closes it (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
+### `metator thread reopen`
+
+Open the thread's chat again: a paused one resumes, a closed thread continues its session or starts a new one told what it continues
+
+```bash
+metator thread reopen [options] [thread]
+```
+
+| Argument or option | Description | Default |
+|---|---|---|
+| `[thread]` |  | |
+| `--thread <id>` | the thread |  |
+| `--host <id>` | the host of a new chat (default: the one it had) |  |
+| `--by <name>` | who reopens it (default: $METATOR_USER, else git's user.name, else your login name) |  |
+
 ## worktree
 
 ### `metator worktree new`

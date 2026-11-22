@@ -300,6 +300,8 @@ export const UNPROMPTED_METATOR: readonly string[] = [
   "issue list",
   "issue show",
   "issue propose",
+  // A thread's chat reads and keeps its thread (ADR-0095): no command of the group is the person's.
+  "thread",
 ];
 
 /**

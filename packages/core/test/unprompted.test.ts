@@ -50,6 +50,11 @@ describe("unpromptedCommand: what runs without the host's approval prompt (guard
       "metator run write task.md <<'EOF'\n# Task\nRound the prices\nEOF",
       // The form a worker's message prescribes for its Markdown artifact, word for word.
       "metator run write quick-review.md --run 20261122-mt-quick-x <<'EOF'\nNo blocking finding.\nEOF",
+      // The chat keeps its thread (ADR-0095), on both hosts without a prompt.
+      "metator thread show",
+      'metator thread summary --text "Decided: round half up."',
+      "metator thread summary --text - <<'EOF'\n## Decided\nRound half up.\nEOF",
+      'metator thread new --title "Invoice PDF" --carry "The person wants A4."',
     ])
       expect([command, why(command)]).toEqual([command, "MetatorAI's own command"]);
   });
@@ -213,6 +218,7 @@ describe("allowToolsOf: the list a host takes up front (Copilot CLI's --allow-to
     expect(tools).toContain("shell(npx metator run delegate)");
     expect(tools).toContain("shell(npx metator graph)");
     expect(tools).toContain("shell(npx metator quick check)");
+    expect(tools).toContain("shell(npx metator thread)");
     for (const check of [
       "npm run typecheck",
       "bun run typecheck",

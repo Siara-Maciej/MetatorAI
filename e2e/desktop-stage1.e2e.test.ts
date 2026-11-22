@@ -1,7 +1,7 @@
 /**
  * Stage 1 of the conversation agent in the app (round 13; real daemon, real Chromium, the scenario
  * host and, for the one screen only Claude Code draws, a stand-in `claude`; never a real AI host).
- * "+ New run" opens the repository's conversation agent once `metator setup` installed it, with
+ * "+ New chat" opens the repository's conversation agent once `metator setup` installed it, with
  * the label "chat"; a chat's `git commit` waits as a consent card whose heading is the command;
  * a real `mt-quick` run (the engine's own scenario) asks its two cards: "This grew past quick"
  * (Keep as quick) and "Quick change ready" ("Open diff" opens the run's Changes and leaves the
@@ -226,12 +226,13 @@ async function scratchEdit(files: Record<string, string>, note?: string): Promis
 }
 
 describe("the conversation agent's first stage in the app (round 13)", () => {
-  test("+ New run opens the repository's conversation agent as the chat; a chat's commit waits as a consent card", async () => {
+  test("+ New chat opens the repository's conversation agent as the chat; a chat's commit waits as a consent card", async () => {
     await page.goto(app("inbox"));
     await page.getByTestId("connection").filter({ hasText: "connected" }).waitFor({ timeout: 20_000 });
     // Before `metator setup` the repository has no conversation agent: the agent of before.
     expect(((await api("/supervisor")) as { data: { chatAgent?: string } }).data.chatAgent).toBeUndefined();
-    await page.getByRole("button", { name: "+ New run" }).click();
+    await page.getByRole("button", { name: "+ New chat" }).click();
+    await nameIfAsked();
     const first = await until("the chat pane", async () => (await panes())[0]);
     expect([first.label, first.role, first.process.agent]).toEqual(["chat", "apps", "mt-orchestrator"]);
     await post(`/panes/${first.id}/close`, {});
@@ -241,7 +242,8 @@ describe("the conversation agent's first stage in the app (round 13)", () => {
     expect(await repo.exists(".claude/agents/mt-chat.md")).toBe(true);
     await repo.commit("metator setup");
     await page.goto(app("inbox"));
-    await page.getByRole("button", { name: "+ New run" }).click();
+    await page.getByRole("button", { name: "+ New chat" }).click();
+    await nameIfAsked();
     const chat = await until("the chat pane", async () => (await panes())[0]);
     expect([chat.label, chat.role, chat.process.agent, chat.process.host]).toEqual([
       "chat",

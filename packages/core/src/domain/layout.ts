@@ -62,13 +62,18 @@ const PaneV3Schema = z.strictObject({
     .optional(),
   startedRun: z.string().optional(),
 });
-export const PaneSchema = z.strictObject({
+const PaneV4Schema = z.strictObject({
   ...PaneV3Schema.shape,
   /**
    * v4: the pane's process is gone because the daemon stopped (or the process was lost), not because
    * its work is over: its session id and last screen are kept, and it is resumed in the same pane.
    */
   paused: z.strictObject({ at: z.iso.datetime(), why: z.enum(PANE_PAUSE_REASONS) }).optional(),
+});
+export const PaneSchema = z.strictObject({
+  ...PaneV4Schema.shape,
+  /** v5: the chat pane of a thread (ADR-0095): the thread it was opened for. Never change v4. */
+  threadId: z.string().min(1).optional(),
 });
 export type Pane = z.output<typeof PaneSchema>;
 export type PaneProcess = Pane["process"];
@@ -147,6 +152,11 @@ const LayoutV3Schema = z.strictObject({
   panes: z.array(PaneV3Schema),
   next: NextSchema,
 });
+const LayoutV4Schema = z.strictObject({
+  workspaces: z.array(WorkspaceSchema),
+  panes: z.array(PaneV4Schema),
+  next: NextSchema,
+});
 export const LayoutSchema = z.strictObject({
   workspaces: z.array(WorkspaceSchema),
   panes: z.array(PaneSchema),
@@ -160,10 +170,11 @@ export const LayoutDocument = defineDocument("Layout", {
     { schema: LayoutV1Schema },
     { schema: LayoutV2Schema, fromPrevious: (v1) => v1 },
     { schema: LayoutV3Schema, fromPrevious: (v2) => v2 },
+    { schema: LayoutV4Schema, fromPrevious: (v3) => v3 },
   ],
   latest: LayoutSchema,
-  // Every field v2, v3 and v4 add is optional: a v1 layout is a v2 layout with even grids, a v2
-  // one a v3 one with no pane ended, a v3 one a v4 one with no pane paused.
+  // Every field v2 to v5 add is optional: a v1 layout is a v2 layout with even grids, a v2 one a
+  // v3 one with no pane ended, a v3 one a v4 one with no pane paused, a v4 one a v5 one without threads.
   upgrade: (previous) => previous,
   hint: "Written by the daemon (`metator serve`); do not edit by hand.",
 });
@@ -240,6 +251,8 @@ export function addPane(
     readonly process: PaneProcess;
     readonly runId?: string;
     readonly worker?: Pane["worker"];
+    /** The thread a chat pane is opened for (ADR-0095). */
+    readonly threadId?: string;
     readonly at: string;
     /** Where the pane goes in the tab's split tree: beside this pane, in this direction (S6). */
     readonly split?: { readonly target: string; readonly dir: "row" | "column" };
@@ -262,6 +275,7 @@ export function addPane(
     process: input.process,
     ...(input.runId ? { runId: input.runId } : {}),
     ...(input.worker ? { worker: input.worker } : {}),
+    ...(input.threadId ? { threadId: input.threadId } : {}),
     createdAt: input.at,
   };
   return {

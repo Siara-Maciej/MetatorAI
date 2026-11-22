@@ -92,6 +92,8 @@ export interface OpenPaneInput {
   readonly cwd?: string;
   readonly runId?: string;
   readonly worker?: Pane["worker"];
+  /** The thread a chat pane is opened for (ADR-0095). */
+  readonly threadId?: string;
   /** Beside this pane of the same tab, in this direction (S6); the tab is the target's then. */
   readonly split?: { readonly target: string; readonly dir: "row" | "column" };
   readonly process:
@@ -590,6 +592,7 @@ export class Panes {
         process,
         ...(runId ? { runId } : {}),
         ...(input.worker ? { worker: input.worker } : {}),
+        ...(input.threadId ? { threadId: input.threadId } : {}),
         ...(input.split ? { split: input.split } : {}),
         at: this.d.clock.now().toISOString(),
       });

@@ -58,6 +58,7 @@ import type {
   SystemPlanView,
   SystemStep,
   Tab,
+  Thread,
   UnreadableRun,
   WorkPhase,
   Workspace,
@@ -118,6 +119,7 @@ export type {
   SystemPlanSummary,
   SystemPlanView,
   SystemStep,
+  Thread,
   UnreadableRun,
   WorkPhase,
 };
@@ -203,6 +205,44 @@ export interface PaneAsk {
   };
 }
 
+/** A thread's current chat terminal (the last of its `panes`) and whether it runs. */
+export interface ChatLink {
+  readonly paneId: string;
+  readonly repo?: string;
+  readonly status: "live" | "paused" | "ended" | "missing";
+}
+
+/** A top run of a thread, as `GET /threads` lists it. */
+export interface TaskLink {
+  readonly runId: string;
+  readonly repo?: string;
+  readonly task: string;
+  readonly status: string;
+  readonly stage: string;
+  readonly attention: Attention;
+  readonly updatedAt: string;
+  readonly children?: readonly string[];
+}
+
+/**
+ * A thread (round 16, ADR-0095) as `GET /threads` gives it: the document (`Thread` v1, one topic
+ * with its chat terminal, the runs started in it, what the daemon noted of them) with its
+ * repository (in a folder), its chat and its tasks.
+ */
+export type ThreadView = Thread & {
+  readonly repo?: string;
+  readonly chat?: ChatLink;
+  readonly tasks?: readonly TaskLink[];
+  readonly attention?: Attention;
+};
+
+/** `GET /threads`: the open threads, the closed ones, and the top runs no thread lists. */
+export interface ThreadsView {
+  readonly threads: readonly ThreadView[];
+  readonly closed: readonly ThreadView[];
+  readonly withoutChat: readonly TaskLink[];
+}
+
 /** `/runs/:id/brief`: the run's brief with where the run stands. */
 export type Brief = RunBrief & { readonly runId: string; readonly status: string; readonly stage: string };
 
@@ -216,7 +256,7 @@ export interface SupervisorView {
     readonly repo: string | null;
   };
   readonly hosts: readonly string[];
-  /** The repository's conversation agent (`mt-chat`), when it has one: what "+ New run" opens (round 13). */
+  /** The repository's conversation agent (`mt-chat`), when it has one: what a new chat opens (round 13). */
   readonly chatAgent?: string;
   /** Each host with the program it starts and whether it is on the daemon's machine (absent on an older daemon). */
   readonly hostStatus?: readonly {
@@ -458,6 +498,24 @@ export class DaemonClient {
     repo?: string,
   ) => this.post<{ run: { runId: string }; drive?: { error?: string } }>("/runs", input, repo);
   layout = (repo?: string) => this.get<LayoutView>("/layout", repo);
+  /** The threads (round 16), open and closed, of every repository the daemon serves. */
+  threads = () => this.get<ThreadsView>("/threads");
+  /**
+   * A new thread and its chat terminal (the conversation agent in a pane of its own); with no
+   * title it is "New chat" until the agent names it.
+   */
+  newThread = (body: { title?: string; by: string; host?: string }, repo?: string) =>
+    this.post<{ thread: Thread; pane: PaneView }>("/threads", body, repo);
+  /** Ends the thread's chat terminal; its runs go on. */
+  closeThread = (id: string, by: string, repo?: string) =>
+    this.post<{ thread: Thread; ended?: string }>(`/threads/${encodeURIComponent(id)}/close`, { by }, repo);
+  /** The thread's chat running again: resumed, or a new session told to carry on. */
+  reopenThread = (id: string, by: string, repo?: string) =>
+    this.post<{ thread: Thread; pane: PaneView; how: "live" | "resumed" | "new-session" }>(
+      `/threads/${encodeURIComponent(id)}/reopen`,
+      { by },
+      repo,
+    );
   openPane = (
     input: {
       runId?: string;

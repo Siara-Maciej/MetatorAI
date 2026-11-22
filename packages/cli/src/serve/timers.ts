@@ -133,6 +133,11 @@ export function startTimers(deps: TimerDeps): { stop(): void } {
               const told = await c.resolve("chatNotices").tick();
               if (told.isErr()) return say("chat", key)({ error: told.error.message });
               for (const t of told.value) say("chat", key)({ told: t.paneId, run: t.runId, event: t.event });
+              // A thread keeps what became of its runs (ADR-0095): one fact per event.
+              const noted = await c.resolve("threads").noteRuns();
+              if (noted.isErr()) return say("threads", key)({ error: noted.error.message });
+              for (const n of noted.value)
+                say("threads", key)({ noted: n.thread, run: n.runId, event: n.event });
               // Lines that wait for an idle agent (the person's words relayed by the task's main
               // chat, the chat's note that the person talked to a session directly).
               const mailed = await c.resolve("paneMail").tick();

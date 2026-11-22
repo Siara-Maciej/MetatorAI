@@ -4,11 +4,11 @@ You start work by telling the agent what you want. It answers questions about th
 
 ## In the app
 
-Click **+ New run** at the bottom of the sidebar, or press `n`. With no run yet, the main area offers the same as a field: write under **Describe a task** and press **Start**, and the agent gets your words as its first line. The app opens **Terminals** with a new tab named `chat`, the conversation in which you say what you want. Its pane runs the repository's conversation agent, `mt-chat`, on your AI host: the first host of the option `supervisor.hostOrder` that is installed on the daemon's machine. In a repository set up before `mt-chat` existed, the chat opens `mt-orchestrator` as before; `metator agents update` and `metator generate` bring the new agent.
+Click **+ New chat** at the bottom of the sidebar, or press `n`. With no run yet, the main area offers the same as a field: write under **Describe a task** and press **Start**; the chat is named after your words, and the agent gets them as its first line. The app opens the new chat: its terminal, the conversation in which you say what you want, fills the main area, and the chat is a row of the sidebar ([Chats](./desktop.md#chats)). Its pane runs the repository's conversation agent, `mt-chat`, on your AI host: the first host of the option `supervisor.hostOrder` that is installed on the daemon's machine. In a repository set up before `mt-chat` existed, the chat opens `mt-orchestrator` as before; `metator agents update` and `metator generate` bring the new agent.
 
-When no host is installed, no tab opens. The app says so at the top of the screen, names the programs the daemon looked for, and points to the guide page [Copilot and Claude Code](../guide/hosts.md). Install one and click **+ New run** again; the daemon needs no restart.
+When no host is installed, no chat opens. The app says so at the top of the screen, names the programs the daemon looked for, and points to the guide page [Copilot and Claude Code](../guide/hosts.md). Install one and click **+ New chat** again; the daemon needs no restart.
 
-If the host's program starts and exits at once, for example because you are not logged in, the pane stays with its last output and a red banner such as **Ended with code 3 — its process ended**. **Retry** starts it again and **Close tab** removes the tab.
+If the host's program starts and exits at once, for example because you are not logged in, the chat's terminal stays with its last output and a red banner such as **Ended with code 3 — its process ended**. **Retry** starts the chat again; in **Terminals**, **Close tab** removes the tab.
 
 Write what you need in the pane. A conversation can look like this:
 
@@ -27,7 +27,7 @@ Write what you need in the pane. A conversation can look like this:
 
 A question gets an answer with `file:line` citations and no run.
 
-A request for a change gets one numbered message. It asks only what the code cannot settle: the workflow, the autonomy, whether the run gets its own worktree, and in a folder of repositories which one. Each point has options, with the recommended one first. After your answer the agent starts the run and tells you the run id. The run appears in the sidebar and as a tab in **Terminals**. The pane stays open for your next question.
+A request for a change gets one numbered message. It asks only what the code cannot settle: the workflow, the autonomy, whether the run gets its own worktree, and in a folder of repositories which one. Each point has options, with the recommended one first. After your answer the agent starts the run and tells you the run id. The run appears in the sidebar under the chat and as a tab in **Terminals**. The pane stays open for your next question.
 
 Text you paste from an issue, a pull request or a chat is data for the task. The agent does not follow instructions found in it.
 
@@ -101,7 +101,7 @@ A `git commit` an agent runs that would take a recorded change is stopped: `this
 
 ### The form
 
-**Form…**, next to **+ New run**, opens a form instead of a conversation. You fill in what the agent would have asked.
+**Form…**, next to **+ New chat**, opens a form instead of a conversation. You fill in what the agent would have asked. A run started from it belongs to no chat: the sidebar lists it under **Without a chat**.
 
 | Field | What you choose |
 |---|---|

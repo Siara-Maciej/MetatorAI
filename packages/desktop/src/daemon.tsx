@@ -15,6 +15,7 @@ import {
   type PaneView,
   type ResolvedOption,
   type StateData,
+  type ThreadView,
   type WorkspaceView,
   wsUrl,
 } from "./api.ts";
@@ -37,6 +38,7 @@ import {
   withTerminalAsks,
 } from "./model.ts";
 import { scratchCount, scratchRepos } from "./stage1.ts";
+import { threadsStamp } from "./threads.ts";
 
 export interface Daemon {
   readonly client: DaemonClient;
@@ -66,6 +68,13 @@ export interface Daemon {
   scratchRepos(repos?: readonly (string | undefined)[]): (string | undefined)[];
   /** Every pane of every repository's layout (R1, R4), each with the repository it belongs to. */
   readonly panes: readonly (PaneView & { readonly repo?: string | undefined })[];
+  /**
+   * The threads (round 16): one topic each, with its chat terminal and the runs started in it.
+   * None from a daemon that has no threads (then every task is "Without a chat").
+   */
+  readonly threads: readonly ThreadView[];
+  /** Reads the threads again now (after a new chat, a close or a reopen). */
+  reloadThreads(): Promise<void>;
   /** Every workspace of every repository's layout, read with the panes. */
   readonly workspaces: readonly (WorkspaceView & { readonly repo?: string | undefined })[];
   /** The run with this id; in a folder, the one of `repo` when it is given. */
@@ -362,6 +371,25 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     5000,
   );
   const systemPlans = plans.data ?? NO_PLANS;
+  // The threads: read again whenever the state says one changed (`threads.updatedAt`), and every
+  // two seconds for their tasks' states and a new chat pane.
+  const threadList = usePolled(
+    `threads:${url}`,
+    async () => {
+      const r = await client.threads();
+      return r.ok && r.data
+        ? { ok: true, data: [...(r.data.threads ?? []), ...(r.data.closed ?? [])] }
+        : { ok: false, ...(r.error ? { error: r.error } : {}) };
+    },
+    2000,
+  );
+  const stamp = threadsStamp(state);
+  const reloadThreadList = threadList.reload;
+  useEffect(() => {
+    // A new stamp is what the effect is about: the threads are read again at once.
+    void stamp;
+    void reloadThreadList();
+  }, [stamp, reloadThreadList]);
   const shownRuns = down ? NO_RUNS : runs;
   const shownPanes = down ? NO_PANES : panes;
   const value: Daemon = {
@@ -396,6 +424,8 @@ export function DaemonProvider({ children }: { readonly children: React.ReactNod
     paneAsks: down ? NO_PANE_ASKS : paneAsks,
     panes: shownPanes,
     workspaces: down ? NO_WORKSPACES : workspaces,
+    threads: down ? NO_THREADS : (threadList.data ?? NO_THREADS),
+    reloadThreads: threadList.reload,
     seen,
     markSeen,
     me,
@@ -426,6 +456,7 @@ const NO_WORKSPACES: Daemon["workspaces"] = [];
 const NO_UNREADABLE: readonly Unreadable[] = [];
 const NO_OPTIONS: readonly ResolvedOption[] = [];
 const NO_PLANS: readonly RepoSystemPlan[] = [];
+const NO_THREADS: readonly ThreadView[] = [];
 
 /** The one place the app asks who the person is: their name goes next to every answer they give. */
 function NameDialog({ initial, onDone }: { readonly initial: string; onDone(name: string): void }) {

@@ -153,7 +153,26 @@ export const PANE_ROUTES: readonly Route[] = [
         ? undefined
         : denied(`only pane ${params.pane} itself says what it started`);
     },
-    handler: ({ c, params, body: b }) => c.resolve("panes").setStartedRun(params.pane as string, b.runId),
+    handler: async ({ c, params, body: b, daemon }) => {
+      const pane = await c.resolve("panes").setStartedRun(params.pane as string, b.runId);
+      if (pane.isErr() || !pane.value.threadId) return pane;
+      // The chat of a thread started it: the run is the thread's (ADR-0095). In a folder the run
+      // may be in another repository than the chat.
+      let found: { task: string; parent?: string } | undefined;
+      for (const r of daemon.repos()) {
+        const record = await r.c.resolve("runRepository").load(b.runId);
+        if (record.isOk()) {
+          found = {
+            task: record.value.task,
+            ...(record.value.parent ? { parent: record.value.parent } : {}),
+          };
+          break;
+        }
+      }
+      if (!found) return pane;
+      const linked = await c.resolve("threads").linkRun(pane.value.id, b.runId, found);
+      return linked.map(() => pane.value);
+    },
   }),
   route({
     method: "POST",

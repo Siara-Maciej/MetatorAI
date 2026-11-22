@@ -95,7 +95,8 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 | `WorktreeRegistry` | `.metator/worktrees.json` | `metator worktree ...`, `metator run new --worktree` |
 | `EnvState` | `.metator/env/*.json` | `metator env up` and `env down` |
 | `EnvProfile` | `.metator/env-profile.json` | `metator env analyze` |
-| `Layout` | `.metator/layout.json` | the daemon: workspaces, tabs and panes, restored after a restart |
+| `Layout` | `.metator/layout.json` | the daemon: workspaces, tabs and panes, restored after a restart (v5: a chat's pane names its thread, `threadId`) |
+| `Thread` | `.metator/threads/<id>.json` | the daemon and `metator thread ...`: one chat's topic, the summary its agent keeps, its runs, its terminals and the facts the daemon adds ([Chats and threads](../use/threads.md)) |
 | `DaemonInfo` | `.metator/daemon.json` | `metator serve`, while it runs |
 | `PaneTyped` | `.metator/typed/<pane>.json` | the daemon: a hash and a time for each line it typed into a pane (never the words), so a host's user-prompt hook can tell the daemon's lines from your own typing |
 | `GuardAsked` | `.metator/guard-asked/<pane>.json` | the `pre-tool` hook: why the guard asked about (or refused) a pane's command lately, with a hash of the command (never the command), so the card of your host's approval says why |
@@ -107,6 +108,32 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 | `ReviewReaction` | `.metator/telemetry/reactions.jsonl` | `metator findings react`: what people did with a review comment |
 | `QuarterlyReview` | `.metator/reviews/quarterly-<date>.json` | `metator meta quarterly` |
 | `EvalReport` | `report.json` under the `--runs-dir` of `metator eval run` (default `.metator/evals`) | `metator eval run` |
+
+A thread, as `metator thread show --json` and `GET /threads/<id>` hold it (without the tasks and the chat they add):
+
+```json
+{
+  "kind": "Thread",
+  "schemaVersion": 1,
+  "id": "20261122-price-rounding",
+  "title": "Price rounding",
+  "state": "open",
+  "createdAt": "2026-11-22T09:12:00.000Z",
+  "updatedAt": "2026-11-22T10:40:00.000Z",
+  "summary": "Decided: round half up, per line.\nOpen: the invoice total.",
+  "runs": ["20261122-mt-feature-round-prices-half-up"],
+  "issues": [],
+  "mrs": [],
+  "panes": [{ "paneId": "w1:p2", "at": "2026-11-22T09:12:00.000Z" }],
+  "facts": [
+    { "at": "2026-11-22T09:12:00.000Z", "text": "opened by ana" },
+    { "at": "2026-11-22T09:30:00.000Z", "text": "run 20261122-mt-feature-round-prices-half-up started: Round prices half up" },
+    { "at": "2026-11-22T10:40:00.000Z", "text": "run 20261122-mt-feature-round-prices-half-up done: Round prices half up" }
+  ]
+}
+```
+
+`state` is `open` or `closed` (with `closedAt`); `panes` lists the chat's terminals, the last one current, each with the host session it ran once it ended (`hostSession`); `from` names the thread or Backlog item it came from; `facts` keeps the newest 50; `issues` and `mrs` stay empty for now.
 
 ## On your machine
 

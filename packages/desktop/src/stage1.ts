@@ -1,20 +1,9 @@
 /**
- * The conversation agent's first stage, as the app sees it (pure, tested; round 13): which agent
- * the "+ New run" chat opens, the quick cards' one special option, a commit or push that needs
- * the person's consent, and the debug changes (scratch) with what removing them did.
+ * The conversation agent's first stage, as the app sees it (pure, tested; round 13): the quick
+ * cards' one special option, a commit or push that needs the person's consent, and the debug
+ * changes (scratch) with what removing them did. Which agent a chat opens is the daemon's
+ * (`POST /threads`, round 16).
  */
-
-/** The agent of the chat when the repository has no conversation agent (an older setup). */
-export const OLD_CHAT_AGENT = "mt-orchestrator";
-
-/**
- * The agent the "+ New run" chat opens: the repository's conversation agent when the daemon names
- * one (`/supervisor` `chatAgent`, `mt-chat`), else the agent that started runs before.
- */
-export const chatAgentOf = (supervisor: object | undefined): string => {
-  const named = (supervisor as { chatAgent?: unknown } | undefined)?.chatAgent;
-  return typeof named === "string" && named.trim() !== "" ? named : OLD_CHAT_AGENT;
-};
 
 /** The quick card's option that is no answer: it opens the run's change, and the card stays. */
 export const OPEN_DIFF = "Open diff";

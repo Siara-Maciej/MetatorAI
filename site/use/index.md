@@ -57,11 +57,18 @@ The sidebar is the first level. Every row is built the same way: the glyph of on
 
 **Needs you · N** is on top: how many questions, terminal questions and escalated runs wait for you. A click opens Home, which shows them one at a time ([Answer questions](./inbox.md)).
 
-**Tasks · N** follows: one row per task, whatever repositories it works in. A task is a system task (a system plan with its system run and its steps), a run that started child runs, or a run of its own. Its row has one state word, its progress (`3/6`), how many of its steps need you (`2 need you`) and how many are blocked; tasks that need you come first. **▸** unfolds a task into its own tree: the repositories it works in, each with its steps and child runs and their word, steps not started too, with what they wait for (`not started · waits for api-model, api-endpoint`). A run of its own unfolds into its panes. A click on a task opens its page; a click on a step opens the step's page, or, when the step asks on a card, that decision on Home.
+The chats follow, and the sidebar is one tree: a chat, its tasks, their repositories, their steps.
 
-Finished tasks are hidden. **Show finished (N)** at the end shows them; a finished run reads `done`, and its line says how it ended (`done`, `aborted`), with the reason on hover.
+- **A chat** (a thread) is one topic you talk about with the agent. Its row has the chat's title, one word and how many tasks it holds (`2 tasks`). The word is its most urgent task's (`needs you`, then `blocked`, then `working`, then `done`), `needs you` while the chat itself asks you something, and `chat` while no task was started in it. Chats that need you come first, then the one that changed last. A click opens the chat: its terminal fills the main area ([Chats](./desktop.md#chats)). **⋯** on its row offers **Close chat**, or **Reopen chat** for a closed one.
+- **A task** under its chat is a run the chat's agent started, with everything that run started. A task is a system task (a system plan with its system run and its steps), a run that started child runs, or a run of its own. Its row has one state word, its progress (`3/6`), how many of its steps need you (`2 need you`) and how many are blocked; tasks that need you come first. **▸** unfolds a task into its own tree: the repositories it works in, each with its steps and child runs and their word, steps not started too, with what they wait for (`not started · waits for api-model, api-endpoint`). A run of its own unfolds into its panes. A click on a task opens its page; a click on a step opens the step's page, or, when the step asks on a card, that decision on Home.
 
-Under the tasks are the places that are not a task:
+**Without a chat · N** holds the tasks no chat started: a run from the form, from an intake rule, from `metator run new` in a terminal, or from CI. It shows only while there is one.
+
+**Closed (N)**, folded, holds the chats you closed. Closing a chat ends its terminal and never stops its tasks: they go on, and stay under that chat. **▸** unfolds the group; a closed chat's row reads `closed`. Nothing is ever deleted.
+
+Finished tasks are hidden. **Show finished (N)**, at the end of each chat and of **Without a chat**, shows them; a finished run reads `done`, and its line says how it ended (`done`, `aborted`), with the reason on hover.
+
+Under the chats are the places that are not a task:
 
 | Place | Shows |
 |---|---|
@@ -70,7 +77,7 @@ Under the tasks are the places that are not a task:
 | **Backlog** | tasks for later: agents' proposals and your own ([Plan and backlog](./plan.md)) |
 | **Settings** | the options, and under it **System** (the daemon, the dependencies, the system map) and **Reviews** ([Settings](#settings)) |
 
-At the bottom, **+ New run** opens a pane with the agent, and you tell it what you want; **Form…** beside it opens a form where you choose the workflow, host, autonomy and worktree yourself ([Start a task](./start.md)). With no run at all the main area offers the same: a field **Describe a task** with **Start**, and **Use the form**.
+At the bottom, **+ New chat** (key `n`) starts a chat: a new thread with its own terminal, where you tell the agent what you want; **Form…** beside it opens a form where you choose the workflow, host, autonomy and worktree yourself, and the run it starts is **Without a chat** ([Start a task](./start.md)). With no run at all the main area offers the same: a field **Describe a task** with **Start**, which starts a chat named after your words, and **Use the form**.
 
 When the daemon serves a folder of repositories, **Terminals**, **Backlog** and the parts of **Settings** show one repository at a time. Each has a **repository** select at the top; the choice is shared by these places and remembered. The page of a run always uses the run's own repository.
 
@@ -78,7 +85,7 @@ When the daemon serves a folder of repositories, **Terminals**, **Backlog** and 
 
 **Home** is the first screen. It shows one decision at a time: a big card with the question, or the plan to approve, and its answers. Above it, **3 waiting** says how many wait, with **‹ Previous** and **Next ›** (also `k` and `j`). Everything else about the decision is folded under **Details**: its ids, the evidence, what happened since you left, what each answer does, and the command your answer amounts to ([Answer questions](./inbox.md)).
 
-With nothing to decide, Home lists the open tasks in short, with their word and progress, the runs nothing drives with **Open a session** and **Drive in background**, and **Describe a task** to start a new one.
+With nothing to decide, Home lists the open tasks in short, with their word and progress (a task started in a chat has the chat's title before its name, dim: **Invoice discount · Add the discount to the invoice**), the runs nothing drives with **Open a session** and **Drive in background**, and **Describe a task** to start a new one.
 
 ## The page of a task
 
@@ -127,7 +134,7 @@ When you come back to the window after ten minutes away and a run's page is open
 
 | Key | Does |
 |---|---|
-| `n` | a new run: the pane with the agent |
+| `n` | a new chat: a thread with its own terminal and the agent |
 | `g` | the next run that needs you |
 | `j` `k`, `↓` `↑` | on Home, the next or the previous decision; elsewhere, move in a list: the tasks, the steps, the files |
 | `o` | the overview of the run, from a decision or on a run's page |

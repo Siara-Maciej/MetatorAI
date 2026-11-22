@@ -3,7 +3,6 @@ import { commandText } from "../src/model.ts";
 import {
   askWhy,
   changedWhy,
-  chatAgentOf,
   consentOf,
   dropText,
   forgetText,
@@ -16,15 +15,6 @@ import {
   scratchLine,
   scratchRepos,
 } from "../src/stage1.ts";
-
-describe("the chat's agent (round 13)", () => {
-  test("the repository's conversation agent when the daemon names one, else the agent of before", () => {
-    expect(chatAgentOf({ chatAgent: "mt-chat" })).toBe("mt-chat");
-    expect(chatAgentOf({ hosts: ["claude"] })).toBe("mt-orchestrator");
-    expect(chatAgentOf({ chatAgent: " " })).toBe("mt-orchestrator");
-    expect(chatAgentOf(undefined)).toBe("mt-orchestrator");
-  });
-});
 
 describe("the quick change's card (round 13)", () => {
   test("Open diff is no answer: only that choice alone opens the change", () => {

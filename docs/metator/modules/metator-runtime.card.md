@@ -36,4 +36,5 @@ Composition root: the awilix container, the typed Cradle and the JSON envelope. 
 ## Pitfalls
 
 - A new use case needs both a Cradle entry (`container.ts`) and a registration (`bootstrap.ts`); `test/every-key.test.ts` resolves every key and compares the two lists, so a missing one fails there, not at a user's `Could not resolve`.
+- `threads` is a singleton per repository container (it remembers which run events it already noted); its store takes the cross-process `fileLock`, because the daemon and `metator thread summary` write the same files.
 - The shipped canon is found relative to this package (`src/canon.ts`, three levels up); a packaged release must keep `metator/` and `.github/metator/workflows` at that place, or set `METATOR_CANON` (ADR-0049).
