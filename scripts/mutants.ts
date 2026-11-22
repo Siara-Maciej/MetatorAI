@@ -2260,8 +2260,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-copilot/src/copilot-agent-host.ts",
-    from: '      "--deny-tool",\n      "shell(git push)",\n',
-    to: "",
+    from: "denyToolsOf(this.guard, { headless: true })",
+    to: "denyToolsOf(this.guard, { headless: false })",
     why: "Copilot workers cannot push",
   },
   {
@@ -6524,8 +6524,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/plugin-host-copilot/src/copilot-host.ts",
-    from: "new CopilotInteractiveHost(terminal, bin)",
-    to: "new CopilotInteractiveHost(terminal)",
+    from: "new CopilotInteractiveHost(terminal, bin, process.env, guard)",
+    to: "new CopilotInteractiveHost(terminal, undefined, process.env, guard)",
     why: "the copilot program given is the one a session starts",
   },
   {
@@ -7040,7 +7040,7 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/application/pane-sensor.ts",
-    from: "this.d.broker.screen?.(paneId) ?? ",
+    from: "(await this.d.broker.screen?.(paneId)) ?? ",
     to: "",
     why: "the sensor reads the rendered screen, not the raw bytes",
   },
