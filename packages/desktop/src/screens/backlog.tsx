@@ -19,8 +19,10 @@ import {
   itemTone,
   itemWord,
   type ListRowOf,
+  pointsAt,
   rowSub,
   shownRoute,
+  whyDisabled,
 } from "../backlog.ts";
 import { Notice, RepoSelect } from "../components/common.tsx";
 import { Glyph } from "../components/glyph.tsx";
@@ -342,9 +344,15 @@ export function BacklogScreen({
             <span className={`pr ${current.priority}`}>{current.priority}</span>
             <span className="dim">labels</span> <span>{current.labels.join(", ") || "—"}</span>
           </div>
-          {current.refs.length > 0 ? (
-            <div className="dim mono">refs: {current.refs.map(issueRefText).join(" · ")}</div>
+          {/* What it points at: files as text, runs by their task (the plan's own run is under Plan). */}
+          {pointsAt(current).files.length > 0 ? (
+            <div className="dim mono">points at: {pointsAt(current).files.map(issueRefText).join(" · ")}</div>
           ) : null}
+          {pointsAt(current).runs.map((r) => (
+            <div key={r} className="dim">
+              from: <RunLink runId={r} repo={repo} onOpen={onOpenSession} />
+            </div>
+          ))}
           {current.runId ? (
             <div className="dim">
               run: <RunLink runId={current.runId} repo={repo} onOpen={onOpenSession} />
@@ -408,13 +416,11 @@ export function BacklogScreen({
             ) : null}
           </div>
           {/* Why a button cannot be pressed, in words: the badge says what, this says what to do. */}
-          {[buttons.plan, buttons.implement].map((b) =>
-            b?.disabled ? (
-              <div key={b.label} className="why amber" data-testid="why-disabled">
-                {b.label}: {b.disabled}
-              </div>
-            ) : null,
-          )}
+          {whyDisabled([buttons.plan, buttons.implement]).map((line) => (
+            <div key={line} className="why amber" data-testid="why-disabled">
+              {line}
+            </div>
+          ))}
           <AnalysisPart item={current} repo={repo} />
           <PlanPart item={current} repo={repo} onOpenRun={onOpenSession} />
           <ChildrenPart item={current} all={issues} onPick={setChosen} />

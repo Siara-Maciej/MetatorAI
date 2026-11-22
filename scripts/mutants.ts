@@ -8683,5 +8683,23 @@ export const MUTANTS: readonly Mutant[] = [
     from: "i.step?.plan === plan && i.step.stepId === stepId",
     to: "i.step?.stepId === stepId",
     why: "a step's Backlog part is the item of that plan's step",
+  },  {
+    file: "packages/desktop/src/backlog.ts",
+    from: "if (off.length > 1 && reasons.length === 1)",
+    to: "if (off.length > 0 && reasons.length === 1)",
+    why: "one disabled button keeps its name with its reason",
   },
+  {
+    file: "packages/desktop/src/backlog.ts",
+    from: "r.run !== undefined && !shown.has(r.run)",
+    to: "r.run !== undefined",
+    why: "the item's own run and its plan's run are not listed again under where it came from",
+  },
+  {
+    file: "packages/desktop/src/backlog.ts",
+    from: "files: item.refs.filter((r) => r.run === undefined),",
+    to: "files: item.refs,",
+    why: "run refs are links by their task, never raw ids in the text line",
+  },
+
 ];

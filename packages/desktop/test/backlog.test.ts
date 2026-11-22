@@ -19,6 +19,7 @@ import {
   OPEN_ITEM,
   PLAN_STEP,
   planLines,
+  pointsAt,
   REANALYSE,
   REVIEW_THEN_IMPLEMENT,
   rowSub,
@@ -27,6 +28,7 @@ import {
   stepDetail,
   stepsOfView,
   waitsText,
+  whyDisabled,
 } from "../src/backlog.ts";
 import {
   finishedText,
@@ -377,5 +379,56 @@ describe("a planned run (`--until plan`)", () => {
     expect(finishedText({ status: "planned", stage: "plan-approval", elapsedMs: 60_000 })).toContain(
       "Plan ready",
     );
+  });
+});
+
+describe("whyDisabled", () => {
+  test("buttons that share a reason say it once, without their names", () => {
+    const why = "its parts start one by one: implement them";
+    expect(
+      whyDisabled([
+        { label: "Make plan", disabled: why },
+        { label: "Implement", disabled: why },
+      ]),
+    ).toEqual(["Its parts start one by one: implement them"]);
+  });
+  test("different reasons keep each button's name; enabled buttons say nothing", () => {
+    expect(
+      whyDisabled([
+        { label: "Make plan", disabled: "the analysis is stale; re-analyse first" },
+        { label: "Implement", disabled: "waits for Price model" },
+        { label: "Analyse" },
+        undefined,
+      ]),
+    ).toEqual(["Make plan: the analysis is stale; re-analyse first", "Implement: waits for Price model"]);
+  });
+  test("one disabled button keeps its name", () => {
+    expect(whyDisabled([{ label: "Implement", disabled: "waits for A" }, { label: "Make plan" }])).toEqual([
+      "Implement: waits for A",
+    ]);
+  });
+});
+
+describe("pointsAt", () => {
+  test("files stay text; runs are listed once, without the item's own run or its plan's run", () => {
+    const got = pointsAt({
+      runId: "r-own",
+      plan: {
+        file: "plan.json",
+        at: "2026-11-22T00:00:00.000Z",
+        runId: "r-plan",
+        kind: "plan",
+      },
+      refs: [
+        { file: "src/a.ts", line: 3 },
+        { run: "r-plan" },
+        { run: "r-own" },
+        { run: "r-from", step: "S1" },
+        { run: "r-from" },
+        { note: "see review" },
+      ],
+    });
+    expect(got.files).toEqual([{ file: "src/a.ts", line: 3 }, { note: "see review" }]);
+    expect(got.runs).toEqual(["r-from"]);
   });
 });

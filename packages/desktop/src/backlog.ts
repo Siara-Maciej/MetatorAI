@@ -148,6 +148,33 @@ export function itemButtons(
   };
 }
 
+/**
+ * Why buttons cannot be pressed, one line each; buttons that share a reason say it once, without
+ * their names ("its parts start one by one: implement them", not twice).
+ */
+export function whyDisabled(buttons: readonly (ItemButton | undefined)[]): string[] {
+  const off = buttons.filter((b): b is ItemButton & { disabled: string } => b?.disabled !== undefined);
+  const reasons = [...new Set(off.map((b) => b.disabled))];
+  if (off.length > 1 && reasons.length === 1)
+    return [`${reasons[0]?.charAt(0).toUpperCase()}${reasons[0]?.slice(1)}`];
+  return off.map((b) => `${b.label}: ${b.disabled}`);
+}
+
+/**
+ * What an item points at, for its detail: file and note refs as text, and the runs it came from
+ * (shown by their task); the item's own run and its plan's run are shown elsewhere, not again.
+ */
+export function pointsAt(item: Pick<Issue, "refs" | "runId"> & Pick<BacklogItem, "plan">): {
+  readonly files: Issue["refs"];
+  readonly runs: string[];
+} {
+  const shown = new Set([item.runId, item.plan?.runId].filter((r): r is string => r !== undefined));
+  return {
+    files: item.refs.filter((r) => r.run === undefined),
+    runs: [...new Set(item.refs.flatMap((r) => (r.run !== undefined && !shown.has(r.run) ? [r.run] : [])))],
+  };
+}
+
 /* ---------- parents and children ---------- */
 
 /** A parent's children: what the daemon lists, else the items that name it as their parent. */
