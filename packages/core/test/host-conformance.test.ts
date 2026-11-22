@@ -165,6 +165,25 @@ describe("the HostConformance document and its report", () => {
     expect(mergeConformance(now, ["start"], undefined)).toEqual(now);
   });
 
+  test("mergeConformance: a check the machine could not hold was played: it is carried with its date, and the merged run still passes", () => {
+    const before = doc("claude", { ...all("pass"), "sandbox-deny-read": "skipped" });
+    const lacks = {
+      ...before,
+      checks: before.checks.map((c) =>
+        c.id === "sandbox-deny-read" ? { ...c, evidence: `${MACHINE_LACKS}: bwrap is not installed` } : c,
+      ),
+    };
+    const now = doc("claude", { ...all("skipped"), start: "pass" }, { endedAt: "2026-11-22T11:00:00.000Z" });
+    const merged = mergeConformance(now, ["start"], lacks);
+    const sandbox = merged.checks.find((c) => c.id === "sandbox-deny-read");
+    expect([sandbox?.result, sandbox?.from, sandbox?.evidence.startsWith(MACHINE_LACKS)]).toEqual([
+      "skipped",
+      lacks.endedAt,
+      true,
+    ]);
+    expect(conformancePassed(merged)).toBe(true);
+  });
+
   test("conformancePassed: every check passed; a skipped or failed one is no pass, nor is an empty run", () => {
     expect(conformancePassed(doc("claude", all("pass")))).toBe(true);
     expect(conformancePassed(doc("claude", { ...all("pass"), tell: "skipped" }))).toBe(false);

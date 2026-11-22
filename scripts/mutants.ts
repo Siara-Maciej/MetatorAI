@@ -4086,8 +4086,8 @@ export const MUTANTS: readonly Mutant[] = [
   },
   {
     file: "packages/core/src/domain/architecture-rules.ts",
-    from: 'else if (e.declared === "devDependencies" && !e.testOnly)',
-    to: 'else if (e.declared === "devDependencies")',
+    from: 'else if (e.declared === "devDependencies" && !e.testOnly && e.runtime > 0)',
+    to: 'else if (e.declared === "devDependencies" && e.runtime > 0)',
     why: "tests may import devDependencies",
   },
   {
@@ -9583,5 +9583,17 @@ export const MUTANTS: readonly Mutant[] = [
     from: 'const step = target > cursor ? "\\u001b[B" : "\\u001b[A";',
     to: 'const step = "\\u001b[A";',
     why: "an unnumbered trust menu is walked down to Yes, not up past it",
+  },
+  {
+    file: "packages/core/src/domain/host-conformance.ts",
+    from: "before.from === undefined &&\n        !before.evidence.startsWith(MACHINE_LACKS);",
+    to: "before.from === undefined;",
+    why: "a check skipped because the machine lacks a sandbox was played: --only carries it with its date",
+  },
+  {
+    file: "packages/core/src/domain/architecture-rules.ts",
+    from: 'e.declared === "devDependencies" && !e.testOnly && e.runtime > 0',
+    to: 'e.declared === "devDependencies" && !e.testOnly',
+    why: "a type-only import from devDependencies ships nothing: it is not dev-in-prod (ADR-0085)",
   },
 ];

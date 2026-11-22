@@ -81,7 +81,8 @@ const edges: ArchRule = (ctx) => {
           samplesOf(e),
         ),
       );
-    else if (e.declared === "devDependencies" && !e.testOnly)
+    // Only an import that runs ships the package; `import type` is erased at build (ADR-0085).
+    else if (e.declared === "devDependencies" && !e.testOnly && e.runtime > 0)
       out.push(
         violation(
           "dev-in-prod",

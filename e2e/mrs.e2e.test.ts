@@ -142,7 +142,13 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
     });
     expect(await Bun.file(repo.path("mcp.log")).exists()).toBe(false);
     // `send` records who decided: with no --by and no name anywhere it is refused, and nothing is sent.
-    const anonymous = { METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const anonymous = {
+      METATOR_USER: "",
+      USER: "",
+      USERNAME: "",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    };
     expect((await metator(["mrs", "send", ID], repo.root, anonymous)).code).toBe(64);
     expect(await Bun.file(repo.path("mcp.log")).exists()).toBe(false);
     const sent = data(await metator(["mrs", "send", ID, "--by", "maciej"], repo.root));
@@ -158,7 +164,13 @@ describe("metator mrs (real CLI, real MCP server process)", () => {
     );
     // Without --by the name is $METATOR_USER; with no name anywhere the command is refused.
     expect(data(await metator(["mrs", "send", ID], repo.root, { METATOR_USER: "maciej" })).sent).toEqual([]);
-    const nobody = { METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const nobody = {
+      METATOR_USER: "",
+      USER: "",
+      USERNAME: "",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    };
     for (const argv of [
       ["mrs", "send", ID],
       ["mrs", "resolve", ID, "--thread", "T1"],

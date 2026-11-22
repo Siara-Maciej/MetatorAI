@@ -99,7 +99,14 @@ describe("metator review changes|notes and open (real CLI)", () => {
       kind: "ReviewNotes",
       schemaVersion: 1,
     });
-    const nobody = { ...env, METATOR_USER: "", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const nobody = {
+      ...env,
+      METATOR_USER: "",
+      USER: "",
+      USERNAME: "",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+    };
     const refused = await metator(["review", "notes", "send", "--run", runId], repo.root, nobody);
     expect([refused.code, (refused.json.error as { message: string }).message]).toEqual([
       64,

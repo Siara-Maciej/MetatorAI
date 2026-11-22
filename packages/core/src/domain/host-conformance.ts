@@ -84,7 +84,12 @@ export function mergeConformance(
     checks: run.checks.map((c) => {
       if (played.includes(c.id)) return c;
       const before = previous.checks.find((p) => p.id === c.id);
-      if (!before || (before.result === "skipped" && before.from === undefined)) return c;
+      // Skipped because this machine lacks what the check needs is a check that was played.
+      const neverPlayed =
+        before?.result === "skipped" &&
+        before.from === undefined &&
+        !before.evidence.startsWith(MACHINE_LACKS);
+      if (!before || neverPlayed) return c;
       return { ...before, title: c.title, from: before.from ?? previous.endedAt };
     }),
   };
