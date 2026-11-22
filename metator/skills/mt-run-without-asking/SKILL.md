@@ -20,7 +20,7 @@ Every stage of a run, before a Bash call. A command a person must allow stops th
 | `$`, `$$` or a backtick in an argument's text (a trigger, evidence, a commit message) inside double quotes: the shell expands it | single quotes (`--trigger 'indent: "$$"'`; a `'` inside is written `'\''`) |
 | `python -c`, `node -e`, `jq`, `awk` on a file | Read the file (JSON too); `sed -n <a>,<b>p` for a range |
 | a script that edits `plan.json`, `merged.json` or code | Edit (one change per call) or Write the whole file |
-| `mkdir -p`, `cp`, `mv`, `cat > file <<EOF`, `printf > file` | Write: it creates the directories it needs |
+| `mkdir -p`, `cp`, `mv`, `cat > file <<EOF`, `printf > file` | Write: it creates the directories it needs; a Markdown run artifact: `metator run write <artifact> --run <run id> <<'EOF'` … `EOF` (step 4) |
 | `git add`, `git commit`, `git checkout`, `git stash`, `git -c …`, `git diff --output` at any stage before publish | nothing: those stages leave the change in the working tree; reading git (`status`, `log`, `show`, `diff`, `blame`, `grep`, `rev-parse`, `merge-base`, `ls-files`, `describe`, `branch --show-current`) runs without asking, also as `git -C <checkout>` |
 | (publish stage, after the delivery approval) committing and pushing the run's branch | do it: `git add -A`, `git commit -m "…"` (one `-m` per paragraph, or a quoted multi-line message), `git push -u origin <branch>` run without asking; never a force push, `--amend` or `--no-verify` |
 | a large diff dug out of a tool-result file | `metator review diff --base HEAD --out <run dir>/change.diff`, then Read it |
@@ -35,7 +35,7 @@ Every stage of a run, before a Bash call. A command a person must allow stops th
 | a gate check of your own (`debug-tags check`, `contract diff`, a test runner) at the gates stage | `metator gate full` only: the configuration decides the checks |
 
 3. Metator queries run without asking: `metator help`, `graph …`, `symbols find`, `similar`, `review diff|plan|metadata`, `findings schema|check-quote|validate`, `plan lint`, `run status|schema`, `api diff`, `system show|impact|sources`. A writing option (`--out`, `--write`, `--fix`) runs without asking only when your agent's definition names that command.
-4. Write run artifacts with Write into the run directory the prompt names (`.metator/runs/<run id>/…`), never into a `findings/` or other folder of the repository.
+4. Write a Markdown run artifact (`quick-review.md`, `build-log.md`) with exactly one command, a quoted here-document: `metator run write <artifact> --run <run id> <<'EOF'`, its text, then `EOF` alone on the last line; it runs without asking, also without a Write tool. Write a JSON artifact with Write into the run directory the prompt names (`.metator/runs/<run id>/…`). Never into a `findings/` or other folder of the repository.
 
 # Output
 No artifact: the commands you run, each in the form above.

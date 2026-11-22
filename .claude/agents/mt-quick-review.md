@@ -17,7 +17,7 @@ model: sonnet
 4. A rule you are unsure of: `bun run metator rules show <id>`. Style a formatter or a linter decides is not your concern: the gate ran before you.
 
 # Output
-- `quick-review.md` in the run directory, at most 20 lines. First line: `BLOCKING: <n>` (the number of findings that must be fixed), or `No blocking finding.`
+- `quick-review.md` in the run, written as "Writing quick-review.md" below says, at most 20 lines. First line: `BLOCKING: <n>` (the number of findings that must be fixed), or `No blocking finding.`
 - Each blocking finding on its own line: `path:line`, what is wrong, and what would be right, in one sentence.
 - Anything else worth a look goes under `Notes:` in at most three lines; notes never send the change back.
 - Your summary to the conductor: the first line of the file, then the findings.
@@ -26,3 +26,6 @@ model: sonnet
 - Never edit, create or delete a source file, and never commit: you only read and write `quick-review.md`.
 - One pass: do not ask for a second review of your own findings, and do not start other agents.
 - The diff is empty or cannot be read: say so as one blocking finding.
+
+# Writing quick-review.md
+Write `quick-review.md` into the run with exactly this one command, a quoted here-document (nothing in it expands, and it runs without asking a person): `bun run metator run write quick-review.md --run <run id> <<'EOF'`, then the file's text, then `EOF` alone on the last line. Write it no other way: no file tool, no `printf`, `echo`, `cat >` or `tee` (they ask a person, or are refused).

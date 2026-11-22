@@ -4,6 +4,7 @@ import {
   ATTACH_PANE,
   DEFAULT_PATHS,
   DriverLock,
+  GuardAsked,
   HostManifestCatalog,
   HostPrompts,
   InitRun,
@@ -16,11 +17,13 @@ import {
   WorkflowCatalog,
 } from "@metator/core";
 import {
+  CLAUDE_APPROVAL_COMMIT_SCREEN,
   CLAUDE_APPROVAL_MULTILINE_SCREEN,
   CLAUDE_APPROVAL_OPTIONS,
   CLAUDE_APPROVAL_RAW,
   CLAUDE_APPROVAL_TEXT,
   CLAUDE_BULLETED_REPLY_SCREEN,
+  CLAUDE_COMMIT_COMMAND,
   CLAUDE_MULTILINE_COMMAND,
   CLAUDE_NOT_A_QUESTION_SCREENS,
   CLAUDE_TEXT_QUESTION_SCREEN,
@@ -53,7 +56,9 @@ function world() {
   const lock = new DriverLock(repo, journal, clock);
   const questions = new PaneQuestions(clock);
   const typed: string[] = [];
+  const asked = new GuardAsked(fs, clock);
   const prompts = new HostPrompts({
+    guardReason: async (paneId, command) => (await asked.reasonFor(paneId, command))?.reason,
     sensor,
     journal,
     lock,
@@ -83,7 +88,7 @@ function world() {
   };
   const init = (task: string) =>
     new InitRun(new WorkflowCatalog(fs, DEFAULT_PATHS), repo, clock).execute({ workflow: "demo", task });
-  return { journal, questions, prompts, typed, start, init, clock, broker };
+  return { journal, questions, prompts, typed, start, init, clock, broker, asked };
 }
 
 describe("an agent that asks the person in words at the end of its turn", () => {
@@ -327,6 +332,33 @@ describe("host prompts in a pane without a run (the intake chat)", () => {
     chat.print(`${CLAUDE_APPROVAL_MULTILINE_SCREEN.split("\n").join("\r\n")}\r\n`);
     await w.prompts.tick();
     expect(w.questions.open()[0]?.command).toBe(CLAUDE_MULTILINE_COMMAND);
+  });
+
+  test("a host asks because MetatorAI's guard asked: the card carries the guard's reason, which the host's prompt does not show", async () => {
+    const w = world();
+    const why = "this commit holds debug changes: src/server.ts. Commit only when the person says so.";
+    // The chat's pre-tool hook asked about that commit (its command as the hook got it).
+    (await w.asked.record("w1:p1", CLAUDE_COMMIT_COMMAND, "ask", why))._unsafeUnwrap();
+    const chat = w.start("w1:p1", "claude");
+    chat.print(`${CLAUDE_APPROVAL_COMMIT_SCREEN.split("\n").join("\r\n")}\r\n`);
+    await w.prompts.tick();
+    const q = w.questions.open()[0];
+    expect([q?.command, q?.reason]).toEqual([CLAUDE_COMMIT_COMMAND, why]);
+    expect(q?.prompt).not.toContain("│");
+    // In a run's pane the same, on the run's question; another command has no reason of the guard's.
+    const run = (await w.init("Add discount"))._unsafeUnwrap();
+    (await w.asked.record("w2:p1", CLAUDE_COMMIT_COMMAND, "ask", why))._unsafeUnwrap();
+    w.start("w2:p1", "claude", run.runId).print(
+      `${CLAUDE_APPROVAL_COMMIT_SCREEN.split("\n").join("\r\n")}\r\n`,
+    );
+    const other = w.start("w2:p2", "claude", run.runId);
+    other.print(`${CLAUDE_APPROVAL_MULTILINE_SCREEN.split("\n").join("\r\n")}\r\n`);
+    await w.prompts.tick();
+    const asked = (await w.journal.questions(run.runId))._unsafeUnwrap();
+    expect(asked.map((x) => [x.command?.slice(0, 7), x.reason])).toEqual([
+      ["git add", why],
+      ["metator", undefined],
+    ]);
   });
 
   test("a run's pane with a host menu: the menu's choices are the card's options and the chosen one's key is typed", async () => {

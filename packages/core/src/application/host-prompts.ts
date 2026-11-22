@@ -35,6 +35,11 @@ export interface HostPromptsDependencies {
   readonly panes?: PaneQuestions;
   /** A pane's screen as rendered: an agent's question in words is read from its last message. */
   readonly rendered?: (paneId: string) => Promise<string | undefined>;
+  /**
+   * Why MetatorAI's guard asked about (or refused) this command in this pane lately, if it did: a
+   * host does not always show a hook's reason in its prompt, so the card says it.
+   */
+  readonly guardReason?: (paneId: string, command: string) => Promise<string | undefined>;
 }
 
 /** The roles whose panes run an agent that may ask the person in words (not shells, not gates). */
@@ -142,11 +147,15 @@ export class HostPrompts {
         // A host's numbered menu (Claude Code's approval): its choices are the card's, its prompt
         // the readable line the sensor gave; a choice is typed as its key.
         const menu = !asks && pane.menu && pane.menu.length > 0 && this.d.type ? pane.menu : undefined;
+        // The host asks because the guard did: the guard's reason, which the host's prompt leaves out.
+        const reason =
+          !asks && pane.command ? await this.d.guardReason?.(pane.paneId, pane.command) : undefined;
         const question = {
           source: asks ? ("agent" as const) : ("permission" as const),
           agent: asker,
           prompt: asks ? read.prompt : menu ? pane.reason : hostPromptText(asker, pane.paneId, pane.reason),
           ...(!asks && pane.command ? { command: pane.command } : {}),
+          ...(reason ? { reason } : {}),
           options: [
             ...(asks ? read.options.map((label) => ({ label })) : []),
             ...(menu ?? []).map((c) => ({ label: c.label })),

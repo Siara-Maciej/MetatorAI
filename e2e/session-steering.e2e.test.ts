@@ -191,4 +191,25 @@ describe("steering a task's sessions from its main chat (real daemon, scenario h
     // too: none of those was taken for the person talking to the worker directly.
     expect((await activity()).filter((t) => t.startsWith("told the chat"))).toHaveLength(1);
   }, 120_000);
+
+  test("a worker that ended: tell and interrupt are refused, nothing is sent, and the refusal lists the task's live sessions", async () => {
+    const pid = ((await api("/panes/w2:p3")).data as { pane: { live?: { pid: number } } }).pane.live?.pid;
+    process.kill(pid as number, "SIGKILL");
+    await until("the worker's session to end", async () => {
+      const live = ((await api("/panes/w2:p3")).data as { pane: { live?: { alive: boolean } } }).pane.live;
+      return live?.alive === false ? true : undefined;
+    });
+    const told = await mt("session", "tell", "w2:p3", "--text", "Also the README", "--by", "ana");
+    const error = told.json.error as { code: string; message: string; details: { live: Session[] } };
+    const name = basename(repo.root);
+    expect([told.code === 0, error.code]).toEqual([false, "TRANSITION_DENIED"]);
+    expect(error.message).toStartWith(
+      `the session in pane w2:p3 (${name}/mt-implementer, worker mt-implementer-1 of run ${runId}) ended: nothing was sent. The live sessions of its task: w1:p1 ${name}/mt-chat (the main chat, `,
+    );
+    expect(error.message).toContain(`w2:p2 ${name}/mt-orchestrator (conductor, `);
+    expect(error.details.live.map((l) => l.pane)).toEqual(["w1:p1", "w2:p2"]);
+    const cut = await mt("session", "interrupt", "w2:p3", "--text", "Stop", "--by", "ana");
+    expect((cut.json.error as { code: string }).code).toBe("TRANSITION_DENIED");
+    expect(await activity()).not.toContainEqual(expect.stringContaining("Also the README"));
+  }, 120_000);
 });

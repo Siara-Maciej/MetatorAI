@@ -112,6 +112,8 @@ export class RunJournal {
       readonly card?: DecisionCard;
       /** A host's permission prompt: the whole command it asks to run. */
       readonly command?: string;
+      /** A host's permission prompt the guard is why of: the guard's reason. */
+      readonly reason?: string;
     },
     pendingSince?: string,
   ): Promise<Result<Question, MetatorError>> {
@@ -140,6 +142,7 @@ export class RunJournal {
       askedAt: this.clock.now().toISOString(),
       ...(q.card ? { card: q.card } : {}),
       ...(q.command ? { command: q.command } : {}),
+      ...(q.reason ? { reason: q.reason } : {}),
     };
     const saved = await this.save(question);
     if (saved.isErr()) return err(saved.error);

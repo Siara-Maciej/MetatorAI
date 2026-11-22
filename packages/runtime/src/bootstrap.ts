@@ -89,6 +89,7 @@ import {
   GenerateSkills,
   GetRunStatus,
   GraphQueries,
+  GuardAsked,
   GuardConsents,
   GuardPostEdit,
   GuardPreTool,
@@ -687,6 +688,8 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
     ).singleton(),
     // What the daemon types into panes, kept for the hosts' user-prompt hooks (ADR-0093, ADR-0094).
     paneTyped: asFunction(({ fileSystem, clock }) => new PaneTyped(fileSystem, clock)).singleton(),
+    // Why the guard asked about a pane's command: the hook writes it, the daemon's cards read it.
+    guardAsked: asFunction(({ fileSystem, clock }) => new GuardAsked(fileSystem, clock)).singleton(),
     ptyBroker: asFunction(
       ({ runRepository, runJournal, config, clock, screenRenderer, paneTyped }) =>
         new PtyBroker({
@@ -737,9 +740,11 @@ export function bootstrap(options: BootstrapOptions): MetatorContainer {
         runRepository,
         openPrompts,
         paneQuestions,
+        guardAsked,
       }) =>
         new HostPrompts({
           panes: paneQuestions,
+          guardReason: async (paneId, command) => (await guardAsked.reasonFor(paneId, command))?.reason,
           rendered: (paneId) => ptyBroker.screen(paneId),
           sensor: paneSensor,
           journal: runJournal,

@@ -1,6 +1,7 @@
 import {
   type Agent,
   AgentDocument,
+  artifactSection,
   BODY_LINES,
   expandPartials,
   GENERATED_MARKER,
@@ -198,7 +199,8 @@ export class GenerateHosts {
     for (const g of hosts) {
       for (const { agent, body, source } of scan.agents) {
         const model = this.config.hosts.models[agent.tier]?.[g.host];
-        const file = g.agent(agent, body, {
+        const section = artifactSection(agent);
+        const file = g.agent(agent, section ? `${body.trimEnd()}\n${section}` : body, {
           source,
           metatorCommand: this.config.hosts.metatorCommand,
           ...(model ? { model } : {}),

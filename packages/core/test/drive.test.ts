@@ -203,7 +203,18 @@ describe("drive domain", () => {
     });
     expect(mine).toContain("Write only the artifact your own instructions name");
     expect(mine).not.toContain("Write these artifacts into");
-    expect(p).toContain("Write an artifact with your Write tool at /repo/.metator/runs/r/<artifact>");
+    // plan.json: the Write tool; a Markdown artifact: one quoted here-document of `metator run write`.
+    expect(p).toContain("Write `plan.json` with your Write tool at /repo/.metator/runs/r/plan.json");
+    const log = stagePrompt({
+      runId: "r",
+      task: "t",
+      stage: { id: "build", produces: ["build-log.md"] } as StageSpec,
+      agent: "mt-implementer",
+      skills: [],
+      runDir: "/repo/.metator/runs/r",
+    });
+    expect(log).toContain("`metator run write build-log.md --run r <<'EOF'`");
+    expect(log).not.toContain("Write tool");
   });
 
   test("notes about where the agent works go into its prompt", () => {

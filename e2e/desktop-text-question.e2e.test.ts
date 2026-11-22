@@ -130,9 +130,7 @@ describe("an agent's question in words, in the app (real daemon, real Chromium)"
     await page.goto(app("inbox"));
     const card = page.getByTestId("pane-ask-w1:p1");
     await card.waitFor({ timeout: 30_000 });
-    expect(await card.locator("h1").textContent()).toBe(
-      "The tests fail: the build has no currency field. Which option?",
-    );
+    expect(await card.locator("h1").textContent()).toBe("The tests fail: the build has no currency field.");
     expect(await card.getByTestId("pane-asker").textContent()).toContain(`(run ${runId})`);
     expect(await card.getByTestId("message-full").count()).toBe(0);
     await card.getByTestId("message-short").click();

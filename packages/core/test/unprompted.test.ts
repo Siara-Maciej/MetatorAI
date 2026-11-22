@@ -48,6 +48,8 @@ describe("unpromptedCommand: what runs without the host's approval prompt (guard
       'metator session tell w2:p3 --text "also update the README"',
       'metator run result --worker mt-implementer-1 --status done --summary "done; 2 files" --artifact build-log.md',
       "metator run write task.md <<'EOF'\n# Task\nRound the prices\nEOF",
+      // The form a worker's message prescribes for its Markdown artifact, word for word.
+      "metator run write quick-review.md --run 20261122-mt-quick-x <<'EOF'\nNo blocking finding.\nEOF",
     ])
       expect([command, why(command)]).toEqual([command, "MetatorAI's own command"]);
   });

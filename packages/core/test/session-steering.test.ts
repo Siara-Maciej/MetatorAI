@@ -212,6 +212,41 @@ describe("session tell: the person's words, relayed when the agent is idle", () 
   });
 });
 
+describe("session tell to a session that ended: refused, with the task's live sessions", () => {
+  test("nothing is sent or queued; the refusal names the ended worker and every live session of its task", async () => {
+    const w = await world();
+    (w.panes[3] as { ended?: unknown }).ended = { at: AT, reason: "collected" };
+    w.states.set("w2:p2", "working");
+    const refused = (
+      await w.steering.tell({ paneId: "w3:p4", text: "also the README", from: w.panes[0] as PaneView })
+    )._unsafeUnwrapErr();
+    expect([refused.code, refused.message]).toEqual([
+      "TRANSITION_DENIED",
+      `the session in pane w3:p4 (shop-api/mt-implementer, worker mt-implementer-1 of run ${w.child}) ended: nothing was sent. The live sessions of its task: w1:p1 shop-api/mt-chat (the main chat, idle), w2:p2 shop-api/mt-orchestrator (conductor, working), w3:p3 shop-api/mt-orchestrator (conductor, idle)`,
+    ]);
+    expect(refused.hint).toBe(
+      "Tell one of them (`metator session tell <pane> --text …`), or say to the person that this session ended.",
+    );
+    expect((refused.details as { live: { pane: string }[] }).live.map((l) => l.pane)).toEqual([
+      "w1:p1",
+      "w2:p2",
+      "w3:p3",
+    ]);
+    // Interrupt is refused the same way; nothing waits in the mail, nothing was typed.
+    const no = await w.steering.interrupt({ paneId: "w3:p4", text: "x", by: "ana" });
+    expect(no._unsafeUnwrapErr().message).toStartWith("the session in pane w3:p4 (");
+    expect((await w.mail.waiting())._unsafeUnwrap().size).toBe(0);
+    expect([w.typed, w.interrupted]).toEqual([[], []]);
+    // A session whose process exited (not collected) is ended too; with nothing live, it says so.
+    for (const p of w.panes) (p as { ended?: unknown }).ended = { at: AT, reason: "exited" };
+    expect(
+      (await w.steering.tell({ paneId: "w3:p3", text: "x", by: "ana" }))._unsafeUnwrapErr().message,
+    ).toBe(
+      `the session in pane w3:p3 (shop-api/mt-orchestrator, conductor of run ${w.child}) ended: nothing was sent. No session of its task is live.`,
+    );
+  });
+});
+
 describe("session interrupt: Esc, then the words", () => {
   test("at once, also while the agent works; refused like tell; recorded", async () => {
     const w = await world();

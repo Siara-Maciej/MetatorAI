@@ -180,6 +180,7 @@ export class Conductor {
           agent: input.agent,
           card: input.card.trim(),
           runDir,
+          produces: stage.produces ?? [],
         }),
       },
     });

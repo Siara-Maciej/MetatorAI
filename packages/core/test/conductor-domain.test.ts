@@ -146,6 +146,34 @@ describe("conductor domain", () => {
     expect(text).toContain("--status blocked --question");
   });
 
+  test("a worker's Markdown artifact: exactly one way to write it, a quoted here-document of `metator run write`; never the Write tool", () => {
+    const prompt = (produces: readonly string[]) =>
+      workerPrompt({
+        runId: "20261122-mt-quick-x",
+        worker: "mt-quick-review-1",
+        stage: "review",
+        agent: "mt-quick-review",
+        card: "Review the diff",
+        runDir: "/r/.metator/runs/20261122-mt-quick-x",
+        produces,
+      });
+    const review = prompt(["quick-review.md"]);
+    expect(review).toContain(
+      "Write `quick-review.md` into the run with exactly this one command, a quoted here-document (nothing in it expands, and it runs without asking a person): `metator run write quick-review.md --run 20261122-mt-quick-x <<'EOF'`, then the file's text, then `EOF` alone on the last line.",
+    );
+    expect(review).not.toContain("Write tool");
+    // The worker may run that one, and its report; nothing else of `metator run`.
+    expect(review).toContain("Besides `metator run write` and `metator run result`");
+    // A JSON artifact is written with the Write tool, its format from `metator run schema`.
+    const plan = prompt(["plan.json"]);
+    expect(plan).toContain(
+      "Write `plan.json` with your Write tool at /r/.metator/runs/20261122-mt-quick-x/plan.json",
+    );
+    expect(plan).not.toContain("<<'EOF'");
+    // Nothing to write: no artifact line at all.
+    expect(prompt([])).not.toMatch(/run write|Write tool/);
+  });
+
   test("a result document round-trips; a blocked one may carry a question", () => {
     const doc = WorkerResultDocument.stamp({
       worker: "mt-implementer-1",

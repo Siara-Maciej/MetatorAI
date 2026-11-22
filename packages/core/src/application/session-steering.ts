@@ -282,6 +282,33 @@ export class SessionSteering {
         );
   }
 
+  /**
+   * Why a session that ended cannot be told, with the live sessions of its task: nothing is sent
+   * or queued (a letter for an ended session reaches nobody), and the caller can pick another.
+   */
+  private async ended(pane: PaneView, runId: string): Promise<MetatorError> {
+    const task = (await this.taskOf(runId)).at(-1) as string;
+    const sessions = await this.list({ task });
+    const live = (sessions.isOk() ? sessions.value : []).filter(
+      (s) => s.pane !== pane.id && s.state !== "ended" && s.state !== "exited",
+    );
+    const who = pane.worker ? `worker ${pane.worker.name}` : pane.role;
+    const named = (s: SessionView) =>
+      `${s.pane} ${s.repo}/${s.agent} (${s.main ? "the main chat" : s.role}, ${s.state})`;
+    return new MetatorError(
+      "TRANSITION_DENIED",
+      `the session in pane ${pane.id} (${this.d.repoName}/${pane.process.kind === "host" ? pane.process.agent : pane.label}, ${who} of run ${runId}) ended: nothing was sent. ${
+        live.length > 0
+          ? `The live sessions of its task: ${live.map(named).join(", ")}`
+          : "No session of its task is live."
+      }`,
+      {
+        hint: "Tell one of them (`metator session tell <pane> --text …`), or say to the person that this session ended.",
+        details: { ended: pane.id, live },
+      },
+    );
+  }
+
   /** The session to steer and the words for it, or why not. */
   private async target(input: {
     readonly paneId: string;
@@ -297,8 +324,7 @@ export class SessionSteering {
     if (!pane) return err(MetatorError.notFound(`pane ${input.paneId}`));
     if (pane.process.kind !== "host" || !pane.runId)
       return err(MetatorError.usage(`pane ${pane.id} is no agent session of a run: nothing to tell`));
-    if (pane.ended || !pane.live?.alive)
-      return err(MetatorError.usage(`the session in pane ${pane.id} ended: nothing to tell`));
+    if (pane.ended || !pane.live?.alive) return err(await this.ended(pane, pane.runId));
     if (input.from) {
       const refused = await this.refusal(pane.id, input.from);
       if (refused) return err(refused);

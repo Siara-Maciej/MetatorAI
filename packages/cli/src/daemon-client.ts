@@ -87,7 +87,7 @@ export async function callDaemon<T>(
   const envelope = (await response.json().catch(() => ({}))) as {
     ok?: boolean;
     data?: T;
-    error?: { code?: string; message?: string; hint?: string };
+    error?: { code?: string; message?: string; hint?: string; details?: Record<string, unknown> };
   };
   if (envelope.ok && envelope.data !== undefined) return ok(envelope.data);
   const e = envelope.error ?? {};
@@ -97,6 +97,8 @@ export async function callDaemon<T>(
       e.message ?? `HTTP ${response.status}`,
       {
         ...(e.hint ? { hint: e.hint } : {}),
+        // What the daemon gave with its refusal (the live sessions, say) reaches the caller too.
+        ...(e.details ? { details: e.details } : {}),
       },
     ),
   );

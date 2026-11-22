@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isMarkdownArtifact, runWriteLine } from "./agent.ts";
 import { MetatorError } from "./errors.ts";
 import type { RunRecord } from "./run-record.ts";
 import type { HostUsage } from "./telemetry.ts";
@@ -207,14 +208,23 @@ const QuestionV3Schema = z.strictObject({
   card: DecisionCardSchema.optional(),
 });
 
-/** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
-export const QuestionSchema = z.strictObject({
+const QuestionV4Schema = z.strictObject({
   ...QuestionV3Schema.shape,
   /**
    * v4: a host's permission prompt names the command it asks to run, whole (its wrapped lines
    * joined); `prompt` stays the one-line summary that starts with it.
    */
   command: z.string().min(1).optional(),
+});
+
+/** A question to a person (`.metator/runs/<id>/questions/<id>.json`), answered in the same file. */
+export const QuestionSchema = z.strictObject({
+  ...QuestionV4Schema.shape,
+  /**
+   * v5: why the host's prompt asks, when MetatorAI's guard is why (`this commit holds debug
+   * changes: …`): the guard's own reason, which the host's prompt does not show.
+   */
+  reason: z.string().min(1).optional(),
 });
 export type Question = z.output<typeof QuestionSchema>;
 export type QuestionAnswer = NonNullable<Question["answer"]>;
@@ -226,9 +236,11 @@ export const QuestionDocument = defineDocument("Question", {
     { schema: QuestionV2Schema, fromPrevious: (previous) => previous },
     // Every v3 card field is optional: a v2 card is a v3 card that says less.
     { schema: QuestionV3Schema, fromPrevious: (previous) => previous },
+    // `command` is optional: a v3 question is a v4 one that names no command.
+    { schema: QuestionV4Schema, fromPrevious: (previous) => previous },
   ],
   latest: QuestionSchema,
-  // `command` is optional: a v3 question is a v4 one that names no command.
+  // `reason` is optional: a v4 question is a v5 one the guard gave no reason for.
   upgrade: (previous) => previous,
   hint: "Answer with `metator run answer <question> --choice <label> --by <name>`.",
 });
@@ -328,11 +340,7 @@ export function stagePrompt(input: StagePromptInput): string {
             "Write only the artifact your own instructions name; the others are not yours.",
           ]
         : [`Write these artifacts into ${input.runDir}: ${produces.join(", ")}.`]),
-    ...(produces.length > 0
-      ? [
-          `Write an artifact with your Write tool at ${input.runDir}/<artifact> (it needs no approval there). Only without a Write tool, and never for JSON, use \`metator run write <artifact>\` with the text on stdin. \`metator run schema <artifact>\` prints a JSON artifact's format.`,
-        ]
-      : []),
+    ...artifactLines(produces, input.runDir, input.runId),
     ...(input.skills.length > 0 ? [`Skills you may use: ${input.skills.join(", ")}.`] : []),
     "Run each `metator` command on its own: no `cd`, pipes, redirections or other commands in the same call (alone they need no approval). Look at files with Read, Glob and Grep.",
     "Read and change files, JSON included, with Read, Edit and Write: never with an interpreter or a script (`python`, `node`, `jq`), which asks a person every time.",
@@ -351,6 +359,19 @@ export function stagePrompt(input: StagePromptInput): string {
     "STATUS: nothing to do: <the evidence>",
   ];
   return `${lines.join("\n")}\n`;
+}
+
+/**
+ * How a stage's artifacts are written, one line each: a Markdown artifact with exactly one quoted
+ * here-document of `metator run write` (it runs without asking), a JSON artifact with the Write
+ * tool (its format from `metator run schema`).
+ */
+export function artifactLines(produces: readonly string[], runDir: string, runId: string): string[] {
+  return produces.map((a) =>
+    isMarkdownArtifact(a)
+      ? runWriteLine(a, runId)
+      : `Write \`${a}\` with your Write tool at ${runDir}/${a} (it needs no approval there); \`metator run schema ${a}\` prints its format.`,
+  );
 }
 
 /** A person's earlier answers: decisions the work follows, never defects to fail it for. */

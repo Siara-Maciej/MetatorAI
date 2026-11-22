@@ -98,6 +98,7 @@ These live under `.metator/`, which is git-ignored. They are derived or local, a
 | `Layout` | `.metator/layout.json` | the daemon: workspaces, tabs and panes, restored after a restart |
 | `DaemonInfo` | `.metator/daemon.json` | `metator serve`, while it runs |
 | `PaneTyped` | `.metator/typed/<pane>.json` | the daemon: a hash and a time for each line it typed into a pane (never the words), so a host's user-prompt hook can tell the daemon's lines from your own typing |
+| `GuardAsked` | `.metator/guard-asked/<pane>.json` | the `pre-tool` hook: why the guard asked about (or refused) a pane's command lately, with a hash of the command (never the command), so the card of your host's approval says why |
 | `PaneMail` | `.metator/pane-mail.json` | the daemon: lines that wait to be typed into an agent's session when it is idle (`metator session tell`, the note that you spoke to a session directly) |
 | `ScratchRecord` | `.metator/scratch/sNNN.json` | `metator scratch end`: one recorded change not meant for a commit, with its patch |
 | `ScratchOpen` | `.metator/scratch/open.json` | `metator scratch begin`, until `scratch end` |

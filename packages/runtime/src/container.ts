@@ -92,6 +92,7 @@ import type {
   GenerateSkills,
   GetRunStatus,
   GraphQueries,
+  GuardAsked,
   GuardConsents,
   GuardPostEdit,
   GuardPreTool,
@@ -377,6 +378,7 @@ export interface Cradle {
   chatNotices: ChatNotices;
   paneMail: PaneMail;
   paneTyped: PaneTyped;
+  guardAsked: GuardAsked;
   sessionSteering: SessionSteering;
   resumeNotices: ResumeNotices;
   taskRepository: TaskRepository;

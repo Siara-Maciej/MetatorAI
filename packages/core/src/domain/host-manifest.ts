@@ -201,6 +201,11 @@ const TRANSCRIPT = /^[●⎿✻✶✳✢✽·]/;
 const NEED = /requires? (your )?approval|needs? (your )?(approval|permission)|permission/i;
 /** The hints under or in a prompt: how to cancel or amend it, a tip about the host's modes. */
 const HINT = /^(esc to|press |tab to|ctrl\+|tip:)/i;
+/**
+ * The gutter Claude Code draws before each line of a command that runs over several lines (`│`,
+ * one column in): a frame, never part of the command.
+ */
+const GUTTER = /^\s{0,2}[│┃](?:\s|$)/;
 /** A dashed rule: Claude Code draws one above and one below the command it asks to run. */
 const DASHED = /^[╌┄┈]{3,}$/;
 
@@ -283,7 +288,8 @@ export function readHostPrompt(
 
 /**
  * The lines between the first two dashed rules of a dialog, as one command: the indent and frame
- * taken off, a line as wide as the rules (the terminal wrapped it) joined to the next as it is,
+ * (Claude Code's `│` gutter too) taken off, a line as wide as the rules (the terminal wrapped it)
+ * joined to the next as it is, a gutter line Claude Code wrapped at a word joined with a space,
  * any other line break kept. Undefined when the dialog has no such rules.
  */
 function commandBetweenRules(
@@ -299,15 +305,28 @@ function commandBetweenRules(
   const width = (raw[above] as string).trimEnd().length;
   const lines: number[] = [];
   for (let i = above + 1; i < below; i++) lines.push(i);
-  const body = lines.map((i) =>
-    (raw[i] as string)
-      .replace(/^[│┃|]/, "")
-      .replace(/^\s/, "")
-      .replace(/\s*[│┃|]?\s*$/, ""),
+  const guttered = lines.map((i) => GUTTER.test(raw[i] as string));
+  const body = lines.map((i, k) =>
+    guttered[k]
+      ? (raw[i] as string).replace(GUTTER, "").trimEnd()
+      : (raw[i] as string)
+          .replace(/^[│┃|]/, "")
+          .replace(/^\s/, "")
+          .replace(/\s*[│┃|]?\s*$/, ""),
   );
   let text = "";
   body.forEach((line, k) => {
-    if (k > 0) text += (raw[lines[k - 1] as number] as string).trimEnd().length >= width - 1 ? "" : "\n";
+    if (k > 0) {
+      const above = (raw[lines[k - 1] as number] as string).trimEnd().length;
+      // Behind the gutter Claude Code wraps at words: a line the next word would not have fit on.
+      const wrapped =
+        guttered[k - 1] &&
+        guttered[k] &&
+        body[k - 1] !== "" &&
+        line !== "" &&
+        above + 1 + (line.split(" ")[0] as string).length > width - 1;
+      text += wrapped ? " " : above >= width - 1 ? "" : "\n";
+    }
     text += line;
   });
   text = text.replace(/^\n+|\n+$/g, "");

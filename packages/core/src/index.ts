@@ -33,6 +33,7 @@ export * from "./application/gate-questions.ts";
 export * from "./application/golden-seed.ts";
 export * from "./application/graph-diff.ts";
 export * from "./application/guard.ts";
+export * from "./application/guard-asked.ts";
 export * from "./application/guard-consents.ts";
 export * from "./application/host-descriptors.ts";
 export * from "./application/host-files.ts";

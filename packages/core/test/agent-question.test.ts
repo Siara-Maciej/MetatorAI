@@ -238,6 +238,27 @@ describe("agentQuestionOf: an agent that ended its turn asking the person in wor
     expect(of("Is that new? What I saw:", "Tell me how to go on.")?.options).toEqual([]);
     // Nothing asks: a report.
     expect(of("What I saw:", "I go on with the build.")).toBeUndefined();
+    // Facts, or items that explain at length, are no choices for a cue after them either.
+    const facts = agentQuestionOf(
+      " ● Recorded.\n   - Changed file: src/a.ts\n   - Next step: the gate\n\n   Reply with yes to go on.\n\n❯",
+    );
+    expect([facts?.prompt, facts?.options]).toEqual(["Reply with yes to go on.", []]);
+    const long = agentQuestionOf(
+      " ● Two ways.\n   1. Rebuild it. It takes a minute. It needs the network.\n   2. Leave it.\n\n   Let me know which.\n\n❯",
+    );
+    expect([long?.prompt, long?.options]).toEqual(["Let me know which.", []]);
+    // The question the choices stand under is the prompt, not an earlier one.
+    expect(
+      agentQuestionOf(
+        " ● Is the cache stale? I think so.\n\n   Which way?\n   1. Rebuild.\n   2. Leave.\n\n❯",
+      )?.prompt,
+    ).toBe("Which way?");
+    // A cut message whose first visible line is the tail of an item's question: no prompt of it.
+    expect(
+      agentQuestionOf(
+        "     or at every stage?\n  2. Where do rates come from?\n\n  Once you answer, I start.\n\n❯",
+      )?.prompt,
+    ).toBe("Once you answer, I start.");
     // Items with blank lines between them are one list.
     expect(
       agentQuestionOf(" ● Which way?\n\n   1. Rebuild it.\n\n   2. Leave it.\n\n❯")?.options.map(

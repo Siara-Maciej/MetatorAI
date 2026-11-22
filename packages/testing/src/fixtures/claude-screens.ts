@@ -453,3 +453,57 @@ export const CLAUDE_CUT_REPORT_SCREEN = [
   "────────────────────────────────────────────────",
   "  ⏸ manual mode on · ? for shortcuts",
 ].join("\n");
+
+/**
+ * Claude Code's approval of a commit whose message runs over several lines, as the real chat drew
+ * it (2026-11-22, shot 012): every line of the command behind a `│` gutter, a blank line in the
+ * message. The card's heading read `│ git add … (debug) │ Co-Authored-By: …`.
+ */
+export const CLAUDE_APPROVAL_COMMIT_SCREEN = [
+  '● Bash(git add src/server.ts && git commit -m "Log sku in GET /prices handler (debug)…)',
+  "",
+  "─".repeat(100),
+  " Bash command",
+  " Commit the debug log line",
+  "╌".repeat(100),
+  ' │ git add src/server.ts && git commit -m "Log sku in GET /prices handler (debug)',
+  "  │",
+  ' │ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"',
+  "╌".repeat(100),
+  " This command requires approval",
+  " Do you want to proceed?",
+  " ❯ 1. Yes",
+  "   2. No",
+  "",
+  " Esc to cancel · Tab to amend",
+].join("\n");
+
+export const CLAUDE_COMMIT_COMMAND =
+  'git add src/server.ts && git commit -m "Log sku in GET /prices handler (debug)\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"';
+
+/**
+ * A real conductor's approval in a pane of 48 columns (2026-11-22, verbatim rows): Claude Code
+ * wraps the quoted card itself, at words, behind its `│` gutter; none of those breaks is in the
+ * command.
+ */
+export const CLAUDE_APPROVAL_GUTTER_WRAPPED_SCREEN = [
+  "─".repeat(48),
+  " Bash command",
+  " Delegate the review again with the write method",
+  "╌".repeat(48),
+  " │ metator run delegate review --agent",
+  ' │ mt-quick-review --card "Goal: write the',
+  " │ review artifact for the case-insensitive SKU",
+  " │ lookup change (working tree vs HEAD;",
+  " │ src/catalog.ts, src/server.ts,",
+  " │ test/server.test.ts). Summary of at most 6",
+  ' │ lines."',
+  "╌".repeat(48),
+  " This command requires approval",
+  " Do you want to proceed?",
+  " ❯ 1. Yes",
+  "   2. No",
+].join("\n");
+
+export const CLAUDE_GUTTER_WRAPPED_COMMAND =
+  'metator run delegate review --agent mt-quick-review --card "Goal: write the review artifact for the case-insensitive SKU lookup change (working tree vs HEAD; src/catalog.ts, src/server.ts, test/server.test.ts). Summary of at most 6 lines."';

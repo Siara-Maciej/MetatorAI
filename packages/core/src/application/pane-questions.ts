@@ -23,6 +23,11 @@ export interface PaneQuestion {
   readonly prompt: string;
   /** A host's permission prompt: the whole command it asks to run (`prompt` starts with it). */
   readonly command?: string;
+  /**
+   * A host's permission prompt MetatorAI's guard is why of: the guard's own reason (`this commit
+   * holds debug changes: …`), which the host's prompt does not show.
+   */
+  readonly reason?: string;
   /** An agent's question in words: its whole message, as the card shows it expanded. */
   readonly text?: string;
   readonly options: readonly { readonly label: string; readonly description?: string }[];

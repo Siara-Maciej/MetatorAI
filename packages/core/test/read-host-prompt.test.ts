@@ -1,9 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+  CLAUDE_APPROVAL_COMMIT_SCREEN,
+  CLAUDE_APPROVAL_GUTTER_WRAPPED_SCREEN,
   CLAUDE_APPROVAL_MULTILINE_SCREEN,
   CLAUDE_APPROVAL_REAL_SCREEN,
   CLAUDE_APPROVAL_TEXT,
   CLAUDE_APPROVAL_WRAPPED_SCREEN,
+  CLAUDE_COMMIT_COMMAND,
+  CLAUDE_GUTTER_WRAPPED_COMMAND,
   CLAUDE_MULTILINE_COMMAND,
   CLAUDE_WRAPPED_COMMAND,
 } from "@metator/testing";
@@ -51,6 +55,26 @@ describe("readHostPrompt: a host's prompt as one readable line and its numbered 
       'metator run delegate build --agent mt-implementer --card "Implement step S1: — This command requires approval',
     );
     expect(read.options.map((o) => o.label)).toEqual(["Yes", "No"]);
+  });
+
+  test("a command behind Claude's `│` gutter: no frame character in it, the message's own line breaks kept", () => {
+    const read = readHostPrompt(CLAUDE_APPROVAL_COMMIT_SCREEN, "Do you want to proceed?");
+    expect(read.command).toBe(CLAUDE_COMMIT_COMMAND);
+    expect(read.text).toBe(
+      'git add src/server.ts && git commit -m "Log sku in GET /prices handler (debug) — This command requires approval',
+    );
+    expect(read.text).not.toContain("│");
+  });
+
+  test("a quoted argument Claude wrapped at words behind its gutter is one line again, its words apart", () => {
+    const read = readHostPrompt(CLAUDE_APPROVAL_GUTTER_WRAPPED_SCREEN, "Do you want to proceed?");
+    expect(read.command).toBe(CLAUDE_GUTTER_WRAPPED_COMMAND);
+    // A short line followed by a word that fits after it is a break of the command's own.
+    const own = CLAUDE_APPROVAL_GUTTER_WRAPPED_SCREEN.replace(
+      ' │ mt-quick-review --card "Goal: write the',
+      ' │ mt-quick-review --card "Goal:\n │ write the',
+    );
+    expect(readHostPrompt(own, "Do you want to proceed?").command).toContain('"Goal:\nwrite the');
   });
 
   test("a command the terminal wrapped mid-name is one line again; a long prompt is cut at the bound", () => {

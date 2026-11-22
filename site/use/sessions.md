@@ -145,6 +145,14 @@ metator session interrupt w2:p3 --text "Stop: that is the wrong file"
 
 `tell` types your words into the session when its agent is idle. Until then they wait in a queue that survives the daemon; they are never typed over the agent's work, over its host's prompt, or over a question it asked. `interrupt` sends Esc first, then your words, then Enter. In a folder of repositories, name the pane's repository with `--repo`.
 
+A session that ended (a collected worker, a process that exited) cannot be told anything, and nothing is queued for it. `tell` and `interrupt` refuse with `TRANSITION_DENIED` and name the live sessions of its task, so you (or the chat) can pick another:
+
+```text
+the session in pane w2:p3 (shop-api/mt-implementer, worker mt-implementer-1 of run 20261122-mt-quick-…) ended: nothing was sent. The live sessions of its task: w1:p1 shop-api/mt-chat (the main chat, idle), w2:p2 shop-api/mt-orchestrator (conductor, working)
+```
+
+The same sessions are in the error's `details.live`, in the shape `session list` gives.
+
 Only the task's main chat (the pane the task was started from) or a person may steer; a conductor or a worker that tries is refused. What the chat relays is typed word for word behind `[metator] From the person, through the main chat: `, and from your own terminal behind `[metator] From the person (<name>): `. The run's activity records each line. A relayed line is never a consent to commit or push.
 
 When you type into a session's terminal yourself while the task has a main chat, the chat is told in one line: `[metator] The person told shop-api/mt-implementer directly: "<the first 200 characters>"`. This comes from the host's user-prompt hook, so the hooks must be installed (`metator setup` installs them; `metator generate --hooks` adds them later). The daemon's own lines (a relay, a nudge, a notice) and your answer to a card, typed into the session for you, reach the same hook and are not reported as direct talk: the daemon keeps a hash of every line it types (`.metator/typed/`).

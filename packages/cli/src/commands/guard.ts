@@ -1,4 +1,4 @@
-import { type HookResponse, type MetatorError, ok, type Result } from "@metator/core";
+import { type HookResponse, type MetatorError, ok, type Result, readHookInput } from "@metator/core";
 import type { Command } from "commander";
 import { meta } from "../command-meta.ts";
 import type { CommandContext, Outcome } from "../context.ts";
@@ -143,6 +143,22 @@ export function registerGuardCommands(
               ...(process.env.METATOR_RUN ? { run: process.env.METATOR_RUN } : {}),
               ...(typedBy ? { typedBy } : {}),
             });
+          // Why the guard asked about (or refused) a command in a pane: kept where the daemon
+          // works, for the card the host's own prompt becomes (Claude Code does not show it).
+          const command = readHookInput(given).input.command;
+          const decision = (result.isOk() ? result.value?.hookSpecificOutput : undefined) as
+            | { permissionDecision?: string; permissionDecisionReason?: string }
+            | undefined;
+          if (
+            name === "pre-tool" &&
+            pane &&
+            typeof command === "string" &&
+            (decision?.permissionDecision === "ask" || decision?.permissionDecision === "deny") &&
+            decision.permissionDecisionReason
+          )
+            await runs()
+              .resolve("guardAsked")
+              .record(pane, command, decision.permissionDecision, decision.permissionDecisionReason);
           await beat;
           await said;
           return answer(result, name);

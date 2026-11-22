@@ -20,7 +20,7 @@ output: { artifact: quick-review.md, summaryLines: 10 }
 4. A rule you are unsure of: `metator rules show <id>`. Style a formatter or a linter decides is not your concern: the gate ran before you.
 
 # Output
-- `quick-review.md` in the run directory, at most 20 lines. First line: `BLOCKING: <n>` (the number of findings that must be fixed), or `No blocking finding.`
+- `quick-review.md` in the run, written as "Writing quick-review.md" below says, at most 20 lines. First line: `BLOCKING: <n>` (the number of findings that must be fixed), or `No blocking finding.`
 - Each blocking finding on its own line: `path:line`, what is wrong, and what would be right, in one sentence.
 - Anything else worth a look goes under `Notes:` in at most three lines; notes never send the change back.
 - Your summary to the conductor: the first line of the file, then the findings.

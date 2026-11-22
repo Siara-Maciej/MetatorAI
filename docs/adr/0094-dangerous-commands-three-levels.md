@@ -25,6 +25,19 @@ Stan dzisiejszy:
 - **Commit jest zawsze decyzją osoby.**
 - **Odblokowanie:** słowo w czacie albo kliknięcie Yes/No. Oba sposoby działają.
 
+## Doprecyzowanie właściciela (2026-11-21): co przechodzi bez pytania hosta
+- Bez okna zgody hosta przechodzą tylko:
+  - komendy MetatorAI, oprócz tych, które zapisują decyzję osoby albo zmieniają blokady (`run approve`, `run answer`, `config set`, `setup` i podobne);
+  - komendy, które tylko czytają;
+  - edycje plików wewnątrz repozytorium (albo worktree runu);
+  - własne skrypty repozytorium do testów i budowania (`test`, `typecheck`, `lint`, `build` oraz kroki bramek z `gates`).
+- O resztę pyta host, tak jak pyta sam z siebie.
+- Ustawienie: `guard.prompts` w konfiguracji (`MetatorConfig` v14):
+  - `metator` (domyślne): hook `pre-tool` odpowiada `allow` z powodem dla powyższych;
+  - `host`: hook nic nie przepuszcza bez pytania.
+- Poziomy „nigdy” i „za zgodą” są sprawdzane przed tą listą i zawsze wygrywają. Łańcuch komend przechodzi tylko wtedy, gdy przechodzi każda jego część.
+- Reguły są zapisane raz, w domenie (`packages/core/src/domain/unprompted.ts`), i działają tak samo dla obu hostów.
+
 ## Konsekwencje
 - Poza runem kończy się „tryb swobodny” z ADR-0038 dla commita, pusha, merge'a i rebase'a: agent rozmowy ich nie wykona bez zgody osoby.
 - Lista przenosi się z kodu (`destructive`, `externalAction`) do konfiguracji. To nowa wersja dokumentu konfiguracji z migracją, a wartości domyślne muszą dać co najmniej dzisiejszą ochronę.
