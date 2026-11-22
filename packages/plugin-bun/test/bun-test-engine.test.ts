@@ -1,15 +1,20 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ruleEngineContract, ScriptedProcessRunner } from "@metator/testing";
 import { BunProcessRunner } from "../src/bun-process-runner.ts";
 import { BunTestEngine } from "../src/bun-test-engine.ts";
 
-const dirs: string[] = [];
-afterAll(async () => {
-  await Promise.all(dirs.map((d) => rm(d, { recursive: true, force: true })));
-});
+/**
+ * Every project of this file lives in one directory, removed when the tests end and also when the
+ * process exits early (a run that bails or is stopped): none is left in the system's temp.
+ */
+const root = mkdtempSync(join(tmpdir(), "metator-bun-test-engine-"));
+const clean = () => rmSync(root, { recursive: true, force: true });
+afterAll(clean);
+process.once("exit", clean);
 
 const PASSING = `import { expect, test } from "bun:test";
 test("every file is fine", () => expect([]).toEqual([]));
@@ -20,8 +25,7 @@ test("every command has an e2e test", () => expect(["graph cycles"]).toEqual([])
 `;
 
 async function project(files: Record<string, string>): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "metator-conformance-"));
-  dirs.push(dir);
+  const dir = await mkdtemp(join(root, "project-"));
   for (const [path, content] of Object.entries(files)) await Bun.write(join(dir, path), content);
   return dir;
 }
